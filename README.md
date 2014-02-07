@@ -1,6 +1,6 @@
 xgboost
 =======
-Creater: Tianqi Chen: tianqi.tchen@gmail.com
+Creater: Tianqi Chen: tianqi.tchen AT gmail
 
 General Purpose Gradient Boosting Library
 
