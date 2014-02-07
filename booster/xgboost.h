@@ -8,6 +8,7 @@
 #include <vector>
 #include "../utils/xgboost_utils.h"
 #include "../utils/xgboost_stream.h"
+#include "../utils/xgboost_config.h"
 #include "xgboost_data.h"
 
 /*! \brief namespace for xboost package */
@@ -44,8 +45,8 @@ namespace xgboost{
             virtual void SaveModel( utils::IStream &fo ) const = 0;
             /*!
              * \brief initialize solver before training, called before training
-             * this function is reserved for solver to allocate necessary space and do other preparations 
-             */        
+             * this function is reserved for solver to allocate necessary space and do other preparation 
+             */
             virtual void InitModel( void ) = 0;
         public:
             /*! 
@@ -96,4 +97,14 @@ namespace xgboost{
     };
 };
 
+namespace xgboost{
+    namespace booster{
+        /*! 
+         * \brief create a gradient booster, given type of booster
+         * \param booster_type type of gradient booster, can be used to specify implements
+         * \return the pointer to the gradient booster created
+         */
+        IBooster *create_booster( int booster_type );
+    };
+};
 #endif
