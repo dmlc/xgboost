@@ -10,7 +10,7 @@ OBJ = xgboost.o
 all: $(BIN) $(OBJ)
 export LDFLAGS= -pthread -lm 
 
-xgboost.o: booster/xgboost.cpp
+xgboost.o: booster/*.h booster/*.cpp
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
