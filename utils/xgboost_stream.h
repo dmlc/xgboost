@@ -4,12 +4,12 @@
 #include <cstdio>
 /*!
  * \file xgboost_stream.h
- * \brief general stream interface
+ * \brief general stream interface for serialization
  * \author Tianqi Chen: tianqi.tchen@gmail.com
  */
 namespace xgboost{
     namespace utils{
-        /*! \brief interface of stream I/O, used to serialize tensor data */
+        /*! \brief interface of stream I/O, used to serialize model */
         class IStream{
         public:
             /*! 
