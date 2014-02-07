@@ -12,6 +12,7 @@
 
 /*! \brief namespace for xboost package */
 namespace xgboost{
+    /*! \brief namespace for boosters */
     namespace booster{
         /*! \brief interface of a gradient boosting learner */
         class IBooster{
@@ -19,11 +20,12 @@ namespace xgboost{
             // interface for model setting and loading
             // calling procedure:
             //  (1) booster->SetParam to setting necessary parameters
-            //  (2) if it is first time usage of the model: call booster->
-            //   if new model to be trained, trainer->init_trainer
-            //   elseif just to load from file, trainer->load_model
-            //   trainer->do_boost
-            //   trainer->save_model
+            //  (2) if it is first time usage of the model: 
+            //          call booster->InitModel
+            //      else: 
+            //          call booster->LoadModel
+            //  (3) booster->DoBoost to update the model
+            //  (4) booster->Predict to get new prediction
             /*! 
              * \brief set parameters from outside 
              * \param name name of the parameter
@@ -59,7 +61,7 @@ namespace xgboost{
                                   const FMatrixS::Image &feats,
                                   const std::vector<unsigned> &root_index ) = 0;
             /*! 
-             * \brief predict values for given sparse feature
+             * \brief predict values for given sparse feature vector
              *   NOTE: in tree implementation, this is not threadsafe
              * \param feat vector in sparse format
              * \param rid root id of current instance, default = 0
@@ -70,7 +72,7 @@ namespace xgboost{
                 return 0.0f;
             }
             /*! 
-             * \brief predict values for given dense feature
+             * \brief predict values for given dense feature vector
              * \param feat feature vector in dense format
              * \param funknown indicator that the feature is missing
              * \param rid root id of current instance, default = 0
@@ -88,6 +90,7 @@ namespace xgboost{
              */        
             virtual void PrintInfo( FILE *fo ){}
         public:
+            /*! \brief virtual destructor */
             virtual ~IBooster( void ){}
         };    
     };

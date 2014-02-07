@@ -1,5 +1,6 @@
 #ifndef _XGBOOST_DATA_H_
 #define _XGBOOST_DATA_H_
+
 /*!
  * \file xgboost_data.h
  * \brief the input data structure for gradient boosting
@@ -24,7 +25,7 @@ namespace xgboost{
 namespace xgboost{
     namespace booster{
         /*! 
-         * \brief auxlilary feature matrix to store training instance, in sparse CSR format
+         * \brief feature matrix to store training instance, in sparse CSR format
          */
         class FMatrixS{
         public:
@@ -35,7 +36,7 @@ namespace xgboost{
                 /*! \brief array of feature value */
                 const bst_float *fvalue;
                 /*! \brief size of the data */
-                bst_int len;
+                bst_uint len;
             };
             /*! 
              * \brief remapped image of sparse matrix, 
@@ -89,12 +90,12 @@ namespace xgboost{
              *  \param feat sparse feature
              *  \param fstart start bound of feature
              *  \param fend   end bound range of feature
-             *  \return the row id addted
+             *  \return the row id of added line
              */
             inline size_t AddRow( const Line &feat, unsigned fstart = 0, unsigned fend = UINT_MAX ){
                 utils::Assert( feat.len >= 0, "sparse feature length can not be negative" );
                 unsigned cnt = 0;
-                for( int i = 0; i < feat.len; i ++ ){
+                for( unsigned i = 0; i < feat.len; i ++ ){
                     if( feat.findex[i] < fstart || feat.findex[i] >= fend ) continue;
                     findex.push_back( feat.findex[i] );
                     fvalue.push_back( feat.fvalue[i] );
@@ -103,11 +104,27 @@ namespace xgboost{
                 row_ptr.push_back( row_ptr.back() + cnt );
                 return row_ptr.size() - 2;
             }
+
+            /*! 
+             * \brief add a row to the matrix, with data stored in STL container
+             * \param findex feature index
+             * \param fvalue feature value
+             * \return the row id added line
+             */
+            inline size_t AddRow( const std::vector<bst_uint> &findex, 
+                                  const std::vector<bst_float> &fvalue ){
+                FMatrixS::Line l;
+                utils::Assert( findex.size() == fvalue.size() );
+                l.findex = &findex[0];
+                l.fvalue = &fvalue[0];
+                l.len = static_cast<bst_uint>( findex.size() );
+                return this->AddRow( l );
+            }
             /*! \brief get sparse part of current row */
             inline Line operator[]( size_t sidx ) const{
                 Line sp;
                 utils::Assert( !bst_debug || sidx < this->NumRow(), "row id exceed bound" );
-                sp.len = row_ptr[ sidx + 1 ] - row_ptr[ sidx ];
+                sp.len = static_cast<bst_uint>( row_ptr[ sidx + 1 ] - row_ptr[ sidx ] );
                 sp.findex = &findex[ row_ptr[ sidx ] ];
                 sp.fvalue = &fvalue[ row_ptr[ sidx ] ];
                 return sp;
