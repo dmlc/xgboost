@@ -4,9 +4,9 @@ Creater: Tianqi Chen: tianqi.tchen AT gmail
 
 General Purpose Gradient Boosting Library
 
-Intention: A stand-alone efficient library to do machine learning in functional space
+Goal: A stand-alone efficient library to do learning via boosting in functional space
 
-Planned key components (TODO):
+Planned key components:
 
 (1) Gradient boosting models: 
     - regression tree
@@ -17,11 +17,11 @@ Planned key components (TODO):
     - ranking
     - matrix factorization
     - structured prediction
-(3) OpenMP support for parallelization(optional)
+(3) OpenMP implementation(optional)
 
 File extension convention: 
 (1) .h are interface, utils anddata structures, with detailed comment; 
 (2) .cpp are implementations that will be compiled, with less comment; 
 (3) .hpp are implementations that will be included by .cpp, with less comment
 
-Parameters Usage: see wiki in github
+Parameters Usage: https://github.com/tqchen/xgboost/wiki

@@ -172,6 +172,7 @@ namespace xgboost{
         public:
             /*! 
              * \brief do gradient boost training for one step, using the information given
+             *        Note: content of grad and hess can change after DoBoost
              * \param grad first order gradient of each instance
              * \param hess second order gradient of each instance
              * \param feats features of each instance

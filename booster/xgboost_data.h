@@ -129,6 +129,40 @@ namespace xgboost{
                 sp.fvalue = &fvalue[ row_ptr[ sidx ] ];
                 return sp;
             }
+        public:
+            /*!
+             * \brief save data to binary stream 
+             *        note: since we have size_t in row_ptr, 
+             *              the function is not consistent between 64bit and 32bit machine
+             * \param fo output stream
+             */
+            inline void SaveBinary( utils::IStream &fo ) const{
+                size_t nrow = this->NumRow();
+                fo.Write( &nrow, sizeof(size_t) );
+                fo.Write( &row_ptr[0], row_ptr.size() * sizeof(size_t) );
+                if( findex.size() != 0 ){
+                    fo.Write( &findex[0] , findex.size() * sizeof(bst_uint) );
+                    fo.Write( &fvalue[0] , fvalue.size() * sizeof(bst_float) );
+                }
+            }
+            /*!
+             * \brief load data from binary stream 
+             *        note: since we have size_t in row_ptr, 
+             *              the function is not consistent between 64bit and 32bit machine
+             * \param fi output stream
+             */
+            inline void LoadBinary( utils::IStream &fi ){
+                size_t nrow;
+                utils::Assert( fi.Read( &nrow, sizeof(size_t) ) != 0, "Load FMatrixS" );
+                row_ptr.resize( nrow + 1 );
+                utils::Assert( fi.Read( &row_ptr[0], row_ptr.size() * sizeof(size_t) ), "Load FMatrixS" );
+
+                findex.resize( row_ptr.back() ); fvalue.resize( row_ptr.back() );                
+                if( findex.size() != 0 ){
+                    utils::Assert( fi.Read( &findex[0] , findex.size() * sizeof(bst_uint) ) , "Load FMatrixS" );
+                    utils::Assert( fi.Read( &fvalue[0] , fvalue.size() * sizeof(bst_float) ), "Load FMatrixS" );
+                }
+            }
         };
     };
 };
