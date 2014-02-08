@@ -53,7 +53,7 @@ namespace xgboost{
                 /*! \brief type of tree used */
                 int booster_type;
                 /*! \brief number of root: default 0, means single tree */
-                int num_root;
+                int num_roots;
                 /*! \brief number of features to be used by boosters */
                 int num_feature;
                 /*! \brief size of predicton buffer allocated for buffering boosting computation */
@@ -69,7 +69,7 @@ namespace xgboost{
                 Param( void ){
                     num_boosters = 0; 
                     booster_type = 0;
-                    num_root = num_feature = 0;                    
+                    num_roots = num_feature = 0;                    
                     do_reboost = 0;
                     num_pbuffer = 0;
                     memset( reserved, 0, sizeof( reserved ) );     
@@ -83,7 +83,7 @@ namespace xgboost{
                     if( !strcmp("booster_type", name ) )     booster_type = atoi( val );
                     if( !strcmp("num_pbuffer", name ) )      num_pbuffer = atoi( val );
                     if( !strcmp("do_reboost", name ) )       do_reboost  = atoi( val );
-                    if( !strcmp("bst:num_root", name ) )     num_root = atoi( val );
+                    if( !strcmp("bst:num_roots", name ) )    num_roots = atoi( val );
                     if( !strcmp("bst:num_feature", name ) )  num_feature = atoi( val );
                 }
             };
@@ -98,8 +98,11 @@ namespace xgboost{
              * \param val  value of the parameter
              */
             inline void SetParam( const char *name, const char *val ){
-                if( strncmp( name, "bst:", 4 ) == 0 ){
+                if( !strncmp( name, "bst:", 4 ) ){
                     cfg.PushBack( name + 4, val );
+                }
+                if( !strcmp( name, "silent") ){
+                    cfg.PushBack( name, val );
                 }
                 if( boosters.size() == 0 ) param.SetParam( name, val );
             }

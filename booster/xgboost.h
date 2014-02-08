@@ -3,6 +3,7 @@
 /*!
  * \file xgboost.h
  * \brief the general gradient boosting interface
+ * 
  * \author Tianqi Chen: tianqi.tchen@gmail.com
  */
 #include <vector>
