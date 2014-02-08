@@ -9,5 +9,19 @@
 #include <climits>
 #include "xgboost.h"
 #include "../utils/xgboost_utils.h"
+#include "../gbm-base/xgboost_base_model.h"
+namespace xgboost{
+    namespace booster{
+        /*! 
+         * \brief create a gradient booster, given type of booster
+         * \param booster_type type of gradient booster, can be used to specify implements
+         * \return the pointer to the gradient booster created
+         */
+        IBooster *CreateBooster( int booster_type ){
+            // TODO
+            return NULL;
+        }
+    };
+};
 
 
