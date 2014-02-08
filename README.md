@@ -6,7 +6,7 @@ General Purpose Gradient Boosting Library
 
 Goal: A stand-alone efficient library to do learning via boosting in functional space
 
-Existing interesting features:
+Features:
 (1) Sparse feature format, handling of missing features. This allows efficient categorical feature encoding as indicators. The speed of booster only depens on number of existing features.
 (2) Layout of gradient boosting algorithm to support generic tasks, see project wiki.
 
