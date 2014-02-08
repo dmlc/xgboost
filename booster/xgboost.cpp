@@ -9,7 +9,7 @@
 #include <climits>
 #include "xgboost.h"
 #include "../utils/xgboost_utils.h"
-#include "../gbm-base/xgboost_base_model.h"
+#include "xgboost_gbmbase.h"
 namespace xgboost{
     namespace booster{
         /*! 
