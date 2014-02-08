@@ -21,8 +21,7 @@ namespace xgboost{
          * \return the pointer to the gradient booster created
          */
         IBooster *CreateBooster( int booster_type ){
-            // TODO
-            return NULL;
+            return new RTreeTrainer();
         }
     };
 };
