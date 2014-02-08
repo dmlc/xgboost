@@ -104,7 +104,7 @@ namespace xgboost{
          * \param booster_type type of gradient booster, can be used to specify implements
          * \return the pointer to the gradient booster created
          */
-        IBooster *create_booster( int booster_type );
+        IBooster *CreateBooster( int booster_type );
     };
 };
 #endif
