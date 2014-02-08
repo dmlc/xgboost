@@ -23,3 +23,5 @@ File extension convention:
 (1) .h are interface, utils anddata structures, with detailed comment; 
 (2) .cpp are implementations that will be compiled, with less comment; 
 (3) .hpp are implementations that will be included by .cpp, with less comment
+
+Parameters Usage: see wiki in github
