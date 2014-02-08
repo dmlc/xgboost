@@ -1,25 +1,35 @@
-#ifndef _XGBOOST_BASE_MODEL_H_
-#define _XGBOOST_BASE_MODEL_H_
+#ifndef _XGBOOST_GBMBASE_H_
+#define _XGBOOST_GBMBASE_H_
 
 #include <cstring>
-#include "../booster/xgboost.h"
+#include "xgboost.h"
 #include "../utils/xgboost_config.h"
 /*!
- * \file xgboost_base_model.h
+ * \file xgboost_gbmbase.h
  * \brief a base model class, 
  *        that assembles the ensembles of booster together and do model update
  *        this class can be used as base code to create booster variants 
+ *
+ *        The detailed implementation of boosters should start by using the class
+ *        provided by this file
+ *        
  * \author Tianqi Chen: tianqi.tchen@gmail.com
  */
 namespace xgboost{
-    /*! \brief namespace for base class library */
-    namespace gbm_base{
+    namespace booster{
         /*!
          * \brief a base model class, 
          *        that assembles the ensembles of booster together and provide single routines to do prediction buffer and update
          *        this class can be used as base code to create booster variants 
+         *
+         *  relation to xgboost.h:
+         *    (1) xgboost.h provides a interface to a single booster(e.g. a single regression tree )
+         *        while GBMBaseModel builds upon IBooster to build a class that 
+         *        ensembls the boosters together;
+         *    (2) GBMBaseModel provides prediction buffering scheme to speedup training;
+         *    (3) Summary: GBMBaseModel is a standard wrapper for boosting ensembles;
          */
-        class BaseGBMModel{
+        class GBMBaseModel{
         public:
             /*! \brief model parameters */
             struct Param{
@@ -64,7 +74,7 @@ namespace xgboost{
             };
         public:
             /*! \brief destructor */
-            virtual ~BaseGBMModel( void ){
+            virtual ~GBMBaseModel( void ){
                 this->FreeSpace();
             }
             /*! 
