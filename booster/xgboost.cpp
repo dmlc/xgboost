@@ -10,6 +10,9 @@
 #include "xgboost.h"
 #include "../utils/xgboost_utils.h"
 #include "xgboost_gbmbase.h"
+// implementations of boosters
+#include "tree/xgboost_svdf_tree.hpp"
+
 namespace xgboost{
     namespace booster{
         /*! 
