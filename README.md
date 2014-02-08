@@ -24,4 +24,4 @@ File extension convention:
 (2) .cpp are implementations that will be compiled, with less comment; 
 (3) .hpp are implementations that will be included by .cpp, with less comment
 
-Parameters Usage: https://github.com/tqchen/xgboost/wiki
+See also: https://github.com/tqchen/xgboost/wiki
