@@ -51,7 +51,8 @@ namespace xgboost{
         inline void Warning( const char *msg ){
             fprintf( stderr, "warning:%s\n",msg );
         }
-        /*! \brief replace fopen, report error when the file open fails */        
+
+        /*! \brief replace fopen, report error when the file open fails */
         inline FILE *FopenCheck( const char *fname , const char *flag ){
             FILE *fp = fopen64( fname , flag );
             if( fp == NULL ){

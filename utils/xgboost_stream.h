@@ -9,7 +9,9 @@
  */
 namespace xgboost{
     namespace utils{
-        /*! \brief interface of stream I/O, used to serialize model */
+        /*! 
+         * \brief interface of stream I/O, used to serialize model 
+         */
         class IStream{
         public:
             /*! 
