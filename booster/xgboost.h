@@ -51,7 +51,8 @@ namespace xgboost{
             virtual void InitModel( void ) = 0;
         public:
             /*! 
-             * \brief do gradient boost training for one step, using the information given
+             * \brief do gradient boost training for one step, using the information given, 
+             *        Note: content of grad and hess can change after DoBoost
              * \param grad first order gradient of each instance
              * \param hess second order gradient of each instance
              * \param feats features of each instance
@@ -64,7 +65,7 @@ namespace xgboost{
                                   const std::vector<unsigned> &root_index ) = 0;
             /*! 
              * \brief predict values for given sparse feature vector
-             *   NOTE: in tree implementation, this is not threadsafe
+             *   NOTE: in tree implementation, this is not threadsafe, used dense version to ensure threadsafety
              * \param feat vector in sparse format
              * \param rid root id of current instance, default = 0
              * \return prediction 
