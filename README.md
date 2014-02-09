@@ -14,7 +14,7 @@ Features:
 Planned key components:
 
 (1) Gradient boosting models: 
-    - regression tree
+    - regression tree (GBRT)
     - linear model/lasso
 (2) Objectives to support tasks: 
     - regression
