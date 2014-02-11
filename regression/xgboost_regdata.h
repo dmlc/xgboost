@@ -38,22 +38,30 @@ namespace xgboost{
             inline void LoadText( const char* fname, bool silent = false ){
                 data.Clear();
                 FILE* file = utils::FopenCheck( fname, "r" );
-                float label;
-                int nonzero_dimension;
+                float label; bool init = true;
+                char tmp[ 1024 ];
                 std::vector<booster::bst_uint> findex;
                 std::vector<booster::bst_float> fvalue;
                 
-                while( fscanf(file,"%f %d",&label,&nonzero_dimension) == 2 ){
-                    findex.clear(); fvalue.clear();
-                    for( int i = 0; i < nonzero_dimension; i++ ){
-                        unsigned index; float value;
-                        utils::Assert( fscanf(file, "%d:%f", &index, &value ) == 2,                                      
-                                       "The feature dimension is not coincident with the indicated one" );
-                        findex.push_back(index); fvalue.push_back(value);
+                while( fscanf( file, "%s", tmp ) == 1 ){
+                    unsigned index; float value;
+                    if( sscanf( tmp, "%u:%f", &index, &value ) == 2 ){
+                        findex.push_back( index ); fvalue.push_back( value );
+                    }else{
+                        if( !init ){
+                            labels.push_back( label );
+                            data.AddRow( findex, fvalue );
+                        }
+                        findex.clear(); fvalue.clear();
+                        utils::Assert( sscanf( tmp, "%f", &label ) == 1, "invalid format" );
+                        init = false;
                     }
-                    data.AddRow( findex, fvalue );
-                    labels.push_back( label );
                 }
+                if( init ){
+                    labels.push_back( label );
+                    data.AddRow( findex, fvalue );
+                }
+                
                 this->UpdateInfo();
                 if( !silent ){
                     printf("%ux%u matrix with %lu entries is loaded from %s\n", 
