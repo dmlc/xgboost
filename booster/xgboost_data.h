@@ -78,6 +78,13 @@ namespace xgboost{
             inline size_t NumRow( void ) const{
                 return row_ptr.size() - 1;
             }
+            /*! 
+             * \brief get number of nonzero entries
+             * \return number of nonzero entries
+             */
+            inline size_t NumEntry( void ) const{
+                return findex.size();
+            }
             /*! \brief clear the storage */
             inline void Clear( void ){
                 row_ptr.resize( 0 );
@@ -164,6 +171,7 @@ namespace xgboost{
                 }
             }
         };
-    };
+    };    
 };
+
 #endif
