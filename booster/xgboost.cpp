@@ -13,6 +13,7 @@
 // implementations of boosters
 #include "tree/xgboost_svdf_tree.hpp"
 #include "linear/xgboost_linear.hpp"
+#include "../regression/xgboost_reg.h"
 
 namespace xgboost{
     namespace booster{
