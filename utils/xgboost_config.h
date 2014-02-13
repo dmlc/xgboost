@@ -10,6 +10,7 @@
 #include <cstring>
 #include <string>
 #include "xgboost_utils.h"
+#include <vector>
 
 namespace xgboost{
     namespace utils{

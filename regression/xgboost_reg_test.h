@@ -12,8 +12,20 @@
 using namespace xgboost::utils;
 namespace xgboost{
 	namespace regression{
+		/*!
+		* \brief wrapping the testing process of the gradient 
+		         boosting regression model,given the configuation
+		* \author Kailong Chen: chenkl198812@gmail.com
+		*/
 		class RegBoostTest{
 		public:
+			/*!
+			* \brief to start the testing process of gradient boosting regression
+			*        model given the configuation, and finally save the prediction
+			*        results to the specified paths.
+			* \param config_path the location of the configuration
+			* \param silent whether to print feedback messages
+			*/
 			void test(char* config_path,bool silent = false){
 				reg_boost_learner = new xgboost::regression::RegBoostLearner(silent);
 				ConfigIterator config_itr(config_path);
