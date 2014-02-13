@@ -10,10 +10,23 @@
 #include"../utils/xgboost_string.h"
 
 using namespace xgboost::utils;
+
 namespace xgboost{
 	namespace regression{
+		/*!
+		* \brief wrapping the training process of the gradient 
+		         boosting regression model,given the configuation
+		* \author Kailong Chen: chenkl198812@gmail.com
+		*/
 		class RegBoostTrain{
 		public:
+			/*!
+			* \brief to start the training process of gradient boosting regression
+			*        model given the configuation, and finally saved the models
+			*        to the specified model directory
+			* \param config_path the location of the configuration
+			* \param silent whether to print feedback messages
+			*/
 			void train(char* config_path,bool silent = false){
 				reg_boost_learner = new xgboost::regression::RegBoostLearner(silent);
 				ConfigIterator config_itr(config_path);
@@ -39,28 +52,31 @@ namespace xgboost{
 
 				//begin training
 				reg_boost_learner->InitTrainer();
-				char model_path[256];
+				char suffix[256];
 				for(int i = 1; i <= train_param.boost_iterations; i++){
 					reg_boost_learner->UpdateOneIter(i);
-					//save the models during the iterations
 					if(train_param.save_period != 0 && i % train_param.save_period == 0){
-						sscanf(model_path,"%s/%d.model",train_param.model_dir_path,i);
-						FILE* file = fopen(model_path,"w");
-						FileStream fin(file);
-						reg_boost_learner->SaveModel(fin);
-						fin.Close();
+						sscanf(suffix,"%d.model",i);
+						SaveModel(suffix);
 					}
 				}
 
-				//save the final model
-				sscanf(model_path,"%s/final.model",train_param.model_dir_path);
+				//save the final round model
+				SaveModel("final.model");
+			}
+
+		private:
+			/*! \brief save model in the model directory with specified suffix*/
+			void SaveModel(const char* suffix){
+				char model_path[256];
+				//save the final round model
+				sscanf(model_path,"%s/%s",train_param.model_dir_path,suffix);
 				FILE* file = fopen(model_path,"w");
 				FileStream fin(file);
 				reg_boost_learner->SaveModel(fin);
 				fin.Close();
-
 			}
-		private:
+
 			struct TrainParam{
 				/* \brief upperbound of the number of boosters */
 				int boost_iterations;
@@ -99,7 +115,10 @@ namespace xgboost{
 				}
 			};
 
+			/*! \brief the parameters of the training process*/
 			TrainParam train_param;
+			
+			/*! \brief the gradient boosting regression tree model*/
 			xgboost::regression::RegBoostLearner* reg_boost_learner;
 		};
 	}

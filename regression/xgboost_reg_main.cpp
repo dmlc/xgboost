@@ -1,4 +1,4 @@
-#include"xgbooost_reg_train.h"
+#include"xgboost_reg_train.h"
 #include"xgboost_reg_test.h"
 using namespace xgboost::regression;
 
