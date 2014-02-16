@@ -5,6 +5,7 @@
  * \brief simple utils to support the code
  * \author Tianqi Chen: tianqi.tchen@gmail.com
  */
+
 #define _CRT_SECURE_NO_WARNINGS
 #ifdef _MSC_VER
 #define fopen64 fopen

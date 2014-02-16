@@ -5,7 +5,7 @@ using namespace xgboost::regression;
 int main(int argc, char *argv[]){
 //	char* config_path = argv[1];
 //	bool silent = ( atoi(argv[2]) == 1 );
-	char* config_path = "c:\\cygwin64\\home\\chen\\github\\gboost\\demo\\regression\\reg.conf";
+	char* config_path = "c:\\cygwin64\\home\\chen\\github\\xgboost\\demo\\regression\\reg.conf";
 	bool silent = false;
 	RegBoostTrain train;
 	RegBoostTest test;
