@@ -30,6 +30,13 @@ namespace xgboost{
         public:
             /*! \brief default constructor */
             DMatrix( void ){}
+
+			
+			/*! \brief get the number of instances */
+			inline int size() const{
+				return labels.size();
+			}
+
             /*! 
              * \brief load from text file 
              * \param fname name of text data

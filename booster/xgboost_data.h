@@ -9,6 +9,7 @@
 
 #include <vector>
 #include "../utils/xgboost_utils.h"
+#include "../utils/xgboost_stream.h"
 
 namespace xgboost{
     namespace booster{
@@ -143,7 +144,7 @@ namespace xgboost{
              *              the function is not consistent between 64bit and 32bit machine
              * \param fo output stream
              */
-            inline void SaveBinary( utils::IStream &fo ) const{
+			inline void SaveBinary(utils::IStream &fo ) const{
                 size_t nrow = this->NumRow();
                 fo.Write( &nrow, sizeof(size_t) );
                 fo.Write( &row_ptr[0], row_ptr.size() * sizeof(size_t) );

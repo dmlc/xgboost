@@ -1,4 +1,4 @@
-xgboost
+xgboost: A Gradient Boosting Library
 =======
 Creater: Tianqi Chen: tianqi.tchen AT gmail
 
@@ -7,16 +7,16 @@ General Purpose Gradient Boosting Library
 Goal: A stand-alone efficient library to do learning via boosting in functional space
 
 Features:
-(1) Sparse feature format, handling of missing features. This allows efficient categorical feature encoding as indicators. The speed of booster only depens on number of existing features.
-(2) Layout of gradient boosting algorithm to support generic tasks, see project wiki.
+* Sparse feature format, handling of missing features. This allows efficient categorical feature encoding as indicators. The speed of booster only depends on number of existing features.
+* Layout of gradient boosting algorithm to support generic tasks, see project wiki.
 
 
 Planned key components:
 
-(1) Gradient boosting models: 
+* Gradient boosting models: 
     - regression tree (GBRT)
     - linear model/lasso
-(2) Objectives to support tasks: 
+* Objectives to support tasks: 
     - regression
     - classification
     - ranking
