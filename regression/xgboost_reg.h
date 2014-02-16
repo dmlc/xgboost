@@ -52,7 +52,8 @@ namespace xgboost{
 						buffer_size += (*evals[i]).size();
 					}
 					char str[25];
-					itoa(buffer_size,str,10);
+					_itoa(buffer_size,str,10);
+					base_model.SetParam("num_pbuffer",str);
 					base_model.SetParam("num_pbuffer",str);
 			}
 
@@ -71,6 +72,7 @@ namespace xgboost{
 			*/
 			inline void InitTrainer( void ){
 				base_model.InitTrainer();
+				InitModel();
 				mparam.AdjustBase();
 			} 
 

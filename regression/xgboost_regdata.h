@@ -64,10 +64,9 @@ namespace xgboost{
                         init = false;
                     }
                 }
-                if( init ){
-                    labels.push_back( label );
-                    data.AddRow( findex, fvalue );
-                }
+                
+				labels.push_back( label );
+                data.AddRow( findex, fvalue );
                 
                 this->UpdateInfo();
                 if( !silent ){
