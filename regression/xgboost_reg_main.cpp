@@ -8,7 +8,8 @@ int main(int argc, char *argv[]){
 	char* config_path = "c:\\cygwin64\\home\\chen\\github\\xgboost\\demo\\regression\\reg.conf";
 	bool silent = false;
 	RegBoostTrain train;
-	RegBoostTest test;
 	train.train(config_path,false);
+
+	RegBoostTest test;
 	test.test(config_path,false);
 }
