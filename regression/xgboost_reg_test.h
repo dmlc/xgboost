@@ -45,7 +45,7 @@ namespace xgboost{
 				for(int i = 0; i < test_param.test_paths.size(); i++){
 					xgboost::regression::DMatrix test_data;
 					test_data.LoadText(test_param.test_paths[i].c_str());
-					sscanf(model_path,"%s/final.model",test_param.model_dir_path);
+					sprintf(model_path,"%s/final.model",test_param.model_dir_path);
 					FileStream fin(fopen(model_path,"r"));
 					reg_boost_learner->LoadModel(fin);
 					fin.Close();
@@ -62,10 +62,10 @@ namespace xgboost{
 				int save_period;
 
 				/* \brief the path of directory containing the saved models */
-				const char* model_dir_path;
+				char model_dir_path[256];
 
 				/* \brief the path of directory containing the output prediction results */
-				const char* pred_dir_path;
+				char pred_dir_path[256];
 
 				/* \brief the paths of test data sets */
 				std::vector<std::string> test_paths;
@@ -79,8 +79,8 @@ namespace xgboost{
 				* \param val  value of the parameter
 				*/
 				inline void SetParam(const char *name,const char *val ){
-					if( !strcmp("model_dir_path", name ) ) model_dir_path = val;
-					if( !strcmp("pred_dir_path", name ) ) model_dir_path = val;
+					if( !strcmp("model_dir_path", name ) ) strcpy(model_dir_path,val);
+					if( !strcmp("pred_dir_path", name ) ) strcpy(pred_dir_path,val);
 					if( !strcmp("test_paths",  name) ) {
 						test_paths = StringProcessing::split(val,';');
 					}
