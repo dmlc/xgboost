@@ -2,14 +2,14 @@
 #define _XGBOOST_REGDATA_H_
 
 /*!
- * \file xgboost_regdata.h
- * \brief input data structure for regression and binary classification task.
- *     Format:
- *        The data should contain each data instance in each line.
- *		  The format of line data is as below:
- *        label <nonzero feature dimension> [feature index:feature value]+
- * \author Kailong Chen: chenkl198812@gmail.com, Tianqi Chen: tianqi.tchen@gmail.com
- */
+* \file xgboost_regdata.h
+* \brief input data structure for regression and binary classification task.
+*     Format:
+*        The data should contain each data instance in each line.
+*		  The format of line data is as below:
+*        label <nonzero feature dimension> [feature index:feature value]+
+* \author Kailong Chen: chenkl198812@gmail.com, Tianqi Chen: tianqi.tchen@gmail.com
+*/
 #include <cstdio>
 #include <vector>
 #include "../booster/xgboost_data.h"
@@ -31,17 +31,17 @@ namespace xgboost{
             /*! \brief default constructor */
             DMatrix( void ){}
 
-			
-			/*! \brief get the number of instances */
-			inline int size() const{
-				return labels.size();
-			}
+
+            /*! \brief get the number of instances */
+            inline int size() const{
+                return labels.size();
+            }
 
             /*! 
-             * \brief load from text file 
-             * \param fname name of text data
-             * \param silent whether print information or not
-             */            
+            * \brief load from text file 
+            * \param fname name of text data
+            * \param silent whether print information or not
+            */            
             inline void LoadText( const char* fname, bool silent = false ){
                 data.Clear();
                 FILE* file = utils::FopenCheck( fname, "r" );
@@ -49,7 +49,7 @@ namespace xgboost{
                 char tmp[ 1024 ];
                 std::vector<booster::bst_uint> findex;
                 std::vector<booster::bst_float> fvalue;
-                
+
                 while( fscanf( file, "%s", tmp ) == 1 ){
                     unsigned index; float value;
                     if( sscanf( tmp, "%u:%f", &index, &value ) == 2 ){
@@ -64,23 +64,23 @@ namespace xgboost{
                         init = false;
                     }
                 }
-                
-				labels.push_back( label );
+
+                labels.push_back( label );
                 data.AddRow( findex, fvalue );
-                
+
                 this->UpdateInfo();
                 if( !silent ){
                     printf("%ux%u matrix with %lu entries is loaded from %s\n", 
-                           (unsigned)labels.size(), num_feature, (unsigned long)data.NumEntry(), fname );
+                        (unsigned)labels.size(), num_feature, (unsigned long)data.NumEntry(), fname );
                 }
                 fclose(file);
             }
             /*! 
-             * \brief load from binary file 
-             * \param fname name of binary data
-             * \param silent whether print information or not
-             * \return whether loading is success
-             */
+            * \brief load from binary file 
+            * \param fname name of binary data
+            * \param silent whether print information or not
+            * \return whether loading is success
+            */
             inline bool LoadBinary( const char* fname, bool silent = false ){
                 FILE *fp = fopen64( fname, "rb" );
                 if( fp == NULL ) return false;                
@@ -92,15 +92,15 @@ namespace xgboost{
                 this->UpdateInfo();
                 if( !silent ){
                     printf("%ux%u matrix with %lu entries is loaded from %s\n", 
-                           (unsigned)labels.size(), num_feature, (unsigned long)data.NumEntry(), fname );
+                        (unsigned)labels.size(), num_feature, (unsigned long)data.NumEntry(), fname );
                 }
                 return true;
             }
             /*! 
-             * \brief save to binary file
-             * \param fname name of binary data
-             * \param silent whether print information or not
-             */
+            * \brief save to binary file
+            * \param fname name of binary data
+            * \param silent whether print information or not
+            */
             inline void SaveBinary( const char* fname, bool silent = false ){
                 utils::FileStream fs( utils::FopenCheck( fname, "wb" ) );
                 data.SaveBinary( fs );
@@ -108,17 +108,17 @@ namespace xgboost{
                 fs.Close();
                 if( !silent ){
                     printf("%ux%u matrix with %lu entries is saved to %s\n", 
-                           (unsigned)labels.size(), num_feature, (unsigned long)data.NumEntry(), fname );
+                        (unsigned)labels.size(), num_feature, (unsigned long)data.NumEntry(), fname );
                 }
             }
             /*! 
-             * \brief cache load data given a file name, the function will first check if fname + '.xgbuffer' exists,
-             *        if binary buffer exists, it will reads from binary buffer, otherwise, it will load from text file,
-             *        and try to create a buffer file 
-             * \param fname name of binary data
-             * \param silent whether print information or not
-             * \return whether loading is success
-             */            
+            * \brief cache load data given a file name, the function will first check if fname + '.xgbuffer' exists,
+            *        if binary buffer exists, it will reads from binary buffer, otherwise, it will load from text file,
+            *        and try to create a buffer file 
+            * \param fname name of binary data
+            * \param silent whether print information or not
+            * \return whether loading is success
+            */            
             inline void CacheLoad( const char *fname, bool silent = false ){
                 char bname[ 1024 ];
                 sprintf( bname, "%s.buffer", fname );
