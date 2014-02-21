@@ -122,7 +122,7 @@ namespace xgboost{
                 sprintf( bname, "%s.buffer", fname );
                 if( !this->LoadBinary( bname, silent ) ){
                     this->LoadText( fname, silent );
-                    this->SaveBinary( fname, silent );
+                    this->SaveBinary( bname, silent );
                 }                
             }
         private:

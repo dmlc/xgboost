@@ -19,7 +19,9 @@ namespace xgboost{
         class RegBoostLearner{            
         public:
             /*! \brief constructor */
-            RegBoostLearner( void ){}
+            RegBoostLearner( void ){
+                silent = 0;            
+            }
             /*! 
             * \brief a regression booter associated with training and evaluating data 
             * \param train pointer to the training data
@@ -29,6 +31,7 @@ namespace xgboost{
             RegBoostLearner( const DMatrix *train,
                              const std::vector<DMatrix *> &evals,
                              const std::vector<std::string> &evname ){
+                silent = 0;
                 this->SetData(train,evals,evname);
             }
 
@@ -51,7 +54,10 @@ namespace xgboost{
                     buffer_size += static_cast<unsigned>( evals[i]->Size() );
                 }
                 char snum_pbuffer[25];
-                printf( snum_pbuffer, "%u", buffer_size );
+                sprintf( snum_pbuffer, "%u", buffer_size );
+                if( !silent ){
+                    printf( "buffer_size=%u\n", buffer_size );
+                }
                 base_model.SetParam( "num_pbuffer",snum_pbuffer );
             }
             /*! 
@@ -60,6 +66,7 @@ namespace xgboost{
             * \param val  value of the parameter
             */
             inline void SetParam( const char *name, const char *val ){
+                if( !strcmp( name, "silent") ) silent = atoi( val );
                 mparam.SetParam( name, val );
                 base_model.SetParam( name, val );
             }
@@ -173,7 +180,6 @@ namespace xgboost{
                 float base_score;
                 /* \brief type of loss function */
                 int loss_type;
-
                 ModelParam( void ){
                     base_score = 0.5f;
                     loss_type  = 0;
@@ -279,7 +285,8 @@ namespace xgboost{
                     return ans;
                 }
             };
-        private:            
+        private:
+            int silent;
             booster::GBMBaseModel base_model;
             ModelParam   mparam;
             const DMatrix *train_;
