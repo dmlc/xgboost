@@ -27,7 +27,7 @@ namespace xgboost{
             * \param silent whether to print feedback messages
             */
             void test(char* config_path,bool silent = false){
-                reg_boost_learner = new xgboost::regression::RegBoostLearner(silent);
+                reg_boost_learner = new xgboost::regression::RegBoostLearner();
                 ConfigIterator config_itr(config_path);
                 //Get the training data and validation data paths, config the Learner
                 while (config_itr.Next()){
@@ -42,10 +42,11 @@ namespace xgboost{
                 reg_boost_learner->InitModel();
                 char model_path[256];
                 std::vector<float> preds;
-                for(int i = 0; i < test_param.test_paths.size(); i++){
+                for(size_t i = 0; i < test_param.test_paths.size(); i++){
                     xgboost::regression::DMatrix test_data;
                     test_data.LoadText(test_param.test_paths[i].c_str());
                     sprintf(model_path,"%s/final.model",test_param.model_dir_path);
+                    // BUG: model need to be rb
                     FileStream fin(fopen(model_path,"r"));
                     reg_boost_learner->LoadModel(fin);
                     fin.Close();

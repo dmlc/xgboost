@@ -3,7 +3,7 @@ export CXX = g++
 export CFLAGS = -Wall -O3 -msse2 
 
 # specify tensor path
-BIN = 
+BIN = xgboost
 OBJ = xgboost.o
 .PHONY: clean all
 
@@ -11,6 +11,7 @@ all: $(BIN) $(OBJ)
 export LDFLAGS= -pthread -lm 
 
 xgboost.o: booster/xgboost.h booster/xgboost_data.h booster/xgboost.cpp booster/*/*.hpp booster/*/*.h
+xgboost: regression/xgboost_reg_main.cpp xgboost.o
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)

@@ -8,6 +8,7 @@
  */
 
 #include <vector>
+#include <climits>
 #include "../utils/xgboost_utils.h"
 #include "../utils/xgboost_stream.h"
 
