@@ -15,7 +15,7 @@ for l in open( 'dump.txt'):
     if idx == -1:
         fo.write(l)
     else:
-        fid = int( l[idx+2:len(l)].split('>')[0])
+        fid = int( l[idx+2:len(l)].split('<')[0])
         rl = l[0:idx]+'['+nmap[fid]+']' + l.split()[1].strip()+'\n'
         fo.write(rl)
 
