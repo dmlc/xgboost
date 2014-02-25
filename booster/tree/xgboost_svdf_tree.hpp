@@ -544,7 +544,11 @@ namespace xgboost{
                                "input data smaller than num feature" );
                 int pid = this->GetLeafIndex( feat, funknown, gid );
                 return tree[ pid ].leaf_value();
-            }        
+            }
+            
+            virtual void DumpModel( FILE *fo ){
+                tree.DumpModel( fo );
+            }
         public:
             RTreeTrainer( void ){ silent = 0; }
             virtual ~RTreeTrainer( void ){}
