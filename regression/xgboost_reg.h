@@ -117,8 +117,7 @@ namespace xgboost{
                 this->GetGradient( preds, train_->labels, grad, hess );
 
                 std::vector<unsigned> root_index;
-                booster::FMatrixS::Image train_image( train_->data );                
-                base_model.DoBoost(grad,hess,train_image,root_index);                
+                base_model.DoBoost(grad,hess,train_->data,root_index);                
             }
             /*! 
              * \brief evaluate the model for specific iteration

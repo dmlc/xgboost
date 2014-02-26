@@ -132,8 +132,8 @@ namespace xgboost{
                 for( size_t i = 0; i < data.NumRow(); i ++ ){
                     booster::FMatrixS::Line sp = data[i];
                     for( unsigned j = 0; j < sp.len; j ++ ){
-                        if( num_feature <= sp.findex[j] ){
-                            num_feature = sp.findex[j] + 1;
+                        if( num_feature <= sp[j].findex ){
+                            num_feature = sp[j].findex + 1;
                         }
                     }
                 }

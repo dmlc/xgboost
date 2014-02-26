@@ -12,3 +12,8 @@
 *.la
 *.a
 *~
+*txt*
+*conf
+*buffer
+*model
+xgboost

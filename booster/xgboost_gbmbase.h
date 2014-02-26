@@ -191,7 +191,7 @@ namespace xgboost{
              */
             inline void DoBoost( std::vector<float> &grad,
                                  std::vector<float> &hess,
-                                 const booster::FMatrixS::Image &feats,
+                                 const booster::FMatrixS &feats,
                                  const std::vector<unsigned> &root_index ) {
                 booster::IBooster *bst = this->GetUpdateBooster();
                 bst->DoBoost( grad, hess, feats, root_index );

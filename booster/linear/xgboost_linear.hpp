@@ -38,7 +38,7 @@ namespace xgboost{
         public:
             virtual void DoBoost( std::vector<float> &grad, 
                                   std::vector<float> &hess,
-                                  const FMatrixS::Image &smat,
+                                  const FMatrixS &smat,
                                   const std::vector<unsigned> &root_index ){
                 utils::Assert( grad.size() < UINT_MAX, "number of instance exceed what we can handle" );
                 this->Update( smat, grad, hess );
@@ -46,7 +46,7 @@ namespace xgboost{
             virtual float Predict( const FMatrixS::Line &sp, unsigned rid = 0 ){
                 float sum = model.bias();
                 for( unsigned i = 0; i < sp.len; i ++ ){
-                    sum += model.weight[ sp.findex[i] ] * sp.fvalue[i];
+                    sum += model.weight[ sp[i].findex ] * sp[i].fvalue;
                 }
                 return sum;
             }
@@ -208,11 +208,10 @@ namespace xgboost{
                     }
                 }
             }
-            
             inline void MakeCmajor( std::vector<size_t> &rptr,
                                     std::vector<SCEntry> &entry,
                                     const std::vector<float> &hess,                                 
-                                    const FMatrixS::Image &smat ){
+                                    const FMatrixS &smat ){
                 // transform to column order first
                 const int nfeat = model.param.num_feature;            
                 // build CSR column major format data
@@ -224,8 +223,8 @@ namespace xgboost{
                     // add sparse part budget
                     FMatrixS::Line sp = smat[ i ];
                     for( unsigned j = 0; j < sp.len; j ++ ){
-                        if( j == 0 || sp.findex[j-1] != sp.findex[j] ){
-                            builder.AddBudget( sp.findex[j] );
+                        if( j == 0 || sp[j-1].findex != sp[j].findex ){
+                            builder.AddBudget( sp[j].findex );
                         }
                     }
                 }
@@ -237,14 +236,14 @@ namespace xgboost{
                     FMatrixS::Line sp = smat[ i ];
                     for( unsigned j = 0; j < sp.len; j ++ ){
                         // skip duplicated terms
-                        if( j == 0 || sp.findex[j-1] != sp.findex[j] ){
-                            builder.PushElem( sp.findex[j], SCEntry( sp.fvalue[j], i ) );
+                        if( j == 0 || sp[j-1].findex != sp[j].findex ){
+                            builder.PushElem( sp[j].findex, SCEntry( sp[j].fvalue, i ) );
                         }
                     }
                 }
             }
         protected:
-            virtual void Update( const FMatrixS::Image &smat,
+            virtual void Update( const FMatrixS &smat,
                                  std::vector<float> &grad,
                                  const std::vector<float> &hess ){
                 std::vector<size_t> rptr;
