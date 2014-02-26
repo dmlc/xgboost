@@ -16,7 +16,9 @@
 namespace xgboost{
     /*! \brief namespace for boosters */
     namespace booster{
-        /*! \brief interface of a gradient boosting learner */
+        /*! 
+         * \brief interface of a gradient boosting learner 
+         */
         class IBooster{
         public:
             // interface for model setting and loading
@@ -61,7 +63,7 @@ namespace xgboost{
              */
             virtual void DoBoost( std::vector<float> &grad,
                                   std::vector<float> &hess,
-                                  const FMatrixS::Image &feats,
+                                  const FMatrixS &feats,
                                   const std::vector<unsigned> &root_index ) = 0;
             /*! 
              * \brief predict values for given sparse feature vector

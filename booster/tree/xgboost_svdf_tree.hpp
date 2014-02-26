@@ -131,7 +131,7 @@ namespace xgboost{
             RTree &tree;
             std::vector<float> &grad;
             std::vector<float> &hess;
-            const FMatrixS::Image &smat;
+            const FMatrixS &smat;
             const std::vector<unsigned> &group_id;
         private:
             // maximum depth up to now
@@ -322,7 +322,7 @@ namespace xgboost{
                     
                     FMatrixS::Line sp = smat[ ridx ];
                     for( unsigned j = 0; j < sp.len; j ++ ){
-                        builder.AddBudget( sp.findex[j] );
+                        builder.AddBudget( sp[j].findex );
                     }
                 }
                 
@@ -336,7 +336,7 @@ namespace xgboost{
                     const unsigned ridx = tsk.idset[i];
                     FMatrixS::Line sp = smat[ ridx ];
                     for( unsigned j = 0; j < sp.len; j ++ ){
-                        builder.PushElem( sp.findex[j], SCEntry( sp.fvalue[j], ridx ) );
+                        builder.PushElem( sp[j].findex, SCEntry( sp[j].fvalue, ridx ) );
                 }                
                 }
                 // --- end of building column major matrix ---
@@ -429,7 +429,7 @@ namespace xgboost{
                           RTree &ptree,
                           std::vector<float> &pgrad,
                           std::vector<float> &phess,
-                          const FMatrixS::Image &psmat, 
+                          const FMatrixS &psmat, 
                           const std::vector<unsigned> &pgroup_id ):
                 param( pparam ), tree( ptree ), grad( pgrad ), hess( phess ),
                 smat( psmat ), group_id( pgroup_id ){
@@ -494,7 +494,7 @@ namespace xgboost{
         public:
             virtual void DoBoost( std::vector<float> &grad, 
                                   std::vector<float> &hess,
-                                  const FMatrixS::Image &smat,
+                                  const FMatrixS &smat,
                                   const std::vector<unsigned> &group_id ){
                 utils::Assert( grad.size() < UINT_MAX, "number of instance exceed what we can handle" );
                 if( !silent ){
@@ -526,14 +526,14 @@ namespace xgboost{
             virtual float Predict( const FMatrixS::Line &feat, unsigned gid = 0 ){
                 this->init_tmpfeat();
                 for( unsigned i = 0; i < feat.len; i ++ ){
-                    utils::Assert( feat.findex[i] < (unsigned)tmp_funknown.size() , "input feature execeed bound" );
-                    tmp_funknown[ feat.findex[i] ] = false;
-                    tmp_feat[ feat.findex[i] ] = feat.fvalue[i];
+                    utils::Assert( feat[i].findex < (unsigned)tmp_funknown.size() , "input feature execeed bound" );
+                    tmp_funknown[ feat[i].findex ] = false;
+                    tmp_feat[ feat[i].findex ] = feat[i].fvalue;
                 } 
                 int pid = this->GetLeafIndex( tmp_feat, tmp_funknown, gid );
                 // set back
                 for( unsigned i = 0; i < feat.len; i ++ ){
-                    tmp_funknown[ feat.findex[i] ] = true;
+                    tmp_funknown[ feat[i].findex ] = true;
                 }            
                 return tree[ pid ].leaf_value();
             }
