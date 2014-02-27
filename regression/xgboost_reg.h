@@ -100,6 +100,14 @@ namespace xgboost{
                 base_model.DumpModel( fo );
             }
             /*! 
+             * \brief Dump path of all trees
+             * \param fo text file 
+             * \param data input data
+             */
+            inline void DumpPath( FILE *fo, const DMatrix &data ){
+                base_model.DumpPath( fo, data.data );
+            }
+            /*! 
             * \brief save model to stream
             * \param fo output stream
             */
