@@ -3,7 +3,7 @@
 /*!
  * \file xgboost_linear.h
  * \brief Implementation of Linear booster, with L1/L2 regularization: Elastic Net
- *        the update rule is coordinate descent
+ *        the update rule is coordinate descent, require column major format
  * \author Tianqi Chen: tianqi.tchen@gmail.com
  */
 #include <vector>
@@ -11,7 +11,6 @@
 
 #include "../xgboost.h"
 #include "../../utils/xgboost_utils.h"
-#include "../../utils/xgboost_matrix_csr.h"
 
 namespace xgboost{
     namespace booster{
@@ -41,7 +40,7 @@ namespace xgboost{
                                   const FMatrixS &smat,
                                   const std::vector<unsigned> &root_index ){
                 utils::Assert( grad.size() < UINT_MAX, "number of instance exceed what we can handle" );
-                this->Update( smat, grad, hess );
+                this->UpdateWeights( grad, hess, smat );
             }            
             virtual float Predict( const FMatrixS::Line &sp, unsigned rid = 0 ){
                 float sum = model.bias();
@@ -149,29 +148,17 @@ namespace xgboost{
                     return weight.back();
                 }
             };
-            /*! \brief array entry for column based feature construction */
-            struct SCEntry{
-                /*! \brief feature value */
-                float    fvalue;
-                /*! \brief row index related to each row */
-                unsigned rindex;
-                /*! \brief default constructor */
-                SCEntry( void ){}
-                /*! \brief constructor using entry */
-                SCEntry( float fvalue, unsigned rindex ){
-                    this->fvalue = fvalue; this->rindex = rindex;
-                }
-            };
         private:
             int silent;
         protected:
             Model model;
             ParamTrain param;
         protected:
+            // update weights, should work for any FMatrix
+            template<typename FMatrix>
             inline void UpdateWeights( std::vector<float> &grad,                       
                                        const std::vector<float> &hess,
-                                       const std::vector<size_t> &rptr,
-                                       const std::vector<SCEntry> &entry ){
+                                       const FMatrix &smat ){
                 {// optimize bias
                     double sum_grad = 0.0, sum_hess = 0.0;
                     for( size_t i = 0; i < grad.size(); i ++ ){
@@ -187,69 +174,24 @@ namespace xgboost{
                 }
 
                 // optimize weight
-                const int nfeat = model.param.num_feature;                               
-                for( int i = 0; i < nfeat; i ++ ){
-                    size_t start = rptr[i];
-                    size_t end   = rptr[i+1];
-                    if( start >= end ) continue;
+                const unsigned nfeat= (unsigned)smat.NumCol();                           
+                for( unsigned i = 0; i < nfeat; i ++ ){
+                    if( !smat.GetSortedCol( i ).Next() ) continue;
                     double sum_grad = 0.0, sum_hess = 0.0;
-                    for( size_t j = start; j < end; j ++ ){
-                        const float v = entry[j].fvalue; 
-                        sum_grad += grad[ entry[j].rindex ] * v;
-                        sum_hess += hess[ entry[j].rindex ] * v * v;
+                    for( typename FMatrix::ColIter it = smat.GetSortedCol(i); it.Next(); ){
+                        const float v = it.fvalue();
+                        sum_grad += grad[ it.rindex() ] * v;
+                        sum_hess += hess[ it.rindex() ] * v * v;
                     }
                     float w = model.weight[ i ];
                     double dw = param.learning_rate * param.CalcDelta( sum_grad, sum_hess, w );
                     model.weight[ i ] += dw;
                     // update grad value 
-                    for( size_t j = start; j < end; j ++ ){
-                        const float v = entry[j].fvalue; 
-                        grad[ entry[j].rindex ] += hess[ entry[j].rindex ] * v * dw;
+                    for( typename FMatrix::ColIter it = smat.GetSortedCol(i); it.Next(); ){
+                        const float v = it.fvalue();
+                        grad[ it.rindex() ] += hess[ it.rindex() ] * v * dw;
                     }
                 }
-            }
-            inline void MakeCmajor( std::vector<size_t> &rptr,
-                                    std::vector<SCEntry> &entry,
-                                    const std::vector<float> &hess,                                 
-                                    const FMatrixS &smat ){
-                // transform to column order first
-                const int nfeat = model.param.num_feature;            
-                // build CSR column major format data
-                utils::SparseCSRMBuilder<SCEntry> builder( rptr, entry );
-                builder.InitBudget( nfeat );
-                for( unsigned i = 0; i < (unsigned)hess.size(); i ++ ){
-                // skip deleted entries
-                    if( hess[i] < 0.0f ) continue;
-                    // add sparse part budget
-                    FMatrixS::Line sp = smat[ i ];
-                    for( unsigned j = 0; j < sp.len; j ++ ){
-                        if( j == 0 || sp[j-1].findex != sp[j].findex ){
-                            builder.AddBudget( sp[j].findex );
-                        }
-                    }
-                }
-                builder.InitStorage();
-                for( unsigned i = 0; i < (unsigned)hess.size(); i ++ ){
-                    // skip deleted entries
-                    if( hess[i] < 0.0f ) continue;
-                    // add sparse part budget
-                    FMatrixS::Line sp = smat[ i ];
-                    for( unsigned j = 0; j < sp.len; j ++ ){
-                        // skip duplicated terms
-                        if( j == 0 || sp[j-1].findex != sp[j].findex ){
-                            builder.PushElem( sp[j].findex, SCEntry( sp[j].fvalue, i ) );
-                        }
-                    }
-                }
-            }
-        protected:
-            virtual void Update( const FMatrixS &smat,
-                                 std::vector<float> &grad,
-                                 const std::vector<float> &hess ){
-                std::vector<size_t> rptr;
-                std::vector<SCEntry> entry;
-                this->MakeCmajor( rptr, entry, hess, smat );
-                this->UpdateWeights( grad, hess, rptr, entry );
             }
         };
     };

@@ -306,7 +306,7 @@ namespace xgboost{
             } 
         };
     };
-
+    
     namespace booster{
         /*! \brief training parameters for regression tree */
         struct TreeParamTrain{
@@ -429,6 +429,21 @@ namespace xgboost{
             inline bool cannot_split( double sum_hess, int depth ) const{
                 return sum_hess < min_child_weight * 2.0; 
             }
+        };
+    };
+    
+    namespace booster{
+        /*! \brief node statistics used in regression tree */
+        struct RTreeNodeStat{
+            // loss chg caused by current split
+            float loss_chg;
+            // weight of current node
+            float base_weight;
+            // number of child that is leaf node known up to now
+            int   leaf_child_cnt;
+        };
+        /*! \brief most comment structure of regression tree */
+        class RegTree: public TreeModel<bst_float,RTreeNodeStat>{
         };
     };
 };
