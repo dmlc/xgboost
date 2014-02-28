@@ -391,7 +391,7 @@ namespace xgboost{
             }
         public:
             // calculate the cost of loss function
-            inline double CalcCost( double sum_grad, double sum_hess ) const{
+            inline double CalcGain( double sum_grad, double sum_hess ) const{
                 if( sum_hess < min_child_weight ){
                     return 0.0;
                 }
@@ -405,29 +405,37 @@ namespace xgboost{
             }
             // KEY:layerwise
             // calculate cost of root
-            inline double CalcRootCost( double sum_grad, double sum_hess ) const{
-                if( use_layerwise == 0 ) return this->CalcCost( sum_grad, sum_hess );
+            inline double CalcRootGain( double sum_grad, double sum_hess ) const{
+                if( use_layerwise == 0 ) return this->CalcGain( sum_grad, sum_hess );
                 else return 0.0;
             }
             // KEY:layerwise
             // calculate the cost after split
             // base_weight: the base_weight of parent           
-            inline double CalcCost( double sum_grad, double sum_hess, double base_weight ) const{
-                if( use_layerwise == 0 ) return this->CalcCost( sum_grad, sum_hess );
-                else return this->CalcCost( sum_grad + sum_hess * base_weight, sum_hess );
+            inline double CalcGain( double sum_grad, double sum_hess, double base_weight ) const{
+                if( use_layerwise == 0 ) return this->CalcGain( sum_grad, sum_hess );
+                else return this->CalcGain( sum_grad + sum_hess * base_weight, sum_hess );
             }
             // calculate the weight of leaf
             inline double CalcWeight( double sum_grad, double sum_hess, double parent_base_weight )const{
                 if( use_layerwise == 0 ) return CalcWeight( sum_grad, sum_hess );
                 else return parent_base_weight + CalcWeight( sum_grad + parent_base_weight * sum_hess, sum_hess );
             }           
+            /*! \brief whether need forward small to big search: default right */
+            inline bool need_forward_search( void ) const{
+                return this->default_direction != 1;
+            }
+            /*! \brief whether need forward big to small search: default left */
+            inline bool need_backward_search( void ) const{
+                return this->default_direction != 2;
+            }
             /*! \brief given the loss change, whether we need to invode prunning */
             inline bool need_prune( double loss_chg, int depth ) const{
-                return loss_chg < min_split_loss;
+                return loss_chg < this->min_split_loss;
             }
             /*! \brief whether we can split with current hessian */
             inline bool cannot_split( double sum_hess, int depth ) const{
-                return sum_hess < min_child_weight * 2.0; 
+                return sum_hess < this->min_child_weight * 2.0; 
             }
         };
     };
