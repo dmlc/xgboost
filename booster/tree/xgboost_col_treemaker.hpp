@@ -65,20 +65,59 @@ namespace xgboost{
                 double sum_grad;
                 /*! \brief sum hessian statistics */
                 double sum_hess;
+                /*! \brief last feature value scanned */
+                float  last_fvalue;
                 /*! \brief current best solution */
                 SplitEntry best;
+                /*! \brief constructor */
                 ThreadEntry( void ){
                     sum_grad = sum_hess = 0;
                 }
             };
         private:
+            inline void CleanSTemp( const std::vector<int> &qexpand ){
+                for( size_t i = 0; i < stemp.size(); ++ i ){
+                    for( size_t j = 0; j < qexpand.size(); ++ j ){
+                        ThreadEntry &e = stemp[i][ qexpand[j] ];
+                        e.sum_grad = e.sum_hess = 0.0f;
+                    }
+                }
+            }
+            // make leaf nodes for all qexpand, update node statistics, mark leaf value
+            inline void UpdateSNode( const std::vector<int> &qexpand ){
+                this->CleanSTemp( qexpand );
+                // step 1: find sum statistics
+                const unsigned ndata = static_cast<unsigned>( position.size() );
+                #pragma omp parallel for schedule( static )
+                for( unsigned i = 0; i < ndata; ++ i ){
+                    const int tid = omp_get_thread_num();
+                    if( position[i] < 0 ) continue; 
+                    stemp[tid][ position[i] ].sum_grad += grad[i];
+                    stemp[tid][ position[i] ].sum_hess += hess[i];
+                }
+                for( size_t j = 0; j < qexpand.size(); ++ j ){
+                    double sum_grad = 0.0, sum_hess = 0.0;
+                    for( size_t tid = 0; tid < stemp.size(); tid ++ ){
+                        sum_grad += stemp[tid][j].sum_grad;
+                        sum_hess += stemp[tid][j].sum_hess;
+                    }
+                    if( !tree[j].is_root() ){
+                        const float pweight = snode[ tree[j].parent() ].weight;
+                        snode[j].weight = param.CalcWeight( sum_grad, sum_hess, pweight );
+                    }else{
+                        snode[j].weight = param.CalcWeight( sum_grad, sum_hess, 0.0f );
+                        snode[j].loss_gain = param.CalcGain( sum_grad, sum_hess, 0.0f );
+                    }
+                }
+            }
             // find split at current level
             inline void FindSplit( int depth ){
                 unsigned nsize = static_cast<unsigned>(feat_index.size());
-
                 #pragma omp parallel for schedule( dynamic, 1 )
                 for( unsigned i = 0; i < nsize; ++ i ){
-                    const unsigned fid = feat_index[i];                    
+                    const unsigned fid = feat_index[i];
+                    const int tid = omp_get_thread_num();
+                    
                 }
             }
             // initialize temp data structure
@@ -93,7 +132,8 @@ namespace xgboost{
                     }
                 }
                 {// initialize feature index
-                    for( int i = 0; i < tree.param.num_feature; i ++ ){
+                    int ncol = static_cast<int>( smat.NumCol() );
+                    for( int i = 0; i < ncol; i ++ ){
                         if( smat.GetSortedCol(i).Next() ){
                             feat_index.push_back( i );
                         }
@@ -116,9 +156,18 @@ namespace xgboost{
                 {// setup statistics space for each tree node
                     snode.resize( tree.param.num_roots, SplitEntry() );
                 }
+
+                {// expand query
+                    qexpand.reserve( 256 ); qexpand.clear();
+                    for( int i = 0; i < tree.param.num_roots; ++ i ){
+                        qexpand.push_back( i );
+                    }
+                }
             }
         private:
             // local helper tmp data structure
+            // queue of nodes to be expanded
+            std::vector<int> qexpand;
             // Per feature: shuffle index of each feature index
             std::vector<int> feat_index;
             // Instance Data: current node position in the tree of each instance
