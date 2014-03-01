@@ -329,6 +329,8 @@ namespace xgboost{
             float subsample;
             // whether to use layerwise aware regularization
             int   use_layerwise;
+            // number of threads to be used for tree construction, if OpenMP is enabled, if equals 0, use system default
+            int nthread;
             /*! \brief constructor */
             TreeParamTrain( void ){
                 learning_rate = 0.3f;
@@ -339,6 +341,7 @@ namespace xgboost{
                 default_direction = 0;
                 subsample = 1.0f;
                 use_layerwise = 0;
+                nthread = 0;
             }
             /*! 
              * \brief set parameters from outside 
@@ -359,6 +362,7 @@ namespace xgboost{
                 if( !strcmp( name, "reg_method") )        reg_method = (float)atof( val );
                 if( !strcmp( name, "subsample") )         subsample  = (float)atof( val );
                 if( !strcmp( name, "use_layerwise") )     use_layerwise = atoi( val );
+                if( !strcmp( name, "nthread") )           nthread = atoi( val );
                 if( !strcmp( name, "default_direction") ) {
                     if( !strcmp( val, "learn") )  default_direction = 0;
                     if( !strcmp( val, "left") )   default_direction = 1;

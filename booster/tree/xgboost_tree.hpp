@@ -116,18 +116,18 @@ namespace xgboost{
                 if( !silent ){
                     printf( "\nbuild GBRT with %u instances\n", (unsigned)grad.size() );
                 }
+                int num_pruned;
                 if( tree_maker == 0 ){
                     // start with a id set
                     RTreeUpdater<FMatrix> updater( param, tree, grad, hess, smat, root_index );
-                    int num_pruned;
                     tree.param.max_depth = updater.do_boost( num_pruned );
-                    if( !silent ){
-                        printf( "tree train end, %d roots, %d extra nodes, %d pruned nodes ,max_depth=%d\n", 
-                                tree.param.num_roots, tree.num_extra_nodes(), num_pruned, tree.param.max_depth );
-                    }
                 }else{
                     ColTreeMaker<FMatrix> maker( tree, param, grad, hess, smat, root_index );
-                    maker.Make();
+                    maker.Make( tree.param.max_depth, num_pruned );
+                }
+                if( !silent ){
+                    printf( "tree train end, %d roots, %d extra nodes, %d pruned nodes ,max_depth=%d\n", 
+                            tree.param.num_roots, tree.num_extra_nodes(), num_pruned, tree.param.max_depth );
                 }
             }
         private:

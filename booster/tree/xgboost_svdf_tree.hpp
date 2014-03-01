@@ -146,7 +146,7 @@ namespace xgboost{
                     // tail recursion
                     this->try_prune_leaf( pid, depth - 1 );
                 }
-            }        
+            }
             // make leaf for current node :)
             inline void make_leaf( Task tsk, double sum_grad, double sum_hess, bool compute ){
                 for( unsigned i = 0; i < tsk.len; i ++ ){
