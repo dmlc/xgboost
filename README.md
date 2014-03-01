@@ -1,18 +1,17 @@
-xgboost: A Gradient Boosting Library
+xgboost: eXtreme Gradient Boosting Library 
 =======
-Creater: Tianqi Chen: tianqi.tchen AT gmail
+Creater: Tianqi Chen
 
-General Purpose Gradient Boosting Library
-
-Goal: A stand-alone efficient library to do learning via boosting in functional space
-
-Features:
-* Sparse feature format, handling of missing features. This allows efficient categorical feature encoding as indicators. The speed of booster only depends on number of existing features.
+Features
+=======
+* Sparse feature format:
+  - Sparse feature format allows easy handling of missing values, and improve computation efficiency.
+* Push the limit on single machine:
+  - Efficient implementation that optimizes memory and computation.
 * Layout of gradient boosting algorithm to support generic tasks, see project wiki.
 
-
-Planned key components:
-
+Planned key components
+=======
 * Gradient boosting models: 
     - regression tree (GBRT)
     - linear model/lasso
@@ -22,7 +21,7 @@ Planned key components:
     - ranking
     - matrix factorization
     - structured prediction
-(3) OpenMP implementation(optional)
+(3) OpenMP implementation
 
 File extension convention: 
 (1) .h are interface, utils and data structures, with detailed comment; 
