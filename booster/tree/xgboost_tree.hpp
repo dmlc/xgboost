@@ -32,12 +32,13 @@ namespace xgboost{
         class RegTreeTrainer : public IBooster{
         public:
             RegTreeTrainer( void ){ 
-                silent = 0; tree_maker = 0; 
+                silent = 0; tree_maker = 1;
             }
             virtual ~RegTreeTrainer( void ){}
         public:
             virtual void SetParam( const char *name, const char *val ){
-                if( !strcmp( name, "silent") )  silent = atoi( val );
+                if( !strcmp( name, "silent") )      silent = atoi( val );
+                if( !strcmp( name, "tree_maker") )  tree_maker = atoi( val );
                 param.SetParam( name, val );
                 tree.param.SetParam( name, val );
             }
