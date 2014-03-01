@@ -1,4 +1,6 @@
-xgboost: eXtreme Gradient Boosting Library 
+xgboost
+
+eXtreme Gradient Boosting Library 
 =======
 Creater: Tianqi Chen
 
