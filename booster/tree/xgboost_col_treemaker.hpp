@@ -223,7 +223,7 @@ namespace xgboost{
                 }
                 
                 while( it.Next() ){
-                    const unsigned ridx = it.rindex();
+                    const bst_uint ridx = it.rindex();
                     const int nid = position[ ridx ];
                     if( nid < 0 ) continue;
 
@@ -336,7 +336,7 @@ namespace xgboost{
                     for( unsigned i = 0; i < nfeats; ++ i ){
                         const unsigned fid = fsplits[i];
                         for( typename FMatrix::ColIter it = smat.GetSortedCol( fid ); it.Next(); ){
-                            const unsigned ridx = it.rindex();
+                            const bst_uint ridx = it.rindex();
                             int nid = position[ ridx ];
                             if( nid == -1 ) continue;
                             // go back to parent, correct those who are not default
