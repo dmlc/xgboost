@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_REGDATA_H_
-#define _XGBOOST_REGDATA_H_
+#ifndef XGBOOST_REGDATA_H
+#define XGBOOST_REGDATA_H
 
 /*!
 * \file xgboost_regdata.h

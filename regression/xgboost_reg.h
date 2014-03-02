@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_REG_H_
-#define _XGBOOST_REG_H_
+#ifndef XGBOOST_REG_H
+#define XGBOOST_REG_H
 /*!
 * \file xgboost_reg.h
 * \brief class for gradient boosted regression

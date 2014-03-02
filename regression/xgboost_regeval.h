@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_REGEVAL_H_
-#define _XGBOOST_REGEVAL_H_
+#ifndef XGBOOST_REGEVAL_H
+#define XGBOOST_REGEVAL_H
 /*!
 * \file xgboost_regeval.h
 * \brief evaluation metrics for regression and classification

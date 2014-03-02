@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_GBMBASE_H_
-#define _XGBOOST_GBMBASE_H_
+#ifndef XGBOOST_GBMBASE_H
+#define XGBOOST_GBMBASE_H
 
 #include <omp.h>
 #include <cstring>

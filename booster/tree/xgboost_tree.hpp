@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_TREE_HPP_
-#define _XGBOOST_TREE_HPP_
+#ifndef XGBOOST_TREE_HPP
+#define XGBOOST_TREE_HPP
 /*!
  * \file xgboost_tree.hpp
  * \brief implementation of regression tree

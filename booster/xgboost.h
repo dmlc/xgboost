@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_H_
-#define _XGBOOST_H_
+#ifndef XGBOOST_H
+#define XGBOOST_H
 /*!
  * \file xgboost.h
  * \brief the general gradient boosting interface

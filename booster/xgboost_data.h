@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_DATA_H_
-#define _XGBOOST_DATA_H_
+#ifndef XGBOOST_DATA_H
+#define XGBOOST_DATA_H
 
 /*!
  * \file xgboost_data.h

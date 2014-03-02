@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_COL_TREEMAKER_HPP_
-#define _XGBOOST_COL_TREEMAKER_HPP_
+#ifndef XGBOOST_COL_TREEMAKER_HPP
+#define XGBOOST_COL_TREEMAKER_HPP
 /*!
  * \file xgboost_col_treemaker.hpp
  * \brief implementation of regression tree maker,
