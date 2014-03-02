@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_RANDOM_H_
-#define _XGBOOST_RANDOM_H_
+#ifndef XGBOOST_RANDOM_H
+#define XGBOOST_RANDOM_H
 /*!
  * \file xgboost_random.h
  * \brief PRNG to support random number generation

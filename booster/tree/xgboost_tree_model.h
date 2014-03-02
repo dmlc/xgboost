@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_TREE_MODEL_H_
-#define _XGBOOST_TREE_MODEL_H_
+#ifndef XGBOOST_TREE_MODEL_H
+#define XGBOOST_TREE_MODEL_H
 /*!
  * \file xgboost_tree_model.h
  * \brief generic definition of model structure used in tree models

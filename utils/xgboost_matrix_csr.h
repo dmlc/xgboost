@@ -3,8 +3,8 @@
  * \brief this file defines some easy to use STL based class for in memory sparse CSR matrix
  * \author Tianqi Chen: tianqi.tchen@gmail.com
 */
-#ifndef _XGBOOST_MATRIX_CSR_H_
-#define _XGBOOST_MATRIX_CSR_H_
+#ifndef XGBOOST_MATRIX_CSR_H
+#define XGBOOST_MATRIX_CSR_H
 #include <vector>
 #include <algorithm>
 #include "xgboost_utils.h"

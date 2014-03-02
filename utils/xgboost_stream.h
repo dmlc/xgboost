@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_STREAM_H_
-#define _XGBOOST_STREAM_H_
+#ifndef XGBOOST_STREAM_H
+#define XGBOOST_STREAM_H
 
 #include <cstdio>
 /*!

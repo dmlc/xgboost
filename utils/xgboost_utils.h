@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_UTILS_H_
-#define _XGBOOST_UTILS_H_
+#ifndef XGBOOST_UTILS_H
+#define XGBOOST_UTILS_H
 /*!
  * \file xgboost_utils.h
  * \brief simple utils to support the code

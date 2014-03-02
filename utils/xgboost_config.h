@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_CONFIG_H_
-#define _XGBOOST_CONFIG_H_
+#ifndef XGBOOST_CONFIG_H
+#define XGBOOST_CONFIG_H
 /*!
  * \file xgboost_config.h
  * \brief helper class to load in configures from file

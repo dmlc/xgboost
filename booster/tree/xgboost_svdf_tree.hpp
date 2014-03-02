@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_APEX_TREE_HPP_
-#define _XGBOOST_APEX_TREE_HPP_
+#ifndef XGBOOST_APEX_TREE_HPP
+#define XGBOOST_APEX_TREE_HPP
 /*!
  * \file xgboost_svdf_tree.hpp
  * \brief implementation of regression tree constructor, with layerwise support

@@ -1,5 +1,5 @@
-#ifndef _XGBOOST_LINEAR_HPP_
-#define _XGBOOST_LINEAR_HPP_
+#ifndef XGBOOST_LINEAR_HPP
+#define XGBOOST_LINEAR_HPP
 /*!
  * \file xgboost_linear.h
  * \brief Implementation of Linear booster, with L1/L2 regularization: Elastic Net
