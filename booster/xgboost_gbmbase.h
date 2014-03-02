@@ -89,6 +89,9 @@ namespace xgboost{
                 }
             };
         public:
+            /*! \brief model parameters */ 
+            Param param;
+        public:
             /*! \brief number of thread used */
             GBMBaseModel( void ){
                 this->nthread = 1;
@@ -323,8 +326,6 @@ namespace xgboost{
         protected:
             /*! \brief number of OpenMP threads */
             int nthread;
-            /*! \brief model parameters */ 
-            Param param;
             /*! \brief component boosters */ 
             std::vector<booster::IBooster*> boosters;
             /*! \brief some information indicator of the booster, reserved */ 
