@@ -11,7 +11,7 @@ all: $(BIN) $(OBJ)
 export LDFLAGS= -pthread -lm 
 
 xgboost.o: booster/xgboost.h booster/xgboost_data.h booster/xgboost.cpp booster/*/*.hpp booster/*/*.h
-xgboost: regression/xgboost_reg_main.cpp xgboost.o
+xgboost: regression/xgboost_reg_main.cpp regression/*.h xgboost.o
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)

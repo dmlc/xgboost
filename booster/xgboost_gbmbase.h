@@ -1,6 +1,7 @@
 #ifndef _XGBOOST_GBMBASE_H_
 #define _XGBOOST_GBMBASE_H_
 
+#include <omp.h>
 #include <cstring>
 #include "xgboost.h"
 #include "../utils/xgboost_config.h"
@@ -88,6 +89,10 @@ namespace xgboost{
                 }
             };
         public:
+            /*! \brief number of thread used */
+            GBMBaseModel( void ){
+                this->nthread = 1;
+            }
             /*! \brief destructor */
             virtual ~GBMBaseModel( void ){
                 this->FreeSpace();
@@ -104,6 +109,7 @@ namespace xgboost{
                 if( !strcmp( name, "silent") ){
                     cfg.PushBack( name, val );
                 }
+                if( !strcmp( name, "nthread") ) nthread = atoi( val );
                 if( boosters.size() == 0 ) param.SetParam( name, val );
             }
             /*! 
@@ -164,6 +170,9 @@ namespace xgboost{
              * this function is reserved for solver to allocate necessary space and do other preparation 
              */            
             inline void InitTrainer( void ){
+                if( nthread != 0 ){
+                    omp_set_num_threads( nthread );
+                }
                 // make sure all the boosters get the latest parameters
                 for( size_t i = 0; i < this->boosters.size(); i ++ ){
                     this->ConfigBooster( this->boosters[i] );
@@ -312,6 +321,8 @@ namespace xgboost{
                 return boosters.back();
             }
         protected:
+            /*! \brief number of OpenMP threads */
+            int nthread;
             /*! \brief model parameters */ 
             Param param;
             /*! \brief component boosters */ 
