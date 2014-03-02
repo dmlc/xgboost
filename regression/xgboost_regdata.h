@@ -116,20 +116,25 @@ namespace xgboost{
                 }
             }
             /*! 
-            * \brief cache load data given a file name, the function will first check if fname + '.xgbuffer' exists,
+            * \brief cache load data given a file name, if filename ends with .buffer, direct load binary
+            *        otherwise the function will first check if fname + '.buffer' exists,
             *        if binary buffer exists, it will reads from binary buffer, otherwise, it will load from text file,
             *        and try to create a buffer file 
             * \param fname name of binary data
             * \param silent whether print information or not
-            * \return whether loading is success
-            */            
-            inline void CacheLoad( const char *fname, bool silent = false ){
+            * \param savebuffer whether do save binary buffer if it is text
+            */
+            inline void CacheLoad( const char *fname, bool silent = false, bool savebuffer = true ){
+                int len = strlen( fname );
+                if( len > 8 && !strcmp( fname + len - 7,  ".buffer") ){
+                    this->LoadBinary( fname, silent ); return;
+                }
                 char bname[ 1024 ];
                 sprintf( bname, "%s.buffer", fname );
                 if( !this->LoadBinary( bname, silent ) ){
                     this->LoadText( fname, silent );
-                    this->SaveBinary( bname, silent );
-                }                
+                    if( savebuffer ) this->SaveBinary( bname, silent );
+                }
             }
         private:
             /*! \brief update num_feature info */
