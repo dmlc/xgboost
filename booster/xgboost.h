@@ -75,7 +75,9 @@ namespace xgboost{
             }
             /*! 
              * \brief predict values for given sparse feature vector
-             *   NOTE: in tree implementation, this is not threadsafe, used dense version to ensure threadsafety
+             * 
+             *   NOTE: in tree implementation, Sparse Predict is OpenMP threadsafe, but not threadsafe in general,
+             *         dense version of Predict to ensures threadsafety
              * \param feat vector in sparse format
              * \param rid root id of current instance, default = 0
              * \return prediction 
