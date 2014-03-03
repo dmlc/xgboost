@@ -1,2 +1,12 @@
-example of UCI dataset
+example of training a binary classifier on UCI dataset
 http://archive.ics.uci.edu/ml/datasets/Mushroom
+
+Run: ./runexp.sh
+
+Format of input: LIBSVM format
+
+Format of featmap.txt:
+<featureid> <featurename> <q or i>\n
+
+q means continuous quantities, i means indicator features.
+Feature id must be from 0 to num_features, in sorted order.

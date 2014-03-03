@@ -46,13 +46,13 @@ def dumpjson( fo, trees ):
     fo.write('\n}\n')
         
 fo = sys.stdout
-nmap = loadnmap( 'featname.txt' )
+nmap = loadnmap( 'featmap.txt' )
 stat = loadstats( 'agaricus.txt.test', 'dump.path.txt' )
 
 trees = {'roots':[], 'weights':[], 'nodes':[] }
 idmap = {}
 
-for l in open( 'dump.txt'):
+for l in open( 'dump.raw.txt'):
     if l.startswith('booster['):
         bid = int( l.split('[')[1].split(']')[0] )
         trees['roots'].append( mapid(idmap,bid,0) )
@@ -63,7 +63,7 @@ for l in open( 'dump.txt'):
     rid = int( l.split(':')[0] )
     node['id'] = mapid( idmap, bid, rid )
     node['neg_cnt' ] = stat[ bid ][ rid ][ 0 ]
-    node['pos_cnt' ] = stat[ bid ][ rid ][ 1 ]       
+    node['pos_cnt' ] = stat[ bid ][ rid ][ 1 ] 
 
     idx = l.find('[f')
     if idx != -1:
