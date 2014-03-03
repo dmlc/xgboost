@@ -5,11 +5,12 @@
 * \brief evaluation metrics for regression and classification
 * \author Kailong Chen: chenkl198812@gmail.com, Tianqi Chen: tianqi.tchen@gmail.com
 */
-#include <omp.h>
+
 #include <cmath>
 #include <vector>
 #include <algorithm>
 #include "../utils/xgboost_utils.h"
+#include "../utils/xgboost_omp.h"
 
 namespace xgboost{
     namespace regression{

@@ -7,9 +7,9 @@
  * \author Tianqi Chen: tianqi.tchen@gmail.com 
  */
 // use openmp
-#include <omp.h>
 #include <vector>
 #include "xgboost_tree_model.h"
+#include "../../utils/xgboost_omp.h"
 #include "../../utils/xgboost_random.h"
 
 namespace xgboost{
