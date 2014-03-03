@@ -42,8 +42,8 @@ namespace xgboost{
                     this->TaskDumpPath();
                     return 0;
                 }
-                if( task == "test" ){
-                    this->TaskTest();
+                if( task == "pred" ){
+                    this->TaskPred();
                 }else{                  
                     this->TaskTrain();
                 }
@@ -157,7 +157,7 @@ namespace xgboost{
                 learner.SaveModel( fo );
                 fo.Close();
             }
-            inline void TaskTest( void ){
+            inline void TaskPred( void ){
                 std::vector<float> preds;
                 if( !silent ) printf("start prediction...\n");
                 learner.Predict( preds, data );
