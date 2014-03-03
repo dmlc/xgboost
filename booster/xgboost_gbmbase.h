@@ -81,7 +81,11 @@ namespace xgboost{
                  * \param val  value of the parameter
                  */
                 inline void SetParam( const char *name, const char *val ){
-                    if( !strcmp("booster_type", name ) )     booster_type = atoi( val );
+                    if( !strcmp("booster_type", name ) ){
+                        booster_type = atoi( val );
+                        // linear boost automatically set do reboost
+                        if( booster_type == 1 ) do_reboost = 1;
+                    }
                     if( !strcmp("num_pbuffer", name ) )      num_pbuffer = atoi( val );
                     if( !strcmp("do_reboost", name ) )       do_reboost  = atoi( val );
                     if( !strcmp("bst:num_roots", name ) )    num_roots = atoi( val );
