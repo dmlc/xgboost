@@ -1,6 +1,6 @@
 export CC  = gcc
 export CXX = g++
-export CFLAGS = -Wall -O3 -msse2 -fopenmp
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas
 
 # specify tensor path
 BIN = xgboost

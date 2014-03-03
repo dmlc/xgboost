@@ -1,9 +1,9 @@
 #ifndef XGBOOST_GBMBASE_H
 #define XGBOOST_GBMBASE_H
 
-#include <omp.h>
 #include <cstring>
 #include "xgboost.h"
+#include "../utils/xgboost_omp.h"
 #include "../utils/xgboost_config.h"
 /*!
  * \file xgboost_gbmbase.h
