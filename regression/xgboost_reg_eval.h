@@ -1,7 +1,7 @@
-#ifndef XGBOOST_REGEVAL_H
-#define XGBOOST_REGEVAL_H
+#ifndef XGBOOST_REG_EVAL_H
+#define XGBOOST_REG_EVAL_H
 /*!
-* \file xgboost_regeval.h
+* \file xgboost_reg_eval.h
 * \brief evaluation metrics for regression and classification
 * \author Kailong Chen: chenkl198812@gmail.com, Tianqi Chen: tianqi.tchen@gmail.com
 */
