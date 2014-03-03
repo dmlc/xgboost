@@ -155,6 +155,7 @@ namespace xgboost{
                 for( int nid = 0; nid < tree.param.num_nodes; ++ nid ){
                     tree.stat( nid ).leaf_child_cnt = 0;
                     tree.stat( nid ).loss_chg = snode[ nid ].best.loss_chg;
+                    tree.stat( nid ).sum_hess = static_cast<float>( snode[ nid ].sum_hess );
                 }
                 for( int nid = 0; nid < tree.param.num_nodes; ++ nid ){
                     if( tree[ nid ].is_leaf() ) this->TryPruneLeaf( nid, tree.GetDepth(nid) );

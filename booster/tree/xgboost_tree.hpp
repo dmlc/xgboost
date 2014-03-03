@@ -105,8 +105,8 @@ namespace xgboost{
                 int pid = this->GetLeafIndex( feat, funknown, gid );
                 return tree[ pid ].leaf_value();
             }            
-            virtual void DumpModel( FILE *fo ){
-                tree.DumpModel( fo );
+            virtual void DumpModel( FILE *fo, const utils::FeatMap &fmap, bool with_stats ){
+                tree.DumpModel( fo, fmap, with_stats );
             }
         private:
             template<typename FMatrix>
@@ -171,9 +171,8 @@ namespace xgboost{
 
             inline int GetNext( int pid, float fvalue, bool is_unknown ){
                 float split_value = tree[ pid ].split_cond();
-                if( is_unknown ){
-                    if( tree[ pid ].default_left() ) return tree[ pid ].cleft();
-                else return tree[ pid ].cright();
+                if( is_unknown ){ 
+                    return tree[ pid ].cdefault();
                 }else{
                     if( fvalue < split_value ) return tree[ pid ].cleft();
                     else return tree[ pid ].cright();
