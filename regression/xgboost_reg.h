@@ -9,8 +9,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <omp.h>
-#include "xgboost_regdata.h"
-#include "xgboost_regeval.h"
+#include "xgboost_reg_data.h"
+#include "xgboost_reg_eval.h"
 #include "../booster/xgboost_gbmbase.h"
 #include "../utils/xgboost_utils.h"
 #include "../utils/xgboost_stream.h"

@@ -1,15 +1,15 @@
-#ifndef XGBOOST_REGDATA_H
-#define XGBOOST_REGDATA_H
+#ifndef XGBOOST_REG_DATA_H
+#define XGBOOST_REG_DATA_H
 
 /*!
-* \file xgboost_regdata.h
-* \brief input data structure for regression and binary classification task.
-*     Format:
-*        The data should contain each data instance in each line.
-*		  The format of line data is as below:
-*        label <nonzero feature dimension> [feature index:feature value]+
-* \author Kailong Chen: chenkl198812@gmail.com, Tianqi Chen: tianqi.tchen@gmail.com
-*/
+ * \file xgboost_reg_data.h
+ * \brief input data structure for regression and binary classification task.
+ *     Format:
+ *        The data should contain each data instance in each line.
+ *		  The format of line data is as below:
+ *        label <nonzero feature dimension> [feature index:feature value]+
+ * \author Kailong Chen: chenkl198812@gmail.com, Tianqi Chen: tianqi.tchen@gmail.com
+ */
 #include <cstdio>
 #include <vector>
 #include "../booster/xgboost_data.h"
