@@ -116,9 +116,11 @@ namespace xgboost{
             /*! 
              * \brief DumpModel
              * \param fo text file 
+             * \param fmap feature map that may help give interpretations of feature            
+              * \param with_stats whether print statistics as well
              */            
-            inline void DumpModel( FILE *fo ){
-                base_model.DumpModel( fo );
+            inline void DumpModel( FILE *fo, const utils::FeatMap& fmap, bool with_stats ){
+                base_model.DumpModel( fo, fmap, with_stats );
             }
             /*! 
              * \brief Dump path of all trees

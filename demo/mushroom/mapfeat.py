@@ -25,11 +25,11 @@ def loadfmap( fname ):
 
 def write_nmap( fo, nmap ):    
     for i in xrange( len(nmap) ):
-        fo.write('%d\t%s\n' % (i, nmap[i]) )
+        fo.write('%d\t%s\ti\n' % (i, nmap[i]) )
 
 # start here
 fmap, nmap = loadfmap( 'agaricus-lepiota.fmap' )
-fo = open( 'featname.txt', 'w' )
+fo = open( 'featmap.txt', 'w' )
 write_nmap( fo, nmap )
 fo.close()
 
