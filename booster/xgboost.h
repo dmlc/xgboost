@@ -150,12 +150,6 @@ namespace xgboost{
     };
 };
 
-// A good design should have minimum functions defined interface, user should only operate on interface
-// I break it a bit, by using template and let user 'see' the implementation
-// The user should pretend that they only can use the interface, and we are all cool
-// I find this is the only way so far I can think of to make boosters invariant of data structure, 
-// while keep everything fast
-
 // this file includes the template implementations of all boosters
 // the cost of using template is that the user can 'see' all the implementations, which is OK 
 // ignore implementations and focus on the interface:) 
