@@ -174,7 +174,7 @@ namespace xgboost{
                 #pragma omp parallel for schedule( static )
                 for( unsigned j = 0; j < ndata; ++ j ){
                     preds[j] = mparam.PredTransform
-                        ( mparam.base_score + base_model.Predict( data.data[j], -1 ) );
+                        ( mparam.base_score + base_model.Predict( data.data, j, -1 ) );
                 }
             }
         private:
@@ -186,7 +186,7 @@ namespace xgboost{
                 #pragma omp parallel for schedule( static )
                 for( unsigned j = 0; j < ndata; ++ j ){                
                     preds[j] = mparam.PredTransform
-                        ( mparam.base_score + base_model.Predict( data.data[j], buffer_offset + j ) );
+                        ( mparam.base_score + base_model.Predict( data.data, j, buffer_offset + j ) );
                 }
             }
 

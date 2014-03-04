@@ -15,7 +15,8 @@
 namespace xgboost{
     namespace booster{
         /*! \brief linear model, with L1/L2 regularization */
-        class LinearBooster : public IBooster{
+        template<typename FMatrix>
+        class LinearBooster : public InterfaceBooster<FMatrix>{
         public:
             LinearBooster( void ){ silent = 0;}
             virtual ~LinearBooster( void ){}
@@ -37,15 +38,15 @@ namespace xgboost{
         public:
             virtual void DoBoost( std::vector<float> &grad, 
                                   std::vector<float> &hess,
-                                  const FMatrixS &smat,
+                                  const FMatrix &fmat,
                                   const std::vector<unsigned> &root_index ){
                 utils::Assert( grad.size() < UINT_MAX, "number of instance exceed what we can handle" );
-                this->UpdateWeights( grad, hess, smat );
-            }            
-            virtual float Predict( const FMatrixS::Line &sp, unsigned rid = 0 ){
+                this->UpdateWeights( grad, hess, fmat );
+            }
+            inline float Predict( const FMatrix &fmat, bst_uint ridx, unsigned root_index ){
                 float sum = model.bias();
-                for( unsigned i = 0; i < sp.len; i ++ ){
-                    sum += model.weight[ sp[i].findex ] * sp[i].fvalue;
+                for( typename FMatrix::RowIter it = fmat.GetRow(ridx); it.Next(); ){ 
+                    sum += model.weight[ it.findex() ] * it.fvalue();
                 }
                 return sum;
             }
@@ -59,6 +60,7 @@ namespace xgboost{
                 }
                 return sum;
             }
+            
         protected:
             // training parameter
             struct ParamTrain{
@@ -155,7 +157,6 @@ namespace xgboost{
             ParamTrain param;
         protected:
             // update weights, should work for any FMatrix
-            template<typename FMatrix>
             inline void UpdateWeights( std::vector<float> &grad,                       
                                        const std::vector<float> &hess,
                                        const FMatrix &smat ){
