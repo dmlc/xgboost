@@ -29,7 +29,8 @@ namespace xgboost{
     namespace booster{
         // regression tree, construction algorithm is seperated from this class
         // see RegTreeUpdater
-        class RegTreeTrainer : public IBooster{
+        template<typename FMatrix>
+        class RegTreeTrainer : public InterfaceBooster<FMatrix>{
         public:
             RegTreeTrainer( void ){ 
                 silent = 0; tree_maker = 1;                
@@ -56,62 +57,6 @@ namespace xgboost{
         public:
             virtual void DoBoost( std::vector<float> &grad, 
                                   std::vector<float> &hess,
-                                  const FMatrixS &smat,
-                                  const std::vector<unsigned> &root_index ){
-                this->DoBoost_( grad, hess, smat, root_index );
-            }
-            
-            virtual int GetLeafIndex( const std::vector<float> &feat,
-                                      const std::vector<bool>  &funknown,
-                                      unsigned gid = 0 ){
-                // start from groups that belongs to current data
-                int pid = (int)gid;
-                // tranverse tree
-                while( !tree[ pid ].is_leaf() ){
-                    unsigned split_index = tree[ pid ].split_index();
-                    pid = this->GetNext( pid, feat[ split_index ], funknown[ split_index ] );
-                }
-                return pid;
-            }
-
-            virtual void PredPath( std::vector<int> &path, const FMatrixS::Line &feat, unsigned gid = 0 ){
-                path.clear();
-                ThreadEntry &e = this->InitTmp();
-                this->PrepareTmp( feat, e );
-
-                int pid = (int)gid;
-                path.push_back( pid );
-                // tranverse tree
-                while( !tree[ pid ].is_leaf() ){                    
-                    unsigned split_index = tree[ pid ].split_index();
-                    pid = this->GetNext( pid, e.feat[ split_index ], e.funknown[ split_index ] );
-                    path.push_back( pid );
-                }                
-                this->DropTmp( feat, e );
-            }
-            // make it OpenMP thread safe, but not thread safe in general
-            virtual float Predict( const FMatrixS::Line &feat, unsigned gid = 0 ){
-                ThreadEntry &e = this->InitTmp();
-                this->PrepareTmp( feat, e );
-                int pid = this->GetLeafIndex( e.feat, e.funknown, gid );
-                this->DropTmp( feat, e );
-                return tree[ pid ].leaf_value();
-            }
-            virtual float Predict( const std::vector<float> &feat, 
-                                   const std::vector<bool>  &funknown,
-                                   unsigned gid = 0 ){
-                utils::Assert( feat.size() >= (size_t)tree.param.num_feature,
-                               "input data smaller than num feature" );
-                int pid = this->GetLeafIndex( feat, funknown, gid );
-                return tree[ pid ].leaf_value();
-            }            
-            virtual void DumpModel( FILE *fo, const utils::FeatMap &fmap, bool with_stats ){
-                tree.DumpModel( fo, fmap, with_stats );
-            }
-        private:
-            template<typename FMatrix>
-            inline void DoBoost_( std::vector<float> &grad, 
-                                  std::vector<float> &hess,
                                   const FMatrix &smat,
                                   const std::vector<unsigned> &root_index ){
                 utils::Assert( grad.size() < UINT_MAX, "number of instance exceed what we can handle" );
@@ -131,6 +76,52 @@ namespace xgboost{
                     printf( "tree train end, %d roots, %d extra nodes, %d pruned nodes ,max_depth=%d\n", 
                             tree.param.num_roots, tree.num_extra_nodes(), num_pruned, tree.param.max_depth );
                 }
+            }            
+            virtual float Predict( const FMatrix &fmat, bst_uint ridx, unsigned gid = 0 ){
+                ThreadEntry &e = this->InitTmp();
+                this->PrepareTmp( fmat.GetRow(ridx), e );
+                int pid = this->GetLeafIndex( e.feat, e.funknown, gid );
+                this->DropTmp( fmat.GetRow(ridx), e );
+                return tree[ pid ].leaf_value();          
+            }
+            virtual int GetLeafIndex( const std::vector<float> &feat,
+                                      const std::vector<bool>  &funknown,
+                                      unsigned gid = 0 ){
+                // start from groups that belongs to current data
+                int pid = (int)gid;
+                // tranverse tree
+                while( !tree[ pid ].is_leaf() ){
+                    unsigned split_index = tree[ pid ].split_index();
+                    pid = this->GetNext( pid, feat[ split_index ], funknown[ split_index ] );
+                }
+                return pid;
+            }
+
+            virtual void PredPath( std::vector<int> &path, const FMatrix &fmat, bst_uint ridx, unsigned gid = 0 ){
+                path.clear();
+                ThreadEntry &e = this->InitTmp();
+                this->PrepareTmp( fmat.GetRow(ridx), e );
+                
+                int pid = (int)gid;
+                path.push_back( pid );
+                // tranverse tree
+                while( !tree[ pid ].is_leaf() ){                    
+                    unsigned split_index = tree[ pid ].split_index();
+                    pid = this->GetNext( pid, e.feat[ split_index ], e.funknown[ split_index ] );
+                    path.push_back( pid );
+                }
+                this->DropTmp( fmat.GetRow(ridx), e );
+            }
+            virtual float Predict( const std::vector<float> &feat, 
+                                   const std::vector<bool>  &funknown,
+                                   unsigned gid = 0 ){
+                utils::Assert( feat.size() >= (size_t)tree.param.num_feature,
+                               "input data smaller than num feature" );
+                int pid = this->GetLeafIndex( feat, funknown, gid );
+                return tree[ pid ].leaf_value();
+            }            
+            virtual void DumpModel( FILE *fo, const utils::FeatMap &fmap, bool with_stats ){
+                tree.DumpModel( fo, fmap, with_stats );
             }
         private:
             int silent;
@@ -144,7 +135,6 @@ namespace xgboost{
             };
             std::vector<ThreadEntry> threadtemp;
         private:
-
             inline ThreadEntry& InitTmp( void ){
                 const int tid = omp_get_thread_num();
                 utils::Assert( tid < (int)threadtemp.size(), "RTreeUpdater: threadtemp pool is too small" );
@@ -156,16 +146,17 @@ namespace xgboost{
                 }
                 return e;
             }
-            inline void PrepareTmp( const FMatrixS::Line &feat, ThreadEntry &e ){
-                for( unsigned i = 0; i < feat.len; i ++ ){
-                    utils::Assert( feat[i].findex < (unsigned)tree.param.num_feature , "input feature execeed bound" );
-                    e.funknown[ feat[i].findex ] = false;
-                    e.feat[ feat[i].findex ] = feat[i].fvalue;
+            inline void PrepareTmp( typename FMatrix::RowIter it, ThreadEntry &e ){
+                while( it.Next() ){
+                    const bst_uint findex = it.findex();
+                    utils::Assert( findex < (unsigned)tree.param.num_feature , "input feature execeed bound" );
+                    e.funknown[ findex ] = false;
+                    e.feat[ findex ] = it.fvalue();
                 } 
             }
-            inline void DropTmp( const FMatrixS::Line &feat, ThreadEntry &e ){
-                for( unsigned i = 0; i < feat.len; i ++ ){
-                    e.funknown[ feat[i].findex ] = true;
+            inline void DropTmp( typename FMatrix::RowIter it, ThreadEntry &e ){
+                while( it.Next() ){
+                    e.funknown[ it.findex() ] = true;
                 }
             }
 
