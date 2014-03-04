@@ -68,7 +68,7 @@ namespace xgboost{
              */
             virtual void DoBoost( std::vector<float> &grad,
                                   std::vector<float> &hess,
-                                  const FMatrixS &feats,
+                                  const FMatrix &feats,
                                   const std::vector<unsigned> &root_index ) = 0;
             /*! 
              * \brief predict the path ids along a trees, for given sparse feature vector. When booster is a tree
