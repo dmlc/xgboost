@@ -40,19 +40,25 @@ namespace xgboost{
                         return !(this->loss_chg > loss_chg);
                     }
                 }
-                inline void Update( const SplitEntry &e ){
+                inline bool Update( const SplitEntry &e ){
                     if( this->NeedReplace( e.loss_chg, e.split_index() ) ){
                         this->loss_chg = e.loss_chg;
                         this->sindex = e.sindex;
                         this->split_value = e.split_value;
-                    } 
+                        return true;
+                    } else{
+                        return false;
+                    }
                 }
-                inline void Update( float loss_chg, unsigned split_index, float split_value, bool default_left ){
+                inline bool Update( float loss_chg, unsigned split_index, float split_value, bool default_left ){                    
                     if( this->NeedReplace( loss_chg, split_index ) ){
                         this->loss_chg = loss_chg;
                         if( default_left ) split_index |= (1U << 31);
                         this->sindex = split_index;
                         this->split_value = split_value;
+                        return true;
+                    }else{
+                        return false;
                     }
                 }
                 inline unsigned split_index( void ) const{
@@ -76,26 +82,6 @@ namespace xgboost{
                 NodeEntry( void ){
                     sum_grad = sum_hess = 0.0;
                     weight = root_gain = 0.0f;
-                }
-            };
-
-            /*! \brief per thread x per node entry to store tmp data */
-            struct ThreadEntry{
-                /*! \brief sum gradient statistics */
-                double sum_grad;
-                /*! \brief sum hessian statistics */
-                double sum_hess;
-                /*! \brief last feature value scanned */
-                float  last_fvalue;
-                /*! \brief current best solution */
-                SplitEntry best;
-                /*! \brief constructor */
-                ThreadEntry( void ){                    
-                    this->ClearStats();
-                }
-                /*! \brief clear statistics */
-                inline void ClearStats( void ){
-                    sum_grad = sum_hess = 0.0;
                 }
             };
         private:
