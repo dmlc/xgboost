@@ -39,7 +39,7 @@ namespace xgboost{
                     this->TaskDump();
                     return 0;
                 }
-                if( task == "interactive" ){
+                if( task == "interact" ){
                     this->TaskInteractive();
                     return 0;
                 }

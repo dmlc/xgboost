@@ -105,9 +105,11 @@ namespace xgboost{
                     snode[nid].sum_hess = sum_hess;
                     snode[nid].root_gain = param.CalcRootGain( sum_grad, sum_hess );
                     if( !tree[nid].is_root() ){
-                        snode[nid].weight = param.CalcWeight( sum_grad, sum_hess, snode[ tree[nid].parent() ].weight );
+                        snode[nid].weight = param.CalcWeight( sum_grad, sum_hess, tree.stat( tree[nid].parent() ).base_weight );
+                        tree.stat(nid).base_weight = snode[nid].weight;
                     }else{
                         snode[nid].weight = param.CalcWeight( sum_grad, sum_hess, 0.0f );
+                        tree.stat(nid).base_weight = snode[nid].weight;
                     }
                 }
             }
