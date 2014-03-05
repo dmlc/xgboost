@@ -95,7 +95,7 @@ namespace xgboost{
                 if( s.leaf_child_cnt >= 2 && param.need_prune( s.loss_chg, depth - 1 ) ){
                     this->stat_num_pruned += 2;
                     // need to be pruned
-                    tree.ChangeToLeaf( pid, param.learning_rate * snode[pid].weight );
+                    tree.ChangeToLeaf( pid, param.learning_rate * s.base_weight );
                     // tail recursion
                     this->TryPruneLeaf( pid, depth - 1 );
                 }
