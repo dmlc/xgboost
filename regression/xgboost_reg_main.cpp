@@ -88,6 +88,7 @@ namespace xgboost{
                 dump_model_stats = 0;
                 task = "train";                
                 model_in = "NULL";
+                model_out = "NULL";
                 name_fmap = "NULL";
                 name_pred = "pred.txt";
                 name_dump = "dump.txt";
