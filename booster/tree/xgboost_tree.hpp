@@ -24,6 +24,7 @@ namespace xgboost{
 
 #include "xgboost_svdf_tree.hpp"
 #include "xgboost_col_treemaker.hpp"
+#include "xgboost_row_treemaker.hpp"
 
 namespace xgboost{
     namespace booster{
@@ -64,13 +65,23 @@ namespace xgboost{
                     printf( "\nbuild GBRT with %u instances\n", (unsigned)grad.size() );
                 }
                 int num_pruned;
-                if( tree_maker == 0 ){
-                    // start with a id set
+                switch( tree_maker ){
+                case 0: {
                     RTreeUpdater<FMatrix> updater( param, tree, grad, hess, smat, root_index );
                     tree.param.max_depth = updater.do_boost( num_pruned );
-                }else{
+                    break;
+                }
+                case 1:{
                     ColTreeMaker<FMatrix> maker( tree, param, grad, hess, smat, root_index );
                     maker.Make( tree.param.max_depth, num_pruned );
+                    break;
+                }
+                case 2:{
+                    RowTreeMaker<FMatrix> maker( tree, param, grad, hess, smat, root_index );
+                    maker.Make( tree.param.max_depth, num_pruned );
+                    break;
+                }                    
+                default: utils::Error("unknown tree maker");
                 }
                 if( !silent ){
                     printf( "tree train end, %d roots, %d extra nodes, %d pruned nodes ,max_depth=%d\n", 

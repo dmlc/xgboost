@@ -16,7 +16,7 @@
 namespace xgboost{
     namespace booster{
         template<typename FMatrix>
-        class ColTreeMaker : public BaseTreeMaker{
+        class ColTreeMaker : protected BaseTreeMaker{
         public:
             ColTreeMaker( RegTree &tree,
                           const TreeParamTrain &param, 
@@ -53,6 +53,26 @@ namespace xgboost{
                 // start prunning the tree
                 stat_num_pruned = this->DoPrune();
             }
+        private:
+            /*! \brief per thread x per node entry to store tmp data */
+            struct ThreadEntry{
+                /*! \brief sum gradient statistics */
+                double sum_grad;
+                /*! \brief sum hessian statistics */
+                double sum_hess;
+                /*! \brief last feature value scanned */
+                float  last_fvalue;
+                /*! \brief current best solution */
+                SplitEntry best;
+                /*! \brief constructor */
+                ThreadEntry( void ){                    
+                    this->ClearStats();
+                }
+                /*! \brief clear statistics */
+                inline void ClearStats( void ){
+                    sum_grad = sum_hess = 0.0;
+                }
+            };
         private:
             // make leaf nodes for all qexpand, update node statistics, mark leaf value
             inline void InitNewNode( const std::vector<int> &qexpand ){
