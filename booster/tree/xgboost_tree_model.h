@@ -197,6 +197,21 @@ namespace xgboost{
                 this->DeleteNode( nodes[ rid ].cright() );
                 nodes[ rid ].set_leaf( value );
             }
+            /*! 
+             * \brief collapse a non leaf node to a leaf node, delete its children
+             * \param rid node id of the node
+             * \param new leaf value
+             */
+            inline void CollapseToLeaf( int rid, float value ){
+                if( nodes[rid].is_leaf() ) return;
+                if( !nodes[ nodes[rid].cleft()  ].is_leaf() ){
+                    CollapseToLeaf( nodes[rid].cleft(), 0.0f );
+                }
+                if( !nodes[ nodes[rid].cright()  ].is_leaf() ){
+                    CollapseToLeaf( nodes[rid].cright(), 0.0f );
+                }
+                this->ChangeToLeaf( rid, value );
+            }
         public:
             /*! \brief model parameter */
             Param param;
@@ -286,6 +301,25 @@ namespace xgboost{
                     nid = nodes[ nid ].parent();
                 }
                 return depth;
+            }
+            /*!
+             * \brief get maximum depth
+             * \param nid node id
+             */
+            inline int MaxDepth( int nid ) const{
+                if( nodes[nid].is_leaf() ) return 0;
+                return std::max( MaxDepth( nodes[nid].cleft() )+1, 
+                                 MaxDepth( nodes[nid].cright() )+1 );
+            }
+            /*!
+             * \brief get maximum depth
+             */
+            inline int MaxDepth( void ){
+                int maxd = 0;
+                for( int i = 0; i < param.num_roots; ++ i ){
+                    maxd = std::max( maxd, MaxDepth( i ) );
+                }
+                return maxd;
             }
             /*! \brief number of extra nodes besides the root */
             inline int num_extra_nodes( void ) const {
