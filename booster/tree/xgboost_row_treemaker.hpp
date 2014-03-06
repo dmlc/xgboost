@@ -83,6 +83,7 @@ namespace xgboost{
                 // set all the rest expanding nodes to leaf
                 for( size_t i = 0; i < qexpand.size(); ++ i ){
                     const int nid = qexpand[i];
+                    
                     tree[ nid ].set_leaf( snode[nid].weight * param.learning_rate );
                     tree.stat( nid ).loss_chg = 0.0f;
                     tree.stat( nid ).sum_hess = static_cast<float>( snode[ nid ].sum_hess );
@@ -93,6 +94,15 @@ namespace xgboost{
                 }else{
                     return false;
                 }
+            }
+            // collapse specific node
+            inline void Collapse( const std::vector<bst_uint> &valid_index, int nid ){
+                if( valid_index.size() == 0 ) return;
+                this->InitDataExpand( valid_index, nid );
+                this->InitNewNode( this->qexpand );
+                tree.stat( nid ).loss_chg = 0.0f;
+                tree.stat( nid ).sum_hess = static_cast<float>( snode[ nid ].sum_hess );
+                tree.CollapseToLeaf( nid, snode[nid].weight * param.learning_rate );
             }
         private:
             // make leaf nodes for all qexpand, update node statistics, mark leaf value
