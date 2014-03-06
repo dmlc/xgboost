@@ -68,6 +68,7 @@ namespace xgboost{
                 if( !strcmp("model_dir", name ) )    model_dir_path = val;
                 if( !strcmp("fmap",  name ) )        name_fmap = val;
                 if( !strcmp("name_dump",  name ) )   name_dump = val;
+                if( !strcmp("name_dumppath",  name ) )   name_dumppath = val;
                 if( !strcmp("name_pred",  name ) )   name_pred = val;
                 if( !strcmp("dump_stats", name ) )   dump_model_stats = atoi( val );
                 if( !strncmp("eval[",  name, 5 ) ) {
