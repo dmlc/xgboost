@@ -40,12 +40,13 @@ namespace xgboost{
                     return 0;
                 }
                 if( task == "interact" ){
-                    this->TaskInteractive();
-                    return 0;
+                    this->TaskInteractive(); return 0;
                 }
                 if( task == "dumppath" ){
-                    this->TaskDumpPath();
-                    return 0;
+                    this->TaskDumpPath(); return 0;
+                }
+                if( task == "eval" ){
+                    this->TaskEval(); return 0;
                 }
                 if( task == "pred" ){
                     this->TaskPred();
@@ -160,7 +161,9 @@ namespace xgboost{
                     printf("\nupdating end, %lu sec in all\n", elapsed );
                 }
             }
-
+            inline void TaskEval( void ){
+                learner.EvalOneIter( 0 );
+            }
             inline void TaskInteractive( void ){
                 const time_t start    = time( NULL );
                 unsigned long elapsed = 0;
