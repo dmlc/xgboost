@@ -159,7 +159,7 @@ namespace xgboost{
                 int buffer_offset = static_cast<int>( train_->Size() );
                 
                 for( size_t i = 0; i < evals_.size(); ++i ){
-                    std::vector<float> &preds = this->eval_preds_[ i ];                    
+                    std::vector<float> &preds = this->eval_preds_[ i ];
                     this->PredictBuffer( preds, *evals_[i], buffer_offset);
                     evaluator_.Eval( fo, evname_[i].c_str(), preds, (*evals_[i]).labels );
                     buffer_offset += static_cast<int>( evals_[i]->Size() );

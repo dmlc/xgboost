@@ -24,6 +24,7 @@ python mknfold.py agaricus.txt 1
 ../../xgboost mushroom.conf task=dump model_in=m3.model fmap=featmap.txt name_dump=dump.m3.txt
 ../../xgboost mushroom.conf task=dump model_in=m4.model fmap=featmap.txt name_dump=dump.m4.txt
 
+
 echo "========m1======="
 cat dump.m1.txt
 
@@ -33,10 +34,19 @@ cat dump.m2.txt
 echo "========m3========"
 cat dump.m3.txt
 
+# statistics are print into stderr
+../../xgboost mushroom.conf model_in=m3.model task=eval 2>eval.m3.txt
+cat eval.m3.txt
+
 echo "========m4========"
 cat dump.m4.txt
 
+../../xgboost mushroom.conf model_in=m4.model task=eval 2>eval.m4.txt
+cat eval.m4.txt
 
 
 echo "========full======="
 cat dump.full.txt
+
+../../xgboost mushroom.conf model_in=full.model task=eval 2>eval.full.txt
+cat eval.full.txt
