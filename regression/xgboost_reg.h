@@ -182,8 +182,13 @@ namespace xgboost{
              * \brief update the model for one iteration
              * \param iteration iteration number
              */
-            inline void UpdateInteract( void ){
-                this->InteractPredict( preds_, *train_, 0 );
+            inline void UpdateInteract( std::string action ){
+                this->InteractPredict( preds_, *train_, 0 ); 
+
+                if( action == "remove" ){
+                    base_gbm.DelteBooster(); return;
+                }
+
                 int buffer_offset = static_cast<int>( train_->Size() );
                 for( size_t i = 0; i < evals_.size(); ++i ){
                     std::vector<float> &preds = this->eval_preds_[ i ];                
