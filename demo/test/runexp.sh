@@ -16,12 +16,13 @@ python mknfold.py agaricus.txt 1
 # interaction
 ../../xgboost mushroom.conf task=interact model_in=m1.model model_out=m2.model interact:booster_index=0 bst:interact:expand=1
 ../../xgboost mushroom.conf task=interact model_in=m2.model model_out=m3.model interact:booster_index=0 interact:action=remove
-
+../../xgboost mushroom.conf task=interact model_in=m3.model model_out=m4.model interact:booster_index=0 bst:interact:expand=2
 
 # this is what dump will looklike with feature map
 ../../xgboost mushroom.conf task=dump model_in=m1.model fmap=featmap.txt name_dump=dump.m2.txt
 ../../xgboost mushroom.conf task=dump model_in=m2.model fmap=featmap.txt name_dump=dump.m2.txt
 ../../xgboost mushroom.conf task=dump model_in=m3.model fmap=featmap.txt name_dump=dump.m3.txt
+../../xgboost mushroom.conf task=dump model_in=m4.model fmap=featmap.txt name_dump=dump.m4.txt
 
 echo "========m1======="
 cat dump.m1.txt
@@ -31,6 +32,9 @@ cat dump.m2.txt
 
 echo "========m3========"
 cat dump.m3.txt
+
+echo "========m4========"
+cat dump.m4.txt
 
 
 
