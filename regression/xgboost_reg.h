@@ -185,15 +185,15 @@ namespace xgboost{
             inline void UpdateInteract( std::string action ){
                 this->InteractPredict( preds_, *train_, 0 ); 
 
-                if( action == "remove" ){
-                    base_gbm.DelteBooster(); return;
-                }
-
                 int buffer_offset = static_cast<int>( train_->Size() );
                 for( size_t i = 0; i < evals_.size(); ++i ){
                     std::vector<float> &preds = this->eval_preds_[ i ];                
                     this->InteractPredict( preds, *evals_[i], buffer_offset );
                     buffer_offset += static_cast<int>( evals_[i]->Size() );
+                }
+
+                if( action == "remove" ){
+                    base_gbm.DelteBooster(); return;
                 }
                 
                 this->GetGradient( preds_, train_->labels, grad_, hess_ );
