@@ -65,6 +65,26 @@ namespace xgboost{
                 return "error";
             }
         };
+
+
+        /*! \brief Error */
+        struct EvalLogLoss : public IEvaluator{            
+            virtual float Eval( const std::vector<float> &preds, 
+                                const std::vector<float> &labels ) const{
+                const unsigned ndata = static_cast<unsigned>( preds.size() );
+                unsigned nerr = 0;
+                #pragma omp parallel for reduction(+:nerr) schedule( static )
+                for( unsigned i = 0; i < ndata; ++ i ){
+                    const float y = labels[i];
+                    const float py = preds[i];
+                    nerr -= y * std::log(py) + (1.0f-y)*std::log(1-py);
+                } 
+                return static_cast<float>(nerr) / ndata;
+            }
+            virtual const char *Name( void ) const{
+                return "negllik";
+            }
+        };
     };
 
     namespace regression{
@@ -74,6 +94,7 @@ namespace xgboost{
             inline void AddEval( const char *name ){                
                 if( !strcmp( name, "rmse") ) evals_.push_back( &rmse_ );
                 if( !strcmp( name, "error") ) evals_.push_back( &error_ );
+                if( !strcmp( name, "logloss") ) evals_.push_back( &logloss_ );
             }
             inline void Init( void ){
                 std::sort( evals_.begin(), evals_.end() );
@@ -90,6 +111,7 @@ namespace xgboost{
         private:
             EvalRMSE  rmse_;
             EvalError error_;
+            EvalLogLoss logloss_;
             std::vector<const IEvaluator*> evals_;  
         };
     };
