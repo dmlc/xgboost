@@ -11,6 +11,7 @@
 #include "xgboost_tree_model.h"
 #include "../../utils/xgboost_omp.h"
 #include "../../utils/xgboost_random.h"
+#include "../../utils/xgboost_fmap.h"
 #include "xgboost_base_treemaker.hpp"
 
 namespace xgboost{
@@ -23,10 +24,11 @@ namespace xgboost{
                           const std::vector<float> &grad,
                           const std::vector<float> &hess,
                           const FMatrix &smat, 
-                          const std::vector<unsigned> &root_index )
+                          const std::vector<unsigned> &root_index, 
+                          const utils::FeatConstrain &constrain )
                 : BaseTreeMaker( tree, param ), 
                   grad(grad), hess(hess), 
-                  smat(smat), root_index(root_index) {
+                  smat(smat), root_index(root_index), constrain(constrain) {
                 utils::Assert( grad.size() == hess.size(), "booster:invalid input" );
                 utils::Assert( smat.NumRow() == hess.size(), "booster:invalid input" );
                 utils::Assert( root_index.size() == 0 || root_index.size() == hess.size(), "booster:invalid input" ); 
@@ -254,14 +256,18 @@ namespace xgboost{
                     for( bst_uint i = begin; i < end; ++i ){
                         const bst_uint ridx = row_index_set[i];
                         for( typename FMatrix::RowIter it = smat.GetRow(ridx,gid); it.Next(); ){
-                            builder.AddBudget( it.findex() );
+                            const bst_uint findex = it.findex();
+                            if( constrain.NotBanned( findex ) ) builder.AddBudget( findex );
                         }
                     }
                     builder.InitStorage();
                     for( bst_uint i = begin; i < end; ++i ){
                         const bst_uint ridx = row_index_set[i];
                         for( typename FMatrix::RowIter it = smat.GetRow(ridx,gid); it.Next(); ){
-                            builder.PushElem( it.findex(), FMatrixS::REntry( ridx, it.fvalue() ) );
+                            const bst_uint findex = it.findex();
+                            if( constrain.NotBanned( findex ) ) {
+                                builder.PushElem( findex, FMatrixS::REntry( ridx, it.fvalue() ) );
+                            }
                         }
                     }
                     // --- end of building column major matrix ---                    
@@ -373,6 +379,7 @@ namespace xgboost{
             const std::vector<float> &hess;
             const FMatrix            &smat;
             const std::vector<unsigned> &root_index;
+            const utils::FeatConstrain  &constrain;
         };
     };
 };
