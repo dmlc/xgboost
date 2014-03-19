@@ -7,46 +7,20 @@ python mknfold.py agaricus.txt 1
 ../../xgboost mushroom.conf num_round=1 model_out=full.model bst:max_depth=3
 ../../xgboost mushroom.conf task=dump model_in=full.model fmap=featmap.txt name_dump=dump.full.txt
 
-# training
-../../xgboost mushroom.conf num_round=2 model_out=m1.model bst:max_depth=1
+# constrain
+../../xgboost mushroom.conf num_round=1 model_out=ban.model bst:max_depth=3 bst:fban=22-31 
 
-# this is what dump will looklike with feature map
-../../xgboost mushroom.conf task=dump model_in=m1.model fmap=featmap.txt name_dump=dump.m1.txt
+# constrain
+../../xgboost mushroom.conf num_round=1 model_out=pass.model bst:max_depth=3 bst:fdefault=-1 bst:fpass=22-31
 
-# interaction
-../../xgboost mushroom.conf task=interact model_in=m1.model model_out=m2.model interact:booster_index=0 bst:interact:expand=1
-../../xgboost mushroom.conf task=interact model_in=m2.model model_out=m3.model interact:booster_index=0 interact:action=remove
-../../xgboost mushroom.conf task=interact model_in=m3.model model_out=m4.model interact:booster_index=0 bst:interact:expand=2
-
-# this is what dump will looklike with feature map
-../../xgboost mushroom.conf task=dump model_in=m1.model fmap=featmap.txt name_dump=dump.m2.txt
-../../xgboost mushroom.conf task=dump model_in=m2.model fmap=featmap.txt name_dump=dump.m2.txt
-../../xgboost mushroom.conf task=dump model_in=m3.model fmap=featmap.txt name_dump=dump.m3.txt
-../../xgboost mushroom.conf task=dump model_in=m4.model fmap=featmap.txt name_dump=dump.m4.txt
-
-
-echo "========m1======="
-cat dump.m1.txt
-
-echo "========m2========"
-cat dump.m2.txt
-
-echo "========m3========"
-cat dump.m3.txt
-
-# statistics are print into stderr
-../../xgboost mushroom.conf model_in=m3.model task=eval 2>eval.m3.txt
-cat eval.m3.txt
-
-echo "========m4========"
-cat dump.m4.txt
-
-../../xgboost mushroom.conf model_in=m4.model task=eval 2>eval.m4.txt
-cat eval.m4.txt
-
+../../xgboost mushroom.conf task=dump model_in=ban.model fmap=featmap.txt name_dump=dump.ban.txt
+../../xgboost mushroom.conf task=dump model_in=pass.model fmap=featmap.txt name_dump=dump.pass.txt
 
 echo "========full======="
 cat dump.full.txt
 
-../../xgboost mushroom.conf model_in=full.model task=eval 2>eval.full.txt
-cat eval.full.txt
+echo "========ban======="
+cat dump.ban.txt
+
+echo "========pass======="
+cat dump.pass.txt
