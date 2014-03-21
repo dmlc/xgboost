@@ -2,7 +2,7 @@ xgboost: eXtreme Gradient Boosting
 =======
 An efficient general purpose gradient boosting (tree) library.
 
-Creater: Tianqi Che
+Creater: Tianqi Chen
 
 Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
  
