@@ -2,9 +2,9 @@ xgboost: eXtreme Gradient Boosting
 =======
 An efficient general purpose gradient boosting (tree) library.
 
-Creater: Tianqi Chen
- 
-Documentation: https://github.com/tqchen/xgboost/wiki
+Creater: Tianqi Che
+
+Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
  
 
 Features
@@ -15,7 +15,7 @@ Features
   - Efficient implementation that optimizes memory and computation.
 * Layout of gradient boosting algorithm to support generic tasks, see project wiki.
 
-Planned key components
+Supported key components
 =======
 * Gradient boosting models: 
     - regression tree (GBRT)
@@ -23,10 +23,14 @@ Planned key components
 * Objectives to support tasks: 
     - regression
     - classification
+* OpenMP implementation
+
+Planned components
+=======
+* More objective to support tasks: 
     - ranking
     - matrix factorization
     - structured prediction
-(3) OpenMP implementation
 
 File extension convention: 
 (1) .h are interface, utils and data structures, with detailed comment; 
