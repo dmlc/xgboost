@@ -4,23 +4,20 @@ python mapfeat.py
 # split train and test
 python mknfold.py agaricus.txt 1
 # training
-../../xgboost mushroom.conf num_round=1 model_out=full.model bst:max_depth=3
+../../xgboost mushroom.conf num_round=2 model_out=full.model bst:max_depth=3
 ../../xgboost mushroom.conf task=dump model_in=full.model fmap=featmap.txt name_dump=dump.full.txt
 
-# constrain
-../../xgboost mushroom.conf num_round=1 model_out=ban.model bst:max_depth=3 bst:fban=22-31 
+# major element of batch running: add batch prefix to each setting, batch:run=1 will run that action
 
-# constrain
-../../xgboost mushroom.conf num_round=1 model_out=pass.model bst:max_depth=3 bst:fdefault=-1 bst:fpass=22-31
+../../xgboost mushroom.conf model_in=full.model model_out=m1.model task=interact\
+ batch:interact:booster_index=0 batch:bst:interact:remove=1 batch:run=1\
+ batch:interact:booster_index=1 batch:bst:interact:remove=1 batch:run=1\
+ batch:interact:booster_index=1 batch:bst:interact:expand=9 batch:run=1\
 
-../../xgboost mushroom.conf task=dump model_in=ban.model fmap=featmap.txt name_dump=dump.ban.txt
-../../xgboost mushroom.conf task=dump model_in=pass.model fmap=featmap.txt name_dump=dump.pass.txt
+../../xgboost mushroom.conf task=dump model_in=m1.model fmap=featmap.txt name_dump=dump.m1.txt
 
 echo "========full======="
 cat dump.full.txt
 
-echo "========ban======="
-cat dump.ban.txt
-
-echo "========pass======="
-cat dump.pass.txt
+echo "========m1======="
+cat dump.m1.txt
