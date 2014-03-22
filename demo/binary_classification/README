@@ -1,5 +1,4 @@
-example of training a binary classifier on UCI dataset
-http://archive.ics.uci.edu/ml/datasets/Mushroom
+Demonstrating how to use XGBoost accomplish binary classification tasks  on UCI mushroom dataset  http://archive.ics.uci.edu/ml/datasets/Mushroom
 
 Run: ./runexp.sh
 

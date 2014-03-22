@@ -3,10 +3,12 @@
 python mapfeat.py
 # split train and test
 python mknfold.py agaricus.txt 1
-# training
+# training and output the models
 ../../xgboost mushroom.conf
-# this is what dump will looklike without feature map
+# output prediction task=pred 
+../../xgboost mushroom.conf task=pred model_in=0003.model
+# print the boosters of 00003.model in dump.raw.txt
 ../../xgboost mushroom.conf task=dump model_in=0003.model name_dump=dump.raw.txt 
-# this is what dump will looklike with feature map
+# use the feature map in printing for better visualization
 ../../xgboost mushroom.conf task=dump model_in=0003.model fmap=featmap.txt name_dump=dump.nice.txt
 cat dump.nice.txt
