@@ -111,7 +111,7 @@ namespace xgboost{
             inline void InitData( void ){
                 if( name_fmap != "NULL" ) fmap.LoadText( name_fmap.c_str() );
                 if( task == "dump" ) return;
-                if( task == "test" || task == "dumppath" ){
+                if( task == "pred" || task == "dumppath" ){
                     data.CacheLoad( test_path.c_str(), silent!=0, use_buffer!=0 );
                 }else{
                     // training 
