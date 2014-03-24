@@ -1,11 +1,5 @@
-Demonstrating how to use XGBoost accomplish regression tasks on UCI mushroom dataset  http://archive.ics.uci.edu/ml/datasets/Mushroom
+Demonstrating how to use XGBoost accomplish regression tasks on computer hardware dataset https://archive.ics.uci.edu/ml/datasets/Computer+Hardware
 
 Run: ./runexp.sh
 
 Format of input: LIBSVM format
-
-Format of featmap.txt:
-<featureid> <featurename> <q or i>\n
-
-q means continuous quantities, i means indicator features.
-Feature id must be from 0 to num_features, in sorted order.
