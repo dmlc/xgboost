@@ -155,7 +155,7 @@ namespace xgboost{
                 // always save final round
                 if( save_period == 0 || num_round % save_period != 0 ){
                     if( model_out == "NULL" ){
-                        this->SaveModel( num_round );
+                        this->SaveModel( num_round - 1 );
                     }else{
                         this->SaveModel( model_out.c_str() );
                     }
