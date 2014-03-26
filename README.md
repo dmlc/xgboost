@@ -34,7 +34,7 @@ Planned components
 
 File extension convention
 =======
-(1) .h are interface, utils and data structures, with detailed comment; 
-(2) .cpp are implementations that will be compiled, with less comment; 
-(3) .hpp are implementations that will be included by .cpp, with less comment
+* .h are interface, utils and data structures, with detailed comment; 
+* .cpp are implementations that will be compiled, with less comment; 
+* .hpp are implementations that will be included by .cpp, with less comment
 
