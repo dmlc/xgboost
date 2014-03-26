@@ -1,6 +1,6 @@
 xgboost: eXtreme Gradient Boosting 
 =======
-An efficient general purpose gradient boosting (tree) library.
+A General purpose gradient boosting (tree) library.
 
 Creater: Tianqi Chen
 
@@ -32,7 +32,8 @@ Planned components
     - matrix factorization
     - structured prediction
 
-File extension convention: 
+File extension convention
+=======
 (1) .h are interface, utils and data structures, with detailed comment; 
 (2) .cpp are implementations that will be compiled, with less comment; 
 (3) .hpp are implementations that will be included by .cpp, with less comment
