@@ -4,10 +4,11 @@ Run: ./runexp.sh
 
 Format of input: LIBSVM format
 
-Format of featmap.txt:
-<featureid> <featurename> <q or i>\n
+Format of ```featmap.txt: <featureid> <featurename> <q or i or int>\n ```:
+  - Feature id must be from 0 to number of features, in sorted order.
+  - i means this feature is binary indicator feature
+  - q means this feature is a quantitative value, such as age, time, can be missing
+  - int means this feature is integer value (when int is hinted, the decision boundary will be integer)
 
-q means continuous quantities, i means indicator features.
-Feature id must be from 0 to num_features, in sorted order.
 
-Detailed explaination: https://github.com/tqchen/xgboost/wiki/Binary-Classification
+Explainations: https://github.com/tqchen/xgboost/wiki/Binary-Classification
