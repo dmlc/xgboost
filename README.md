@@ -2,11 +2,12 @@ xgboost: eXtreme Gradient Boosting
 =======
 A General purpose gradient boosting (tree) library.
 
-Creater: Tianqi Chen
+Authors:
+* Tianqi Chen, project creater
+* Kailong Chen, contributes regression module
 
 Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
  
-
 Features
 =======
 * Sparse feature format:
@@ -37,4 +38,3 @@ File extension convention
 * .h are interface, utils and data structures, with detailed comment; 
 * .cpp are implementations that will be compiled, with less comment; 
 * .hpp are implementations that will be included by .cpp, with less comment
-

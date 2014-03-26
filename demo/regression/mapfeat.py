@@ -19,5 +19,3 @@ for l in open( 'machine.data' ):
     fo.write('\n')
 
 fo.close()
-
- 
