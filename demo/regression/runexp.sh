@@ -1,5 +1,5 @@
 #!/bin/bash
-# map feature using indicator encoding, also produce featmap.txt
+# map the data to features. For convenience we only use 7 original attributes and encode them as features in a trivial way 
 python mapfeat.py
 # split train and test
 python mknfold.py machine.txt 1
