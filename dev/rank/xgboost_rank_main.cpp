@@ -17,12 +17,12 @@ int main(int argc, char *argv[]) {
 	xgboost::random::Seed(0);
 	xgboost::base::BoostTask tsk;
 	xgboost::utils::ConfigIterator itr(argv[1]);
-	int learner_index = 0;
+/*	int learner_index = 0;
 	while (itr.Next()){
 		if (!strcmp(itr.name(), "learning_task")){
 			learner_index = atoi(itr.val());
 		}
-	}
+	}*/
 	xgboost::rank::RankBoostLearner* rank_learner = new xgboost::rank::RankBoostLearner;
 	xgboost::base::BoostLearner *parent = static_cast<xgboost::base::BoostLearner*>(rank_learner);
 	tsk.SetLearner(parent);
