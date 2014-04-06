@@ -273,8 +273,3 @@ namespace xgboost{
     };
 };
 
-int main( int argc, char *argv[] ){
-    xgboost::random::Seed( 0 );
-    xgboost::regression::RegBoostTask tsk;
-    return tsk.Run( argc, argv );
-}
