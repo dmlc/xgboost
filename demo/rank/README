@@ -1,0 +1,13 @@
+Demonstrating how to use XGBoost accomplish regression tasks on computer hardware dataset https://archive.ics.uci.edu/ml/datasets/Computer+Hardware
+
+Run: ./runexp.sh
+
+Format of input: LIBSVM format
+
+Format of ```featmap.txt: <featureid> <featurename> <q or i or int>\n ```:
+  - Feature id must be from 0 to number of features, in sorted order.
+  - i means this feature is binary indicator feature
+  - q means this feature is a quantitative value, such as age, time, can be missing
+  - int means this feature is integer value (when int is hinted, the decision boundary will be integer)
+
+Explainations: https://github.com/tqchen/xgboost/wiki/Regression
