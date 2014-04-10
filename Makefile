@@ -10,9 +10,9 @@ OBJ =
 all: $(BIN) $(OBJ)
 export LDFLAGS= -pthread -lm 
 
-xgboost: regression/xgboost_reg_main.cpp regression/*.h booster/*.h booster/*/*.hpp booster/*.hpp
+#xgboost: regression/xgboost_reg_main.cpp regression/*.h booster/*.h booster/*/*.hpp booster/*.hpp
 
-#xgboost: rank/xgboost_rank_main.cpp base/*.h rank/*.h booster/*.h booster/*/*.hpp booster/*.hpp
+xgboost: rank/xgboost_rank_main.cpp base/*.h rank/*.h booster/*.h booster/*/*.hpp booster/*.hpp
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
