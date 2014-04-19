@@ -21,8 +21,6 @@ namespace xgboost{
         /*! \brief data matrix for regression content */
         struct DMatrix{
         public:
-            /*! \brief maximum feature dimension */
-            unsigned num_feature;
             /*! \brief feature data content */
             booster::FMatrixS data;
             /*! \brief label of each instance */
@@ -134,19 +132,6 @@ namespace xgboost{
                 if( !this->LoadBinary( bname, silent ) ){
                     this->LoadText( fname, silent );
                     if( savebuffer ) this->SaveBinary( bname, silent );
-                }
-            }
-        private:
-            /*! \brief update num_feature info */
-            inline void UpdateInfo( void ){
-                this->num_feature = 0;
-                for( size_t i = 0; i < data.NumRow(); i ++ ){
-                    booster::FMatrixS::Line sp = data[i];
-                    for( unsigned j = 0; j < sp.len; j ++ ){
-                        if( num_feature <= sp[j].findex ){
-                            num_feature = sp[j].findex + 1;
-                        }
-                    }
                 }
             }
         };
