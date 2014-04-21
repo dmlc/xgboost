@@ -49,9 +49,8 @@ namespace xgboost{
             };
         private:
             Entry best_entry;
-            const TreeParamTrain &param;
         public:
-            RTSelecter( const TreeParamTrain &p ):param( p ){
+            RTSelecter( void ){
                 memset( &best_entry, 0, sizeof(best_entry) );
                 best_entry.loss_chg = 0.0f;
             }
@@ -211,7 +210,7 @@ namespace xgboost{
                                          const SCEntry *entry, size_t start, size_t end, 
                                          int findex, float parent_base_weight ){
                 // local selecter
-                RTSelecter slocal( param );
+                RTSelecter slocal;
                 
                 if( param.need_forward_search() ){
                     // forward process, default right
@@ -320,7 +319,7 @@ namespace xgboost{
                 // after this point, tmp_rptr and entry is ready to use
                 
                 // global selecter
-                RTSelecter sglobal( param );
+                RTSelecter sglobal;
                 // gain root 
                 const double root_gain = param.CalcRootGain( rsum_grad, rsum_hess );
                 // KEY: layerwise, weight of current node if it is leaf
