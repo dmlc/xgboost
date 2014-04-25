@@ -172,7 +172,7 @@ namespace xgboost{
                 preds.resize(data.Size());
 
                 const unsigned ndata = static_cast<unsigned>(data.Size());
-#pragma omp parallel for schedule( static )
+                #pragma omp parallel for schedule( static )
                 for (unsigned j = 0; j < ndata; ++j){
                     preds[j] = mparam.PredTransform
                         (mparam.base_score + base_gbm.Predict(data.data, j, -1));
@@ -213,7 +213,7 @@ namespace xgboost{
             inline void InteractPredict(std::vector<float> &preds, const DMatrix &data, unsigned buffer_offset){
                 preds.resize(data.Size());
                 const unsigned ndata = static_cast<unsigned>(data.Size());
-		#pragma omp parallel for schedule( static )
+                #pragma omp parallel for schedule( static )
                 for (unsigned j = 0; j < ndata; ++j){
                     preds[j] = mparam.PredTransform
                         (mparam.base_score + base_gbm.InteractPredict(data.data, j, buffer_offset + j));
@@ -222,7 +222,7 @@ namespace xgboost{
             /*! \brief repredict trial */
             inline void InteractRePredict(const DMatrix &data, unsigned buffer_offset){
                 const unsigned ndata = static_cast<unsigned>(data.Size());
-		#pragma omp parallel for schedule( static )
+                #pragma omp parallel for schedule( static )
                 for (unsigned j = 0; j < ndata; ++j){
                     base_gbm.InteractRePredict(data.data, j, buffer_offset + j);
                 }
@@ -233,7 +233,7 @@ namespace xgboost{
                 preds.resize(data.Size());
 
                 const unsigned ndata = static_cast<unsigned>(data.Size());
-#pragma omp parallel for schedule( static )
+                #pragma omp parallel for schedule( static )
                 for (unsigned j = 0; j < ndata; ++j){
                     preds[j] = mparam.PredTransform
                         (mparam.base_score + base_gbm.Predict(data.data, j, buffer_offset + j));
@@ -242,13 +242,13 @@ namespace xgboost{
 
             /*! \brief get the first order and second order gradient, given the transformed predictions and labels */
             inline void GetGradient(const std::vector<float> &preds,
-                const std::vector<float> &labels,
-                std::vector<float> &grad,
-                std::vector<float> &hess){
+                                    const std::vector<float> &labels,
+                                    std::vector<float> &grad,
+                                    std::vector<float> &hess){
                 grad.resize(preds.size()); hess.resize(preds.size());
 
                 const unsigned ndata = static_cast<unsigned>(preds.size());
-#pragma omp parallel for schedule( static )
+                #pragma omp parallel for schedule( static )
                 for (unsigned j = 0; j < ndata; ++j){
                     grad[j] = mparam.FirstOrderGradient(preds[j], labels[j]);
                     hess[j] = mparam.SecondOrderGradient(preds[j], labels[j]);
