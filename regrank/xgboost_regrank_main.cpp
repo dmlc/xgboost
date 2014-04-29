@@ -4,13 +4,13 @@
 #include <ctime>
 #include <string>
 #include <cstring>
-#include "xgboost_reg.h"
+#include "xgboost_regrank.h"
 #include "../utils/xgboost_fmap.h"
 #include "../utils/xgboost_random.h"
 #include "../utils/xgboost_config.h"
 
 namespace xgboost{
-    namespace regression{
+    namespace regrank{
         /*!
         * \brief wrapping the training process of the gradient boosting regression model,
         *   given the configuation
@@ -273,13 +273,13 @@ namespace xgboost{
             DMatrix data;
             std::vector<DMatrix*> deval;
             utils::FeatMap fmap;
-            RegBoostLearner learner;
+            RegRankBoostLearner learner;
         };
     };
 };
 
 int main( int argc, char *argv[] ){
   xgboost::random::Seed( 0 );
-  xgboost::regression::RegBoostTask tsk;
+  xgboost::regrank::RegBoostTask tsk;
   return tsk.Run( argc, argv );
 }
