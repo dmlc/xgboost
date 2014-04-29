@@ -1,8 +1,8 @@
-#ifndef XGBOOST_REG_EVAL_H
-#define XGBOOST_REG_EVAL_H
+#ifndef XGBOOST_REGRANK_EVAL_H
+#define XGBOOST_REGRANK_EVAL_H
 /*!
-* \file xgboost_reg_eval.h
-* \brief evaluation metrics for regression and classification
+* \file xgboost_regrank_eval.h
+* \brief evaluation metrics for regression and classification and rank
 * \author Kailong Chen: chenkl198812@gmail.com, Tianqi Chen: tianqi.tchen@gmail.com
 */
 
@@ -12,18 +12,19 @@
 #include "../utils/xgboost_utils.h"
 #include "../utils/xgboost_omp.h"
 #include "../utils/xgboost_random.h"
+#include "xgboost_regrank_data.h"
 
 namespace xgboost{
-    namespace regression{
+    namespace regrank{
         /*! \brief evaluator that evaluates the loss metrics */
         struct IEvaluator{
             /*!
              * \brief evaluate a specific metric
              * \param preds prediction
-             * \param labels label
+             * \param info information, including label etc.
              */
             virtual float Eval(const std::vector<float> &preds,
-            const std::vector<float> &labels) const = 0;
+                               const DMatrix::Info &info ) const = 0;
             /*! \return name of metric */
             virtual const char *Name(void) const = 0;
         };
@@ -31,15 +32,17 @@ namespace xgboost{
         /*! \brief RMSE */
         struct EvalRMSE : public IEvaluator{
             virtual float Eval(const std::vector<float> &preds,
-                               const std::vector<float> &labels) const{
+                               const DMatrix::Info &info ) const {
                 const unsigned ndata = static_cast<unsigned>(preds.size());
-                float sum = 0.0;
-                #pragma omp parallel for reduction(+:sum) schedule( static )
+                float sum = 0.0, wsum = 0.0;
+                #pragma omp parallel for reduction(+:sum,wsum) schedule( static )
                 for (unsigned i = 0; i < ndata; ++i){
-                    float diff = preds[i] - labels[i];
-                    sum += diff * diff;
+                    const float wt = info.GetWeight(i);
+                    const float diff = info.labels[i] - preds[i];
+                    sum += diff*diff * wt;
+                    wsum += wt;
                 }
-                return sqrtf(sum / ndata);
+                return sqrtf(sum / wsum);
             }
             virtual const char *Name(void) const{
                 return "rmse";
@@ -47,21 +50,44 @@ namespace xgboost{
         };
 
         /*! \brief Error */
+        struct EvalLogLoss : public IEvaluator{
+            virtual float Eval(const std::vector<float> &preds,
+                               const DMatrix::Info &info ) const {
+                const unsigned ndata = static_cast<unsigned>(preds.size());
+                float sum = 0.0f, wsum = 0.0f;                
+                #pragma omp parallel for reduction(+:sum,wsum) schedule( static )
+                for (unsigned i = 0; i < ndata; ++i){
+                    const float y = info.labels[i];
+                    const float py = preds[i];
+                    const float wt = info.GetWeight(i);
+                    sum -= wt * ( y * std::log(py) + (1.0f - y)*std::log(1 - py) );
+                    wsum+= wt;
+                }
+                return sum / wsum;
+            }
+            virtual const char *Name(void) const{
+                return "negllik";
+            }
+        };
+
+        /*! \brief Error */
         struct EvalError : public IEvaluator{
             virtual float Eval(const std::vector<float> &preds,
-                               const std::vector<float> &labels) const{
+                               const DMatrix::Info &info ) const {
                 const unsigned ndata = static_cast<unsigned>(preds.size());
-                unsigned nerr = 0;
-                #pragma omp parallel for reduction(+:nerr) schedule( static )
+                float sum = 0.0f, wsum = 0.0f;                
+                #pragma omp parallel for reduction(+:sum,wsum) schedule( static )
                 for (unsigned i = 0; i < ndata; ++i){
+                    const float wt = info.GetWeight(i);
                     if (preds[i] > 0.5f){
-                        if (labels[i] < 0.5f) nerr += 1;
-                    }
+                        if (info.labels[i] < 0.5f) sum += wt; 
+                     }
                     else{
-                        if (labels[i] > 0.5f) nerr += 1;
+                        if (info.labels[i] >= 0.5f) sum += wt;
                     }
+                    wsum += wt;
                 }
-                return static_cast<float>(nerr) / ndata;
+                return sum / wsum;
             }
             virtual const char *Name(void) const{
                 return "error";
@@ -74,7 +100,8 @@ namespace xgboost{
                 return a.first > b.first;
             }
             virtual float Eval( const std::vector<float> &preds, 
-                                const std::vector<float> &labels ) const{
+                                const DMatrix::Info &info ) const {
+                const std::vector<float> &labels  = info.labels;
                 const unsigned ndata = static_cast<unsigned>( preds.size() );
                 std::vector< std::pair<float, float> > rec;
                 for( unsigned i = 0; i < ndata; ++ i ){
@@ -100,54 +127,35 @@ namespace xgboost{
                 return "auc";
             }
         };
-
-        /*! \brief Error */
-        struct EvalLogLoss : public IEvaluator{
-            virtual float Eval(const std::vector<float> &preds,
-                               const std::vector<float> &labels) const{
-                const unsigned ndata = static_cast<unsigned>(preds.size());
-                unsigned nerr = 0;
-                #pragma omp parallel for reduction(+:nerr) schedule( static )
-                for (unsigned i = 0; i < ndata; ++i){
-                    const float y = labels[i];
-                    const float py = preds[i];
-                    nerr -= y * std::log(py) + (1.0f - y)*std::log(1 - py);
-                }
-                return static_cast<float>(nerr) / ndata;
-            }
-            virtual const char *Name(void) const{
-                return "negllik";
-            }
-        };
     };
 
-    namespace regression{
+    namespace regrank{
         /*! \brief a set of evaluators */
         struct EvalSet{
         public:
             inline void AddEval(const char *name){
-                if (!strcmp(name, "rmse")) evals_.push_back(&rmse_);
-                if (!strcmp(name, "error")) evals_.push_back(&error_);
-                if (!strcmp(name, "logloss")) evals_.push_back(&logloss_);
-                if (!strcmp( name, "auc"))   evals_.push_back( &auc_ );
+                for( size_t i = 0; i < evals_.size(); ++ i ){
+                    if(!strcmp(name, evals_[i]->Name())) return;
+                }
+                if (!strcmp(name, "rmse"))    evals_.push_back( new EvalRMSE() );
+                if (!strcmp(name, "error"))   evals_.push_back( new EvalError() );
+                if (!strcmp(name, "logloss")) evals_.push_back( new EvalLogLoss() );
+                if (!strcmp( name, "auc"))    evals_.push_back( new EvalAuc() );
             }
-            inline void Init(void){
-                std::sort(evals_.begin(), evals_.end());
-                evals_.resize(std::unique(evals_.begin(), evals_.end()) - evals_.begin());
+            ~EvalSet(){
+                for( size_t i = 0; i < evals_.size(); ++ i ){
+                    delete evals_[i];
+                }
             }
             inline void Eval(FILE *fo, const char *evname,
                              const std::vector<float> &preds,
-                             const std::vector<float> &labels) const{
+                             const DMatrix::Info &info ) const{
                 for (size_t i = 0; i < evals_.size(); ++i){
-                    float res = evals_[i]->Eval(preds, labels);
+                    float res = evals_[i]->Eval(preds, info);
                     fprintf(fo, "\t%s-%s:%f", evname, evals_[i]->Name(), res);
                 }
             }
         private:
-            EvalRMSE  rmse_;
-            EvalError error_;
-            EvalAuc   auc_;
-            EvalLogLoss logloss_;
             std::vector<const IEvaluator*> evals_;
         };
     };
