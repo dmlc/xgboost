@@ -256,6 +256,7 @@ namespace xgboost{
                 ModelParam(void){
                     base_score = 0.5f;
                     loss_type = 0;
+                    num_feature = 0;
                     memset(reserved, 0, sizeof(reserved));
                 }
                 /*!
