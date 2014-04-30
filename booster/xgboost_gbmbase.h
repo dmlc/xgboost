@@ -177,9 +177,9 @@ namespace xgboost{
              *          root_index.size() can be 0 which indicates that no pre-partition involved
              */
             inline void DoBoost(std::vector<float> &grad,
-                std::vector<float> &hess,
-                const booster::FMatrixS &feats,
-                const std::vector<unsigned> &root_index) {
+                                std::vector<float> &hess,
+                                const booster::FMatrixS &feats,
+                                const std::vector<unsigned> &root_index) {
                 booster::IBooster *bst = this->GetUpdateBooster();
                 bst->DoBoost(grad, hess, feats, root_index);
             }
@@ -212,6 +212,10 @@ namespace xgboost{
                     this->pred_buffer[buffer_index] = psum;
                 }
                 return psum;
+            }
+            /*! \return number of boosters so far */
+            inline int NumBoosters(void) const{
+                return mparam.num_boosters;
             }
         public:
             //--------trial code for interactive update an existing booster------

@@ -18,6 +18,7 @@ namespace xgboost{
             }
             virtual void GetGradient(const std::vector<float>& preds,  
                                      const DMatrix::Info &info,
+                                     int iter,
                                      std::vector<float> &grad, 
                                      std::vector<float> &hess ) {
                 grad.resize(preds.size()); hess.resize(preds.size());
@@ -47,7 +48,93 @@ namespace xgboost{
     };
 
     namespace regrank{
-        // TODO rank objective
+        // simple pairwise rank 
+        class PairwiseRankObj : public IObjFunction{
+        public:
+            PairwiseRankObj(void){
+                loss.loss_type = LossType::kLinearSquare;
+                fix_list_weight = 0.0f;
+            }
+            virtual ~PairwiseRankObj(){}
+            virtual void SetParam(const char *name, const char *val){
+                if( !strcmp( "loss_type", name ) ) loss.loss_type = atoi( val );
+                if( !strcmp( "fix_list_weight", name ) ) fix_list_weight = (float)atof( val );
+            }
+            virtual void GetGradient(const std::vector<float>& preds,  
+                                     const DMatrix::Info &info,
+                                     int iter,
+                                     std::vector<float> &grad, 
+                                     std::vector<float> &hess ) {
+                grad.resize(preds.size()); hess.resize(preds.size());
+                const std::vector<unsigned> &gptr = info.group_ptr;
+                utils::Assert( gptr.size() != 0 && gptr.back() == preds.size(), "rank loss must have group file" );
+                const unsigned ngroup = static_cast<unsigned>( gptr.size() - 1 );
+
+                #pragma omp parallel
+                {
+                    // parall construct, declare random number generator here, so that each 
+                    // thread use its own random number generator, seed by thread id and current iteration
+                    random::Random rnd; rnd.Seed( iter * 1111 + omp_get_thread_num() );
+                    std::vector< std::pair<float,unsigned> > rec;
+                    #pragma for schedule(static)
+                    for (unsigned k = 0; k < ngroup; ++k){
+                        rec.clear();
+                        for(unsigned j = gptr[k]; j < gptr[k+1]; ++j ){
+                            rec.push_back( std::make_pair(info.labels[j], j) );
+                        }
+                        std::sort( rec.begin(), rec.end(), CmpFirst );
+                        // enumerate buckets with same label, for each item in the list, grab another sample randomly
+                        for( unsigned i = 0; i < rec.size(); ){
+                            unsigned j = i + 1;
+                            while( j < rec.size() && rec[j].first == rec[i].first ) ++ j;
+                            // bucket in [i,j), get a sample outside bucket
+                            unsigned nleft = i, nright = rec.size() - j;
+                            for( unsigned pid = i; pid < j; ++ pid ){
+                                unsigned ridx = static_cast<int>( rnd.RandDouble() * (nleft+nright) );
+                                if( ridx < nleft ){
+                                    // get the samples in left side, ridx is pos sample
+                                    this->AddGradient( rec[ridx].second, rec[pid].second, preds, grad, hess );
+                                }else{
+                                    // get samples in right side, ridx is negsample
+                                    this->AddGradient( rec[pid].second, rec[ridx+j-i].second, preds, grad, hess );
+                                }
+                            }                            
+                            i = j;
+                        }
+                        // rescale each gradient and hessian so that the list have constant weight
+                        if( fix_list_weight != 0.0f ){
+                            float scale = fix_list_weight / (gptr[k+1] - gptr[k]);
+                            for(unsigned j = gptr[k]; j < gptr[k+1]; ++j ){
+                                grad[j] *= scale; hess[j] *= scale;
+                            }                            
+                        }
+                    }
+                }
+            }
+            virtual const char* DefaultEvalMetric(void) {
+                return "auc";
+            }            
+        private:
+            inline void AddGradient( unsigned pid, unsigned nid, 
+                                     const std::vector<float> &pred,
+                                     std::vector<float> &grad,
+                                     std::vector<float> &hess ){
+                float p = loss.PredTransform( pred[pid]-pred[nid] );
+                float g = loss.FirstOrderGradient( p, 1.0f );
+                float h = loss.SecondOrderGradient( p, 1.0f );
+                // accumulate gradient and hessian in both pid, and nid, 
+                grad[pid] += g; grad[nid] -= g;
+                // take conservative update, scale hessian by 2
+                hess[pid] += 2.0f * h; hess[nid] += 2.0f * h;
+            }                                     
+            inline static bool CmpFirst( const std::pair<float,unsigned> &a, const std::pair<float,unsigned> &b ){
+                return a.first > b.first;
+            }
+        private:
+            // fix weight of each list
+            float fix_list_weight;
+            LossType loss;
+        };
     };
 };
 #endif
