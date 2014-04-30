@@ -149,7 +149,7 @@ namespace xgboost{
              */
             inline void UpdateOneIter(int iter){
                 this->PredictBuffer(preds_, *train_, 0);
-                obj_->GetGradient(preds_, train_->info, grad_, hess_);
+                obj_->GetGradient(preds_, train_->info, base_gbm.NumBoosters(), grad_, hess_);
                 std::vector<unsigned> root_index;
                 base_gbm.DoBoost(grad_, hess_, train_->data, root_index);
             }
@@ -201,7 +201,7 @@ namespace xgboost{
                     base_gbm.DelteBooster(); return;
                 }
 
-                obj_->GetGradient(preds_, train_->info, grad_, hess_);
+                obj_->GetGradient(preds_, train_->info, base_gbm.NumBoosters(), grad_, hess_);
                 std::vector<unsigned> root_index;
                 base_gbm.DoBoost(grad_, hess_, train_->data, root_index);
 
