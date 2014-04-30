@@ -25,8 +25,9 @@ namespace xgboost{
                 const unsigned ndata = static_cast<unsigned>(preds.size());
                 #pragma omp parallel for schedule( static )
                 for (unsigned j = 0; j < ndata; ++j){
-                    grad[j] = loss.FirstOrderGradient(preds[j], info.labels[j]) * info.GetWeight(j);
-                    hess[j] = loss.SecondOrderGradient(preds[j], info.labels[j]) * info.GetWeight(j);
+                    float p = loss.PredTransform(preds[j]);
+                    grad[j] = loss.FirstOrderGradient(p, info.labels[j]) * info.GetWeight(j);
+                    hess[j] = loss.SecondOrderGradient(p, info.labels[j]) * info.GetWeight(j);
                 }
             }
             virtual const char* DefaultEvalMetric(void) {
