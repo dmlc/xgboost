@@ -290,6 +290,7 @@ namespace xgboost{
                 }
                 // sort columns
                 unsigned ncol = static_cast<unsigned>(this->NumCol());
+                #pragma omp parallel for schedule(static)
                 for (unsigned i = 0; i < ncol; i++){
                     std::sort(&col_data_[col_ptr_[i]], &col_data_[col_ptr_[i + 1]], REntry::cmp_fvalue);
                 }
