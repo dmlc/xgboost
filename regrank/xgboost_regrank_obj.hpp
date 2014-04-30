@@ -81,7 +81,8 @@ namespace xgboost{
                         rec.clear();
                         for(unsigned j = gptr[k]; j < gptr[k+1]; ++j ){
                             rec.push_back( std::make_pair(info.labels[j], j) );
-                        }
+                            grad[j] = hess[j] = 0.0f;
+                        }                        
                         std::sort( rec.begin(), rec.end(), CmpFirst );
                         // enumerate buckets with same label, for each item in the list, grab another sample randomly
                         for( unsigned i = 0; i < rec.size(); ){
