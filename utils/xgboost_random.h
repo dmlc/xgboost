@@ -129,17 +129,15 @@ namespace xgboost{
     };
     
     namespace random{
+        /*! \brief random number generator with independent random number seed*/
         struct Random{
             /*! \brief set random number seed */
             inline void Seed( unsigned sd ){
                 this->rseed = sd;
             }
             /*! \brief return a real number uniform in [0,1) */
-            inline double RandDouble( void ){
-               
-            //    return static_cast<double>( rand_( &rseed ) ) / (static_cast<double>( RAND_MAX )+1.0);
-                return static_cast<double>(rand()) / (static_cast<double>(RAND_MAX)+1.0);
-
+            inline double RandDouble( void ){               
+                return static_cast<double>( rand_r( &rseed ) ) / (static_cast<double>( RAND_MAX )+1.0);
             }
             // random number seed
             unsigned rseed;
