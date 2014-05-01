@@ -13,6 +13,8 @@
 #include "../utils/xgboost_omp.h"
 #include "../utils/xgboost_random.h"
 #include "xgboost_regrank_data.h"
+#include <functional>
+#include <tuple>
 
 namespace xgboost{
     namespace regrank{
@@ -199,7 +201,7 @@ namespace xgboost{
                 const DMatrix::Info &info) const{
                 if (info.group_ptr.size() <= 1) return 0;
                 float acc = 0;
-                std::vector<std::pair<float, float>> pairs_sort;
+                std::vector< std::pair<float, float> > pairs_sort;
                 for (int i = 0; i < info.group_ptr.size() - 1; i++){
                     for (int j = info.group_ptr[i]; j < info.group_ptr[i + 1]; j++){
                         pairs_sort.push_back(std::make_pair(preds[j], info.labels[j]));
@@ -222,16 +224,23 @@ namespace xgboost{
             }
 
         private:
-            float NDCG(std::vector<std::pair<float, float>> pairs_sort) const{
-                std::sort(pairs_sort.begin(), pairs_sort.end(), std::greater<float>());
+            /*\brief Obtain NDCG given the list of labels and predictions
+            * \param pairs_sort the first field is prediction and the second is label
+            */
+            float NDCG(std::vector< std::pair<float, float> > pairs_sort) const{
+                std::sort(pairs_sort.begin(), pairs_sort.end(), [](std::pair<float, float> a, std::pair<float, float> b){
+                    return std::get<0>(a) > std::get<0>(b);
+                });
                 float dcg = DCG(pairs_sort);
-                std::sort(pairs_sort.begin(), pairs_sort.end(), std::greater<float>());
+                std::sort(pairs_sort.begin(), pairs_sort.end(), [](std::pair<float, float> a, std::pair<float, float> b){
+                    return std::get<1>(a) > std::get<1>(b);
+                });
                 float IDCG = DCG(pairs_sort);
                 if (IDCG == 0) return 0;
                 return dcg / IDCG;
             }
 
-            float DCG(std::vector<std::pair<float, float>> pairs_sort) const{
+            float DCG(std::vector< std::pair<float, float> > pairs_sort) const{
                 std::vector<float> labels;
                 for (int i = 1; i < pairs_sort.size(); i++){
                     labels.push_back(std::get<1>(pairs_sort[i]));
@@ -263,8 +272,13 @@ namespace xgboost{
             }
 
         private:
-            float average_precision(std::vector<std::pair<float,float>> pairs_sort) const{
-                std::sort(pairs_sort.begin(), pairs_sort.end(), std::greater<float>());
+            /*\brief Obtain average precision given the list of labels and predictions
+            * \param pairs_sort the first field is prediction and the second is label
+            */
+            float average_precision(std::vector< std::pair<float,float> > pairs_sort) const{
+                std::sort(pairs_sort.begin(), pairs_sort.end(), [](std::pair<float, float> a, std::pair<float, float> b){
+                    return std::get<0>(a) > std::get<0>(b);
+                });
                 float hits = 0;
                 float average_precision = 0;
                 for (int j = 0; j < pairs_sort.size(); j++){

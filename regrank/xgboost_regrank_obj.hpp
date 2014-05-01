@@ -245,6 +245,12 @@ namespace xgboost{
             }
 
         private:
+            int lambda_;
+            const static int PAIRWISE = 0;
+            const static int MAP = 1;
+            const static int NDCG = 2;
+            sample::PairSamplerWrapper sampler_;
+            LossType loss_;
             /* \brief Sorted tuples of a group by the predictions, and 
             *         the fields in the return tuples successively are predicions, 
             *         labels, and the index of the instance
@@ -400,13 +406,7 @@ namespace xgboost{
                 return pred_diff_exp / pow(1 + pred_diff_exp, 2);
             }
 
-        private:
-            int lambda_;
-            const static int PAIRWISE = 0;
-            const static int MAP = 1;
-            const static int NDCG = 2;
-            sample::PairSamplerWrapper sampler_;
-            LossType loss_;
+        
         };
     };
 };
