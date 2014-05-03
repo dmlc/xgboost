@@ -321,6 +321,8 @@ namespace xgboost{
                 fi.Read(&col_access, sizeof(int));
                 if (col_access != 0){
                     FMatrixS::LoadBinary(fi, col_ptr_, col_data_);
+                }else{
+                    this->InitData();                    
                 }
             }
             /*!
