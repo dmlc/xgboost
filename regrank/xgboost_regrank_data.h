@@ -116,8 +116,6 @@ namespace xgboost{
                     }
                 }
                 fs.Close();
-                // initialize column support as well
-                data.InitData();
                 
                 if (!silent){
                     printf("%ux%u matrix with %lu entries is loaded from %s\n",
