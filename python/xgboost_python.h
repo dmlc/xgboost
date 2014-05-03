@@ -35,13 +35,40 @@ extern "C"{
      */
     void XGDMatrixSaveBinary(void *handle, const char *fname, int silent);
     /*! 
+     * \brief set matrix content from csr format
+     * \param handle a instance of data matrix
+     * \param indptr pointer to row headers
+     * \param indices findex
+     * \param data    fvalue
+     * \param nindptr number of rows in the matix + 1 
+     * \param nelem number of nonzero elements in the matrix
+     */
+    void XGDMatrixParseCSR( void *handle, 
+                            const size_t *indptr,
+                            const unsigned *indices,
+                            const float *data,
+                            size_t nindptr,
+                            size_t nelem );
+    /*! 
+     * \brief set label of the training matrix
+     * \param handle a instance of data matrix
+     * \param data array of row content 
+     * \param len length of array
+     */    
+    void XGDMatrixSetLabel( void *handle, const float *label, size_t len );        
+    /*! 
+     * \brief get label set from matrix
+     * \param handle a instance of data matrix
+     * \param len used to set result length
+     */
+    const float* XGDMatrixGetLabel( const void *handle, size_t* len );
+    /*! 
      * \brief add row 
      * \param handle a instance of data matrix
-     * \param fname file name 
-     * \return a new data matrix
+     * \param data array of row content 
+     * \param len length of array
      */
-    void XGDMatrixPush(void *handle, const XGEntry *data, int len);
-    
+    void XGDMatrixAddRow(void *handle, const XGEntry *data, size_t len);
     /*! 
      * \brief create a booster
      */
