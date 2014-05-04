@@ -60,8 +60,18 @@ extern "C"{
      * \brief get label set from matrix
      * \param handle a instance of data matrix
      * \param len used to set result length
+     * \return pointer to the row
      */
     const float* XGDMatrixGetLabel( const void *handle, size_t* len );
+    /*! 
+     * \brief clear all the records, including feature matrix and label
+     * \param handle a instance of data matrix
+     */
+    void XGDMatrixClear(void *handle);
+    /*! 
+     * \brief return number of rows
+     */    
+    size_t XGDMatrixNumRow(const void *handle);
     /*! 
      * \brief add row 
      * \param handle a instance of data matrix
@@ -70,15 +80,62 @@ extern "C"{
      */
     void XGDMatrixAddRow(void *handle, const XGEntry *data, size_t len);
     /*! 
-     * \brief create a booster
-     */
-    void* XGBoostCreate(void);
-
-    /*! 
-     * \brief create a booster
-     */
-    void* XGBoost(void);
+     * \brief get ridx-th row of sparse matrix
+     * \param handle handle
+     * \param ridx row index 
+     * \param len used to set result length
+     * \reurn pointer to the row
+     */    
+    const XGEntry* XGDMatrixGetRow(void *handle, unsigned ridx, size_t* len);
     
+    // --- start XGBoost class
+    /*! 
+     * \brief create xgboost learner 
+     * \param dmats matrices that are set to be cached
+     * \param create a booster
+     */
+    void *CreateXGBooster( void**dmats, size_t len ); 
+    /*! 
+     * \brief set parameters 
+     * \param handle handle
+     * \param name  parameter name
+     * \param val value of parameter
+     */    
+    void XGBoosterSetParam( void *handle, const char *name, const char *value );   
+    /*! 
+     * \brief update the model in one round using dtrain
+     * \param handle handle
+     * \param dtrain training data
+     */        
+    void XGBoosterUpdateOneIter( void *handle, void *dtrain );   
+    /*! 
+     * \brief print evaluation statistics to stdout for xgboost
+     * \param handle handle
+     * \param iter current iteration rounds
+     * \param dmats pointers to data to be evaluated
+     * \param evnames pointers to names of each data
+     * \param len  length of dmats
+     */        
+    void XGBoosterEvalOneIter( void *handle, int iter, void *dmats[], const char *evnames[], size_t len );   
+    /*! 
+     * \brief make prediction based on dmat
+     * \param handle handle
+     * \param dmat data matrix
+     * \param len used to store length of returning result
+     */    
+    const float *XGBoosterPredict( void *handle, void *dmat, size_t *len );
+    /*! 
+     * \brief load model from existing file
+     * \param handle handle
+     * \param fname file name
+     */    
+    void XGBoosterLoadModel( void *handle, const char *fname );
+    /*! 
+     * \brief save model into existing file
+     * \param handle handle
+     * \param fname file name
+     */    
+    void XGBoosterSaveModel( void *handle, const char *fname );
 };
 #endif
 
