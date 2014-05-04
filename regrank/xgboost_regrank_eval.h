@@ -217,6 +217,17 @@ namespace xgboost{
         struct EvalNDCG : public EvalRankList{
         public:
             EvalNDCG(const char *name):EvalRankList(name){}
+
+            static inline float CalcDCG(const std::vector< float > &rec) {
+                double sumdcg = 0.0;
+                for (size_t i = 0; i < rec.size(); i++){
+                    const unsigned rel = rec[i];
+                    if (rel != 0){
+                        sumdcg += logf(2.0f) *((1 << rel) - 1) / logf(i + 1);
+                    }
+                }
+                return static_cast<float>(sumdcg);
+            }
         protected:
             inline float CalcDCG( const std::vector< std::pair<float,unsigned> > &rec ) const {
                 double sumdcg = 0.0;
