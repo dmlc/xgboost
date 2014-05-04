@@ -7,7 +7,6 @@
  */
 //#include "xgboost_regrank_sample.h"
 #include <vector>
-#include <tuple>
 #include <functional>
 #include "xgboost_regrank_sample.h"
 namespace xgboost{
