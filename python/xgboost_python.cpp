@@ -18,11 +18,26 @@ namespace xgboost{
                 this->CacheLoad(fname, silent);
                 init_col_ = this->data.HaveColAccess();
             }
+            inline void Clear( void ){
+                this->data.Clear();
+                this->info.labels.clear();
+                this->info.weights.clear();
+                this->info.group_ptr.clear();
+            }
+            inline size_t NumRow( void ) const{
+                return this->data.NumRow();
+            }
             inline void AddRow( const XGEntry *data, size_t len ){
                 xgboost::booster::FMatrixS &mat = this->data;
                 mat.row_data_.resize( mat.row_ptr_.back() + len );
                 memcpy( &mat.row_data_[mat.row_ptr_.back()], data, sizeof(XGEntry)*len );
                 mat.row_ptr_.push_back( mat.row_ptr_.back() + len );
+            }
+            inline const XGEntry* GetRow(unsigned ridx, size_t* len) const{
+                const xgboost::booster::FMatrixS &mat = this->data;
+
+                *len = mat.row_ptr_[ridx+1] - mat.row_ptr_[ridx];
+                return &mat.row_data_[ mat.row_ptr_[ridx] ];
             }
             inline void ParseCSR( const size_t *indptr,
                                   const unsigned *indices,
@@ -68,9 +83,6 @@ extern "C"{
     void XGDMatrixSaveBinary( void *handle, const char *fname, int silent ){
         static_cast<DMatrix*>(handle)->SaveBinary(fname, silent!=0);
     }
-    void XGDMatrixAddRow( void *handle, const XGEntry *data, size_t len ){
-        static_cast<DMatrix*>(handle)->AddRow(data, len);
-    }
     void XGDMatrixParseCSR( void *handle, 
                             const size_t *indptr,
                             const unsigned *indices,
@@ -84,6 +96,18 @@ extern "C"{
     }
     const float* XGDMatrixGetLabel( const void *handle, size_t* len ){
         return static_cast<const DMatrix*>(handle)->GetLabel(len);
+    }
+    void XGDMatrixClear(void *handle){
+        static_cast<DMatrix*>(handle)->Clear();
+    }
+    void XGDMatrixAddRow( void *handle, const XGEntry *data, size_t len ){
+        static_cast<DMatrix*>(handle)->AddRow(data, len);
+    }
+    size_t XGDMatrixNumRow(const void *handle){
+        return static_cast<const DMatrix*>(handle)->NumRow();
+    }
+    const XGEntry* XGDMatrixGetRow(void *handle, unsigned ridx, size_t* len){
+        return static_cast<DMatrix*>(handle)->GetRow(ridx, len);
     }
 };
 
