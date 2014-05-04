@@ -262,7 +262,6 @@ namespace xgboost{
                     base_gbm.InteractRePredict(data.data, j, buffer_offset + j);
                 }
             }
-        private:
             /*! \brief get un-transformed prediction*/
             inline void PredictRaw(std::vector<float> &preds, const DMatrix &data, int bst_group = -1 ){
                 int buffer_offset =  this->FindBufferOffset(data);
