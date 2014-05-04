@@ -2,7 +2,8 @@
 import ctypes 
 import os
 # optinally have scipy sparse, though not necessary
-import numpy as np
+import numpy
+import numpy.ctypeslib 
 import scipy.sparse as scp
 
 # set this line correctly
@@ -17,7 +18,7 @@ xglib = ctypes.cdll.LoadLibrary(XGBOOST_PATH)
 
 xglib.XGDMatrixCreate.restype = ctypes.c_void_p
 xglib.XGDMatrixNumRow.restype = ctypes.c_ulong
-xglib.XGDMatrixGetLabel.restype = ctypes.POINTER( ctypes.c_float )
+xglib.XGDMatrixGetLabel.restype =  ctypes.POINTER( ctypes.c_float )
 xglib.XGDMatrixGetRow.restype = ctypes.POINTER( REntry )
 xglib.XGBoosterPredict.restype = ctypes.POINTER( ctypes.c_float ) 
 
@@ -71,8 +72,8 @@ class DMatrix:
     # get label from dmatrix
     def get_label(self):
         length = ctypes.c_ulong()
-        labels = xglib.XGDMatrixGetLabel(self.handle, ctypes.byref(length));
-        return [ labels[i] for i in xrange(length.value) ]
+        labels = xglib.XGDMatrixGetLabel(self.handle, ctypes.byref(length))
+        return numpy.array( [labels[i] for i in xrange(length.value)] )
     # clear everything
     def clear(self):
         xglib.XGDMatrixClear(self.handle)
@@ -111,6 +112,14 @@ class Booster:
         """ update """
         assert isinstance(dtrain, DMatrix)
         xglib.XGBoosterUpdateOneIter( self.handle, dtrain.handle )
+    def boost(self, dtrain, grad, hess, bst_group = -1):
+        """ update """
+        assert len(grad) == len(hess)
+        assert isinstance(dtrain, DMatrix)
+        xglib.XGBoosterBoostOneIter( self.handle, dtrain.handle,
+                                     (ctypes.c_float*len(grad))(*grad),
+                                     (ctypes.c_float*len(hess))(*hess),
+                                     len(grad), bst_group )
     def update_interact(self, dtrain, action, booster_index=None):
         """ beta: update with specified action"""
         assert isinstance(dtrain, DMatrix)
@@ -126,10 +135,10 @@ class Booster:
         xglib.XGBoosterEvalOneIter( self.handle, it, dmats, evnames, len(evals) )
     def eval(self, mat, name = 'eval', it = 0 ):
         self.eval_set( [(mat,name)], it)
-    def predict(self, data):
+    def predict(self, data, bst_group = -1):
         length = ctypes.c_ulong()
-        preds = xglib.XGBoosterPredict( self.handle, data.handle, ctypes.byref(length))
-        return [ preds[i] for i in xrange(length.value) ]        
+        preds = xglib.XGBoosterPredict( self.handle, data.handle, ctypes.byref(length), bst_group)
+        return numpy.array( [ preds[i] for i in xrange(length.value)])
     def save_model(self, fname):
         """ save model to file """
         xglib.XGBoosterSaveModel( self.handle, ctypes.c_char_p(fname) )
@@ -140,12 +149,21 @@ class Booster:
         """dump model into text file"""
         xglib.XGBoosterDumpModel( self.handle, ctypes.c_char_p(fname), ctypes.c_char_p(fmap) )
 
-def train(params, dtrain, num_boost_round = 10, evals = []):
+def train(params, dtrain, num_boost_round = 10, evals = [], obj=None):
     """ train a booster with given paramaters """
     bst = Booster(params, [dtrain] )
-    for i in xrange(num_boost_round):
-        bst.update( dtrain )
-        if len(evals) != 0:
-            bst.eval_set( evals, i )
+    if obj == None:
+        for i in xrange(num_boost_round):
+            bst.update( dtrain )
+            if len(evals) != 0:
+                bst.eval_set( evals, i )
+    else:
+        # try customized objective function
+        for i in xrange(num_boost_round):
+            pred = bst.predict( dtrain )
+            grad, hess = obj( pred, dtrain )
+            bst.boost( dtrain, grad, hess )
+            if len(evals) != 0:
+                bst.eval_set( evals, i )        
     return bst
-    
+

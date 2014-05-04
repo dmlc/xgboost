@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import sys
+import numpy as np
 import scipy.sparse
 # append the path to xgboost
 sys.path.append('../')
@@ -80,3 +81,22 @@ dtrain.set_label(labels)
 evallist  = [(dtest,'eval'), (dtrain,'train')]
 bst = xgb.train( param, dtrain, num_round, evallist )
 
+###
+# cutomsized loss function, set loss_type to 0, so that predict get untransformed score
+# 
+print 'start running example to used cutomized objective function'
+
+
+# note: set loss_type properly, loss_type=2 means the prediction will get logistic transformed
+#       in most case, we may want to set loss_type = 0, to get untransformed score to compute gradient
+bst = param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'loss_type':2 }
+
+# user define objective function, given prediction, return gradient and second order gradient
+def logregobj( preds, dtrain ):
+    labels = dtrain.get_label()
+    grad = preds - labels
+    hess = preds * (1.0-preds)
+    return grad, hess
+
+# training with customized objective, we can also do step by step training, simply look at xgboost.py's implementation of train
+bst = xgb.train( param, dtrain, num_round, evallist, logregobj )
