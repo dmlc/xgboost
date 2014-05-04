@@ -86,7 +86,6 @@ bst = xgb.train( param, dtrain, num_round, evallist )
 # 
 print 'start running example to used cutomized objective function'
 
-
 # note: set loss_type properly, loss_type=2 means the prediction will get logistic transformed
 #       in most case, we may want to set loss_type = 0, to get untransformed score to compute gradient
 bst = param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'loss_type':2 }
