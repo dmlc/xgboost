@@ -52,10 +52,24 @@ extern "C"{
     /*! 
      * \brief set label of the training matrix
      * \param handle a instance of data matrix
-     * \param data array of row content 
+     * \param label pointer to label
      * \param len length of array
      */    
     void XGDMatrixSetLabel( void *handle, const float *label, size_t len );        
+    /*! 
+     * \brief set label of the training matrix
+     * \param handle a instance of data matrix
+     * \param group pointer to group size
+     * \param len length of array
+     */    
+    void XGDMatrixSetGroup( void *handle, const unsigned *group, size_t len );        
+    /*! 
+     * \brief set weight of each instacne
+     * \param handle a instance of data matrix
+     * \param weight data pointer to weights
+     * \param len length of array
+     */    
+    void XGDMatrixSetWeight( void *handle, const float *weight, size_t len );        
     /*! 
      * \brief get label set from matrix
      * \param handle a instance of data matrix
@@ -94,7 +108,7 @@ extern "C"{
      * \param dmats matrices that are set to be cached
      * \param create a booster
      */
-    void *CreateXGBooster( void**dmats, size_t len ); 
+    void *XGBoosterCreate( void* dmats[], size_t len ); 
     /*! 
      * \brief set parameters 
      * \param handle handle
@@ -135,7 +149,14 @@ extern "C"{
      * \param handle handle
      * \param fname file name
      */    
-    void XGBoosterSaveModel( void *handle, const char *fname );
+    void XGBoosterSaveModel( const void *handle, const char *fname );
+    /*! 
+     * \brief dump model into text file
+     * \param handle handle
+     * \param fname file name
+     * \param fmap  name to fmap can be empty string
+     */    
+    void XGBoosterDumpModel( void *handle, const char *fname, const char *fmap );
 };
 #endif
 
