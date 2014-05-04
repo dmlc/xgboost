@@ -170,6 +170,9 @@ extern "C"{
         }
         return new Booster( mats );
     }
+    void XGBoosterFree( void *handle ){
+        delete  static_cast<Booster*>(handle);
+    }
     void XGBoosterSetParam( void *handle, const char *name, const char *value ){
         static_cast<Booster*>(handle)->SetParam( name, value );
     }

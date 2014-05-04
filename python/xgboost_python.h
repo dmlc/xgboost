@@ -110,6 +110,11 @@ extern "C"{
      */
     void *XGBoosterCreate( void* dmats[], size_t len ); 
     /*! 
+     * \brief free obj in handle 
+     * \param handle handle to be freed
+     */
+    void XGBoosterFree( void* handle ); 
+    /*! 
      * \brief set parameters 
      * \param handle handle
      * \param name  parameter name
