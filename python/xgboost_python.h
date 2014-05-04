@@ -157,6 +157,13 @@ extern "C"{
      * \param fmap  name to fmap can be empty string
      */    
     void XGBoosterDumpModel( void *handle, const char *fname, const char *fmap );
+    /*! 
+     * \brief interactively update model: beta
+     * \param handle handle
+     * \param dtrain training data
+     * \param action action name
+     */        
+    void XGBoosterUpdateInteract( void *handle, void *dtrain, const char* action );   
 };
 #endif
 

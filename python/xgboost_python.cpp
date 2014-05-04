@@ -210,5 +210,13 @@ extern "C"{
         static_cast<Booster*>(handle)->DumpModel( fo, featmap, false );
         fclose( fo );
     }
+
+    void XGBoosterUpdateInteract( void *handle, void *dtrain, const char *action ){
+        Booster *bst = static_cast<Booster*>(handle);
+        DMatrix *dtr = static_cast<DMatrix*>(dtrain);        
+        bst->CheckInit(); dtr->CheckInit(); 
+        std::string act( action );
+        bst->UpdateInteract( act, *dtr );
+    }
 };
 
