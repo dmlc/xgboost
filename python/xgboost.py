@@ -1,10 +1,12 @@
 # module for xgboost
 import ctypes 
+import os
 # optinally have scipy sparse, though not necessary
 import numpy as np
 import scipy.sparse as scp
+
 # set this line correctly
-XGBOOST_PATH = './libxgboostpy.so'
+XGBOOST_PATH = os.path.dirname(__file__)+'/libxgboostpy.so'
 
 # entry type of sparse matrix
 class REntry(ctypes.Structure):
@@ -34,9 +36,9 @@ class DMatrix:
         else:
             try:
                 csr = scp.csr_matrix(data)
-                self.__init_from_csr(data)
+                self.__init_from_csr(csr)
             except:
-                raise "DMatrix", "can not intialize DMatrix from"+type(data)                
+                raise Exception, "can not intialize DMatrix from"+str(type(data))
         if label != None:
             self.set_label(label)
 
