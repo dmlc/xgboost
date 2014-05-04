@@ -35,10 +35,16 @@ namespace xgboost{
                 std::vector<unsigned> group_ptr;
                 /*! \brief weights of each instance, optional */            
                 std::vector<float> weights;
+                /*! \brief specified root index of each instance, can be used for multi task setting*/
+                std::vector<unsigned> root_index;
                 /*! \brief get weight of each instances */
                 inline float GetWeight( size_t i ) const{
-                    if(  weights.size() != 0 ) return weights[i];
+                    if( weights.size() != 0 ) return weights[i];
                     else return 1.0f;
+                }
+                inline float GetRoot( size_t i ) const{
+                    if( root_index.size() != 0 ) return root_index[i];
+                    else return 0;
                 }
             };
         public:
