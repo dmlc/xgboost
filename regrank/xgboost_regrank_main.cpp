@@ -163,7 +163,7 @@ namespace xgboost{
                 for (int i = 0; i < num_round; ++i){
                     elapsed = (unsigned long)(time(NULL) - start);
                     if (!silent) printf("boosting round %d, %lu sec elapsed\n", i, elapsed);
-                    learner.UpdateOneIter(i, data);                    
+                    learner.UpdateOneIter(data);                    
                     learner.EvalOneIter(i, devalall, eval_data_names);
                     if (save_period != 0 && (i + 1) % save_period == 0){
                         this->SaveModel(i);
