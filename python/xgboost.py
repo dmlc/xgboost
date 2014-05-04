@@ -96,6 +96,8 @@ class Booster:
         dmats = ( ctypes.c_void_p  * len(cache) )(*[ ctypes.c_void_p(d.handle) for d in cache])
         self.handle = xglib.XGBoosterCreate( dmats, len(cache) )
         self.set_param( params )
+    def __del__(self):
+        xglib.XGBoosterFree(self.handle) 
     def set_param(self, params,pv=None):
         if isinstance(params,dict):
             for k, v in params.iteritems():
