@@ -95,12 +95,26 @@ class Booster:
             assert isinstance(d,DMatrix)
         dmats = ( ctypes.c_void_p  * len(cache) )(*[ ctypes.c_void_p(d.handle) for d in cache])
         self.handle = xglib.XGBoosterCreate( dmats, len(cache) )
-        for k, v in params.iteritems():
-            xglib.XGBoosterSetParam( self.handle, ctypes.c_char_p(k), ctypes.c_char_p(str(v)) )        
+        self.set_param( params )
+    def set_param(self, params,pv=None):
+        if isinstance(params,dict):
+            for k, v in params.iteritems():
+                xglib.XGBoosterSetParam( self.handle, ctypes.c_char_p(k), ctypes.c_char_p(str(v)) )        
+        elif isinstance(params,str) and pv != None:
+            xglib.XGBoosterSetParam( self.handle, ctypes.c_char_p(params), ctypes.c_char_p(str(pv)) )
+        else:
+            for k, v in params:
+                xglib.XGBoosterSetParam( self.handle, ctypes.c_char_p(k), ctypes.c_char_p(str(v)) )             
     def update(self, dtrain):
         """ update """
         assert isinstance(dtrain, DMatrix)
         xglib.XGBoosterUpdateOneIter( self.handle, dtrain.handle )
+    def update_interact(self, dtrain, action, booster_index=None):
+        """ beta: update with specified action"""
+        assert isinstance(dtrain, DMatrix)
+        if booster_index != None:
+            self.set_param('interact:booster_index', str(booster_index))
+        xglib.XGBoosterUpdateInteract( self.handle, dtrain.handle, ctypes.c_char_p(str(action)) )
     def eval_set(self, evals, it = 0):
         for d in evals:
             assert isinstance(d[0], DMatrix)
