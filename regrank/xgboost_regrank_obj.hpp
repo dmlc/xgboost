@@ -1,12 +1,13 @@
 #ifndef XGBOOST_REGRANK_OBJ_HPP
 #define XGBOOST_REGRANK_OBJ_HPP
 /*!
- * \file xgboost_regrank_obj.h
+ * \file xgboost_regrank_obj.hpp
  * \brief implementation of objective functions
  * \author Tianqi Chen, Kailong Chen
  */
 //#include "xgboost_regrank_sample.h"
 #include <vector>
+#include "xgboost_regrank_utils.h"
 
 namespace xgboost{
     namespace regrank{        
@@ -24,6 +25,7 @@ namespace xgboost{
                                      int iter,
                                      std::vector<float> &grad, 
                                      std::vector<float> &hess ) {
+                utils::Assert( preds.size() == info.labels.size(), "label size predict size not match" );
                 grad.resize(preds.size()); hess.resize(preds.size());
 
                 const unsigned ndata = static_cast<unsigned>(preds.size());
@@ -52,11 +54,11 @@ namespace xgboost{
 
     namespace regrank{
         // simple softmax rak
-        class SoftmaxObj : public IObjFunction{
+        class SoftmaxRankObj : public IObjFunction{
         public:
-            SoftmaxObj(void){
+            SoftmaxRankObj(void){
             }
-            virtual ~SoftmaxObj(){}
+            virtual ~SoftmaxRankObj(){}
             virtual void SetParam(const char *name, const char *val){
             }
             virtual void GetGradient(const std::vector<float>& preds,  
@@ -64,6 +66,7 @@ namespace xgboost{
                                      int iter,
                                      std::vector<float> &grad, 
                                      std::vector<float> &hess ) {
+                utils::Assert( preds.size() == info.labels.size(), "label size predict size not match" );
                 grad.resize(preds.size()); hess.resize(preds.size());
                 const std::vector<unsigned> &gptr = info.group_ptr;
                 utils::Assert( gptr.size() != 0 && gptr.back() == preds.size(), "rank loss must have group file" );
@@ -96,22 +99,75 @@ namespace xgboost{
             }
             virtual const char* DefaultEvalMetric(void) {
                 return "pre@1";
-            }            
-        private:
-            inline static void Softmax( std::vector<float>& rec ){
-                float wmax = rec[0];
-                for( size_t i = 1; i < rec.size(); ++ i ){
-                    wmax = std::max( rec[i], wmax );
-                }
-                double wsum = 0.0f;
-                for( size_t i = 0; i < rec.size(); ++ i ){
-                    rec[i] = expf(rec[i]-wmax);
-                    wsum += rec[i];
-                }
-                for( size_t i = 0; i < rec.size(); ++ i ){
-                    rec[i] /= wsum;
-                }                
             }
+        };
+
+        // simple softmax multi-class classification
+        class SoftmaxMultiClassObj : public IObjFunction{
+        public:
+            SoftmaxMultiClassObj(void){
+                nclass = 0;
+            }
+            virtual ~SoftmaxMultiClassObj(){}
+            virtual void SetParam(const char *name, const char *val){
+                if( !strcmp( "num_class", name ) ) nclass = atoi(val); 
+            }
+            virtual void GetGradient(const std::vector<float>& preds,  
+                                     const DMatrix::Info &info,
+                                     int iter,
+                                     std::vector<float> &grad, 
+                                     std::vector<float> &hess ) {
+                utils::Assert( nclass != 0, "must set num_class to use softmax" );
+                utils::Assert( preds.size() == (size_t)nclass * info.labels.size(), "SoftmaxMultiClassObj: label size and pred size does not match" );
+                grad.resize(preds.size()); hess.resize(preds.size());
+                
+                const unsigned ndata = static_cast<unsigned>(info.labels.size());
+                #pragma omp parallel
+                {
+                    std::vector<float> rec(nclass);
+                    #pragma for schedule(static)
+                    for (unsigned j = 0; j < ndata; ++j){
+                        for( int k = 0; k < nclass; ++ k ){
+                            rec[k] = preds[j + k * ndata];
+                        }
+                        Softmax( rec );
+                        int label = static_cast<int>(info.labels[j]);
+                        utils::Assert( label < nclass, "SoftmaxMultiClassObj: label exceed num_class" );
+                        for( int k = 0; k < nclass; ++ k ){
+                            float p = rec[ k ];
+                            if( label == k ){
+                                grad[j+k*ndata] = p - 1.0f;
+                            }else{
+                                grad[j+k*ndata] = p;
+                            }
+                            hess[j+k*ndata] = 2.0f * p * ( 1.0f - p );
+                        }  
+                    }
+                }
+            }
+            virtual void PredTransform(std::vector<float> &preds){
+                utils::Assert( nclass != 0, "must set num_class to use softmax" );
+                utils::Assert( preds.size() % nclass == 0, "SoftmaxMultiClassObj: label size and pred size does not match" );                
+                const unsigned ndata = static_cast<unsigned>(preds.size()/nclass);
+                #pragma omp parallel
+                {
+                    std::vector<float> rec(nclass);
+                    #pragma for schedule(static)
+                    for (unsigned j = 0; j < ndata; ++j){
+                        for( int k = 0; k < nclass; ++ k ){
+                            rec[k] = preds[j + k * ndata];
+                        }
+                        Softmax( rec );
+                        preds[j] = FindMaxIndex( rec );
+                    }
+                }
+                preds.resize( ndata );
+            }
+            virtual const char* DefaultEvalMetric(void) {
+                return "error";
+            }
+        private:
+            int nclass;
         };
     };
 
@@ -133,6 +189,7 @@ namespace xgboost{
                                      int iter,
                                      std::vector<float> &grad, 
                                      std::vector<float> &hess ) {
+                utils::Assert( preds.size() == info.labels.size(), "label size predict size not match" );              
                 grad.resize(preds.size()); hess.resize(preds.size());
                 const std::vector<unsigned> &gptr = info.group_ptr;
                 utils::Assert( gptr.size() != 0 && gptr.back() == preds.size(), "rank loss must have group file" );
