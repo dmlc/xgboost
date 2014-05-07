@@ -75,7 +75,7 @@ namespace xgboost{
                 #pragma omp parallel
                 {
                     std::vector< float > rec;                    
-                    #pragma for schedule(static)
+                    #pragma omp for schedule(static)
                     for (unsigned k = 0; k < ngroup; ++k){
                         rec.clear();
                         int nhit = 0;
@@ -125,7 +125,7 @@ namespace xgboost{
                 #pragma omp parallel
                 {
                     std::vector<float> rec(nclass);
-                    #pragma for schedule(static)
+                    #pragma omp for schedule(static)
                     for (unsigned j = 0; j < ndata; ++j){
                         for( int k = 0; k < nclass; ++ k ){
                             rec[k] = preds[j + k * ndata];
@@ -149,22 +149,22 @@ namespace xgboost{
                 utils::Assert( nclass != 0, "must set num_class to use softmax" );
                 utils::Assert( preds.size() % nclass == 0, "SoftmaxMultiClassObj: label size and pred size does not match" );                
                 const unsigned ndata = static_cast<unsigned>(preds.size()/nclass);
+                
                 #pragma omp parallel
                 {
                     std::vector<float> rec(nclass);
-                    #pragma for schedule(static)
+                    #pragma omp for schedule(static)
                     for (unsigned j = 0; j < ndata; ++j){
                         for( int k = 0; k < nclass; ++ k ){
                             rec[k] = preds[j + k * ndata];
                         }
-                        Softmax( rec );
                         preds[j] = FindMaxIndex( rec );
                     }
                 }
                 preds.resize( ndata );
             }
             virtual const char* DefaultEvalMetric(void) {
-                return "error";
+                return "merror";
             }
         private:
             int nclass;
@@ -201,7 +201,7 @@ namespace xgboost{
                     // thread use its own random number generator, seed by thread id and current iteration
                     random::Random rnd; rnd.Seed( iter * 1111 + omp_get_thread_num() );
                     std::vector< std::pair<float,unsigned> > rec;
-                    #pragma for schedule(static)
+                    #pragma omp for schedule(static)
                     for (unsigned k = 0; k < ngroup; ++k){
                         rec.clear();
                         for(unsigned j = gptr[k]; j < gptr[k+1]; ++j ){
