@@ -110,6 +110,11 @@ extern "C"{
      */
     void *XGBoosterCreate( void* dmats[], size_t len ); 
     /*! 
+     * \brief free obj in handle 
+     * \param handle handle to be freed
+     */
+    void XGBoosterFree( void* handle ); 
+    /*! 
      * \brief set parameters 
      * \param handle handle
      * \param name  parameter name
@@ -122,6 +127,19 @@ extern "C"{
      * \param dtrain training data
      */        
     void XGBoosterUpdateOneIter( void *handle, void *dtrain );   
+    
+    /*!
+     * \brief update the model, by directly specify gradient and second order gradient, 
+     *        this can be used to replace UpdateOneIter, to support customized loss function
+     * \param handle handle
+     * \param dtrain training data
+     * \param grad gradient statistics
+     * \param hess second order gradient statistics
+     * \param len length of grad/hess array
+     * \param bst_group boost group we are working at, default = -1
+     */
+    void XGBoosterBoostOneIter( void *handle, void *dtrain, 
+                                float *grad, float *hess, size_t len, int bst_group );   
     /*! 
      * \brief print evaluation statistics to stdout for xgboost
      * \param handle handle
@@ -136,8 +154,9 @@ extern "C"{
      * \param handle handle
      * \param dmat data matrix
      * \param len used to store length of returning result
+     * \param bst_group booster group, if model contains multiple booster group, default = -1 means predict for all groups 
      */    
-    const float *XGBoosterPredict( void *handle, void *dmat, size_t *len );
+    const float *XGBoosterPredict( void *handle, void *dmat, size_t *len, int bst_group );
     /*! 
      * \brief load model from existing file
      * \param handle handle
@@ -157,6 +176,13 @@ extern "C"{
      * \param fmap  name to fmap can be empty string
      */    
     void XGBoosterDumpModel( void *handle, const char *fname, const char *fmap );
+    /*! 
+     * \brief interactively update model: beta
+     * \param handle handle
+     * \param dtrain training data
+     * \param action action name
+     */        
+    void XGBoosterUpdateInteract( void *handle, void *dtrain, const char* action );   
 };
 #endif
 
