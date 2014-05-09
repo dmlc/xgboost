@@ -137,7 +137,8 @@ namespace xgboost{
             }
             /*! \brief return a real number uniform in [0,1) */
             inline double RandDouble( void ){               
-                return static_cast<double>( rand_r( &rseed ) ) / (static_cast<double>( RAND_MAX )+1.0);
+//                return static_cast<double>( rand_r( &rseed ) ) / (static_cast<double>( RAND_MAX )+1.0);
+                return 0;
             }
             // random number seed
             unsigned rseed;

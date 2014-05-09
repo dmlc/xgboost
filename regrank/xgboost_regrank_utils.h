@@ -19,7 +19,7 @@ namespace xgboost{
                     wsum += rec[i];
             }
             for( size_t i = 0; i < rec.size(); ++ i ){
-                rec[i] /= wsum;
+                rec[i] /= static_cast<float>(wsum);
             }                
         }        
         // simple helper function to do softmax
