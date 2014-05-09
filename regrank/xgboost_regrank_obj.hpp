@@ -342,14 +342,14 @@ namespace xgboost{
             virtual inline void GetLambda(const std::vector<float> &preds,
                 const std::vector<float> &labels,
                 const std::vector<unsigned> &group_index,
-                const std::vector<std::pair<int, int>> &pairs, std::vector<float> lambda, int group) = 0;
+                const std::vector< std::pair<int, int> > &pairs, std::vector<float> lambda, int group) = 0;
 
             inline void GetGroupGradient(const std::vector<float> &preds,
                 const std::vector<float> &labels,
                 const std::vector<unsigned> &group_index,
                 std::vector<float> &grad,
                 std::vector<float> &hess,
-                const std::vector<std::pair<int, int>> pairs,
+                const std::vector< std::pair<int, int> > pairs,
                 int group){
 
                 std::vector<float> lambda;
@@ -383,7 +383,7 @@ namespace xgboost{
                 utils::Assert(group_index.size() != 0 && group_index.back() == preds.size(), "rank loss must have group file");
 
                 for (size_t i = 0; i < group_index.size() - 1; i++){
-                    std::vector<std::pair<int,int>> pairs = sampler_.GenPairs(preds, info.labels, group_index[i], group_index[i + 1]);
+                    std::vector< std::pair<int,int> > pairs = sampler_.GenPairs(preds, info.labels, group_index[i], group_index[i + 1]);
                     GetGroupGradient(preds, info.labels, group_index, grad, hess, pairs, i);
                 }
             }
@@ -428,7 +428,7 @@ namespace xgboost{
             inline void GetLambda(const std::vector<float> &preds,
             const std::vector<float> &labels,
             const std::vector<unsigned> &group_index,
-            const std::vector<std::pair<int, int>> &pairs, std::vector<float> lambda, int group){
+            const std::vector< std::pair<int, int> > &pairs, std::vector<float> lambda, int group){
                 std::vector< Triple > sorted_triple;
                 std::vector<int> index_remap;
                 float IDCG;
@@ -515,7 +515,7 @@ namespace xgboost{
             inline void GetLambda(const std::vector<float> &preds,
             const std::vector<float> &labels,
             const std::vector<unsigned> &group_index,
-            const std::vector<std::pair<int, int>> &pairs, std::vector<float> lambda, int group){
+            const std::vector< std::pair<int, int> > &pairs, std::vector<float> lambda, int group){
                 std::vector< Triple > sorted_triple;
                 std::vector<int> index_remap;
                 std::vector< Quadruple > map_acc;
