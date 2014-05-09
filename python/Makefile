@@ -1,6 +1,6 @@
 export CC  = gcc
 export CXX = g++
-export CFLAGS = -Wall -msse2  -Wno-unknown-pragmas -fopenmp
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fopenmp
 
 # specify tensor path
 SLIB = libxgboostpy.so

@@ -26,7 +26,9 @@ namespace xgboost{
         inline static int FindMaxIndex( std::vector<float>& rec ){
             size_t mxid = 0;
             for( size_t i = 1; i < rec.size(); ++ i ){
-                if( rec[i] > rec[mxid] ) mxid = i;
+                if( rec[i] > rec[mxid]+1e-6f ){
+                    mxid = i;
+                }
             }
             return (int)mxid;
         }        
