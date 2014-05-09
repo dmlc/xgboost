@@ -43,7 +43,7 @@ namespace xgboost{
                     else return 1.0f;
                 }
                 inline float GetRoot( size_t i ) const{
-                    if( root_index.size() != 0 ) return root_index[i];
+                    if( root_index.size() != 0 ) return static_cast<float>(root_index[i]);
                     else return 0;
                 }
             };

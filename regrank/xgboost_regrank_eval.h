@@ -220,7 +220,7 @@ namespace xgboost{
             static inline float CalcDCG(const std::vector< float > &rec) {
                 double sumdcg = 0.0;
                 for (size_t i = 0; i < rec.size(); i++){
-                    const unsigned rel = rec[i];
+                    const unsigned rel = static_cast<unsigned>(rec[i]);
                     if (rel != 0){
                         sumdcg += logf(2.0f) *((1 << rel) - 1) / logf(i + 1);
                     }
