@@ -134,6 +134,9 @@ namespace xgboost{
                         }
                         Softmax( rec );
                         int label = static_cast<int>(info.labels[j]);
+                        if( label < 0 ){
+                            label = -label - 1;
+                        }
                         utils::Assert( label < nclass, "SoftmaxMultiClassObj: label exceed num_class" );
                         for( int k = 0; k < nclass; ++ k ){
                             float p = rec[ k ];
