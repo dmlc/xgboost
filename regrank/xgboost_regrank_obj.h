@@ -104,7 +104,7 @@ namespace xgboost{
 
 namespace xgboost{
     namespace regrank{        
-        IObjFunction* CreateObjFunction( const char *name ){
+       inline IObjFunction* CreateObjFunction( const char *name ){
             if( !strcmp("reg", name ) ) return new RegressionObj();
             if( !strcmp("rank:pairwise", name ) ) return new PairwiseRankObj();
             if( !strcmp("rank:softmax", name ) ) return new SoftmaxRankObj();
