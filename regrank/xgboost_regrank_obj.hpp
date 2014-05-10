@@ -339,7 +339,7 @@ namespace xgboost{
             }
 
             
-            virtual inline void GetLambda(const std::vector<float> &preds,
+            virtual void GetLambda(const std::vector<float> &preds,
                 const std::vector<float> &labels,
                 const std::vector<unsigned> &group_index,
                 const std::vector< std::pair<int, int> > &pairs, std::vector<float> lambda, int group) = 0;
