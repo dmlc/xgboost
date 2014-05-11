@@ -295,6 +295,17 @@ namespace xgboost{
                 float pred_;
                 float label_;
                 int index_;
+
+                Triple(){
+
+                }
+
+                Triple(const Triple& t){
+                    pred_ = t.pred_;
+                    label_ = t.label_;
+                    index_ = t.index_;
+                }
+
                 Triple(float pred, float label, int index) :pred_(pred), label_(label), index_(index){
 
                 }
@@ -308,17 +319,16 @@ namespace xgboost{
             *         the fields in the return tuples successively are predicions,
             *         labels, and the original index of the instance in the group
             */
-            inline std::vector< Triple > GetSortedTuple(const std::vector<float> &preds,
+            inline void GetSortedTuple(const std::vector<float> &preds,
                 const std::vector<float> &labels,
                 const std::vector<unsigned> &group_index,
-                int group){
-                std::vector< Triple > sorted_triple;
+                int group, std::vector< Triple > sorted_triple){
+                sorted_triple.resize(group_index[group + 1] - group_index[group]);
                 for (unsigned j = group_index[group]; j < group_index[group + 1]; j++){
-                    sorted_triple.push_back(Triple(preds[j], labels[j], j));
+                    sorted_triple[j - group_index[group]] = Triple(preds[j], labels[j], j);
                 }
                 
                 std::sort(sorted_triple.begin(), sorted_triple.end(), TripleComparer);
-                return sorted_triple;
             }
 
             /*
@@ -326,16 +336,14 @@ namespace xgboost{
             * \param sorted_triple  the fields successively are predicions,
             *         labels, and the original index of the instance in the group
             * \param start  the offset index of the group
-            * \return a vector indicating the new position of each instance after sorted, 
+            * \param index_remap a vector indicating the new position of each instance after sorted, 
             *         for example,[1,0] means that the second instance is put ahead after sorted
             */
-            inline std::vector<int> GetIndexMap(std::vector< Triple > sorted_triple, int start){
-                std::vector<int> index_remap;
+            inline void GetIndexMap(std::vector< Triple > sorted_triple, int start, std::vector<int> index_remap){
                 index_remap.resize(sorted_triple.size());
                 for (size_t i = 0; i < sorted_triple.size(); i++){
                     index_remap[sorted_triple[i].index_ - start] = i;
                 }
-                return index_remap;
             }
 
             
@@ -432,9 +440,11 @@ namespace xgboost{
                 std::vector< Triple > sorted_triple;
                 std::vector<int> index_remap;
                 float IDCG;
-                sorted_triple = GetSortedTuple(preds, labels, group_index, group);
+                
+                GetSortedTuple(preds, labels, group_index, group, sorted_triple);
+                GetIndexMap(sorted_triple, group_index[group], index_remap);
                 IDCG = GetIDCG(sorted_triple);
-                index_remap = GetIndexMap(sorted_triple, group_index[group]);
+
                 lambda.resize(pairs.size());
                 for (size_t i = 0; i < pairs.size(); i++){
                     lambda[i] = GetLambdaNDCG(sorted_triple, 
@@ -454,10 +464,21 @@ namespace xgboost{
                 float ap_acc_add_;
                 /* \brief the accumulated positive instance count */
                 float hits_;
+
+                Quadruple(){}
+
+                Quadruple(const Quadruple& q){
+                    ap_acc_ = q.ap_acc_;
+                    ap_acc_miss_ = q.ap_acc_miss_;
+                    ap_acc_add_ = q.ap_acc_add_;
+                    hits_ = q.hits_;
+                }
+
                 Quadruple(float ap_acc, float ap_acc_miss, float ap_acc_add, float hits
                     ) :ap_acc_(ap_acc), ap_acc_miss_(ap_acc_miss), ap_acc_add_(ap_acc_add), hits_(hits){
 
                 }
+
             };
 
             /*
@@ -496,8 +517,9 @@ namespace xgboost{
             *         the third field is the accumulated precision assuming that one more positive
             *         instance is inserted, the fourth field is the accumulated positive instance count
             */
-            inline std::vector< Quadruple > GetMAPAcc(const std::vector< Triple > sorted_triple){
-                std::vector< Quadruple > map_acc;
+            inline void GetMAPAcc(const std::vector< Triple > sorted_triple, 
+                std::vector< Quadruple > map_acc){
+                map_acc.resize(sorted_triple.size());
                 float hit = 0, acc1 = 0, acc2 = 0, acc3 = 0;
                 for (size_t i = 1; i <= sorted_triple.size(); i++){
                     if ((int)sorted_triple[i - 1].label_ == 1) {
@@ -506,10 +528,8 @@ namespace xgboost{
                         acc2 += (hit - 1) / i;
                         acc3 += (hit + 1) / i;
                     }
-                    map_acc.push_back(Quadruple(acc1, acc2, acc3, hit));
+                    map_acc[i-1] = Quadruple(acc1, acc2, acc3, hit);
                 }
-                return map_acc;
-
             }
 
             inline void GetLambda(const std::vector<float> &preds,
@@ -520,9 +540,9 @@ namespace xgboost{
                 std::vector<int> index_remap;
                 std::vector< Quadruple > map_acc;
            
-                sorted_triple = GetSortedTuple(preds, labels, group_index, group);
-                map_acc = GetMAPAcc(sorted_triple);
-                index_remap = GetIndexMap(sorted_triple, group_index[group]);
+                GetSortedTuple(preds, labels, group_index, group, sorted_triple);
+                GetIndexMap(sorted_triple, group_index[group], index_remap);
+                GetMAPAcc(sorted_triple, map_acc);
 
                 lambda.resize(pairs.size());
                 for (size_t i = 0; i < pairs.size(); i++){
