@@ -8,7 +8,6 @@
 //#include "xgboost_regrank_sample.h"
 #include <vector>
 #include <functional>
-#include "xgboost_regrank_sample.h"
 #include "xgboost_regrank_utils.h"
 
 namespace xgboost{
@@ -244,7 +243,7 @@ namespace xgboost{
             }
 
             virtual const char* DefaultEvalMetric(void) {
-                return "auc";
+                return "ndcg";
             }    
 
         private:
@@ -282,10 +281,8 @@ namespace xgboost{
 
             virtual void SetParam(const char *name, const char *val){
                 if (!strcmp("loss_type", name)) loss_.loss_type = atoi(val);
-                if (!strcmp("sampler", name)) sampler_.AssignSampler(atoi(val));
             }
         private:
-            sample::PairSamplerWrapper sampler_;
             LossType loss_;
            
         protected:
@@ -322,7 +319,7 @@ namespace xgboost{
             inline void GetSortedTuple(const std::vector<float> &preds,
                 const std::vector<float> &labels,
                 const std::vector<unsigned> &group_index,
-                int group, std::vector< Triple > sorted_triple){
+                int group, std::vector< Triple > &sorted_triple){
                 sorted_triple.resize(group_index[group + 1] - group_index[group]);
                 for (unsigned j = group_index[group]; j < group_index[group + 1]; j++){
                     sorted_triple[j - group_index[group]] = Triple(preds[j], labels[j], j);
@@ -339,7 +336,7 @@ namespace xgboost{
             * \param index_remap a vector indicating the new position of each instance after sorted, 
             *         for example,[1,0] means that the second instance is put ahead after sorted
             */
-            inline void GetIndexMap(std::vector< Triple > sorted_triple, int start, std::vector<int> index_remap){
+            inline void GetIndexMap(std::vector< Triple > sorted_triple, int start, std::vector<int> &index_remap){
                 index_remap.resize(sorted_triple.size());
                 for (size_t i = 0; i < sorted_triple.size(); i++){
                     index_remap[sorted_triple[i].index_ - start] = i;
@@ -350,7 +347,7 @@ namespace xgboost{
             virtual void GetLambda(const std::vector<float> &preds,
                 const std::vector<float> &labels,
                 const std::vector<unsigned> &group_index,
-                const std::vector< std::pair<int, int> > &pairs, std::vector<float> lambda, int group) = 0;
+                const std::vector< std::pair<int, int> > &pairs, std::vector<float> &lambda, int group) = 0;
 
             inline void GetGroupGradient(const std::vector<float> &preds,
                 const std::vector<float> &labels,
@@ -378,7 +375,38 @@ namespace xgboost{
                 }
             }
 
-           
+           virtual void GenPairs(const std::vector<float>& preds,
+                const std::vector<float>& labels,
+                const int &start, const int &end,
+		std::vector< std::pair<int,int> > &pairs){
+	            
+	        random::Random rnd; rnd.Seed(0);
+		std::vector< std::pair<float,unsigned> > rec;
+                for(int j = start; j < end; ++j ){
+                    rec.push_back( std::make_pair(labels[j], j) );
+                }                        
+                        
+		std::sort( rec.begin(), rec.end(), CmpFirst );
+                // enumerate buckets with same label, for each item in the list, grab another sample randomly
+                for( unsigned i = 0; i < rec.size(); ){
+                    unsigned j = i + 1;
+                    while( j < rec.size() && rec[j].first == rec[i].first ) ++ j;
+                    // bucket in [i,j), get a sample outside bucket
+                    unsigned nleft = i, nright = rec.size() - j;
+                    for( unsigned pid = i; pid < j; ++ pid ){
+                        unsigned ridx = static_cast<int>( rnd.RandDouble() * (nleft+nright) );
+                        if( ridx < nleft ){
+                            // get the samples in left side, ridx is pos sample
+			    pairs.push_back(std::make_pair(rec[ridx].second, rec[pid].second));
+                        }else{
+                            // get samples in right side, ridx is negsample
+			    pairs.push_back(std::make_pair(rec[pid].second, rec[ridx+j-i].second));
+                        }
+                    }                            
+                    i = j;
+                }
+	   }
+ 
 
         public:
             virtual void GetGradient(const std::vector<float>& preds,
@@ -391,7 +419,8 @@ namespace xgboost{
                 utils::Assert(group_index.size() != 0 && group_index.back() == preds.size(), "rank loss must have group file");
 
                 for (size_t i = 0; i < group_index.size() - 1; i++){
-                    std::vector< std::pair<int,int> > pairs = sampler_.GenPairs(preds, info.labels, group_index[i], group_index[i + 1]);
+                    std::vector< std::pair<int,int> > pairs;
+		    GenPairs(preds, info.labels, group_index[i], group_index[i + 1],pairs);
                     GetGroupGradient(preds, info.labels, group_index, grad, hess, pairs, i);
                 }
             }
@@ -436,7 +465,7 @@ namespace xgboost{
             inline void GetLambda(const std::vector<float> &preds,
             const std::vector<float> &labels,
             const std::vector<unsigned> &group_index,
-            const std::vector< std::pair<int, int> > &pairs, std::vector<float> lambda, int group){
+            const std::vector< std::pair<int, int> > &pairs, std::vector<float> &lambda, int group){
                 std::vector< Triple > sorted_triple;
                 std::vector<int> index_remap;
                 float IDCG;
@@ -490,7 +519,7 @@ namespace xgboost{
             */
             inline float GetLambdaMAP(const std::vector< Triple > sorted_triple,
             int index1, int index2,
-            std::vector< Quadruple > map_acc){
+            std::vector< Quadruple > &map_acc){
                 if (index1 == index2 || sorted_triple[index1].label_ == sorted_triple[index2].label_) return 0.0;
                 if (index1 > index2) std::swap(index1, index2);
                 float original = map_acc[index2].ap_acc_; // The accumulated precision in the interval [index1,index2]
@@ -518,7 +547,7 @@ namespace xgboost{
             *         instance is inserted, the fourth field is the accumulated positive instance count
             */
             inline void GetMAPAcc(const std::vector< Triple > sorted_triple, 
-                std::vector< Quadruple > map_acc){
+                std::vector< Quadruple > &map_acc){
                 map_acc.resize(sorted_triple.size());
                 float hit = 0, acc1 = 0, acc2 = 0, acc3 = 0;
                 for (size_t i = 1; i <= sorted_triple.size(); i++){
@@ -535,7 +564,7 @@ namespace xgboost{
             inline void GetLambda(const std::vector<float> &preds,
             const std::vector<float> &labels,
             const std::vector<unsigned> &group_index,
-            const std::vector< std::pair<int, int> > &pairs, std::vector<float> lambda, int group){
+            const std::vector< std::pair<int, int> > &pairs, std::vector<float> &lambda, int group){
                 std::vector< Triple > sorted_triple;
                 std::vector<int> index_remap;
                 std::vector< Quadruple > map_acc;

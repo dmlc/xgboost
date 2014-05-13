@@ -266,7 +266,7 @@ namespace xgboost{
                 for( size_t i = 0; i < rec.size() && i < this->topn_; i ++ ){
                     const unsigned rel = rec[i].second;
                     if( rel != 0 ){ 
-                        sumdcg += logf( 2.0f ) *((1<<rel)-1) / logf( i + 1 );
+                        sumdcg += logf(2.0f) * ((1<<rel)-1) / logf( i + 2 );
                     }
                 }
                 return static_cast<float>(sumdcg);
@@ -276,7 +276,7 @@ namespace xgboost{
                 float idcg = this->CalcDCG(rec);
                 std::sort(rec.begin(), rec.end(), CmpSecond);
                 float dcg = this->CalcDCG(rec);
-                if( idcg == 0.0f ) return 0.0f;
+		if( idcg == 0.0f ) return 0.0f;
                 else return dcg/idcg;
             }
         };
