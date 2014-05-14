@@ -280,11 +280,13 @@ namespace xgboost{
             virtual ~LambdaRankObj(){}
 
             virtual void SetParam(const char *name, const char *val){
-                if (!strcmp("loss_type", name)) loss_.loss_type = atoi(val);
-            }
+                if( !strcmp( "loss_type", name ) ) loss_.loss_type = atoi( val );
+                if( !strcmp( "fix_list_weight", name ) ) fix_list_weight_ = (float)atof( val );
+
+	    }
         private:
             LossType loss_;
-           
+            float fix_list_weight_;
         protected:
 
             class Triple{
@@ -372,6 +374,15 @@ namespace xgboost{
                     grad[pairs[i].first] += first_order_gradient;
                     hess[pairs[i].second] += second_order_gradient;
                     grad[pairs[i].second] -= first_order_gradient;
+                    	
+		}
+
+                if( fix_list_weight_ != 0.0f ){
+                    float scale = fix_list_weight_ / (group_index[group+1] - group_index[group]);
+                    for(unsigned j = group_index[group]; j < group_index[group+1]; ++j ){
+                        grad[j] *= scale; 
+			hess[j] *= scale;
+                    }                            
                 }
             }
 
