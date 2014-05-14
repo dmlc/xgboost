@@ -75,7 +75,7 @@ class DMatrix:
         xglib.XGDMatrixSetGroup(self.handle, (ctypes.c_uint*len(group))(*group), len(group) )
     # set weight of each instances
     def set_weight(self, weight):
-        xglib.XGDMatrixSetWeight(self.handle, (ctypes.c_uint*len(weight))(*weight), len(weight) )
+        xglib.XGDMatrixSetWeight(self.handle, (ctypes.c_float*len(weight))(*weight), len(weight) )
     # get label from dmatrix
     def get_label(self):
         length = ctypes.c_ulong()
