@@ -20,6 +20,7 @@ namespace xgboost{
             virtual ~RegressionObj(){}
             virtual void SetParam(const char *name, const char *val){
                 if( !strcmp( "loss_type", name ) ) loss.loss_type = atoi( val );
+                if( !strcmp( "scale_pos_weight", name ) ) scale_pos_weight = (float)atof( val );
             }
             virtual void GetGradient(const std::vector<float>& preds,  
                                      const DMatrix::Info &info,
@@ -33,13 +34,16 @@ namespace xgboost{
                 #pragma omp parallel for schedule( static )
                 for (unsigned j = 0; j < ndata; ++j){
                     float p = loss.PredTransform(preds[j]);
-                    grad[j] = loss.FirstOrderGradient(p, info.labels[j]) * info.GetWeight(j);
-                    hess[j] = loss.SecondOrderGradient(p, info.labels[j]) * info.GetWeight(j);
+                    float w = info.GetWeight(j);
+                    if( info.labels[j] == 1.0f ) w *= scale_pos_weight;
+                    grad[j] = loss.FirstOrderGradient(p, info.labels[j]) * w;
+                    hess[j] = loss.SecondOrderGradient(p, info.labels[j]) * w;
                 }
             }
             virtual const char* DefaultEvalMetric(void) {
                 if( loss.loss_type == LossType::kLogisticClassify ) return "error";
-                else return "rmse";
+                if( loss.loss_type == LossType::kLogisticRaw ) return "auc";
+                return "rmse";
             }
             virtual void PredTransform(std::vector<float> &preds){
                 const unsigned ndata = static_cast<unsigned>(preds.size());
@@ -49,6 +53,7 @@ namespace xgboost{
                 }
             }
         private:
+            float scale_pos_weight;
             LossType loss;
         };
     };
