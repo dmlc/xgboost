@@ -19,6 +19,7 @@ xglib = ctypes.cdll.LoadLibrary(XGBOOST_PATH)
 xglib.XGDMatrixCreate.restype = ctypes.c_void_p
 xglib.XGDMatrixNumRow.restype = ctypes.c_ulong
 xglib.XGDMatrixGetLabel.restype =  ctypes.POINTER( ctypes.c_float )
+xglib.XGDMatrixGetWeight.restype =  ctypes.POINTER( ctypes.c_float )
 xglib.XGDMatrixGetRow.restype = ctypes.POINTER( REntry )
 xglib.XGBoosterPredict.restype = ctypes.POINTER( ctypes.c_float ) 
 
@@ -81,6 +82,11 @@ class DMatrix:
         length = ctypes.c_ulong()
         labels = xglib.XGDMatrixGetLabel(self.handle, ctypes.byref(length))
         return ctypes2numpy( labels, length.value );
+    # get weight from dmatrix
+    def get_weight(self):
+        length = ctypes.c_ulong()
+        weights = xglib.XGDMatrixGetWeight(self.handle, ctypes.byref(length))
+        return ctypes2numpy( weights, length.value );
     # clear everything
     def clear(self):
         xglib.XGDMatrixClear(self.handle)
