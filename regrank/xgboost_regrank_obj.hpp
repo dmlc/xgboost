@@ -185,13 +185,15 @@ namespace xgboost{
         class PairwiseRankObj : public IObjFunction{
         public:
             PairwiseRankObj(void){
-                loss.loss_type = LossType::kLinearSquare;
+                loss.loss_type = LossType::kLogisticRaw;
                 fix_list_weight = 0.0f;
+                num_pairsample = 1;
             }
             virtual ~PairwiseRankObj(){}
             virtual void SetParam(const char *name, const char *val){
                 if( !strcmp( "loss_type", name ) ) loss.loss_type = atoi( val );
                 if( !strcmp( "fix_list_weight", name ) ) fix_list_weight = (float)atof( val );
+                if( !strcmp( "num_pairsample", name ) )  num_pairsample = atoi( val );
             }
             virtual void GetGradient(const std::vector<float>& preds,  
                                      const DMatrix::Info &info,
@@ -224,21 +226,33 @@ namespace xgboost{
                             while( j < rec.size() && rec[j].first == rec[i].first ) ++ j;
                             // bucket in [i,j), get a sample outside bucket
                             unsigned nleft = i, nright = rec.size() - j;
-                            for( unsigned pid = i; pid < j; ++ pid ){
-                                unsigned ridx = static_cast<int>( rnd.RandDouble() * (nleft+nright) );
-                                if( ridx < nleft ){
-                                    // get the samples in left side, ridx is pos sample
-                                    this->AddGradient( rec[ridx].second, rec[pid].second, preds, grad, hess );
-                                }else{
-                                    // get samples in right side, ridx is negsample
-                                    this->AddGradient( rec[pid].second, rec[ridx+j-i].second, preds, grad, hess );
+                            if( nleft + nright != 0 ){
+                                int nsample = num_pairsample;
+                                while( nsample -- ){
+                                    for( unsigned pid = i; pid < j; ++ pid ){
+                                        unsigned ridx = static_cast<unsigned>( rnd.RandDouble() * (nleft+nright) );
+                                        if( ridx < nleft ){
+                                            // get the samples in left side, ridx is pos sample
+                                            this->AddGradient( rec[ridx].second, rec[pid].second, preds, grad, hess );
+                                        }else{
+                                            // get samples in right side, ridx is negsample
+                                            this->AddGradient( rec[pid].second, rec[ridx+j-i].second, preds, grad, hess );
+                                        }
+                                    }      
                                 }
-                            }                            
+                            }else{
+                                for( unsigned pid = i; pid < j; ++ pid ){
+                                    utils::Assert( rec[pid].first == 0.0f );
+                                }
+                            }
                             i = j;
                         }
                         // rescale each gradient and hessian so that the list have constant weight
+                        float scale = 1.0f / num_pairsample;
                         if( fix_list_weight != 0.0f ){
-                            float scale = fix_list_weight / (gptr[k+1] - gptr[k]);
+                            scale *= fix_list_weight / (gptr[k+1] - gptr[k]);
+                        }
+                        if( scale != 1.0f ){
                             for(unsigned j = gptr[k]; j < gptr[k+1]; ++j ){
                                 grad[j] *= scale; hess[j] *= scale;
                             }                            
@@ -246,11 +260,9 @@ namespace xgboost{
                     }
                 }
             }
-
             virtual const char* DefaultEvalMetric(void) {
                 return "ndcg";
             }    
-
         private:
             inline void AddGradient( unsigned pid, unsigned nid, 
                                      const std::vector<float> &pred,
@@ -263,13 +275,10 @@ namespace xgboost{
                 grad[pid] += g; grad[nid] -= g;
                 // take conservative update, scale hessian by 2
                 hess[pid] += 2.0f * h; hess[nid] += 2.0f * h;
-            }                   
-
-            inline static bool CmpFirst( const std::pair<float,unsigned> &a, const std::pair<float,unsigned> &b ){
-                return a.first > b.first;
             }
-
         private:
+            // number of samples peformed for each instance
+            int num_pairsample;
             // fix weight of each list
             float fix_list_weight;
             LossType loss;
@@ -448,6 +457,17 @@ namespace xgboost{
 
         class LambdaRankObj_NDCG : public LambdaRankObj{
 
+            static inline float CalcDCG(const std::vector< float > &rec) {
+                double sumdcg = 0.0;
+                for (size_t i = 0; i < rec.size(); i++){
+                    const unsigned rel = static_cast<unsigned>(rec[i]);
+                    if (rel != 0){
+                        sumdcg += logf(2.0f) *((1 << rel) - 1) / logf(i + 2);
+                    }
+                }
+                return static_cast<float>(sumdcg);
+            }
+
             /*
             * \brief Obtain the delta NDCG if trying to switch the positions of instances in index1 or index2
             *        in sorted triples. Here DCG is calculated as sigma_i 2^rel_i/log(i + 1)
@@ -475,7 +495,7 @@ namespace xgboost{
                 }
 
                 std::sort(labels.begin(), labels.end(), std::greater<float>());
-                return EvalNDCG::CalcDCG(labels);
+                return CalcDCG(labels);
             }
 
             inline void GetLambda(const std::vector<float> &preds,
