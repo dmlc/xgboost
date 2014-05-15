@@ -174,7 +174,6 @@ namespace xgboost{
             }
         };
 
-
         /*! \brief Area under curve, for both classification and rank */
         struct EvalAuc : public IEvaluator{
             virtual float Eval(const std::vector<float> &preds,
@@ -292,17 +291,6 @@ namespace xgboost{
         struct EvalNDCG : public EvalRankList{
         public:
             EvalNDCG(const char *name):EvalRankList(name){}
-
-            static inline float CalcDCG(const std::vector< float > &rec) {
-                double sumdcg = 0.0;
-                for (size_t i = 0; i < rec.size(); i++){
-                    const unsigned rel = static_cast<unsigned>(rec[i]);
-                    if (rel != 0){
-                        sumdcg += logf(2.0f) *((1 << rel) - 1) / logf(i + 1);
-                    }
-                }
-                return static_cast<float>(sumdcg);
-            }
         protected:
             inline float CalcDCG( const std::vector< std::pair<float,unsigned> > &rec ) const {
                 double sumdcg = 0.0;
@@ -315,9 +303,9 @@ namespace xgboost{
                 return static_cast<float>(sumdcg);
             }
             virtual float EvalMetric( std::vector< std::pair<float, unsigned> > &rec ) const {
-                std::sort(rec.begin(), rec.end(), CmpFirst);
-                float idcg = this->CalcDCG(rec);
                 std::sort(rec.begin(), rec.end(), CmpSecond);
+                float idcg = this->CalcDCG(rec);
+                std::sort(rec.begin(), rec.end(), CmpFirst);
                 float dcg = this->CalcDCG(rec);
                 if( idcg == 0.0f ) return 0.0f;
                 else return dcg/idcg;
