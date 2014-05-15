@@ -1,6 +1,6 @@
 xgboost: eXtreme Gradient Boosting 
 =======
-A General purpose gradient boosting (tree) library.
+An optimized general purpose gradient boosting (tree) library.
 
 Authors:
 * Tianqi Chen, project creater
@@ -14,7 +14,8 @@ Features
   - Sparse feature format allows easy handling of missing values, and improve computation efficiency.
 * Push the limit on single machine:
   - Efficient implementation that optimizes memory and computation.
-* Layout of gradient boosting algorithm to support generic tasks, see project wiki.
+* Layout of gradient boosting algorithm to support user defined objective
+* Python interface, works with numpy and scipy.sparse matrix
 
 Supported key components
 =======
