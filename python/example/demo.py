@@ -2,7 +2,7 @@
 import sys
 import numpy as np
 import scipy.sparse
-# append the path to xgboost
+# append the path to xgboost, you may need to change the following line
 sys.path.append('../')
 import xgboost as xgb
 
@@ -82,7 +82,7 @@ evallist  = [(dtest,'eval'), (dtrain,'train')]
 bst = xgb.train( param, dtrain, num_round, evallist )
 
 ###
-# cutomsized loss function, set loss_type to 0, so that predict get untransformed score
+# advanced: cutomsized loss function, set loss_type to 0, so that predict get untransformed score
 # 
 print 'start running example to used cutomized objective function'
 

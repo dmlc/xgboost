@@ -72,6 +72,10 @@ namespace xgboost{
                 *len = this->info.labels.size();
                 return &(this->info.labels[0]);
             }
+            inline const float* GetWeight( size_t* len ) const{
+                *len = this->info.weights.size();
+                return &(this->info.weights[0]);
+            }
             inline void CheckInit(void){
                 if(!init_col_){
                     this->data.InitData();
@@ -170,6 +174,9 @@ extern "C"{
     }
     const float* XGDMatrixGetLabel( const void *handle, size_t* len ){
         return static_cast<const DMatrix*>(handle)->GetLabel(len);
+    }
+    const float* XGDMatrixGetWeight( const void *handle, size_t* len ){
+        return static_cast<const DMatrix*>(handle)->GetWeight(len);
     }
     void XGDMatrixClear(void *handle){
         static_cast<DMatrix*>(handle)->Clear();
