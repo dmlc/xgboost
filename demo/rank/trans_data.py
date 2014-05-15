@@ -6,20 +6,22 @@ def save_data(group_data,output_feature,output_group):
 
     output_group.write(str(len(group_data))+"\n")
     for data in group_data:
-	output_feature.write(data[0] + " " + " ".join(data[2:]) + "\n")
+        # only include nonzero features
+        feats = [ p for p in data[2:] if float(p.split(':')[1]) != 0.0 ]        
+	output_feature.write(data[0] + " " + " ".join(feats) + "\n")
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         print "Usage: python trans_data.py [Ranksvm Format Input] [Output Feature File] [Output Group File]"
 	sys.exit(0)
 
-    input = open(sys.argv[1])
+    fi = open(sys.argv[1])
     output_feature = open(sys.argv[2],"w")
     output_group = open(sys.argv[3],"w")
     
     group_data = []
     group = ""
-    for line in input:
+    for line in fi:
 	if not line:
 	    break
 	if "#" in line:
@@ -33,8 +35,7 @@ if __name__ == "__main__":
 
     save_data(group_data,output_feature,output_group)
 
-    input.close()
+    fi.close()
     output_feature.close()
     output_group.close()
 
-    
