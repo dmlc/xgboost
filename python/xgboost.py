@@ -33,7 +33,7 @@ def ctypes2numpy( cptr, length ):
 # data matrix used in xgboost
 class DMatrix:
     # constructor
-    def __init__(self, data=None, label=None, missing=0.0):
+    def __init__(self, data=None, label=None, missing=0.0, weight = None):
         self.handle = xglib.XGDMatrixCreate()
         if data == None:
             return
@@ -51,6 +51,8 @@ class DMatrix:
                 raise Exception, "can not intialize DMatrix from"+str(type(data))
         if label != None:
             self.set_label(label)
+        if weight !=None:
+            self.set_weight(weight)
 
     # convert data from csr matrix
     def __init_from_csr(self,csr):
