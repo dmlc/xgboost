@@ -10,7 +10,7 @@ OBJ =
 all: $(BIN) $(OBJ)
 export LDFLAGS= -pthread -lm 
 
-xgboost: regrank/xgboost_regrank_main.cpp regrank/*.h booster/*.h booster/*/*.hpp booster/*.hpp
+xgboost: regrank/xgboost_regrank_main.cpp regrank/*.h regrank/*.hpp booster/*.h booster/*/*.hpp booster/*.hpp
 
 
 $(BIN) : 

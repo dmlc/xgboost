@@ -261,7 +261,7 @@ namespace xgboost{
                 }
             }
             virtual const char* DefaultEvalMetric(void) {
-                return "ndcg";
+                return "map";
             }    
         private:
             inline void AddGradient( unsigned pid, unsigned nid, 
@@ -284,25 +284,38 @@ namespace xgboost{
             LossType loss;
         };
     };
-
-
+    
     namespace regrank{
         class LambdaRankObj : public IObjFunction{
         public:
-            LambdaRankObj(void){}
-
+            LambdaRankObj(void){
+                loss_.loss_type = LossType::kLogisticRaw;
+            }
             virtual ~LambdaRankObj(){}
-
             virtual void SetParam(const char *name, const char *val){
-                if( !strcmp( "loss_type", name ) ) loss_.loss_type = atoi( val );
+                if( !strcmp( "loss_type", name ) )       loss_.loss_type = atoi( val );
                 if( !strcmp( "fix_list_weight", name ) ) fix_list_weight_ = (float)atof( val );
-
-	    }
+            }
         private:
             LossType loss_;
             float fix_list_weight_;
         protected:
-
+            /*! \brief helper information in a list */
+            struct ListEntry{
+                /*! \brief the predict score we in the data */
+                float pred;
+                /*! \brief the actual label of the entry */
+                float label;
+                /*! \brief row index in the data matrix */                
+                unsigned rindex;
+                // constructor
+                ListEntry(float pred, float label, unsigned rindex): pred(pred),label(label),rindex(rindex){}
+                // comparator by prediction
+                inline bool operator<(const ListEntry &p) const{
+                    return pred > p.pred;
+                }
+            };
+            
             class Triple{
             public:
                 float pred_;
@@ -388,30 +401,30 @@ namespace xgboost{
                     grad[pairs[i].first] += first_order_gradient;
                     hess[pairs[i].second] += second_order_gradient;
                     grad[pairs[i].second] -= first_order_gradient;
-                    	
-		}
-
+                    
+                }
+                
                 if( fix_list_weight_ != 0.0f ){
                     float scale = fix_list_weight_ / (group_index[group+1] - group_index[group]);
                     for(unsigned j = group_index[group]; j < group_index[group+1]; ++j ){
                         grad[j] *= scale; 
-			hess[j] *= scale;
+                        hess[j] *= scale;
                     }                            
                 }
             }
-
-           virtual void GenPairs(const std::vector<float>& preds,
-                const std::vector<float>& labels,
-                const int &start, const int &end,
-		std::vector< std::pair<int,int> > &pairs){
+            
+            virtual void GenPairs(const std::vector<float>& preds,
+                                  const std::vector<float>& labels,
+                                  const int &start, const int &end,
+                                  std::vector< std::pair<int,int> > &pairs){
 	            
-	        random::Random rnd; rnd.Seed(0);
-		std::vector< std::pair<float,unsigned> > rec;
+                random::Random rnd; rnd.Seed(0);
+                std::vector< std::pair<float,unsigned> > rec;
                 for(int j = start; j < end; ++j ){
                     rec.push_back( std::make_pair(labels[j], j) );
                 }                        
-                        
-		std::sort( rec.begin(), rec.end(), CmpFirst );
+                
+                std::sort( rec.begin(), rec.end(), CmpFirst );
                 // enumerate buckets with same label, for each item in the list, grab another sample randomly
                 for( unsigned i = 0; i < rec.size(); ){
                     unsigned j = i + 1;
@@ -422,17 +435,15 @@ namespace xgboost{
                         unsigned ridx = static_cast<int>( rnd.RandDouble() * (nleft+nright) );
                         if( ridx < nleft ){
                             // get the samples in left side, ridx is pos sample
-			    pairs.push_back(std::make_pair(rec[ridx].second, rec[pid].second));
+                            pairs.push_back(std::make_pair(rec[ridx].second, rec[pid].second));
                         }else{
                             // get samples in right side, ridx is negsample
-			    pairs.push_back(std::make_pair(rec[pid].second, rec[ridx+j-i].second));
+                            pairs.push_back(std::make_pair(rec[pid].second, rec[ridx+j-i].second));
                         }
                     }                            
                     i = j;
                 }
-	   }
- 
-
+            }                        
         public:
             virtual void GetGradient(const std::vector<float>& preds,
                 const DMatrix::Info &info,
@@ -445,11 +456,10 @@ namespace xgboost{
 
                 for (size_t i = 0; i < group_index.size() - 1; i++){
                     std::vector< std::pair<int,int> > pairs;
-		    GenPairs(preds, info.labels, group_index[i], group_index[i + 1],pairs);
+                    GenPairs(preds, info.labels, group_index[i], group_index[i + 1],pairs);
                     GetGroupGradient(preds, info.labels, group_index, grad, hess, pairs, i);
                 }
-            }
-
+            }            
             virtual const char* DefaultEvalMetric(void) {
                 return "auc";
             }
@@ -497,7 +507,7 @@ namespace xgboost{
                 std::sort(labels.begin(), labels.end(), std::greater<float>());
                 return CalcDCG(labels);
             }
-
+            
             inline void GetLambda(const std::vector<float> &preds,
             const std::vector<float> &labels,
             const std::vector<unsigned> &group_index,
