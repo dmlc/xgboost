@@ -68,7 +68,9 @@ for l in open('agaricus.txt.train'):
     i += 1
 
 csr = scipy.sparse.csr_matrix( (dat, (row,col)) )
+print 'haha'
 dtrain = xgb.DMatrix( csr )
+print 'set label'
 dtrain.set_label(labels)
 evallist  = [(dtest,'eval'), (dtrain,'train')]
 bst = xgb.train( param, dtrain, num_round, evallist )
