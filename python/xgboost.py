@@ -33,15 +33,16 @@ def ctypes2numpy( cptr, length ):
 # data matrix used in xgboost
 class DMatrix:
     # constructor
-    def __init__(self, data=None, label=None):
+    def __init__(self, data=None, label=None, missing=0.0):
         self.handle = xglib.XGDMatrixCreate()
         if data == None:
             return
         if isinstance(data,str):
-            xglib.XGDMatrixLoad(self.handle, ctypes.c_char_p(data), 1) 
-            
+            xglib.XGDMatrixLoad(self.handle, ctypes.c_char_p(data), 1)             
         elif isinstance(data,scp.csr_matrix):
             self.__init_from_csr(data)
+        elif isinstance(data, numpy.ndarray) and len(data.shape) == 2:
+            self.__init_from_npy2d(data, missing)
         else:
             try:
                 csr = scp.csr_matrix(data)
@@ -59,6 +60,12 @@ class DMatrix:
                                  ( ctypes.c_uint  * len(csr.indices) )(*csr.indices),
                                  ( ctypes.c_float * len(csr.data) )(*csr.data),
                                  len(csr.indptr), len(csr.data) )
+    # convert data from numpy matrix
+    def __init_from_npy2d(self,mat,missing):
+        data = numpy.array( mat.reshape(mat.size), dtype='float32' )
+        xglib.XGDMatrixParseMat( self.handle, 
+                                 data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), 
+                                 mat.shape[0], mat.shape[1], ctypes.c_float(missing) )
     # destructor
     def __del__(self):
         xglib.XGDMatrixFree(self.handle)    
@@ -103,7 +110,7 @@ class DMatrix:
 
 class Booster:
     """learner class """
-    def __init__(self, params, cache=[]):
+    def __init__(self, params={}, cache=[]):
         """ constructor, param: """    
         for d in cache:
             assert isinstance(d,DMatrix)
