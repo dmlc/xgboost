@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# this is the example script to use xgboost to train 
+# make prediction 
 import sys
 import numpy as np
 # add path of xgboost python module
@@ -17,13 +17,14 @@ threshold_ratio = 0.15
 # load in training data, directly use numpy
 dtest = np.loadtxt( dpath+'/test.csv', delimiter=',', skiprows=1 )
 data   = dtest[:,1:31]
-idx = dtest[:,1]
+idx = dtest[:,0]
 
-xtest = xgb.DMatrix( data, missing = -999.0 )
-bst = xgb.Booster()
+print 'finish loading from csv '
+xgmat = xgb.DMatrix( data, missing = -999.0 )
+bst = xgb.Booster({'nthread':16})
 bst.load_model( modelfile )
+ypred = bst.predict( xgmat )
 
-ypred = bst.predict( dtest )
 res  = [ ( int(idx[i]), ypred[i] ) for i in xrange(len(ypred)) ] 
 
 rorder = {}
@@ -31,7 +32,7 @@ for k, v in sorted( res, key = lambda x:-x[1] ):
     rorder[ k ] = len(rorder) + 1
 
 # write out predictions
-ntop = int( ratio * len(rorder ) )
+ntop = int( threshold_ratio * len(rorder ) )
 fo = open(outfile, 'w')
 nhit = 0
 ntot = 0
@@ -46,7 +47,7 @@ for k, v in res:
     ntot += 1
 fo.close()
 
-print 'finished writing into model file'
+print 'finished writing into prediction file'
 
 
 
