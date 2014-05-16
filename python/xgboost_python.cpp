@@ -52,6 +52,28 @@ namespace xgboost{
                 for( size_t i = 0; i < nelem; ++ i ){
                     mat.row_data_[i] = XGEntry(indices[i], data[i]);
                 }
+                this->data.InitData();
+                this->init_col_ = true;
+            }
+
+            inline void ParseMat( const float *data,
+                                  size_t nrow,
+                                  size_t ncol,
+                                  float  missing ){
+                xgboost::booster::FMatrixS &mat = this->data;
+                mat.Clear();
+                for( size_t i = 0; i < nrow; ++i, data += ncol ){
+                    size_t nelem = 0;
+                    for( size_t j = 0; j < ncol; ++j ){
+                        if( data[j] != missing ){                           
+                            mat.row_data_.push_back( XGEntry(j, data[j]) );
+                            ++ nelem;
+                        }
+                    }
+                    mat.row_ptr_.push_back( mat.row_ptr_.back() + nelem );
+                }
+                this->data.InitData();
+                this->init_col_ = true;
             }
             inline void SetLabel( const float *label, size_t len ){
                 this->info.labels.resize( len );
@@ -162,6 +184,13 @@ extern "C"{
                             size_t nindptr,
                             size_t nelem ){
         static_cast<DMatrix*>(handle)->ParseCSR(indptr, indices, data, nindptr, nelem);
+    }
+    void XGDMatrixParseMat( void *handle, 
+                            const float *data,
+                            size_t nrow,
+                            size_t ncol,
+                            float  missing ){
+      static_cast<DMatrix*>(handle)->ParseMat(data, nrow, ncol, missing);
     }
     void XGDMatrixSetLabel( void *handle, const float *label, size_t len ){
         static_cast<DMatrix*>(handle)->SetLabel(label,len);        

@@ -50,6 +50,19 @@ extern "C"{
                             size_t nindptr,
                             size_t nelem );
     /*! 
+     * \brief set matrix content from data content
+     * \param handle a instance of data matrix
+     * \param data pointer to the data space
+     * \param nrow number of rows
+     * \param ncol number columns
+     * \param missing which value to represent missing value
+     */
+    void XGDMatrixParseMat( void *handle, 
+                            const float *data,
+                            size_t nrow,
+                            size_t ncol,
+                            float  missing );
+    /*! 
      * \brief set label of the training matrix
      * \param handle a instance of data matrix
      * \param label pointer to label
@@ -74,9 +87,16 @@ extern "C"{
      * \brief get label set from matrix
      * \param handle a instance of data matrix
      * \param len used to set result length
-     * \return pointer to the row
+     * \return pointer to the label
      */
     const float* XGDMatrixGetLabel( const void *handle, size_t* len );
+    /*! 
+     * \brief get weight set from matrix
+     * \param handle a instance of data matrix
+     * \param len used to set result length
+     * \return pointer to the weight
+     */
+    const float* XGDMatrixGetWeight( const void *handle, size_t* len );
     /*! 
      * \brief clear all the records, including feature matrix and label
      * \param handle a instance of data matrix
