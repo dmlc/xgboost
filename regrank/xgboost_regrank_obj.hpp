@@ -336,8 +336,15 @@ namespace xgboost{
         public:
             virtual ~LambdaRankObj_NDCG(void){}
 
-            inline float DCG(const std::vector<float> &labels){
-                return 1.0;
+            inline float CalcDCG( const std::vector<float> &labels ){
+                double sumdcg = 0.0;
+                for( size_t i = 0; i < labels.size(); i ++ ){
+                    const unsigned rel = labels[i];
+                    if( rel != 0 ){ 
+                        sumdcg += logf(2.0f) * ((1<<rel)-1) / logf( i + 2 );
+                    }
+                }
+                return static_cast<float>(sumdcg);
             }
 
             inline float GetIDCG(const std::vector<ListEntry> &sorted_list){
@@ -347,7 +354,7 @@ namespace xgboost{
                 }
 
                 std::sort(labels.begin(), labels.end(), std::greater<float>());
-                return DCG(labels);
+                return CalcDCG(labels);
             }
 
             /*
