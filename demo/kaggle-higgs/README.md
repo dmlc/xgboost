@@ -1,10 +1,20 @@
-This is the folder giving example of how to use XGBoost to run Kaggle Higgs competition
+Guide for Kaggle Higgs Challenge
+=====
 
-to run the script, put training.csv test.csv on folder './data' (you can create a symbolic link)
+This is the folder giving example of how to use XGBoost Python Module  to run Kaggle Higgs competition
 
-run ./run.sh
+This script will achieve about 3.600 AMS score in public leadboard. To get start, you need do following step:
 
-you need to compile xgboost python model in ../../python
+1. Compile the XGBoost python lib
+```bash
+cd ../../python
+make
+```
+2. Put training.csv test.csv on folder './data' (you can create a symbolic link)
+
+3. Run ./run.sh
+
+
 
 
 
