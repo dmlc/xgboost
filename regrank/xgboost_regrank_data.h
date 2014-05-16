@@ -57,7 +57,7 @@ namespace xgboost{
             DMatrix(void){}
             /*! \brief get the number of instances */
             inline size_t Size() const{
-                return info.labels.size();
+                return data.NumRow();
             }           
             /*!
              * \brief load from text file
