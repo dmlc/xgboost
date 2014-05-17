@@ -31,8 +31,9 @@ xgmat = xgb.DMatrix( data, label=label, missing = -999.0, weight=weight )
 
 # setup parameters for xgboost
 param = {}
-# use logistic regression loss
-param['loss_type'] = 3
+# use logistic regression loss, use raw prediction before logistic transformation
+# since we only need the rank
+param['objective'] = 'binary:logitraw'
 # scale weight of positive examples
 param['scale_pos_weight'] = sum_wneg/sum_wpos
 param['bst:eta'] = 0.1 
