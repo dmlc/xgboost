@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/python
 # this is the example script to use xgboost to train
 import sys
 import numpy as np
@@ -52,7 +52,7 @@ print "training GBM from sklearn"
 tmp = time.time()
 gbm = GradientBoostingClassifier(n_estimators=num_round, max_depth=6, verbose=2)
 gbm.fit(data, label)
-print "GBM costs: %s seconds" % str(time.time() - tmp)
+print "sklearn.GBM costs: %s seconds" % str(time.time() - tmp)
 #raw_input()
 print "training xgboost"
 threads = [1, 2, 4, 16]
