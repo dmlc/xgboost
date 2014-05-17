@@ -16,7 +16,7 @@ Features
 * Push the limit on single machine:
   - Efficient implementation that optimizes memory and computation.
 * Speed: XGBoost is very fast
-  - IN [demo/higgs/speedtest.py](../demo/kaggle-higgs/speedtest.py), kaggle higgs data it is faster(on our machine 20 times faster using 4 threads) than sklearn.ensemble.GradientBoostingClassifier
+  - IN [demo/higgs/speedtest.py](../demo/master/kaggle-higgs/speedtest.py), kaggle higgs data it is faster(on our machine 20 times faster using 4 threads) than sklearn.ensemble.GradientBoostingClassifier
 * Layout of gradient boosting algorithm to support user defined objective
 * Python interface, works with numpy and scipy.sparse matrix
 
