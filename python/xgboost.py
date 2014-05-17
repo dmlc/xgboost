@@ -1,3 +1,4 @@
+# Author: Tianqi Chen, Bing Xu
 # module for xgboost
 import ctypes 
 import os
