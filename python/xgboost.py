@@ -36,7 +36,8 @@ def ctypes2numpy( cptr, length ):
 class DMatrix:
     # constructor
     def __init__(self, data=None, label=None, missing=0.0, weight = None):
-        self.handle = xglib.XGDMatrixCreate()
+        # force into void_p, mac need to pass things in as void_p
+        self.handle = ctypes.c_void_p( xglib.XGDMatrixCreate() )
         if data == None:
             return
         if isinstance(data,str):
@@ -118,8 +119,8 @@ class Booster:
         """ constructor, param: """    
         for d in cache:
             assert isinstance(d,DMatrix)
-        dmats = ( ctypes.c_void_p  * len(cache) )(*[ ctypes.c_void_p(d.handle) for d in cache])
-        self.handle = xglib.XGBoosterCreate( dmats, len(cache) )
+        dmats = ( ctypes.c_void_p  * len(cache) )(*[ d.handle for d in cache])
+        self.handle = ctypes.c_void_p( xglib.XGBoosterCreate( dmats, len(cache) ) )
         self.set_param( params )
     def __del__(self):
         xglib.XGBoosterFree(self.handle) 
@@ -154,7 +155,7 @@ class Booster:
         for d in evals:
             assert isinstance(d[0], DMatrix)
             assert isinstance(d[1], str)
-        dmats = ( ctypes.c_void_p * len(evals) )(*[ ctypes.c_void_p(d[0].handle) for d in evals])
+        dmats = ( ctypes.c_void_p * len(evals) )(*[ d[0].handle for d in evals])
         evnames = ( ctypes.c_char_p * len(evals) )(*[ ctypes.c_char_p(d[1]) for d in evals])
         xglib.XGBoosterEvalOneIter( self.handle, it, dmats, evnames, len(evals) )
     def eval(self, mat, name = 'eval', it = 0 ):
