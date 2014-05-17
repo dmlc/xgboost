@@ -12,7 +12,7 @@ dtrain = xgb.DMatrix('agaricus.txt.train')
 dtest = xgb.DMatrix('agaricus.txt.test')
 
 # specify parameters via map, definition are same as c++ version
-param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'loss_type':2 }
+param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
 
 # specify validations set to watch performance
 evallist  = [(dtest,'eval'), (dtrain,'train')]
