@@ -22,8 +22,7 @@ xg_train = xgb.DMatrix( train_X, label=train_Y)
 xg_test = xgb.DMatrix(test_X, label=test_Y)
 # setup parameters for xgboost
 param = {}
-# use logistic regression loss, use raw prediction before logistic transformation
-# since we only need the rank
+# use softmax multi-class classification
 param['objective'] = 'multi:softmax'
 # scale weight of positive examples
 param['bst:eta'] = 0.1
@@ -35,4 +34,9 @@ param['num_class'] = 6
 watchlist = [ (xg_train,'train'), (xg_test, 'test') ]
 num_round = 5
 bst = xgb.train(param, xg_train, num_round, watchlist );
+# get prediction
+pred = bst.predict( xg_test );
+
+print 'error=%f' % sum(int(pred[i]) != test_Y[i] for i in len(test_Y)) / float(len(test_Y)) 
+
 
