@@ -1,5 +1,5 @@
 #Download the dataset from web site
-#wget http://research.microsoft.com/en-us/um/beijing/projects/letor/LETOR4.0/Data/MQ2008.rar
+wget http://research.microsoft.com/en-us/um/beijing/projects/letor/LETOR4.0/Data/MQ2008.rar
 
 #please first install the unrar package
 unrar x MQ2008
