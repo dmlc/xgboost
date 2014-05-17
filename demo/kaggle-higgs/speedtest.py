@@ -42,22 +42,25 @@ param['eval_metric'] = 'auc'
 param['silent'] = 1
 param['nthread'] = 4
 
-# you can directly throw param in, though we want to watch multiple metrics here
 plst = param.items()+[('eval_metric', 'ams@0.15')]
 
 watchlist = [ (xgmat,'train') ]
-# boost 135 tres
-num_round = 135
+# boost 10 tres
+num_round = 10
 print 'loading data end, start to boost trees'
 print "training GBM from sklearn"
 tmp = time.time()
-gbm = GradientBoostingClassifier(n_estimators=135, max_depth=6, verbose=2)
+gbm = GradientBoostingClassifier(n_estimators=num_round, max_depth=6, verbose=2)
 gbm.fit(data, label)
 print "GBM costs: %s seconds" % str(time.time() - tmp)
 #raw_input()
 print "training xgboost"
-tmp = time.time()
-bst = xgb.train( plst, xgmat, num_round, watchlist );
-print "XGBoost costs: %s seconds" % str(time.time() - tmp)
+threads = [1, 2, 4, 16]
+for i in threads:
+    param['nthread'] = i
+    tmp = time.time()
+    plst = param.items()+[('eval_metric', 'ams@0.15')]
+    bst = xgb.train( plst, xgmat, num_round, watchlist );
+    print "XGBoost with %d thread costs: %s seconds" % (i, str(time.time() - tmp))
 
 print 'finish training'
