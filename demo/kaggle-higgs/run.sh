@@ -1,4 +1,4 @@
 #!/bin/bash
 
-./higgs-numpy.py
-./higgs-pred.py
+python higgs-numpy.py
+python higgs-pred.py
