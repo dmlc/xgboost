@@ -20,6 +20,7 @@ namespace xgboost{
              * \param val  value of the parameter
              */
             virtual void SetParam(const char *name, const char *val) = 0;
+            
             /*! 
              * \brief get gradient over each of predictions, given existing information
              * \param preds prediction of current round             
