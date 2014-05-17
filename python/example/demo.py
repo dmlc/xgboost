@@ -12,7 +12,7 @@ dtrain = xgb.DMatrix('agaricus.txt.train')
 dtest = xgb.DMatrix('agaricus.txt.test')
 
 # specify parameters via map, definition are same as c++ version
-param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'loss_type':2 }
+param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
 
 # specify validations set to watch performance
 evallist  = [(dtest,'eval'), (dtrain,'train')]
@@ -28,11 +28,6 @@ bst.save_model('0001.model')
 bst.dump_model('dump.raw.txt')
 # dump model with feature map
 bst.dump_model('dump.raw.txt','featmap.txt')
-
-# beta: interact mode
-bst.set_param('bst:interact:expand',4)
-bst.update_interact( dtrain, 'update', 0)
-bst.dump_model('dump.raw2.txt')
 
 ###
 # build dmatrix in python iteratively

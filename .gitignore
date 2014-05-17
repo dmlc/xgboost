@@ -18,3 +18,8 @@
 *model
 xgboost
 *pyc
+*train
+*test
+*group
+*rar
+*vali
