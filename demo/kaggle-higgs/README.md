@@ -7,4 +7,4 @@ run ./run.sh
 you need to compile xgboost python model in ../../python
 
 
-
+speedtest.py compares xgboost's speed on this dataset with sklearn
