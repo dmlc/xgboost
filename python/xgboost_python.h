@@ -1,7 +1,8 @@
 #ifndef XGBOOST_PYTHON_H
 #define XGBOOST_PYTHON_H
 /*!
- * \file xgboost_regrank_data.h
+ * \file xgboost_python.h
+ * \author Tianqi Chen
  * \brief python wrapper for xgboost, using ctypes, 
  *        hides everything behind functions
  *      use c style interface
