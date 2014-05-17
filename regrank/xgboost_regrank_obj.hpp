@@ -14,8 +14,8 @@ namespace xgboost{
     namespace regrank{        
         class RegressionObj : public IObjFunction{
         public:
-            RegressionObj(void){
-                loss.loss_type = LossType::kLinearSquare;
+            RegressionObj( int loss_type ){
+                loss.loss_type = loss_type;
             }
             virtual ~RegressionObj(){}
             virtual void SetParam(const char *name, const char *val){

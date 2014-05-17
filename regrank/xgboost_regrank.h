@@ -25,7 +25,7 @@ namespace xgboost{
             RegRankBoostLearner(void){
                 silent = 0;
                 obj_ = NULL;
-                name_obj_ = "reg";
+                name_obj_ = "reg:linear";
             }
             /*!
              * \brief a regression booter associated with training and evaluating data
