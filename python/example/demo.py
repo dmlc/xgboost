@@ -29,11 +29,6 @@ bst.dump_model('dump.raw.txt')
 # dump model with feature map
 bst.dump_model('dump.raw.txt','featmap.txt')
 
-# beta: interact mode
-bst.set_param('bst:interact:expand',4)
-bst.update_interact( dtrain, 'update', 0)
-bst.dump_model('dump.raw2.txt')
-
 ###
 # build dmatrix in python iteratively
 #
