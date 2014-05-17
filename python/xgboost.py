@@ -22,6 +22,7 @@ xglib.XGDMatrixNumRow.restype = ctypes.c_ulong
 xglib.XGDMatrixGetLabel.restype =  ctypes.POINTER( ctypes.c_float )
 xglib.XGDMatrixGetWeight.restype =  ctypes.POINTER( ctypes.c_float )
 xglib.XGDMatrixGetRow.restype = ctypes.POINTER( REntry )
+xglib.XGBoosterCreate.restype = ctypes.c_void_p
 xglib.XGBoosterPredict.restype = ctypes.POINTER( ctypes.c_float ) 
 
 def ctypes2numpy( cptr, length ):
