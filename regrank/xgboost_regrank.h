@@ -97,8 +97,8 @@ namespace xgboost{
             */
             inline void InitTrainer(void){
                 if( mparam.num_class != 0 ){
-                    if( name_obj_ != "softmax" ){
-                        name_obj_ = "softmax";
+                    if( name_obj_ != "multi:softmax" ){
+                        name_obj_ = "multi:softmax";
                         printf("auto select objective=softmax to support multi-class classification\n" );
                     }
                 }
