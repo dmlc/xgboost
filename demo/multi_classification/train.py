@@ -4,9 +4,8 @@ import numpy as np
 sys.path.append('../../python/')
 import xgboost as xgb
 
-
-
-data = np.loadtxt('./dermatology.data', delimiter=',',converters={33: lambda x:int(x == '?'), 34: lambda x:int(x) } )
+# label need to be 0 to num_class -1
+data = np.loadtxt('./dermatology.data', delimiter=',',converters={33: lambda x:int(x == '?'), 34: lambda x:int(x)-1 } )
 sz = data.shape
 
 train = data[:int(sz[0] * 0.7), :]
@@ -31,11 +30,9 @@ param['bst:eta'] = 0.1
 param['bst:max_depth'] = 6
 param['silent'] = 1
 param['nthread'] = 4
-param['num_class'] = 5
+param['num_class'] = 6
 
 watchlist = [ (xg_train,'train'), (xg_test, 'test') ]
 num_round = 5
 bst = xgb.train(param, xg_train, num_round, watchlist );
-
-
 
