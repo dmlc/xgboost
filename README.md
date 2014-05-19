@@ -2,10 +2,7 @@ xgboost: eXtreme Gradient Boosting
 =======
 An optimized general purpose gradient boosting (tree) library.
 
-Contributors:
-* Tianqi Chen, project creater
-* Kailong Chen, contributes regression module
-* Bing Xu, contributes python interface, higgs example
+Contributors: https://github.com/tqchen/xgboost/graphs/contributors
 
 Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
  
