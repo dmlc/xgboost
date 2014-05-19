@@ -19,13 +19,13 @@ dtest = np.loadtxt( dpath+'/test.csv', delimiter=',', skiprows=1 )
 data   = dtest[:,1:31]
 idx = dtest[:,0]
 
-print 'finish loading from csv '
+print ('finish loading from csv ')
 xgmat = xgb.DMatrix( data, missing = -999.0 )
 bst = xgb.Booster({'nthread':16})
 bst.load_model( modelfile )
 ypred = bst.predict( xgmat )
 
-res  = [ ( int(idx[i]), ypred[i] ) for i in xrange(len(ypred)) ] 
+res  = [ ( int(idx[i]), ypred[i] ) for i in range(len(ypred)) ] 
 
 rorder = {}
 for k, v in sorted( res, key = lambda x:-x[1] ):
@@ -47,7 +47,7 @@ for k, v in res:
     ntot += 1
 fo.close()
 
-print 'finished writing into prediction file'
+print ('finished writing into prediction file')
 
 
 
