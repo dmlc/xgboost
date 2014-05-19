@@ -37,6 +37,6 @@ bst = xgb.train(param, xg_train, num_round, watchlist );
 # get prediction
 pred = bst.predict( xg_test );
 
-print 'predicting, classification error=%f' % (sum( int(pred[i]) != test_Y[i] for i in xrange(len(test_Y))) / float(len(test_Y)) )
+print ('predicting, classification error=%f' % (sum( int(pred[i]) != test_Y[i] for i in range(len(test_Y))) / float(len(test_Y)) ))
 
 
