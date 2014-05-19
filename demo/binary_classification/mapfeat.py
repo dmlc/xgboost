@@ -24,7 +24,7 @@ def loadfmap( fname ):
     return fmap, nmap
 
 def write_nmap( fo, nmap ):    
-    for i in xrange( len(nmap) ):
+    for i in range( len(nmap) ):
         fo.write('%d\t%s\ti\n' % (i, nmap[i]) )
 
 # start here
@@ -41,7 +41,7 @@ for l in open( 'agaricus-lepiota.data' ):
     else:
         assert arr[0] == 'e'
         fo.write('0')
-    for i in xrange( 1,len(arr) ):
+    for i in range( 1,len(arr) ):
         fo.write( ' %d:1' % fmap[i][arr[i].strip()] )
     fo.write('\n')
 

@@ -22,7 +22,7 @@ bst = xgb.train( param, dtrain, num_round, evallist )
 # this is prediction
 preds = bst.predict( dtest )
 labels = dtest.get_label()
-print 'error=%f' % (  sum(1 for i in xrange(len(preds)) if int(preds[i]>0.5)!=labels[i]) /float(len(preds)))
+print ('error=%f' % (  sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) /float(len(preds))))
 bst.save_model('0001.model')
 # dump model
 bst.dump_model('dump.raw.txt')
@@ -32,7 +32,7 @@ bst.dump_model('dump.raw.txt','featmap.txt')
 ###
 # build dmatrix in python iteratively
 #
-print 'start running example of build DMatrix in python'
+print ('start running example of build DMatrix in python')
 dtrain = xgb.DMatrix()
 labels = []
 for l in open('agaricus.txt.train'):
@@ -50,7 +50,7 @@ bst = xgb.train( param, dtrain, num_round, evallist )
 
 ###
 # build dmatrix from scipy.sparse
-print 'start running example of build DMatrix from scipy.sparse'
+print ('start running example of build DMatrix from scipy.sparse')
 labels = []
 row = []; col = []; dat = []
 i = 0
@@ -68,7 +68,7 @@ dtrain.set_label(labels)
 evallist  = [(dtest,'eval'), (dtrain,'train')]
 bst = xgb.train( param, dtrain, num_round, evallist )
 
-print 'start running example of build DMatrix from numpy array'
+print ('start running example of build DMatrix from numpy array')
 # NOTE: npymat is numpy array, we will convert it into scipy.sparse.csr_matrix in internal implementation,then convert to DMatrix
 npymat = csr.todense()
 dtrain = xgb.DMatrix( npymat )
@@ -79,7 +79,7 @@ bst = xgb.train( param, dtrain, num_round, evallist )
 ###
 # advanced: cutomsized loss function, set loss_type to 0, so that predict get untransformed score
 # 
-print 'start running example to used cutomized objective function'
+print ('start running example to used cutomized objective function')
 
 # note: set loss_type properly, loss_type=2 means the prediction will get logistic transformed
 #       in most case, we may want to set loss_type = 0, to get untransformed score to compute gradient

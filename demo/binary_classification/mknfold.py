@@ -3,7 +3,7 @@ import sys
 import random
 
 if len(sys.argv) < 2:
-    print 'Usage:<filename> <k> [nfold = 5]'
+    print ('Usage:<filename> <k> [nfold = 5]')
     exit(0)
 
 random.seed( 10 )
