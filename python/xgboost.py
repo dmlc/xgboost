@@ -41,7 +41,7 @@ class DMatrix:
         if data == None:
             return
         if isinstance(data,str):
-            xglib.XGDMatrixLoad(self.handle, ctypes.c_char_p(data), 1)             
+            xglib.XGDMatrixLoad(self.handle, ctypes.c_char_p(data.encode('utf-8')), 1)             
         elif isinstance(data,scp.csr_matrix):
             self.__init_from_csr(data)
         elif isinstance(data, numpy.ndarray) and len(data.shape) == 2:
@@ -51,7 +51,7 @@ class DMatrix:
                 csr = scp.csr_matrix(data)
                 self.__init_from_csr(csr)
             except:
-                raise Exception, "can not intialize DMatrix from"+str(type(data))
+                raise Exception("can not intialize DMatrix from"+str(type(data)))
         if label != None:
             self.set_label(label)
         if weight !=None:
@@ -76,10 +76,10 @@ class DMatrix:
         xglib.XGDMatrixFree(self.handle)    
     # load data from file 
     def load(self, fname, silent=True):
-        xglib.XGDMatrixLoad(self.handle, ctypes.c_char_p(fname), int(silent))
+        xglib.XGDMatrixLoad(self.handle, ctypes.c_char_p(fname.encode('utf-8')), int(silent))
     # load data from file 
     def save_binary(self, fname, silent=True):
-        xglib.XGDMatrixSaveBinary(self.handle, ctypes.c_char_p(fname), int(silent))
+        xglib.XGDMatrixSaveBinary(self.handle, ctypes.c_char_p(fname.encode('utf-8')), int(silent))
     # set label of dmatrix
     def set_label(self, label):
         xglib.XGDMatrixSetLabel(self.handle, (ctypes.c_float*len(label))(*label), len(label) )
@@ -111,7 +111,7 @@ class DMatrix:
     def __getitem__(self, ridx):
         length = ctypes.c_ulong()
         row = xglib.XGDMatrixGetRow(self.handle, ridx, ctypes.byref(length) );
-        return [ (int(row[i].findex),row[i].fvalue) for i in xrange(length.value) ]
+        return [ (int(row[i].findex),row[i].fvalue) for i in range(length.value) ]
 
 class Booster:
     """learner class """
@@ -124,15 +124,21 @@ class Booster:
         self.set_param( params )
     def __del__(self):
         xglib.XGBoosterFree(self.handle) 
-    def set_param(self, params,pv=None):
+    def set_param(self, params, pv=None):
         if isinstance(params,dict):
-            for k, v in params.iteritems():
-                xglib.XGBoosterSetParam( self.handle, ctypes.c_char_p(k), ctypes.c_char_p(str(v)) )        
+            for k, v in params.items():
+                xglib.XGBoosterSetParam(
+                    self.handle, ctypes.c_char_p(k.encode('utf-8')), 
+                    ctypes.c_char_p(str(v).encode('utf-8')))        
         elif isinstance(params,str) and pv != None:
-            xglib.XGBoosterSetParam( self.handle, ctypes.c_char_p(params), ctypes.c_char_p(str(pv)) )
+            xglib.XGBoosterSetParam(
+                self.handle, ctypes.c_char_p(params.encode('utf-8')),
+                ctypes.c_char_p(str(pv).encode('utf-8')) )
         else:
             for k, v in params:
-                xglib.XGBoosterSetParam( self.handle, ctypes.c_char_p(k), ctypes.c_char_p(str(v)) )             
+                xglib.XGBoosterSetParam(
+                    self.handle, ctypes.c_char_p(k.encode('utf-8')),
+                    ctypes.c_char_p(str(v).encode('utf-8')) )             
     def update(self, dtrain):
         """ update """
         assert isinstance(dtrain, DMatrix)
@@ -150,13 +156,15 @@ class Booster:
         assert isinstance(dtrain, DMatrix)
         if booster_index != None:
             self.set_param('interact:booster_index', str(booster_index))
-        xglib.XGBoosterUpdateInteract( self.handle, dtrain.handle, ctypes.c_char_p(str(action)) )
+        xglib.XGBoosterUpdateInteract(
+            self.handle, dtrain.handle, ctypes.c_char_p(str(action)) )
     def eval_set(self, evals, it = 0):
         for d in evals:
             assert isinstance(d[0], DMatrix)
             assert isinstance(d[1], str)
         dmats = ( ctypes.c_void_p * len(evals) )(*[ d[0].handle for d in evals])
-        evnames = ( ctypes.c_char_p * len(evals) )(*[ ctypes.c_char_p(d[1]) for d in evals])
+        evnames = ( ctypes.c_char_p * len(evals) )(
+            *[ctypes.c_char_p(d[1].encode('utf-8')) for d in evals])
         xglib.XGBoosterEvalOneIter( self.handle, it, dmats, evnames, len(evals) )
     def eval(self, mat, name = 'eval', it = 0 ):
         self.eval_set( [(mat,name)], it)
@@ -166,25 +174,27 @@ class Booster:
         return ctypes2numpy( preds, length.value )
     def save_model(self, fname):
         """ save model to file """
-        xglib.XGBoosterSaveModel( self.handle, ctypes.c_char_p(fname) )
+        xglib.XGBoosterSaveModel(self.handle, ctypes.c_char_p(fname.encode('utf-8')))
     def load_model(self, fname):
         """load model from file"""
-        xglib.XGBoosterLoadModel( self.handle, ctypes.c_char_p(fname) )
+        xglib.XGBoosterLoadModel( self.handle, ctypes.c_char_p(fname.encode('utf-8')) )
     def dump_model(self, fname, fmap=''):
         """dump model into text file"""
-        xglib.XGBoosterDumpModel( self.handle, ctypes.c_char_p(fname), ctypes.c_char_p(fmap) )
+        xglib.XGBoosterDumpModel(
+            self.handle, ctypes.c_char_p(fname.encode('utf-8')), 
+            ctypes.c_char_p(fmap.encode('utf-8')))
 
 def train(params, dtrain, num_boost_round = 10, evals = [], obj=None):
     """ train a booster with given paramaters """
     bst = Booster(params, [dtrain] )
     if obj == None:
-        for i in xrange(num_boost_round):
+        for i in range(num_boost_round):
             bst.update( dtrain )
             if len(evals) != 0:
                 bst.eval_set( evals, i )
     else:
         # try customized objective function
-        for i in xrange(num_boost_round):
+        for i in range(num_boost_round):
             pred = bst.predict( dtrain )
             grad, hess = obj( pred, dtrain )
             bst.boost( dtrain, grad, hess )
