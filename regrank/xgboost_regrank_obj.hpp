@@ -16,6 +16,7 @@ namespace xgboost{
         public:
             RegressionObj( int loss_type ){
                 loss.loss_type = loss_type;
+                scale_pos_weight = 1.0f;
             }
             virtual ~RegressionObj(){}
             virtual void SetParam(const char *name, const char *val){
