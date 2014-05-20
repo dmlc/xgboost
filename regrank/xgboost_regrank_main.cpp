@@ -126,7 +126,7 @@ namespace xgboost{
                         deval.back()->CacheLoad(eval_data_paths[i].c_str(), silent != 0, use_buffer != 0);
                         devalall.push_back(deval.back());
                     }
-                    std::vector<const DMatrix *> dcache(1, &data);
+                    std::vector<DMatrix *> dcache(1, &data);
                     for( size_t i = 0; i < deval.size(); ++ i){
                         dcache.push_back( deval[i] );
                     }
