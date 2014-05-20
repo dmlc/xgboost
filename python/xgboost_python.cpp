@@ -112,7 +112,7 @@ namespace xgboost{
         private:
             bool init_trainer, init_model;
         public:
-            Booster(const std::vector<const regrank::DMatrix *> mats){
+            Booster(const std::vector<regrank::DMatrix *> mats){
                 silent = 1;
                 init_trainer = false;
                 init_model = false;
@@ -223,7 +223,7 @@ extern "C"{
 
     // xgboost implementation
     void *XGBoosterCreate( void *dmats[], size_t len ){
-        std::vector<const xgboost::regrank::DMatrix*> mats;
+        std::vector<xgboost::regrank::DMatrix*> mats;
         for( size_t i = 0; i < len; ++i ){
             DMatrix *dtr = static_cast<DMatrix*>(dmats[i]);
             dtr->CheckInit();

@@ -52,9 +52,15 @@ namespace xgboost{
             booster::FMatrixS data;
             /*! \brief information fields */
             Info info;
+            /*! 
+             * \brief cache pointer to verify if the data structure is cached in some learner 
+             * this is a bit ugly, we need to have double check verification, so if one side get deleted, 
+             * and some strange re-allocation gets the same pointer we will still be fine
+             */
+            void *cache_learner_ptr_;
         public:
             /*! \brief default constructor */
-            DMatrix(void){}
+            DMatrix(void):cache_learner_ptr_(NULL){}
             /*! \brief get the number of instances */
             inline size_t Size() const{
                 return data.NumRow();
