@@ -81,9 +81,9 @@ bst = xgb.train( param, dtrain, num_round, evallist )
 # 
 print ('start running example to used cutomized objective function')
 
-# note: set loss_type properly, loss_type=2 means the prediction will get logistic transformed
-#       in most case, we may want to set loss_type = 0, to get untransformed score to compute gradient
-bst = param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'loss_type':2 }
+# note: set objective= binary:logistic means the prediction will get logistic transformed
+#       in most case, we may want to leave it as default
+param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
 
 # user define objective function, given prediction, return gradient and second order gradient
 def logregobj( preds, dtrain ):
