@@ -158,7 +158,7 @@ public:
                 this->info.labels.push_back( label );
                 // push back weight if any
                 if( fweight != NULL ){
-                    this->info.labels.push_back( weight );                    
+                    this->info.weights.push_back( weight );                    
                 }
                 this->data.AddRow( findex, fvalue );
             }             
