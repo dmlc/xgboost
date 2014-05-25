@@ -130,6 +130,10 @@ namespace xgboost{
                 xgboost::regrank::RegRankBoostLearner::LoadModel(fname);
                 this->init_model = true;
             }
+            inline void SetParam( const char *name, const char *val ){
+                if( !strcmp( name, "seed" ) ) random::Seed(atoi(val));
+                xgboost::regrank::RegRankBoostLearner::SetParam( name, val );
+            }
             const float *Pred( const DMatrix &dmat, size_t *len, int bst_group ){
                 this->CheckInit();
 
