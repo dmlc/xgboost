@@ -121,6 +121,7 @@ class Booster:
             assert isinstance(d,DMatrix)
         dmats = ( ctypes.c_void_p  * len(cache) )(*[ d.handle for d in cache])
         self.handle = ctypes.c_void_p( xglib.XGBoosterCreate( dmats, len(cache) ) )
+        self.set_param( {'seed':0} )
         self.set_param( params )
     def __del__(self):
         xglib.XGBoosterFree(self.handle) 
