@@ -121,8 +121,6 @@ class Booster:
             assert isinstance(d,DMatrix)
         dmats = ( ctypes.c_void_p  * len(cache) )(*[ d.handle for d in cache])
         self.handle = ctypes.c_void_p( xglib.XGBoosterCreate( dmats, len(cache) ) )
-        # default random seed
-        self.set_param( {"seed": 0} )
         self.set_param( params )
     def __del__(self):
         xglib.XGBoosterFree(self.handle) 
@@ -188,7 +186,7 @@ class Booster:
 
 def train(params, dtrain, num_boost_round = 10, evals = [], obj=None):
     """ train a booster with given paramaters """
-    bst = Booster(params, [dtrain] )
+    bst = Booster(params, [dtrain]+[ d[0] for d in evals ] )
     if obj == None:
         for i in range(num_boost_round):
             bst.update( dtrain )
