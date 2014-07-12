@@ -29,7 +29,7 @@ namespace xgboost{
             }
             /*! \brief destructor */
             ~RegRankBoostLearner(void){
-                delete obj_;
+                if( obj_ != NULL ) delete obj_;
             }
             /*!
              * \brief a regression booter associated with training and evaluating data
