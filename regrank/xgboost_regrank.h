@@ -27,6 +27,10 @@ namespace xgboost{
                 obj_ = NULL;
                 name_obj_ = "reg:linear";
             }
+            /*! \brief destructor */
+            ~RegRankBoostLearner(void){
+                delete obj_;
+            }
             /*!
              * \brief a regression booter associated with training and evaluating data
              * \param mats  array of pointers to matrix whose prediction result need to be cached
