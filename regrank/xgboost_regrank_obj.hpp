@@ -112,7 +112,7 @@ namespace xgboost{
         // simple softmax multi-class classification
         class SoftmaxMultiClassObj : public IObjFunction{
         public:
-            SoftmaxMultiClassObj(void){
+            SoftmaxMultiClassObj(int output_prob):output_prob(output_prob){
                 nclass = 0;
             }
             virtual ~SoftmaxMultiClassObj(){}
@@ -156,6 +156,13 @@ namespace xgboost{
                 }
             }
             virtual void PredTransform(std::vector<float> &preds){
+                this->Transform(preds, output_prob);
+            }
+            virtual void EvalTransform(std::vector<float> &preds){
+                this->Transform(preds, 0);
+            }
+        private:
+            inline void Transform(std::vector<float> &preds, int prob){
                 utils::Assert( nclass != 0, "must set num_class to use softmax" );
                 utils::Assert( preds.size() % nclass == 0, "SoftmaxMultiClassObj: label size and pred size does not match" );                
                 const unsigned ndata = static_cast<unsigned>(preds.size()/nclass);
@@ -168,16 +175,26 @@ namespace xgboost{
                         for( int k = 0; k < nclass; ++ k ){
                             rec[k] = preds[j + k * ndata];
                         }
-                        preds[j] = FindMaxIndex( rec );
+                        if( prob == 0 ){
+                            preds[j] = FindMaxIndex( rec );
+                        }else{
+                            Softmax( rec );
+                            for( int k = 0; k < nclass; ++ k ){
+                                preds[j + k * ndata] = rec[k];
+                            }
+                        }
                     }
                 }
-                preds.resize( ndata );
+                if( prob == 0 ){
+                    preds.resize( ndata );
+                }
             }
             virtual const char* DefaultEvalMetric(void) {
                 return "merror";
             }
         private:
             int nclass;
+            int output_prob;
         };
     };
 
