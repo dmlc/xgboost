@@ -39,4 +39,11 @@ pred = bst.predict( xg_test );
 
 print ('predicting, classification error=%f' % (sum( int(pred[i]) != test_Y[i] for i in range(len(test_Y))) / float(len(test_Y)) ))
 
+# do the same thing again, but output probabilities
+param['objective'] = 'multi:softprob'
+bst = xgb.train(param, xg_train, num_round, watchlist );
+# get prediction, this is in 1D array, need reshape to (nclass, ndata)
+yprob = bst.predict( xg_test ).reshape( 6, test_Y.shape[0] )
+ylabel = np.argmax( yprob, axis=0)
 
+print ('predicting, classification error=%f' % (sum( int(ylabel[i]) != test_Y[i] for i in range(len(test_Y))) / float(len(test_Y)) ))
