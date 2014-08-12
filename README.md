@@ -6,7 +6,7 @@ Contributors: https://github.com/tqchen/xgboost/graphs/contributors
 
 Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
 
-Questions and Issues: https://github.com/tqchen/xgboost/issues?q=is%3Aissue+label%3Aquestion
+Questions and Issues: [If you have questions, checkout the existing questions and fire an issue here](https://github.com/tqchen/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
 Features
 =======
