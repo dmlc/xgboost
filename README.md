@@ -5,7 +5,9 @@ An optimized general purpose gradient boosting (tree) library.
 Contributors: https://github.com/tqchen/xgboost/graphs/contributors
 
 Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
- 
+
+Questions and Issues: [https://github.com/tqchen/xgboost/issues](https://github.com/tqchen/xgboost/issues?q=is%3Aissue+label%3Aquestion)
+
 Features
 =======
 * Sparse feature format:
