@@ -27,7 +27,7 @@ class ColMaker: public IUpdater<FMatrix> {
                       FMatrix &fmat,
                       const std::vector<unsigned> &root_index,
                       const std::vector<RegTree*> &trees) {
-    fmat.InitColAccess();
+    
     for (size_t i = 0; i < trees.size(); ++i) {
       Builder builder(param);
       builder.Update(gpair, fmat, root_index, trees[i]);
