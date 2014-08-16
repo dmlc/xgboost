@@ -4,14 +4,14 @@ export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas
 
 # specify tensor path
 BIN = xgunity.exe
-OBJ = 
+OBJ = io.o
 .PHONY: clean all
 
 all: $(BIN) $(OBJ)
 export LDFLAGS= -pthread -lm 
 
 xgunity.exe: src/xgunity.cpp
-
+io.o: src/io/io.cpp
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
@@ -23,4 +23,5 @@ install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
 
 clean:
-	$(RM) $(OBJ) $(BIN) *~ */*~
+	$(RM) $(OBJ) $(BIN) *~ */*~ */*/*~
+

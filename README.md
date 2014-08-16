@@ -20,7 +20,8 @@ Build
 
 Project Logical Layout
 =======
-* Dependency order: learner->gbm->tree
+* Dependency order: io->learner->gbm->tree
+  - All module depends on data.h
 * tree are implementations of tree construction algorithms.
 * gbm is gradient boosting interface, that takes trees and other base learner to do boosting.
   - gbm only takes gradient as sufficient statistics, it does not compute the gradient.

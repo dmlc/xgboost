@@ -18,11 +18,11 @@ class IIterator {
   /*!
    * \brief set the parameter 
    * \param name name of parameter
-   * \param val  value of parameter
+   * \param val value of parameter
    */
-  virtual void SetParam(const char *name, const char *val) = 0;
+  virtual void SetParam(const char *name, const char *val) {}
   /*! \brief initalize the iterator so that we can use the iterator */
-  virtual void Init(void) = 0;
+  virtual void Init(void) {}
   /*! \brief set before first of the item */
   virtual void BeforeFirst(void) = 0;
   /*! \brief move to next item */
