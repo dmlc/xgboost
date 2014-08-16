@@ -10,7 +10,7 @@ OBJ =
 all: $(BIN) $(OBJ)
 export LDFLAGS= -pthread -lm 
 
-xgunity.exe: xgunity.cpp
+xgunity.exe: src/xgunity.cpp
 
 
 $(BIN) : 
