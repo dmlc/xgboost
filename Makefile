@@ -1,16 +1,16 @@
-export CC  = gcc
-export CXX = g++
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fopenmp 
+export CC  = clang
+export CXX = clang++
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas 
 
 # specify tensor path
-BIN = xgboost
+BIN = xgunity.exe
 OBJ = 
 .PHONY: clean all
 
 all: $(BIN) $(OBJ)
 export LDFLAGS= -pthread -lm 
 
-xgboost: regrank/xgboost_regrank_main.cpp regrank/*.h regrank/*.hpp booster/*.h booster/*/*.hpp booster/*.hpp
+xgunity.exe: xgunity.cpp
 
 
 $(BIN) : 
@@ -23,4 +23,4 @@ install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
 
 clean:
-	$(RM) $(OBJ) $(BIN) *~
+	$(RM) $(OBJ) $(BIN) *~ */*~

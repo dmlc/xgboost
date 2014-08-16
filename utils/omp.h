@@ -1,12 +1,10 @@
-#ifndef XGBOOST_OMP_H
-#define XGBOOST_OMP_H
+#ifndef XGBOOST_UTILS_OMP_H_
+#define XGBOOST_UTILS_OMP_H_
 /*!
- * \file xgboost_omp.h
+ * \file omp.h
  * \brief header to handle OpenMP compatibility issues
- *
- * \author Tianqi Chen: tianqi.tchen@gmail.com
+ * \author Tianqi Chen
  */
-
 #if defined(_OPENMP)
 #include <omp.h>
 #else
@@ -15,4 +13,4 @@ inline int omp_get_thread_num() { return 0; }
 inline int omp_get_num_threads() { return 1; }
 inline void omp_set_num_threads(int nthread) {}
 #endif
-#endif
+#endif  // XGBOOST_UTILS_OMP_H_

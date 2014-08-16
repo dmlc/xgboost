@@ -8,33 +8,9 @@ Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
 
 Questions and Issues: [https://github.com/tqchen/xgboost/issues](https://github.com/tqchen/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
-Features
+xgboost-unity
 =======
-* Sparse feature format:
-  - Sparse feature format allows easy handling of missing values, and improve computation efficiency.
-* Push the limit on single machine:
-  - Efficient implementation that optimizes memory and computation.
-* Speed: XGBoost is very fast
-  - IN [demo/higgs/speedtest.py](demo/kaggle-higgs/speedtest.py), kaggle higgs data it is faster(on our machine 20 times faster using 4 threads) than sklearn.ensemble.GradientBoostingClassifier
-* Layout of gradient boosting algorithm to support user defined objective
-* Python interface, works with numpy and scipy.sparse matrix
-
-Supported key components
-=======
-* Gradient boosting models: 
-    - regression tree (GBRT)
-    - linear model/lasso
-* Objectives to support tasks: 
-    - regression
-    - classification
-* OpenMP implementation
-
-Planned components
-=======
-* More objective to support tasks: 
-    - ranking
-    - matrix factorization
-    - structured prediction
+experimental branch: refactor xgboost, cleaner code, more flexibility
 
 Build
 ======
@@ -42,8 +18,17 @@ Build
 * If your compiler does not come with OpenMP support, it will fire an warning telling you that the code will compile into single thread mode, and you will get single thread xgboost
   - You may get a error: -lgomp is not found, you can remove -fopenmp flag in Makefile to get single thread xgboost, or upgrade your compiler to compile multi-thread version
 
-File extension convention
+Project Logical Layout
 =======
-* .h are interface, utils and data structures, with detailed comment; 
-* .cpp are implementations that will be compiled, with less comment; 
-* .hpp are implementations that will be included by .cpp, with less comment
+* Dependency order: learner->gbm->tree
+* tree are implementations of tree construction algorithms.
+* gbm is gradient boosting interface, that takes trees and other base learner to do boosting.
+  - gbm only takes gradient as sufficient statistics, it does not compute the gradient.
+* learner is learning module that computes gradient for specific object, and pass it to GBM
+
+File Naming Convention
+======= 
+* The project is templatized, to make it easy to adjust input data structure.
+* .h files are data structures and interface, which are needed to use functions in that layer.
+* -inl.hpp files are implementations of interface, like cpp file in most project.
+  - You only need to understand the interface file to understand the usage of that layer
