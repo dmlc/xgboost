@@ -7,9 +7,9 @@
 
 namespace xgboost {
 namespace io {
-DataMatrix* LoadDataMatrix(const char *fname) {
+DataMatrix* LoadDataMatrix(const char *fname, bool silent, bool savebuffer) {
   DMatrixSimple *dmat = new DMatrixSimple();
-  dmat->CacheLoad(fname);
+  dmat->CacheLoad(fname, silent, savebuffer);
   return dmat;
 }
 }  // namespace io

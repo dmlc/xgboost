@@ -27,7 +27,6 @@ class ColMaker: public IUpdater<FMatrix> {
                       const FMatrix &fmat,
                       const std::vector<unsigned> &root_index,
                       const std::vector<RegTree*> &trees) {
-    
     for (size_t i = 0; i < trees.size(); ++i) {
       Builder builder(param);
       builder.Update(gpair, fmat, root_index, trees[i]);
@@ -132,7 +131,9 @@ class ColMaker: public IUpdater<FMatrix> {
         // initialize feature index
         unsigned ncol = static_cast<unsigned>(fmat.NumCol());
         for (unsigned i = 0; i < ncol; ++i) {
-          if (fmat.GetColSize(i) != 0) feat_index.push_back(i);
+          if (fmat.GetColSize(i) != 0) {
+            feat_index.push_back(i);
+          }
         }
         unsigned n = static_cast<unsigned>(param.colsample_bytree * feat_index.size());
         random::Shuffle(feat_index);
