@@ -10,8 +10,7 @@
 
 using namespace xgboost;
 int main(void){
-
-  FMatrixS fmat(NULL);  
+  FMatrixS fmat;  
   tree::RegTree tree;
   tree::TrainParam param;
   std::vector<bst_gpair> gpair;

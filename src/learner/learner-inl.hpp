@@ -55,9 +55,9 @@ class BoostLearner {
       if (dupilicate) continue;
       // set mats[i]'s cache learner pointer to this
       mats[i]->cache_learner_ptr_ = this;
-      cache_.push_back(CacheEntry(mats[i], buffer_size, mats[i]->num_row));
-      buffer_size += mats[i]->num_row;
-      num_feature = std::max(num_feature, static_cast<unsigned>(mats[i]->num_col));
+      cache_.push_back(CacheEntry(mats[i], buffer_size, mats[i]->info.num_row));
+      buffer_size += mats[i]->info.num_row;
+      num_feature = std::max(num_feature, static_cast<unsigned>(mats[i]->info.num_col));
     }
     char str_temp[25];
     if (num_feature > mparam.num_feature) {

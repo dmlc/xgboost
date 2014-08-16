@@ -42,7 +42,9 @@ class IStream {
   inline void Write(const std::vector<T> &vec) {
     uint64_t sz = vec.size();
     this->Write(&sz, sizeof(sz));
-    this->Write(&vec[0], sizeof(T) * sz);
+    if (sz != 0) {
+      this->Write(&vec[0], sizeof(T) * sz);
+    }
   }
   /*!
    * \brief binary load a vector 
@@ -54,7 +56,9 @@ class IStream {
     uint64_t sz;
     if (this->Read(&sz, sizeof(sz)) == 0) return false;
     out_vec->resize(sz);
-    if (this->Read(&(*out_vec)[0], sizeof(T) * sz) == 0) return false;
+    if (sz != 0) {
+      if (this->Read(&(*out_vec)[0], sizeof(T) * sz) == 0) return false;
+    }
     return true;
   }
   /*!
@@ -64,7 +68,9 @@ class IStream {
   inline void Write(const std::string &str) {
     uint64_t sz = str.length();
     this->Write(&sz, sizeof(sz));
-    this->Write(&str[0], sizeof(char) * sz);
+    if (sz != 0) {
+      this->Write(&str[0], sizeof(char) * sz);
+    }
   }
   /*!
    * \brief binary load a string
@@ -75,7 +81,9 @@ class IStream {
     uint64_t sz;
     if (this->Read(&sz, sizeof(sz)) == 0) return false;
     out_str->resize(sz);
-    if (this->Read(&(*out_str)[0], sizeof(char) * sz) == 0) return false;
+    if (sz != 0) {
+      if (this->Read(&(*out_str)[0], sizeof(char) * sz) == 0) return false;
+    }
     return true;
   }
 };
