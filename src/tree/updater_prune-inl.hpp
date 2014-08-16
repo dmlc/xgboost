@@ -21,7 +21,8 @@ class TreePruner: public IUpdater<FMatrix> {
     param.SetParam(name, val);
   }
   // update the tree, do pruning
-  virtual void Update(const std::vector<bst_gpair> &gpair, FMatrix &fmat,
+  virtual void Update(const std::vector<bst_gpair> &gpair,
+                      const FMatrix &fmat,
                       const std::vector<unsigned> &root_index,
                       const std::vector<RegTree*> &trees) {
     for (size_t i = 0; i < trees.size(); ++i) {

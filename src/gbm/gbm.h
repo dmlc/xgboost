@@ -46,7 +46,7 @@ class IGradBooster {
    *   root_index.size() can be 0 which indicates that no pre-partition involved
    */
   virtual void DoBoost(const std::vector<bst_gpair> &gpair,
-                       FMatrix &fmat,
+                       const FMatrix &fmat,
                        const std::vector<unsigned> &root_index) = 0;
   /*!
    * \brief generate predictions for given feature matrix

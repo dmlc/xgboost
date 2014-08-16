@@ -24,7 +24,7 @@ class ColMaker: public IUpdater<FMatrix> {
     param.SetParam(name, val);
   }
   virtual void Update(const std::vector<bst_gpair> &gpair,
-                      FMatrix &fmat,
+                      const FMatrix &fmat,
                       const std::vector<unsigned> &root_index,
                       const std::vector<RegTree*> &trees) {
     
@@ -71,7 +71,8 @@ class ColMaker: public IUpdater<FMatrix> {
     // constructor
     explicit Builder(const TrainParam &param) : param(param) {}
     // update one tree, growing
-    virtual void Update(const std::vector<bst_gpair> &gpair, FMatrix &fmat,
+    virtual void Update(const std::vector<bst_gpair> &gpair,
+                        const FMatrix &fmat,
                         const std::vector<unsigned> &root_index,
                         RegTree *p_tree) {
       this->InitData(gpair, fmat, root_index, *p_tree);
@@ -100,7 +101,8 @@ class ColMaker: public IUpdater<FMatrix> {
 
    private:
     // initialize temp data structure
-    inline void InitData(const std::vector<bst_gpair> &gpair, FMatrix &fmat,
+    inline void InitData(const std::vector<bst_gpair> &gpair,
+                         const FMatrix &fmat,
                          const std::vector<unsigned> &root_index, const RegTree &tree) {
       utils::Assert(tree.param.num_nodes == tree.param.num_roots, "ColMaker: can only grow new tree");
       {// setup position

@@ -37,7 +37,7 @@ class IUpdater {
    *         there can be multiple trees when we train random forest style model
    */
   virtual void Update(const std::vector<bst_gpair> &gpair,
-                      FMatrix &fmat,
+                      const FMatrix &fmat,
                       const std::vector<unsigned> &root_index,
                       const std::vector<RegTree*> &trees) = 0;
   // destructor

@@ -83,7 +83,7 @@ class GBTree : public IGradBooster<FMatrix> {
     utils::Assert(trees.size() == 0, "GBTree: model already initialized");
   }
   virtual void DoBoost(const std::vector<bst_gpair> &gpair,
-                       FMatrix &fmat,
+                       const FMatrix &fmat,
                        const std::vector<unsigned> &root_index) {
     if (mparam.num_output_group == 1) {
       this->BoostNewTrees(gpair, fmat, root_index, 0);
@@ -174,7 +174,7 @@ class GBTree : public IGradBooster<FMatrix> {
   }
   // do group specific group
   inline void BoostNewTrees(const std::vector<bst_gpair> &gpair,
-                            FMatrix &fmat,
+                            const FMatrix &fmat,
                             const std::vector<unsigned> &root_index,
                             int bst_group) {
     this->InitUpdater();
