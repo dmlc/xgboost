@@ -6,6 +6,7 @@
  * \author Tianqi Chen, Kailong Chen
  */
 #include <vector>
+#include <cmath>
 #include "./objective.h"
 
 namespace xgboost {

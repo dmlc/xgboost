@@ -310,12 +310,11 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
       const size_t nbatch = std::min(batch.size, max_nrow - batch.base_rowid);
       for (size_t i = 0; i < nbatch; ++i, ++num_buffered_row_) {
         SparseBatch::Inst inst = batch[i];
-        for (bst_uint j = 0; j < batch.size; ++j) {
+        for (bst_uint j = 0; j < inst.length; ++j) {
           builder.AddBudget(inst[j].findex);
         }
       }
     }
-
     builder.InitStorage();
 
     iter_->BeforeFirst();
@@ -325,9 +324,9 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
       const size_t nbatch = std::min(batch.size, max_nrow - batch.base_rowid);
       for (size_t i = 0; i < nbatch; ++i) {
         SparseBatch::Inst inst = batch[i];
-        for (bst_uint j = 0; j < batch.size; ++j) {
+        for (bst_uint j = 0; j < inst.length; ++j) {
           builder.PushElem(inst[j].findex,
-                           Entry((bst_uint)(batch.base_rowid+j),
+                           Entry((bst_uint)(batch.base_rowid+i),
                                  inst[j].fvalue));
         }
       }

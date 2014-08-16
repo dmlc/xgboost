@@ -141,6 +141,13 @@ class GBTree : public IGradBooster<FMatrix> {
       }
     }
   }
+  virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
+    std::vector<std::string> dump;
+    for (size_t i = 0; i < trees.size(); i++) {
+      dump.push_back(trees[i]->DumpModel(fmap, option&1));
+    }
+    return dump;
+  }
 
  protected:
   // clear the model

@@ -9,6 +9,7 @@
 #include <utility>
 #include <string>
 #include <climits>
+#include <cmath>
 #include <algorithm>
 #include "./evaluation.h"
 #include "./helper_utils.h"

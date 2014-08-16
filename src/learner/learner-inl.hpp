@@ -120,8 +120,8 @@ class BoostLearner {
   }
   inline void SaveModel(utils::IStream &fo) const {
     fo.Write(&mparam, sizeof(ModelParam));
-    fo.Write(&name_obj_);
-    fo.Write(&name_gbm_);
+    fo.Write(name_obj_);
+    fo.Write(name_gbm_);
     gbm_->SaveModel(fo);
   }
   /*!
@@ -139,7 +139,7 @@ class BoostLearner {
    * \param p_train pointer to the data matrix
    */
   inline void UpdateOneIter(int iter, DMatrix<FMatrix> *p_train) {
-    this->PredictRaw(preds_, *p_train);
+    this->PredictRaw(*p_train, &preds_);
     obj_->GetGradient(preds_, p_train->info, iter, &gpair_);
     gbm_->DoBoost(gpair_, p_train->fmat, p_train->info.root_index);
   }
@@ -189,7 +189,11 @@ class BoostLearner {
     this->PredictRaw(data, out_preds);
     obj_->PredTransform(out_preds);
   }
-
+  /*! \brief dump model out */
+  inline std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
+    return gbm_->DumpModel(fmap, option);
+  }
+  
  protected:
   /*! 
    * \brief initialize the objective function and GBM, 
@@ -212,9 +216,9 @@ class BoostLearner {
    * \param out_preds output vector that stores the prediction
    */
   inline void PredictRaw(const DMatrix<FMatrix> &data,
-                         std::vector<float> *out_preds) {
+                         std::vector<float> *out_preds) const {
     gbm_->Predict(data.fmat, this->FindBufferOffset(data),
-                  data.info, out_preds);
+                  data.info.root_index, out_preds);
   }
 
   /*! \brief training parameter for regression */
@@ -280,7 +284,7 @@ class BoostLearner {
   inline int64_t FindBufferOffset(const DMatrix<FMatrix> &mat) const {
     for (size_t i = 0; i < cache_.size(); ++i) {
       if (cache_[i].mat_ == &mat && mat.cache_learner_ptr_ == this) {
-        if (cache_[i].num_row_ == mat.num_row) {
+        if (cache_[i].num_row_ == mat.info.num_row) {
           return cache_[i].buffer_offset_;
         }
       }

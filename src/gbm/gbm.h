@@ -7,6 +7,7 @@
  */
 #include <vector>
 #include "../data.h"
+#include "../utils/fmap.h"
 
 namespace xgboost {
 /*! \brief namespace for gradient booster */
@@ -63,6 +64,13 @@ class IGradBooster {
                        int64_t buffer_offset,
                        const std::vector<unsigned> &root_index,
                        std::vector<float> *out_preds) = 0;
+  /*!
+   * \brief dump the model in text format
+   * \param fmap feature map that may help give interpretations of feature
+   * \param option extra option of the dumo model
+   * \return a vector of dump for boosters
+   */
+  virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) = 0;
   // destrcutor
   virtual ~IGradBooster(void){}
 };
