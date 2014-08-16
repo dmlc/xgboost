@@ -16,7 +16,7 @@ Build
 ======
 * Simply type make
 * If your compiler does not come with OpenMP support, it will fire an warning telling you that the code will compile into single thread mode, and you will get single thread xgboost
-  - You may get a error: -lgomp is not found, you can remove -fopenmp flag in Makefile to get single thread xgboost, or upgrade your compiler to compile multi-thread version
+* You may get a error: -lgomp is not found, you can remove -fopenmp flag in Makefile to get single thread xgboost, or upgrade your compiler to compile multi-thread version
 
 Project Logical Layout
 =======
