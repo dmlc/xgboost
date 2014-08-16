@@ -10,7 +10,7 @@ Questions and Issues: [https://github.com/tqchen/xgboost/issues](https://github.
 
 xgboost-unity
 =======
-experimental branch: refactor xgboost, cleaner code, more flexibility
+experimental branch(not usable yet): refactor xgboost, cleaner code, more flexibility
 
 Build
 ======
