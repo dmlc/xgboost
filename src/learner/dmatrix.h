@@ -117,7 +117,7 @@ struct MetaInfo {
   }
   // try to load weight information from file, if exists
   inline bool TryLoadFloatInfo(const char *field, const char* fname, bool silent = false) {
-    std::vector<float> &weights = this->GetInfo(field);       
+    std::vector<float> &weights = this->GetInfo(field);
     FILE *fi = fopen64(fname, "r");
     if (fi == NULL) return false;
     float wt;
