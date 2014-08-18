@@ -79,6 +79,7 @@ class BoostLearner {
     if (!strcmp(name, "silent")) silent = atoi(val);
     if (!strcmp(name, "eval_metric")) evaluator_.AddEval(val);
     if (!strcmp("seed", name)) random::Seed(atoi(val));
+    if (!strcmp(name, "num_class")) this->SetParam("num_output_group", val);
     if (gbm_ == NULL) {
       if (!strcmp(name, "objective")) name_obj_ = val;
       if (!strcmp(name, "booster")) name_gbm_ = val;
