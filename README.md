@@ -8,9 +8,22 @@ Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
 
 Questions and Issues: [https://github.com/tqchen/xgboost/issues](https://github.com/tqchen/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
+Features
+=======
+* Sparse feature format:
+  - Sparse feature format allows easy handling of missing values, and improve computation efficiency.
+* Push the limit on single machine:
+  - Efficient implementation that optimizes memory and computation.
+* Speed: XGBoost is very fast
+  - IN [demo/higgs/speedtest.py](demo/kaggle-higgs/speedtest.py), kaggle higgs data it is faster(on our machine 20 times faster using 4 threads) than sklearn.ensemble.GradientBoostingClassifier
+* Layout of gradient boosting algorithm to support user defined objective
+* Python interface, works with numpy and scipy.sparse matrix
+
 xgboost-unity
 =======
-experimental branch(not usable yet): refactor xgboost, cleaner code, more flexibility
+* experimental branch(not usable yet): refactor xgboost, cleaner code, more flexibility
+* This version of xgboost is not backward compatible with 0.2*, due to huge change in code structure
+  - This means the model and buffer file of previous version can not be loaded in xgboost-unity
 
 Build
 ======
