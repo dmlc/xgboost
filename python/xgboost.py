@@ -226,9 +226,6 @@ def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None
             if len(evals) != 0:
                 sys.stderr.write(evaluate(bst, evals, i, feval)+'\n')
     else:
-        if len(evals) != 0 and feval == None:
-            print 'you need to provide your own evaluation function'
-
         # try customized objective function
         for i in range(num_boost_round):
             pred = bst.predict( dtrain )
