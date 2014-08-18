@@ -345,6 +345,7 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
                 &col_data_[col_ptr_[i + 1]], Entry::CmpValue);
     }
   }
+
  private:
   // --- data structure used to support InitColAccess --
   utils::IIterator<SparseBatch> *iter_;

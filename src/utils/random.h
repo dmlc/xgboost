@@ -74,11 +74,11 @@ inline int SampleBinary(double p) {
 template<typename T>
 inline void Shuffle(T *data, size_t sz) {
   if (sz == 0) return;
-  for (uint32_t i = (uint32_t)sz - 1; i > 0; i--){
+  for (uint32_t i = (uint32_t)sz - 1; i > 0; i--) {
     std::swap(data[i], data[NextUInt32(i + 1)]);
   }
 }
-// random shuffle the data inside, require PRNG 
+// random shuffle the data inside, require PRNG
 template<typename T>
 inline void Shuffle(std::vector<T> &data) {
   Shuffle(&data[0], data.size());
