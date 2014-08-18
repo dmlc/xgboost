@@ -6,6 +6,7 @@
  *        used for regression/classification/ranking
  * \author Tianqi Chen
  */
+#include <vector>
 #include "../data.h"
 
 namespace xgboost {
@@ -43,7 +44,7 @@ struct MetaInfo {
   }
   /*! \brief get weight of each instances */
   inline float GetWeight(size_t i) const {
-    if(weights.size() != 0) {
+    if (weights.size() != 0) {
       return weights[i];
     } else {
       return 1.0f;
@@ -51,7 +52,7 @@ struct MetaInfo {
   }
   /*! \brief get root index of i-th instance */
   inline float GetRoot(size_t i) const {
-    if(root_index.size() != 0) {
+    if (root_index.size() != 0) {
       return static_cast<float>(root_index[i]);
     } else {
       return 0;
@@ -76,7 +77,7 @@ struct MetaInfo {
   // try to load group information from file, if exists
   inline bool TryLoadGroup(const char* fname, bool silent = false) {
     FILE *fi = fopen64(fname, "r");
-    if (fi == NULL) return false;       
+    if (fi == NULL) return false;
     group_ptr.push_back(0);
     unsigned nline;
     while (fscanf(fi, "%u", &nline) == 1) {
@@ -110,6 +111,11 @@ struct MetaInfo {
  */
 template<typename FMatrix>
 struct DMatrix {
+  /*! 
+   * \brief magic number associated with this object 
+   *    used to check if it is specific instance
+   */
+  const int magic;
   /*! \brief meta information about the dataset */
   MetaInfo info;
   /*! \brief feature matrix about data content */
@@ -120,7 +126,7 @@ struct DMatrix {
    */
   void *cache_learner_ptr_;
   /*! \brief default constructor */
-  DMatrix(void) : cache_learner_ptr_(NULL) {}
+  explicit DMatrix(int magic) : magic(magic), cache_learner_ptr_(NULL) {}
   // virtual destructor
   virtual ~DMatrix(void){}
 };

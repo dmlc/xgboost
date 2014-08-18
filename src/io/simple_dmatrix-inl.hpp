@@ -23,7 +23,7 @@ namespace io {
 class DMatrixSimple : public DataMatrix {
  public:
   // constructor
-  DMatrixSimple(void) {
+  DMatrixSimple(void) : DataMatrix(kMagic) {
     this->fmat.set_iter(new OneBatchIter(this));
     this->Clear();
   }
@@ -35,6 +35,24 @@ class DMatrixSimple : public DataMatrix {
     row_ptr_.push_back(0);
     row_data_.clear();
     info.Clear();
+  }
+  /*! \brief copy content data from source matrix */
+  inline void CopyFrom(const DataMatrix &src) {
+    this->info = src.info;
+    this->Clear();
+    // clone data content in thos matrix
+    utils::IIterator<SparseBatch> *iter = src.fmat.RowIterator();
+    iter->BeforeFirst();
+    while (iter->Next()) {
+      const SparseBatch &batch = iter->Value();
+      for (size_t i = 0; i < batch.size; ++i) {
+        SparseBatch::Inst inst = batch[i];
+        row_data_.resize(row_data_.size() + inst.length);
+        memcpy(&row_data_[row_ptr_.back()], inst.data,
+               sizeof(SparseBatch::Entry) * inst.length);
+        row_ptr_.push_back(row_ptr_.back() + inst.length);
+      }
+    }
   }
   /*!
    * \brief add a row to the matrix
@@ -183,7 +201,7 @@ class DMatrixSimple : public DataMatrix {
  protected:
   // one batch iterator that return content in the matrix
   struct OneBatchIter: utils::IIterator<SparseBatch> {
-    OneBatchIter(DMatrixSimple *parent)
+    explicit OneBatchIter(DMatrixSimple *parent)
         : at_first_(true), parent_(parent) {}
     virtual ~OneBatchIter(void) {}
     virtual void BeforeFirst(void) {

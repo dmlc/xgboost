@@ -226,8 +226,12 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
     if (this->HaveColAccess()) return;
     this->InitColData(max_nrow);
   }
-  /*! \brief get the row iterator associated with FMatrix */
+  /*! 
+   * \brief get the row iterator associated with FMatrix 
+   *  this function is not threadsafe, returns iterator stored in FMatrixS
+   */
   inline utils::IIterator<SparseBatch>* RowIterator(void) const {
+    iter_->BeforeFirst();
     return iter_;
   }
   /*! \brief set iterator */
