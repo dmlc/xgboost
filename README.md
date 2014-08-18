@@ -21,8 +21,8 @@ Features
 
 xgboost-unity
 =======
-* experimental branch(not usable yet): refactor xgboost, cleaner code, more flexibility
-* This version of xgboost is not backward compatible with 0.2*, due to huge change in code structure
+* Experimental branch(not usable yet): refactor xgboost, cleaner code, more flexibility
+* This version of xgboost is not compatible with 0.2x, due to huge amount of changes in code structure
   - This means the model and buffer file of previous version can not be loaded in xgboost-unity
 
 Build

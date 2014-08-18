@@ -49,6 +49,7 @@ class BoostLearnTask{
     if (!strcmp("silent", name)) silent = atoi(val);
     if (!strcmp("use_buffer", name)) use_buffer = atoi(val);
     if (!strcmp("num_round", name)) num_round = atoi(val);
+    if (!strcmp("pred_margin", name)) pred_margin = atoi(val);
     if (!strcmp("save_period", name)) save_period = atoi(val);
     if (!strcmp("eval_train", name)) eval_train = atoi(val);
     if (!strcmp("task", name)) task = val;
@@ -77,6 +78,7 @@ class BoostLearnTask{
     num_round = 10;
     save_period = 0;
     eval_train = 0;
+    pred_margin = 0;
     dump_model_stats = 0;
     task = "train";
     model_in = "NULL";
@@ -184,7 +186,7 @@ class BoostLearnTask{
   inline void TaskPred(void) {
     std::vector<float> preds;
     if (!silent) printf("start prediction...\n");
-    learner.Predict(*data, &preds);
+    learner.Predict(*data, pred_margin != 0, &preds);
     if (!silent) printf("writing prediction to %s\n", name_pred.c_str());
     FILE *fo = utils::FopenCheck(name_pred.c_str(), "w");
     for (size_t i = 0; i < preds.size(); i++) {
@@ -193,37 +195,39 @@ class BoostLearnTask{
     fclose(fo);
   }
  private:
-  /* \brief whether silent */
+  /*! \brief whether silent */
   int silent;
-  /* \brief whether use auto binary buffer */
+  /*! \brief whether use auto binary buffer */
   int use_buffer;
-  /* \brief whether evaluate training statistics */            
+  /*! \brief whether evaluate training statistics */            
   int eval_train;
-  /* \brief number of boosting iterations */
+  /*! \brief number of boosting iterations */
   int num_round;
-  /* \brief the period to save the model, 0 means only save the final round model */
+  /*! \brief the period to save the model, 0 means only save the final round model */
   int save_period;
-  /* \brief the path of training/test data set */
+  /*! \brief the path of training/test data set */
   std::string train_path, test_path;
-  /* \brief the path of test model file, or file to restart training */
+  /*! \brief the path of test model file, or file to restart training */
   std::string model_in;
-  /* \brief the path of final model file, to be saved */
+  /*! \brief the path of final model file, to be saved */
   std::string model_out;
-  /* \brief the path of directory containing the saved models */
+  /*! \brief the path of directory containing the saved models */
   std::string model_dir_path;
-  /* \brief task to perform */
+  /*! \brief task to perform */
   std::string task;
-  /* \brief name of predict file */
+  /*! \brief name of predict file */
   std::string name_pred;
-  /* \brief whether dump statistics along with model */
+  /*!\brief whether to directly output margin value */
+  int pred_margin;
+  /*! \brief whether dump statistics along with model */
   int dump_model_stats;
-  /* \brief name of feature map */
+  /*! \brief name of feature map */
   std::string name_fmap;
-  /* \brief name of dump file */
+  /*! \brief name of dump file */
   std::string name_dump;
-  /* \brief the paths of validation data sets */
+  /*! \brief the paths of validation data sets */
   std::vector<std::string> eval_data_paths;
-  /* \brief the names of the evaluation data used in output log */
+  /*! \brief the names of the evaluation data used in output log */
   std::vector<std::string> eval_data_names;
  private:
   io::DataMatrix* data;
