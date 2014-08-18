@@ -110,9 +110,12 @@ class DMatrixSimple : public DataMatrix {
                    "DMatrix: group data does not match the number of rows in features");
     }
     std::string wname = name + ".weight";
-    if (info.TryLoadWeight(wname.c_str(), silent)) {
+    if (info.TryLoadFloatInfo("weight", wname.c_str(), silent)) {
       utils::Check(info.weights.size() == info.num_row,
                    "DMatrix: weight data does not match the number of rows in features");
+    }
+    std::string mname = name + ".base_margin";
+    if (info.TryLoadFloatInfo("base_margin", mname.c_str(), silent)) {      
     }
   }
   /*!

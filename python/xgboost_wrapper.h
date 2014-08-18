@@ -64,19 +64,13 @@ extern "C" {
    */
   void XGDMatrixSaveBinary(void *handle, const char *fname, int silent);
   /*!
-   * \brief set label of the training matrix
+   * \brief set float vector to a content in info
    * \param handle a instance of data matrix
-   * \param label pointer to label
+   * \param field field name, can be label, weight
+   * \param array pointer to float vector
    * \param len length of array
    */
-  void XGDMatrixSetLabel(void *handle, const float *label, size_t len);
-  /*!
-   * \brief set weight of each instance
-   * \param handle a instance of data matrix
-   * \param weight data pointer to weights
-   * \param len length of array
-   */
-  void XGDMatrixSetWeight(void *handle, const float *weight, size_t len);
+  void XGDMatrixSetFloatInfo(void *handle, const char *field, const float *array, size_t len);
   /*!
    * \brief set label of the training matrix
    * \param handle a instance of data matrix
@@ -85,19 +79,13 @@ extern "C" {
    */
   void XGDMatrixSetGroup(void *handle, const unsigned *group, size_t len);
   /*!
-   * \brief get label set from matrix
+   * \brief get float info vector from matrix
    * \param handle a instance of data matrix
    * \param len used to set result length
+   * \param field field name
    * \return pointer to the label
    */
-  const float* XGDMatrixGetLabel(const void *handle, size_t* out_len);
-  /*!
-   * \brief get weight set from matrix
-   * \param handle a instance of data matrix
-   * \param len used to set result length
-   * \return pointer to the weight
-   */
-  const float* XGDMatrixGetWeight(const void *handle, size_t* out_len);
+  const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, size_t* out_len);
   /*!
    * \brief return number of rows
    */
@@ -154,9 +142,10 @@ extern "C" {
    * \brief make prediction based on dmat
    * \param handle handle
    * \param dmat data matrix
+   * \param output_margin whether only output raw margin value
    * \param len used to store length of returning result
    */
-  const float *XGBoosterPredict(void *handle, void *dmat, size_t *len);
+  const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, size_t *len);
   /*!
    * \brief load model from existing file
    * \param handle handle

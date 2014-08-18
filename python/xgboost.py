@@ -18,8 +18,7 @@ xglib.XGDMatrixCreateFromFile.restype = ctypes.c_void_p
 xglib.XGDMatrixCreateFromCSR.restype = ctypes.c_void_p
 xglib.XGDMatrixCreateFromMat.restype = ctypes.c_void_p
 xglib.XGDMatrixSliceDMatrix.restype = ctypes.c_void_p
-xglib.XGDMatrixGetLabel.restype = ctypes.POINTER(ctypes.c_float)
-xglib.XGDMatrixGetWeight.restype = ctypes.POINTER(ctypes.c_float)
+xglib.XGDMatrixGetFloatInfo.restype = ctypes.POINTER(ctypes.c_float)
 xglib.XGDMatrixNumRow.restype = ctypes.c_ulong
 
 xglib.XGBoosterCreate.restype = ctypes.c_void_p
@@ -77,28 +76,46 @@ class DMatrix:
     # destructor
     def __del__(self):
         xglib.XGDMatrixFree(self.handle)
-    # load data from file 
+    def __get_float_info(self, field):
+        length = ctypes.c_ulong()
+        ret = xglib.XGDMatrixGetFloatInfo(self.handle, ctypes.c_char_p(field.encode('utf-8')),
+                                          ctypes.byref(length))
+        return ctypes2numpy(ret, length.value)
+    def __set_float_info(self, field, data):
+        xglib.XGDMatrixSetFloatInfo(self.handle,ctypes.c_char_p(field.encode('utf-8')), 
+                                    (ctypes.c_float*len(data))(*data), len(data))
+    # load data from file
     def save_binary(self, fname, silent=True):
         xglib.XGDMatrixSaveBinary(self.handle, ctypes.c_char_p(fname.encode('utf-8')), int(silent))
     # set label of dmatrix
     def set_label(self, label):
-        xglib.XGDMatrixSetLabel(self.handle, (ctypes.c_float*len(label))(*label), len(label))
+        self.__set_float_info('label', label)
+    # set weight of each instances
+    def set_weight(self, weight):
+        self.__set_float_info('weight', label)
+    # set initialized margin prediction
+    def set_base_margin(self, margin):
+        """
+        set base margin of booster to start from
+        this can be used to specify a prediction value of
+        existing model to be base_margin
+        However, remember margin is needed, instead of transformed prediction
+        e.g. for logistic regression: need to put in value before logistic transformation
+        see also example/demo.py
+        """
+        self.__set_float_info('base_margin', margin)
     # set group size of dmatrix, used for rank
     def set_group(self, group):
         xglib.XGDMatrixSetGroup(self.handle, (ctypes.c_uint*len(group))(*group), len(group))
-    # set weight of each instances
-    def set_weight(self, weight):
-        xglib.XGDMatrixSetWeight(self.handle, (ctypes.c_float*len(weight))(*weight), len(weight))
     # get label from dmatrix
     def get_label(self):
-        length = ctypes.c_ulong()
-        labels = xglib.XGDMatrixGetLabel(self.handle, ctypes.byref(length))
-        return ctypes2numpy(labels, length.value)
+        return self.__get_float_info('label')
     # get weight from dmatrix
     def get_weight(self):
-        length = ctypes.c_ulong()
-        weights = xglib.XGDMatrixGetWeight(self.handle, ctypes.byref(length))
-        return ctypes2numpy(weights, length.value)
+        return self.__get_float_info('weight')
+    # get base_margin from dmatrix
+    def get_base_margin(self):
+        return self.__get_float_info('base_margin')
     def num_row(self):
         return xglib.XGDMatrixNumRow(self.handle)
     # slice the DMatrix to return a new DMatrix that only contains rindex
@@ -161,9 +178,15 @@ class Booster:
         return xglib.XGBoosterEvalOneIter(self.handle, it, dmats, evnames, len(evals))        
     def eval(self, mat, name = 'eval', it = 0):
         return self.eval_set( [(mat,name)], it)
-    def predict(self, data):
+    def predict(self, data, output_margin=False):
+        """
+        predict with data
+            data: the dmatrix storing the input
+            output_margin: whether output raw margin value that is untransformed
+        """
         length = ctypes.c_ulong()
-        preds = xglib.XGBoosterPredict(self.handle, data.handle, ctypes.byref(length))
+        preds = xglib.XGBoosterPredict(self.handle, data.handle,
+                                       int(output_margin), ctypes.byref(length))
         return ctypes2numpy(preds, length.value)
     def save_model(self, fname):
         """ save model to file """

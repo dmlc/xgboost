@@ -23,9 +23,9 @@ class Booster: public learner::BoostLearner<FMatrixS> {
     this->init_model = false;
     this->SetCacheData(mats);
   }
-  const float *Pred(const DataMatrix &dmat, size_t *len) {
+  const float *Pred(const DataMatrix &dmat, int output_margin, size_t *len) {
     this->CheckInitModel();
-    this->Predict(dmat, &this->preds_);
+    this->Predict(dmat, output_margin, &this->preds_);
     *len = this->preds_.size();
     return &this->preds_[0];
   }
@@ -163,15 +163,11 @@ extern "C"{
   void XGDMatrixSaveBinary(void *handle, const char *fname, int silent) {
     SaveDataMatrix(*static_cast<DataMatrix*>(handle), fname, silent);
   }
-  void XGDMatrixSetLabel(void *handle, const float *label, size_t len) {
-    DataMatrix *pmat = static_cast<DataMatrix*>(handle);
-    pmat->info.labels.resize(len);
-    memcpy(&(pmat->info).labels[0], label, sizeof(float) * len);
-  }
-  void XGDMatrixSetWeight(void *handle, const float *weight, size_t len) {
-    DataMatrix *pmat = static_cast<DataMatrix*>(handle);
-    pmat->info.weights.resize(len);
-    memcpy(&(pmat->info).weights[0], weight, sizeof(float) * len);
+  void XGDMatrixSetFloatInfo(void *handle, const char *field, const float *info, size_t len) {
+    std::vector<float> &vec = 
+        static_cast<DataMatrix*>(handle)->info.GetInfo(field);
+    vec.resize(len);
+    memcpy(&vec[0], info, sizeof(float) * len);
   }
   void XGDMatrixSetGroup(void *handle, const unsigned *group, size_t len) {
     DataMatrix *pmat = static_cast<DataMatrix*>(handle);
@@ -181,15 +177,11 @@ extern "C"{
       pmat->info.group_ptr[i+1] = pmat->info.group_ptr[i]+group[i];
     }
   }
-  const float* XGDMatrixGetLabel(const void *handle, size_t* len) {
-    const DataMatrix *pmat = static_cast<const DataMatrix*>(handle);
-    *len = pmat->info.labels.size();
-    return &(pmat->info.labels[0]);
-  }
-  const float* XGDMatrixGetWeight(const void *handle, size_t* len) {
-    const DataMatrix *pmat = static_cast<const DataMatrix*>(handle);
-    *len = pmat->info.weights.size();
-    return &(pmat->info.weights[0]);
+  const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, size_t* len) {
+    const std::vector<float> &vec =
+        static_cast<const DataMatrix*>(handle)->info.GetInfo(field);
+    *len = vec.size();
+    return &vec[0];
   }
   size_t XGDMatrixNumRow(const void *handle) {
     return static_cast<const DataMatrix*>(handle)->info.num_row;
@@ -238,8 +230,8 @@ extern "C"{
     bst->eval_str = bst->EvalOneIter(iter, mats, names);
     return bst->eval_str.c_str();
   }
-  const float *XGBoosterPredict(void *handle, void *dmat, size_t *len) {
-    return static_cast<Booster*>(handle)->Pred(*static_cast<DataMatrix*>(dmat), len);
+  const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, size_t *len) {
+    return static_cast<Booster*>(handle)->Pred(*static_cast<DataMatrix*>(dmat), output_margin, len);
   }
   void XGBoosterLoadModel(void *handle, const char *fname) {
     static_cast<Booster*>(handle)->LoadModel(fname);

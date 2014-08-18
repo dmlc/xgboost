@@ -10,14 +10,13 @@ endif
 
 # specify tensor path
 BIN = xgboost
-OBJ = io.o
+OBJ = 
 SLIB = python/libxgboostwrapper.so
 .PHONY: clean all
 
 all: $(BIN) $(OBJ) $(SLIB)
 
-xgboost: src/xgboost_main.cpp io.o src/data.h src/tree/*.h src/tree/*.hpp src/gbm/*.h src/gbm/*.hpp src/utils/*.h src/learner/*.h src/learner/*.hpp 
-io.o: src/io/io.cpp src/data.h src/utils/*.h
+xgboost: src/xgboost_main.cpp src/io/io.cpp src/data.h src/tree/*.h src/tree/*.hpp src/gbm/*.h src/gbm/*.hpp src/utils/*.h src/learner/*.h src/learner/*.hpp 
 # now the wrapper takes in two files. io and wrapper part
 python/libxgboostwrapper.so: python/xgboost_wrapper.cpp src/io/io.cpp src/*.h src/*/*.hpp src/*/*.h
 
@@ -34,4 +33,4 @@ install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
 
 clean:
-	$(RM) $(OBJ) $(BIN) *~ */*~ */*/*~
+	$(RM) $(OBJ) $(BIN) $(SLIB) *~ */*~ */*/*~

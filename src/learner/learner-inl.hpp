@@ -97,9 +97,6 @@ class BoostLearner {
     this->InitObjGBM();
     // reset the base score
     mparam.base_score = obj_->ProbToMargin(mparam.base_score);
-    char tmp[32];
-    snprintf(tmp, sizeof(tmp), "%g", mparam.base_score);
-    this->SetParam("base_score", tmp);
     // initialize GBM model
     gbm_->InitModel();
   }
@@ -199,12 +196,16 @@ class BoostLearner {
   /*!
    * \brief get prediction
    * \param data input data
+   * \param output_margin whether to only predict margin value instead of transformed prediction
    * \param out_preds output vector that stores the prediction
    */
   inline void Predict(const DMatrix<FMatrix> &data,
+                      bool output_margin,
                       std::vector<float> *out_preds) const {
     this->PredictRaw(data, out_preds);
-    obj_->PredTransform(out_preds);
+    if (!output_margin) {
+      obj_->PredTransform(out_preds);
+    }
   }
   /*! \brief dump model out */
   inline std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
@@ -236,6 +237,22 @@ class BoostLearner {
                          std::vector<float> *out_preds) const {
     gbm_->Predict(data.fmat, this->FindBufferOffset(data),
                   data.info.root_index, out_preds);
+    // add base margin
+    std::vector<float> &preds = *out_preds;
+    const unsigned ndata = static_cast<unsigned>(preds.size());
+    if (data.info.base_margin.size() != 0) {
+      utils::Check(preds.size() == data.info.base_margin.size(),
+                   "base_margin.size does not match with prediction size");
+      #pragma omp parallel for schedule(static)
+      for (unsigned j = 0; j < ndata; ++j) {
+        preds[j] += data.info.base_margin[j];
+      }
+    } else {
+      #pragma omp parallel for schedule(static)
+      for (unsigned j = 0; j < ndata; ++j) {
+        preds[j] += mparam.base_score;
+      }
+    }
   }
 
   /*! \brief training parameter for regression */
