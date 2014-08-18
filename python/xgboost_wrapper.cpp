@@ -20,9 +20,11 @@ class Booster: public learner::BoostLearner<FMatrixS> {
  public:
   explicit Booster(const std::vector<DataMatrix*>& mats) {
     this->silent = 1;
+    this->init_model = false;
     this->SetCacheData(mats);
   }
   const float *Pred(const DataMatrix &dmat, size_t *len) {
+    this->CheckInitModel();
     this->Predict(dmat, &this->preds_);
     *len = this->preds_.size();
     return &this->preds_[0];
@@ -36,6 +38,15 @@ class Booster: public learner::BoostLearner<FMatrixS> {
       gpair_[j] = bst_gpair(grad[j], hess[j]);
     }
     gbm_->DoBoost(gpair_, train.fmat, train.info.root_index);
+  }
+  inline void CheckInitModel(void) {
+    if (!init_model) {
+      this->InitModel(); init_model = true;
+    }  
+  }
+  inline void LoadModel(const char *fname) {
+    learner::BoostLearner<FMatrixS>::LoadModel(fname);
+    this->init_model = true;
   }
   inline const char** GetModelDump(const utils::FeatMap& fmap, bool with_stats, size_t *len) {
     model_dump = this->DumpModel(fmap, with_stats);
@@ -52,6 +63,9 @@ class Booster: public learner::BoostLearner<FMatrixS> {
   // temporal space to save model dump
   std::vector<std::string> model_dump;
   std::vector<const char*> model_dump_cptr;
+
+ private:
+  bool init_model;
 };
 }  // namespace wrapper
 }  // namespace xgboost
@@ -199,6 +213,7 @@ extern "C"{
   void XGBoosterUpdateOneIter(void *handle, int iter, void *dtrain) {
     Booster *bst = static_cast<Booster*>(handle);
     DataMatrix *dtr = static_cast<DataMatrix*>(dtrain);
+    bst->CheckInitModel();
     bst->CheckInit(dtr);
     bst->UpdateOneIter(iter, *dtr);
   }
@@ -206,6 +221,7 @@ extern "C"{
                              float *grad, float *hess, size_t len) {
     Booster *bst = static_cast<Booster*>(handle);
     DataMatrix *dtr = static_cast<DataMatrix*>(dtrain);
+    bst->CheckInitModel();
     bst->CheckInit(dtr);
     bst->BoostOneIter(*dtr, grad, hess, len);
   }
@@ -217,6 +233,7 @@ extern "C"{
       mats.push_back(static_cast<DataMatrix*>(dmats[i]));
       names.push_back(std::string(evnames[i]));
     }
+    bst->CheckInitModel();
     bst->eval_str = bst->EvalOneIter(iter, mats, names);
     return bst->eval_str.c_str();
   }
