@@ -148,7 +148,7 @@ class DMatrixSimple : public DataMatrix {
    * \param fname name of binary data
    * \param silent whether print information or not
    */
-  inline void SaveBinary(const char* fname, bool silent = false) {
+  inline void SaveBinary(const char* fname, bool silent = false) const {
     utils::FileStream fs(utils::FopenCheck(fname, "wb"));
     int magic = kMagic;
     fs.Write(&magic, sizeof(magic));

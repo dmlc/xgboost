@@ -242,7 +242,7 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
    * \brief save column access data into stream
    * \param fo output stream to save to
    */
-  inline void SaveColAccess(utils::IStream &fo) {
+  inline void SaveColAccess(utils::IStream &fo) const {
     fo.Write(&num_buffered_row_, sizeof(num_buffered_row_));
     if (num_buffered_row_ != 0) {
       SaveBinary(fo, col_ptr_, col_data_);

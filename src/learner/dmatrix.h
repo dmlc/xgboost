@@ -58,7 +58,7 @@ struct MetaInfo {
       return 0;
     }
   }
-  inline void SaveBinary(utils::IStream &fo) {
+  inline void SaveBinary(utils::IStream &fo) const {
     fo.Write(&num_row, sizeof(num_row));
     fo.Write(&num_col, sizeof(num_col));
     fo.Write(labels);
