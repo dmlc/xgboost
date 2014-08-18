@@ -216,7 +216,9 @@ struct EvalRankList : public IEvaluator {
                      const MetaInfo &info) const {
     utils::Check(preds.size() == info.labels.size(),
                   "label size predict size not match");
-    const std::vector<unsigned> &gptr = info.group_ptr;
+    // quick consistency when group is not available
+    std::vector<unsigned> tgptr(2, 0); tgptr[1] = preds.size();
+    const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
     utils::Assert(gptr.size() != 0, "must specify group when constructing rank file");
     utils::Assert(gptr.back() == preds.size(),
                    "EvalRanklist: group structure must match number of prediction");
