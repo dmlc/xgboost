@@ -203,7 +203,7 @@ class BoostLearner {
   inline std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
     return gbm_->DumpModel(fmap, option);
   }
-  
+
  protected:
   /*! 
    * \brief initialize the objective function and GBM, 

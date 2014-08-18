@@ -30,7 +30,7 @@ DataMatrix* LoadDataMatrix(const char *fname, bool silent = false, bool savebuff
  * \param fname file name to be savd
  * \param silent whether print message during saving
  */
-void SaveDataMatrix(const DataMatrix &dmat, const char *fname, bool silent = false);  
+void SaveDataMatrix(const DataMatrix &dmat, const char *fname, bool silent = false);
 
 }  // namespace io
 }  // namespace xgboost
