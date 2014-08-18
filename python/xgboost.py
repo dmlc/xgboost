@@ -134,8 +134,12 @@ class Booster:
                 xglib.XGBoosterSetParam(
                     self.handle, ctypes.c_char_p(k.encode('utf-8')),
                     ctypes.c_char_p(str(v).encode('utf-8')))
-    def update(self, dtrain, it=1):
-        """ update """
+    def update(self, dtrain, it):
+        """ 
+        update 
+          dtrain: the training DMatrix
+          it: current iteration number
+        """        
         assert isinstance(dtrain, DMatrix)
         xglib.XGBoosterUpdateOneIter(self.handle, it, dtrain.handle)
     def boost(self, dtrain, grad, hess):
