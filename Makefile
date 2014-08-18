@@ -3,7 +3,7 @@ export CXX = g++
 export LDFLAGS= -pthread -lm 
 
 ifeq ($(no_omp),1)
-	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas 
+	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -DDISABLE_OPENMP 
 else
 	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fopenmp
 endif

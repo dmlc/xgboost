@@ -85,15 +85,22 @@ class BoostLearner {
       if (!strcmp(name, "booster")) name_gbm_ = val;
       mparam.SetParam(name, val);
     }
+    if (gbm_ != NULL) gbm_->SetParam(name, val);
+    if (obj_ != NULL) obj_->SetParam(name, val);
     cfg_.push_back(std::make_pair(std::string(name), std::string(val)));
   }
   /*!
    * \brief initialize the model
    */
   inline void InitModel(void) {
+    // initialize model
     this->InitObjGBM();
-    // adapt the base score
+    // reset the base score
     mparam.base_score = obj_->ProbToMargin(mparam.base_score);
+    char tmp[32];
+    snprintf(tmp, sizeof(tmp), "%g", mparam.base_score);
+    this->SetParam("base_score", tmp);
+    // initialize GBM model
     gbm_->InitModel();
   }
   /*!
