@@ -26,9 +26,13 @@ class TreePruner: public IUpdater<FMatrix> {
                       const FMatrix &fmat,
                       const std::vector<unsigned> &root_index,
                       const std::vector<RegTree*> &trees) {
+    // rescale learning rate according to size of trees
+    float lr = param.learning_rate;
+    param.learning_rate = lr / trees.size();
     for (size_t i = 0; i < trees.size(); ++i) {
       this->DoPrune(*trees[i]);
     }
+    param.learning_rate = lr;
   }
 
  private:

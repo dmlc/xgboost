@@ -27,10 +27,15 @@ class ColMaker: public IUpdater<FMatrix> {
                       const FMatrix &fmat,
                       const std::vector<unsigned> &root_index,
                       const std::vector<RegTree*> &trees) {
+    // rescale learning rate according to size of trees
+    float lr = param.learning_rate;
+    param.learning_rate = lr / trees.size();
+    // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
       Builder builder(param);
       builder.Update(gpair, fmat, root_index, trees[i]);
     }
+    param.learning_rate = lr;
   }
 
  private:
