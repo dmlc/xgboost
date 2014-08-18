@@ -287,8 +287,7 @@ class GBTree : public IGradBooster<FMatrix> {
         updater_initialized = 0;
       }
       if (!strcmp(name, "nthread")) {
-        omp_set_num_threads(nthread);
-        nthread = atoi(val);
+        omp_set_num_threads(nthread = atoi(val));
       }
       if (!strcmp(name, "num_parallel_tree")) {
         num_parallel_tree = atoi(val);
