@@ -271,7 +271,8 @@ class ColMaker: public IUpdater<FMatrix> {
       }
       // start enumeration
       const unsigned nsize = static_cast<unsigned>(feat_set.size());
-      #pragma omp parallel for schedule(dynamic, 1)
+      const int batch_size = std::max(static_cast<int>(nsize / this->nthread / 32), 1);
+      #pragma omp parallel for schedule(dynamic, batch_size)
       for (unsigned i = 0; i < nsize; ++i) {
         const unsigned fid = feat_set[i];
         const int tid = omp_get_thread_num();
