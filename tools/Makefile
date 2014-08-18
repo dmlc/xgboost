@@ -12,7 +12,6 @@ export LDFLAGS= -pthread -lm
 
 xgcombine_buffer : xgcombine_buffer.cpp
 
-
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
 
