@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import scipy.sparse
 # append the path to xgboost, you may need to change the following line
+# alternatively, you can add the path to PYTHONPATH environment variable
 sys.path.append('../')
 import xgboost as xgb
 
