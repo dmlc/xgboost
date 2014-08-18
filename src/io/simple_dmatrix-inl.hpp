@@ -196,7 +196,7 @@ class DMatrixSimple : public DataMatrix {
   /*! \brief data in the row */
   std::vector<SparseBatch::Entry> row_data_;
   /*! \brief magic number used to identify DMatrix */
-  static const int kMagic = 0xff01;
+  static const int kMagic = 0xffffab01;
 
  protected:
   // one batch iterator that return content in the matrix
