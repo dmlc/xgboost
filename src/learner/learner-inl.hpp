@@ -78,6 +78,7 @@ class BoostLearner {
   inline void SetParam(const char *name, const char *val) {
     if (!strcmp(name, "silent")) silent = atoi(val);
     if (!strcmp(name, "eval_metric")) evaluator_.AddEval(val);
+    if (!strcmp("seed", name)) random::Seed(atoi(val));
     if (gbm_ == NULL) {
       if (!strcmp(name, "objective")) name_obj_ = val;
       if (!strcmp(name, "booster")) name_gbm_ = val;
@@ -132,16 +133,24 @@ class BoostLearner {
     utils::FileStream fo(utils::FopenCheck(fname, "wb"));
     this->SaveModel(fo);
     fo.Close();
-  }  
+  }
+  /*!
+   * \brief check if data matrix is ready to be used by training,
+   *  if not intialize it
+   * \param p_train pointer to the matrix used by training
+   */
+  inline void CheckInit(DMatrix<FMatrix> *p_train) const {
+    p_train->fmat.InitColAccess();
+  }
   /*!
    * \brief update the model for one iteration
    * \param iter current iteration number
    * \param p_train pointer to the data matrix
    */
-  inline void UpdateOneIter(int iter, DMatrix<FMatrix> *p_train) {
-    this->PredictRaw(*p_train, &preds_);
-    obj_->GetGradient(preds_, p_train->info, iter, &gpair_);
-    gbm_->DoBoost(gpair_, p_train->fmat, p_train->info.root_index);
+  inline void UpdateOneIter(int iter, const DMatrix<FMatrix> &train) {
+    this->PredictRaw(train, &preds_);
+    obj_->GetGradient(preds_, train.info, iter, &gpair_);
+    gbm_->DoBoost(gpair_, train.fmat, train.info.root_index);
   }
   /*!
    * \brief evaluate the model for specific iteration

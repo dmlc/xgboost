@@ -28,8 +28,9 @@ DataMatrix* LoadDataMatrix(const char *fname, bool silent = false, bool savebuff
  *  SaveDMatrix will choose the best way to materialize the dmatrix.
  * \param dmat the dmatrix to be saved
  * \param fname file name to be savd
+ * \param silent whether print message during saving
  */
-void SaveDMatrix(const DataMatrix &dmat, const char *fname);  
+void SaveDataMatrix(const DataMatrix &dmat, const char *fname, bool silent = false);  
 
 }  // namespace io
 }  // namespace xgboost

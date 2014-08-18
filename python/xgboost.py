@@ -8,11 +8,7 @@ import numpy.ctypeslib
 import scipy.sparse as scp
 
 # set this line correctly
-XGBOOST_PATH = os.path.dirname(__file__)+'/libxgboostpy.so'
-
-# entry type of sparse matrix
-class REntry(ctypes.Structure):
-    _fields_ = [("findex", ctypes.c_uint), ("fvalue", ctypes.c_float) ]
+XGBOOST_PATH = os.path.dirname(__file__)+'/libxgboostwrapper.so'
 
 # load in xgboost library
 xglib = ctypes.cdll.LoadLibrary(XGBOOST_PATH)

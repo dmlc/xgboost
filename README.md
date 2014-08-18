@@ -17,19 +17,7 @@ Build
 * Simply type make
 * If your compiler does not come with OpenMP support, it will fire an warning telling you that the code will compile into single thread mode, and you will get single thread xgboost
 * You may get a error: -lgomp is not found, you can remove -fopenmp flag in Makefile to get single thread xgboost, or upgrade your compiler to compile multi-thread version
+* Possible way to build using Visual Studio (not tested):
+   - In principle, you can put src/xgboost.cpp and src/io/io.cpp into the project, and build xgboost.
+   - For python module, you need python/xgboost_wrapper.cpp and src/io/io.cpp to build a dll.
 
-Project Logical Layout
-=======
-* Dependency order: io->learner->gbm->tree
-  - All module depends on data.h
-* tree are implementations of tree construction algorithms.
-* gbm is gradient boosting interface, that takes trees and other base learner to do boosting.
-  - gbm only takes gradient as sufficient statistics, it does not compute the gradient.
-* learner is learning module that computes gradient for specific object, and pass it to GBM
-
-File Naming Convention
-======= 
-* The project is templatized, to make it easy to adjust input data structure.
-* .h files are data structures and interface, which are needed to use functions in that layer.
-* -inl.hpp files are implementations of interface, like cpp file in most project.
-  - You only need to understand the interface file to understand the usage of that layer
