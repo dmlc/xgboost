@@ -32,7 +32,7 @@ class IObjFunction{
                            int iter,
                            std::vector<bst_gpair> *out_gpair) = 0;
   /*! \return the default evaluation metric for the objective */
-  virtual const char* DefaultEvalMetric(void) = 0;
+  virtual const char* DefaultEvalMetric(void) const = 0;
   // the following functions are optional, most of time default implementation is good enough
   /*!
    * \brief transform prediction values, this is only called when Prediction is called
@@ -53,7 +53,7 @@ class IObjFunction{
    * used by gradient boosting
    * \return transformed value
    */
-  virtual float ProbToMargin(float base_score) {
+  virtual float ProbToMargin(float base_score) const {
     return base_score;
   }
 };

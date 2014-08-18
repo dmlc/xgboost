@@ -124,7 +124,7 @@ class RegLossObj : public IObjFunction{
                            loss.SecondOrderGradient(p, info.labels[j]) * w);
     }
   }
-  virtual const char* DefaultEvalMetric(void) {
+  virtual const char* DefaultEvalMetric(void) const {
     return loss.DefaultEvalMetric();
   }
   virtual void PredTransform(std::vector<float> *io_preds) {
@@ -134,6 +134,9 @@ class RegLossObj : public IObjFunction{
     for (unsigned j = 0; j < ndata; ++j) {
       preds[j] = loss.PredTransform(preds[j]);
     }
+  }
+  virtual float ProbToMargin(float base_score) const {
+    return loss.ProbToMargin(base_score);
   }
 
  protected:
@@ -192,7 +195,7 @@ class SoftmaxMultiClassObj : public IObjFunction {
   virtual void EvalTransform(std::vector<float> *io_preds) {
     this->Transform(io_preds, 0);
   }
-  virtual const char* DefaultEvalMetric(void) {
+  virtual const char* DefaultEvalMetric(void) const {
     return "merror";
   }
 
@@ -320,7 +323,7 @@ class LambdaRankObj : public IObjFunction {
       }
     }
   }
-  virtual const char* DefaultEvalMetric(void) {
+  virtual const char* DefaultEvalMetric(void) const {
     return "map";
   }
 
