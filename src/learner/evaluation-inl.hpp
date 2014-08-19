@@ -159,7 +159,7 @@ struct EvalAMS : public IEvaluator {
 struct EvalPrecisionRatio : public IEvaluator{
  public:
   explicit EvalPrecisionRatio(const char *name) : name_(name) {
-    utils::Assert(sscanf(name, "apratio@%f", &ratio_) == 1, "BUG");
+    utils::Assert(sscanf(name, "pratio@%f", &ratio_) == 1, "BUG");
   }
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
