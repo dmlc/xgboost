@@ -512,8 +512,6 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat>{
     int pid = this->GetLeafIndex(feat, root_id);
     return (*this)[pid].leaf_value();
   }
-
- private:
   /*! \brief get next position of the tree given current pid */
   inline int GetNext(int pid, float fvalue, bool is_unknown) const {
     float split_value = (*this)[pid].split_cond();
