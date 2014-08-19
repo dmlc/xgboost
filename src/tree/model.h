@@ -422,7 +422,7 @@ class TreeModel {
 };
 
 /*! \brief node statistics used in regression tree */
-struct RTreeNodeStat{
+struct RTreeNodeStat {
   /*! \brief loss chg caused by current split */
   float loss_chg;
   /*! \brief sum of hessian values, used to measure coverage of data */
@@ -444,20 +444,61 @@ struct RTreeNodeStat{
 /*! \brief define regression tree to be the most common tree model */
 class RegTree: public TreeModel<bst_float, RTreeNodeStat>{
  public:
+  /*! 
+   * \brief dense feature vector that can be taken by RegTree
+   * to do tranverse efficiently
+   * and can be construct from sparse feature vector
+   */
+  struct FVec {
+    /*! 
+     * \brief a union value of value and flag
+     * when flag == -1, this indicate the value is missing
+     */
+    union Entry{
+      float fvalue;
+      int flag;
+    };
+    std::vector<Entry> data;
+    /*! \brief intialize the vector with size vector */
+    inline void Init(size_t size) {
+      Entry e; e.flag = -1;
+      data.resize(size);
+      std::fill(data.begin(), data.end(), e);
+    }
+    /*! \brief fill the vector with sparse vector */
+    inline void Fill(const SparseBatch::Inst &inst) {
+      for (bst_uint i = 0; i < inst.length; ++i) {
+        data[inst[i].findex].fvalue = inst[i].fvalue;
+      }
+    }
+    /*! \brief drop the trace after fill, must be called after fill */
+    inline void Drop(const SparseBatch::Inst &inst) {      
+      for (bst_uint i = 0; i < inst.length; ++i) {
+        data[inst[i].findex].flag = -1;
+      }
+    }
+    /*! \brief get ith value */
+    inline float fvalue(size_t i) const {
+      return data[i].fvalue;
+    }
+    /*! \brief check whether i-th entry is missing */
+    inline bool is_missing(size_t i) const {
+      return data[i].flag == -1;
+    }
+  };
   /*!
    * \brief get the leaf index 
    * \param feats dense feature vector, if the feature is missing the field is set to NaN
    * \param root_gid starting root index of the instance
    * \return the leaf index of the given feature 
    */
-  inline int GetLeafIndex(const std::vector<float> &feat, unsigned root_id = 0) const {
+  inline int GetLeafIndex(const FVec&feat, unsigned root_id = 0) const {
     // start from groups that belongs to current data
     int pid = static_cast<int>(root_id);
     // tranverse tree
     while (!(*this)[ pid ].is_leaf()) {
       unsigned split_index = (*this)[pid].split_index();
-      const float fvalue = feat[split_index];
-      pid = this->GetNext(pid, fvalue, std::isnan(fvalue));
+      pid = this->GetNext(pid, feat.fvalue(split_index), feat.is_missing(split_index));
     }
     return pid;
   }
@@ -467,10 +508,11 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat>{
    * \param root_gid starting root index of the instance
    * \return the leaf index of the given feature 
    */
-  inline float Predict(const std::vector<float> &feat, unsigned root_id = 0) const {
+  inline float Predict(const FVec &feat, unsigned root_id = 0) const {
     int pid = this->GetLeafIndex(feat, root_id);
     return (*this)[pid].leaf_value();
   }
+
  private:
   /*! \brief get next position of the tree given current pid */
   inline int GetNext(int pid, float fvalue, bool is_unknown) const {
