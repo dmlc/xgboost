@@ -158,8 +158,8 @@ struct EvalAMS : public IEvaluator {
 /*! \brief precision with cut off at top percentile */
 struct EvalPrecisionRatio : public IEvaluator{
  public:
-  EvalPrecisionRatio( const char *name ) : name_(name) {
-    utils::Assert(sscanf( name, "apratio@%f", &ratio_) == 1, "BUG");
+  explicit EvalPrecisionRatio(const char *name) : name_(name) {
+    utils::Assert(sscanf(name, "apratio@%f", &ratio_) == 1, "BUG");
   }
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
@@ -169,23 +169,23 @@ struct EvalPrecisionRatio : public IEvaluator{
       rec.push_back(std::make_pair(preds[j], j));
     }
     std::sort(rec.begin(), rec.end(), CmpFirst);
-    double pratio = CalcPRatio( rec, info );
+    double pratio = CalcPRatio(rec, info);
     return static_cast<float>(pratio);
   }
-  virtual const char *Name(void) const{
+  virtual const char *Name(void) const {
     return name_.c_str();
   }
+
  protected:
-  inline double CalcPRatio(const std::vector< std::pair<float,unsigned> >& rec, const MetaInfo &info) const{
+  inline double CalcPRatio(const std::vector< std::pair<float, unsigned> >& rec, const MetaInfo &info) const {
     size_t cutoff = static_cast<size_t>(ratio_ * rec.size());
     double wt_hit = 0.0, wsum = 0.0;
     for (size_t j = 0; j < cutoff; ++j) {
       wt_hit += info.labels[rec[j].second];
-      wsum += wt_hit / j;
+      wsum += wt_hit / (j + 1);
      }
     return wsum / cutoff;
   }
- protected:
   float ratio_;
   std::string name_;
 };
@@ -285,7 +285,7 @@ struct EvalRankList : public IEvaluator {
     minus_ = false;
     if (sscanf(name, "%*[^@]@%u[-]?", &topn_) != 1) {
       topn_ = UINT_MAX;
-    }    
+    }
     if (name[strlen(name) - 1] == '-') {
       minus_ = true;
     }
