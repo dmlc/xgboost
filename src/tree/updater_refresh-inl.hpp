@@ -20,7 +20,6 @@ class TreeRefresher: public IUpdater<FMatrix> {
   // set training parameter
   virtual void SetParam(const char *name, const char *val) {
     param.SetParam(name, val);
-    if (!strcmp(name, "silent")) silent = atoi(val);
   }
   // update the tree, do pruning
   virtual void Update(const std::vector<bst_gpair> &gpair,
@@ -127,8 +126,6 @@ class TreeRefresher: public IUpdater<FMatrix> {
   }
   // number of thread in the data
   int nthread;
-  // shutup
-  int silent;
   // training parameter
   TrainParam param;
 };

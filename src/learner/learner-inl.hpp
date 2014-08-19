@@ -9,6 +9,7 @@
 #include <vector>
 #include <utility>
 #include <string>
+#include <limits>
 #include "./objective.h"
 #include "./evaluation.h"
 #include "../gbm/gbm.h"
@@ -28,6 +29,8 @@ class BoostLearner {
     gbm_ = NULL;
     name_obj_ = "reg:linear";
     name_gbm_ = "gbtree";
+    silent= 0;
+    max_buffer_row = std::numeric_limits<size_t>::max();
   }
   ~BoostLearner(void) {
     if (obj_ != NULL) delete obj_;
@@ -77,6 +80,7 @@ class BoostLearner {
    */
   inline void SetParam(const char *name, const char *val) {
     if (!strcmp(name, "silent")) silent = atoi(val);
+    if (!strcmp(name, "max_buffer_row")) sscanf(val, "%lu", &max_buffer_row);
     if (!strcmp(name, "eval_metric")) evaluator_.AddEval(val);
     if (!strcmp("seed", name)) random::Seed(atoi(val));
     if (!strcmp(name, "num_class")) this->SetParam("num_output_group", val);
@@ -87,7 +91,9 @@ class BoostLearner {
     }
     if (gbm_ != NULL) gbm_->SetParam(name, val);
     if (obj_ != NULL) obj_->SetParam(name, val);
-    cfg_.push_back(std::make_pair(std::string(name), std::string(val)));
+    if (gbm_ == NULL || obj_ == NULL) {
+      cfg_.push_back(std::make_pair(std::string(name), std::string(val)));
+    }
   }
   /*!
    * \brief initialize the model
@@ -144,8 +150,8 @@ class BoostLearner {
    *  if not intialize it
    * \param p_train pointer to the matrix used by training
    */
-  inline void CheckInit(DMatrix<FMatrix> *p_train) const {
-    p_train->fmat.InitColAccess();
+  inline void CheckInit(DMatrix<FMatrix> *p_train) {
+    p_train->fmat.InitColAccess(max_buffer_row);
   }
   /*!
    * \brief update the model for one iteration
@@ -286,6 +292,8 @@ class BoostLearner {
   // data fields
   // silent during training
   int silent;
+  // maximum buffred row value
+  size_t max_buffer_row;
   // evaluation set
   EvalSet evaluator_;
   // model parameter
