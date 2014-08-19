@@ -121,7 +121,7 @@ class DMatrix:
     # slice the DMatrix to return a new DMatrix that only contains rindex
     def slice(self, rindex):
         res = DMatrix(None)
-        res.handle = ctype.c_void_p(xglib.XGDMatrixSliceDMatrix(
+        res.handle = ctypes.c_void_p(xglib.XGDMatrixSliceDMatrix(
             self.handle, (ctypes.c_int*len(rindex))(*rindex), len(rindex)))
         return res
 
