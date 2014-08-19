@@ -155,6 +155,41 @@ struct EvalAMS : public IEvaluator {
   float ratio_;
 };
 
+/*! \brief precision with cut off at top percentile */
+struct EvalPrecisionRatio : public IEvaluator{
+ public:
+  EvalPrecisionRatio( const char *name ) : name_(name) {
+    utils::Assert(sscanf( name, "apratio@%f", &ratio_) == 1, "BUG");
+  }
+  virtual float Eval(const std::vector<float> &preds,
+                     const MetaInfo &info) const {
+    utils::Assert(preds.size() == info.labels.size(), "label size predict size not match");
+    std::vector< std::pair<float, unsigned> > rec;
+    for (size_t j = 0; j < preds.size(); ++j) {
+      rec.push_back(std::make_pair(preds[j], j));
+    }
+    std::sort(rec.begin(), rec.end(), CmpFirst);
+    double pratio = CalcPRatio( rec, info );
+    return static_cast<float>(pratio);
+  }
+  virtual const char *Name(void) const{
+    return name_.c_str();
+  }
+ protected:
+  inline double CalcPRatio(const std::vector< std::pair<float,unsigned> >& rec, const MetaInfo &info) const{
+    size_t cutoff = static_cast<size_t>(ratio_ * rec.size());
+    double wt_hit = 0.0, wsum = 0.0;
+    for (size_t j = 0; j < cutoff; ++j) {
+      wt_hit += info.labels[rec[j].second];
+      wsum += wt_hit / j;
+     }
+    return wsum / cutoff;
+  }
+ protected:
+  float ratio_;
+  std::string name_;
+};
+
 /*! \brief Area under curve, for both classification and rank */
 struct EvalAuc : public IEvaluator {
   virtual float Eval(const std::vector<float> &preds,
