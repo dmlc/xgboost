@@ -110,7 +110,11 @@ class GBTree : public IGradBooster<FMatrix> {
     {
       nthread = omp_get_num_threads();
     }
-    this->InitThreadTemp(nthread);
+    thread_temp.resize(nthread, tree::RegTree::FVec());
+    for (int i = 0; i < nthread; ++i) {
+      thread_temp[i].Init(mparam.num_feature);
+    }
+
     std::vector<float> &preds = *out_preds;
     preds.resize(0);
     // start collecting the prediction
@@ -128,7 +132,7 @@ class GBTree : public IGradBooster<FMatrix> {
       #pragma omp parallel for schedule(static)
       for (unsigned i = 0; i < nsize; ++i) {
         const int tid = omp_get_thread_num();
-        std::vector<float> &feats = thread_temp[tid];
+        tree::RegTree::FVec &feats = thread_temp[tid];
         const size_t ridx = batch.base_rowid + i;
         const unsigned root_idx = root_index.size() == 0 ? 0 : root_index[ridx];
         // loop over output groups
@@ -210,7 +214,7 @@ class GBTree : public IGradBooster<FMatrix> {
                     int64_t buffer_index,
                     int bst_group,
                     unsigned root_index,
-                    std::vector<float> *p_feats) {
+                    tree::RegTree::FVec *p_feats) {
     size_t itop = 0;
     float  psum = 0.0f;
     const int bid = mparam.BufferOffset(buffer_index, bst_group);
@@ -220,13 +224,13 @@ class GBTree : public IGradBooster<FMatrix> {
       psum = pred_buffer[bid];
     }
     if (itop != trees.size()) {
-      FillThreadTemp(inst, p_feats);
+      p_feats->Fill(inst);
       for (size_t i = itop; i < trees.size(); ++i) {
         if (tree_info[i] == bst_group) {
           psum += trees[i]->Predict(*p_feats, root_index);
         }
       }
-      DropThreadTemp(inst, p_feats);
+      p_feats->Drop(inst);
     }
     // updated the buffered results
     if (bid >= 0) {
@@ -234,30 +238,6 @@ class GBTree : public IGradBooster<FMatrix> {
       pred_buffer[bid] = psum;
     }
     return psum;
-  }
-  // initialize thread local space for prediction
-  inline void InitThreadTemp(int nthread) {
-    thread_temp.resize(nthread);
-    for (size_t i = 0; i < thread_temp.size(); ++i) {
-      thread_temp[i].resize(mparam.num_feature);
-      std::fill(thread_temp[i].begin(), thread_temp[i].end(), NAN);
-    }
-  }
-  // fill in a thread local dense vector using a sparse instance
-  inline static void FillThreadTemp(const SparseBatch::Inst &inst,
-                                    std::vector<float> *p_feats) {
-    std::vector<float> &feats = *p_feats;
-    for (bst_uint i = 0; i < inst.length; ++i) {
-      feats[inst[i].findex] = inst[i].fvalue;
-    }
-  }
-  // clear up a thread local dense vector
-  inline static void DropThreadTemp(const SparseBatch::Inst &inst,
-                                    std::vector<float> *p_feats) {
-    std::vector<float> &feats = *p_feats;
-    for (bst_uint i = 0; i < inst.length; ++i) {
-      feats[inst[i].findex] = NAN;
-    }
   }
   // --- data structure ---
   /*! \brief training parameters */
@@ -361,7 +341,7 @@ class GBTree : public IGradBooster<FMatrix> {
   // configurations for tree
   std::vector< std::pair<std::string, std::string> > cfg;
   // temporal storage for per thread
-  std::vector< std::vector<float> > thread_temp;
+  std::vector<tree::RegTree::FVec> thread_temp;
   // the updaters that can be applied to each of tree
   std::vector< tree::IUpdater<FMatrix>* > updaters;
 };
