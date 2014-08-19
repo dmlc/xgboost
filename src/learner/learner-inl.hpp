@@ -30,7 +30,7 @@ class BoostLearner {
     name_obj_ = "reg:linear";
     name_gbm_ = "gbtree";
     silent= 0;
-    max_buffer_row = std::numeric_limits<size_t>::max();
+    prob_buffer_row = 1.0f;
   }
   ~BoostLearner(void) {
     if (obj_ != NULL) delete obj_;
@@ -80,7 +80,7 @@ class BoostLearner {
    */
   inline void SetParam(const char *name, const char *val) {
     if (!strcmp(name, "silent")) silent = atoi(val);
-    if (!strcmp(name, "max_buffer_row")) sscanf(val, "%lu", &max_buffer_row);
+    if (!strcmp(name, "prob_buffer_row")) prob_buffer_row = static_cast<float>(atof(val));
     if (!strcmp(name, "eval_metric")) evaluator_.AddEval(val);
     if (!strcmp("seed", name)) random::Seed(atoi(val));
     if (!strcmp(name, "num_class")) this->SetParam("num_output_group", val);
@@ -151,7 +151,7 @@ class BoostLearner {
    * \param p_train pointer to the matrix used by training
    */
   inline void CheckInit(DMatrix<FMatrix> *p_train) {
-    p_train->fmat.InitColAccess(max_buffer_row);
+    p_train->fmat.InitColAccess(prob_buffer_row);
   }
   /*!
    * \brief update the model for one iteration
@@ -293,7 +293,7 @@ class BoostLearner {
   // silent during training
   int silent;
   // maximum buffred row value
-  size_t max_buffer_row;
+  float prob_buffer_row;
   // evaluation set
   EvalSet evaluator_;
   // model parameter
