@@ -36,3 +36,8 @@ Build
   - In principle, you can put src/xgboost.cpp and src/io/io.cpp into the project, and build xgboost.
   - For python module, you need python/xgboost_wrapper.cpp and src/io/io.cpp to build a dll.
 
+
+Try Graphlab Create Version
+=====
+* Graphlab Create(GLC) is a scalable machine learning toolkit that allows you to deal with big data in python
+* XGBoost is adopted by boosted tree library in GLC. The GLC version allows you to do feature engineering, hyper-parameter searching and visualization in one framework. See http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand
