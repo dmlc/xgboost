@@ -84,6 +84,9 @@ class BoostLearner {
     if (!strcmp(name, "eval_metric")) evaluator_.AddEval(val);
     if (!strcmp("seed", name)) random::Seed(atoi(val));
     if (!strcmp(name, "num_class")) this->SetParam("num_output_group", val);
+    if (!strcmp(name, "nthread")) {
+      omp_set_num_threads(atoi(val));
+    }
     if (gbm_ == NULL) {
       if (!strcmp(name, "objective")) name_obj_ = val;
       if (!strcmp(name, "booster")) name_gbm_ = val;
