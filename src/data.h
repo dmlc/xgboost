@@ -39,6 +39,24 @@ struct bst_gpair {
   bst_gpair(bst_float grad, bst_float hess) : grad(grad), hess(hess) {}
 };
 
+/*! 
+ * \brief extra information that might needed by gbm and tree module
+ * these information are not necessarily presented, and can be empty
+ */
+struct BoosterInfo {
+  /*!
+   * \brief specified root index of each instance,
+   *  can be used for multi task setting
+   */
+  std::vector<unsigned> root_index;
+  /*! \brief set fold indicator */
+  std::vector<unsigned> fold_index;
+  /*! \brief get root of ith instance */
+  inline unsigned GetRoot(size_t i) const {
+    return root_index.size() == 0 ? 0 : root_index[i];
+  }
+};
+
 /*! \brief read-only sparse instance batch in CSR format */
 struct SparseBatch {
   /*! \brief an entry of sparse vector */

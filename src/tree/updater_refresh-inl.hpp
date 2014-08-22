@@ -24,7 +24,7 @@ class TreeRefresher: public IUpdater<FMatrix> {
   // update the tree, do pruning
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       const FMatrix &fmat,
-                      const std::vector<unsigned> &root_index,
+                      const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) {
     if (trees.size() == 0) return;
     // number of threads
@@ -66,7 +66,7 @@ class TreeRefresher: public IUpdater<FMatrix> {
         feats.Fill(inst);
         for (size_t j = 0; j < trees.size(); ++j) {
           AddStats(*trees[j], feats, gpair[ridx],
-                   root_index.size() == 0 ? 0 : root_index[ridx],
+                   info.GetRoot(j),
                    &stemp[tid * trees.size() + j]);
         }
         feats.Drop(inst);

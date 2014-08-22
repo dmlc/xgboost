@@ -29,8 +29,7 @@ class IUpdater {
    * \brief peform update to the tree models
    * \param gpair the gradient pair statistics of the data
    * \param fmat feature matrix that provide access to features
-   * \param root_index pre-partitioned root_index of each instance,
-   *          root_index.size() can be 0 which indicates that no pre-partition involved
+   * \param info extra side information that may be need, such as root index
    * \param trees pointer to the trese to be updated, upater will change the content of the tree
    *   note: all the trees in the vector are updated, with the same statistics, 
    *         but maybe different random seeds, usually one tree is passed in at a time, 
@@ -38,7 +37,7 @@ class IUpdater {
    */
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       const FMatrix &fmat,
-                      const std::vector<unsigned> &root_index,
+                      const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) = 0;
   // destructor
   virtual ~IUpdater(void) {}

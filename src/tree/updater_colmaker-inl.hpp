@@ -25,7 +25,7 @@ class ColMaker: public IUpdater<FMatrix> {
   }
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       const FMatrix &fmat,
-                      const std::vector<unsigned> &root_index,
+                      const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) {
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
@@ -33,7 +33,7 @@ class ColMaker: public IUpdater<FMatrix> {
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
       Builder builder(param);
-      builder.Update(gpair, fmat, root_index, trees[i]);
+      builder.Update(gpair, fmat, info, trees[i]);
     }
     param.learning_rate = lr;
   }
@@ -77,9 +77,9 @@ class ColMaker: public IUpdater<FMatrix> {
     // update one tree, growing
     virtual void Update(const std::vector<bst_gpair> &gpair,
                         const FMatrix &fmat,
-                        const std::vector<unsigned> &root_index,
+                        const BoosterInfo &info,
                         RegTree *p_tree) {
-      this->InitData(gpair, fmat, root_index, *p_tree);
+      this->InitData(gpair, fmat, info.root_index, *p_tree);
       this->InitNewNode(qexpand, gpair, fmat, *p_tree);
       
       for (int depth = 0; depth < param.max_depth; ++depth) {

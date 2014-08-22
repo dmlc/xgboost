@@ -24,7 +24,7 @@ class TreePruner: public IUpdater<FMatrix> {
   // update the tree, do pruning
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       const FMatrix &fmat,
-                      const std::vector<unsigned> &root_index,
+                      const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) {
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;

@@ -37,7 +37,7 @@ class Booster: public learner::BoostLearner<FMatrixS> {
     for (unsigned j = 0; j < ndata; ++j) {
       gpair_[j] = bst_gpair(grad[j], hess[j]);
     }
-    gbm_->DoBoost(gpair_, train.fmat, train.info.root_index);
+    gbm_->DoBoost(gpair_, train.fmat, train.info.info);
   }
   inline void CheckInitModel(void) {
     if (!init_model) {
@@ -151,8 +151,8 @@ extern "C"{
       if (src.info.weights.size() != 0) {
         ret.info.weights.push_back(src.info.weights[ridx]);
       }
-      if (src.info.root_index.size() != 0) {
-        ret.info.weights.push_back(src.info.root_index[ridx]);
+      if (src.info.info.root_index.size() != 0) {
+        ret.info.info.root_index.push_back(src.info.info.root_index[ridx]);
       }
     }
     return p_ret;
