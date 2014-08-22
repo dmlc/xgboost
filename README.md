@@ -40,4 +40,4 @@ Build
 Try Graphlab Create Version
 =====
 * Graphlab Create(GLC) is a scalable machine learning toolkit that allows you to deal with big data in python
-* XGBoost is adopted by boosted tree library in GLC. The GLC version allows you to do feature engineering, hyper-parameter searching and visualization in one framework. See http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand
+* XGBoost is adopted by boosted tree library in GLC. The GLC version allows you to do feature engineering, hyper-parameter searching and visualization in one framework. See the nice blogpost about [predicting bike sharing demand](http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand).
