@@ -27,7 +27,7 @@ class IObjFunction{
    * \param iter current iteration number
    * \param out_gpair output of get gradient, saves gradient and second order gradient in
    */
-  virtual void GetGradient(const std::vector<float>& preds,
+  virtual void GetGradient(const std::vector<float> &preds,
                            const MetaInfo &info,
                            int iter,
                            std::vector<bst_gpair> *out_gpair) = 0;
