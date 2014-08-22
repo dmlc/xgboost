@@ -84,9 +84,9 @@ class GBTree : public IGradBooster<FMatrix> {
   }
   virtual void DoBoost(const std::vector<bst_gpair> &gpair,
                        const FMatrix &fmat,
-                       const std::vector<unsigned> &root_index) {
+                       const BoosterInfo &info) {
     if (mparam.num_output_group == 1) {
-      this->BoostNewTrees(gpair, fmat, root_index, 0);
+      this->BoostNewTrees(gpair, fmat, info, 0);
     } else {
       const int ngroup = mparam.num_output_group;
       utils::Check(gpair.size() % ngroup == 0,
@@ -97,13 +97,13 @@ class GBTree : public IGradBooster<FMatrix> {
         for (size_t i = 0; i < tmp.size(); ++i) {
           tmp[i] = gpair[i * ngroup + gid];
         }
-        this->BoostNewTrees(tmp, fmat, root_index, gid);
+        this->BoostNewTrees(tmp, fmat, info, gid);
       }
     }
   }
   virtual void Predict(const FMatrix &fmat,
                        int64_t buffer_offset,
-                       const std::vector<unsigned> &root_index,
+                       const BoosterInfo &info,
                        std::vector<float> *out_preds) {
     int nthread;
     #pragma omp parallel
@@ -134,7 +134,7 @@ class GBTree : public IGradBooster<FMatrix> {
         const int tid = omp_get_thread_num();
         tree::RegTree::FVec &feats = thread_temp[tid];
         const size_t ridx = batch.base_rowid + i;
-        const unsigned root_idx = root_index.size() == 0 ? 0 : root_index[ridx];
+        const unsigned root_idx = info.GetRoot(i);
         // loop over output groups
         for (int gid = 0; gid < mparam.num_output_group; ++gid) {
           preds[ridx * mparam.num_output_group + gid] =
@@ -186,7 +186,7 @@ class GBTree : public IGradBooster<FMatrix> {
   // do group specific group
   inline void BoostNewTrees(const std::vector<bst_gpair> &gpair,
                             const FMatrix &fmat,
-                            const std::vector<unsigned> &root_index,
+                            const BoosterInfo &info,
                             int bst_group) {
     this->InitUpdater();
     // create the trees
@@ -200,7 +200,7 @@ class GBTree : public IGradBooster<FMatrix> {
     }
     // update the trees
     for (size_t i = 0; i < updaters.size(); ++i) {
-      updaters[i]->Update(gpair, fmat, root_index, new_trees);
+      updaters[i]->Update(gpair, fmat, info, new_trees);
     }
     // push back to model
     for (size_t i = 0; i < new_trees.size(); ++i) {

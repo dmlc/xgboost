@@ -43,12 +43,11 @@ class IGradBooster {
    * \brief peform update to the model(boosting)
    * \param gpair the gradient pair statistics of the data
    * \param fmat feature matrix that provide access to features
-   * \param root_index pre-partitioned root_index of each instance,
-   *   root_index.size() can be 0 which indicates that no pre-partition involved
+   * \param info meta information about training
    */
   virtual void DoBoost(const std::vector<bst_gpair> &gpair,
                        const FMatrix &fmat,
-                       const std::vector<unsigned> &root_index) = 0;
+                       const BoosterInfo &info) = 0;
   /*!
    * \brief generate predictions for given feature matrix
    * \param fmat feature matrix
@@ -56,13 +55,12 @@ class IGradBooster {
    *        this means we do not have buffer index allocated to the gbm
    *  a buffer index is assigned to each instance that requires repeative prediction
    *  the size of buffer is set by convention using IGradBooster.SetParam("num_pbuffer","size")
-   * \param root_index pre-partitioned root_index of each instance,
-   *   root_index.size() can be 0 which indicates that no pre-partition involved
+   * \param info extra side information that may be needed for prediction
    * \param out_preds output vector to hold the predictions
    */
   virtual void Predict(const FMatrix &fmat,
                        int64_t buffer_offset,
-                       const std::vector<unsigned> &root_index,
+                       const BoosterInfo &info,
                        std::vector<float> *out_preds) = 0;
   /*!
    * \brief dump the model in text format

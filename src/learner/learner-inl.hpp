@@ -161,7 +161,7 @@ class BoostLearner {
   inline void UpdateOneIter(int iter, const DMatrix<FMatrix> &train) {
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train.info, iter, &gpair_);
-    gbm_->DoBoost(gpair_, train.fmat, train.info.root_index);
+    gbm_->DoBoost(gpair_, train.fmat, train.info.info);
   }
   /*!
    * \brief evaluate the model for specific iteration
@@ -242,7 +242,7 @@ class BoostLearner {
   inline void PredictRaw(const DMatrix<FMatrix> &data,
                          std::vector<float> *out_preds) const {
     gbm_->Predict(data.fmat, this->FindBufferOffset(data),
-                  data.info.root_index, out_preds);
+                  data.info.info, out_preds);
     // add base margin
     std::vector<float> &preds = *out_preds;
     const unsigned ndata = static_cast<unsigned>(preds.size());
