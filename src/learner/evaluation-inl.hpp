@@ -159,7 +159,12 @@ struct EvalAMS : public IEvaluator {
 struct EvalPrecisionRatio : public IEvaluator{
  public:
   explicit EvalPrecisionRatio(const char *name) : name_(name) {
-    utils::Assert(sscanf(name, "pratio@%f", &ratio_) == 1, "BUG");
+    if (sscanf(name, "apratio@%f", &ratio_) == 1) {
+      use_ap = 1;
+    } else {
+      utils::Assert(sscanf(name, "pratio@%f", &ratio_) == 1, "BUG");
+      use_ap = 0;
+    }
   }
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
@@ -179,13 +184,20 @@ struct EvalPrecisionRatio : public IEvaluator{
  protected:
   inline double CalcPRatio(const std::vector< std::pair<float, unsigned> >& rec, const MetaInfo &info) const {
     size_t cutoff = static_cast<size_t>(ratio_ * rec.size());
-    double wt_hit = 0.0, wsum = 0.0;
+    double wt_hit = 0.0, wsum = 0.0, wt_sum = 0.0;
     for (size_t j = 0; j < cutoff; ++j) {
-      wt_hit += info.labels[rec[j].second];
-      wsum += wt_hit / (j + 1);
-     }
-    return wsum / cutoff;
+      const float wt = info.GetWeight(j);
+      wt_hit += info.labels[rec[j].second] * wt;
+      wt_sum += wt;
+      wsum += wt_hit / wt_sum;
+    }
+    if (use_ap != 0) {
+      return wsum / cutoff;
+    } else {
+      return wt_hit / wt_sum;
+    }
   }
+  int use_ap;
   float ratio_;
   std::string name_;
 };
