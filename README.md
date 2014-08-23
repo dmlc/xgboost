@@ -1,5 +1,5 @@
 xgboost: eXtreme Gradient Boosting 
-=======
+======
 An optimized general purpose gradient boosting (tree) library.
 
 Contributors: https://github.com/tqchen/xgboost/graphs/contributors
@@ -8,8 +8,10 @@ Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
 
 Questions and Issues: [https://github.com/tqchen/xgboost/issues](https://github.com/tqchen/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
+Notes on the Code: [Code Guide](src)
+
 Features
-=======
+======
 * Sparse feature format:
   - Sparse feature format allows easy handling of missing values, and improve computation efficiency.
 * Push the limit on single machine:
@@ -19,31 +21,21 @@ Features
 * Layout of gradient boosting algorithm to support user defined objective
 * Python interface, works with numpy and scipy.sparse matrix
 
-Supported key components
-=======
-* Gradient boosting models: 
-    - regression tree (GBRT)
-    - linear model/lasso
-* Objectives to support tasks: 
-    - regression
-    - classification
-* OpenMP implementation
-
-Planned components
-=======
-* More objective to support tasks: 
-    - ranking
-    - matrix factorization
-    - structured prediction
-
 Build
 ======
 * Simply type make
 * If your compiler does not come with OpenMP support, it will fire an warning telling you that the code will compile into single thread mode, and you will get single thread xgboost
-  - You may get a error: -lgomp is not found, you can remove -fopenmp flag in Makefile to get single thread xgboost, or upgrade your compiler to compile multi-thread version
+* You may get a error: -lgomp is not found
+  - You can type ```make no_omp=1```, this will get you single thread xgboost
+  - Alternatively, you can upgrade your compiler to compile multi-thread version
+* Possible way to build using Visual Studio (not tested):
+  - In principle, you can put src/xgboost.cpp and src/io/io.cpp into the project, and build xgboost.
+  - For python module, you need python/xgboost_wrapper.cpp and src/io/io.cpp to build a dll.
 
-File extension convention
-=======
-* .h are interface, utils and data structures, with detailed comment; 
-* .cpp are implementations that will be compiled, with less comment; 
-* .hpp are implementations that will be included by .cpp, with less comment
+Version
+======
+* This version is named xgboost-unity, the code has been refactored from 0.2x to be cleaner and more flexibility
+* This version of xgboost is not compatible with 0.2x, due to huge amount of changes in code structure
+  - This means the model and buffer file of previous version can not be loaded in xgboost-unity
+* For legacy 0.2x code, refer to [Here](https://github.com/tqchen/xgboost/releases/tag/v0.22)
+* Change log in [CHANGES.md](CHANGES.md)
