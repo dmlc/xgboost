@@ -11,14 +11,15 @@ endif
 # specify tensor path
 BIN = xgboost
 OBJ = 
-SLIB = python/libxgboostwrapper.so
+SLIB = python/libxgboostR.so
 .PHONY: clean all
 
 all: $(BIN) $(OBJ) $(SLIB)
 
 xgboost: src/xgboost_main.cpp src/io/io.cpp src/data.h src/tree/*.h src/tree/*.hpp src/gbm/*.h src/gbm/*.hpp src/utils/*.h src/learner/*.h src/learner/*.hpp 
 # now the wrapper takes in two files. io and wrapper part
-python/libxgboostwrapper.so: python/xgboost_wrapper.cpp src/io/io.cpp src/*.h src/*/*.hpp src/*/*.h
+#python/libxgboostwrapper.so: python/xgboost_wrapper.cpp src/io/io.cpp src/*.h src/*/*.hpp src/*/*.h
+python/libxgboostR.so: python/xgboost_wrapper_R.cpp python/xgboost_wrapper.cpp src/io/io.cpp src/*.h src/*/*.hpp src/*/*.h
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)

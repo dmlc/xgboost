@@ -114,7 +114,7 @@ extern "C" {
    * \param handle handle
    * \param iter current iteration rounds
    * \param dtrain training data
-   */        
+   */
   void XGBoosterUpdateOneIter(void *handle, int iter, void *dtrain);
   /*!
    * \brief update the model, by directly specify gradient and second order gradient,
@@ -127,7 +127,7 @@ extern "C" {
    */
   void XGBoosterBoostOneIter(void *handle, void *dtrain,
                              float *grad, float *hess, size_t len);
-  /*! 
+  /*!
    * \brief get evaluation statistics for xgboost
    * \param handle handle
    * \param iter current iteration rounds
@@ -135,7 +135,7 @@ extern "C" {
    * \param evnames pointers to names of each data
    * \param len length of dmats
    * \return the string containing evaluation stati
-   */        
+   */
   const char *XGBoosterEvalOneIter(void *handle, int iter, void *dmats[],
                                    const char *evnames[], size_t len);
   /*!
