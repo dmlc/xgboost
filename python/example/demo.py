@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import scipy.sparse
 # append the path to xgboost, you may need to change the following line
+# alternatively, you can add the path to PYTHONPATH environment variable
 sys.path.append('../')
 import xgboost as xgb
 
@@ -17,36 +18,17 @@ param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logisti
 # specify validations set to watch performance
 evallist  = [(dtest,'eval'), (dtrain,'train')]
 num_round = 2
-bst = xgb.train( param, dtrain, num_round, evallist )
+bst = xgb.train(param, dtrain, num_round, evallist)
 
 # this is prediction
-preds = bst.predict( dtest )
+preds = bst.predict(dtest)
 labels = dtest.get_label()
 print ('error=%f' % (  sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) /float(len(preds))))
 bst.save_model('0001.model')
 # dump model
 bst.dump_model('dump.raw.txt')
 # dump model with feature map
-bst.dump_model('dump.raw.txt','featmap.txt')
-
-###
-# build dmatrix in python iteratively
-#
-print ('start running example of build DMatrix in python')
-dtrain = xgb.DMatrix()
-labels = []
-for l in open('agaricus.txt.train'):
-    arr = l.split()
-    labels.append( int(arr[0]))
-    feats = []
-    for it in arr[1:]:
-        k,v = it.split(':')
-        feats.append( (int(k), float(v)) )
-    dtrain.add_row( feats )
-dtrain.set_label( labels )
-evallist  = [(dtest,'eval'), (dtrain,'train')]
-
-bst = xgb.train( param, dtrain, num_round, evallist )
+bst.dump_model('dump.nice.txt','featmap.txt')
 
 ###
 # build dmatrix from scipy.sparse
@@ -61,7 +43,6 @@ for l in open('agaricus.txt.train'):
         k,v = it.split(':')
         row.append(i); col.append(int(k)); dat.append(float(v))
     i += 1
-
 csr = scipy.sparse.csr_matrix( (dat, (row,col)) )
 dtrain = xgb.DMatrix( csr )
 dtrain.set_label(labels)
@@ -71,7 +52,7 @@ bst = xgb.train( param, dtrain, num_round, evallist )
 print ('start running example of build DMatrix from numpy array')
 # NOTE: npymat is numpy array, we will convert it into scipy.sparse.csr_matrix in internal implementation,then convert to DMatrix
 npymat = csr.todense()
-dtrain = xgb.DMatrix( npymat )
+dtrain = xgb.DMatrix( npymat)
 dtrain.set_label(labels)
 evallist  = [(dtest,'eval'), (dtrain,'train')]
 bst = xgb.train( param, dtrain, num_round, evallist )
@@ -81,16 +62,51 @@ bst = xgb.train( param, dtrain, num_round, evallist )
 # 
 print ('start running example to used cutomized objective function')
 
-# note: set objective= binary:logistic means the prediction will get logistic transformed
-#       in most case, we may want to leave it as default
-param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
+# note: for customized objective function, we leave objective as default
+# note: what we are getting is margin value in prediction
+# you must know what you are doing
+param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1 }
 
 # user define objective function, given prediction, return gradient and second order gradient
-def logregobj( preds, dtrain ):
+# this is loglikelihood loss
+def logregobj(preds, dtrain):
     labels = dtrain.get_label()
+    preds = 1.0 / (1.0 + np.exp(-preds))
     grad = preds - labels
     hess = preds * (1.0-preds)
     return grad, hess
 
-# training with customized objective, we can also do step by step training, simply look at xgboost.py's implementation of train
-bst = xgb.train( param, dtrain, num_round, evallist, logregobj )
+# user defined evaluation function, return a pair metric_name, result
+# NOTE: when you do customized loss function, the default prediction value is margin
+# this may make buildin evalution metric not function properly
+# for example, we are doing logistic loss, the prediction is score before logistic transformation
+# the buildin evaluation error assumes input is after logistic transformation
+# Take this in mind when you use the customization, and maybe you need write customized evaluation function
+def evalerror(preds, dtrain):
+    labels = dtrain.get_label()
+    # return a pair metric_name, result
+    # since preds are margin(before logistic transformation, cutoff at 0)
+    return 'error', float(sum(labels != (preds > 0.0))) / len(labels)
+
+# training with customized objective, we can also do step by step training
+# simply look at xgboost.py's implementation of train
+bst = xgb.train(param, dtrain, num_round, evallist, logregobj, evalerror)
+
+
+###
+# advanced: start from a initial base prediction
+#
+print ('start running example to start from a initial prediction')
+# specify parameters via map, definition are same as c++ version
+param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
+# train xgboost for 1 round
+bst = xgb.train( param, dtrain, 1, evallist )
+# Note: we need the margin value instead of transformed prediction in set_base_margin
+# do predict with output_margin=True, will always give you margin values before logistic transformation
+ptrain = bst.predict(dtrain, output_margin=True)
+ptest  = bst.predict(dtest, output_margin=True)
+dtrain.set_base_margin(ptrain)
+dtest.set_base_margin(ptest)
+
+print ('this is result of running from initial prediction')
+bst = xgb.train( param, dtrain, 1, evallist )

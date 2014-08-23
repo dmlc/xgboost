@@ -7,7 +7,7 @@ This script will achieve about 3.600 AMS score in public leadboard. To get start
 
 1. Compile the XGBoost python lib
 ```bash
-cd ../../python
+cd ../..
 make
 ```
 2. Put training.csv test.csv on folder './data' (you can create a symbolic link)
