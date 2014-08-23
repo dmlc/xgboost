@@ -12,10 +12,18 @@ extern "C" {
 extern "C" {
   /*!
    * \brief load a data matrix 
-   * \fname name of the content
+   * \param fname name of the content
+   * \param silent whether print messages
    * \return a loaded data matrix
    */
-  SEXP XGDMatrixCreateFromFile_R(SEXP fname);
+  SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent);
+  /*!
+   * \brief load a data matrix into binary file
+   * \param handle a instance of data matrix
+   * \param fname file name
+   * \param silent print statistics when saving
+   */
+  void XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent);
   /*! 
    * \brief create xgboost learner 
    * \param dmats a list of dmatrix handles that will be cached
@@ -36,6 +44,15 @@ extern "C" {
    */
   void XGBoosterUpdateOneIter_R(SEXP ext, SEXP iter, SEXP dtrain);
   /*!
+   * \brief update the model, by directly specify gradient and second order gradient,
+   *        this can be used to replace UpdateOneIter, to support customized loss function
+   * \param handle handle
+   * \param dtrain training data
+   * \param grad gradient statistics
+   * \param hess second order gradient statistics
+   */
+  void XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP hess);
+  /*!
    * \brief get evaluation statistics for xgboost
    * \param handle handle
    * \param iter current iteration rounds
@@ -44,5 +61,31 @@ extern "C" {
    * \return the string containing evaluation stati
    */
   SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evnames);
+  /*!
+   * \brief make prediction based on dmat
+   * \param handle handle
+   * \param dmat data matrix
+   * \param output_margin whether only output raw margin value
+   */
+  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin);
+  /*!
+   * \brief load model from existing file
+   * \param handle handle
+   * \param fname file name
+   */
+  void XGBoosterLoadModel_R(SEXP handle, SEXP fname);
+  /*!
+   * \brief save model into existing file
+   * \param handle handle
+   * \param fname file name
+   */    
+  void XGBoosterSaveModel_R(SEXP handle, SEXP fname);
+  /*!
+   * \brief dump model into text file 
+   * \param handle handle
+   * \param fname file name of model that can be dumped into
+   * \param fmap  name to fmap can be empty string
+   */
+  void XGBoosterDumpModel_R(SEXP handle, SEXP fname, SEXP fmap);
 };
-#endif  // XGBOOST_WRAPPER_H_
+#endif  // XGBOOST_WRAPPER_R_H_
