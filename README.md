@@ -8,7 +8,7 @@ Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
 
 Questions and Issues: [https://github.com/tqchen/xgboost/issues](https://github.com/tqchen/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
-Notes on the Code: [Code Guide](src/README.md)
+Notes on the Code: [Code Guide](src)
 
 Features
 ======
