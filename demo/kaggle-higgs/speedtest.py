@@ -3,7 +3,7 @@
 import sys
 import numpy as np
 # add path of xgboost python module
-sys.path.append('../../python/')
+sys.path.append('../../wrapper/')
 import xgboost as xgb
 from sklearn.ensemble import GradientBoostingClassifier
 import time
