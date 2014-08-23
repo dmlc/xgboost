@@ -24,6 +24,20 @@ extern "C" {
    * \param silent print statistics when saving
    */
   void XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent);
+  /*!
+   * \brief set information to dmatrix
+   * \param handle a instance of data matrix
+   * \param field field name, can be label, weight
+   * \param array pointer to float vector
+   */
+  void XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array);
+  /*!
+   * \brief get info vector from matrix
+   * \param handle a instance of data matrix
+   * \param field field name
+   * \return info vector
+   */  
+  SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field);
   /*! 
    * \brief create xgboost learner 
    * \param dmats a list of dmatrix handles that will be cached

@@ -58,7 +58,7 @@ evallist  = [(dtest,'eval'), (dtrain,'train')]
 bst = xgb.train( param, dtrain, num_round, evallist )
 
 ###
-# advanced: cutomsized loss function, set loss_type to 0, so that predict get untransformed score
+# advanced: cutomsized loss function
 # 
 print ('start running example to used cutomized objective function')
 
