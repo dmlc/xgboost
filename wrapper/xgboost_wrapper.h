@@ -81,8 +81,8 @@ extern "C" {
   /*!
    * \brief get float info vector from matrix
    * \param handle a instance of data matrix
-   * \param len used to set result length
    * \param field field name
+   * \param out_len used to set result length
    * \return pointer to the label
    */
   const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, size_t* out_len);

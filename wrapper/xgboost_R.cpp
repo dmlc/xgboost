@@ -1,5 +1,6 @@
 #include <vector>
 #include <string>
+#include <cstring>
 #include "xgboost_wrapper.h"
 #include "xgboost_R.h"
 #include "../src/utils/utils.h"
@@ -24,7 +25,40 @@ extern "C" {
     XGDMatrixSaveBinary(R_ExternalPtrAddr(handle),
                         CHAR(asChar(fname)), asInteger(silent));
   }
-
+  void XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
+    int len = length(array);
+    const char *name = CHAR(asChar(field));
+    if (!strcmp("group", name)) {
+      std::vector<unsigned> vec(len);
+      #pragma omp parallel for schedule(static)      
+      for (int i = 0; i < len; ++i) {
+        vec[i] = static_cast<unsigned>(INTEGER(array)[i]);
+      }
+      XGDMatrixSetGroup(R_ExternalPtrAddr(handle), &vec[0], len);
+      return;
+    }
+    {
+      std::vector<float> vec(len);
+      #pragma omp parallel for schedule(static)
+      for (int i = 0; i < len; ++i) {
+        vec[i] = REAL(array)[i];
+      }
+      XGDMatrixSetFloatInfo(R_ExternalPtrAddr(handle), 
+                            CHAR(asChar(field)),
+                            &vec[0], len);
+    }
+  }
+  SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field) {
+    size_t olen;
+    const float *res = XGDMatrixGetFloatInfo(R_ExternalPtrAddr(handle),
+                                             CHAR(asChar(field)), &olen);
+    SEXP ret = PROTECT(allocVector(REALSXP, olen));
+    for (size_t i = 0; i < olen; ++i) {
+      REAL(ret)[i] = res[i];
+    }
+    UNPROTECT(1);
+    return ret;
+  }
   // functions related to booster
   void _BoosterFinalizer(SEXP ext) {    
     if (R_ExternalPtrAddr(ext) == NULL) return;
