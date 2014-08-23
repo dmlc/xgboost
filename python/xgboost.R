@@ -65,6 +65,18 @@ xgb.eval <- function(booster, watchlist, iter) {
   msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist, evnames)
   return(msg)
 }
+xgb.save <- function(handle, fname) {
+  if (typeof(fname) == "character") {
+    stop("xgb.save: fname must be character");
+  }
+  if (class(handle) != "xgb.Booster") {
+    .Call("XGBoosterSaveModel_R", handle, fname);
+    return(TRUE)
+  }
+  if (class(handle) != "xgb.DMatrix") {
+    
+  }
+}
 
 
 # test code here

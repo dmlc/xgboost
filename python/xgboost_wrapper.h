@@ -165,7 +165,7 @@ extern "C" {
    * \param out_len length of output array
    * \return char *data[], representing dump of each model
    */
-  const char** XGBoosterDumpModel(void *handle, const char *fmap,
+  const char **XGBoosterDumpModel(void *handle, const char *fmap,
                                   size_t *out_len);
 };
 #endif  // XGBOOST_WRAPPER_H_
