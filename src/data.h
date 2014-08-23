@@ -217,7 +217,7 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
     utils::Check(this->HaveColAccess(), "NumCol:need column access");
     return col_ptr_.size() - 1;
   }
-  /*! \brief get number of buffered rows */  
+  /*! \brief get number of buffered rows */
   inline const std::vector<bst_uint> buffered_rowset(void) const {
     return buffered_rowset_;
   }
@@ -333,7 +333,7 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
     while (iter_->Next()) {
       const SparseBatch &batch = iter_->Value();
       for (size_t i = 0; i < batch.size; ++i) {
-        if (pkeep==1.0f || random::SampleBinary(pkeep)) {
+        if (pkeep == 1.0f || random::SampleBinary(pkeep)) {
           buffered_rowset_.push_back(batch.base_rowid+i);
           SparseBatch::Inst inst = batch[i];
           for (bst_uint j = 0; j < inst.length; ++j) {
@@ -349,9 +349,9 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
     while (iter_->Next()) {
       const SparseBatch &batch = iter_->Value();
       for (size_t i = 0; i < batch.size; ++i) {
-        if (ktop < buffered_rowset_.size() && 
+        if (ktop < buffered_rowset_.size() &&
             buffered_rowset_[ktop] == batch.base_rowid+i) {
-          ++ ktop;
+          ++ktop;
           SparseBatch::Inst inst = batch[i];
           for (bst_uint j = 0; j < inst.length; ++j) {
             builder.PushElem(inst[j].findex,

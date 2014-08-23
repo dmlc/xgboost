@@ -37,7 +37,7 @@ class Booster: public learner::BoostLearner<FMatrixS> {
     for (unsigned j = 0; j < ndata; ++j) {
       gpair_[j] = bst_gpair(grad[j], hess[j]);
     }
-    gbm_->DoBoost(gpair_, train.fmat, train.info.info);
+    gbm_->DoBoost(train.fmat, train.info.info, &gpair_);
   }
   inline void CheckInitModel(void) {
     if (!init_model) {

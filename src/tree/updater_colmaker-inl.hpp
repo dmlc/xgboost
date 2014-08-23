@@ -81,7 +81,7 @@ class ColMaker: public IUpdater<FMatrix> {
                         RegTree *p_tree) {
       this->InitData(gpair, fmat, info.root_index, *p_tree);
       this->InitNewNode(qexpand, gpair, fmat, *p_tree);
-      
+
       for (int depth = 0; depth < param.max_depth; ++depth) {
         this->FindSplit(depth, this->qexpand, gpair, fmat, p_tree);
         this->ResetPosition(this->qexpand, fmat, *p_tree);
@@ -89,7 +89,7 @@ class ColMaker: public IUpdater<FMatrix> {
         this->InitNewNode(qexpand, gpair, fmat, *p_tree);
         // if nothing left to be expand, break
         if (qexpand.size() == 0) break;
-      }    
+      }
       // set all the rest expanding nodes to leaf
       for (size_t i = 0; i < qexpand.size(); ++i) {
         const int nid = qexpand[i];
@@ -182,7 +182,7 @@ class ColMaker: public IUpdater<FMatrix> {
         }
         snode.resize(tree.param.num_nodes, NodeEntry());
       }
-      const std::vector<bst_uint> &rowset = fmat.buffered_rowset();      
+      const std::vector<bst_uint> &rowset = fmat.buffered_rowset();
       // setup position
       const unsigned ndata = static_cast<unsigned>(rowset.size());
       #pragma omp parallel for schedule(static)
@@ -316,8 +316,8 @@ class ColMaker: public IUpdater<FMatrix> {
       // step 1, set default direct nodes to default, and leaf nodes to -1
       const unsigned ndata = static_cast<unsigned>(rowset.size());
       #pragma omp parallel for schedule(static)
-      for (unsigned i = 0; i < ndata; ++i) {        
-        const bst_uint ridx = rowset[i];        
+      for (unsigned i = 0; i < ndata; ++i) {
+        const bst_uint ridx = rowset[i];
         const int nid = position[ridx];
         if (nid >= 0) {
           if (tree[nid].is_leaf()) {
