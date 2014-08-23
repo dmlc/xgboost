@@ -5,8 +5,9 @@ This folder provides wrapper of xgboost to other languages
 
 Python
 =====
-To make the python module, type ```make``` in the root directory of project
+* To make the python module, type ```make``` in the root directory of project
 
 R 
 =====
-To make the R wrapper, type ```make R``` in the root directory of project
+* To make the R wrapper, type ```make R``` in the root directory of project
+* R module need Rinternals.h, find the path in your system and add it to CPLUS_INCLUDE_PATH in Makefile
