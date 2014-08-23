@@ -164,7 +164,7 @@ class BoostLearner {
   inline void UpdateOneIter(int iter, const DMatrix<FMatrix> &train) {
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train.info, iter, &gpair_);
-    gbm_->DoBoost(gpair_, train.fmat, train.info.info);
+    gbm_->DoBoost(train.fmat, train.info.info, &gpair_);
   }
   /*!
    * \brief evaluate the model for specific iteration

@@ -28,7 +28,7 @@ struct EvalEWiseBase : public IEvaluator {
                  "label and prediction size not match");
     const unsigned ndata = static_cast<unsigned>(preds.size());
     float sum = 0.0, wsum = 0.0;
-    #pragma omp parallel for reduction(+:sum, wsum) schedule(static)
+    #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
     for (unsigned i = 0; i < ndata; ++i) {
       const float wt = info.GetWeight(i);
       sum += Derived::EvalRow(info.labels[i], preds[i]) * wt;

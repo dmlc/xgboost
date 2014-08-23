@@ -82,9 +82,10 @@ class GBTree : public IGradBooster<FMatrix> {
     utils::Assert(mparam.num_trees == 0, "GBTree: model already initialized");
     utils::Assert(trees.size() == 0, "GBTree: model already initialized");
   }
-  virtual void DoBoost(const std::vector<bst_gpair> &gpair,
-                       const FMatrix &fmat,
-                       const BoosterInfo &info) {
+  virtual void DoBoost(const FMatrix &fmat,
+                       const BoosterInfo &info,
+                       std::vector<bst_gpair> *in_gpair) {
+    const std::vector<bst_gpair> &gpair = *in_gpair;
     if (mparam.num_output_group == 1) {
       this->BoostNewTrees(gpair, fmat, info, 0);
     } else {
