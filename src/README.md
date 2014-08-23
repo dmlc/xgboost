@@ -1,5 +1,6 @@
 Coding Guide
 ======
+This file is intended to be notes about code structure in xgboost
 
 Project Logical Layout
 =======
