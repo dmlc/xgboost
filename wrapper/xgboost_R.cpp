@@ -165,14 +165,16 @@ extern "C" {
     std::vector<void*> vec_dmats;
     std::vector<std::string> vec_names;
     std::vector<const char*> vec_sptr;
-    for (int i = 0; i < len; ++i){
+    for (int i = 0; i < len; ++i) {
       vec_dmats.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
       vec_names.push_back(std::string(CHAR(asChar(VECTOR_ELT(evnames, i)))));
-      vec_sptr.push_back(vec_names.back().c_str());
+    }
+    for (int i = 0; i < len; ++i) {
+      vec_sptr.push_back(vec_names[i].c_str());
     }
     return mkString(XGBoosterEvalOneIter(R_ExternalPtrAddr(handle),
                                          asInteger(iter),
-                                         &vec_dmats[0], &vec_sptr[0], len)); 
+                                         &vec_dmats[0], &vec_sptr[0], len));
   }
   SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin) {
     size_t olen;
