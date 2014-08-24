@@ -65,8 +65,7 @@ class TreeRefresher: public IUpdater<FMatrix> {
         RegTree::FVec &feats = fvec_temp[tid];
         feats.Fill(inst);
         for (size_t j = 0; j < trees.size(); ++j) {
-          AddStats(*trees[j], feats, gpair[ridx],
-                   info.GetRoot(j),
+          AddStats(*trees[j], feats, gpair, info, ridx,
                    &stemp[tid * trees.size() + j]);
         }
         feats.Drop(inst);
@@ -95,31 +94,33 @@ class TreeRefresher: public IUpdater<FMatrix> {
  private:
   inline static void AddStats(const RegTree &tree,
                               const RegTree::FVec &feat,
-                              const bst_gpair &gpair, unsigned root_id,
+                              const std::vector<bst_gpair> &gpair,
+                              const BoosterInfo &info,
+                              const bst_uint ridx,
                               std::vector<GradStats> *p_gstats) {
     std::vector<GradStats> &gstats = *p_gstats;
     // start from groups that belongs to current data
-    int pid = static_cast<int>(root_id);
-    gstats[pid].Add(gpair);
+    int pid = static_cast<int>(info.GetRoot(ridx));
+    gstats[pid].Add(gpair, info, ridx);
     // tranverse tree
     while (!tree[pid].is_leaf()) {
       unsigned split_index = tree[pid].split_index();
       pid = tree.GetNext(pid, feat.fvalue(split_index), feat.is_missing(split_index));
-      gstats[pid].Add(gpair);
+      gstats[pid].Add(gpair, info, ridx);
     }
   }
   inline void Refresh(const std::vector<GradStats> &gstats,
                       int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
-    tree.stat(nid).base_weight = param.CalcWeight(gstats[nid]);
+    tree.stat(nid).base_weight = gstats[nid].CalcWeight(param);
     tree.stat(nid).sum_hess = static_cast<float>(gstats[nid].sum_hess);
     if (tree[nid].is_leaf()) {
       tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
     } else {
       tree.stat(nid).loss_chg =
-          param.CalcGain(gstats[tree[nid].cleft()]) +
-          param.CalcGain(gstats[tree[nid].cright()]) -
-          param.CalcGain(gstats[nid]);
+          gstats[tree[nid].cleft()].CalcGain(param) +
+          gstats[tree[nid].cright()].CalcGain(param) -
+          gstats[nid].CalcGain(param);
       this->Refresh(gstats, tree[nid].cleft(), p_tree);
       this->Refresh(gstats, tree[nid].cright(), p_tree);
     }

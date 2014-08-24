@@ -11,45 +11,6 @@
 namespace xgboost {
 namespace tree {
 
-/*! \brief core statistics used for tree construction */
-struct GradStats {
-  /*! \brief sum gradient statistics */
-  double sum_grad;
-  /*! \brief sum hessian statistics */
-  double sum_hess;
-  /*! \brief constructor */
-  GradStats(void) {
-    this->Clear();
-  }
-  /*! \brief clear the statistics */
-  inline void Clear(void) {
-    sum_grad = sum_hess = 0.0f;
-  }
-  /*! \brief add statistics to the data */
-  inline void Add(double grad, double hess) {
-    sum_grad += grad; sum_hess += hess;
-  }
-  /*! \brief add statistics to the data */
-  inline void Add(const bst_gpair& b) {
-    this->Add(b.grad, b.hess);
-  }
-  /*! \brief add statistics to the data */
-  inline void Add(const GradStats &b) {
-    this->Add(b.sum_grad, b.sum_hess);
-  }
-  /*! \brief substract the statistics by b */
-  inline GradStats Substract(const GradStats &b) const {
-    GradStats res;
-    res.sum_grad = this->sum_grad - b.sum_grad;
-    res.sum_hess = this->sum_hess - b.sum_hess;
-    return res;
-  }
-  /*! \return whether the statistics is not used yet */
-  inline bool Empty(void) const {
-    return sum_hess == 0.0;
-  }
-};
-
 /*! \brief training parameters for regression tree */
 struct TrainParam{
   // learning step size for a time
@@ -165,13 +126,6 @@ struct TrainParam{
   inline bool cannot_split(double sum_hess, int depth) const {
     return sum_hess < this->min_child_weight * 2.0;
   }
-  // code support for template data
-  inline double CalcWeight(const GradStats &d) const {
-    return this->CalcWeight(d.sum_grad, d.sum_hess);
-  }
-  inline double CalcGain(const GradStats &d) const {
-    return this->CalcGain(d.sum_grad, d.sum_hess);
-  }
 
  protected:
   // functions for L1 cost
@@ -182,6 +136,61 @@ struct TrainParam{
   }
   inline static double Sqr(double a) {
     return a * a;
+  }
+};
+
+/*! \brief core statistics used for tree construction */
+struct GradStats {
+  /*! \brief sum gradient statistics */
+  double sum_grad;
+  /*! \brief sum hessian statistics */
+  double sum_hess;
+  /*! \brief constructor */
+  GradStats(void) {
+    this->Clear();
+  }
+  /*! \brief clear the statistics */
+  inline void Clear(void) {
+    sum_grad = sum_hess = 0.0f;
+  }
+  /*!
+   * \brief accumulate statistics,
+   * \param gpair the vector storing the gradient statistics
+   * \param info the additional information 
+   * \param ridx instance index of this instance
+   */
+  inline void Add(const std::vector<bst_gpair> &gpair,
+                  const BoosterInfo &info,
+                  bst_uint ridx) {
+    const bst_gpair &b = gpair[ridx];
+    this->Add(b.grad, b.hess);
+  }
+  /*! \brief caculate leaf weight */
+  inline double CalcWeight(const TrainParam &param) const {
+    return param.CalcWeight(sum_grad, sum_hess);
+  }
+  /*!\brief calculate gain of the solution */
+  inline double CalcGain(const TrainParam &param) const {
+    return param.CalcGain(sum_grad, sum_hess);
+  }
+  /*! \brief add statistics to the data */
+  inline void Add(double grad, double hess) {
+    sum_grad += grad; sum_hess += hess;
+  }  
+  /*! \brief add statistics to the data */
+  inline void Add(const GradStats &b) {
+    this->Add(b.sum_grad, b.sum_hess);
+  }
+  /*! \brief substract the statistics by b */
+  inline GradStats Substract(const GradStats &b) const {
+    GradStats res;
+    res.sum_grad = this->sum_grad - b.sum_grad;
+    res.sum_hess = this->sum_hess - b.sum_hess;
+    return res;
+  }
+  /*! \return whether the statistics is not used yet */
+  inline bool Empty(void) const {
+    return sum_hess == 0.0;
   }
 };
 
