@@ -39,3 +39,8 @@ Version
   - This means the model and buffer file of previous version can not be loaded in xgboost-unity
 * For legacy 0.2x code, refer to [Here](https://github.com/tqchen/xgboost/releases/tag/v0.22)
 * Change log in [CHANGES.md](CHANGES.md)
+
+XGBoost in Graphlab Create
+======
+* XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to data manipulation, graph processing, hyper-parameter search, and visualization of big data in one framework. Try the Graphlab Create in http://graphlab.com/products/create/quick-start-guide.html
+* Nice blogpost by Jay Gu using GLC boosted tree to solve kaggle bike sharing challenge: http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand
