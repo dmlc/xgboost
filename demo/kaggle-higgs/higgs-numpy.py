@@ -53,7 +53,7 @@ plst = list(param.items())+[('eval_metric', 'ams@0.15')]
 
 watchlist = [ (xgmat,'train') ]
 # boost 120 tres
-num_round = 2
+num_round = 120
 print ('loading data end, start to boost trees')
 bst = xgb.train( plst, xgmat, num_round, watchlist );
 # save out model
