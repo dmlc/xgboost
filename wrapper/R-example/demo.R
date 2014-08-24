@@ -4,6 +4,7 @@ source("../xgboost.R", chdir=TRUE)
 # helper function to read libsvm format
 # this is very badly written, load in dense, and convert to sparse
 # use this only for demo purpose
+# adopted from https://github.com/zygmuntz/r-libsvm-format-read-write/blob/master/f_read.libsvm.r
 read.libsvm <- function(fname, maxcol) {
   content <- readLines(fname)
   nline <- length(content)
