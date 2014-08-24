@@ -21,8 +21,7 @@ idx = dtest[:,0]
 
 print ('finish loading from csv ')
 xgmat = xgb.DMatrix( data, missing = -999.0 )
-bst = xgb.Booster({'nthread':16})
-bst.load_model( modelfile )
+bst = xgb.Booster({'nthread':16}, model_file = modelfile)
 ypred = bst.predict( xgmat )
 
 res  = [ ( int(idx[i]), ypred[i] ) for i in range(len(ypred)) ] 
