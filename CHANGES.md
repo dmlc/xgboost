@@ -19,3 +19,4 @@ xgboost-unity
 * Experimental version of LambdaRank
 * Linear booster is now parallelized, using parallel coordinated descent.
 * Add [Code Guide](src/README.md) for customizing objective function and evaluation
+* Add R module
