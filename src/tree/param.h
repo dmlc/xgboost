@@ -145,8 +145,8 @@ struct GradStats {
   double sum_grad;
   /*! \brief sum hessian statistics */
   double sum_hess;
-  /*! \brief constructor */
-  GradStats(void) {
+  /*! \brief constructor, the object must be cleared during construction */
+  explicit GradStats(const TrainParam &param) {
     this->Clear();
   }
   /*! \brief clear the statistics */
@@ -169,28 +169,30 @@ struct GradStats {
   inline double CalcWeight(const TrainParam &param) const {
     return param.CalcWeight(sum_grad, sum_hess);
   }
-  /*!\brief calculate gain of the solution */
+  /*! \brief calculate gain of the solution */
   inline double CalcGain(const TrainParam &param) const {
     return param.CalcGain(sum_grad, sum_hess);
   }
   /*! \brief add statistics to the data */
-  inline void Add(double grad, double hess) {
-    sum_grad += grad; sum_hess += hess;
-  }  
-  /*! \brief add statistics to the data */
   inline void Add(const GradStats &b) {
     this->Add(b.sum_grad, b.sum_hess);
   }
-  /*! \brief substract the statistics by b */
-  inline GradStats Substract(const GradStats &b) const {
-    GradStats res;
-    res.sum_grad = this->sum_grad - b.sum_grad;
-    res.sum_hess = this->sum_hess - b.sum_hess;
-    return res;
+  /*! \brief set current value to a - b */
+  inline void SetSubstract(const GradStats &a, const GradStats &b) {
+    sum_grad = a.sum_grad - b.sum_grad;
+    sum_hess = a.sum_hess - b.sum_hess;
   }
   /*! \return whether the statistics is not used yet */
   inline bool Empty(void) const {
     return sum_hess == 0.0;
+  }
+  /*! \brief set leaf vector value based on statistics */
+  inline void SetLeafVec(const TrainParam &param, bst_float *vec) const{
+  }
+ protected:
+  /*! \brief add statistics to the data */
+  inline void Add(double grad, double hess) {
+    sum_grad += grad; sum_hess += hess;
   }
 };
 

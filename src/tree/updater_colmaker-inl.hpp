@@ -51,8 +51,8 @@ class ColMaker: public IUpdater<FMatrix> {
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    ThreadEntry(void) {
-      stats.Clear();
+    explicit ThreadEntry(const TrainParam &param)
+        : stats(param) {
     }
   };
   struct NodeEntry {
@@ -65,8 +65,8 @@ class ColMaker: public IUpdater<FMatrix> {
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    NodeEntry(void) : root_gain(0.0f), weight(0.0f){
-      stats.Clear();
+    explicit NodeEntry(const TrainParam &param)
+        : stats(param), root_gain(0.0f), weight(0.0f){
     }
   };
   // actual builder that runs the algorithm
@@ -100,6 +100,7 @@ class ColMaker: public IUpdater<FMatrix> {
         p_tree->stat(nid).loss_chg = snode[nid].best.loss_chg;
         p_tree->stat(nid).base_weight = snode[nid].weight;
         p_tree->stat(nid).sum_hess = static_cast<float>(snode[nid].stats.sum_hess);
+        snode[nid].stats.SetLeafVec(param, p_tree->leafvec(nid));
       }
     }
 
@@ -179,9 +180,9 @@ class ColMaker: public IUpdater<FMatrix> {
                             const RegTree &tree) {
       {// setup statistics space for each tree node
         for (size_t i = 0; i < stemp.size(); ++i) {
-          stemp[i].resize(tree.param.num_nodes, ThreadEntry());
+          stemp[i].resize(tree.param.num_nodes, ThreadEntry(param));
         }
-        snode.resize(tree.param.num_nodes, NodeEntry());
+        snode.resize(tree.param.num_nodes, NodeEntry(param));
       }
       const std::vector<bst_uint> &rowset = fmat.buffered_rowset();
       // setup position
@@ -196,7 +197,7 @@ class ColMaker: public IUpdater<FMatrix> {
       // sum the per thread statistics together
       for (size_t j = 0; j < qexpand.size(); ++j) {
         const int nid = qexpand[j];
-        TStats stats; stats.Clear();
+        TStats stats(param);
         for (size_t tid = 0; tid < stemp.size(); ++tid) {
           stats.Add(stemp[tid][nid].stats);
         }
@@ -231,6 +232,8 @@ class ColMaker: public IUpdater<FMatrix> {
       for (size_t j = 0; j < qexpand.size(); ++j) {
         temp[qexpand[j]].stats.Clear();
       }
+      // left statistics
+      TStats c(param);
       while (it.Next()) {
         const bst_uint ridx = it.rindex();
         const int nid = position[ridx];
@@ -246,7 +249,7 @@ class ColMaker: public IUpdater<FMatrix> {
         } else {
           // try to find a split
           if (fabsf(fvalue - e.last_fvalue) > rt_2eps && e.stats.sum_hess >= param.min_child_weight) {
-            TStats c = snode[nid].stats.Substract(e.stats);
+            c.SetSubstract(snode[nid].stats, e.stats);
             if (c.sum_hess >= param.min_child_weight) {
               double loss_chg = e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain;
               e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f, !is_forward_search);
@@ -261,7 +264,7 @@ class ColMaker: public IUpdater<FMatrix> {
       for (size_t i = 0; i < qexpand.size(); ++i) {
         const int nid = qexpand[i];
         ThreadEntry &e = temp[nid];
-        TStats c = snode[nid].stats.Substract(e.stats);
+        c.SetSubstract(snode[nid].stats, e.stats);
         if (e.stats.sum_hess >= param.min_child_weight && c.sum_hess >= param.min_child_weight) {
           const double loss_chg = e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain;
           const float delta = is_forward_search ? rt_eps : -rt_eps;

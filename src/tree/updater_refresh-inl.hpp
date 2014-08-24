@@ -44,8 +44,8 @@ class TreeRefresher: public IUpdater<FMatrix> {
       int tid = omp_get_thread_num();
       for (size_t i = 0; i < trees.size(); ++i) {
         std::vector<TStats> &vec = stemp[tid * trees.size() + i];
-        vec.resize(trees[i]->param.num_nodes);
-        std::fill(vec.begin(), vec.end(), TStats());
+        vec.resize(trees[i]->param.num_nodes, TStats(param));
+        std::fill(vec.begin(), vec.end(), TStats(param));
       }
       fvec_temp[tid].Init(trees[0]->param.num_feature);
     }
@@ -114,6 +114,7 @@ class TreeRefresher: public IUpdater<FMatrix> {
     RegTree &tree = *p_tree;
     tree.stat(nid).base_weight = gstats[nid].CalcWeight(param);
     tree.stat(nid).sum_hess = static_cast<float>(gstats[nid].sum_hess);
+    gstats[nid].SetLeafVec(param, tree.leafvec(nid));
     if (tree[nid].is_leaf()) {
       tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
     } else {
