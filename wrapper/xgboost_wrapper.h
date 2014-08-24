@@ -16,7 +16,6 @@ extern "C" {
   void* XGDMatrixCreateFromFile(const char *fname, int silent);
   /*! 
    * \brief create a matrix content from csr format
-   * \param handle a instance of data matrix
    * \param indptr pointer to row headers
    * \param indices findex
    * \param data fvalue
@@ -31,7 +30,6 @@ extern "C" {
                                size_t nelem);
   /*!
    * \brief create matrix content from dense matrix
-   * \param handle a instance of data matrix
    * \param data pointer to the data space
    * \param nrow number of rows
    * \param ncol number columns
@@ -81,8 +79,8 @@ extern "C" {
   /*!
    * \brief get float info vector from matrix
    * \param handle a instance of data matrix
-   * \param len used to set result length
    * \param field field name
+   * \param out_len used to set result length
    * \return pointer to the label
    */
   const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, size_t* out_len);
@@ -114,7 +112,7 @@ extern "C" {
    * \param handle handle
    * \param iter current iteration rounds
    * \param dtrain training data
-   */        
+   */
   void XGBoosterUpdateOneIter(void *handle, int iter, void *dtrain);
   /*!
    * \brief update the model, by directly specify gradient and second order gradient,
@@ -127,7 +125,7 @@ extern "C" {
    */
   void XGBoosterBoostOneIter(void *handle, void *dtrain,
                              float *grad, float *hess, size_t len);
-  /*! 
+  /*!
    * \brief get evaluation statistics for xgboost
    * \param handle handle
    * \param iter current iteration rounds
@@ -135,7 +133,7 @@ extern "C" {
    * \param evnames pointers to names of each data
    * \param len length of dmats
    * \return the string containing evaluation stati
-   */        
+   */
   const char *XGBoosterEvalOneIter(void *handle, int iter, void *dmats[],
                                    const char *evnames[], size_t len);
   /*!
@@ -165,7 +163,7 @@ extern "C" {
    * \param out_len length of output array
    * \return char *data[], representing dump of each model
    */
-  const char** XGBoosterDumpModel(void *handle, const char *fmap,
+  const char **XGBoosterDumpModel(void *handle, const char *fmap,
                                   size_t *out_len);
 };
 #endif  // XGBOOST_WRAPPER_H_

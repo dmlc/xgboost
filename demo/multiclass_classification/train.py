@@ -1,7 +1,7 @@
 #! /usr/bin/python
 import sys
 import numpy as np
-sys.path.append('../../python/')
+sys.path.append('../../wrapper/')
 import xgboost as xgb
 
 # label need to be 0 to num_class -1
