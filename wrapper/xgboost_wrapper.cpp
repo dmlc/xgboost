@@ -225,7 +225,6 @@ extern "C"{
     for (size_t i = 0; i < len; ++i) {
       mats.push_back(static_cast<DataMatrix*>(dmats[i]));
       names.push_back(std::string(evnames[i]));
-      printf("add names: %s\n", names.back().c_str());
     }
     bst->CheckInitModel();
     bst->eval_str = bst->EvalOneIter(iter, mats, names);
