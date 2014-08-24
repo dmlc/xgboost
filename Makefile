@@ -3,7 +3,6 @@ export CXX = g++
 export LDFLAGS= -pthread -lm 
 # note for R module
 # add include path to Rinternals.h here
-export CPLUS_INCLUDE_PATH=/usr/share/R/include
 
 ifeq ($(no_omp),1)
 	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -DDISABLE_OPENMP 
@@ -14,7 +13,8 @@ endif
 # specify tensor path
 BIN = xgboost
 OBJ = 
-SLIB = wrapper/libxgboostwrapper.so wrapper/libxgboostR.so
+SLIB = wrapper/libxgboostwrapper.so 
+RLIB = wrapper/libxgboostR.so 
 .PHONY: clean all R
 
 all: $(BIN) wrapper/libxgboostwrapper.so
@@ -31,6 +31,9 @@ $(BIN) :
 $(SLIB) :
 	$(CXX) $(CFLAGS) -fPIC $(LDFLAGS) -shared -o $@ $(filter %.cpp %.o %.c, $^)
 
+$(RLIB) :
+	R CMD SHLIB -c -o $@ $(filter %.cpp %.o %.c, $^)
+
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) )
 
@@ -38,4 +41,4 @@ install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
 
 clean:
-	$(RM) $(OBJ) $(BIN) $(SLIB) *~ */*~ */*/*~
+	$(RM) $(OBJ) $(BIN) $(SLIB) $(RLIB) *~ */*~ */*/*~
