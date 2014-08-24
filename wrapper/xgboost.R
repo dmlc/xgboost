@@ -1,18 +1,27 @@
+# depends on matrix
+succ <- require("Matrix")
+if (!succ) {
+  stop("xgboost depends on Matrix library")
+}
 # load in library
 dyn.load("./libxgboostR.so")
 
 # constructing DMatrix
-xgb.DMatrix <- function(data, info=list()) {
+xgb.DMatrix <- function(data, info=list(), missing=0.0) {
   if (typeof(data) == "character") {
     handle <- .Call("XGDMatrixCreateFromFile_R", data, as.integer(FALSE))
-  }else {
+  } else if(is.matrix(data)) {
+    handle <- .Call("XGDMatrixCreateFromMat_R", data, missing)
+  } else if(class(data) == "dgCMatrix") {
+    handle <- .Call("XGDMatrixCreateFromCSC_R", data@p, data@i, data@x)
+  } else {
     stop(paste("xgb.DMatrix: does not support to construct from ", typeof(data)))
   }
-  dmat = structure(handle, class="xgb.DMatrix")
+  dmat <- structure(handle, class="xgb.DMatrix")
   if (length(info) != 0) {
     for (i in 1:length(info)) {
-      p = info[i]
-      xgb.setinfo(dmat, names(p), p)
+      p <- info[i]
+      xgb.setinfo(dmat, names(p), p[[1]])
     }
   }
   return(dmat)
@@ -68,9 +77,10 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
     }
   }
   handle <- .Call("XGBoosterCreate_R", cachelist)
+  .Call("XGBoosterSetParam_R", handle, "seed", "0")
   if (length(params) != 0) {
     for (i in 1:length(params)) {
-      p = params[i]
+      p <- params[i]
       .Call("XGBoosterSetParam_R", handle, names(p), as.character(p))
     }
   }
@@ -95,8 +105,8 @@ xgb.train <- function(params, dtrain, nrounds=10, watchlist=list(), obj=NULL, fe
     if (is.null(obj)) {
       succ <- xgb.iter.update(bst, dtrain, i-1)
     } else {
-      pred = xgb.predict(bst, dtrain)
-      gpair = obj(pred, dtrain)
+      pred <- xgb.predict(bst, dtrain)
+      gpair <- obj(pred, dtrain)
       succ <- xgb.iter.boost(bst, dtrain, gpair)
     }
     if (length(watchlist) != 0) {
@@ -139,13 +149,24 @@ xgb.save <- function(handle, fname) {
 # predict 
 xgb.predict <- function(booster, dmat, outputmargin = FALSE) {
   if (class(booster) != "xgb.Booster") {
-    stop("xgb.iter.update: first argument must be type xgb.Booster")
+    stop("xgb.predict: first argument must be type xgb.Booster")
   }
   if (class(dmat) != "xgb.DMatrix") {
-    stop("xgb.iter.update: second argument must be type xgb.DMatrix")
+    stop("xgb.predict: second argument must be type xgb.DMatrix")
   }
-  ret = .Call("XGBoosterPredict_R", booster, dmat, as.integer(outputmargin))
+  ret <- .Call("XGBoosterPredict_R", booster, dmat, as.integer(outputmargin))
   return(ret)
+}
+# dump model
+xgb.dump <- function(booster, fname, fmap = "") {
+  if (class(booster) != "xgb.Booster") {
+    stop("xgb.dump: first argument must be type xgb.Booster")
+  }
+  if (typeof(fname) != "character"){
+    stop("xgb.dump: second argument must be type character")
+  }
+  .Call("XGBoosterDumpModel_R", booster, fname, fmap)
+  return(TRUE)
 }
 ##--------------------------------------
 # the following are low level iteratively function, not needed
