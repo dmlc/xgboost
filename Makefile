@@ -7,8 +7,11 @@ export LDFLAGS= -pthread -lm
 ifeq ($(no_omp),1)
 	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -DDISABLE_OPENMP 
 else
-	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fopenmp
+	export CFLAGS = -Wall -O3 -msse2 -Wno-unknown-pragmas -fopenmp
 endif
+
+# expose these flags to R CMD SHLIB
+export PKG_CPPFLAGS = $(CFLAGS)
 
 # specify tensor path
 BIN = xgboost
