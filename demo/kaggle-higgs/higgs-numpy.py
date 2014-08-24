@@ -6,7 +6,7 @@ import sys
 import numpy as np
 # add path of xgboost python module
 code_path = os.path.join(
-    os.path.split(inspect.getfile(inspect.currentframe()))[0], "../../python")
+    os.path.split(inspect.getfile(inspect.currentframe()))[0], "../../wrapper")
 
 sys.path.append(code_path)
 
