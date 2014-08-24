@@ -127,7 +127,7 @@ class DMatrix:
 
 class Booster:
     """learner class """
-    def __init__(self, params={}, cache=[], model_name = None):
+    def __init__(self, params={}, cache=[], model_file = None):
         """ constructor, param: """
         for d in cache:
             assert isinstance(d, DMatrix)
@@ -135,8 +135,8 @@ class Booster:
         self.handle = ctypes.c_void_p(xglib.XGBoosterCreate(dmats, len(cache)))
         self.set_param({'seed':0})
         self.set_param(params)
-        if model_name != None:
-            self.load_model(model_name)
+        if model_file != None:
+            self.load_model(model_file)
     def __del__(self):
         xglib.XGBoosterFree(self.handle)
     def set_param(self, params, pv=None):

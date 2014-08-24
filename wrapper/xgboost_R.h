@@ -18,6 +18,25 @@ extern "C" {
    */
   SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent);
   /*!
+   * \brief create matrix content from dense matrix
+   * This assumes the matrix is stored in column major format
+   * \param data R Matrix object
+   * \param missing which value to represent missing value
+   * \return created dmatrix
+   */
+  SEXP XGDMatrixCreateFromMat_R(SEXP mat, 
+                                SEXP missing);
+  /*! 
+   * \brief create a matrix content from CSC format
+   * \param indptr pointer to column headers
+   * \param indices row indices
+   * \param data content of the data
+   * \return created dmatrix
+   */
+  SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
+                                SEXP indices,
+                                SEXP data);
+  /*!
    * \brief load a data matrix into binary file
    * \param handle a instance of data matrix
    * \param fname file name

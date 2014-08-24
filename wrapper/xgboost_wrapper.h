@@ -16,7 +16,6 @@ extern "C" {
   void* XGDMatrixCreateFromFile(const char *fname, int silent);
   /*! 
    * \brief create a matrix content from csr format
-   * \param handle a instance of data matrix
    * \param indptr pointer to row headers
    * \param indices findex
    * \param data fvalue
@@ -31,7 +30,6 @@ extern "C" {
                                size_t nelem);
   /*!
    * \brief create matrix content from dense matrix
-   * \param handle a instance of data matrix
    * \param data pointer to the data space
    * \param nrow number of rows
    * \param ncol number columns

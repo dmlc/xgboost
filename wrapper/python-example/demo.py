@@ -30,6 +30,16 @@ bst.dump_model('dump.raw.txt')
 # dump model with feature map
 bst.dump_model('dump.nice.txt','featmap.txt')
 
+# save dmatrix into binary buffer
+dtest.save_binary('dtest.buffer')
+bst.save_model('xgb.model')
+# load model and data in 
+bst2 = xgb.Booster(model_file='xgb.model')
+dtest2 = xgb.DMatrix('dtest.buffer')
+preds2 = bst2.predict(dtest2)
+# assert they are the same
+assert np.sum(np.abs(preds2-preds)) == 0
+
 ###
 # build dmatrix from scipy.sparse
 print ('start running example of build DMatrix from scipy.sparse')
@@ -91,7 +101,6 @@ def evalerror(preds, dtrain):
 # training with customized objective, we can also do step by step training
 # simply look at xgboost.py's implementation of train
 bst = xgb.train(param, dtrain, num_round, evallist, logregobj, evalerror)
-
 
 ###
 # advanced: start from a initial base prediction
