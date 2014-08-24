@@ -48,15 +48,15 @@ xgb.setinfo <- function(dmat, name, info) {
     stop("xgb.setinfo: first argument dtrain must be xgb.DMatrix");
   }
   if (name == "label") {
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.real(info))
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info))
     return(TRUE)
   }
   if (name == "weight") {
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.real(info))
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info))
     return(TRUE)
   }
   if (name == "base_margin") {
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.real(info))
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info))
     return(TRUE)
   }
   if (name == "group") {
@@ -214,7 +214,7 @@ xgb.iter.eval <- function(booster, watchlist, iter) {
       if (length(names(w)) == 0) {
         stop("xgb.eval: name tag must be presented for every elements in watchlist")
       }
-      evnames <- append(evnames, names(w))
+      evnames <- append(evnames, names(w))     
     }
   }
   msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist, evnames)
