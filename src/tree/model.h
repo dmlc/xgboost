@@ -270,6 +270,7 @@ class TreeModel {
     param.num_nodes = param.num_roots;
     nodes.resize(param.num_nodes);
     stats.resize(param.num_nodes);
+    leaf_vector.resize(param.num_nodes * param.size_leaf_vector, 0.0f);
     for (int i = 0; i < param.num_nodes; i ++) {
       nodes[i].set_leaf(0.0f);
       nodes[i].set_parent(-1);

@@ -110,7 +110,7 @@ struct EvalAMS : public IEvaluator {
   }
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
-    const unsigned ndata = static_cast<unsigned>(preds.size());
+    const unsigned ndata = static_cast<unsigned>(info.labels.size());
     utils::Check(info.weights.size() == ndata, "we need weight to evaluate ams");
     std::vector< std::pair<float, unsigned> > rec(ndata);
 
@@ -207,10 +207,13 @@ struct EvalPrecisionRatio : public IEvaluator{
 struct EvalAuc : public IEvaluator {
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
-    utils::Check(preds.size() == info.labels.size(), "label size predict size not match");
-    std::vector<unsigned> tgptr(2, 0); tgptr[1] = preds.size();
+
+    utils::Check(info.labels.size() != 0, "label set cannot be empty");
+    utils::Check(preds.size() % info.labels.size() == 0,
+                 "label size predict size not match");
+    std::vector<unsigned> tgptr(2, 0); tgptr[1] = info.labels.size();
     const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
-    utils::Check(gptr.back() == preds.size(),
+    utils::Check(gptr.back() == info.labels.size(),
                  "EvalAuc: group structure must match number of prediction");
     const unsigned ngroup = static_cast<unsigned>(gptr.size() - 1);
     // sum statictis

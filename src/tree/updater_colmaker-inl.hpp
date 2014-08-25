@@ -82,7 +82,6 @@ class ColMaker: public IUpdater<FMatrix> {
                         RegTree *p_tree) {
       this->InitData(gpair, fmat, info.root_index, *p_tree);
       this->InitNewNode(qexpand, gpair, fmat, info, *p_tree);
-
       for (int depth = 0; depth < param.max_depth; ++depth) {
         this->FindSplit(depth, this->qexpand, gpair, fmat, info, p_tree);
         this->ResetPosition(this->qexpand, fmat, *p_tree);
