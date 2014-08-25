@@ -154,6 +154,9 @@ extern "C"{
       if (src.info.info.root_index.size() != 0) {
         ret.info.info.root_index.push_back(src.info.info.root_index[ridx]);
       }
+      if (src.info.info.fold_index.size() != 0) {
+        ret.info.info.fold_index.push_back(src.info.info.fold_index[ridx]);
+      }
     }
     return p_ret;
   }
