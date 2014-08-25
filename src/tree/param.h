@@ -244,6 +244,7 @@ struct CVGradStats : public GradStats {
   }
   /*! \brief calculate gain of the solution */
   inline double CalcGain(const TrainParam &param) const {
+    return param.CalcGain(train[0].sum_grad, train[0].sum_hess);
     double ret = 0.0;
     for (unsigned i = 0; i < vsize; ++i) {
       ret += param.CalcGain(train[i].sum_grad,

@@ -179,7 +179,7 @@ class DMatrixSimple : public DataMatrix {
    * \param savebuffer whether do save binary buffer if it is text
    */
   inline void CacheLoad(const char *fname, bool silent = false, bool savebuffer = true) {
-    int len = strlen(fname);
+    size_t len = strlen(fname);
     if (len > 8 && !strcmp(fname + len - 7, ".buffer")) {
       if (!this->LoadBinary(fname, silent)) {
         utils::Error("can not open file \"%s\"", fname);

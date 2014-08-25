@@ -221,7 +221,7 @@ class SoftmaxMultiClassObj : public IObjFunction {
           rec[k] = preds[j * nclass + k];
         }
         if (prob == 0) {
-          tmp[j] = FindMaxIndex(rec);
+          tmp[j] = static_cast<float>(FindMaxIndex(rec));
         } else {
           Softmax(&rec);
           for (int k = 0; k < nclass; ++k) {
@@ -259,7 +259,7 @@ class LambdaRankObj : public IObjFunction {
     std::vector<bst_gpair> &gpair = *out_gpair;
     gpair.resize(preds.size());
     // quick consistency when group is not available
-    std::vector<unsigned> tgptr(2, 0); tgptr[1] = info.labels.size();
+    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels.size());
     const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
     utils::Check(gptr.size() != 0 && gptr.back() == info.labels.size(),
                  "group structure not consistent with #rows");
@@ -290,7 +290,7 @@ class LambdaRankObj : public IObjFunction {
           unsigned j = i + 1;
           while (j < rec.size() && rec[j].first == rec[i].first) ++j;
           // bucket in [i,j), get a sample outside bucket
-          unsigned nleft = i, nright = rec.size() - j;
+          unsigned nleft = i, nright = static_cast<unsigned>(rec.size() - j);
           if (nleft + nright != 0) {
             int nsample = num_pairsample;
             while (nsample --) {
@@ -436,9 +436,9 @@ class LambdaRankObjNDCG : public LambdaRankObj {
   inline static float CalcDCG(const std::vector<float> &labels) {
     double sumdcg = 0.0;
     for (size_t i = 0; i < labels.size(); ++i) {
-      const unsigned rel = labels[i];
+      const unsigned rel = static_cast<unsigned>(labels[i]);
       if (rel != 0) {
-        sumdcg += ((1 << rel) - 1) / logf(i + 2);
+        sumdcg += ((1 << rel) - 1) / logf(static_cast<float>(i + 2));
       }
     }
     return static_cast<float>(sumdcg);
