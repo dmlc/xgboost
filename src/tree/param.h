@@ -100,9 +100,9 @@ struct TrainParam{
     double w = CalcWeight(sum_grad, sum_hess);
     double ret = test_grad * w  + 0.5 * (test_hess + reg_lambda) * Sqr(w);
     if (reg_alpha == 0.0f) {
-      return 2.0 * ret;
+      return - 2.0 * ret;
     } else {
-      return 2.0 * (ret + reg_alpha * std::abs(w));
+      return - 2.0 * (ret + reg_alpha * std::abs(w));
     }
   }
   // calculate weight given the statistics
@@ -206,15 +206,15 @@ struct GradStats {
 };
 
 /*! \brief vectorized cv statistics */
-template<int vsize>
+template<unsigned vsize>
 struct CVGradStats : public GradStats {
   // additional statistics
   GradStats train[vsize], valid[vsize];
   // constructor
-  explicit CVGradStats(const TrainParam &param) 
-      : GradStats(param) {
+  explicit CVGradStats(const TrainParam &param) {
     utils::Check(param.size_leaf_vector == vsize,
                  "CVGradStats: vsize must match size_leaf_vector");
+    this->Clear();
   }
   /*! \brief check if necessary information is ready */
   inline static void CheckInfo(const BoosterInfo &info) {
@@ -224,7 +224,7 @@ struct CVGradStats : public GradStats {
   /*! \brief clear the statistics */
   inline void Clear(void) {
     GradStats::Clear();
-    for (int i = 0; i < vsize; ++i) {
+    for (unsigned i = 0; i < vsize; ++i) {
       train[i].Clear(); valid[i].Clear();
     }
   }
@@ -233,7 +233,7 @@ struct CVGradStats : public GradStats {
                   bst_uint ridx) {
     GradStats::Add(gpair[ridx].grad, gpair[ridx].hess);
     const size_t step = info.fold_index.size();
-    for (int i = 0; i < vsize; ++i) {
+    for (unsigned i = 0; i < vsize; ++i) {
       const bst_gpair &b = gpair[(i + 1) * step + ridx];
       if (info.fold_index[ridx] == i) {
         valid[i].Add(b.grad, b.hess);
@@ -245,18 +245,18 @@ struct CVGradStats : public GradStats {
   /*! \brief calculate gain of the solution */
   inline double CalcGain(const TrainParam &param) const {
     double ret = 0.0;
-    for (int i = 0; i < vsize; ++i) {
+    for (unsigned i = 0; i < vsize; ++i) {
       ret += param.CalcGain(train[i].sum_grad,
                             train[i].sum_hess,
                             vsize * valid[i].sum_grad,
                             vsize * valid[i].sum_hess);      
     }
-    return ret;
+    return ret / vsize;
   }
   /*! \brief add statistics to the data */
   inline void Add(const CVGradStats &b) {
     GradStats::Add(b);
-    for (int i = 0; i < vsize; ++i) {
+    for (unsigned i = 0; i < vsize; ++i) {
       train[i].Add(b.train[i]);
       valid[i].Add(b.valid[i]);
     }
