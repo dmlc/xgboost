@@ -259,10 +259,12 @@ class TreeModel {
   }
   /*! \brief get leaf vector given nid */
   inline bst_float* leafvec(int nid) {
+    if (leaf_vector.size() == 0) return NULL;
     return &leaf_vector[nid * param.size_leaf_vector];
   }
   /*! \brief get leaf vector given nid */
   inline const bst_float* leafvec(int nid) const{
+    if (leaf_vector.size() == 0) return NULL;
     return &leaf_vector[nid * param.size_leaf_vector];
   }
   /*! \brief initialize the model */
