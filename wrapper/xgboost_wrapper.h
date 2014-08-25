@@ -70,6 +70,14 @@ extern "C" {
    */
   void XGDMatrixSetFloatInfo(void *handle, const char *field, const float *array, size_t len);
   /*!
+   * \brief set uint32 vector to a content in info
+   * \param handle a instance of data matrix
+   * \param field field name
+   * \param array pointer to float vector
+   * \param len length of array
+   */
+  void XGDMatrixSetUIntInfo(void *handle, const char *field, const unsigned *array, size_t len);
+  /*!
    * \brief set label of the training matrix
    * \param handle a instance of data matrix
    * \param group pointer to group size
@@ -81,9 +89,17 @@ extern "C" {
    * \param handle a instance of data matrix
    * \param field field name
    * \param out_len used to set result length
-   * \return pointer to the label
+   * \return pointer to the result
    */
   const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, size_t* out_len);
+  /*!
+   * \brief get uint32 info vector from matrix
+   * \param handle a instance of data matrix
+   * \param field field name
+   * \param out_len used to set result length
+   * \return pointer to the result
+   */
+  const unsigned* XGDMatrixGetUIntInfo(const void *handle, const char *field, size_t* out_len);
   /*!
    * \brief return number of rows
    */
