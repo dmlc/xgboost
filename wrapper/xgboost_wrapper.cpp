@@ -88,10 +88,10 @@ extern "C"{
     mat.row_data_.resize(nelem);
     for (size_t i = 0; i < nelem; ++i) {
       mat.row_data_[i] = SparseBatch::Entry(indices[i], data[i]);
-      mat.info.num_col = std::max(mat.info.num_col,
-                                  static_cast<size_t>(indices[i]+1));
+      mat.info.info.num_col = std::max(mat.info.info.num_col,
+                                       static_cast<size_t>(indices[i]+1));
     }
-    mat.info.num_row = nindptr - 1;
+    mat.info.info.num_row = nindptr - 1;
     return p_mat;
   }
   void* XGDMatrixCreateFromMat(const float *data,
@@ -100,8 +100,8 @@ extern "C"{
                                float  missing) {
     DMatrixSimple *p_mat = new DMatrixSimple();
     DMatrixSimple &mat = *p_mat;
-    mat.info.num_row = nrow;
-    mat.info.num_col = ncol;
+    mat.info.info.num_row = nrow;
+    mat.info.info.num_col = ncol;
     for (size_t i = 0; i < nrow; ++i, data += ncol) {
       size_t nelem = 0;
       for (size_t j = 0; j < ncol; ++j) {
@@ -130,8 +130,8 @@ extern "C"{
     utils::Check(src.info.group_ptr.size() == 0,
                  "slice does not support group structure");
     ret.Clear();
-    ret.info.num_row = len;
-    ret.info.num_col = src.info.num_col;
+    ret.info.info.num_row = len;
+    ret.info.info.num_col = src.info.num_col();
 
     utils::IIterator<SparseBatch> *iter = src.fmat.RowIterator();
     iter->BeforeFirst();
@@ -165,9 +165,15 @@ extern "C"{
   }
   void XGDMatrixSetFloatInfo(void *handle, const char *field, const float *info, size_t len) {
     std::vector<float> &vec = 
-        static_cast<DataMatrix*>(handle)->info.GetInfo(field);
+        static_cast<DataMatrix*>(handle)->info.GetFloatInfo(field);
     vec.resize(len);
     memcpy(&vec[0], info, sizeof(float) * len);
+  }
+  void XGDMatrixSetUIntInfo(void *handle, const char *field, const unsigned *info, size_t len) {
+    std::vector<unsigned> &vec =
+        static_cast<DataMatrix*>(handle)->info.GetUIntInfo(field);
+    vec.resize(len);
+    memcpy(&vec[0], info, sizeof(unsigned) * len);
   }
   void XGDMatrixSetGroup(void *handle, const unsigned *group, size_t len) {
     DataMatrix *pmat = static_cast<DataMatrix*>(handle);
@@ -179,12 +185,18 @@ extern "C"{
   }
   const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, size_t* len) {
     const std::vector<float> &vec =
-        static_cast<const DataMatrix*>(handle)->info.GetInfo(field);
+        static_cast<const DataMatrix*>(handle)->info.GetFloatInfo(field);
+    *len = vec.size();
+    return &vec[0];
+  }
+  const unsigned* XGDMatrixGetUIntInfo(const void *handle, const char *field, size_t* len) {
+    const std::vector<unsigned> &vec =
+        static_cast<const DataMatrix*>(handle)->info.GetUIntInfo(field);
     *len = vec.size();
     return &vec[0];
   }
   size_t XGDMatrixNumRow(const void *handle) {
-    return static_cast<const DataMatrix*>(handle)->info.num_row;
+    return static_cast<const DataMatrix*>(handle)->info.num_row();
   }
 
   // xgboost implementation
