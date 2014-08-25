@@ -203,8 +203,8 @@ class ColMaker: public IUpdater<FMatrix> {
         }
         // update node statistics
         snode[nid].stats = stats;
-        snode[nid].root_gain = stats.CalcGain(param);
-        snode[nid].weight = stats.CalcWeight(param);
+        snode[nid].root_gain = static_cast<float>(stats.CalcGain(param));
+        snode[nid].weight = static_cast<float>(stats.CalcWeight(param));
       }
     }
     /*! \brief update queue expand add in new leaves */
@@ -251,7 +251,7 @@ class ColMaker: public IUpdater<FMatrix> {
           if (fabsf(fvalue - e.last_fvalue) > rt_2eps && e.stats.sum_hess >= param.min_child_weight) {
             c.SetSubstract(snode[nid].stats, e.stats);
             if (c.sum_hess >= param.min_child_weight) {
-              double loss_chg = e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain;
+              bst_float loss_chg = static_cast<bst_float>(e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
               e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f, !is_forward_search);
             }
           }
@@ -266,7 +266,7 @@ class ColMaker: public IUpdater<FMatrix> {
         ThreadEntry &e = temp[nid];
         c.SetSubstract(snode[nid].stats, e.stats);
         if (e.stats.sum_hess >= param.min_child_weight && c.sum_hess >= param.min_child_weight) {
-          const double loss_chg = e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain;
+          bst_float loss_chg = static_cast<bst_float>(e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
           const float delta = is_forward_search ? rt_eps : -rt_eps;
           e.best.Update(loss_chg, fid, e.last_fvalue + delta, !is_forward_search);
         }

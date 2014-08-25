@@ -103,7 +103,7 @@ struct SparseBatch {
   const Entry *data_ptr;
   /*! \brief get i-th row from the batch */
   inline Inst operator[](size_t i) const {
-    return Inst(data_ptr + row_ptr[i], row_ptr[i+1] - row_ptr[i]);
+    return Inst(data_ptr + row_ptr[i], static_cast<bst_uint>(row_ptr[i+1] - row_ptr[i]));
   }
 };
 
@@ -341,7 +341,7 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
       const SparseBatch &batch = iter_->Value();
       for (size_t i = 0; i < batch.size; ++i) {
         if (pkeep == 1.0f || random::SampleBinary(pkeep)) {
-          buffered_rowset_.push_back(batch.base_rowid+i);
+          buffered_rowset_.push_back(static_cast<bst_uint>(batch.base_rowid+i));
           SparseBatch::Inst inst = batch[i];
           for (bst_uint j = 0; j < inst.length; ++j) {
             builder.AddBudget(inst[j].findex);

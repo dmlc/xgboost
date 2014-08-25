@@ -67,7 +67,7 @@ struct TrainParam{
     if (!strcmp(name, "min_child_weight")) min_child_weight = static_cast<float>(atof(val));
     if (!strcmp(name, "min_split_loss")) min_split_loss = static_cast<float>(atof(val));
     if (!strcmp(name, "reg_lambda")) reg_lambda = static_cast<float>(atof(val));
-    if (!strcmp(name, "reg_method")) reg_method = static_cast<float>(atof(val));
+    if (!strcmp(name, "reg_method")) reg_method = atoi(val);
     if (!strcmp(name, "subsample")) subsample = static_cast<float>(atof(val));
     if (!strcmp(name, "colsample_bylevel")) colsample_bylevel = static_cast<float>(atof(val));
     if (!strcmp(name, "colsample_bytree")) colsample_bytree  = static_cast<float>(atof(val));

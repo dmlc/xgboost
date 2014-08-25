@@ -330,7 +330,7 @@ class BoostLearner {
     for (size_t i = 0; i < cache_.size(); ++i) {
       if (cache_[i].mat_ == &mat && mat.cache_learner_ptr_ == this) {
         if (cache_[i].num_row_ == mat.info.num_row()) {
-          return cache_[i].buffer_offset_;
+          return static_cast<int64_t>(cache_[i].buffer_offset_);
         }
       }
     }
