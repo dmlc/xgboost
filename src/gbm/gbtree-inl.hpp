@@ -130,8 +130,8 @@ class GBTree : public IGradBooster<FMatrix> {
       for (unsigned i = 0; i < nsize; ++i) {
         const int tid = omp_get_thread_num();
         tree::RegTree::FVec &feats = thread_temp[tid];
-        const size_t ridx = batch.base_rowid + i;
-        utils::Assert(ridx < info.num_row, "data row index exceed bound");
+        int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
+        utils::Assert(static_cast<size_t>(ridx) < info.num_row, "data row index exceed bound");
         // loop over output groups
         for (int gid = 0; gid < mparam.num_output_group; ++gid) {
           this->Pred(batch[i],
@@ -168,15 +168,15 @@ class GBTree : public IGradBooster<FMatrix> {
     }
     updaters.clear();
     std::string tval = tparam.updater_seq;
-    char *saveptr, *pstr;
-    pstr = strtok_r(&tval[0], ",", &saveptr);
+    char *pstr;
+    pstr = strtok(&tval[0], ",");
     while (pstr != NULL) {
       updaters.push_back(tree::CreateUpdater<FMatrix>(pstr));
       for (size_t j = 0; j < cfg.size(); ++j) {
         // set parameters
         updaters.back()->SetParam(cfg[j].first.c_str(), cfg[j].second.c_str());
       }
-      pstr = strtok_r(NULL, ",", &saveptr);
+      pstr = strtok(NULL, ",");
     }
     tparam.updater_initialized = 1;
   }
@@ -217,7 +217,7 @@ class GBTree : public IGradBooster<FMatrix> {
     float  psum = 0.0f;
     // sum of leaf vector 
     std::vector<float> vec_psum(mparam.size_leaf_vector, 0.0f);
-    const int bid = mparam.BufferOffset(buffer_index, bst_group);
+    const int64_t bid = mparam.BufferOffset(buffer_index, bst_group);
     // load buffered results if any
     if (bid >= 0) {
       itop = pred_counter[bid];
@@ -336,7 +336,7 @@ class GBTree : public IGradBooster<FMatrix> {
      * \brief get the buffer offset given a buffer index and group id  
      * \return calculated buffer offset
      */
-    inline size_t BufferOffset(int64_t buffer_index, int bst_group) const {
+    inline int64_t BufferOffset(int64_t buffer_index, int bst_group) const {
       if (buffer_index < 0) return -1;
       utils::Check(buffer_index < num_pbuffer, "buffer_index exceed num_pbuffer");
       return (buffer_index + num_pbuffer * bst_group) * (size_leaf_vector + 1);

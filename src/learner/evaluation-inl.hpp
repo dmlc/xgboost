@@ -172,7 +172,7 @@ struct EvalAMS : public IEvaluator {
         b_fp += wt;
       }
       if (rec[i].first != rec[i+1].first) {
-        double ams = sqrtf(2*((s_tp+b_fp+br) * log(1.0 + s_tp/(b_fp+br)) - s_tp));
+        double ams = sqrt(2*((s_tp+b_fp+br) * log(1.0 + s_tp/(b_fp+br)) - s_tp));
         if (tams < ams) {
           thresindex = i;
           tams = ams;
@@ -181,9 +181,9 @@ struct EvalAMS : public IEvaluator {
     }
     if (ntop == ndata) {
       fprintf(stderr, "\tams-ratio=%g", static_cast<float>(thresindex) / ndata);
-      return tams;
+      return static_cast<float>(tams);
     } else {
-      return sqrtf(2*((s_tp+b_fp+br) * log(1.0 + s_tp/(b_fp+br)) - s_tp));
+      return static_cast<float>(sqrt(2*((s_tp+b_fp+br) * log(1.0 + s_tp/(b_fp+br)) - s_tp)));
     }
   }
   virtual const char *Name(void) const {
@@ -211,7 +211,7 @@ struct EvalPrecisionRatio : public IEvaluator{
     utils::Assert(preds.size() == info.labels.size(), "label size predict size not match");
     std::vector< std::pair<float, unsigned> > rec;
     for (size_t j = 0; j < preds.size(); ++j) {
-      rec.push_back(std::make_pair(preds[j], j));
+      rec.push_back(std::make_pair(preds[j], static_cast<unsigned>(j)));
     }
     std::sort(rec.begin(), rec.end(), CmpFirst);
     double pratio = CalcPRatio(rec, info);
@@ -246,11 +246,12 @@ struct EvalPrecisionRatio : public IEvaluator{
 struct EvalAuc : public IEvaluator {
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
-
     utils::Check(info.labels.size() != 0, "label set cannot be empty");
     utils::Check(preds.size() % info.labels.size() == 0,
                  "label size predict size not match");
-    std::vector<unsigned> tgptr(2, 0); tgptr[1] = info.labels.size();
+    std::vector<unsigned> tgptr(2, 0); 
+    tgptr[1] = static_cast<unsigned>(info.labels.size());
+
     const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
     utils::Check(gptr.back() == info.labels.size(),
                  "EvalAuc: group structure must match number of prediction");
@@ -307,7 +308,7 @@ struct EvalRankList : public IEvaluator {
     utils::Check(preds.size() == info.labels.size(),
                   "label size predict size not match");
     // quick consistency when group is not available
-    std::vector<unsigned> tgptr(2, 0); tgptr[1] = preds.size();
+    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(preds.size());
     const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
     utils::Assert(gptr.size() != 0, "must specify group when constructing rank file");
     utils::Assert(gptr.back() == preds.size(),
@@ -382,7 +383,7 @@ struct EvalNDCG : public EvalRankList{
     for (size_t i = 0; i < rec.size() && i < this->topn_; ++i) {
       const unsigned rel = rec[i].second;
       if (rel != 0) { 
-        sumdcg += ((1 << rel) - 1) / logf(i + 2);
+        sumdcg += ((1 << rel) - 1) / log(i + 2.0);
       }
     }
     return static_cast<float>(sumdcg);
