@@ -44,6 +44,10 @@ struct bst_gpair {
  * these information are not necessarily presented, and can be empty
  */
 struct BoosterInfo {
+  /*! \brief number of rows in the data */
+  size_t num_row;
+  /*! \brief number of columns in the data */
+  size_t num_col;
   /*!
    * \brief specified root index of each instance,
    *  can be used for multi task setting
@@ -51,6 +55,9 @@ struct BoosterInfo {
   std::vector<unsigned> root_index;
   /*! \brief set fold indicator */
   std::vector<unsigned> fold_index;
+  /*! \brief number of rows, number of columns */
+  BoosterInfo(void) : num_row(0), num_col(0) {
+  }
   /*! \brief get root of ith instance */
   inline unsigned GetRoot(size_t i) const {
     return root_index.size() == 0 ? 0 : root_index[i];

@@ -135,7 +135,7 @@ class GBTree : public IGradBooster<FMatrix> {
         const int tid = omp_get_thread_num();
         tree::RegTree::FVec &feats = thread_temp[tid];
         const size_t ridx = batch.base_rowid + i;
-        const unsigned root_idx = info.GetRoot(i);
+        const unsigned root_idx = info.GetRoot(ridx);
         // loop over output groups
         for (int gid = 0; gid < mparam.num_output_group; ++gid) {
           preds[ridx * mparam.num_output_group + gid] =
