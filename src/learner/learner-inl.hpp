@@ -58,9 +58,9 @@ class BoostLearner {
       if (dupilicate) continue;
       // set mats[i]'s cache learner pointer to this
       mats[i]->cache_learner_ptr_ = this;
-      cache_.push_back(CacheEntry(mats[i], buffer_size, mats[i]->info.num_row));
-      buffer_size += mats[i]->info.num_row;
-      num_feature = std::max(num_feature, static_cast<unsigned>(mats[i]->info.num_col));
+      cache_.push_back(CacheEntry(mats[i], buffer_size, mats[i]->info.num_row()));
+      buffer_size += mats[i]->info.num_row();
+      num_feature = std::max(num_feature, static_cast<unsigned>(mats[i]->info.num_col()));
     }
     char str_temp[25];
     if (num_feature > mparam.num_feature) {
@@ -329,7 +329,7 @@ class BoostLearner {
   inline int64_t FindBufferOffset(const DMatrix<FMatrix> &mat) const {
     for (size_t i = 0; i < cache_.size(); ++i) {
       if (cache_[i].mat_ == &mat && mat.cache_learner_ptr_ == this) {
-        if (cache_[i].num_row_ == mat.info.num_row) {
+        if (cache_[i].num_row_ == mat.info.num_row()) {
           return cache_[i].buffer_offset_;
         }
       }
