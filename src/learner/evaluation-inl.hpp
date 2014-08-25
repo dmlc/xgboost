@@ -115,6 +115,7 @@ struct EvalCTest: public IEvaluator {
     utils::Check(preds.size() % info.labels.size() == 0,
                  "label and prediction size not match");
     size_t ngroup = preds.size() / info.labels.size() - 1;
+    ngroup = 1;
     const unsigned ndata = static_cast<unsigned>(info.labels.size());
     utils::Check(ngroup > 1, "pred size does not meet requirement");
     utils::Check(ndata == info.info.fold_index.size(), "need fold index");
@@ -208,9 +209,11 @@ struct EvalPrecisionRatio : public IEvaluator{
   }
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
-    utils::Assert(preds.size() == info.labels.size(), "label size predict size not match");
+    utils::Check(info.labels.size() != 0, "label set cannot be empty");    
+    utils::Assert(preds.size() % info.labels.size() == 0,
+                  "label size predict size not match");
     std::vector< std::pair<float, unsigned> > rec;
-    for (size_t j = 0; j < preds.size(); ++j) {
+    for (size_t j = 0; j < info.labels.size(); ++j) {
       rec.push_back(std::make_pair(preds[j], static_cast<unsigned>(j)));
     }
     std::sort(rec.begin(), rec.end(), CmpFirst);
