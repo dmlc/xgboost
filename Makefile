@@ -5,9 +5,9 @@ export LDFLAGS= -pthread -lm
 # add include path to Rinternals.h here
 
 ifeq ($(no_omp),1)
-	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -DDISABLE_OPENMP 
+	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -DDISABLE_OPENMP -funroll-loops 
 else
-	export CFLAGS = -Wall -O3 -msse2 -Wno-unknown-pragmas -fopenmp
+	export CFLAGS = -Wall -O3 -msse2 -Wno-unknown-pragmas -fopenmp -funroll-loops 
 endif
 
 # expose these flags to R CMD SHLIB

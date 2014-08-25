@@ -27,6 +27,7 @@ class ColMaker: public IUpdater<FMatrix> {
                       const FMatrix &fmat,
                       const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) {
+    TStats::CheckInfo(info);
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
