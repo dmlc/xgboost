@@ -24,9 +24,10 @@ template<typename Derived>
 struct EvalEWiseBase : public IEvaluator {
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
-    utils::Check(preds.size() == info.labels.size(),
+    utils::Check(info.labels.size() != 0, "label set cannot be empty");
+    utils::Check(preds.size() % info.labels.size() == 0,
                  "label and prediction size not match");
-    const unsigned ndata = static_cast<unsigned>(preds.size());
+    const unsigned ndata = static_cast<unsigned>(info.labels.size());
     float sum = 0.0, wsum = 0.0;
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
     for (unsigned i = 0; i < ndata; ++i) {
