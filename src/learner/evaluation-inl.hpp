@@ -24,9 +24,10 @@ template<typename Derived>
 struct EvalEWiseBase : public IEvaluator {
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
-    utils::Check(preds.size() == info.labels.size(),
+    utils::Check(info.labels.size() != 0, "label set cannot be empty");
+    utils::Check(preds.size() % info.labels.size() == 0,
                  "label and prediction size not match");
-    const unsigned ndata = static_cast<unsigned>(preds.size());
+    const unsigned ndata = static_cast<unsigned>(info.labels.size());
     float sum = 0.0, wsum = 0.0;
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
     for (unsigned i = 0; i < ndata; ++i) {
@@ -99,6 +100,45 @@ struct EvalMatchError : public EvalEWiseBase<EvalMatchError> {
   }
 };
 
+/*! \brief ctest */
+struct EvalCTest: public IEvaluator {
+  EvalCTest(IEvaluator *base, const char *name)
+      : base_(base), name_(name) {}
+  virtual ~EvalCTest(void) {
+    delete base_;
+  }
+  virtual const char *Name(void) const {
+    return name_.c_str();
+  }
+  virtual float Eval(const std::vector<float> &preds,
+                     const MetaInfo &info) const {
+    utils::Check(preds.size() % info.labels.size() == 0,
+                 "label and prediction size not match");
+    size_t ngroup = preds.size() / info.labels.size() - 1;
+    const unsigned ndata = static_cast<unsigned>(info.labels.size());
+    utils::Check(ngroup > 1, "pred size does not meet requirement");
+    utils::Check(ndata == info.info.fold_index.size(), "need fold index");
+    double wsum = 0.0;
+    for (size_t k = 0; k < ngroup; ++k) {
+      std::vector<float> tpred;
+      MetaInfo tinfo;
+      for (unsigned i = 0; i < ndata; ++i) {
+        if (info.info.fold_index[i] == k) {
+          tpred.push_back(preds[i + (k + 1) * ndata]);
+          tinfo.labels.push_back(info.labels[i]);
+          tinfo.weights.push_back(info.GetWeight(i));
+        }        
+      }
+      wsum += base_->Eval(tpred, tinfo);
+    }
+    return wsum / ngroup;
+  }
+
+ private:
+  IEvaluator *base_;
+  std::string name_;
+};
+
 /*! \brief AMS: also records best threshold */
 struct EvalAMS : public IEvaluator {
  public:
@@ -109,7 +149,7 @@ struct EvalAMS : public IEvaluator {
   }
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
-    const unsigned ndata = static_cast<unsigned>(preds.size());
+    const unsigned ndata = static_cast<unsigned>(info.labels.size());
     utils::Check(info.weights.size() == ndata, "we need weight to evaluate ams");
     std::vector< std::pair<float, unsigned> > rec(ndata);
 
@@ -206,10 +246,14 @@ struct EvalPrecisionRatio : public IEvaluator{
 struct EvalAuc : public IEvaluator {
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
-    utils::Check(preds.size() == info.labels.size(), "label size predict size not match");
-    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(preds.size());
+    utils::Check(info.labels.size() != 0, "label set cannot be empty");
+    utils::Check(preds.size() % info.labels.size() == 0,
+                 "label size predict size not match");
+    std::vector<unsigned> tgptr(2, 0); 
+    tgptr[1] = static_cast<unsigned>(info.labels.size());
+
     const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
-    utils::Check(gptr.back() == preds.size(),
+    utils::Check(gptr.back() == info.labels.size(),
                  "EvalAuc: group structure must match number of prediction");
     const unsigned ngroup = static_cast<unsigned>(gptr.size() - 1);
     // sum statictis

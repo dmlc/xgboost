@@ -22,10 +22,10 @@ struct TrainParam{
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
-  // weight decay parameter used to control leaf fitting
+  // L2 regularization factor
   float reg_lambda;
-  // reg method
-  int reg_method;
+  // L1 regularization factor
+  float reg_alpha;
   // default direction choice
   int default_direction;
   // whether we want to do subsample
@@ -36,6 +36,8 @@ struct TrainParam{
   float colsample_bytree;
   // speed optimization for dense column
   float opt_dense_col;
+  // leaf vector size
+  int size_leaf_vector;
   // number of threads to be used for tree construction,
   // if OpenMP is enabled, if equals 0, use system default
   int nthread;
@@ -45,13 +47,14 @@ struct TrainParam{
     min_child_weight = 1.0f;
     max_depth = 6;
     reg_lambda = 1.0f;
-    reg_method = 2;
+    reg_alpha = 0.0f;
     default_direction = 0;
     subsample = 1.0f;
     colsample_bytree = 1.0f;
     colsample_bylevel = 1.0f;
     opt_dense_col = 1.0f;
     nthread = 0;
+    size_leaf_vector = 0;
   }
   /*! 
    * \brief set parameters from outside 
@@ -63,15 +66,17 @@ struct TrainParam{
     if (!strcmp(name, "gamma")) min_split_loss = static_cast<float>(atof(val));
     if (!strcmp(name, "eta")) learning_rate = static_cast<float>(atof(val));
     if (!strcmp(name, "lambda")) reg_lambda = static_cast<float>(atof(val));
+    if (!strcmp(name, "alpha")) reg_alpha = static_cast<float>(atof(val));
     if (!strcmp(name, "learning_rate")) learning_rate = static_cast<float>(atof(val));
     if (!strcmp(name, "min_child_weight")) min_child_weight = static_cast<float>(atof(val));
     if (!strcmp(name, "min_split_loss")) min_split_loss = static_cast<float>(atof(val));
     if (!strcmp(name, "reg_lambda")) reg_lambda = static_cast<float>(atof(val));
-    if (!strcmp(name, "reg_method")) reg_method = atoi(val);
+    if (!strcmp(name, "reg_alpha")) reg_alpha = static_cast<float>(atof(val));
     if (!strcmp(name, "subsample")) subsample = static_cast<float>(atof(val));
     if (!strcmp(name, "colsample_bylevel")) colsample_bylevel = static_cast<float>(atof(val));
     if (!strcmp(name, "colsample_bytree")) colsample_bytree  = static_cast<float>(atof(val));
     if (!strcmp(name, "opt_dense_col")) opt_dense_col = static_cast<float>(atof(val));
+    if (!strcmp(name, "size_leaf_vector")) size_leaf_vector = atoi(val);
     if (!strcmp(name, "max_depth")) max_depth = atoi(val);
     if (!strcmp(name, "nthread")) nthread = atoi(val);
     if (!strcmp(name, "default_direction")) {
@@ -82,31 +87,31 @@ struct TrainParam{
   }
   // calculate the cost of loss function
   inline double CalcGain(double sum_grad, double sum_hess) const {
-    if (sum_hess < min_child_weight) {
-      return 0.0;
+    if (sum_hess < min_child_weight) return 0.0;
+    if (reg_alpha == 0.0f) {
+      return Sqr(sum_grad) / (sum_hess + reg_lambda);
+    } else {
+      return Sqr(ThresholdL1(sum_grad, reg_alpha)) / (sum_hess + reg_lambda); 
     }
-    switch (reg_method) {
-      case 1 : return Sqr(ThresholdL1(sum_grad, reg_lambda)) / sum_hess;
-      case 2 : return Sqr(sum_grad) / (sum_hess + reg_lambda);
-      case 3 : return
-          Sqr(ThresholdL1(sum_grad, 0.5 * reg_lambda)) /
-          (sum_hess + 0.5 * reg_lambda);
-      default: return Sqr(sum_grad) / sum_hess;
+  }
+  // calculate cost of loss function with four stati
+  inline double CalcGain(double sum_grad, double sum_hess,
+                         double test_grad, double test_hess) const {
+    double w = CalcWeight(sum_grad, sum_hess);
+    double ret = test_grad * w  + 0.5 * (test_hess + reg_lambda) * Sqr(w);
+    if (reg_alpha == 0.0f) {
+      return - 2.0 * ret;
+    } else {
+      return - 2.0 * (ret + reg_alpha * std::abs(w));
     }
   }
   // calculate weight given the statistics
   inline double CalcWeight(double sum_grad, double sum_hess) const {
-    if (sum_hess < min_child_weight) {
-      return 0.0;
+    if (sum_hess < min_child_weight) return 0.0;
+    if (reg_alpha == 0.0f) {
+      return -sum_grad / (sum_hess + reg_lambda);
     } else {
-      switch (reg_method) {
-        case 1: return - ThresholdL1(sum_grad, reg_lambda) / sum_hess;
-        case 2: return - sum_grad / (sum_hess + reg_lambda);
-        case 3: return
-            - ThresholdL1(sum_grad, 0.5 * reg_lambda) /
-            (sum_hess + 0.5 * reg_lambda);
-        default: return - sum_grad / sum_hess;
-      }
+      return -ThresholdL1(sum_grad, reg_alpha) / (sum_hess + reg_lambda);
     }
   }
   /*! \brief whether need forward small to big search: default right */
@@ -153,6 +158,9 @@ struct GradStats {
   inline void Clear(void) {
     sum_grad = sum_hess = 0.0f;
   }
+  /*! \brief check if necessary information is ready */
+  inline static void CheckInfo(const BoosterInfo &info) {
+  }
   /*!
    * \brief accumulate statistics,
    * \param gpair the vector storing the gradient statistics
@@ -188,11 +196,85 @@ struct GradStats {
   }
   /*! \brief set leaf vector value based on statistics */
   inline void SetLeafVec(const TrainParam &param, bst_float *vec) const{
-  }
- protected:
+  }  
+  // constructor to allow inheritance
+  GradStats(void) {}
   /*! \brief add statistics to the data */
   inline void Add(double grad, double hess) {
     sum_grad += grad; sum_hess += hess;
+  }
+};
+
+/*! \brief vectorized cv statistics */
+template<unsigned vsize>
+struct CVGradStats : public GradStats {
+  // additional statistics
+  GradStats train[vsize], valid[vsize];
+  // constructor
+  explicit CVGradStats(const TrainParam &param) {
+    utils::Check(param.size_leaf_vector == vsize,
+                 "CVGradStats: vsize must match size_leaf_vector");
+    this->Clear();
+  }
+  /*! \brief check if necessary information is ready */
+  inline static void CheckInfo(const BoosterInfo &info) {
+    utils::Check(info.fold_index.size() != 0,
+                 "CVGradStats: require fold_index");
+  }
+  /*! \brief clear the statistics */
+  inline void Clear(void) {
+    GradStats::Clear();
+    for (unsigned i = 0; i < vsize; ++i) {
+      train[i].Clear(); valid[i].Clear();
+    }
+  }
+  inline void Add(const std::vector<bst_gpair> &gpair,
+                  const BoosterInfo &info,
+                  bst_uint ridx) {
+    GradStats::Add(gpair[ridx].grad, gpair[ridx].hess);
+    const size_t step = info.fold_index.size();
+    for (unsigned i = 0; i < vsize; ++i) {
+      const bst_gpair &b = gpair[(i + 1) * step + ridx];
+      if (info.fold_index[ridx] == i) {
+        valid[i].Add(b.grad, b.hess);
+      } else {
+        train[i].Add(b.grad, b.hess);
+      }
+    }
+  }
+  /*! \brief calculate gain of the solution */
+  inline double CalcGain(const TrainParam &param) const {
+    double ret = 0.0;
+    for (unsigned i = 0; i < vsize; ++i) {
+      ret += param.CalcGain(train[i].sum_grad,
+                            train[i].sum_hess,
+                            vsize * valid[i].sum_grad,
+                            vsize * valid[i].sum_hess);      
+    }
+    return ret / vsize;
+  }
+  /*! \brief add statistics to the data */
+  inline void Add(const CVGradStats &b) {
+    GradStats::Add(b);
+    for (unsigned i = 0; i < vsize; ++i) {
+      train[i].Add(b.train[i]);
+      valid[i].Add(b.valid[i]);
+    }
+  }
+  /*! \brief set current value to a - b */
+  inline void SetSubstract(const CVGradStats &a, const CVGradStats &b) {
+    GradStats::SetSubstract(a, b);
+    for (int i = 0; i < vsize; ++i) {
+      train[i].SetSubstract(a.train[i], b.train[i]);
+      valid[i].SetSubstract(a.valid[i], b.valid[i]);
+    }
+  }
+  /*! \brief set leaf vector value based on statistics */
+  inline void SetLeafVec(const TrainParam &param, bst_float *vec) const{
+    for (int i = 0; i < vsize; ++i) {
+      vec[i] = param.learning_rate *
+          param.CalcWeight(train[i].sum_grad, train[i].sum_hess);
+    }
   }
 };
 
