@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "console", "console\console.vcxproj", "{97502525-67A1-40ED-B6EC-7566B4132F27}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xgboost", "xgboost\xgboost.vcxproj", "{1D6A56A5-5557-4D20-9D50-3DE4C30BE00C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,14 +11,14 @@ Global
 		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{97502525-67A1-40ED-B6EC-7566B4132F27}.Debug|Win32.ActiveCfg = Debug|Win32
-		{97502525-67A1-40ED-B6EC-7566B4132F27}.Debug|Win32.Build.0 = Debug|Win32
-		{97502525-67A1-40ED-B6EC-7566B4132F27}.Debug|x64.ActiveCfg = Debug|x64
-		{97502525-67A1-40ED-B6EC-7566B4132F27}.Debug|x64.Build.0 = Debug|x64
-		{97502525-67A1-40ED-B6EC-7566B4132F27}.Release|Win32.ActiveCfg = Release|Win32
-		{97502525-67A1-40ED-B6EC-7566B4132F27}.Release|Win32.Build.0 = Release|Win32
-		{97502525-67A1-40ED-B6EC-7566B4132F27}.Release|x64.ActiveCfg = Release|x64
-		{97502525-67A1-40ED-B6EC-7566B4132F27}.Release|x64.Build.0 = Release|x64
+		{1D6A56A5-5557-4D20-9D50-3DE4C30BE00C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{1D6A56A5-5557-4D20-9D50-3DE4C30BE00C}.Debug|Win32.Build.0 = Debug|Win32
+		{1D6A56A5-5557-4D20-9D50-3DE4C30BE00C}.Debug|x64.ActiveCfg = Debug|x64
+		{1D6A56A5-5557-4D20-9D50-3DE4C30BE00C}.Debug|x64.Build.0 = Debug|x64
+		{1D6A56A5-5557-4D20-9D50-3DE4C30BE00C}.Release|Win32.ActiveCfg = Release|Win32
+		{1D6A56A5-5557-4D20-9D50-3DE4C30BE00C}.Release|Win32.Build.0 = Release|Win32
+		{1D6A56A5-5557-4D20-9D50-3DE4C30BE00C}.Release|x64.ActiveCfg = Release|x64
+		{1D6A56A5-5557-4D20-9D50-3DE4C30BE00C}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

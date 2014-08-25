@@ -19,8 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{97502525-67A1-40ED-B6EC-7566B4132F27}</ProjectGuid>
-    <RootNamespace>console</RootNamespace>
+    <ProjectGuid>{1D6A56A5-5557-4D20-9D50-3DE4C30BE00C}</ProjectGuid>
+    <RootNamespace>xgboost</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
