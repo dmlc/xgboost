@@ -11,7 +11,7 @@ else
 endif
 
 # expose these flags to R CMD SHLIB
-export PKG_CPPFLAGS = $(CFLAGS)
+export PKG_CPPFLAGS = $(CFLAGS) -DXGBOOST_CUSTOMIZE_ERROR_
 
 # specify tensor path
 BIN = xgboost
