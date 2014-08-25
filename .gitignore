@@ -16,7 +16,6 @@
 *conf
 *buffer
 *model
-xgboost
 *pyc
 *train
 *test
@@ -24,3 +23,14 @@ xgboost
 *rar
 *vali
 *data
+*sdf
+Release
+*exe*
+*exp
+ipch
+*.filters
+*.user
+*log
+Debug
+*suo
+
