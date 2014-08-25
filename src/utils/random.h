@@ -88,11 +88,18 @@ inline void Shuffle(std::vector<T> &data) {
 struct Random{
   /*! \brief set random number seed */
   inline void Seed(unsigned sd) {
-    this->rseed = sd;
+	 this->rseed = sd;
+#ifdef _MSC_VER
+    srand(rseed);
+#endif
   }
   /*! \brief return a real number uniform in [0,1) */
   inline double RandDouble(void) {
-    return static_cast<double>( rand_r( &rseed ) ) / (static_cast<double>( RAND_MAX )+1.0);
+#ifndef _MSC_VER
+    return static_cast<double>(rand_r(&rseed)) / (static_cast<double>(RAND_MAX) + 1.0);
+#else
+     return static_cast<double>(rand()) / (static_cast<double>(RAND_MAX) + 1.0);
+#endif
   }
   // random number seed
   unsigned rseed;

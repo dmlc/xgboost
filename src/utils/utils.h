@@ -6,8 +6,19 @@
  * \author Tianqi Chen
  */
 #define _CRT_SECURE_NO_WARNINGS
+#include <cstdio>
+#include <cstdarg>
+#include <cstdlib>
 #ifdef _MSC_VER
 #define fopen64 fopen
+// temporal solution for MSVC
+inline int snprintf(char *ptr, size_t sz, const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  int ret = vsprintf(ptr, fmt, args);
+  va_end(args);
+  return ret;
+}
 #else
 #ifdef _FILE_OFFSET_BITS
 #if _FILE_OFFSET_BITS == 32
@@ -35,11 +46,6 @@ typedef long int64_t;
 #else
 #include <inttypes.h>
 #endif
-
-
-#include <cstdio>
-#include <cstdarg>
-#include <cstdlib>
 
 namespace xgboost {
 /*! \brief namespace for helper utils of the project */
