@@ -40,7 +40,7 @@ class IStream {
    */
   template<typename T>
   inline void Write(const std::vector<T> &vec) {
-    uint64_t sz = vec.size();
+    uint64_t sz = static_cast<uint64_t>(vec.size());
     this->Write(&sz, sizeof(sz));
     if (sz != 0) {
       this->Write(&vec[0], sizeof(T) * sz);
@@ -66,7 +66,7 @@ class IStream {
    * \param str the string to be serialized
    */ 
   inline void Write(const std::string &str) {
-    uint64_t sz = str.length();
+    uint64_t sz = static_cast<uint64_t>(str.length());
     this->Write(&sz, sizeof(sz));
     if (sz != 0) {
       this->Write(&str[0], sizeof(char) * sz);

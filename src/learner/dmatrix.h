@@ -78,9 +78,9 @@ struct MetaInfo {
   }
   inline void LoadBinary(utils::IStream &fi) {
     int version;
-    utils::Check(fi.Read(&version, sizeof(version)), "MetaInfo: invalid format");
-    utils::Check(fi.Read(&info.num_row, sizeof(info.num_row)), "MetaInfo: invalid format");
-    utils::Check(fi.Read(&info.num_col, sizeof(info.num_col)), "MetaInfo: invalid format");
+    utils::Check(fi.Read(&version, sizeof(version)) != 0, "MetaInfo: invalid format");
+    utils::Check(fi.Read(&info.num_row, sizeof(info.num_row)) != 0, "MetaInfo: invalid format");
+    utils::Check(fi.Read(&info.num_col, sizeof(info.num_col)) != 0, "MetaInfo: invalid format");
     utils::Check(fi.Read(&labels), "MetaInfo: invalid format");
     utils::Check(fi.Read(&group_ptr), "MetaInfo: invalid format");
     utils::Check(fi.Read(&weights), "MetaInfo: invalid format");

@@ -9,7 +9,11 @@
 #include <omp.h>
 #else
 #ifndef DISABLE_OPENMP
+#ifndef _MSC_VER
 #warning "OpenMP is not available, compile to single thread code"
+#else
+// TODO add warning for msvc
+#endif
 #endif
 inline int omp_get_thread_num() { return 0; }
 inline int omp_get_num_threads() { return 1; }

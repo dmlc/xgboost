@@ -61,7 +61,7 @@ class TreeRefresher: public IUpdater<FMatrix> {
       for (unsigned i = 0; i < nbatch; ++i) {
         SparseBatch::Inst inst = batch[i];
         const int tid = omp_get_thread_num();
-        const size_t ridx = batch.base_rowid + i;
+        const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         RegTree::FVec &feats = fvec_temp[tid];
         feats.Fill(inst);
         for (size_t j = 0; j < trees.size(); ++j) {
@@ -112,16 +112,16 @@ class TreeRefresher: public IUpdater<FMatrix> {
   inline void Refresh(const std::vector<TStats> &gstats,
                       int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
-    tree.stat(nid).base_weight = gstats[nid].CalcWeight(param);
+    tree.stat(nid).base_weight = static_cast<float>(gstats[nid].CalcWeight(param));
     tree.stat(nid).sum_hess = static_cast<float>(gstats[nid].sum_hess);
     gstats[nid].SetLeafVec(param, tree.leafvec(nid));
     if (tree[nid].is_leaf()) {
       tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
     } else {
-      tree.stat(nid).loss_chg =
+      tree.stat(nid).loss_chg = static_cast<float>(
           gstats[tree[nid].cleft()].CalcGain(param) +
           gstats[tree[nid].cright()].CalcGain(param) -
-          gstats[nid].CalcGain(param);
+          gstats[nid].CalcGain(param));
       this->Refresh(gstats, tree[nid].cleft(), p_tree);
       this->Refresh(gstats, tree[nid].cright(), p_tree);
     }

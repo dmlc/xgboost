@@ -7,6 +7,7 @@
  */
 #include <string>
 #include <vector>
+#include <cstdio>
 #include "../utils/utils.h"
 #include "./dmatrix.h"
 
