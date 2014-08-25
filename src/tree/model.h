@@ -288,6 +288,9 @@ class TreeModel {
                  "TreeModel: wrong format");
     utils::Check(fi.Read(&stats[0], sizeof(NodeStat) * stats.size()) > 0,
                  "TreeModel: wrong format");
+    if (param.size_leaf_vector != 0) {
+      utils::Check(fi.Read(&leaf_vector), "TreeModel: wrong format");
+    }
     // chg deleted nodes
     deleted_nodes.resize(0);
     for (int i = param.num_roots; i < param.num_nodes; i ++) {
@@ -308,6 +311,7 @@ class TreeModel {
     fo.Write(&param, sizeof(Param));
     fo.Write(&nodes[0], sizeof(Node) * nodes.size());
     fo.Write(&stats[0], sizeof(NodeStat) * nodes.size());
+    if (param.size_leaf_vector != 0) fo.Write(leaf_vector);
   }
   /*! 
    * \brief add child nodes to node

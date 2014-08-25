@@ -115,7 +115,6 @@ struct EvalCTest: public IEvaluator {
     utils::Check(preds.size() % info.labels.size() == 0,
                  "label and prediction size not match");
     size_t ngroup = preds.size() / info.labels.size() - 1;
-    ngroup = 1;
     const unsigned ndata = static_cast<unsigned>(info.labels.size());
     utils::Check(ngroup > 1, "pred size does not meet requirement");
     utils::Check(ndata == info.info.fold_index.size(), "need fold index");
