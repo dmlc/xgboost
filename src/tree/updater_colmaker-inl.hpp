@@ -27,6 +27,7 @@ class ColMaker: public IUpdater<FMatrix> {
                       const FMatrix &fmat,
                       const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) {
+    TStats::CheckInfo(info);
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
@@ -81,7 +82,6 @@ class ColMaker: public IUpdater<FMatrix> {
                         RegTree *p_tree) {
       this->InitData(gpair, fmat, info.root_index, *p_tree);
       this->InitNewNode(qexpand, gpair, fmat, info, *p_tree);
-
       for (int depth = 0; depth < param.max_depth; ++depth) {
         this->FindSplit(depth, this->qexpand, gpair, fmat, info, p_tree);
         this->ResetPosition(this->qexpand, fmat, *p_tree);

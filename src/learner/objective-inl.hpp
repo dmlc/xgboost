@@ -123,7 +123,7 @@ class RegLossObj : public IObjFunction{
       float p = loss.PredTransform(preds[i]);
       float w = info.GetWeight(j);
       if (info.labels[j] == 1.0f) w *= scale_pos_weight;
-      gpair[j] = bst_gpair(loss.FirstOrderGradient(p, info.labels[j]) * w,
+      gpair[i] = bst_gpair(loss.FirstOrderGradient(p, info.labels[j]) * w,
                            loss.SecondOrderGradient(p, info.labels[j]) * w);
     }
   }

@@ -5,9 +5,9 @@ export LDFLAGS= -pthread -lm
 # add include path to Rinternals.h here
 
 ifeq ($(no_omp),1)
-	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -DDISABLE_OPENMP 
+	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -DDISABLE_OPENMP -funroll-loops 
 else
-	export CFLAGS = -Wall -O3 -msse2 -Wno-unknown-pragmas -fopenmp
+	export CFLAGS = -Wall -O3 -msse2 -Wno-unknown-pragmas -fopenmp  -funroll-loops 
 endif
 
 # expose these flags to R CMD SHLIB
@@ -18,11 +18,11 @@ BIN = xgboost
 OBJ = 
 SLIB = wrapper/libxgboostwrapper.so 
 RLIB = wrapper/libxgboostR.so 
-.PHONY: clean all R
+.PHONY: clean all R python
 
 all: $(BIN) wrapper/libxgboostwrapper.so
 R: wrapper/libxgboostR.so
-
+python: wrapper/libxgboostwrapper.so
 xgboost: src/xgboost_main.cpp src/io/io.cpp src/data.h src/tree/*.h src/tree/*.hpp src/gbm/*.h src/gbm/*.hpp src/utils/*.h src/learner/*.h src/learner/*.hpp 
 # now the wrapper takes in two files. io and wrapper part
 wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/io/io.cpp src/*.h src/*/*.hpp src/*/*.h
