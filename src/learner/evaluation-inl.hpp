@@ -208,9 +208,11 @@ struct EvalPrecisionRatio : public IEvaluator{
   }
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
-    utils::Assert(preds.size() == info.labels.size(), "label size predict size not match");
+    utils::Check(info.labels.size() != 0, "label set cannot be empty");    
+    utils::Assert(preds.size() % info.labels.size() == 0,
+                  "label size predict size not match");
     std::vector< std::pair<float, unsigned> > rec;
-    for (size_t j = 0; j < preds.size(); ++j) {
+    for (size_t j = 0; j < info.labels.size(); ++j) {
       rec.push_back(std::make_pair(preds[j], j));
     }
     std::sort(rec.begin(), rec.end(), CmpFirst);
