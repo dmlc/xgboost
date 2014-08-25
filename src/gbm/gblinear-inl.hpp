@@ -60,7 +60,8 @@ class GBLinear : public IGradBooster<FMatrix> {
         }
       }
       // remove bias effect
-	  bst_float dw = static_cast<bst_float>(param.learning_rate * param.CalcDeltaBias(sum_grad, sum_hess, model.bias()[gid]));
+      bst_float dw = static_cast<bst_float>(
+          param.learning_rate * param.CalcDeltaBias(sum_grad, sum_hess, model.bias()[gid]));
       model.bias()[gid] += dw;
       // update grad value
       #pragma omp parallel for schedule(static)
