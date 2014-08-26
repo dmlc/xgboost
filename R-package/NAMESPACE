@@ -1,12 +1,15 @@
 importClassesFrom("Matrix", dgCMatrix, dgeMatrix)
+
+export(xgboost)
 export(xgb.DMatrix)
 export(xgb.getinfo)
 export(xgb.setinfo)
-export(xgb.Booster)
-export(xgb.train)
-export(xgb.save)
-export(xgb.predict)
-export(xgb.dump)
+
+# export(xgb.Booster)
+# export(xgb.train)
+# export(xgb.save)
+# export(xgb.predict)
+# export(xgb.dump)
 
 
 
