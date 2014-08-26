@@ -89,16 +89,19 @@ struct Random{
   /*! \brief set random number seed */
   inline void Seed(unsigned sd) {
 	 this->rseed = sd;
-#ifdef _MSC_VER
+#if defined(_MSC_VER)||defined(_WIN32)
     srand(rseed);
 #endif
   }
   /*! \brief return a real number uniform in [0,1) */
   inline double RandDouble(void) {
-#ifndef _MSC_VER
-    return static_cast<double>(rand_r(&rseed)) / (static_cast<double>(RAND_MAX) + 1.0);
+	// use rand instead of rand_r in windows, for MSVC it is fine since rand is threadsafe
+	// For cygwin and mingw, this can slows down parallelism, but rand_r is only used in objective-inl.hpp, won't affect speed in general
+	// todo, replace with another PRNG
+#if defined(_MSC_VER)||defined(_WIN32)
+    return static_cast<double>(rand()) / (static_cast<double>(RAND_MAX) + 1.0);
 #else
-     return static_cast<double>(rand()) / (static_cast<double>(RAND_MAX) + 1.0);
+    return static_cast<double>(rand_r(&rseed)) / (static_cast<double>(RAND_MAX) + 1.0);
 #endif
   }
   // random number seed
