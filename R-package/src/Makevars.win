@@ -7,7 +7,7 @@ PKG_CPPFLAGS = -O3 -Wno-unknown-pragmas  -DXGBOOST_CUSTOMIZE_ERROR_ -fopenmp -fP
 PKG_LIBS = $(SHLIB_OPENMP_CFLAGS)
 
 ifeq ($(no_omp),1)
-	PKG_CPPFLAGS += -D -DDISABLE_OPENMP 
+	PKG_CPPFLAGS += -DDISABLE_OPENMP 
 endif
 
 CXXOBJ= xgboost_wrapper.o xgboost_io.o
