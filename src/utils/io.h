@@ -102,6 +102,9 @@ class FileStream : public IStream {
   virtual void Write(const void *ptr, size_t size) {
     fwrite(ptr, size, 1, fp);
   }
+  inline void Seek(size_t pos) {
+    fseek(fp, 0, SEEK_SET);
+  }
   inline void Close(void) {
     fclose(fp);
   }

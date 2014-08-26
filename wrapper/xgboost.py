@@ -45,7 +45,7 @@ class DMatrix:
             return
         if isinstance(data, str):
             self.handle = ctypes.c_void_p(
-                xglib.XGDMatrixCreateFromFile(ctypes.c_char_p(data.encode('utf-8')), 1))
+                xglib.XGDMatrixCreateFromFile(ctypes.c_char_p(data.encode('utf-8')), 0))
         elif isinstance(data, scp.csr_matrix):
             self.__init_from_csr(data)
         elif isinstance(data, numpy.ndarray) and len(data.shape) == 2:
