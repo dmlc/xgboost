@@ -10,7 +10,9 @@
 #else
 #ifndef DISABLE_OPENMP
 #ifndef _MSC_VER
-#warning "OpenMP is not available, compile to single thread code"
+#warning "OpenMP is not available, compile to single thread code."\
+		 "You may want to ungrade your compiler to enable OpenMP support,"\
+		 "to get benefit of multi-threading."
 #else
 // TODO add warning for msvc
 #endif
