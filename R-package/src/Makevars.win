@@ -6,6 +6,11 @@ export CXX = g++
 PKG_CPPFLAGS = -O3 -Wno-unknown-pragmas  -DXGBOOST_CUSTOMIZE_ERROR_ -fopenmp -fPIC  $(SHLIB_OPENMP_CFLAGS)
 PKG_LIBS = $(SHLIB_OPENMP_CFLAGS)
 
+# add flag to build native code even in cross compiler
+ifeq "$(WIN)" "64"
+	PKG_CPPFLAGS += -m64
+endif
+
 ifeq ($(no_omp),1)
 	PKG_CPPFLAGS += -DDISABLE_OPENMP 
 endif
@@ -25,4 +30,3 @@ $(CXXOBJ) :
 
 clean:
 	rm -rf *.so *.o *~ *.dll
-
