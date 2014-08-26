@@ -9,11 +9,11 @@
 # constructing DMatrix
 xgb.DMatrix <- function(data, info=list(), missing=0.0) {
   if (typeof(data) == "character") {
-    handle <- .Call("XGDMatrixCreateFromFile_R", data, as.integer(FALSE))
+    handle <- .Call("XGDMatrixCreateFromFile_R", data, as.integer(FALSE), PACKAGE="xgboost")
   } else if(is.matrix(data)) {
-    handle <- .Call("XGDMatrixCreateFromMat_R", data, missing)
+    handle <- .Call("XGDMatrixCreateFromMat_R", data, missing, PACKAGE="xgboost")
   } else if(class(data) == "dgCMatrix") {
-    handle <- .Call("XGDMatrixCreateFromCSC_R", data@p, data@i, data@x)
+    handle <- .Call("XGDMatrixCreateFromCSC_R", data@p, data@i, data@x, PACKAGE="xgboost")
   } else {
     stop(paste("xgb.DMatrix: does not support to construct from ", typeof(data)))
   }
@@ -39,7 +39,7 @@ xgb.getinfo <- function(dmat, name) {
       name != "base_margin" ) {
     stop(paste("xgb.getinfo: unknown info name", name))
   }
-  ret <- .Call("XGDMatrixGetInfo_R", dmat, name)
+  ret <- .Call("XGDMatrixGetInfo_R", dmat, name, PACKAGE="xgboost")
   return(ret)
 }
 # set information into dmatrix, this mutate dmatrix
@@ -48,19 +48,19 @@ xgb.setinfo <- function(dmat, name, info) {
     stop("xgb.setinfo: first argument dtrain must be xgb.DMatrix");
   }
   if (name == "label") {
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info))
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info), PACKAGE="xgboost")
     return(TRUE)
   }
   if (name == "weight") {
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info))
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info), PACKAGE="xgboost")
     return(TRUE)
   }
   if (name == "base_margin") {
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info))
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info), PACKAGE="xgboost")
     return(TRUE)
   }
   if (name == "group") {
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.integer(info))
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.integer(info), PACKAGE="xgboost")
     return(TRUE)
   }
   stop(pase("xgb.setinfo: unknown info name", name))
@@ -76,19 +76,19 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
       stop("xgb.Booster: only accepts list of DMatrix as cachelist")
     }
   }
-  handle <- .Call("XGBoosterCreate_R", cachelist)
-  .Call("XGBoosterSetParam_R", handle, "seed", "0")
+  handle <- .Call("XGBoosterCreate_R", cachelist, PACKAGE="xgboost")
+  .Call("XGBoosterSetParam_R", handle, "seed", "0", PACKAGE="xgboost")
   if (length(params) != 0) {
     for (i in 1:length(params)) {
       p <- params[i]
-      .Call("XGBoosterSetParam_R", handle, names(p), as.character(p))
+      .Call("XGBoosterSetParam_R", handle, names(p), as.character(p), PACKAGE="xgboost")
     }
   }
   if (!is.null(modelfile)) {
     if (typeof(modelfile) != "character"){
       stop("xgb.Booster: modelfile must be character");
     }
-    .Call("XGBoosterLoadModel_R", handle, modelfile)
+    .Call("XGBoosterLoadModel_R", handle, modelfile, PACKAGE="xgboost")
   }
   return(structure(handle, class="xgb.Booster"))
 }
@@ -133,14 +133,14 @@ xgb.train <- function(params, dtrain, nrounds=10, watchlist=list(), obj=NULL, fe
 # save model or DMatrix to file 
 xgb.save <- function(handle, fname) {
   if (typeof(fname) != "character") {
-    stop("xgb.save: fname must be character");
+    stop("xgb.save: fname must be character")
   }
   if (class(handle) == "xgb.Booster") {
-    .Call("XGBoosterSaveModel_R", handle, fname);
+    .Call("XGBoosterSaveModel_R", handle, fname, PACKAGE="xgboost")
     return(TRUE)
   }
   if (class(handle) == "xgb.DMatrix") {
-    .Call("XGDMatrixSaveBinary_R", handle, fname, as.integer(FALSE))
+    .Call("XGDMatrixSaveBinary_R", handle, fname, as.integer(FALSE), PACKAGE="xgboost")
     return(TRUE)
   }
   stop("xgb.save: the input must be either xgb.DMatrix or xgb.Booster")
@@ -154,7 +154,7 @@ xgb.predict <- function(booster, dmat, outputmargin = FALSE) {
   if (class(dmat) != "xgb.DMatrix") {
     stop("xgb.predict: second argument must be type xgb.DMatrix")
   }
-  ret <- .Call("XGBoosterPredict_R", booster, dmat, as.integer(outputmargin))
+  ret <- .Call("XGBoosterPredict_R", booster, dmat, as.integer(outputmargin), PACKAGE="xgboost")
   return(ret)
 }
 # dump model
@@ -165,7 +165,7 @@ xgb.dump <- function(booster, fname, fmap = "") {
   if (typeof(fname) != "character"){
     stop("xgb.dump: second argument must be type character")
   }
-  .Call("XGBoosterDumpModel_R", booster, fname, fmap)
+  .Call("XGBoosterDumpModel_R", booster, fname, fmap, PACKAGE="xgboost")
   return(TRUE)
 }
 ##--------------------------------------
@@ -180,7 +180,7 @@ xgb.iter.update <- function(booster, dtrain, iter) {
   if (class(dtrain) != "xgb.DMatrix") {
     stop("xgb.iter.update: second argument must be type xgb.DMatrix")
   }
-  .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain)
+  .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain, PACKAGE="xgboost")
   return(TRUE)
 }
 # iteratively update booster with customized statistics
@@ -191,7 +191,7 @@ xgb.iter.boost <- function(booster, dtrain, gpair) {
   if (class(dtrain) != "xgb.DMatrix") {
     stop("xgb.iter.update: second argument must be type xgb.DMatrix")
   }
-  .Call("XGBoosterBoostOneIter_R", booster, dtrain, gpair$grad, gpair$hess)
+  .Call("XGBoosterBoostOneIter_R", booster, dtrain, gpair$grad, gpair$hess, PACKAGE="xgboost")
   return(TRUE)
 }
 # iteratively evaluate one iteration
@@ -217,6 +217,6 @@ xgb.iter.eval <- function(booster, watchlist, iter) {
       evnames <- append(evnames, names(w))     
     }
   }
-  msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist, evnames)
+  msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist, evnames, PACKAGE="xgboost")
   return(msg)
 }
