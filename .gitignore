@@ -33,4 +33,5 @@ ipch
 *log
 Debug
 *suo
-
+*test*
+.Rhistory
