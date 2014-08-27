@@ -7,6 +7,8 @@
  *  can be used to create wrapper of other languages
  */
 #include <cstdio>
+// define uint64_t to be unsigned long
+typedef unsigned long uint64_t;
 
 extern "C" {
   /*!
@@ -23,11 +25,11 @@ extern "C" {
    * \param nelem number of nonzero elements in the matrix
    * \return created dmatrix
    */
-  void* XGDMatrixCreateFromCSR(const size_t *indptr,
+  void* XGDMatrixCreateFromCSR(const uint64_t *indptr,
                                const unsigned *indices,
                                const float *data,
-                               size_t nindptr,
-                               size_t nelem);
+                               uint64_t nindptr,
+                               uint64_t nelem);
   /*!
    * \brief create matrix content from dense matrix
    * \param data pointer to the data space
@@ -37,8 +39,8 @@ extern "C" {
    * \return created dmatrix
    */
   void* XGDMatrixCreateFromMat(const float *data,
-                               size_t nrow,
-                               size_t ncol,
+                               uint64_t nrow,
+                               uint64_t ncol,
                                float  missing);
   /*!
    * \brief create a new dmatrix from sliced content of existing matrix
@@ -49,7 +51,7 @@ extern "C" {
    */
   void* XGDMatrixSliceDMatrix(void *handle,
                               const int *idxset,
-                              size_t len);
+                              uint64_t len);
   /*!
    * \brief free space in data matrix
    */
@@ -68,7 +70,7 @@ extern "C" {
    * \param array pointer to float vector
    * \param len length of array
    */
-  void XGDMatrixSetFloatInfo(void *handle, const char *field, const float *array, size_t len);
+  void XGDMatrixSetFloatInfo(void *handle, const char *field, const float *array, uint64_t len);
   /*!
    * \brief set uint32 vector to a content in info
    * \param handle a instance of data matrix
@@ -76,14 +78,14 @@ extern "C" {
    * \param array pointer to float vector
    * \param len length of array
    */
-  void XGDMatrixSetUIntInfo(void *handle, const char *field, const unsigned *array, size_t len);
+  void XGDMatrixSetUIntInfo(void *handle, const char *field, const unsigned *array, uint64_t len);
   /*!
    * \brief set label of the training matrix
    * \param handle a instance of data matrix
    * \param group pointer to group size
    * \param len length of array
    */
-  void XGDMatrixSetGroup(void *handle, const unsigned *group, size_t len);
+  void XGDMatrixSetGroup(void *handle, const unsigned *group, uint64_t len);
   /*!
    * \brief get float info vector from matrix
    * \param handle a instance of data matrix
@@ -91,7 +93,7 @@ extern "C" {
    * \param out_len used to set result length
    * \return pointer to the result
    */
-  const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, size_t* out_len);
+  const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, uint64_t* out_len);
   /*!
    * \brief get uint32 info vector from matrix
    * \param handle a instance of data matrix
@@ -99,18 +101,18 @@ extern "C" {
    * \param out_len used to set result length
    * \return pointer to the result
    */
-  const unsigned* XGDMatrixGetUIntInfo(const void *handle, const char *field, size_t* out_len);
+  const unsigned* XGDMatrixGetUIntInfo(const void *handle, const char *field, uint64_t* out_len);
   /*!
    * \brief return number of rows
    */
-  size_t XGDMatrixNumRow(const void *handle);
+  uint64_t XGDMatrixNumRow(const void *handle);
   // --- start XGBoost class
   /*! 
    * \brief create xgboost learner 
    * \param dmats matrices that are set to be cached
    * \param len length of dmats
    */
-  void *XGBoosterCreate(void* dmats[], size_t len);
+  void *XGBoosterCreate(void* dmats[], uint64_t len);
   /*! 
    * \brief free obj in handle 
    * \param handle handle to be freed
@@ -140,7 +142,7 @@ extern "C" {
    * \param len length of grad/hess array
    */
   void XGBoosterBoostOneIter(void *handle, void *dtrain,
-                             float *grad, float *hess, size_t len);
+                             float *grad, float *hess, uint64_t len);
   /*!
    * \brief get evaluation statistics for xgboost
    * \param handle handle
@@ -151,7 +153,7 @@ extern "C" {
    * \return the string containing evaluation stati
    */
   const char *XGBoosterEvalOneIter(void *handle, int iter, void *dmats[],
-                                   const char *evnames[], size_t len);
+                                   const char *evnames[], uint64_t len);
   /*!
    * \brief make prediction based on dmat
    * \param handle handle
@@ -159,7 +161,7 @@ extern "C" {
    * \param output_margin whether only output raw margin value
    * \param len used to store length of returning result
    */
-  const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, size_t *len);
+  const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, uint64_t *len);
   /*!
    * \brief load model from existing file
    * \param handle handle
@@ -180,6 +182,6 @@ extern "C" {
    * \return char *data[], representing dump of each model
    */
   const char **XGBoosterDumpModel(void *handle, const char *fmap,
-                                  size_t *out_len);
+                                  uint64_t *out_len);
 };
 #endif  // XGBOOST_WRAPPER_H_
