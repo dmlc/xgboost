@@ -42,8 +42,8 @@ param = {}
 param['objective'] = 'binary:logitraw'
 # scale weight of positive examples
 param['scale_pos_weight'] = sum_wneg/sum_wpos
-param['bst:eta'] = 0.1 
-param['bst:max_depth'] = 6
+param['eta'] = 0.1 
+param['max_depth'] = 6
 param['eval_metric'] = 'auc'
 param['silent'] = 1
 param['nthread'] = 16
