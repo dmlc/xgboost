@@ -1,49 +1,41 @@
 # Main function for xgboost-package
 
-xgboost = function(x=NULL,y=NULL,DMatrix=NULL, file=NULL, validation=NULL, 
-                   nrounds=10, obj=NULL, feval=NULL, margin=NULL, verbose = T, ...)
+xgboost = function(data=NULL, label = NULL, params=list(), nrounds=10, 
+                   verbose = 1, ...)
 {
-    if (!is.null(DMatrix))
-        dtrain = DMatrix
+    inClass = class(data)
+    if (inClass=='dgCMatrix' || inClass=='matrix')
+    {
+        if (is.null(label))
+            stop('xgboost: need label when data is a matrix')
+        dtrain = xgb.DMatrix(data, label=y)
+    }
     else
     {
-        if (is.null(x) && is.null(y))
-        {
-            if (is.null(file))
-                stop('xgboost need input data, either R objects, local files or DMatrix object.')
-            dtrain = xgb.DMatrix(file)
-        }
+        if (!is.null(label))
+            warning('xgboost: label will be ignored.')
+        if (inClass=='character')
+            dtrain = xgb.DMatrix(data)
+        else if (inClass=='xgb.DMatrix')
+            dtrain = data
         else
-            dtrain = xgb.DMatrix(x, label=y)
-        if (!is.null(margin))
-        {
-            succ <- xgb.setinfo(dtrain, "base_margin", margin)
-            if (!succ)
-                warning('Attemp to use margin failed.')
-        }
+            stop('xgboost: Invalid input of data')
     }
     
-    params = list(...)
+    if (verbose>1)
+        silent = 0
+    else
+        silent = 1
     
-    watchlist=list()
-    if (verbose)
-    {
-        if (!is.null(validation))
-        {
-            if (class(validation)!='xgb.DMatrix')
-                dtest = xgb.DMatrix(validation)
-            else
-                dtest = validation
-            watchlist = list(eval=dtest,train=dtrain)
-        }
-            
-        else
-            watchlist = list(train=dtrain)
-    }
+    params = append(params, list(silent=silent))
+    params = append(params, list(...)) 
     
-    bst <- xgb.train(params, dtrain, nrounds, watchlist, obj, feval)
+    if (verbose>0)
+        watchlist = list(train=dtrain)
+    else
+        watchlist = list()
+    
+    bst <- xgb.train(params, dtrain, nrounds, watchlist)
     
     return(bst)
 }
-
-
