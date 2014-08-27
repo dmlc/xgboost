@@ -7,8 +7,9 @@
  *  can be used to create wrapper of other languages
  */
 #include <cstdio>
-#include "../src/utils/utils.h"
 #define XGB_DLL
+// manually define unsign long
+typedef unsigned long bst_ulong;
 
 extern "C" {
   /*!
@@ -25,11 +26,11 @@ extern "C" {
    * \param nelem number of nonzero elements in the matrix
    * \return created dmatrix
    */
-  XGB_DLL void* XGDMatrixCreateFromCSR(const uint64_t *indptr,
+  XGB_DLL void* XGDMatrixCreateFromCSR(const bst_ulong *indptr,
                                        const unsigned *indices,
                                        const float *data,
-                                       uint64_t nindptr,
-                                       uint64_t nelem);
+                                       bst_ulong nindptr,
+                                       bst_ulong nelem);
   /*!
    * \brief create matrix content from dense matrix
    * \param data pointer to the data space
@@ -39,8 +40,8 @@ extern "C" {
    * \return created dmatrix
    */
   XGB_DLL void* XGDMatrixCreateFromMat(const float *data,
-                                       uint64_t nrow,
-                                       uint64_t ncol,
+                                       bst_ulong nrow,
+                                       bst_ulong ncol,
                                        float  missing);
   /*!
    * \brief create a new dmatrix from sliced content of existing matrix
@@ -51,7 +52,7 @@ extern "C" {
    */
   XGB_DLL void* XGDMatrixSliceDMatrix(void *handle,
                                       const int *idxset,
-                                      uint64_t len);
+                                      bst_ulong len);
   /*!
    * \brief free space in data matrix
    */
@@ -70,7 +71,7 @@ extern "C" {
    * \param array pointer to float vector
    * \param len length of array
    */
-  XGB_DLL void XGDMatrixSetFloatInfo(void *handle, const char *field, const float *array, uint64_t len);
+  XGB_DLL void XGDMatrixSetFloatInfo(void *handle, const char *field, const float *array, bst_ulong len);
   /*!
    * \brief set uint32 vector to a content in info
    * \param handle a instance of data matrix
@@ -78,14 +79,14 @@ extern "C" {
    * \param array pointer to float vector
    * \param len length of array
    */
-  XGB_DLL void XGDMatrixSetUIntInfo(void *handle, const char *field, const unsigned *array, uint64_t len);
+  XGB_DLL void XGDMatrixSetUIntInfo(void *handle, const char *field, const unsigned *array, bst_ulong len);
   /*!
    * \brief set label of the training matrix
    * \param handle a instance of data matrix
    * \param group pointer to group size
    * \param len length of array
    */
-  XGB_DLL void XGDMatrixSetGroup(void *handle, const unsigned *group, uint64_t len);
+  XGB_DLL void XGDMatrixSetGroup(void *handle, const unsigned *group, bst_ulong len);
   /*!
    * \brief get float info vector from matrix
    * \param handle a instance of data matrix
@@ -93,7 +94,7 @@ extern "C" {
    * \param out_len used to set result length
    * \return pointer to the result
    */
-  XGB_DLL const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, uint64_t* out_len);
+  XGB_DLL const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, bst_ulong* out_len);
   /*!
    * \brief get uint32 info vector from matrix
    * \param handle a instance of data matrix
@@ -101,18 +102,18 @@ extern "C" {
    * \param out_len used to set result length
    * \return pointer to the result
    */
-  XGB_DLL const unsigned* XGDMatrixGetUIntInfo(const void *handle, const char *field, uint64_t* out_len);
+  XGB_DLL const unsigned* XGDMatrixGetUIntInfo(const void *handle, const char *field, bst_ulong* out_len);
   /*!
    * \brief return number of rows
    */
-  XGB_DLL uint64_t XGDMatrixNumRow(const void *handle);
+  XGB_DLL bst_ulong XGDMatrixNumRow(const void *handle);
   // --- start XGBoost class
   /*! 
    * \brief create xgboost learner 
    * \param dmats matrices that are set to be cached
    * \param len length of dmats
    */
-  XGB_DLL void *XGBoosterCreate(void* dmats[], uint64_t len);
+  XGB_DLL void *XGBoosterCreate(void* dmats[], bst_ulong len);
   /*! 
    * \brief free obj in handle 
    * \param handle handle to be freed
@@ -142,7 +143,7 @@ extern "C" {
    * \param len length of grad/hess array
    */
   XGB_DLL void XGBoosterBoostOneIter(void *handle, void *dtrain,
-                                     float *grad, float *hess, uint64_t len);
+                                     float *grad, float *hess, bst_ulong len);
   /*!
    * \brief get evaluation statistics for xgboost
    * \param handle handle
@@ -153,7 +154,7 @@ extern "C" {
    * \return the string containing evaluation stati
    */
   XGB_DLL const char *XGBoosterEvalOneIter(void *handle, int iter, void *dmats[],
-                                           const char *evnames[], uint64_t len);
+                                           const char *evnames[], bst_ulong len);
   /*!
    * \brief make prediction based on dmat
    * \param handle handle
@@ -161,7 +162,7 @@ extern "C" {
    * \param output_margin whether only output raw margin value
    * \param len used to store length of returning result
    */
-  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, uint64_t *len);
+  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, bst_ulong *len);
   /*!
    * \brief load model from existing file
    * \param handle handle
@@ -182,6 +183,6 @@ extern "C" {
    * \return char *data[], representing dump of each model
    */
   XGB_DLL const char **XGBoosterDumpModel(void *handle, const char *fmap,
-                                          uint64_t *out_len);
+                                          bst_ulong *out_len);
 };
 #endif  // XGBOOST_WRAPPER_H_
