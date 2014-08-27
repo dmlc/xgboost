@@ -3,10 +3,10 @@
 #include <utility>
 #include <cstring>
 #include "xgboost_R.h"
-#include "xgboost_wrapper.h"
-#include "../src/utils/utils.h"
-#include "../src/utils/omp.h"
-#include "../src/utils/matrix_csr.h"
+#include "../../wrapper/xgboost_wrapper.h"
+#include "../../src/utils/utils.h"
+#include "../../src/utils/omp.h"
+#include "../../src/utils/matrix_csr.h"
 
 using namespace xgboost;
 // implements error handling
