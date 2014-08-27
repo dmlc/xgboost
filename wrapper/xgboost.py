@@ -9,7 +9,10 @@ import numpy.ctypeslib
 import scipy.sparse as scp
 
 # set this line correctly
-XGBOOST_PATH = os.path.dirname(__file__)+'/libxgboostwrapper.so'
+if os.name == 'nt':
+    XGBOOST_PATH = os.path.dirname(__file__)+'/../windows/x64/Release/xgboost_wrapper.dll'
+else:
+     XGBOOST_PATH = os.path.dirname(__file__)+'/../libxgboostwrapper.so'
 
 # load in xgboost library
 xglib = ctypes.cdll.LoadLibrary(XGBOOST_PATH)
@@ -231,7 +234,7 @@ class Booster:
         trees = self.get_dump(fmap)
         fmap = {}
         for tree in trees:
-            print tree
+            print (tree)
             for l in tree.split('\n'):
                 arr = l.split('[')
                 if len(arr) == 1:
@@ -263,7 +266,7 @@ def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None
         for i in range(num_boost_round):
             bst.update( dtrain, i )
             if len(evals) != 0:
-                sys.stderr.write(evaluate(bst, evals, i, feval)+'\n')
+                sys.stderr.write(evaluate(bst, evals, i, feval).decode()+'\n')
     else:
         # try customized objective function
         for i in range(num_boost_round):
