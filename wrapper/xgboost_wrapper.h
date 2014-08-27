@@ -7,8 +7,7 @@
  *  can be used to create wrapper of other languages
  */
 #include <cstdio>
-// define uint64_t to be unsigned long
-typedef unsigned long uint64_t;
+#include "../src/utils/utils.h"
 #define XGB_DLL
 
 extern "C" {
