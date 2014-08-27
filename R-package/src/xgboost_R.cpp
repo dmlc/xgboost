@@ -62,9 +62,9 @@ extern "C" {
     int ncol = length(indptr) - 1;
     int ndata = length(data);
     // transform into CSR format
-    std::vector<size_t> row_ptr;
+    std::vector<bst_ulong> row_ptr;
     std::vector< std::pair<unsigned, float> > csr_data;
-    utils::SparseCSRMBuilder< std::pair<unsigned,float> > builder(row_ptr, csr_data);
+    utils::SparseCSRMBuilder<std::pair<unsigned,float>, false, bst_ulong> builder(row_ptr, csr_data);
     builder.InitBudget();
     for (int i = 0; i < ncol; ++i) {
       for (int j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
