@@ -123,7 +123,7 @@ struct EvalAMS : public IEvaluator {
     const double br = 10.0;
     unsigned thresindex = 0;
     double s_tp = 0.0, b_fp = 0.0, tams = 0.0;
-    for (unsigned i = 0; i < ndata-1 && i < ntop; ++i) {
+    for (unsigned i = 0; i < static_cast<unsigned>(ndata-1) && i < ntop; ++i) {
       const unsigned ridx = rec[i].second;
       const float wt = info.weights[ridx];
       if (info.labels[ridx] > 0.5f) {

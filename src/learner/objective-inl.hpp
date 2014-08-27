@@ -169,7 +169,7 @@ class SoftmaxMultiClassObj : public IObjFunction {
     std::vector<bst_gpair> &gpair = *out_gpair;
     gpair.resize(preds.size());
     const unsigned nstep = static_cast<unsigned>(info.labels.size() * nclass);
-    const unsigned ndata = static_cast<bst_omp_uint>(preds.size() / nclass);
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size() / nclass);
     #pragma omp parallel
     {
       std::vector<float> rec(nclass);
