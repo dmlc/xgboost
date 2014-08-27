@@ -62,7 +62,7 @@ class DMatrixSimple : public DataMatrix {
   inline size_t AddRow(const std::vector<SparseBatch::Entry> &feats) {
     for (size_t i = 0; i < feats.size(); ++i) {
       row_data_.push_back(feats[i]);
-      info.info.num_col = std::max(info.info.num_col, static_cast<size_t>(feats[i].findex+1));
+      info.info.num_col = std::max(info.info.num_col, static_cast<size_t>(feats[i].index+1));
     }
     row_ptr_.push_back(row_ptr_.back() + feats.size());
     info.info.num_row += 1;
@@ -81,7 +81,7 @@ class DMatrixSimple : public DataMatrix {
     std::vector<SparseBatch::Entry> feats;
     while (fscanf(file, "%s", tmp) == 1) {
       SparseBatch::Entry e;
-      if (sscanf(tmp, "%u:%f", &e.findex, &e.fvalue) == 2) {
+      if (sscanf(tmp, "%u:%f", &e.index, &e.fvalue) == 2) {
         feats.push_back(e);
       } else {
         if (!init) {

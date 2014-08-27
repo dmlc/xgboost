@@ -70,12 +70,12 @@ struct SparseBatch {
   /*! \brief an entry of sparse vector */
   struct Entry {
     /*! \brief feature index */
-    bst_uint findex;
+    bst_uint index;
     /*! \brief feature value */
     bst_float fvalue;
     // default constructor
     Entry(void) {}
-    Entry(bst_uint findex, bst_float fvalue) : findex(findex), fvalue(fvalue) {}
+    Entry(bst_uint index, bst_float fvalue) : index(index), fvalue(fvalue) {}
     /*! \brief reversely compare feature values */
     inline static bool CmpValue(const Entry &a, const Entry &b) {
       return a.fvalue < b.fvalue;
@@ -190,7 +190,7 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
       }
     }
     inline bst_uint rindex(void) const {
-      return dptr_->findex;
+      return dptr_->index;
     }
     inline bst_float fvalue(void) const {
       return dptr_->fvalue;
@@ -345,7 +345,7 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
           buffered_rowset_.push_back(static_cast<bst_uint>(batch.base_rowid+i));
           SparseBatch::Inst inst = batch[i];
           for (bst_uint j = 0; j < inst.length; ++j) {
-            builder.AddBudget(inst[j].findex);
+            builder.AddBudget(inst[j].index);
           }
         }
       }
@@ -362,7 +362,7 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
           ++ktop;
           SparseBatch::Inst inst = batch[i];
           for (bst_uint j = 0; j < inst.length; ++j) {
-            builder.PushElem(inst[j].findex,
+            builder.PushElem(inst[j].index,
                              Entry((bst_uint)(batch.base_rowid+i),
                                    inst[j].fvalue));
           }
