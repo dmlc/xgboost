@@ -6,7 +6,7 @@ xgboost <- function(data = NULL, label = NULL, params = list(), nrounds = 10,
   if (inClass == "dgCMatrix" || inClass == "matrix") {
     if (is.null(label)) 
       stop("xgboost: need label when data is a matrix")
-    dtrain <- xgb.DMatrix(data, label = y)
+    dtrain <- xgb.DMatrix(data, label = label)
   } else {
     if (!is.null(label)) 
       warning("xgboost: label will be ignored.")
