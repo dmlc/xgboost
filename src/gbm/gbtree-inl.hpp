@@ -121,10 +121,10 @@ class GBTree : public IGradBooster<FMatrix> {
     const size_t stride = info.num_row * mparam.num_output_group;
     preds.resize(stride * (mparam.size_leaf_vector+1));
     // start collecting the prediction
-    utils::IIterator<SparseBatch> *iter = fmat.RowIterator();
+    utils::IIterator<RowBatch> *iter = fmat.RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const SparseBatch &batch = iter->Value();
+      const RowBatch &batch = iter->Value();
       // parallel over local batch
       const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
@@ -208,7 +208,7 @@ class GBTree : public IGradBooster<FMatrix> {
     mparam.num_trees += tparam.num_parallel_tree;
   }
   // make a prediction for a single instance
-  inline void Pred(const SparseBatch::Inst &inst,
+  inline void Pred(const RowBatch::Inst &inst,
                    int64_t buffer_index,
                    int bst_group,
                    unsigned root_index,

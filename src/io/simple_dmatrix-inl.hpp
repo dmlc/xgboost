@@ -41,15 +41,15 @@ class DMatrixSimple : public DataMatrix {
     this->info = src.info;
     this->Clear();
     // clone data content in thos matrix
-    utils::IIterator<SparseBatch> *iter = src.fmat.RowIterator();
+    utils::IIterator<RowBatch> *iter = src.fmat.RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const SparseBatch &batch = iter->Value();
+      const RowBatch &batch = iter->Value();
       for (size_t i = 0; i < batch.size; ++i) {
-        SparseBatch::Inst inst = batch[i];
+        RowBatch::Inst inst = batch[i];
         row_data_.resize(row_data_.size() + inst.length);
         memcpy(&row_data_[row_ptr_.back()], inst.data,
-               sizeof(SparseBatch::Entry) * inst.length);
+               sizeof(RowBatch::Entry) * inst.length);
         row_ptr_.push_back(row_ptr_.back() + inst.length);
       }
     }
@@ -59,7 +59,7 @@ class DMatrixSimple : public DataMatrix {
    * \param feats features
    * \return the index of added row
    */
-  inline size_t AddRow(const std::vector<SparseBatch::Entry> &feats) {
+  inline size_t AddRow(const std::vector<RowBatch::Entry> &feats) {
     for (size_t i = 0; i < feats.size(); ++i) {
       row_data_.push_back(feats[i]);
       info.info.num_col = std::max(info.info.num_col, static_cast<size_t>(feats[i].index+1));
@@ -78,9 +78,9 @@ class DMatrixSimple : public DataMatrix {
     FILE* file = utils::FopenCheck(fname, "r");
     float label; bool init = true;
     char tmp[1024];
-    std::vector<SparseBatch::Entry> feats;
+    std::vector<RowBatch::Entry> feats;
     while (fscanf(file, "%s", tmp) == 1) {
-      SparseBatch::Entry e;
+      RowBatch::Entry e;
       if (sscanf(tmp, "%u:%f", &e.index, &e.fvalue) == 2) {
         feats.push_back(e);
       } else {
@@ -211,13 +211,13 @@ class DMatrixSimple : public DataMatrix {
   /*! \brief row pointer of CSR sparse storage */
   std::vector<size_t> row_ptr_;
   /*! \brief data in the row */
-  std::vector<SparseBatch::Entry> row_data_;
+  std::vector<RowBatch::Entry> row_data_;
   /*! \brief magic number used to identify DMatrix */
   static const int kMagic = 0xffffab01;
 
  protected:
   // one batch iterator that return content in the matrix
-  struct OneBatchIter: utils::IIterator<SparseBatch> {
+  struct OneBatchIter: utils::IIterator<RowBatch> {
     explicit OneBatchIter(DMatrixSimple *parent)
         : at_first_(true), parent_(parent) {}
     virtual ~OneBatchIter(void) {}
@@ -233,7 +233,7 @@ class DMatrixSimple : public DataMatrix {
       batch_.data_ptr = &parent_->row_data_[0];
       return true;
     }
-    virtual const SparseBatch &Value(void) const {
+    virtual const RowBatch &Value(void) const {
       return batch_;
     }
 
@@ -243,7 +243,7 @@ class DMatrixSimple : public DataMatrix {
     // pointer to parient
     DMatrixSimple *parent_;
     // temporal space for batch
-    SparseBatch batch_;
+    RowBatch batch_;
   };
 };
 }  // namespace io

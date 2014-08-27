@@ -491,13 +491,13 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat>{
       std::fill(data.begin(), data.end(), e);
     }
     /*! \brief fill the vector with sparse vector */
-    inline void Fill(const SparseBatch::Inst &inst) {
+    inline void Fill(const RowBatch::Inst &inst) {
       for (bst_uint i = 0; i < inst.length; ++i) {
         data[inst[i].index].fvalue = inst[i].fvalue;
       }
     }
     /*! \brief drop the trace after fill, must be called after fill */
-    inline void Drop(const SparseBatch::Inst &inst) {      
+    inline void Drop(const RowBatch::Inst &inst) {      
       for (bst_uint i = 0; i < inst.length; ++i) {
         data[inst[i].index].flag = -1;
       }
