@@ -116,9 +116,9 @@ class RegLossObj : public IObjFunction{
     gpair.resize(preds.size());
     // start calculating gradient
     const unsigned nstep = static_cast<unsigned>(info.labels.size());
-    const unsigned ndata = static_cast<unsigned>(preds.size());
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
     #pragma omp parallel for schedule(static)
-    for (unsigned i = 0; i < ndata; ++i) {
+    for (bst_omp_uint i = 0; i < ndata; ++i) {
       const unsigned j = i % nstep;
       float p = loss.PredTransform(preds[i]);
       float w = info.GetWeight(j);
@@ -132,9 +132,9 @@ class RegLossObj : public IObjFunction{
   }
   virtual void PredTransform(std::vector<float> *io_preds) {
     std::vector<float> &preds = *io_preds;
-    const unsigned ndata = static_cast<unsigned>(preds.size());
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
     #pragma omp parallel for schedule(static)
-    for (unsigned j = 0; j < ndata; ++j) {
+    for (bst_omp_uint j = 0; j < ndata; ++j) {
       preds[j] = loss.PredTransform(preds[j]);
     }
   }
@@ -169,12 +169,12 @@ class SoftmaxMultiClassObj : public IObjFunction {
     std::vector<bst_gpair> &gpair = *out_gpair;
     gpair.resize(preds.size());
     const unsigned nstep = static_cast<unsigned>(info.labels.size() * nclass);
-    const unsigned ndata = static_cast<unsigned>(preds.size() / nclass);
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size() / nclass);
     #pragma omp parallel
     {
       std::vector<float> rec(nclass);
       #pragma omp for schedule(static)
-      for (unsigned i = 0; i < ndata; ++i) {
+      for (bst_omp_uint i = 0; i < ndata; ++i) {
         for (int k = 0; k < nclass; ++k) {
           rec[k] = preds[i * nclass + k];
         }
@@ -210,18 +210,18 @@ class SoftmaxMultiClassObj : public IObjFunction {
     utils::Check(nclass != 0, "must set num_class to use softmax");
     std::vector<float> &preds = *io_preds;
     std::vector<float> tmp;
-    const unsigned ndata = static_cast<unsigned>(preds.size()/nclass);
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size()/nclass);
     if (prob == 0) tmp.resize(ndata);
     #pragma omp parallel
     {
       std::vector<float> rec(nclass);
       #pragma omp for schedule(static)
-      for (unsigned j = 0; j < ndata; ++j) {
+      for (bst_omp_uint j = 0; j < ndata; ++j) {
         for (int k = 0; k < nclass; ++k) {
           rec[k] = preds[j * nclass + k];
         }
         if (prob == 0) {
-          tmp[j] = FindMaxIndex(rec);
+          tmp[j] = static_cast<float>(FindMaxIndex(rec));
         } else {
           Softmax(&rec);
           for (int k = 0; k < nclass; ++k) {
@@ -259,11 +259,11 @@ class LambdaRankObj : public IObjFunction {
     std::vector<bst_gpair> &gpair = *out_gpair;
     gpair.resize(preds.size());
     // quick consistency when group is not available
-    std::vector<unsigned> tgptr(2, 0); tgptr[1] = info.labels.size();
+    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels.size());
     const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
     utils::Check(gptr.size() != 0 && gptr.back() == info.labels.size(),
                  "group structure not consistent with #rows");
-    const unsigned ngroup = static_cast<unsigned>(gptr.size() - 1);
+    const bst_omp_uint ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     #pragma omp parallel
     {
       // parall construct, declare random number generator here, so that each
@@ -273,7 +273,7 @@ class LambdaRankObj : public IObjFunction {
       std::vector<ListEntry>  lst;
       std::vector< std::pair<float, unsigned> > rec;
       #pragma omp for schedule(static)
-      for (unsigned k = 0; k < ngroup; ++k) {
+      for (bst_omp_uint k = 0; k < ngroup; ++k) {
         lst.clear(); pairs.clear();
         for (unsigned j = gptr[k]; j < gptr[k+1]; ++j) {
           lst.push_back(ListEntry(preds[j], info.labels[j], j));
@@ -290,7 +290,7 @@ class LambdaRankObj : public IObjFunction {
           unsigned j = i + 1;
           while (j < rec.size() && rec[j].first == rec[i].first) ++j;
           // bucket in [i,j), get a sample outside bucket
-          unsigned nleft = i, nright = rec.size() - j;
+          unsigned nleft = i, nright = static_cast<unsigned>(rec.size() - j);
           if (nleft + nright != 0) {
             int nsample = num_pairsample;
             while (nsample --) {
@@ -436,9 +436,9 @@ class LambdaRankObjNDCG : public LambdaRankObj {
   inline static float CalcDCG(const std::vector<float> &labels) {
     double sumdcg = 0.0;
     for (size_t i = 0; i < labels.size(); ++i) {
-      const unsigned rel = labels[i];
+      const unsigned rel = static_cast<unsigned>(labels[i]);
       if (rel != 0) {
-        sumdcg += ((1 << rel) - 1) / logf(i + 2);
+        sumdcg += ((1 << rel) - 1) / logf(static_cast<float>(i + 2));
       }
     }
     return static_cast<float>(sumdcg);

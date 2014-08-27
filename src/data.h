@@ -12,6 +12,7 @@
 #include <cstring>
 #include <algorithm>
 #include "utils/io.h"
+#include "utils/omp.h"
 #include "utils/utils.h"
 #include "utils/iterator.h"
 #include "utils/random.h"
@@ -44,6 +45,10 @@ struct bst_gpair {
  * these information are not necessarily presented, and can be empty
  */
 struct BoosterInfo {
+  /*! \brief number of rows in the data */
+  size_t num_row;
+  /*! \brief number of columns in the data */
+  size_t num_col;
   /*!
    * \brief specified root index of each instance,
    *  can be used for multi task setting
@@ -51,6 +56,9 @@ struct BoosterInfo {
   std::vector<unsigned> root_index;
   /*! \brief set fold indicator */
   std::vector<unsigned> fold_index;
+  /*! \brief number of rows, number of columns */
+  BoosterInfo(void) : num_row(0), num_col(0) {
+  }
   /*! \brief get root of ith instance */
   inline unsigned GetRoot(size_t i) const {
     return root_index.size() == 0 ? 0 : root_index[i];
@@ -96,7 +104,7 @@ struct SparseBatch {
   const Entry *data_ptr;
   /*! \brief get i-th row from the batch */
   inline Inst operator[](size_t i) const {
-    return Inst(data_ptr + row_ptr[i], row_ptr[i+1] - row_ptr[i]);
+    return Inst(data_ptr + row_ptr[i], static_cast<bst_uint>(row_ptr[i+1] - row_ptr[i]));
   }
 };
 
@@ -334,7 +342,7 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
       const SparseBatch &batch = iter_->Value();
       for (size_t i = 0; i < batch.size; ++i) {
         if (pkeep == 1.0f || random::SampleBinary(pkeep)) {
-          buffered_rowset_.push_back(batch.base_rowid+i);
+          buffered_rowset_.push_back(static_cast<bst_uint>(batch.base_rowid+i));
           SparseBatch::Inst inst = batch[i];
           for (bst_uint j = 0; j < inst.length; ++j) {
             builder.AddBudget(inst[j].findex);
@@ -363,11 +371,11 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
     }
 
     // sort columns
-    unsigned ncol = static_cast<unsigned>(this->NumCol());
+    bst_omp_uint ncol = static_cast<bst_omp_uint>(this->NumCol());
     #pragma omp parallel for schedule(static)
-    for (unsigned i = 0; i < ncol; ++i) {
-      std::sort(&col_data_[col_ptr_[i]],
-                &col_data_[col_ptr_[i + 1]], Entry::CmpValue);
+    for (bst_omp_uint i = 0; i < ncol; ++i) {
+      std::sort(&col_data_[0] + col_ptr_[i],
+                &col_data_[0] + col_ptr_[i + 1], Entry::CmpValue);
     }
   }
 
