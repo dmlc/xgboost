@@ -91,7 +91,7 @@ extern "C"{
     for (bst_ulong i = 0; i < nelem; ++i) {
       mat.row_data_[i] = SparseBatch::Entry(indices[i], data[i]);
       mat.info.info.num_col = std::max(mat.info.info.num_col,
-                                       static_cast<uint64_t>(indices[i]+1));
+                                       static_cast<size_t>(indices[i]+1));
     }
     mat.info.info.num_row = nindptr - 1;
     return p_mat;
@@ -180,7 +180,7 @@ extern "C"{
     vec.resize(len);
     memcpy(&vec[0], info, sizeof(unsigned) * len);
   }
-  void XGDMatrixSetGroup(void *handle, const unsigned *group, uint64_t len) {
+  void XGDMatrixSetGroup(void *handle, const unsigned *group, bst_ulong len) {
     DataMatrix *pmat = static_cast<DataMatrix*>(handle);
     pmat->info.group_ptr.resize(len + 1);
     pmat->info.group_ptr[0] = 0;
@@ -188,7 +188,7 @@ extern "C"{
       pmat->info.group_ptr[i+1] = pmat->info.group_ptr[i]+group[i];
     }
   }
-  const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, uint64_t* len) {
+  const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, bst_ulong* len) {
     const std::vector<float> &vec =
         static_cast<const DataMatrix*>(handle)->info.GetFloatInfo(field);
     *len = vec.size();
