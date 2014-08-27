@@ -85,8 +85,8 @@ test.y <- csc$label
 test.x <- csc$data
 pred <- predict(bst, test.x)
 
-# Extrac label with xgb.getinfo
-labels <- xgb.getinfo(dtest, "label")
+# Extrac label with getinfo
+labels <- getinfo(dtest, "label")
 err <- as.numeric(sum(as.integer(pred > 0.5) != labels))/length(labels)
 print(paste("error=", err))
 
@@ -126,7 +126,7 @@ param <- list(max_depth = 2, eta = 1, silent = 1)
 # user define objective function, given prediction, return gradient and second order gradient this is
 # loglikelihood loss
 logregobj <- function(preds, dtrain) {
-  labels <- xgb.getinfo(dtrain, "label")
+  labels <- getinfo(dtrain, "label")
   preds <- 1/(1 + exp(-preds))
   grad <- preds - labels
   hess <- preds * (1 - preds)
@@ -139,7 +139,7 @@ logregobj <- function(preds, dtrain) {
 # transformation Take this in mind when you use the customization, and maybe you need write customized
 # evaluation function
 evalerror <- function(preds, dtrain) {
-  labels <- xgb.getinfo(dtrain, "label")
+  labels <- getinfo(dtrain, "label")
   err <- as.numeric(sum(labels != (preds > 0)))/length(labels)
   return(list(metric = "error", value = err))
 }
