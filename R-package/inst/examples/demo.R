@@ -24,45 +24,104 @@ read.libsvm <- function(fname, maxcol) {
   return(list(label = label, data = mat))
 }
 
-# Parameter setting
+############################ Test xgb.DMatrix with local file, sparse matrix and dense matrix in R.
+
+# Directly read in local file
 dtrain <- xgb.DMatrix("agaricus.txt.train")
-dtest <- xgb.DMatrix("agaricus.txt.test")
-param <- list(`bst:max_depth` = 2, `bst:eta` = 1, silent = 1, objective = "binary:logistic")
-watchlist <- list(eval = dtest, train = dtrain)
+class(dtrain)
 
-########################### Train from local file
-
-# Training
-bst <- xgboost(file = "agaricus.txt.train", params = param, watchlist = watchlist)
-# Prediction
-pred <- predict(bst, "agaricus.txt.test")
-# Performance
-labels <- xgb.getinfo(dtest, "label")
-err <- as.numeric(sum(as.integer(pred > 0.5) != labels))/length(labels)
-print(paste("error=", err))
-
-########################### Train from R object
-
+# read file in R
 csc <- read.libsvm("agaricus.txt.train", 126)
 y <- csc$label
 x <- csc$data
+
 # x as Sparse Matrix
 class(x)
+dtrain <- xgb.DMatrix(x, label = y)
 
-# Training
-bst <- xgboost(x, y, params = param, watchlist = watchlist)
-# Prediction
+# x as dense matrix
+dense.x <- as.matrix(x)
+dtrain <- xgb.DMatrix(dense.x, label = y)
+
+############################ Test xgboost with local file, sparse matrix and dense matrix in R.
+
+# Test with DMatrix object
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, 
+               objective = "binary:logistic")
+
+# Verbose = 0,1,2
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, 
+               objective = "binary:logistic", verbose = 0)
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, 
+               objective = "binary:logistic", verbose = 1)
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, 
+               objective = "binary:logistic", verbose = 2)
+
+# Test with local file
+bst <- xgboost(data = "agaricus.txt.train", max_depth = 2, eta = 1,
+               objective = "binary:logistic")
+
+# Test with Sparse Matrix
+bst <- xgboost(data = x, label = y, max_depth = 2, eta = 1, 
+               objective = "binary:logistic")
+
+# Test with dense Matrix
+bst <- xgboost(data = dense.x, label = y, max_depth = 2, eta = 1, 
+               objective = "binary:logistic")
+
+
+############################ Test predict
+
+# Prediction with DMatrix object
+dtest <- xgb.DMatrix("agaricus.txt.test")
+pred <- predict(bst, dtest)
+
+# Prediction with local test file
 pred <- predict(bst, "agaricus.txt.test")
-# Performance
+
+# Prediction with Sparse Matrix
+csc <- read.libsvm("agaricus.txt.test", 126)
+test.y <- csc$label
+test.x <- csc$data
+pred <- predict(bst, test.x)
+
+# Extrac label with xgb.getinfo
 labels <- xgb.getinfo(dtest, "label")
 err <- as.numeric(sum(as.integer(pred > 0.5) != labels))/length(labels)
 print(paste("error=", err))
 
-# Training with dense matrix
-x <- as.matrix(x)
-bst <- xgboost(x, y, params = param, watchlist = watchlist)
+############################ Save and load model to hard disk
 
-########################### Train with customization
+# save model to binary local file
+xgb.save(bst, "model.save")
+
+# load binary model to R
+bst <- xgb.load("model.save")
+pred <- predict(bst, test.x)
+
+# save model to text file
+xgb.dump(bst, "model.dump")
+
+# save a DMatrix object to hard disk
+xgb.DMatrix.save(dtrain, "dtrain.save")
+
+# load a DMatrix object to R
+dtrain <- xgb.DMatrix("dtrain.save")
+
+############################ More flexible training function xgb.train
+
+param <- list(max_depth = 2, eta = 1, silent = 1, objective = "binary:logistic")
+watchlist <- list(eval = dtest, train = dtrain)
+
+# training xgboost model
+bst <- xgb.train(param, dtrain, nround = 2, watchlist = watchlist)
+
+############################ cutomsized loss function
+
+param <- list(max_depth = 2, eta = 1, silent = 1)
+
+# note: for customized objective function, we leave objective as default note: what we are getting is
+# margin value in prediction you must know what you are doing
 
 # user define objective function, given prediction, return gradient and second order gradient this is
 # loglikelihood loss
@@ -85,10 +144,8 @@ evalerror <- function(preds, dtrain) {
   return(list(metric = "error", value = err))
 }
 
-bst <- xgboost(x, y, params = param, watchlist = watchlist, obj = logregobj, feval = evalerror)
+# training with customized objective, we can also do step by step training simply look at xgboost.py's
+# implementation of train
+bst <- xgb.train(param, dtrain, nround = 2, watchlist, logregobj, evalerror)
 
-############################ Train with previous result
-
-bst <- xgboost(x, y, params = param, watchlist = watchlist)
-pred <- predict(bst, "agaricus.txt.train", outputmargin = TRUE)
-bst2 <- xgboost(x, y, params = param, watchlist = watchlist, margin = pred) 
+ 
