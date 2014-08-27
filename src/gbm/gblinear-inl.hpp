@@ -150,7 +150,7 @@ class GBLinear : public IGradBooster<FMatrix> {
     for (int gid = 0; gid < model.param.num_output_group; ++gid) {
       float psum = model.bias()[gid];
       for (bst_uint i = 0; i < inst.length; ++i) {
-        psum += inst[i].fvalue * model[inst[i].findex][gid];
+        psum += inst[i].fvalue * model[inst[i].index][gid];
       }
       preds[gid] = psum;
     }
