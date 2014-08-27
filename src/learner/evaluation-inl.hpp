@@ -26,10 +26,10 @@ struct EvalEWiseBase : public IEvaluator {
                      const MetaInfo &info) const {
     utils::Check(preds.size() == info.labels.size(),
                  "label and prediction size not match");
-    const unsigned ndata = static_cast<unsigned>(preds.size());
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
     float sum = 0.0, wsum = 0.0;
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
-    for (unsigned i = 0; i < ndata; ++i) {
+    for (bst_omp_uint i = 0; i < ndata; ++i) {
       const float wt = info.GetWeight(i);
       sum += Derived::EvalRow(info.labels[i], preds[i]) * wt;
       wsum += wt;
@@ -109,12 +109,12 @@ struct EvalAMS : public IEvaluator {
   }
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
-    const unsigned ndata = static_cast<unsigned>(preds.size());
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
     utils::Check(info.weights.size() == ndata, "we need weight to evaluate ams");
     std::vector< std::pair<float, unsigned> > rec(ndata);
 
     #pragma omp parallel for schedule(static)
-    for (unsigned i = 0; i < ndata; ++i) {
+    for (bst_omp_uint i = 0; i < ndata; ++i) {
       rec[i] = std::make_pair(preds[i], i);
     }
     std::sort(rec.begin(), rec.end(), CmpFirst);
@@ -211,7 +211,7 @@ struct EvalAuc : public IEvaluator {
     const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
     utils::Check(gptr.back() == preds.size(),
                  "EvalAuc: group structure must match number of prediction");
-    const unsigned ngroup = static_cast<unsigned>(gptr.size() - 1);
+    const bst_omp_uint ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     // sum statictis
     double sum_auc = 0.0f;
     #pragma omp parallel reduction(+:sum_auc)
@@ -219,7 +219,7 @@ struct EvalAuc : public IEvaluator {
       // each thread takes a local rec
       std::vector< std::pair<float, unsigned> > rec;
       #pragma omp for schedule(static)
-      for (unsigned k = 0; k < ngroup; ++k) {
+      for (bst_omp_uint k = 0; k < ngroup; ++k) {
         rec.clear();
         for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
           rec.push_back(std::make_pair(preds[j], j));
@@ -269,7 +269,7 @@ struct EvalRankList : public IEvaluator {
     utils::Assert(gptr.size() != 0, "must specify group when constructing rank file");
     utils::Assert(gptr.back() == preds.size(),
                    "EvalRanklist: group structure must match number of prediction");
-    const unsigned ngroup = static_cast<unsigned>(gptr.size() - 1);
+    const bst_omp_uint ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     // sum statistics
     double sum_metric = 0.0f;
     #pragma omp parallel reduction(+:sum_metric)
@@ -277,7 +277,7 @@ struct EvalRankList : public IEvaluator {
       // each thread takes a local rec
       std::vector< std::pair<float, unsigned> > rec;
       #pragma omp for schedule(static)
-      for (unsigned k = 0; k < ngroup; ++k) {
+      for (bst_omp_uint k = 0; k < ngroup; ++k) {
         rec.clear();
         for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
           rec.push_back(std::make_pair(preds[j], static_cast<int>(info.labels[j])));

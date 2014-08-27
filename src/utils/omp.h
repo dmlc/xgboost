@@ -7,6 +7,15 @@
  */
 #if defined(_OPENMP)
 #include <omp.h>
+namespace xgboost {
+// loop variable used in openmp
+#ifdef _MSC_VER
+typedef int bst_omp_uint;
+#else
+typedef unsigned bst_omp_uint;
+#endif
+} // namespace xgboost
+
 #else
 #ifndef DISABLE_OPENMP
 #ifndef _MSC_VER

@@ -32,9 +32,9 @@ class Booster: public learner::BoostLearner<FMatrixS> {
   inline void BoostOneIter(const DataMatrix &train,
                            float *grad, float *hess, uint64_t len) {
     this->gpair_.resize(len);
-    const unsigned ndata = static_cast<unsigned>(len);
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(len);
     #pragma omp parallel for schedule(static)
-    for (unsigned j = 0; j < ndata; ++j) {
+    for (bst_omp_uint j = 0; j < ndata; ++j) {
       gpair_[j] = bst_gpair(grad[j], hess[j]);
     }
     gbm_->DoBoost(train.fmat, train.info.info, &gpair_);

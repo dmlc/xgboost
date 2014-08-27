@@ -94,8 +94,9 @@ class GBTree : public IGradBooster<FMatrix> {
                    "must have exactly ngroup*nrow gpairs");
       std::vector<bst_gpair> tmp(gpair.size()/ngroup);
       for (int gid = 0; gid < ngroup; ++gid) {
+        bst_omp_uint nsize = static_cast<bst_omp_uint>(tmp.size());
         #pragma omp parallel for schedule(static)
-        for (size_t i = 0; i < tmp.size(); ++i) {
+        for (bst_omp_uint i = 0; i < nsize; ++i) {
           tmp[i] = gpair[i * ngroup + gid];
         }
         this->BoostNewTrees(tmp, fmat, info, gid);
@@ -129,9 +130,9 @@ class GBTree : public IGradBooster<FMatrix> {
       // k is number of group
       preds.resize(preds.size() + batch.size * mparam.num_output_group);
       // parallel over local batch
-      const unsigned nsize = static_cast<unsigned>(batch.size);
+      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
-      for (unsigned i = 0; i < nsize; ++i) {
+      for (bst_omp_uint i = 0; i < nsize; ++i) {
         const int tid = omp_get_thread_num();
         tree::RegTree::FVec &feats = thread_temp[tid];
         int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);

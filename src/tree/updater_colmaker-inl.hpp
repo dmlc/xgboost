@@ -186,9 +186,9 @@ class ColMaker: public IUpdater<FMatrix> {
       }
       const std::vector<bst_uint> &rowset = fmat.buffered_rowset();
       // setup position
-      const unsigned ndata = static_cast<unsigned>(rowset.size());
+      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
       #pragma omp parallel for schedule(static)
-      for (unsigned i = 0; i < ndata; ++i) {
+      for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
         const int tid = omp_get_thread_num();
         if (position[ridx] < 0) continue;
@@ -286,12 +286,12 @@ class ColMaker: public IUpdater<FMatrix> {
         feat_set.resize(n);
       }
       // start enumeration
-      const unsigned nsize = static_cast<unsigned>(feat_set.size());
+      const bst_omp_uint nsize = static_cast<bst_omp_uint>(feat_set.size());
       #if defined(_OPENMP)
       const int batch_size = std::max(static_cast<int>(nsize / this->nthread / 32), 1);
       #endif
       #pragma omp parallel for schedule(dynamic, batch_size)
-      for (unsigned i = 0; i < nsize; ++i) {
+      for (bst_omp_uint i = 0; i < nsize; ++i) {
         const unsigned fid = feat_set[i];
         const int tid = omp_get_thread_num();
         if (param.need_forward_search(fmat.GetColDensity(fid))) {
@@ -321,9 +321,9 @@ class ColMaker: public IUpdater<FMatrix> {
     inline void ResetPosition(const std::vector<int> &qexpand, const FMatrix &fmat, const RegTree &tree) {
       const std::vector<bst_uint> &rowset = fmat.buffered_rowset();
       // step 1, set default direct nodes to default, and leaf nodes to -1
-      const unsigned ndata = static_cast<unsigned>(rowset.size());
+      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
       #pragma omp parallel for schedule(static)
-      for (unsigned i = 0; i < ndata; ++i) {
+      for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
         const int nid = position[ridx];
         if (nid >= 0) {
@@ -344,9 +344,9 @@ class ColMaker: public IUpdater<FMatrix> {
       std::sort(fsplits.begin(), fsplits.end());
       fsplits.resize(std::unique(fsplits.begin(), fsplits.end()) - fsplits.begin());
       // start put things into right place
-      const unsigned nfeats = static_cast<unsigned>(fsplits.size());
+      const bst_omp_uint nfeats = static_cast<bst_omp_uint>(fsplits.size());
       #pragma omp parallel for schedule(dynamic, 1)
-      for (unsigned i = 0; i < nfeats; ++i) {
+      for (bst_omp_uint i = 0; i < nfeats; ++i) {
         const unsigned fid = fsplits[i];
         for (typename FMatrix::ColIter it = fmat.GetSortedCol(fid); it.Next();) {
           const bst_uint ridx = it.rindex();
