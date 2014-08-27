@@ -106,11 +106,11 @@ class GBLinear : public IGradBooster<FMatrix> {
     std::vector<float> &preds = *out_preds;
     preds.resize(0);
     // start collecting the prediction
-    utils::IIterator<SparseBatch> *iter = fmat.RowIterator();
+    utils::IIterator<RowBatch> *iter = fmat.RowIterator();
     iter->BeforeFirst();
     const int ngroup = model.param.num_output_group;
     while (iter->Next()) {
-      const SparseBatch &batch = iter->Value();
+      const RowBatch &batch = iter->Value();
       utils::Assert(batch.base_rowid * ngroup == preds.size(),
                     "base_rowid is not set correctly");
       // output convention: nrow * k, where nrow is number of rows
@@ -146,7 +146,7 @@ class GBLinear : public IGradBooster<FMatrix> {
     }
     random::Shuffle(feat_index);
   }
-  inline void Pred(const SparseBatch::Inst &inst, float *preds) {
+  inline void Pred(const RowBatch::Inst &inst, float *preds) {
     for (int gid = 0; gid < model.param.num_output_group; ++gid) {
       float psum = model.bias()[gid];
       for (bst_uint i = 0; i < inst.length; ++i) {

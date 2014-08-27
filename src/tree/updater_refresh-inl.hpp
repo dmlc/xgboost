@@ -50,16 +50,16 @@ class TreeRefresher: public IUpdater<FMatrix> {
       fvec_temp[tid].Init(trees[0]->param.num_feature);
     }
     // start accumulating statistics
-    utils::IIterator<SparseBatch> *iter = fmat.RowIterator();
+    utils::IIterator<RowBatch> *iter = fmat.RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const SparseBatch &batch = iter->Value();
+      const RowBatch &batch = iter->Value();
       utils::Check(batch.size < std::numeric_limits<unsigned>::max(),
                    "too large batch size ");
       const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
-        SparseBatch::Inst inst = batch[i];
+        RowBatch::Inst inst = batch[i];
         const int tid = omp_get_thread_num();
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         RegTree::FVec &feats = fvec_temp[tid];
