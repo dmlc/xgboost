@@ -7,15 +7,6 @@
  */
 #if defined(_OPENMP)
 #include <omp.h>
-namespace xgboost {
-// loop variable used in openmp
-#ifdef _MSC_VER
-typedef int bst_omp_uint;
-#else
-typedef unsigned bst_omp_uint;
-#endif
-} // namespace xgboost
-
 #else
 #ifndef DISABLE_OPENMP
 #ifndef _MSC_VER
@@ -30,4 +21,14 @@ inline int omp_get_thread_num() { return 0; }
 inline int omp_get_num_threads() { return 1; }
 inline void omp_set_num_threads(int nthread) {}
 #endif
+
+// loop variable used in openmp
+namespace xgboost {
+#ifdef _MSC_VER
+typedef int bst_omp_uint;
+#else
+typedef unsigned bst_omp_uint;
+#endif
+} // namespace xgboost
+
 #endif  // XGBOOST_UTILS_OMP_H_
