@@ -51,8 +51,8 @@ class ColMaker: public IUpdater<FMatrix> {
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    ThreadEntry(void) {
-      stats.Clear();
+    explicit ThreadEntry(const TrainParam &param)
+        : stats(param) {
     }
   };
   struct NodeEntry {
@@ -65,8 +65,8 @@ class ColMaker: public IUpdater<FMatrix> {
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    NodeEntry(void) : root_gain(0.0f), weight(0.0f){
-      stats.Clear();
+    explicit NodeEntry(const TrainParam &param)
+        : stats(param), root_gain(0.0f), weight(0.0f){
     }
   };
   // actual builder that runs the algorithm
@@ -80,13 +80,13 @@ class ColMaker: public IUpdater<FMatrix> {
                         const BoosterInfo &info,
                         RegTree *p_tree) {
       this->InitData(gpair, fmat, info.root_index, *p_tree);
-      this->InitNewNode(qexpand, gpair, fmat, *p_tree);
+      this->InitNewNode(qexpand, gpair, fmat, info, *p_tree);
 
       for (int depth = 0; depth < param.max_depth; ++depth) {
-        this->FindSplit(depth, this->qexpand, gpair, fmat, p_tree);
+        this->FindSplit(depth, this->qexpand, gpair, fmat, info, p_tree);
         this->ResetPosition(this->qexpand, fmat, *p_tree);
         this->UpdateQueueExpand(*p_tree, &this->qexpand);
-        this->InitNewNode(qexpand, gpair, fmat, *p_tree);
+        this->InitNewNode(qexpand, gpair, fmat, info, *p_tree);
         // if nothing left to be expand, break
         if (qexpand.size() == 0) break;
       }
@@ -100,6 +100,7 @@ class ColMaker: public IUpdater<FMatrix> {
         p_tree->stat(nid).loss_chg = snode[nid].best.loss_chg;
         p_tree->stat(nid).base_weight = snode[nid].weight;
         p_tree->stat(nid).sum_hess = static_cast<float>(snode[nid].stats.sum_hess);
+        snode[nid].stats.SetLeafVec(param, p_tree->leafvec(nid));
       }
     }
 
@@ -175,34 +176,35 @@ class ColMaker: public IUpdater<FMatrix> {
     inline void InitNewNode(const std::vector<int> &qexpand,
                             const std::vector<bst_gpair> &gpair,
                             const FMatrix &fmat,
+                            const BoosterInfo &info,
                             const RegTree &tree) {
       {// setup statistics space for each tree node
         for (size_t i = 0; i < stemp.size(); ++i) {
-          stemp[i].resize(tree.param.num_nodes, ThreadEntry());
+          stemp[i].resize(tree.param.num_nodes, ThreadEntry(param));
         }
-        snode.resize(tree.param.num_nodes, NodeEntry());
+        snode.resize(tree.param.num_nodes, NodeEntry(param));
       }
       const std::vector<bst_uint> &rowset = fmat.buffered_rowset();
       // setup position
-      const unsigned ndata = static_cast<unsigned>(rowset.size());
+      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
       #pragma omp parallel for schedule(static)
-      for (unsigned i = 0; i < ndata; ++i) {
+      for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
         const int tid = omp_get_thread_num();
         if (position[ridx] < 0) continue;
-        stemp[tid][position[ridx]].stats.Add(gpair[ridx]);
+        stemp[tid][position[ridx]].stats.Add(gpair, info, ridx);
       }
       // sum the per thread statistics together
       for (size_t j = 0; j < qexpand.size(); ++j) {
         const int nid = qexpand[j];
-        TStats stats; stats.Clear();
+        TStats stats(param);
         for (size_t tid = 0; tid < stemp.size(); ++tid) {
           stats.Add(stemp[tid][nid].stats);
         }
         // update node statistics
         snode[nid].stats = stats;
-        snode[nid].root_gain = param.CalcGain(stats);
-        snode[nid].weight = param.CalcWeight(stats);
+        snode[nid].root_gain = static_cast<float>(stats.CalcGain(param));
+        snode[nid].weight = static_cast<float>(stats.CalcWeight(param));
       }
     }
     /*! \brief update queue expand add in new leaves */
@@ -223,12 +225,15 @@ class ColMaker: public IUpdater<FMatrix> {
     template<typename Iter>
     inline void EnumerateSplit(Iter it, unsigned fid,
                                const std::vector<bst_gpair> &gpair,
+                               const BoosterInfo &info,
                                std::vector<ThreadEntry> &temp,
                                bool is_forward_search) {
       // clear all the temp statistics
       for (size_t j = 0; j < qexpand.size(); ++j) {
         temp[qexpand[j]].stats.Clear();
       }
+      // left statistics
+      TStats c(param);
       while (it.Next()) {
         const bst_uint ridx = it.rindex();
         const int nid = position[ridx];
@@ -239,19 +244,19 @@ class ColMaker: public IUpdater<FMatrix> {
         ThreadEntry &e = temp[nid];
         // test if first hit, this is fine, because we set 0 during init
         if (e.stats.Empty()) {
-          e.stats.Add(gpair[ridx]);
+          e.stats.Add(gpair, info, ridx);
           e.last_fvalue = fvalue;
         } else {
           // try to find a split
           if (fabsf(fvalue - e.last_fvalue) > rt_2eps && e.stats.sum_hess >= param.min_child_weight) {
-            TStats c = snode[nid].stats.Substract(e.stats);
+            c.SetSubstract(snode[nid].stats, e.stats);
             if (c.sum_hess >= param.min_child_weight) {
-              double loss_chg = param.CalcGain(e.stats) + param.CalcGain(c) - snode[nid].root_gain;
+              bst_float loss_chg = static_cast<bst_float>(e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
               e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f, !is_forward_search);
             }
           }
           // update the statistics
-          e.stats.Add(gpair[ridx]);
+          e.stats.Add(gpair, info, ridx);
           e.last_fvalue = fvalue;
         }
       }
@@ -259,9 +264,9 @@ class ColMaker: public IUpdater<FMatrix> {
       for (size_t i = 0; i < qexpand.size(); ++i) {
         const int nid = qexpand[i];
         ThreadEntry &e = temp[nid];
-        TStats c = snode[nid].stats.Substract(e.stats);
+        c.SetSubstract(snode[nid].stats, e.stats);
         if (e.stats.sum_hess >= param.min_child_weight && c.sum_hess >= param.min_child_weight) {
-          const double loss_chg = param.CalcGain(e.stats) + param.CalcGain(c) - snode[nid].root_gain;
+          bst_float loss_chg = static_cast<bst_float>(e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
           const float delta = is_forward_search ? rt_eps : -rt_eps;
           e.best.Update(loss_chg, fid, e.last_fvalue + delta, !is_forward_search);
         }
@@ -269,7 +274,9 @@ class ColMaker: public IUpdater<FMatrix> {
     }
     // find splits at current level, do split per level
     inline void FindSplit(int depth, const std::vector<int> &qexpand,
-                          const std::vector<bst_gpair> &gpair, const FMatrix &fmat,
+                          const std::vector<bst_gpair> &gpair,
+                          const FMatrix &fmat,
+                          const BoosterInfo &info,
                           RegTree *p_tree) {
       std::vector<unsigned> feat_set = feat_index;
       if (param.colsample_bylevel != 1.0f) {
@@ -279,19 +286,19 @@ class ColMaker: public IUpdater<FMatrix> {
         feat_set.resize(n);
       }
       // start enumeration
-      const unsigned nsize = static_cast<unsigned>(feat_set.size());
+      const bst_omp_uint nsize = static_cast<bst_omp_uint>(feat_set.size());
       #if defined(_OPENMP)
       const int batch_size = std::max(static_cast<int>(nsize / this->nthread / 32), 1);
       #endif
       #pragma omp parallel for schedule(dynamic, batch_size)
-      for (unsigned i = 0; i < nsize; ++i) {
+      for (bst_omp_uint i = 0; i < nsize; ++i) {
         const unsigned fid = feat_set[i];
         const int tid = omp_get_thread_num();
         if (param.need_forward_search(fmat.GetColDensity(fid))) {
-          this->EnumerateSplit(fmat.GetSortedCol(fid), fid, gpair, stemp[tid], true);
+          this->EnumerateSplit(fmat.GetSortedCol(fid), fid, gpair, info, stemp[tid], true);
         }
         if (param.need_backward_search(fmat.GetColDensity(fid))) {
-          this->EnumerateSplit(fmat.GetReverseSortedCol(fid), fid, gpair, stemp[tid], false);
+          this->EnumerateSplit(fmat.GetReverseSortedCol(fid), fid, gpair, info, stemp[tid], false);
         }
       }
       // after this each thread's stemp will get the best candidates, aggregate results
@@ -314,9 +321,9 @@ class ColMaker: public IUpdater<FMatrix> {
     inline void ResetPosition(const std::vector<int> &qexpand, const FMatrix &fmat, const RegTree &tree) {
       const std::vector<bst_uint> &rowset = fmat.buffered_rowset();
       // step 1, set default direct nodes to default, and leaf nodes to -1
-      const unsigned ndata = static_cast<unsigned>(rowset.size());
+      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
       #pragma omp parallel for schedule(static)
-      for (unsigned i = 0; i < ndata; ++i) {
+      for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
         const int nid = position[ridx];
         if (nid >= 0) {
@@ -337,9 +344,9 @@ class ColMaker: public IUpdater<FMatrix> {
       std::sort(fsplits.begin(), fsplits.end());
       fsplits.resize(std::unique(fsplits.begin(), fsplits.end()) - fsplits.begin());
       // start put things into right place
-      const unsigned nfeats = static_cast<unsigned>(fsplits.size());
+      const bst_omp_uint nfeats = static_cast<bst_omp_uint>(fsplits.size());
       #pragma omp parallel for schedule(dynamic, 1)
-      for (unsigned i = 0; i < nfeats; ++i) {
+      for (bst_omp_uint i = 0; i < nfeats; ++i) {
         const unsigned fid = fsplits[i];
         for (typename FMatrix::ColIter it = fmat.GetSortedCol(fid); it.Next();) {
           const bst_uint ridx = it.rindex();

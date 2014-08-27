@@ -42,11 +42,17 @@ class TreeModel {
     int max_depth;
     /*! \brief  number of features used for tree construction */
     int num_feature;
+    /*! 
+     * \brief leaf vector size, used for vector tree
+     * used to store more than one dimensional information in tree
+     */
+    int size_leaf_vector;
     /*! \brief reserved part */
-    int reserved[32];
+    int reserved[31];
     /*! \brief constructor */
     Param(void) {
       max_depth = 0;
+      size_leaf_vector = 0;
       memset(reserved, 0, sizeof(reserved));
     }
     /*! 
@@ -57,6 +63,7 @@ class TreeModel {
     inline void SetParam(const char *name, const char *val) {
       if (!strcmp("num_roots", name)) num_roots = atoi(val);
       if (!strcmp("num_feature", name)) num_feature = atoi(val);
+      if (!strcmp("size_leaf_vector", name)) size_leaf_vector = atoi(val);
     }
   };
   /*! \brief tree node */
@@ -166,10 +173,12 @@ class TreeModel {
  protected:
   // vector of nodes
   std::vector<Node> nodes;
-  // stats of nodes
-  std::vector<TNodeStat> stats;
   // free node space, used during training process
   std::vector<int>  deleted_nodes;
+  // stats of nodes
+  std::vector<TNodeStat> stats;
+  // leaf vector, that is used to store additional information
+  std::vector<bst_float> leaf_vector;
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   inline int AllocNode(void) {
@@ -184,6 +193,7 @@ class TreeModel {
                  "number of nodes in the tree exceed 2^31");
     nodes.resize(param.num_nodes);
     stats.resize(param.num_nodes);
+    leaf_vector.resize(param.num_nodes * param.size_leaf_vector); 
     return nd;
   }
   // delete a tree node
@@ -246,6 +256,16 @@ class TreeModel {
   /*! \brief get node statistics given nid */
   inline NodeStat &stat(int nid) {
     return stats[nid];
+  }
+  /*! \brief get leaf vector given nid */
+  inline bst_float* leafvec(int nid) {
+    if (leaf_vector.size() == 0) return NULL;
+    return &leaf_vector[nid * param.size_leaf_vector];
+  }
+  /*! \brief get leaf vector given nid */
+  inline const bst_float* leafvec(int nid) const{
+    if (leaf_vector.size() == 0) return NULL;
+    return &leaf_vector[nid * param.size_leaf_vector];
   }
   /*! \brief initialize the model */
   inline void InitModel(void) {

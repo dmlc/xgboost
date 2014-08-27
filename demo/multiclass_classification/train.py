@@ -25,8 +25,8 @@ param = {}
 # use softmax multi-class classification
 param['objective'] = 'multi:softmax'
 # scale weight of positive examples
-param['bst:eta'] = 0.1
-param['bst:max_depth'] = 6
+param['eta'] = 0.1
+param['max_depth'] = 6
 param['silent'] = 1
 param['nthread'] = 4
 param['num_class'] = 6

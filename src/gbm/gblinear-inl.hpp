@@ -51,20 +51,21 @@ class GBLinear : public IGradBooster<FMatrix> {
     // for all the output group
     for (int gid = 0; gid < ngroup; ++gid) {
       double sum_grad = 0.0, sum_hess = 0.0;
-      const unsigned ndata = static_cast<unsigned>(rowset.size());
+      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
       #pragma omp parallel for schedule(static) reduction(+: sum_grad, sum_hess)
-      for (unsigned i = 0; i < ndata; ++i) {
+      for (bst_omp_uint i = 0; i < ndata; ++i) {
         bst_gpair &p = gpair[rowset[i] * ngroup + gid];
         if (p.hess >= 0.0f) {
           sum_grad += p.grad; sum_hess += p.hess;
         }
       }
       // remove bias effect
-      double dw = param.learning_rate * param.CalcDeltaBias(sum_grad, sum_hess, model.bias()[gid]);
+      bst_float dw = static_cast<bst_float>(
+          param.learning_rate * param.CalcDeltaBias(sum_grad, sum_hess, model.bias()[gid]));
       model.bias()[gid] += dw;
       // update grad value
       #pragma omp parallel for schedule(static)
-      for (unsigned i = 0; i < ndata; ++i) {
+      for (bst_omp_uint i = 0; i < ndata; ++i) {
         bst_gpair &p = gpair[rowset[i] * ngroup + gid];
         if (p.hess >= 0.0f) {
           p.grad += p.hess * dw;
@@ -72,9 +73,9 @@ class GBLinear : public IGradBooster<FMatrix> {
       }
     }
     // number of features
-    const unsigned nfeat = static_cast<unsigned>(feat_index.size());
+    const bst_omp_uint nfeat = static_cast<bst_omp_uint>(feat_index.size());
     #pragma omp parallel for schedule(static)
-    for (unsigned i = 0; i < nfeat; ++i) {
+    for (bst_omp_uint i = 0; i < nfeat; ++i) {
       const bst_uint fid = feat_index[i];
       for (int gid = 0; gid < ngroup; ++gid) {
         double sum_grad = 0.0, sum_hess = 0.0;
@@ -86,7 +87,7 @@ class GBLinear : public IGradBooster<FMatrix> {
           sum_hess += p.hess * v * v;
         }
         float &w = model[fid][gid];
-        double dw = param.learning_rate * param.CalcDelta(sum_grad, sum_hess, w);
+        bst_float dw = static_cast<bst_float>(param.learning_rate * param.CalcDelta(sum_grad, sum_hess, w));
         w += dw;
         // update grad value
         for (typename FMatrix::ColIter it = fmat.GetSortedCol(fid); it.Next();) {
@@ -116,9 +117,9 @@ class GBLinear : public IGradBooster<FMatrix> {
       // k is number of group
       preds.resize(preds.size() + batch.size * ngroup);
       // parallel over local batch
-      const unsigned nsize = static_cast<unsigned>(batch.size);
+      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
-      for (unsigned i = 0; i < nsize; ++i) {
+      for (bst_omp_uint i = 0; i < nsize; ++i) {
         const size_t ridx = batch.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {

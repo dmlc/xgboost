@@ -94,8 +94,9 @@ class GBTree : public IGradBooster<FMatrix> {
                    "must have exactly ngroup*nrow gpairs");
       std::vector<bst_gpair> tmp(gpair.size()/ngroup);
       for (int gid = 0; gid < ngroup; ++gid) {
+        bst_omp_uint nsize = static_cast<bst_omp_uint>(tmp.size());
         #pragma omp parallel for schedule(static)
-        for (size_t i = 0; i < tmp.size(); ++i) {
+        for (bst_omp_uint i = 0; i < nsize; ++i) {
           tmp[i] = gpair[i * ngroup + gid];
         }
         this->BoostNewTrees(tmp, fmat, info, gid);
@@ -129,13 +130,13 @@ class GBTree : public IGradBooster<FMatrix> {
       // k is number of group
       preds.resize(preds.size() + batch.size * mparam.num_output_group);
       // parallel over local batch
-      const unsigned nsize = static_cast<unsigned>(batch.size);
+      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
-      for (unsigned i = 0; i < nsize; ++i) {
+      for (bst_omp_uint i = 0; i < nsize; ++i) {
         const int tid = omp_get_thread_num();
         tree::RegTree::FVec &feats = thread_temp[tid];
-        const size_t ridx = batch.base_rowid + i;
-        const unsigned root_idx = info.GetRoot(i);
+        int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
+        const unsigned root_idx = info.GetRoot(ridx);
         // loop over output groups
         for (int gid = 0; gid < mparam.num_output_group; ++gid) {
           preds[ridx * mparam.num_output_group + gid] =
@@ -172,15 +173,15 @@ class GBTree : public IGradBooster<FMatrix> {
     }
     updaters.clear();
     std::string tval = tparam.updater_seq;
-    char *saveptr, *pstr;
-    pstr = strtok_r(&tval[0], ",", &saveptr);
+    char *pstr;
+    pstr = strtok(&tval[0], ",");
     while (pstr != NULL) {
       updaters.push_back(tree::CreateUpdater<FMatrix>(pstr));
       for (size_t j = 0; j < cfg.size(); ++j) {
         // set parameters
         updaters.back()->SetParam(cfg[j].first.c_str(), cfg[j].second.c_str());
       }
-      pstr = strtok_r(NULL, ",", &saveptr);
+      pstr = strtok(NULL, ",");
     }
     tparam.updater_initialized = 1;
   }
@@ -218,7 +219,7 @@ class GBTree : public IGradBooster<FMatrix> {
                     tree::RegTree::FVec *p_feats) {
     size_t itop = 0;
     float  psum = 0.0f;
-    const int bid = mparam.BufferOffset(buffer_index, bst_group);
+    const int64_t bid = mparam.BufferOffset(buffer_index, bst_group);
     // load buffered results if any
     if (bid >= 0) {
       itop = pred_counter[bid];
@@ -320,7 +321,7 @@ class GBTree : public IGradBooster<FMatrix> {
      * \brief get the buffer offset given a buffer index and group id  
      * \return calculated buffer offset
      */
-    inline size_t BufferOffset(int64_t buffer_index, int bst_group) const {
+    inline int64_t BufferOffset(int64_t buffer_index, int bst_group) const {
       if (buffer_index < 0) return -1;
       utils::Check(buffer_index < num_pbuffer, "buffer_index exceed num_pbuffer");
       return buffer_index + num_pbuffer * bst_group;

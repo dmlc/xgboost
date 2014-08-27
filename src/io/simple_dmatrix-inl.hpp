@@ -62,10 +62,10 @@ class DMatrixSimple : public DataMatrix {
   inline size_t AddRow(const std::vector<SparseBatch::Entry> &feats) {
     for (size_t i = 0; i < feats.size(); ++i) {
       row_data_.push_back(feats[i]);
-      info.num_col = std::max(info.num_col, static_cast<size_t>(feats[i].findex+1));
+      info.info.num_col = std::max(info.info.num_col, static_cast<size_t>(feats[i].findex+1));
     }
     row_ptr_.push_back(row_ptr_.back() + feats.size());
-    info.num_row += 1;
+    info.info.num_row += 1;
     return row_ptr_.size() - 2;
   }
   /*!
@@ -99,19 +99,19 @@ class DMatrixSimple : public DataMatrix {
 
     if (!silent) {
       printf("%lux%lu matrix with %lu entries is loaded from %s\n",
-             info.num_row, info.num_col, row_data_.size(), fname);
+             info.num_row(), info.num_col(), row_data_.size(), fname);
     }
     fclose(file);
     // try to load in additional file
     std::string name = fname;
     std::string gname = name + ".group";
     if (info.TryLoadGroup(gname.c_str(), silent)) {
-      utils::Check(info.group_ptr.back() == info.num_row,
+      utils::Check(info.group_ptr.back() == info.num_row(),
                    "DMatrix: group data does not match the number of rows in features");
     }
     std::string wname = name + ".weight";
     if (info.TryLoadFloatInfo("weight", wname.c_str(), silent)) {
-      utils::Check(info.weights.size() == info.num_row,
+      utils::Check(info.weights.size() == info.num_row(),
                    "DMatrix: weight data does not match the number of rows in features");
     }
     std::string mname = name + ".base_margin";
@@ -128,6 +128,17 @@ class DMatrixSimple : public DataMatrix {
     FILE *fp = fopen64(fname, "rb");
     if (fp == NULL) return false;
     utils::FileStream fs(fp);
+    this->LoadBinary(fs, silent, fname);
+    fs.Close();
+    return true;
+  }
+  /*!
+   * \brief load from binary stream
+   * \param fs input file stream
+   * \param silent whether print information during loading
+   * \param fname file name, used to print message
+   */
+  inline void LoadBinary(utils::IStream &fs, bool silent = false, const char *fname = NULL) {
     int magic;
     utils::Check(fs.Read(&magic, sizeof(magic)) != 0, "invalid input file format");
     utils::Check(magic == kMagic, "invalid format,magic number mismatch");
@@ -135,16 +146,19 @@ class DMatrixSimple : public DataMatrix {
     info.LoadBinary(fs);
     FMatrixS::LoadBinary(fs, &row_ptr_, &row_data_);
     fmat.LoadColAccess(fs);
-    fs.Close();
 
     if (!silent) {
-      printf("%lux%lu matrix with %lu entries is loaded from %s\n",
-             info.num_row, info.num_col, row_data_.size(), fname);
+      printf("%lux%lu matrix with %lu entries is loaded",
+             info.num_row(), info.num_col(), row_data_.size());
+      if (fname != NULL) {
+        printf(" from %s\n", fname);
+      } else {
+        printf("\n");
+      }
       if (info.group_ptr.size() != 0) {
         printf("data contains %u groups\n", (unsigned)info.group_ptr.size()-1);
       }
     }
-    return true;
   }
   /*!
    * \brief save to binary file
@@ -163,7 +177,7 @@ class DMatrixSimple : public DataMatrix {
 
     if (!silent) {
       printf("%lux%lu matrix with %lu entries is saved to %s\n",
-             info.num_row, info.num_col, row_data_.size(), fname);
+             info.num_row(), info.num_col(), row_data_.size(), fname);
       if (info.group_ptr.size() != 0) {
         printf("data contains %lu groups\n", info.group_ptr.size()-1);
       }
@@ -179,7 +193,7 @@ class DMatrixSimple : public DataMatrix {
    * \param savebuffer whether do save binary buffer if it is text
    */
   inline void CacheLoad(const char *fname, bool silent = false, bool savebuffer = true) {
-    int len = strlen(fname);
+    size_t len = strlen(fname);
     if (len > 8 && !strcmp(fname + len - 7, ".buffer")) {
       if (!this->LoadBinary(fname, silent)) {
         utils::Error("can not open file \"%s\"", fname);

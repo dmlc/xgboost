@@ -35,7 +35,7 @@ bst <- xgb.train(param, dtrain, nround=2, watchlist=watchlist)
 # make prediction
 preds <- xgb.predict(bst, dtest)
 labels <- xgb.getinfo(dtest, "label")
-err <- as.real(sum(as.integer(preds > 0.5) != labels)) / length(labels)
+err <- as.numeric(sum(as.integer(preds > 0.5) != labels)) / length(labels)
 # print error rate
 print(paste("error=",err))
 
@@ -100,7 +100,7 @@ logregobj <- function(preds, dtrain) {
 # Take this in mind when you use the customization, and maybe you need write customized evaluation function
 evalerror <- function(preds, dtrain) {
   labels <- xgb.getinfo(dtrain, "label")
-  err <- as.real(sum(labels != (preds > 0.0))) / length(labels)
+  err <- as.numeric(sum(labels != (preds > 0.0))) / length(labels)
   return(list(metric="error", value=err))
 }
 
