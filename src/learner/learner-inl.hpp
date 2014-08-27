@@ -253,17 +253,17 @@ class BoostLearner {
                   data.info.info, out_preds);
     // add base margin
     std::vector<float> &preds = *out_preds;
-    const unsigned ndata = static_cast<unsigned>(preds.size());
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
     if (data.info.base_margin.size() != 0) {
       utils::Check(preds.size() == data.info.base_margin.size(),
                    "base_margin.size does not match with prediction size");
       #pragma omp parallel for schedule(static)
-      for (unsigned j = 0; j < ndata; ++j) {
+      for (bst_omp_uint j = 0; j < ndata; ++j) {
         preds[j] += data.info.base_margin[j];
       }
     } else {
       #pragma omp parallel for schedule(static)
-      for (unsigned j = 0; j < ndata; ++j) {
+      for (bst_omp_uint j = 0; j < ndata; ++j) {
         preds[j] += mparam.base_score;
       }
     }

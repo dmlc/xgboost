@@ -56,9 +56,9 @@ class TreeRefresher: public IUpdater<FMatrix> {
       const SparseBatch &batch = iter->Value();
       utils::Check(batch.size < std::numeric_limits<unsigned>::max(),
                    "too large batch size ");
-      const unsigned nbatch = static_cast<unsigned>(batch.size);
+      const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
-      for (unsigned i = 0; i < nbatch; ++i) {
+      for (bst_omp_uint i = 0; i < nbatch; ++i) {
         SparseBatch::Inst inst = batch[i];
         const int tid = omp_get_thread_num();
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);

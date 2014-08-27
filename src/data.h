@@ -12,6 +12,7 @@
 #include <cstring>
 #include <algorithm>
 #include "utils/io.h"
+#include "utils/omp.h"
 #include "utils/utils.h"
 #include "utils/iterator.h"
 #include "utils/random.h"
@@ -370,9 +371,9 @@ class FMatrixS : public FMatrixInterface<FMatrixS>{
     }
 
     // sort columns
-    unsigned ncol = static_cast<unsigned>(this->NumCol());
+    bst_omp_uint ncol = static_cast<bst_omp_uint>(this->NumCol());
     #pragma omp parallel for schedule(static)
-    for (unsigned i = 0; i < ncol; ++i) {
+    for (bst_omp_uint i = 0; i < ncol; ++i) {
       std::sort(&col_data_[0] + col_ptr_[i],
                 &col_data_[0] + col_ptr_[i + 1], Entry::CmpValue);
     }
