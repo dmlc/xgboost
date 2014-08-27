@@ -1,5 +1,5 @@
 # constructing DMatrix
-xgb.DMatrix <- function(data, missing=0.0, ...) {
+xgb.DMatrix <- function(data, info=list(), missing=0.0, ...) {
     if (typeof(data) == "character") {
         handle <- .Call("XGDMatrixCreateFromFile_R", data, as.integer(FALSE), PACKAGE="xgboost")
     } else if(is.matrix(data)) {
@@ -11,7 +11,7 @@ xgb.DMatrix <- function(data, missing=0.0, ...) {
     }
     dmat <- structure(handle, class="xgb.DMatrix")
     
-    info = list(...)
+    info = append(info,list(...))
     if (length(info)==0)
         return(dmat)
     for (i in 1:length(info)) {

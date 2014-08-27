@@ -51,20 +51,25 @@ dtrain = xgb.DMatrix(dense.x, label=y)
 ############################
 
 # Test with DMatrix object
-bst = xgboost(DMatrix=dtrain, max_depth=2, eta=1, silent=1, objective='binary:logistic')
+bst = xgboost(data=dtrain, max_depth=2, eta=1, objective='binary:logistic')
+
+# Verbose = 0,1,2
+bst = xgboost(data=dtrain, max_depth=2, eta=1, objective='binary:logistic', 
+              verbose = 0)
+bst = xgboost(data=dtrain, max_depth=2, eta=1, objective='binary:logistic', 
+              verbose = 1)
+bst = xgboost(data=dtrain, max_depth=2, eta=1, objective='binary:logistic', 
+              verbose = 2)
 
 # Test with local file
-bst = xgboost(file='agaricus.txt.train', max_depth=2, eta=1, silent=1, objective='binary:logistic')
+bst = xgboost(data='agaricus.txt.train', max_depth=2, eta=1, objective='binary:logistic')
 
 # Test with Sparse Matrix
-bst = xgboost(x = x, y = y, max_depth=2, eta=1, silent=1, objective='binary:logistic')
+bst = xgboost(data = x, label = y, max_depth=2, eta=1, objective='binary:logistic')
 
 # Test with dense Matrix
-bst = xgboost(x = dense.x, y = y, max_depth=2, eta=1, silent=1, objective='binary:logistic')
+bst = xgboost(data = dense.x, label = y, max_depth=2, eta=1, objective='binary:logistic')
 
-# Test with validation set
-bst = xgboost(file='agaricus.txt.train', validation='agaricus.txt.test', 
-              max_depth=2, eta=1, silent=1, objective='binary:logistic')
 
 ############################
 # Test predict
@@ -102,17 +107,39 @@ pred = predict(bst, test.x)
 # save model to text file
 xgb.dump(bst, 'model.dump')
 
+# save a DMatrix object to hard disk
+xgb.DMatrix.save(dtrain,'dtrain.save')
+
+# load a DMatrix object to R
+dtrain = xgb.DMatrix('dtrain.save')
+
 ############################
-# Customized objective and evaluation function 
+# More flexible training function xgb.train
 ############################
+
+param = list(max_depth=2, eta=1, silent = 1, objective="binary:logistic")
+watchlist <- list("eval"=dtest,"train"=dtrain)
+
+# training xgboost model
+bst <- xgb.train(param, dtrain, nround=2, watchlist=watchlist)
+
+############################
+# cutomsized loss function
+############################
+
+param <- list(max_depth = 2, eta = 1, silent =1)
+
+# note: for customized objective function, we leave objective as default
+# note: what we are getting is margin value in prediction
+# you must know what you are doing
 
 # user define objective function, given prediction, return gradient and second order gradient
 # this is loglikelihood loss
-logregobj = function(preds, dtrain) {
-    labels = xgb.getinfo(dtrain, "label")
-    preds = 1.0 / (1.0 + exp(-preds))
-    grad = preds - labels
-    hess = preds * (1.0-preds)
+logregobj <- function(preds, dtrain) {
+    labels <- xgb.getinfo(dtrain, "label")
+    preds <- 1.0 / (1.0 + exp(-preds))
+    grad <- preds - labels
+    hess <- preds * (1.0-preds)
     return(list(grad=grad, hess=hess))
 }
 # user defined evaluation function, return a list(metric="metric-name", value="metric-value")
@@ -121,13 +148,14 @@ logregobj = function(preds, dtrain) {
 # for example, we are doing logistic loss, the prediction is score before logistic transformation
 # the buildin evaluation error assumes input is after logistic transformation
 # Take this in mind when you use the customization, and maybe you need write customized evaluation function
-evalerror = function(preds, dtrain) {
-    labels = xgb.getinfo(dtrain, "label")
-    err = as.numeric(sum(labels != (preds > 0.0))) / length(labels)
+evalerror <- function(preds, dtrain) {
+    labels <- xgb.getinfo(dtrain, "label")
+    err <- as.numeric(sum(labels != (preds > 0.0))) / length(labels)
     return(list(metric="error", value=err))
 }
 
-bst = xgboost(x = x, y = y, max_depth=2, eta=1, silent=1, objective='binary:logistic',
-              obj=logregobj, feval=evalerror)
+# training with customized objective, we can also do step by step training
+# simply look at xgboost.py"s implementation of train
+bst <- xgb.train(param, dtrain, nround=2, watchlist, logregobj, evalerror)
 
 
