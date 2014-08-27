@@ -13,7 +13,7 @@ dtrain = xgb.DMatrix('agaricus.txt.train')
 dtest = xgb.DMatrix('agaricus.txt.test')
 
 # specify parameters via map, definition are same as c++ version
-param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
+param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic' }
 
 # specify validations set to watch performance
 evallist  = [(dtest,'eval'), (dtrain,'train')]
@@ -75,7 +75,7 @@ print ('start running example to used cutomized objective function')
 # note: for customized objective function, we leave objective as default
 # note: what we are getting is margin value in prediction
 # you must know what you are doing
-param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1 }
+param = {'max_depth':2, 'eta':1, 'silent':1 }
 
 # user define objective function, given prediction, return gradient and second order gradient
 # this is loglikelihood loss
@@ -107,7 +107,7 @@ bst = xgb.train(param, dtrain, num_round, evallist, logregobj, evalerror)
 #
 print ('start running example to start from a initial prediction')
 # specify parameters via map, definition are same as c++ version
-param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
+param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic' }
 # train xgboost for 1 round
 bst = xgb.train( param, dtrain, 1, evallist )
 # Note: we need the margin value instead of transformed prediction in set_base_margin
