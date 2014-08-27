@@ -15,8 +15,11 @@ xgboost <- function(data = NULL, label = NULL, params = list(), nrounds = 10,
       dtrain <- data else stop("xgboost: Invalid input of data")
   }
   
-  if (verbose > 1) 
-    silent <- 0 else silent <- 1
+  if (verbose > 1) {
+    silent <- 0 
+  } else {
+    silent <- 1
+  }
   
   params <- append(params, list(silent = silent))
   params <- append(params, list(...))
