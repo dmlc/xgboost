@@ -11,9 +11,6 @@ setClass("xgb.Booster")
 #'   value of sum of functions, when outputmargin=TRUE, the prediction is 
 #'   untransformed margin value. In logistic regression, outputmargin=T will
 #'   output value before logistic transformation.
-#'
-#' @section Value
-#' return a numerical vector.
 #' 
 #' @examples
 #' data(iris)

@@ -36,8 +36,6 @@
 #' It supports advanced features such as watchlist, customized objective function,
 #' therefore it is more flexible than \code{\link{xgboost}}.
 #' 
-#' @section Value
-#' return a \code{xgb.DMatrix} class object.
 #' 
 #' @examples
 #' data(iris)
