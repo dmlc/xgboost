@@ -78,7 +78,7 @@ struct SparseBatch {
     /*! \brief pointer to the elements*/
     const Entry *data;
     /*! \brief length of the instance */
-    const bst_uint length;
+    bst_uint length;
     /*! \brief constructor */
     Inst(const Entry *data, bst_uint length) : data(data), length(length) {}
     /*! \brief get i-th pair in the sparse vector*/
@@ -147,7 +147,7 @@ class IFMatrix {
   /*! \return number of columns in the FMatrix */
   virtual size_t NumCol(void) const = 0;
   /*! \brief get number of non-missing entries in column */
-  virtual float GetColSize(size_t cidx) const = 0;
+  virtual size_t GetColSize(size_t cidx) const = 0;
   /*! \brief get column density */  
   virtual float GetColDensity(size_t cidx) const = 0;  
   /*! \brief reference of buffered rowset */

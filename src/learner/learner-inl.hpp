@@ -158,7 +158,7 @@ class BoostLearner {
    * \param p_train pointer to the matrix used by training
    */
   inline void CheckInit(DMatrix *p_train) {
-    p_train->fmat->InitColAccess(prob_buffer_row);
+    p_train->fmat()->InitColAccess(prob_buffer_row);
   }
   /*!
    * \brief update the model for one iteration
@@ -168,7 +168,7 @@ class BoostLearner {
   inline void UpdateOneIter(int iter, const DMatrix &train) {
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train.info, iter, &gpair_);
-    gbm_->DoBoost(train.fmat, train.info.info, &gpair_);
+    gbm_->DoBoost(train.fmat(), train.info.info, &gpair_);
   }
   /*!
    * \brief evaluate the model for specific iteration
@@ -248,7 +248,7 @@ class BoostLearner {
    */
   inline void PredictRaw(const DMatrix &data,
                          std::vector<float> *out_preds) const {
-    gbm_->Predict(data.fmat, this->FindBufferOffset(data),
+    gbm_->Predict(data.fmat(), this->FindBufferOffset(data),
                   data.info.info, out_preds);
     // add base margin
     std::vector<float> &preds = *out_preds;
