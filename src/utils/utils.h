@@ -31,7 +31,7 @@
 #define _FILE_OFFSET_BITS 64
 extern "C" {
 #include <sys/types.h>
-};
+}
 #endif
 
 #ifdef _MSC_VER
