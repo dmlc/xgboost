@@ -133,7 +133,7 @@ struct EvalCTest: public IEvaluator {
       }
       wsum += base_->Eval(tpred, tinfo);
     }
-    return wsum / ngroup;
+    return static_cast<float>(wsum / ngroup);
   }
 
  private:
