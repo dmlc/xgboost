@@ -1,7 +1,23 @@
-#' @export
 setClass("xgb.Booster")
 
-#' @export
+#' Predict method for eXtreme Gradient Boosting model
+#' 
+#' Predicted values based on xgboost model object.
+#' 
+#' @param object Object of class "xgb.Boost"
+#' @param newdata takes \code{matrix}, \code{dgCMatrix}, local data file or 
+#'   \code{xgb.DMatrix}. 
+#' @param outputmargin whether the prediction should be shown in the original
+#'   value or after the logit mapping
+#' 
+#' @section Value
+#' return a numerical vector.
+#' 
+#' @examples
+#' data(iris)
+#' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
+#' pred <- predict(bst, as.matrix(iris[,1:4]))
+#' 
 setMethod("predict", signature = "xgb.Booster", 
           definition = function(object, newdata, outputmargin = FALSE) {
   if (class(newdata) != "xgb.DMatrix") {

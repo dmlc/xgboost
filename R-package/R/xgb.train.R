@@ -1,4 +1,53 @@
-# train a model using given parameters
+#' eXtreme Gradient Boosting Training
+#' 
+#' The training function of xgboost
+#' 
+#' @param params the list of parameters. See 
+#'   \url{https://github.com/tqchen/xgboost/wiki/Parameters} for 
+#'   further details.
+#' @param dtrain takes an \code{xgb.DMatrix} as the input.
+#' @param nrounds the max number of iterations
+#' @param watchlist what information should be printed when \code{verbose=1} or
+#'   \code{verbose=2}.
+#' @param obj customized objective function. Given prediction and dtrain, 
+#'   return gradient and second order gradient
+#' @param feval custimized evaluation function. Given prediction and dtrain,
+#'   return a \code{list(metric='metric-name', value='metric-value')}.
+#' @param ... other parameters to pass to \code{params}.
+#' 
+#' @details 
+#' This is the training function for xgboost.
+#' 
+#' Parallelization is automatically enabled under Linux/Windows. Mac users can 
+#' also enjoy this feature if compile this package with openmp.
+#' 
+#' This function only accepts an \code{xgb.DMatrix} object as the input, 
+#' therefore it is more flexible than \code{\link{xgboost}}.
+#' 
+#' @section Value
+#' return a \code{xgb.DMatrix} class object.
+#' 
+#' @examples
+#' data(iris)
+#' iris[,5] <- as.numeric(iris[,5])
+#' dtrain = xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
+#' dtest = dtrain
+#' watchlist <- list(eval = dtest, train = dtrain)
+#' param <- list(max_depth = 2, eta = 1, silent = 1)
+#' logregobj <- function(preds, dtrain) {
+#'    labels <- getinfo(dtrain, "label")
+#'    preds <- 1/(1 + exp(-preds))
+#'    grad <- preds - labels
+#'    hess <- preds * (1 - preds)
+#'    return(list(grad = grad, hess = hess))
+#' }
+#' evalerror <- function(preds, dtrain) {
+#'   labels <- getinfo(dtrain, "label")
+#'   err <- as.numeric(sum(labels != (preds > 0)))/length(labels)
+#'   return(list(metric = "error", value = err))
+#' }
+#' bst <- xgb.train(param, dtrain, nround = 2, watchlist, logregobj, evalerror)
+#' 
 xgb.train <- function(params=list(), dtrain, nrounds, watchlist = list(), 
                       obj = NULL, feval = NULL, ...) {
   if (typeof(params) != "list") {
