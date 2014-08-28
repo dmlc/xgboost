@@ -36,3 +36,7 @@ Debug
 *test*
 .Rhistory
 *.dll
+*i386
+*x64
+*dump
+*save

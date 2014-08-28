@@ -1,10 +1,10 @@
 This is subfolder for experimental version of R package.
 
-Not yet ready.
-
 Installation:
 
 ```r
 require(devtools)
 install_github('xgboost','tqchen',subdir='R-package')
 ```
+
+Please visit [demo](https://github.com/tqchen/xgboost/blob/master/R-package/demo/demo.R) for more details.

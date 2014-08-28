@@ -7,7 +7,11 @@
  *  can be used to create wrapper of other languages
  */
 #include <cstdio>
+#ifdef _MSC_VER
+#define XGB_DLL __declspec(dllexport)
+#else
 #define XGB_DLL
+#endif
 // manually define unsign long
 typedef unsigned long bst_ulong;
 
