@@ -211,7 +211,7 @@ class FMatrixS : public IFMatrix{
       for (size_t i = 0; i < col_data_.size(); ++i) {
         const bst_uint ridx = col_index_[i];
         col_data_[i] = SparseBatch::Inst(&data[0] + ptr[ridx],
-                                         ptr[ridx+1] - ptr[ridx]);
+                                         static_cast<bst_uint>(ptr[ridx+1] - ptr[ridx]));
       }
       batch_.col_index = &col_index_[0];
       batch_.col_data = &col_data_[0];

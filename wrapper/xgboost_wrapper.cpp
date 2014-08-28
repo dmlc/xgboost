@@ -1,4 +1,6 @@
 // implementations in ctypes
+#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_DEPRECATE
 #include <cstdio>
 #include <vector>
 #include <string>
@@ -25,8 +27,8 @@ class Booster: public learner::BoostLearner {
   }
   const float *Pred(const DataMatrix &dmat, int output_margin, bst_ulong *len) {
     this->CheckInitModel();
-    this->Predict(dmat, output_margin, &this->preds_);
-    *len = this->preds_.size();
+    this->Predict(dmat, output_margin != 0, &this->preds_);
+    *len = static_cast<bst_ulong>(this->preds_.size());
     return &this->preds_[0];
   }
   inline void BoostOneIter(const DataMatrix &train,
@@ -54,7 +56,7 @@ class Booster: public learner::BoostLearner {
     for (size_t i = 0; i < model_dump.size(); ++i) {
       model_dump_cptr[i] = model_dump[i].c_str();
     }
-    *len = model_dump.size();
+    *len = static_cast<bst_ulong>(model_dump.size());
     return &model_dump_cptr[0];
   }
   // temporal fields
@@ -74,7 +76,7 @@ using namespace xgboost::wrapper;
 
 extern "C"{
   void* XGDMatrixCreateFromFile(const char *fname, int silent) {
-    return LoadDataMatrix(fname, silent, false);
+    return LoadDataMatrix(fname, silent != 0, false);
   }
   void* XGDMatrixCreateFromCSR(const bst_ulong *indptr,
                                const unsigned *indices,
@@ -166,7 +168,7 @@ extern "C"{
     delete static_cast<DataMatrix*>(handle);
   }
   void XGDMatrixSaveBinary(void *handle, const char *fname, int silent) {
-    SaveDataMatrix(*static_cast<DataMatrix*>(handle), fname, silent);
+    SaveDataMatrix(*static_cast<DataMatrix*>(handle), fname, silent != 0);
   }
   void XGDMatrixSetFloatInfo(void *handle, const char *field, const float *info, bst_ulong len) {
     std::vector<float> &vec = 
@@ -191,17 +193,17 @@ extern "C"{
   const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, bst_ulong* len) {
     const std::vector<float> &vec =
         static_cast<const DataMatrix*>(handle)->info.GetFloatInfo(field);
-    *len = vec.size();
+    *len = static_cast<bst_ulong>(vec.size());
     return &vec[0];
   }
   const unsigned* XGDMatrixGetUIntInfo(const void *handle, const char *field, bst_ulong* len) {
     const std::vector<unsigned> &vec =
         static_cast<const DataMatrix*>(handle)->info.GetUIntInfo(field);
-    *len = vec.size();
+    *len = static_cast<bst_ulong>(vec.size());
     return &vec[0];
   }
   bst_ulong XGDMatrixNumRow(const void *handle) {
-    return static_cast<const DataMatrix*>(handle)->info.num_row();
+    return static_cast<bst_ulong>(static_cast<const DataMatrix*>(handle)->info.num_row());
   }
 
   // xgboost implementation
