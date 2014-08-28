@@ -91,6 +91,18 @@ extern "C" {
     UNPROTECT(1);
     return ret;
   }
+  SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
+    int len = length(idxset);
+    std::vector<int> idxvec(len);
+    for (int i = 0; i < len; ++i) {
+      idxvec[i] = INTEGER(idxset)[i] - 1;
+    }
+    void *res = XGDMatrixSliceDMatrix(R_ExternalPtrAddr(handle),  &idxvec[0], len);
+    SEXP ret = PROTECT(R_MakeExternalPtr(res, R_NilValue, R_NilValue));
+    R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
+    UNPROTECT(1);
+    return ret;        
+  }
   void XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent) {
     XGDMatrixSaveBinary(R_ExternalPtrAddr(handle),
                         CHAR(asChar(fname)), asInteger(silent));

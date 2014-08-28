@@ -37,6 +37,13 @@ extern "C" {
                                 SEXP indices,
                                 SEXP data);
   /*!
+   * \brief create a new dmatrix from sliced content of existing matrix
+   * \param handle instance of data matrix to be sliced
+   * \param idxset index set
+   * \return a sliced new matrix
+   */
+  SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset);
+  /*!
    * \brief load a data matrix into binary file
    * \param handle a instance of data matrix
    * \param fname file name
