@@ -1,3 +1,5 @@
+#' @importClassesFrom Matrix dgCMatrix dgeMatrix
+
 # depends on matrix
 .onLoad <- function(libname, pkgname) {
   library.dynam("xgboost", pkgname, libname)
