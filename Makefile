@@ -15,9 +15,9 @@ BIN = xgboost
 OBJ = updater.o gbm.o io.o
 SLIB = wrapper/libxgboostwrapper.so 
 #RLIB = wrapper/libxgboostR.so 
-.PHONY: clean all R python
+.PHONY: clean all R python 
 
-all: $(BIN) $(OBJ)
+all: $(BIN) $(OBJ) $(SLIB)
 #python: wrapper/libxgboostwrapper.so
 #xgboost: src/xgboost_main.cpp src/io/io.cpp src/data.h src/tree/*.h src/tree/*.hpp src/gbm/*.h src/gbm/*.hpp src/utils/*.h src/learner/*.h src/learner/*.hpp 
 
