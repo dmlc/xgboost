@@ -7,9 +7,6 @@ setClass('xgb.DMatrix')
 #' @param object Object of class "xgb.DMatrix"
 #' @param name the name of the field to get
 #' 
-#' @section Value
-#' return a numerical vector.
-#' 
 #' @examples
 #' data(iris)
 #' iris[,5] <- as.numeric(iris[,5])

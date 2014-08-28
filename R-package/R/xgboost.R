@@ -28,9 +28,6 @@
 #' Parallelization is automatically enabled if OpenMP is present.
 #' Number of threads can also be manually specified via "nthread" parameter
 #' 
-#' @section Value
-#' return a \code{xgb.DMatrix} class object.
-#' 
 #' @examples
 #' data(iris)
 #' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
