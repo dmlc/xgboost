@@ -1,5 +1,6 @@
-# include xgboost library, must set chdir=TRURE
-source("../../wrapper/xgboost.R", chdir=TRUE)
+# install xgboost package, see R-package in root folder
+require(xgboost)
+require(methods)
 
 modelfile <- "higgs.model"
 outfile <- "higgs.pred.csv"
