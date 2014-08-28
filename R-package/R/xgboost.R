@@ -4,22 +4,24 @@
 #' 
 #' @param data takes \code{matrix}, \code{dgCMatrix}, local data file or 
 #'   \code{xgb.DMatrix}. 
-#' @param label the response variable. Not required if data is local data file 
-#'   or \code{xgb.DMatrix}. 
-#' @param params the list of parameters. See 
+#' @param label the response variable. User should not set this field,
+#    if data is local data file or  \code{xgb.DMatrix}. 
+#' @param params the list of parameters.  See 
 #'   \url{https://github.com/tqchen/xgboost/wiki/Parameters} for 
-#'   further details.
+#'   further details. See also demo/demo.R for walkthrough example in R.
 #' @param nrounds the max number of iterations
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
 #'   information of performance. If 2, xgboost will print information of both
-#'   performance and tree.
+#'   performance and construction progress information
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 
 #' This is the modeling function for xgboost.
 #' 
-#' Parallelization is automatically enabled under Linux/Windows. Mac users can 
-#' also enjoy this feature if compile this package with openmp.
+#' Parallelization is automatically enabled under Linux/Windows.
+#' Number of threads can also be manually specified via nthread parameter
+#' Mac users can also enjoy this feature if R CMD COMPILE support compile
+#' package with openmp.
 #' 
 #' @section Value
 #' return a \code{xgb.DMatrix} class object.

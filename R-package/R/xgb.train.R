@@ -8,20 +8,25 @@
 #' @param dtrain takes an \code{xgb.DMatrix} as the input.
 #' @param nrounds the max number of iterations
 #' @param watchlist what information should be printed when \code{verbose=1} or
-#'   \code{verbose=2}.
+#'   \code{verbose=2}. Watchlist is used to specify validation set monitoring
+#'   during training. For example user can specify
+#'    watchlist=list(validation1=mat1, validation2=mat2) to watch
+#'    the performance of each round's model on mat1 and mat2
+#'
 #' @param obj customized objective function. Given prediction and dtrain, 
-#'   return gradient and second order gradient
+#'   return gradient and second order gradient.
 #' @param feval custimized evaluation function. Given prediction and dtrain,
 #'   return a \code{list(metric='metric-name', value='metric-value')}.
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 
 #' This is the training function for xgboost.
-#' 
+#'
 #' Parallelization is automatically enabled under Linux/Windows. Mac users can 
 #' also enjoy this feature if compile this package with openmp.
 #' 
-#' This function only accepts an \code{xgb.DMatrix} object as the input, 
+#' This function only accepts an \code{xgb.DMatrix} object as the input.
+#' It supports advanced features such as watchlist, customized objective function,
 #' therefore it is more flexible than \code{\link{xgboost}}.
 #' 
 #' @section Value
