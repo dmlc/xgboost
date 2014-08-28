@@ -1,4 +1,34 @@
-# Main function for xgboost-package
+#' eXtreme Gradient Boosting (Tree) library
+#' 
+#' A simple interface for xgboost in R
+#' 
+#' @param data takes \code{matrix}, \code{dgCMatrix}, local data file or 
+#'   \code{xgb.DMatrix}. 
+#' @param label the response variable. Not required if data is local data file 
+#'   or \code{xgb.DMatrix}. 
+#' @param params the list of parameters. See 
+#'   \url{https://github.com/tqchen/xgboost/wiki/Parameters} for 
+#'   further details.
+#' @param nrounds the max number of iterations
+#' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
+#'   information of performance. If 2, xgboost will print information of both
+#'   performance and tree.
+#' @param ... other parameters to pass to \code{params}.
+#' 
+#' @details 
+#' This is the modeling function for xgboost.
+#' 
+#' Parallelization is automatically enabled under Linux/Windows. Mac users can 
+#' also enjoy this feature if compile this package with openmp.
+#' 
+#' @section Value
+#' return a \code{xgb.DMatrix} class object.
+#' 
+#' @examples
+#' data(iris)
+#' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
+#' pred <- predict(bst, as.matrix(iris[,1:4]))
+#' 
 xgboost <- function(data = NULL, label = NULL, params = list(), nrounds, 
                     verbose = 1, ...) {
   inClass <- class(data)

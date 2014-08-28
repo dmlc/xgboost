@@ -1,4 +1,21 @@
-# constructing DMatrix
+#' Contruct xgb.DMatrix object
+#' 
+#' Contruct xgb.DMatrix object from dense matrix, sparse matrix or local file.
+#' 
+#' @param data a \code{matrix} object, a \code{dgCMatrix} object or a character 
+#'   indicating the data file.
+#' @param info a list of information of the xgb.DMatrix object
+#' @param missing Sometime a data use 0 or other extreme value to represents
+#'   missing values.
+#' @param ... other information to pass to \code{info}.
+#' 
+#' @examples
+#' data(iris)
+#' iris[,5] <- as.numeric(iris[,5])
+#' dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
+#' xgb.DMatrix.save(dtrain, 'iris.xgb.DMatrix')
+#' dtrain <- xgb.DMatrix('iris.xgb.DMatrix')
+#' 
 xgb.DMatrix <- function(data, info = list(), missing = 0, ...) {
   if (typeof(data) == "character") {
     handle <- .Call("XGDMatrixCreateFromFile_R", data, as.integer(FALSE), 

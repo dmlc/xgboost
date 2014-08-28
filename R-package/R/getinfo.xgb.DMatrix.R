@@ -1,5 +1,21 @@
 setClass('xgb.DMatrix')
 
+#' Get information of an xgb.DMatrix object
+#' 
+#' Get information of an xgb.DMatrix object
+#' 
+#' @param object Object of class "xgb.DMatrix"
+#' @param name the name of the field to get
+#' 
+#' @section Value
+#' return a numerical vector.
+#' 
+#' @examples
+#' data(iris)
+#' iris[,5] <- as.numeric(iris[,5])
+#' dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
+#' labels <- getinfo(dtest, "label")
+#' 
 getinfo <- function(object, ...){
     UseMethod("getinfo")
 }
