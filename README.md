@@ -29,7 +29,7 @@ Build
   - You can type ```make no_omp=1```, this will get you single thread xgboost
   - Alternatively, you can upgrade your compiler to compile multi-thread version
 * Windows(VS 2010): see [windows](windows) folder
-  - In principle, you want to put all the cpp files mentioned in the Makefile to the project, and compile
+  - In principle, you put all the cpp files in the Makefile to the project, and build
 
 Version
 ======
