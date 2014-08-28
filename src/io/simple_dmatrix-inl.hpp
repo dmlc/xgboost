@@ -16,6 +16,7 @@
 #include "../utils/utils.h"
 #include "../learner/dmatrix.h"
 #include "./io.h"
+#include "./simple_fmatrix-inl.hpp"
 
 namespace xgboost {
 namespace io {
@@ -24,11 +25,16 @@ class DMatrixSimple : public DataMatrix {
  public:
   // constructor
   DMatrixSimple(void) : DataMatrix(kMagic) {
-    this->fmat.set_iter(new OneBatchIter(this));
+    fmat_ = new FMatrixS(new OneBatchIter(this));
     this->Clear();
   }
   // virtual destructor
-  virtual ~DMatrixSimple(void) {}
+  virtual ~DMatrixSimple(void) {
+    delete fmat_;
+  }
+  virtual IFMatrix *fmat(void) const {
+    return fmat_;
+  }
   /*! \brief clear the storage */
   inline void Clear(void) {
     row_ptr_.clear();
@@ -41,7 +47,7 @@ class DMatrixSimple : public DataMatrix {
     this->info = src.info;
     this->Clear();
     // clone data content in thos matrix
-    utils::IIterator<RowBatch> *iter = src.fmat.RowIterator();
+    utils::IIterator<RowBatch> *iter = src.fmat()->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();
@@ -145,7 +151,7 @@ class DMatrixSimple : public DataMatrix {
 
     info.LoadBinary(fs);
     FMatrixS::LoadBinary(fs, &row_ptr_, &row_data_);
-    fmat.LoadColAccess(fs);
+    fmat_->LoadColAccess(fs);
 
     if (!silent) {
       printf("%lux%lu matrix with %lu entries is loaded",
@@ -172,7 +178,7 @@ class DMatrixSimple : public DataMatrix {
 
     info.SaveBinary(fs);
     FMatrixS::SaveBinary(fs, row_ptr_, row_data_);
-    fmat.SaveColAccess(fs);
+    fmat_->SaveColAccess(fs);
     fs.Close();
 
     if (!silent) {
@@ -212,6 +218,8 @@ class DMatrixSimple : public DataMatrix {
   std::vector<size_t> row_ptr_;
   /*! \brief data in the row */
   std::vector<RowBatch::Entry> row_data_;
+  /*! \brief the real fmatrix */
+  FMatrixS *fmat_;
   /*! \brief magic number used to identify DMatrix */
   static const int kMagic = 0xffffab01;
 
@@ -244,7 +252,7 @@ class DMatrixSimple : public DataMatrix {
     DMatrixSimple *parent_;
     // temporal space for batch
     RowBatch batch_;
-  };
+  }; 
 };
 }  // namespace io
 }  // namespace xgboost
