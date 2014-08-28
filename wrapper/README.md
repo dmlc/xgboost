@@ -10,4 +10,4 @@ Python
 
 R 
 =====
-* See ../R-package
+* See [R-package](../R-package)

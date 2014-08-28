@@ -28,9 +28,8 @@ Build
 * You may get a error: -lgomp is not found
   - You can type ```make no_omp=1```, this will get you single thread xgboost
   - Alternatively, you can upgrade your compiler to compile multi-thread version
-* Possible way to build using Visual Studio (not tested):
-  - In principle, you can put src/xgboost.cpp and src/io/io.cpp into the project, and build xgboost.
-  - For python module, you need python/xgboost_wrapper.cpp and src/io/io.cpp to build a dll.
+* Windows(VS 2010): see [windows](windows) folder
+  - In principle, you put all the cpp files in the Makefile to the project, and build
 
 Version
 ======
