@@ -1,10 +1,17 @@
 #' eXtreme Gradient Boosting Training
 #' 
 #' The training function of xgboost
-#' 
-#' @param params the list of parameters. See 
-#'   \url{https://github.com/tqchen/xgboost/wiki/Parameters} for 
-#'   further details.
+#'
+#' @param params the list of parameters. Commonly used ones are:
+#'   objective: objective function, common ones are
+#'       - reg:linear  linear regression
+#'       - binary:logistic logistic regression for classification
+#'   eta: step size of each boosting step
+#'   max_depth: maximum depth of the tree
+#'   nthread: number of thread used in training, if not set, all threads are used
+#'
+#'   See \url{https://github.com/tqchen/xgboost/wiki/Parameters} for 
+#'   further details. See also demo/demo.R for walkthrough example in R.
 #' @param dtrain takes an \code{xgb.DMatrix} as the input.
 #' @param nrounds the max number of iterations
 #' @param watchlist what information should be printed when \code{verbose=1} or
