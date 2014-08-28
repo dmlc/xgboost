@@ -14,19 +14,19 @@ endif
 BIN = xgboost
 OBJ = updater.o gbm.o io.o
 SLIB = wrapper/libxgboostwrapper.so 
-#RLIB = wrapper/libxgboostR.so 
-.PHONY: clean all R python 
+
+.PHONY: clean all python 
 
 all: $(BIN) $(OBJ) $(SLIB)
-#python: wrapper/libxgboostwrapper.so
-#xgboost: src/xgboost_main.cpp src/io/io.cpp src/data.h src/tree/*.h src/tree/*.hpp src/gbm/*.h src/gbm/*.hpp src/utils/*.h src/learner/*.h src/learner/*.hpp 
 
+python: wrapper/libxgboostwrapper.so
 # now the wrapper takes in two files. io and wrapper part
 wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp $(OBJ)
-updater.o: src/tree/updater.cpp 
-gbm.o: src/gbm/gbm.cpp 
-io.o: src/io/io.cpp
-xgboost: src/xgboost_main.cpp $(OBJ)
+updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h
+gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h
+io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
+xgboost: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h $(OBJ)
+wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h $(OBJ)
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
