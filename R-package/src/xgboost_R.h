@@ -120,5 +120,5 @@ extern "C" {
    * \param fmap  name to fmap can be empty string
    */
   void XGBoosterDumpModel_R(SEXP handle, SEXP fname, SEXP fmap);
-};
+}
 #endif  // XGBOOST_WRAPPER_R_H_

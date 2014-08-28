@@ -189,5 +189,5 @@ extern "C" {
    */
   XGB_DLL const char **XGBoosterDumpModel(void *handle, const char *fmap,
                                           bst_ulong *out_len);
-};
+}
 #endif  // XGBOOST_WRAPPER_H_
