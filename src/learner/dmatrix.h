@@ -8,7 +8,7 @@
  */
 #include <vector>
 #include "../data.h"
-
+#include "../utils/io.h"
 namespace xgboost {
 namespace learner {
 /*!
@@ -142,7 +142,6 @@ struct MetaInfo {
  * \brief data object used for learning,
  * \tparam FMatrix type of feature data source
  */
-template<typename FMatrix>
 struct DMatrix {
   /*! 
    * \brief magic number associated with this object 
@@ -152,7 +151,7 @@ struct DMatrix {
   /*! \brief meta information about the dataset */
   MetaInfo info;
   /*! \brief feature matrix about data content */
-  FMatrix fmat;
+  IFMatrix *fmat;
   /*! 
    * \brief cache pointer to verify if the data structure is cached in some learner
    *  used to verify if DMatrix is cached
@@ -161,7 +160,9 @@ struct DMatrix {
   /*! \brief default constructor */
   explicit DMatrix(int magic) : magic(magic), cache_learner_ptr_(NULL) {}
   // virtual destructor
-  virtual ~DMatrix(void){}
+  virtual ~DMatrix(void){
+    delete fmat;
+  }
 };
 
 }  // namespace learner

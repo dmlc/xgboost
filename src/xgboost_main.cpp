@@ -234,7 +234,7 @@ class BoostLearnTask{
   std::vector<io::DataMatrix*> deval;
   std::vector<const io::DataMatrix*> devalall;
   utils::FeatMap fmap;
-  learner::BoostLearner<FMatrixS> learner;
+  learner::BoostLearner learner;
 };
 }
 
