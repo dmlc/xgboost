@@ -22,8 +22,8 @@
 #' @details 
 #' This is the training function for xgboost.
 #'
-#' Parallelization is automatically enabled under Linux/Windows. Mac users can 
-#' also enjoy this feature if compile this package with openmp.
+#' Parallelization is automatically enabled if OpenMP is present.
+#' Number of threads can also be manually specified via "nthread" parameter.
 #' 
 #' This function only accepts an \code{xgb.DMatrix} object as the input.
 #' It supports advanced features such as watchlist, customized objective function,

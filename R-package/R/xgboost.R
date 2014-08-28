@@ -18,10 +18,8 @@
 #' @details 
 #' This is the modeling function for xgboost.
 #' 
-#' Parallelization is automatically enabled under Linux/Windows.
-#' Number of threads can also be manually specified via nthread parameter
-#' Mac users can also enjoy this feature if R CMD COMPILE support compile
-#' package with openmp.
+#' Parallelization is automatically enabled if OpenMP is present.
+#' Number of threads can also be manually specified via "nthread" parameter
 #' 
 #' @section Value
 #' return a \code{xgb.DMatrix} class object.
