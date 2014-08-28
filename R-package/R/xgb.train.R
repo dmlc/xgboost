@@ -1,5 +1,5 @@
 # train a model using given parameters
-xgb.train <- function(params=list(), dtrain, nrounds = 10, watchlist = list(), 
+xgb.train <- function(params=list(), dtrain, nrounds, watchlist = list(), 
                       obj = NULL, feval = NULL, ...) {
   if (typeof(params) != "list") {
     stop("xgb.train: first argument params must be list")

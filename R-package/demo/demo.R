@@ -46,27 +46,27 @@ dtrain <- xgb.DMatrix(dense.x, label = y)
 ############################ Test xgboost with local file, sparse matrix and dense matrix in R.
 
 # Test with DMatrix object
-bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, 
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nround = 2,
                objective = "binary:logistic")
 
 # Verbose = 0,1,2
-bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, 
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nround = 2,
                objective = "binary:logistic", verbose = 0)
-bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, 
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nround = 2,
                objective = "binary:logistic", verbose = 1)
-bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, 
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nround = 2,
                objective = "binary:logistic", verbose = 2)
 
 # Test with local file
-bst <- xgboost(data = "agaricus.txt.train", max_depth = 2, eta = 1,
+bst <- xgboost(data = "agaricus.txt.train", max_depth = 2, eta = 1,nround = 2,
                objective = "binary:logistic")
 
 # Test with Sparse Matrix
-bst <- xgboost(data = x, label = y, max_depth = 2, eta = 1, 
+bst <- xgboost(data = x, label = y, max_depth = 2, eta = 1, nround = 2,
                objective = "binary:logistic")
 
 # Test with dense Matrix
-bst <- xgboost(data = dense.x, label = y, max_depth = 2, eta = 1, 
+bst <- xgboost(data = dense.x, label = y, max_depth = 2, eta = 1, nround = 2,
                objective = "binary:logistic")
 
 

@@ -1,5 +1,5 @@
 # Main function for xgboost-package
-xgboost <- function(data = NULL, label = NULL, params = list(), nrounds = 10, 
+xgboost <- function(data = NULL, label = NULL, params = list(), nrounds, 
                     verbose = 1, ...) {
   inClass <- class(data)
   if (inClass == "dgCMatrix" || inClass == "matrix") {
