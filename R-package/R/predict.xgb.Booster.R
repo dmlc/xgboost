@@ -8,8 +8,10 @@ setClass("xgb.Booster")
 #' @param newdata takes \code{matrix}, \code{dgCMatrix}, local data file or 
 #'   \code{xgb.DMatrix}. 
 #' @param outputmargin whether the prediction should be shown in the original
-#'   value or after the logit mapping
-#' 
+#'   value of sum of functions, when outputmargin=TRUE, the prediction is 
+#'   untransformed margin value. In logistic regression, outputmargin=T will
+#'   output value before logistic transformation.
+#'
 #' @section Value
 #' return a numerical vector.
 #' 
