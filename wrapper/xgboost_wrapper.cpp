@@ -265,4 +265,4 @@ extern "C"{
     }
     return static_cast<Booster*>(handle)->GetModelDump(featmap, false, len);
   }
-};
+}
