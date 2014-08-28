@@ -9,7 +9,7 @@ data <- as.matrix(dtest[2:31])
 idx <- dtest[[1]]
 
 xgmat <- xgb.DMatrix(data, missing = -999.0)
-bst <- xgb.Booster(params=list("nthread"=16), modelfile=modelfile)
+bst <- xgb.load(modelfile=modelfile)
 ypred <- predict(bst, xgmat)
 
 rorder <- rank(ypred, ties.method="first")
