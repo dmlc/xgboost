@@ -1,5 +1,4 @@
 # Main function for xgboost-package
-
 xgboost <- function(data = NULL, label = NULL, params = list(), nrounds = 10, 
                     verbose = 1, ...) {
   inClass <- class(data)
