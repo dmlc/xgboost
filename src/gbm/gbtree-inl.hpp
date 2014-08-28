@@ -9,16 +9,15 @@
 #include <utility>
 #include <string>
 #include "./gbm.h"
+#include "../utils/omp.h"
 #include "../tree/updater.h"
 
 namespace xgboost {
 namespace gbm {
 /*!
  * \brief gradient boosted tree
- * \tparam FMatrix the data type updater taking
  */
-template<typename FMatrix>
-class GBTree : public IGradBooster<FMatrix> {
+class GBTree : public IGradBooster {
  public:
   virtual ~GBTree(void) {
     this->Clear();
@@ -82,12 +81,12 @@ class GBTree : public IGradBooster<FMatrix> {
     utils::Assert(mparam.num_trees == 0, "GBTree: model already initialized");
     utils::Assert(trees.size() == 0, "GBTree: model already initialized");
   }
-  virtual void DoBoost(const FMatrix &fmat,
+  virtual void DoBoost(IFMatrix *p_fmat,
                        const BoosterInfo &info,
                        std::vector<bst_gpair> *in_gpair) {
     const std::vector<bst_gpair> &gpair = *in_gpair;
     if (mparam.num_output_group == 1) {
-      this->BoostNewTrees(gpair, fmat, info, 0);
+      this->BoostNewTrees(gpair, p_fmat, info, 0);
     } else {
       const int ngroup = mparam.num_output_group;
       utils::Check(gpair.size() % ngroup == 0,
@@ -99,11 +98,11 @@ class GBTree : public IGradBooster<FMatrix> {
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           tmp[i] = gpair[i * ngroup + gid];
         }
-        this->BoostNewTrees(tmp, fmat, info, gid);
+        this->BoostNewTrees(tmp, p_fmat, info, gid);
       }
     }
   }
-  virtual void Predict(const FMatrix &fmat,
+  virtual void Predict(IFMatrix *p_fmat,
                        int64_t buffer_offset,
                        const BoosterInfo &info,
                        std::vector<float> *out_preds) {
@@ -121,7 +120,7 @@ class GBTree : public IGradBooster<FMatrix> {
     const size_t stride = info.num_row * mparam.num_output_group;
     preds.resize(stride * (mparam.size_leaf_vector+1));
     // start collecting the prediction
-    utils::IIterator<RowBatch> *iter = fmat.RowIterator();
+    utils::IIterator<RowBatch> *iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();
@@ -172,7 +171,7 @@ class GBTree : public IGradBooster<FMatrix> {
     char *pstr;
     pstr = strtok(&tval[0], ",");
     while (pstr != NULL) {
-      updaters.push_back(tree::CreateUpdater<FMatrix>(pstr));
+      updaters.push_back(tree::CreateUpdater(pstr));
       for (size_t j = 0; j < cfg.size(); ++j) {
         // set parameters
         updaters.back()->SetParam(cfg[j].first.c_str(), cfg[j].second.c_str());
@@ -183,7 +182,7 @@ class GBTree : public IGradBooster<FMatrix> {
   }
   // do group specific group
   inline void BoostNewTrees(const std::vector<bst_gpair> &gpair,
-                            const FMatrix &fmat,
+                            IFMatrix *p_fmat,
                             const BoosterInfo &info,
                             int bst_group) {
     this->InitUpdater();
@@ -198,7 +197,7 @@ class GBTree : public IGradBooster<FMatrix> {
     }
     // update the trees
     for (size_t i = 0; i < updaters.size(); ++i) {
-      updaters[i]->Update(gpair, fmat, info, new_trees);
+      updaters[i]->Update(gpair, p_fmat, info, new_trees);
     }
     // push back to model
     for (size_t i = 0; i < new_trees.size(); ++i) {
@@ -361,7 +360,7 @@ class GBTree : public IGradBooster<FMatrix> {
   // temporal storage for per thread
   std::vector<tree::RegTree::FVec> thread_temp;
   // the updaters that can be applied to each of tree
-  std::vector< tree::IUpdater<FMatrix>* > updaters;
+  std::vector<tree::IUpdater*> updaters;
 };
 
 }  // namespace gbm

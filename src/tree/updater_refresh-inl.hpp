@@ -9,12 +9,13 @@
 #include <limits>
 #include "./param.h"
 #include "./updater.h"
+#include "../utils/omp.h"
 
 namespace xgboost {
 namespace tree {
 /*! \brief pruner that prunes a tree after growing finishs */
-template<typename FMatrix, typename TStats>
-class TreeRefresher: public IUpdater<FMatrix> {
+template<typename TStats>
+class TreeRefresher: public IUpdater {
  public:
   virtual ~TreeRefresher(void) {}
   // set training parameter
@@ -23,7 +24,7 @@ class TreeRefresher: public IUpdater<FMatrix> {
   }
   // update the tree, do pruning
   virtual void Update(const std::vector<bst_gpair> &gpair,
-                      const FMatrix &fmat,
+                      IFMatrix *p_fmat,
                       const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) {
     if (trees.size() == 0) return;
@@ -50,7 +51,7 @@ class TreeRefresher: public IUpdater<FMatrix> {
       fvec_temp[tid].Init(trees[0]->param.num_feature);
     }
     // start accumulating statistics
-    utils::IIterator<RowBatch> *iter = fmat.RowIterator();
+    utils::IIterator<RowBatch> *iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();

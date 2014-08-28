@@ -229,7 +229,7 @@ class DMatrixSimple : public DataMatrix {
       at_first_ = false;
       batch_.size = parent_->row_ptr_.size() - 1;
       batch_.base_rowid = 0;
-      batch_.row_ptr = &parent_->row_ptr_[0];
+      batch_.ind_ptr = &parent_->row_ptr_[0];
       batch_.data_ptr = &parent_->row_data_[0];
       return true;
     }

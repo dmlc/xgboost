@@ -8,6 +8,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <cstdio>
 #include <cstdarg>
+#include <string>
 #include <cstdlib>
 #ifdef _MSC_VER
 #define fopen64 fopen
