@@ -6,7 +6,7 @@ Date: 2014-08-23
 Author: Tianqi Chen, Tong He
 Maintainer: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>
 Description: xgboost
-License: See LICENSE file
+License: See LICENSE file in the project root
 URL: https://github.com/tqchen/xgboost
 BugReports: https://github.com/tqchen/xgboost/issues
 Depends:
