@@ -16,6 +16,7 @@ setClass("xgb.Booster")
 #' data(iris)
 #' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
 #' pred <- predict(bst, as.matrix(iris[,1:4]))
+#' @export
 #' 
 setMethod("predict", signature = "xgb.Booster", 
           definition = function(object, newdata, outputmargin = FALSE) {

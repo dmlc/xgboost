@@ -11,6 +11,7 @@
 #' xgb.save(bst, 'iris.xgb.model')
 #' bst <- xgb.load('iris.xgb.model')
 #' pred <- predict(bst, as.matrix(iris[,1:4]))
+#' @export
 #' 
 xgb.save <- function(model, fname) {
   if (typeof(fname) != "character") {

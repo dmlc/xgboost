@@ -57,6 +57,7 @@
 #'   return(list(metric = "error", value = err))
 #' }
 #' bst <- xgb.train(param, dtrain, nround = 2, watchlist, logregobj, evalerror)
+#' @export
 #' 
 xgb.train <- function(params=list(), dtrain, nrounds, watchlist = list(), 
                       obj = NULL, feval = NULL, ...) {
