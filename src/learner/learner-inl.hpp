@@ -21,7 +21,6 @@ namespace learner {
  * \brief learner that takes do gradient boosting on specific objective functions
  *  and do training and prediction
  */
-template<typename FMatrix>
 class BoostLearner {
  public:
   BoostLearner(void) {
@@ -44,7 +43,7 @@ class BoostLearner {
    *             data matrices to continue training otherwise it will cause error
    * \param mats array of pointers to matrix whose prediction result need to be cached
    */          
-  inline void SetCacheData(const std::vector<DMatrix<FMatrix>*>& mats) {
+  inline void SetCacheData(const std::vector<DMatrix*>& mats) {
     // estimate feature bound
     unsigned num_feature = 0;
     // assign buffer index
@@ -158,18 +157,18 @@ class BoostLearner {
    *  if not intialize it
    * \param p_train pointer to the matrix used by training
    */
-  inline void CheckInit(DMatrix<FMatrix> *p_train) {
-    p_train->fmat.InitColAccess(prob_buffer_row);
+  inline void CheckInit(DMatrix *p_train) {
+    p_train->fmat()->InitColAccess(prob_buffer_row);
   }
   /*!
    * \brief update the model for one iteration
    * \param iter current iteration number
    * \param p_train pointer to the data matrix
    */
-  inline void UpdateOneIter(int iter, const DMatrix<FMatrix> &train) {
+  inline void UpdateOneIter(int iter, const DMatrix &train) {
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train.info, iter, &gpair_);
-    gbm_->DoBoost(train.fmat, train.info.info, &gpair_);
+    gbm_->DoBoost(train.fmat(), train.info.info, &gpair_);
   }
   /*!
    * \brief evaluate the model for specific iteration
@@ -179,7 +178,7 @@ class BoostLearner {
    * \return a string corresponding to the evaluation result
    */
   inline std::string EvalOneIter(int iter,
-                                 const std::vector<const DMatrix<FMatrix>*> &evals,
+                                 const std::vector<const DMatrix*> &evals,
                                  const std::vector<std::string> &evname) {
     std::string res;
     char tmp[256];
@@ -198,7 +197,7 @@ class BoostLearner {
    * \param metric name of metric
    * \return a pair of <evaluation name, result>
    */
-  std::pair<std::string, float> Evaluate(const DMatrix<FMatrix> &data, std::string metric) {
+  std::pair<std::string, float> Evaluate(const DMatrix &data, std::string metric) {
     if (metric == "auto") metric = obj_->DefaultEvalMetric();
     IEvaluator *ev = CreateEvaluator(metric.c_str());
     this->PredictRaw(data, &preds_);
@@ -213,7 +212,7 @@ class BoostLearner {
    * \param output_margin whether to only predict margin value instead of transformed prediction
    * \param out_preds output vector that stores the prediction
    */
-  inline void Predict(const DMatrix<FMatrix> &data,
+  inline void Predict(const DMatrix &data,
                       bool output_margin,
                       std::vector<float> *out_preds) const {
     this->PredictRaw(data, out_preds);
@@ -235,7 +234,7 @@ class BoostLearner {
     if (obj_ != NULL) return;
     utils::Assert(gbm_ == NULL, "GBM and obj should be NULL");
     obj_ = CreateObjFunction(name_obj_.c_str());
-    gbm_ = gbm::CreateGradBooster<FMatrix>(name_gbm_.c_str());
+    gbm_ = gbm::CreateGradBooster(name_gbm_.c_str());
     for (size_t i = 0; i < cfg_.size(); ++i) {
       obj_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
       gbm_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
@@ -247,9 +246,9 @@ class BoostLearner {
    * \param data training data matrix
    * \param out_preds output vector that stores the prediction
    */
-  inline void PredictRaw(const DMatrix<FMatrix> &data,
+  inline void PredictRaw(const DMatrix &data,
                          std::vector<float> *out_preds) const {
-    gbm_->Predict(data.fmat, this->FindBufferOffset(data),
+    gbm_->Predict(data.fmat(), this->FindBufferOffset(data),
                   data.info.info, out_preds);
     // add base margin
     std::vector<float> &preds = *out_preds;
@@ -307,7 +306,7 @@ class BoostLearner {
   // model parameter
   ModelParam   mparam;
   // gbm model that back everything
-  gbm::IGradBooster<FMatrix> *gbm_;
+  gbm::IGradBooster *gbm_;
   // name of gbm model used for training
   std::string name_gbm_;
   // objective fnction
@@ -324,14 +323,14 @@ class BoostLearner {
  private:
   // cache entry object that helps handle feature caching
   struct CacheEntry {
-    const DMatrix<FMatrix> *mat_;
+    const DMatrix *mat_;
     size_t buffer_offset_;
     size_t num_row_;
-    CacheEntry(const DMatrix<FMatrix> *mat, size_t buffer_offset, size_t num_row)
+    CacheEntry(const DMatrix *mat, size_t buffer_offset, size_t num_row)
         :mat_(mat), buffer_offset_(buffer_offset), num_row_(num_row) {}
   };
   // find internal bufer offset for certain matrix, if not exist, return -1
-  inline int64_t FindBufferOffset(const DMatrix<FMatrix> &mat) const {
+  inline int64_t FindBufferOffset(const DMatrix &mat) const {
     for (size_t i = 0; i < cache_.size(); ++i) {
       if (cache_[i].mat_ == &mat && mat.cache_learner_ptr_ == this) {
         if (cache_[i].num_row_ == mat.info.num_row()) {

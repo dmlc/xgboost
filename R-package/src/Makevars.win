@@ -15,7 +15,7 @@ ifeq ($(no_omp),1)
 	PKG_CPPFLAGS += -DDISABLE_OPENMP 
 endif
 
-CXXOBJ= xgboost_wrapper.o xgboost_io.o
+CXXOBJ= xgboost_wrapper.o xgboost_io.o xgboost_gbm.o xgboost_updater.o
 OBJECTS= xgboost_R.o $(CXXOBJ)
 
 .PHONY: all clean
@@ -24,6 +24,8 @@ $(SHLIB): $(OBJECTS)
 
 xgboost_wrapper.o: ../../wrapper/xgboost_wrapper.cpp
 xgboost_io.o: ../../src/io/io.cpp
+xgboost_gbm.o: ../../src/gbm/gbm.cpp
+xgboost_updater.o: ../../src/tree/updater.cpp
 
 $(CXXOBJ) : 
 	$(CXX) -c $(PKG_CPPFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) )

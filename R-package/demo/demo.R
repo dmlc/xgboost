@@ -93,20 +93,22 @@ print(paste("error=", err))
 ############################ Save and load model to hard disk
 
 # save model to binary local file
-xgb.save(bst, "model.save")
+xgb.save(bst, "xgboost.model")
 
 # load binary model to R
-bst <- xgb.load("model.save")
+bst <- xgb.load("xgboost.model")
 pred <- predict(bst, test.x)
 
 # save model to text file
-xgb.dump(bst, "model.dump")
+xgb.dump(bst, "dump.raw.txt")
+# save model to text file, with feature map
+xgb.dump(bst, "dump.nice.txt", "featmap.txt")
 
 # save a DMatrix object to hard disk
-xgb.DMatrix.save(dtrain, "dtrain.save")
+xgb.DMatrix.save(dtrain, "dtrain.buffer")
 
 # load a DMatrix object to R
-dtrain <- xgb.DMatrix("dtrain.save")
+dtrain <- xgb.DMatrix("dtrain.buffer")
 
 ############################ More flexible training function xgb.train
 
