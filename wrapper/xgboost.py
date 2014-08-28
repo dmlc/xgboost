@@ -12,7 +12,7 @@ import scipy.sparse as scp
 if os.name == 'nt':
     XGBOOST_PATH = os.path.dirname(__file__)+'/../windows/x64/Release/xgboost_wrapper.dll'
 else:
-    XGBOOST_PATH = os.path.dirname(__file__)+'/../libxgboostwrapper.so'
+    XGBOOST_PATH = os.path.dirname(__file__)+'/libxgboostwrapper.so'
 
 # load in xgboost library
 xglib = ctypes.cdll.LoadLibrary(XGBOOST_PATH)

@@ -1,5 +1,7 @@
-# include xgboost library, must set chdir=TRURE
-source("../../wrapper/xgboost.R", chdir=TRUE)
+# install xgboost package, see R-package in root folder
+require(xgboost)
+require(methods)
+
 testsize <- 550000
 
 dtrain <- read.csv("data/training.csv", header=TRUE)
@@ -12,7 +14,7 @@ sumwpos <- sum(weight * (label==1.0))
 sumwneg <- sum(weight * (label==0.0))
 print(paste("weight statistics: wpos=", sumwpos, "wneg=", sumwneg, "ratio=", sumwneg / sumwpos))
 
-xgmat <- xgb.DMatrix(data, info = list(label=label, weight=weight), missing = -999.0)
+xgmat <- xgb.DMatrix(data, label = label, weight = weight, missing = -999.0)
 param <- list("objective" = "binary:logitraw",
               "scale_pos_weight" = sumwneg / sumwpos,
               "bst:eta" = 0.1,

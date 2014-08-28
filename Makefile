@@ -1,41 +1,38 @@
 export CC  = gcc
 export CXX = g++
 export LDFLAGS= -pthread -lm 
-# note for R module
-# add include path to Rinternals.h here
+
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC
 
 ifeq ($(no_omp),1)
-	export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -DDISABLE_OPENMP 
-else
-	export CFLAGS = -Wall -O3 -msse2 -Wno-unknown-pragmas -fopenmp
+	CFLAGS += -DDISABLE_OPENMP 
+else 
+	CFLAGS += -fopenmp
 endif
-
-# expose these flags to R CMD SHLIB
-export PKG_CPPFLAGS = $(CFLAGS) -DXGBOOST_CUSTOMIZE_ERROR_
 
 # specify tensor path
 BIN = xgboost
-OBJ = 
+OBJ = updater.o gbm.o io.o
 SLIB = wrapper/libxgboostwrapper.so 
-RLIB = wrapper/libxgboostR.so 
-.PHONY: clean all R
 
-all: $(BIN) wrapper/libxgboostwrapper.so
-R: wrapper/libxgboostR.so
+.PHONY: clean all python 
 
-xgboost: src/xgboost_main.cpp src/io/io.cpp src/data.h src/tree/*.h src/tree/*.hpp src/gbm/*.h src/gbm/*.hpp src/utils/*.h src/learner/*.h src/learner/*.hpp 
+all: $(BIN) $(OBJ) $(SLIB)
+
+python: wrapper/libxgboostwrapper.so
 # now the wrapper takes in two files. io and wrapper part
-wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/io/io.cpp src/*.h src/*/*.hpp src/*/*.h
-wrapper/libxgboostR.so: wrapper/xgboost_wrapper.cpp wrapper/xgboost_R.cpp src/io/io.cpp src/*.h src/*/*.hpp src/*/*.h
+wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp $(OBJ)
+updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h
+gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h
+io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
+xgboost: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h $(OBJ)
+wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h $(OBJ)
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
 
 $(SLIB) :
 	$(CXX) $(CFLAGS) -fPIC $(LDFLAGS) -shared -o $@ $(filter %.cpp %.o %.c, $^)
-
-$(RLIB) :
-	R CMD SHLIB -c -o $@ $(filter %.cpp %.o %.c, $^)
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) )
@@ -44,4 +41,4 @@ install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
 
 clean:
-	$(RM) $(OBJ) $(BIN) $(SLIB) $(RLIB) *~ */*~ */*/*~
+	$(RM) $(OBJ) $(BIN) $(SLIB) *.o *~ */*~ */*/*~
