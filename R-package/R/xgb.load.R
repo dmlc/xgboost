@@ -10,6 +10,7 @@
 #' xgb.save(bst, 'iris.xgb.model')
 #' bst <- xgb.load('iris.xgb.model')
 #' pred <- predict(bst, as.matrix(iris[,1:4]))
+#' @export
 #' 
 xgb.load <- function(modelfile) {
   if (is.null(modelfile)) 

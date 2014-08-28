@@ -16,6 +16,7 @@
 #' dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
 #' xgb.DMatrix.save(dtrain, 'iris.xgb.DMatrix')
 #' dtrain <- xgb.DMatrix('iris.xgb.DMatrix')
+#' @export
 #' 
 xgb.DMatrix <- function(data, info = list(), missing = 0, ...) {
   if (typeof(data) == "character") {

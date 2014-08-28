@@ -32,6 +32,7 @@
 #' data(iris)
 #' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
 #' pred <- predict(bst, as.matrix(iris[,1:4]))
+#' @export
 #' 
 xgboost <- function(data = NULL, label = NULL, params = list(), nrounds, 
                     verbose = 1, ...) {

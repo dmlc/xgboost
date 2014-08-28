@@ -12,6 +12,7 @@
 #' data(iris)
 #' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
 #' xgb.dump(bst, 'iris.xgb.model.dump')
+#' @export
 #' 
 xgb.dump <- function(model, fname, fmap = "") {
   if (class(model) != "xgb.Booster") {
