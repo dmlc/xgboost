@@ -41,4 +41,4 @@ install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
 
 clean:
-	$(RM) $(OBJ) $(BIN) $(SLIB) $(RLIB) *~ */*~ */*/*~
+	$(RM) $(OBJ) $(BIN) $(SLIB) *.o *~ */*~ */*/*~
