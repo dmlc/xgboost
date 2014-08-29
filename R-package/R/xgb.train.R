@@ -3,12 +3,16 @@
 #' The training function of xgboost
 #'
 #' @param params the list of parameters. Commonly used ones are:
-#'   objective: objective function, common ones are
-#'       - reg:linear  linear regression
-#'       - binary:logistic logistic regression for classification
-#'   eta: step size of each boosting step
-#'   max_depth: maximum depth of the tree
-#'   nthread: number of thread used in training, if not set, all threads are used
+#' \itemize{
+#'   \item \code{objective} objective function, common ones are
+#'   \itemize{
+#'     \item \code{reg:linear} linear regression
+#'     \item \code{binary:logistic} logistic regression for classification
+#'   }
+#'   \item \code{eta} step size of each boosting step
+#'   \item \code{max_depth} maximum depth of the tree
+#'   \item \code{nthread} number of thread used in training, if not set, all threads are used
+#' }
 #'
 #'   See \url{https://github.com/tqchen/xgboost/wiki/Parameters} for 
 #'   further details. See also demo/demo.R for walkthrough example in R.
