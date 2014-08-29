@@ -15,14 +15,17 @@ namespace xgboost_sharp_wrapper
 
         [DllImport(dll_path+"xgboost_wrapper.dll", CallingConvention=CallingConvention.Cdecl)]
         public static extern IntPtr XGDMatrixCreateFromFile(string fname, int silent);
-
-        public IntPtr SharpXGDMatrixCreateFromFile(string fname, int silent)
+public IntPtr SharpXGDMatrixCreateFromFile(string fname, int silent)
         {
             return XGDMatrixCreateFromFile(fname, silent);
         }
 
         [DllImport(dll_path + "xgboost_wrapper.dll")]
         public static extern IntPtr XGBoosterCreate(IntPtr[] dmats, System.UInt32 len);
+        public IntPtr SharpXGBoosterCreate(IntPtr[] dmats, System.UInt32 len)
+        {
+            return XGBoosterCreate(dmats, len);
+        }
 
         [DllImport(dll_path + "xgboost_wrapper.dll")]
         public static extern void XGBoosterUpdateOneIter(IntPtr handle, int iter, IntPtr dtrain);
