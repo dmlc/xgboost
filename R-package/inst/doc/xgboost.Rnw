@@ -1,4 +1,3 @@
-
 \documentclass{article}
 
 \usepackage{natbib}
@@ -11,7 +10,7 @@
 \DeclareMathOperator{\var}{var}
 \DeclareMathOperator{\cov}{cov}
 
-% \VignetteIndexEntry{xgboost Example}
+% \VignetteIndexEntry{xgboost}
 
 \begin{document}
 
@@ -42,8 +41,8 @@ Comparing to \verb@gbm@ in R, it has several features:
         \item{Data File: }{Local data files}
         \item{xgb.DMatrix: }{\verb@xgboost@'s own class. Recommended.}
     \end{itemize}
-    \item{Penalization: }{\verb@xgboost@ supports penalization in 
-    $L_0,L_1,L_2$}
+    \item{Regularization: }{\verb@xgboost@ supports regularization for 
+    $L_1,L_2$ term on weights and $L_2$ term on bias.}
     \item{Customization: }{\verb@xgboost@ supports customized objective function 
     and evaluation function}
     \item{Performance: }{\verb@xgboost@ has better performance on several different
