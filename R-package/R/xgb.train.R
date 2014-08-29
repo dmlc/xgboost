@@ -44,8 +44,8 @@
 #' @examples
 #' data(iris)
 #' iris[,5] <- as.numeric(iris[,5])
-#' dtrain = xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
-#' dtest = dtrain
+#' dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
+#' dtest <- dtrain
 #' watchlist <- list(eval = dtest, train = dtrain)
 #' param <- list(max_depth = 2, eta = 1, silent = 1)
 #' logregobj <- function(preds, dtrain) {

@@ -13,7 +13,7 @@ setClass('xgb.DMatrix')
 #' data(iris)
 #' iris[,5] <- as.numeric(iris[,5])
 #' dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
-#' dsub <- slice(dtrain, c(1,2,3))
+#' dsub <- slice(dtrain, 1:3)
 #' @export
 #' 
 slice <- function(object, ...){
