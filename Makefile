@@ -45,7 +45,9 @@ R-package.tar.gz:
 	cp -r R-package xgboost-R
 	rm -rf xgboost-R/src/*.o xgboost-R/src/*.so xgboost-R/src/*.dll
 	cp -r src xgboost-R/src/src
-	cp -r wrapper xgboost-R/src/wrapper
+	mkdir xgboost-R/src/wrapper
+	cp  wrapper/xgboost_wrapper.h xgboost-R/src/wrapper
+	cp  wrapper/xgboost_wrapper.cpp xgboost-R/src/wrapper
 	cp ./LICENSE xgboost-R
 	cat R-package/src/Makevars|sed '2s/.*/PKGROOT=./' > xgboost-R/src/Makevars
 	cat R-package/src/Makevars.win|sed '2s/.*/PKGROOT=./' > xgboost-R/src/Makevars.win
