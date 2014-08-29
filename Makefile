@@ -2,7 +2,7 @@ export CC  = gcc
 export CXX = g++
 export LDFLAGS= -pthread -lm 
 
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC 
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -pedantic 
 
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP 
@@ -17,7 +17,7 @@ SLIB = wrapper/libxgboostwrapper.so
 
 .PHONY: clean all python 
 
-all: $(BIN) $(OBJ) $(SLIB)
+all: $(BIN) $(OBJ) $(SLIB) 
 
 python: wrapper/libxgboostwrapper.so
 # now the wrapper takes in two files. io and wrapper part
@@ -39,6 +39,18 @@ $(OBJ) :
 
 install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
+
+R-package.tar.gz:
+	rm -rf xgboost-R
+	cp -r R-package xgboost-R
+	rm -rf xgboost-R/src/*.o xgboost-R/src/*.so xgboost-R/src/*.dll
+	cp -r src xgboost-R/src/src
+	cp -r wrapper xgboost-R/src/wrapper
+	cp ./LICENSE xgboost-R
+	cat R-package/src/Makevars|sed '2s/.*/PKGROOT=./' > xgboost-R/src/Makevars
+	cat R-package/src/Makevars.win|sed '2s/.*/PKGROOT=./' > xgboost-R/src/Makevars.win
+	tar czf $@ xgboost-R
+	rm -rf xgboost-R
 
 clean:
 	$(RM) $(OBJ) $(BIN) $(SLIB) *.o *~ */*~ */*/*~
