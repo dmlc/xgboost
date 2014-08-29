@@ -1,0 +1,174 @@
+
+\documentclass{article}
+
+\usepackage{natbib}
+\usepackage{graphics}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{indentfirst}
+\usepackage[utf8]{inputenc}
+
+\DeclareMathOperator{\var}{var}
+\DeclareMathOperator{\cov}{cov}
+
+% \VignetteIndexEntry{xgboost Example}
+
+\begin{document}
+
+<<foo,include=FALSE,echo=FALSE>>=
+options(keep.source = TRUE, width = 60)
+foo <- packageDescription("xgboost")
+@
+
+\title{xgboost Package Example (Version \Sexpr{foo$Version})}
+\author{Tong He}
+\maketitle
+
+\section{Introduction}
+
+This is an example of using the \verb@xgboost@ package in R. 
+
+\verb@xgboost@ is short for eXtreme Gradient Boosting (Tree). It supports
+regression and classification analysis on different types of input datasets.
+
+Comparing to \verb@gbm@ in R, it has several features:
+\begin{enumerate}
+    \item{Speed: }{\verb@xgboost@ can automatically do parallel computation on 
+    Windows and Linux, with openmp.}
+    \item{Input Type: }{\verb@xgboost@ takes several types of input data:}
+    \begin{itemize}
+        \item{Dense Matrix: }{R's dense matrix, i.e. \verb@matrix@}
+        \item{Sparse Matrix: }{R's sparse matrix \verb@Matrix::dgCMatrix@}
+        \item{Data File: }{Local data files}
+        \item{xgb.DMatrix: }{\verb@xgboost@'s own class. Recommended.}
+    \end{itemize}
+    \item{Penalization: }{\verb@xgboost@ supports penalization in 
+    $L_0,L_1,L_2$}
+    \item{Customization: }{\verb@xgboost@ supports customized objective function 
+    and evaluation function}
+    \item{Performance: }{\verb@xgboost@ has better performance on several different
+    datasets. Its rising popularity and fame in different Kaggle competitions 
+    is the evidence.}
+\end{enumerate}
+
+\section{Example with iris}
+
+In this section, we will illustrate some common usage of \verb@xgboost@.
+
+<<Training and prediction with iris>>=
+library(xgboost)
+data(iris)
+bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), 
+               nrounds = 5)
+xgb.save(bst, 'model.save')
+bst = xgb.load('model.save')
+pred <- predict(bst, as.matrix(iris[,1:4]))
+hist(pred)
+@
+
+\verb@xgboost@ is the main function to train a \verb@Booster@, i.e. a model.
+\verb@predict@ does prediction on the model.
+
+Here we can save the model to a binary local file, and load it when needed.
+We can't inspect the trees inside. However we have another function to save the
+model in plain text. 
+<<Dump Model>>=
+xgb.dump(bst, 'model.dump')
+@
+
+The output looks like 
+
+\begin{verbatim}
+booster[0]:
+0:[f2<2.45] yes=1,no=2,missing=1
+    1:leaf=0.147059
+    2:[f3<1.65] yes=3,no=4,missing=3
+        3:leaf=0.464151
+        4:leaf=0.722449
+booster[1]:
+0:[f2<2.45] yes=1,no=2,missing=1
+    1:leaf=0.103806
+    2:[f2<4.85] yes=3,no=4,missing=3
+        3:leaf=0.316341
+        4:leaf=0.510365
+\end{verbatim}
+
+It is important to know \verb@xgboost@'s own data type: \verb@xgb.DMatrix@.
+It speeds up \verb@xgboost@. 
+
+We can use \verb@xgb.DMatrix@ to construct an \verb@xgb.DMatrix@ object:
+<<xgb.DMatrix>>=
+iris.mat <- as.matrix(iris[,1:4])
+iris.label <- as.numeric(iris[,5])
+diris <- xgb.DMatrix(iris.mat, label = iris.label)
+class(diris)
+getinfo(diris,'label')
+@
+
+We can also save the matrix to a binary file. Then load it simply with 
+\verb@xgb.DMatrix@
+<<save model>>=
+xgb.DMatrix.save(diris, 'iris.xgb.DMatrix')
+diris = xgb.DMatrix('iris.xgb.DMatrix')
+@
+
+\section{Advanced Examples}
+
+The function \verb@xgboost@ is a simple function with less parameters, in order
+to be R-friendly. The core training function is wrapped in \verb@xgb.train@. It
+is more flexible than \verb@xgboost@, but it requires users to read the document
+a bit more carefully.
+
+\verb@xgb.train@ only accept a \verb@xgb.DMatrix@ object as its input, while it 
+supports some additional features as custom objective and evaluation functions.
+
+<<Customized loss function>>=
+logregobj <- function(preds, dtrain) {
+   labels <- getinfo(dtrain, "label")
+   preds <- 1/(1 + exp(-preds))
+   grad <- preds - labels
+   hess <- preds * (1 - preds)
+   return(list(grad = grad, hess = hess))
+}
+
+evalerror <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+  err <- sqrt(mean((preds-labels)^2))
+  return(list(metric = "MSE", value = err))
+}
+
+dtest <- slice(diris,1:100)
+watchlist <- list(eval = dtest, train = diris)
+param <- list(max_depth = 2, eta = 1, silent = 1)
+
+bst <- xgb.train(param, diris, nround = 2, watchlist, logregobj, evalerror)
+@
+
+The gradient and second order gradient is required for the output of customized 
+objective function. 
+
+We also have \verb@slice@ for row extraction. It is useful in 
+cross-validation.
+
+\section{The Higgs Boson competition}
+
+We have made a demo for \href{http://www.kaggle.com/c/higgs-boson}{the Higgs 
+Boson Machine Learning Challenge}. 
+
+Our result reaches 3.60 with a single model. This results stands in the top 30%
+of the competition.
+
+Here are the instructions to make a submission
+\begin{enumerate}
+    \item Download the \href{http://www.kaggle.com/c/higgs-boson/data}{datasets}
+    and extract them to \verb@data/@.
+    \item Run scripts under \verb@xgboost/demo/kaggle-higgs/@: 
+    \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R}{higgs-train.R} 
+    and \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/higgs-pred.R}{higgs-pred.R}. 
+    The computation will take less than a minute on Intel i7. 
+    \item Go to the \href{http://www.kaggle.com/c/higgs-boson/submissions/attach}{submission page} 
+    and submit your result.
+\end{enumerate}
+
+
+\end{document}
