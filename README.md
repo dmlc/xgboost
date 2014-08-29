@@ -1,6 +1,6 @@
 xgboost: eXtreme Gradient Boosting 
 ======
-An optimized general purpose gradient boosting library. It implements machine learning algorithm under gradient boosting framework, including both linear model and gradient boosted regression tree(GBRT).
+An optimized general purpose gradient boosting library. It implements machine learning algorithm under gradient boosting framework, including an efficient linear model solver and gradient boosted regression tree.
 
 Contributors: https://github.com/tqchen/xgboost/graphs/contributors
 
