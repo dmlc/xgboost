@@ -41,8 +41,9 @@ namespace kaggle_higgs_demo
             IntPtr[] dmats = new IntPtr[1];
             dmats[0] = dtrain;
             Console.WriteLine("loading data end, start to boost trees");
-            xgb.SharpXGBoosterCreate(dmats,1);
-            Console.WriteLine("booster created");
+            IntPtr boost = xgb.SharpXGBoosterCreate(dmats,1);
+            Console.WriteLine("training booster");
+            xgb.SharpXGBoosterUpdateOneIter(boost, 1, dtrain);
         }
 
         static byte[] GetBytes(string str)
