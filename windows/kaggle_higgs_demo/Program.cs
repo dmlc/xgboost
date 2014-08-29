@@ -37,7 +37,12 @@ namespace kaggle_higgs_demo
         private static void kaggle_higgs_demo(Dictionary<string, string> argsDictionary)
         {
             xgboost xgb = new xgboost();
-            xgb.SharpXGDMatrixCreateFromFile( (argsDictionary["training_path.libsvm"]), 0);
+            IntPtr dtrain = xgb.SharpXGDMatrixCreateFromFile( (argsDictionary["training_path.libsvm"]), 0);
+            IntPtr[] dmats = new IntPtr[1];
+            dmats[0] = dtrain;
+            Console.WriteLine("loading data end, start to boost trees");
+            xgb.SharpXGBoosterCreate(dmats,1);
+            Console.WriteLine("booster created");
         }
 
         static byte[] GetBytes(string str)
