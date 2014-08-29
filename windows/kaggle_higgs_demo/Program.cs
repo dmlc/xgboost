@@ -46,7 +46,8 @@ namespace kaggle_higgs_demo
             xgb.SharpXGBoosterUpdateOneIter(boost, 1, dtrain);
         }
 
-        static byte[] GetBytes(string str)
+        /* not needed
+         * static byte[] GetBytes(string str)
         {
             byte[] bytes = new byte[str.Length * sizeof(char)];
             System.Buffer.BlockCopy(str.ToCharArray(), 0, bytes, 0, bytes.Length);
@@ -58,6 +59,6 @@ namespace kaggle_higgs_demo
             char[] chars = new char[bytes.Length / sizeof(char)];
             System.Buffer.BlockCopy(bytes, 0, chars, 0, bytes.Length);
             return new string(chars);
-        }
+        }*/
     }
 }
