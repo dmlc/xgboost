@@ -16,7 +16,7 @@ namespace kaggle_higgs_demo
         static internal int test_length = 550000;
         static internal int training_length = 250000;
         static internal bool is_cv = false;
-        static Dictionary<int, Event> training = new Dictionary<int, Event>();
+        static internal Dictionary<int, Event> EventsDictionary = new Dictionary<int, Event>();
         static internal double missing = -999.0;        
 
 //---
@@ -67,7 +67,7 @@ namespace kaggle_higgs_demo
                         {
                             evt.label = "0";
                         }
-                        training.Add(line++, evt);
+                        EventsDictionary.Add(line++, evt);
                     }
 
                 }
@@ -77,7 +77,7 @@ namespace kaggle_higgs_demo
 
             using (StreamWriter sw = new StreamWriter(xgboost_training_path, false))
             {
-                for (int i = 0; i < training.Count; i++)
+                for (int i = 0; i < EventsDictionary.Count; i++)
                 {
                     if (is_cv)
                     {
@@ -99,7 +99,7 @@ namespace kaggle_higgs_demo
                     
                     string curr_feature = "";
                     int ifeat = 0;
-                    foreach (double par_val in training[i].features)
+                    foreach (double par_val in EventsDictionary[i].features)
                     {
                         if (par_val != missing)
                         {
@@ -110,7 +110,7 @@ namespace kaggle_higgs_demo
                         
                     }
                     sw.WriteLine(
-                        training[i].label + ' '
+                        EventsDictionary[i].label + ' '
                         + curr_feature.TrimEnd()
                         );
                     
@@ -124,14 +124,14 @@ namespace kaggle_higgs_demo
 
             using (StreamWriter sw = new StreamWriter(weight_training_path, false))
             {
-                for (int i = 0; i < training.Count; i++)
+                for (int i = 0; i < EventsDictionary.Count; i++)
                 {
                     if (i>=test_from && i <= test_to)
 	{
                                 continue;
 	}
                     sw.WriteLine(
-                        (training[i].weight * (double)test_length / (double)training_length).ToString(CultureInfo.InvariantCulture)
+                        (EventsDictionary[i].weight * (double)test_length / (double)training_length).ToString(CultureInfo.InvariantCulture)
                         );
 
                 }

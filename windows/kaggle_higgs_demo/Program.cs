@@ -65,7 +65,7 @@ namespace kaggle_higgs_demo
                 Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(boost, i+1, dmats, new string[2] { "train","train" }, 1)); 
             }
             
-            IntPtr dtest = xgb.SharpXGDMatrixCreateFromFile((argsDictionary["test_path.csv"]), 0);
+            IntPtr dtest = xgb.SharpXGDMatrixCreateFromFile(libsvm_format(argsDictionary["test_path.csv"],false), 0);
             Console.WriteLine("loading training data end, start to predict csv");
             float[] results = xgb.SharpXGBoosterPredict(boost, dtest, 0, 550000);
             List<Prediction> preds = new List<Prediction>();
@@ -124,6 +124,7 @@ namespace kaggle_higgs_demo
             {
                 libsvm_path = csv_path + ".libsvm";
             }
+            FormatXGBoost.EventsDictionary = new Dictionary<int, Event>();
             if (has_weights)
             {
                 FormatXGBoost.convert2xgboost(csv_path, libsvm_path, libsvm_path + ".weight");
