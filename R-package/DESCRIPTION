@@ -12,5 +12,5 @@ BugReports: https://github.com/tqchen/xgboost/issues
 Depends:
     R (>= 2.0.2)
 Imports:
-    Matrix (>= 1.1-0)
+    Matrix (>= 1.1-0), methods
 
