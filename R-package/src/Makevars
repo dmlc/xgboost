@@ -2,13 +2,11 @@
 PKGROOT=../../
 # _*_ mode: Makefile; _*_
 CXX=`R CMD config CXX`
-CFLAGS=`R CMD config CFLAGS` 
+TCFLAGS=`R CMD config CFLAGS` 
 # expose these flags to R CMD SHLIB
 PKG_CPPFLAGS= -DXGBOOST_CUSTOMIZE_ERROR_ -I$(PKGROOT)  $(SHLIB_OPENMP_CFLAGS)
 PKG_CPPFLAGS+= $(SHLIB_PTHREAD_FLAGS)
-XGBFLAG= $(CFLAGS) -DXGBOOST_CUSTOMIZE_ERROR_ -fPIC  $(SHLIB_OPENMP_CFLAGS) $(SHLIB_PTHREAD_FLAGS)
-
-PKG_LIBS = $(SHLIB_OPENMP_CFLAGS) $(SHLIB_PTHREAD_FLAGS)
+XGBFLAG= $(TCFLAGS) -DXGBOOST_CUSTOMIZE_ERROR_ -fPIC  $(SHLIB_OPENMP_CFLAGS) $(SHLIB_PTHREAD_FLAGS)
 
 ifeq ($(no_omp),1)
 	PKG_CPPFLAGS += -DDISABLE_OPENMP 
@@ -26,7 +24,7 @@ xgboost_io.o: $(PKGROOT)/src/io/io.cpp
 xgboost_gbm.o: $(PKGROOT)/src/gbm/gbm.cpp
 xgboost_updater.o: $(PKGROOT)/src/tree/updater.cpp
 
-$(CXXOBJ) : 
+$(CXXOBJ) :
 	$(CXX) -c $(XGBFLAG) -o $@ $(firstword $(filter %.cpp %.c, $^) )
 
 clean:
