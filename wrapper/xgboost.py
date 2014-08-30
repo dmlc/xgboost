@@ -56,7 +56,7 @@ class DMatrix:
                         weight for each instances                        
         """
         # force into void_p, mac need to pass things in as void_p
-        if data == None:
+        if data is None:
             self.handle = None
             return
         if isinstance(data, str):
@@ -484,7 +484,7 @@ def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None
             feval:
     """
     bst = Booster(params, [dtrain]+[ d[0] for d in evals ] )
-    if obj == None:
+    if obj is None:
         for i in range(num_boost_round):
             bst.update( dtrain, i )
             if len(evals) != 0:
