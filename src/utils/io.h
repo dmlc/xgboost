@@ -88,11 +88,19 @@ class IStream {
   }
 };
 
-/*! \brief implementation of file i/o stream */
-class FileStream : public IStream {
- private:
-  FILE *fp;
+/*! \brief interface of i/o stream that support seek */
+class ISeekStream: public IStream {
  public:
+  /*! \brief seek to certain position of the file */
+  virtual void Seek(size_t pos) = 0;
+  /*! \brief tell the position of the stream */
+  virtual size_t Tell(void) = 0;
+};
+
+/*! \brief implementation of file i/o stream */
+class FileStream : public ISeekStream {
+ public:
+  explicit FileStream(void) {}
   explicit FileStream(FILE *fp) {
     this->fp = fp;
   }
@@ -102,12 +110,18 @@ class FileStream : public IStream {
   virtual void Write(const void *ptr, size_t size) {
     fwrite(ptr, size, 1, fp);
   }
-  inline void Seek(size_t pos) {
-    fseek(fp, 0, SEEK_SET);
+  virtual void Seek(size_t pos) {
+    fseek(fp, pos, SEEK_SET);
+  }
+  virtual size_t Tell(void) {
+    return static_cast<size_t>(ftell(fp));
   }
   inline void Close(void) {
     fclose(fp);
   }
+
+ private:
+  FILE *fp;
 };
 
 }  // namespace utils

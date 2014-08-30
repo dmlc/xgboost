@@ -5,6 +5,8 @@
 #include "../utils/io.h"
 #include "../utils/utils.h"
 #include "simple_dmatrix-inl.hpp"
+#include "page_dmatrix-inl.hpp"
+
 // implements data loads using dmatrix simple for now
 
 namespace xgboost {
