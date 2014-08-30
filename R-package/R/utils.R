@@ -1,4 +1,5 @@
 #' @importClassesFrom Matrix dgCMatrix dgeMatrix
+#' @import methods
 
 # depends on matrix
 .onLoad <- function(libname, pkgname) {
