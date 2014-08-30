@@ -2,7 +2,7 @@
 #' 
 #' Save xgb.DMatrix object to binary file
 #' 
-#' @param model the model object.
+#' @param DMatrix the model object.
 #' @param fname the name of the binary file.
 #' 
 #' @examples
