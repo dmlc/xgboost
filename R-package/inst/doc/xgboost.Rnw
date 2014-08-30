@@ -7,9 +7,6 @@
 \usepackage{indentfirst}
 \usepackage[utf8]{inputenc}
 
-\DeclareMathOperator{\var}{var}
-\DeclareMathOperator{\cov}{cov}
-
 % \VignetteIndexEntry{xgboost}
 
 \begin{document}
@@ -25,15 +22,17 @@ foo <- packageDescription("xgboost")
 
 \section{Introduction}
 
-This is an example of using the \verb@xgboost@ package in R. 
+This is an introductory document of using the \verb@xgboost@ package in R. 
 
-\verb@xgboost@ is short for eXtreme Gradient Boosting (Tree). It supports
-regression and classification analysis on different types of input datasets.
+\verb@xgboost@ is short for eXtreme Gradient Boosting (Tree). It is an efficient
+ and scalable implementation of \cite{gbm}. It supports regression and 
+classification analysis on different types of input datasets.
 
-Comparing to \verb@gbm@ in R, it has several features:
+It has several features:
 \begin{enumerate}
     \item{Speed: }{\verb@xgboost@ can automatically do parallel computation on 
-    Windows and Linux, with openmp.}
+    Windows and Linux, with openmp. It is generally over 10 times faster than
+    \verb@gbm@.}
     \item{Input Type: }{\verb@xgboost@ takes several types of input data:}
     \begin{itemize}
         \item{Dense Matrix: }{R's dense matrix, i.e. \verb@matrix@}
@@ -41,8 +40,8 @@ Comparing to \verb@gbm@ in R, it has several features:
         \item{Data File: }{Local data files}
         \item{xgb.DMatrix: }{\verb@xgboost@'s own class. Recommended.}
     \end{itemize}
-    \item{Regularization: }{\verb@xgboost@ supports regularization for 
-    $L_1,L_2$ term on weights and $L_2$ term on bias.}
+    \item{Sparsity: }{\verb@xgboost@ accepts sparse input for both tree booster 
+    and linear booster.}
     \item{Customization: }{\verb@xgboost@ supports customized objective function 
     and evaluation function}
     \item{Performance: }{\verb@xgboost@ has better performance on several different
@@ -62,7 +61,6 @@ bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]),
 xgb.save(bst, 'model.save')
 bst = xgb.load('model.save')
 pred <- predict(bst, as.matrix(iris[,1:4]))
-hist(pred)
 @
 
 \verb@xgboost@ is the main function to train a \verb@Booster@, i.e. a model.
@@ -149,13 +147,13 @@ objective function.
 We also have \verb@slice@ for row extraction. It is useful in 
 cross-validation.
 
+For a walkthrough demo, please see \verb@R-package/demo/demo.R@ for further 
+details.
+
 \section{The Higgs Boson competition}
 
 We have made a demo for \href{http://www.kaggle.com/c/higgs-boson}{the Higgs 
 Boson Machine Learning Challenge}. 
-
-Our result reaches 3.60 with a single model. This results stands in the top 30%
-of the competition.
 
 Here are the instructions to make a submission
 \begin{enumerate}
@@ -168,6 +166,36 @@ Here are the instructions to make a submission
     \item Go to the \href{http://www.kaggle.com/c/higgs-boson/submissions/attach}{submission page} 
     and submit your result.
 \end{enumerate}
+
+We provide \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/speedtest.R}{a script}
+to compare the time cost on the higgs dataset with \verb@gbm@ and \verb@xgboost@. 
+The training set contains 350000 records and 30 features. 
+
+\verb@xgboost@ can automatically do parallel computation. On a machine with Intel
+i7-4700MQ and 24GB memories, we found that \verb@xgboost@ costs about 35 seconds, which is about 20 times faster
+than \verb@gbm@. When we limited \verb@xgboost@ to use only one thread, it was 
+still about two times faster than \verb@gbm@. 
+
+Meanwhile, the result from \verb@xgboost@ reaches 
+\href{http://www.kaggle.com/c/higgs-boson/details/evaluation}{3.60@AMS} with a 
+single model. This results stands in the 
+\href{http://www.kaggle.com/c/higgs-boson/leaderboard}{top 30\%} of the 
+competition. 
+
+
+\begin{thebibliography}{}
+
+\bibitem[Friedman et al.(2001)Friedman, Jerome H.]{gbm}
+Friedman, Jerome H. (2001).
+\newblock Greedy function approximation: a gradient boosting machine.
+\newblock In \emph{ Annals of Statistics} (2001): 1189-1232.
+
+\bibitem[Friedman(2000)]{logitboost}
+Friedman, Jerome, Trevor Hastie, and Robert Tibshirani. (2000).
+\newblock Additive logistic regression: a statistical view of boosting (with discussion and a rejoinder by the authors).
+\newblock \emph{The annals of statistics} 28.2 (2000):337-407.
+
+\end{thebibliography}
 
 
 \end{document}
