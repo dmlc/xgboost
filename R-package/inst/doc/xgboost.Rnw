@@ -24,11 +24,12 @@ foo <- packageDescription("xgboost")
 
 This is an introductory document of using the \verb@xgboost@ package in R. 
 
-\verb@xgboost@ is short for eXtreme Gradient Boosting (Tree). It is an efficient
- and scalable implementation of \cite{gbm}. It supports regression and 
-classification analysis on different types of input datasets.
-
-It has several features:
+\verb@xgboost@ is short for eXtreme Gradient Boosting package. It is an efficient
+ and scalable implementation of gradient boosting framework by \cite{gbm}. 
+The package includes efficient linear model solver and tree learning algorithm.
+It supports various objective functions, including regression, classification
+and ranking. The package is made to be extendible, so that user are also allowed
+to define there own objectives easily. It has several features:
 \begin{enumerate}
     \item{Speed: }{\verb@xgboost@ can automatically do parallel computation on 
     Windows and Linux, with openmp. It is generally over 10 times faster than
@@ -41,12 +42,11 @@ It has several features:
         \item{xgb.DMatrix: }{\verb@xgboost@'s own class. Recommended.}
     \end{itemize}
     \item{Sparsity: }{\verb@xgboost@ accepts sparse input for both tree booster 
-    and linear booster.}
+    and linear booster, and is optimized for sparse input.}
     \item{Customization: }{\verb@xgboost@ supports customized objective function 
     and evaluation function}
     \item{Performance: }{\verb@xgboost@ has better performance on several different
-    datasets. Its rising popularity and fame in different Kaggle competitions 
-    is the evidence.}
+    datasets.}
 \end{enumerate}
 
 \section{Example with iris}
@@ -91,7 +91,8 @@ booster[1]:
 \end{verbatim}
 
 It is important to know \verb@xgboost@'s own data type: \verb@xgb.DMatrix@.
-It speeds up \verb@xgboost@. 
+It speeds up \verb@xgboost@, and is needed for advanced features such as 
+training from initial prediction value, weighted training instance. 
 
 We can use \verb@xgb.DMatrix@ to construct an \verb@xgb.DMatrix@ object:
 <<xgb.DMatrix>>=
@@ -117,7 +118,7 @@ is more flexible than \verb@xgboost@, but it requires users to read the document
 a bit more carefully.
 
 \verb@xgb.train@ only accept a \verb@xgb.DMatrix@ object as its input, while it 
-supports some additional features as custom objective and evaluation functions.
+supports advanced features as custom objective and evaluation functions.
 
 <<Customized loss function>>=
 logregobj <- function(preds, dtrain) {
