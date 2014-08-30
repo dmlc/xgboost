@@ -44,6 +44,7 @@ namespace kaggle_higgs_demo
             IntPtr boost = xgb.SharpXGBoosterCreate(dmats,1);
             Console.WriteLine("training booster");
             xgb.SharpXGBoosterUpdateOneIter(boost, 1, dtrain);
+            Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(boost,1,dmats, new string[1] {"train"}, 1 ));
         }
 
         /* not needed
