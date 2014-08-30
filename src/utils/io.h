@@ -100,7 +100,9 @@ class ISeekStream: public IStream {
 /*! \brief implementation of file i/o stream */
 class FileStream : public ISeekStream {
  public:
-  explicit FileStream(void) {}
+  explicit FileStream(void) {
+    this->fp = NULL;
+  }
   explicit FileStream(FILE *fp) {
     this->fp = fp;
   }
@@ -117,7 +119,9 @@ class FileStream : public ISeekStream {
     return static_cast<size_t>(ftell(fp));
   }
   inline void Close(void) {
-    fclose(fp);
+    if (fp != NULL){
+      fclose(fp); fp = NULL;
+    }
   }
 
  private:

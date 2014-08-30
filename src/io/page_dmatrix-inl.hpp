@@ -8,6 +8,8 @@
 #include "../data.h"
 #include "../utils/iterator.h"
 #include "../utils/thread_buffer.h"
+#include "./simple_fmatrix-inl.hpp"
+
 namespace xgboost {
 namespace io {
 /*! \brief page structure that can be used to store a rowbatch */
@@ -102,7 +104,7 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
     base_rowid_ = 0;
     isend_ = false;
   }
-  virtual ~ThreadRowPageIterator(void) {
+  virtual ~ThreadRowPageIterator(void) {    
   }
   virtual void Init(void) {
   }
@@ -188,7 +190,9 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
     inline void FreeSpace(PagePtr &a) {
       delete a;
     }
-    inline void Destroy(void) {}
+    inline void Destroy(void) {
+      fi.Close();
+    }
     inline void BeforeFirst(void) {
       fi.Seek(file_begin_);
     }
@@ -198,6 +202,63 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
   PagePtr page_;
   int ptop_;
   utils::ThreadBuffer<PagePtr,Factory> itr;
+};
+
+/*! \brief data matrix using page */
+class DMatrixPage : public DataMatrix {
+ public:
+  DMatrixPage(void) : DataMatrix(kMagic) {
+    iter_ = new ThreadRowPageIterator();
+    fmat_ = new FMatrixS(iter_);
+  }
+  // virtual destructor
+  virtual ~DMatrixPage(void) {
+    delete fmat_;
+  }
+  virtual IFMatrix *fmat(void) const {
+    return fmat_;
+  }
+  /*! \brief load and initialize the iterator with fi */
+  inline void Load(utils::FileStream &fi,
+                   bool silent = false,
+                   const char *fname = NULL){
+    int magic;
+    utils::Check(fi.Read(&magic, sizeof(magic)) != 0, "invalid input file format");
+    utils::Check(magic == kMagic, "invalid format,magic number mismatch");    
+    this->info.LoadBinary(fi);
+    iter_->Load(fi);
+    if (!silent) {
+      printf("DMatrixPage: %lux%lu matrix is loaded",
+             info.num_row(), info.num_col());
+      if (fname != NULL) {
+        printf(" from %s\n", fname);
+      } else {
+        printf("\n");
+      }
+      if (info.group_ptr.size() != 0) {
+        printf("data contains %u groups\n", (unsigned)info.group_ptr.size()-1);
+      }
+    }
+  }
+  /*! \brief save a DataMatrix as DMatrixPage*/
+  inline static void Save(const char* fname, const DataMatrix &mat, bool silent) {
+    utils::FileStream fs(utils::FopenCheck(fname, "wb"));
+    int magic = kMagic;
+    fs.Write(&magic, sizeof(magic));
+    mat.info.SaveBinary(fs);
+    ThreadRowPageIterator::Save(mat.fmat()->RowIterator(), fs);
+    fs.Close();
+    if (!silent) {
+      printf("DMatrixPage: %lux%lu is saved to %s\n",
+             mat.info.num_row(), mat.info.num_col(), fname);
+    }
+  }
+  /*! \brief the real fmatrix */
+  FMatrixS *fmat_;
+  /*! \brief row iterator */
+  ThreadRowPageIterator *iter_;
+  /*! \brief magic number used to identify DMatrix */
+  static const int kMagic = 0xffffab02;
 };
 }  // namespace io
 }  // namespace xgboost
