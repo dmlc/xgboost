@@ -50,7 +50,18 @@ public IntPtr SharpXGDMatrixCreateFromFile(string fname, int silent)
    * \param len used to store length of returning result
    */
         [DllImport(dll_path + "xgboost_wrapper.dll")]
-        public static extern Double[] XGBoosterPredict(IntPtr handle, IntPtr dmat, int output_margin, System.UInt32 len);
+        public static extern IntPtr XGBoosterPredict(IntPtr handle, IntPtr dmat, int output_margin, ref System.UInt32 len);
+        
+        public float[] SharpXGBoosterPredict(IntPtr handle, IntPtr dmat, int output_margin, System.UInt32 len)
+        {
+            IntPtr buf = XGBoosterPredict(handle, dmat, output_margin, ref len);
+            
+            float[] buffer = new float[len];
+
+            Marshal.Copy(buf, buffer, 0, buffer.Length);
+
+            return buffer;
+        }
   /*!
    * \brief load model from existing file
    * \param handle handle
