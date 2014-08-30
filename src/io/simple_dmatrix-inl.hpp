@@ -44,8 +44,8 @@ class DMatrixSimple : public DataMatrix {
   }
   /*! \brief copy content data from source matrix */
   inline void CopyFrom(const DataMatrix &src) {
-    this->info = src.info;
     this->Clear();
+    this->info = src.info;
     // clone data content in thos matrix
     utils::IIterator<RowBatch> *iter = src.fmat()->RowIterator();
     iter->BeforeFirst();
