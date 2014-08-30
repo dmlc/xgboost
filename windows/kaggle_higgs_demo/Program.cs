@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using xgboost_sharp_wrapper;
+using System.IO;
+using System.Globalization;
 
 namespace kaggle_higgs_demo
 {
@@ -40,11 +42,23 @@ namespace kaggle_higgs_demo
             IntPtr dtrain = xgb.SharpXGDMatrixCreateFromFile( (argsDictionary["training_path.libsvm"]), 0);
             IntPtr[] dmats = new IntPtr[1];
             dmats[0] = dtrain;
-            Console.WriteLine("loading data end, start to boost trees");
+            Console.WriteLine("loading training data end, start to boost trees");
             IntPtr boost = xgb.SharpXGBoosterCreate(dmats,1);
             Console.WriteLine("training booster");
             xgb.SharpXGBoosterUpdateOneIter(boost, 1, dtrain);
             Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(boost,1,dmats, new string[1] {"train"}, 1 ));
+            IntPtr dtest = xgb.SharpXGDMatrixCreateFromFile((argsDictionary["test_path.libsvm"]), 0);
+            Console.WriteLine("loading training data end, start to predict csv");
+            float[] results = xgb.SharpXGBoosterPredict(boost, dtest, 0, 550000);
+            using (StreamWriter sw = new StreamWriter(argsDictionary["sharp_pred.csv"], false))
+            {
+                int line = 0;
+                foreach (double result in results)
+                {
+                    sw.WriteLine((++line).ToString()+","+result.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+            Console.WriteLine("submission ready");
         }
 
         /* not needed
