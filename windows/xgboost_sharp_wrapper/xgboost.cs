@@ -37,6 +37,11 @@ public IntPtr SharpXGDMatrixCreateFromFile(string fname, int silent)
         [DllImport(dll_path + "xgboost_wrapper.dll")]
         public static extern string XGBoosterEvalOneIter(IntPtr handle, int iter, IntPtr[] dmats,
                                            string[] evnames, System.UInt32 len);
+        public string SharpXGBoosterEvalOneIter(IntPtr handle, int iter, IntPtr[] dmats,
+                                           string[] evnames, System.UInt32 len)
+        {
+            return XGBoosterEvalOneIter(handle, iter, dmats, evnames, len);
+        }
   /*!
    * \brief make prediction based on dmat
    * \param handle handle
