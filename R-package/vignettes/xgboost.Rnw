@@ -1,31 +1,59 @@
 \documentclass{article}
-
-\usepackage{natbib}
-\usepackage{graphics}
-\usepackage{amsmath}
+\RequirePackage{url}
 \usepackage{hyperref}
-\usepackage{indentfirst}
-\usepackage[utf8]{inputenc}
+\RequirePackage{amsmath}
+\RequirePackage{natbib}
+\RequirePackage[a4paper,lmargin={1.25in},rmargin={1.25in},tmargin={1in},bmargin={1in}]{geometry}
 
-% \VignetteIndexEntry{xgboost}
+\makeatletter
+% \VignetteIndexEntry{xgboost: eXtreme Gradient Boosting}
+%\VignetteKeywords{xgboost, gbm, gradient boosting machines}
+%\VignettePackage{xgboost}
+% \VignetteEngine{knitr::knitr}
+\makeatother
 
 \begin{document}
+%\SweaveOpts{concordance=TRUE}
 
-<<foo,include=FALSE,echo=FALSE>>=
-options(keep.source = TRUE, width = 60)
-foo <- packageDescription("xgboost")
+<<knitropts,echo=FALSE,message=FALSE>>=
+if (require('knitr')) opts_chunk$set(fig.width = 5, fig.height = 5, fig.align = 'center', tidy = FALSE, warning = FALSE, cache = TRUE)
 @
 
-\title{xgboost Package Example (Version \Sexpr{foo$Version})}
-\author{Tong He}
-\maketitle
+%
+<<prelim,echo=FALSE>>=
+xgboost.version = '0.3-0'
+@
+%
+
+    \begin{center}
+    \vspace*{6\baselineskip}
+    \rule{\textwidth}{1.6pt}\vspace*{-\baselineskip}\vspace*{2pt}
+    \rule{\textwidth}{0.4pt}\\[2\baselineskip]
+    {\LARGE \textbf{xgboost: eXtreme Gradient Boosting}}\\[1.2\baselineskip]
+    \rule{\textwidth}{0.4pt}\vspace*{-\baselineskip}\vspace{3.2pt}
+    \rule{\textwidth}{1.6pt}\\[2\baselineskip]
+    {\Large Tianqi Chen, Tong He}\\[\baselineskip]
+    {\large Package Version: \Sexpr{xgboost.version}}\\[\baselineskip]
+    {\large \today}\par
+    \vfill
+    \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.4\textwidth]{fig/sfu-logo.pdf}
+    \end{figure}
+    \end{center}
+
+\thispagestyle{empty}
+
+\clearpage
+
+\setcounter{page}{1}
 
 \section{Introduction}
 
 This is an introductory document of using the \verb@xgboost@ package in R. 
 
 \verb@xgboost@ is short for eXtreme Gradient Boosting package. It is an efficient
- and scalable implementation of gradient boosting framework by \cite{gbm}. 
+ and scalable implementation of gradient boosting framework by \citep{friedman2001greedy}. 
 The package includes efficient linear model solver and tree learning algorithm.
 It supports various objective functions, including regression, classification
 and ranking. The package is made to be extendible, so that user are also allowed
@@ -48,6 +76,7 @@ to define there own objectives easily. It has several features:
     \item{Performance: }{\verb@xgboost@ has better performance on several different
     datasets.}
 \end{enumerate}
+
 
 \section{Example with iris}
 
@@ -183,20 +212,8 @@ single model. This results stands in the
 \href{http://www.kaggle.com/c/higgs-boson/leaderboard}{top 30\%} of the 
 competition. 
 
-
-\begin{thebibliography}{}
-
-\bibitem[Friedman et al.(2001)Friedman, Jerome H.]{gbm}
-Friedman, Jerome H. (2001).
-\newblock Greedy function approximation: a gradient boosting machine.
-\newblock In \emph{ Annals of Statistics} (2001): 1189-1232.
-
-\bibitem[Friedman(2000)]{logitboost}
-Friedman, Jerome, Trevor Hastie, and Robert Tibshirani. (2000).
-\newblock Additive logistic regression: a statistical view of boosting (with discussion and a rejoinder by the authors).
-\newblock \emph{The annals of statistics} 28.2 (2000):337-407.
-
-\end{thebibliography}
-
+\bibliographystyle{jss}
+\nocite{*} % list uncited references
+\bibliography{xgboost}
 
 \end{document}
