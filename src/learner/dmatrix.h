@@ -98,7 +98,8 @@ struct MetaInfo {
       group_ptr.push_back(group_ptr.back()+nline);
     }
     if (!silent) {
-      printf("%lu groups are loaded from %s\n", group_ptr.size()-1, fname);
+      printf("%u groups are loaded from %s\n",
+			  static_cast<unsigned>(group_ptr.size()-1), fname);
     }
     fclose(fi);
     return true;

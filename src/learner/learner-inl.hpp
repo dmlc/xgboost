@@ -66,10 +66,11 @@ class BoostLearner {
       snprintf(str_temp, sizeof(str_temp), "%u", num_feature);
       this->SetParam("bst:num_feature", str_temp);
     }
-    snprintf(str_temp, sizeof(str_temp), "%lu", buffer_size);
+    snprintf(str_temp, sizeof(str_temp), "%lu",
+			 static_cast<unsigned long>(buffer_size));
     this->SetParam("num_pbuffer", str_temp);
     if (!silent) {
-      printf("buffer_size=%ld\n", buffer_size);
+      printf("buffer_size=%ld\n", static_cast<long>(buffer_size));
     }
   }
   /*!
