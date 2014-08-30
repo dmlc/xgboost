@@ -5,7 +5,7 @@ CXX=`Rcmd config CXX`
 TCFLAGS=`Rcmd config CFLAGS` 
 # expose these flags to R CMD SHLIB
 PKG_CPPFLAGS= -DXGBOOST_CUSTOMIZE_ERROR_ -I$(PKGROOT)  $(SHLIB_OPENMP_CFLAGS)
-GBFLAG= $(TCFLAGS) -DXGBOOST_CUSTOMIZE_ERROR_ -fPIC  $(SHLIB_OPENMP_CFLAGS)
+XGBFLAG= -O3  -DXGBOOST_CUSTOMIZE_ERROR_ -fPIC  $(SHLIB_OPENMP_CFLAGS)
 PKG_LIBS = $(SHLIB_OPENMP_CFLAGS)
 
 ifeq ($(no_omp),1)
@@ -20,12 +20,13 @@ all: $(SHLIB)
 $(SHLIB): $(OBJECTS)
 
 xgboost_wrapper.o: $(PKGROOT)/wrapper/xgboost_wrapper.cpp
-xgboost_io.o: $(PKGROOT)/src/io/io.cpp
+xgboost_io.o: $(PKGROOT)/src/io/io.cpp 
 xgboost_gbm.o: $(PKGROOT)/src/gbm/gbm.cpp
 xgboost_updater.o: $(PKGROOT)/src/tree/updater.cpp
 
-$(CXXOBJ) : 
-	$(CXX) -c $(PKG_CPPFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) )
+$(CXXOBJ) :
+	$(CXX) -c $(XGBFLAG) -o $@ $(firstword $(filter %.cpp %.c, $^) )
 
 clean:
 	rm -rf *.so *.o *~ *.dll
+	
