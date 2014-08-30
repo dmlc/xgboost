@@ -36,10 +36,6 @@ xgboost.version = '0.3-0'
     {\large Package Version: \Sexpr{xgboost.version}}\\[\baselineskip]
     {\large \today}\par
     \vfill
-    \begin{figure}[h]
-    \centering
-    \includegraphics[width=0.4\textwidth]{fig/sfu-logo.pdf}
-    \end{figure}
     \end{center}
 
 \thispagestyle{empty}
