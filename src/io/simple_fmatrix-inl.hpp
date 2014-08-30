@@ -150,7 +150,7 @@ class FMatrixS : public IFMatrix{
     iter_->BeforeFirst();
     while (iter_->Next()) {
       const RowBatch &batch = iter_->Value();
-      for (size_t i = 0; i < batch.size; ++i) {
+      for (size_t i = 0; i < batch.size; ++i) {        
         if (pkeep == 1.0f || random::SampleBinary(pkeep)) {
           buffered_rowset_.push_back(static_cast<bst_uint>(batch.base_rowid+i));
           RowBatch::Inst inst = batch[i];
