@@ -106,8 +106,8 @@ class DMatrixSimple : public DataMatrix {
     if (!silent) {
       printf("%lux%lu matrix with %lu entries is loaded from %s\n",
              static_cast<unsigned long>(info.num_row()),
-			 static_cast<unsigned long>(info.num_col()),
-			 static_cast<unsigned long>(row_data_.size()), fname);
+             static_cast<unsigned long>(info.num_col()),
+             static_cast<unsigned long>(row_data_.size()), fname);
     }
     fclose(file);
     // try to load in additional file
