@@ -92,9 +92,9 @@ class IStream {
 class ISeekStream: public IStream {
  public:
   /*! \brief seek to certain position of the file */
-  virtual void Seek(size_t pos) = 0;
+  virtual void Seek(long pos) = 0;
   /*! \brief tell the position of the stream */
-  virtual size_t Tell(void) = 0;
+  virtual long Tell(void) = 0;
 };
 
 /*! \brief implementation of file i/o stream */
@@ -112,11 +112,11 @@ class FileStream : public ISeekStream {
   virtual void Write(const void *ptr, size_t size) {
     fwrite(ptr, size, 1, fp);
   }
-  virtual void Seek(size_t pos) {
+  virtual void Seek(long pos) {
     fseek(fp, pos, SEEK_SET);
   }
-  virtual size_t Tell(void) {
-    return static_cast<size_t>(ftell(fp));
+  virtual long Tell(void) {
+    return ftell(fp);
   }
   inline void Close(void) {
     if (fp != NULL){

@@ -50,13 +50,13 @@ struct RowBatchPage {
     std::vector<size_t> &rptr = *p_rptr;
     rptr.resize(this->Size() + 1);
     for (size_t i = 0; i < rptr.size(); ++i) {
-      rptr[i] = static_cast<size_t>(this->row_ptr(i));
+      rptr[i] = static_cast<size_t>(this->row_ptr(static_cast<int>(i)));
     }
     batch.ind_ptr = &rptr[0];
     return batch;
   }
   /*! \brief get i-th row from the batch */
-  inline RowBatch::Inst operator[](size_t i) {
+  inline RowBatch::Inst operator[](int i) {
     return RowBatch::Inst(data_ptr(0) + row_ptr(i), 
                           static_cast<bst_uint>(row_ptr(i+1) - row_ptr(i)));
   }
@@ -173,7 +173,7 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
   // loader factory for page
   struct Factory {
    public:
-    size_t file_begin_;
+    long file_begin_;
     utils::FileStream fi;
     Factory(void) {}
     inline void SetFile(const utils::FileStream &fi) {
