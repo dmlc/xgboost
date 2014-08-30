@@ -18,7 +18,7 @@ struct RowBatchPage {
     utils::Assert(data_ != NULL, "fail to allocate row batch page");
     this->Clear();
   }
-  ~BinaryPage(void) {
+  ~RowBatchPage(void) {
     if (data_ != NULL) delete [] data_;
   }
   /*! 
