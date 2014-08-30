@@ -105,7 +105,9 @@ class DMatrixSimple : public DataMatrix {
 
     if (!silent) {
       printf("%lux%lu matrix with %lu entries is loaded from %s\n",
-             info.num_row(), info.num_col(), row_data_.size(), fname);
+             static_cast<unsigned long>(info.num_row()),
+             static_cast<unsigned long>(info.num_col()),
+             static_cast<unsigned long>(row_data_.size()), fname);
     }
     fclose(file);
     // try to load in additional file
@@ -155,7 +157,9 @@ class DMatrixSimple : public DataMatrix {
 
     if (!silent) {
       printf("%lux%lu matrix with %lu entries is loaded",
-             info.num_row(), info.num_col(), row_data_.size());
+             static_cast<unsigned long>(info.num_row()),
+             static_cast<unsigned long>(info.num_col()),
+             static_cast<unsigned long>(row_data_.size()));
       if (fname != NULL) {
         printf(" from %s\n", fname);
       } else {
@@ -183,9 +187,12 @@ class DMatrixSimple : public DataMatrix {
 
     if (!silent) {
       printf("%lux%lu matrix with %lu entries is saved to %s\n",
-             info.num_row(), info.num_col(), row_data_.size(), fname);
+             static_cast<unsigned long>(info.num_row()),
+             static_cast<unsigned long>(info.num_col()),
+             static_cast<unsigned long>(row_data_.size()), fname);
       if (info.group_ptr.size() != 0) {
-        printf("data contains %lu groups\n", info.group_ptr.size()-1);
+        printf("data contains %u groups\n",
+               static_cast<unsigned>(info.group_ptr.size()-1));
       }
     }
   }

@@ -11,7 +11,7 @@ setClass('xgb.DMatrix')
 #' data(iris)
 #' iris[,5] <- as.numeric(iris[,5])
 #' dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
-#' labels <- getinfo(dtest, "label")
+#' labels <- getinfo(dtrain, "label")
 #' @export
 #' 
 getinfo <- function(object, ...){

@@ -1,39 +1,63 @@
 \documentclass{article}
-
-\usepackage{natbib}
-\usepackage{graphics}
-\usepackage{amsmath}
+\RequirePackage{url}
 \usepackage{hyperref}
-\usepackage{indentfirst}
-\usepackage[utf8]{inputenc}
+\RequirePackage{amsmath}
+\RequirePackage{natbib}
+\RequirePackage[a4paper,lmargin={1.25in},rmargin={1.25in},tmargin={1in},bmargin={1in}]{geometry}
 
-\DeclareMathOperator{\var}{var}
-\DeclareMathOperator{\cov}{cov}
-
-% \VignetteIndexEntry{xgboost}
+\makeatletter
+% \VignetteIndexEntry{xgboost: eXtreme Gradient Boosting}
+%\VignetteKeywords{xgboost, gbm, gradient boosting machines}
+%\VignettePackage{xgboost}
+% \VignetteEngine{knitr::knitr}
+\makeatother
 
 \begin{document}
+%\SweaveOpts{concordance=TRUE}
 
-<<foo,include=FALSE,echo=FALSE>>=
-options(keep.source = TRUE, width = 60)
-foo <- packageDescription("xgboost")
+<<knitropts,echo=FALSE,message=FALSE>>=
+if (require('knitr')) opts_chunk$set(fig.width = 5, fig.height = 5, fig.align = 'center', tidy = FALSE, warning = FALSE, cache = TRUE)
 @
 
-\title{xgboost Package Example (Version \Sexpr{foo$Version})}
-\author{Tong He}
-\maketitle
+%
+<<prelim,echo=FALSE>>=
+xgboost.version = '0.3-0'
+@
+%
+
+    \begin{center}
+    \vspace*{6\baselineskip}
+    \rule{\textwidth}{1.6pt}\vspace*{-\baselineskip}\vspace*{2pt}
+    \rule{\textwidth}{0.4pt}\\[2\baselineskip]
+    {\LARGE \textbf{xgboost: eXtreme Gradient Boosting}}\\[1.2\baselineskip]
+    \rule{\textwidth}{0.4pt}\vspace*{-\baselineskip}\vspace{3.2pt}
+    \rule{\textwidth}{1.6pt}\\[2\baselineskip]
+    {\Large Tianqi Chen, Tong He}\\[\baselineskip]
+    {\large Package Version: \Sexpr{xgboost.version}}\\[\baselineskip]
+    {\large \today}\par
+    \vfill
+    \end{center}
+
+\thispagestyle{empty}
+
+\clearpage
+
+\setcounter{page}{1}
 
 \section{Introduction}
 
-This is an example of using the \verb@xgboost@ package in R. 
+This is an introductory document of using the \verb@xgboost@ package in R. 
 
-\verb@xgboost@ is short for eXtreme Gradient Boosting (Tree). It supports
-regression and classification analysis on different types of input datasets.
-
-Comparing to \verb@gbm@ in R, it has several features:
+\verb@xgboost@ is short for eXtreme Gradient Boosting package. It is an efficient
+ and scalable implementation of gradient boosting framework by \citep{friedman2001greedy}. 
+The package includes efficient linear model solver and tree learning algorithm.
+It supports various objective functions, including regression, classification
+and ranking. The package is made to be extendible, so that user are also allowed
+to define there own objectives easily. It has several features:
 \begin{enumerate}
     \item{Speed: }{\verb@xgboost@ can automatically do parallel computation on 
-    Windows and Linux, with openmp.}
+    Windows and Linux, with openmp. It is generally over 10 times faster than
+    \verb@gbm@.}
     \item{Input Type: }{\verb@xgboost@ takes several types of input data:}
     \begin{itemize}
         \item{Dense Matrix: }{R's dense matrix, i.e. \verb@matrix@}
@@ -41,14 +65,14 @@ Comparing to \verb@gbm@ in R, it has several features:
         \item{Data File: }{Local data files}
         \item{xgb.DMatrix: }{\verb@xgboost@'s own class. Recommended.}
     \end{itemize}
-    \item{Regularization: }{\verb@xgboost@ supports regularization for 
-    $L_1,L_2$ term on weights and $L_2$ term on bias.}
+    \item{Sparsity: }{\verb@xgboost@ accepts sparse input for both tree booster 
+    and linear booster, and is optimized for sparse input.}
     \item{Customization: }{\verb@xgboost@ supports customized objective function 
     and evaluation function}
     \item{Performance: }{\verb@xgboost@ has better performance on several different
-    datasets. Its rising popularity and fame in different Kaggle competitions 
-    is the evidence.}
+    datasets.}
 \end{enumerate}
+
 
 \section{Example with iris}
 
@@ -62,7 +86,6 @@ bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]),
 xgb.save(bst, 'model.save')
 bst = xgb.load('model.save')
 pred <- predict(bst, as.matrix(iris[,1:4]))
-hist(pred)
 @
 
 \verb@xgboost@ is the main function to train a \verb@Booster@, i.e. a model.
@@ -93,7 +116,8 @@ booster[1]:
 \end{verbatim}
 
 It is important to know \verb@xgboost@'s own data type: \verb@xgb.DMatrix@.
-It speeds up \verb@xgboost@. 
+It speeds up \verb@xgboost@, and is needed for advanced features such as 
+training from initial prediction value, weighted training instance. 
 
 We can use \verb@xgb.DMatrix@ to construct an \verb@xgb.DMatrix@ object:
 <<xgb.DMatrix>>=
@@ -119,7 +143,7 @@ is more flexible than \verb@xgboost@, but it requires users to read the document
 a bit more carefully.
 
 \verb@xgb.train@ only accept a \verb@xgb.DMatrix@ object as its input, while it 
-supports some additional features as custom objective and evaluation functions.
+supports advanced features as custom objective and evaluation functions.
 
 <<Customized loss function>>=
 logregobj <- function(preds, dtrain) {
@@ -149,13 +173,13 @@ objective function.
 We also have \verb@slice@ for row extraction. It is useful in 
 cross-validation.
 
+For a walkthrough demo, please see \verb@R-package/demo/demo.R@ for further 
+details.
+
 \section{The Higgs Boson competition}
 
 We have made a demo for \href{http://www.kaggle.com/c/higgs-boson}{the Higgs 
 Boson Machine Learning Challenge}. 
-
-Our result reaches 3.60 with a single model. This results stands in the top 30%
-of the competition.
 
 Here are the instructions to make a submission
 \begin{enumerate}
@@ -169,5 +193,23 @@ Here are the instructions to make a submission
     and submit your result.
 \end{enumerate}
 
+We provide \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/speedtest.R}{a script}
+to compare the time cost on the higgs dataset with \verb@gbm@ and \verb@xgboost@. 
+The training set contains 350000 records and 30 features. 
+
+\verb@xgboost@ can automatically do parallel computation. On a machine with Intel
+i7-4700MQ and 24GB memories, we found that \verb@xgboost@ costs about 35 seconds, which is about 20 times faster
+than \verb@gbm@. When we limited \verb@xgboost@ to use only one thread, it was 
+still about two times faster than \verb@gbm@. 
+
+Meanwhile, the result from \verb@xgboost@ reaches 
+\href{http://www.kaggle.com/c/higgs-boson/details/evaluation}{3.60@AMS} with a 
+single model. This results stands in the 
+\href{http://www.kaggle.com/c/higgs-boson/leaderboard}{top 30\%} of the 
+competition. 
+
+\bibliographystyle{jss}
+\nocite{*} % list uncited references
+\bibliography{xgboost}
 
 \end{document}
