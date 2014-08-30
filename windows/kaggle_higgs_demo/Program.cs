@@ -13,7 +13,7 @@ namespace kaggle_higgs_demo
     {
         static void Main(string[] args)
         {
-            string usage_str = "training_path.libsvm test_path.libsvm sharp_pred.csv";
+            string usage_str = "training_path.csv test_path.csv sharp_pred.csv";
             string[] usage_strings = usage_str.Split(' ');
             if (args.Length != usage_strings.Length)
             {
@@ -39,31 +39,33 @@ namespace kaggle_higgs_demo
         private static void kaggle_higgs_demo(Dictionary<string, string> argsDictionary)
         {
             xgboost xgb = new xgboost();
-            IntPtr dtrain = xgb.SharpXGDMatrixCreateFromFile( (argsDictionary["training_path.libsvm"]), 0);
+            IntPtr dtrain = xgb.SharpXGDMatrixCreateFromFile( libsvm_format(argsDictionary["training_path.csv"],true), 0);
             IntPtr[] dmats = new IntPtr[1];
             dmats[0] = dtrain;
             Console.WriteLine("loading training data end, start to boost trees");
             IntPtr boost = xgb.SharpXGBoosterCreate(dmats,1);
             xgb.SharpXGBoosterSetParam(boost, "objective", "binary:logitraw");
             xgb.SharpXGBoosterSetParam(boost, "eval_metric", "auc");
-            double threshold_ratio = 0.15;
+            double threshold_ratio = 0.155;
             xgb.SharpXGBoosterSetParam(boost, "eval_metric", "ams@" + threshold_ratio.ToString(CultureInfo.InvariantCulture));
             //weight statistics: wpos=691.989, wneg=411000, ratio=593.94
-
+            xgb.SharpXGBoosterSetParam(boost, "scale_pos_weight", "594.4");
+            xgb.SharpXGBoosterSetParam(boost, "eval_metric", "auc");
             xgb.SharpXGBoosterSetParam(boost, "silent", "0");
-            xgb.SharpXGBoosterSetParam(boost, "eta", "0.1");
-            xgb.SharpXGBoosterSetParam(boost, "max_depth", "6");
+            xgb.SharpXGBoosterSetParam(boost, "eta", "0.10906");
+            xgb.SharpXGBoosterSetParam(boost, "base_score", "0.52");
+            xgb.SharpXGBoosterSetParam(boost, "max_depth", "9");
             xgb.SharpXGBoosterSetParam(boost, "nthread", "16");
 
             Console.WriteLine("training booster");
-            int num_round = 10;
+            int num_round = 155;
             for (int i = 0; i < num_round; i++)
             {
                 xgb.SharpXGBoosterUpdateOneIter(boost, i+1, dtrain);
                 Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(boost, i+1, dmats, new string[2] { "train","train" }, 1)); 
             }
             
-            IntPtr dtest = xgb.SharpXGDMatrixCreateFromFile((argsDictionary["test_path.libsvm"]), 0);
+            IntPtr dtest = xgb.SharpXGDMatrixCreateFromFile((argsDictionary["test_path.csv"]), 0);
             Console.WriteLine("loading training data end, start to predict csv");
             float[] results = xgb.SharpXGBoosterPredict(boost, dtest, 0, 550000);
             List<Prediction> preds = new List<Prediction>();
@@ -109,19 +111,30 @@ namespace kaggle_higgs_demo
             Console.WriteLine("submission ready");
         }
 
-        /* not needed
-         * static byte[] GetBytes(string str)
+
+
+        private static string libsvm_format(string csv_path, bool has_weights)
         {
-            byte[] bytes = new byte[str.Length * sizeof(char)];
-            System.Buffer.BlockCopy(str.ToCharArray(), 0, bytes, 0, bytes.Length);
-            return bytes;
+            string libsvm_path;
+            if (csv_path.EndsWith(".csv"))
+            {
+                libsvm_path = csv_path.Replace(".csv", ".libsvm");
+            }
+            else
+            {
+                libsvm_path = csv_path + ".libsvm";
+            }
+            if (has_weights)
+            {
+                FormatXGBoost.convert2xgboost(csv_path, libsvm_path, libsvm_path + ".weight");
+            }
+            else
+            {
+                FormatXGBoost.convert2xgboost(csv_path, libsvm_path, null);
+            }
+            return libsvm_path;
         }
 
-        static string GetString(byte[] bytes)
-        {
-            char[] chars = new char[bytes.Length / sizeof(char)];
-            System.Buffer.BlockCopy(bytes, 0, chars, 0, bytes.Length);
-            return new string(chars);
-        }*/
+
     }
 }
