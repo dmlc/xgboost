@@ -32,7 +32,7 @@ struct RowBatchPage {
     const size_t dsize = row.length * sizeof(RowBatch::Entry);
     if (FreeBytes() < dsize+ sizeof(int)) return false;
     row_ptr(Size() + 1) = row_ptr(Size()) + row.length;    
-    memcpy(data_ptr(Size()) , row.data, dsize);
+    memcpy(data_ptr(row_ptr(Size())) , row.data, dsize);
     ++ data_[0];
     return true;    
   }
@@ -48,12 +48,17 @@ struct RowBatchPage {
     batch.data_ptr = this->data_ptr(0);
     batch.size = static_cast<size_t>(this->Size());
     std::vector<size_t> &rptr = *p_rptr;
-    rptr.resize(this->Size()+1);
+    rptr.resize(this->Size() + 1);
     for (size_t i = 0; i < rptr.size(); ++i) {
       rptr[i] = static_cast<size_t>(this->row_ptr(i));
     }
     batch.ind_ptr = &rptr[0];
     return batch;
+  }
+  /*! \brief get i-th row from the batch */
+  inline RowBatch::Inst operator[](size_t i) {
+    return RowBatch::Inst(data_ptr(0) + row_ptr(i), 
+                          static_cast<bst_uint>(row_ptr(i+1) - row_ptr(i)));
   }
   /*!
    * \brief clear the page, cleanup the content
@@ -77,7 +82,7 @@ struct RowBatchPage {
     return data_[0];
   }
   /*! \brief page size 64 MB */
-  static const size_t kPageSize = 64 << 18;
+  static const size_t kPageSize = 64 << 8;
 
  private:
   /*! \return number of elements */
@@ -112,7 +117,6 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
     itr.BeforeFirst();
     isend_ = false;
     base_rowid_ = 0;
-    utils::Assert(this->LoadNextPage(), "ThreadRowPageIterator");
   }
   virtual bool Next(void) {
     if(!this->LoadNextPage()) return false;
