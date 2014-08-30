@@ -100,7 +100,6 @@ class ISeekStream: public IStream {
 /*! \brief implementation of file i/o stream */
 class FileStream : public ISeekStream {
  public:
-  explicit FileStream(void) {}
   explicit FileStream(FILE *fp) {
     this->fp = fp;
   }
