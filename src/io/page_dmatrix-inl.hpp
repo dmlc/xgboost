@@ -82,7 +82,7 @@ struct RowBatchPage {
     return data_[0];
   }
   /*! \brief page size 64 MB */
-  static const size_t kPageSize = 64 << 8;
+  static const size_t kPageSize = 64 << 18;
 
  private:
   /*! \return number of elements */
@@ -104,7 +104,7 @@ struct RowBatchPage {
 class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
  public:
   ThreadRowPageIterator(void) {
-    itr.SetParam("buffer_size", "4");
+    itr.SetParam("buffer_size", "2");
     page_ = NULL;
     base_rowid_ = 0;
     isend_ = false;
