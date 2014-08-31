@@ -2,11 +2,11 @@ This is a Fork of XGBoost from https://github.com/tqchen/xgboost
 
 In the main repo you already find 2 windows projects for the porting of the executable and the python library.
 
-Here (https://github.com/giuliohome/xgboost/tree/master/windows/xgboost_sharp_wrapper) you have:
+Here you have:
 
-  1) a c# dll wrapper, meaning the passage unmanaged to managed code
+  1) a c# dll wrapper, meaning the passage unmanaged to managed code, in https://github.com/giuliohome/xgboost/tree/master/windows/xgboost_sharp_wrapper
   
-  2) the c# Higgs Kaggle demo, instead of the python one
+  2) the c# Higgs Kaggle demo, instead of the python one in https://github.com/giuliohome/xgboost/tree/master/windows/kaggle_higgs_demo
   
 
 next steps:
