@@ -35,7 +35,7 @@ Version
 ======
 * This version xgboost-0.3, the code has been refactored from 0.2x to be cleaner and more flexibility
 * This version of xgboost is not compatible with 0.2x, due to huge amount of changes in code structure
-  - This means the model and buffer file of previous version can not be loaded in xgboost-unity
+  - This means the model and buffer file of previous version can not be loaded in xgboost-3.0
 * For legacy 0.2x code, refer to [Here](https://github.com/tqchen/xgboost/releases/tag/v0.22)
 * Change log in [CHANGES.md](CHANGES.md)
 
