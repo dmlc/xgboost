@@ -11,7 +11,7 @@ Description: This package is a R wrapper of xgboost, which is short for eXtreme 
   The package can automatically do parallel computation with OpenMP, and it can be
   more than 10 times faster than existing gradient boosting packages such as gbm.
   It supports various objective functions, including regression, classification and ranking.
-  The package is made to be extendible, so that user are also allowed to define there own objectives easily.  
+  The package is made to be extensible, so that user are also allowed to define there own objectives easily.  
 License: Apache License (== 2.0) | file LICENSE
 URL: https://github.com/tqchen/xgboost
 BugReports: https://github.com/tqchen/xgboost/issues
