@@ -8,6 +8,7 @@ namespace kaggle_higgs_demo
 {
     internal class Event
     {
+        internal int id;
         internal List<double> features = new List<double>();
         internal double weight;
         internal string label;

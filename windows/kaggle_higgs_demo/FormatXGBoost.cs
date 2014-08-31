@@ -17,9 +17,9 @@ namespace kaggle_higgs_demo
         static internal int training_length = 250000;
         static internal bool is_cv = false;
         static internal Dictionary<int, Event> EventsDictionary = new Dictionary<int, Event>();
-        static internal double missing = -999.0;        
+        static internal double missing = -999.0;
 
-//---
+        //---
         static internal void convert2xgboost(string training_path, string xgboost_training_path, string weight_training_path)
         {
             string first_line;
@@ -28,47 +28,47 @@ namespace kaggle_higgs_demo
                 first_line = sr.ReadLine();
                 int line = 0;
                 string curr_line;
-                bool end_training = false;
-                while (!end_training)
+                while (!sr.EndOfStream)
                 {
                     curr_line = sr.ReadLine();
-                    if (curr_line == null || curr_line.Trim().Length == 0)
+
+                    Event evt = new Event();
+                    string[] fields = curr_line.Split(',');
+                    if (!int.TryParse(fields[0], out evt.id))
                     {
-                        end_training = true;
+                        Console.WriteLine("wrong id "+fields[0]+" for line " + line.ToString());
                     }
-                    else
+                    for (int ifeat = 1; ifeat <= fields.Length - 3; ifeat++)
                     {
-                        Event evt = new Event();
-                        string[] fields = curr_line.Split(',');
-                        for (int ifeat = 1; ifeat <= fields.Length -3; ifeat++)
-			{
-                            double par_val;
-                            if (double.TryParse(fields[ifeat], out par_val))
-	{
-                                evt.features.Add(par_val);
-		 
-	} else {
-        Console.WriteLine("Attention par_val not double: " + fields[ifeat]);
-        evt.features.Add(missing);
-        Console.WriteLine("Added missing !!!");
-                            }
-			}
-                        //evt.features = string.Join(",", fields, 1, fields.Length - 3);
-                        if (!double.TryParse(fields[fields.Length - 2], out evt.weight))
+                        double par_val;
+                        if (double.TryParse(fields[ifeat], NumberStyles.Float, CultureInfo.InvariantCulture, out par_val))
                         {
-                            Console.WriteLine("wrong weight for line " + line.ToString());
+                            evt.features.Add(par_val);
+
                         }
-                        evt.label = fields[fields.Length - 1];
-                        if (evt.label.Equals("s"))
+                        else
                         {
-                            evt.label = "1";
+                            Console.WriteLine("Attention par_val not double: " + fields[ifeat]);
+                            evt.features.Add(missing);
+                            Console.WriteLine("Added missing !!!");
                         }
-                        if (evt.label.Equals("b"))
-                        {
-                            evt.label = "0";
-                        }
-                        EventsDictionary.Add(line++, evt);
                     }
+                    //evt.features = string.Join(",", fields, 1, fields.Length - 3);
+                    if (!double.TryParse(fields[fields.Length - 2], out evt.weight))
+                    {
+                        Console.WriteLine("wrong weight for line " + line.ToString());
+                    }
+                    evt.label = fields[fields.Length - 1];
+                    /*if (evt.label.Equals("s"))
+                    {
+                        evt.label = "1";
+                    }
+                    if (evt.label.Equals("b"))
+                    {
+                        evt.label = "0";
+                    }*/
+                    EventsDictionary.Add(line++, evt);
+
 
                 }
             }
@@ -96,7 +96,7 @@ namespace kaggle_higgs_demo
                             }
                         }
                     }
-                    
+
                     string curr_feature = "";
                     int ifeat = 0;
                     foreach (double par_val in EventsDictionary[i].features)
@@ -105,15 +105,15 @@ namespace kaggle_higgs_demo
                         {
                             curr_feature += ifeat.ToString() + ":" + par_val.ToString(CultureInfo.InvariantCulture) + " ";
                         }
-                        
+
                         ifeat++;
-                        
+
                     }
                     sw.WriteLine(
-                        EventsDictionary[i].label + ' '
+                        (EventsDictionary[i].label.Equals("s")?"1":"0") + ' '
                         + curr_feature.TrimEnd()
                         );
-                    
+
                 }
             }
 
@@ -126,10 +126,10 @@ namespace kaggle_higgs_demo
             {
                 for (int i = 0; i < EventsDictionary.Count; i++)
                 {
-                    if (i>=test_from && i <= test_to)
-	{
-                                continue;
-	}
+                    if (i >= test_from && i <= test_to)
+                    {
+                        continue;
+                    }
                     sw.WriteLine(
                         (EventsDictionary[i].weight * (double)test_length / (double)training_length).ToString(CultureInfo.InvariantCulture)
                         );
@@ -139,6 +139,6 @@ namespace kaggle_higgs_demo
 
 
         }
-//---
+        //---
     }
 }

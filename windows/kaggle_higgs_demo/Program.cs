@@ -26,26 +26,34 @@ namespace kaggle_higgs_demo
             {
                 argsDictionary.Add(usage_strings[i], args[i]);
             }
-            try
-            {
+            //try
+            //{
                 kaggle_higgs_demo(argsDictionary);
-            }
-            catch (Exception exc)
+            //}
+            /*catch (Exception exc)
             {
                 Console.WriteLine(exc.Message);
-            }
+            }*/
         }
 
         private static void kaggle_higgs_demo(Dictionary<string, string> argsDictionary)
         {
             xgboost xgb = new xgboost();
-            string training_path = libsvm_format(argsDictionary["training_path.csv"], true);
-            string test_path = libsvm_format(argsDictionary["test_path.csv"], false);
-            
-            Booster booster = CreateBooster(xgb, training_path, test_path);
+            Dictionary<int, Event> training_events;
+            Dictionary<int, Event> training_events_cv1;
+            Dictionary<int, Event> test_events;
+            Dictionary<int, Event> test_events_cv1;
+            string training_path = libsvm_format(argsDictionary["training_path.csv"], true, out training_events);
+            string test_path = libsvm_format(argsDictionary["test_path.csv"], false, out test_events);
+            Booster booster = Booster.CreateBooster(xgb, training_path, test_path, training_events, test_events);
+
+            string training_path_cv1 = libsvm_format(argsDictionary["training_path.csv"], true, out training_events_cv1, true, 0, 49999);
+            string test_path_cv1 = libsvm_format(argsDictionary["training_path.csv"], false, out test_events_cv1, true, 0, 49999);
+            Booster booster_cv1 = Booster.CreateBooster(xgb, training_path_cv1, test_path_cv1, training_events_cv1, test_events_cv1);
 
             double threshold_ratio = 0.155;
             SetBoosterParameters(xgb, booster.boost, threshold_ratio);
+            SetBoosterParameters(xgb, booster_cv1.boost, threshold_ratio);
 
             Console.WriteLine("training booster");
             int num_round = 155;
@@ -53,48 +61,26 @@ namespace kaggle_higgs_demo
             {
                 xgb.SharpXGBoosterUpdateOneIter(booster.boost, i + 1, booster.dtrain);
                 Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(booster.boost, i + 1, booster.dmats, new string[2] { "train", "train" }, 1));
+                Console.WriteLine("--- CV_1 starts ---");
+                xgb.SharpXGBoosterUpdateOneIter(booster_cv1.boost, i + 1, booster_cv1.dtrain);
+                Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(booster_cv1.boost, i + 1, booster_cv1.dmats, new string[2] { "train", "train" }, 1));
+                float[] results_cv1 = xgb.SharpXGBoosterPredict(booster_cv1.boost, booster_cv1.dtest, 0, 50000);
+                booster_cv1.Predict(xgb, threshold_ratio);
+                double ams = booster_cv1.compute_CV_AMS(xgb,0,49999);
+                Console.WriteLine("--- CV_1 ends ---");
+                Console.WriteLine("");
+                
             }
 
             Console.WriteLine("loading training data end, start to predict csv");
-            float[] results = xgb.SharpXGBoosterPredict(booster.boost, booster.dtest, 0, 550000);
-            List<Prediction> preds = new List<Prediction>();
-
-            int line = 0;
-            foreach (double result in results)
-            {
-                Prediction curr_res = new Prediction();
-                curr_res.id = 350000 + (++line);
-                curr_res.pred = result;
-                preds.Add(curr_res);
-            }
-
-            Prediction[] array_pred = preds.ToArray();
-            Array.Sort(array_pred, delegate(Prediction pred1, Prediction pred2)
-                       {
-                           return pred1.pred.CompareTo(pred2.pred);
-                       });
-            int norm_rank = 1;
-            foreach (Prediction pred in array_pred)
-            {
-                pred.rank = norm_rank++;
-                if ((array_pred.Length - pred.rank) / (double)array_pred.Length <= threshold_ratio)
-                {
-                    pred.is_signal = true;
-                }
-                else
-                {
-                    pred.is_signal = false;
-                }
-            }
-            Array.Sort(array_pred, delegate(Prediction pred1, Prediction pred2)
-            {
-                return pred1.id.CompareTo(pred2.id);
-            });
+            booster.Predict(xgb, threshold_ratio);
+            
+            
             using (StreamWriter sw = new StreamWriter(argsDictionary["sharp_pred.csv"], false))
             {
 
                 sw.WriteLine("EventId, RankOrder, Class");
-                foreach (Prediction pred in array_pred)
+                foreach (Prediction pred in booster.array_pred)
                 {
                     sw.WriteLine(pred.id.ToString() + "," + pred.rank.ToString() + "," + (pred.is_signal ? "s" : "b"));
                 }
@@ -102,17 +88,7 @@ namespace kaggle_higgs_demo
             Console.WriteLine("submission ready");
         }
 
-        private static Booster CreateBooster(xgboost xgb, string training_path, string test_path)
-        {
-            Booster booster = new Booster();
-            booster.dtrain = xgb.SharpXGDMatrixCreateFromFile(training_path, 0);
-            booster.dmats = new IntPtr[1];
-            booster.dmats[0] = booster.dtrain;
-            Console.WriteLine("loading training data end, start to boost trees");
-            booster.boost = xgb.SharpXGBoosterCreate(booster.dmats, 1);
-            booster.dtest = xgb.SharpXGDMatrixCreateFromFile(test_path, 0);
-            return booster;
-        }
+        
 
         private static void SetBoosterParameters(xgboost xgb, IntPtr boost, double threshold_ratio)
         {
@@ -132,7 +108,7 @@ namespace kaggle_higgs_demo
 
 
 
-        private static string libsvm_format(string csv_path, bool has_weights,
+        private static string libsvm_format(string csv_path, bool has_weights, out Dictionary<int, Event> EventsDictionary,
             bool is_cv = false, int test_from = -1, int test_to = -1)
         {
             string libsvm_path;
@@ -143,6 +119,15 @@ namespace kaggle_higgs_demo
             else
             {
                 libsvm_path = csv_path + ".libsvm";
+            }
+            if (is_cv)
+            {
+                libsvm_path += "."+test_from.ToString()+"-"+test_to.ToString();
+                libsvm_path += ".cv";
+                if (has_weights)
+                {
+                    libsvm_path += ".train";
+                }
             }
             FormatXGBoost.EventsDictionary = new Dictionary<int, Event>();
             FormatXGBoost.is_cv = is_cv;
@@ -155,6 +140,29 @@ namespace kaggle_higgs_demo
             else
             {
                 FormatXGBoost.convert2xgboost(csv_path, libsvm_path, null);
+            }
+            EventsDictionary = new Dictionary<int, Event>();
+            foreach (int key in FormatXGBoost.EventsDictionary.Keys)
+            {
+                /*if (is_cv)
+                {
+                    if (has_weights)
+                    {
+                        if (key >= test_from && key <= test_to)
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        if (key < test_from || key > test_to)
+                        {
+                            continue;
+                        }
+                    }
+                }*/
+
+                EventsDictionary.Add(key, FormatXGBoost.EventsDictionary[key]);
             }
             return libsvm_path;
         }
