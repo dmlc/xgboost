@@ -10,7 +10,4 @@ Here you have:
   Start the demo from the root folder like this: 
   bin\x64\Debug\kaggle_higgs_demo.exe training_path.csv test_path.csv sharp_pred.csv
   
-
-next steps:
-
-  I will upload a c# cv implementation for the demo very soon
+  3) 5 fold cv implementation in c# for the demo: you see inline cv ams while training (of course on a completely separate set)
