@@ -116,7 +116,6 @@ namespace kaggle_higgs_demo
             {
                 if (array_pred[i].is_signal)
                 {
-                    //Console.WriteLine(eventsCV[i].id.ToString() + " " + resultsDictionary[eventsCV[i].id].weight.ToString());
                     if (training_events[test_from+i].label.Equals("s"))
                     {
                         s_true += training_events[test_from + i].weight;
@@ -138,8 +137,9 @@ namespace kaggle_higgs_demo
 //weight statistics: wpos=691.989, wneg=411000, ratio=593.94
             
             Console.WriteLine("CV ams: " + AMS.ToString(CultureInfo.InvariantCulture) 
-                +" ratio from " + (reset_b / reset_s).ToString() + " to " + (411000.0 / 691.989).ToString()
-                + " reset " + reset_s.ToString() + " to 691.989 and " + reset_b.ToString() + " to 411000 - ");
+                //+" ratio from " + (reset_b / reset_s).ToString() + " to " + (411000.0 / 691.989).ToString()
+                //+ " reset " + reset_s.ToString() + " to 691.989 and " + reset_b.ToString() + " to 411000 - "
+                );
             return AMS;
         }
 

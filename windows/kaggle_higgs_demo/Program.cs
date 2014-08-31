@@ -40,90 +40,54 @@ namespace kaggle_higgs_demo
         {
             xgboost xgb = new xgboost();
             Dictionary<int, Event> training_events;
-            Dictionary<int, Event> training_events_cv1;
-            Dictionary<int, Event> training_events_cv2;
-            Dictionary<int, Event> training_events_cv3;
-            Dictionary<int, Event> training_events_cv4;
-            Dictionary<int, Event> training_events_cv5;
             Dictionary<int, Event> test_events;
-            Dictionary<int, Event> test_events_cv1;
-            Dictionary<int, Event> test_events_cv2;
-            Dictionary<int, Event> test_events_cv3;
-            Dictionary<int, Event> test_events_cv4;
-            Dictionary<int, Event> test_events_cv5;
             string training_path = libsvm_format(argsDictionary["training_path.csv"], true, out training_events);
             string test_path = libsvm_format(argsDictionary["test_path.csv"], false, out test_events);
             Booster booster = Booster.CreateBooster(xgb, training_path, test_path, training_events, test_events);
-
-            string training_path_cv1 = libsvm_format(argsDictionary["training_path.csv"], true, out training_events_cv1, true, 0, 49999);
-            string test_path_cv1 = libsvm_format(argsDictionary["training_path.csv"], false, out test_events_cv1, true, 0, 49999);
-            Booster booster_cv1 = Booster.CreateBooster(xgb, training_path_cv1, test_path_cv1, training_events_cv1, test_events_cv1);
-            string training_path_cv2 = libsvm_format(argsDictionary["training_path.csv"], true, out training_events_cv2, true, 50000, 99999);
-            string test_path_cv2 = libsvm_format(argsDictionary["training_path.csv"], false, out test_events_cv2, true, 50000, 99999);
-            Booster booster_cv2 = Booster.CreateBooster(xgb, training_path_cv2, test_path_cv2, training_events_cv2, test_events_cv2);
-            string training_path_cv3 = libsvm_format(argsDictionary["training_path.csv"], true, out training_events_cv3, true, 100000, 149999);
-            string test_path_cv3 = libsvm_format(argsDictionary["training_path.csv"], false, out test_events_cv3, true, 100000, 149999);
-            Booster booster_cv3 = Booster.CreateBooster(xgb, training_path_cv3, test_path_cv3, training_events_cv3, test_events_cv3);
-            string training_path_cv4 = libsvm_format(argsDictionary["training_path.csv"], true, out training_events_cv4, true, 150000, 199999);
-            string test_path_cv4 = libsvm_format(argsDictionary["training_path.csv"], false, out test_events_cv4, true, 150000, 199999);
-            Booster booster_cv4 = Booster.CreateBooster(xgb, training_path_cv4, test_path_cv4, training_events_cv4, test_events_cv4);
-            string training_path_cv5 = libsvm_format(argsDictionary["training_path.csv"], true, out training_events_cv5, true, 200000, 249999);
-            string test_path_cv5 = libsvm_format(argsDictionary["training_path.csv"], false, out test_events_cv5, true, 200000, 249999);
-            Booster booster_cv5 = Booster.CreateBooster(xgb, training_path_cv5, test_path_cv5, training_events_cv5, test_events_cv5);
-            
             double threshold_ratio = 0.155;
             SetBoosterParameters(xgb, booster.boost, threshold_ratio);
-            SetBoosterParameters(xgb, booster_cv1.boost, threshold_ratio);
-            SetBoosterParameters(xgb, booster_cv2.boost, threshold_ratio);
-            SetBoosterParameters(xgb, booster_cv3.boost, threshold_ratio);
-            SetBoosterParameters(xgb, booster_cv4.boost, threshold_ratio);
-            SetBoosterParameters(xgb, booster_cv5.boost, threshold_ratio);
-
+            
+            const int NFold = 5;
+            int fold_test = training_events.Count / NFold;
+            int fold_train = training_events.Count - fold_test;
+            Dictionary<int, Event>[] training_events_cv = new Dictionary<int, Event>[NFold];
+            Dictionary<int, Event>[] test_events_cv = new Dictionary<int, Event>[NFold];
+            string[] training_path_cv = new string[NFold];
+            string[] test_path_cv = new string[NFold];
+            Booster[] booster_cv = new Booster[NFold];
+            double[] ams_cv = new double[NFold];
+            for (int i = 0; i < NFold; i++)
+            {
+                training_path_cv[i] = libsvm_format(argsDictionary["training_path.csv"], true, out training_events_cv[i], true, i*fold_test, ((i+1)*fold_test) - 1);
+                test_path_cv[i] = libsvm_format(argsDictionary["training_path.csv"], false, out test_events_cv[i], true, i*fold_test, ((i+1)*fold_test) - 1);
+                booster_cv[i] = Booster.CreateBooster(xgb, training_path_cv[i], test_path_cv[i], training_events_cv[i], test_events_cv[i]);
+                SetBoosterParameters(xgb, booster_cv[i].boost, threshold_ratio);
+            }
+            
             Console.WriteLine("training booster");
             int num_round = 155;
             for (int i = 0; i < num_round; i++)
             {
                 xgb.SharpXGBoosterUpdateOneIter(booster.boost, i + 1, booster.dtrain);
                 Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(booster.boost, i + 1, booster.dmats, new string[2] { "train", "train" }, 1));
-                Console.WriteLine("--- CV_1 starts ---");
-                xgb.SharpXGBoosterUpdateOneIter(booster_cv1.boost, i + 1, booster_cv1.dtrain);
-                Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(booster_cv1.boost, i + 1, booster_cv1.dmats, new string[2] { "cv1", "cv1" }, 1));
-                float[] results_cv1 = xgb.SharpXGBoosterPredict(booster_cv1.boost, booster_cv1.dtest, 0, 49999);
-                booster_cv1.Predict(xgb, threshold_ratio);
-                double ams_cv1 = booster_cv1.compute_CV_AMS(xgb,0,49999);
-                Console.WriteLine("--- CV_1 ends ---");
-                Console.WriteLine("--- CV_2 starts ---");
-                xgb.SharpXGBoosterUpdateOneIter(booster_cv2.boost, i + 1, booster_cv2.dtrain);
-                Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(booster_cv2.boost, i + 1, booster_cv2.dmats, new string[2] { "cv2", "cv2" }, 1));
-                float[] results_cv2 = xgb.SharpXGBoosterPredict(booster_cv2.boost, booster_cv2.dtest, 50000, 99999);
-                booster_cv2.Predict(xgb, threshold_ratio);
-                double ams_cv2 = booster_cv2.compute_CV_AMS(xgb, 50000, 99999);
-                Console.WriteLine("--- CV_2 ends ---");
-
-                Console.WriteLine("--- CV_3 starts ---");
-                xgb.SharpXGBoosterUpdateOneIter(booster_cv3.boost, i + 1, booster_cv3.dtrain);
-                Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(booster_cv3.boost, i + 1, booster_cv3.dmats, new string[2] { "cv3", "cv3" }, 1));
-                float[] results_cv3 = xgb.SharpXGBoosterPredict(booster_cv3.boost, booster_cv3.dtest, 100000, 149999);
-                booster_cv3.Predict(xgb, threshold_ratio);
-                double ams_cv3 = booster_cv3.compute_CV_AMS(xgb, 100000, 149999);
-                Console.WriteLine("--- CV_3 ends ---");
-                Console.WriteLine("--- CV_4 starts ---");
-                xgb.SharpXGBoosterUpdateOneIter(booster_cv4.boost, i + 1, booster_cv4.dtrain);
-                Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(booster_cv4.boost, i + 1, booster_cv4.dmats, new string[2] { "cv4", "cv4" }, 1));
-                float[] results_cv4 = xgb.SharpXGBoosterPredict(booster_cv4.boost, booster_cv4.dtest, 150000, 199999);
-                booster_cv4.Predict(xgb, threshold_ratio);
-                double ams_cv4 = booster_cv4.compute_CV_AMS(xgb, 150000, 199999);
-                Console.WriteLine("--- CV_4 ends ---");
-                Console.WriteLine("--- CV_5 starts ---");
-                xgb.SharpXGBoosterUpdateOneIter(booster_cv5.boost, i + 1, booster_cv5.dtrain);
-                Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(booster_cv5.boost, i + 1, booster_cv5.dmats, new string[2] { "cv5", "cv5" }, 1));
-                float[] results_cv5 = xgb.SharpXGBoosterPredict(booster_cv5.boost, booster_cv5.dtest, 200000, 249999);
-                booster_cv5.Predict(xgb, threshold_ratio);
-                double ams_cv5 = booster_cv5.compute_CV_AMS(xgb, 200000, 249999);
-                Console.WriteLine("--- CV_5 ends ---");
+                for (int j = 0; j < NFold; j++)
+                {
+                    Console.WriteLine("--- CV_"+j.ToString()+" starts ---");
+                    xgb.SharpXGBoosterUpdateOneIter(booster_cv[j].boost, i + 1, booster_cv[j].dtrain);
+                    Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(booster_cv[j].boost, i + 1, booster_cv[j].dmats, new string[2] { "cv"+j.ToString(), "cv"+j.ToString() }, 1));
+                    booster_cv[j].Predict(xgb, threshold_ratio);
+                    ams_cv[j] = booster_cv[j].compute_CV_AMS(xgb, j*fold_test, ((j+1)*fold_test) - 1);
+                    Console.WriteLine("--- CV_" + j.ToString() + " ends ---");
                 
-                
-                Console.WriteLine("--- avg CV ams: " + ((ams_cv1+ams_cv2+ams_cv3+ams_cv4+ams_cv5)/5.0).ToString(CultureInfo.InvariantCulture));
+                }
+                double avg_ams = 0;
+                for (int j = 0; j < NFold; j++)
+                {
+                    avg_ams += ams_cv[j];
+                }
+                avg_ams = avg_ams / (double)NFold;
+                Console.WriteLine("--- avg CV ams: " 
+                    + avg_ams.ToString(CultureInfo.InvariantCulture));
                 Console.WriteLine("");
                 
             }

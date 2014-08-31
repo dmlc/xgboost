@@ -53,20 +53,11 @@ namespace kaggle_higgs_demo
                             Console.WriteLine("Added missing !!!");
                         }
                     }
-                    //evt.features = string.Join(",", fields, 1, fields.Length - 3);
                     if (!double.TryParse(fields[fields.Length - 2], out evt.weight))
                     {
                         Console.WriteLine("wrong weight for line " + line.ToString());
                     }
                     evt.label = fields[fields.Length - 1];
-                    /*if (evt.label.Equals("s"))
-                    {
-                        evt.label = "1";
-                    }
-                    if (evt.label.Equals("b"))
-                    {
-                        evt.label = "0";
-                    }*/
                     EventsDictionary.Add(line++, evt);
 
 
