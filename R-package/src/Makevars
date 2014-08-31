@@ -1,32 +1,21 @@
 # package root
 PKGROOT=../../
 # _*_ mode: Makefile; _*_
-CXX=`"${R_HOME}/bin/R" CMD config CXX`
-TCXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
-# expose these flags to R CMD SHLIB
-PKG_CPPFLAGS= -DXGBOOST_CUSTOMIZE_MSG_ -I$(PKGROOT)  $(SHLIB_OPENMP_CFLAGS)
-XGBFLAG= $(TCXXFLAGS) -DXGBOOST_CUSTOMIZE_MSG_ -fPIC  $(SHLIB_OPENMP_CFLAGS)
+PKG_CPPFLAGS= -DXGBOOST_CUSTOMIZE_MSG_ -I$(PKGROOT)  
+PKG_CXXFLAGS= $(SHLIB_OPENMP_CFLAGS)
 PKG_LIBS = $(SHLIB_OPENMP_CFLAGS)
 
-CXXOBJ= xgboost_wrapper.o xgboost_io.o xgboost_gbm.o xgboost_updater.o
+CXXOBJ= $(PKGROOT)/wrapper/xgboost_wrapper.o\
+		$(PKGROOT)/src/io/io.o\
+		$(PKGROOT)/src/gbm/gbm.o\
+		$(PKGROOT)/src/tree/updater.o
+
 OBJECTS= xgboost_R.o $(CXXOBJ)
 
 .PHONY: all clean
 all: $(SHLIB)
 $(SHLIB): $(OBJECTS)
 
-xgboost_wrapper.o: $(PKGROOT)/wrapper/xgboost_wrapper.cpp
-	$(CXX) -c $(XGBFLAG) -o xgboost_wrapper.o $(PKGROOT)/wrapper/xgboost_wrapper.cpp
-
-xgboost_io.o: $(PKGROOT)/src/io/io.cpp 
-	$(CXX) -c $(XGBFLAG) -o xgboost_io.o  $(PKGROOT)/src/io/io.cpp
-
-xgboost_gbm.o: $(PKGROOT)/src/gbm/gbm.cpp
-	$(CXX) -c $(XGBFLAG) -o xgboost_gbm.o $(PKGROOT)/src/gbm/gbm.cpp
-
-xgboost_updater.o: $(PKGROOT)/src/tree/updater.cpp
-	$(CXX) -c $(XGBFLAG) -o xgboost_updater.o $(PKGROOT)/src/tree/updater.cpp
-
 clean:
-	rm -rf *.so *.o *~ *.dll
+	rm -rf *.so *.o *~ *.dll $(OBJECTS)
 
