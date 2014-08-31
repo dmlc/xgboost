@@ -104,10 +104,10 @@ class DMatrixSimple : public DataMatrix {
     this->AddRow(feats);
 
     if (!silent) {
-      printf("%lux%lu matrix with %lu entries is loaded from %s\n",
-             static_cast<unsigned long>(info.num_row()),
-             static_cast<unsigned long>(info.num_col()),
-             static_cast<unsigned long>(row_data_.size()), fname);
+      utils::Printf("%lux%lu matrix with %lu entries is loaded from %s\n",
+                    static_cast<unsigned long>(info.num_row()),
+                    static_cast<unsigned long>(info.num_col()),
+                    static_cast<unsigned long>(row_data_.size()), fname);
     }
     fclose(file);
     // try to load in additional file
@@ -156,17 +156,17 @@ class DMatrixSimple : public DataMatrix {
     fmat_->LoadColAccess(fs);
 
     if (!silent) {
-      printf("%lux%lu matrix with %lu entries is loaded",
-             static_cast<unsigned long>(info.num_row()),
-             static_cast<unsigned long>(info.num_col()),
-             static_cast<unsigned long>(row_data_.size()));
+      utils::Printf("%lux%lu matrix with %lu entries is loaded",
+                    static_cast<unsigned long>(info.num_row()),
+                    static_cast<unsigned long>(info.num_col()),
+                    static_cast<unsigned long>(row_data_.size()));
       if (fname != NULL) {
-        printf(" from %s\n", fname);
+        utils::Printf(" from %s\n", fname);
       } else {
-        printf("\n");
+        utils::Printf("\n");
       }
       if (info.group_ptr.size() != 0) {
-        printf("data contains %u groups\n", (unsigned)info.group_ptr.size()-1);
+        utils::Printf("data contains %u groups\n", (unsigned)info.group_ptr.size()-1);
       }
     }
   }
@@ -186,13 +186,13 @@ class DMatrixSimple : public DataMatrix {
     fs.Close();
 
     if (!silent) {
-      printf("%lux%lu matrix with %lu entries is saved to %s\n",
-             static_cast<unsigned long>(info.num_row()),
-             static_cast<unsigned long>(info.num_col()),
-             static_cast<unsigned long>(row_data_.size()), fname);
+      utils::Printf("%lux%lu matrix with %lu entries is saved to %s\n",
+                    static_cast<unsigned long>(info.num_row()),
+                    static_cast<unsigned long>(info.num_col()),
+                    static_cast<unsigned long>(row_data_.size()), fname);
       if (info.group_ptr.size() != 0) {
-        printf("data contains %u groups\n",
-               static_cast<unsigned>(info.group_ptr.size()-1));
+        utils::Printf("data contains %u groups\n",
+                      static_cast<unsigned>(info.group_ptr.size()-1));
       }
     }
   }
