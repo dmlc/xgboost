@@ -13,7 +13,7 @@ namespace kaggle_higgs_demo
     {
         static void Main(string[] args)
         {
-            string usage_str = "training_path.csv test_path.csv sharp_pred.csv NFoldCV";
+            string usage_str = "training_path.csv test_path.csv sharp_pred.csv NFoldCV NRound";
             string[] usage_strings = usage_str.Split(' ');
             if (args.Length != usage_strings.Length)
             {
@@ -67,7 +67,9 @@ namespace kaggle_higgs_demo
             }
             
             Console.WriteLine("training booster");
-            int num_round = 155;
+
+            int num_round;
+            int.TryParse(argsDictionary["NRound"], out num_round);
             for (int i = 0; i < num_round; i++)
             {
                 xgb.SharpXGBoosterUpdateOneIter(booster.boost, i + 1, booster.dtrain);
@@ -111,6 +113,22 @@ namespace kaggle_higgs_demo
                 }
             }
             Console.WriteLine("submission ready");
+
+            for (int j = 0; j < NFold; j++)
+            {
+                booster_cv[j].Predict(xgb, threshold_ratio, test_path, test_events);
+            
+                using (StreamWriter sw = new StreamWriter("cv"+j.ToString()+argsDictionary["sharp_pred.csv"], false))
+                {
+
+                    sw.WriteLine("EventId,RankOrder,Class");
+                    foreach (Prediction pred in booster_cv[j].array_pred)
+                    {
+                        sw.WriteLine(pred.id.ToString() + "," + pred.rank.ToString() + "," + (pred.is_signal ? "s" : "b"));
+                    }
+                }
+                Console.WriteLine("cv" + j.ToString() + " submission ready");
+            }
         }
 
         

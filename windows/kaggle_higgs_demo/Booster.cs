@@ -34,6 +34,14 @@ namespace kaggle_higgs_demo
             return booster;
         }
 
+        internal void Predict(xgboost xgb, double threshold_ratio, string test_path, Dictionary<int, Event> test_events)
+
+        {
+            this.test_events = test_events;
+            this.dtest = xgb.SharpXGDMatrixCreateFromFile(test_path, 0);
+            this.Predict(xgb, threshold_ratio);
+        }
+
         internal void Predict(xgboost xgb, double threshold_ratio)
         {   
             float[] results = xgb.SharpXGBoosterPredict(boost, dtest, 0, (uint)test_events.Count);
