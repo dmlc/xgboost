@@ -5,7 +5,7 @@ Version: 0.3-0
 Date: 2014-08-23
 Author: Tianqi Chen, Tong He
 Maintainer: Tong He <hetong007@gmail.com>
-Description: xgboost is short for eXtreme Gradient Boosting package.
+Description: This package is a R wrapper of xgboost, which is short for eXtreme Gradient Boosting.
   It is an efficient and scalable implementation of gradient boosting framework.
   The package includes efficient linear model solver and tree learning algorithm.
   The package can automatically do parallel computation with OpenMP, and it can be
