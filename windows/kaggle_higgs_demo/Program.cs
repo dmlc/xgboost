@@ -93,7 +93,7 @@ namespace kaggle_higgs_demo
                 double ams_cv1 = booster_cv1.compute_CV_AMS(xgb,0,49999);
                 Console.WriteLine("--- CV_1 ends ---");
                 Console.WriteLine("--- CV_2 starts ---");
-                xgb.SharpXGBoosterUpdateOneIter(booster_cv2.boost, i + 1, booster_cv1.dtrain);
+                xgb.SharpXGBoosterUpdateOneIter(booster_cv2.boost, i + 1, booster_cv2.dtrain);
                 Console.WriteLine(xgb.SharpXGBoosterEvalOneIter(booster_cv2.boost, i + 1, booster_cv2.dmats, new string[2] { "cv2", "cv2" }, 1));
                 float[] results_cv2 = xgb.SharpXGBoosterPredict(booster_cv2.boost, booster_cv2.dtest, 50000, 99999);
                 booster_cv2.Predict(xgb, threshold_ratio);
