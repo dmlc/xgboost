@@ -13,7 +13,7 @@ namespace kaggle_higgs_demo
     {
         static void Main(string[] args)
         {
-            string usage_str = "training_path.csv test_path.csv sharp_pred.csv";
+            string usage_str = "training_path.csv test_path.csv sharp_pred.csv NFoldCV";
             string[] usage_strings = usage_str.Split(' ');
             if (args.Length != usage_strings.Length)
             {
@@ -47,15 +47,17 @@ namespace kaggle_higgs_demo
             double threshold_ratio = 0.155;
             SetBoosterParameters(xgb, booster.boost, threshold_ratio);
             
-            const int NFold = 5;
-            int fold_test = training_events.Count / NFold;
-            int fold_train = training_events.Count - fold_test;
-            Dictionary<int, Event>[] training_events_cv = new Dictionary<int, Event>[NFold];
-            Dictionary<int, Event>[] test_events_cv = new Dictionary<int, Event>[NFold];
-            string[] training_path_cv = new string[NFold];
-            string[] test_path_cv = new string[NFold];
-            Booster[] booster_cv = new Booster[NFold];
-            double[] ams_cv = new double[NFold];
+            //const int NFold = 10;
+            int NFold;
+            int.TryParse(argsDictionary["NFoldCV"], out NFold);
+            int fold_test = NFold==0?0:training_events.Count / NFold;
+            int fold_train = NFold == 0 ? 0 : training_events.Count - fold_test;
+            Dictionary<int, Event>[] training_events_cv = NFold == 0 ? null : new Dictionary<int, Event>[NFold];
+            Dictionary<int, Event>[] test_events_cv = NFold == 0 ? null : new Dictionary<int, Event>[NFold];
+            string[] training_path_cv = NFold == 0 ? null : new string[NFold];
+            string[] test_path_cv = NFold == 0 ? null : new string[NFold];
+            Booster[] booster_cv = NFold == 0 ? null : new Booster[NFold];
+            double[] ams_cv = NFold == 0 ? null : new double[NFold];
             for (int i = 0; i < NFold; i++)
             {
                 training_path_cv[i] = libsvm_format(argsDictionary["training_path.csv"], true, out training_events_cv[i], true, i*fold_test, ((i+1)*fold_test) - 1);
@@ -80,15 +82,18 @@ namespace kaggle_higgs_demo
                     Console.WriteLine("--- CV_" + j.ToString() + " ends ---");
                 
                 }
-                double avg_ams = 0;
-                for (int j = 0; j < NFold; j++)
+                if (NFold>0)
                 {
-                    avg_ams += ams_cv[j];
+                    double avg_ams = 0;
+                    for (int j = 0; j < NFold; j++)
+                    {
+                        avg_ams += ams_cv[j];
+                    }
+                    avg_ams = avg_ams / (double)NFold;
+                    Console.WriteLine("--- avg CV ams: "
+                        + avg_ams.ToString(CultureInfo.InvariantCulture));
+                    Console.WriteLine("");
                 }
-                avg_ams = avg_ams / (double)NFold;
-                Console.WriteLine("--- avg CV ams: " 
-                    + avg_ams.ToString(CultureInfo.InvariantCulture));
-                Console.WriteLine("");
                 
             }
 
