@@ -1,16 +1,13 @@
 # package root
 PKGROOT=../../
 # _*_ mode: Makefile; _*_
-CXX=`Rcmd config CXX`
-TCFLAGS=`Rcmd config CFLAGS` 
+CXX=`"${R_HOME}/bin/Rcmd" config CXX`
+CFLAGS=`"${R_HOME}/bin/Rcmd" config CFLAGS`
+CXXFLAGS=`"${R_HOME}/bin/Rcmd" config CXXFLAGS`
 # expose these flags to R CMD SHLIB
 PKG_CPPFLAGS= -DXGBOOST_CUSTOMIZE_MSG_ -I$(PKGROOT)  $(SHLIB_OPENMP_CFLAGS)
-XGBFLAG= -O3 -DXGBOOST_CUSTOMIZE_MSG_ -fPIC  $(SHLIB_OPENMP_CFLAGS)
+XGBFLAG= $(CXXFLAGS) -DXGBOOST_CUSTOMIZE_MSG_ -fPIC  $(SHLIB_OPENMP_CFLAGS)
 PKG_LIBS = $(SHLIB_OPENMP_CFLAGS)
-
-ifeq ($(no_omp),1)
-	PKG_CPPFLAGS += -DDISABLE_OPENMP 
-endif
 
 CXXOBJ= xgboost_wrapper.o xgboost_io.o xgboost_gbm.o xgboost_updater.o
 OBJECTS= xgboost_R.o $(CXXOBJ)
@@ -25,7 +22,7 @@ xgboost_gbm.o: $(PKGROOT)/src/gbm/gbm.cpp
 xgboost_updater.o: $(PKGROOT)/src/tree/updater.cpp
 
 $(CXXOBJ) :
-	$(CXX) -c $(XGBFLAG) -o $@ $(firstword $(filter %.cpp %.c, $^) )
+	$(CXX) -c $(XGBFLAG) -o $@ $+
 
 clean:
 	rm -rf *.so *.o *~ *.dll
