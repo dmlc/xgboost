@@ -7,6 +7,7 @@
  */
 extern "C" {
 #include <Rinternals.h>
+#include <R_ext/Random.h>
 }
 
 extern "C" {
