@@ -2,7 +2,6 @@
 PKGROOT=../../
 # _*_ mode: Makefile; _*_
 CXX=`"${R_HOME}/bin/R" CMD config CXX`
-CFLAGS=`"${R_HOME}/bin/R" CMD config CFLAGS`
 CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
 # expose these flags to R CMD SHLIB
 PKG_CPPFLAGS= -DXGBOOST_CUSTOMIZE_MSG_ -I$(PKGROOT)  $(SHLIB_OPENMP_CFLAGS)
