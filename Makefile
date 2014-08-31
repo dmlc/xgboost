@@ -43,6 +43,9 @@ install:
 Rpack:
 	rm -rf xgboost xgboost*.tar.gz
 	cp -r R-package xgboost
+	rm -rf xgboost/inst/examples/*.buffer
+	rm -rf xgboost/inst/examples/*.model
+	rm -rf xgboost/inst/examples/dump*
 	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
 	rm -rf xgboost/demo/*.model xgboost/demo/*.buffer
 	cp -r src xgboost/src/src
