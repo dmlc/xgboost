@@ -16,12 +16,16 @@ all: $(SHLIB)
 $(SHLIB): $(OBJECTS)
 
 xgboost_wrapper.o: $(PKGROOT)/wrapper/xgboost_wrapper.cpp
-xgboost_io.o: $(PKGROOT)/src/io/io.cpp 
-xgboost_gbm.o: $(PKGROOT)/src/gbm/gbm.cpp
-xgboost_updater.o: $(PKGROOT)/src/tree/updater.cpp
+	$(CXX) -c $(XGBFLAG) -o xgboost_wrapper.o $(PKGROOT)/wrapper/xgboost_wrapper.cpp
 
-$(CXXOBJ) :
-	$(CXX) -c $(XGBFLAG) -o $@ $+
+xgboost_io.o: $(PKGROOT)/src/io/io.cpp 
+	$(CXX) -c $(XGBFLAG) -o xgboost_io.o  $(PKGROOT)/src/io/io.cpp
+
+xgboost_gbm.o: $(PKGROOT)/src/gbm/gbm.cpp
+	$(CXX) -c $(XGBFLAG) -o xgboost_gbm.o $(PKGROOT)/src/gbm/gbm.cpp
+
+xgboost_updater.o: $(PKGROOT)/src/tree/updater.cpp
+	$(CXX) -c $(XGBFLAG) -o xgboost_updater.o $(PKGROOT)/src/tree/updater.cpp
 
 clean:
 	rm -rf *.so *.o *~ *.dll
