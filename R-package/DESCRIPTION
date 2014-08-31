@@ -4,7 +4,7 @@ Title: R wrapper of xgboost
 Version: 0.3-0
 Date: 2014-08-23
 Author: Tianqi Chen, Tong He
-Maintainer: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>
+Maintainer: Tong He <hetong007 at gmail.com>
 Description: xgboost
 License: file LICENSE
 URL: https://github.com/tqchen/xgboost
