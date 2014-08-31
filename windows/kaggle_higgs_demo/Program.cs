@@ -26,14 +26,14 @@ namespace kaggle_higgs_demo
             {
                 argsDictionary.Add(usage_strings[i], args[i]);
             }
-            //try
-            //{
+            try
+            {
                 kaggle_higgs_demo(argsDictionary);
-            //}
-            /*catch (Exception exc)
+            }
+            catch (Exception exc)
             {
                 Console.WriteLine(exc.Message);
-            }*/
+            }
         }
 
         private static void kaggle_higgs_demo(Dictionary<string, string> argsDictionary)
@@ -80,7 +80,7 @@ namespace kaggle_higgs_demo
             SetBoosterParameters(xgb, booster_cv5.boost, threshold_ratio);
 
             Console.WriteLine("training booster");
-            int num_round = 155;
+            int num_round = 53;
             for (int i = 0; i < num_round; i++)
             {
                 xgb.SharpXGBoosterUpdateOneIter(booster.boost, i + 1, booster.dtrain);
@@ -135,7 +135,7 @@ namespace kaggle_higgs_demo
             using (StreamWriter sw = new StreamWriter(argsDictionary["sharp_pred.csv"], false))
             {
 
-                sw.WriteLine("EventId, RankOrder, Class");
+                sw.WriteLine("EventId,RankOrder,Class");
                 foreach (Prediction pred in booster.array_pred)
                 {
                     sw.WriteLine(pred.id.ToString() + "," + pred.rank.ToString() + "," + (pred.is_signal ? "s" : "b"));
@@ -200,23 +200,6 @@ namespace kaggle_higgs_demo
             EventsDictionary = new Dictionary<int, Event>();
             foreach (int key in FormatXGBoost.EventsDictionary.Keys)
             {
-                /*if (is_cv)
-                {
-                    if (has_weights)
-                    {
-                        if (key >= test_from && key <= test_to)
-                        {
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        if (key < test_from || key > test_to)
-                        {
-                            continue;
-                        }
-                    }
-                }*/
 
                 EventsDictionary.Add(key, FormatXGBoost.EventsDictionary[key]);
             }
