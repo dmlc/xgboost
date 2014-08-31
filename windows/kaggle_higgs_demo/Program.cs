@@ -80,7 +80,7 @@ namespace kaggle_higgs_demo
             SetBoosterParameters(xgb, booster_cv5.boost, threshold_ratio);
 
             Console.WriteLine("training booster");
-            int num_round = 53;
+            int num_round = 155;
             for (int i = 0; i < num_round; i++)
             {
                 xgb.SharpXGBoosterUpdateOneIter(booster.boost, i + 1, booster.dtrain);
