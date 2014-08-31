@@ -12,6 +12,9 @@
 *.la
 *.a
 *~
+*.Rcheck
+*.rds
+*.tar.gz
 *txt*
 *conf
 *buffer
