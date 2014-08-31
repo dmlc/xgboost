@@ -63,8 +63,8 @@ class TreePruner: public IUpdater {
       }
     }
     if (silent == 0) {
-      printf("tree prunning end, %d roots, %d extra nodes, %d pruned nodes ,max_depth=%d\n",
-             tree.param.num_roots, tree.num_extra_nodes(), npruned, tree.MaxDepth());
+      utils::Printf("tree prunning end, %d roots, %d extra nodes, %d pruned nodes ,max_depth=%d\n",
+                    tree.param.num_roots, tree.num_extra_nodes(), npruned, tree.MaxDepth());
     }
   }
 

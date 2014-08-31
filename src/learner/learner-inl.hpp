@@ -70,7 +70,7 @@ class BoostLearner {
 			 static_cast<unsigned long>(buffer_size));
     this->SetParam("num_pbuffer", str_temp);
     if (!silent) {
-      printf("buffer_size=%ld\n", static_cast<long>(buffer_size));
+      utils::Printf("buffer_size=%ld\n", static_cast<long>(buffer_size));
     }
   }
   /*!

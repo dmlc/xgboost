@@ -98,8 +98,8 @@ struct MetaInfo {
       group_ptr.push_back(group_ptr.back()+nline);
     }
     if (!silent) {
-      printf("%u groups are loaded from %s\n",
-			  static_cast<unsigned>(group_ptr.size()-1), fname);
+      utils::Printf("%u groups are loaded from %s\n",
+                    static_cast<unsigned>(group_ptr.size()-1), fname);
     }
     fclose(fi);
     return true;
@@ -133,7 +133,7 @@ struct MetaInfo {
       weights.push_back(wt);
     }
     if (!silent) {
-      printf("loading %s from %s\n", field, fname);
+      utils::Printf("loading %s from %s\n", field, fname);
     }
     fclose(fi);
     return true;
