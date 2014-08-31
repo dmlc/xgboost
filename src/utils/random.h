@@ -83,7 +83,7 @@ struct Random{
   inline void Seed(unsigned sd) {
 	 this->rseed = sd;
 #if defined(_MSC_VER)||defined(_WIN32)
-     ::xgboost::utils::Seed(sd);
+     ::xgboost::random::Seed(sd);
 #endif
   }
   /*! \brief return a real number uniform in [0,1) */
