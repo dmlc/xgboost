@@ -113,6 +113,9 @@ class ThreadBuffer {
   inline ElemFactory &get_factory(void) {
     return factory;
   }
+  inline const ElemFactory &get_factory(void) const{
+    return factory;
+  }
   // size of buffer
   int  buf_size;
  private:
