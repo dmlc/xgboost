@@ -2,6 +2,7 @@
 #include <string>
 #include <utility>
 #include <cstring>
+#include <cstdio>
 #include "xgboost_R.h"
 #include "wrapper/xgboost_wrapper.h"
 #include "src/utils/utils.h"
