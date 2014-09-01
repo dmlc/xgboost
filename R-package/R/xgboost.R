@@ -19,7 +19,7 @@
 #' }
 #'
 #'   See \url{https://github.com/tqchen/xgboost/wiki/Parameters} for 
-#'   further details. See also demo/demo.R for walkthrough example in R.
+#'   further details. See also inst/examples/demo.R for walkthrough example in R.
 #' @param nrounds the max number of iterations
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
 #'   information of performance. If 2, xgboost will print information of both
