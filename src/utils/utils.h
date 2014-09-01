@@ -19,7 +19,7 @@
 #else
 #ifdef _FILE_OFFSET_BITS
 #if _FILE_OFFSET_BITS == 32
-#pragma message "Warning: FILE OFFSET BITS defined to be 32 bit"
+#pragma message ("Warning: FILE OFFSET BITS defined to be 32 bit")
 #endif
 #endif
 
