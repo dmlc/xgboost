@@ -23,12 +23,11 @@
 #endif
 #endif
 
-#ifdef __APPLE__
+#ifdef __APPLE__ 
 #define off64_t off_t
 #define fopen64 fopen
 #endif
 
-#define _FILE_OFFSET_BITS 64
 extern "C" {
 #include <sys/types.h>
 }
