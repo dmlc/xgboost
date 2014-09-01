@@ -11,7 +11,8 @@ setClass("xgb.Booster")
 #'   value of sum of functions, when outputmargin=TRUE, the prediction is 
 #'   untransformed margin value. In logistic regression, outputmargin=T will
 #'   output value before logistic transformation.
-#' 
+#' @param ntreelimit limit number of trees used in prediction, this parameter is only valid for gbtree, but not for gblinear.
+#'   set it to be value bigger than 0
 #' @examples
 #' data(iris)
 #' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
@@ -19,11 +20,18 @@ setClass("xgb.Booster")
 #' @export
 #' 
 setMethod("predict", signature = "xgb.Booster", 
-          definition = function(object, newdata, outputmargin = FALSE) {
+          definition = function(object, newdata, outputmargin = FALSE, ntreelimit = NULL) {
   if (class(newdata) != "xgb.DMatrix") {
     newdata <- xgb.DMatrix(newdata)
   }
-  ret <- .Call("XGBoosterPredict_R", object, newdata, as.integer(outputmargin), PACKAGE = "xgboost")
+  if (is.null(ntreelimit)) {
+    ntreelimit <- 0
+  } else {
+    if (ntreelimit < 1){
+      stop("predict: ntreelimit must be greater equal than 1")
+    }
+  }
+  ret <- .Call("XGBoosterPredict_R", object, newdata, as.integer(outputmargin), as.integer(ntreelimit), PACKAGE = "xgboost")
   return(ret)
 })
  
