@@ -108,7 +108,6 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
     itr.SetParam("buffer_size", "2");
     page_ = NULL;
     base_rowid_ = 0;
-    isend_ = false;
   }
   virtual ~ThreadRowPageIterator(void) {    
   }
@@ -116,11 +115,10 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
   }
   virtual void BeforeFirst(void) {
     itr.BeforeFirst();
-    isend_ = false;
     base_rowid_ = 0;
   }
   virtual bool Next(void) {
-    if(!this->LoadNextPage()) return false;
+    if(!itr.Next(page_)) return false;
     out_ = page_->GetRowBatch(&tmp_ptr_, base_rowid_);
     base_rowid_ += out_.size;
     return true;
@@ -154,21 +152,12 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
     if (page.Size() != 0) page.Save(fo);
   }
  private:
-  // load in next page
-  inline bool LoadNextPage(void) {
-    ptop_ = 0;
-    bool ret = itr.Next(page_);
-    isend_ = !ret;
-    return ret;
-  }
   // base row id
   size_t base_rowid_;
   // temporal ptr
   std::vector<size_t> tmp_ptr_;
   // output data
   RowBatch out_;
-  // whether we reach end of file
-  bool isend_;
   // page pointer type
   typedef RowBatchPage* PagePtr;
   // loader factory for page
@@ -205,7 +194,6 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
 
  protected:
   PagePtr page_;
-  int ptop_;
   utils::ThreadBuffer<PagePtr,Factory> itr;
 };
 
@@ -234,7 +222,8 @@ class DMatrixPage : public DataMatrix {
     iter_->Load(fi);
     if (!silent) {
       printf("DMatrixPage: %lux%lu matrix is loaded",
-             info.num_row(), info.num_col());
+             static_cast<unsigned long>(info.num_row()),
+             static_cast<unsigned long>(info.num_col()));
       if (fname != NULL) {
         printf(" from %s\n", fname);
       } else {
@@ -255,7 +244,8 @@ class DMatrixPage : public DataMatrix {
     fs.Close();
     if (!silent) {
       printf("DMatrixPage: %lux%lu is saved to %s\n",
-             mat.info.num_row(), mat.info.num_col(), fname);
+             static_cast<unsigned long>(mat.info.num_row()),
+             static_cast<unsigned long>(mat.info.num_col()), fname);
     }
   }
   /*! \brief the real fmatrix */
