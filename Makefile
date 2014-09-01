@@ -41,6 +41,7 @@ install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
 
 Rpack:
+	make clean
 	rm -rf xgboost xgboost*.tar.gz
 	cp -r R-package xgboost
 	rm -rf xgboost/inst/examples/*.buffer
