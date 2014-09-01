@@ -25,9 +25,9 @@ class Booster: public learner::BoostLearner {
     this->init_model = false;
     this->SetCacheData(mats);
   }
-  const float *Pred(const DataMatrix &dmat, int output_margin, bst_ulong *len) {
+  inline const float *Pred(const DataMatrix &dmat, int output_margin, unsigned ntree_limit, bst_ulong *len) {
     this->CheckInitModel();
-    this->Predict(dmat, output_margin != 0, &this->preds_);
+    this->Predict(dmat, output_margin != 0, &this->preds_, ntree_limit);
     *len = static_cast<bst_ulong>(this->preds_.size());
     return &this->preds_[0];
   }
@@ -249,8 +249,8 @@ extern "C"{
     bst->eval_str = bst->EvalOneIter(iter, mats, names);
     return bst->eval_str.c_str();
   }
-  const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, bst_ulong *len) {
-    return static_cast<Booster*>(handle)->Pred(*static_cast<DataMatrix*>(dmat), output_margin, len);
+  const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, unsigned ntree_limit, bst_ulong *len) {
+    return static_cast<Booster*>(handle)->Pred(*static_cast<DataMatrix*>(dmat), output_margin, ntree_limit, len);
   }
   void XGBoosterLoadModel(void *handle, const char *fname) {
     static_cast<Booster*>(handle)->LoadModel(fname);
