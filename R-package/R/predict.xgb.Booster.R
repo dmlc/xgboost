@@ -28,7 +28,7 @@ setMethod("predict", signature = "xgb.Booster",
     ntreelimit <- 0
   } else {
     if (ntreelimit < 1){
-      stop("predict: ntreelimit must be greater equal than 1")
+      stop("predict: ntreelimit must be equal to or greater than 1")
     }
   }
   ret <- .Call("XGBoosterPredict_R", object, newdata, as.integer(outputmargin), as.integer(ntreelimit), PACKAGE = "xgboost")
