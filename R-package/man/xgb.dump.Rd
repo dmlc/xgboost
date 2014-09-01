@@ -11,7 +11,7 @@ xgb.dump(model, fname, fmap = "")
 \item{fname}{the name of the binary file.}
 
 \item{fmap}{feature map file representing the type of feature, to make it
-       look nice, run demo/demo.R for result and demo/featmap.txt for example
+       look nice, run inst/examples/demo.R for result and inst/examples/featmap.txt for example
        Format: https://github.com/tqchen/xgboost/wiki/Binary-Classification#dump-model}
 }
 \description{
