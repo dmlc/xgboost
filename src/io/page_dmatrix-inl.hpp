@@ -9,6 +9,7 @@
 #include "../utils/iterator.h"
 #include "../utils/thread_buffer.h"
 #include "./simple_fmatrix-inl.hpp"
+#include "./page_fmatrix-inl.hpp"
 
 namespace xgboost {
 namespace io {
