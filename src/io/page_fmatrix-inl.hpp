@@ -17,12 +17,17 @@ class CSCMatrixManager {
   struct Page {
    public:
     /*! \brief initialize the page */
-    inline void Init(size_t size) {
+    explicit Page(size_t size) {
       buffer.resize(size);
+      col_index.reserve(10);
+      col_data.reserved(10);
+    }
+    /*! \brief clear the page */
+    inline void Clear(void) {
       num_entry = 0;
       col_index.clear();
       col_data.clear();
-    }    
+    }
     /*! \brief number of used entries */
     size_t num_entry;
     /*! \brief column index */
@@ -49,6 +54,33 @@ class CSCMatrixManager {
     /*! \brief buffer space, not to be changed since ready */
     std::vector<ColBatch::Entry> buffer;
   };
+  /*! \brief define type of page pointer */
+  typedef Page *PagePtr;
+  /*! \brief get column pointer */
+  const std::vector<size_t> &col_ptr(void) const {
+    return col_ptr_;
+  }
+  inline bool Init(void) {
+    return true;
+  }
+  inline void SetParam(const char *name, const char *val) {
+  }
+  inline bool LoadNext(PagePtr &val) {
+    
+  }
+  inline PagePtr Create(void) {
+    PagePtr a = new Page();
+    return a;
+  }
+  inline void FreeSpace(PagePtr &a) {
+    delete a;
+  }
+  inline void Destroy(void) {
+    fi.Close();
+  }
+  inline void BeforeFirst(void) {
+    fi.Seek(file_begin_);
+  }
   
  private:
   /*! \brief fill a page with */
