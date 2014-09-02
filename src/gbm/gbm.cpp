@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #include <cstring>
+using namespace std;
 #include "./gbm.h"
 #include "./gbtree-inl.hpp"
 #include "./gblinear-inl.hpp"

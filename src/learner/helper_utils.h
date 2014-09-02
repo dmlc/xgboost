@@ -7,6 +7,7 @@
  */
 #include <utility>
 #include <vector>
+#include <cmath>
 #include <algorithm>
 namespace xgboost {
 namespace learner {

@@ -4,7 +4,8 @@
 \alias{predict,xgb.Booster-method}
 \title{Predict method for eXtreme Gradient Boosting model}
 \usage{
-\S4method{predict}{xgb.Booster}(object, newdata, outputmargin = FALSE)
+\S4method{predict}{xgb.Booster}(object, newdata, outputmargin = FALSE,
+  ntreelimit = NULL)
 }
 \arguments{
 \item{object}{Object of class "xgb.Boost"}
@@ -13,9 +14,12 @@
 \code{xgb.DMatrix}.}
 
 \item{outputmargin}{whether the prediction should be shown in the original
-  value of sum of functions, when outputmargin=TRUE, the prediction is
-  untransformed margin value. In logistic regression, outputmargin=T will
-  output value before logistic transformation.}
+value of sum of functions, when outputmargin=TRUE, the prediction is
+untransformed margin value. In logistic regression, outputmargin=T will
+output value before logistic transformation.}
+
+\item{ntreelimit}{limit number of trees used in prediction, this parameter is only valid for gbtree, but not for gblinear.
+set it to be value bigger than 0. It will use all trees by default.}
 }
 \description{
 Predicted values based on xgboost model object.

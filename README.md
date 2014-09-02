@@ -35,11 +35,11 @@ Version
 ======
 * This version xgboost-0.3, the code has been refactored from 0.2x to be cleaner and more flexibility
 * This version of xgboost is not compatible with 0.2x, due to huge amount of changes in code structure
-  - This means the model and buffer file of previous version can not be loaded in xgboost-unity
+  - This means the model and buffer file of previous version can not be loaded in xgboost-3.0
 * For legacy 0.2x code, refer to [Here](https://github.com/tqchen/xgboost/releases/tag/v0.22)
 * Change log in [CHANGES.md](CHANGES.md)
 
 XGBoost in Graphlab Create
 ======
-* XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to data manipulation, graph processing, hyper-parameter search, and visualization of big data in one framework. Try the Graphlab Create in http://graphlab.com/products/create/quick-start-guide.html
+* XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to data manipulation, graph processing, hyper-parameter search, and visualization of TeraBytes scale data in one framework. Try the Graphlab Create in http://graphlab.com/products/create/quick-start-guide.html
 * Nice blogpost by Jay Gu using GLC boosted tree to solve kaggle bike sharing challenge: http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand

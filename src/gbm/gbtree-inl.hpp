@@ -105,7 +105,8 @@ class GBTree : public IGradBooster {
   virtual void Predict(IFMatrix *p_fmat,
                        int64_t buffer_offset,
                        const BoosterInfo &info,
-                       std::vector<float> *out_preds) {
+                       std::vector<float> *out_preds,
+                       unsigned ntree_limit = 0) {
     int nthread;
     #pragma omp parallel
     {
@@ -137,7 +138,8 @@ class GBTree : public IGradBooster {
           this->Pred(batch[i],
                      buffer_offset < 0 ? -1 : buffer_offset + ridx,
                      gid, info.GetRoot(ridx), &feats,
-                     &preds[ridx * mparam.num_output_group + gid], stride);
+                     &preds[ridx * mparam.num_output_group + gid], stride, 
+                     ntree_limit);
         }
       }
     }
@@ -212,14 +214,16 @@ class GBTree : public IGradBooster {
                    int bst_group,
                    unsigned root_index,
                    tree::RegTree::FVec *p_feats,
-                   float *out_pred, size_t stride) {
+                   float *out_pred, size_t stride, unsigned ntree_limit) {
     size_t itop = 0;
     float  psum = 0.0f;
     // sum of leaf vector 
     std::vector<float> vec_psum(mparam.size_leaf_vector, 0.0f);
     const int64_t bid = mparam.BufferOffset(buffer_index, bst_group);
+    // number of valid trees
+    unsigned treeleft = ntree_limit == 0 ? std::numeric_limits<unsigned>::max() : ntree_limit;
     // load buffered results if any
-    if (bid >= 0) {
+    if (bid >= 0 && ntree_limit == 0) {
       itop = pred_counter[bid];
       psum = pred_buffer[bid];
       for (int i = 0; i < mparam.size_leaf_vector; ++i) {
@@ -235,12 +239,13 @@ class GBTree : public IGradBooster {
           for (int j = 0; j < mparam.size_leaf_vector; ++j) {
             vec_psum[j] += trees[i]->leafvec(tid)[j];
           }
+          if(--treeleft == 0) break;
         }
       }
       p_feats->Drop(inst);
     }
     // updated the buffered results
-    if (bid >= 0) {
+    if (bid >= 0 && ntree_limit == 0) {
       pred_counter[bid] = static_cast<unsigned>(trees.size());
       pred_buffer[bid] = psum;
       for (int i = 0; i < mparam.size_leaf_vector; ++i) {

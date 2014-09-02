@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #include <string>
+using namespace std;
 #include "./io.h"
 #include "../utils/io.h"
 #include "../utils/utils.h"

@@ -50,6 +50,7 @@ class BoostLearnTask{
     if (!strcmp("use_buffer", name)) use_buffer = atoi(val);
     if (!strcmp("num_round", name)) num_round = atoi(val);
     if (!strcmp("pred_margin", name)) pred_margin = atoi(val);
+    if (!strcmp("ntree_limit", name)) ntree_limit = atoi(val);
     if (!strcmp("save_period", name)) save_period = atoi(val);
     if (!strcmp("eval_train", name)) eval_train = atoi(val);
     if (!strcmp("task", name)) task = val;
@@ -79,6 +80,7 @@ class BoostLearnTask{
     save_period = 0;
     eval_train = 0;
     pred_margin = 0;
+    ntree_limit = 0;
     dump_model_stats = 0;
     task = "train";
     model_in = "NULL";
@@ -186,7 +188,7 @@ class BoostLearnTask{
   inline void TaskPred(void) {
     std::vector<float> preds;
     if (!silent) printf("start prediction...\n");
-    learner.Predict(*data, pred_margin != 0, &preds);
+    learner.Predict(*data, pred_margin != 0, &preds, ntree_limit);
     if (!silent) printf("writing prediction to %s\n", name_pred.c_str());
     FILE *fo = utils::FopenCheck(name_pred.c_str(), "w");
     for (size_t i = 0; i < preds.size(); i++) {
@@ -217,6 +219,8 @@ class BoostLearnTask{
   std::string task;
   /*! \brief name of predict file */
   std::string name_pred;
+  /*!\brief limit number of trees in prediction */
+  int ntree_limit;
   /*!\brief whether to directly output margin value */
   int pred_margin;
   /*! \brief whether dump statistics along with model */

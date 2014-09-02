@@ -98,8 +98,8 @@ struct MetaInfo {
       group_ptr.push_back(group_ptr.back()+nline);
     }
     if (!silent) {
-      printf("%u groups are loaded from %s\n",
-			  static_cast<unsigned>(group_ptr.size()-1), fname);
+      utils::Printf("%u groups are loaded from %s\n",
+                    static_cast<unsigned>(group_ptr.size()-1), fname);
     }
     fclose(fi);
     return true;
@@ -125,15 +125,15 @@ struct MetaInfo {
   }
   // try to load weight information from file, if exists
   inline bool TryLoadFloatInfo(const char *field, const char* fname, bool silent = false) {
-    std::vector<float> &weights = this->GetFloatInfo(field);
+    std::vector<float> &data = this->GetFloatInfo(field);
     FILE *fi = fopen64(fname, "r");
     if (fi == NULL) return false;
     float wt;
     while (fscanf(fi, "%f", &wt) == 1) {
-      weights.push_back(wt);
+      data.push_back(wt);
     }
     if (!silent) {
-      printf("loading %s from %s\n", field, fname);
+      utils::Printf("loading %s from %s\n", field, fname);
     }
     fclose(fi);
     return true;

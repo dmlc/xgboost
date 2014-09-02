@@ -1,32 +1,7 @@
 # package root
 PKGROOT=../../
 # _*_ mode: Makefile; _*_
-CXX=`R CMD config CXX`
-TCFLAGS=`R CMD config CFLAGS` 
-# expose these flags to R CMD SHLIB
-PKG_CPPFLAGS= -DXGBOOST_CUSTOMIZE_ERROR_ -I$(PKGROOT)  $(SHLIB_OPENMP_CFLAGS)
-PKG_CPPFLAGS+= $(SHLIB_PTHREAD_FLAGS)
-XGBFLAG= $(TCFLAGS) -DXGBOOST_CUSTOMIZE_ERROR_ -fPIC  $(SHLIB_OPENMP_CFLAGS) $(SHLIB_PTHREAD_FLAGS)
-
-ifeq ($(no_omp),1)
-	PKG_CPPFLAGS += -DDISABLE_OPENMP 
-endif
-
-CXXOBJ= xgboost_wrapper.o xgboost_io.o xgboost_gbm.o xgboost_updater.o
-OBJECTS= xgboost_R.o $(CXXOBJ)
-
-.PHONY: all clean
-all: $(SHLIB)
-$(SHLIB): $(OBJECTS)
-
-xgboost_wrapper.o: $(PKGROOT)/wrapper/xgboost_wrapper.cpp
-xgboost_io.o: $(PKGROOT)/src/io/io.cpp 
-xgboost_gbm.o: $(PKGROOT)/src/gbm/gbm.cpp
-xgboost_updater.o: $(PKGROOT)/src/tree/updater.cpp
-
-$(CXXOBJ) :
-	$(CXX) -c $(XGBFLAG) -o $@ $(firstword $(filter %.cpp %.c, $^) )
-
-clean:
-	rm -rf *.so *.o *~ *.dll
-
+PKG_CPPFLAGS= -DXGBOOST_CUSTOMIZE_MSG_ -DXGBOOST_CUSTOMIZE_PRNG_ -DXGBOOST_STRICT_CXX98_ -I$(PKGROOT)
+PKG_CXXFLAGS= $(SHLIB_OPENMP_CFLAGS)
+PKG_LIBS = $(SHLIB_OPENMP_CFLAGS)
+OBJECTS= xgboost_R.o xgboost_assert.o $(PKGROOT)/wrapper/xgboost_wrapper.o $(PKGROOT)/src/io/io.o $(PKGROOT)/src/gbm/gbm.o $(PKGROOT)/src/tree/updater.o

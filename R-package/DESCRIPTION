@@ -1,12 +1,20 @@
 Package: xgboost
 Type: Package
-Title: R wrapper of xgboost
+Title: eXtreme Gradient Boosting
 Version: 0.3-0
 Date: 2014-08-23
-Author: Tianqi Chen, Tong He
-Maintainer: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>
-Description: xgboost
-License: file LICENSE
+Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>
+Maintainer: Tong He <hetong007@gmail.com>
+Description: This package is a R wrapper of xgboost, which is short for eXtreme
+    Gradient Boosting. It is an efficient and scalable implementation of
+    gradient boosting framework. The package includes efficient linear model
+    solver and tree learning algorithm. The package can automatically do
+    parallel computation with OpenMP, and it can be more than 10 times faster
+    than existing gradient boosting packages such as gbm. It supports various
+    objective functions, including regression, classification and ranking. The
+    package is made to be extensible, so that user are also allowed to define
+    their own objectives easily.
+License: Apache License (== 2.0) | file LICENSE
 URL: https://github.com/tqchen/xgboost
 BugReports: https://github.com/tqchen/xgboost/issues
 Depends:

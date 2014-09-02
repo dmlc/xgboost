@@ -63,14 +63,14 @@ class BoostLearner {
     }
     char str_temp[25];
     if (num_feature > mparam.num_feature) {
-      snprintf(str_temp, sizeof(str_temp), "%u", num_feature);
+      utils::SPrintf(str_temp, sizeof(str_temp), "%u", num_feature);
       this->SetParam("bst:num_feature", str_temp);
     }
-    snprintf(str_temp, sizeof(str_temp), "%lu",
+    utils::SPrintf(str_temp, sizeof(str_temp), "%lu",
 			 static_cast<unsigned long>(buffer_size));
     this->SetParam("num_pbuffer", str_temp);
     if (!silent) {
-      printf("buffer_size=%ld\n", static_cast<long>(buffer_size));
+      utils::Printf("buffer_size=%ld\n", static_cast<long>(buffer_size));
     }
   }
   /*!
@@ -183,7 +183,7 @@ class BoostLearner {
                                  const std::vector<std::string> &evname) {
     std::string res;
     char tmp[256];
-    snprintf(tmp, sizeof(tmp), "[%d]", iter);
+    utils::SPrintf(tmp, sizeof(tmp), "[%d]", iter);
     res = tmp;
     for (size_t i = 0; i < evals.size(); ++i) {
       this->PredictRaw(*evals[i], &preds_);
@@ -212,11 +212,14 @@ class BoostLearner {
    * \param data input data
    * \param output_margin whether to only predict margin value instead of transformed prediction
    * \param out_preds output vector that stores the prediction
+   * \param ntree_limit limit number of trees used for boosted tree
+   *   predictor, when it equals 0, this means we are using all the trees
    */
   inline void Predict(const DMatrix &data,
                       bool output_margin,
-                      std::vector<float> *out_preds) const {
-    this->PredictRaw(data, out_preds);
+                      std::vector<float> *out_preds,
+                      unsigned ntree_limit = 0) const {
+    this->PredictRaw(data, out_preds, ntree_limit);
     if (!output_margin) {
       obj_->PredTransform(out_preds);
     }
@@ -246,11 +249,14 @@ class BoostLearner {
    * \brief get un-transformed prediction
    * \param data training data matrix
    * \param out_preds output vector that stores the prediction
+   * \param ntree_limit limit number of trees used for boosted tree
+   *   predictor, when it equals 0, this means we are using all the trees   
    */
   inline void PredictRaw(const DMatrix &data,
-                         std::vector<float> *out_preds) const {
+                         std::vector<float> *out_preds,
+                         unsigned ntree_limit = 0) const {
     gbm_->Predict(data.fmat(), this->FindBufferOffset(data),
-                  data.info.info, out_preds);
+                  data.info.info, out_preds, ntree_limit);
     // add base margin
     std::vector<float> &preds = *out_preds;
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
