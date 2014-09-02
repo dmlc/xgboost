@@ -110,9 +110,9 @@ class FMatrixS : public IFMatrix{
                                 const std::vector<RowBatch::Entry> &data) {
     size_t nrow = ptr.size() - 1;
     fo.Write(&nrow, sizeof(size_t));
-    fo.Write(&ptr[0], ptr.size() * sizeof(size_t));
+    fo.Write(BeginPtr(ptr), ptr.size() * sizeof(size_t));
     if (data.size() != 0) {
-      fo.Write(&data[0], data.size() * sizeof(RowBatch::Entry));
+      fo.Write(BeginPtr(data), data.size() * sizeof(RowBatch::Entry));
     }
   }
   /*!
@@ -127,11 +127,11 @@ class FMatrixS : public IFMatrix{
     size_t nrow;
     utils::Check(fi.Read(&nrow, sizeof(size_t)) != 0, "invalid input file format");
     out_ptr->resize(nrow + 1);
-    utils::Check(fi.Read(&(*out_ptr)[0], out_ptr->size() * sizeof(size_t)) != 0,
+    utils::Check(fi.Read(BeginPtr(*out_ptr), out_ptr->size() * sizeof(size_t)) != 0,
                   "invalid input file format");
     out_data->resize(out_ptr->back());
     if (out_data->size() != 0) {
-      utils::Assert(fi.Read(&(*out_data)[0], out_data->size() * sizeof(RowBatch::Entry)) != 0,
+      utils::Assert(fi.Read(BeginPtr(*out_data), out_data->size() * sizeof(RowBatch::Entry)) != 0,
                     "invalid input file format");
     }
   }
@@ -213,8 +213,8 @@ class FMatrixS : public IFMatrix{
         col_data_[i] = SparseBatch::Inst(&data[0] + ptr[ridx],
                                          static_cast<bst_uint>(ptr[ridx+1] - ptr[ridx]));
       }
-      batch_.col_index = &col_index_[0];
-      batch_.col_data = &col_data_[0];
+      batch_.col_index = BeginPtr(col_index_);
+      batch_.col_data = BeginPtr(col_data_);
       this->BeforeFirst();
     }
     // data content

@@ -10,7 +10,6 @@
 #include "src/utils/matrix_csr.h"
 using namespace std;
 using namespace xgboost;
-using namespace xgboost::utils;
 
 extern "C" {
   void XGBoostAssert_R(int exp, const char *fmt, ...);

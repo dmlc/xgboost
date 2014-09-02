@@ -13,6 +13,7 @@ using namespace std;
 #include "../src/data.h"
 #include "../src/learner/learner-inl.hpp"
 #include "../src/io/io.h"
+#include "../src/utils/utils.h"
 #include "../src/io/simple_dmatrix-inl.hpp"
 
 using namespace xgboost;
@@ -32,7 +33,7 @@ class Booster: public learner::BoostLearner {
     this->CheckInitModel();
     this->Predict(dmat, output_margin != 0, &this->preds_, ntree_limit);
     *len = static_cast<bst_ulong>(this->preds_.size());
-    return &this->preds_[0];
+    return BeginPtr(this->preds_);
   }
   inline void BoostOneIter(const DataMatrix &train,
                            float *grad, float *hess, bst_ulong len) {
@@ -60,7 +61,7 @@ class Booster: public learner::BoostLearner {
       model_dump_cptr[i] = model_dump[i].c_str();
     }
     *len = static_cast<bst_ulong>(model_dump.size());
-    return &model_dump_cptr[0];
+    return BeginPtr(model_dump_cptr);
   }
   // temporal fields
   // temporal data to save evaluation dump
@@ -177,13 +178,13 @@ extern "C"{
     std::vector<float> &vec = 
         static_cast<DataMatrix*>(handle)->info.GetFloatInfo(field);
     vec.resize(len);
-    memcpy(&vec[0], info, sizeof(float) * len);
+    memcpy(BeginPtr(vec), info, sizeof(float) * len);
   }
   void XGDMatrixSetUIntInfo(void *handle, const char *field, const unsigned *info, bst_ulong len) {
     std::vector<unsigned> &vec =
         static_cast<DataMatrix*>(handle)->info.GetUIntInfo(field);
     vec.resize(len);
-    memcpy(&vec[0], info, sizeof(unsigned) * len);
+    memcpy(BeginPtr(vec), info, sizeof(unsigned) * len);
   }
   void XGDMatrixSetGroup(void *handle, const unsigned *group, bst_ulong len) {
     DataMatrix *pmat = static_cast<DataMatrix*>(handle);
@@ -197,13 +198,13 @@ extern "C"{
     const std::vector<float> &vec =
         static_cast<const DataMatrix*>(handle)->info.GetFloatInfo(field);
     *len = static_cast<bst_ulong>(vec.size());
-    return &vec[0];
+    return BeginPtr(vec);
   }
   const unsigned* XGDMatrixGetUIntInfo(const void *handle, const char *field, bst_ulong* len) {
     const std::vector<unsigned> &vec =
         static_cast<const DataMatrix*>(handle)->info.GetUIntInfo(field);
     *len = static_cast<bst_ulong>(vec.size());
-    return &vec[0];
+    return BeginPtr(vec);
   }
   bst_ulong XGDMatrixNumRow(const void *handle) {
     return static_cast<bst_ulong>(static_cast<const DataMatrix*>(handle)->info.num_row());

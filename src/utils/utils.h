@@ -154,6 +154,8 @@ inline FILE *FopenCheck(const char *fname, const char *flag) {
   Check(fp != NULL, "can not open file \"%s\"\n", fname);
   return fp;
 }
+} // namespace utils
+// easy utils that can be directly acessed in xgboost
 /*! \brief get the beginning address of a vector */
 template<typename T>
 inline T *BeginPtr(std::vector<T> &vec) {
@@ -163,6 +165,14 @@ inline T *BeginPtr(std::vector<T> &vec) {
     return &vec[0];
   }
 }
-}  // namespace utils
+/*! \brief get the beginning address of a vector */
+template<typename T>
+inline const T *BeginPtr(const std::vector<T> &vec) {
+  if (vec.size() == 0) {
+    return NULL;
+  } else {
+    return &vec[0];
+  }
+}
 }  // namespace xgboost
 #endif  // XGBOOST_UTILS_UTILS_H_
