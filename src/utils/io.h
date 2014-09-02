@@ -125,7 +125,6 @@ class FileStream : public ISeekStream {
  private:
   FILE *fp;
 };
-
 }  // namespace utils
 }  // namespace xgboost
 #endif

@@ -223,16 +223,16 @@ class DMatrixPage : public DataMatrix {
     this->info.LoadBinary(fi);
     iter_->Load(fi);
     if (!silent) {
-      printf("DMatrixPage: %lux%lu matrix is loaded",
-             static_cast<unsigned long>(info.num_row()),
-             static_cast<unsigned long>(info.num_col()));
+      utils::Printf("DMatrixPage: %lux%lu matrix is loaded",
+                    static_cast<unsigned long>(info.num_row()),
+                    static_cast<unsigned long>(info.num_col()));
       if (fname != NULL) {
-        printf(" from %s\n", fname);
+        utils::Printf(" from %s\n", fname);
       } else {
-        printf("\n");
+        utils::Printf("\n");
       }
       if (info.group_ptr.size() != 0) {
-        printf("data contains %u groups\n", (unsigned)info.group_ptr.size()-1);
+        utils::Printf("data contains %u groups\n", (unsigned)info.group_ptr.size()-1);
       }
     }
   }
@@ -245,9 +245,9 @@ class DMatrixPage : public DataMatrix {
     ThreadRowPageIterator::Save(mat.fmat()->RowIterator(), fs);
     fs.Close();
     if (!silent) {
-      printf("DMatrixPage: %lux%lu is saved to %s\n",
-             static_cast<unsigned long>(mat.info.num_row()),
-             static_cast<unsigned long>(mat.info.num_col()), fname);
+      utils::Printf("DMatrixPage: %lux%lu is saved to %s\n",
+                    static_cast<unsigned long>(mat.info.num_row()),
+                    static_cast<unsigned long>(mat.info.num_col()), fname);
     }
   }
   /*! \brief the real fmatrix */
