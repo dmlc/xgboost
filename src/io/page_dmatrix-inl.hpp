@@ -16,7 +16,7 @@ namespace io {
 /*! \brief page structure that can be used to store a rowbatch */
 struct RowBatchPage {
  public:
-  RowBatchPage(void)  {
+  RowBatchPage(size_t page_size) : kPageSize(page_size) {
     data_ = new int[kPageSize];
     utils::Assert(data_ != NULL, "fail to allocate row batch page");
     this->Clear();
@@ -82,8 +82,6 @@ struct RowBatchPage {
   inline int Size(void) const {
     return data_[0];
   }
-  /*! \brief page size 64 MB */
-  static const size_t kPageSize = 64 << 18;
 
  private:
   /*! \return number of elements */
@@ -98,6 +96,8 @@ struct RowBatchPage {
   inline RowBatch::Entry* data_ptr(int i) {
     return (RowBatch::Entry*)(&data_[1]) + i;
   }
+  // page size
+  const size_t kPageSize;
   // content of data
   int *data_;  
 };
@@ -137,7 +137,7 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
    */
   inline static void Save(utils::IIterator<RowBatch> *iter,
                           utils::IStream &fo) {
-    RowBatchPage page;
+    RowBatchPage page(kPageSize);
     iter->BeforeFirst();
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();
@@ -151,6 +151,8 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
     }
     if (page.Size() != 0) page.Save(fo);
   }
+  /*! \brief page size 64 MB */
+  static const size_t kPageSize = 64 << 18;
  private:
   // base row id
   size_t base_rowid_;
@@ -178,7 +180,7 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
       return val->Load(fi);
     }
     inline PagePtr Create(void) {
-      PagePtr a = new RowBatchPage();
+      PagePtr a = new RowBatchPage(kPageSize);
       return a;
     }
     inline void FreeSpace(PagePtr &a) {
