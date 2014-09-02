@@ -32,11 +32,12 @@ xgb.train(params = list(), dtrain, nrounds, watchlist = list(),
    watchlist=list(validation1=mat1, validation2=mat2) to watch
    the performance of each round's model on mat1 and mat2}
 
-\item{obj}{customized objective function. Given prediction and dtrain,
-return gradient and second order gradient.}
+\item{obj}{customized objective function. Returns gradient and second order
+gradient with given prediction and dtrain,}
 
-\item{feval}{custimized evaluation function. Given prediction and dtrain,
-return a \code{list(metric='metric-name', value='metric-value')}.}
+\item{feval}{custimized evaluation function. Returns
+\code{list(metric='metric-name', value='metric-value')} with given
+prediction and dtrain,}
 
 \item{...}{other parameters to pass to \code{params}.}
 }
