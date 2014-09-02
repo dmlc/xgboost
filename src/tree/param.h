@@ -298,11 +298,11 @@ struct SplitEntry{
    * \param loss_chg the loss reduction get through the split
    * \param split_index the feature index where the split is on 
    */
-  inline bool NeedReplace(bst_float loss_chg, unsigned split_index) const {
+  inline bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
     if (this->split_index() <= split_index) {
-      return loss_chg > this->loss_chg;
+      return new_loss_chg > this->loss_chg;
     } else {
-      return !(this->loss_chg > loss_chg);
+      return !(this->loss_chg > new_loss_chg);
     }
   }
   /*! 
@@ -328,13 +328,13 @@ struct SplitEntry{
    * \param default_left whether the missing value goes to left
    * \return whether the proposed split is better and can replace current split
    */
-  inline bool Update(bst_float loss_chg, unsigned split_index,
-                     float split_value, bool default_left) {
-    if (this->NeedReplace(loss_chg, split_index)) {
-      this->loss_chg = loss_chg;
+  inline bool Update(bst_float new_loss_chg, unsigned split_index,
+                     float new_split_value, bool default_left) {
+    if (this->NeedReplace(new_loss_chg, split_index)) {
+      this->loss_chg = new_loss_chg;
       if (default_left) split_index |= (1U << 31);
       this->sindex = split_index;
-      this->split_value = split_value;
+      this->split_value = new_split_value;
       return true;
     } else {
       return false;
