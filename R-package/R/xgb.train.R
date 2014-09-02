@@ -15,7 +15,7 @@
 #' }
 #'
 #'   See \url{https://github.com/tqchen/xgboost/wiki/Parameters} for 
-#'   further details. See also demo/demo.R for walkthrough example in R.
+#'   further details. See also inst/examples/demo.R for walkthrough example in R.
 #' @param dtrain takes an \code{xgb.DMatrix} as the input.
 #' @param nrounds the max number of iterations
 #' @param watchlist what information should be printed when \code{verbose=1} or
@@ -24,10 +24,11 @@
 #'    watchlist=list(validation1=mat1, validation2=mat2) to watch
 #'    the performance of each round's model on mat1 and mat2
 #'
-#' @param obj customized objective function. Given prediction and dtrain, 
-#'   return gradient and second order gradient.
-#' @param feval custimized evaluation function. Given prediction and dtrain,
-#'   return a \code{list(metric='metric-name', value='metric-value')}.
+#' @param obj customized objective function. Returns gradient and second order 
+#'   gradient with given prediction and dtrain, 
+#' @param feval custimized evaluation function. Returns 
+#'   \code{list(metric='metric-name', value='metric-value')} with given 
+#'   prediction and dtrain,
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 

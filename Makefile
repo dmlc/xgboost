@@ -15,7 +15,7 @@ BIN = xgboost
 OBJ = updater.o gbm.o io.o
 SLIB = wrapper/libxgboostwrapper.so 
 
-.PHONY: clean all python 
+.PHONY: clean all python Rpack
 
 all: $(BIN) $(OBJ) $(SLIB) 
 
@@ -40,19 +40,25 @@ $(OBJ) :
 install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
 
-R-package.tar.gz:
-	rm -rf xgboost-R
-	cp -r R-package xgboost-R
-	rm -rf xgboost-R/src/*.o xgboost-R/src/*.so xgboost-R/src/*.dll
-	cp -r src xgboost-R/src/src
-	mkdir xgboost-R/src/wrapper
-	cp  wrapper/xgboost_wrapper.h xgboost-R/src/wrapper
-	cp  wrapper/xgboost_wrapper.cpp xgboost-R/src/wrapper
-	cp ./LICENSE xgboost-R
-	cat R-package/src/Makevars|sed '2s/.*/PKGROOT=./' > xgboost-R/src/Makevars
-	cat R-package/src/Makevars.win|sed '2s/.*/PKGROOT=./' > xgboost-R/src/Makevars.win
-	tar czf $@ xgboost-R
-	rm -rf xgboost-R
+Rpack:
+	make clean
+	rm -rf xgboost xgboost*.tar.gz
+	cp -r R-package xgboost
+	rm -rf xgboost/inst/examples/*.buffer
+	rm -rf xgboost/inst/examples/*.model
+	rm -rf xgboost/inst/examples/dump*
+	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
+	rm -rf xgboost/demo/*.model xgboost/demo/*.buffer
+	cp -r src xgboost/src/src
+	mkdir xgboost/src/wrapper
+	cp  wrapper/xgboost_wrapper.h xgboost/src/wrapper
+	cp  wrapper/xgboost_wrapper.cpp xgboost/src/wrapper
+	cp ./LICENSE xgboost
+	cat R-package/src/Makevars|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars
+	cat R-package/src/Makevars.win|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars.win
+	R CMD build xgboost
+	rm -rf xgboost
+	R CMD check --as-cran xgboost*.tar.gz
 
 clean:
-	$(RM) $(OBJ) $(BIN) $(SLIB) *.o *~ */*~ */*/*~
+	$(RM) $(OBJ) $(BIN) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~

@@ -8,8 +8,8 @@
 #include <vector>
 #include <utility>
 #include <string>
-#include <climits>
 #include <cmath>
+#include <climits>
 #include <algorithm>
 #include "./evaluation.h"
 #include "./helper_utils.h"
@@ -183,7 +183,7 @@ struct EvalAMS : public IEvaluator {
       }
     }
     if (ntop == ndata) {
-      fprintf(stderr, "\tams-ratio=%g", static_cast<float>(thresindex) / ndata);
+      utils::Printf("\tams-ratio=%g", static_cast<float>(thresindex) / ndata);
       return static_cast<float>(tams);
     } else {
       return static_cast<float>(sqrt(2*((s_tp+b_fp+br) * log(1.0 + s_tp/(b_fp+br)) - s_tp)));

@@ -54,8 +54,10 @@ class DMatrixSimple : public DataMatrix {
       for (size_t i = 0; i < batch.size; ++i) {
         RowBatch::Inst inst = batch[i];
         row_data_.resize(row_data_.size() + inst.length);
-        memcpy(&row_data_[row_ptr_.back()], inst.data,
-               sizeof(RowBatch::Entry) * inst.length);
+        if (inst.length != 0) {
+          memcpy(&row_data_[row_ptr_.back()], inst.data,
+                 sizeof(RowBatch::Entry) * inst.length);
+        }
         row_ptr_.push_back(row_ptr_.back() + inst.length);
       }
     }
@@ -104,10 +106,10 @@ class DMatrixSimple : public DataMatrix {
     this->AddRow(feats);
 
     if (!silent) {
-      printf("%lux%lu matrix with %lu entries is loaded from %s\n",
-             static_cast<unsigned long>(info.num_row()),
-             static_cast<unsigned long>(info.num_col()),
-             static_cast<unsigned long>(row_data_.size()), fname);
+      utils::Printf("%lux%lu matrix with %lu entries is loaded from %s\n",
+                    static_cast<unsigned long>(info.num_row()),
+                    static_cast<unsigned long>(info.num_col()),
+                    static_cast<unsigned long>(row_data_.size()), fname);
     }
     fclose(file);
     // try to load in additional file
@@ -147,26 +149,26 @@ class DMatrixSimple : public DataMatrix {
    * \param fname file name, used to print message
    */
   inline void LoadBinary(utils::IStream &fs, bool silent = false, const char *fname = NULL) {
-    int magic;
-    utils::Check(fs.Read(&magic, sizeof(magic)) != 0, "invalid input file format");
-    utils::Check(magic == kMagic, "invalid format,magic number mismatch");
+    int tmagic;
+    utils::Check(fs.Read(&tmagic, sizeof(tmagic)) != 0, "invalid input file format");
+    utils::Check(tmagic == kMagic, "invalid format,magic number mismatch");
 
     info.LoadBinary(fs);
     FMatrixS::LoadBinary(fs, &row_ptr_, &row_data_);
     fmat_->LoadColAccess(fs);
 
     if (!silent) {
-      printf("%lux%lu matrix with %lu entries is loaded",
-             static_cast<unsigned long>(info.num_row()),
-             static_cast<unsigned long>(info.num_col()),
-             static_cast<unsigned long>(row_data_.size()));
+      utils::Printf("%lux%lu matrix with %lu entries is loaded",
+                    static_cast<unsigned long>(info.num_row()),
+                    static_cast<unsigned long>(info.num_col()),
+                    static_cast<unsigned long>(row_data_.size()));
       if (fname != NULL) {
-        printf(" from %s\n", fname);
+        utils::Printf(" from %s\n", fname);
       } else {
-        printf("\n");
+        utils::Printf("\n");
       }
       if (info.group_ptr.size() != 0) {
-        printf("data contains %u groups\n", (unsigned)info.group_ptr.size()-1);
+        utils::Printf("data contains %u groups\n", (unsigned)info.group_ptr.size()-1);
       }
     }
   }
@@ -177,8 +179,8 @@ class DMatrixSimple : public DataMatrix {
    */
   inline void SaveBinary(const char* fname, bool silent = false) const {
     utils::FileStream fs(utils::FopenCheck(fname, "wb"));
-    int magic = kMagic;
-    fs.Write(&magic, sizeof(magic));
+    int tmagic = kMagic;
+    fs.Write(&tmagic, sizeof(tmagic));
 
     info.SaveBinary(fs);
     FMatrixS::SaveBinary(fs, row_ptr_, row_data_);
@@ -186,13 +188,13 @@ class DMatrixSimple : public DataMatrix {
     fs.Close();
 
     if (!silent) {
-      printf("%lux%lu matrix with %lu entries is saved to %s\n",
-             static_cast<unsigned long>(info.num_row()),
-             static_cast<unsigned long>(info.num_col()),
-             static_cast<unsigned long>(row_data_.size()), fname);
+      utils::Printf("%lux%lu matrix with %lu entries is saved to %s\n",
+                    static_cast<unsigned long>(info.num_row()),
+                    static_cast<unsigned long>(info.num_col()),
+                    static_cast<unsigned long>(row_data_.size()), fname);
       if (info.group_ptr.size() != 0) {
-        printf("data contains %u groups\n",
-               static_cast<unsigned>(info.group_ptr.size()-1));
+        utils::Printf("data contains %u groups\n",
+                      static_cast<unsigned>(info.group_ptr.size()-1));
       }
     }
   }
@@ -244,8 +246,8 @@ class DMatrixSimple : public DataMatrix {
       at_first_ = false;
       batch_.size = parent_->row_ptr_.size() - 1;
       batch_.base_rowid = 0;
-      batch_.ind_ptr = &parent_->row_ptr_[0];
-      batch_.data_ptr = &parent_->row_data_[0];
+      batch_.ind_ptr = BeginPtr(parent_->row_ptr_);
+      batch_.data_ptr = BeginPtr(parent_->row_data_);
       return true;
     }
     virtual const RowBatch &Value(void) const {

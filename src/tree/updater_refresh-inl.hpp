@@ -26,14 +26,14 @@ class TreeRefresher: public IUpdater {
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       IFMatrix *p_fmat,
                       const BoosterInfo &info,
-                      const std::vector<RegTree*> &trees) {
+                      const std::vector<RegTree*> &trees) {    
     if (trees.size() == 0) return;
     // number of threads
-    int nthread;
     // thread temporal space
     std::vector< std::vector<TStats> > stemp;
     std::vector<RegTree::FVec> fvec_temp;
     // setup temp space for each thread
+    int nthread;
     #pragma omp parallel
     {
       nthread = omp_get_num_threads();
@@ -127,8 +127,6 @@ class TreeRefresher: public IUpdater {
       this->Refresh(gstats, tree[nid].cright(), p_tree);
     }
   }
-  // number of thread in the data
-  int nthread;
   // training parameter
   TrainParam param;
 };

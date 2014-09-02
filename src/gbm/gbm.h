@@ -57,11 +57,14 @@ class IGradBooster {
    *  the size of buffer is set by convention using IGradBooster.SetParam("num_pbuffer","size")
    * \param info extra side information that may be needed for prediction
    * \param out_preds output vector to hold the predictions
+   * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means 
+   *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
    */
   virtual void Predict(IFMatrix *p_fmat,
                        int64_t buffer_offset,
                        const BoosterInfo &info,
-                       std::vector<float> *out_preds) = 0;
+                       std::vector<float> *out_preds,
+                       unsigned ntree_limit = 0) = 0;
   /*!
    * \brief dump the model in text format
    * \param fmap feature map that may help give interpretations of feature

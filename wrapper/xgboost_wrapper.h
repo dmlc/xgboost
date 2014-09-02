@@ -165,9 +165,11 @@ extern "C" {
    * \param handle handle
    * \param dmat data matrix
    * \param output_margin whether only output raw margin value
+   * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
+   *    when the parameter is set to 0, we will use all the trees
    * \param len used to store length of returning result
    */
-  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, bst_ulong *len);
+  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, unsigned ntree_limit, bst_ulong *len);
   /*!
    * \brief load model from existing file
    * \param handle handle

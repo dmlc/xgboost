@@ -163,7 +163,7 @@ struct SparseCSRFileBuilder {
     fo->Write(rptr);
     // setup buffer space
     buffer_rptr.resize(rptr.size());
-    buffer.reserve(buffer_size);
+    buffer_temp.reserve(buffer_size);
     buffer_data.resize(buffer_size);
     saved_offset.clear();
     saved_offset.resize(rptr.size() - 1, 0);

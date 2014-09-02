@@ -7,6 +7,7 @@
  */
 extern "C" {
 #include <Rinternals.h>
+#include <R_ext/Random.h>
 }
 
 extern "C" {
@@ -106,8 +107,9 @@ extern "C" {
    * \param handle handle
    * \param dmat data matrix
    * \param output_margin whether only output raw margin value
+   * \param ntree_limit limit number of trees used in prediction
    */
-  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin);
+  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin, SEXP ntree_limit);
   /*!
    * \brief load model from existing file
    * \param handle handle

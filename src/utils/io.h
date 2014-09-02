@@ -100,11 +100,9 @@ class ISeekStream: public IStream {
 /*! \brief implementation of file i/o stream */
 class FileStream : public ISeekStream {
  public:
+  explicit FileStream(FILE *fp) : fp(fp) {}
   explicit FileStream(void) {
     this->fp = NULL;
-  }
-  explicit FileStream(FILE *fp) {
-    this->fp = fp;
   }
   virtual size_t Read(void *ptr, size_t size) {
     return fread(ptr, size, 1, fp);

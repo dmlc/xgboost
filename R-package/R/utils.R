@@ -1,4 +1,5 @@
 #' @importClassesFrom Matrix dgCMatrix dgeMatrix
+#' @import methods
 
 # depends on matrix
 .onLoad <- function(libname, pkgname) {
@@ -48,7 +49,6 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
     }
   }
   handle <- .Call("XGBoosterCreate_R", cachelist, PACKAGE = "xgboost")
-  .Call("XGBoosterSetParam_R", handle, "seed", "0", PACKAGE = "xgboost")
   if (length(params) != 0) {
     for (i in 1:length(params)) {
       p <- params[i]
@@ -121,8 +121,8 @@ xgb.iter.eval <- function(booster, watchlist, iter) {
       stop("xgb.eval: watch list can only contain xgb.DMatrix")
     }
   }
-  evnames <- list()
   if (length(watchlist) != 0) {
+    evnames <- list()
     for (i in 1:length(watchlist)) {
       w <- watchlist[i]
       if (length(names(w)) == 0) {
@@ -130,8 +130,10 @@ xgb.iter.eval <- function(booster, watchlist, iter) {
       }
       evnames <- append(evnames, names(w))
     }
+    msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist, 
+                 evnames, PACKAGE = "xgboost")
+  } else {
+    msg <- ""
   }
-  msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist, 
-               evnames, PACKAGE = "xgboost")
   return(msg)
 } 
