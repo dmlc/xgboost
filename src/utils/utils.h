@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <string>
 #include <cstdlib>
+#include <vector>
 
 #ifndef XGBOOST_STRICT_CXX98_
 #include <cstdarg>
@@ -153,7 +154,15 @@ inline FILE *FopenCheck(const char *fname, const char *flag) {
   Check(fp != NULL, "can not open file \"%s\"\n", fname);
   return fp;
 }
-
+/*! \brief get the beginning address of a vector */
+template<typename T>
+inline T *BeginPtr(std::vector<T> &vec) {
+  if (vec.size() == 0) {
+    return NULL;
+  } else {
+    return &vec[0];
+  }
+}
 }  // namespace utils
 }  // namespace xgboost
 #endif  // XGBOOST_UTILS_UTILS_H_
