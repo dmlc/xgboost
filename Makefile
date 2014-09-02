@@ -2,7 +2,7 @@ export CC  = gcc
 export CXX = g++
 export LDFLAGS= -pthread -lm 
 
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -pedantic -ansi
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -pedantic -std=c++98 -Wpedantic -pedantic-errors
 
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP 
