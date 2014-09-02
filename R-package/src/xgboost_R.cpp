@@ -8,6 +8,7 @@
 #include "src/utils/utils.h"
 #include "src/utils/omp.h"
 #include "src/utils/matrix_csr.h"
+using namespace std;
 using namespace xgboost;
 
 extern "C" {
@@ -18,10 +19,12 @@ extern "C" {
 // implements error handling
 namespace xgboost {
 namespace utils {
-void (*Printf)(const char *fmt, ...) = Rprintf;
-void (*Assert)(int exp, const char *fmt, ...) = XGBoostAssert_R;
-void (*Check)(int exp, const char *fmt, ...) = XGBoostCheck_R;
-void (*Error)(const char *fmt, ...) = error;
+extern "C" {
+  void (*Printf)(const char *fmt, ...) = Rprintf;
+  void (*Assert)(int exp, const char *fmt, ...) = XGBoostAssert_R;
+  void (*Check)(int exp, const char *fmt, ...) = XGBoostCheck_R;
+  void (*Error)(const char *fmt, ...) = error;
+}
 }  // namespace utils
 
 namespace random {

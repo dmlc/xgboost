@@ -15,7 +15,7 @@
 #endif
 
 #if !defined(__GNUC__)
-#define fopen64 fopen
+#define fopen64 std::fopen
 #endif
 #ifdef _MSC_VER
 // NOTE: sprintf_s is not equivalent to snprintf, 
@@ -31,7 +31,7 @@
 
 #ifdef __APPLE__ 
 #define off64_t off_t
-#define fopen64 fopen
+#define fopen64 std::fopen
 #endif
 
 extern "C" {
@@ -52,6 +52,7 @@ typedef long int64_t;
 namespace xgboost {
 /*! \brief namespace for helper utils of the project */
 namespace utils {
+
 /*! \brief error message buffer length */
 const int kPrintBuffer = 1 << 12;
 
@@ -86,10 +87,10 @@ void HandlePrint(const char *msg);
 
 #ifdef XGBOOST_STRICT_CXX98_
 // these function pointers are to be assigned 
-extern void (*Printf)(const char *fmt, ...);
-extern void (*Assert)(int exp, const char *fmt, ...);
-extern void (*Check)(int exp, const char *fmt, ...);
-extern void (*Error)(const char *fmt, ...);
+extern "C" void (*Printf)(const char *fmt, ...);
+extern "C" void (*Assert)(int exp, const char *fmt, ...);
+extern "C" void (*Check)(int exp, const char *fmt, ...);
+extern "C" void (*Error)(const char *fmt, ...);
 #else
 /*! \brief printf, print message to the console */
 inline void Printf(const char *fmt, ...) {  
