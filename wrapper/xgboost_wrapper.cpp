@@ -6,6 +6,9 @@
 #include <string>
 #include <cstring>
 #include <algorithm>
+// include all std functions
+using namespace std;
+
 #include "./xgboost_wrapper.h"
 #include "../src/data.h"
 #include "../src/learner/learner-inl.hpp"

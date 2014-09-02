@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #include <cstring>
+using namespace std;
 #include "./updater.h"
 #include "./updater_prune-inl.hpp"
 #include "./updater_refresh-inl.hpp"

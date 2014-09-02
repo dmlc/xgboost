@@ -84,7 +84,6 @@ void HandleCheckError(const char *msg);
 void HandlePrint(const char *msg);
 #endif
 #endif
-
 #ifdef XGBOOST_STRICT_CXX98_
 // these function pointers are to be assigned 
 extern "C" void (*Printf)(const char *fmt, ...);
