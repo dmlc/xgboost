@@ -2,7 +2,7 @@
 
 ## Installation
 
-For up-to-date version(which is recommended), please install from github, windows user will require installtion of [RTools](http://cran.r-project.org/bin/windows/Rtools/).
+For up-to-date version(which is recommended), please install from github. Windows user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
 
 ```r
 require(devtools)
