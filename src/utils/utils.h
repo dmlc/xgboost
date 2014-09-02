@@ -10,8 +10,10 @@
 #include <cstdarg>
 #include <string>
 #include <cstdlib>
-#ifdef _MSC_VER
+#if !defined(__GNUC__)
 #define fopen64 fopen
+#endif
+#ifdef _MSC_VER
 // NOTE: sprintf_s is not equivalent to snprintf, 
 // they are equivalent when success, which is sufficient for our case
 #define snprintf sprintf_s
