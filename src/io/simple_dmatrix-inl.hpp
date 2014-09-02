@@ -147,9 +147,9 @@ class DMatrixSimple : public DataMatrix {
    * \param fname file name, used to print message
    */
   inline void LoadBinary(utils::IStream &fs, bool silent = false, const char *fname = NULL) {
-    int magic;
-    utils::Check(fs.Read(&magic, sizeof(magic)) != 0, "invalid input file format");
-    utils::Check(magic == kMagic, "invalid format,magic number mismatch");
+    int tmagic;
+    utils::Check(fs.Read(&tmagic, sizeof(tmagic)) != 0, "invalid input file format");
+    utils::Check(tmagic == kMagic, "invalid format,magic number mismatch");
 
     info.LoadBinary(fs);
     FMatrixS::LoadBinary(fs, &row_ptr_, &row_data_);
@@ -177,8 +177,8 @@ class DMatrixSimple : public DataMatrix {
    */
   inline void SaveBinary(const char* fname, bool silent = false) const {
     utils::FileStream fs(utils::FopenCheck(fname, "wb"));
-    int magic = kMagic;
-    fs.Write(&magic, sizeof(magic));
+    int tmagic = kMagic;
+    fs.Write(&tmagic, sizeof(tmagic));
 
     info.SaveBinary(fs);
     FMatrixS::SaveBinary(fs, row_ptr_, row_data_);
