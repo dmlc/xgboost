@@ -93,8 +93,7 @@ class FileStream : public IStream {
  private:
   FILE *fp;
  public:
-  explicit FileStream(FILE *fp) {
-    this->fp = fp;
+  explicit FileStream(FILE *fp) : fp(fp) {
   }
   virtual size_t Read(void *ptr, size_t size) {
     return fread(ptr, size, 1, fp);

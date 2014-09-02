@@ -125,12 +125,12 @@ struct MetaInfo {
   }
   // try to load weight information from file, if exists
   inline bool TryLoadFloatInfo(const char *field, const char* fname, bool silent = false) {
-    std::vector<float> &weights = this->GetFloatInfo(field);
+    std::vector<float> &data = this->GetFloatInfo(field);
     FILE *fi = fopen64(fname, "r");
     if (fi == NULL) return false;
     float wt;
     while (fscanf(fi, "%f", &wt) == 1) {
-      weights.push_back(wt);
+      data.push_back(wt);
     }
     if (!silent) {
       utils::Printf("loading %s from %s\n", field, fname);

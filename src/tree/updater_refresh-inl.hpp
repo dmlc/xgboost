@@ -29,7 +29,6 @@ class TreeRefresher: public IUpdater {
                       const std::vector<RegTree*> &trees) {
     if (trees.size() == 0) return;
     // number of threads
-    int nthread;
     // thread temporal space
     std::vector< std::vector<TStats> > stemp;
     std::vector<RegTree::FVec> fvec_temp;
