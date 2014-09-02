@@ -7,10 +7,11 @@
  */
 #include "../data.h"
 #include "../utils/iterator.h"
+#include "../utils/io.h"
+#include "../utils/matrix_csr.h"
 #include "../utils/thread_buffer.h"
 namespace xgboost {
 namespace io {
-
 class CSCMatrixManager {
  public:
   /*! \brief in memory page */
@@ -56,6 +57,10 @@ class CSCMatrixManager {
   };
   /*! \brief define type of page pointer */
   typedef Page *PagePtr;
+  // constructor
+  CSCMatrixManager(void) {
+    fi_ = NULL;
+  }
   /*! \brief get column pointer */
   inline const std::vector<size_t> &col_ptr(void) const {
     return col_ptr_;
@@ -89,7 +94,8 @@ class CSCMatrixManager {
   }
   inline void Setup(utils::ISeekStream *fi, double page_ratio) {
     fi_ = fi;
-    fi_->Read(&begin_meta_ , sizeof(size_t));
+    fi_->Read(&begin_meta_ , sizeof(begin_meta_));
+    begin_data_ = static_cast<size_t>(fi->Tell());
     fi_->Seek(begin_meta_);
     fi_->Read(&col_ptr_);
     size_t psmax = 0;
@@ -121,7 +127,7 @@ class CSCMatrixManager {
     size_t len = col_ptr_[cidx+1] - col_ptr_[cidx];
     if (p_page->NumFreeEntry() < len) return false;
     ColBatch::Entry *p_data = p_page->AllocEntry(len);
-    fi_->Seek(col_ptr_[cidx] * sizeof(ColBatch::Entry) + sizeof(size_t));
+    fi_->Seek(col_ptr_[cidx] * sizeof(ColBatch::Entry) + begin_data_);
     utils::Check(fi_->Read(p_data, sizeof(ColBatch::Entry) * len) != 0,
                  "invalid column buffer format");
     p_page->col_data.push_back(ColBatch::Inst(p_data, len));
@@ -137,6 +143,8 @@ class CSCMatrixManager {
   /*! \brief column index to be after calling before first */
   std::vector<bst_uint> col_todo_;
   // the following are input content
+  /*! \brief beginning position of data content */
+  size_t begin_data_;
   /*! \brief size of data content */
   size_t begin_meta_;
   /*! \brief input stream */
@@ -147,36 +155,25 @@ class CSCMatrixManager {
 
 class ThreadColPageIterator : public utils::IIterator<ColBatch> {
  public:
-  ThreadColPageIterator(void) {
+  explicit ThreadColPageIterator(utils::ISeekStream *fi,
+                                 float page_ratio, bool silent) {
     itr_.SetParam("buffer_size", "2");
-    page_ = NULL;
-    fi_ = NULL;
-    silent = 0;
+    itr_.get_factory().Setup(fi, page_ratio);
+    if (!silent) {
+      utils::Printf("ThreadColPageIterator: finish initialzing, %u columns\n",
+                    static_cast<unsigned>(col_ptr().size() - 1));
+    }
   }
   virtual ~ThreadColPageIterator(void) {
-    if (fi_ != NULL) {
-      fi_->Close(); delete fi_;
-    }
-  }
-  virtual void Init(void) {
-    fi_ = new utils::FileStream(utils::FopenCheck(col_pagefile_.c_str(), "rb"));
-    itr_.get_factory().Setup(fi_, col_pageratio_);
-    if (silent == 0) {
-      printf("ThreadColPageIterator: finish initialzing from %s, %u columns\n",
-             col_pagefile_.c_str(), static_cast<unsigned>(col_ptr().size() - 1));
-    }
-  }
-  virtual void SetParam(const char *name, const char *val) {
-    if (!strcmp("col_pageratio", val)) col_pageratio_ = atof(val);
-    if (!strcmp("col_pagefile", val)) col_pagefile_ = val;
-    if (!strcmp("silent", val)) silent = atoi(val);
   }
   virtual void BeforeFirst(void) {
     itr_.BeforeFirst();
   } 
   virtual bool Next(void) {
-    if(!itr_.Next(page_)) return false;
-    out_ = page_->GetBatch();
+    // page to be loaded
+    CSCMatrixManager::PagePtr page;
+    if(!itr_.Next(page)) return false;
+    out_ = page->GetBatch();
     return true;
   }
   virtual const ColBatch &Value(void) const{
@@ -190,18 +187,8 @@ class ThreadColPageIterator : public utils::IIterator<ColBatch> {
   }
 
  private:
-  // shutup
-  int silent;
-  // input file
-  utils::FileStream *fi_;
-  // size of page
-  float col_pageratio_;
-  // name of file
-  std::string col_pagefile_;
   // output data
   ColBatch out_;
-  // page to be loaded
-  CSCMatrixManager::PagePtr page_;
   // internal iterator
   utils::ThreadBuffer<CSCMatrixManager::PagePtr,CSCMatrixManager> itr_;
 };
@@ -212,14 +199,18 @@ class ThreadColPageIterator : public utils::IIterator<ColBatch> {
 class FMatrixPage : public IFMatrix {
  public:
   /*! \brief constructor */
-  FMatrixPage(utils::IIterator<RowBatch> *iter) {
+  FMatrixPage(utils::IIterator<RowBatch> *iter, std::string fname_buffer) {
     this->row_iter_ = iter;
     this->col_iter_ = NULL;
+    this->fi_ = NULL;
   }
   // destructor
   virtual ~FMatrixPage(void) {
     if (row_iter_ != NULL) delete row_iter_;
     if (col_iter_ != NULL) delete col_iter_;
+    if (fi_ != NULL) {
+      fi_->Close(); delete fi_;
+    } 
   }
   /*! \return whether column access is enabled */
   virtual bool HaveColAccess(void) const {
@@ -276,17 +267,43 @@ class FMatrixPage : public IFMatrix {
   
  protected:
   /*!
+   * \brief try load column data from file
+   */
+  inline bool LoadColData(void) {
+    FILE *fp = fopen64(fname_cbuffer_.c_str(), "rb");
+    if (fp == NULL) return false;
+    fi_ = new utils::FileStream(fp);
+    static_cast<utils::IStream*>(fi_)->Read(&buffered_rowset_);
+    col_iter_ = new ThreadColPageIterator(fi_, 2.0f, false);    
+    return true;
+  }
+  /*!
    * \brief intialize column data
    * \param pkeep probability to keep a row
    */
   inline void InitColData(float pkeep) {
-    buffered_rowset_.clear();    
+    buffered_rowset_.clear();
+    utils::FileStream fo(utils::FopenCheck(fname_cbuffer_.c_str(), "wb+"));
+    // use 64M buffer
+    utils::SparseCSRFileBuilder<ColBatch::Entry> builder(&fo, 64<<20);
+    
     // start working
     row_iter_->BeforeFirst();
     while (row_iter_->Next()) {
       const RowBatch &batch = row_iter_->Value();
-      
+      for (size_t i = 0; i < batch.size; ++i) { 
+        if (pkeep == 1.0f || random::SampleBinary(pkeep)) {
+          buffered_rowset_.push_back(static_cast<bst_uint>(batch.base_rowid+i));
+          RowBatch::Inst inst = batch[i];
+          for (bst_uint j = 0; j < inst.length; ++j) {
+            builder.AddBudget(inst[j].index);
+          }
+        }
+      }
     }
+    // write buffered rowset
+    static_cast<utils::IStream*>(&fo)->Write(buffered_rowset_);
+    builder.InitStorage();
     row_iter_->BeforeFirst();
     size_t ktop = 0;
     while (row_iter_->Next()) {
@@ -295,11 +312,18 @@ class FMatrixPage : public IFMatrix {
         if (ktop < buffered_rowset_.size() &&
             buffered_rowset_[ktop] == batch.base_rowid + i) {
           ++ktop;
-          // TODO1
+          RowBatch::Inst inst = batch[i];
+          for (bst_uint j = 0; j < inst.length; ++j) {
+            builder.PushElem(inst[j].index,
+                             ColBatch::Entry((bst_uint)(batch.base_rowid+i),
+                                             inst[j].fvalue));
+          }
         }
       }
     }
-    // sort columns
+    builder.Finalize();
+    builder.SortRows(ColBatch::Entry::CmpValue, 5);
+    fo.Close();
   }
 
  private:
@@ -307,6 +331,10 @@ class FMatrixPage : public IFMatrix {
   utils::IIterator<RowBatch> *row_iter_;
   // column iterator
   ThreadColPageIterator *col_iter_;
+  // file pointer to data
+  utils::FileStream *fi_;
+  // file name of column buffer
+  std::string fname_cbuffer_;
   /*! \brief list of row index that are buffered */
   std::vector<bst_uint> buffered_rowset_;
 };
