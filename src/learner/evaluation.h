@@ -73,7 +73,7 @@ class EvalSet{
     for (size_t i = 0; i < evals_.size(); ++i) {
       float res = evals_[i]->Eval(preds, info);
       char tmp[1024];
-      snprintf(tmp, sizeof(tmp), "\t%s-%s:%f", evname, evals_[i]->Name(), res);
+      utils::SPrintf(tmp, sizeof(tmp), "\t%s-%s:%f", evname, evals_[i]->Name(), res);
       result += tmp;
     }
     return result;

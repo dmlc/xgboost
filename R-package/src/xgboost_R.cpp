@@ -14,6 +14,7 @@ using namespace xgboost;
 extern "C" {
   void XGBoostAssert_R(int exp, const char *fmt, ...);
   void XGBoostCheck_R(int exp, const char *fmt, ...);
+  int XGBoostSPrintf_R(char *buf, size_t size, const char *fmt, ...);
 }
 
 // implements error handling
@@ -21,6 +22,7 @@ namespace xgboost {
 namespace utils {
 extern "C" {
   void (*Printf)(const char *fmt, ...) = Rprintf;
+  int (*SPrintf)(char *buf, size_t size, const char *fmt, ...) = XGBoostSPrintf_R;
   void (*Assert)(int exp, const char *fmt, ...) = XGBoostAssert_R;
   void (*Check)(int exp, const char *fmt, ...) = XGBoostCheck_R;
   void (*Error)(const char *fmt, ...) = error;
