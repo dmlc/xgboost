@@ -197,7 +197,12 @@ extern "C" {
     for (int i = 0; i < len; ++i){
       dvec.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
     }
-    void *handle = XGBoosterCreate(&dvec[0], dvec.size());
+    void *handle;
+    if (dvec.size() == 0) {
+      handle = XGBoosterCreate(NULL, 0);
+    } else {
+      handle = XGBoosterCreate(&dvec[0], dvec.size());
+    }
     SEXP ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
     R_RegisterCFinalizerEx(ret, _BoosterFinalizer, TRUE);
     UNPROTECT(1);
