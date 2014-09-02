@@ -121,7 +121,7 @@ class CSCMatrixManager {
     size_t len = col_ptr_[cidx+1] - col_ptr_[cidx];
     if (p_page->NumFreeEntry() < len) return false;
     ColBatch::Entry *p_data = p_page->AllocEntry(len);
-    fi_->Seek(col_ptr_[cidx]);
+    fi_->Seek(col_ptr_[cidx] * sizeof(ColBatch::Entry) + sizeof(size_t));
     utils::Check(fi_->Read(p_data, sizeof(ColBatch::Entry) * len) != 0,
                  "invalid column buffer format");
     p_page->col_data.push_back(ColBatch::Inst(p_data, len));
@@ -285,8 +285,7 @@ class FMatrixPage : public IFMatrix {
     row_iter_->BeforeFirst();
     while (row_iter_->Next()) {
       const RowBatch &batch = row_iter_->Value();
-      for (size_t i = 0; i < batch.size; ++i) {
-      }
+      
     }
     row_iter_->BeforeFirst();
     size_t ktop = 0;
@@ -294,7 +293,7 @@ class FMatrixPage : public IFMatrix {
       const RowBatch &batch = row_iter_->Value();
       for (size_t i = 0; i < batch.size; ++i) {
         if (ktop < buffered_rowset_.size() &&
-            buffered_rowset_[ktop] == batch.base_rowid+i) {
+            buffered_rowset_[ktop] == batch.base_rowid + i) {
           ++ktop;
           // TODO1
         }
