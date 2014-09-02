@@ -63,10 +63,10 @@ class BoostLearner {
     }
     char str_temp[25];
     if (num_feature > mparam.num_feature) {
-      snprintf(str_temp, sizeof(str_temp), "%u", num_feature);
+      utils::SPrintf(str_temp, sizeof(str_temp), "%u", num_feature);
       this->SetParam("bst:num_feature", str_temp);
     }
-    snprintf(str_temp, sizeof(str_temp), "%lu",
+    utils::SPrintf(str_temp, sizeof(str_temp), "%lu",
 			 static_cast<unsigned long>(buffer_size));
     this->SetParam("num_pbuffer", str_temp);
     if (!silent) {
@@ -183,7 +183,7 @@ class BoostLearner {
                                  const std::vector<std::string> &evname) {
     std::string res;
     char tmp[256];
-    snprintf(tmp, sizeof(tmp), "[%d]", iter);
+    utils::SPrintf(tmp, sizeof(tmp), "[%d]", iter);
     res = tmp;
     for (size_t i = 0; i < evals.size(); ++i) {
       this->PredictRaw(*evals[i], &preds_);
