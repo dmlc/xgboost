@@ -295,14 +295,14 @@ struct SplitEntry{
    * \brief decides whether a we can replace current entry with the statistics given 
    *   This function gives better priority to lower index when loss_chg equals
    *    not the best way, but helps to give consistent result during multi-thread execution
-   * \param new_loss_chg the loss reduction get through the split
+   * \param loss_chg the loss reduction get through the split
    * \param split_index the feature index where the split is on 
    */
-  inline bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
+  inline bool NeedReplace(bst_float loss_chg, unsigned split_index) const {
     if (this->split_index() <= split_index) {
-      return new_loss_chg > this->loss_chg;
+      return loss_chg > this->loss_chg;
     } else {
-      return !(this->loss_chg > new_loss_chg);
+      return !(this->loss_chg > loss_chg);
     }
   }
   /*! 
@@ -322,19 +322,19 @@ struct SplitEntry{
   }
   /*! 
    * \brief update the split entry, replace it if e is better
-   * \param new_loss_chg loss reduction of new candidate
+   * \param loss_chg loss reduction of new candidate
    * \param split_index feature index to split on
    * \param split_value the split point
    * \param default_left whether the missing value goes to left
    * \return whether the proposed split is better and can replace current split
    */
-  inline bool Update(bst_float new_loss_chg, unsigned split_index,
-                     float new_split_value, bool default_left) {
+  inline bool Update(bst_float loss_chg, unsigned split_index,
+                     float split_value, bool default_left) {
     if (this->NeedReplace(loss_chg, split_index)) {
-      this->loss_chg = new_loss_chg;
+      this->loss_chg = loss_chg;
       if (default_left) split_index |= (1U << 31);
       this->sindex = split_index;
-      this->split_value = new_split_value;
+      this->split_value = split_value;
       return true;
     } else {
       return false;
