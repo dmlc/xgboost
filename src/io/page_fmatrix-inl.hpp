@@ -199,7 +199,8 @@ class ThreadColPageIterator : public utils::IIterator<ColBatch> {
 class FMatrixPage : public IFMatrix {
  public:
   /*! \brief constructor */
-  FMatrixPage(utils::IIterator<RowBatch> *iter, std::string fname_buffer) {
+  FMatrixPage(utils::IIterator<RowBatch> *iter, std::string fname_buffer)
+      : fname_cbuffer_(fname_buffer) {
     this->row_iter_ = iter;
     this->col_iter_ = NULL;
     this->fi_ = NULL;
@@ -238,7 +239,8 @@ class FMatrixPage : public IFMatrix {
   }
   virtual void InitColAccess(float pkeep = 1.0f) {
     if (this->HaveColAccess()) return;
-    this->InitColData(pkeep);
+    this->InitColData(pkeep, fname_cbuffer_.c_str(),
+                      64 << 20, 5);
   }
   /*!
    * \brief get the row iterator associated with FMatrix
@@ -281,11 +283,12 @@ class FMatrixPage : public IFMatrix {
    * \brief intialize column data
    * \param pkeep probability to keep a row
    */
-  inline void InitColData(float pkeep) {
+  inline void InitColData(float pkeep, const char *fname, 
+                          size_t buffer_size, size_t col_step) {
     buffered_rowset_.clear();
-    utils::FileStream fo(utils::FopenCheck(fname_cbuffer_.c_str(), "wb+"));
+    utils::FileStream fo(utils::FopenCheck(fname, "wb+"));
     // use 64M buffer
-    utils::SparseCSRFileBuilder<ColBatch::Entry> builder(&fo, 64<<20);
+    utils::SparseCSRFileBuilder<ColBatch::Entry> builder(&fo, buffer_size);
     
     // start working
     row_iter_->BeforeFirst();
@@ -322,7 +325,7 @@ class FMatrixPage : public IFMatrix {
       }
     }
     builder.Finalize();
-    builder.SortRows(ColBatch::Entry::CmpValue, 5);
+    builder.SortRows(ColBatch::Entry::CmpValue, col_step);
     fo.Close();
   }
 
@@ -337,6 +340,23 @@ class FMatrixPage : public IFMatrix {
   std::string fname_cbuffer_;
   /*! \brief list of row index that are buffered */
   std::vector<bst_uint> buffered_rowset_;
+};
+
+class DMatrixColPage : public DMatrixPageBase<0xffffab03> {
+ public:
+  DMatrixColPage(const char *fname) {
+    std::string fext = fname;
+    fext += ".col";
+    fmat_ = new FMatrixPage(iter_, fext.c_str());
+  }
+  virtual ~DMatrixColPage(void) {
+    delete fmat_;
+  }
+  virtual IFMatrix *fmat(void) const {
+    return fmat_;
+  }
+  /*! \brief the real fmatrix */
+  IFMatrix *fmat_;
 };
 
 }  // namespace io

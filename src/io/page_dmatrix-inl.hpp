@@ -9,7 +9,6 @@
 #include "../utils/iterator.h"
 #include "../utils/thread_buffer.h"
 #include "./simple_fmatrix-inl.hpp"
-#include "./page_fmatrix-inl.hpp"
 
 namespace xgboost {
 namespace io {
@@ -200,26 +199,24 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
 };
 
 /*! \brief data matrix using page */
-class DMatrixPage : public DataMatrix {
+template<int TKMagic>
+class DMatrixPageBase : public DataMatrix {
  public:
-  DMatrixPage(void) : DataMatrix(kMagic) {
+  DMatrixPageBase(void) : DataMatrix(kMagic) {
     iter_ = new ThreadRowPageIterator();
-    fmat_ = new FMatrixS(iter_);
   }
   // virtual destructor
-  virtual ~DMatrixPage(void) {
-    delete fmat_;
-  }
-  virtual IFMatrix *fmat(void) const {
-    return fmat_;
+  virtual ~DMatrixPageBase(void) {
+    // do not delete row iterator, since it is owned by fmat
+    // to be cleaned up in a more clear way
   }
   /*! \brief load and initialize the iterator with fi */
   inline void Load(utils::FileStream &fi,
                    bool silent = false,
                    const char *fname = NULL){
-    int magic;
-    utils::Check(fi.Read(&magic, sizeof(magic)) != 0, "invalid input file format");
-    utils::Check(magic == kMagic, "invalid format,magic number mismatch");    
+    int tmagic;
+    utils::Check(fi.Read(&tmagic, sizeof(tmagic)) != 0, "invalid input file format");
+    utils::Check(tmagic == magic, "invalid format,magic number mismatch");    
     this->info.LoadBinary(fi);
     iter_->Load(fi);
     if (!silent) {
@@ -250,12 +247,27 @@ class DMatrixPage : public DataMatrix {
                     static_cast<unsigned long>(mat.info.num_col()), fname);
     }
   }
-  /*! \brief the real fmatrix */
-  FMatrixS *fmat_;
+  /*! \brief magic number used to identify DMatrix */
+  static const int kMagic = TKMagic;
+ protected:
+
   /*! \brief row iterator */
   ThreadRowPageIterator *iter_;
-  /*! \brief magic number used to identify DMatrix */
-  static const int kMagic = 0xffffab02;
+};
+
+class DMatrixPage : public DMatrixPageBase<0xffffab02> {
+ public:
+  DMatrixPage(void) {
+    fmat_ = new FMatrixS(iter_);
+  }
+  virtual ~DMatrixPage(void) {
+    delete fmat_;
+  }
+  virtual IFMatrix *fmat(void) const {
+    return fmat_;
+  }
+  /*! \brief the real fmatrix */
+  IFMatrix *fmat_;
 };
 }  // namespace io
 }  // namespace xgboost
