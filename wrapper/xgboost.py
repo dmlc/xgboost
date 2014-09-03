@@ -296,7 +296,7 @@ class Booster:
                 evals: list of tuple (DMatrix, string)
                        lists of items to be evaluated
                 it: int
-                feval: function 
+                feval: function
                        custom evaluation function
             Returns:
                 evals result
@@ -325,7 +325,7 @@ class Booster:
                       the dmatrix storing the input
                 output_margin: bool
                                whether output raw margin value that is untransformed
-                               
+
                 ntree_limit: limit number of trees in prediction, default to 0, 0 means using all the trees
             Returns:
                 numpy array of prediction
@@ -430,10 +430,10 @@ class CVPack:
         self.bst = Booster(param, [dtrain,dtest])
     def update(self, r, fobj):
         self.bst.update(self.dtrain, r, fobj)
-    def eval(self, r, fval):
+    def eval(self, r, feval):
         return self.bst.eval_set(self.watchlist, r, feval)
 
-def mknfold(dall, nfold, param, seed, weightscale=None, evals=[]):
+def mknfold(dall, nfold, param, seed, evals=[]):
     """
     mk nfold list of cvpack from randidx
     """
@@ -457,9 +457,6 @@ def mknfold(dall, nfold, param, seed, weightscale=None, evals=[]):
         dtrain = dall.slice(trainlst)
         dtest = dall.slice(testlst)
         # rescale weight of dtrain and dtest
-        if weightscale != None:
-            dtrain.set_weight( dtrain.get_weight() * weightscale * dall.num_row() / dtrain.num_row() )
-            dtest.set_weight( dtest.get_weight() * weightscale * dall.num_row() / dtest.num_row() )
         plst = param.items() + [('eval_metric', itm) for itm in evals]
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
@@ -487,7 +484,7 @@ def aggcv(rlist):
     return ret
 
 def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metrics = [], \
-        weightscale=None, obj=None, feval=None):
+        obj=None, feval=None):
     """ cross validation  with given paramaters
         Args:
             params: dict
@@ -503,9 +500,9 @@ def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metrics = [], \
             obj:
             feval:
     """
-    cvfolds = mknfold(dtrain, nfold, params, 0, weightscale, evals_metrics)
+    cvfolds = mknfold(dtrain, nfold, params, 0, eval_metrics)
     for i in range(num_boost_round):
         for f in cvfolds:
             f.update(i, obj)
-        res = aggcv([f.eval(i, fval) for f in cvfolds])
+        res = aggcv([f.eval(i, feval) for f in cvfolds])
         sys.stderr.write(res+'\n')
