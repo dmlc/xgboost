@@ -11,17 +11,14 @@ namespace kaggle_higgs_demo
     static internal class FormatXGBoost
     {
 
-        static internal int test_from = -1;
-        static internal int test_to = -1;
-        static internal int test_length = 550000;
-        static internal int training_length = 250000;
-        static internal bool is_cv = false;
-        static internal Dictionary<int, Event> EventsDictionary = new Dictionary<int, Event>();
+        
         static internal double missing = -999.0;
 
         //---
-        static internal void convert2xgboost(string training_path, string xgboost_training_path, string weight_training_path)
+        static internal void convert2xgboost(string training_path, string xgboost_training_path, string weight_training_path,
+            out Dictionary<int, Event> EventsDictionary, bool is_cv, int test_from, int test_to, int test_length)
         {
+            EventsDictionary = new Dictionary<int, Event>();
             string first_line;
             using (StreamReader sr = new StreamReader(training_path))
             {
@@ -34,7 +31,7 @@ namespace kaggle_higgs_demo
 
                     Event evt = new Event();
                     string[] fields = curr_line.Split(',');
-                    if (!int.TryParse(fields[0], out evt.id))
+                    if (!int.TryParse(fields[0].Replace(".0",""), out evt.id))
                     {
                         Console.WriteLine("wrong id "+fields[0]+" for line " + line.ToString());
                     }
@@ -85,8 +82,8 @@ namespace kaggle_higgs_demo
                             {
                                 continue;
                             }
-                        }
-                    }
+                        };
+                    };
 
                     string curr_feature = "";
                     int ifeat = 0;
@@ -122,7 +119,7 @@ namespace kaggle_higgs_demo
                         continue;
                     }
                     sw.WriteLine(
-                        (EventsDictionary[i].weight * (double)test_length / (double)training_length).ToString(CultureInfo.InvariantCulture)
+                        (EventsDictionary[i].weight * (double)test_length / (double)(EventsDictionary.Count)).ToString(CultureInfo.InvariantCulture)
                         );
 
                 }

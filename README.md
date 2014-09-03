@@ -15,3 +15,12 @@ Here you have:
   NFoldCV: 0 => no cv , 5 = 5-fold-cv, 10 = 10-fold-cv :-)
   
   3) 5 fold cv implementation in c# for the demo: you see inline cv ams while training (of course on a completely separate set)
+
+In my latest commit I've added
+
+  4) parallel execution of n-fold cv, on top of dotnet multithreading
+  
+  5) double inputted model training, stopping at a configured ams objective
+  
+  
+  
