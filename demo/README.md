@@ -4,13 +4,6 @@ This folder contains the all example codes using xgboost.
 Contribution of exampls, benchmarks is more than welcomed!
 If you like to share how you use xgboost to solve your problem, send a pull request:)
 
-Start Examples by Tasks
-====
-* [Binary classification](binary_classification)
-* [Multiclass classification](multiclass_classification)
-* [Regression](regression)
-* [Learning to Rank](rank)
-
 Features Walkthrough
 ====
 This is a list of short codes introducing different functionalities of xgboost and its wrapper.
@@ -19,6 +12,13 @@ This is a list of short codes introducing different functionalities of xgboost a
 * Boosting from existing prediction. [python](guide-python/boost_from_prediction.py)
 * Predicting using first n trees. [python](guide-python/predict_first_ntree.py)
 * Cross validation(to come)
+
+Basic Examples by Tasks
+====
+* [Binary classification](binary_classification)
+* [Multiclass classification](multiclass_classification)
+* [Regression](regression)
+* [Learning to Rank](rank)
 
 Benchmarks
 ====
