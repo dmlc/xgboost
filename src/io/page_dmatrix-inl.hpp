@@ -5,6 +5,7 @@
  * row iterator based on sparse page
  * \author Tianqi Chen
  */
+#include <vector>
 #include "../data.h"
 #include "../utils/iterator.h"
 #include "../utils/thread_buffer.h"
@@ -15,7 +16,7 @@ namespace io {
 /*! \brief page structure that can be used to store a rowbatch */
 struct RowBatchPage {
  public:
-  RowBatchPage(size_t page_size) : kPageSize(page_size) {
+  explicit RowBatchPage(size_t page_size) : kPageSize(page_size) {
     data_ = new int[kPageSize];
     utils::Assert(data_ != NULL, "fail to allocate row batch page");
     this->Clear();
@@ -31,10 +32,10 @@ struct RowBatchPage {
   inline bool PushRow(const RowBatch::Inst &row) {
     const size_t dsize = row.length * sizeof(RowBatch::Entry);
     if (FreeBytes() < dsize+ sizeof(int)) return false;
-    row_ptr(Size() + 1) = row_ptr(Size()) + row.length;    
+    row_ptr(Size() + 1) = row_ptr(Size()) + row.length;
     memcpy(data_ptr(row_ptr(Size())) , row.data, dsize);
-    ++ data_[0];
-    return true;    
+    ++data_[0];
+    return true;
   }
   /*!
    * \brief get a row batch representation from the page
@@ -43,7 +44,7 @@ struct RowBatchPage {
    * \return a new RowBatch object
    */
   inline RowBatch GetRowBatch(std::vector<size_t> *p_rptr, size_t base_rowid) {
-    RowBatch batch; 
+    RowBatch batch;
     batch.base_rowid = base_rowid;
     batch.data_ptr = this->data_ptr(0);
     batch.size = static_cast<size_t>(this->Size());
@@ -57,7 +58,7 @@ struct RowBatchPage {
   }
   /*! \brief get i-th row from the batch */
   inline RowBatch::Inst operator[](int i) {
-    return RowBatch::Inst(data_ptr(0) + row_ptr(i), 
+    return RowBatch::Inst(data_ptr(0) + row_ptr(i),
                           static_cast<bst_uint>(row_ptr(i+1) - row_ptr(i)));
   }
   /*!
@@ -85,8 +86,8 @@ struct RowBatchPage {
  private:
   /*! \return number of elements */
   inline size_t FreeBytes(void) {
-    return (kPageSize - (Size() + 2)) * sizeof(int) 
-        - row_ptr(Size()) * sizeof(RowBatch::Entry) ;
+    return (kPageSize - (Size() + 2)) * sizeof(int) -
+        row_ptr(Size()) * sizeof(RowBatch::Entry);
   }
   /*! \brief equivalent row pointer at i */
   inline int& row_ptr(int i) {
@@ -98,7 +99,7 @@ struct RowBatchPage {
   // page size
   const size_t kPageSize;
   // content of data
-  int *data_;  
+  int *data_;
 };
 /*! \brief thread buffer iterator */
 class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
@@ -108,8 +109,7 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
     page_ = NULL;
     base_rowid_ = 0;
   }
-  virtual ~ThreadRowPageIterator(void) {    
-  }
+  virtual ~ThreadRowPageIterator(void) {}
   virtual void Init(void) {
   }
   virtual void BeforeFirst(void) {
@@ -117,12 +117,12 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
     base_rowid_ = 0;
   }
   virtual bool Next(void) {
-    if(!itr.Next(page_)) return false;
+    if (!itr.Next(page_)) return false;
     out_ = page_->GetRowBatch(&tmp_ptr_, base_rowid_);
     base_rowid_ += out_.size;
     return true;
   }
-  virtual const RowBatch &Value(void) const{
+  virtual const RowBatch &Value(void) const {
     return out_;
   }
   /*! \brief load and initialize the iterator with fi */
@@ -152,6 +152,7 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
   }
   /*! \brief page size 64 MB */
   static const size_t kPageSize = 64 << 18;
+
  private:
   // base row id
   size_t base_rowid_;
@@ -195,7 +196,7 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
 
  protected:
   PagePtr page_;
-  utils::ThreadBuffer<PagePtr,Factory> itr;
+  utils::ThreadBuffer<PagePtr, Factory> itr;
 };
 
 /*! \brief data matrix using page */
@@ -213,10 +214,10 @@ class DMatrixPageBase : public DataMatrix {
   /*! \brief load and initialize the iterator with fi */
   inline void Load(utils::FileStream &fi,
                    bool silent = false,
-                   const char *fname = NULL){
+                   const char *fname = NULL) {
     int tmagic;
     utils::Check(fi.Read(&tmagic, sizeof(tmagic)) != 0, "invalid input file format");
-    utils::Check(tmagic == magic, "invalid format,magic number mismatch");    
+    utils::Check(tmagic == magic, "invalid format,magic number mismatch");
     this->info.LoadBinary(fi);
     iter_->Load(fi);
     if (!silent) {
@@ -229,7 +230,7 @@ class DMatrixPageBase : public DataMatrix {
         utils::Printf("\n");
       }
       if (info.group_ptr.size() != 0) {
-        utils::Printf("data contains %u groups\n", (unsigned)info.group_ptr.size()-1);
+        utils::Printf("data contains %u groups\n", (unsigned)info.group_ptr.size() - 1);
       }
     }
   }
@@ -249,8 +250,8 @@ class DMatrixPageBase : public DataMatrix {
   }
   /*! \brief magic number used to identify DMatrix */
   static const int kMagic = TKMagic;
- protected:
 
+ protected:
   /*! \brief row iterator */
   ThreadRowPageIterator *iter_;
 };
