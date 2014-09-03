@@ -433,31 +433,22 @@ class CVPack:
     def eval(self, r, feval):
         return self.bst.eval_set(self.watchlist, r, feval)
 
-def mknfold(dall, nfold, param, seed, evals=[]):
+def mknfold(dall, nfold, param, seed, evals=[], fpreproc = None):
     """
     mk nfold list of cvpack from randidx
     """
-    randidx = range(dall.num_row())
-    random.seed(seed)
-    random.shuffle(randidx)
-
-    idxset = []
+    np.random.seed(seed)    
+    randidx = np.random.permutation(dall.num_rows()) 
     kstep = len(randidx) / nfold
-    for i in range(nfold):
-        idxset.append(randidx[ (i*kstep) : min(len(randidx),(i+1)*kstep) ])
-
+    idset = [randidx[ (i*kstep) : min(len(randidx),(i+1)*kstep) ] for i in range(nfold)]
     ret = []
     for k in range(nfold):
-        trainlst = []
-        for j in range(nfold):
-            if j == k:
-                testlst = idxset[j]
-            else:
-                trainlst += idxset[j]
-        dtrain = dall.slice(trainlst)
-        dtest = dall.slice(testlst)
-        # rescale weight of dtrain and dtest
-        plst = param.items() + [('eval_metric', itm) for itm in evals]
+        dtrain = dall.slice(np.concatenate([idset[i] for i in range(nfold) if k != i]))
+        dtest = all.slice(idxset[k])
+        # run preprocessing on the data set if needed
+        if fpreproc is not None:
+            dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
+        plst = tparam.items() + [('eval_metric', itm) for itm in evals]
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
@@ -466,25 +457,22 @@ def aggcv(rlist):
     aggregate cross validation results
     """
     cvmap = {}
-    arr = rlist[0].split()
-    ret = arr[0]
-    for it in arr[1:]:
-        k, v  = it.split(':')
-        cvmap[k] = [float(v)]
-    for line in rlist[1:]:
+    ret = rlist[0].split()[0]
+    for line in rlist:
         arr = line.split()
         assert ret == arr[0]
         for it in arr[1:]:
             k, v  = it.split(':')
+            if k not in cvmap:
+                cvmap[k] = []
             cvmap[k].append(float(v))
-
     for k, v in sorted(cvmap.items(), key = lambda x:x[0]):
         v = np.array(v)
         ret += '\t%s:%f+%f' % (k, np.mean(v), np.std(v))
     return ret
 
-def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metrics = [], \
-        obj=None, feval=None):
+def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metric = [], \
+        obj = None, feval = None, fpreproc = None):
     """ cross validation  with given paramaters
         Args:
             params: dict
@@ -495,12 +483,14 @@ def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metrics = [], \
                              num of round to be boosted
             nfold: int
                    folds to do cv
-            evals: list
+            evals: list or 
                    list of items to be evaluated
             obj:
             feval:
+            fpreproc: preprocessing function that takes dtrain, dtest, 
+                      param and return transformed version of dtrain, dtest, param
     """
-    cvfolds = mknfold(dtrain, nfold, params, 0, eval_metrics)
+    cvfolds = mknfold(dtrain, nfold, params, 0, eval_metrics, fpreproc)
     for i in range(num_boost_round):
         for f in cvfolds:
             f.update(i, obj)
