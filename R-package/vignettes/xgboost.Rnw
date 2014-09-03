@@ -52,8 +52,7 @@ This is an introductory document of using the \verb@xgboost@ package in R.
  and scalable implementation of gradient boosting framework by \citep{friedman2001greedy}. 
 The package includes efficient linear model solver and tree learning algorithm.
 It supports various objective functions, including regression, classification
-and ranking. The package is made to be extendible, so that user are also allowed
-to define there own objectives easily. It has several features:
+and ranking. The package is made to be extendible, so that users are also allowed to define their own objectives easily. It has several features:
 \begin{enumerate}
     \item{Speed: }{\verb@xgboost@ can automatically do parallel computation on 
     Windows and Linux, with openmp. It is generally over 10 times faster than
@@ -137,13 +136,10 @@ diris = xgb.DMatrix('iris.xgb.DMatrix')
 
 \section{Advanced Examples}
 
-The function \verb@xgboost@ is a simple function with less parameters, in order
-to be R-friendly. The core training function is wrapped in \verb@xgb.train@. It
-is more flexible than \verb@xgboost@, but it requires users to read the document
-a bit more carefully.
+The function \verb@xgboost@ is a simple function with less parameter, in order
+to be R-friendly. The core training function is wrapped in \verb@xgb.train@. It is more flexible than \verb@xgboost@, but it requires users to read the document a bit more carefully.
 
-\verb@xgb.train@ only accept a \verb@xgb.DMatrix@ object as its input, while it 
-supports advanced features as custom objective and evaluation functions.
+\verb@xgb.train@ only accept a \verb@xgb.DMatrix@ object as its input, while it supports advanced features as custom objective and evaluation functions.
 
 <<Customized loss function>>=
 logregobj <- function(preds, dtrain) {
@@ -213,3 +209,4 @@ competition.
 \bibliography{xgboost}
 
 \end{document}
+
