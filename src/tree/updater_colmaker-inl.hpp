@@ -81,18 +81,18 @@ class ColMaker: public IUpdater {
                         const BoosterInfo &info,
                         RegTree *p_tree) {
       this->InitData(gpair, *p_fmat, info.root_index, *p_tree);
-      this->InitNewNode(qexpand, gpair, *p_fmat, info, *p_tree);
+      this->InitNewNode(qexpand_, gpair, *p_fmat, info, *p_tree);
       for (int depth = 0; depth < param.max_depth; ++depth) {
-        this->FindSplit(depth, this->qexpand, gpair, p_fmat, info, p_tree);
-        this->ResetPosition(this->qexpand, p_fmat, *p_tree);
-        this->UpdateQueueExpand(*p_tree, &this->qexpand);
-        this->InitNewNode(qexpand, gpair, *p_fmat, info, *p_tree);
+        this->FindSplit(depth, qexpand_, gpair, p_fmat, info, p_tree);
+        this->ResetPosition(qexpand_, p_fmat, *p_tree);
+        this->UpdateQueueExpand(*p_tree, &qexpand_);
+        this->InitNewNode(qexpand_, gpair, *p_fmat, info, *p_tree);
         // if nothing left to be expand, break
-        if (qexpand.size() == 0) break;
+        if (qexpand_.size() == 0) break;
       }
       // set all the rest expanding nodes to leaf
-      for (size_t i = 0; i < qexpand.size(); ++i) {
-        const int nid = qexpand[i];
+      for (size_t i = 0; i < qexpand_.size(); ++i) {
+        const int nid = qexpand_[i];
         (*p_tree)[nid].set_leaf(snode[nid].weight * param.learning_rate);
       }
       // remember auxiliary statistics in the tree node
@@ -165,9 +165,9 @@ class ColMaker: public IUpdater {
         snode.reserve(256);
       }
       {// expand query
-        qexpand.reserve(256); qexpand.clear();
+        qexpand_.reserve(256); qexpand_.clear();
         for (int i = 0; i < tree.param.num_roots; ++i) {
-          qexpand.push_back(i);
+          qexpand_.push_back(i);
         }
       }
     }
@@ -228,6 +228,7 @@ class ColMaker: public IUpdater {
                                const std::vector<bst_gpair> &gpair,
                                const BoosterInfo &info,
                                std::vector<ThreadEntry> &temp) {
+      const std::vector<int> &qexpand = qexpand_;
       // clear all the temp statistics
       for (size_t j = 0; j < qexpand.size(); ++j) {
         temp[qexpand[j]].stats.Clear();
@@ -248,7 +249,7 @@ class ColMaker: public IUpdater {
           e.last_fvalue = fvalue;
         } else {
           // try to find a split
-          if (fabsf(fvalue - e.last_fvalue) > rt_2eps && e.stats.sum_hess >= param.min_child_weight) {
+          if (std::abs(fvalue - e.last_fvalue) > rt_2eps && e.stats.sum_hess >= param.min_child_weight) {
             c.SetSubstract(snode[nid].stats, e.stats);
             if (c.sum_hess >= param.min_child_weight) {
               bst_float loss_chg = static_cast<bst_float>(e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
@@ -391,7 +392,7 @@ class ColMaker: public IUpdater {
     /*! \brief TreeNode Data: statistics for each constructed node */
     std::vector<NodeEntry> snode;
     /*! \brief queue of nodes to be expanded */
-    std::vector<int> qexpand;
+    std::vector<int> qexpand_;
   };
 };
 
