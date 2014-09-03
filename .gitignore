@@ -2,7 +2,7 @@
 *.slo
 *.lo
 *.o
-
+*.page
 # Compiled Dynamic libraries
 *.so
 *.dylib
@@ -44,3 +44,5 @@ Debug
 *dump
 *save
 *csv
+*.cpage.col
+*.cpage

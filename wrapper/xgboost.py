@@ -213,6 +213,71 @@ class DMatrix:
             self.handle, (ctypes.c_int*len(rindex))(*rindex), len(rindex)))
         return res
 
+class CVPack:
+    def __init__(self, dtrain, dtest, param):
+        self.dtrain = dtrain
+        self.dtest = dtest
+        self.watchlist = watchlist = [ (dtrain,'train'), (dtest, 'test') ]
+        self.bst = Booster(param, [dtrain,dtest])
+    def update(self,r):
+        self.bst.update(self.dtrain, r)
+    def eval(self,r):
+        return self.bst.eval_set(self.watchlist, r)
+
+def mknfold(dall, nfold, param, seed, weightscale=None):
+    """
+    mk nfold list of cvpack from randidx
+    """
+    randidx = range(dall.num_row())
+    random.seed(seed)
+    random.shuffle(randidx)
+
+    idxset = []
+    kstep = len(randidx) / nfold
+    for i in range(nfold):
+        idxset.append(randidx[ (i*kstep) : min(len(randidx),(i+1)*kstep) ])
+
+    ret = []
+    for k in range(nfold):
+        trainlst = []
+        for j in range(nfold):
+            if j == k:
+                testlst = idxset[j]
+            else:
+                trainlst += idxset[j]
+        dtrain = dall.slice(trainlst)
+        dtest = dall.slice(testlst)
+        # rescale weight of dtrain and dtest
+        if weightscale != None:
+            dtrain.set_weight( dtrain.get_weight() * weightscale * dall.num_row() / dtrain.num_row() )
+            dtest.set_weight( dtest.get_weight() * weightscale * dall.num_row() / dtest.num_row() )
+
+        ret.append(CVPack(dtrain, dtest, param))
+    return ret
+
+def aggcv(rlist):
+    """
+    aggregate cross validation results
+    """
+    cvmap = {}
+    arr = rlist[0].split()
+    ret = arr[0]
+    for it in arr[1:]:
+        k, v  = it.split(':')
+        cvmap[k] = [float(v)]
+    for line in rlist[1:]:
+        arr = line.split()
+        assert ret == arr[0]
+        for it in arr[1:]:
+            k, v  = it.split(':')
+            cvmap[k].append(float(v))
+
+    for k, v in sorted(cvmap.items(), key = lambda x:x[0]):
+        v = np.array(v)
+        ret += '\t%s:%f+%f' % (k, np.mean(v), np.std(v))
+    return ret
+
+
 class Booster:
     """learner class """
     def __init__(self, params={}, cache=[], model_file = None):
@@ -290,6 +355,7 @@ class Booster:
                                     (ctypes.c_float*len(grad))(*grad),
                                     (ctypes.c_float*len(hess))(*hess),
                                     len(grad))
+
     def eval_set(self, evals, it = 0, feval = None):
         """evaluates by metric
             Args:
@@ -325,7 +391,6 @@ class Booster:
                       the dmatrix storing the input
                 output_margin: bool
                                whether output raw margin value that is untransformed
-
                 ntree_limit: limit number of trees in prediction, default to 0, 0 means using all the trees
             Returns:
                 numpy array of prediction

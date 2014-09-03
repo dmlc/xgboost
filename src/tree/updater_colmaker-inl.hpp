@@ -45,15 +45,19 @@ class ColMaker: public IUpdater {
   // data structure
   /*! \brief per thread x per node entry to store tmp data */
   struct ThreadEntry {
-    /*! \brief statistics of data*/
+    /*! \brief statistics of data */
     TStats stats;
+    /*! \brief extra statistics of data */
+    TStats stats_extra;
     /*! \brief last feature value scanned */
     float  last_fvalue;
+    /*! \brief first feature value scanned */
+    float  first_fvalue;
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
     explicit ThreadEntry(const TrainParam &param)
-        : stats(param) {
+        : stats(param), stats_extra(param) {
     }
   };
   struct NodeEntry {
@@ -219,7 +223,138 @@ class ColMaker: public IUpdater {
       }
       // use new nodes for qexpand
       qexpand = newnodes;
-    }
+    }    
+    // parallel find the best split of current fid
+    // this function does not support nested functions
+    inline void ParallelFindSplit(const ColBatch::Inst &col,
+                                  bst_uint fid,
+                                  const IFMatrix &fmat,
+                                  const std::vector<bst_gpair> &gpair,
+                                  const BoosterInfo &info) {
+      bool need_forward = param.need_forward_search(fmat.GetColDensity(fid));
+      bool need_backward = param.need_backward_search(fmat.GetColDensity(fid));
+      const std::vector<int> &qexpand = qexpand_;
+      int nthread;
+      #pragma omp parallel
+      {
+        const int tid = omp_get_thread_num();
+        std::vector<ThreadEntry> &temp = stemp[tid];
+        // cleanup temp statistics
+        for (size_t j = 0; j < qexpand.size(); ++j) {
+          temp[qexpand[j]].stats.Clear();
+        }
+        nthread = omp_get_num_threads();
+        bst_uint step = (col.length + nthread - 1) / nthread;
+        bst_uint end = std::min(col.length, step * (tid + 1));
+        for (bst_uint i = tid * step; i < end; ++i) {
+          const bst_uint ridx = col[i].index;
+          const int nid = position[ridx];
+          if (nid < 0) continue;
+          const float fvalue = col[i].fvalue;
+          if (temp[nid].stats.Empty()) {
+            temp[nid].first_fvalue = fvalue;
+          }
+          temp[nid].stats.Add(gpair, info, ridx);
+          temp[nid].last_fvalue = fvalue;
+        }
+      }
+      // start collecting the partial sum statistics
+      bst_omp_uint nnode = static_cast<bst_omp_uint>(qexpand.size());
+      #pragma omp parallel for schedule(static)
+      for (bst_omp_uint j = 0; j < nnode; ++j) {
+        const int nid = qexpand[j];
+        TStats sum(param), tmp(param), c(param);
+        for (int tid = 0; tid < nthread; ++tid) {
+          tmp = stemp[tid][nid].stats;
+          stemp[tid][nid].stats = sum;
+          sum.Add(tmp);
+          if (tid != 0) {
+            std::swap(stemp[tid - 1][nid].last_fvalue, stemp[tid][nid].first_fvalue);
+          }
+        }
+        for (int tid = 0; tid < nthread; ++tid) {
+          stemp[tid][nid].stats_extra = sum;
+          ThreadEntry &e = stemp[tid][nid];
+          float fsplit;
+          if (tid != 0) {
+            if(fabsf(stemp[tid - 1][nid].last_fvalue - e.first_fvalue) > rt_2eps) {
+              fsplit = (stemp[tid - 1][nid].last_fvalue - e.first_fvalue) * 0.5f;
+            } else {
+              continue;
+            }
+          } else {
+            fsplit = e.first_fvalue - rt_eps;
+          }                        
+          if (need_forward && tid != 0) {
+            c.SetSubstract(snode[nid].stats, e.stats);
+            if (c.sum_hess >= param.min_child_weight && e.stats.sum_hess >= param.min_child_weight) {
+              bst_float loss_chg = static_cast<bst_float>(e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
+              e.best.Update(loss_chg, fid, fsplit, false);
+            }
+          }
+          if (need_backward) {
+            tmp.SetSubstract(sum, e.stats);
+            c.SetSubstract(snode[nid].stats, tmp);
+            if (c.sum_hess >= param.min_child_weight && tmp.sum_hess >= param.min_child_weight) {
+              bst_float loss_chg = static_cast<bst_float>(tmp.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
+              e.best.Update(loss_chg, fid, fsplit, true);
+            }
+          }
+        }
+        if (need_backward) {
+          tmp = sum;
+          ThreadEntry &e = stemp[nthread-1][nid];
+          c.SetSubstract(snode[nid].stats, tmp);
+          if (c.sum_hess >= param.min_child_weight && tmp.sum_hess >= param.min_child_weight) {
+            bst_float loss_chg = static_cast<bst_float>(tmp.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
+            e.best.Update(loss_chg, fid, e.last_fvalue + rt_eps, true);
+          }
+        }
+      }
+      // rescan, generate candidate split
+      #pragma omp parallel
+      {
+        TStats c(param), cright(param);
+        const int tid = omp_get_thread_num();
+        std::vector<ThreadEntry> &temp = stemp[tid];
+        nthread = static_cast<bst_uint>(omp_get_num_threads());
+        bst_uint step = (col.length + nthread - 1) / nthread;
+        bst_uint end = std::min(col.length, step * (tid + 1));
+        for (bst_uint i = tid * step; i < end; ++i) {
+          const bst_uint ridx = col[i].index;
+          const int nid = position[ridx];
+          if (nid < 0) continue;
+          const float fvalue = col[i].fvalue;
+          // get the statistics of nid
+          ThreadEntry &e = temp[nid];
+          if (e.stats.Empty()) {
+            e.stats.Add(gpair, info, ridx);
+            e.first_fvalue = fvalue;
+          } else {
+            // forward default right
+            if (fabsf(fvalue - e.first_fvalue) > rt_2eps){
+              if (need_forward) { 
+                c.SetSubstract(snode[nid].stats, e.stats);
+                if (c.sum_hess >= param.min_child_weight && e.stats.sum_hess >= param.min_child_weight) {
+                  bst_float loss_chg = static_cast<bst_float>(e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
+                  e.best.Update(loss_chg, fid, (fvalue + e.first_fvalue) * 0.5f, false);
+                }
+              }
+              if (need_backward) {
+                cright.SetSubstract(e.stats_extra, e.stats);
+                c.SetSubstract(snode[nid].stats, cright);
+                if (c.sum_hess >= param.min_child_weight && cright.sum_hess >= param.min_child_weight) {
+                  bst_float loss_chg = static_cast<bst_float>(cright.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
+                  e.best.Update(loss_chg, fid, (fvalue + e.first_fvalue) * 0.5f, true);
+                }
+              }
+            }          
+            e.stats.Add(gpair, info, ridx);
+            e.first_fvalue = fvalue;            
+          }
+        }
+      }
+    }    
     // enumerate the split values of specific feature
     inline void EnumerateSplit(const ColBatch::Entry *begin,
                                const ColBatch::Entry *end,
@@ -273,6 +408,38 @@ class ColMaker: public IUpdater {
         }
       }
     }
+    // update the solution candidate 
+    virtual void UpdateSolution(const ColBatch &batch,                                
+                                const std::vector<bst_gpair> &gpair,
+                                const IFMatrix &fmat,
+                                const BoosterInfo &info) {
+      // start enumeration
+      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      #if defined(_OPENMP)                                                                
+      const int batch_size = std::max(static_cast<int>(nsize / this->nthread / 32), 1);
+      #endif
+      if (param.parallel_option == 0) {
+        #pragma omp parallel for schedule(dynamic, batch_size)
+        for (bst_omp_uint i = 0; i < nsize; ++i) {
+          const bst_uint fid = batch.col_index[i];
+          const int tid = omp_get_thread_num();
+          const ColBatch::Inst c = batch[i];          
+          if (param.need_forward_search(fmat.GetColDensity(fid))) {
+            this->EnumerateSplit(c.data, c.data + c.length, +1, 
+                                 fid, gpair, info, stemp[tid]);
+          }
+          if (param.need_backward_search(fmat.GetColDensity(fid))) {
+            this->EnumerateSplit(c.data + c.length - 1, c.data - 1, -1, 
+                                 fid, gpair, info, stemp[tid]);
+          }
+        }
+      } else {
+        for (bst_omp_uint i = 0; i < nsize; ++i) {
+          this->ParallelFindSplit(batch[i], batch.col_index[i],
+                                  fmat, gpair, info);
+        }
+      }      
+    }
     // find splits at current level, do split per level
     inline void FindSplit(int depth,
                           const std::vector<int> &qexpand,
@@ -289,26 +456,7 @@ class ColMaker: public IUpdater {
       }
       utils::IIterator<ColBatch> *iter = p_fmat->ColIterator(feat_set);
       while (iter->Next()) {
-        const ColBatch &batch = iter->Value();
-        // start enumeration
-        const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
-        #if defined(_OPENMP)                                                                
-        const int batch_size = std::max(static_cast<int>(nsize / this->nthread / 32), 1);
-        #endif
-        #pragma omp parallel for schedule(dynamic, batch_size)
-        for (bst_omp_uint i = 0; i < nsize; ++i) {
-          const bst_uint fid = batch.col_index[i];
-          const int tid = omp_get_thread_num();
-          const ColBatch::Inst c = batch[i];
-          if (param.need_forward_search(p_fmat->GetColDensity(fid))) {            
-            this->EnumerateSplit(c.data, c.data + c.length, +1, 
-                                 fid, gpair, info, stemp[tid]);
-          }
-          if (param.need_backward_search(p_fmat->GetColDensity(fid))) {
-            this->EnumerateSplit(c.data + c.length - 1, c.data - 1, -1, 
-                                 fid, gpair, info, stemp[tid]);
-          }
-        }
+        this->UpdateSolution(iter->Value(), gpair, *p_fmat, info);
       }
       // after this each thread's stemp will get the best candidates, aggregate results
       for (size_t i = 0; i < qexpand.size(); ++i) {
@@ -326,6 +474,7 @@ class ColMaker: public IUpdater {
         }
       }
     }
+
     // reset position of each data points after split is created in the tree
     inline void ResetPosition(const std::vector<int> &qexpand, IFMatrix *p_fmat, const RegTree &tree) {
       const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();

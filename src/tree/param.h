@@ -37,7 +37,9 @@ struct TrainParam{
   // speed optimization for dense column
   float opt_dense_col;
   // leaf vector size
-  int size_leaf_vector;
+  int size_leaf_vector;  
+  // option for parallelization
+  int parallel_option;
   // number of threads to be used for tree construction,
   // if OpenMP is enabled, if equals 0, use system default
   int nthread;
@@ -55,6 +57,7 @@ struct TrainParam{
     opt_dense_col = 1.0f;
     nthread = 0;
     size_leaf_vector = 0;
+    parallel_option = 0;
   }
   /*! 
    * \brief set parameters from outside 
@@ -80,6 +83,7 @@ struct TrainParam{
     if (!strcmp(name, "size_leaf_vector")) size_leaf_vector = atoi(val);
     if (!strcmp(name, "max_depth")) max_depth = atoi(val);
     if (!strcmp(name, "nthread")) nthread = atoi(val);
+    if (!strcmp(name, "parallel_option")) parallel_option = atoi(val);
     if (!strcmp(name, "default_direction")) {
       if (!strcmp(val, "learn")) default_direction = 0;
       if (!strcmp(val, "left")) default_direction = 1;

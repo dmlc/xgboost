@@ -3,12 +3,13 @@
 #include <utility>
 #include <cstring>
 #include <cstdio>
-#include "xgboost_R.h"
 #include "wrapper/xgboost_wrapper.h"
 #include "src/utils/utils.h"
 #include "src/utils/omp.h"
 #include "src/utils/matrix_csr.h"
-using namespace std;
+
+#include "xgboost_R.h"
+
 using namespace xgboost;
 
 extern "C" {
