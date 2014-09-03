@@ -5,6 +5,9 @@
  * sparse page manager for fmatrix
  * \author Tianqi Chen
  */
+#include <vector>
+#include <string>
+#include <algorithm>
 #include "../data.h"
 #include "../utils/iterator.h"
 #include "../utils/io.h"
@@ -34,7 +37,7 @@ class CSCMatrixManager {
     /*! \brief column index */
     std::vector<bst_uint> col_index;
     /*! \brief column data */
-    std::vector<ColBatch::Inst> col_data;            
+    std::vector<ColBatch::Inst> col_data;
     /*! \brief number of free entries */
     inline size_t NumFreeEntry(void) const {
       return buffer.size() - num_entry;
@@ -52,6 +55,7 @@ class CSCMatrixManager {
       batch.col_data  = BeginPtr(col_data);
       return batch;
     }
+
    private:
     /*! \brief buffer space, not to be changed since ready */
     std::vector<ColBatch::Entry> buffer;
@@ -80,7 +84,7 @@ class CSCMatrixManager {
     col_index_ = col_todo_;
     read_top_ = 0;
   }
-  inline bool LoadNext(PagePtr &val) {    
+  inline bool LoadNext(PagePtr &val) {
     val->Clear();
     if (read_top_ >= col_index_.size()) return false;
     while (read_top_ < col_index_.size()) {
@@ -106,7 +110,7 @@ class CSCMatrixManager {
       psmax = std::max(psmax, col_ptr_[i+1] - col_ptr_[i]);
     }
     utils::Check(page_ratio >= 1.0f, "col_page_ratio must be at least 1");
-    page_size_ = std::max(static_cast<size_t>(psmax * page_ratio), psmax);    
+    page_size_ = std::max(static_cast<size_t>(psmax * page_ratio), psmax);
   }
   inline void SetColSet(const std::vector<bst_uint> &cset, bool setall) {
     if (!setall) {
@@ -124,6 +128,7 @@ class CSCMatrixManager {
       }
     }
   }
+
  private:
   /*! \brief fill a page with */
   inline bool TryFill(size_t cidx, Page *p_page) {
@@ -173,21 +178,22 @@ class ThreadColPageIterator : public utils::IIterator<ColBatch> {
   }
   virtual void BeforeFirst(void) {
     itr_.BeforeFirst();
-  } 
+  }
   virtual bool Next(void) {
     // page to be loaded
     CSCMatrixManager::PagePtr page;
-    if(!itr_.Next(page)) return false;
+    if (!itr_.Next(page)) return false;
     out_ = page->GetBatch();
     return true;
   }
-  virtual const ColBatch &Value(void) const{
+  virtual const ColBatch &Value(void) const {
     return out_;
   }
   inline const std::vector<size_t> &col_ptr(void) const {
     return itr_.get_factory().col_ptr();
   }
-  inline void SetColSet(const std::vector<bst_uint> &cset, bool setall = false) {
+  inline void SetColSet(const std::vector<bst_uint> &cset,
+                        bool setall = false) {
     itr_.get_factory().SetColSet(cset, setall);
   }
 
@@ -195,9 +201,8 @@ class ThreadColPageIterator : public utils::IIterator<ColBatch> {
   // output data
   ColBatch out_;
   // internal iterator
-  utils::ThreadBuffer<CSCMatrixManager::PagePtr,CSCMatrixManager> itr_;
+  utils::ThreadBuffer<CSCMatrixManager::PagePtr, CSCMatrixManager> itr_;
 };
-
 /*!
  * \brief sparse matrix that support column access
  */
@@ -216,7 +221,7 @@ class FMatrixPage : public IFMatrix {
     if (col_iter_ != NULL) delete col_iter_;
     if (fi_ != NULL) {
       fi_->Close(); delete fi_;
-    } 
+    }
   }
   /*! \return whether column access is enabled */
   virtual bool HaveColAccess(void) const {
@@ -272,7 +277,7 @@ class FMatrixPage : public IFMatrix {
     col_iter_->BeforeFirst();
     return col_iter_;
   }
-  
+
  protected:
   /*!
    * \brief try load column data from file
@@ -282,25 +287,24 @@ class FMatrixPage : public IFMatrix {
     if (fp == NULL) return false;
     fi_ = new utils::FileStream(fp);
     static_cast<utils::IStream*>(fi_)->Read(&buffered_rowset_);
-    col_iter_ = new ThreadColPageIterator(fi_, 2.0f, false);    
+    col_iter_ = new ThreadColPageIterator(fi_, 2.0f, false);
     return true;
   }
   /*!
    * \brief intialize column data
    * \param pkeep probability to keep a row
    */
-  inline void InitColData(float pkeep, const char *fname, 
+  inline void InitColData(float pkeep, const char *fname,
                           size_t buffer_size, size_t col_step) {
     buffered_rowset_.clear();
     utils::FileStream fo(utils::FopenCheck(fname, "wb+"));
     // use 64M buffer
     utils::SparseCSRFileBuilder<ColBatch::Entry> builder(&fo, buffer_size);
-    
     // start working
     row_iter_->BeforeFirst();
     while (row_iter_->Next()) {
       const RowBatch &batch = row_iter_->Value();
-      for (size_t i = 0; i < batch.size; ++i) { 
+      for (size_t i = 0; i < batch.size; ++i) {
         if (pkeep == 1.0f || random::SampleBinary(pkeep)) {
           buffered_rowset_.push_back(static_cast<bst_uint>(batch.base_rowid+i));
           RowBatch::Inst inst = batch[i];
@@ -350,7 +354,7 @@ class FMatrixPage : public IFMatrix {
 
 class DMatrixColPage : public DMatrixPageBase<0xffffab03> {
  public:
-  DMatrixColPage(const char *fname) {
+  explicit DMatrixColPage(const char *fname) {
     std::string fext = fname;
     fext += ".col";
     fmat_ = new FMatrixPage(iter_, fext.c_str());
