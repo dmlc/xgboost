@@ -1,7 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #include <cstring>
-using namespace std;
 #include "./updater.h"
 #include "./updater_prune-inl.hpp"
 #include "./updater_refresh-inl.hpp"
@@ -10,6 +9,7 @@ using namespace std;
 namespace xgboost {
 namespace tree {
 IUpdater* CreateUpdater(const char *name) {
+  using namespace std;
   if (!strcmp(name, "prune")) return new TreePruner();
   if (!strcmp(name, "refresh")) return new TreeRefresher<GradStats>();
   if (!strcmp(name, "grow_colmaker")) return new ColMaker<GradStats>();

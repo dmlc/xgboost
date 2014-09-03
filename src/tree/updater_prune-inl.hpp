@@ -17,6 +17,7 @@ class TreePruner: public IUpdater {
   virtual ~TreePruner(void) {}
   // set training parameter
   virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
     param.SetParam(name, val);
     if (!strcmp(name, "silent")) silent = atoi(val);
   }

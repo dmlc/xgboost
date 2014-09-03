@@ -79,6 +79,7 @@ class BoostLearner {
    * \param val  value of the parameter
    */
   inline void SetParam(const char *name, const char *val) {
+    using namespace std;
     // in this version, bst: prefix is no longer required 
     if (strncmp(name, "bst:", 4) != 0) {
       std::string n = "bst:"; n += name;
@@ -290,7 +291,7 @@ class BoostLearner {
       base_score = 0.5f;
       num_feature = 0;
       num_class = 0;
-      memset(reserved, 0, sizeof(reserved));
+      std::memset(reserved, 0, sizeof(reserved));
     }
     /*!
      * \brief set parameters from outside
@@ -298,6 +299,7 @@ class BoostLearner {
      * \param val value of the parameter
      */
     inline void SetParam(const char *name, const char *val) {
+      using namespace std;
       if (!strcmp("base_score", name)) base_score = static_cast<float>(atof(val));
       if (!strcmp("num_class", name)) num_class = atoi(val);
       if (!strcmp("bst:num_feature", name)) num_feature = atoi(val);

@@ -53,7 +53,7 @@ class TreeModel {
     Param(void) {
       max_depth = 0;
       size_leaf_vector = 0;
-      memset(reserved, 0, sizeof(reserved));
+      std::memset(reserved, 0, sizeof(reserved));
     }
     /*! 
      * \brief set parameters from outside 
@@ -61,6 +61,7 @@ class TreeModel {
      * \param val  value of the parameter
      */
     inline void SetParam(const char *name, const char *val) {
+      using namespace std;
       if (!strcmp("num_roots", name)) num_roots = atoi(val);
       if (!strcmp("num_feature", name)) num_feature = atoi(val);
       if (!strcmp("size_leaf_vector", name)) size_leaf_vector = atoi(val);
