@@ -216,7 +216,7 @@ class DMatrixSimple : public DataMatrix {
       return;
     }
     char bname[1024];
-    snprintf(bname, sizeof(bname), "%s.buffer", fname);
+    utils::SPrintf(bname, sizeof(bname), "%s.buffer", fname);
     if (!this->LoadBinary(bname, silent)) {
       this->LoadText(fname, silent);
       if (savebuffer) this->SaveBinary(bname, silent);
