@@ -399,7 +399,7 @@ class Booster:
                     fmap[fid]+= 1
         return fmap
 
-def train(params, dtrain, num_boost_round = 10, evals = [], fobj=None, feval=None):
+def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None):
     """ train a booster with given paramaters
         Args:
             params: dict
@@ -410,14 +410,14 @@ def train(params, dtrain, num_boost_round = 10, evals = [], fobj=None, feval=Non
                              num of round to be boosted
             evals: list
                    list of items to be evaluated
-            fobj:  function
+            obj:  function
                    cutomized objective function
             feval: function
                    cutomized evaluation function
     """
     bst = Booster(params, [dtrain]+[ d[0] for d in evals ] )
     for i in range(num_boost_round):
-        bst.update( dtrain, i, fobj )
+        bst.update( dtrain, i, obj )
         if len(evals) != 0:
             sys.stderr.write(bst.eval_set(evals, i, feval).decode()+'\n')
     return bst
@@ -487,7 +487,7 @@ def aggcv(rlist):
     return ret
 
 def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metrics = [], \
-        weightscale=None, fobj=None, feval=None):
+        weightscale=None, obj=None, feval=None):
     """ cross validation  with given paramaters
         Args:
             params: dict
@@ -500,12 +500,12 @@ def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metrics = [], \
                    folds to do cv
             evals: list
                    list of items to be evaluated
-            fobj:
+            obj:
             feval:
     """
     cvfolds = mknfold(dtrain, nfold, params, 0, weightscale, evals_metrics)
     for i in range(num_boost_round):
         for f in cvfolds:
-            f.update(i, fobj)
+            f.update(i, obj)
         res = aggcv([f.eval(i, fval) for f in cvfolds])
         sys.stderr.write(res+'\n')
