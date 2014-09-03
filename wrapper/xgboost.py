@@ -53,7 +53,7 @@ class DMatrix:
                 missing: float
                          value in data which need to be present as missing value
                 weight: list or numpy 1d array, optional
-                        weight for each instances                        
+                        weight for each instances
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
@@ -318,7 +318,7 @@ class Booster:
                     self.handle, ctypes.c_char_p(k.encode('utf-8')),
                     ctypes.c_char_p(str(v).encode('utf-8')))
 
-    def update(self, dtrain, it):
+    def update(self, dtrain, it, fobj=None):
         """
         update
             Args:
@@ -326,11 +326,19 @@ class Booster:
                         the training DMatrix
                 it: int
                     current iteration number
+                fobj: function
+                    cutomzied objective function
             Returns:
                 None
         """
         assert isinstance(dtrain, DMatrix)
-        xglib.XGBoosterUpdateOneIter(self.handle, it, dtrain.handle)
+        if fobj is None:
+            xglib.XGBoosterUpdateOneIter(self.handle, it, dtrain.handle)
+        else:
+            pred = self.predict( dtrain )
+            grad, hess = fobj( pred, dtrain )
+            self.boost( dtrain, grad, hess )
+
     def boost(self, dtrain, grad, hess):
         """ update
             Args:
@@ -347,22 +355,32 @@ class Booster:
                                     (ctypes.c_float*len(grad))(*grad),
                                     (ctypes.c_float*len(hess))(*hess),
                                     len(grad))
-    def eval_set(self, evals, it = 0):
+
+    def eval_set(self, evals, it = 0, feval = None):
         """evaluates by metric
             Args:
                 evals: list of tuple (DMatrix, string)
                        lists of items to be evaluated
                 it: int
+                feval: function
+                       custom evaluation function
             Returns:
                 evals result
         """
-        for d in evals:
-            assert isinstance(d[0], DMatrix)
-            assert isinstance(d[1], str)
-        dmats = (ctypes.c_void_p * len(evals) )(*[ d[0].handle for d in evals])
-        evnames = (ctypes.c_char_p * len(evals))(
-            * [ctypes.c_char_p(d[1].encode('utf-8')) for d in evals])
-        return xglib.XGBoosterEvalOneIter(self.handle, it, dmats, evnames, len(evals))
+        if feval is None:
+            for d in evals:
+                assert isinstance(d[0], DMatrix)
+                assert isinstance(d[1], str)
+            dmats = (ctypes.c_void_p * len(evals) )(*[ d[0].handle for d in evals])
+            evnames = (ctypes.c_char_p * len(evals))(
+                * [ctypes.c_char_p(d[1].encode('utf-8')) for d in evals])
+            return xglib.XGBoosterEvalOneIter(self.handle, it, dmats, evnames, len(evals))
+        else:
+            res = '[%d]' % it
+            for dm, evname in evals:
+                name, val = feval(self.predict(dm), dm)
+                res += '\t%s-%s:%f' % (evname, name, val)
+            return res
     def eval(self, mat, name = 'eval', it = 0):
         return self.eval_set( [(mat,name)], it)
     def predict(self, data, output_margin=False, ntree_limit=0):
@@ -373,7 +391,6 @@ class Booster:
                       the dmatrix storing the input
                 output_margin: bool
                                whether output raw margin value that is untransformed
-                               
                 ntree_limit: limit number of trees in prediction, default to 0, 0 means using all the trees
             Returns:
                 numpy array of prediction
@@ -447,30 +464,6 @@ class Booster:
                     fmap[fid]+= 1
         return fmap
 
-def evaluate(bst, evals, it, feval = None):
-    """evaluation on eval set
-        Args:
-            bst: XGBoost object
-                 object of XGBoost model
-            evals: list of tuple (DMatrix, string)
-                obj need to be evaluated
-            it: int
-            feval: optional
-        Returns:
-            eval result
-    """
-    if feval != None:
-        res = '[%d]' % it
-        for dm, evname in evals:
-            name, val = feval(bst.predict(dm), dm)
-            res += '\t%s-%s:%f' % (evname, name, val)
-    else:
-        res = bst.eval_set(evals, it)
-
-    return res
-
-
-
 def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None):
     """ train a booster with given paramaters
         Args:
@@ -482,26 +475,69 @@ def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None
                              num of round to be boosted
             evals: list
                    list of items to be evaluated
-            obj:
-            feval:
+            obj:  function
+                   cutomized objective function
+            feval: function
+                   cutomized evaluation function
     """
     bst = Booster(params, [dtrain]+[ d[0] for d in evals ] )
-    if obj is None:
-        for i in range(num_boost_round):
-            bst.update( dtrain, i )
-            if len(evals) != 0:
-                sys.stderr.write(evaluate(bst, evals, i, feval).decode()+'\n')
-    else:
-        # try customized objective function
-        for i in range(num_boost_round):
-            pred = bst.predict( dtrain )
-            grad, hess = obj( pred, dtrain )
-            bst.boost( dtrain, grad, hess )
-            if len(evals) != 0:
-                sys.stderr.write(evaluate(bst, evals, i, feval)+'\n')
+    for i in range(num_boost_round):
+        bst.update( dtrain, i, obj )
+        if len(evals) != 0:
+            sys.stderr.write(bst.eval_set(evals, i, feval).decode()+'\n')
     return bst
 
-def cv(params, dtrain, num_boost_round = 10, nfold=3, evals = [], obj=None, feval=None):
+class CVPack:
+    def __init__(self, dtrain, dtest, param):
+        self.dtrain = dtrain
+        self.dtest = dtest
+        self.watchlist = watchlist = [ (dtrain,'train'), (dtest, 'test') ]
+        self.bst = Booster(param, [dtrain,dtest])
+    def update(self, r, fobj):
+        self.bst.update(self.dtrain, r, fobj)
+    def eval(self, r, feval):
+        return self.bst.eval_set(self.watchlist, r, feval)
+
+def mknfold(dall, nfold, param, seed, evals=[], fpreproc = None):
+    """
+    mk nfold list of cvpack from randidx
+    """
+    np.random.seed(seed)
+    randidx = np.random.permutation(dall.num_row())
+    kstep = len(randidx) / nfold
+    idset = [randidx[ (i*kstep) : min(len(randidx),(i+1)*kstep) ] for i in range(nfold)]
+    ret = []
+    for k in range(nfold):
+        dtrain = dall.slice(np.concatenate([idset[i] for i in range(nfold) if k != i]))
+        dtest = dall.slice(idset[k])
+        # run preprocessing on the data set if needed
+        if fpreproc is not None:
+            dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
+        plst = tparam.items() + [('eval_metric', itm) for itm in evals]
+        ret.append(CVPack(dtrain, dtest, plst))
+    return ret
+
+def aggcv(rlist):
+    """
+    aggregate cross validation results
+    """
+    cvmap = {}
+    ret = rlist[0].split()[0]
+    for line in rlist:
+        arr = line.split()
+        assert ret == arr[0]
+        for it in arr[1:]:
+            k, v  = it.split(':')
+            if k not in cvmap:
+                cvmap[k] = []
+            cvmap[k].append(float(v))
+    for k, v in sorted(cvmap.items(), key = lambda x:x[0]):
+        v = np.array(v)
+        ret += '\t%s:%f+%f' % (k, np.mean(v), np.std(v))
+    return ret
+
+def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metric = [], \
+        obj = None, feval = None, fpreproc = None):
     """ cross validation  with given paramaters
         Args:
             params: dict
@@ -512,15 +548,16 @@ def cv(params, dtrain, num_boost_round = 10, nfold=3, evals = [], obj=None, feva
                              num of round to be boosted
             nfold: int
                    folds to do cv
-            evals: list
+            evals: list or
                    list of items to be evaluated
             obj:
             feval:
+            fpreproc: preprocessing function that takes dtrain, dtest,
+                      param and return transformed version of dtrain, dtest, param
     """
-    plst = list(params.items())+[('eval_metric', itm) for itm in evals]
-    cvfolds = mknfold(dtrain, nfold, plst, 0)
+    cvfolds = mknfold(dtrain, nfold, params, 0, eval_metric, fpreproc)
     for i in range(num_boost_round):
         for f in cvfolds:
-            f.update(i)
-        res = aggcv([f.eval(i) for f in cvfolds])
+            f.update(i, obj)
+        res = aggcv([f.eval(i, feval) for f in cvfolds])
         sys.stderr.write(res+'\n')

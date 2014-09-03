@@ -23,6 +23,7 @@ class GBTree : public IGradBooster {
     this->Clear();
   }
   virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
     if (!strncmp(name, "bst:", 4)) {
       cfg.push_back(std::make_pair(std::string(name+4), std::string(val)));
       // set into updaters, if already intialized
@@ -171,14 +172,14 @@ class GBTree : public IGradBooster {
     updaters.clear();
     std::string tval = tparam.updater_seq;
     char *pstr;
-    pstr = strtok(&tval[0], ",");
+    pstr = std::strtok(&tval[0], ",");
     while (pstr != NULL) {
       updaters.push_back(tree::CreateUpdater(pstr));
       for (size_t j = 0; j < cfg.size(); ++j) {
         // set parameters
         updaters.back()->SetParam(cfg[j].first.c_str(), cfg[j].second.c_str());
       }
-      pstr = strtok(NULL, ",");
+      pstr = std::strtok(NULL, ",");
     }
     tparam.updater_initialized = 1;
   }
@@ -279,6 +280,7 @@ class GBTree : public IGradBooster {
       updater_initialized = 0;
     }
     inline void SetParam(const char *name, const char *val){
+      using namespace std;
       if (!strcmp(name, "updater") &&
           strcmp(updater_seq.c_str(), val) != 0) {
         updater_seq = val;
@@ -319,7 +321,7 @@ class GBTree : public IGradBooster {
       num_pbuffer = 0;
       num_output_group = 1;
       size_leaf_vector = 0;
-      memset(reserved, 0, sizeof(reserved));
+      std::memset(reserved, 0, sizeof(reserved));
     }
     /*!
      * \brief set parameters from outside
@@ -327,6 +329,7 @@ class GBTree : public IGradBooster {
      * \param val  value of the parameter
      */
     inline void SetParam(const char *name, const char *val) {
+      using namespace std;
       if (!strcmp("num_pbuffer", name)) num_pbuffer = atol(val);
       if (!strcmp("num_output_group", name)) num_output_group = atol(val);
       if (!strcmp("bst:num_roots", name)) num_roots = atoi(val);

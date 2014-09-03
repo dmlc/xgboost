@@ -105,20 +105,20 @@ class FileStream : public ISeekStream {
     this->fp = NULL;
   }
   virtual size_t Read(void *ptr, size_t size) {
-    return fread(ptr, size, 1, fp);
+    return std::fread(ptr, size, 1, fp);
   }
   virtual void Write(const void *ptr, size_t size) {
-    fwrite(ptr, size, 1, fp);
+    std::fwrite(ptr, size, 1, fp);
   }
   virtual void Seek(long pos) {
-    fseek(fp, pos, SEEK_SET);
+    std::fseek(fp, pos, SEEK_SET);
   }
   virtual long Tell(void) {
-    return ftell(fp);
+    return std::ftell(fp);
   }
   inline void Close(void) {
     if (fp != NULL){
-      fclose(fp); fp = NULL;
+      std::fclose(fp); fp = NULL;
     }
   }
 

@@ -86,7 +86,7 @@ void HandlePrint(const char *msg);
 #endif
 #endif
 #ifdef XGBOOST_STRICT_CXX98_
-// these function pointers are to be assigned 
+// these function pointers are to be assigned
 extern "C" void (*Printf)(const char *fmt, ...);
 extern "C" int (*SPrintf)(char *buf, size_t size, const char *fmt, ...);
 extern "C" void (*Assert)(int exp, const char *fmt, ...);
@@ -94,7 +94,7 @@ extern "C" void (*Check)(int exp, const char *fmt, ...);
 extern "C" void (*Error)(const char *fmt, ...);
 #else
 /*! \brief printf, print message to the console */
-inline void Printf(const char *fmt, ...) {  
+inline void Printf(const char *fmt, ...) {
   std::string msg(kPrintBuffer, '\0');
   va_list args;
   va_start(args, fmt);
@@ -103,7 +103,7 @@ inline void Printf(const char *fmt, ...) {
   HandlePrint(msg.c_str());
 }
 /*! \brief portable version of snprintf */
-inline int SPrintf(char *buf, size_t size, const char *fmt, ...) {  
+inline int SPrintf(char *buf, size_t size, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
   int ret = vsnprintf(buf, size, fmt, args);
@@ -149,12 +149,12 @@ inline void Error(const char *fmt, ...) {
 #endif
 
 /*! \brief replace fopen, report error when the file open fails */
-inline FILE *FopenCheck(const char *fname, const char *flag) {
-  FILE *fp = fopen64(fname, flag);
+inline std::FILE *FopenCheck(const char *fname, const char *flag) {
+  std::FILE *fp = fopen64(fname, flag);
   Check(fp != NULL, "can not open file \"%s\"\n", fname);
   return fp;
 }
-} // namespace utils
+}  // namespace utils
 // easy utils that can be directly acessed in xgboost
 /*! \brief get the beginning address of a vector */
 template<typename T>

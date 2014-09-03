@@ -147,10 +147,11 @@ struct EvalAMS : public IEvaluator {
   explicit EvalAMS(const char *name) {
     name_ = name;
     // note: ams@0 will automatically select which ratio to go
-    utils::Check(sscanf(name, "ams@%f", &ratio_) == 1, "invalid ams format");
+    utils::Check(std::sscanf(name, "ams@%f", &ratio_) == 1, "invalid ams format");
   }
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info) const {
+    using namespace std;
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
 
     utils::Check(info.weights.size() == ndata, "we need weight to evaluate ams");
@@ -202,6 +203,7 @@ struct EvalAMS : public IEvaluator {
 struct EvalPrecisionRatio : public IEvaluator{
  public:
   explicit EvalPrecisionRatio(const char *name) : name_(name) {
+    using namespace std;
     if (sscanf(name, "apratio@%f", &ratio_) == 1) {
       use_ap = 1;
     } else {
@@ -342,6 +344,7 @@ struct EvalRankList : public IEvaluator {
 
  protected:
   explicit EvalRankList(const char *name) {
+    using namespace std;
     name_ = name;
     minus_ = false;
     if (sscanf(name, "%*[^@]@%u[-]?", &topn_) != 1) {
@@ -388,7 +391,7 @@ struct EvalNDCG : public EvalRankList{
     for (size_t i = 0; i < rec.size() && i < this->topn_; ++i) {
       const unsigned rel = rec[i].second;
       if (rel != 0) { 
-        sumdcg += ((1 << rel) - 1) / log(i + 2.0);
+        sumdcg += ((1 << rel) - 1) / std::log(i + 2.0);
       }
     }
     return static_cast<float>(sumdcg);
