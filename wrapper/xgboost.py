@@ -437,14 +437,14 @@ def mknfold(dall, nfold, param, seed, evals=[], fpreproc = None):
     """
     mk nfold list of cvpack from randidx
     """
-    np.random.seed(seed)    
-    randidx = np.random.permutation(dall.num_rows()) 
+    np.random.seed(seed)
+    randidx = np.random.permutation(dall.num_row())
     kstep = len(randidx) / nfold
     idset = [randidx[ (i*kstep) : min(len(randidx),(i+1)*kstep) ] for i in range(nfold)]
     ret = []
     for k in range(nfold):
         dtrain = dall.slice(np.concatenate([idset[i] for i in range(nfold) if k != i]))
-        dtest = all.slice(idxset[k])
+        dtest = dall.slice(idset[k])
         # run preprocessing on the data set if needed
         if fpreproc is not None:
             dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
@@ -483,14 +483,14 @@ def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metric = [], \
                              num of round to be boosted
             nfold: int
                    folds to do cv
-            evals: list or 
+            evals: list or
                    list of items to be evaluated
             obj:
             feval:
-            fpreproc: preprocessing function that takes dtrain, dtest, 
+            fpreproc: preprocessing function that takes dtrain, dtest,
                       param and return transformed version of dtrain, dtest, param
     """
-    cvfolds = mknfold(dtrain, nfold, params, 0, eval_metrics, fpreproc)
+    cvfolds = mknfold(dtrain, nfold, params, 0, eval_metric, fpreproc)
     for i in range(num_boost_round):
         for f in cvfolds:
             f.update(i, obj)
