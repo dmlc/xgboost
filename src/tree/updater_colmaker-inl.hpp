@@ -421,7 +421,7 @@ class ColMaker: public IUpdater {
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           const bst_uint fid = batch.col_index[i];
           const int tid = omp_get_thread_num();
-          const ColBatch::Inst c = batch[i];
+          const ColBatch::Inst c = batch[i];          
           if (param.need_forward_search(fmat.GetColDensity(fid))) {
             this->EnumerateSplit(c.data, c.data + c.length, +1, 
                                  fid, gpair, info, stemp[tid]);
@@ -452,6 +452,7 @@ class ColMaker: public IUpdater {
         utils::Check(n > 0, "colsample_bylevel is too small that no feature can be included");
         feat_set.resize(n);
       }
+      std::sort(feat_set.begin(), feat_set.end());
       utils::IIterator<ColBatch> *iter = p_fmat->ColIterator(feat_set);
       while (iter->Next()) {
         this->UpdateSolution(iter->Value(), gpair, *p_fmat, info);
