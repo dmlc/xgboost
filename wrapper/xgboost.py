@@ -448,7 +448,7 @@ def mknfold(dall, nfold, param, seed, evals=[], fpreproc = None):
         # run preprocessing on the data set if needed
         if fpreproc is not None:
             dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
-        plst = param.items() + [('eval_metric', itm) for itm in evals]
+        plst = tparam.items() + [('eval_metric', itm) for itm in evals]
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
