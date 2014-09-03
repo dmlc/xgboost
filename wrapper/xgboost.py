@@ -213,77 +213,6 @@ class DMatrix:
             self.handle, (ctypes.c_int*len(rindex))(*rindex), len(rindex)))
         return res
 
-class CVPack:
-    def __init__(self, dtrain, dtest, param):
-        self.dtrain = dtrain
-        self.dtest = dtest
-        self.watchlist = watchlist = [ (dtrain,'train'), (dtest, 'test') ]
-        self.bst = Booster(param, [dtrain,dtest])
-    def update(self,r):
-        self.bst.update(self.dtrain, r)
-    def eval(self,r):
-        return self.bst.eval_set(self.watchlist, r)
-
-def mknfold(dall, nfold, param, seed, weightscale=None, evals=[], set_pos_weight=None):
-    """
-    mk nfold list of cvpack from randidx
-    """
-    randidx = range(dall.num_row())
-    random.seed(seed)
-    random.shuffle(randidx)
-
-    idxset = []
-    kstep = len(randidx) / nfold
-    for i in range(nfold):
-        idxset.append(randidx[ (i*kstep) : min(len(randidx),(i+1)*kstep) ])
-
-    ret = []
-    for k in range(nfold):
-        trainlst = []
-        for j in range(nfold):
-            if j == k:
-                testlst = idxset[j]
-            else:
-                trainlst += idxset[j]
-        dtrain = dall.slice(trainlst)
-        dtest = dall.slice(testlst)
-        # rescale weight of dtrain and dtest
-        if weightscale != None:
-            dtrain.set_weight( dtrain.get_weight() * weightscale * dall.num_row() / dtrain.num_row() )
-            dtest.set_weight( dtest.get_weight() * weightscale * dall.num_row() / dtest.num_row() )
-        if set_pos_weight != None:
-            label = dtrain.get_label()
-            weight = dtrain.get_weight()
-            sum_wpos = sum( weight[i] for i in range(len(label)) if label[i] == 1.0  )
-            sum_wneg = sum( weight[i] for i in range(len(label)) if label[i] == 0.0  )
-            param['scale_pos_weight'] = sum_wneg/sum_wpos
-        plst = param.items() + [('eval_metric', itm) for itm in evals]
-        ret.append(CVPack(dtrain, dtest, plst))
-    return ret
-
-def aggcv(rlist):
-    """
-    aggregate cross validation results
-    """
-    cvmap = {}
-    arr = rlist[0].split()
-    ret = arr[0]
-    for it in arr[1:]:
-        k, v  = it.split(':')
-        cvmap[k] = [float(v)]
-    for line in rlist[1:]:
-        arr = line.split()
-        assert ret == arr[0]
-        for it in arr[1:]:
-            k, v  = it.split(':')
-            cvmap[k].append(float(v))
-
-    for k, v in sorted(cvmap.items(), key = lambda x:x[0]):
-        v = np.array(v)
-        ret += '\t%s:%f+%f' % (k, np.mean(v), np.std(v))
-    return ret
-
-
 class Booster:
     """learner class """
     def __init__(self, params={}, cache=[], model_file = None):
@@ -324,7 +253,7 @@ class Booster:
                     self.handle, ctypes.c_char_p(k.encode('utf-8')),
                     ctypes.c_char_p(str(v).encode('utf-8')))
 
-    def update(self, dtrain, it):
+    def update(self, dtrain, it, fobj=None):
         """
         update
             Args:
@@ -332,11 +261,19 @@ class Booster:
                         the training DMatrix
                 it: int
                     current iteration number
+                fobj: function
+                    cutomzied objective function
             Returns:
                 None
         """
         assert isinstance(dtrain, DMatrix)
-        xglib.XGBoosterUpdateOneIter(self.handle, it, dtrain.handle)
+        if fobj is None:
+            xglib.XGBoosterUpdateOneIter(self.handle, it, dtrain.handle)
+        else:
+            pred = self.predict( dtrain )
+            grad, hess = fobj( pred, dtrain )
+            self.boost( dtrain, grad, hess )
+
     def boost(self, dtrain, grad, hess):
         """ update
             Args:
@@ -353,22 +290,31 @@ class Booster:
                                     (ctypes.c_float*len(grad))(*grad),
                                     (ctypes.c_float*len(hess))(*hess),
                                     len(grad))
-    def eval_set(self, evals, it = 0):
+    def eval_set(self, evals, it = 0, feval = None):
         """evaluates by metric
             Args:
                 evals: list of tuple (DMatrix, string)
                        lists of items to be evaluated
                 it: int
+                feval: function 
+                       custom evaluation function
             Returns:
                 evals result
         """
-        for d in evals:
-            assert isinstance(d[0], DMatrix)
-            assert isinstance(d[1], str)
-        dmats = (ctypes.c_void_p * len(evals) )(*[ d[0].handle for d in evals])
-        evnames = (ctypes.c_char_p * len(evals))(
-            * [ctypes.c_char_p(d[1].encode('utf-8')) for d in evals])
-        return xglib.XGBoosterEvalOneIter(self.handle, it, dmats, evnames, len(evals))
+        if feval is None:
+            for d in evals:
+                assert isinstance(d[0], DMatrix)
+                assert isinstance(d[1], str)
+            dmats = (ctypes.c_void_p * len(evals) )(*[ d[0].handle for d in evals])
+            evnames = (ctypes.c_char_p * len(evals))(
+                * [ctypes.c_char_p(d[1].encode('utf-8')) for d in evals])
+            return xglib.XGBoosterEvalOneIter(self.handle, it, dmats, evnames, len(evals))
+        else:
+            res = '[%d]' % it
+            for dm, evname in evals:
+                name, val = feval(self.predict(dm), dm)
+                res += '\t%s-%s:%f' % (evname, name, val)
+            return res
     def eval(self, mat, name = 'eval', it = 0):
         return self.eval_set( [(mat,name)], it)
     def predict(self, data, output_margin=False, ntree_limit=0):
@@ -453,31 +399,7 @@ class Booster:
                     fmap[fid]+= 1
         return fmap
 
-def evaluate(bst, evals, it, feval = None):
-    """evaluation on eval set
-        Args:
-            bst: XGBoost object
-                 object of XGBoost model
-            evals: list of tuple (DMatrix, string)
-                obj need to be evaluated
-            it: int
-            feval: optional
-        Returns:
-            eval result
-    """
-    if feval != None:
-        res = '[%d]' % it
-        for dm, evname in evals:
-            name, val = feval(bst.predict(dm), dm)
-            res += '\t%s-%s:%f' % (evname, name, val)
-    else:
-        res = bst.eval_set(evals, it)
-
-    return res
-
-
-
-def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None):
+def train(params, dtrain, num_boost_round = 10, evals = [], fobj=None, feval=None):
     """ train a booster with given paramaters
         Args:
             params: dict
@@ -488,27 +410,84 @@ def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None
                              num of round to be boosted
             evals: list
                    list of items to be evaluated
-            obj:
-            feval:
+            fobj:  function
+                   cutomized objective function
+            feval: function
+                   cutomized evaluation function
     """
     bst = Booster(params, [dtrain]+[ d[0] for d in evals ] )
-    if obj is None:
-        for i in range(num_boost_round):
-            bst.update( dtrain, i )
-            if len(evals) != 0:
-                sys.stderr.write(evaluate(bst, evals, i, feval).decode()+'\n')
-    else:
-        # try customized objective function
-        for i in range(num_boost_round):
-            pred = bst.predict( dtrain )
-            grad, hess = obj( pred, dtrain )
-            bst.boost( dtrain, grad, hess )
-            if len(evals) != 0:
-                sys.stderr.write(evaluate(bst, evals, i, feval)+'\n')
+    for i in range(num_boost_round):
+        bst.update( dtrain, i, fobj )
+        if len(evals) != 0:
+            sys.stderr.write(bst.eval_set(evals, i, feval).decode()+'\n')
     return bst
 
-def cv(params, dtrain, num_boost_round = 10, nfold=3, evals = [], \
-        weightscale=None, obj=None, feval=None, set_pos_weight=None):
+class CVPack:
+    def __init__(self, dtrain, dtest, param):
+        self.dtrain = dtrain
+        self.dtest = dtest
+        self.watchlist = watchlist = [ (dtrain,'train'), (dtest, 'test') ]
+        self.bst = Booster(param, [dtrain,dtest])
+    def update(self, r, fobj):
+        self.bst.update(self.dtrain, r, fobj)
+    def eval(self, r, fval):
+        return self.bst.eval_set(self.watchlist, r, feval)
+
+def mknfold(dall, nfold, param, seed, weightscale=None, evals=[]):
+    """
+    mk nfold list of cvpack from randidx
+    """
+    randidx = range(dall.num_row())
+    random.seed(seed)
+    random.shuffle(randidx)
+
+    idxset = []
+    kstep = len(randidx) / nfold
+    for i in range(nfold):
+        idxset.append(randidx[ (i*kstep) : min(len(randidx),(i+1)*kstep) ])
+
+    ret = []
+    for k in range(nfold):
+        trainlst = []
+        for j in range(nfold):
+            if j == k:
+                testlst = idxset[j]
+            else:
+                trainlst += idxset[j]
+        dtrain = dall.slice(trainlst)
+        dtest = dall.slice(testlst)
+        # rescale weight of dtrain and dtest
+        if weightscale != None:
+            dtrain.set_weight( dtrain.get_weight() * weightscale * dall.num_row() / dtrain.num_row() )
+            dtest.set_weight( dtest.get_weight() * weightscale * dall.num_row() / dtest.num_row() )
+        plst = param.items() + [('eval_metric', itm) for itm in evals]
+        ret.append(CVPack(dtrain, dtest, plst))
+    return ret
+
+def aggcv(rlist):
+    """
+    aggregate cross validation results
+    """
+    cvmap = {}
+    arr = rlist[0].split()
+    ret = arr[0]
+    for it in arr[1:]:
+        k, v  = it.split(':')
+        cvmap[k] = [float(v)]
+    for line in rlist[1:]:
+        arr = line.split()
+        assert ret == arr[0]
+        for it in arr[1:]:
+            k, v  = it.split(':')
+            cvmap[k].append(float(v))
+
+    for k, v in sorted(cvmap.items(), key = lambda x:x[0]):
+        v = np.array(v)
+        ret += '\t%s:%f+%f' % (k, np.mean(v), np.std(v))
+    return ret
+
+def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metrics = [], \
+        weightscale=None, fobj=None, feval=None):
     """ cross validation  with given paramaters
         Args:
             params: dict
@@ -521,14 +500,12 @@ def cv(params, dtrain, num_boost_round = 10, nfold=3, evals = [], \
                    folds to do cv
             evals: list
                    list of items to be evaluated
-            obj:
+            fobj:
             feval:
-            set_pos_weight: bool, optional
-                            Adjust pos weight by number
     """
-    cvfolds = mknfold(dtrain, nfold, params, 0, weightscale, evals)
+    cvfolds = mknfold(dtrain, nfold, params, 0, weightscale, evals_metrics)
     for i in range(num_boost_round):
         for f in cvfolds:
-            f.update(i)
-        res = aggcv([f.eval(i) for f in cvfolds])
+            f.update(i, fobj)
+        res = aggcv([f.eval(i, fval) for f in cvfolds])
         sys.stderr.write(res+'\n')
