@@ -46,9 +46,10 @@ class CSCMatrixManager {
     }
     /*! \brief get underlying batch */
     inline ColBatch GetBatch(void) const {
-      ColBatch batch; 
-      batch.col_index = &col_index[0];
-      batch.col_data  = &col_data[0];
+      ColBatch batch;
+      batch.size = col_index.size();
+      batch.col_index = BeginPtr(col_index);
+      batch.col_data  = BeginPtr(col_data);
       return batch;
     }
    private:
@@ -79,11 +80,13 @@ class CSCMatrixManager {
     col_index_ = col_todo_;
     read_top_ = 0;
   }
-  inline bool LoadNext(PagePtr &val) {
+  inline bool LoadNext(PagePtr &val) {    
     val->Clear();
     if (read_top_ >= col_index_.size()) return false;
     while (read_top_ < col_index_.size()) {
-      if (!this->TryFill(col_index_[read_top_], val)) return true;
+      if (!this->TryFill(col_index_[read_top_], val)) {
+        return true;
+      }
       ++read_top_;
     }
     return true;
@@ -241,11 +244,9 @@ class FMatrixPage : public IFMatrix {
   }
   virtual void InitColAccess(float pkeep = 1.0f) {
     if (this->HaveColAccess()) return;
-    if (!this->LoadColData()) {
-      this->InitColData(pkeep, fname_cbuffer_.c_str(),
-                        64 << 20, 5);
-      utils::Check(this->LoadColData(), "fail to read in column data");
-    }
+    this->InitColData(pkeep, fname_cbuffer_.c_str(),
+                      64 << 20, 5);
+    utils::Check(this->LoadColData(), "fail to read in column data");
   }
   /*!
    * \brief get the row iterator associated with FMatrix
