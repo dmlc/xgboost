@@ -88,12 +88,21 @@ class IStream {
   }
 };
 
-/*! \brief implementation of file i/o stream */
-class FileStream : public IStream {
- private:
-  std::FILE *fp;
+/*! \brief interface of i/o stream that support seek */
+class ISeekStream: public IStream {
  public:
-  explicit FileStream(std::FILE *fp) : fp(fp) {
+  /*! \brief seek to certain position of the file */
+  virtual void Seek(long pos) = 0;
+  /*! \brief tell the position of the stream */
+  virtual long Tell(void) = 0;
+};
+
+/*! \brief implementation of file i/o stream */
+class FileStream : public ISeekStream {
+ public:
+  explicit FileStream(FILE *fp) : fp(fp) {}
+  explicit FileStream(void) {
+    this->fp = NULL;
   }
   virtual size_t Read(void *ptr, size_t size) {
     return std::fread(ptr, size, 1, fp);
@@ -101,14 +110,21 @@ class FileStream : public IStream {
   virtual void Write(const void *ptr, size_t size) {
     std::fwrite(ptr, size, 1, fp);
   }
-  inline void Seek(size_t pos) {
-    std::fseek(fp, 0, SEEK_SET);
+  virtual void Seek(long pos) {
+    std::fseek(fp, pos, SEEK_SET);
+  }
+  virtual long Tell(void) {
+    return std::ftell(fp);
   }
   inline void Close(void) {
-    std::fclose(fp);
+    if (fp != NULL){
+      std::fclose(fp); fp = NULL;
+    }
   }
-};
 
+ private:
+  FILE *fp;
+};
 }  // namespace utils
 }  // namespace xgboost
 #endif
