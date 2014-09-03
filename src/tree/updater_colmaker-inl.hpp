@@ -452,7 +452,6 @@ class ColMaker: public IUpdater {
         utils::Check(n > 0, "colsample_bylevel is too small that no feature can be included");
         feat_set.resize(n);
       }
-      std::sort(feat_set.begin(), feat_set.end());
       utils::IIterator<ColBatch> *iter = p_fmat->ColIterator(feat_set);
       while (iter->Next()) {
         this->UpdateSolution(iter->Value(), gpair, *p_fmat, info);

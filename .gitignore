@@ -44,3 +44,5 @@ Debug
 *dump
 *save
 *csv
+*.cpage.col
+*.cpage
