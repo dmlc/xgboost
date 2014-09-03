@@ -132,6 +132,7 @@ class CSCMatrixManager {
                  "invalid column buffer format");
     p_page->col_data.push_back(ColBatch::Inst(p_data, len));
     p_page->col_index.push_back(cidx);
+    return true;
   }
   // the following are in memory auxiliary data structure
   /*! \brief top of reader position */
@@ -159,6 +160,7 @@ class ThreadColPageIterator : public utils::IIterator<ColBatch> {
                                  float page_ratio, bool silent) {
     itr_.SetParam("buffer_size", "2");
     itr_.get_factory().Setup(fi, page_ratio);
+    itr_.Init();
     if (!silent) {
       utils::Printf("ThreadColPageIterator: finish initialzing, %u columns\n",
                     static_cast<unsigned>(col_ptr().size() - 1));
@@ -239,8 +241,11 @@ class FMatrixPage : public IFMatrix {
   }
   virtual void InitColAccess(float pkeep = 1.0f) {
     if (this->HaveColAccess()) return;
-    this->InitColData(pkeep, fname_cbuffer_.c_str(),
-                      64 << 20, 5);
+    if (!this->LoadColData()) {
+      this->InitColData(pkeep, fname_cbuffer_.c_str(),
+                        64 << 20, 5);
+      utils::Check(this->LoadColData(), "fail to read in column data");
+    }
   }
   /*!
    * \brief get the row iterator associated with FMatrix
