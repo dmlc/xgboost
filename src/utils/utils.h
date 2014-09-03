@@ -149,8 +149,8 @@ inline void Error(const char *fmt, ...) {
 #endif
 
 /*! \brief replace fopen, report error when the file open fails */
-inline FILE *FopenCheck(const char *fname, const char *flag) {
-  FILE *fp = fopen64(fname, flag);
+inline std::FILE *FopenCheck(const char *fname, const char *flag) {
+  std::FILE *fp = fopen64(fname, flag);
   Check(fp != NULL, "can not open file \"%s\"\n", fname);
   return fp;
 }

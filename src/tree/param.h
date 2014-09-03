@@ -62,6 +62,7 @@ struct TrainParam{
    * \param val  value of the parameter
    */            
   inline void SetParam(const char *name, const char *val) {
+    using namespace std;
     // sync-names
     if (!strcmp(name, "gamma")) min_split_loss = static_cast<float>(atof(val));
     if (!strcmp(name, "eta")) learning_rate = static_cast<float>(atof(val));

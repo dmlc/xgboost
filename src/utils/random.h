@@ -53,7 +53,7 @@ inline double NextDouble(void) {
 }
 /*! \brief return a random number in n */
 inline uint32_t NextUInt32(uint32_t n) {
-  return (uint32_t)floor(NextDouble() * n);
+  return (uint32_t)std::floor(NextDouble() * n);
 }
 /*! \brief return  x~N(mu,sigma^2) */
 inline double SampleNormal(double mu, double sigma) {

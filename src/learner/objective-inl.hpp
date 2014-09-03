@@ -101,6 +101,7 @@ class RegLossObj : public IObjFunction{
   }
   virtual ~RegLossObj(void) {}
   virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
     if (!strcmp("scale_pos_weight", name)) {
       scale_pos_weight = static_cast<float>(atof(val));
     }
@@ -156,6 +157,7 @@ class SoftmaxMultiClassObj : public IObjFunction {
   }
   virtual ~SoftmaxMultiClassObj(void) {}
   virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
     if (!strcmp( "num_class", name )) nclass = atoi(val);
   }
   virtual void GetGradient(const std::vector<float> &preds,
@@ -247,6 +249,7 @@ class LambdaRankObj : public IObjFunction {
   }
   virtual ~LambdaRankObj(void) {}
   virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
     if (!strcmp( "loss_type", name )) loss.loss_type = atoi(val);
     if (!strcmp( "fix_list_weight", name)) fix_list_weight = static_cast<float>(atof(val));
     if (!strcmp( "num_pairsample", name)) num_pairsample = atoi(val);

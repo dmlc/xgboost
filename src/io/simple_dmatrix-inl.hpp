@@ -55,8 +55,8 @@ class DMatrixSimple : public DataMatrix {
         RowBatch::Inst inst = batch[i];
         row_data_.resize(row_data_.size() + inst.length);
         if (inst.length != 0) {
-          memcpy(&row_data_[row_ptr_.back()], inst.data,
-                 sizeof(RowBatch::Entry) * inst.length);
+          std::memcpy(&row_data_[row_ptr_.back()], inst.data,
+                      sizeof(RowBatch::Entry) * inst.length);
         }
         row_ptr_.push_back(row_ptr_.back() + inst.length);
       }
@@ -82,6 +82,7 @@ class DMatrixSimple : public DataMatrix {
    * \param silent whether print information or not
    */
   inline void LoadText(const char* fname, bool silent = false) {
+    using namespace std;
     this->Clear();
     FILE* file = utils::FopenCheck(fname, "r");
     float label; bool init = true;
@@ -135,7 +136,7 @@ class DMatrixSimple : public DataMatrix {
    * \return whether loading is success
    */
   inline bool LoadBinary(const char* fname, bool silent = false) {
-    FILE *fp = fopen64(fname, "rb");
+    std::FILE *fp = fopen64(fname, "rb");
     if (fp == NULL) return false;
     utils::FileStream fs(fp);
     this->LoadBinary(fs, silent, fname);
@@ -208,6 +209,7 @@ class DMatrixSimple : public DataMatrix {
    * \param savebuffer whether do save binary buffer if it is text
    */
   inline void CacheLoad(const char *fname, bool silent = false, bool savebuffer = true) {
+    using namespace std;
     size_t len = strlen(fname);
     if (len > 8 && !strcmp(fname + len - 7, ".buffer")) {
       if (!this->LoadBinary(fname, silent)) {
