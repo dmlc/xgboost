@@ -1,5 +1,8 @@
-# Author: Tianqi Chen, Bing Xu
-# module for xgboost
+"""
+xgboost: eXtreme Gradient Boosting library
+Author: Tianqi Chen, Bing Xu
+
+"""
 import ctypes
 import os
 # optinally have scipy sparse, though not necessary
@@ -7,7 +10,6 @@ import numpy as np
 import sys
 import numpy.ctypeslib
 import scipy.sparse as scp
-import random
 
 # set this line correctly
 if os.name == 'nt':
@@ -17,7 +19,7 @@ else:
 
 # load in xgboost library
 xglib = ctypes.cdll.LoadLibrary(XGBOOST_PATH)
-
+# DMatrix functions
 xglib.XGDMatrixCreateFromFile.restype = ctypes.c_void_p
 xglib.XGDMatrixCreateFromCSR.restype = ctypes.c_void_p
 xglib.XGDMatrixCreateFromMat.restype = ctypes.c_void_p
@@ -25,7 +27,7 @@ xglib.XGDMatrixSliceDMatrix.restype = ctypes.c_void_p
 xglib.XGDMatrixGetFloatInfo.restype = ctypes.POINTER(ctypes.c_float)
 xglib.XGDMatrixGetUIntInfo.restype = ctypes.POINTER(ctypes.c_uint)
 xglib.XGDMatrixNumRow.restype = ctypes.c_ulong
-
+# booster functions
 xglib.XGBoosterCreate.restype = ctypes.c_void_p
 xglib.XGBoosterPredict.restype = ctypes.POINTER(ctypes.c_float)
 xglib.XGBoosterEvalOneIter.restype = ctypes.c_char_p
