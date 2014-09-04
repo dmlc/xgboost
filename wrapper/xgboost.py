@@ -296,6 +296,7 @@ class Booster:
                 evals: list of tuple (DMatrix, string)
                        lists of items to be evaluated
                 it: int
+                    current iteration
                 feval: function
                        custom evaluation function
             Returns:
@@ -326,7 +327,8 @@ class Booster:
                 output_margin: bool
                                whether output raw margin value that is untransformed
 
-                ntree_limit: limit number of trees in prediction, default to 0, 0 means using all the trees
+                ntree_limit: int
+                             limit number of trees in prediction, default to 0, 0 means using all the trees
             Returns:
                 numpy array of prediction
         """
@@ -406,14 +408,15 @@ def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None
                     params of booster
             dtrain: DMatrix
                     data to be trained
-            num_boost_round: int
+            num_boost_round: int 
                              num of round to be boosted
-            evals: list
-                   list of items to be evaluated
+            watchlist: list of pairs (DMatrix, string) 
+                       list of items to be evaluated during training, this allows user to watch performance on validation set
             obj:  function
                    cutomized objective function
             feval: function
                    cutomized evaluation function
+        Returns: Booster model trained
     """
     bst = Booster(params, [dtrain]+[ d[0] for d in evals ] )
     for i in range(num_boost_round):
@@ -487,15 +490,20 @@ def cv(params, dtrain, num_boost_round = 10, nfold=3, metrics=[], \
             num_boost_round: int
                              num of round to be boosted
             nfold: int
-                   folds to do cv
-            evals: list or
-                   list of items to be evaluated
-            obj: custom objective function
-            feval: custom evaluation function
-            fpreproc: preprocessing function that takes dtrain, dtest,
+                   number of folds to do cv
+            metrics: list of strings
+                     evaluation metrics to be watched in cv
+            obj: function 
+                 custom objective function
+            feval: function
+                   custom evaluation function
+            fpreproc: function
+                      preprocessing function that takes dtrain, dtest,
                       param and return transformed version of dtrain, dtest, param
-            show_stdv: whether display standard deviation
-            seed: seed used to generate the folds
+            show_stdv: bool
+                       whether display standard deviation
+            seed: int 
+                  seed used to generate the folds, this is passed to numpy.random.seed
 
         Returns: list(string) of evaluation history
     """
