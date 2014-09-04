@@ -1,9 +1,10 @@
 XGBoost Examples
 ====
 This folder contains the all example codes using xgboost. 
-Contribution of exampls, benchmarks is more than welcomed!
-If you like to share how you use xgboost to solve your problem, send a pull request:)
 
+* Contribution of exampls, benchmarks is more than welcomed!
+* If you like to share how you use xgboost to solve your problem, send a pull request:)
+ 
 Features Walkthrough
 ====
 This is a list of short codes introducing different functionalities of xgboost and its wrapper.
