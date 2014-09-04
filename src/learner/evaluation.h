@@ -80,6 +80,9 @@ class EvalSet{
     }
     return result;
   }
+  inline size_t Size(void) const {
+    return evals_.size();
+  }
 
  private:
   std::vector<const IEvaluator*> evals_;
