@@ -60,7 +60,8 @@ watchlist  = [(dtest,'eval'), (dtrain,'train')]
 bst = xgb.train( param, dtrain, num_round, watchlist )
 
 print ('start running example of build DMatrix from numpy array')
-# NOTE: npymat is numpy array, we will convert it into scipy.sparse.csr_matrix in internal implementation,then convert to DMatrix
+# NOTE: npymat is numpy array, we will convert it into scipy.sparse.csr_matrix in internal implementation
+# then convert to DMatrix
 npymat = csr.todense()
 dtrain = xgb.DMatrix( npymat)
 dtrain.set_label(labels)
