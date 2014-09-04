@@ -83,7 +83,7 @@ struct RowBatchPage {
     return data_[0];
   }
 
- private:
+ protected:
   /*! \return number of elements */
   inline size_t FreeBytes(void) {
     return (kPageSize - (Size() + 2)) * sizeof(int) -
@@ -96,10 +96,10 @@ struct RowBatchPage {
   inline RowBatch::Entry* data_ptr(int i) {
     return (RowBatch::Entry*)(&data_[1]) + i;
   }
-  // page size
-  const size_t kPageSize;
   // content of data
   int *data_;
+  // page size
+  const size_t kPageSize;
 };
 /*! \brief thread buffer iterator */
 class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
