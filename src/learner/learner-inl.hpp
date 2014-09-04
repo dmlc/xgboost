@@ -244,7 +244,9 @@ class BoostLearner {
       obj_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
       gbm_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
     }
-    evaluator_.AddEval(obj_->DefaultEvalMetric());
+    if (evaluator_.Size() == 0) {
+      evaluator_.AddEval(obj_->DefaultEvalMetric());
+    }
   }
   /*! 
    * \brief get un-transformed prediction

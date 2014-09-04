@@ -12,7 +12,7 @@ This is a list of short codes introducing different functionalities of xgboost a
 * Cutomize loss function, and evaluation metric. [python](guide-python/custom_objective.py)
 * Boosting from existing prediction. [python](guide-python/boost_from_prediction.py)
 * Predicting using first n trees. [python](guide-python/predict_first_ntree.py)
-* Cross validation(to come)
+* Cross validation [python](guide-python/cross_validation.py)
 
 Basic Examples by Tasks
 ====
