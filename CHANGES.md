@@ -11,7 +11,7 @@ xgboost-0.2x
 * Weighted samples instances
 * Initial version of pairwise rank
 
-xgboost-unity
+xgboost-0.3
 =====
 * Faster tree construction module
   - Allows subsample columns during tree construction via ```bst:col_samplebytree=ratio```

@@ -91,22 +91,21 @@ class IStream {
 /*! \brief implementation of file i/o stream */
 class FileStream : public IStream {
  private:
-  FILE *fp;
+  std::FILE *fp;
  public:
-  explicit FileStream(FILE *fp) {
-    this->fp = fp;
+  explicit FileStream(std::FILE *fp) : fp(fp) {
   }
   virtual size_t Read(void *ptr, size_t size) {
-    return fread(ptr, size, 1, fp);
+    return std::fread(ptr, size, 1, fp);
   }
   virtual void Write(const void *ptr, size_t size) {
-    fwrite(ptr, size, 1, fp);
+    std::fwrite(ptr, size, 1, fp);
   }
   inline void Seek(size_t pos) {
-    fseek(fp, 0, SEEK_SET);
+    std::fseek(fp, 0, SEEK_SET);
   }
   inline void Close(void) {
-    fclose(fp);
+    std::fclose(fp);
   }
 };
 

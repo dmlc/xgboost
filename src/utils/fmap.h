@@ -24,15 +24,15 @@ class FeatMap {
   // function definitions
   /*! \brief load feature map from text format */
   inline void LoadText(const char *fname) {
-    FILE *fi = utils::FopenCheck(fname, "r");
+    std::FILE *fi = utils::FopenCheck(fname, "r");
     this->LoadText(fi);
-    fclose(fi);
+    std::fclose(fi);
   }
   /*! \brief load feature map from text format */
-  inline void LoadText(FILE *fi) {
+  inline void LoadText(std::FILE *fi) {
     int fid;
     char fname[1256], ftype[1256];
-    while (fscanf(fi, "%d\t%[^\t]\t%s\n", &fid, fname, ftype) == 3) {
+    while (std::fscanf(fi, "%d\t%[^\t]\t%s\n", &fid, fname, ftype) == 3) {
       this->PushBack(fid, fname, ftype);
     }
   }
@@ -62,6 +62,7 @@ class FeatMap {
 
  private:
   inline static Type GetType(const char *tname) {
+    using namespace std;
     if (!strcmp("i", tname)) return kIndicator;
     if (!strcmp("q", tname)) return kQuantitive;
     if (!strcmp("int", tname)) return kInteger;

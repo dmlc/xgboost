@@ -15,13 +15,14 @@
 // manually define unsign long
 typedef unsigned long bst_ulong;
 
+
 extern "C" {
   /*!
    * \brief load a data matrix 
    * \return a loaded data matrix
    */
   XGB_DLL void* XGDMatrixCreateFromFile(const char *fname, int silent);
-  /*! 
+  /*!
    * \brief create a matrix content from csr format
    * \param indptr pointer to row headers
    * \param indices findex
@@ -35,6 +36,20 @@ extern "C" {
                                        const float *data,
                                        bst_ulong nindptr,
                                        bst_ulong nelem);
+  /*!
+   * \brief create a matrix content from CSC format
+   * \param col_ptr pointer to col headers
+   * \param indices findex
+   * \param data fvalue
+   * \param nindptr number of rows in the matix + 1 
+   * \param nelem number of nonzero elements in the matrix
+   * \return created dmatrix
+   */
+  XGB_DLL void* XGDMatrixCreateFromCSC(const bst_ulong *col_ptr,
+                                       const unsigned *indices,
+                                       const float *data,
+                                       bst_ulong nindptr,
+                                       bst_ulong nelem);  
   /*!
    * \brief create matrix content from dense matrix
    * \param data pointer to the data space
@@ -164,9 +179,11 @@ extern "C" {
    * \param handle handle
    * \param dmat data matrix
    * \param output_margin whether only output raw margin value
+   * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
+   *    when the parameter is set to 0, we will use all the trees
    * \param len used to store length of returning result
    */
-  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, bst_ulong *len);
+  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, unsigned ntree_limit, bst_ulong *len);
   /*!
    * \brief load model from existing file
    * \param handle handle
@@ -188,5 +205,5 @@ extern "C" {
    */
   XGB_DLL const char **XGBoosterDumpModel(void *handle, const char *fmap,
                                           bst_ulong *out_len);
-};
+}
 #endif  // XGBOOST_WRAPPER_H_
