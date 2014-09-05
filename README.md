@@ -1,6 +1,6 @@
 xgboost: eXtreme Gradient Boosting 
 ======
-An optimized general purpose gradient boosting library. It implements parallel machine learning algorithm under gradient boosting framework, including generalized linear model and gradient boosted regression tree.
+An optimized general purpose gradient boosting library. The library is parallelized using OpenMP. It implements machine learning algorithm under gradient boosting framework, including generalized linear model and gradient boosted regression tree. 
 
 Contributors: https://github.com/tqchen/xgboost/graphs/contributors
 
@@ -11,6 +11,15 @@ Questions and Issues: [https://github.com/tqchen/xgboost/issues](https://github.
 Examples Code: [Learning to use xgboost by examples](demo)
 
 Notes on the Code: [Code Guide](src)
+
+What's New
+=====
+This contains a active list of new things about xgboost:)
+* See the new [demo folder](demo) for example scripts for independent features
+  - Predicting using first n trees
+  - Generalized linear model
+  - Cross validation
+* Thanks to Tong He, the new [R package](R-package) is available
 
 Features
 ======
@@ -24,7 +33,7 @@ Features
 * Python interface, works with numpy and scipy.sparse matrix
 
 Build
-======
+=====
 * Simply type make
 * If your compiler does not come with OpenMP support, it will fire an warning telling you that the code will compile into single thread mode, and you will get single thread xgboost
 * You may get a error: -lgomp is not found
