@@ -22,6 +22,7 @@ xglib = ctypes.cdll.LoadLibrary(XGBOOST_PATH)
 # DMatrix functions
 xglib.XGDMatrixCreateFromFile.restype = ctypes.c_void_p
 xglib.XGDMatrixCreateFromCSR.restype = ctypes.c_void_p
+xglib.XGDMatrixCreateFromCSC.restype = ctypes.c_void_p
 xglib.XGDMatrixCreateFromMat.restype = ctypes.c_void_p
 xglib.XGDMatrixSliceDMatrix.restype = ctypes.c_void_p
 xglib.XGDMatrixGetFloatInfo.restype = ctypes.POINTER(ctypes.c_float)
@@ -66,6 +67,8 @@ class DMatrix:
                 xglib.XGDMatrixCreateFromFile(ctypes.c_char_p(data.encode('utf-8')), 0))
         elif isinstance(data, scp.csr_matrix):
             self.__init_from_csr(data)
+        elif isinstance(data, scp.csc_matrix):
+            self.__init_from_csc(data)            
         elif isinstance(data, numpy.ndarray) and len(data.shape) == 2:
             self.__init_from_npy2d(data, missing)
         else:
@@ -87,6 +90,15 @@ class DMatrix:
             (ctypes.c_uint  * len(csr.indices))(*csr.indices),
             (ctypes.c_float * len(csr.data))(*csr.data),
             len(csr.indptr), len(csr.data)))
+
+    def __init_from_csc(self, csc):
+        """convert data from csr matrix"""
+        assert len(csc.indices) == len(csc.data)
+        self.handle = ctypes.c_void_p(xglib.XGDMatrixCreateFromCSC(
+            (ctypes.c_ulong  * len(csc.indptr))(*csc.indptr),
+            (ctypes.c_uint * len(csc.indices))(*csc.indices),
+            (ctypes.c_float * len(csc.data))(*csc.data),
+            len(csc.indptr), len(csc.data)))
 
     def __init_from_npy2d(self,mat,missing):
         """convert data from numpy matrix"""
