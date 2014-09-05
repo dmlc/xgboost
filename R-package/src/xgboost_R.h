@@ -7,6 +7,7 @@
  */
 extern "C" {
 #include <Rinternals.h>
+#include <R_ext/Random.h>
 }
 
 extern "C" {
@@ -36,6 +37,13 @@ extern "C" {
   SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
                                 SEXP indices,
                                 SEXP data);
+  /*!
+   * \brief create a new dmatrix from sliced content of existing matrix
+   * \param handle instance of data matrix to be sliced
+   * \param idxset index set
+   * \return a sliced new matrix
+   */
+  SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset);
   /*!
    * \brief load a data matrix into binary file
    * \param handle a instance of data matrix
@@ -99,8 +107,9 @@ extern "C" {
    * \param handle handle
    * \param dmat data matrix
    * \param output_margin whether only output raw margin value
+   * \param ntree_limit limit number of trees used in prediction
    */
-  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin);
+  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin, SEXP ntree_limit);
   /*!
    * \brief load model from existing file
    * \param handle handle
@@ -120,5 +129,5 @@ extern "C" {
    * \param fmap  name to fmap can be empty string
    */
   void XGBoosterDumpModel_R(SEXP handle, SEXP fname, SEXP fmap);
-};
+}
 #endif  // XGBOOST_WRAPPER_R_H_

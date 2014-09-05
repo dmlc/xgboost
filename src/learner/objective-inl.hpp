@@ -6,9 +6,9 @@
  * \author Tianqi Chen, Kailong Chen
  */
 #include <vector>
-#include <cmath>
 #include <algorithm>
 #include <utility>
+#include <cmath>
 #include <functional>
 #include "../data.h"
 #include "./objective.h"
@@ -37,7 +37,7 @@ struct LossType {
       case kLogisticRaw:
       case kLinearSquare: return x;
       case kLogisticClassify:
-      case kLogisticNeglik: return 1.0f / (1.0f + expf(-x));
+      case kLogisticNeglik: return 1.0f / (1.0f + std::exp(-x));
       default: utils::Error("unknown loss_type"); return 0.0f;
     }
   }
@@ -50,7 +50,7 @@ struct LossType {
   inline float FirstOrderGradient(float predt, float label) const {
     switch (loss_type) {
       case kLinearSquare: return predt - label;
-      case kLogisticRaw: predt = 1.0f / (1.0f + expf(-predt));
+      case kLogisticRaw: predt = 1.0f / (1.0f + std::exp(-predt));
       case kLogisticClassify:
       case kLogisticNeglik: return predt - label;
       default: utils::Error("unknown loss_type"); return 0.0f;
@@ -65,7 +65,7 @@ struct LossType {
   inline float SecondOrderGradient(float predt, float label) const {
     switch (loss_type) {
       case kLinearSquare: return 1.0f;
-      case kLogisticRaw: predt = 1.0f / (1.0f + expf(-predt));
+      case kLogisticRaw: predt = 1.0f / (1.0f + std::exp(-predt));
       case kLogisticClassify:
       case kLogisticNeglik: return predt * (1 - predt);
       default: utils::Error("unknown loss_type"); return 0.0f;
@@ -80,7 +80,7 @@ struct LossType {
         loss_type == kLogisticNeglik ) {
       utils::Check(base_score > 0.0f && base_score < 1.0f,
                    "base_score must be in (0,1) for logistic loss");
-      base_score = -logf(1.0f / base_score - 1.0f);
+      base_score = -std::log(1.0f / base_score - 1.0f);
     }
     return base_score;
   }
@@ -101,6 +101,7 @@ class RegLossObj : public IObjFunction{
   }
   virtual ~RegLossObj(void) {}
   virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
     if (!strcmp("scale_pos_weight", name)) {
       scale_pos_weight = static_cast<float>(atof(val));
     }
@@ -123,7 +124,7 @@ class RegLossObj : public IObjFunction{
       float p = loss.PredTransform(preds[i]);
       float w = info.GetWeight(j);
       if (info.labels[j] == 1.0f) w *= scale_pos_weight;
-      gpair[j] = bst_gpair(loss.FirstOrderGradient(p, info.labels[j]) * w,
+      gpair[i] = bst_gpair(loss.FirstOrderGradient(p, info.labels[j]) * w,
                            loss.SecondOrderGradient(p, info.labels[j]) * w);
     }
   }
@@ -156,6 +157,7 @@ class SoftmaxMultiClassObj : public IObjFunction {
   }
   virtual ~SoftmaxMultiClassObj(void) {}
   virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
     if (!strcmp( "num_class", name )) nclass = atoi(val);
   }
   virtual void GetGradient(const std::vector<float> &preds,
@@ -247,6 +249,7 @@ class LambdaRankObj : public IObjFunction {
   }
   virtual ~LambdaRankObj(void) {}
   virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
     if (!strcmp( "loss_type", name )) loss.loss_type = atoi(val);
     if (!strcmp( "fix_list_weight", name)) fix_list_weight = static_cast<float>(atof(val));
     if (!strcmp( "num_pairsample", name)) num_pairsample = atoi(val);
@@ -419,8 +422,8 @@ class LambdaRankObjNDCG : public LambdaRankObj {
       for (size_t i = 0; i < pairs.size(); ++i) {
         unsigned pos_idx = pairs[i].pos_index;
         unsigned neg_idx = pairs[i].neg_index;
-        float pos_loginv = 1.0f / logf(pos_idx + 2.0f);
-        float neg_loginv = 1.0f / logf(neg_idx + 2.0f);
+        float pos_loginv = 1.0f / std::log(pos_idx + 2.0f);
+        float neg_loginv = 1.0f / std::log(neg_idx + 2.0f);
         int pos_label = static_cast<int>(sorted_list[pos_idx].label);
         int neg_label = static_cast<int>(sorted_list[neg_idx].label);
         float original =
@@ -438,7 +441,7 @@ class LambdaRankObjNDCG : public LambdaRankObj {
     for (size_t i = 0; i < labels.size(); ++i) {
       const unsigned rel = static_cast<unsigned>(labels[i]);
       if (rel != 0) {
-        sumdcg += ((1 << rel) - 1) / logf(static_cast<float>(i + 2));
+        sumdcg += ((1 << rel) - 1) / std::log(static_cast<float>(i + 2));
       }
     }
     return static_cast<float>(sumdcg);

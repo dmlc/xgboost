@@ -10,6 +10,7 @@ This script will achieve about 3.600 AMS score in public leadboard. To get start
 cd ../..
 make
 ```
+
 2. Put training.csv test.csv on folder './data' (you can create a symbolic link)
 
 3. Run ./run.sh
@@ -21,5 +22,5 @@ speedtest.py compares xgboost's speed on this dataset with sklearn.GBM
 
 Using R module
 =====
-* Alternatively, you can run using R, higgs-train.R and higgs-pred.R
+* Alternatively, you can run using R, higgs-train.R and higgs-pred.R. 
 

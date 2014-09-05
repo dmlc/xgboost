@@ -53,7 +53,7 @@ class TreeModel {
     Param(void) {
       max_depth = 0;
       size_leaf_vector = 0;
-      memset(reserved, 0, sizeof(reserved));
+      std::memset(reserved, 0, sizeof(reserved));
     }
     /*! 
      * \brief set parameters from outside 
@@ -61,6 +61,7 @@ class TreeModel {
      * \param val  value of the parameter
      */
     inline void SetParam(const char *name, const char *val) {
+      using namespace std;
       if (!strcmp("num_roots", name)) num_roots = atoi(val);
       if (!strcmp("num_feature", name)) num_feature = atoi(val);
       if (!strcmp("size_leaf_vector", name)) size_leaf_vector = atoi(val);
@@ -272,6 +273,7 @@ class TreeModel {
     param.num_nodes = param.num_roots;
     nodes.resize(param.num_nodes);
     stats.resize(param.num_nodes);
+    leaf_vector.resize(param.num_nodes * param.size_leaf_vector, 0.0f);
     for (int i = 0; i < param.num_nodes; i ++) {
       nodes[i].set_leaf(0.0f);
       nodes[i].set_parent(-1);
@@ -289,6 +291,9 @@ class TreeModel {
                  "TreeModel: wrong format");
     utils::Check(fi.Read(&stats[0], sizeof(NodeStat) * stats.size()) > 0,
                  "TreeModel: wrong format");
+    if (param.size_leaf_vector != 0) {
+      utils::Check(fi.Read(&leaf_vector), "TreeModel: wrong format");
+    }
     // chg deleted nodes
     deleted_nodes.resize(0);
     for (int i = param.num_roots; i < param.num_nodes; i ++) {
@@ -309,6 +314,7 @@ class TreeModel {
     fo.Write(&param, sizeof(Param));
     fo.Write(&nodes[0], sizeof(Node) * nodes.size());
     fo.Write(&stats[0], sizeof(NodeStat) * nodes.size());
+    if (param.size_leaf_vector != 0) fo.Write(leaf_vector);
   }
   /*! 
    * \brief add child nodes to node
@@ -486,15 +492,15 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat>{
       std::fill(data.begin(), data.end(), e);
     }
     /*! \brief fill the vector with sparse vector */
-    inline void Fill(const SparseBatch::Inst &inst) {
+    inline void Fill(const RowBatch::Inst &inst) {
       for (bst_uint i = 0; i < inst.length; ++i) {
-        data[inst[i].findex].fvalue = inst[i].fvalue;
+        data[inst[i].index].fvalue = inst[i].fvalue;
       }
     }
     /*! \brief drop the trace after fill, must be called after fill */
-    inline void Drop(const SparseBatch::Inst &inst) {      
+    inline void Drop(const RowBatch::Inst &inst) {      
       for (bst_uint i = 0; i < inst.length; ++i) {
-        data[inst[i].findex].flag = -1;
+        data[inst[i].index].flag = -1;
       }
     }
     /*! \brief get ith value */
