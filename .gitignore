@@ -6,12 +6,15 @@
 # Compiled Dynamic libraries
 *.so
 *.dylib
-
+*.page
 # Compiled Static libraries
 *.lai
 *.la
 *.a
 *~
+*.Rcheck
+*.rds
+*.tar.gz
 *txt*
 *conf
 *buffer
@@ -40,3 +43,4 @@ Debug
 *x64
 *dump
 *save
+*csv

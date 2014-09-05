@@ -12,18 +12,18 @@
 namespace xgboost {
 namespace tree {
 /*! \brief pruner that prunes a tree after growing finishs */
-template<typename FMatrix>
-class TreePruner: public IUpdater<FMatrix> {
+class TreePruner: public IUpdater {
  public:
   virtual ~TreePruner(void) {}
   // set training parameter
   virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
     param.SetParam(name, val);
     if (!strcmp(name, "silent")) silent = atoi(val);
   }
   // update the tree, do pruning
   virtual void Update(const std::vector<bst_gpair> &gpair,
-                      const FMatrix &fmat,
+                      IFMatrix *p_fmat,
                       const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) {
     // rescale learning rate according to size of trees
@@ -64,8 +64,8 @@ class TreePruner: public IUpdater<FMatrix> {
       }
     }
     if (silent == 0) {
-      printf("tree prunning end, %d roots, %d extra nodes, %d pruned nodes ,max_depth=%d\n",
-             tree.param.num_roots, tree.num_extra_nodes(), npruned, tree.MaxDepth());
+      utils::Printf("tree prunning end, %d roots, %d extra nodes, %d pruned nodes ,max_depth=%d\n",
+                    tree.param.num_roots, tree.num_extra_nodes(), npruned, tree.MaxDepth());
     }
   }
 
@@ -75,7 +75,6 @@ class TreePruner: public IUpdater<FMatrix> {
   // training parameter
   TrainParam param;
 };
-
 }  // namespace tree
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_UPDATER_PRUNE_INL_HPP_

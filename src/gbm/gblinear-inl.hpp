@@ -18,13 +18,13 @@ namespace gbm {
  * \brief gradient boosted linear model
  * \tparam FMatrix the data type updater taking
  */
-template<typename FMatrix>
-class GBLinear : public IGradBooster<FMatrix> {
+class GBLinear : public IGradBooster {
  public:
   virtual ~GBLinear(void) {
   }
   // set model parameters
   virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
     if (!strncmp(name, "bst:", 4)) {
       param.SetParam(name + 4, val);
     }
@@ -41,13 +41,12 @@ class GBLinear : public IGradBooster<FMatrix> {
   virtual void InitModel(void) {
     model.InitModel();
   }
-  virtual void DoBoost(const FMatrix &fmat,
+  virtual void DoBoost(IFMatrix *p_fmat,
                        const BoosterInfo &info,
                        std::vector<bst_gpair> *in_gpair) {
-    this->InitFeatIndex(fmat);
     std::vector<bst_gpair> &gpair = *in_gpair;
     const int ngroup = model.param.num_output_group;
-    const std::vector<bst_uint> &rowset = fmat.buffered_rowset();
+    const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
     // for all the output group
     for (int gid = 0; gid < ngroup; ++gid) {
       double sum_grad = 0.0, sum_hess = 0.0;
@@ -72,45 +71,52 @@ class GBLinear : public IGradBooster<FMatrix> {
         }
       }
     }
-    // number of features
-    const bst_omp_uint nfeat = static_cast<bst_omp_uint>(feat_index.size());
-    #pragma omp parallel for schedule(static)
-    for (bst_omp_uint i = 0; i < nfeat; ++i) {
-      const bst_uint fid = feat_index[i];
-      for (int gid = 0; gid < ngroup; ++gid) {
-        double sum_grad = 0.0, sum_hess = 0.0;
-        for (typename FMatrix::ColIter it = fmat.GetSortedCol(fid); it.Next();) {
-          const float v = it.fvalue();
-          bst_gpair &p = gpair[it.rindex() * ngroup + gid];
-          if (p.hess < 0.0f) continue;
-          sum_grad += p.grad * v;
-          sum_hess += p.hess * v * v;
-        }
-        float &w = model[fid][gid];
-        bst_float dw = static_cast<bst_float>(param.learning_rate * param.CalcDelta(sum_grad, sum_hess, w));
-        w += dw;
-        // update grad value
-        for (typename FMatrix::ColIter it = fmat.GetSortedCol(fid); it.Next();) {
-          bst_gpair &p = gpair[it.rindex() * ngroup + gid];
-          if (p.hess < 0.0f) continue;
-          p.grad += p.hess * it.fvalue() * dw;
+    utils::IIterator<ColBatch> *iter = p_fmat->ColIterator();
+    while (iter->Next()) {
+      // number of features
+      const ColBatch &batch = iter->Value();
+      const bst_omp_uint nfeat = static_cast<bst_omp_uint>(batch.size);
+      #pragma omp parallel for schedule(static)
+      for (bst_omp_uint i = 0; i < nfeat; ++i) {
+        const bst_uint fid = batch.col_index[i];
+        ColBatch::Inst col = batch[i];
+        for (int gid = 0; gid < ngroup; ++gid) {
+          double sum_grad = 0.0, sum_hess = 0.0;
+          for (bst_uint j = 0; j < col.length; ++j) {
+            const float v = col[j].fvalue;
+            bst_gpair &p = gpair[col[j].index * ngroup + gid];
+            if (p.hess < 0.0f) continue;
+            sum_grad += p.grad * v;
+            sum_hess += p.hess * v * v;
+          }
+          float &w = model[fid][gid];
+          bst_float dw = static_cast<bst_float>(param.learning_rate * param.CalcDelta(sum_grad, sum_hess, w));
+          w += dw;
+          // update grad value
+          for (bst_uint j = 0; j < col.length; ++j) {
+            bst_gpair &p = gpair[col[j].index * ngroup + gid];
+            if (p.hess < 0.0f) continue;
+            p.grad += p.hess * col[j].fvalue * dw;
+          }
         }
       }
     }
   }
 
-  virtual void Predict(const FMatrix &fmat,
+  virtual void Predict(IFMatrix *p_fmat,
                        int64_t buffer_offset,
                        const BoosterInfo &info,
-                       std::vector<float> *out_preds) {
+                       std::vector<float> *out_preds,
+                       unsigned ntree_limit = 0) {
+    utils::Check(ntree_limit == 0,
+                 "GBLinear::Predict ntrees is only valid for gbtree predictor");
     std::vector<float> &preds = *out_preds;
     preds.resize(0);
     // start collecting the prediction
-    utils::IIterator<SparseBatch> *iter = fmat.RowIterator();
-    iter->BeforeFirst();
+    utils::IIterator<RowBatch> *iter = p_fmat->RowIterator();
     const int ngroup = model.param.num_output_group;
     while (iter->Next()) {
-      const SparseBatch &batch = iter->Value();
+      const RowBatch &batch = iter->Value();
       utils::Assert(batch.base_rowid * ngroup == preds.size(),
                     "base_rowid is not set correctly");
       // output convention: nrow * k, where nrow is number of rows
@@ -134,23 +140,11 @@ class GBLinear : public IGradBooster<FMatrix> {
   }
 
  protected:
-  inline void InitFeatIndex(const FMatrix &fmat) {
-    if (feat_index.size() != 0) return;
-    // initialize feature index
-    unsigned ncol = static_cast<unsigned>(fmat.NumCol());
-    feat_index.reserve(ncol);
-    for (unsigned i = 0; i < ncol; ++i) {
-      if (fmat.GetColSize(i) != 0) {
-        feat_index.push_back(i);
-      }
-    }
-    random::Shuffle(feat_index);
-  }
-  inline void Pred(const SparseBatch::Inst &inst, float *preds) {
+  inline void Pred(const RowBatch::Inst &inst, float *preds) {
     for (int gid = 0; gid < model.param.num_output_group; ++gid) {
       float psum = model.bias()[gid];
       for (bst_uint i = 0; i < inst.length; ++i) {
-        psum += inst[i].fvalue * model[inst[i].findex][gid];
+        psum += inst[i].fvalue * model[inst[i].index][gid];
       }
       preds[gid] = psum;
     }
@@ -173,6 +167,7 @@ class GBLinear : public IGradBooster<FMatrix> {
       learning_rate = 1.0f;
     }
     inline void SetParam(const char *name, const char *val) {
+      using namespace std;
       // sync-names
       if (!strcmp("eta", name)) learning_rate = static_cast<float>(atof(val));
       if (!strcmp("lambda", name)) reg_lambda = static_cast<float>(atof(val));
@@ -214,9 +209,10 @@ class GBLinear : public IGradBooster<FMatrix> {
       Param(void) {
         num_feature = 0;
         num_output_group = 1;
-        memset(reserved, 0, sizeof(reserved));
+        std::memset(reserved, 0, sizeof(reserved));
       }
       inline void SetParam(const char *name, const char *val) {
+        using namespace std;
         if (!strcmp(name, "bst:num_feature")) num_feature = atoi(val);
         if (!strcmp(name, "num_output_group")) num_output_group = atoi(val);
       }

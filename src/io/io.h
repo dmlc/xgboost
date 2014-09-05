@@ -13,7 +13,7 @@ namespace xgboost {
 /*! \brief namespace related to data format */
 namespace io {
 /*! \brief DMatrix object that I/O module support save/load */
-typedef learner::DMatrix<FMatrixS> DataMatrix;
+typedef learner::DMatrix DataMatrix;
 /*!
  * \brief load DataMatrix from stream
  * \param fname file name to be loaded
