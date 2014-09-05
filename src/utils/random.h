@@ -16,30 +16,21 @@
 /*! namespace of PRNG */
 namespace xgboost {
 namespace random {
-
+#ifndef XGBOOST_CUSTOMIZE_PRNG_
 /*! \brief seed the PRNG */
-inline void Seed(uint32_t seed) {
+inline void Seed(unsigned seed) {
   srand(seed);
 }
-/*! \brief return a real number uniform in [0,1) */
-inline double NextDouble(void) {
+/*! \brief basic function, uniform */
+inline double Uniform(void) {
   return static_cast<double>(rand()) / (static_cast<double>(RAND_MAX)+1.0);
 }
 /*! \brief return a real numer uniform in (0,1) */
 inline double NextDouble2(void) {
   return (static_cast<double>(rand()) + 1.0) / (static_cast<double>(RAND_MAX)+2.0);
 }
-
-/*! \brief return a random number */
-inline uint32_t NextUInt32(void) {
-  return (uint32_t)rand();
-}
-/*! \brief return a random number in n */
-inline uint32_t NextUInt32(uint32_t n) {
-  return (uint32_t)floor(NextDouble() * n);
-}
 /*! \brief return  x~N(0,1) */
-inline double SampleNormal() {
+inline double Normal(void) {
   double x, y, s;
   do {
     x = 2 * NextDouble2() - 1.0;
@@ -49,22 +40,24 @@ inline double SampleNormal() {
 
   return x * sqrt(-2.0 * log(s) / s);
 }
+#else
+// include declarations, to be implemented
+void Seed(unsigned seed);
+double Uniform(void);
+double Normal(void);
+#endif
 
-/*! \brief return iid x,y ~N(0,1) */
-inline void SampleNormal2D(double &xx, double &yy) {
-  double x, y, s;
-  do {
-    x = 2 * NextDouble2() - 1.0;
-    y = 2 * NextDouble2() - 1.0;
-    s = x*x + y*y;
-  } while (s >= 1.0 || s == 0.0);
-  double t = sqrt(-2.0 * log(s) / s);
-  xx = x * t;
-  yy = y * t;
+/*! \brief return a real number uniform in [0,1) */
+inline double NextDouble(void) {
+  return Uniform();
+}
+/*! \brief return a random number in n */
+inline uint32_t NextUInt32(uint32_t n) {
+  return (uint32_t)std::floor(NextDouble() * n);
 }
 /*! \brief return  x~N(mu,sigma^2) */
 inline double SampleNormal(double mu, double sigma) {
-  return SampleNormal() * sigma + mu;
+  return Normal() * sigma + mu;
 }
 /*! \brief  return 1 with probability p, coin flip */
 inline int SampleBinary(double p) {
@@ -90,7 +83,7 @@ struct Random{
   inline void Seed(unsigned sd) {
 	 this->rseed = sd;
 #if defined(_MSC_VER)||defined(_WIN32)
-    srand(rseed);
+     ::xgboost::random::Seed(sd);
 #endif
   }
   /*! \brief return a real number uniform in [0,1) */
@@ -98,8 +91,8 @@ struct Random{
 	// use rand instead of rand_r in windows, for MSVC it is fine since rand is threadsafe
 	// For cygwin and mingw, this can slows down parallelism, but rand_r is only used in objective-inl.hpp, won't affect speed in general
 	// todo, replace with another PRNG
-#if defined(_MSC_VER)||defined(_WIN32)
-    return static_cast<double>(rand()) / (static_cast<double>(RAND_MAX) + 1.0);
+#if defined(_MSC_VER)||defined(_WIN32)||defined(XGBOOST_STRICT_CXX98_)
+    return Uniform();
 #else
     return static_cast<double>(rand_r(&rseed)) / (static_cast<double>(RAND_MAX) + 1.0);
 #endif

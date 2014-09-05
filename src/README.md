@@ -13,10 +13,10 @@ Project Logical Layout
 
 File Naming Convention
 ======= 
-* The project is templatized, to make it easy to adjust input data structure.
 * .h files are data structures and interface, which are needed to use functions in that layer.
 * -inl.hpp files are implementations of interface, like cpp file in most project.
   - You only need to understand the interface file to understand the usage of that layer
+* In each folder, there can be a .cpp file, that compiles the module of that layer
 
 How to Hack the Code
 ======

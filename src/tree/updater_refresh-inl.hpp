@@ -9,12 +9,13 @@
 #include <limits>
 #include "./param.h"
 #include "./updater.h"
+#include "../utils/omp.h"
 
 namespace xgboost {
 namespace tree {
 /*! \brief pruner that prunes a tree after growing finishs */
-template<typename FMatrix, typename TStats>
-class TreeRefresher: public IUpdater<FMatrix> {
+template<typename TStats>
+class TreeRefresher: public IUpdater {
  public:
   virtual ~TreeRefresher(void) {}
   // set training parameter
@@ -23,16 +24,16 @@ class TreeRefresher: public IUpdater<FMatrix> {
   }
   // update the tree, do pruning
   virtual void Update(const std::vector<bst_gpair> &gpair,
-                      const FMatrix &fmat,
+                      IFMatrix *p_fmat,
                       const BoosterInfo &info,
-                      const std::vector<RegTree*> &trees) {
+                      const std::vector<RegTree*> &trees) {    
     if (trees.size() == 0) return;
     // number of threads
-    int nthread;
     // thread temporal space
     std::vector< std::vector<TStats> > stemp;
     std::vector<RegTree::FVec> fvec_temp;
     // setup temp space for each thread
+    int nthread;
     #pragma omp parallel
     {
       nthread = omp_get_num_threads();
@@ -50,16 +51,16 @@ class TreeRefresher: public IUpdater<FMatrix> {
       fvec_temp[tid].Init(trees[0]->param.num_feature);
     }
     // start accumulating statistics
-    utils::IIterator<SparseBatch> *iter = fmat.RowIterator();
+    utils::IIterator<RowBatch> *iter = p_fmat->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
-      const SparseBatch &batch = iter->Value();
+      const RowBatch &batch = iter->Value();
       utils::Check(batch.size < std::numeric_limits<unsigned>::max(),
                    "too large batch size ");
       const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nbatch; ++i) {
-        SparseBatch::Inst inst = batch[i];
+        RowBatch::Inst inst = batch[i];
         const int tid = omp_get_thread_num();
         const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         RegTree::FVec &feats = fvec_temp[tid];
@@ -126,8 +127,6 @@ class TreeRefresher: public IUpdater<FMatrix> {
       this->Refresh(gstats, tree[nid].cright(), p_tree);
     }
   }
-  // number of thread in the data
-  int nthread;
   // training parameter
   TrainParam param;
 };

@@ -1,10 +1,21 @@
-This is subfolder for experimental version of R package.
+# R package for xgboost.
 
-Not yet ready.
+## Installation
 
-Installation:
+For up-to-date version(which is recommended), please install from github. Windows user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
 
 ```r
 require(devtools)
 install_github('xgboost','tqchen',subdir='R-package')
 ```
+
+For stable version on CRAN, please run
+
+```r
+install.packages('xgboost')
+```
+
+## Examples
+
+* Please visit [demo](https://github.com/tqchen/xgboost/blob/master/R-package/inst/examples/demo.R) for walk throughe example.
+* See also the [example scripts](https://github.com/tqchen/xgboost/tree/master/demo/kaggle-higgs) for Kaggle Higgs Challenge, including [speedtest script](https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/speedtest.R) on this dataset.
