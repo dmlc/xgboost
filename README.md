@@ -15,10 +15,7 @@ Notes on the Code: [Code Guide](src)
 What's New
 =====
 This contains a active list of new things about xgboost:)
-* See the new [demo folder](demo) for example scripts for independent features
-  - Predicting using first n trees
-  - Generalized linear model
-  - Cross validation
+* See the updated [demo folder](demo) for feature walkthrough
 * Thanks to Tong He, the new [R package](R-package) is available
 
 Features
