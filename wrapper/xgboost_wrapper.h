@@ -22,7 +22,7 @@ extern "C" {
    * \return a loaded data matrix
    */
   XGB_DLL void* XGDMatrixCreateFromFile(const char *fname, int silent);
-  /*! 
+  /*!
    * \brief create a matrix content from csr format
    * \param indptr pointer to row headers
    * \param indices findex
@@ -36,6 +36,20 @@ extern "C" {
                                        const float *data,
                                        bst_ulong nindptr,
                                        bst_ulong nelem);
+  /*!
+   * \brief create a matrix content from CSC format
+   * \param col_ptr pointer to col headers
+   * \param indices findex
+   * \param data fvalue
+   * \param nindptr number of rows in the matix + 1 
+   * \param nelem number of nonzero elements in the matrix
+   * \return created dmatrix
+   */
+  XGB_DLL void* XGDMatrixCreateFromCSC(const bst_ulong *col_ptr,
+                                       const unsigned *indices,
+                                       const float *data,
+                                       bst_ulong nindptr,
+                                       bst_ulong nelem);  
   /*!
    * \brief create matrix content from dense matrix
    * \param data pointer to the data space
