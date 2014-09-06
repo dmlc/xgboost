@@ -3,8 +3,8 @@
 \alias{xgb.train}
 \title{eXtreme Gradient Boosting Training}
 \usage{
-xgb.train(params = list(), dtrain, nrounds, watchlist = list(),
-  obj = NULL, feval = NULL, ...)
+xgb.train(params = list(), data, nrounds, watchlist = list(), obj = NULL,
+  feval = NULL, verbose = 1, ...)
 }
 \arguments{
 \item{params}{the list of parameters. Commonly used ones are:
@@ -22,7 +22,7 @@ xgb.train(params = list(), dtrain, nrounds, watchlist = list(),
   See \url{https://github.com/tqchen/xgboost/wiki/Parameters} for
   further details. See also inst/examples/demo.R for walkthrough example in R.}
 
-\item{dtrain}{takes an \code{xgb.DMatrix} as the input.}
+\item{data}{takes an \code{xgb.DMatrix} as the input.}
 
 \item{nrounds}{the max number of iterations}
 
@@ -38,6 +38,9 @@ gradient with given prediction and dtrain,}
 \item{feval}{custimized evaluation function. Returns
 \code{list(metric='metric-name', value='metric-value')} with given
 prediction and dtrain,}
+
+\item{verbose}{If 0, xgboost will stay silent. If 1, xgboost will print
+  information of performance. If 2, xgboost will print information of both}
 
 \item{...}{other parameters to pass to \code{params}.}
 }

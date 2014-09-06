@@ -8,7 +8,10 @@ setClass('xgb.DMatrix')
 #' data(iris)
 #' iris[,5] <- as.numeric(iris[,5]=='setosa')
 #' dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
-#' labels <- getinfo(dtrain, "label")
+#' labels <- getinfo(dtrain, 'label')
+#' setinfo(dtrain, 'label', 1-labels)
+#' labels2 <- getinfo(dtrain, 'label')
+#' stopifnot(all(labels2 == 1-labels))
 #' @rdname getinfo
 #' @export
 #' 

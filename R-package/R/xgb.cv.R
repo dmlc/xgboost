@@ -1,6 +1,6 @@
-#' eXtreme Gradient Boosting Training
+#' Cross Validation
 #' 
-#' The training function of xgboost
+#' The cross valudation function of xgboost
 #'
 #' @param params the list of parameters. Commonly used ones are:
 #' \itemize{
@@ -61,7 +61,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL,
   params <- append(params, list(silent=1))
   for (mc in metrics) {
     params <- append(params, list("eval_metric"=mc))
-  }    
+  }
 
   folds <- xgb.cv.mknfold(dtrain, nfold, params)
   history <- list()
@@ -70,7 +70,8 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL,
     for (k in 1:nfold) {
       fd <- folds[[k]]
       succ <- xgb.iter.update(fd$booster, fd$dtrain, i - 1, obj)      
-      msg[[k]] <- strsplit(xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval), "\t")[[1]]
+      msg[[k]] <- strsplit(xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval), 
+                           "\t")[[1]]
     }
     ret <- xgb.cv.aggcv(msg, showsd)
     history <- append(history, ret)

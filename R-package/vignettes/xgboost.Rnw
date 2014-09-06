@@ -73,9 +73,10 @@ and ranking. The package is made to be extendible, so that users are also allowe
 \end{enumerate}
 
 
-\section{Example with iris}
+\section{Example with Mushroom data}
 
-In this section, we will illustrate some common usage of \verb@xgboost@.
+In this section, we will illustrate some common usage of \verb@xgboost@. The 
+Mushroom data is cited from UCI Machine Learning Repository. \citep{Bache+Lichman:2013} 
 
 <<Training and prediction with iris>>=
 library(xgboost)
