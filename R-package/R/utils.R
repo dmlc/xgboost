@@ -103,6 +103,10 @@ xgb.get.DMatrix <- function(data, label = NULL) {
   }
   return (dtrain)
 }
+xgb.numrow <- function(dmat) {
+  nrow <- .Call("XGDMatrixNumRow_R", dmat, PACKAGE="xgboost")
+  return(nrow)
+}
 # iteratively update booster with customized statistics
 xgb.iter.boost <- function(booster, dtrain, gpair) {
   if (class(booster) != "xgb.Booster") {
@@ -174,23 +178,51 @@ xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL) {
     }
   } else {
     msg <- ""
-  }  
+  }
   return(msg)
 } 
 #------------------------------------------
 # helper functions for cross validation
 #
-xgb.cv.mknfold <- function(dall, nfold, param, metrics=list(), fpreproc = NULL) {  
+xgb.cv.mknfold <- function(dall, nfold, param) {
   randidx <- sample(1 : xgb.numrow(dall))
   kstep <- length(randidx) / nfold
   idset <- list()
   for (i in 1:nfold) {
-    idset = append(idset, randidx[ ((i-1) * kstep + 1) : min(i * kstep, length(randidx)) ])
+    idset[[i]] <- randidx[ ((i-1) * kstep + 1) : min(i * kstep, length(randidx)) ]
   }
   ret <- list()
   for (k in 1:nfold) {
-    
+    dtest <- slice(dall, idset[[k]])
+    didx = c()
+    for (i in 1:nfold) {
+      if (i != k) {
+        didx <- append(didx, idset[[i]])
+      }
+    }
+    dtrain <- slice(dall, didx)
+    bst <- xgb.Booster(param, list(dtrain, dtest))
+    watchlist = list(train=dtrain, test=dtest)
+    ret[[k]] <- list(dtrain=dtrain, booster=bst, watchlist=watchlist)
   }
-  
+  return (ret)
 }
-
+xgb.cv.aggcv <- function(res, showsd = TRUE) {
+  header = res[[1]]
+  ret <- header[1]
+  for (i in 2:length(header)) {
+    kv <- strsplit(header[i], ":")[[1]]
+    ret <- paste(ret, "\t", kv[1], ":", sep="")
+    stats <- c()
+    stats[1] <- as.numeric(kv[2])    
+    for (j in 2:length(res)) {
+      tkv <- strsplit(res[[j]][i], ":")[[1]]
+      stats[j] <- as.numeric(tkv[2])
+    }
+    ret <- paste(ret, sprintf("%f", mean(stats)), sep="")
+    if (showsd) {
+      ret <- paste(ret, sprintf("+%f", sd(stats)), sep="")
+    }
+  }
+  return (ret)
+}

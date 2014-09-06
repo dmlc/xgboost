@@ -46,12 +46,26 @@
 #'
 #' @export
 #'
-xgb.cv <- function(params=list(), data, nrounds, metrics=list(), label = NULL,
-                   obj = NULL, feval = NULL, ...) {
+xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL,
+                   showsd = TRUE, obj = NULL, feval = NULL, ...) {
   if (typeof(params) != "list") {
     stop("xgb.cv: first argument params must be list")
   }
   dtrain <- xgb.get.DMatrix(data, label)
-  params = append(params, list(...))
-  
+  params <- append(params, list(...))
+  params <- append(params, list(silent=1))
+  folds <- xgb.cv.mknfold(dtrain, nfold, params)
+  history <- list()
+  for (i in 1:nrounds) {
+    msg <- list()
+    for (k in 1:nfold) {
+      fd <- folds[[k]]
+      succ <- xgb.iter.update(fd$booster, fd$dtrain, i - 1, obj)      
+      msg[[k]] <- strsplit(xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval), "\t")[[1]]
+    }
+    ret <- xgb.cv.aggcv(msg, showsd)
+    history <- append(history, ret)
+    cat(paste(ret, "\n", sep=""))
+  }
+  return (history)
 }

@@ -174,6 +174,10 @@ extern "C" {
     _WrapperEnd();
     return ret;
   }
+  SEXP XGDMatrixNumRow_R(SEXP handle) {
+    bst_ulong nrow = XGDMatrixNumRow(R_ExternalPtrAddr(handle));
+    return ScalarInteger(static_cast<int>(nrow));
+  }
   // functions related to booster
   void _BoosterFinalizer(SEXP ext) {    
     if (R_ExternalPtrAddr(ext) == NULL) return;
