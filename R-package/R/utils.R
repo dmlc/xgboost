@@ -208,7 +208,7 @@ xgb.cv.mknfold <- function(dall, nfold, param) {
   return (ret)
 }
 xgb.cv.aggcv <- function(res, showsd = TRUE) {
-  header = res[[1]]
+  header <- res[[1]]
   ret <- header[1]
   for (i in 2:length(header)) {
     kv <- strsplit(header[i], ":")[[1]]
