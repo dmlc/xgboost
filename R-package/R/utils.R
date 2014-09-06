@@ -52,7 +52,7 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
   if (length(params) != 0) {
     for (i in 1:length(params)) {
       p <- params[i]
-      .Call("XGBoosterSetParam_R", handle, names(p), as.character(p), 
+      .Call("XGBoosterSetParam_R", handle, gsub("\\.", "_", names(p)), as.character(p),
             PACKAGE = "xgboost")
     }
   }
