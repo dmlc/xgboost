@@ -1,37 +1,32 @@
 require(xgboost)
 require(methods)
-data(iris)
-# we use iris data as example dataset
-# iris is a dataset with 3 types of iris
+data(agaricus.train)
+data(agaricus.test)
+
+# we use agaricus data as example dataset
 # we will show how to use xgboost to do binary classification here
-# so the class label will be whether the flower is of type setosa
-iris[,5] <- as.numeric(iris[,5]=='setosa')
-iris <- as.matrix(iris)
-set.seed(20)
-# random split train and test set
-test_ind <- sample(1:nrow(iris),50)
-train_ind <- setdiff(1:nrow(iris),test_ind)
-trainX = iris[train_ind,1:4]
-trainY = iris[train_ind,5]
-testX = iris[train_ind,1:4]
-testY = iris[test_ind,5]
+
+trainX = agaricus.train$data
+trainY = agaricus.train$label
+testX = agaricus.test$data
+testY = agaricus.test$label
 #-------------------------------------
 # this is the basic usage of xgboost
-# you can put matrix in data field
+# you can put sparse matrix in data field. this is helpful when your data is sparse
+# for example, when you use one-hot encoding for feature vectors
 bst <- xgboost(data = trainX, label = trainY, max_depth = 1, eta = 1, nround = 2,
                objective = "binary:logistic")
-# alternatively, you can put sparse matrix, this is helpful when your data is sparse
-# for example, when you use one-hot encoding for feature vectors
-sparseX <- as(trainX, "sparseMatrix")
-bst <- xgboost(data = sparseX, label = trainY, max_depth = 1, eta = 1, nround = 2,
+# alternatively, you can put dense matrix
+denseX <- as(trainX, "matrix")
+bst <- xgboost(data = denseX, label = trainY, max_depth = 1, eta = 1, nround = 2,
                objective = "binary:logistic")
 
 # you can also specify data as file path to a LibSVM format input
 # since we do not have libsvm format file for iris, next line is only for illustration
 # bst <- xgboost(data = 'iris.svm', max_depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
 
-dtrain <- xgb.DMatrix(iris[train_ind,1:4], label=iris[train_ind,5])
-dtest <- xgb.DMatrix(iris[test_ind,1:4], label=iris[test_ind,5])
+dtrain <- xgb.DMatrix(trainX, label=trainY)
+dtest <- xgb.DMatrix(testX, label=testY)
 
 
 param <- list(max_depth=2,eta=1,silent=1,objective='binary:logistic')

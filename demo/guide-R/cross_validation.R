@@ -1,38 +1,45 @@
-#!/usr/bin/python
-import sys
-import numpy as np
-sys.path.append('../../wrapper')
-import xgboost as xgb
+require(xgboost)
 
-### load data in do training
-dtrain = xgb.DMatrix('../data/agaricus.txt.train')
-param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic'}
-num_round = 2
+data(agaricus.train)
+data(agaricus.test)
 
-print ('running cross validation')
+trainX = agaricus.train$data
+trainY = agaricus.train$label
+testX = agaricus.test$data
+testY = agaricus.test$label
+
+dtrain <- xgb.DMatrix(trainX, label=trainY)
+dtest <- xgb.DMatrix(testX, label=testY)
+
+num_round <- 2
+param <- list(max_depth=2,eta=1,silent=1,objective='binary:logistic')
+
+cat('running cross validation\n')
 # do cross validation, this will print result out as
 # [iteration]  metric_name:mean_value+std_value
 # std_value is standard deviation of the metric
 xgb.cv(param, dtrain, num_round, nfold=5,
        metrics={'error'}, seed = 0)
 
-print ('running cross validation, disable standard deviation display')
+cat('running cross validation, disable standard deviation display\n')
 # do cross validation, this will print result out as
 # [iteration]  metric_name:mean_value+std_value
 # std_value is standard deviation of the metric
 xgb.cv(param, dtrain, num_round, nfold=5,
        metrics={'error'}, seed = 0, show_stdv = False)
 
-print ('running cross validation, with preprocessing function')
+cat('running cross validation, with preprocessing function\n')
 # define the preprocessing function
 # used to return the preprocessed training, test data, and parameter
 # we can use this to do weight rescale, etc.
 # as a example, we try to set scale_pos_weight
-def fpreproc(dtrain, dtest, param):
-    label = dtrain.get_label()
-    ratio = float(np.sum(label == 0)) / np.sum(label==1)
-    param['scale_pos_weight'] = ratio
-    return (dtrain, dtest, param)
+fpreproc <- function(dtrain, dtest, param){
+  label <- getinfo(dtrain, 'label')
+  ratio <- mean(label==0)
+  param <- append(param, list(scale_pos_weight = ratio))
+  return(list(dtrain=dtrain, dtest= dtest, param = param))
+}
+
 
 # do cross validation, for each fold
 # the dtrain, dtest, param will be passed into fpreproc
@@ -46,17 +53,22 @@ xgb.cv(param, dtrain, num_round, nfold=5,
 # See custom_objective.py
 ##
 print ('running cross validation, with cutomsized loss function')
-def logregobj(preds, dtrain):
-    labels = dtrain.get_label()
-    preds = 1.0 / (1.0 + np.exp(-preds))
-    grad = preds - labels
-    hess = preds * (1.0-preds)
-    return grad, hess
-def evalerror(preds, dtrain):
-    labels = dtrain.get_label()
-    return 'error', float(sum(labels != (preds > 0.0))) / len(labels)
 
-param = {'max_depth':2, 'eta':1, 'silent':1} 
+logregobj <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+  preds <- 1/(1 + exp(-preds))
+  grad <- preds - labels
+  hess <- preds * (1 - preds)
+  return(list(grad = grad, hess = hess))
+}
+
+evalerror <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+  err <- as.numeric(sum(labels != (preds > 0)))/length(labels)
+  return(list(metric = "error", value = err))
+}
+
+param <- list(max_depth=2,eta=1,silent=1)
 # train with customized objective
 xgb.cv(param, dtrain, num_round, nfold = 5, seed = 0,
        obj = logregobj, feval=evalerror)
