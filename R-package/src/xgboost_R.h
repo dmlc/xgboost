@@ -65,6 +65,11 @@ extern "C" {
    * \return info vector
    */  
   SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field);
+  /*!
+   * \brief return number of rows
+   * \param handle a instance of data matrix
+   */
+  SEXP XGDMatrixNumRow_R(SEXP handle);
   /*! 
    * \brief create xgboost learner 
    * \param dmats a list of dmatrix handles that will be cached
