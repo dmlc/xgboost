@@ -133,9 +133,9 @@ xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
     .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain, 
           PACKAGE = "xgboost")
   } else {
-    pred <- xgb.predict(bst, dtrain)
+    pred <- xgb.predict(booster, dtrain)
     gpair <- obj(pred, dtrain)
-    succ <- xgb.iter.boost(bst, dtrain, gpair)
+    succ <- xgb.iter.boost(booster, dtrain, gpair)
   }
   return(TRUE)
 }
@@ -172,7 +172,7 @@ xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL) {
         if (length(names(w)) == 0) {
           stop("xgb.eval: name tag must be presented for every elements in watchlist")
         }
-        ret <- feval(xgb.predict(bst, w[[1]]), w[[1]])
+        ret <- feval(xgb.predict(booster, w[[1]]), w[[1]])
         msg <- paste(msg, "\t", names(w), "-", ret$metric, ":", ret$value, sep="")
       }
     }
