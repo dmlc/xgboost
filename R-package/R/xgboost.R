@@ -34,7 +34,7 @@
 #' 
 #' @examples
 #' data(iris)
-#' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
+#' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]=='setosa'), nrounds = 2)
 #' pred <- predict(bst, as.matrix(iris[,1:4]))
 #' @export
 #' 
