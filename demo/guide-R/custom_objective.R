@@ -1,31 +1,31 @@
-#!/usr/bin/python
-import sys
-import numpy as np
-sys.path.append('../../wrapper')
-import xgboost as xgb
-###
-# advanced: cutomsized loss function
-# 
-print ('start running example to used cutomized objective function')
+require(xgboost)
 
-dtrain = xgb.DMatrix('../data/agaricus.txt.train')
-dtest = xgb.DMatrix('../data/agaricus.txt.test')
+data(iris)
+iris[,5] <- as.numeric(iris[,5]=='setosa')
+iris <- as.matrix(iris)
+set.seed(20)
+test_ind <- sample(1:nrow(iris),50)
+train_ind <- setdiff(1:nrow(iris),test_ind)
+dtrain <- xgb.DMatrix(iris[train_ind,1:4], label=iris[train_ind,5])
+dtest <- xgb.DMatrix(iris[test_ind,1:4], label=iris[test_ind,5])
 
 # note: for customized objective function, we leave objective as default
 # note: what we are getting is margin value in prediction
 # you must know what you are doing
-param = {'max_depth':2, 'eta':1, 'silent':1 }
-watchlist  = [(dtest,'eval'), (dtrain,'train')]
-num_round = 2
+param <- list(max_depth=2,eta=1,silent=1)
+watchlist <- list(eval = dtest, train = dtrain)
+num_round <- 2
+
 
 # user define objective function, given prediction, return gradient and second order gradient
 # this is loglikelihood loss
-def logregobj(preds, dtrain):
-    labels = dtrain.get_label()
-    preds = 1.0 / (1.0 + np.exp(-preds))
-    grad = preds - labels
-    hess = preds * (1.0-preds)
-    return grad, hess
+logregobj <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+  preds <- 1/(1 + exp(-preds))
+  grad <- preds - labels
+  hess <- preds * (1 - preds)
+  return(list(grad = grad, hess = hess))
+}
 
 # user defined evaluation function, return a pair metric_name, result
 # NOTE: when you do customized loss function, the default prediction value is margin
@@ -33,11 +33,12 @@ def logregobj(preds, dtrain):
 # for example, we are doing logistic loss, the prediction is score before logistic transformation
 # the buildin evaluation error assumes input is after logistic transformation
 # Take this in mind when you use the customization, and maybe you need write customized evaluation function
-def evalerror(preds, dtrain):
-    labels = dtrain.get_label()
-    # return a pair metric_name, result
-    # since preds are margin(before logistic transformation, cutoff at 0)
-    return 'error', float(sum(labels != (preds > 0.0))) / len(labels)
+evalerror <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+  err <- as.numeric(sum(labels != (preds > 0)))/length(labels)
+  return(list(metric = "error", value = err))
+}
+
 
 # training with customized objective, we can also do step by step training
 # simply look at xgboost.py's implementation of train
