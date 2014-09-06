@@ -1,0 +1,47 @@
+This is BibTeX, Version 0.99d (TeX Live 2013/Debian)
+Capacity: max_strings=35307, hash_size=35307, hash_prime=30011
+The top-level auxiliary file: xgboost.aux
+The style file: jss.bst
+Database file #1: xgboost.bib
+Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
+You've used 2 entries,
+            3140 wiz_defined-function locations,
+            641 strings with 5430 characters,
+and the built_in function-call counts, 1920 in all, are:
+= -- 162
+> -- 44
+< -- 2
++ -- 17
+- -- 15
+* -- 149
+:= -- 256
+add.period$ -- 8
+call.type$ -- 2
+change.case$ -- 12
+chr.to.int$ -- 2
+cite$ -- 2
+duplicate$ -- 171
+empty$ -- 175
+format.name$ -- 19
+if$ -- 395
+int.to.chr$ -- 1
+int.to.str$ -- 1
+missing$ -- 24
+newline$ -- 21
+num.names$ -- 8
+pop$ -- 51
+preamble$ -- 1
+purify$ -- 12
+quote$ -- 0
+skip$ -- 53
+stack$ -- 0
+substring$ -- 181
+swap$ -- 65
+text.length$ -- 1
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 18
+warning$ -- 0
+while$ -- 16
+width$ -- 0
+write$ -- 36
