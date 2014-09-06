@@ -1,13 +1,15 @@
 require(xgboost)
 
-data(iris)
-iris[,5] <- as.numeric(iris[,5]=='setosa')
-iris <- as.matrix(iris)
-set.seed(20)
-test_ind <- sample(1:nrow(iris),50)
-train_ind <- setdiff(1:nrow(iris),test_ind)
-dtrain <- xgb.DMatrix(iris[train_ind,1:4], label=iris[train_ind,5])
-dtest <- xgb.DMatrix(iris[test_ind,1:4], label=iris[test_ind,5])
+data(agaricus.train)
+data(agaricus.test)
+
+trainX = agaricus.train$data
+trainY = agaricus.train$label
+testX = agaricus.test$data
+testY = agaricus.test$label
+
+dtrain <- xgb.DMatrix(trainX, label=trainY)
+dtest <- xgb.DMatrix(testX, label=testY)
 
 
 watchlist <- list(eval = dtest, train = dtrain)
