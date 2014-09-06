@@ -40,14 +40,7 @@
 #' 
 xgboost <- function(data = NULL, label = NULL, params = list(), nrounds, 
                     verbose = 1, ...) {
-  dtrain <- xgb.get.DMatrix(data, label)
-  if (verbose > 1) {
-    silent <- 0 
-  } else {
-    silent <- 1
-  }
-  
-  params <- append(params, list(silent = silent))
+  dtrain <- xgb.get.DMatrix(data, label)  
   params <- append(params, list(...))
   
   if (verbose > 0) {
@@ -56,7 +49,7 @@ xgboost <- function(data = NULL, label = NULL, params = list(), nrounds,
     watchlist <- list()
   }
   
-  bst <- xgb.train(params, dtrain, nrounds, watchlist)
+  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose=verbose)
   
   return(bst)
 } 
