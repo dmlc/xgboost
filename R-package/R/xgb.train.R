@@ -29,6 +29,9 @@
 #' @param feval custimized evaluation function. Returns 
 #'   \code{list(metric='metric-name', value='metric-value')} with given 
 #'   prediction and dtrain,
+#' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
+#'   information of performance. If 2, xgboost will print information of both
+#'
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 
@@ -65,7 +68,7 @@
 #' @export
 #' 
 xgb.train <- function(params=list(), data, nrounds, watchlist = list(), 
-                      obj = NULL, feval = NULL, ...) {
+                      obj = NULL, feval = NULL, verbose = 1, ...) {
   dtrain <- data
   if (typeof(params) != "list") {
     stop("xgb.train: first argument params must be list")
@@ -73,7 +76,17 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   if (class(dtrain) != "xgb.DMatrix") {
     stop("xgb.train: second argument dtrain must be xgb.DMatrix")
   }
+  if (verbose > 1) {
+    params <- append(params, list(silent = 0))
+  } else {
+    params <- append(params, list(silent = 1))
+  }
+  if (length(watchlist) != 0 && verbose == 0) {
+    warning('watchlist is provided but verbose=0, no evaluation information will be printed')
+    watchlist <- list()
+  }
   params = append(params, list(...))
+  
   bst <- xgb.Booster(params, append(watchlist, dtrain))
   for (i in 1:nrounds) {
     succ <- xgb.iter.update(bst, dtrain, i - 1, obj)
