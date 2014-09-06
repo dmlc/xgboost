@@ -20,7 +20,7 @@
 #' @param nrounds the max number of iterations
 #' @param nfold number of folds used
 #' @param label option field, when data is Matrix
-#' @param showd boolean, whether show standard deviation of cross validation
+#' @param showsd boolean, whether show standard deviation of cross validation
 #' @param metrics, list of evaluation metrics to be used in corss validation,
 #'   when it is not specified, the evaluation metric is chosen according to objective function.
 #'   Possible options are:
@@ -77,5 +77,5 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL,
     history <- append(history, ret)
     cat(paste(ret, "\n", sep=""))
   }
-  return (history)
+  return (TRUE)
 }
