@@ -21,7 +21,7 @@ Save a xgboost model to text file. Could be parsed later.
 }
 \examples{
 data(iris)
-bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
+bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]=='setosa'), nrounds = 2)
 xgb.dump(bst, 'iris.xgb.model.dump')
 }
 

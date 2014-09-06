@@ -80,7 +80,7 @@ In this section, we will illustrate some common usage of \verb@xgboost@.
 <<Training and prediction with iris>>=
 library(xgboost)
 data(iris)
-bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), 
+bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]=='setosa'), 
                nrounds = 5)
 xgb.save(bst, 'model.save')
 bst = xgb.load('model.save')
@@ -121,7 +121,7 @@ training from initial prediction value, weighted training instance.
 We can use \verb@xgb.DMatrix@ to construct an \verb@xgb.DMatrix@ object:
 <<xgb.DMatrix>>=
 iris.mat <- as.matrix(iris[,1:4])
-iris.label <- as.numeric(iris[,5])
+iris.label <- as.numeric(iris[,5]=='setosa')
 diris <- xgb.DMatrix(iris.mat, label = iris.label)
 class(diris)
 getinfo(diris,'label')

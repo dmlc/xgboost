@@ -6,7 +6,7 @@
 #' 
 #' @examples
 #' data(iris)
-#' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
+#' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]=='setosa'), nrounds = 2)
 #' xgb.save(bst, 'iris.xgb.model')
 #' bst <- xgb.load('iris.xgb.model')
 #' pred <- predict(bst, as.matrix(iris[,1:4]))

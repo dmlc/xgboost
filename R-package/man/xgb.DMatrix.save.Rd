@@ -15,7 +15,7 @@ Save xgb.DMatrix object to binary file
 }
 \examples{
 data(iris)
-iris[,5] <- as.numeric(iris[,5])
+iris[,5] <- as.numeric(iris[,5]=='setosa')
 dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
 xgb.DMatrix.save(dtrain, 'iris.xgb.DMatrix')
 dtrain <- xgb.DMatrix('iris.xgb.DMatrix')

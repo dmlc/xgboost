@@ -21,7 +21,7 @@ Get information of an xgb.DMatrix object
 }
 \examples{
 data(iris)
-iris[,5] <- as.numeric(iris[,5])
+iris[,5] <- as.numeric(iris[,5]=='setosa')
 dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
 labels <- getinfo(dtrain, "label")
 }
