@@ -81,20 +81,28 @@ xgb.predict <- function(booster, dmat, outputmargin = FALSE) {
 
 ## ----the following are low level iteratively function, not needed if
 ## you do not want to use them ---------------------------------------
-
-# iteratively update booster with dtrain
-xgb.iter.update <- function(booster, dtrain, iter) {
-  if (class(booster) != "xgb.Booster") {
-    stop("xgb.iter.update: first argument must be type xgb.Booster")
+# get dmatrix from data, label
+xgb.get.DMatrix <- function(data, label = NULL) {
+  inClass <- class(data)
+  if (inClass == "dgCMatrix" || inClass == "matrix") {
+    if (is.null(label)) {
+      stop("xgboost: need label when data is a matrix")
+    }
+    dtrain <- xgb.DMatrix(data, label = label)
+  } else {
+    if (!is.null(label)) {
+      warning("xgboost: label will be ignored.")
+    }
+    if (inClass == "character") {
+      dtrain <- xgb.DMatrix(data)
+    } else if (inClass == "xgb.DMatrix") {
+      dtrain <- data
+    } else {
+      stop("xgboost: Invalid input of data")
+    }
   }
-  if (class(dtrain) != "xgb.DMatrix") {
-    stop("xgb.iter.update: second argument must be type xgb.DMatrix")
-  }
-  .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain, 
-        PACKAGE = "xgboost")
-  return(TRUE)
+  return (dtrain)
 }
-
 # iteratively update booster with customized statistics
 xgb.iter.boost <- function(booster, dtrain, gpair) {
   if (class(booster) != "xgb.Booster") {
@@ -108,8 +116,28 @@ xgb.iter.boost <- function(booster, dtrain, gpair) {
   return(TRUE)
 }
 
+# iteratively update booster with dtrain
+xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
+  if (class(booster) != "xgb.Booster") {
+    stop("xgb.iter.update: first argument must be type xgb.Booster")
+  }
+  if (class(dtrain) != "xgb.DMatrix") {
+    stop("xgb.iter.update: second argument must be type xgb.DMatrix")
+  }
+
+  if (is.null(obj)) {
+    .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain, 
+          PACKAGE = "xgboost")
+  } else {
+    pred <- xgb.predict(bst, dtrain)
+    gpair <- obj(pred, dtrain)
+    succ <- xgb.iter.boost(bst, dtrain, gpair)
+  }
+  return(TRUE)
+}
+
 # iteratively evaluate one iteration
-xgb.iter.eval <- function(booster, watchlist, iter) {
+xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL) {
   if (class(booster) != "xgb.Booster") {
     stop("xgb.eval: first argument must be type xgb.Booster")
   }
@@ -122,18 +150,47 @@ xgb.iter.eval <- function(booster, watchlist, iter) {
     }
   }
   if (length(watchlist) != 0) {
-    evnames <- list()
-    for (i in 1:length(watchlist)) {
-      w <- watchlist[i]
-      if (length(names(w)) == 0) {
-        stop("xgb.eval: name tag must be presented for every elements in watchlist")
+    if (is.null(feval)) {
+      evnames <- list()
+      for (i in 1:length(watchlist)) {
+        w <- watchlist[i]
+        if (length(names(w)) == 0) {
+          stop("xgb.eval: name tag must be presented for every elements in watchlist")
+        }
+        evnames <- append(evnames, names(w))
       }
-      evnames <- append(evnames, names(w))
+      msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist, 
+                   evnames, PACKAGE = "xgboost")
+    } else {
+      msg <- paste("[", iter, "]", sep="")
+      for (j in 1:length(watchlist)) {
+        w <- watchlist[j]
+        if (length(names(w)) == 0) {
+          stop("xgb.eval: name tag must be presented for every elements in watchlist")
+        }
+        ret <- feval(xgb.predict(bst, w[[1]]), w[[1]])
+        msg <- paste(msg, "\t", names(w), "-", ret$metric, ":", ret$value, sep="")
+      }
     }
-    msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist, 
-                 evnames, PACKAGE = "xgboost")
   } else {
     msg <- ""
-  }
+  }  
   return(msg)
 } 
+#------------------------------------------
+# helper functions for cross validation
+#
+xgb.cv.mknfold <- function(dall, nfold, param, metrics=list(), fpreproc = NULL) {  
+  randidx <- sample(1 : xgb.numrow(dall))
+  kstep <- length(randidx) / nfold
+  idset <- list()
+  for (i in 1:nfold) {
+    idset = append(idset, randidx[ ((i-1) * kstep + 1) : min(i * kstep, length(randidx)) ])
+  }
+  ret <- list()
+  for (k in 1:nfold) {
+    
+  }
+  
+}
+
