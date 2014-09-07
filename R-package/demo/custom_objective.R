@@ -8,7 +8,7 @@ dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 # note: for customized objective function, we leave objective as default
 # note: what we are getting is margin value in prediction
 # you must know what you are doing
-param <- list(max_depth=2,eta=1,silent=1)
+param <- list(max.depth=2,eta=1,silent=1)
 watchlist <- list(eval = dtest, train = dtrain)
 num_round <- 2
 
