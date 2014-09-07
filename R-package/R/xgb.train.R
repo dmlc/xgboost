@@ -15,7 +15,7 @@
 #' }
 #'
 #'   See \url{https://github.com/tqchen/xgboost/wiki/Parameters} for 
-#'   further details. See also inst/examples/demo.R for walkthrough example in R.
+#'   further details. See also demo/ for walkthrough example in R.
 #' @param data takes an \code{xgb.DMatrix} as the input.
 #' @param nrounds the max number of iterations
 #' @param watchlist what information should be printed when \code{verbose=1} or

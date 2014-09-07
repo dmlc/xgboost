@@ -20,7 +20,7 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL, showsd = TRUE,
 }
 
   See \url{https://github.com/tqchen/xgboost/wiki/Parameters} for
-  further details. See also inst/examples/demo.R for walkthrough example in R.}
+  further details. See also demo/ for walkthrough example in R.}
 
 \item{data}{takes an \code{xgb.DMatrix} as the input.}
 

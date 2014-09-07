@@ -173,7 +173,7 @@ objective function.
 We also have \verb@slice@ for row extraction. It is useful in 
 cross-validation.
 
-For a walkthrough demo, please see \verb@R-package/inst/examples/demo.R@ for further 
+For a walkthrough demo, please see \verb@R-package/demo/@ for further 
 details.
 
 \section{The Higgs Boson competition}

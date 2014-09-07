@@ -7,9 +7,9 @@
 #' @param fmap feature map file representing the type of feature. 
 #'        Detailed description could be found at 
 #'        \url{https://github.com/tqchen/xgboost/wiki/Binary-Classification#dump-model}.
-#'        Run inst/examples/demo.R for the result and inst/examples/featmap.txt 
+#'        See demo/ for walkthrough example in R, and
+#'        \url{https://github.com/tqchen/xgboost/blob/master/demo/data/featmap.txt} 
 #'        for example Format.
-#'        
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
