@@ -6,3 +6,12 @@ XGBoost R Feature Walkthrough
 * [Predicting using first n trees](predict_first_ntree.R)
 * [Generalized Linear Model](generalized_linear_model.R)
 * [Cross validation](cross_validation.R)
+
+Benchmarks
+====
+* [Starter script for Kaggle Higgs Boson](../../demo/kaggle-higgs)
+ 
+Notes
+====
+* Contribution of exampls, benchmarks is more than welcomed!
+* If you like to share how you use xgboost to solve your problem, send a pull request:)
