@@ -69,10 +69,10 @@ xgboost <- function(data = NULL, label = NULL, params = list(), nrounds,
 #' 
 #' \itemize{
 #'  \item \code{label} the label for each record
-#'  \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 127 rows.
+#'  \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 127 columns.
 #' }
 #'
-#'#' @references
+#' @references
 #' https://archive.ics.uci.edu/ml/datasets/Mushroom
 #' 
 #' Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository 
@@ -96,7 +96,7 @@ NULL
 #' 
 #' \itemize{
 #'  \item \code{label} the label for each record
-#'  \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 127 rows.
+#'  \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 127 columns.
 #' }
 #'
 #' @references
