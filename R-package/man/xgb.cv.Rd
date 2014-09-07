@@ -30,7 +30,7 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL, showsd = TRUE,
 
 \item{label}{option field, when data is Matrix}
 
-\item{showd}{boolean, whether show standard deviation of cross validation}
+\item{showsd}{boolean, whether show standard deviation of cross validation}
 
 \item{metrics,}{list of evaluation metrics to be used in corss validation,
   when it is not specified, the evaluation metric is chosen according to objective function.
