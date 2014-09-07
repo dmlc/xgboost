@@ -1,7 +1,7 @@
 Package: xgboost
 Type: Package
 Title: eXtreme Gradient Boosting
-Version: 0.3-1
+Version: 0.3-2
 Date: 2014-08-23
 Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>
 Maintainer: Tong He <hetong007@gmail.com>
