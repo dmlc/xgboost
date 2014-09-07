@@ -2,7 +2,7 @@
 #' 
 #' Save xgb.DMatrix object to binary file
 #' 
-#' @param DMatrix the model object.
+#' @param DMatrix the DMatrix object
 #' @param fname the name of the binary file.
 #' 
 #' @examples
@@ -22,6 +22,6 @@ xgb.DMatrix.save <- function(DMatrix, fname) {
           PACKAGE = "xgboost")
     return(TRUE)
   }
-  stop("xgb.save: the input must be either xgb.DMatrix or xgb.Booster")
+  stop("xgb.DMatrix.save: the input must be xgb.DMatrix")
   return(FALSE)
 } 
