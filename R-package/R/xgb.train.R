@@ -10,7 +10,7 @@
 #'     \item \code{binary:logistic} logistic regression for classification
 #'   }
 #'   \item \code{eta} step size of each boosting step
-#'   \item \code{max_depth} maximum depth of the tree
+#'   \item \code{max.depth} maximum depth of the tree
 #'   \item \code{nthread} number of thread used in training, if not set, all threads are used
 #' }
 #'
@@ -50,7 +50,7 @@
 #' dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 #' dtest <- dtrain
 #' watchlist <- list(eval = dtest, train = dtrain)
-#' param <- list(max_depth = 2, eta = 1, silent = 1)
+#' param <- list(max.depth = 2, eta = 1, silent = 1)
 #' logregobj <- function(preds, dtrain) {
 #'    labels <- getinfo(dtrain, "label")
 #'    preds <- 1/(1 + exp(-preds))

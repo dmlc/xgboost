@@ -10,7 +10,7 @@
 #'     \item \code{binary:logistic} logistic regression for classification
 #'   }
 #'   \item \code{eta} step size of each boosting step
-#'   \item \code{max_depth} maximum depth of the tree
+#'   \item \code{max.depth} maximum depth of the tree
 #'   \item \code{nthread} number of thread used in training, if not set, all threads are used
 #' }
 #'
@@ -50,7 +50,7 @@
 #' data(agaricus.train, package='xgboost')
 #' dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 #' history <- xgb.cv(data = dtrain, nround=3, nfold = 5, metrics=list("rmse","auc"),
-#'                   "max_depth"=3, "eta"=1, "objective"="binary:logistic")
+#'                   "max.depth"=3, "eta"=1, "objective"="binary:logistic")
 #' @export
 #'
 xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL,

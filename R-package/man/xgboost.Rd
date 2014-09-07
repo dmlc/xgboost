@@ -20,7 +20,7 @@ xgboost(data = NULL, label = NULL, params = list(), nrounds,
     \item \code{binary:logistic} logistic regression for classification
   }
   \item \code{eta} step size of each boosting step
-  \item \code{max_depth} maximum depth of the tree
+  \item \code{max.depth} maximum depth of the tree
   \item \code{nthread} number of thread used in training, if not set, all threads are used
 }
 
