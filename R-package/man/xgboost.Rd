@@ -45,8 +45,12 @@ Parallelization is automatically enabled if OpenMP is present.
 Number of threads can also be manually specified via "nthread" parameter
 }
 \examples{
-data(iris)
-bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]=='setosa'), nrounds = 2)
-pred <- predict(bst, as.matrix(iris[,1:4]))
+data(agaricus.train, package='xgboost')
+data(agaricus.test, package='xgboost')
+train <- agaricus.train
+test <- agaricus.test
+bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
+               eta = 1, nround = 2,objective = "binary:logistic")
+pred <- predict(bst, test$data)
 }
 

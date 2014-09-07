@@ -17,10 +17,8 @@ This data set includes the following fields:
 
 \itemize{
  \item \code{label} the label for each record
- \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 127 rows.
+ \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 127 columns.
 }
-
-#'
 }
 \references{
 https://archive.ics.uci.edu/ml/datasets/Mushroom

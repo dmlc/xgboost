@@ -6,7 +6,7 @@
 xgb.DMatrix.save(DMatrix, fname)
 }
 \arguments{
-\item{DMatrix}{the model object.}
+\item{DMatrix}{the DMatrix object}
 
 \item{fname}{the name of the binary file.}
 }
