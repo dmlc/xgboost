@@ -1,4 +1,6 @@
 #!/bin/bash
+# this is a simple scrip to make xgboost in MAC nad Linux
+# basically, it first try to make with OpenMP, if fails, disable OpenMP and make again
 if make; then
     echo "Successfully build multi-thread xgboost"
 else
