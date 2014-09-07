@@ -65,20 +65,6 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
   return(structure(handle, class = "xgb.Booster"))
 }
 
-
-# predict, depreciated
-xgb.predict <- function(booster, dmat, outputmargin = FALSE) {
-  if (class(booster) != "xgb.Booster") {
-    stop("xgb.predict: first argument must be type xgb.Booster")
-  }
-  if (class(dmat) != "xgb.DMatrix") {
-    stop("xgb.predict: second argument must be type xgb.DMatrix")
-  }
-  ret <- .Call("XGBoosterPredict_R", booster, dmat, as.integer(outputmargin), 
-               PACKAGE = "xgboost")
-  return(ret)
-}
-
 ## ----the following are low level iteratively function, not needed if
 ## you do not want to use them ---------------------------------------
 # get dmatrix from data, label
@@ -133,7 +119,7 @@ xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
     .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain, 
           PACKAGE = "xgboost")
   } else {
-    pred <- xgb.predict(booster, dtrain)
+    pred <- predict(booster, dtrain)
     gpair <- obj(pred, dtrain)
     succ <- xgb.iter.boost(booster, dtrain, gpair)
   }
@@ -172,7 +158,7 @@ xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL) {
         if (length(names(w)) == 0) {
           stop("xgb.eval: name tag must be presented for every elements in watchlist")
         }
-        ret <- feval(xgb.predict(booster, w[[1]]), w[[1]])
+        ret <- feval(predict(booster, w[[1]]), w[[1]])
         msg <- paste(msg, "\t", names(w), "-", ret$metric, ":", ret$value, sep="")
       }
     }
