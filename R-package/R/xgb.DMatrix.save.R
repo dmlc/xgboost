@@ -22,6 +22,6 @@ xgb.DMatrix.save <- function(DMatrix, fname) {
           PACKAGE = "xgboost")
     return(TRUE)
   }
-  stop("xgb.save: the input must be either xgb.DMatrix or xgb.Booster")
+  stop("xgb.DMatrix.save: the input must be xgb.DMatrix")
   return(FALSE)
 } 
