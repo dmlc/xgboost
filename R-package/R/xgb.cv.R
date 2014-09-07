@@ -46,6 +46,11 @@
 #' 
 #' This function only accepts an \code{xgb.DMatrix} object as the input.
 #'
+#' @examples
+#' data(agaricus.train, package='xgboost')
+#' dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
+#' history <- xgb.cv(data = dtrain, nround=3, nfold = 5, metrics=list("rmse","auc"),
+#'                   "max_depth"=3, "eta"=1, "objective"="binary:logistic")
 #' @export
 #'
 xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL,

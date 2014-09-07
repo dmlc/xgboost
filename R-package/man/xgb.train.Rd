@@ -58,9 +58,8 @@ It supports advanced features such as watchlist, customized objective function,
 therefore it is more flexible than \code{\link{xgboost}}.
 }
 \examples{
-data(iris)
-iris[,5] <- as.numeric(iris[,5]=='setosa')
-dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
+data(agaricus.train, package='xgboost')
+dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 dtest <- dtrain
 watchlist <- list(eval = dtest, train = dtrain)
 param <- list(max_depth = 2, eta = 1, silent = 1)

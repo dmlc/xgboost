@@ -12,9 +12,13 @@
 #'        
 #'
 #' @examples
-#' data(iris)
-#' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]=='setosa'), nrounds = 2)
-#' xgb.dump(bst, 'iris.xgb.model.dump')
+#' data(agaricus.train, package='xgboost')
+#' data(agaricus.test, package='xgboost')
+#' train <- agaricus.train
+#' test <- agaricus.test
+#' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
+#'                eta = 1, nround = 2,objective = "binary:logistic")
+#' xgb.dump(bst, 'xgb.model.dump')
 #' @export
 #' 
 xgb.dump <- function(model, fname, fmap = "") {

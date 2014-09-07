@@ -15,9 +15,13 @@ setClass("xgb.Booster")
 #'  only valid for gbtree, but not for gblinear. set it to be value bigger 
 #'  than 0. It will use all trees by default.
 #' @examples
-#' data(iris)
-#' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]=='setosa'), nrounds = 2)
-#' pred <- predict(bst, as.matrix(iris[,1:4]))
+#' data(agaricus.train, package='xgboost')
+#' data(agaricus.test, package='xgboost')
+#' train <- agaricus.train
+#' test <- agaricus.test
+#' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
+#'                eta = 1, nround = 2,objective = "binary:logistic")
+#' pred <- predict(bst, test$data)
 #' @export
 #' 
 setMethod("predict", signature = "xgb.Booster", 
