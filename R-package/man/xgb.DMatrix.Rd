@@ -19,10 +19,10 @@ indicating the data file.}
 Contruct xgb.DMatrix object from dense matrix, sparse matrix or local file.
 }
 \examples{
-data(iris)
-iris[,5] <- as.numeric(iris[,5])
-dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
-xgb.DMatrix.save(dtrain, 'iris.xgb.DMatrix')
-dtrain <- xgb.DMatrix('iris.xgb.DMatrix')
+data(agaricus.train, package='xgboost')
+train <- agaricus.train
+dtrain <- xgb.DMatrix(train$data, label=train$label)
+xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
+dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 }
 

@@ -5,10 +5,13 @@ setClass('xgb.DMatrix')
 #' Get information of an xgb.DMatrix object
 #' 
 #' @examples
-#' data(iris)
-#' iris[,5] <- as.numeric(iris[,5])
-#' dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
-#' labels <- getinfo(dtrain, "label")
+#' data(agaricus.train, package='xgboost')
+#' train <- agaricus.train
+#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' labels <- getinfo(dtrain, 'label')
+#' setinfo(dtrain, 'label', 1-labels)
+#' labels2 <- getinfo(dtrain, 'label')
+#' stopifnot(all(labels2 == 1-labels))
 #' @rdname getinfo
 #' @export
 #' 

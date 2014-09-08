@@ -6,7 +6,7 @@
 xgb.DMatrix.save(DMatrix, fname)
 }
 \arguments{
-\item{DMatrix}{the model object.}
+\item{DMatrix}{the DMatrix object}
 
 \item{fname}{the name of the binary file.}
 }
@@ -14,10 +14,10 @@ xgb.DMatrix.save(DMatrix, fname)
 Save xgb.DMatrix object to binary file
 }
 \examples{
-data(iris)
-iris[,5] <- as.numeric(iris[,5])
-dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
-xgb.DMatrix.save(dtrain, 'iris.xgb.DMatrix')
-dtrain <- xgb.DMatrix('iris.xgb.DMatrix')
+data(agaricus.train, package='xgboost')
+train <- agaricus.train
+dtrain <- xgb.DMatrix(train$data, label=train$label)
+xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
+dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 }
 

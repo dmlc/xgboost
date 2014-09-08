@@ -20,12 +20,12 @@ xgboost(data = NULL, label = NULL, params = list(), nrounds,
     \item \code{binary:logistic} logistic regression for classification
   }
   \item \code{eta} step size of each boosting step
-  \item \code{max_depth} maximum depth of the tree
+  \item \code{max.depth} maximum depth of the tree
   \item \code{nthread} number of thread used in training, if not set, all threads are used
 }
 
   See \url{https://github.com/tqchen/xgboost/wiki/Parameters} for
-  further details. See also inst/examples/demo.R for walkthrough example in R.}
+  further details. See also demo/ for walkthrough example in R.}
 
 \item{nrounds}{the max number of iterations}
 
@@ -45,8 +45,12 @@ Parallelization is automatically enabled if OpenMP is present.
 Number of threads can also be manually specified via "nthread" parameter
 }
 \examples{
-data(iris)
-bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
-pred <- predict(bst, as.matrix(iris[,1:4]))
+data(agaricus.train, package='xgboost')
+data(agaricus.test, package='xgboost')
+train <- agaricus.train
+test <- agaricus.test
+bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
+               eta = 1, nround = 2,objective = "binary:logistic")
+pred <- predict(bst, test$data)
 }
 

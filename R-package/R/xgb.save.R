@@ -6,11 +6,15 @@
 #' @param fname the name of the binary file.
 #' 
 #' @examples
-#' data(iris)
-#' bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
-#' xgb.save(bst, 'iris.xgb.model')
-#' bst <- xgb.load('iris.xgb.model')
-#' pred <- predict(bst, as.matrix(iris[,1:4]))
+#' data(agaricus.train, package='xgboost')
+#' data(agaricus.test, package='xgboost')
+#' train <- agaricus.train
+#' test <- agaricus.test
+#' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
+#'                eta = 1, nround = 2,objective = "binary:logistic")
+#' xgb.save(bst, 'xgb.model')
+#' bst <- xgb.load('xgb.model')
+#' pred <- predict(bst, test$data)
 #' @export
 #' 
 xgb.save <- function(model, fname) {

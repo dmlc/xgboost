@@ -14,6 +14,7 @@ using namespace std;
 #include "../src/learner/learner-inl.hpp"
 #include "../src/io/io.h"
 #include "../src/utils/utils.h"
+#include "../src/utils/matrix_csr.h"
 #include "../src/io/simple_dmatrix-inl.hpp"
 
 using namespace xgboost;
@@ -100,6 +101,31 @@ extern "C"{
                                        static_cast<size_t>(indices[i]+1));
     }
     mat.info.info.num_row = nindptr - 1;
+    return p_mat;
+  }
+  XGB_DLL void* XGDMatrixCreateFromCSC(const bst_ulong *col_ptr,
+                                       const unsigned *indices,
+                                       const float *data,
+                                       bst_ulong nindptr,
+                                       bst_ulong nelem) {
+    DMatrixSimple *p_mat = new DMatrixSimple();
+    DMatrixSimple &mat = *p_mat;
+    utils::SparseCSRMBuilder<RowBatch::Entry, false> builder(mat.row_ptr_, mat.row_data_);
+    builder.InitBudget();
+    bst_ulong ncol = nindptr - 1;
+    for (bst_ulong i = 0; i < ncol; ++i) {
+      for (unsigned j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
+        builder.AddBudget(indices[j]);
+      }
+    }
+    builder.InitStorage();
+    for (bst_ulong i = 0; i < ncol; ++i) {
+      for (unsigned j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
+        builder.PushElem(indices[j], RowBatch::Entry(static_cast<bst_uint>(i), data[j]));
+      }
+    }
+    mat.info.info.num_row = mat.row_ptr_.size() - 1;
+    mat.info.info.num_col = static_cast<size_t>(ncol);
     return p_mat;
   }
   void* XGDMatrixCreateFromMat(const float *data,
