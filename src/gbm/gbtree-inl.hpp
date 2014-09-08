@@ -282,7 +282,7 @@ class GBTree : public IGradBooster {
         tree::RegTree::FVec &feats = thread_temp[tid];
         feats.Fill(batch[i]);
         for (size_t j = 0; j < trees.size(); ++j) {
-          int tid = trees[i]->GetLeafIndex(feats, info.GetRoot(ridx));
+          int tid = trees[j]->GetLeafIndex(feats, info.GetRoot(ridx));
           preds[ridx * mparam.num_trees + j] = static_cast<float>(tid);
         }
         feats.Drop(batch[i]);
