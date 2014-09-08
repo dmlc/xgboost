@@ -73,18 +73,22 @@ and ranking. The package is made to be extendible, so that users are also allowe
 \end{enumerate}
 
 
-\section{Example with iris}
+\section{Example with Mushroom data}
 
-In this section, we will illustrate some common usage of \verb@xgboost@.
+In this section, we will illustrate some common usage of \verb@xgboost@. The 
+Mushroom data is cited from UCI Machine Learning Repository. \citep{Bache+Lichman:2013} 
 
 <<Training and prediction with iris>>=
 library(xgboost)
-data(iris)
-bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), 
-               nrounds = 5)
+data(agaricus.train, package='xgboost')
+data(agaricus.test, package='xgboost')
+train <- agaricus.train
+test <- agaricus.test
+bst <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, 
+               nround = 2, objective = "binary:logistic")
 xgb.save(bst, 'model.save')
 bst = xgb.load('model.save')
-pred <- predict(bst, as.matrix(iris[,1:4]))
+pred <- predict(bst, test$data)
 @
 
 \verb@xgboost@ is the main function to train a \verb@Booster@, i.e. a model.
@@ -101,17 +105,19 @@ The output looks like
 
 \begin{verbatim}
 booster[0]:
-0:[f2<2.45] yes=1,no=2,missing=1
-    1:leaf=0.147059
-    2:[f3<1.65] yes=3,no=4,missing=3
-        3:leaf=0.464151
-        4:leaf=0.722449
+0:[f28<1.00001] yes=1,no=2,missing=2
+  1:[f108<1.00001] yes=3,no=4,missing=4
+    3:leaf=1.85965
+    4:leaf=-1.94071
+  2:[f55<1.00001] yes=5,no=6,missing=6
+    5:leaf=-1.70044
+    6:leaf=1.71218
 booster[1]:
-0:[f2<2.45] yes=1,no=2,missing=1
-    1:leaf=0.103806
-    2:[f2<4.85] yes=3,no=4,missing=3
-        3:leaf=0.316341
-        4:leaf=0.510365
+0:[f59<1.00001] yes=1,no=2,missing=2
+  1:leaf=-6.23624
+  2:[f28<1.00001] yes=3,no=4,missing=4
+    3:leaf=-0.96853
+    4:leaf=0.784718
 \end{verbatim}
 
 It is important to know \verb@xgboost@'s own data type: \verb@xgb.DMatrix@.
@@ -120,18 +126,16 @@ training from initial prediction value, weighted training instance.
 
 We can use \verb@xgb.DMatrix@ to construct an \verb@xgb.DMatrix@ object:
 <<xgb.DMatrix>>=
-iris.mat <- as.matrix(iris[,1:4])
-iris.label <- as.numeric(iris[,5])
-diris <- xgb.DMatrix(iris.mat, label = iris.label)
-class(diris)
-getinfo(diris,'label')
+dtrain <- xgb.DMatrix(train$data, label = train$label)
+class(dtrain)
+head(getinfo(dtrain,'label'))
 @
 
 We can also save the matrix to a binary file. Then load it simply with 
 \verb@xgb.DMatrix@
 <<save model>>=
-xgb.DMatrix.save(diris, 'iris.xgb.DMatrix')
-diris = xgb.DMatrix('iris.xgb.DMatrix')
+xgb.DMatrix.save(dtrain, 'xgb.DMatrix')
+dtrain = xgb.DMatrix('xgb.DMatrix')
 @
 
 \section{Advanced Examples}
@@ -156,11 +160,11 @@ evalerror <- function(preds, dtrain) {
   return(list(metric = "MSE", value = err))
 }
 
-dtest <- slice(diris,1:100)
-watchlist <- list(eval = dtest, train = diris)
-param <- list(max_depth = 2, eta = 1, silent = 1)
+dtest <- xgb.DMatrix(test$data, label = test$label)
+watchlist <- list(eval = dtest, train = dtrain)
+param <- list(max.depth = 2, eta = 1, silent = 1)
 
-bst <- xgb.train(param, diris, nround = 2, watchlist, logregobj, evalerror)
+bst <- xgb.train(param, dtrain, nround = 2, watchlist, logregobj, evalerror)
 @
 
 The gradient and second order gradient is required for the output of customized 
@@ -169,7 +173,7 @@ objective function.
 We also have \verb@slice@ for row extraction. It is useful in 
 cross-validation.
 
-For a walkthrough demo, please see \verb@R-package/inst/examples/demo.R@ for further 
+For a walkthrough demo, please see \verb@R-package/demo/@ for further 
 details.
 
 \section{The Higgs Boson competition}

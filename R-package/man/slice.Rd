@@ -22,9 +22,9 @@ Get a new DMatrix containing the specified rows of
 orginal xgb.DMatrix object
 }
 \examples{
-data(iris)
-iris[,5] <- as.numeric(iris[,5])
-dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
+data(agaricus.train, package='xgboost')
+train <- agaricus.train
+dtrain <- xgb.DMatrix(train$data, label=train$label)
 dsub <- slice(dtrain, 1:3)
 }
 

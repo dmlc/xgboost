@@ -1,5 +1,8 @@
-# Author: Tianqi Chen, Bing Xu
-# module for xgboost
+"""
+xgboost: eXtreme Gradient Boosting library
+Author: Tianqi Chen, Bing Xu
+
+"""
 import ctypes
 import os
 # optinally have scipy sparse, though not necessary
@@ -7,7 +10,6 @@ import numpy as np
 import sys
 import numpy.ctypeslib
 import scipy.sparse as scp
-import random
 
 # set this line correctly
 if os.name == 'nt':
@@ -17,15 +19,16 @@ else:
 
 # load in xgboost library
 xglib = ctypes.cdll.LoadLibrary(XGBOOST_PATH)
-
+# DMatrix functions
 xglib.XGDMatrixCreateFromFile.restype = ctypes.c_void_p
 xglib.XGDMatrixCreateFromCSR.restype = ctypes.c_void_p
+xglib.XGDMatrixCreateFromCSC.restype = ctypes.c_void_p
 xglib.XGDMatrixCreateFromMat.restype = ctypes.c_void_p
 xglib.XGDMatrixSliceDMatrix.restype = ctypes.c_void_p
 xglib.XGDMatrixGetFloatInfo.restype = ctypes.POINTER(ctypes.c_float)
 xglib.XGDMatrixGetUIntInfo.restype = ctypes.POINTER(ctypes.c_uint)
 xglib.XGDMatrixNumRow.restype = ctypes.c_ulong
-
+# booster functions
 xglib.XGBoosterCreate.restype = ctypes.c_void_p
 xglib.XGBoosterPredict.restype = ctypes.POINTER(ctypes.c_float)
 xglib.XGBoosterEvalOneIter.restype = ctypes.c_char_p
@@ -64,6 +67,8 @@ class DMatrix:
                 xglib.XGDMatrixCreateFromFile(ctypes.c_char_p(data.encode('utf-8')), 0))
         elif isinstance(data, scp.csr_matrix):
             self.__init_from_csr(data)
+        elif isinstance(data, scp.csc_matrix):
+            self.__init_from_csc(data)            
         elif isinstance(data, numpy.ndarray) and len(data.shape) == 2:
             self.__init_from_npy2d(data, missing)
         else:
@@ -85,6 +90,15 @@ class DMatrix:
             (ctypes.c_uint  * len(csr.indices))(*csr.indices),
             (ctypes.c_float * len(csr.data))(*csr.data),
             len(csr.indptr), len(csr.data)))
+
+    def __init_from_csc(self, csc):
+        """convert data from csr matrix"""
+        assert len(csc.indices) == len(csc.data)
+        self.handle = ctypes.c_void_p(xglib.XGDMatrixCreateFromCSC(
+            (ctypes.c_ulong  * len(csc.indptr))(*csc.indptr),
+            (ctypes.c_uint * len(csc.indices))(*csc.indices),
+            (ctypes.c_float * len(csc.data))(*csc.data),
+            len(csc.indptr), len(csc.data)))
 
     def __init_from_npy2d(self,mat,missing):
         """convert data from numpy matrix"""
@@ -362,6 +376,7 @@ class Booster:
                 evals: list of tuple (DMatrix, string)
                        lists of items to be evaluated
                 it: int
+                    current iteration
                 feval: function
                        custom evaluation function
             Returns:
@@ -391,7 +406,8 @@ class Booster:
                       the dmatrix storing the input
                 output_margin: bool
                                whether output raw margin value that is untransformed
-                ntree_limit: limit number of trees in prediction, default to 0, 0 means using all the trees
+                ntree_limit: int
+                             limit number of trees in prediction, default to 0, 0 means using all the trees
             Returns:
                 numpy array of prediction
         """
@@ -471,14 +487,15 @@ def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None
                     params of booster
             dtrain: DMatrix
                     data to be trained
-            num_boost_round: int
+            num_boost_round: int 
                              num of round to be boosted
-            evals: list
-                   list of items to be evaluated
+            watchlist: list of pairs (DMatrix, string) 
+                       list of items to be evaluated during training, this allows user to watch performance on validation set
             obj:  function
                    cutomized objective function
             feval: function
                    cutomized evaluation function
+        Returns: Booster model trained
     """
     bst = Booster(params, [dtrain]+[ d[0] for d in evals ] )
     for i in range(num_boost_round):
@@ -513,11 +530,13 @@ def mknfold(dall, nfold, param, seed, evals=[], fpreproc = None):
         # run preprocessing on the data set if needed
         if fpreproc is not None:
             dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
+        else:
+            tparam = param
         plst = tparam.items() + [('eval_metric', itm) for itm in evals]
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
-def aggcv(rlist):
+def aggcv(rlist, show_stdv=True):
     """
     aggregate cross validation results
     """
@@ -533,11 +552,14 @@ def aggcv(rlist):
             cvmap[k].append(float(v))
     for k, v in sorted(cvmap.items(), key = lambda x:x[0]):
         v = np.array(v)
-        ret += '\t%s:%f+%f' % (k, np.mean(v), np.std(v))
+        if show_stdv:
+            ret += '\tcv-%s:%f+%f' % (k, np.mean(v), np.std(v))
+        else:
+            ret += '\tcv-%s:%f' % (k, np.mean(v))
     return ret
 
-def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metric = [], \
-        obj = None, feval = None, fpreproc = None):
+def cv(params, dtrain, num_boost_round = 10, nfold=3, metrics=[], \
+        obj = None, feval = None, fpreproc = None, show_stdv = True, seed = 0):
     """ cross validation  with given paramaters
         Args:
             params: dict
@@ -547,17 +569,29 @@ def cv(params, dtrain, num_boost_round = 10, nfold=3, eval_metric = [], \
             num_boost_round: int
                              num of round to be boosted
             nfold: int
-                   folds to do cv
-            evals: list or
-                   list of items to be evaluated
-            obj:
-            feval:
-            fpreproc: preprocessing function that takes dtrain, dtest,
+                   number of folds to do cv
+            metrics: list of strings
+                     evaluation metrics to be watched in cv
+            obj: function 
+                 custom objective function
+            feval: function
+                   custom evaluation function
+            fpreproc: function
+                      preprocessing function that takes dtrain, dtest,
                       param and return transformed version of dtrain, dtest, param
+            show_stdv: bool
+                       whether display standard deviation
+            seed: int 
+                  seed used to generate the folds, this is passed to numpy.random.seed
+
+        Returns: list(string) of evaluation history
     """
-    cvfolds = mknfold(dtrain, nfold, params, 0, eval_metric, fpreproc)
+    results = []
+    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc)
     for i in range(num_boost_round):
         for f in cvfolds:
             f.update(i, obj)
-        res = aggcv([f.eval(i, feval) for f in cvfolds])
+        res = aggcv([f.eval(i, feval) for f in cvfolds], show_stdv)
         sys.stderr.write(res+'\n')
+        results.append(res)
+    return results

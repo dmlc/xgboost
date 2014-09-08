@@ -1,0 +1,6 @@
+basic_walkthrough               Basic feature walkthrough
+custom_objective                Cutomize loss function, and evaluation metric
+boost_from_prediction           Boosting from existing prediction
+predict_first_ntree             Predicting using first n trees
+generalized_linear_model        Generalized Linear Model
+cross_validation                Cross validation

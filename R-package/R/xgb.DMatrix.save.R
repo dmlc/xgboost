@@ -2,15 +2,15 @@
 #' 
 #' Save xgb.DMatrix object to binary file
 #' 
-#' @param DMatrix the model object.
+#' @param DMatrix the DMatrix object
 #' @param fname the name of the binary file.
 #' 
 #' @examples
-#' data(iris)
-#' iris[,5] <- as.numeric(iris[,5])
-#' dtrain <- xgb.DMatrix(as.matrix(iris[,1:4]), label=iris[,5])
-#' xgb.DMatrix.save(dtrain, 'iris.xgb.DMatrix')
-#' dtrain <- xgb.DMatrix('iris.xgb.DMatrix')
+#' data(agaricus.train, package='xgboost')
+#' train <- agaricus.train
+#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
+#' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' @export
 #' 
 xgb.DMatrix.save <- function(DMatrix, fname) {
@@ -22,6 +22,6 @@ xgb.DMatrix.save <- function(DMatrix, fname) {
           PACKAGE = "xgboost")
     return(TRUE)
   }
-  stop("xgb.save: the input must be either xgb.DMatrix or xgb.Booster")
+  stop("xgb.DMatrix.save: the input must be xgb.DMatrix")
   return(FALSE)
 } 

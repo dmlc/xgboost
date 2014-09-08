@@ -13,15 +13,20 @@ xgb.dump(model, fname, fmap = "")
 \item{fmap}{feature map file representing the type of feature.
        Detailed description could be found at
        \url{https://github.com/tqchen/xgboost/wiki/Binary-Classification#dump-model}.
-       Run inst/examples/demo.R for the result and inst/examples/featmap.txt
+       See demo/ for walkthrough example in R, and
+       \url{https://github.com/tqchen/xgboost/blob/master/demo/data/featmap.txt}
        for example Format.}
 }
 \description{
 Save a xgboost model to text file. Could be parsed later.
 }
 \examples{
-data(iris)
-bst <- xgboost(as.matrix(iris[,1:4]),as.numeric(iris[,5]), nrounds = 2)
-xgb.dump(bst, 'iris.xgb.model.dump')
+data(agaricus.train, package='xgboost')
+data(agaricus.test, package='xgboost')
+train <- agaricus.train
+test <- agaricus.test
+bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
+               eta = 1, nround = 2,objective = "binary:logistic")
+xgb.dump(bst, 'xgb.model.dump')
 }
 

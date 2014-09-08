@@ -42,7 +42,7 @@ assert np.sum(np.abs(preds2-preds)) == 0
 
 ###
 # build dmatrix from scipy.sparse
-print ('start running example of build DMatrix from scipy.sparse')
+print ('start running example of build DMatrix from scipy.sparse CSR Matrix')
 labels = []
 row = []; col = []; dat = []
 i = 0
@@ -54,16 +54,22 @@ for l in open('../data/agaricus.txt.train'):
         row.append(i); col.append(int(k)); dat.append(float(v))
     i += 1
 csr = scipy.sparse.csr_matrix( (dat, (row,col)) )
-dtrain = xgb.DMatrix( csr )
-dtrain.set_label(labels)
+dtrain = xgb.DMatrix( csr, label = labels )
+watchlist  = [(dtest,'eval'), (dtrain,'train')]
+bst = xgb.train( param, dtrain, num_round, watchlist )
+
+print ('start running example of build DMatrix from scipy.sparse CSC Matrix')
+# we can also construct from csc matrix
+csc = scipy.sparse.csc_matrix( (dat, (row,col)) )
+dtrain = xgb.DMatrix(csc, label=labels)
 watchlist  = [(dtest,'eval'), (dtrain,'train')]
 bst = xgb.train( param, dtrain, num_round, watchlist )
 
 print ('start running example of build DMatrix from numpy array')
-# NOTE: npymat is numpy array, we will convert it into scipy.sparse.csr_matrix in internal implementation,then convert to DMatrix
+# NOTE: npymat is numpy array, we will convert it into scipy.sparse.csr_matrix in internal implementation
+# then convert to DMatrix
 npymat = csr.todense()
-dtrain = xgb.DMatrix( npymat)
-dtrain.set_label(labels)
+dtrain = xgb.DMatrix(npymat, label = labels)
 watchlist  = [(dtest,'eval'), (dtrain,'train')]
 bst = xgb.train( param, dtrain, num_round, watchlist )
 
