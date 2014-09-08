@@ -3,10 +3,11 @@
 #include <utility>
 #include <cstring>
 #include <cstdio>
-#include "xgboost_R.h"
 #include "wrapper/xgboost_wrapper.h"
 #include "src/utils/utils.h"
 #include "src/utils/omp.h"
+#include "xgboost_R.h"
+
 using namespace std;
 using namespace xgboost;
 
