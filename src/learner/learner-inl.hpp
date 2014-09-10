@@ -86,7 +86,10 @@ class BoostLearner {
       this->SetParam(n.c_str(), val);
     }
     if (!strcmp(name, "silent")) silent = atoi(val);
-    if (!strcmp(name, "prob_buffer_row")) prob_buffer_row = static_cast<float>(atof(val));
+    if (!strcmp(name, "prob_buffer_row")) {
+      prob_buffer_row = static_cast<float>(atof(val));
+      this->SetParam("updater", "grow_colmaker,refresh,prune");
+    }
     if (!strcmp(name, "eval_metric")) evaluator_.AddEval(val);
     if (!strcmp("seed", name)) random::Seed(atoi(val));
     if (!strcmp(name, "num_class")) this->SetParam("num_output_group", val);
@@ -240,6 +243,7 @@ class BoostLearner {
     utils::Assert(gbm_ == NULL, "GBM and obj should be NULL");
     obj_ = CreateObjFunction(name_obj_.c_str());
     gbm_ = gbm::CreateGradBooster(name_gbm_.c_str());
+    
     for (size_t i = 0; i < cfg_.size(); ++i) {
       obj_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
       gbm_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
