@@ -16,6 +16,7 @@ What's New
 =====
 * See the updated [demo folder](demo) for feature walkthrough
 * Thanks to Tong He, the new [R package](R-package) is available
+* Thanks to Bing Xu, [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl) allows you to use xgboost from Julia
 
 Features
 ======
@@ -26,14 +27,6 @@ Features
 * Speed: XGBoost is very fast
   - IN [demo/higgs/speedtest.py](demo/kaggle-higgs/speedtest.py), kaggle higgs data it is faster(on our machine 20 times faster using 4 threads) than sklearn.ensemble.GradientBoostingClassifier
 * Layout of gradient boosting algorithm to support user defined objective
-
-Languages
-=====
-* Standalone console version is supported, you can call xgboost from command line
-* [XGBoost Python](wrapper)
-* [XGBoost R](R-package)
-* [XGBoost Julia](https://github.com/antinucleon/XGBoost.jl)
-
 
 Build
 =====
