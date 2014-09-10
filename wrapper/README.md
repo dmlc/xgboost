@@ -10,3 +10,7 @@ Python
 R 
 =====
 * See [R-package](../R-package)
+
+Julia
+=====
+* See [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl)
