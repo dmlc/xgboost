@@ -7,10 +7,7 @@ Python
 * To make the python module, type ```make``` in the root directory of project
 * Refer also to the walk through example in [demo folder](../demo/guide-python)
 
-R 
+Other Languages
 =====
-* See [R-package](../R-package)
-
-Julia
-=====
-* See [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl)
+* R [R-package](../R-package)
+* Julia [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl)
