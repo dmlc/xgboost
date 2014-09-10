@@ -26,7 +26,14 @@ Features
 * Speed: XGBoost is very fast
   - IN [demo/higgs/speedtest.py](demo/kaggle-higgs/speedtest.py), kaggle higgs data it is faster(on our machine 20 times faster using 4 threads) than sklearn.ensemble.GradientBoostingClassifier
 * Layout of gradient boosting algorithm to support user defined objective
-* Python interface, works with numpy and scipy.sparse matrix
+
+Languages
+=====
+* Standalone console version is supported, you can call xgboost from command line
+* [XGBoost Python](wrapper)
+* [XGBoost R](R-package)
+* [XGBoost Julia](https://github.com/antinucleon/XGBoost.jl)
+
 
 Build
 =====
