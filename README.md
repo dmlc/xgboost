@@ -14,9 +14,10 @@ Notes on the Code: [Code Guide](src)
 
 What's New
 =====
+
+* Thanks to Bing Xu, [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl) allows you to use xgboost from Julia
 * See the updated [demo folder](demo) for feature walkthrough
 * Thanks to Tong He, the new [R package](R-package) is available
-* Thanks to Bing Xu, [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl) allows you to use xgboost from Julia
 
 Features
 ======
