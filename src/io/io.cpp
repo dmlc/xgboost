@@ -13,6 +13,14 @@
 namespace xgboost {
 namespace io {
 DataMatrix* LoadDataMatrix(const char *fname, bool silent, bool savebuffer) {
+  std::string tmp_fname;
+  const char *fname_ext = NULL;
+  if (strchr(fname, ';') != NULL) {
+    tmp_fname = fname;
+    char *ptr = strchr(&tmp_fname[0], ';');
+    ptr[0] = '\0'; fname = &tmp_fname[0];
+    fname_ext = ptr + 1;
+  }
   int magic;
   utils::FileStream fs(utils::FopenCheck(fname, "rb"));
   utils::Check(fs.Read(&magic, sizeof(magic)) != 0, "invalid input file format");
@@ -25,15 +33,23 @@ DataMatrix* LoadDataMatrix(const char *fname, bool silent, bool savebuffer) {
     return dmat;
   }
   if (magic == DMatrixPage::kMagic) {
-    DMatrixPage *dmat = new DMatrixPage();
-    dmat->Load(fs, silent, fname);
-    // the file pointer is hold in page matrix
-    return dmat;
+    if (fname_ext == NULL) {
+      DMatrixPage *dmat = new DMatrixPage();
+      dmat->Load(fs, silent, fname);
+      return dmat;
+    } else {
+      DMatrixColPage *dmat = new DMatrixColPage(fname_ext);
+      dmat->Load(fs, silent, fname, true);
+      return dmat;
+    }
   }
   if (magic == DMatrixColPage::kMagic) {
-    DMatrixColPage *dmat = new DMatrixColPage(fname);
+    std::string sfname = fname;
+    if (fname_ext == NULL) {
+      sfname += ".col"; fname_ext = sfname.c_str();
+    }
+    DMatrixColPage *dmat = new DMatrixColPage(fname_ext);
     dmat->Load(fs, silent, fname);
-    // the file pointer is hold in page matrix
     return dmat;
   }
   fs.Close();

@@ -214,10 +214,13 @@ class DMatrixPageBase : public DataMatrix {
   /*! \brief load and initialize the iterator with fi */
   inline void Load(utils::FileStream &fi,
                    bool silent = false,
-                   const char *fname = NULL) {
+                   const char *fname = NULL,
+                   bool skip_magic_check = false) {
     int tmagic;
     utils::Check(fi.Read(&tmagic, sizeof(tmagic)) != 0, "invalid input file format");
-    utils::Check(tmagic == magic, "invalid format,magic number mismatch");
+    if (!skip_magic_check) {
+      utils::Check(tmagic == magic, "invalid format,magic number mismatch");
+    }
     this->info.LoadBinary(fi);
     iter_->Load(fi);
     if (!silent) {

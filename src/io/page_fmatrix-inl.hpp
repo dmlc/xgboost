@@ -355,9 +355,7 @@ class FMatrixPage : public IFMatrix {
 class DMatrixColPage : public DMatrixPageBase<0xffffab03> {
  public:
   explicit DMatrixColPage(const char *fname) {
-    std::string fext = fname;
-    fext += ".col";
-    fmat_ = new FMatrixPage(iter_, fext.c_str());
+    fmat_ = new FMatrixPage(iter_, fname);
   }
   virtual ~DMatrixColPage(void) {
     delete fmat_;
