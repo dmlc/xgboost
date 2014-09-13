@@ -162,7 +162,7 @@ class BoostLearner {
    *  if not intialize it
    * \param p_train pointer to the matrix used by training
    */
-  inline void CheckInit(DMatrix *p_train) {
+  inline void CheckInit(DMatrix *p_train) {    
     p_train->fmat()->InitColAccess(prob_buffer_row);
   }
   /*!

@@ -249,9 +249,15 @@ class FMatrixPage : public IFMatrix {
   }
   virtual void InitColAccess(float pkeep = 1.0f) {
     if (this->HaveColAccess()) return;
+    utils::Printf("start to initialize page col access\n");
+    if (this->LoadColData()) {
+      utils::Printf("loading previously saved col data\n");
+      return;
+    }
     this->InitColData(pkeep, fname_cbuffer_.c_str(),
-                      64 << 20, 5);
+                      1 << 30, 5);
     utils::Check(this->LoadColData(), "fail to read in column data");
+    utils::Printf("finish initialize page col access\n");
   }
   /*!
    * \brief get the row iterator associated with FMatrix
@@ -330,6 +336,10 @@ class FMatrixPage : public IFMatrix {
             builder.PushElem(inst[j].index,
                              ColBatch::Entry((bst_uint)(batch.base_rowid+i),
                                              inst[j].fvalue));
+          }
+          if (ktop % 100000 == 0) {
+            utils::Printf("\r                         \r");
+            utils::Printf("InitCol: %lu rows ", static_cast<unsigned long>(ktop));            
           }
         }
       }
