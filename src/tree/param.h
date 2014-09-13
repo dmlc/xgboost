@@ -57,7 +57,7 @@ struct TrainParam{
     opt_dense_col = 1.0f;
     nthread = 0;
     size_leaf_vector = 0;
-    parallel_option = 0;
+    parallel_option = 2;
   }
   /*! 
    * \brief set parameters from outside 

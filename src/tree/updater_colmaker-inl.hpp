@@ -418,7 +418,11 @@ class ColMaker: public IUpdater {
       #if defined(_OPENMP)                                                                
       const int batch_size = std::max(static_cast<int>(nsize / this->nthread / 32), 1);
       #endif
-      if (param.parallel_option == 0) {
+      int poption = param.parallel_option;
+      if (poption == 2) {
+        poption = nsize * 2 < nthread ? 1 : 0;
+      }
+      if (poption == 0) {
         #pragma omp parallel for schedule(dynamic, batch_size)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           const bst_uint fid = batch.col_index[i];
