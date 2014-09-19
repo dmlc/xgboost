@@ -1,3 +1,9 @@
+Highlights
+=====
+Higgs challenge ends recently, xgboost is being used by many users. This is a list of highlights of xgboost solutions of other players
+* Blogpost by phunther [Winning solution of Kaggle Higgs competition: what a single model can do](http://no2147483647.wordpress.com/2014/09/17/winning-solution-of-kaggle-higgs-competition-what-a-single-model-can-do/)
+
+
 Guide for Kaggle Higgs Challenge
 =====
 
