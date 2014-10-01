@@ -14,6 +14,8 @@ Notes on the Code: [Code Guide](src)
 
 What's New
 =====
+
+* Thanks to Bing Xu, [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl) allows you to use xgboost from Julia
 * See the updated [demo folder](demo) for feature walkthrough
 * Thanks to Tong He, the new [R package](R-package) is available
 
@@ -26,7 +28,6 @@ Features
 * Speed: XGBoost is very fast
   - IN [demo/higgs/speedtest.py](demo/kaggle-higgs/speedtest.py), kaggle higgs data it is faster(on our machine 20 times faster using 4 threads) than sklearn.ensemble.GradientBoostingClassifier
 * Layout of gradient boosting algorithm to support user defined objective
-* Python interface, works with numpy and scipy.sparse matrix
 
 Build
 =====
