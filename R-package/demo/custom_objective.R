@@ -37,3 +37,26 @@ print ('start training with user customized objective')
 # training with customized objective, we can also do step by step training
 # simply look at xgboost.py's implementation of train
 bst <- xgb.train(param, dtrain, num_round, watchlist, logregobj, evalerror)
+
+#
+# there can be cases where you want additional information 
+# being considered besides the property of DMatrix you can get by getinfo
+# you can set additional information as attributes if DMatrix
+
+# set label attribute of dtrain to be label, we use label as an example, it can be anything 
+attr(dtrain, 'label') <- getinfo(dtrain, 'label')
+# this is new customized objective, where you can access things you set
+# same thing applies to customized evaluation function
+logregobjattr <- function(preds, dtrain) {
+  # now you can access the attribute in customized function
+  labels <- attr(dtrain, 'label')
+  preds <- 1/(1 + exp(-preds))
+  grad <- preds - labels
+  hess <- preds * (1 - preds)
+  return(list(grad = grad, hess = hess))
+}
+
+print ('start training with user customized objective, with additional attributes in DMatrix')
+# training with customized objective, we can also do step by step training
+# simply look at xgboost.py's implementation of train
+bst <- xgb.train(param, dtrain, num_round, watchlist, logregobjattr, evalerror)
