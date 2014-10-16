@@ -1,10 +1,9 @@
 #include "./sync.h"
 #include "../utils/utils.h"
 #include "mpi.h"
-
+// use MPI to implement sync
 namespace xgboost {
 namespace sync {
-
 int GetRank(void) {
   return MPI::COMM_WORLD.Get_rank();
 }
