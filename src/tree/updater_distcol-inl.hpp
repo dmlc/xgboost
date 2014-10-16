@@ -38,7 +38,9 @@ class DistColMaker : public ColMaker<TStats> {
     // update position after the tree is pruned
     builder.UpdatePosition(p_fmat, *trees[0]);
   }
-  
+  virtual const int* GetLeafPosition(void) const {
+    return builder.GetLeafPosition();
+  }  
  private:
   inline void SyncTrees(RegTree *tree) {
     std::string s_model;
@@ -70,6 +72,9 @@ class DistColMaker : public ColMaker<TStats> {
         }
         this->position[ridx] = nid;
       }
+    }
+    virtual const int* GetLeafPosition(void) const {
+      return BeginPtr(this->position);
     }
    protected:    
     virtual void SetNonDefaultPosition(const std::vector<int> &qexpand,

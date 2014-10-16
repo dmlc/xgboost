@@ -42,6 +42,7 @@ class GBLinear : public IGradBooster {
     model.InitModel();
   }
   virtual void DoBoost(IFMatrix *p_fmat,
+                       int64_t buffer_offset,
                        const BoosterInfo &info,
                        std::vector<bst_gpair> *in_gpair) {
     std::vector<bst_gpair> &gpair = *in_gpair;

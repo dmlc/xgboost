@@ -44,7 +44,7 @@ class Booster: public learner::BoostLearner {
     for (bst_omp_uint j = 0; j < ndata; ++j) {
       gpair_[j] = bst_gpair(grad[j], hess[j]);
     }
-    gbm_->DoBoost(train.fmat(), train.info.info, &gpair_);
+    gbm_->DoBoost(train.fmat(), this->FindBufferOffset(train), train.info.info, &gpair_);
   }
   inline void CheckInitModel(void) {
     if (!init_model) {

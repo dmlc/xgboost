@@ -41,11 +41,14 @@ class IGradBooster {
   /*!
    * \brief peform update to the model(boosting)
    * \param p_fmat feature matrix that provide access to features
+   * \param buffer_offset buffer index offset of these instances, if equals -1
+   *        this means we do not have buffer index allocated to the gbm
    * \param info meta information about training
    * \param in_gpair address of the gradient pair statistics of the data
    * the booster may change content of gpair
    */
   virtual void DoBoost(IFMatrix *p_fmat,
+                       int64_t buffer_offset,
                        const BoosterInfo &info,
                        std::vector<bst_gpair> *in_gpair) = 0;
   /*!
