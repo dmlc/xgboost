@@ -10,12 +10,12 @@
 #include "../utils/utils.h"
 
 namespace xgboost {
-/*! \brief syncrhonizer module that minimum wraps MPI */
+/*! \brief syncrhonizer module that minimumly wraps interface of MPI */
 namespace sync {
 /*! \brief reduce operator supported */
 enum ReduceOp {
-  kBitwiseOR,
-  kSum
+  kSum,
+  kBitwiseOR
 };
 
 typedef void (ReduceFunction) (const void *src, void *dst, int len);
@@ -75,7 +75,7 @@ class Reducer {
    * \param bytes number of 4bytes send through all reduce
    * \param reducer the reducer function
    */
-  inline void AllReduce(DType *sendrecvbuf, int count) {
+  inline void AllReduce(DType *sendrecvbuf, size_t count) {
     handle.AllReduce(sendrecvbuf, count * kUnit);
   }
 
