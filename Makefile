@@ -14,7 +14,7 @@ endif
 BIN = 
 OBJ = updater.o gbm.o io.o main.o
 MPIOBJ = sync.o
-MPIBIN = test/test xgboost
+MPIBIN = xgboost
 SLIB = #wrapper/libxgboostwrapper.so 
 
 .PHONY: clean all python Rpack

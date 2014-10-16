@@ -100,11 +100,8 @@ class DistColMaker : public ColMaker<TStats> {
           for (bst_omp_uint j = 0; j < ndata; ++j) {
             const bst_uint ridx = col[j].index;
             const float fvalue = col[j].fvalue;
-            int nid = this->position[ridx];
-            if (nid < 0) continue;
-            // go back to parent, correct those who are not default
-            nid = tree[nid].parent();
-            if (tree[nid].split_index() == fid) {
+            const int nid = this->DecodePosition(ridx);
+            if (!tree[nid].is_leaf() && tree[nid].split_index() == fid) {
               if (fvalue < tree[nid].split_cond()) {
                 if (!tree[nid].default_left()) bitmap.SetTrue(ridx);
               } else {
@@ -122,13 +119,13 @@ class DistColMaker : public ColMaker<TStats> {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
-        int nid = this->position[ridx];
-        if (nid >= 0 && bitmap.Get(ridx)) {
-          nid = tree[nid].parent();
+        const int nid = this->DecodePosition(ridx);
+        if (bitmap.Get(ridx)) {
+          utils::Assert(!tree[nid].is_leaf(), "inconsistent reduce information");
           if (tree[nid].default_left()) {
-            this->position[ridx] = tree[nid].cright();
+            this->SetEncodePosition(ridx, tree[nid].cright());
           } else {
-            this->position[ridx] = tree[nid].cleft();
+            this->SetEncodePosition(ridx, tree[nid].cright());
           }
         }
       }
