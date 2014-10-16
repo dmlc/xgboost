@@ -486,13 +486,17 @@ class ColMaker: public IUpdater {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
-        const int nid = position[ridx];
-        if (nid >= 0) {
-          if (tree[nid].is_leaf()) {
-            position[ridx] = - nid - 1;
+        int nid = position[ridx];
+        if (nid < 0)  nid = ~nid;        
+        if (tree[nid].is_leaf()) {
+          position[ridx] = ~nid;          
+        } else {
+          // push to default branch, correct latter
+          int pid = tree[nid].default_left() ? tree[nid].cleft(): tree[nid].cright();
+          if (position[ridx] < 0) {
+            position[ridx] = ~pid;
           } else {
-            // push to default branch, correct latter
-            position[ridx] = tree[nid].default_left() ? tree[nid].cleft(): tree[nid].cright();
+            position[ridx] = pid;
           }
         }
       }
@@ -535,7 +539,8 @@ class ColMaker: public IUpdater {
             const bst_uint ridx = col[j].index;
             const float fvalue = col[j].fvalue;
             int nid = position[ridx];
-            if (nid < 0) continue;
+            if (nid < 0)  nid = ~nid;            
+
             // go back to parent, correct those who are not default
             nid = tree[nid].parent();
             if (tree[nid].split_index() == fid) {

@@ -11,11 +11,11 @@ else
 endif
 
 # specify tensor path
-BIN = xgboost
-OBJ = updater.o gbm.o io.o
+BIN = 
+OBJ = updater.o gbm.o io.o main.o
 MPIOBJ = sync.o
-MPIBIN = test/test
-SLIB = wrapper/libxgboostwrapper.so 
+MPIBIN = test/test xgboost
+SLIB = #wrapper/libxgboostwrapper.so 
 
 .PHONY: clean all python Rpack
 
@@ -28,8 +28,9 @@ updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h
 gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h
 io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
 sync.o: src/sync/sync.cpp 
-xgboost: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h $(OBJ)
-wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h $(OBJ)
+main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h 
+xgboost: $(OBJ) $(MPIOBJ)
+#wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h $(OBJ)
 test/test: test/test.cpp sync.o
 
 $(BIN) : 

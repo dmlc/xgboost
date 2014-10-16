@@ -345,6 +345,10 @@ struct SplitEntry{
       return false;
     }
   }
+  /*! \brief same as update, used by AllReduce*/
+  inline void Reduce(const SplitEntry &e) {
+    this->Update(e);
+  }
   /*!\return feature index to split on */
   inline unsigned split_index(void) const {
     return sindex & ((1U << 31) - 1U);

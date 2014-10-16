@@ -18,11 +18,39 @@ enum ReduceOp {
   kBitwiseOR
 };
 
-typedef void (ReduceFunction) (const void *src, void *dst, int len);
+/*! \brief get rank of current process */
+int GetRank(void);
+/*! \brief intiialize the synchronization module */
+void Init(int argc, char *argv[]);
+/*! \brief finalize syncrhonization module */
+void Finalize(void);
 
-/* !\brief handle for customized reducer */
+/*!
+ * \brief in-place all reduce operation 
+ * \param sendrecvbuf the in place send-recv buffer
+ * \param count count of data
+ * \param op reduction function
+ */
+template<typename DType>
+void AllReduce(DType *sendrecvbuf, int count, ReduceOp op);
+
+/*!
+ * \brief broadcast an std::string to all others from root
+ * \param sendrecv_data the pointer to send or recive buffer,
+ *                      receive buffer does not need to be pre-allocated
+ *                      and string will be resized to correct length
+ * \param root the root of process
+ */
+void Bcast(std::string *sendrecv_data, int root);
+
+/*! 
+ * \brief handle for customized reducer 
+ * user do not need to use this, used Reducer instead
+ */
 class ReduceHandle {
  public:
+  // reduce function
+  typedef void (ReduceFunction) (const void *src, void *dst, int len);
   // constructor
   ReduceHandle(void);
   // destructor
@@ -41,22 +69,8 @@ class ReduceHandle {
   void *handle;
 };
 
-/*! \brief get rank of current process */
-int GetRank(void);
-/*! \brief intiialize the synchronization module */
-void Init(int argc, char *argv[]);
-/*! \brief finalize syncrhonization module */
-void Finalize(void);
+// ----- extensions for ease of use ------
 /*!
- * \brief in-place all reduce operation 
- * \param sendrecvbuf the in place send-recv buffer
- * \param count count of data
- * \param op reduction function
- */
-template<typename DType>
-void AllReduce(DType *sendrecvbuf, int count, ReduceOp op);
-
-/*! 
  * \brief template class to make customized reduce and all reduce easy  
  * Do not use reducer directly in the function you call Finalize, because the destructor can happen after Finalize
  * \tparam DType data type that to be reduced
