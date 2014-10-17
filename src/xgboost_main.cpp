@@ -264,6 +264,10 @@ class BoostLearnTask {
 
 int main(int argc, char *argv[]){
   xgboost::sync::Init(argc, argv);
+  if (xgboost::sync::IsDistributed()) {
+    std::string pname = xgboost::sync::GetProcessorName();
+    printf("start %s:%d\n", pname.c_str(), xgboost::sync::GetRank());
+  }
   xgboost::random::Seed(0);
   xgboost::BoostLearnTask tsk;
   int ret = tsk.Run(argc, argv);
