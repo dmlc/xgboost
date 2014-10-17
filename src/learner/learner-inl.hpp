@@ -192,7 +192,8 @@ class BoostLearner {
       std::fill(enabled.begin(), enabled.end(), false);
       int start = step * pid;
       int end = std::min(step * (pid + 1), ncol);
-      utils::Printf("rank %d idset:", pid);
+      std::string name = sync::GetProcessorName();
+      utils::Printf("rank %d of %s idset:", pid, name.c_str());
       for (int i = start; i < end; ++i) {
         enabled[col_index[i]] = true;
         utils::Printf(" %u", col_index[i]);

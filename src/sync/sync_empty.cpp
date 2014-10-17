@@ -21,6 +21,10 @@ int GetWorldSize(void) {
   return 1;
 }
 
+std::string GetProcessorName(void) {
+  return std::string("");
+}
+
 template<>
 void AllReduce<uint32_t>(uint32_t *sendrecvbuf, int count, ReduceOp op) {
 }

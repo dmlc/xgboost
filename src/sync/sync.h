@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstring>
 #include "../utils/utils.h"
+#include <string>
 
 namespace xgboost {
 /*! \brief syncrhonizer module that minimumly wraps interface of MPI */
@@ -23,6 +24,8 @@ enum ReduceOp {
 int GetRank(void);
 /*! \brief get total number of process */
 int GetWorldSize(void);
+/*! \brief get name of processor */
+std::string GetProcessorName(void);
 
 /*! 
  * \brief this is used to check if sync module is a true distributed implementation, or simply a dummpy

@@ -20,6 +20,14 @@ bool IsDistributed(void) {
   return true;
 }
 
+std::string GetProcessorName(void) {
+  int len;
+  char name[MPI_MAX_PROCESSOR_NAME];
+  MPI::Get_processor_name(name, len);
+  name[len] = '\0';
+  return std::string(name);
+}
+
 void Finalize(void) {
   MPI::Finalize();
 }
