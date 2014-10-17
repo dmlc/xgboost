@@ -32,9 +32,8 @@ class DistColMaker : public ColMaker<TStats> {
     utils::Check(trees.size() == 1, "DistColMaker: only support one tree at a time");
     // build the tree
     builder.Update(gpair, p_fmat, info, trees[0]);
-    //// prune the tree
+    //// prune the tree, note that pruner will sync the tree
     pruner.Update(gpair, p_fmat, info, trees);
-    this->SyncTrees(trees[0]);
     // update position after the tree is pruned
     builder.UpdatePosition(p_fmat, *trees[0]);
   }
@@ -42,18 +41,6 @@ class DistColMaker : public ColMaker<TStats> {
     return builder.GetLeafPosition();
   }  
  private:
-  inline void SyncTrees(RegTree *tree) {
-    std::string s_model;
-    utils::MemoryBufferStream fs(&s_model);
-    int rank = sync::GetRank();
-    if (rank == 0) {
-      tree->SaveModel(fs);
-      sync::Bcast(&s_model, 0);
-    } else {
-      sync::Bcast(&s_model, 0);
-      tree->LoadModel(fs);
-    }
-  }  
   struct Builder : public ColMaker<TStats>::Builder {
    public:
     Builder(const TrainParam &param) 

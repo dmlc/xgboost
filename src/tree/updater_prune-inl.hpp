@@ -8,6 +8,7 @@
 #include <vector>
 #include "./param.h"
 #include "./updater.h"
+#include "../sync/sync.h"
 
 namespace xgboost {
 namespace tree {
@@ -33,9 +34,27 @@ class TreePruner: public IUpdater {
       this->DoPrune(*trees[i]);
     }
     param.learning_rate = lr;
-  }
-
+    this->SyncTrees(trees);
+  }  
  private:
+  // synchronize the trees in different nodes, take tree from rank 0
+  inline void SyncTrees(const std::vector<RegTree *> &trees) {
+    if (sync::GetWorldSize() == 1) return;
+    std::string s_model;
+    utils::MemoryBufferStream fs(&s_model);
+    int rank = sync::GetRank();
+    if (rank == 0) {
+      for (size_t i = 0; i < trees.size(); ++i) {
+        trees[i]->SaveModel(fs);
+      }
+      sync::Bcast(&s_model, 0);
+    } else {
+      sync::Bcast(&s_model, 0);
+      for (size_t i = 0; i < trees.size(); ++i) {      
+        trees[i]->LoadModel(fs);
+      }
+    }
+  }
   // try to prune off current leaf
   inline int TryPruneLeaf(RegTree &tree, int nid, int depth, int npruned) {
     if (tree[nid].is_root()) return npruned;
