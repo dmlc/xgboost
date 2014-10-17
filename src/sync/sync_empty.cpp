@@ -17,6 +17,10 @@ bool IsDistributed(void) {
   return false;
 }
 
+int GetWorldSize(void) {
+  return 1;
+}
+
 template<>
 void AllReduce<uint32_t>(uint32_t *sendrecvbuf, int count, ReduceOp op) {
 }

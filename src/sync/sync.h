@@ -21,6 +21,9 @@ enum ReduceOp {
 
 /*! \brief get rank of current process */
 int GetRank(void);
+/*! \brief get total number of process */
+int GetWorldSize(void);
+
 /*! 
  * \brief this is used to check if sync module is a true distributed implementation, or simply a dummpy
  */

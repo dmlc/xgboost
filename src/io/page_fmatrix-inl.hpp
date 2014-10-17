@@ -247,7 +247,7 @@ class FMatrixPage : public IFMatrix {
     size_t nmiss = buffered_rowset_.size() - (col_ptr[cidx+1] - col_ptr[cidx]);
     return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.size();
   }
-  virtual void InitColAccess(float pkeep = 1.0f) {
+  virtual void InitColAccess(const std::vector<bool> &enabled, float pkeep = 1.0f) {
     if (this->HaveColAccess()) return;
     utils::Printf("start to initialize page col access\n");
     if (this->LoadColData()) {

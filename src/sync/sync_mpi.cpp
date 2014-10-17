@@ -8,6 +8,10 @@ int GetRank(void) {
   return MPI::COMM_WORLD.Get_rank();
 }
 
+int GetWorldSize(void) {
+  return MPI::COMM_WORLD.Get_size();
+}
+
 void Init(int argc, char *argv[]) {
   MPI::Init(argc, argv);
 }
