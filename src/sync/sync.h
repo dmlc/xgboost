@@ -15,11 +15,16 @@ namespace sync {
 /*! \brief reduce operator supported */
 enum ReduceOp {
   kSum,
+  kMax,
   kBitwiseOR
 };
 
 /*! \brief get rank of current process */
 int GetRank(void);
+/*! 
+ * \brief this is used to check if sync module is a true distributed implementation, or simply a dummpy
+ */
+bool IsDistributed(void);
 /*! \brief intiialize the synchronization module */
 void Init(int argc, char *argv[]);
 /*! \brief finalize syncrhonization module */

@@ -6,18 +6,28 @@ namespace sync {
 int GetRank(void) {
   return 0;
 }
+
 void Init(int argc, char *argv[]) {
 }
+
 void Finalize(void) {
 }
+
+bool IsDistributed(void) {
+  return false;
+}
+
 template<>
 void AllReduce<uint32_t>(uint32_t *sendrecvbuf, int count, ReduceOp op) {
 }
+
 template<>
 void AllReduce<float>(float *sendrecvbuf, int count, ReduceOp op) {
 }
+
 void Bcast(std::string *sendrecv_data, int root) {
 }
+
 ReduceHandle::ReduceHandle(void) : handle(NULL) {}
 ReduceHandle::~ReduceHandle(void) {}
 void ReduceHandle::Init(ReduceFunction redfunc, bool commute) {}

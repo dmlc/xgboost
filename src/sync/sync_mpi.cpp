@@ -12,6 +12,10 @@ void Init(int argc, char *argv[]) {
   MPI::Init(argc, argv);
 }
 
+bool IsDistributed(void) {
+  return true;
+}
+
 void Finalize(void) {
   MPI::Finalize();
 }
@@ -20,6 +24,7 @@ void AllReduce_(void *sendrecvbuf, int count, const MPI::Datatype &dtype, Reduce
   switch(op) {
     case kBitwiseOR: MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, dtype, MPI::BOR); return;
     case kSum: MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, dtype, MPI::SUM); return;
+    case kMax: MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, dtype, MPI::MAX); return;
   }
 }
 

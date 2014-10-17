@@ -10,6 +10,7 @@
 #include <utility>
 #include <string>
 #include <limits>
+#include "../sync/sync.h"
 #include "./objective.h"
 #include "./evaluation.h"
 #include "../gbm/gbm.h"
@@ -61,6 +62,7 @@ class BoostLearner {
       buffer_size += mats[i]->info.num_row();
       num_feature = std::max(num_feature, static_cast<unsigned>(mats[i]->info.num_col()));
     }
+    sync::AllReduce(&num_feature, 1, sync::kMax);
     char str_temp[25];
     if (num_feature > mparam.num_feature) {
       utils::SPrintf(str_temp, sizeof(str_temp), "%u", num_feature);

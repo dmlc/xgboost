@@ -93,9 +93,15 @@ class DistColMaker : public ColMaker<TStats> {
       while (fsplits.size() != 0 && fsplits.back() >= p_fmat->NumCol()) {
         fsplits.pop_back();
       }
-      // setup BitMap
-      bitmap.Resize(this->position.size());
-      bitmap.Clear();
+      // bitmap is only word concurrent, set to bool first
+      {
+        bst_omp_uint ndata = static_cast<bst_omp_uint>(this->position.size());
+        boolmap.resize(ndata);
+        #pragma omp parallel for schedule(static)
+        for (bst_omp_uint j = 0; j < ndata; ++j) {
+            boolmap[j] = 0;
+        }        
+      }
       utils::IIterator<ColBatch> *iter = p_fmat->ColIterator(fsplits);
       while (iter->Next()) {
         const ColBatch &batch = iter->Value();
@@ -110,15 +116,16 @@ class DistColMaker : public ColMaker<TStats> {
             const int nid = this->DecodePosition(ridx);
             if (!tree[nid].is_leaf() && tree[nid].split_index() == fid) {
               if (fvalue < tree[nid].split_cond()) {
-                if (!tree[nid].default_left()) bitmap.SetTrue(ridx);
+                if (!tree[nid].default_left()) boolmap[ridx] = 1;
               } else {
-                if (tree[nid].default_left()) bitmap.SetTrue(ridx);
+                if (tree[nid].default_left()) boolmap[ridx] = 1;
               }
             }
           }
         }
       }
-
+      
+      bitmap.InitFromBool(boolmap);
       // communicate bitmap
       sync::AllReduce(BeginPtr(bitmap.data), bitmap.data.size(), sync::kBitwiseOR);
       const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
@@ -159,6 +166,7 @@ class DistColMaker : public ColMaker<TStats> {
     
    private:
     utils::BitMap bitmap;
+    std::vector<int> boolmap;
     sync::Reducer<SplitEntry> reducer;
   };
   // we directly introduce pruner here

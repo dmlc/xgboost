@@ -7,6 +7,7 @@
  */
 #include <vector>
 #include "./utils.h"
+#include "./omp.h"
 
 namespace xgboost {
 namespace utils {
@@ -34,6 +35,25 @@ struct BitMap {
    */
   inline void SetTrue(size_t i) {
     data[i >> 5] |= (1 << (i & 31U));
+  }
+  /*! \brief initialize the value of bit map from vector of bool*/
+  inline void InitFromBool(const std::vector<int> &vec) {
+    this->Resize(vec.size());
+    // parallel over the full cases
+    bst_omp_uint nsize = static_cast<bst_omp_uint>(vec.size() / 32);
+    #pragma omp parallel for schedule(static)
+    for (bst_omp_uint i = 0; i < nsize; ++i) {
+      uint32_t res = 0;
+      for (int k = 0; k < 32; ++k) {
+        int bit = vec[(i << 5) | k];
+        res |= (bit << k);
+      }
+      data[i] = res;
+    }
+    if (nsize != vec.size()) data.back() = 0;
+    for (size_t i = nsize; i < vec.size(); ++i) {
+      if (vec[i]) this->SetTrue(i);
+    }
   }
   /*! \brief clear the bitmap, set all places to false */
   inline void Clear(void) {

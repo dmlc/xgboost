@@ -46,3 +46,6 @@ Debug
 *csv
 *.cpage.col
 *.cpage
+xgboost
+xgboost-mpi
+train*

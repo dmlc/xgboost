@@ -30,9 +30,9 @@ io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
 sync_mpi.o: src/sync/sync_mpi.cpp 
 sync_empty.o: src/sync/sync_empty.cpp 
 main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h 
-xgboost:  updater.o gbm.o io.o main.o sync_empty.o
 xgboost-mpi:  updater.o gbm.o io.o main.o sync_mpi.o 
-wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h $(OBJ)
+xgboost:  updater.o gbm.o io.o main.o sync_empty.o
+wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o sync_empty.o
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
