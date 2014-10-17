@@ -190,6 +190,10 @@ struct GradStats {
   inline void Add(const GradStats &b) {
     this->Add(b.sum_grad, b.sum_hess);
   }
+  /*! \brief same as add, reduce is used in All Reduce */
+  inline void Reduce(const GradStats &b) {
+    this->Add(b);
+  }
   /*! \brief set current value to a - b */
   inline void SetSubstract(const GradStats &a, const GradStats &b) {
     sum_grad = a.sum_grad - b.sum_grad;
@@ -265,6 +269,10 @@ struct CVGradStats : public GradStats {
       train[i].Add(b.train[i]);
       valid[i].Add(b.valid[i]);
     }
+  }
+  /*! \brief same as add, reduce is used in All Reduce */
+  inline void Reduce(const CVGradStats &b) {
+    this->Add(b);
   }
   /*! \brief set current value to a - b */
   inline void SetSubstract(const CVGradStats &a, const CVGradStats &b) {
