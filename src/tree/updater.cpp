@@ -6,6 +6,7 @@
 #include "./updater_refresh-inl.hpp"
 #include "./updater_colmaker-inl.hpp"
 #include "./updater_distcol-inl.hpp"
+#include "./updater_histmaker-inl.hpp"
 
 namespace xgboost {
 namespace tree {
@@ -14,6 +15,7 @@ IUpdater* CreateUpdater(const char *name) {
   if (!strcmp(name, "prune")) return new TreePruner();
   if (!strcmp(name, "refresh")) return new TreeRefresher<GradStats>();
   if (!strcmp(name, "grow_colmaker")) return new ColMaker<GradStats>();
+  if (!strcmp(name, "grow_histmaker")) return new HistMaker<GradStats>();
   if (!strcmp(name, "distcol")) return new DistColMaker<GradStats>();
   if (!strcmp(name, "grow_colmaker5")) return new ColMaker< CVGradStats<5> >();
   if (!strcmp(name, "grow_colmaker3")) return new ColMaker< CVGradStats<3> >();
