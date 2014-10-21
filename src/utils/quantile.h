@@ -188,7 +188,6 @@ class QuantileSketch {
       s.data = BeginPtr(data) + l * level_batch;
       level.push_back(s);
     }
-    printf("init L = %lu, b = %lu, %lu size\n",L, b, data.size());
     qtail = 0;
   }
   /*! 
