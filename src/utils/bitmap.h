@@ -3,6 +3,7 @@
 /*!
  * \file bitmap.h
  * \brief a simple implement of bitmap
+ *  NOTE: bitmap is only threadsafe per word access, remember this when using bitmap
  * \author Tianqi Chen
  */
 #include <vector>
