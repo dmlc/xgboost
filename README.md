@@ -12,6 +12,10 @@ Examples Code: [Learning to use xgboost by examples](demo)
 
 Notes on the Code: [Code Guide](src)
 
+Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
+* This slide is made by Tianqi Chen to introduce gradient boosting in a statistical view, which directly optimizes the loss function and regularization penalty.
+* The slide present the model used by xgboost.
+
 What's New
 =====
 
