@@ -68,7 +68,7 @@ class TreeModel {
     }
   };
   /*! \brief tree node */
-  class Node{
+  class Node {
    public:
     /*! \brief index of left child */
     inline int cleft(void) const {
