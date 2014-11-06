@@ -256,7 +256,6 @@ struct SparseCSRFileBuilder {
   /*! \brief saved top space of each item */
   std::vector<IndexType> buffer_data;
 };
-
 }  // namespace utils
 }  // namespace xgboost
 #endif

@@ -15,7 +15,7 @@ IUpdater* CreateUpdater(const char *name) {
   if (!strcmp(name, "prune")) return new TreePruner();
   if (!strcmp(name, "refresh")) return new TreeRefresher<GradStats>();
   if (!strcmp(name, "grow_colmaker")) return new ColMaker<GradStats>();
-  if (!strcmp(name, "grow_histmaker")) return new HistMaker<GradStats>();
+  if (!strcmp(name, "grow_histmaker")) return new QuantileHistMaker<GradStats>();
   if (!strcmp(name, "distcol")) return new DistColMaker<GradStats>();
   if (!strcmp(name, "grow_colmaker5")) return new ColMaker< CVGradStats<5> >();
   if (!strcmp(name, "grow_colmaker3")) return new ColMaker< CVGradStats<3> >();

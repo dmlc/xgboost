@@ -74,4 +74,4 @@ Rpack:
 	R CMD check --as-cran xgboost*.tar.gz
 
 clean:
-	$(RM) $(OBJ) $(BIN) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~
+	$(RM) $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~
