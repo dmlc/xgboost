@@ -11,13 +11,14 @@ else
 endif
 
 # specify tensor path
-BIN = test_group_data
+BIN = test_group_data test_quantile
 
 .PHONY: clean all
 
 all: $(BIN) $(MPIBIN)
 
-test_group_data: test_group_data.cpp
+test_group_data: test_group_data.cpp ../src/utils/*.h
+test_quantile: test_quantile.cpp ../src/utils/*.h
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
