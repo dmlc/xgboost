@@ -165,15 +165,16 @@ struct WQSummary {
     if (src.size <= maxsize) {
       this->CopyFrom(src); return;
     }
-    const RType max_rank = src.MaxRank();
+    const RType begin = src.data[0].rmax;
+    const RType range = src.data[src.size - 1].rmin - src.data[0].rmax;
     const size_t n = maxsize - 1;
     data[0] = src.data[0];
     this->size = 1;
     // lastidx is used to avoid duplicated records
-    size_t i = 0, lastidx = 0;
+    size_t i = 1, lastidx = 0;
     for (RType k = 1; k < n; ++k) {
-      RType dx2 =  (2 * k * max_rank) / n;
-        // find first i such that  d < (rmax[i+1] + rmin[i+1]) / 2 
+      RType dx2 =  2 * ((k * range) / n + begin);
+      // find first i such that  d < (rmax[i+1] + rmin[i+1]) / 2 
       while (i < src.size - 1 &&
              dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
       if (i == src.size - 1) break;
