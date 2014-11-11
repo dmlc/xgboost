@@ -15,10 +15,12 @@ funcs = {
 }
 
 if len(sys.argv) < 3:
-    print 'Usage: python mkquantest.py <maxn> <eps> [generate-type] [ndata]|./test_quantile'
+    print 'Usage: python mkquantest.py <maxn> <eps> [generate-type] [ndata]|./test_quantile [solver]'
+    print 'test_quantile need to be compiled, solver can be gk(GK nonweight version), wq(weighted version), wx(weighthed version, with prune optimized for heavy hitter)'
     print 'Possible generate-types:' 
     for k, v in funcs.items():
         print '\t%s: %s' % (k, v)
+    print 'Example: ./mkquantest.py 50000 0.3 lotsmr |./test_quantile wq'
     exit(-1)
 random.seed(0)
 maxn = int(sys.argv[1])
