@@ -6,7 +6,11 @@
  * \brief a C style wrapper of xgboost
  *  can be used to create wrapper of other languages
  */
+#ifdef __cplusplus
 #include <cstdio>
+#else
+#include <stdio.h>
+#endif
 #ifdef _MSC_VER
 #define XGB_DLL __declspec(dllexport)
 #else
@@ -15,8 +19,9 @@
 // manually define unsign long
 typedef unsigned long bst_ulong;
 
-
+#ifdef __cplusplus
 extern "C" {
+#endif
   /*!
    * \brief load a data matrix 
    * \return a loaded data matrix
@@ -205,5 +210,7 @@ extern "C" {
    */
   XGB_DLL const char **XGBoosterDumpModel(void *handle, const char *fmap,
                                           bst_ulong *out_len);
+#ifdef __cplusplus
 }
+#endif
 #endif  // XGBOOST_WRAPPER_H_
