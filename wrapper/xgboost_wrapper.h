@@ -6,11 +6,6 @@
  * \brief a C style wrapper of xgboost
  *  can be used to create wrapper of other languages
  */
-#ifdef __cplusplus
-#include <cstdio>
-#else
-#include <stdio.h>
-#endif
 #ifdef _MSC_VER
 #define XGB_DLL __declspec(dllexport)
 #else
