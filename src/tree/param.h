@@ -36,6 +36,8 @@ struct TrainParam{
   float colsample_bytree;
   // speed optimization for dense column
   float opt_dense_col;
+  // accuracy of sketch
+  float sketch_eps;
   // leaf vector size
   int size_leaf_vector;  
   // option for parallelization
@@ -58,6 +60,7 @@ struct TrainParam{
     nthread = 0;
     size_leaf_vector = 0;
     parallel_option = 2;
+    sketch_eps = 0.1f;
   }
   /*! 
    * \brief set parameters from outside 
@@ -79,6 +82,7 @@ struct TrainParam{
     if (!strcmp(name, "subsample")) subsample = static_cast<float>(atof(val));
     if (!strcmp(name, "colsample_bylevel")) colsample_bylevel = static_cast<float>(atof(val));
     if (!strcmp(name, "colsample_bytree")) colsample_bytree  = static_cast<float>(atof(val));
+    if (!strcmp(name, "sketch_eps")) sketch_eps  = static_cast<float>(atof(val));
     if (!strcmp(name, "opt_dense_col")) opt_dense_col = static_cast<float>(atof(val));
     if (!strcmp(name, "size_leaf_vector")) size_leaf_vector = atoi(val);
     if (!strcmp(name, "max_depth")) max_depth = atoi(val);
