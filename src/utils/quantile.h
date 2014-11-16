@@ -258,7 +258,7 @@ struct WXQSummary : public WQSummary<DType, RType> {
     return  e.rmin_next() > e.rmax_prev() + chunk;
   }
   // set prune
-  inline void SetPrune(const WXQSummary &src, RType maxsize) {
+  inline void SetPrune(const WQSummary<DType, RType> &src, RType maxsize) {
     if (src.size <= maxsize) {
       this->CopyFrom(src); return;
     }
