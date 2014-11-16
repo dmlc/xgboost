@@ -38,6 +38,8 @@ struct TrainParam{
   float opt_dense_col;
   // accuracy of sketch
   float sketch_eps;
+  // accuracy of sketch
+  float sketch_ratio;
   // leaf vector size
   int size_leaf_vector;  
   // option for parallelization
@@ -61,6 +63,7 @@ struct TrainParam{
     size_leaf_vector = 0;
     parallel_option = 2;
     sketch_eps = 0.1f;
+    sketch_ratio = 1.4f;
   }
   /*! 
    * \brief set parameters from outside 
@@ -83,6 +86,7 @@ struct TrainParam{
     if (!strcmp(name, "colsample_bylevel")) colsample_bylevel = static_cast<float>(atof(val));
     if (!strcmp(name, "colsample_bytree")) colsample_bytree  = static_cast<float>(atof(val));
     if (!strcmp(name, "sketch_eps")) sketch_eps  = static_cast<float>(atof(val));
+    if (!strcmp(name, "sketch_ratio")) sketch_ratio  = static_cast<float>(atof(val));
     if (!strcmp(name, "opt_dense_col")) opt_dense_col = static_cast<float>(atof(val));
     if (!strcmp(name, "size_leaf_vector")) size_leaf_vector = atoi(val);
     if (!strcmp(name, "max_depth")) max_depth = atoi(val);

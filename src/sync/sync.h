@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstring>
 #include "../utils/utils.h"
+#include "../utils/io.h"
 #include <string>
 
 namespace xgboost {
@@ -123,6 +124,54 @@ class Reducer {
   }
   // function handle
   ReduceHandle handle;
+};
+
+/*!
+ * \brief template class to make customized reduce, complex reducer handles all the data structure that can be 
+ *        serialized/deserialzed into fixed size buffer
+ * Do not use reducer directly in the function you call Finalize, because the destructor can happen after Finalize
+ * 
+ * \tparam DType data type that to be reduced, DType must contain following functions:
+ *   (1) Save(IStream &fs)  (2) Load(IStream &fs) (3) Reduce(const DType &d);
+ */
+template<typename DType>
+class ComplexReducer {
+ public:
+  ComplexReducer(void) {
+    handle.Init(ReduceInner);
+  }
+  /*!
+   * \brief customized in-place all reduce operation 
+   * \param sendrecvobj pointer to the object to be reduced
+   * \param max_n4byte maximum amount of memory needed in 4byte
+   * \param reducer the reducer function
+   */
+  inline void AllReduce(DType *sendrecvobj, size_t max_n4byte) {
+    buffer.resize(max_n4byte);
+    utils::MemoryFixSizeBuffer fs(BeginPtr(buffer), max_n4byte * 4);
+    sendrecvobj->Save(fs);
+    handle.AllReduce(BeginPtr(buffer), max_n4byte);
+    fs.Seek(0);
+    sendrecvobj->Load(fs);
+  }
+
+ private:
+  // unit size
+  // inner implementation of reducer
+  inline static void ReduceInner(const void *src_, void *dst_, int len_) {
+    utils::MemoryFixSizeBuffer fsrc((void*)(src_), len_);
+    utils::MemoryFixSizeBuffer fdst(dst_, len_);
+    // temp space
+    DType tsrc, tdst;
+    tsrc.Load(fsrc); tdst.Load(fdst);
+    // govern const check
+    tdst.Reduce(static_cast<const DType &>(tsrc));
+    tdst.Save(fdst);
+  }
+  // function handle
+  ReduceHandle handle;
+  // reduce buffer
+  std::vector<int> buffer;
 };
 
 }  // namespace sync

@@ -515,13 +515,95 @@ class QuantileSketchTemplate {
       }
     }
   };
+  /*!
+   * \brief represent an array of summary
+   *  each contains fixed maximum size summary
+   */
+  class SummaryArray {
+   public:
+    /*!
+     * \brief intialize the SummaryArray 
+     * \param num_summary number of summary in the array
+     * \param max_size maximum number of elements in each summary
+     */
+    inline void Init(unsigned num_summary, unsigned max_size) {
+      this->num_summary = num_summary;
+      this->max_size = max_size;
+      sizes.resize(num_summary);
+      data.resize(num_summary * max_size);
+    }
+    /*!
+     * \brief set i-th element of array to be the src summary,
+     *   the summary can be pruned if it does not fit into max_size
+     * \param the index in the array
+     * \param src the source summary
+     * \tparam the type if source summary
+     */
+    template<typename TSrc>
+    inline void Set(size_t i, const TSrc &src) {
+      Summary dst = (*this)[i];
+      dst.SetPrune(src, max_size);
+      this->sizes[i] = dst.size;
+    }
+    /*! 
+     * \brief get i-th summary of the array, only use this for read purpose
+     */
+    inline const Summary operator[](size_t i) const {
+      return Summary((Entry*)BeginPtr(data) + i * max_size, sizes[i]);
+    }
+    /*!
+     * \brief do elementwise combination of summary array
+     *        this[i] = combine(this[i], src[i]) for each i
+     * \param src the source summary
+     */
+    inline void Reduce(const SummaryArray &src) {
+      utils::Check(num_summary == src.num_summary &&
+                   max_size == src.max_size, "array shape mismatch in reduce");
+      SummaryContainer temp;
+      temp.Reserve(max_size * 2);
+      for (unsigned i = 0; i < num_summary; ++i) {
+        temp.SetCombine((*this)[i], src[i]);
+        this->Set(i, temp);
+      }
+    }
+    /*! \brief return the number of bytes this data structure cost in serialization */
+    inline size_t MemSize(void) const {
+      return sizeof(num_summary) + sizeof(max_size) 
+          + data.size() * sizeof(Entry) + sizes.size() * sizeof(unsigned);
+    }
+    /*! \brief save the data structure into stream */
+    inline void Save(IStream &fo) const {
+      fo.Write(&num_summary, sizeof(num_summary));
+      fo.Write(&max_size, sizeof(max_size));
+      fo.Write(BeginPtr(sizes), sizes.size() * sizeof(unsigned));
+      fo.Write(BeginPtr(data), data.size() * sizeof(Entry));
+    }
+    /*! \brief load data structure from input stream */
+    inline void Load(IStream &fi) {
+      utils::Check(fi.Read(&num_summary, sizeof(num_summary)) != 0, "invalid SummaryArray");
+      utils::Check(fi.Read(&max_size, sizeof(max_size)) != 0, "invalid SummaryArray");
+      sizes.resize(num_summary);
+      data.resize(num_summary * max_size);
+      utils::Check(fi.Read(BeginPtr(sizes), sizes.size() * sizeof(unsigned)) != 0, "invalid SummaryArray");
+      utils::Check(fi.Read(BeginPtr(data), data.size() * sizeof(Entry)) != 0, "invalid SummaryArray");
+    }
+
+   private:
+    /*! \brief number of summaries in the group */
+    unsigned num_summary;
+    /*! \brief maximum size of each summary */
+    unsigned max_size;
+    /*! \brief the current size of each summary */
+    std::vector<unsigned> sizes;
+    /*! \brief the data content */
+    std::vector<Entry> data;
+  };
   /*! 
    * \brief intialize the quantile sketch, given the performance specification
    * \param maxn maximum number of data points can be feed into sketch
    * \param eps accuracy level of summary
    */
   inline void Init(size_t maxn, double eps) {
-    //nlevel = std::max(log2(ceil(maxn * eps)) - 2.0, 1.0);
     nlevel = 1;
     while (true) {
       limit_size = ceil(nlevel / eps) + 1;
