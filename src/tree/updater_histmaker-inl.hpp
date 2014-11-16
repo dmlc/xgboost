@@ -466,7 +466,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
         if (a.size != 0) {
           bst_float cpt = a.data[a.size - 1].value;
           // this must be bigger than last value in a scale
-          bst_float last = cpt + fabs(cpt);
+          bst_float last = cpt + fabs(cpt) + rt_eps;
           this->wspace.cut.push_back(last);
         }
         this->wspace.rptr.push_back(this->wspace.cut.size());
