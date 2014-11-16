@@ -53,7 +53,7 @@ class HistMaker: public IUpdater {
                     const std::vector<bst_gpair> &gpair,
                     const BoosterInfo &info,
                     const bst_uint ridx) {
-      unsigned i = std::lower_bound(cut, cut + size, fv) - cut;
+      unsigned i = std::upper_bound(cut, cut + size, fv) - cut;      
       utils::Assert(i < size, "maximum value must be in cut");
       data[i].Add(gpair, info, ridx);
     }
@@ -155,7 +155,7 @@ class HistMaker: public IUpdater {
                       RegTree *p_tree) {
     this->InitData(gpair, *p_fmat, info.root_index, *p_tree);
     this->UpdateNode2WorkIndex(*p_tree);
-    for (int depth = 0; depth < param.max_depth; ++depth) {      
+    for (int depth = 0; depth < param.max_depth; ++depth) {
       this->FindSplit(depth, gpair, p_fmat, info, p_tree);
       this->UpdateQueueExpand(*p_tree);
       this->UpdateNode2WorkIndex(*p_tree);
@@ -278,6 +278,7 @@ class HistMaker: public IUpdater {
                              SplitEntry *best,
                              TStats *left_sum) {
     if (hist.size == 0) return;
+
     double root_gain = node_sum.CalcGain(param);
     TStats s(param), c(param);
     for (bst_uint i = 0; i < hist.size; ++i) {
@@ -383,7 +384,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
     sketchs.resize(this->qexpand.size() * tree.param.num_feature);
     for (size_t i = 0; i < sketchs.size(); ++i) {
       sketchs[i].Init(info.num_row, this->param.sketch_eps);
-    }    
+    }
     // start accumulating statistics
     utils::IIterator<RowBatch> *iter = p_fmat->RowIterator();
     iter->BeforeFirst();
@@ -453,13 +454,20 @@ class QuantileHistMaker: public HistMaker<TStats> {
     this->wspace.rptr.clear();
     this->wspace.rptr.push_back(0);
     for (size_t wid = 0; wid < this->qexpand.size(); ++wid) {
-      for (size_t fid = 0; fid < tree.param.num_feature; ++fid) {
+      for (int fid = 0; fid < tree.param.num_feature; ++fid) {
         const WXQSketch::Summary a = summary_array[wid * tree.param.num_feature + fid];
-        for (size_t i = 0; i < a.size; ++i) {
-          bst_float cpt = a.data[i].value + rt_eps;
-          if (i == 0 || cpt > this->wspace.cut.back()) {
+        for (size_t i = 1; i < a.size; ++i) {
+          bst_float cpt = a.data[i].value - rt_eps;
+          if (i == 1 || cpt > this->wspace.cut.back()) {
             this->wspace.cut.push_back(cpt);
           }
+        }
+        // push a value that is greater than anything
+        if (a.size != 0) {
+          bst_float cpt = a.data[a.size - 1].value;
+          // this must be bigger than last value in a scale
+          bst_float last = cpt + fabs(cpt);
+          this->wspace.cut.push_back(last);
         }
         this->wspace.rptr.push_back(this->wspace.cut.size());
       }

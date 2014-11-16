@@ -10,6 +10,7 @@
 #include <cstring>
 #include <algorithm>
 #include <iostream>
+#include "./io.h"
 #include "./utils.h"
 
 namespace xgboost {
@@ -481,7 +482,11 @@ class QuantileSketchTemplate {
   /*! \brief same as summary, but use STL to backup the space */
   struct SummaryContainer : public Summary {
     std::vector<Entry> space;
-    SummaryContainer(void) : Summary(NULL, 0) { 
+    explicit SummaryContainer(void) : Summary(NULL, 0) { 
+    }
+    explicit SummaryContainer(const SummaryContainer &src) : Summary(NULL, src.size) { 
+      this->space = src.space;
+      this->data = BeginPtr(this->space);
     }
     /*! \brief reserve space for summary */
     inline void Reserve(size_t size) {
