@@ -428,7 +428,7 @@ class ColMaker: public IUpdater {
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           const bst_uint fid = batch.col_index[i];
           const int tid = omp_get_thread_num();
-          const ColBatch::Inst c = batch[i];          
+          const ColBatch::Inst c = batch[i];
           if (param.need_forward_search(fmat.GetColDensity(fid))) {
             this->EnumerateSplit(c.data, c.data + c.length, +1, 
                                  fid, gpair, info, stemp[tid]);

@@ -624,8 +624,8 @@ class QuantileSketchTemplate {
     data.clear();
     level.clear();
   }
-  /*! 
-   * \brief add an element to a sketch 
+  /*!
+   * \brief add an element to a sketch
    * \param x the elemented added to the sketch
    */
   inline void Push(DType x, RType w = 1) {
@@ -638,28 +638,33 @@ class QuantileSketchTemplate {
         inqueue.MakeSummary(&temp);
         // cleanup queue
         inqueue.qtail = 0;
-        for (size_t l = 1; true; ++l) {
-          this->InitLevel(l + 1);
-          // check if level l is empty
-          if (level[l].size == 0) {
-            level[l].SetPrune(temp, limit_size); 
-            break;            
-          } else {
-            // level 0 is actually temp space
-            level[0].SetPrune(temp, limit_size);
-            temp.SetCombine(level[0], level[l]);
-            if (temp.size > limit_size) {
-              // try next level
-              level[l].size = 0;
-            } else {
-              // if merged record is still smaller, no need to send to next level
-              level[l].CopyFrom(temp); break;
-            }
-          }
-        }
+        this->PushTemp();
       }
     }
     inqueue.Push(x, w);
+  }
+  /*! \brief push up temp */
+  inline void PushTemp(void) {
+    temp.Reserve(limit_size * 2);
+    for (size_t l = 1; true; ++l) {
+      this->InitLevel(l + 1);
+      // check if level l is empty
+      if (level[l].size == 0) {
+        level[l].SetPrune(temp, limit_size);
+        break;
+      } else {
+        // level 0 is actually temp space
+        level[0].SetPrune(temp, limit_size);
+        temp.SetCombine(level[0], level[l]);
+        if (temp.size > limit_size) {
+          // try next level
+          level[l].size = 0;
+        } else {
+          // if merged record is still smaller, no need to send to next level
+          level[l].CopyFrom(temp); break;
+        }
+      }
+    }
   }
   /*! \brief get the summary after finalize */
   inline void GetSummary(SummaryContainer *out) {
