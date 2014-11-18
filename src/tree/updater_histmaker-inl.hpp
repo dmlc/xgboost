@@ -377,8 +377,7 @@ class CQHistMaker: public HistMaker<TStats> {
     for (size_t i = 0; i < sketchs.size(); ++i) {
       sketchs[i].Init(info.num_row, this->param.sketch_eps);
     }
-    std::vector< std::vector<SketchEntry> > stemp;
-    stemp.resize(this->get_nthread());
+    thread_temp.resize(this->get_nthread());
 
     // start accumulating statistics
     utils::IIterator<ColBatch> *iter = p_fmat->ColIterator();
@@ -390,7 +389,7 @@ class CQHistMaker: public HistMaker<TStats> {
       #pragma omp parallel for schedule(dynamic, 1)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         this->MakeSketch(gpair, batch[i], tree, batch.col_index[i],
-                         &stemp[omp_get_thread_num()]);       
+                         &thread_temp[omp_get_thread_num()]);       
       }
     }
     // setup maximum size
@@ -460,7 +459,6 @@ class CQHistMaker: public HistMaker<TStats> {
      * \param max_size
      */
     inline void Push(bst_float fvalue, bst_float w, unsigned max_size) {
-      if (w == 0.0f) return;
       if (wmin == 0.0f) {
         last_fvalue = fvalue;
         wmin = w;
@@ -520,56 +518,52 @@ class CQHistMaker: public HistMaker<TStats> {
     if (c.length == 0) return;
     // initialize sbuilder for use
     std::vector<SketchEntry> &sbuilder = *p_temp;
-    sbuilder.resize(this->qexpand.size());
-    for (size_t i = 0; i < sbuilder.size(); ++i) {
-      sbuilder[i].sum_total = 0.0f;
-      sbuilder[i].sketch = &sketchs[i * tree.param.num_feature + fid];
+    sbuilder.resize(tree.param.num_nodes);
+    for (size_t i = 0; i < this->qexpand.size(); ++i) {
+      const unsigned nid = this->qexpand[i];
+      const unsigned wid = this->node2workindex[nid];
+      sbuilder[nid].sum_total = 0.0f;
+      sbuilder[nid].sketch = &sketchs[wid * tree.param.num_feature + fid];
     }
-    // second pass, build the sketch
-    for (bst_uint j = 0; j < c.length; ++j) {
-      const bst_uint ridx = c[j].index;
-      const int nid = this->position[ridx];
-      if (nid >= 0) {
-        const int wid = this->node2workindex[nid];
-        sbuilder[wid].sketch->Push(c[j].fvalue, gpair[ridx].hess);
-      }
-    }
-    return;
+
     // first pass, get sum of weight, TODO, optimization to skip first pass
     for (bst_uint j = 0; j < c.length; ++j) {
       const bst_uint ridx = c[j].index;
       const int nid = this->position[ridx];
       if (nid >= 0) {
-        const int wid = this->node2workindex[nid];
-        sbuilder[wid].sum_total += gpair[ridx].hess;
+        sbuilder[nid].sum_total += gpair[ridx].hess;
       }
     }
     // if only one value, no need to do second pass
     if (c[0].fvalue  == c[c.length-1].fvalue) {
-      for (size_t wid = 0; wid < this->qexpand.size(); ++wid) {
-        sbuilder[wid].sketch->Push(c[0].fvalue, sbuilder[wid].sum_total);
+      for (size_t i = 0; i < this->qexpand.size(); ++i) {
+        const int nid = this->qexpand[i];
+        sbuilder[nid].sketch->Push(c[0].fvalue, sbuilder[nid].sum_total);
       }
       return;
     }
     // two pass scan
     unsigned max_size = static_cast<unsigned>(this->param.sketch_ratio / this->param.sketch_eps);
-    for (size_t wid = 0; wid < sbuilder.size(); ++wid) {
-      sbuilder[wid].Init(max_size);
+    for (size_t i = 0; i < this->qexpand.size(); ++i) {
+      const int nid = this->qexpand[i];
+      sbuilder[nid].Init(max_size);
     }
     // second pass, build the sketch
     for (bst_uint j = 0; j < c.length; ++j) {
       const bst_uint ridx = c[j].index;
       const int nid = this->position[ridx];
       if (nid >= 0) {
-        const int wid = this->node2workindex[nid];
-        sbuilder[wid].Push(c[j].fvalue, gpair[ridx].hess, max_size);
+        sbuilder[nid].Push(c[j].fvalue, gpair[ridx].hess, max_size);
       }
     }
-    for (size_t wid = 0; wid < sbuilder.size(); ++wid) {
-      sbuilder[wid].Finalize(max_size);
+    for (size_t i = 0; i < this->qexpand.size(); ++i) {
+      const int nid = this->qexpand[i];
+      sbuilder[nid].Finalize(max_size);
     }
    }
   typedef utils::WXQuantileSketch<bst_float, bst_float> WXQSketch;
+  // thread temp data
+  std::vector< std::vector<SketchEntry> > thread_temp;
   // summary array
   WXQSketch::SummaryArray summary_array;
   // reducer for summary
