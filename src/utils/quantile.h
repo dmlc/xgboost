@@ -119,6 +119,31 @@ struct WQSummary {
     }
     return res;
   }
+  /*! 
+   * \brief query qvalue, start from istart
+   * \param qvalue the value we query for
+   * \param istart starting position
+   */
+  inline Entry Query(DType qvalue, size_t &istart) const {
+    while (istart < size && qvalue > data[istart].value) {
+      ++istart;
+    }
+    if (istart == size) {
+      RType rmax = data[size - 1].rmax;
+      return Entry(rmax, rmax, 0.0f, qvalue);
+    }
+    if (qvalue == data[istart].value) {
+      return data[istart];
+    } else {
+      if (istart == 0) {
+        return Entry(0.0f, 0.0f, 0.0f, qvalue);    
+      } else {
+        return Entry(data[istart - 1].rmin_next(),
+                     data[istart].rmax_prev(),
+                     0.0f, qvalue);
+      }
+    }
+  }
   /*! \return maximum rank in the summary */
   inline RType MaxRank(void) const {
     return data[size - 1].rmax;

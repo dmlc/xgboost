@@ -197,6 +197,48 @@ class BaseMaker: public IUpdater {
       }
     }
   }
+  /*! \brief helper function to get statistics from a tree */
+  template<typename TStats>
+  inline void GetNodeStats(const std::vector<bst_gpair> &gpair,
+                           const IFMatrix &fmat,
+                           const RegTree &tree,
+                           const BoosterInfo &info,
+                           std::vector< std::vector<TStats> > *p_thread_temp,
+                           std::vector<TStats> *p_node_stats) {
+    std::vector< std::vector<TStats> > &thread_temp = *p_thread_temp;
+    thread_temp.resize(this->get_nthread());
+    p_node_stats->resize(tree.param.num_nodes);
+    #pragma omp parallel
+    {
+      const int tid = omp_get_thread_num();
+      thread_temp[tid].resize(tree.param.num_nodes, TStats(param));
+      for (size_t i = 0; i < qexpand.size(); ++i) {
+        const unsigned nid = qexpand[i];
+        thread_temp[tid][nid].Clear();
+      }
+    }
+    const std::vector<bst_uint> &rowset = fmat.buffered_rowset();
+    // setup position
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
+    #pragma omp parallel for schedule(static)
+    for (bst_omp_uint i = 0; i < ndata; ++i) {
+      const bst_uint ridx = rowset[i];
+      const int nid = position[ridx];
+      const int tid = omp_get_thread_num();
+      if (nid >= 0) {
+        thread_temp[tid][nid].Add(gpair, info, ridx);
+      }
+    }
+    // sum the per thread statistics together
+    for (size_t j = 0; j < qexpand.size(); ++j) {
+      const int nid = qexpand[j];
+      TStats &s = (*p_node_stats)[nid];
+      s.Clear();
+      for (size_t tid = 0; tid < thread_temp.size(); ++tid) {
+        s.Add(thread_temp[tid][nid]);
+      }
+    }
+  }  
   /*! \brief training parameter of tree grower */
   TrainParam param;
   /*! \brief queue of nodes to be expanded */

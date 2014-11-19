@@ -24,8 +24,8 @@ all: $(BIN) $(OBJ) $(SLIB) $(MPIOBJ) $(MPIBIN)
 python: wrapper/libxgboostwrapper.so
 # now the wrapper takes in two files. io and wrapper part
 wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp $(OBJ)
-updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h
-gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h
+updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h src/utils/*.h
+gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h 
 io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
 sync_mpi.o: src/sync/sync_mpi.cpp 
 sync_empty.o: src/sync/sync_empty.cpp 

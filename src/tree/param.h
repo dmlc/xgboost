@@ -144,6 +144,12 @@ struct TrainParam{
   inline bool cannot_split(double sum_hess, int depth) const {
     return sum_hess < this->min_child_weight * 2.0;
   }
+  /*! \brief maximum sketch size */
+  inline unsigned max_sketch_size(void) const {
+    unsigned ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
+    utils::Check(ret > 0, "sketch_ratio/sketch_eps must be bigger than 1");
+    return ret;
+  }
 
  protected:
   // functions for L1 cost
