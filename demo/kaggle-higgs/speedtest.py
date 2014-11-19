@@ -5,6 +5,7 @@ import numpy as np
 # add path of xgboost python module
 sys.path.append('../../wrapper/')
 import xgboost as xgb
+from sklearn.ensemble import GradientBoostingClassifier
 import time
 test_size = 550000
 
@@ -37,30 +38,29 @@ param['objective'] = 'binary:logitraw'
 param['scale_pos_weight'] = sum_wneg/sum_wpos
 param['bst:eta'] = 0.1
 param['bst:max_depth'] = 6
-#param['eval_metric'] = 'auc'
+param['eval_metric'] = 'auc'
 param['silent'] = 1
-param['updater'] = sys.argv[1]
 param['nthread'] = 4
 
-#plst = param.items()+[('eval_metric', 'ams@0.15')]
+plst = param.items()+[('eval_metric', 'ams@0.15')]
 
 watchlist = [ (xgmat,'train') ]
 # boost 10 tres
 num_round = 10
 print ('loading data end, start to boost trees')
 print ("training GBM from sklearn")
-#tmp = time.time()
-#gbm = GradientBoostingClassifier(n_estimators=num_round, max_depth=6, verbose=2)
-#gbm.fit(data, label)
-#print ("sklearn.GBM costs: %s seconds" % str(time.time() - tmp))
+tmp = time.time()
+gbm = GradientBoostingClassifier(n_estimators=num_round, max_depth=6, verbose=2)
+gbm.fit(data, label)
+print ("sklearn.GBM costs: %s seconds" % str(time.time() - tmp))
 #raw_input()
 print ("training xgboost")
 threads = [1, 2, 4, 16]
 for i in threads:
     param['nthread'] = i
     tmp = time.time()
-    #plst = param.items()+[('eval_metric', 'ams@0.15')]
-    bst = xgb.train( param, xgmat, num_round, watchlist );
+    plst = param.items()+[('eval_metric', 'ams@0.15')]
+    bst = xgb.train( plst, xgmat, num_round, watchlist );
     print ("XGBoost with %d thread costs: %s seconds" % (i, str(time.time() - tmp)))
 
 print ('finish training')
