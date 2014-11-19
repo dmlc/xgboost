@@ -38,8 +38,8 @@ void Bcast(std::string *sendrecv_data, int root) {
 
 ReduceHandle::ReduceHandle(void) : handle(NULL) {}
 ReduceHandle::~ReduceHandle(void) {}
-void ReduceHandle::Init(ReduceFunction redfunc, bool commute) {}
-void ReduceHandle::AllReduce(void *sendrecvbuf, size_t n4byte) {}
+void ReduceHandle::Init(ReduceFunction redfunc, size_t type_n4bytes, bool commute) {}
+void ReduceHandle::AllReduce(void *sendrecvbuf, size_t type_n4bytes, size_t n4byte) {}
 }  // namespace sync
 }  // namespace xgboost
 

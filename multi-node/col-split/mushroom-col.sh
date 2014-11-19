@@ -5,7 +5,7 @@ then
     exit -1
 fi
 
-rm -rf train.col*
+rm -rf train.col* *.model
 k=$1
 
 # split the lib svm file into k subfiles
