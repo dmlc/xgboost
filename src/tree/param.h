@@ -63,7 +63,7 @@ struct TrainParam{
     size_leaf_vector = 0;
     parallel_option = 2;
     sketch_eps = 0.1f;
-    sketch_ratio = 1.4f;
+    sketch_ratio = 2.0f;
   }
   /*! 
    * \brief set parameters from outside 
