@@ -32,7 +32,7 @@ class BoostLearnTask {
       }
     }
     if (sync::IsDistributed()) {
-      this->SetParam("updater", "distcol");
+      this->SetParam("data_split", "col");
     }
     if (sync::GetRank() != 0) {
       this->SetParam("silent", "2");

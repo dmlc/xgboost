@@ -32,6 +32,7 @@ class BoostLearner {
     silent= 0;
     prob_buffer_row = 1.0f;
     part_load_col = 0;
+    distributed_mode = 0;
   }
   ~BoostLearner(void) {
     if (obj_ != NULL) delete obj_;
@@ -89,6 +90,17 @@ class BoostLearner {
       this->SetParam(n.c_str(), val);
     }
     if (!strcmp(name, "silent")) silent = atoi(val);
+    if (!strcmp(name, "dsplit")) {
+      if (!strcmp(val, "col")) {
+        this->SetParam("updater", "distcol,prune");
+        distributed_mode = 1;
+      } else if (!strcmp(val, "row")) {
+        this->SetParam("updater", "grow_histmaker,prune");
+        distributed_mode = 2;
+      } else {
+        utils::Error("%s is invalid value for dsplit, should be row or col", val);
+      }
+    }
     if (!strcmp(name, "part_load_col")) part_load_col = atoi(val);
     if (!strcmp(name, "prob_buffer_row")) {
       prob_buffer_row = static_cast<float>(atof(val));
@@ -352,6 +364,8 @@ class BoostLearner {
   // data fields
   // silent during training
   int silent;
+  // distributed learning mode, if any, 0:none, 1:col, 2:row
+  int distributed_mode;
   // randomly load part of data
   int part_load_col;
   // maximum buffred row value

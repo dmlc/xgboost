@@ -17,9 +17,10 @@ MPIOBJ = sync_mpi.o
 MPIBIN = xgboost-mpi
 SLIB = wrapper/libxgboostwrapper.so 
 
-.PHONY: clean all python Rpack
+.PHONY: clean all mpi python Rpack
 
-all: $(BIN) $(OBJ) $(SLIB) $(MPIOBJ) $(MPIBIN)
+all: $(BIN) $(OBJ) $(SLIB) 
+mpi: $(MPIBIN)
 
 python: wrapper/libxgboostwrapper.so
 # now the wrapper takes in two files. io and wrapper part
