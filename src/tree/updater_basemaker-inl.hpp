@@ -8,6 +8,7 @@
 #include <vector>
 #include <algorithm>
 #include "../utils/random.h"
+#include "../utils/quantile.h"
 
 namespace xgboost {
 namespace tree {
@@ -238,7 +239,81 @@ class BaseMaker: public IUpdater {
         s.Add(thread_temp[tid][nid]);
       }
     }
-  }  
+  }
+  /*! \brief common helper data structure to build sketch*/
+  struct SketchEntry {
+    /*! \brief total sum of amount to be met */
+    bst_float sum_total;
+    /*! \brief statistics used in the sketch */
+    bst_float rmin, wmin;
+    /*! \brief last seen feature value */
+    bst_float last_fvalue;
+    /*! \brief current size of sketch */
+    bst_float next_goal;
+    // pointer to the sketch to put things in
+    utils::WXQuantileSketch<bst_float, bst_float> *sketch;
+    // initialize the space
+    inline void Init(unsigned max_size) {
+      next_goal = -1.0f;
+      rmin = wmin = 0.0f;
+      sketch->temp.Reserve(max_size + 1);
+      sketch->temp.size = 0;
+    }
+    /*!
+     * \brief push a new element to sketch 
+     * \param fvalue feature value, comes in sorted ascending order
+     * \param w weight
+     * \param max_size
+     */
+    inline void Push(bst_float fvalue, bst_float w, unsigned max_size) {
+      if (next_goal == -1.0f) {
+        next_goal = 0.0f;
+        last_fvalue = fvalue;
+        wmin = w;
+        return;
+      }
+      if (last_fvalue != fvalue) {
+        bst_float rmax = rmin + wmin;
+        if (rmax >= next_goal) {
+          if (sketch->temp.size == 0 || last_fvalue > sketch->temp.data[sketch->temp.size-1].value) {
+            // push to sketch
+            sketch->temp.data[sketch->temp.size] =
+                utils::WXQuantileSketch<bst_float, bst_float>::
+                Entry(rmin, rmax, wmin, last_fvalue);
+            utils::Assert(sketch->temp.size < max_size,
+                          "invalid maximum size max_size=%u, stemp.size=%lu\n",
+                          max_size, sketch->temp.size);
+            ++sketch->temp.size;
+          }
+          if (sketch->temp.size == max_size) {
+            next_goal = sum_total * 2.0f + 1e-5f;
+          } else{
+            next_goal = static_cast<bst_float>(sketch->temp.size * sum_total / max_size);
+          }
+        }
+        rmin = rmax;
+        wmin = w;
+        last_fvalue = fvalue;
+      } else {
+        wmin += w;
+      }
+    }
+    /*! \brief push final unfinished value to the sketch */
+    inline void Finalize(unsigned max_size) {
+      bst_float rmax = rmin + wmin;
+      if (sketch->temp.size == 0 || last_fvalue > sketch->temp.data[sketch->temp.size-1].value) {
+        utils::Assert(sketch->temp.size <= max_size,
+                      "Finalize: invalid maximum size, max_size=%u, stemp.size=%lu",
+                      sketch->temp.size, max_size );
+        // push to sketch
+        sketch->temp.data[sketch->temp.size] =
+            utils::WXQuantileSketch<bst_float, bst_float>::
+            Entry(rmin, rmax, wmin, last_fvalue);
+        ++sketch->temp.size;
+      }
+      sketch->PushTemp();
+    }
+  };
   /*! \brief training parameter of tree grower */
   TrainParam param;
   /*! \brief queue of nodes to be expanded */
