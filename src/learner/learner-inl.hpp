@@ -92,7 +92,7 @@ class BoostLearner {
     if (!strcmp(name, "silent")) silent = atoi(val);
     if (!strcmp(name, "dsplit")) {
       if (!strcmp(val, "col")) {
-        this->SetParam("updater", "distcol,prune");
+        this->SetParam("updater", "distcol");
         distributed_mode = 1;
       } else if (!strcmp(val, "row")) {
         this->SetParam("updater", "grow_histmaker,prune");
@@ -104,6 +104,8 @@ class BoostLearner {
     if (!strcmp(name, "part_load_col")) part_load_col = atoi(val);
     if (!strcmp(name, "prob_buffer_row")) {
       prob_buffer_row = static_cast<float>(atof(val));
+      utils::Check(distributed_mode == 0,
+                   "prob_buffer_row can only be used in single node mode so far");
       this->SetParam("updater", "grow_colmaker,refresh,prune");
     }
     if (!strcmp(name, "eval_metric")) evaluator_.AddEval(val);
