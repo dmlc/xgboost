@@ -10,7 +10,7 @@ Build
 Design Choice
 =====
 * Does distributed xgboost reply on MPI?
-  - Yes, but the dependency is isolated in [sync](../src/sync/sync.h) module
+  - Yes, but the dependency is isolated in [sync module](../src/sync/sync.h)
   - Specificially, xgboost reply on MPI protocol that provide Broadcast and AllReduce,
      if there are platform/framework that implements these protocol, xgboost should naturally extends to these platform
 * How is the data distributed?
