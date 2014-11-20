@@ -84,6 +84,12 @@ class GBTree : public IGradBooster {
     utils::Assert(mparam.num_trees == 0, "GBTree: model already initialized");
     utils::Assert(trees.size() == 0, "GBTree: model already initialized");
   }
+  virtual void ResetPredBuffer(size_t num_pbuffer) {
+    mparam.num_pbuffer = static_cast<int64_t>(num_pbuffer);
+    pred_buffer.clear(); pred_counter.clear();
+    pred_buffer.resize(mparam.PredBufferSize(), 0.0f);
+    pred_counter.resize(mparam.PredBufferSize(), 0);
+  }
   virtual void DoBoost(IFMatrix *p_fmat,
                        int64_t buffer_offset,
                        const BoosterInfo &info,

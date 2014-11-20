@@ -142,7 +142,7 @@ class BoostLearnTask {
     }
   }
   inline void InitLearner(void) {
-    if (model_in != "NULL"){
+    if (model_in != "NULL") {
       utils::FileStream fi(utils::FopenCheck(model_in.c_str(), "rb"));
       learner.LoadModel(fi);
       fi.Close();

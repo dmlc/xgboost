@@ -38,6 +38,12 @@ class IGradBooster {
    * \brief initialize the model
    */
   virtual void InitModel(void) = 0;
+  /*! 
+   * \brief reset the predict buffer
+   * this will invalidate all the previous cached results
+   * and recalculate from scratch
+   */
+  virtual void ResetPredBuffer(size_t num_pbuffer) {}
   /*!
    * \brief peform update to the model(boosting)
    * \param p_fmat feature matrix that provide access to features
