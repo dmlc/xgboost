@@ -22,10 +22,12 @@ Design Choice
   - Row-based solver split data by row, each node work on subset of rows,
     it uses an approximate histogram count algorithm, and will only examine subset of 
     potential split points as opposed to all split points.
-* How to run the distributed version
+
+Run the distributed version
+====
   - The current code run in MPI enviroment, you will need to have a network filesystem,
     or copy data to local file system before running the code
-  - The distributed version is still multi-threading optimized.
+  - ***Note*** The distributed version is still multi-threading optimized.
     You should run one xgboost-mpi per node that takes most available CPU,
     this will reduce the communication overhead and improve the performance.
   - One way to do that is limit mpi slot in each machine to be 1, or reserve nthread processors for each process.
