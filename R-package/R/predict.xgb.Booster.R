@@ -25,9 +25,13 @@ setClass("xgb.Booster")
 #' @export
 #' 
 setMethod("predict", signature = "xgb.Booster", 
-          definition = function(object, newdata, outputmargin = FALSE, ntreelimit = NULL) {
+          definition = function(object, newdata, missing = NULL, outputmargin = FALSE, ntreelimit = NULL) {
   if (class(newdata) != "xgb.DMatrix") {
-    newdata <- xgb.DMatrix(newdata)
+    if (is.null(missing)) {
+      newdata <- xgb.DMatrix(newdata)
+    } else {
+      newdata <- xgb.DMatrix(newdata, missing = missing)
+    }
   }
   if (is.null(ntreelimit)) {
     ntreelimit <- 0
