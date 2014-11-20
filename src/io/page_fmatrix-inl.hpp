@@ -114,11 +114,11 @@ class CSCMatrixManager {
   }
   inline void SetColSet(const std::vector<bst_uint> &cset, bool setall) {
     if (!setall) {
-      col_todo_.resize(cset.size());
+      col_todo_.resize(0);
       for (size_t i = 0; i < cset.size(); ++i) {
-        col_todo_[i] = cset[i];
-        utils::Assert(col_todo_[i] < static_cast<bst_uint>(col_ptr_.size() - 1),
-                      "CSCMatrixManager: column index exceed bound");
+        if (col_todo_[i] < static_cast<bst_uint>(col_ptr_.size() - 1)) {
+          col_todo_.push_back(cset[i]);
+        }
       }
       std::sort(col_todo_.begin(), col_todo_.end());
     } else {

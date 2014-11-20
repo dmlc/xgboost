@@ -76,7 +76,11 @@ class FMatrixS : public IFMatrix{
    * \brief colmun based iterator
    */
   virtual utils::IIterator<ColBatch> *ColIterator(const std::vector<bst_uint> &fset) {
-    col_iter_.col_index_ = fset;
+    size_t ncol = this->NumCol();
+    col_iter_.col_index_.resize(0);
+    for (size_t i = 0; i < fset.size(); ++i) {
+      if (fset[i] < ncol) col_iter_.col_index_.push_back(fset[i]); 
+    }
     col_iter_.SetBatch(col_ptr_, col_data_);
     return &col_iter_;
   }
