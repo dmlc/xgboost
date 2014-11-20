@@ -12,7 +12,7 @@ k=$1
 python splitrows.py ../../demo/data/agaricus.txt.train train $k
 
 # run xgboost mpi
-mpirun -n $k ../../xgboost-mpi mushroom-row.conf dsplit=row nthread=1
+mpirun -n $k ../../xgboost-mpi mushroom-row.conf dsplit=row nthread=1 
 
 # the model can be directly loaded by single machine xgboost solver, as usuall
 ../../xgboost mushroom-row.conf task=dump model_in=0002.model fmap=../../demo/data/featmap.txt name_dump=dump.nice.$k.txt

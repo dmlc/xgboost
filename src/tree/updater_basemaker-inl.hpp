@@ -7,6 +7,7 @@
  */
 #include <vector>
 #include <algorithm>
+#include <limits>
 #include "../utils/random.h"
 #include "../utils/quantile.h"
 
@@ -24,8 +25,73 @@ class BaseMaker: public IUpdater {
   virtual void SetParam(const char *name, const char *val) {
     param.SetParam(name, val);
   }
-  
+   
  protected:
+  // helper to collect and query feature meta information
+  struct FMetaHelper {
+   public:
+    /*! \brief find type of each feature, use column format */
+    inline void InitByCol(IFMatrix *p_fmat,
+                          const RegTree &tree) {
+      fminmax.resize(tree.param.num_feature * 2);
+      std::fill(fminmax.begin(), fminmax.end(),
+                -std::numeric_limits<bst_float>::max());
+      // start accumulating statistics
+      utils::IIterator<ColBatch> *iter = p_fmat->ColIterator();
+      iter->BeforeFirst();
+      while (iter->Next()) {
+        const ColBatch &batch = iter->Value();
+        for (bst_uint i = 0; i < batch.size; ++i) {
+          const bst_uint fid = batch.col_index[i];
+          const ColBatch::Inst &c = batch[i];
+          if (c.length != 0) {
+            fminmax[fid * 2 + 0] = std::max(-c[0].fvalue, fminmax[fid * 2 + 0]);
+            fminmax[fid * 2 + 1] = std::max(c[c.length - 1].fvalue, fminmax[fid * 2 + 1]);
+          }
+        }
+      }      
+      sync::AllReduce(BeginPtr(fminmax), fminmax.size(), sync::kMax);
+    }
+    // get feature type, 0:empty 1:binary 2:real
+    inline int Type(bst_uint fid) const {
+      utils::Assert(fid * 2 + 1 < fminmax.size(),
+                    "FeatHelper fid exceed query bound ");
+      bst_float a = fminmax[fid * 2];
+      bst_float b = fminmax[fid * 2 + 1];
+      if (a == -std::numeric_limits<bst_float>::max()) return 0;
+      if (-a == b) return 1;
+      else return 2;
+    }
+    inline bst_float MaxValue(bst_uint fid) const {
+      return fminmax[fid *2 + 1];
+    }
+    inline void SampleCol(float p, std::vector<bst_uint> *p_findex) const {
+      std::vector<bst_uint> &findex = *p_findex;
+      findex.clear();
+      for (size_t i = 0; i < fminmax.size(); i += 2) {
+        if (this->Type(i / 2) != 0) findex.push_back(i / 2);
+      }
+      unsigned n = static_cast<unsigned>(p * findex.size());
+      random::Shuffle(findex);
+      findex.resize(n);
+      if (n != findex.size()) {
+        // sync the findex if it is subsample
+        std::string s_cache;
+        utils::MemoryBufferStream fc(&s_cache);
+        utils::IStream &fs = fc;
+        if (sync::GetRank() == 0) {
+          fs.Write(findex);
+          sync::Bcast(&s_cache, 0);
+        } else {
+          sync::Bcast(&s_cache, 0);
+          fs.Read(&findex);
+        }
+      }
+    }
+    
+   private:
+    std::vector<bst_float> fminmax;
+  };
   // ------static helper functions ------
   // helper function to get to next level of the tree
   /*! \brief this is  helper function for row based data*/
