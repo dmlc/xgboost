@@ -38,6 +38,9 @@ void Bcast(std::string *sendrecv_data, int root) {
 
 ReduceHandle::ReduceHandle(void) : handle(NULL) {}
 ReduceHandle::~ReduceHandle(void) {}
+int ReduceHandle::TypeSize(const MPI::Datatype &dtype) {
+  return 0;
+}
 void ReduceHandle::Init(ReduceFunction redfunc, size_t type_n4bytes, bool commute) {}
 void ReduceHandle::AllReduce(void *sendrecvbuf, size_t type_n4bytes, size_t n4byte) {}
 }  // namespace sync

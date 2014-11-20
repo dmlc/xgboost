@@ -519,11 +519,11 @@ class QuantileSketchTemplate {
   /*! \brief same as summary, but use STL to backup the space */
   struct SummaryContainer : public Summary {
     std::vector<Entry> space;
-    explicit SummaryContainer(void) : Summary(NULL, 0) { 
-    }
-    explicit SummaryContainer(const SummaryContainer &src) : Summary(NULL, src.size) { 
+    SummaryContainer(const SummaryContainer &src) : Summary(NULL, src.size) { 
       this->space = src.space;
       this->data = BeginPtr(this->space);
+    }
+    SummaryContainer(void) : Summary(NULL, 0) { 
     }
     /*! \brief reserve space for summary */
     inline void Reserve(size_t size) {
@@ -576,13 +576,17 @@ class QuantileSketchTemplate {
     /*! \brief save the data structure into stream */
     inline void Save(IStream &fo) const {
       fo.Write(&(this->size), sizeof(this->size));
-      fo.Write(data, this->size * sizeof(Entry));
+      if (this->size != 0) {
+        fo.Write(this->data, this->size * sizeof(Entry));
+      }
     }
     /*! \brief load data structure from input stream */
     inline void Load(IStream &fi) {
       utils::Check(fi.Read(&this->size, sizeof(this->size)) != 0, "invalid SummaryArray 1");
-      this->Reserve(this->size);      
-      utils::Check(fi.Read(data, this->size * sizeof(Entry)) != 0, "invalid SummaryArray 2");
+      this->Reserve(this->size);
+      if (this->size != 0) {
+        utils::Check(fi.Read(this->data, this->size * sizeof(Entry)) != 0, "invalid SummaryArray 2");
+      }
     }
   };
   /*! 

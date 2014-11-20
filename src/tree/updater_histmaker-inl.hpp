@@ -507,7 +507,7 @@ class CQHistMaker: public HistMaker<TStats> {
   // node statistics
   std::vector<TStats> node_stats;
   // summary array
-  std::vector< WXQSketch::SummaryContainer> summary_array;
+  std::vector<WXQSketch::SummaryContainer> summary_array;
   // reducer for summary
   sync::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
   // per node, per feature sketch
@@ -517,6 +517,7 @@ class CQHistMaker: public HistMaker<TStats> {
 template<typename TStats>
 class QuantileHistMaker: public HistMaker<TStats> {  
  protected:
+  typedef utils::WXQuantileSketch<bst_float, bst_float> WXQSketch;
   virtual void ResetPosAndPropose(const std::vector<bst_gpair> &gpair,
                                   IFMatrix *p_fmat,
                                   const BoosterInfo &info,
@@ -624,9 +625,8 @@ class QuantileHistMaker: public HistMaker<TStats> {
   }
 
  private:
-  typedef utils::WXQuantileSketch<bst_float, bst_float> WXQSketch;
   // summary array
-  std::vector< WXQSketch::SummaryContainer> summary_array;
+  std::vector<WXQSketch::SummaryContainer> summary_array;
   // reducer for summary
   sync::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
   // local temp column data structure

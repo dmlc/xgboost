@@ -28,6 +28,7 @@ Design Choice
     this will reduce the communication overhead and improve the performance.
   - One way to do that is limit mpi slot in each machine to be 1, or reserve nthread processors for each process.
   
-Examples
+Usage
 ====
 * [Column-based version](col-split)
+* [Row-based version](row-split)

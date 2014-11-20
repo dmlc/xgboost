@@ -1,6 +1,6 @@
 Distributed XGBoost: Column Split Version
 ====
-* run ```bash run-mushroom.sh```
+* run ```bash mushroom-row.sh <n-mpi-process>```
 
 How to Use
 ====

@@ -160,13 +160,13 @@ class SerializeReducer {
   inline void AllReduce(DType *sendrecvobj, size_t max_n4byte, size_t count) {
     buffer.resize(max_n4byte * count);
     for (size_t i = 0; i < count; ++i) {
-      utils::MemoryFixSizeBuffer fs(BeginPtr(buffer) + i * max_n4byte * 4, max_n4byte * 4);
-      sendrecvobj[i]->Save(fs);
+      utils::MemoryFixSizeBuffer fs(BeginPtr(buffer) + i * max_n4byte, max_n4byte * 4);
+      sendrecvobj[i].Save(fs);
     }
     handle.AllReduce(BeginPtr(buffer), max_n4byte, count);
     for (size_t i = 0; i < count; ++i) {
-      utils::MemoryFixSizeBuffer fs(BeginPtr(buffer) + i * max_n4byte * 4, max_n4byte * 4);
-      sendrecvobj[i]->Load(fs);
+      utils::MemoryFixSizeBuffer fs(BeginPtr(buffer) + i * max_n4byte, max_n4byte * 4);
+      sendrecvobj[i].Load(fs);
     }
   }
 
@@ -178,12 +178,12 @@ class SerializeReducer {
     // temp space
     DType tsrc, tdst;
     for (int i = 0; i < len_; ++i) {
-      utils::MemoryFixSizeBuffer fsrc((void*)(src_) + i * nbytes, nbytes);
-      utils::MemoryFixSizeBuffer fdst(dst_ + i * nbytes, nbytes);
+      utils::MemoryFixSizeBuffer fsrc((char*)(src_) + i * nbytes, nbytes);
+      utils::MemoryFixSizeBuffer fdst((char*)(dst_) + i * nbytes, nbytes);
       tsrc.Load(fsrc);
       tdst.Load(fdst);
       // govern const check
-      tdst.Reduce(static_cast<const DType &>(tsrc));
+      tdst.Reduce(static_cast<const DType &>(tsrc), nbytes);
       fdst.Seek(0);
       tdst.Save(fdst);
     }
