@@ -43,9 +43,14 @@
 #' 
 #' @export
 #' 
-xgboost <- function(data = NULL, label = NULL, params = list(), nrounds, 
+xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), nrounds, 
                     verbose = 1, ...) {
-  dtrain <- xgb.get.DMatrix(data, label)  
+  if (is.null(missing)) {
+    dtrain <- xgb.get.DMatrix(data, label)
+  } else {
+    dtrain <- xgb.get.DMatrix(data, label, missing)
+  }
+    
   params <- append(params, list(...))
   
   if (verbose > 0) {

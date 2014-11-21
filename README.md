@@ -12,8 +12,15 @@ Examples Code: [Learning to use xgboost by examples](demo)
 
 Notes on the Code: [Code Guide](src)
 
+Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
+* This slide is made by Tianqi Chen to introduce gradient boosting in a statistical view.
+* It present boosted tree learning as formal functional space optimization of defined objective.
+* The model presented is used by xgboost for boosted trees
+
 What's New
 =====
+
+* Thanks to Bing Xu, [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl) allows you to use xgboost from Julia
 * See the updated [demo folder](demo) for feature walkthrough
 * Thanks to Tong He, the new [R package](R-package) is available
 
@@ -26,7 +33,6 @@ Features
 * Speed: XGBoost is very fast
   - IN [demo/higgs/speedtest.py](demo/kaggle-higgs/speedtest.py), kaggle higgs data it is faster(on our machine 20 times faster using 4 threads) than sklearn.ensemble.GradientBoostingClassifier
 * Layout of gradient boosting algorithm to support user defined objective
-* Python interface, works with numpy and scipy.sparse matrix
 
 Build
 =====

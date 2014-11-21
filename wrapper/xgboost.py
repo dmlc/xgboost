@@ -436,7 +436,11 @@ def train(params, dtrain, num_boost_round = 10, evals = [], obj=None, feval=None
     for i in range(num_boost_round):
         bst.update( dtrain, i, obj )
         if len(evals) != 0:
-            sys.stderr.write(bst.eval_set(evals, i, feval).decode()+'\n')
+            bst_eval_set=bst.eval_set(evals, i, feval)
+            if isinstance(bst_eval_set,str):
+                sys.stderr.write(bst_eval_set+'\n')
+            else:
+                sys.stderr.write(bst_eval_set.decode()+'\n')
     return bst
 
 class CVPack:
@@ -467,7 +471,7 @@ def mknfold(dall, nfold, param, seed, evals=[], fpreproc = None):
             dtrain, dtest, tparam = fpreproc(dtrain, dtest, param.copy())
         else:
             tparam = param
-        plst = tparam.items() + [('eval_metric', itm) for itm in evals]
+        plst = list(tparam.items()) + [('eval_metric', itm) for itm in evals]
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
@@ -481,12 +485,16 @@ def aggcv(rlist, show_stdv=True):
         arr = line.split()
         assert ret == arr[0]
         for it in arr[1:]:
+            if not isinstance(it,str):
+                it=it.decode()
             k, v  = it.split(':')
             if k not in cvmap:
                 cvmap[k] = []
             cvmap[k].append(float(v))
     for k, v in sorted(cvmap.items(), key = lambda x:x[0]):
         v = np.array(v)
+        if not isinstance(ret,str):
+            ret = ret.decode()
         if show_stdv:
             ret += '\tcv-%s:%f+%f' % (k, np.mean(v), np.std(v))
         else:

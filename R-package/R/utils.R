@@ -68,13 +68,17 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
 ## ----the following are low level iteratively function, not needed if
 ## you do not want to use them ---------------------------------------
 # get dmatrix from data, label
-xgb.get.DMatrix <- function(data, label = NULL) {
+xgb.get.DMatrix <- function(data, label = NULL, missing = NULL) {
   inClass <- class(data)
   if (inClass == "dgCMatrix" || inClass == "matrix") {
     if (is.null(label)) {
       stop("xgboost: need label when data is a matrix")
     }
-    dtrain <- xgb.DMatrix(data, label = label)
+    if (is.null(missing)){
+      dtrain <- xgb.DMatrix(data, label = label)
+    } else {
+      dtrain <- xgb.DMatrix(data, label = label, missing = missing)
+    }
   } else {
     if (!is.null(label)) {
       warning("xgboost: label will be ignored.")

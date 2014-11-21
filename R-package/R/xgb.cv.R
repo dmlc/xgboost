@@ -53,7 +53,7 @@
 #'                   "max.depth"=3, "eta"=1, "objective"="binary:logistic")
 #' @export
 #'
-xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL,
+xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NULL, 
                    showsd = TRUE, metrics=list(), obj = NULL, feval = NULL, ...) {
   if (typeof(params) != "list") {
     stop("xgb.cv: first argument params must be list")
@@ -61,7 +61,11 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL,
   if (nfold <= 1) {
     stop("nfold must be bigger than 1")
   }
-  dtrain <- xgb.get.DMatrix(data, label)
+  if (is.null(missing)) {
+    dtrain <- xgb.get.DMatrix(data, label)
+  } else {
+    dtrain <- xgb.get.DMatrix(data, label, missing)
+  }
   params <- append(params, list(...))
   params <- append(params, list(silent=1))
   for (mc in metrics) {
