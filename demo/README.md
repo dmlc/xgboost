@@ -32,6 +32,8 @@ This is a list of short codes introducing different functionalities of xgboost a
   [python](guide-python/cross_validation.py)
   [R](../R-package/demo/cross_validation.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/cross_validation.jl)  
+* Predicting leaf indices
+  [python](guide-python/predict_leaf_indices.py)
 
 Basic Examples by Tasks
 ====

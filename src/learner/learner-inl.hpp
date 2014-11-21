@@ -280,10 +280,16 @@ class BoostLearner {
   inline void Predict(const DMatrix &data,
                       bool output_margin,
                       std::vector<float> *out_preds,
-                      unsigned ntree_limit = 0) const {
-    this->PredictRaw(data, out_preds, ntree_limit);
-    if (!output_margin) {
-      obj_->PredTransform(out_preds);
+                      unsigned ntree_limit = 0,
+                      bool pred_leaf = false
+                      ) const {
+    if (pred_leaf) {
+      gbm_->PredictLeaf(data.fmat(), data.info.info, out_preds, ntree_limit);      
+    } else {
+      this->PredictRaw(data, out_preds, ntree_limit);
+      if (!output_margin) {
+        obj_->PredTransform(out_preds);
+      }
     }
   }
   /*! \brief dump model out */
