@@ -12,7 +12,7 @@ Design Choice
 * Does distributed xgboost reply on MPI?
   - Yes, but the dependency is isolated in [sync module](../src/sync/sync.h)
   - All other parts of code uses interface defined in sync.h
-  - sync_mpi.cpp is a implementation of sync interface
+  - sync_mpi.cpp is a implementation of sync interface using standard MPI library
   - Specificially, xgboost reply on MPI protocol that provide Broadcast and AllReduce,
      if there are platform/framework that implements these protocol, xgboost should naturally extends to these platform
 * How is the data distributed?
