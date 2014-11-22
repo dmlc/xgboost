@@ -12,7 +12,7 @@ endif
 
 # specify tensor path
 BIN = xgboost
-OBJ = updater.o gbm.o io.o main.o sync_empty.o
+OBJ = updater.o gbm.o io.o main.o sync_empty.o sync_tcp.o
 MPIOBJ = sync_mpi.o
 MPIBIN = xgboost-mpi
 SLIB = wrapper/libxgboostwrapper.so 
@@ -24,11 +24,11 @@ mpi: $(MPIBIN)
 
 python: wrapper/libxgboostwrapper.so
 # now the wrapper takes in two files. io and wrapper part
-wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp $(OBJ)
 updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h src/utils/*.h
 gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h 
 io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
-sync_mpi.o: src/sync/sync_mpi.cpp 
+sync_mpi.o: src/sync/sync_mpi.cpp
+sync_tcp.o: src/sync/sync_tcp.cpp
 sync_empty.o: src/sync/sync_empty.cpp 
 main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h 
 xgboost-mpi:  updater.o gbm.o io.o main.o sync_mpi.o 
