@@ -149,13 +149,15 @@ class TCPSocket {
 /*! \brief helper data structure to perform select */
 struct SelectHelper {
  public:
-  SelectHelper(void) {}
+  SelectHelper(void) {
+    this->Clear();
+  }
   /*!
    * \brief add file descriptor to watch for read 
    * \param fd file descriptor to be watched
    */
   inline void WatchRead(int fd) {
-    FD_SET(fd, &read_set);
+    read_fds.push_back(fd);
     if (fd > maxfd) maxfd = fd;
   }
   /*!
@@ -163,22 +165,29 @@ struct SelectHelper {
    * \param fd file descriptor to be watched
    */
   inline void WatchWrite(int fd) {
-    FD_SET(fd, &write_set);
+    write_fds.push_back(fd);
     if (fd > maxfd) maxfd = fd;
   }
   /*!
    * \brief Check if the descriptor is ready for read
-   * \param 
+   * \param fd file descriptor to check status
    */
   inline bool CheckRead(int fd) const {
     return FD_ISSET(fd, &read_set);
   }
+  /*!
+   * \brief Check if the descriptor is ready for write
+   * \param fd file descriptor to check status
+   */
   inline bool CheckWrite(int fd) const {
     return FD_ISSET(fd, &write_set);
   }
+  /*!
+   * \brief clear all the monitored descriptors
+   */
   inline void Clear(void) {
-    FD_ZERO(&read_set);
-    FD_ZERO(&write_set);
+    read_fds.clear();
+    write_fds.clear();
     maxfd = 0;
   }
   /*!
@@ -187,6 +196,14 @@ struct SelectHelper {
    * \return number of active descriptors selected
    */
   inline int Select(long timeout = 0) {
+    FD_ZERO(&read_set);
+    FD_ZERO(&write_set);
+    for (size_t i = 0; i < read_fds.size(); ++i) {
+      FD_SET(read_fds[i], &read_set);
+    } 
+    for (size_t i = 0; i < write_fds.size(); ++i) {
+      FD_SET(write_fds[i], &write_set);
+    }
     int ret;
     if (timeout == 0) {
       ret = select(maxfd + 1, &read_set, &write_set, NULL, NULL);
@@ -207,6 +224,7 @@ struct SelectHelper {
  private:
   int maxfd; 
   fd_set read_set, write_set;
+  std::vector<int> read_fds, write_fds;
 };
 }
 }
