@@ -7,9 +7,10 @@
  */
 #include <cstdio>
 #include <cstring>
+#include <string>
+
 #include "../utils/utils.h"
 #include "../utils/io.h"
-#include <string>
 
 namespace MPI {
 // forward delcaration of MPI::Datatype, but not include content
