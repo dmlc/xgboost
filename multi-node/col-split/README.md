@@ -1,6 +1,7 @@
 Distributed XGBoost: Column Split Version
 ====
 * run ```bash mushroom-col.sh <n-mpi-process>```
+  - mushroom-col.sh starts xgboost-mpi job
 * run ```bash mushroom-col-tcp.sh <n-process>```
   - mushroom-col-tcp.sh starts xgboost job using xgboost's buildin allreduce 
 * run ```bash mushroom-col-python.sh <n-process>```

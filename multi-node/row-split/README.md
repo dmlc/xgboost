@@ -3,6 +3,8 @@ Distributed XGBoost: Row Split Version
 * Mushroom: run ```bash mushroom-row.sh <n-mpi-process>```
 * Machine: run ```bash machine-row.sh <n-mpi-process>```
   - Machine case also include example to continue training from existing model
+* Machine TCP: run ```bash machine-row-tcp.sh <n-mpi-process>```
+  - machine-col-tcp.sh starts xgboost job using xgboost's buildin allreduce 
 
 How to Use
 ====
