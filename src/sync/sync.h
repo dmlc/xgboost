@@ -85,7 +85,8 @@ class ReduceHandle {
   void AllReduce(void *sendrecvbuf, size_t type_n4bytes, size_t count);
   /*! \return the number of bytes occupied by the type */
   static int TypeSize(const MPI::Datatype &dtype);
- private:
+
+ protected:
   // handle data field
   void *handle;
   // handle to the type field

@@ -1,6 +1,5 @@
-#!/usr/bin/python
 """
-Master script for xgboost submit_tcp
+Master script for xgboost, tcp_master
 This script can be used to start jobs of multi-node xgboost using sync_tcp
 
 Tianqi Chen
@@ -11,6 +10,7 @@ import os
 import socket
 import struct
 import subprocess
+from threading import Thread
 
 class ExSocket:
     def __init__(self, sock):
@@ -25,9 +25,9 @@ class ExSocket:
             res.append(chunk)
         return ''.join(res)
     def recvint(self):
-        return struct.unpack('!i', self.recvall(4))[0]
+        return struct.unpack('@i', self.recvall(4))[0]
     def sendint(self, n):
-        self.sock.sendall(struct.pack('!i', n))
+        self.sock.sendall(struct.pack('@i', n))
     def sendstr(self, s):
         self.sendint(len(s))
         self.sock.sendall(s)
@@ -58,7 +58,6 @@ class Master:
         for rank in range(nslave):
             while True:
                 fd, s_addr = self.sock.accept()
-                print 'accept connection from %s' % s_addr
                 slave = ExSocket(fd)
                 nparent = int(rank != 0)
                 nchild = 0
@@ -67,11 +66,13 @@ class Master:
                 if (rank + 1) * 2 < nslave:
                     nchild += 1                
                 try:
-                    magic = slave.readint()
+                    magic = slave.recvint()
                     if magic != kMagic:
+                        print 'invalid magic number=%d from %s' % (magic, s_addr[0])                        
                         slave.sock.close()
                         continue
                 except socket.error:
+                    print 'sock error in %s' % (s_addr[0])
                     slave.sock.close()
                     continue
                 slave.sendint(kMagic)
@@ -86,23 +87,20 @@ class Master:
                     slave.sendint(ptuple[1])
                 s_port = slave.recvint()
                 assert rank == len(slave_addrs)
-                slave_addrs.append(s_addr, s_port)
+                slave_addrs.append((s_addr[0], s_port))
+                slave.sock.close()
+                print 'finish starting rank=%d at %s' % (rank, s_addr[0])
                 break
         print 'all slaves setup complete'
         
 def mpi_submit(nslave, args):
     cmd = ' '.join(['mpirun -n %d' % nslave] + args)
     print cmd
-    os.system(cmd)
+    return subprocess.check_call(cmd, shell = True)
     
 def submit(nslave, args, fun_submit = mpi_submit):
     master = Master()
-    fun_submit(nslave, args + master.slave_args())
+    submit_thread = Thread(target = fun_submit, args = (nslave, args + master.slave_args()))
+    submit_thread.start()
     master.accept_slaves(nslave)
-
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print 'Usage: <nslave> <cmd>'
-        exit(0)
-    submit(int(sys.argv[1]), sys.argv[2:])
-
+    submit_thread.join()

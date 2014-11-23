@@ -22,7 +22,6 @@ sync_tcp.o: ../src/sync/sync_tcp.cpp ../src/utils/*.h
 test_group_data: test_group_data.cpp ../src/utils/*.h
 test_quantile: test_quantile.cpp ../src/utils/*.h
 test_allreduce: test_allreduce.cpp ../src/utils/*.h ../src/sync/sync.h sync_tcp.o
-
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
 
