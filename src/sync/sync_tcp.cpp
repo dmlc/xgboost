@@ -101,6 +101,8 @@ class SyncManager {
     // setup selecter
     selecter.Clear();
     for (size_t i = 0; i < links.size(); ++i) {
+      // set the socket to non-blocking mode
+      links[i].sock.SetNonBlock();
       selecter.WatchRead(links[i].sock);
       selecter.WatchWrite(links[i].sock);
     }
