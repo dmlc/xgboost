@@ -1,6 +1,11 @@
 Distributed XGBoost: Column Split Version
 ====
-* run ```bash mushroom-row.sh <n-mpi-process>```
+* run ```bash mushroom-col.sh <n-mpi-process>```
+* run ```bash mushroom-col-tcp.sh <n-process>```
+  - mushroom-col-tcp.sh starts xgboost job using xgboost's buildin allreduce 
+* run ```bash mushroom-col-python.sh <n-process>```
+  - mushroom-col-python.sh starts xgboost python job using xgboost's buildin all reduce
+  - see mushroom-col.py
 
 How to Use
 ====

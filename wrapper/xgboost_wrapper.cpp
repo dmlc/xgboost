@@ -80,6 +80,23 @@ class Booster: public learner::BoostLearner {
 using namespace xgboost::wrapper;
 
 extern "C"{
+  void XGSyncInit(int argc, char *argv[]) {
+    sync::Init(argc, argv);
+    if (sync::IsDistributed()) {
+      std::string pname = xgboost::sync::GetProcessorName();
+      utils::Printf("distributed job start %s:%d\n", pname.c_str(), xgboost::sync::GetRank());
+    }
+  }
+  void XGSyncFinalize(void) {
+    sync::Finalize();
+  }
+  int XGSyncGetRank(void) {
+    int rank = xgboost::sync::GetRank();
+    return rank;
+  }
+  int XGSyncGetWorldSize(void) {
+    return sync::GetWorldSize();
+  }
   void* XGDMatrixCreateFromFile(const char *fname, int silent) {
     return LoadDataMatrix(fname, silent != 0, false);
   }

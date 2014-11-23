@@ -18,6 +18,28 @@ typedef unsigned long bst_ulong;
 extern "C" {
 #endif
   /*!
+   * \brief initialize sync module, this is needed if used in distributed model
+   *        normally, argv need to contain master_uri and master_port
+   *        if start using submit_job_tcp script, then pass args to this will do
+   * \param argc number of arguments
+   * \param argv the arguments to be passed in sync module
+   */
+  XGB_DLL void XGSyncInit(int argc, char *argv[]);
+  /*!
+   * \brief finalize sync module, call this when everything is done
+   */
+  XGB_DLL void XGSyncFinalize(void);
+  /*!
+   * \brief get the rank 
+   * \return return the rank of 
+   */
+  XGB_DLL int XGSyncGetRank(void);
+  /*!
+   * \brief get the world size from sync
+   * \return return the number of distributed job ran in the group
+   */
+  XGB_DLL int XGSyncGetWorldSize(void);
+  /*!
    * \brief load a data matrix 
    * \return a loaded data matrix
    */
@@ -41,7 +63,7 @@ extern "C" {
    * \param col_ptr pointer to col headers
    * \param indices findex
    * \param data fvalue
-   * \param nindptr number of rows in the matix + 1 
+   * \param nindptr number of rows in the matix + 1
    * \param nelem number of nonzero elements in the matrix
    * \return created dmatrix
    */

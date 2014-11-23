@@ -11,6 +11,10 @@ import subprocess
 sys.path.append(os.path.dirname(__file__)+'/../src/sync/')
 import tcp_master as master
 
+#
+#  Note: this submit script is only used for example purpose
+#  It does not have to be mpirun, it can be any job submission script that starts the job, qsub, hadoop streaming etc.
+#  
 def mpi_submit(nslave, args):
     """
       customized submit script, that submit nslave jobs, each must contain args as parameter

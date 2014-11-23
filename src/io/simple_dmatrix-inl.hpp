@@ -84,7 +84,12 @@ class DMatrixSimple : public DataMatrix {
   inline void LoadText(const char* fname, bool silent = false) {
     using namespace std;
     this->Clear();
-    FILE* file = utils::FopenCheck(fname, "r");
+    FILE* file;
+    if (!strcmp(fname, "stdin")) {
+      file = stdin;
+    } else {
+      file = utils::FopenCheck(fname, "r");      
+    }
     float label; bool init = true;
     char tmp[1024];
     std::vector<RowBatch::Entry> feats;
@@ -112,7 +117,9 @@ class DMatrixSimple : public DataMatrix {
                     static_cast<unsigned long>(info.num_col()),
                     static_cast<unsigned long>(row_data_.size()), fname);
     }
-    fclose(file);
+    if (file != stdin) {
+      fclose(file);
+    }
     // try to load in additional file
     std::string name = fname;
     std::string gname = name + ".group";

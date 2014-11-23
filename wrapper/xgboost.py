@@ -33,7 +33,10 @@ xglib.XGBoosterCreate.restype = ctypes.c_void_p
 xglib.XGBoosterPredict.restype = ctypes.POINTER(ctypes.c_float)
 xglib.XGBoosterEvalOneIter.restype = ctypes.c_char_p
 xglib.XGBoosterDumpModel.restype = ctypes.POINTER(ctypes.c_char_p)
-
+# sync function
+xglib.XGSyncGetRank.restype = ctypes.c_int
+xglib.XGSyncGetWorldSize.restype = ctypes.c_int
+# initialize communication module
 
 def ctypes2numpy(cptr, length, dtype):
     """convert a ctypes pointer array to numpy array """
@@ -553,3 +556,18 @@ def cv(params, dtrain, num_boost_round = 10, nfold=3, metrics=[], \
         sys.stderr.write(res+'\n')
         results.append(res)
     return results
+
+# synchronization module
+def sync_init(args = sys.argv):
+    arr = (ctypes.c_char_p * len(args))()
+    arr[:] = args
+    xglib.XGSyncInit(len(args), arr)
+    
+def sync_finalize():
+    xglib.XGSyncFinalize()
+
+def sync_get_rank():
+    return int(xglib.XGSyncGetRank())
+
+def sync_get_world_size():
+    return int(xglib.XGSyncGetWorldSize())

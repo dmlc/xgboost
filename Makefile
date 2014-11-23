@@ -32,8 +32,8 @@ sync_tcp.o: src/sync/sync_tcp.cpp
 sync_empty.o: src/sync/sync_empty.cpp 
 main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h 
 xgboost-mpi:  updater.o gbm.o io.o main.o sync_mpi.o 
-xgboost:  updater.o gbm.o io.o main.o sync_empty.o
-wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o sync_empty.o
+xgboost:  updater.o gbm.o io.o main.o sync_tcp.o
+wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o sync_tcp.o
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)

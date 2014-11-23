@@ -1,5 +1,5 @@
 export CC  = gcc
-export CXX = clang++
+export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm 
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../src
