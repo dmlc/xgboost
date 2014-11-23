@@ -1,5 +1,5 @@
-export CC  = gcc
-export CXX = g++
+export CC  = gcc-4.9
+export CXX = g++-4.9
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fopenmp
 
 # specify tensor path
