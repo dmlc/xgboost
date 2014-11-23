@@ -113,8 +113,11 @@ int main(int argc, char *argv[]) {
   std::string name = sync::GetProcessorName();
   printf("[%d] start at %s\n", rank, name.c_str());
   TestMax(n);
+  printf("[%d] TestMax pass\n", rank);
   TestSum(n);
+  printf("[%d] TestSum pass\n", rank);
   TestReducer(n);
+  printf("[%d] TestReducer pass\n", rank);
   sync::Finalize();
   printf("[%d] all check pass\n", rank);
   return 0;

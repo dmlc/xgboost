@@ -258,8 +258,10 @@ class SyncManager {
       size_t nfinished = size_down_in;
       // can pass message down to childs
       for (int i = 0; i < nlink; ++i) {
-        if (i != parent_index && selecter.CheckWrite(links[i].sock)) {
-          links[i].WriteFromArray(sendrecvbuf, size_down_in);
+        if (i != parent_index) {
+          if (selecter.CheckWrite(links[i].sock)) {
+            links[i].WriteFromArray(sendrecvbuf, size_down_in);
+          }
           nfinished = std::min(links[i].size_write, nfinished);
         }
       }
@@ -319,8 +321,10 @@ class SyncManager {
       size_t nfinished = total_size;
       // send data to all out-link
       for (int i = 0; i < nlink; ++i) {
-        if (i != in_link && selecter.CheckWrite(links[i].sock)) {
-          links[i].WriteFromArray(sendrecvbuf_, size_in);
+        if (i != in_link) {
+          if (selecter.CheckWrite(links[i].sock)) {
+            links[i].WriteFromArray(sendrecvbuf_, size_in);
+          }
           nfinished = std::min(nfinished, links[i].size_write);
         }
       }
