@@ -187,7 +187,7 @@ class BoostLearner {
    * \param p_train pointer to the matrix used by training
    */
   inline void CheckInit(DMatrix *p_train) {
-    int ncol = p_train->info.info.num_col;    
+    int ncol = static_cast<int>(p_train->info.info.num_col);    
     std::vector<bool> enabled(ncol, true);
     
     if (part_load_col != 0) {      

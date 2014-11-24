@@ -49,7 +49,7 @@ void Finalize(void);
  * \param op reduction function
  */
 template<typename DType>
-void AllReduce(DType *sendrecvbuf, int count, ReduceOp op);
+void AllReduce(DType *sendrecvbuf, size_t count, ReduceOp op);
 
 /*!
  * \brief broadcast an std::string to all others from root

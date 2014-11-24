@@ -165,7 +165,7 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
   // loader factory for page
   struct Factory {
    public:
-    long file_begin_;
+    size_t file_begin_;
     utils::FileStream fi;
     Factory(void) {}
     inline void SetFile(const utils::FileStream &fi) {

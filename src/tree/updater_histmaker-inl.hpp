@@ -68,7 +68,7 @@ class HistMaker: public BaseMaker {
     /*! \brief data in different hist unit */
     std::vector<TStats> data;
     /*! \brief */
-    inline HistUnit operator[](bst_uint fid) {
+    inline HistUnit operator[](size_t fid) {
       return HistUnit(cut + rptr[fid],
                       &data[0] + rptr[fid],
                       rptr[fid+1] - rptr[fid]);
@@ -159,7 +159,7 @@ class HistMaker: public BaseMaker {
                            std::vector<bst_uint> *p_fset) {
     p_fset->resize(tree.param.num_feature);
     for (size_t i = 0; i < p_fset->size(); ++i) {
-      (*p_fset)[i] = i;
+      (*p_fset)[i] = static_cast<unsigned>(i);
     }
   }
   // reset position after split, this is not a must, depending on implementation
@@ -187,7 +187,7 @@ class HistMaker: public BaseMaker {
         c.SetSubstract(node_sum, s);
         if (c.sum_hess >= param.min_child_weight) {
           double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
-          if (best->Update(loss_chg, fid, hist.cut[i], false)) {
+          if (best->Update((float)loss_chg, fid, hist.cut[i], false)) {
             *left_sum = s;
           }
         }
@@ -200,7 +200,7 @@ class HistMaker: public BaseMaker {
         c.SetSubstract(node_sum, s);
         if (c.sum_hess >= param.min_child_weight) {
           double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
-          if (best->Update(loss_chg, fid, hist.cut[i-1], true)) {
+          if (best->Update((float)loss_chg, fid, hist.cut[i-1], true)) {
             *left_sum = c;
           }
         }
@@ -258,7 +258,7 @@ class HistMaker: public BaseMaker {
   }
   
   inline void SetStats(RegTree *p_tree, int nid, const TStats &node_sum) {
-    p_tree->stat(nid).base_weight = node_sum.CalcWeight(param);
+    p_tree->stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
     p_tree->stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
     node_sum.SetLeafVec(param, p_tree->leafvec(nid));    
   }
@@ -419,17 +419,17 @@ class CQHistMaker: public HistMaker<TStats> {
             bst_float last = cpt + fabs(cpt) + rt_eps;
             this->wspace.cut.push_back(last);
           }
-          this->wspace.rptr.push_back(this->wspace.cut.size());
+          this->wspace.rptr.push_back(static_cast<unsigned>(this->wspace.cut.size()));
         } else {
           utils::Assert(offset == -2, "BUG in mark");
           bst_float cpt = feat_helper.MaxValue(fset[i]);        
           this->wspace.cut.push_back(cpt + fabs(cpt) + rt_eps);
-          this->wspace.rptr.push_back(this->wspace.cut.size());        
+          this->wspace.rptr.push_back(static_cast<unsigned>(this->wspace.cut.size()));        
         }
       }
       // reserve last value for global statistics
       this->wspace.cut.push_back(0.0f);
-      this->wspace.rptr.push_back(this->wspace.cut.size());
+      this->wspace.rptr.push_back(static_cast<unsigned>(this->wspace.cut.size()));
     }
     utils::Assert(this->wspace.rptr.size() ==
                   (fset.size() + 1) * this->qexpand.size() + 1,
@@ -493,7 +493,7 @@ class CQHistMaker: public HistMaker<TStats> {
     } else {
       for (size_t i = 0; i < this->qexpand.size(); ++i) {
         const unsigned nid = this->qexpand[i];        
-        sbuilder[nid].sum_total = nstats[nid].sum_hess;
+        sbuilder[nid].sum_total = static_cast<bst_float>(nstats[nid].sum_hess);
       } 
     }
     // if only one value, no need to do second pass

@@ -69,7 +69,8 @@ class BaseMaker: public IUpdater {
       std::vector<bst_uint> &findex = *p_findex;
       findex.clear();
       for (size_t i = 0; i < fminmax.size(); i += 2) {
-        if (this->Type(i / 2) != 0) findex.push_back(i / 2);
+		const bst_uint fid = static_cast<bst_uint>(i / 2);
+        if (this->Type(fid) != 0) findex.push_back(fid);
       }
       unsigned n = static_cast<unsigned>(p * findex.size());
       random::Shuffle(findex);

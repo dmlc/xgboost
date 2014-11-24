@@ -483,7 +483,7 @@ inline void ReduceBitOR(const void *src_, void *dst_, int len, const MPI::Dataty
 }
 
 template<>
-void AllReduce<uint32_t>(uint32_t *sendrecvbuf, int count, ReduceOp op) {
+void AllReduce<uint32_t>(uint32_t *sendrecvbuf, size_t count, ReduceOp op) {
   typedef uint32_t DType;
   switch(op) {
     case kBitwiseOR: manager.AllReduce(sendrecvbuf, sizeof(DType), count, ReduceBitOR<DType>); return;
@@ -494,7 +494,7 @@ void AllReduce<uint32_t>(uint32_t *sendrecvbuf, int count, ReduceOp op) {
 }
 
 template<>
-void AllReduce<float>(float *sendrecvbuf, int count, ReduceOp op) {
+void AllReduce<float>(float *sendrecvbuf, size_t count, ReduceOp op) {
   typedef float DType;
   switch(op) {
     case kSum: manager.AllReduce(sendrecvbuf, sizeof(DType), count, ReduceSum<DType>); return;

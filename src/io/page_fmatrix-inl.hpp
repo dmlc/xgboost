@@ -138,8 +138,8 @@ class CSCMatrixManager {
     fi_->Seek(col_ptr_[cidx] * sizeof(ColBatch::Entry) + begin_data_);
     utils::Check(fi_->Read(p_data, sizeof(ColBatch::Entry) * len) != 0,
                  "invalid column buffer format");
-    p_page->col_data.push_back(ColBatch::Inst(p_data, len));
-    p_page->col_index.push_back(cidx);
+    p_page->col_data.push_back(ColBatch::Inst(p_data, static_cast<bst_uint>(len)));
+    p_page->col_index.push_back(static_cast<bst_uint>(cidx));
     return true;
   }
   // the following are in memory auxiliary data structure

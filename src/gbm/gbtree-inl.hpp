@@ -324,7 +324,7 @@ class GBTree : public IGradBooster {
                        unsigned ntree_limit) {
     // number of valid trees
     if (ntree_limit == 0 || ntree_limit > trees.size()) {
-      ntree_limit = trees.size();
+      ntree_limit = static_cast<unsigned>(trees.size());
     } 
     std::vector<float> &preds = *out_preds;
     preds.resize(info.num_row * ntree_limit);

@@ -33,7 +33,7 @@ void Finalize(void) {
   MPI::Finalize();
 }
 
-void AllReduce_(void *sendrecvbuf, int count, const MPI::Datatype &dtype, ReduceOp op) {
+void AllReduce_(void *sendrecvbuf, size_t count, const MPI::Datatype &dtype, ReduceOp op) {
   switch(op) {
     case kBitwiseOR: MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, dtype, MPI::BOR); return;
     case kSum: MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, dtype, MPI::SUM); return;
@@ -42,12 +42,12 @@ void AllReduce_(void *sendrecvbuf, int count, const MPI::Datatype &dtype, Reduce
 }
 
 template<>
-void AllReduce<uint32_t>(uint32_t *sendrecvbuf, int count, ReduceOp op) {
+void AllReduce<uint32_t>(uint32_t *sendrecvbuf, size_t count, ReduceOp op) {
   AllReduce_(sendrecvbuf, count, MPI::UNSIGNED, op);
 }
 
 template<>
-void AllReduce<float>(float *sendrecvbuf, int count, ReduceOp op) {
+void AllReduce<float>(float *sendrecvbuf, size_t count, ReduceOp op) {
   AllReduce_(sendrecvbuf, count, MPI::FLOAT, op);
 }
 

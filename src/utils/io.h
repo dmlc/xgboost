@@ -188,7 +188,7 @@ class FileStream : public ISeekStream {
     std::fwrite(ptr, size, 1, fp);
   }
   virtual void Seek(size_t pos) {
-    std::fseek(fp, pos, SEEK_SET);
+    std::fseek(fp, static_cast<long>(pos), SEEK_SET);
   }
   virtual size_t Tell(void) {
     return std::ftell(fp);
