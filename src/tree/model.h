@@ -70,6 +70,7 @@ class TreeModel {
   /*! \brief tree node */
   class Node {
    public:
+	Node(void) : sindex_(0) {}
     /*! \brief index of left child */
     inline int cleft(void) const {
       return this->cleft_;
