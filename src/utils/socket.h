@@ -125,7 +125,9 @@ class TCPSocket {
    * \brief shutdown the socket module after use, all sockets need to be closed
    */  
   inline static void Finalize(void) {
+#ifdef _WIN32
     WSACleanup();
+#endif
   }
   /*! 
    * \brief set this socket to use non-blocking mode
