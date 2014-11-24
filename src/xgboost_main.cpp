@@ -1,6 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
-
+#define NOMINMAX
 #include <ctime>
 #include <string>
 #include <cstring>

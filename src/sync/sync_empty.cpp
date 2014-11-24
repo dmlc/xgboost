@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_DEPRECATE
 #include "./sync.h"
 #include "../utils/utils.h"
 // no synchronization module, single thread mode does not need it anyway
@@ -26,11 +28,11 @@ std::string GetProcessorName(void) {
 }
 
 template<>
-void AllReduce<uint32_t>(uint32_t *sendrecvbuf, int count, ReduceOp op) {
+void AllReduce<uint32_t>(uint32_t *sendrecvbuf, size_t count, ReduceOp op) {
 }
 
 template<>
-void AllReduce<float>(float *sendrecvbuf, int count, ReduceOp op) {
+void AllReduce<float>(float *sendrecvbuf, size_t count, ReduceOp op) {
 }
 
 void Bcast(std::string *sendrecv_data, int root) {

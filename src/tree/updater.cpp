@@ -1,5 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
+#define NOMINMAX
 #include <cstring>
 #include "./updater.h"
 #include "./updater_sync-inl.hpp"
