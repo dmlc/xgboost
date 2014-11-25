@@ -43,6 +43,18 @@ Build
   - Alternatively, you can upgrade your compiler to compile multi-thread version
 * Windows(VS 2010): see [windows](windows) folder
   - In principle, you put all the cpp files in the Makefile to the project, and build
+* OS X:
+  - For users who want OpenMP support using [Homebrew](http://brew.sh/), run ```brew update``` (ensures that you install gcc-4.9 or above) and ```brew install gcc```. Once it is installed, edit [tools/Makefile](tools/Makefile) by replacing:
+  ```
+  export CC  = gcc
+  export CXX = g++
+  ```
+  with
+  ```
+  export CC  = gcc-4.9
+  export CXX = g++-4.9
+  ```
+  Then run ```bash build.sh``` normally.
 
 Version
 ======
