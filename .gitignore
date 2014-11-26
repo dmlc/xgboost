@@ -26,3 +26,6 @@
 *.exe
 *.out
 *.app
+*~
+*.pyc
+test
