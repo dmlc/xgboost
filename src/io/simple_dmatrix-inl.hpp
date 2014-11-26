@@ -159,7 +159,7 @@ class DMatrixSimple : public DataMatrix {
   inline void LoadBinary(utils::IStream &fs, bool silent = false, const char *fname = NULL) {
     int tmagic;
     utils::Check(fs.Read(&tmagic, sizeof(tmagic)) != 0, "invalid input file format");
-    utils::Check(tmagic == kMagic, "invalid format,magic number mismatch");
+    utils::Check(tmagic == kMagic, "\"%s\" invalid format, magic number mismatch", fname == NULL ? "" : fname);
 
     info.LoadBinary(fs);
     FMatrixS::LoadBinary(fs, &row_ptr_, &row_data_);
