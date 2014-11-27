@@ -6,6 +6,10 @@
  * \author Tianqi Chen, Nacho, Tianyi
  */
 #include "./io.h"
+#ifdef TEST
+ #include "./mock.h"
+#endif
+
 
 namespace MPI {
 /*! \brief MPI data type just to be compatible with MPI reduce function*/
@@ -76,5 +80,10 @@ void Init(int argc, char *argv[]);
 void Finalize(void);
 /*! \brief singleton method to get engine */
 IEngine *GetEngine(void);
+
+#ifdef TEST
+void SetMock(test::Mock& mock);
+#endif
+
 }  // namespace engine
 #endif  // ALLREDUCE_ENGINE_H

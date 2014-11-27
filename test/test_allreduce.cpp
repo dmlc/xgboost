@@ -66,13 +66,13 @@ inline void TestBcast(size_t n, int root) {
 inline void record(test::Mock& mock, int rank) {
   switch(rank) {
     case 0:
-      mock.OnAllReduce(0, -1);
+      mock.OnAllReduce(0, false);
       break;
     case 1: 
-      mock.OnAllReduce(1, -1);
+      mock.OnAllReduce(1, false);
       break;
     case 2:
-      mock.OnAllReduce(2, 0);
+      mock.OnAllReduce(2, true);
       break;
   }
 }
@@ -97,8 +97,11 @@ int main(int argc, char *argv[]) {
     test::Mock mock;
     record(mock, rank);
     mock.Replay();
-    replay(mock, rank);
+    //replay(mock, rank);
+    sync::SetMock(mock);
   #endif
+
+
 
   printf("[%d] start at %s\n", rank, name.c_str());
   TestMax(n);

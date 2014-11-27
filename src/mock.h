@@ -16,7 +16,7 @@ namespace test {
 
 class Mock {
 
-  typedef std::map<int,std::queue<int> > Map;
+  typedef std::map<int,std::queue<bool> > Map;
 
 public:
 
@@ -27,60 +27,63 @@ public:
   }
 
   // record methods
-
-  inline void OnAllReduce(int rank, int code) {
-    utils::Check(record, "Not in record state");
-    Map::iterator it = allReduce.find(rank);
-    if (it == allReduce.end()) {
-      std::queue<int> aQueue;
-      allReduce[rank] = aQueue;
-    }
-    allReduce[rank].push(code);
+  inline void OnAllReduce(int rank, bool success) {
+    onRecord(allReduce, rank, success);
   }
 
-  inline void OnBroadcast() {
-    utils::Check(record, "Not in record state");
+  inline void OnBroadcast(int rank, bool success) {
+    onRecord(broadcast, rank, success);
   }
 
-  inline void OnLoadCheckpoint() {
-    utils::Check(record, "Not in record state");
+  inline void OnLoadCheckPoint(int rank, bool success) {
+    onRecord(loadCheckpoint, rank, success);
   }
 
-  inline void OnCheckpoint() {
-    utils::Check(record, "Not in record state");
+  inline void OnCheckPoint(int rank, bool success) {
+    onRecord(checkpoint, rank, success);
   }
 
 
   // replay methods
-
-  inline int AllReduce(int rank) {
-    utils::Check(!record, "Not in replay state");
-    utils::Check(allReduce.find(rank) != allReduce.end(), "Not recorded");
-    int result = 0;
-    if (!allReduce[rank].empty()) {
-      result = allReduce[rank].front();
-      allReduce[rank].pop();
-    }
-    return result;
+  inline bool AllReduce(int rank) {
+    return onReplay(allReduce, rank);
   }
 
-  inline int Broadcast(int rank) {
-    utils::Check(!record, "Not in replay state");
-    return 0;
+  inline bool Broadcast(int rank) {
+    return onReplay(broadcast, rank);
   }
 
-  inline int LoadCheckpoint(int rank) {
-    utils::Check(!record, "Not in replay state");
-    return 0;
+  inline bool LoadCheckPoint(int rank) {
+    return onReplay(loadCheckpoint, rank);  
   }
 
-  inline int Checkpoint(int rank) {
-    utils::Check(!record, "Not in replay state");
-    return 0;
+  inline bool CheckPoint(int rank) {
+    return onReplay(checkpoint, rank);  
   }
 
 
 private:
+
+  inline void onRecord(Map& m, int rank, bool success) {
+    utils::Check(record, "Not in record state");
+    Map::iterator it = m.find(rank);
+    if (it == m.end()) {
+      std::queue<bool> aQueue;
+      m[rank] = aQueue;
+    }
+    m[rank].push(success);
+  }
+
+  inline bool onReplay(Map& m, int rank) {
+    utils::Check(!record, "Not in replay state");
+    utils::Check(m.find(rank) != m.end(), "Not recorded");
+    bool result = true;
+    if (!m[rank].empty()) {
+      result = m[rank].front();
+      m[rank].pop();
+    }
+    return result;
+  }
 
   // flag to indicate if the mock is in record state
   bool record;

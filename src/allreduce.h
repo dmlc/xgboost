@@ -4,6 +4,9 @@
  * \author Tianqi Chen, Nacho, Tianyi
  */
 #include "./engine.h"
+#ifdef TEST
+ #include "./mock.h"
+#endif
 
 /*! \brief namespace of all reduce */
 namespace sync {
@@ -43,6 +46,11 @@ void Init(int argc, char *argv[]) {
 void Finalize(void) {
   engine::Finalize();
 }
+#ifdef TEST
+void SetMock(test::Mock& mock) {
+  engine::SetMock(mock);
+}
+#endif
 /*! \brief get rank of current process */
 inline int GetRank(void) {
   return engine::GetEngine()->GetRank();

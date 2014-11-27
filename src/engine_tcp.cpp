@@ -12,6 +12,9 @@
 #include <cstring>
 #include "./engine.h"
 #include "./socket.h"
+#ifdef TEST
+  #include "./mock.h"
+#endif
 
 namespace MPI {
 class Datatype {
@@ -37,6 +40,13 @@ class SyncManager : public IEngine {
   }
   ~SyncManager(void) {
   }
+
+  #ifdef TEST
+  inline void SetMock(test::Mock& mock) {
+    this->mock = mock;
+  }
+  #endif
+
   inline void Shutdown(void) {
     for (size_t i = 0; i < links.size(); ++i) {
       links[i].sock.Close();
@@ -168,6 +178,9 @@ class SyncManager : public IEngine {
                          size_t type_nbytes,
                          size_t count,
                          ReduceFunction reducer) {
+    #ifdef TEST
+      utils::Assert(mock.AllReduce(this->rank), "Error returned by mock when reducing");
+    #endif
     if (links.size() == 0) return;
     // total size of message
     const size_t total_size = type_nbytes * count;
@@ -275,6 +288,10 @@ class SyncManager : public IEngine {
    * \param root the root worker id to broadcast the data
    */    
   virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
+    #ifdef TEST
+      utils::Assert(mock.Broadcast(this->rank), "Error returned by mock when broadcasting");
+    #endif
+
     if (links.size() == 0) return;
     // number of links
     const int nlink = static_cast<int>(links.size());
@@ -329,9 +346,15 @@ class SyncManager : public IEngine {
     }
   }
   virtual bool LoadCheckPoint(utils::ISerializable *p_model) {
+    #ifdef TEST
+      utils::Assert(mock.LoadCheckPoint(this->rank), "Error returned by mock when loading checkpoint");
+    #endif
     return false;
   }
   virtual void CheckPoint(const utils::ISerializable &model) {
+    #ifdef TEST
+      utils::Assert(mock.CheckPoint(this->rank), "Error returned by mock when checkpointing");
+    #endif
   }
   
  private:  
@@ -421,6 +444,11 @@ class SyncManager : public IEngine {
   std::vector<LinkRecord> links;
   // select helper
   utils::SelectHelper selecter;
+
+  #ifdef TEST
+  // mock to test
+  test::Mock mock;
+  #endif
 };
 
 // singleton sync manager
@@ -436,6 +464,14 @@ void Init(int argc, char *argv[]) {
   }
   manager.Init();
 }
+
+#ifdef TEST
+/*! \brief sets a mock to the manager for testing purposes */
+void SetMock(test::Mock& mock) {
+  manager.SetMock(mock);
+}
+#endif
+
 /*! \brief finalize syncrhonization module */
 void Finalize(void) {
   manager.Shutdown();
