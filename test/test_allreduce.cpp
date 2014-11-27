@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <mock.h>
+
 
 using namespace sync;
 
@@ -60,6 +62,27 @@ inline void TestBcast(size_t n, int root) {
   utils::Check(res == s, "[%d] TestBcast fail", rank);
 }
 
+// ugly stuff, just to see if it works
+inline void record(test::Mock& mock, int rank) {
+  switch(rank) {
+    case 0:
+      mock.OnAllReduce(0, -1);
+      break;
+    case 1: 
+      mock.OnAllReduce(1, -1);
+      break;
+    case 2:
+      mock.OnAllReduce(2, 0);
+      break;
+  }
+}
+
+// to be removed, should be added in engine tcp
+inline void replay(test::Mock& mock, int rank) {
+  printf("[%d] All reduce %d\n", rank, mock.AllReduce(rank));
+  printf("[%d] All reduce %d\n", rank, mock.AllReduce(rank));
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 2) {
     printf("Usage: <ndata>\n");
@@ -69,6 +92,14 @@ int main(int argc, char *argv[]) {
   sync::Init(argc, argv);
   int rank = sync::GetRank();
   std::string name = sync::GetProcessorName();
+
+  #ifdef TEST
+    test::Mock mock;
+    record(mock, rank);
+    mock.Replay();
+    replay(mock, rank);
+  #endif
+
   printf("[%d] start at %s\n", rank, name.c_str());
   TestMax(n);
   printf("[%d] TestMax pass\n", rank);

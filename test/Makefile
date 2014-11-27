@@ -9,6 +9,10 @@ ifeq ($(no_omp),1)
 else 
 	CFLAGS += -fopenmp
 endif
+ifeq ($(test),1)
+	CFLAGS += -DTEST
+endif
+
 
 # specify tensor path
 BIN = test_allreduce
