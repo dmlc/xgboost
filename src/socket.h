@@ -22,7 +22,6 @@
 #include <cstring>
 #include "./utils.h"
 
-namespace utils {
 #if defined(_WIN32)
 typedef int ssize_t;
 typedef int sock_size_t;
@@ -32,6 +31,7 @@ typedef size_t sock_size_t;
 const int INVALID_SOCKET = -1;
 #endif
 
+namespace utils {
 /*! \brief data structure for network address */
 struct SockAddr {
   sockaddr_in addr;
@@ -74,35 +74,17 @@ struct SockAddr {
     return std::string(s);
   }
 };
+
 /*! 
- * \brief a wrapper of TCP socket that hopefully be cross platform
+ * \brief base class containing common operations of TCP and UDP sockets
  */
-class TCPSocket {
+class Socket {
  public:
   /*! \brief the file descriptor of socket */
   SOCKET sockfd;
-  // constructor
-  TCPSocket(void) : sockfd(INVALID_SOCKET) {
-  }
-  explicit TCPSocket(SOCKET sockfd) : sockfd(sockfd) {
-  }
-  ~TCPSocket(void) {
-    // do nothing in destructor
-    // user need to take care of close
-  }
   // default conversion to int
   inline operator SOCKET() const {
     return sockfd;
-  }
-  /*!
-   * \brief create the socket, call this before using socket
-   * \param af domain
-   */
-  inline void Create(int af = PF_INET) {
-    sockfd = socket(PF_INET, SOCK_STREAM, 0);
-    if (sockfd == INVALID_SOCKET) {
-      SockError("Create");
-    }
   }
   /*!
    * \brief start up the socket module
@@ -112,7 +94,7 @@ class TCPSocket {
 #ifdef _WIN32
 	WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != -1) {
-	  SockError("Startup");
+	  Socket::Error("Startup");
 	}
     if (LOBYTE(wsa_data.wVersion) != 2 || HIBYTE(wsa_data.wVersion) != 2) {
 	  WSACleanup();
@@ -137,12 +119,12 @@ class TCPSocket {
 #ifdef _WIN32  
 	u_long mode = non_block ? 1 : 0;
 	if (ioctlsocket(sockfd, FIONBIO, &mode) != NO_ERROR) {
-      SockError("SetNonBlock");
+      Socket::Error("SetNonBlock");
 	}
 #else
     int flag = fcntl(sockfd, F_GETFL, 0);
     if (flag == -1) {
-      SockError("SetNonBlock-1");
+      Socket::Error("SetNonBlock-1");
     }
     if (non_block) {
       flag |= O_NONBLOCK;
@@ -150,9 +132,80 @@ class TCPSocket {
       flag &= ~O_NONBLOCK;
     }
     if (fcntl(sockfd, F_SETFL, flag) == -1) {
-      SockError("SetNonBlock-2");
+      Socket::Error("SetNonBlock-2");
     }
 #endif
+  }
+  /*! 
+   * \brief bind the socket to an address 
+   * \param addr
+   */
+  inline void Bind(const SockAddr &addr) {
+    if (bind(sockfd, (sockaddr*)&addr.addr, sizeof(addr.addr)) == -1) {
+      Socket::Error("Bind");
+    }
+  }
+  /*! 
+   * \brief try bind the socket to host, from start_port to end_port
+   * \param start_port starting port number to try
+   * \param end_port ending port number to try
+   * \return the port successfully bind to, return -1 if failed to bind any port
+   */
+  inline int TryBindHost(int start_port, int end_port) {    
+    for (int port = start_port; port < end_port; ++port) {
+      SockAddr addr("0.0.0.0", port);
+      if (bind(sockfd, (sockaddr*)&addr.addr, sizeof(addr.addr)) == 0) {
+        return port;
+      }
+      if (errno != EADDRINUSE) {
+        Socket::Error("TryBindHost");
+      }
+    }
+    return -1;
+  }
+  /*! \brief close the socket */
+  inline void Close(void) {
+    if (sockfd != INVALID_SOCKET) {
+#ifdef _WIN32
+      closesocket(sockfd);
+#else
+	  close(sockfd);
+#endif
+	  sockfd = INVALID_SOCKET;
+    } else {
+      Error("Socket::Close double close the socket or close without create");
+    }
+  }
+
+  // report an socket error
+  inline static void Error(const char *msg) {
+    int errsv = errno;
+    utils::Error("Socket %s Error:%s", msg, strerror(errsv));
+  }
+ protected:
+  explicit Socket(SOCKET sockfd) : sockfd(sockfd) {
+  }
+};
+
+/*! 
+ * \brief a wrapper of TCP socket that hopefully be cross platform
+ */
+class TCPSocket : public Socket{
+ public:
+  // constructor
+  TCPSocket(void) : Socket(INVALID_SOCKET) {
+  }
+  explicit TCPSocket(SOCKET sockfd) : Socket(sockfd) {
+  }
+  /*!
+   * \brief create the socket, call this before using socket
+   * \param af domain
+   */
+  inline void Create(int af = PF_INET) {
+    sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    if (sockfd == INVALID_SOCKET) {
+      Socket::Error("Create");
+    }
   }
   /*!
    * \brief perform listen of the socket
@@ -165,93 +218,43 @@ class TCPSocket {
   TCPSocket Accept(void) {
     SOCKET newfd = accept(sockfd, NULL, NULL);
     if (newfd == INVALID_SOCKET) {
-      SockError("Accept");
+      Socket::Error("Accept");
     }
     return TCPSocket(newfd);
   }
   /*! 
-   * \brief bind the socket to an address 
-   * \param addr
-   */
-  inline void Bind(const SockAddr &addr) {
-    if (bind(sockfd, (sockaddr*)&addr.addr, sizeof(addr.addr)) == -1) {
-      SockError("Bind");
-    }
-  }
-  /*! 
-   * \brief try bind the socket to host, from start_port to end_port
-   * \param start_port starting port number to try
-   * \param end_port ending port number to try
-   * \param out_addr the binding address, if successful
-   * \return whether the binding is successful
-   */
-  inline int TryBindHost(int start_port, int end_port) {    
-    for (int port = start_port; port < end_port; ++port) {
-      SockAddr addr("0.0.0.0", port);
-      if (bind(sockfd, (sockaddr*)&addr.addr, sizeof(addr.addr)) == 0) {
-        return port;
-      }
-      if (errno != EADDRINUSE) {
-        SockError("TryBindHost");
-      }
-    }
-    return -1;
-  }                      
-  /*! 
    * \brief connect to an address 
    * \param addr the address to connect to
+   * \return whether connect is successful
    */
-  inline void Connect(const SockAddr &addr) {
-    if (connect(sockfd, (sockaddr*)&addr.addr, sizeof(addr.addr)) == -1) {
-      SockError("Connect");
-    }
-  }
-  /*! \brief close the connection */
-  inline void Close(void) {
-    if (sockfd != -1) {
-#ifdef _WIN32
-      closesocket(sockfd);
-#else
-	  close(sockfd);
-#endif
-	  sockfd = INVALID_SOCKET;
-    } else {
-      Error("TCPSocket::Close double close the socket or close without create");
-    }
+  inline bool Connect(const SockAddr &addr) {
+    return connect(sockfd, (sockaddr*)&addr.addr, sizeof(addr.addr)) == 0;
   }
   /*!
-   * \brief send data using the socket 
+   * \brief send data using the socket
    * \param buf the pointer to the buffer
    * \param len the size of the buffer
    * \param flags extra flags
    * \return size of data actually sent
+   *         return -1 if error occurs
    */
-  inline size_t Send(const void *buf_, size_t len, int flag = 0) {
+  inline ssize_t Send(const void *buf_, size_t len, int flag = 0) {
 	const char *buf = reinterpret_cast<const char*>(buf_);
     if (len == 0) return 0;
-    ssize_t ret = send(sockfd, buf, static_cast<sock_size_t>(len), flag);
-    if (ret == -1) {
-      if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
-      SockError("Send");
-    }
-    return ret;
-  }  
+    return send(sockfd, buf, static_cast<sock_size_t>(len), flag);
+  }
   /*! 
    * \brief receive data using the socket 
    * \param buf_ the pointer to the buffer
    * \param len the size of the buffer
    * \param flags extra flags
-   * \return size of data actually received 
+   * \return size of data actually received
+   *         return -1 if error occurs
    */
-  inline size_t Recv(void *buf_, size_t len, int flags = 0) {
+  inline ssize_t Recv(void *buf_, size_t len, int flags = 0) {
 	char *buf = reinterpret_cast<char*>(buf_);
-    if (len == 0) return 0;    
-    ssize_t ret = recv(sockfd, buf, static_cast<sock_size_t>(len), flags);
-    if (ret == -1) {
-      if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
-      SockError("Recv");
-    }
-    return ret;
+    if (len == 0) return 0;
+    return recv(sockfd, buf, static_cast<sock_size_t>(len), flags);
   } 
   /*!
    * \brief peform block write that will attempt to send all data out
@@ -267,7 +270,7 @@ class TCPSocket {
       ssize_t ret = send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0);
       if (ret == -1) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) return ndone;
-        SockError("Recv");
+        Socket::Error("SendAll");
       }
       buf += ret;
       ndone += ret;
@@ -288,7 +291,7 @@ class TCPSocket {
       ssize_t ret = recv(sockfd, buf, static_cast<sock_size_t>(len - ndone), MSG_WAITALL);
       if (ret == -1) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) return ndone;
-        SockError("Recv");
+        Socket::Error("RecvAll");
       }
       if (ret == 0) return ndone;
       buf += ret;
@@ -298,12 +301,8 @@ class TCPSocket {
   }
 
  private:
-  // report an socket error
-  inline static void SockError(const char *msg) {
-    int errsv = errno;
-    Error("Socket %s Error:%s", msg, strerror(errsv));
-  }
 };
+
 /*! \brief helper data structure to perform select */
 struct SelectHelper {
  public:
@@ -327,6 +326,14 @@ struct SelectHelper {
     if (fd > maxfd) maxfd = fd;
   }
   /*!
+   * \brief add file descriptor to watch for exception
+   * \param fd file descriptor to be watched
+   */
+  inline void WatchException(SOCKET fd) {
+    except_fds.push_back(fd);
+    if (fd > maxfd) maxfd = fd;
+  }  
+  /*!
    * \brief Check if the descriptor is ready for read
    * \param fd file descriptor to check status
    */
@@ -341,11 +348,19 @@ struct SelectHelper {
     return FD_ISSET(fd, &write_set) != 0;
   }
   /*!
+   * \brief Check if the descriptor has any exception
+   * \param fd file descriptor to check status
+   */
+  inline bool CheckExcept(SOCKET fd) const {
+    return FD_ISSET(fd, &except_set) != 0;
+  }
+  /*!
    * \brief clear all the monitored descriptors
    */
   inline void Clear(void) {
     read_fds.clear();
     write_fds.clear();
+    except_fds.clear();
     maxfd = 0;
   }
   /*!
@@ -356,20 +371,26 @@ struct SelectHelper {
   inline int Select(long timeout = 0) {
     FD_ZERO(&read_set);
     FD_ZERO(&write_set);
+    FD_ZERO(&except_set);
     for (size_t i = 0; i < read_fds.size(); ++i) {
       FD_SET(read_fds[i], &read_set);
     } 
     for (size_t i = 0; i < write_fds.size(); ++i) {
       FD_SET(write_fds[i], &write_set);
     }
+    for (size_t i = 0; i < except_fds.size(); ++i) {
+      FD_SET(except_fds[i], &except_set);
+    }
     int ret;
     if (timeout == 0) {
-      ret = select(static_cast<int>(maxfd + 1), &read_set, &write_set, NULL, NULL);
+      ret = select(static_cast<int>(maxfd + 1), &read_set,
+                   &write_set, &except_set, NULL);
     } else {
       timeval tm;
       tm.tv_usec = (timeout % 1000) * 1000;
       tm.tv_sec = timeout / 1000;
-      ret = select(static_cast<int>(maxfd + 1), &read_set, &write_set, NULL, &tm);
+      ret = select(static_cast<int>(maxfd + 1), &read_set,
+                   &write_set, &except_set, &tm);
     }
     if (ret == -1) {
       int errsv = errno;
@@ -380,8 +401,8 @@ struct SelectHelper {
   
  private:
   SOCKET maxfd; 
-  fd_set read_set, write_set;
-  std::vector<SOCKET> read_fds, write_fds;
+  fd_set read_set, write_set, except_set;
+  std::vector<SOCKET> read_fds, write_fds, except_fds;
 };
 }
 #endif

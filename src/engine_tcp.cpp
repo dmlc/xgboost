@@ -76,7 +76,7 @@ class SyncManager : public IEngine {
   }
   // initialize the manager
   inline void Init(void) {
-    utils::TCPSocket::Startup();
+    utils::Socket::Startup();
     // single node mode
     if (master_uri == "NULL") return;
     utils::Assert(links.size() == 0, "can only call Init once");
@@ -86,7 +86,9 @@ class SyncManager : public IEngine {
     // get information from master
     utils::TCPSocket master;
     master.Create();
-    master.Connect(utils::SockAddr(master_uri.c_str(), master_port));
+    if (!master.Connect(utils::SockAddr(master_uri.c_str(), master_port))) {
+      utils::Socket::Error("Connect");
+    }
     utils::Assert(master.SendAll(&magic, sizeof(magic)) == sizeof(magic), "sync::Init failure 1");
     utils::Assert(master.RecvAll(&magic, sizeof(magic)) == sizeof(magic), "sync::Init failure 2");
     utils::Check(magic == kMagic, "sync::Invalid master message, init failure");
@@ -213,7 +215,9 @@ class SyncManager : public IEngine {
       // read data from childs
       for (int i = 0; i < nlink; ++i) {
         if (i != parent_index && selecter.CheckRead(links[i].sock)) {
-          links[i].ReadToRingBuffer(size_up_out);
+          if (!links[i].ReadToRingBuffer(size_up_out)) {
+            utils::Socket::Error("Recv");
+          }
         }
       }
       // this node have childs, peform reduce
@@ -252,15 +256,25 @@ class SyncManager : public IEngine {
       }
       if (parent_index != -1) {
         // pass message up to parent, can pass data that are already been reduced
-        if (selecter.CheckWrite(links[parent_index].sock)) {
-          size_up_out += links[parent_index].sock.
+        if (selecter.CheckWrite(links[parent_index].sock)) {              
+          ssize_t len = links[parent_index].sock.
               Send(sendrecvbuf + size_up_out, size_up_reduce - size_up_out);
+          if (len != -1) {
+            size_up_out += static_cast<size_t>(len);
+          } else {
+            if (errno != EAGAIN && errno != EWOULDBLOCK) utils::Socket::Error("Recv");
+          }
         }
         // read data from parent
         if (selecter.CheckRead(links[parent_index].sock)) {
-          size_down_in +=  links[parent_index].sock.
+          ssize_t len = links[parent_index].sock.
               Recv(sendrecvbuf + size_down_in, total_size - size_down_in);
-          utils::Assert(size_down_in <= size_up_out, "AllReduce: boundary error");
+          if (len != -1) {
+            size_down_in += static_cast<size_t>(len);
+            utils::Assert(size_down_in <= size_up_out, "AllReduce: boundary error");
+          } else {
+            if (errno != EAGAIN && errno != EWOULDBLOCK) utils::Socket::Error("Recv");
+          }
         }
       } else {
         // this is root, can use reduce as most recent point
@@ -272,7 +286,9 @@ class SyncManager : public IEngine {
       for (int i = 0; i < nlink; ++i) {
         if (i != parent_index) {
           if (selecter.CheckWrite(links[i].sock)) {
-            links[i].WriteFromArray(sendrecvbuf, size_down_in);
+            if (!links[i].WriteFromArray(sendrecvbuf, size_down_in)) {
+              utils::Socket::Error("Send");
+            }
           }
           nfinished = std::min(links[i].size_write, nfinished);
         }
@@ -317,7 +333,9 @@ class SyncManager : public IEngine {
         // probe in-link
         for (int i = 0; i < nlink; ++i) {
           if (selecter.CheckRead(links[i].sock)) {
-            links[i].ReadToArray(sendrecvbuf_, total_size);
+            if (!links[i].ReadToArray(sendrecvbuf_, total_size)) {
+              utils::Socket::Error("Recv");
+            }
             size_in = links[i].size_read;
             if (size_in != 0) {
               in_link = i; break;
@@ -327,7 +345,9 @@ class SyncManager : public IEngine {
       } else {
         // read from in link
         if (in_link >= 0 && selecter.CheckRead(links[in_link].sock)) {
-          links[in_link].ReadToArray(sendrecvbuf_, total_size);
+          if(!links[in_link].ReadToArray(sendrecvbuf_, total_size)) {
+            utils::Socket::Error("Recv");
+          }
           size_in = links[in_link].size_read;
         }
       }
@@ -336,7 +356,9 @@ class SyncManager : public IEngine {
       for (int i = 0; i < nlink; ++i) {
         if (i != in_link) {
           if (selecter.CheckWrite(links[i].sock)) {
-            links[i].WriteFromArray(sendrecvbuf_, size_in);
+            if (!links[i].WriteFromArray(sendrecvbuf_, size_in)) {
+              utils::Socket::Error("Send");
+            }
           }
           nfinished = std::min(nfinished, links[i].size_write);
         }
@@ -390,32 +412,44 @@ class SyncManager : public IEngine {
      *  position after protect_start
      * \param protect_start all data start from protect_start is still needed in buffer
      *                      read shall not override this 
+     * \return true if it is an successful read, false if there is some error happens, check errno
      */
-    inline void ReadToRingBuffer(size_t protect_start) {
+    inline bool ReadToRingBuffer(size_t protect_start) {
       size_t ngap = size_read - protect_start;
       utils::Assert(ngap <= buffer_size, "AllReduce: boundary check");
       size_t offset = size_read % buffer_size;
       size_t nmax = std::min(buffer_size - ngap, buffer_size - offset);
-      size_read += sock.Recv(buffer_head + offset, nmax);
+      ssize_t len = sock.Recv(buffer_head + offset, nmax);
+      if (len == -1) return errno == EAGAIN || errno == EWOULDBLOCK;
+      size_read += static_cast<size_t>(len);
+      return true;
     }
     /*!
      * \brief read data into array,
      * this function can not be used together with ReadToRingBuffer
      * a link can either read into the ring buffer, or existing array
      * \param max_size maximum size of array
+     * \return true if it is an successful read, false if there is some error happens, check errno
      */
-    inline void ReadToArray(void *recvbuf_, size_t max_size) {
+    inline bool ReadToArray(void *recvbuf_, size_t max_size) {
       char *p = static_cast<char*>(recvbuf_);
-      size_read += sock.Recv(p + size_read, max_size - size_read);
+      ssize_t len = sock.Recv(p + size_read, max_size - size_read);
+      if (len == -1) return errno == EAGAIN || errno == EWOULDBLOCK;
+      size_read += static_cast<size_t>(len);
+      return true;
     }
     /*!
      * \brief write data in array to sock
      * \param sendbuf_ head of array
      * \param max_size maximum size of array
+     * \return true if it is an successful write, false if there is some error happens, check errno
      */
-    inline void WriteFromArray(const void *sendbuf_, size_t max_size) {
+    inline bool WriteFromArray(const void *sendbuf_, size_t max_size) {
       const char *p = static_cast<const char*>(sendbuf_);
-      size_write += sock.Send(p + size_write, max_size - size_write);
+      ssize_t len = sock.Send(p + size_write, max_size - size_write);
+      if (len == -1) return errno == EAGAIN || errno == EWOULDBLOCK;
+      size_write += static_cast<size_t>(len);
+      return true;
     }
 
    private:
