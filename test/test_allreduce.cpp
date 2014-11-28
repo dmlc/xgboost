@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
   int rank = sync::GetRank();
   std::string name = sync::GetProcessorName();
 
-  test::Mock mock(rank, argv[2]);
+  test::Mock mock(rank, argv[2], argv[3]);
 
   printf("[%d] start at %s\n", rank, name.c_str());
   TestMax(mock, n);
