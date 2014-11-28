@@ -42,7 +42,7 @@ class SyncManager : public IEngine {
   }
 
   #ifdef TEST
-  inline void SetMock(test::Mock& mock) {
+  inline void SetMock(const test::Mock& mock) {
     this->mock = mock;
   }
   #endif
@@ -501,7 +501,7 @@ void Init(int argc, char *argv[]) {
 
 #ifdef TEST
 /*! \brief sets a mock to the manager for testing purposes */
-void SetMock(test::Mock& mock) {
+void SetMock(const test::Mock& mock) {
   manager.SetMock(mock);
 }
 #endif

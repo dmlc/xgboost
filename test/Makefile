@@ -34,4 +34,4 @@ $(MPIBIN) :
 	$(MPICXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
 
 clean:
-	$(RM) $(BIN) $(MPIBIN) *~ ../src/*~
+	$(RM) $(OBJ) $(BIN) $(MPIBIN) *~ ../src/*~

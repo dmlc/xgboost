@@ -47,7 +47,7 @@ void Finalize(void) {
   engine::Finalize();
 }
 #ifdef TEST
-void SetMock(test::Mock& mock) {
+void SetMock(const test::Mock& mock) {
   engine::SetMock(mock);
 }
 #endif

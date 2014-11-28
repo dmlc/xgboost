@@ -62,8 +62,8 @@ inline void TestBcast(size_t n, int root) {
   utils::Check(res == s, "[%d] TestBcast fail", rank);
 }
 
-// ugly stuff, just to see if it works
-inline void record(test::Mock& mock, int rank) {
+// ugly stuff, just to see if it works. To be removed
+inline void Record(test::Mock& mock, const int rank) {
   switch(rank) {
     case 0:
       mock.OnAllReduce(0, false);
@@ -75,12 +75,6 @@ inline void record(test::Mock& mock, int rank) {
       mock.OnAllReduce(2, true);
       break;
   }
-}
-
-// to be removed, should be added in engine tcp
-inline void replay(test::Mock& mock, int rank) {
-  printf("[%d] All reduce %d\n", rank, mock.AllReduce(rank));
-  printf("[%d] All reduce %d\n", rank, mock.AllReduce(rank));
 }
 
 int main(int argc, char *argv[]) {
@@ -95,13 +89,10 @@ int main(int argc, char *argv[]) {
 
   #ifdef TEST
     test::Mock mock;
-    record(mock, rank);
+    Record(mock, rank);
     mock.Replay();
-    //replay(mock, rank);
     sync::SetMock(mock);
   #endif
-
-
 
   printf("[%d] start at %s\n", rank, name.c_str());
   TestMax(n);

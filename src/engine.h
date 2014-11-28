@@ -82,7 +82,7 @@ void Finalize(void);
 IEngine *GetEngine(void);
 
 #ifdef TEST
-void SetMock(test::Mock& mock);
+void SetMock(const test::Mock& mock);
 #endif
 
 }  // namespace engine
