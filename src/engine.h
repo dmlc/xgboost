@@ -36,7 +36,7 @@ class IEngine {
    * \brief perform in-place allreduce, on sendrecvbuf 
    *        this function is NOT thread-safe
    * \param sendrecvbuf_ buffer for both sending and recving data
-   * \param type_n4bytes the unit number of bytes the type have
+   * \param type_nbytes the unit number of bytes the type have
    * \param count number of elements to be reduced
    * \param reducer reduce function
    */

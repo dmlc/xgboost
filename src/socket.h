@@ -17,6 +17,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/select.h>
+#include <sys/ioctl.h>
 #endif
 #include <string>
 #include <cstring>
@@ -222,6 +223,19 @@ class TCPSocket : public Socket{
     }
     return TCPSocket(newfd);
   }
+  /*!
+   * \brief decide whether the socket is at OOB mark 
+   * \return 1 if at mark, 0 if not, -1 if an error occured
+   */
+  inline int AtMark(void) const {
+    int atmark;
+#ifdef _WIN32
+    if (ioctlsocket(sockfd, SIOCATMARK, &atmark) != NO_ERROR) return -1;
+#else    
+    if (ioctl(sockfd, SIOCATMARK, &atmark) == -1) return -1;
+#endif
+    return atmark;
+  }
   /*! 
    * \brief connect to an address 
    * \param addr the address to connect to
@@ -299,8 +313,6 @@ class TCPSocket : public Socket{
     }
     return ndone;
   }
-
- private:
 };
 
 /*! \brief helper data structure to perform select */
@@ -366,7 +378,8 @@ struct SelectHelper {
   /*!
    * \brief peform select on the set defined
    * \param timeout specify timeout in micro-seconds(ms) if equals 0, means select will always block
-   * \return number of active descriptors selected
+   * \return number of active descriptors selected, 
+   *         return -1 if error occurs
    */
   inline int Select(long timeout = 0) {
     FD_ZERO(&read_set);
@@ -391,10 +404,6 @@ struct SelectHelper {
       tm.tv_sec = timeout / 1000;
       ret = select(static_cast<int>(maxfd + 1), &read_set,
                    &write_set, &except_set, &tm);
-    }
-    if (ret == -1) {
-      int errsv = errno;
-      Error("Select Error: %s", strerror(errsv));
     }
     return ret;
   }

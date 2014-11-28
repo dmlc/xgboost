@@ -12,13 +12,14 @@ endif
 
 # specify tensor path
 BIN = test_allreduce
-OBJ = engine_tcp.o
+OBJ = engine_robust.o engine_tcp.o
 .PHONY: clean all
 
 all: $(BIN) $(MPIBIN)
 
 engine_tcp.o: ../src/engine_tcp.cpp ../src/*.h
-test_allreduce: test_allreduce.cpp ../src/*.h engine_tcp.o
+engine_robust.o: ../src/engine_robust.cpp ../src/*.h
+test_allreduce: test_allreduce.cpp ../src/*.h engine_robust.o
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
