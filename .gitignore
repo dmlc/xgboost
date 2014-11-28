@@ -28,4 +28,4 @@
 *.app
 *~
 *.pyc
-test
+test_allreduce

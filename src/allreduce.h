@@ -1,12 +1,11 @@
+#ifndef ALLREDUCE_H
+#define ALLREDUCE_H
 /*!
  * \file allreduce.h
  * \brief This file defines a template wrapper of engine to ensure 
  * \author Tianqi Chen, Nacho, Tianyi
  */
 #include "./engine.h"
-#ifdef TEST
- #include "./mock.h"
-#endif
 
 /*! \brief namespace of all reduce */
 namespace sync {
@@ -46,11 +45,7 @@ void Init(int argc, char *argv[]) {
 void Finalize(void) {
   engine::Finalize();
 }
-#ifdef TEST
-void SetMock(const test::Mock& mock) {
-  engine::SetMock(mock);
-}
-#endif
+
 /*! \brief get rank of current process */
 inline int GetRank(void) {
   return engine::GetEngine()->GetRank();
@@ -113,3 +108,4 @@ inline void CheckPoint(const utils::ISerializable &model) {
   engine::GetEngine()->CheckPoint(model);
 }
 }  // namespace allreduce
+#endif  // ALLREDUCE_H
