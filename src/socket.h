@@ -273,7 +273,6 @@ class TCPSocket : public Socket{
    */
   inline ssize_t Send(const void *buf_, size_t len, int flag = 0) {
 	const char *buf = reinterpret_cast<const char*>(buf_);
-    if (len == 0) return 0;
     return send(sockfd, buf, static_cast<sock_size_t>(len), flag);
   }
   /*! 
