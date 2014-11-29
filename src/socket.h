@@ -164,6 +164,26 @@ class Socket {
     }
     return -1;
   }
+  /*! \brief get last error code if any */
+  inline int GetSockError(void) const {
+    int error = 0;
+    socklen_t len = sizeof(error);
+    if (getsockopt(sockfd,  SOL_SOCKET, SO_ERROR, &error, &len) != 0) {
+      Error("GetSockError");
+    }
+    return error;
+  }
+  /*! \brief check if anything bad happens */
+  inline bool BadSocket(void) const {
+    if (IsClosed()) return true;
+    int err = GetSockError();
+    if (err == EBADF || err == EINTR) return true;
+    return false;
+  }
+  /*! \brief check if socket is already closed */
+  inline bool IsClosed(void) const {
+    return sockfd == INVALID_SOCKET;
+  }  
   /*! \brief close the socket */
   inline void Close(void) {
     if (sockfd != INVALID_SOCKET) {
@@ -177,7 +197,6 @@ class Socket {
       Error("Socket::Close double close the socket or close without create");
     }
   }
-
   // report an socket error
   inline static void Error(const char *msg) {
     int errsv = errno;
@@ -267,9 +286,8 @@ class TCPSocket : public Socket{
    */
   inline ssize_t Recv(void *buf_, size_t len, int flags = 0) {
 	char *buf = reinterpret_cast<char*>(buf_);
-    if (len == 0) return 0;
     return recv(sockfd, buf, static_cast<sock_size_t>(len), flags);
-  } 
+  }
   /*!
    * \brief peform block write that will attempt to send all data out
    *    can still return smaller than request when error occurs
@@ -319,14 +337,17 @@ class TCPSocket : public Socket{
 struct SelectHelper {
  public:
   SelectHelper(void) {
-    this->Clear();
+    FD_ZERO(&read_set);
+    FD_ZERO(&write_set);
+    FD_ZERO(&except_set);
+    maxfd = 0;
   }
   /*!
    * \brief add file descriptor to watch for read 
    * \param fd file descriptor to be watched
    */
   inline void WatchRead(SOCKET fd) {
-    read_fds.push_back(fd);
+    FD_SET(fd, &read_set);    
     if (fd > maxfd) maxfd = fd;
   }
   /*!
@@ -334,7 +355,7 @@ struct SelectHelper {
    * \param fd file descriptor to be watched
    */
   inline void WatchWrite(SOCKET fd) {
-    write_fds.push_back(fd);
+    FD_SET(fd, &write_set);
     if (fd > maxfd) maxfd = fd;
   }
   /*!
@@ -342,7 +363,7 @@ struct SelectHelper {
    * \param fd file descriptor to be watched
    */
   inline void WatchException(SOCKET fd) {
-    except_fds.push_back(fd);
+    FD_SET(fd, &except_set);
     if (fd > maxfd) maxfd = fd;
   }  
   /*!
@@ -367,51 +388,49 @@ struct SelectHelper {
     return FD_ISSET(fd, &except_set) != 0;
   }
   /*!
-   * \brief clear all the monitored descriptors
+   * \brief wait for exception event on a single descriptor
+   * \param fd the file descriptor to wait the event for
+   * \param timeout the timeout counter, can be 0, which means wait until the event happen
+   * \return 1 if success, 0 if timeout, and -1 if error occurs
    */
-  inline void Clear(void) {
-    read_fds.clear();
-    write_fds.clear();
-    except_fds.clear();
-    maxfd = 0;
-  }
+  inline static int WaitExcept(SOCKET fd, long timeout = 0) {
+    fd_set wait_set;
+    FD_ZERO(&wait_set);
+    FD_SET(fd, &wait_set);
+    return Select_(static_cast<int>(fd + 1), NULL, NULL, &wait_set, timeout);
+  }  
   /*!
    * \brief peform select on the set defined
+   * \param select_read whether to watch for read event
+   * \param select_write whether to watch for write event
+   * \param select_except whether to watch for exception event
    * \param timeout specify timeout in micro-seconds(ms) if equals 0, means select will always block
    * \return number of active descriptors selected, 
    *         return -1 if error occurs
    */
   inline int Select(long timeout = 0) {
-    FD_ZERO(&read_set);
-    FD_ZERO(&write_set);
-    FD_ZERO(&except_set);
-    for (size_t i = 0; i < read_fds.size(); ++i) {
-      FD_SET(read_fds[i], &read_set);
-    } 
-    for (size_t i = 0; i < write_fds.size(); ++i) {
-      FD_SET(write_fds[i], &write_set);
-    }
-    for (size_t i = 0; i < except_fds.size(); ++i) {
-      FD_SET(except_fds[i], &except_set);
-    }
-    int ret;
-    if (timeout == 0) {
-      ret = select(static_cast<int>(maxfd + 1), &read_set,
-                   &write_set, &except_set, NULL);
-    } else {
-      timeval tm;
-      tm.tv_usec = (timeout % 1000) * 1000;
-      tm.tv_sec = timeout / 1000;
-      ret = select(static_cast<int>(maxfd + 1), &read_set,
-                   &write_set, &except_set, &tm);
+    int ret =  Select_(static_cast<int>(maxfd + 1),
+                       &read_set, &write_set, &except_set, timeout);
+    if (ret == -1) {
+      Socket::Error("Select");
     }
     return ret;
   }
   
  private:
+  inline static int Select_(int maxfd, fd_set *rfds, fd_set *wfds, fd_set *efds, long timeout) {
+    if (timeout == 0) {
+      return select(maxfd, rfds, wfds, efds, NULL);
+    } else {
+      timeval tm;
+      tm.tv_usec = (timeout % 1000) * 1000;
+      tm.tv_sec = timeout / 1000;
+      return select(maxfd, rfds, wfds, efds, &tm);
+    }    
+  }
+  
   SOCKET maxfd; 
   fd_set read_set, write_set, except_set;
-  std::vector<SOCKET> read_fds, write_fds, except_fds;
 };
 }
 #endif
