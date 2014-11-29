@@ -76,9 +76,9 @@ int main(int argc, char *argv[]) {
 
   printf("[%d] start at %s\n", rank, name.c_str());
   TestMax(mock, n);
-  printf("[%d] TestMax pass\n", rank);
+  printf("[%d] !!!TestMax pass\n", rank);
   TestSum(mock, n);
-  printf("[%d] TestSum pass\n", rank);
+  printf("[%d] !!!TestSum pass\n", rank);
   sync::Finalize();
   printf("[%d] all check pass\n", rank);
   return 0;
