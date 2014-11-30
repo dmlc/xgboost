@@ -78,6 +78,7 @@ inline void HandlePrint(const char *msg) {
 }
 inline void HandleLogPrint(const char *msg) {
   fprintf(stderr, "%s", msg);
+  fflush(stderr);
 }
 #else
 #ifndef ALLREDUCE_STRICT_CXX98_

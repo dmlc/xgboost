@@ -177,7 +177,7 @@ class Socket {
   inline bool BadSocket(void) const {
     if (IsClosed()) return true;
     int err = GetSockError();
-    if (err == EBADF || err == EINTR) return true;
+    if (err == EBADF || err == EINTR) return true;    
     return false;
   }
   /*! \brief check if socket is already closed */
@@ -250,7 +250,7 @@ class TCPSocket : public Socket{
     int atmark;
 #ifdef _WIN32
     if (ioctlsocket(sockfd, SIOCATMARK, &atmark) != NO_ERROR) return -1;
-#else    
+#else
     if (ioctl(sockfd, SIOCATMARK, &atmark) == -1) return -1;
 #endif
     return atmark;
@@ -418,6 +418,7 @@ struct SelectHelper {
   
  private:
   inline static int Select_(int maxfd, fd_set *rfds, fd_set *wfds, fd_set *efds, long timeout) {
+    utils::Assert(maxfd < FD_SETSIZE, "maxdf must be smaller than FDSETSIZE");
     if (timeout == 0) {
       return select(maxfd, rfds, wfds, efds, NULL);
     } else {
