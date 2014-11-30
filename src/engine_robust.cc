@@ -242,7 +242,8 @@ AllReduceRobust::ReturnType AllReduceRobust::TryLoadCheckPoint(bool requester) {
  * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
  * \sa ReturnType
  */
-AllReduceRobust::ReturnType AllReduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool requester) {
+AllReduceRobust::ReturnType
+AllReduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool requester) {
   utils::Error("TryGetResult: not implemented");
   return kSuccess;
 }
