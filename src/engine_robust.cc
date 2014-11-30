@@ -255,7 +255,8 @@ AllReduceRobust::ReturnType AllReduceRobust::TryGetResult(void *sendrecvbuf, siz
  * \param buf the buffer to store the result
  * \param size the total size of the buffer
  * \param flag flag information about the action \sa ActionSummary
- * \param seqno sequence number of the action, if it is special action with flag set, seqno needs to be set to ActionSummary::kMaxSeq
+ * \param seqno sequence number of the action, if it is special action with flag set, 
+ *              seqno needs to be set to ActionSummary::kMaxSeq
  *
  * \return if this function can return true or false 
  *    - true means buf already set to the
