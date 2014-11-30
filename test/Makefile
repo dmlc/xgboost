@@ -12,23 +12,25 @@ endif
 
 # specify tensor path
 BIN = test_allreduce
-OBJ = engine_robust.o engine_tcp.o
+OBJ = engine_base.o engine_robust.o engine.o
 .PHONY: clean all
 
 all: $(BIN) $(MPIBIN)
 
 engine_tcp.o: ../src/engine_tcp.cpp ../src/*.h
-engine_robust.o: ../src/engine_robust.cpp ../src/*.h
-test_allreduce: test_allreduce.cpp ../src/*.h engine_robust.o
+engine_base.o: ../src/engine_base.cc ../src/*.h
+engine.o: ../src/engine.cc ../src/*.h
+engine_robust.o: ../src/engine_robust.cc ../src/*.h
+test_allreduce: test_allreduce.cpp ../src/*.h $(OBJ)
 
 $(BIN) : 
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^)
 
 $(OBJ) : 
-	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) )
+	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
 $(MPIBIN) : 
-	$(MPICXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
+	$(MPICXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^)
 
 clean:
 	$(RM) $(OBJ) $(BIN) $(MPIBIN) *~ ../src/*~

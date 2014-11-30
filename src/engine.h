@@ -1,10 +1,10 @@
-#ifndef ALLREDUCE_ENGINE_H
-#define ALLREDUCE_ENGINE_H
 /*!
  * \file engine.h
  * \brief This file defines the interface of allreduce library
  * \author Tianqi Chen, Nacho, Tianyi
  */
+#ifndef ALLREDUCE_ENGINE_H
+#define ALLREDUCE_ENGINE_H
 #include "./io.h"
 
 
@@ -49,7 +49,7 @@ class IEngine {
    * \param sendrecvbuf_ buffer for both sending and recving data
    * \param size the size of the data to be broadcasted
    * \param root the root worker id to broadcast the data
-   */    
+   */
   virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) = 0;
   /*! 
    * \brief load latest check point

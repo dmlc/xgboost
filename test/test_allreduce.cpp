@@ -74,11 +74,11 @@ int main(int argc, char *argv[]) {
 
   test::Mock mock(rank, argv[2], argv[3]);
 
-  printf("[%d] start at %s\n", rank, name.c_str());
+  utils::LogPrintf("[%d] start at %s\n", rank, name.c_str());
   TestMax(mock, n);
-  printf("[%d] !!!TestMax pass\n", rank);
+  utils::LogPrintf("[%d] !!!TestMax pass\n", rank);
   TestSum(mock, n);
-  printf("[%d] !!!TestSum pass\n", rank);
+  utils::LogPrintf("[%d] !!!TestSum pass\n", rank);
   sync::Finalize();
   printf("[%d] all check pass\n", rank);
   return 0;
