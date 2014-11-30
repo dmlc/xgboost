@@ -89,15 +89,19 @@ class AllReduceRobust : public AllReduceBase {
     inline int min_seqno(void) const {
       return seqcode >> 4;
     }
+    // whether the operation set contains a load_check
+    inline bool load_check(void) const {
+      return (seqcode & kLoadCheck) != 0;
+    }
     // whether the operation set contains a check point
     inline bool check_point(void) const {
       return (seqcode & kCheckPoint) != 0;
     }
-    // whether the operation set contains a check point
+    // whether the operation set contains a check ack
     inline bool check_ack(void) const {
       return (seqcode & kCheckAck) != 0;
     }
-    // whether the operation set contains a check point
+    // whether the operation set contains different sequence number
     inline bool diff_seq(void) const {
       return (seqcode & kDiffSeq) != 0;
     }
@@ -184,17 +188,64 @@ class AllReduceRobust : public AllReduceBase {
    *         when kSockError is returned, it simply means there are bad sockets in the links,
    *         and some link recovery proceduer is needed
    */
-  ReturnType TryResetLinks(void);
-  /*! 
-   * \brief Run recovery execution of a action specified by flag and seqno,
-   *        there can be two outcome of the function
-   *       
-   * \param sendrecvbuf_
-   *
-   * \return if this function returns true, this means
-   *        behind and we will be able to recover data from existing node 
+  ReturnType TryResetLinks(void);  
+  /*!
+   * \brief try to reconnect the broken links
+   * \return this function can kSuccess or kSockError
    */
-  bool RecoverExec(void *sendrecvbuf_, size_t size, int flag, int seqno);
+  ReturnType TryReConnectLinks(void);
+  /*!
+   * \brief if err_type indicates an error
+   *         recover links according to the error type reported
+   *        if there is no error, return true
+   * \param err_type the type of error happening in the system
+   * \return true if err_type is kSuccess, false otherwise 
+   */
+  bool CheckAndRecover(ReturnType err_type);
+  /*!
+   * \brief try to run recover execution for a request action described by flag and seqno,
+   *        the function will keep blocking to run possible recovery operations before the specified action,
+   *        until the requested result is received by a recovering procedure,
+   *        or the function discovers that the requested action is not yet executed, and return false
+   *
+   * \param buf the buffer to store the result
+   * \param size the total size of the buffer
+   * \param flag flag information about the action \sa ActionSummary
+   * \param seqno sequence number of the action, if it is special action with flag set, seqno needs to be set to ActionSummary::kMaxSeq
+   *
+   * \return if this function can return true or false 
+ *    - true means buf already set to the
+ *           result by recovering procedure, the action is complete, no further action is needed
+   *    - false means this is the lastest action that has not yet been executed, need to execute the action
+   */
+  bool RecoverExec(void *buf, size_t size, int flag, int seqno = ActionSummary::kMaxSeq);  
+  /*!
+   * \brief try to load check point
+   *        
+   *        This is a collaborative function called by all nodes
+   *        only the nodes with requester set to true really needs to load the check point
+   *        other nodes acts as collaborative roles to complete this request
+   *
+   * \param requester whether current node is the requester
+   * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
+   * \sa ReturnType
+   */
+  ReturnType TryLoadCheckPoint(bool requester);
+  /*!
+   * \brief try to get the result of operation specified by seqno
+   *
+   *        This is a collaborative function called by all nodes
+   *        only the nodes with requester set to true really needs to get the result
+   *        other nodes acts as collaborative roles to complete this request
+   *
+   * \param buf the buffer to store the result, this parameter is only use when current node is requester
+   * \param size the total size of the buffer, this parameter is only use when current node is requester
+   * \param seqno sequence number of the operation, this is unique index of a operation in current iteration
+   * \param requester whether current node is the requester
+   * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
+   * \sa ReturnType
+   */
+  ReturnType TryGetResult(void *buf, size_t size, int seqno, bool requester);
   //---- recovery data structure ----
   // call sequence counter, records how many calls we made so far
   // from last call to CheckPoint, LoadCheckPoint

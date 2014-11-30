@@ -1,3 +1,8 @@
+/*!
+ * \file engine_base.cc
+ * \brief Basic implementation of AllReduce
+ * \author Tianqi, Nacho, Tianyi
+ */
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
@@ -137,10 +142,8 @@ void AllReduceBase::SetParam(const char *name, const char *val) {
  * \param type_nbytes the unit number of bytes the type have
  * \param count number of elements to be reduced
  * \param reducer reduce function
- * \return this function can return
- *         - kSuccess: allreduce is success,
- *         - kSockError: a neighbor node go down, the connection is dropped
- *         - kGetExcept: another node which is not my neighbor go down, get Out-of-Band exception notification from my neighbor
+ * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
+ * \sa ReturnType
  */
 AllReduceBase::ReturnType
 AllReduceBase::TryAllReduce(void *sendrecvbuf_,
@@ -278,7 +281,8 @@ AllReduceBase::TryAllReduce(void *sendrecvbuf_,
  * \param sendrecvbuf_ buffer for both sending and recving data
  * \param total_size the size of the data to be broadcasted
  * \param root the root worker id to broadcast the data
- * \return this function can return three possible values, see detail in TryAllReduce
+ * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
+ * \sa ReturnType
  */
 AllReduceBase::ReturnType
 AllReduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {

@@ -2,7 +2,9 @@
 #define ALLREDUCE_H
 /*!
  * \file allreduce.h
- * \brief This file defines a template wrapper of engine to ensure 
+ * \brief This file defines a template wrapper of engine to give more flexible
+ *      AllReduce operations
+ *
  * \author Tianqi Chen, Nacho, Tianyi
  */
 #include "./engine.h"

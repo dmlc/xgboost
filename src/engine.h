@@ -1,6 +1,6 @@
 /*!
  * \file engine.h
- * \brief This file defines the interface of allreduce library
+ * \brief This file defines the core interface of allreduce library
  * \author Tianqi Chen, Nacho, Tianyi
  */
 #ifndef ALLREDUCE_ENGINE_H

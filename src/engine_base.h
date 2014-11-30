@@ -97,8 +97,14 @@ class AllReduceBase : public IEngine {
  protected:
   /*! \brief enumeration of possible returning results from Try functions */
   enum ReturnType {
+    /*! \brief execution is successful */
     kSuccess,
+    /*! \brief a neighbor node go down, the connection is dropped */
     kSockError,
+    /*! 
+     * \brief another node which is not my neighbor go down,
+     *   get Out-of-Band exception notification from my neighbor
+     */
     kGetExcept
   };
   // link record to a neighbor
@@ -202,10 +208,8 @@ class AllReduceBase : public IEngine {
    * \param type_nbytes the unit number of bytes the type have
    * \param count number of elements to be reduced
    * \param reducer reduce function
-   * \return this function can return
-   *         - kSuccess: allreduce is success,
-   *         - kSockError: a neighbor node go down, the connection is dropped
-   *         - kGetExcept: another node which is not my neighbor go down, get Out-of-Band exception notification from my neighbor
+   * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
+   * \sa ReturnType
    */
   ReturnType TryAllReduce(void *sendrecvbuf_,
                           size_t type_nbytes,
@@ -216,7 +220,8 @@ class AllReduceBase : public IEngine {
    * \param sendrecvbuf_ buffer for both sending and recving data
    * \param size the size of the data to be broadcasted
    * \param root the root worker id to broadcast the data
-   * \return this function can return three possible values, see detail in TryAllReduce
+   * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
+   * \sa ReturnType
    */
   ReturnType TryBroadcast(void *sendrecvbuf_, size_t size, int root);
   //---- local data related to link ----
