@@ -9,6 +9,7 @@
  */
 #ifndef ALLREDUCE_ENGINE_ROBUST_H
 #define ALLREDUCE_ENGINE_ROBUST_H
+#include <vector>
 #include "./engine.h"
 #include "./engine_base.h"
 
@@ -57,6 +58,15 @@ class AllReduceRobust : public AllReduceBase {
   const static char kResetMark = 97;
   // and mark for channel cleanup
   const static char kResetAck = 97;
+  /*! \brief type of roles each node can play during recovery */
+  enum RecoverType {
+    /*! \brief current node have data */
+    kHaveData,
+    /*! \brief current node request data */
+    kRequestData,
+    /*! \brief current node only helps to pass data around */
+    kPassData
+  };
   /*!
    * \brief summary of actions proposed in all nodes
    *  this data structure is used to make consensus decision
@@ -246,6 +256,53 @@ class AllReduceRobust : public AllReduceBase {
    * \sa ReturnType
    */
   ReturnType TryGetResult(void *buf, size_t size, int seqno, bool requester);
+  /*!
+   * \brief try to decide the recovery message passing request
+   * \param role the current role of the node
+   * \param p_req_outlink used to store the output link the
+   *          current node should recv data from,
+   *          this can be nonnegative value, -1 or -2,
+   *            -1 means current node have the data
+   *            -2 means current node do not have data, but also do not need to send/recv data
+   * \param p_req_in used to store the resulting vector, indicating which link we should send the data to
+   * \param p_size used to store the size of the message, for node in state kHaveData,
+   *               this size must be set correctly before calling the function
+   *               for others, this surves as output parameter
+   *
+   * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
+   * \sa ReturnType
+   */  
+  ReturnType TryDecideRequest(RecoverType role,
+                              int *p_req_outlink,
+                              std::vector<bool> *p_req_in,
+                              size_t *p_size);
+  /*!
+   * \brief run message passing algorithm on the allreduce tree 
+   *        the result is edge message stored in p_edge_in and p_edge_out
+   * \param node_value the value associated with current node
+   * \param p_edge_in used to store input message from each of the edge
+   * \param p_edge_out used to store output message from each of the edge
+   * \param func a function that defines the message passing rule
+   *        Parameters of func:
+   *           - node_value same as node_value in the main function
+   *           - edge_in the array of input messages from each edge,
+   *                     this includes the output edge, which should be excluded
+   *           - out_index array the index of output edge, the function should
+   *                       exclude the output edge when compute the message passing value
+   *        Return of func:
+   *           the function returns the output message based on the input message and node_value
+   *
+   * \tparam EdgeType type of edge message, must be simple struct
+   * \tparam NodeType type of node value
+   */
+  template<typename NodeType, typename EdgeType>
+  inline ReturnType MsgPassing(const NodeType &node_value,
+                               std::vector<EdgeType> *p_edge_in,
+                               std::vector<EdgeType> *p_edge_out,
+                               EdgeType (*func) (const NodeType &node_value,
+                                                 const std::vector<EdgeType> &edge_in,
+                                                 size_t out_index)
+                               );
   //---- recovery data structure ----
   // call sequence counter, records how many calls we made so far
   // from last call to CheckPoint, LoadCheckPoint
@@ -254,4 +311,7 @@ class AllReduceRobust : public AllReduceBase {
   ResultBuffer resbuf;
 };
 }  // namespace engine
+// implementation of inline template function
+#include "./engine_robust-inl.h"
+
 #endif // ALLREDUCE_ENGINE_ROBUST_H
