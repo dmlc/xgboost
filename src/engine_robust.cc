@@ -333,7 +333,7 @@ AllReduceRobust::TryDecideRequest(AllReduceRobust::RecoverType role,
     for (size_t i = 0; i < req_in.size(); ++i) {
       utils::Assert(req_in[i] == 0, "Bug in TryDecideRequest");
     }
-    *p_req_outlink = 2;
+    *p_req_outlink = -2;
   } else {
     *p_req_outlink = best_link;
   }
