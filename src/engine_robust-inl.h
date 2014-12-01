@@ -67,6 +67,7 @@ AllReduceRobust::MsgPassing(const NodeType &node_value,
     }
     // select helper
     utils::SelectHelper selecter;
+    bool done = (stage == 3);
     for (int i = 0; i < nlink; ++i) {
       selecter.WatchException(links[i].sock);
       switch (stage) {
@@ -80,12 +81,14 @@ AllReduceRobust::MsgPassing(const NodeType &node_value,
         case 3:
           if (i != parent_index && links[i].size_write != sizeof(EdgeType)) {
             selecter.WatchWrite(links[i].sock);
+            done = false;
           }
           break;
         default: utils::Error("invalid stage");
       }
     }
-    // select must return 
+    // finish all the stages, and write out message
+    if (done) break;
     selecter.Select();
     // exception handling
     for (int i = 0; i < nlink; ++i) {
@@ -134,15 +137,11 @@ AllReduceRobust::MsgPassing(const NodeType &node_value,
       }
     }
     if (stage == 3) {
-      bool finished = true;
       for (int i = 0; i < nlink; ++i) {
         if (i != parent_index && links[i].size_write != sizeof(EdgeType)) {
           if (!links[i].WriteFromArray(&edge_out[i], sizeof(EdgeType))) return kSockError;
-          if (links[i].size_write != sizeof(EdgeType)) finished = false;
         }
       }
-      // finish all the stages
-      if (finished) break;
     }
   }
   return kSuccess;

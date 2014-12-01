@@ -151,7 +151,7 @@ AllReduceBase::TryAllReduce(void *sendrecvbuf_,
                             size_t type_nbytes,
                             size_t count,
                             ReduceFunction reducer) {
-  if (links.size() == 0) return kSuccess;
+  if (links.size() == 0 || count == 0) return kSuccess;
   // total size of message
   const size_t total_size = type_nbytes * count;
   // number of links
@@ -287,7 +287,7 @@ AllReduceBase::TryAllReduce(void *sendrecvbuf_,
  */
 AllReduceBase::ReturnType
 AllReduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
-  if (links.size() == 0) return kSuccess;
+  if (links.size() == 0 || total_size == 0) return kSuccess;
   // number of links
   const int nlink = static_cast<int>(links.size());
   // size of space already read from data

@@ -352,7 +352,7 @@ AllReduceRobust::TryRecoverData(RecoverType role,
                                 int recv_link,
                                 const std::vector<bool> &req_in) {
   // no need to run recovery for zero size message
-  if (size == 0) return kSuccess;
+  if (links.size() == 0 || size == 0) return kSuccess;
   utils::Assert(req_in.size() == links.size(), "TryRecoverData");
   const int nlink = static_cast<int>(links.size());
   {
