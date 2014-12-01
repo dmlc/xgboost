@@ -1,6 +1,6 @@
 rabit
 ====
-#### Robust Allreduce and Broadcast Interface
+## Robust Allreduce and Broadcast Interface
 
 rabit is a light weight library designed to provide fault tolerant interface of Allreduce and Broadcast.
 
