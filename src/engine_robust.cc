@@ -323,15 +323,15 @@ AllReduceRobust::TryDecideRequest(AllReduceRobust::RecoverType role,
   for (size_t i = 0; i < req_in.size(); ++i) {
     // set p_req_in
     (*p_req_in)[i] = (req_in[i] != 0);
-    if (req_out[i]) {
-      utils::Assert(!req_in[i], "cannot get and receive request");
+    if (req_out[i] != 0) {
+      utils::Assert(req_in[i] == 0, "cannot get and receive request");
       utils::Assert(static_cast<int>(i) == best_link, "request result inconsistent");
       need_recv = true;
     }
   }
   if (role == kPassData && !need_recv) {
     for (size_t i = 0; i < req_in.size(); ++i) {
-      utils::Assert(!req_in[i], "Bug in TryDecideRequest");
+      utils::Assert(req_in[i] == 0, "Bug in TryDecideRequest");
     }
     *p_req_outlink = 2;
   } else {
