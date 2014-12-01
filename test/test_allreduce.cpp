@@ -70,6 +70,7 @@ int main(int argc, char *argv[]) {
   int n = atoi(argv[1]);
   sync::Init(argc, argv);
   int rank = sync::GetRank();
+  int nproc = sync::GetWorldSize();
   std::string name = sync::GetProcessorName();
 
   test::Mock mock(rank, argv[2], argv[3]);
@@ -79,6 +80,10 @@ int main(int argc, char *argv[]) {
   utils::LogPrintf("[%d] !!!TestMax pass\n", rank);
   TestSum(mock, n);
   utils::LogPrintf("[%d] !!!TestSum pass\n", rank);
+  for (int i = 0; i < nproc; i += nproc / 3) {
+    TestBcast(mock, n, i);
+  }
+  utils::LogPrintf("[%d] !!!TestBcast pass\n", rank);
   sync::Finalize();
   printf("[%d] all check pass\n", rank);
   return 0;

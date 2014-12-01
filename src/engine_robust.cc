@@ -366,10 +366,10 @@ AllReduceRobust::TryRecoverData(RecoverType role,
     // do not need to provide data or receive data, directly exit
     if (!req_data) return kSuccess;
   }
+  utils::Assert(recv_link >= 0 || role == kHaveData, "recv_link must be active");
   for (int i = 0; i < nlink; ++i) {
     links[i].ResetSize();
   }
-  utils::Assert(recv_link >= 0 || role == kHaveData, "recv_link must be active");
   if (role == kPassData) {
     links[recv_link].InitBuffer(1, size, reduce_buffer_size);
   }
