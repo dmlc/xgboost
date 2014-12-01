@@ -2,7 +2,7 @@
  * \file engine_robust-inl.h
  * \brief implementation of inline template function in AllReduceRobust
  *   
- * \author Tianqi, Nacho, Tianyi
+ * \author Tianqi Chen
  */
 #ifndef ALLREDUCE_ENGINE_ROBUST_INL_H
 #define ALLREDUCE_ENGINE_ROBUST_INL_H

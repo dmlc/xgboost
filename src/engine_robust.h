@@ -5,7 +5,7 @@
  *
  *   This implementation considers the failure of nodes
  *   
- * \author Tianqi, Nacho, Tianyi
+ * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #ifndef ALLREDUCE_ENGINE_ROBUST_H
 #define ALLREDUCE_ENGINE_ROBUST_H
@@ -257,25 +257,43 @@ class AllReduceRobust : public AllReduceBase {
    */
   ReturnType TryGetResult(void *buf, size_t size, int seqno, bool requester);
   /*!
-   * \brief try to decide the recovery message passing request
+   * \brief try to decide the routing strategy for recovery
    * \param role the current role of the node
-   * \param p_req_outlink used to store the output link the
-   *          current node should recv data from,
-   *          this can be nonnegative value, -1 or -2,
-   *            -1 means current node have the data
-   *            -2 means current node do not have data, but also do not need to send/recv data
-   * \param p_req_in used to store the resulting vector, indicating which link we should send the data to
    * \param p_size used to store the size of the message, for node in state kHaveData,
    *               this size must be set correctly before calling the function
    *               for others, this surves as output parameter
+   
+   * \param p_recvlink used to store the link current node should recv data from, if necessary
+   *          this can be -1, which means current node have the data
+   * \param p_req_in used to store the resulting vector, indicating which link we should send the data to
    *
    * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
-   * \sa ReturnType
+   * \sa ReturnType, TryRecoverData
+   */
+  ReturnType TryDecideRouting(RecoverType role,
+                              size_t *p_size,
+                              int *p_recvlink,
+                              std::vector<bool> *p_req_in);
+  /*!
+   * \brief try to finish the data recovery request,
+   *        this function is used together with TryDecideRouting
+   * \param role the current role of the node
+   * \param sendrecvbuf_ the buffer to store the data to be sent/recived
+   *          - if the role is kHaveData, this stores the data to be sent
+   *          - if the role is kRequestData, this is the buffer to store the result
+   *          - if the role is kPassData, this will not be used, and can be NULL
+   * \param size the size of the data, obtained from TryDecideRouting
+   * \param recv_link the link index to receive data, if necessary, obtained from TryDecideRouting
+   * \param req_in the request of each link to send data, obtained from TryDecideRouting
+   *
+   * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
+   * \sa ReturnType, TryDecideRouting
    */  
-  ReturnType TryDecideRequest(RecoverType role,
-                              int *p_req_outlink,
-                              std::vector<bool> *p_req_in,
-                              size_t *p_size);
+  ReturnType TryRecoverData(RecoverType role,
+                            void *sendrecvbuf_,
+                            size_t size,
+                            int recv_link,
+                            const std::vector<bool> &req_in);
   /*!
    * \brief run message passing algorithm on the allreduce tree 
    *        the result is edge message stored in p_edge_in and p_edge_out

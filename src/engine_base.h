@@ -5,8 +5,8 @@
  *
  *   This implementation provides basic utility of AllReduce and Broadcast
  *   without considering node failure
- *   
- * \author Tianqi, Nacho, Tianyi
+ *
+ * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #ifndef ALLREDUCE_ENGINE_BASE_H
 #define ALLREDUCE_ENGINE_BASE_H
@@ -136,7 +136,7 @@ class AllReduceBase : public IEngine {
     inline void ResetSize(void) {
       size_write = size_read = 0;
     }
-    /*! 
+    /*!
      * \brief read data into ring-buffer, with care not to existing useful override data
      *  position after protect_start
      * \param protect_start all data start from protect_start is still needed in buffer
@@ -157,7 +157,7 @@ class AllReduceBase : public IEngine {
       if (len == -1) return errno == EAGAIN || errno == EWOULDBLOCK;
       size_read += static_cast<size_t>(len);
       return true;
-    }
+    }    
     /*!
      * \brief read data into array,
      * this function can not be used together with ReadToRingBuffer

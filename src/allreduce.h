@@ -5,7 +5,7 @@
  * \brief This file defines a template wrapper of engine to give more flexible
  *      AllReduce operations
  *
- * \author Tianqi Chen, Nacho, Tianyi
+ * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #include "./engine.h"
 

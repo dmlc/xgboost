@@ -1,7 +1,8 @@
 /*!
  * \file engine_base.cc
  * \brief Basic implementation of AllReduce
- * \author Tianqi, Nacho, Tianyi
+ *
+ * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE

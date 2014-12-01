@@ -3,7 +3,7 @@
  * \brief this file governs which implementation of engine we are actually using
  *  provides an singleton of engine interface
  *   
- * \author Tianqi, Nacho, Tianyi
+ * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
