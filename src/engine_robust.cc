@@ -252,8 +252,8 @@ ShortestDist(const std::pair<bool, size_t> &node_value,
  * \param out_index the edge index of output link
  * \return the request to the output edge
  */
-inline bool DataRequest(const std::pair<bool, int> &node_value,
-                        const std::vector<bool> &req_in,
+inline char DataRequest(const std::pair<bool, int> &node_value,
+                        const std::vector<char> &req_in,
                         size_t out_index) {
   // whether current node need to request data
   bool request_data = node_value.first;
@@ -261,13 +261,13 @@ inline bool DataRequest(const std::pair<bool, int> &node_value,
   // can be -1, which means current node contains data
   const int best_link = node_value.second;
   if (static_cast<int>(out_index) == best_link) {
-    if (request_data) return true;
+    if (request_data) return 1;
     for (size_t i = 0; i < req_in.size(); ++i) {
       if (i == out_index) continue;
-      if (req_in[i]) return true;
+      if (req_in[i] != 0) return 1;
     }
   }
-  return false;
+  return 0;
 }
 /*!
  * \brief try to decide the recovery message passing request
@@ -313,13 +313,16 @@ AllReduceRobust::TryDecideRequest(AllReduceRobust::RecoverType role,
     }
   }
   // get the node request
-  std::vector<bool> &req_in = *p_req_in;
-  std::vector<bool> req_out;
+  std::vector<char> req_in, req_out;
   ReturnType succ = MsgPassing(std::make_pair(role == kRequestData, best_link),
                                &req_in, &req_out, DataRequest);
   if (succ != kSuccess) return succ;
   bool need_recv = false;
+  // set p_req_in
+  p_req_in->resize(req_in.size());  
   for (size_t i = 0; i < req_in.size(); ++i) {
+    // set p_req_in
+    (*p_req_in)[i] = (req_in[i] != 0);
     if (req_out[i]) {
       utils::Assert(!req_in[i], "cannot get and receive request");
       utils::Assert(static_cast<int>(i) == best_link, "request result inconsistent");
@@ -331,7 +334,7 @@ AllReduceRobust::TryDecideRequest(AllReduceRobust::RecoverType role,
       utils::Assert(!req_in[i], "Bug in TryDecideRequest");
     }
     *p_req_outlink = 2;
-  } else {    
+  } else {
     *p_req_outlink = best_link;
   }
   return kSuccess;
