@@ -12,6 +12,7 @@
 #include "./utils.h"
 #include "./engine_robust.h"
 
+namespace rabit {
 namespace engine {
 AllReduceRobust::AllReduceRobust(void) {
   result_buffer_round = 1;
@@ -589,3 +590,5 @@ bool AllReduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
   return true;
 }
 }  // namespace engine
+}  // namespace rabit
+

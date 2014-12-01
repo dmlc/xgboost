@@ -13,6 +13,7 @@
 #include "./engine_base.h"
 #include "./engine_robust.h"
 
+namespace rabit {
 namespace engine {
 // singleton sync manager
 AllReduceRobust manager;
@@ -37,3 +38,4 @@ IEngine *GetEngine(void) {
   return &manager;
 }
 }  // namespace engine
+}  // namespace rabit

@@ -8,8 +8,8 @@
  *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
-#ifndef ALLREDUCE_ENGINE_BASE_H
-#define ALLREDUCE_ENGINE_BASE_H
+#ifndef RABIT_ENGINE_BASE_H
+#define RABIT_ENGINE_BASE_H
 
 #include <vector>
 #include <string>
@@ -25,7 +25,7 @@ class Datatype {
   Datatype(size_t type_size) : type_size(type_size) {}
 };
 }
-
+namespace rabit {
 namespace engine {
 /*! \brief implementation of basic AllReduce engine */
 class AllReduceBase : public IEngine {
@@ -246,4 +246,5 @@ class AllReduceBase : public IEngine {
   int world_size;
 };
 }  // namespace engine
-#endif  // ALLREDUCE_ENGINE_BASE_H
+}  // namespace rabit
+#endif  // RABIT_ENGINE_BASE_H

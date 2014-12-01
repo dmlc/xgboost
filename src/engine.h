@@ -3,17 +3,18 @@
  * \brief This file defines the core interface of allreduce library
  * \author Tianqi Chen, Nacho, Tianyi
  */
-#ifndef ALLREDUCE_ENGINE_H
-#define ALLREDUCE_ENGINE_H
+#ifndef RABIT_ENGINE_H
+#define RABIT_ENGINE_H
 #include "./io.h"
-
 
 namespace MPI {
 /*! \brief MPI data type just to be compatible with MPI reduce function*/
 class Datatype;
 }
 
-/*! \brief namespace of allreduce functionality */
+/*! \brief namespace of rabit */
+namespace rabit {
+/*! \brief core interface of engine */
 namespace engine {
 /*! \brief interface of core AllReduce engine */
 class IEngine {
@@ -79,4 +80,5 @@ void Finalize(void);
 IEngine *GetEngine(void);
 
 }  // namespace engine
-#endif  // ALLREDUCE_ENGINE_H
+}  // namespace rabit
+#endif  // RABIT_ENGINE_H

@@ -7,12 +7,13 @@
  *   
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
-#ifndef ALLREDUCE_ENGINE_ROBUST_H
-#define ALLREDUCE_ENGINE_ROBUST_H
+#ifndef RABIT_ENGINE_ROBUST_H
+#define RABIT_ENGINE_ROBUST_H
 #include <vector>
 #include "./engine.h"
 #include "./engine_base.h"
 
+namespace rabit {
 namespace engine {
 /*! \brief implementation of fault tolerant all reduce engine */
 class AllReduceRobust : public AllReduceBase {
@@ -348,7 +349,8 @@ class AllReduceRobust : public AllReduceBase {
   
 };
 }  // namespace engine
+}  // namespace rabit
 // implementation of inline template function
 #include "./engine_robust-inl.h"
 
-#endif // ALLREDUCE_ENGINE_ROBUST_H
+#endif // RABIT_ENGINE_ROBUST_H

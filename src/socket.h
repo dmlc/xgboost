@@ -1,5 +1,5 @@
-#ifndef ALLREDUCE_SOCKET_H
-#define ALLREDUCE_SOCKET_H
+#ifndef RABIT_SOCKET_H
+#define RABIT_SOCKET_H
 /*!
  * \file socket.h
  * \brief this file aims to provide a wrapper of sockets
@@ -32,6 +32,7 @@ typedef size_t sock_size_t;
 const int INVALID_SOCKET = -1;
 #endif
 
+namespace rabit {
 namespace utils {
 /*! \brief data structure for network address */
 struct SockAddr {
@@ -432,5 +433,6 @@ struct SelectHelper {
   SOCKET maxfd; 
   fd_set read_set, write_set, except_set;
 };
-}
+}  // namespace utils
+}  // namespace rabit
 #endif

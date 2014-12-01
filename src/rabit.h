@@ -1,7 +1,7 @@
-#ifndef ALLREDUCE_H
-#define ALLREDUCE_H
+#ifndef RABIT_RABIT_H
+#define RABIT_RABIT_H
 /*!
- * \file allreduce.h
+ * \file rabit.h
  * \brief This file defines a template wrapper of engine to give more flexible
  *      AllReduce operations
  *
@@ -9,8 +9,8 @@
  */
 #include "./engine.h"
 
-/*! \brief namespace of all reduce */
-namespace sync {
+/*! \brief namespace of rabit */
+namespace rabit {
 /*! \brief namespace of operator */
 namespace op {
 struct Max {
@@ -109,5 +109,5 @@ inline bool LoadCheckPoint(utils::ISerializable *p_model) {
 inline void CheckPoint(const utils::ISerializable &model) {
   engine::GetEngine()->CheckPoint(model);
 }
-}  // namespace allreduce
-#endif  // ALLREDUCE_H
+}  // namespace rabit
+#endif  // RABIT_ALLREDUCE_H

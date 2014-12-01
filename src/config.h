@@ -1,5 +1,5 @@
-#ifndef ALLREDUCE_UTILS_CONFIG_H_
-#define ALLREDUCE_UTILS_CONFIG_H_
+#ifndef RABIT_UTILS_CONFIG_H_
+#define RABIT_UTILS_CONFIG_H_
 /*!
  * \file config.h
  * \brief helper class to load in configures from file
@@ -12,6 +12,7 @@
 #include <fstream>
 #include "./utils.h"
 
+namespace rabit {
 namespace utils {
 /*! 
  * \brief base implementation of config reader
@@ -191,5 +192,5 @@ class ConfigIterator: public ConfigStreamReader {
   std::ifstream fi;
 };
 }  // namespace utils
-
-#endif  // ALLREDUCE_UTILS_CONFIG_H_
+}  // namespace rabit
+#endif  // RABIT_UTILS_CONFIG_H_

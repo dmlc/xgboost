@@ -10,6 +10,7 @@
 #include <cstring>
 #include "./engine_base.h"
 
+namespace rabit {
 namespace engine {
 // constructor
 AllReduceBase::AllReduceBase(void) {
@@ -373,4 +374,5 @@ AllReduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
   }
   return kSuccess;
 }
-} // namespace engine
+}  // namespace engine
+}  // namespace rabit

@@ -1,16 +1,15 @@
-#include <allreduce.h>
+#include <rabit.h>
 #include <utils.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
 #include <mock.h>
 
-
-using namespace sync;
+using namespace rabit;
 
 inline void TestMax(test::Mock &mock, size_t n) {
-  int rank = sync::GetRank();
-  int nproc = sync::GetWorldSize();
+  int rank = rabit::GetRank();
+  int nproc = rabit::GetWorldSize();
   
   std::vector<float> ndata(n);
   for (size_t i = 0; i < ndata.size(); ++i) {
@@ -27,8 +26,8 @@ inline void TestMax(test::Mock &mock, size_t n) {
 }
 
 inline void TestSum(test::Mock &mock, size_t n) {
-  int rank = sync::GetRank();
-  int nproc = sync::GetWorldSize();
+  int rank = rabit::GetRank();
+  int nproc = rabit::GetWorldSize();
   const int z = 131;
 
   std::vector<float> ndata(n);
@@ -47,7 +46,7 @@ inline void TestSum(test::Mock &mock, size_t n) {
 }
 
 inline void TestBcast(test::Mock &mock, size_t n, int root) {
-  int rank = sync::GetRank();
+  int rank = rabit::GetRank();
   std::string s; s.resize(n);      
   for (size_t i = 0; i < n; ++i) {
     s[i] = char(i % 126 + 1);
@@ -68,10 +67,10 @@ int main(int argc, char *argv[]) {
     return 0;
   }
   int n = atoi(argv[1]);
-  sync::Init(argc, argv);
-  int rank = sync::GetRank();
-  int nproc = sync::GetWorldSize();
-  std::string name = sync::GetProcessorName();
+  rabit::Init(argc, argv);
+  int rank = rabit::GetRank();
+  int nproc = rabit::GetWorldSize();
+  std::string name = rabit::GetProcessorName();
 
   test::Mock mock(rank, argv[2], argv[3]);
 
@@ -84,7 +83,7 @@ int main(int argc, char *argv[]) {
     TestBcast(mock, n, i);
   }
   utils::LogPrintf("[%d] !!!TestBcast pass\n", rank);
-  sync::Finalize();
+  rabit::Finalize();
   printf("[%d] all check pass\n", rank);
   return 0;
 }

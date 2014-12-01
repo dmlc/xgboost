@@ -1,5 +1,5 @@
-#ifndef ALLREDUCE_UTILS_H_
-#define ALLREDUCE_UTILS_H_
+#ifndef RABIT_UTILS_H_
+#define RABIT_UTILS_H_
 /*!
  * \file utils.h
  * \brief simple utils to support the code
@@ -11,7 +11,7 @@
 #include <cstdlib>
 #include <vector>
 
-#ifndef ALLREDUCE_STRICT_CXX98_
+#ifndef RABIT_STRICT_CXX98_
 #include <cstdarg>
 #endif
 
@@ -50,13 +50,14 @@ typedef long int64_t;
 #include <inttypes.h>
 #endif
 
+namespace rabit {
 /*! \brief namespace for helper utils of the project */
 namespace utils {
 
 /*! \brief error message buffer length */
 const int kPrintBuffer = 1 << 12;
 
-#ifndef ALLREDUCE_CUSTOMIZE_MSG_
+#ifndef RABIT_CUSTOMIZE_MSG_
 /*! 
  * \brief handling of Assert error, caused by in-apropriate input
  * \param msg error message 
@@ -81,14 +82,14 @@ inline void HandleLogPrint(const char *msg) {
   fflush(stderr);
 }
 #else
-#ifndef ALLREDUCE_STRICT_CXX98_
+#ifndef RABIT_STRICT_CXX98_
 // include declarations, some one must implement this
 void HandleAssertError(const char *msg);
 void HandleCheckError(const char *msg);
 void HandlePrint(const char *msg);
 #endif
 #endif
-#ifdef ALLREDUCE_STRICT_CXX98_
+#ifdef RABIT_STRICT_CXX98_
 // these function pointers are to be assigned
 extern "C" void (*Printf)(const char *fmt, ...);
 extern "C" int (*SPrintf)(char *buf, size_t size, const char *fmt, ...);
@@ -186,4 +187,5 @@ inline const T *BeginPtr(const std::vector<T> &vec) {
     return &vec[0];
   }
 }
-#endif  // ALLREDUCE_UTILS_H_
+} // namespace rabit
+#endif  // RABIT_UTILS_H_

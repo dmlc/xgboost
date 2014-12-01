@@ -1,5 +1,5 @@
-#ifndef ALLREDUCE_UTILS_IO_H
-#define ALLREDUCE_UTILS_IO_H
+#ifndef RABIT_UTILS_IO_H
+#define RABIT_UTILS_IO_H
 #include <cstdio>
 #include <vector>
 #include <cstring>
@@ -10,6 +10,7 @@
  * \brief general stream interface for serialization, I/O
  * \author Tianqi Chen
  */
+namespace rabit {
 namespace utils {
 /*!
  * \brief interface of stream I/O, used to serialize model
@@ -211,4 +212,5 @@ class FileStream : public ISeekStream {
   FILE *fp;
 };
 }  // namespace utils
+}  // namespace rabit
 #endif

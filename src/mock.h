@@ -1,17 +1,17 @@
-#ifndef ALLREDUCE_MOCK_H
-#define ALLREDUCE_MOCK_H
+#ifndef RABIT_MOCK_H
+#define RABIT_MOCK_H
 /*!
  * \file mock.h
  * \brief This file defines a mock object to test the system
- * \author Tianqi Chen, Nacho, Tianyi
+ * \author Ignacio Cano
  */
-#include "./allreduce.h"
+#include "./rabit.h"
 #include "./config.h"
 #include <map>
 #include <sstream>
 #include <fstream>
 
-
+namespace rabit {
 /*! \brief namespace of mock */
 namespace test {
 
@@ -27,22 +27,22 @@ public:
   template<typename OP>
   inline void AllReduce(float *sendrecvbuf, size_t count) {
     utils::Assert(verify(allReduce), "[%d] error when calling allReduce", rank);
-    sync::AllReduce<OP>(sendrecvbuf, count);
+    rabit::AllReduce<OP>(sendrecvbuf, count);
   }
 
   inline bool LoadCheckPoint(utils::ISerializable *p_model) {
     utils::Assert(verify(loadCheckpoint), "[%d] error when loading checkpoint", rank);
-    return sync::LoadCheckPoint(p_model);
+    return rabit::LoadCheckPoint(p_model);
   }
 
   inline void CheckPoint(const utils::ISerializable &model) {
     utils::Assert(verify(checkpoint), "[%d] error when checkpointing", rank);
-    sync::CheckPoint(model);
+    rabit::CheckPoint(model);
   }
 
   inline void Broadcast(std::string *sendrecv_data, int root) {
     utils::Assert(verify(broadcast), "[%d] error when broadcasting", rank);
-    sync::Bcast(sendrecv_data, root);
+    rabit::Bcast(sendrecv_data, root);
 
   }
 
@@ -110,6 +110,7 @@ private:
 
 };
 
-}
+}  // namespace test
+}  // namespace rabit
 
-#endif  // ALLREDUCE_MOCK_H
+#endif  // RABIT_MOCK_H

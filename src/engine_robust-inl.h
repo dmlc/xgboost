@@ -4,9 +4,10 @@
  *   
  * \author Tianqi Chen
  */
-#ifndef ALLREDUCE_ENGINE_ROBUST_INL_H
-#define ALLREDUCE_ENGINE_ROBUST_INL_H
+#ifndef RABIT_ENGINE_ROBUST_INL_H
+#define RABIT_ENGINE_ROBUST_INL_H
 
+namespace rabit {
 namespace engine {
 /*!
  * \brief run message passing algorithm on the allreduce tree 
@@ -147,4 +148,5 @@ AllReduceRobust::MsgPassing(const NodeType &node_value,
   return kSuccess;
 }
 }  // namespace engine
-#endif  // ALLREDUCE_ENGINE_ROBUST_INL_H
+}  // namespace rabit
+#endif  // RABIT_ENGINE_ROBUST_INL_H
