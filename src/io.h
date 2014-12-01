@@ -91,6 +91,7 @@ class IStream {
 
 /*! \brief interface of se*/
 class ISerializable {
+ public:
   /*! \brief load the model from file */
   virtual void Load(IStream &fi) = 0;
   /*! \brief save the model to the stream*/

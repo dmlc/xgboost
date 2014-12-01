@@ -154,7 +154,7 @@ class AllReduceRobust : public AllReduceBase {
       rptr_.clear(); rptr_.push_back(0);
       data_.clear();
     }
-    // allocate temporal space for 
+    // allocate temporal space
     inline void *AllocTemp(size_t type_nbytes, size_t count) {
       size_t size = type_nbytes * count;
       size_t nhop = (size + sizeof(uint64_t) - 1) / sizeof(uint64_t);
