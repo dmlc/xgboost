@@ -53,8 +53,10 @@ AllReduceRobust::MsgPassing(const NodeType &node_value,
   // 2: recv message from parent
   // 3: send message to childs
   int stage = 0;
-  // if no childs, no need to reduce
+  // if no childs, no need to, directly start passing message
   if (nlink == static_cast<int>(parent_index != -1)) {
+    utils::Assert(parent_index == 0, "parent must be 0");
+    edge_out[parent_index] = func(node_value, edge_in, parent_index);    
     stage = 1;
   }
   // while we have not passed the messages out
