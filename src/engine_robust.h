@@ -16,7 +16,8 @@
 namespace engine {
 /*! \brief implementation of fault tolerant all reduce engine */
 class AllReduceRobust : public AllReduceBase {
- public:  
+ public:
+  AllReduceRobust(void);
   virtual ~AllReduceRobust(void) {}
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf 
@@ -178,6 +179,19 @@ class AllReduceRobust : public AllReduceBase {
       if (idx == seqno_.size() || seqno_[idx] != seqid) return NULL;
       *p_size = size_[idx];
       return BeginPtr(data_) + rptr_[idx];
+    } 
+    // drop last stored result
+    inline void DropLast(void) {
+      utils::Assert(seqno_.size() != 0, "there is nothing to be dropped");
+      seqno_.pop_back();
+      rptr_.pop_back();
+      size_.pop_back();
+      data_.resize(rptr_.back());
+    }
+    // the sequence number of last stored result
+    inline int LastSeqNo(void) const {
+      if (seqno_.size() == 0) return -1;
+      return seqno_.back();
     }
    private:
     // sequence number of each 
@@ -248,8 +262,8 @@ class AllReduceRobust : public AllReduceBase {
    *        only the nodes with requester set to true really needs to get the result
    *        other nodes acts as collaborative roles to complete this request
    *
-   * \param buf the buffer to store the result, this parameter is only use when current node is requester
-   * \param size the total size of the buffer, this parameter is only use when current node is requester
+   * \param buf the buffer to store the result, this parameter is only used when current node is requester
+   * \param size the total size of the buffer, this parameter is only used when current node is requester
    * \param seqno sequence number of the operation, this is unique index of a operation in current iteration
    * \param requester whether current node is the requester
    * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
@@ -325,8 +339,13 @@ class AllReduceRobust : public AllReduceBase {
   // call sequence counter, records how many calls we made so far
   // from last call to CheckPoint, LoadCheckPoint
   int seq_counter;
+  // the round of result buffer, used to mode the result
+  int result_buffer_round;
   // result buffer
   ResultBuffer resbuf;
+  // last check point model
+  std::string checked_model;
+  
 };
 }  // namespace engine
 // implementation of inline template function
