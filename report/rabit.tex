@@ -29,8 +29,8 @@ In this work, we propose RABIT, an AllReduce library suitable for distributed ma
 \end{abstract}
 
 \section{Introduction}
-Distributed machine learning is an active research area that has seen an incredible grow in recent years. Several approaches have been proposed, using a parameter server framework, graph approaches, among others \cite{paramServer,DuchiAW12,Zinkevich,Dekel,Low}. The closest example to our work is proposed by Agarwal et al. \cite{Agarwal}, in which they have a  communication infrastructure that efficiently accumulates and broadcasts values to every node involved in a computation.
-\todo {add more stuff}
+Distributed machine learning is an active research area that has seen an incredible grow in recent years. Several approaches have been proposed, e.g. parameter server abstraction, graph approaches, among others \cite{paramServer,DuchiAW12,Zinkevich,Dekel,Low}. The closest example to our work is proposed by Agarwal et al. \cite{Agarwal}, in which they have a tree-shape communication infrastructure that efficiently accumulates and broadcasts values to every node involved in a computation.
+
 
 
 \section{AllReduce}
@@ -47,9 +47,22 @@ Figure \ref{allreduce} shows an example of an AllReduce sum operation. The leaf 
 \end{figure}
 
 
-\section{Design}
+\section{RABIT}
 
-\todo{add key design decisions}
+
+\subsection{Design Goals}
+
+The design of RABIT was motivated by the following needs:
+
+\begin{enumerate}
+  \item \emph{Distributed}: machine learning algorithms are inherently iterative and computation intensive. Given the vast amount of data they can work on, it may be intractable to perform all the processing on a single machine. Instead, we want to divide the computation into different nodes, each one would be in charge of computing statistics on some portion of the data, and then a combination step would take place, where all those independent local solutions will be aggregated into a single result.
+  \item \emph{Scalability}: we want our solution to handle a growing amount of work in a capable manner, i.e. we should be able to accommodate to data and computation growth by adding more nodes.
+  \item \emph{Fault Tolerance}: we assume an environment where failures happen, either machines can go down or communication failures occur. Given the computation intensive nature of machine learning problems, we want to be able to continue operating properly in the event of a failure, instead of starting the process all over again.
+  \item \emph{Programmability}: we want to provide a clean interface that can be easily used by programmers. With few lines of code, they should be able to have a fault-tolerant AllReduce implementation.
+  \item \emph{Re-usability}: we want to build a library based on a few low-level primitives, e.g. AllReduce and Broadcast operations. Higher level abstractions, e.g. Recover operation, should reuse those basic building blocks.
+  \item \emph{Communication Efficiency}: closely related to the \emph{Scalability} goal. We want to send as few control messages as possible. We also want to reuse existent connections in order to avoid starting overheads.
+  \item \emph{Footprint}: we want to have a low memory footprint while running as well as provide a lightweight footprint library.
+\end{enumerate}
 
 \subsection{Interface}
 
