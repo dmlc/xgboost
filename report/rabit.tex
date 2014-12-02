@@ -1,0 +1,65 @@
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage{times}
+\usepackage{fullpage}
+\usepackage{color}
+\usepackage{natbib}
+
+\newcommand{\todo}[1]{\noindent{\textcolor{red}{\{{\bf TODO:}  #1\}}}}
+
+\begin{document}
+
+\title{\bf RABIT: A Robust AllReduce and Broadcast Interface}
+\author{Tianqi Chen\hspace{0.5in}Ignacio Cano\hspace{0.5in}Tianyi Zhou \\\\
+Department of Computer Science \& Engineering \\
+University of Washington\\
+}
+\date{}
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+
+AllReduce is an abstraction commonly used for solving machine learning problems. It is an operation where every node starts with a local value and ends up with an aggregate global result.
+MPI package provides an AllReduce implementation. Though it has been widely adopted, it is somewhat limited; it lacks fault tolerance and cannot run easily on existent systems, such as Spark, Hadoop, etc.
+
+In this work, we propose RABIT, an AllReduce library suitable for distributed machine learning algorithms that overcomes the aforementioned drawbacks; it is fault-tolerant and can easily run on top of existent systems.
+
+\end{abstract}
+
+\section{Introduction}
+Distributed machine learning is an active research area that has seen an incredible grow in recent years. Several approaches have been proposed, using a parameter server framework, graph approaches, among others \cite{paramServer,DuchiAW12,Zinkevich,Dekel,Low}. The closest example to our work is proposed by Agarwal et al. \cite{Agarwal}, in which they have a  communication infrastructure that efficiently accumulates and broadcasts values to every node involved in a computation.
+\todo {add more stuff}
+
+
+\section{AllReduce}
+
+In AllReduce settings, nodes are organized in a tree structure. Each node holds a portion of the data and computes some values on it. Those values are passed up the tree and aggregated, until a global aggregate value is calculated in the root node (reduce). The global value is then passed down to all other nodes (broadcast). Figure \todo{add image} shows an example of an AllReduce operation.
+
+\section{Design}
+
+\todo{add key design decisions}
+
+\subsection{Interface}
+
+\todo{add sync module interface, example of how to use the library}
+
+\section{Evaluation}
+
+\todo{add benchmarks and our results}
+
+
+\section{Conclusion \& Future Work}
+
+With the exponential increase of data on the web, it becomes critical to build systems that can process information efficiently in order to extract value out of it. Several abstractions have been proposed to address those requirements. In this project, we focus on the AllReduce abstraction. We propose an efficient and fault tolerant version that can be used together with existent big data analytics systems, such as Spark, Hadoop, etc.
+We compare our solution to MPI's AllReduce implementation, and show that the performance difference between the two is negligible considering our version is fault tolerant.
+\todo{improve this}
+
+\subsection*{Acknowledgments}
+Thanks to Arvind Krishnamurthy and the CSE550 teaching staff for their guidance and support during the quarter.
+
+\bibliography{rabit}
+\bibliographystyle{abbrv} 
+
+\end{document}
+
