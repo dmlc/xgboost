@@ -10,8 +10,8 @@
 #define NOMINMAX
 
 #include "./engine.h"
-#include "./engine_base.h"
-#include "./engine_robust.h"
+#include "./allreduce_base.h"
+#include "./allreduce_robust.h"
 
 namespace rabit {
 namespace engine {
@@ -36,6 +36,15 @@ void Finalize(void) {
 /*! \brief singleton method to get engine */
 IEngine *GetEngine(void) {
   return &manager;
+}
+// perform in-place allreduce, on sendrecvbuf 
+void AllReduce_(void *sendrecvbuf,
+                size_t type_nbytes,
+                size_t count,
+                IEngine::ReduceFunction red,               
+                mpi::DataType dtype,
+                mpi::OpType op) {
+  GetEngine()->AllReduce(sendrecvbuf, type_nbytes, count, red);
 }
 }  // namespace engine
 }  // namespace rabit

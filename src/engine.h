@@ -105,6 +105,37 @@ void Finalize(void);
 /*! \brief singleton method to get engine */
 IEngine *GetEngine(void);
 
+/*! \brief namespace that contains staffs to be compatible with MPI */
+namespace mpi {
+/*!\brief enum of all operators */
+enum OpType {
+  kMax, kMin, kSum, kBitwiseOR
+};
+/*!\brief enum of supported data types */
+enum DataType {
+  kInt,
+  kUInt,
+  kDouble,
+  kFloat
+};
+}  // namespace mpi
+/*!
+ * \brief perform in-place allreduce, on sendrecvbuf 
+ *   this is an internal function used by rabit to be able to compile with MPI
+ *   do not use this function directly
+ * \param sendrecvbuf buffer for both sending and recving data
+ * \param type_nbytes the unit number of bytes the type have
+ * \param count number of elements to be reduced
+ * \param reducer reduce function
+ * \param dtype the data type 
+ * \param op the reduce operator type
+ */
+void AllReduce_(void *sendrecvbuf,
+                size_t type_nbytes,
+                size_t count,
+                IEngine::ReduceFunction red,               
+                mpi::DataType dtype,
+                mpi::OpType op);
 }  // namespace engine
 }  // namespace rabit
 #endif  // RABIT_ENGINE_H

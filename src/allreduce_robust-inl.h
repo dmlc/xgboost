@@ -1,5 +1,5 @@
 /*!
- * \file engine_robust-inl.h
+ * \file allreduce_robust-inl.h
  * \brief implementation of inline template function in AllReduceRobust
  *   
  * \author Tianqi Chen

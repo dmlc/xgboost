@@ -4,26 +4,31 @@ export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm 
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../src
 
-ifeq ($(no_omp),1)
-	CFLAGS += -DDISABLE_OPENMP 
-else 
-	CFLAGS += -fopenmp
-endif
-
 # specify tensor path
 BIN = test_allreduce test_recover test_model_recover
-OBJ = engine_base.o engine_robust.o engine.o
+# objectives that makes up rabit library
+RABIT_OBJ = allreduce_base.o allreduce_robust.o engine.o
+MPIOBJ = engine_mpi.o
+
+OBJ = $(RABIT_OBJ) test_allreduce.o test_recover.o test_model_recover.o
+MPIBIN = test_allreduce.mpi
 .PHONY: clean all
 
 all: $(BIN) $(MPIBIN)
 
-engine_tcp.o: ../src/engine_tcp.cpp ../src/*.h
-engine_base.o: ../src/engine_base.cc ../src/*.h
+allreduce_base.o: ../src/allreduce_base.cc ../src/*.h
 engine.o: ../src/engine.cc ../src/*.h
-engine_robust.o: ../src/engine_robust.cc ../src/*.h
-test_allreduce: test_allreduce.cpp ../src/*.h $(OBJ)
-test_recover: test_recover.cpp ../src/*.h $(OBJ)
-test_model_recover: test_model_recover.cpp ../src/*.h $(OBJ)
+allreduce_robust.o: ../src/allreduce_robust.cc ../src/*.h
+engine_mpi.o: ../src/engine_mpi.cc
+test_allreduce.o: test_allreduce.cpp ../src/*.h
+test_recover.o: test_recover.cpp ../src/*.h 
+test_model_recover.o: test_model_recover.cpp ../src/*.h
+
+# we can link against MPI version to get use MPI
+test_allreduce: test_allreduce.o  $(RABIT_OBJ)
+test_allreduce.mpi: test_allreduce.o $(MPIOBJ)
+test_recover: test_recover.o  $(RABIT_OBJ)
+test_model_recover: test_model_recover.o  $(RABIT_OBJ)
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^)
@@ -32,7 +37,10 @@ $(OBJ) :
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
 $(MPIBIN) : 
-	$(MPICXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^)
+	$(MPICXX) $(CFLAGS)  $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^)
+
+$(MPIOBJ) : 
+	$(MPICXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
 clean:
 	$(RM) $(OBJ) $(BIN) $(MPIBIN) *~ ../src/*~
