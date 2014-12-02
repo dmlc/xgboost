@@ -1,5 +1,5 @@
 /*!
- * \file engine_robust.h
+ * \file allreduce_robust.h
  * \brief Robust implementation of AllReduce
  *   using TCP non-block socket and tree-shape reduction.
  *
@@ -7,11 +7,11 @@
  *   
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
-#ifndef RABIT_ENGINE_ROBUST_H
-#define RABIT_ENGINE_ROBUST_H
+#ifndef RABIT_ALLREDUCE_ROBUST_H
+#define RABIT_ALLREDUCE_ROBUST_H
 #include <vector>
 #include "./engine.h"
-#include "./engine_base.h"
+#include "./allreduce_base.h"
 
 namespace rabit {
 namespace engine {
@@ -70,7 +70,7 @@ class AllReduceRobust : public AllReduceBase {
    *    this function is only used for test purpose
    */
   virtual void InitAfterException(void) {
-    this->CheckAndRecover(kGetExcept);
+    //this->CheckAndRecover(kGetExcept);
   }
 
  private:
@@ -371,6 +371,6 @@ class AllReduceRobust : public AllReduceBase {
 }  // namespace engine
 }  // namespace rabit
 // implementation of inline template function
-#include "./engine_robust-inl.h"
+#include "./allreduce_robust-inl.h"
 
-#endif // RABIT_ENGINE_ROBUST_H
+#endif // RABIT_ALLREDUCE_ROBUST_H

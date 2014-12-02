@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
       // reach here
       break;
     } catch (MockException &e) {
-      //rabit::engine::GetEngine()->InitAfterException();
+      rabit::engine::GetEngine()->InitAfterException();
       ++ntrial;
     }
   }

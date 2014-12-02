@@ -2,8 +2,9 @@
 #define RABIT_RABIT_H
 /*!
  * \file rabit.h
- * \brief This file defines a template wrapper of engine to give more flexible
- *      AllReduce operations
+ * \brief This file defines unified AllReduce/Broadcast interface of rabit
+ *   The actual implementation is redirected to rabit engine
+ *   Code only using this header can also compiled with MPI AllReduce(with no fault recovery),
  *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
@@ -13,53 +14,32 @@
 namespace rabit {
 /*! \brief namespace of operator */
 namespace op {
-struct Max {
-  template<typename DType>
-  inline static void Reduce(DType &dst, const DType &src) {
-    if (dst < src) dst = src;
-  }
-};
-struct Sum {
-  template<typename DType>
-  inline static void Reduce(DType &dst, const DType &src) {
-    dst += src;
-  }
-};
-struct BitOR {
-  template<typename DType>
-  inline static void Reduce(DType &dst, const DType &src) {
-    dst |= src;
-  }
-};
-template<typename OP, typename DType>
-inline void Reducer(const void *src_, void *dst_, int len, const MPI::Datatype &dtype) {
-  const DType *src = (const DType*)src_;
-  DType *dst = (DType*)dst_;  
-  for (int i = 0; i < len; ++i) {
-    OP::Reduce(dst[i], src[i]);
-  }
-}
+/*! \brief maximum value */
+struct Max;
+/*! \brief minimum value */
+struct Min;
+/*! \brief perform sum */
+struct Sum;
+/*! \brief perform bitwise OR */
+struct BitOR;
 }  // namespace op
 
-void Init(int argc, char *argv[]) {
-  engine::Init(argc, argv);
-}
-void Finalize(void) {
-  engine::Finalize();
-}
-
+/*!
+ * \brief intialize the rabit module, call this once function before using anything
+ * \param argc number of arguments in argv
+ * \param argv the array of input arguments
+ */
+inline void Init(int argc, char *argv[]);
+/*! 
+ * \brief finalize the rabit engine, call this function after you finished all jobs 
+ */
+inline void Finalize(void);
 /*! \brief get rank of current process */
-inline int GetRank(void) {
-  return engine::GetEngine()->GetRank();
-}
+inline int GetRank(void);
 /*! \brief get total number of process */
-int GetWorldSize(void) {
-  return engine::GetEngine()->GetWorldSize();
-}
+inline int GetWorldSize(void);
 /*! \brief get name of processor */
-std::string GetProcessorName(void) {
-  return engine::GetEngine()->GetHost();
-}
+inline std::string GetProcessorName(void);
 /*!
  * \brief broadcast an std::string to all others from root
  * \param sendrecv_data the pointer to send or recive buffer,
@@ -67,15 +47,7 @@ std::string GetProcessorName(void) {
  *                      and string will be resized to correct length
  * \param root the root of process
  */
-inline void Bcast(std::string *sendrecv_data, int root) {
-  engine::IEngine *e = engine::GetEngine();
-  unsigned len = static_cast<unsigned>(sendrecv_data->length());
-  e->Broadcast(&len, sizeof(len), root);
-  sendrecv_data->resize(len);
-  if (len != 0) {
-    e->Broadcast(&(*sendrecv_data)[0], len, root);  
-  }
-}
+inline void Bcast(std::string *sendrecv_data, int root);
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf 
  *        this function is NOT thread-safe
@@ -90,9 +62,7 @@ inline void Bcast(std::string *sendrecv_data, int root) {
  * \tparam DType type of data
  */
 template<typename OP, typename DType>
-inline void AllReduce(DType *sendrecvbuf, size_t count) {
-  engine::GetEngine()->AllReduce(sendrecvbuf, sizeof(DType), count, op::Reducer<OP,DType>);
-}
+inline void AllReduce(DType *sendrecvbuf, size_t count);
 /*!
  * \brief load latest check point
  * \param p_model pointer to the model
@@ -110,9 +80,7 @@ inline void AllReduce(DType *sendrecvbuf, size_t count) {
  *
  * \sa CheckPoint, VersionNumber
  */
-inline int LoadCheckPoint(utils::ISerializable *p_model) {
-  return engine::GetEngine()->LoadCheckPoint(p_model);
-}
+inline int LoadCheckPoint(utils::ISerializable *p_model);
 /*!
  * \brief checkpoint the model, meaning we finished a stage of execution
  *  every time we call check point, there is a version number which will increase by one
@@ -120,16 +88,14 @@ inline int LoadCheckPoint(utils::ISerializable *p_model) {
  * \param p_model pointer to the model
  * \sa LoadCheckPoint, VersionNumber
  */
-inline void CheckPoint(const utils::ISerializable &model) {
-  engine::GetEngine()->CheckPoint(model);
-}
+inline void CheckPoint(const utils::ISerializable &model);
 /*!
  * \return version number of current stored model,
  *         which means how many calls to CheckPoint we made so far
  * \sa LoadCheckPoint, CheckPoint
  */
-inline int VersionNumber(void) {
-  return engine::GetEngine()->VersionNumber();
-}
+inline int VersionNumber(void);
 }  // namespace rabit
+// implementation of template functions
+#include "./rabit-inl.h"
 #endif  // RABIT_ALLREDUCE_H

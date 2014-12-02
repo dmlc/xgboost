@@ -79,7 +79,8 @@ int main(int argc, char *argv[]) {
   utils::LogPrintf("[%d] !!!TestMax pass\n", rank);
   TestSum(mock, n);
   utils::LogPrintf("[%d] !!!TestSum pass\n", rank);
-  for (int i = 0; i < nproc; i += nproc / 3) {
+  int step = std::max(nproc / 3, 1);
+  for (int i = 0; i < nproc; i += step) {
     TestBcast(mock, n, i);
   }
   utils::LogPrintf("[%d] !!!TestBcast pass\n", rank);

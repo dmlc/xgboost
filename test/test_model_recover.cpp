@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
       }
       break;
     } catch (MockException &e) {
-      //rabit::engine::GetEngine()->InitAfterException();
+      rabit::engine::GetEngine()->InitAfterException();
       ++ntrial;
     }
   }

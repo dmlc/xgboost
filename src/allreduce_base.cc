@@ -1,5 +1,5 @@
 /*!
- * \file engine_base.cc
+ * \file allreduce_base.cc
  * \brief Basic implementation of AllReduce
  *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
@@ -8,7 +8,7 @@
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
 #include <cstring>
-#include "./engine_base.h"
+#include "./allreduce_base.h"
 
 namespace rabit {
 namespace engine {

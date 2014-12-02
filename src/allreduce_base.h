@@ -1,5 +1,5 @@
 /*!
- * \file engine_base.h
+ * \file allreduce_base.h
  * \brief Basic implementation of AllReduce
  *   using TCP non-block socket and tree-shape reduction.
  *
@@ -8,8 +8,8 @@
  *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
-#ifndef RABIT_ENGINE_BASE_H
-#define RABIT_ENGINE_BASE_H
+#ifndef RABIT_ALLREDUCE_BASE_H
+#define RABIT_ALLREDUCE_BASE_H
 
 #include <vector>
 #include <string>
@@ -275,4 +275,4 @@ class AllReduceBase : public IEngine {
 };
 }  // namespace engine
 }  // namespace rabit
-#endif  // RABIT_ENGINE_BASE_H
+#endif  // RABIT_ALLREDUCE_BASE_H

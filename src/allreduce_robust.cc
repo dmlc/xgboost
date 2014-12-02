@@ -1,5 +1,5 @@
 /*!
- * \file engine_robust.cc
+ * \file allreduce_robust.cc
  * \brief Robust implementation of AllReduce
  *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
@@ -11,7 +11,7 @@
 #include <utility>
 #include "./io.h"
 #include "./utils.h"
-#include "./engine_robust.h"
+#include "./allreduce_robust.h"
 
 namespace rabit {
 namespace engine {
