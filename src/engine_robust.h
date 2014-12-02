@@ -21,6 +21,12 @@ class AllReduceRobust : public AllReduceBase {
   AllReduceRobust(void);
   virtual ~AllReduceRobust(void) {}
   /*!
+   * \brief set parameters to the engine 
+   * \param name parameter name
+   * \param val parameter value
+   */
+  virtual void SetParam(const char *name, const char *val);
+  /*!
    * \brief perform in-place allreduce, on sendrecvbuf 
    *        this function is NOT thread-safe
    * \param sendrecvbuf_ buffer for both sending and recving data
@@ -71,11 +77,11 @@ class AllReduceRobust : public AllReduceBase {
   /*! \brief type of roles each node can play during recovery */
   enum RecoverType {
     /*! \brief current node have data */
-    kHaveData,
+    kHaveData = 0,
     /*! \brief current node request data */
-    kRequestData,
+    kRequestData = 1,
     /*! \brief current node only helps to pass data around */
-    kPassData
+    kPassData = 2
   };
   /*!
    * \brief summary of actions proposed in all nodes

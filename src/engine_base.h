@@ -39,7 +39,11 @@ class AllReduceBase : public IEngine {
   void Shutdown(void);
   // initialize the manager
   void Init(void);
-  /*! \brief set parameters to the sync manager */
+  /*!
+   * \brief set parameters to the engine 
+   * \param name parameter name
+   * \param val parameter value
+   */
   virtual void SetParam(const char *name, const char *val);
   /*! \brief get rank */
   virtual int GetRank(void) const {

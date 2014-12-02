@@ -111,7 +111,11 @@ void AllReduceBase::Shutdown(void) {
   links.clear();
   utils::TCPSocket::Finalize();
 }
-// set the parameters for AllReduce
+/*!
+ * \brief set parameters to the engine 
+ * \param name parameter name
+ * \param val parameter value
+ */
 void AllReduceBase::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "master_uri")) master_uri = val;
   if (!strcmp(name, "master_port")) master_port = atoi(val);
