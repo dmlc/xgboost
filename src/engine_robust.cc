@@ -303,7 +303,8 @@ ShortestDist(const std::pair<bool, size_t> &node_value,
       res = dist_in[i].first; size = dist_in[i].second;
     } 
   }
-  return std::make_pair(res, size);
+  // add one hop
+  return std::make_pair(res + 1, size);
 }
 /*!
  * \brief message passing function, used to decide the
