@@ -61,15 +61,35 @@ class IEngine {
   /*!
    * \brief load latest check point
    * \param p_model pointer to the model
-   * \return true if there was stored checkpoint and load was successful
-   *   false if there was no stored checkpoint, means we are start over gain
+   * \return the version number of check point loaded
+   *     if returned version == 0, this means no model has been CheckPointed
+   *     the p_model is not touched, user should do necessary initialization by themselves
+   *   
+   *   Common usage example:
+   *      int iter = rabit::LoadCheckPoint(&model);
+   *      if (iter == 0) model.InitParameters();
+   *      for (i = iter; i < max_iter; ++i) {
+   *        do many things, include allreduce
+   *        rabit::CheckPoint(model);
+   *      } 
+   *
+   * \sa CheckPoint, VersionNumber
    */
-  virtual bool LoadCheckPoint(utils::ISerializable *p_model) = 0;
+  virtual int LoadCheckPoint(utils::ISerializable *p_model) = 0;
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
+   *  every time we call check point, there is a version number which will increase by one
+   * 
    * \param p_model pointer to the model
+   * \sa LoadCheckPoint, VersionNumber
    */
   virtual void CheckPoint(const utils::ISerializable &model) = 0;
+  /*!
+   * \return version number of current stored model,
+   *         which means how many calls to CheckPoint we made so far
+   * \sa LoadCheckPoint, CheckPoint
+   */
+  virtual int VersionNumber(void) const = 0;
   /*! \brief get rank of current node */
   virtual int GetRank(void) const = 0;
   /*! \brief get total number of */

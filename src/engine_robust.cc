@@ -16,9 +16,27 @@
 namespace rabit {
 namespace engine {
 AllReduceRobust::AllReduceRobust(void) {
-  result_buffer_round = 2;
+  result_buffer_round = 1;
   seq_counter = 0;
 }
+/*! \brief shutdown the engine */
+void AllReduceRobust::Shutdown(void) {
+  // need to sync the exec before we shutdown, do a pesudo check point
+  // execute checkpoint, note: when checkpoint existing, load will not happen
+  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kMaxSeq),
+                "check point must return true");
+  // reset result buffer
+  resbuf.Clear(); seq_counter = 0;  
+  // execute check ack step, load happens here
+  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kMaxSeq),
+                "check ack must return true");    
+  AllReduceBase::Shutdown();
+}
+/*!
+ * \brief set parameters to the engine 
+ * \param name parameter name
+ * \param val parameter value
+ */
 void AllReduceRobust::SetParam(const char *name, const char *val) {
   AllReduceBase::SetParam(name, val);
   if (!strcmp(name, "result_buffer_round")) result_buffer_round = atoi(val);
@@ -91,24 +109,25 @@ void AllReduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root)
 /*!
  * \brief load latest check point
  * \param p_model pointer to the model
- * \return true if there was stored checkpoint and load was successful
- *   false if there was no stored checkpoint, means we are start over gain
+ * \return the version number of check point loaded
+ *     if returned version == 0, this means no model has been CheckPointed
+ *     the p_model is not touched, user should do necessary initialization by themselves
+ * \sa CheckPoint, VersionNumber
  */
-bool AllReduceRobust::LoadCheckPoint(utils::ISerializable *p_model) {
+int AllReduceRobust::LoadCheckPoint(utils::ISerializable *p_model) {
   // check if we succesfll
   if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kMaxSeq)) {
     // reset result buffer
     resbuf.Clear(); seq_counter = 0;
-    // if loaded model is empty, this simply means we did not call checkpoint yet
-    // ask caller to reinit model
-    if (checked_model.length() == 0) return false;
     // load from buffer
     utils::MemoryBufferStream fs(&checked_model);
+    fs.Read(&version_number, sizeof(version_number));
+    if (version_number == 0) return version_number;
     p_model->Load(fs);
     // run another phase of check ack, if recovered from data
     utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kMaxSeq),
                   "check ack must return true");
-    return true;
+    return version_number;
   } else {
     // reset result buffer
     resbuf.Clear(); seq_counter = 0;
@@ -118,14 +137,19 @@ bool AllReduceRobust::LoadCheckPoint(utils::ISerializable *p_model) {
 }
 /*!
  * \brief checkpoint the model, meaning we finished a stage of execution
+ *  every time we call check point, there is a version number which will increase by one
+ * 
  * \param p_model pointer to the model
+ * \sa LoadCheckPoint, VersionNumber
  */
 void AllReduceRobust::CheckPoint(const utils::ISerializable &model) {
+  // increase version number
+  version_number += 1;
   // save model
   checked_model.resize(0);
   utils::MemoryBufferStream fs(&checked_model);
+  fs.Write(&version_number, sizeof(version_number));
   model.Save(fs);
-  utils::Check(checked_model.length() != 0, "CheckPoint: empty model, model.Save must save something");
   // execute checkpoint, note: when checkpoint existing, load will not happen
   utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kMaxSeq),
                 "check point must return true");
@@ -586,7 +610,7 @@ bool AllReduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
     utils::Assert(seqno == ActionSummary::kMaxSeq, "must only set seqno for normal operations");
   }
   // request
-  ActionSummary req(flag, seqno);  
+  ActionSummary req(flag, seqno);
   while (true) {
     // action
     ActionSummary act = req;    

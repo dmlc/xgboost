@@ -93,21 +93,43 @@ template<typename OP, typename DType>
 inline void AllReduce(DType *sendrecvbuf, size_t count) {
   engine::GetEngine()->AllReduce(sendrecvbuf, sizeof(DType), count, op::Reducer<OP,DType>);
 }
-/*! 
+/*!
  * \brief load latest check point
  * \param p_model pointer to the model
- * \return true if there was stored checkpoint and load was successful
- *   false if there was no stored checkpoint, means we are start over gain
+ * \return the version number of check point loaded
+ *     if returned version == 0, this means no model has been CheckPointed
+ *     the p_model is not touched, user should do necessary initialization by themselves
+ *   
+ *   Common usage example:
+ *      int iter = rabit::LoadCheckPoint(&model);
+ *      if (iter == 0) model.InitParameters();
+ *      for (i = iter; i < max_iter; ++i) {
+ *        do many things, include allreduce
+ *        rabit::CheckPoint(model);
+ *      } 
+ *
+ * \sa CheckPoint, VersionNumber
  */
-inline bool LoadCheckPoint(utils::ISerializable *p_model) {
+inline int LoadCheckPoint(utils::ISerializable *p_model) {
   return engine::GetEngine()->LoadCheckPoint(p_model);
 }
 /*!
  * \brief checkpoint the model, meaning we finished a stage of execution
+ *  every time we call check point, there is a version number which will increase by one
+ * 
  * \param p_model pointer to the model
+ * \sa LoadCheckPoint, VersionNumber
  */
 inline void CheckPoint(const utils::ISerializable &model) {
   engine::GetEngine()->CheckPoint(model);
+}
+/*!
+ * \return version number of current stored model,
+ *         which means how many calls to CheckPoint we made so far
+ * \sa LoadCheckPoint, CheckPoint
+ */
+inline int VersionNumber(void) {
+  return engine::GetEngine()->VersionNumber();
 }
 }  // namespace rabit
 #endif  // RABIT_ALLREDUCE_H

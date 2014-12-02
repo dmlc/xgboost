@@ -20,6 +20,8 @@ class AllReduceRobust : public AllReduceBase {
  public:
   AllReduceRobust(void);
   virtual ~AllReduceRobust(void) {}
+  /*! \brief shutdown the engine */
+  virtual void Shutdown(void);
   /*!
    * \brief set parameters to the engine 
    * \param name parameter name
@@ -45,18 +47,23 @@ class AllReduceRobust : public AllReduceBase {
    * \param root the root worker id to broadcast the data
    */
   virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root);
-  /*! 
+  /*!
    * \brief load latest check point
    * \param p_model pointer to the model
-   * \return true if there was stored checkpoint and load was successful
-   *   false if there was no stored checkpoint, means we are start over gain
-   */  
-  virtual bool LoadCheckPoint(utils::ISerializable *p_model);
+   * \return the version number of check point loaded
+   *     if returned version == 0, this means no model has been CheckPointed
+   *     the p_model is not touched, user should do necessary initialization by themselves
+   * \sa CheckPoint, VersionNumber
+   */
+  virtual int LoadCheckPoint(utils::ISerializable *p_model);
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
+   *  every time we call check point, there is a version number which will increase by one
+   * 
    * \param p_model pointer to the model
+   * \sa LoadCheckPoint, VersionNumber
    */
-  virtual void CheckPoint(const utils::ISerializable &model);  
+  virtual void CheckPoint(const utils::ISerializable &model);
   /*!
    * \brief explicitly re-init everything before calling LoadCheckPoint
    *    call this function when IEngine throw an exception out,
@@ -359,8 +366,7 @@ class AllReduceRobust : public AllReduceBase {
   // result buffer
   ResultBuffer resbuf;
   // last check point model
-  std::string checked_model;
-  
+  std::string checked_model; 
 };
 }  // namespace engine
 }  // namespace rabit

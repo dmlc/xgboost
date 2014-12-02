@@ -35,10 +35,10 @@ class AllReduceBase : public IEngine {
   // constant one byte out of band message to indicate error happening
   AllReduceBase(void);
   virtual ~AllReduceBase(void) {}
-  // shutdown the engine
-  void Shutdown(void);
   // initialize the manager
   void Init(void);
+  // shutdown the engine
+  virtual void Shutdown(void);
   /*!
    * \brief set parameters to the engine 
    * \param name parameter name
@@ -82,20 +82,34 @@ class AllReduceBase : public IEngine {
     utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) == kSuccess,
                   "AllReduce failed");
   }
-  /*! 
+  /*!
    * \brief load latest check point
    * \param p_model pointer to the model
-   * \return true if there was stored checkpoint and load was successful
-   *   false if there was no stored checkpoint, means we are start over gain
-   */  
-  virtual bool LoadCheckPoint(utils::ISerializable *p_model) {
-    return false;
+   * \return the version number of check point loaded
+   *     if returned version == 0, this means no model has been CheckPointed
+   *     the p_model is not touched, user should do necessary initialization by themselves
+   * \sa CheckPoint, VersionNumber
+   */
+  virtual int LoadCheckPoint(utils::ISerializable *p_model) {
+    return 0;
   }
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
+   *  every time we call check point, there is a version number which will increase by one
+   * 
    * \param p_model pointer to the model
+   * \sa LoadCheckPoint, VersionNumber
    */
   virtual void CheckPoint(const utils::ISerializable &model) {
+    version_number += 1;
+  }
+  /*!
+   * \return version number of current stored model,
+   *         which means how many calls to CheckPoint we made so far
+   * \sa LoadCheckPoint, CheckPoint
+   */
+  virtual int VersionNumber(void) const {
+    return version_number;
   }
   /*!
    * \brief explicitly re-init everything before calling LoadCheckPoint
@@ -236,6 +250,8 @@ class AllReduceBase : public IEngine {
    * \sa ReturnType
    */
   ReturnType TryBroadcast(void *sendrecvbuf_, size_t size, int root);
+  //---- data structure related to model ----
+  int version_number;
   //---- local data related to link ----
   // index of parent link, can be -1, meaning this is root of the tree
   int parent_index;

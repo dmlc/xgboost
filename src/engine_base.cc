@@ -21,6 +21,7 @@ AllReduceBase::AllReduceBase(void) {
   nport_trial = 1000;
   rank = 0;
   world_size = 1;
+  version_number = 0;
   this->SetParam("reduce_buffer", "256MB");
 }
 

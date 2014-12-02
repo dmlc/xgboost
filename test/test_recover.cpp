@@ -70,18 +70,16 @@ inline void TestBcast(test::Mock &mock, size_t n, int root, int ntrial) {
 // dummy model
 class Model : public rabit::utils::ISerializable {
  public:
-  // iterations
-  int iter;
   // load from stream
   virtual void Load(rabit::utils::IStream &fi) {
-    fi.Read(&iter, sizeof(iter));
+    // do nothing
   }
   /*! \brief save the model to the stream */
   virtual void Save(rabit::utils::IStream &fo) const {
-    fo.Write(&iter, sizeof(iter));
+    // do nothing
   }
   virtual void InitModel(void) {
-    iter = 0;
+    // do nothing
   }
 };
 
@@ -101,7 +99,7 @@ int main(int argc, char *argv[]) {
   int ntrial = 0;
   while (true) {
     try {
-      if (!rabit::LoadCheckPoint(&model)) {
+      if (rabit::LoadCheckPoint(&model) == 0) {
         model.InitModel();
       }      
       utils::LogPrintf("[%d/%d] start at %s\n", rank, ntrial, name.c_str());
