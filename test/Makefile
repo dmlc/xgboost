@@ -11,7 +11,7 @@ else
 endif
 
 # specify tensor path
-BIN = test_allreduce
+BIN = test_allreduce test_recover
 OBJ = engine_base.o engine_robust.o engine.o
 .PHONY: clean all
 
@@ -22,6 +22,7 @@ engine_base.o: ../src/engine_base.cc ../src/*.h
 engine.o: ../src/engine.cc ../src/*.h
 engine_robust.o: ../src/engine_robust.cc ../src/*.h
 test_allreduce: test_allreduce.cpp ../src/*.h $(OBJ)
+test_recover: test_recover.cpp ../src/*.h $(OBJ)
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^)

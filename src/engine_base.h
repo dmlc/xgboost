@@ -93,7 +93,15 @@ class AllReduceBase : public IEngine {
    */
   virtual void CheckPoint(const utils::ISerializable &model) {
   }
-  
+  /*!
+   * \brief explicitly re-init everything before calling LoadCheckPoint
+   *    call this function when IEngine throw an exception out,
+   *    this function is only used for test purpose
+   */
+  virtual void InitAfterException(void) {
+    utils::Error("InitAfterException: not implemented");
+  }
+
  protected:
   /*! \brief enumeration of possible returning results from Try functions */
   enum ReturnType {

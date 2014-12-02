@@ -52,7 +52,13 @@ class IEngine {
    * \param root the root worker id to broadcast the data
    */
   virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) = 0;
-  /*! 
+  /*!
+   * \brief explicitly re-init everything before calling LoadCheckPoint
+   *    call this function when IEngine throw an exception out,
+   *    this function is only used for test purpose
+   */
+  virtual void InitAfterException(void) = 0;
+  /*!
    * \brief load latest check point
    * \param p_model pointer to the model
    * \return true if there was stored checkpoint and load was successful
@@ -63,7 +69,7 @@ class IEngine {
    * \brief checkpoint the model, meaning we finished a stage of execution
    * \param p_model pointer to the model
    */
-  virtual void CheckPoint(const utils::ISerializable &model) = 0;    
+  virtual void CheckPoint(const utils::ISerializable &model) = 0;
   /*! \brief get rank of current node */
   virtual int GetRank(void) const = 0;
   /*! \brief get total number of */

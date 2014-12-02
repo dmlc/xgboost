@@ -51,6 +51,14 @@ class AllReduceRobust : public AllReduceBase {
    * \param p_model pointer to the model
    */
   virtual void CheckPoint(const utils::ISerializable &model);  
+  /*!
+   * \brief explicitly re-init everything before calling LoadCheckPoint
+   *    call this function when IEngine throw an exception out,
+   *    this function is only used for test purpose
+   */
+  virtual void InitAfterException(void) {
+    this->CheckAndRecover(kGetExcept);
+  }
 
  private:
   // constant one byte out of band message to indicate error happening

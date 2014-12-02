@@ -5,4 +5,4 @@ then
     exit -1
 fi
 
-../submit_job_tcp.py $1 test_allreduce $2 $3 $4
+../submit_job_tcp.py $1 test_recover $2 $3 $4
