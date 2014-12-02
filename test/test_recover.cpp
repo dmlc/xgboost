@@ -19,6 +19,7 @@ inline void TestMax(test::Mock &mock, size_t n, int ntrial) {
     ndata[i] = (i * (rank+1)) % 111;
   }
   mock.AllReduce<op::Max>(&ndata[0], ndata.size());  
+  if (ntrial == 0 && rank == 15) throw MockException();
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rmax = (i * 1) % 111;
     for (int r = 0; r < nproc; ++r) {
