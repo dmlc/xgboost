@@ -103,20 +103,20 @@ int main(int argc, char *argv[]) {
       if (!rabit::LoadCheckPoint(&model)) {
         model.InitModel();
       }      
-      utils::LogPrintf("[%d] start at %s\n", rank, name.c_str());
+      utils::LogPrintf("[%d/%d] start at %s\n", rank, ntrial, name.c_str());
       TestMax(mock, n, ntrial);
-      utils::LogPrintf("[%d] !!!TestMax pass\n", rank);  
+      utils::LogPrintf("[%d/%d] !!!TestMax pass\n", rank, ntrial);  
       TestSum(mock, n, ntrial);
-      utils::LogPrintf("[%d] !!!TestSum pass\n", rank);
-      
-      for (int i = 0; i < nproc; i += nproc / 3) {
+      utils::LogPrintf("[%d/%d] !!!TestSum pass\n", rank, ntrial);
+      int step = std::max(nproc / 3, 1);
+      for (int i = 0; i < nproc; i += step) {
         TestBcast(mock, n, i, ntrial);
       }
       utils::LogPrintf("[%d] !!!TestBcast pass\n", rank);
       // reach here
       break;
     } catch (MockException &e) {
-      rabit::engine::GetEngine()->InitAfterException();
+      //rabit::engine::GetEngine()->InitAfterException();
       ++ntrial;
     }
   }
