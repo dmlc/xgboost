@@ -4,6 +4,7 @@
 \usepackage{fullpage}
 \usepackage{color}
 \usepackage{natbib}
+\usepackage{graphicx}
 
 \newcommand{\todo}[1]{\noindent{\textcolor{red}{\{{\bf TODO:}  #1\}}}}
 
@@ -34,7 +35,17 @@ Distributed machine learning is an active research area that has seen an incredi
 
 \section{AllReduce}
 
-In AllReduce settings, nodes are organized in a tree structure. Each node holds a portion of the data and computes some values on it. Those values are passed up the tree and aggregated, until a global aggregate value is calculated in the root node (reduce). The global value is then passed down to all other nodes (broadcast). Figure \todo{add image} shows an example of an AllReduce operation.
+In AllReduce settings, nodes are organized in a tree structure. Each node holds a portion of the data and computes some values on it. Those values are passed up the tree and aggregated, until a global aggregate value is calculated in the root node (reduce). The global value is then passed down to all other nodes (broadcast). 
+
+Figure \ref{allreduce} shows an example of an AllReduce sum operation. The leaf nodes passed data to their parents (interior nodes). Such interior nodes compute an intermediate aggregate and pass the value to the root, which in turn computes the final aggregate and then passes back the result to every node in the cluster.
+
+\begin{figure}[tb]
+\centering
+\includegraphics[width=0.7\columnwidth]{fig/allreduce.pdf}
+\caption{AllReduce example}
+\label{allreduce}
+\end{figure}
+
 
 \section{Design}
 
