@@ -109,11 +109,16 @@ int main(int argc, char *argv[]) {
   Model model;  
   srand(0);
   int ntrial = 0;
+  for (int i = 1; i < argc; ++i) {
+    int n;
+    if (sscanf(argv[i], "repeat=%d", &n) == 1) ntrial = n; 
+  } 
   while (true) {
     try {
       int iter = rabit::LoadCheckPoint(&model);
       if (iter == 0) {
         model.InitModel(n);
+        utils::LogPrintf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
       } else {
         utils::LogPrintf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
       }
