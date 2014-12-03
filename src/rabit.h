@@ -2,9 +2,9 @@
 #define RABIT_RABIT_H
 /*!
  * \file rabit.h
- * \brief This file defines unified AllReduce/Broadcast interface of rabit
+ * \brief This file defines unified Allreduce/Broadcast interface of rabit
  *   The actual implementation is redirected to rabit engine
- *   Code only using this header can also compiled with MPI AllReduce(with no fault recovery),
+ *   Code only using this header can also compiled with MPI Allreduce(with no fault recovery),
  *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
@@ -54,7 +54,7 @@ inline void Bcast(std::string *sendrecv_data, int root);
  * Example Usage: the following code gives sum of the result
  *     vector<int> data(10);
  *     ...
- *     AllReduce<op::Sum>(&data[0], data.size());
+ *     Allreduce<op::Sum>(&data[0], data.size());
  *     ...
  * \param sendrecvbuf buffer for both sending and recving data
  * \param count number of elements to be reduced
@@ -62,7 +62,7 @@ inline void Bcast(std::string *sendrecv_data, int root);
  * \tparam DType type of data
  */
 template<typename OP, typename DType>
-inline void AllReduce(DType *sendrecvbuf, size_t count);
+inline void Allreduce(DType *sendrecvbuf, size_t count);
 /*!
  * \brief load latest check point
  * \param p_model pointer to the model

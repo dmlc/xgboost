@@ -1,6 +1,6 @@
 /*!
  * \file allreduce_robust.cc
- * \brief Robust implementation of AllReduce
+ * \brief Robust implementation of Allreduce
  *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
@@ -15,12 +15,12 @@
 
 namespace rabit {
 namespace engine {
-AllReduceRobust::AllReduceRobust(void) {
+AllreduceRobust::AllreduceRobust(void) {
   result_buffer_round = 1;
   seq_counter = 0;
 }
 /*! \brief shutdown the engine */
-void AllReduceRobust::Shutdown(void) {
+void AllreduceRobust::Shutdown(void) {
   // need to sync the exec before we shutdown, do a pesudo check point
   // execute checkpoint, note: when checkpoint existing, load will not happen
   utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kMaxSeq),
@@ -30,15 +30,15 @@ void AllReduceRobust::Shutdown(void) {
   // execute check ack step, load happens here
   utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kMaxSeq),
                 "check ack must return true");    
-  AllReduceBase::Shutdown();
+  AllreduceBase::Shutdown();
 }
 /*!
  * \brief set parameters to the engine 
  * \param name parameter name
  * \param val parameter value
  */
-void AllReduceRobust::SetParam(const char *name, const char *val) {
-  AllReduceBase::SetParam(name, val);
+void AllreduceRobust::SetParam(const char *name, const char *val) {
+  AllreduceBase::SetParam(name, val);
   if (!strcmp(name, "result_buffer_round")) result_buffer_round = atoi(val);
   if (!strcmp(name, "result_replicate")) {
     result_buffer_round = std::max(world_size / atoi(val), 1);
@@ -52,7 +52,7 @@ void AllReduceRobust::SetParam(const char *name, const char *val) {
  * \param count number of elements to be reduced
  * \param reducer reduce function
  */
-void AllReduceRobust::AllReduce(void *sendrecvbuf_,
+void AllreduceRobust::Allreduce(void *sendrecvbuf_,
                                 size_t type_nbytes,
                                 size_t count,
                                 ReduceFunction reducer) {
@@ -68,7 +68,7 @@ void AllReduceRobust::AllReduce(void *sendrecvbuf_,
       std::memcpy(temp, sendrecvbuf_, type_nbytes * count); break;
     } else {
       std::memcpy(temp, sendrecvbuf_, type_nbytes * count);
-      if (CheckAndRecover(TryAllReduce(temp, type_nbytes, count, reducer))) {
+      if (CheckAndRecover(TryAllreduce(temp, type_nbytes, count, reducer))) {
         std::memcpy(sendrecvbuf_, temp, type_nbytes * count); break;
       } else {
         recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter);
@@ -84,7 +84,7 @@ void AllReduceRobust::AllReduce(void *sendrecvbuf_,
  * \param size the size of the data to be broadcasted
  * \param root the root worker id to broadcast the data
  */
-void AllReduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
+void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
   bool recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter);
   // now we are free to remove the last result, if any
   if (resbuf.LastSeqNo() != -1 &&
@@ -114,7 +114,7 @@ void AllReduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root)
  *     the p_model is not touched, user should do necessary initialization by themselves
  * \sa CheckPoint, VersionNumber
  */
-int AllReduceRobust::LoadCheckPoint(utils::ISerializable *p_model) {
+int AllreduceRobust::LoadCheckPoint(utils::ISerializable *p_model) {
   // check if we succesfll
   if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kMaxSeq)) {
     // reset result buffer
@@ -142,7 +142,7 @@ int AllReduceRobust::LoadCheckPoint(utils::ISerializable *p_model) {
  * \param p_model pointer to the model
  * \sa LoadCheckPoint, VersionNumber
  */
-void AllReduceRobust::CheckPoint(const utils::ISerializable &model) {
+void AllreduceRobust::CheckPoint(const utils::ISerializable &model) {
   // increase version number
   version_number += 1;
   // save model
@@ -168,7 +168,7 @@ void AllReduceRobust::CheckPoint(const utils::ISerializable &model) {
  *         when kSockError is returned, it simply means there are bad sockets in the links,
  *         and some link recovery proceduer is needed
  */
-AllReduceRobust::ReturnType AllReduceRobust::TryResetLinks(void) {
+AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
   // number of links
   const int nlink = static_cast<int>(links.size());
   for (int i = 0; i < nlink; ++i) {
@@ -285,7 +285,7 @@ AllReduceRobust::ReturnType AllReduceRobust::TryResetLinks(void) {
  * \brief try to reconnect the broken links
  * \return this function can kSuccess or kSockError
  */
-AllReduceRobust::ReturnType AllReduceRobust::TryReConnectLinks(void) {
+AllreduceRobust::ReturnType AllreduceRobust::TryReConnectLinks(void) {
   utils::Error("TryReConnectLinks: not implemented");
   return kSuccess;
 }
@@ -296,7 +296,7 @@ AllReduceRobust::ReturnType AllReduceRobust::TryReConnectLinks(void) {
  * \param err_type the type of error happening in the system
  * \return true if err_type is kSuccess, false otherwise 
  */
-bool AllReduceRobust::CheckAndRecover(ReturnType err_type) {
+bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
   if (err_type == kSuccess) return true;
   while(err_type != kSuccess) {
     switch(err_type) {
@@ -383,8 +383,8 @@ inline char DataRequest(const std::pair<bool, int> &node_value,
  * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
  * \sa ReturnType
  */  
-AllReduceRobust::ReturnType
-AllReduceRobust::TryDecideRouting(AllReduceRobust::RecoverType role,
+AllreduceRobust::ReturnType
+AllreduceRobust::TryDecideRouting(AllreduceRobust::RecoverType role,
                                   size_t *p_size,
                                   int *p_recvlink,
                                   std::vector<bool> *p_req_in) {
@@ -398,7 +398,7 @@ AllReduceRobust::TryDecideRouting(AllReduceRobust::RecoverType role,
       for (size_t i = 0; i < dist_in.size(); ++i) {
         if (dist_in[i].first != std::numeric_limits<int>::max()) {
           utils::Check(best_link == -2 || *p_size == dist_in[i].second,
-                       "[%d] AllReduce size inconsistent, distin=%lu, size=%lu, reporting=%lu\n",
+                       "[%d] Allreduce size inconsistent, distin=%lu, size=%lu, reporting=%lu\n",
                        rank, dist_in[i].first, *p_size, dist_in[i].second);
           if (best_link == -2 || dist_in[i].first < dist_in[best_link].first) {
             best_link = static_cast<int>(i);
@@ -444,8 +444,8 @@ AllReduceRobust::TryDecideRouting(AllReduceRobust::RecoverType role,
  * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
  * \sa ReturnType, TryDecideRouting
  */  
-AllReduceRobust::ReturnType
-AllReduceRobust::TryRecoverData(RecoverType role,
+AllreduceRobust::ReturnType
+AllreduceRobust::TryRecoverData(RecoverType role,
                                 void *sendrecvbuf_,
                                 size_t size,
                                 int recv_link,
@@ -546,7 +546,7 @@ AllReduceRobust::TryRecoverData(RecoverType role,
  * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
  * \sa ReturnType
  */
-AllReduceRobust::ReturnType AllReduceRobust::TryLoadCheckPoint(bool requester) {
+AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
   RecoverType role =  requester ? kRequestData : kHaveData;
   size_t size = this->checked_model.length();
   int recv_link;
@@ -573,8 +573,8 @@ AllReduceRobust::ReturnType AllReduceRobust::TryLoadCheckPoint(bool requester) {
  * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
  * \sa ReturnType
  */
-AllReduceRobust::ReturnType
-AllReduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool requester) {  RecoverType role;
+AllreduceRobust::ReturnType
+AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool requester) {  RecoverType role;
   if (!requester) {
     sendrecvbuf = resbuf.Query(seqno, &size);
     role = sendrecvbuf != NULL ? kHaveData : kPassData;
@@ -605,7 +605,7 @@ AllReduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool re
  *           result by recovering procedure, the action is complete, no further action is needed
  *    - false means this is the lastest action that has not yet been executed, need to execute the action
  */
-bool AllReduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
+bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
   if (flag != 0) {
     utils::Assert(seqno == ActionSummary::kMaxSeq, "must only set seqno for normal operations");
   }
@@ -615,7 +615,7 @@ bool AllReduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
     // action
     ActionSummary act = req;    
     // get the reduced action
-    if (!CheckAndRecover(TryAllReduce(&act, sizeof(act), 1, ActionSummary::Reducer))) continue;
+    if (!CheckAndRecover(TryAllreduce(&act, sizeof(act), 1, ActionSummary::Reducer))) continue;
     if (act.check_ack()) {
       if (act.check_point()) {
         // if we also have check_point, do check point first

@@ -1,6 +1,6 @@
 /*!
  * \file allreduce_robust.h
- * \brief Robust implementation of AllReduce
+ * \brief Robust implementation of Allreduce
  *   using TCP non-block socket and tree-shape reduction.
  *
  *   This implementation considers the failure of nodes
@@ -16,10 +16,10 @@
 namespace rabit {
 namespace engine {
 /*! \brief implementation of fault tolerant all reduce engine */
-class AllReduceRobust : public AllReduceBase {
+class AllreduceRobust : public AllreduceBase {
  public:
-  AllReduceRobust(void);
-  virtual ~AllReduceRobust(void) {}
+  AllreduceRobust(void);
+  virtual ~AllreduceRobust(void) {}
   /*! \brief shutdown the engine */
   virtual void Shutdown(void);
   /*!
@@ -36,7 +36,7 @@ class AllReduceRobust : public AllReduceBase {
    * \param count number of elements to be reduced
    * \param reducer reduce function
    */  
-  virtual void AllReduce(void *sendrecvbuf_,
+  virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
                          size_t count,           
                          ReduceFunction reducer);
@@ -142,7 +142,7 @@ class AllReduceRobust : public AllReduceBase {
     inline int flag(void) const {
       return seqcode & 15;
     }
-    // reducer for AllReduce, used to get the result ActionSummary from all nodes
+    // reducer for Allreduce, used to get the result ActionSummary from all nodes
     inline static void Reducer(const void *src_, void *dst_, int len, const MPI::Datatype &dtype) {
       const ActionSummary *src = (const ActionSummary*)src_;
       ActionSummary *dst = (ActionSummary*)dst_;
@@ -162,7 +162,7 @@ class AllReduceRobust : public AllReduceBase {
     // internel sequence code
     int seqcode;
   };
-  /*! \brief data structure to remember result of Bcast and AllReduce calls */
+  /*! \brief data structure to remember result of Bcast and Allreduce calls */
   class ResultBuffer {
    public:
     // constructor

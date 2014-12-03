@@ -20,11 +20,11 @@ class MPIEngine : public IEngine {
   MPIEngine(void) {
     version_number = 0;
   }
-  virtual void AllReduce(void *sendrecvbuf_,
+  virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
                          size_t count,
                          ReduceFunction reducer) {
-    utils::Error("MPIEngine:: AllReduce is not supported, use AllReduce_ instead");
+    utils::Error("MPIEngine:: Allreduce is not supported, use Allreduce_ instead");
   }
   virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) {   
     MPI::COMM_WORLD.Bcast(sendrecvbuf_, size, MPI::CHAR, root);
@@ -103,7 +103,7 @@ inline MPI::Op GetOp(mpi::OpType otype) {
   return MPI::MAX;
 }
 // perform in-place allreduce, on sendrecvbuf 
-void AllReduce_(void *sendrecvbuf,
+void Allreduce_(void *sendrecvbuf,
                 size_t type_nbytes,
                 size_t count,
                 IEngine::ReduceFunction red,               

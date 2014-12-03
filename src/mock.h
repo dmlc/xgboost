@@ -25,9 +25,9 @@ public:
   }
 
   template<typename OP>
-  inline void AllReduce(float *sendrecvbuf, size_t count) {
+  inline void Allreduce(float *sendrecvbuf, size_t count) {
     utils::Assert(verify(allReduce), "[%d] error when calling allReduce", rank);
-    rabit::AllReduce<OP>(sendrecvbuf, count);
+    rabit::Allreduce<OP>(sendrecvbuf, count);
   }
 
   inline bool LoadCheckPoint(utils::ISerializable *p_model) {

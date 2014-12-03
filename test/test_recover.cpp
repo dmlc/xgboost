@@ -18,7 +18,7 @@ inline void TestMax(test::Mock &mock, size_t n, int ntrial) {
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % 111;
   }
-  mock.AllReduce<op::Max>(&ndata[0], ndata.size());  
+  mock.Allreduce<op::Max>(&ndata[0], ndata.size());  
   if (ntrial == 0 && rank == 15) throw MockException();
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rmax = (i * 1) % 111;
@@ -38,7 +38,7 @@ inline void TestSum(test::Mock &mock, size_t n, int ntrial) {
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % z;
   }
-  mock.AllReduce<op::Sum>(&ndata[0], ndata.size());
+  mock.Allreduce<op::Sum>(&ndata[0], ndata.size());
 
   if (ntrial == 0 && rank == 0) throw MockException();
 

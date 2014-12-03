@@ -13,7 +13,7 @@
 namespace rabit {
 namespace engine {
 // constructor
-AllReduceBase::AllReduceBase(void) {
+AllreduceBase::AllreduceBase(void) {
   master_uri = "NULL";
   master_port = 9000;
   host_uri = "";
@@ -26,7 +26,7 @@ AllReduceBase::AllReduceBase(void) {
 }
 
 // initialization function
-void AllReduceBase::Init(void) {
+void AllreduceBase::Init(void) {
   utils::Socket::Startup();
   // single node mode
   if (master_uri == "NULL") return;
@@ -68,7 +68,7 @@ void AllReduceBase::Init(void) {
     utils::Assert(master.RecvAll(&hname[0], len) == static_cast<size_t>(len), "sync::Init failure 10");
     utils::Assert(master.RecvAll(&hport, sizeof(hport)) == sizeof(hport), "sync::Init failure 11");
     links[0].sock.Create();
-    links[0].sock.Connect(utils::SockAddr(hname.c_str(), hport));      
+    links[0].sock.Connect(utils::SockAddr(hname.c_str(), hport));
     utils::Assert(links[0].sock.SendAll(&magic, sizeof(magic)) == sizeof(magic), "sync::Init failure 12");
     utils::Assert(links[0].sock.RecvAll(&magic, sizeof(magic)) == sizeof(magic), "sync::Init failure 13");
     utils::Check(magic == kMagic, "sync::Init failure, parent magic number mismatch");
@@ -105,7 +105,7 @@ void AllReduceBase::Init(void) {
   // done
 }
 
-void AllReduceBase::Shutdown(void) {
+void AllreduceBase::Shutdown(void) {
   for (size_t i = 0; i < links.size(); ++i) {
     links[i].sock.Close();
   }
@@ -117,7 +117,7 @@ void AllReduceBase::Shutdown(void) {
  * \param name parameter name
  * \param val parameter value
  */
-void AllReduceBase::SetParam(const char *name, const char *val) {
+void AllreduceBase::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "master_uri")) master_uri = val;
   if (!strcmp(name, "master_port")) master_port = atoi(val);
   if (!strcmp(name, "reduce_buffer")) {
@@ -140,10 +140,10 @@ void AllReduceBase::SetParam(const char *name, const char *val) {
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf, this function can fail, and will return the cause of failure
  *
- * NOTE on AllReduce:
- *    The kSuccess TryAllReduce does NOT mean every node have successfully finishes TryAllReduce.
- *    It only means the current node get the correct result of AllReduce.
- *    However, it means every node finishes LAST call(instead of this one) of AllReduce/Bcast
+ * NOTE on Allreduce:
+ *    The kSuccess TryAllreduce does NOT mean every node have successfully finishes TryAllreduce.
+ *    It only means the current node get the correct result of Allreduce.
+ *    However, it means every node finishes LAST call(instead of this one) of Allreduce/Bcast
  * 
  * \param sendrecvbuf_ buffer for both sending and recving data
  * \param type_nbytes the unit number of bytes the type have
@@ -152,8 +152,8 @@ void AllReduceBase::SetParam(const char *name, const char *val) {
  * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
  * \sa ReturnType
  */
-AllReduceBase::ReturnType
-AllReduceBase::TryAllReduce(void *sendrecvbuf_,
+AllreduceBase::ReturnType
+AllreduceBase::TryAllreduce(void *sendrecvbuf_,
                             size_t type_nbytes,
                             size_t count,
                             ReduceFunction reducer) {
@@ -248,7 +248,7 @@ AllReduceBase::TryAllReduce(void *sendrecvbuf_,
         size_t start = size_up_reduce % buffer_size;
         // peform read till end of buffer
         size_t nread = std::min(buffer_size - start, max_reduce - size_up_reduce);          
-        utils::Assert(nread % type_nbytes == 0, "AllReduce: size check");
+        utils::Assert(nread % type_nbytes == 0, "Allreduce: size check");
         for (int i = 0; i < nlink; ++i) {
           if (i != parent_index) {
             reducer(links[i].buffer_head + start,
@@ -280,7 +280,7 @@ AllReduceBase::TryAllReduce(void *sendrecvbuf_,
         }
         if (len != -1) {
           size_down_in += static_cast<size_t>(len);
-            utils::Assert(size_down_in <= size_up_out, "AllReduce: boundary error");
+            utils::Assert(size_down_in <= size_up_out, "Allreduce: boundary error");
         } else {
           if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
         }
@@ -306,8 +306,8 @@ AllReduceBase::TryAllReduce(void *sendrecvbuf_,
  * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
  * \sa ReturnType
  */
-AllReduceBase::ReturnType
-AllReduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
+AllreduceBase::ReturnType
+AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
   if (links.size() == 0 || total_size == 0) return kSuccess;
   utils::Check(root < world_size, "Broadcast: root should be smaller than world size");
   // number of links

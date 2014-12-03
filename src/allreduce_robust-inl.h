@@ -1,6 +1,6 @@
 /*!
  * \file allreduce_robust-inl.h
- * \brief implementation of inline template function in AllReduceRobust
+ * \brief implementation of inline template function in AllreduceRobust
  *   
  * \author Tianqi Chen
  */
@@ -29,8 +29,8 @@ namespace engine {
  * \tparam NodeType type of node value
  */
 template<typename NodeType, typename EdgeType>
-inline AllReduceRobust::ReturnType
-AllReduceRobust::MsgPassing(const NodeType &node_value,
+inline AllreduceRobust::ReturnType
+AllreduceRobust::MsgPassing(const NodeType &node_value,
                             std::vector<EdgeType> *p_edge_in,
                             std::vector<EdgeType> *p_edge_out,
                             EdgeType (*func) (const NodeType &node_value,

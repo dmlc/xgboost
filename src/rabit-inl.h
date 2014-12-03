@@ -101,10 +101,10 @@ inline void Bcast(std::string *sendrecv_data, int root) {
     e->Broadcast(&(*sendrecv_data)[0], len, root);  
   }
 }
-// perform inplace AllReduce
+// perform inplace Allreduce
 template<typename OP, typename DType>
-inline void AllReduce(DType *sendrecvbuf, size_t count) {
-  engine::AllReduce_(sendrecvbuf, sizeof(DType), count, op::Reducer<OP,DType>,
+inline void Allreduce(DType *sendrecvbuf, size_t count) {
+  engine::Allreduce_(sendrecvbuf, sizeof(DType), count, op::Reducer<OP,DType>,
                      engine::mpi::GetType<DType>(), OP::kType);
 }
 // load latest check point

@@ -16,7 +16,7 @@
 namespace rabit {
 namespace engine {
 // singleton sync manager
-AllReduceRobust manager;
+AllreduceRobust manager;
 
 /*! \brief intiialize the synchronization module */
 void Init(int argc, char *argv[]) {
@@ -38,13 +38,13 @@ IEngine *GetEngine(void) {
   return &manager;
 }
 // perform in-place allreduce, on sendrecvbuf 
-void AllReduce_(void *sendrecvbuf,
+void Allreduce_(void *sendrecvbuf,
                 size_t type_nbytes,
                 size_t count,
                 IEngine::ReduceFunction red,               
                 mpi::DataType dtype,
                 mpi::OpType op) {
-  GetEngine()->AllReduce(sendrecvbuf, type_nbytes, count, red);
+  GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count, red);
 }
 }  // namespace engine
 }  // namespace rabit

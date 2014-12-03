@@ -27,14 +27,14 @@ class Datatype {
 }
 namespace rabit {
 namespace engine {
-/*! \brief implementation of basic AllReduce engine */
-class AllReduceBase : public IEngine {
+/*! \brief implementation of basic Allreduce engine */
+class AllreduceBase : public IEngine {
  public:
   // magic number to verify server
   const static int kMagic = 0xff99;
   // constant one byte out of band message to indicate error happening
-  AllReduceBase(void);
-  virtual ~AllReduceBase(void) {}
+  AllreduceBase(void);
+  virtual ~AllreduceBase(void) {}
   // initialize the manager
   void Init(void);
   // shutdown the engine
@@ -65,12 +65,12 @@ class AllReduceBase : public IEngine {
    * \param count number of elements to be reduced
    * \param reducer reduce function
    */  
-  virtual void AllReduce(void *sendrecvbuf_,
+  virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
                          size_t count,           
                          ReduceFunction reducer) {
-    utils::Assert(TryAllReduce(sendrecvbuf_, type_nbytes, count, reducer) == kSuccess,
-                  "AllReduce failed");
+    utils::Assert(TryAllreduce(sendrecvbuf_, type_nbytes, count, reducer) == kSuccess,
+                  "Allreduce failed");
   }
   /*!
    * \brief broadcast data from root to all nodes
@@ -80,7 +80,7 @@ class AllReduceBase : public IEngine {
    */
   virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
     utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) == kSuccess,
-                  "AllReduce failed");
+                  "Allreduce failed");
   }
   /*!
    * \brief load latest check point
@@ -171,7 +171,7 @@ class AllReduceBase : public IEngine {
      */
     inline bool ReadToRingBuffer(size_t protect_start) {
       size_t ngap = size_read - protect_start;
-      utils::Assert(ngap <= buffer_size, "AllReduce: boundary check");
+      utils::Assert(ngap <= buffer_size, "Allreduce: boundary check");
       size_t offset = size_read % buffer_size;
       size_t nmax = std::min(buffer_size - ngap, buffer_size - offset);      
       if (nmax == 0) return true;
@@ -225,10 +225,10 @@ class AllReduceBase : public IEngine {
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf, this function can fail, and will return the cause of failure
    *
-   * NOTE on AllReduce:
-   *    The kSuccess TryAllReduce does NOT mean every node have successfully finishes TryAllReduce.
-   *    It only means the current node get the correct result of AllReduce.
-   *    However, it means every node finishes LAST call(instead of this one) of AllReduce/Bcast
+   * NOTE on Allreduce:
+   *    The kSuccess TryAllreduce does NOT mean every node have successfully finishes TryAllreduce.
+   *    It only means the current node get the correct result of Allreduce.
+   *    However, it means every node finishes LAST call(instead of this one) of Allreduce/Bcast
    * 
    * \param sendrecvbuf_ buffer for both sending and recving data
    * \param type_nbytes the unit number of bytes the type have
@@ -237,7 +237,7 @@ class AllReduceBase : public IEngine {
    * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
    * \sa ReturnType
    */
-  ReturnType TryAllReduce(void *sendrecvbuf_,
+  ReturnType TryAllreduce(void *sendrecvbuf_,
                           size_t type_nbytes,
                           size_t count,
                           ReduceFunction reducer);

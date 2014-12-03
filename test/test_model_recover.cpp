@@ -39,7 +39,7 @@ inline void TestMax(test::Mock &mock, Model *model, int ntrial, int iter) {
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % z  + model->data[i];
   }
-  mock.AllReduce<op::Max>(&ndata[0], ndata.size());  
+  mock.Allreduce<op::Max>(&ndata[0], ndata.size());  
   if (ntrial == iter && rank == 3) {
     throw MockException();
   }
@@ -62,7 +62,7 @@ inline void TestSum(test::Mock &mock, Model *model, int ntrial, int iter) {
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % z + model->data[i];
   }
-  mock.AllReduce<op::Sum>(&ndata[0], ndata.size());
+  mock.Allreduce<op::Sum>(&ndata[0], ndata.size());
 
   if (ntrial == iter && rank == 0) {
     throw MockException();

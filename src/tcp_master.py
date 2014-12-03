@@ -68,7 +68,7 @@ class Master:
                 try:
                     magic = slave.recvint()
                     if magic != kMagic:
-                        print 'invalid magic number=%d from %s' % (magic, s_addr[0])                        
+                        print 'invalid magic number=%d from %s' % (magic, s_addr[0])
                         slave.sock.close()
                         continue
                 except socket.error:

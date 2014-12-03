@@ -16,7 +16,7 @@ class Datatype;
 namespace rabit {
 /*! \brief core interface of engine */
 namespace engine {
-/*! \brief interface of core AllReduce engine */
+/*! \brief interface of core Allreduce engine */
 class IEngine {
  public:
   /*! 
@@ -41,7 +41,7 @@ class IEngine {
    * \param count number of elements to be reduced
    * \param reducer reduce function
    */
-  virtual void AllReduce(void *sendrecvbuf_,
+  virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
                          size_t count,
                          ReduceFunction reducer) = 0;
@@ -130,7 +130,7 @@ enum DataType {
  * \param dtype the data type 
  * \param op the reduce operator type
  */
-void AllReduce_(void *sendrecvbuf,
+void Allreduce_(void *sendrecvbuf,
                 size_t type_nbytes,
                 size_t count,
                 IEngine::ReduceFunction red,               
