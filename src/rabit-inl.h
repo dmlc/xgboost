@@ -103,7 +103,7 @@ inline void Broadcast(std::vector<DType> *sendrecv_data, int root) {
     sendrecv_data->resize(size);
   }
   if (size != 0) {
-    Broadcast(&sendrecv_data[0], size * sizeof(DType), root);
+    Broadcast(&(*sendrecv_data)[0], size * sizeof(DType), root);
   }
 }
 inline void Broadcast(std::string *sendrecv_data, int root) {
@@ -113,7 +113,7 @@ inline void Broadcast(std::string *sendrecv_data, int root) {
     sendrecv_data->resize(size);
   }
   if (size != 0) {
-    Broadcast(&sendrecv_data[0], size * sizeof(char), root);
+    Broadcast(&(*sendrecv_data)[0], size * sizeof(char), root);
   }
 }
 

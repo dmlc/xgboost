@@ -77,6 +77,8 @@ class SlaveEntry:
         self.sock.sendint(rank)
         # send parent rank
         self.sock.sendint((rank + 1) / 2 - 1)
+        # send world size
+        self.sock.sendint(nslave)
         while True:
             ngood = self.sock.recvint()
             goodset = set([])
@@ -88,8 +90,6 @@ class SlaveEntry:
             for r in badset:
                 if r in wait_conn:
                     conset.append(r)
-            print 'rank=%d' % rank
-            print 'conset=%s' % str(conset)
             self.sock.sendint(len(conset))
             self.sock.sendint(len(badset) - len(conset))
             for r in conset:
@@ -109,7 +109,6 @@ class SlaveEntry:
             for r in rmset:
                 wait_conn.pop(r, None)
             self.wait_accept = len(badset) - len(conset)
-            print 'wait=%d' % self.wait_accept
             return rmset
     
 class Master:

@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   TestSum(mock, n);
   utils::LogPrintf("[%d] !!!TestSum pass\n", rank);
   int step = std::max(nproc / 3, 1);
-  for (int i = 0; i < nproc; i += step) {
+  for (int i = 0; i < nproc; i += step) {    
     TestBcast(mock, n, i);
   }
   utils::LogPrintf("[%d] !!!TestBcast pass\n", rank);

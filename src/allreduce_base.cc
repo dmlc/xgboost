@@ -55,7 +55,8 @@ void AllreduceBase::Shutdown(void) {
 
   utils::Assert(master.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 3");
   master.SendStr(job_id);
-  master.SendStr(std::string("shutdown"));
+  master.SendStr(std::string("shutdown"));  
+  master.Close();
   utils::TCPSocket::Finalize();
 }
 /*!
@@ -102,7 +103,6 @@ void AllreduceBase::ReConnectLinks(void) {
   utils::Assert(master.SendAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 1");
   utils::Assert(master.RecvAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 2");
   utils::Check(magic == kMagic, "sync::Invalid master message, init failure");
-
   utils::Assert(master.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 3");
   master.SendStr(job_id);
   master.SendStr(std::string("start"));
@@ -112,10 +112,11 @@ void AllreduceBase::ReConnectLinks(void) {
                   "ReConnectLink failure 4");
     utils::Assert(master.RecvAll(&parent_rank, sizeof(parent_rank)) == sizeof(parent_rank),
                   "ReConnectLink failure 4");
+    utils::Assert(master.RecvAll(&world_size, sizeof(world_size)) == sizeof(world_size),
+                  "ReConnectLink failure 4");
     utils::Assert(rank == -1 || newrank == rank, "must keep rank to same if the node already have one");
     rank = newrank;    
-  }
-  
+  }  
   // create listening socket
   utils::TCPSocket sock_listen;
   sock_listen.Create();
@@ -125,7 +126,6 @@ void AllreduceBase::ReConnectLinks(void) {
 
   // get number of to connect and number of to accept nodes from master
   int num_conn, num_accept, num_error = 1;
-
   do {
     // send over good links
     std::vector<int> good_link;
@@ -146,7 +146,7 @@ void AllreduceBase::ReConnectLinks(void) {
     utils::Assert(master.RecvAll(&num_conn, sizeof(num_conn)) == sizeof(num_conn),
                   "ReConnectLink failure 7");
     utils::Assert(master.RecvAll(&num_accept, sizeof(num_accept)) == sizeof(num_accept),
-                  "ReConnectLink failure 8");
+                  "ReConnectLink failure 8");    
     num_error = 0;
     for (int i = 0; i < num_conn; ++i) {
       LinkRecord r;
@@ -202,7 +202,6 @@ void AllreduceBase::ReConnectLinks(void) {
     links[i].sock.SetNonBlock(true);
     if (links[i].rank == parent_rank) parent_index = static_cast<int>(i);
   }
-  utils::LogPrintf("[%d] parent_rank=%d, parent_index=%d, nlink=%d\n", rank, parent_rank, parent_index, (int)links.size());
   if (parent_rank != -1) {
     utils::Assert(parent_index != -1, "cannot find parent in the link");
   }
