@@ -1,7 +1,7 @@
 #!/usr/bin/python
 """
 This is an example script to create a customized job submit
-script using xgboost sync_tcp mode
+script using rabit engine
 """
 import sys
 import os
@@ -9,7 +9,7 @@ import subprocess
 # import the tcp_master.py
 # add path to sync
 sys.path.append(os.path.dirname(__file__)+'/src/')
-import tcp_master as master
+import rabit_master as master
 
 #
 #  Note: this submit script is only used for example purpose

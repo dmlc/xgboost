@@ -202,6 +202,7 @@ void AllreduceBase::ReConnectLinks(void) {
     links[i].sock.SetNonBlock(true);
     if (links[i].rank == parent_rank) parent_index = static_cast<int>(i);
   }
+  utils::LogPrintf("[%d] parent_rank=%d, parent_index=%d, nlink=%d\n", rank, parent_rank, parent_index, (int)links.size());
   if (parent_rank != -1) {
     utils::Assert(parent_index != -1, "cannot find parent in the link");
   }
