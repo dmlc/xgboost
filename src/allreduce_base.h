@@ -138,6 +138,8 @@ class AllreduceBase : public IEngine {
    public:
     // socket to get data from/to link
     utils::TCPSocket sock;
+    // rank of the node in this link
+    int rank;
     // size of data readed from link
     size_t size_read;
     // size of data sent to the link
@@ -223,6 +225,11 @@ class AllreduceBase : public IEngine {
     std::vector<uint64_t> buffer_;
   };
   /*!
+   * \brief connect to the master to fix the the missing links
+   *   this function is also used when the engine start up
+   */
+  void ReConnectLinks(void);
+  /*!
    * \brief perform in-place allreduce, on sendrecvbuf, this function can fail, and will return the cause of failure
    *
    * NOTE on Allreduce:
@@ -255,9 +262,14 @@ class AllreduceBase : public IEngine {
   //---- local data related to link ----
   // index of parent link, can be -1, meaning this is root of the tree
   int parent_index;
+  // rank of parent node, can be -1
+  int parent_rank;
   // sockets of all links
   std::vector<LinkRecord> links;
   //----- meta information-----
+  // unique identifier of the possible job this process is doing
+  // used to assign ranks, optional, default to NULL
+  std::string job_id;
   // uri of current host, to be set by Init
   std::string host_uri;
   // uri of master

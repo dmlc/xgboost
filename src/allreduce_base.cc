@@ -19,90 +19,20 @@ AllreduceBase::AllreduceBase(void) {
   host_uri = "";
   slave_port = 9010;
   nport_trial = 1000;
-  rank = 0;
+  rank = -1;
   world_size = 1;
   version_number = 0;
+  job_id = "NULL";
   this->SetParam("reduce_buffer", "256MB");
 }
 
 // initialization function
 void AllreduceBase::Init(void) {
   utils::Socket::Startup();
-  // single node mode
-  if (master_uri == "NULL") return;
   utils::Assert(links.size() == 0, "can only call Init once");
-  int magic = kMagic;
-  int nchild = 0, nparent = 0;
   this->host_uri = utils::SockAddr::GetHostName();
   // get information from master
-  utils::TCPSocket master;
-  master.Create();
-  if (!master.Connect(utils::SockAddr(master_uri.c_str(), master_port))) {
-    utils::Socket::Error("Connect");
-  }
-  utils::Assert(master.SendAll(&magic, sizeof(magic)) == sizeof(magic), "sync::Init failure 1");
-  utils::Assert(master.RecvAll(&magic, sizeof(magic)) == sizeof(magic), "sync::Init failure 2");
-  utils::Check(magic == kMagic, "sync::Invalid master message, init failure");
-  utils::Assert(master.RecvAll(&rank, sizeof(rank)) == sizeof(rank), "sync::Init failure 3");
-  utils::Assert(master.RecvAll(&world_size, sizeof(world_size)) == sizeof(world_size), "sync::Init failure 4");
-  utils::Assert(master.RecvAll(&nparent, sizeof(nparent)) == sizeof(nparent), "sync::Init failure 5");
-  utils::Assert(master.RecvAll(&nchild, sizeof(nchild)) == sizeof(nchild), "sync::Init failure 6");
-  utils::Assert(nchild >= 0, "in correct number of childs");
-  utils::Assert(nparent == 1 || nparent == 0, "in correct number of parent");
-  
-  // create listen
-  utils::TCPSocket sock_listen;
-  sock_listen.Create();
-  int port = sock_listen.TryBindHost(slave_port, slave_port + nport_trial);
-  utils::Check(port != -1, "sync::Init fail to bind the ports specified");
-  sock_listen.Listen();
-  
-  if (nparent != 0) {
-    parent_index = 0;
-    links.push_back(LinkRecord());
-    int len, hport;
-    std::string hname;
-    utils::Assert(master.RecvAll(&len, sizeof(len)) == sizeof(len), "sync::Init failure 9");
-    hname.resize(len);
-    utils::Assert(len != 0, "string must not be empty");
-    utils::Assert(master.RecvAll(&hname[0], len) == static_cast<size_t>(len), "sync::Init failure 10");
-    utils::Assert(master.RecvAll(&hport, sizeof(hport)) == sizeof(hport), "sync::Init failure 11");
-    links[0].sock.Create();
-    links[0].sock.Connect(utils::SockAddr(hname.c_str(), hport));
-    utils::Assert(links[0].sock.SendAll(&magic, sizeof(magic)) == sizeof(magic), "sync::Init failure 12");
-    utils::Assert(links[0].sock.RecvAll(&magic, sizeof(magic)) == sizeof(magic), "sync::Init failure 13");
-    utils::Check(magic == kMagic, "sync::Init failure, parent magic number mismatch");
-    parent_index = 0;
-  } else {
-    parent_index = -1;
-  }
-  // send back socket listening port to master
-  utils::Assert(master.SendAll(&port, sizeof(port)) == sizeof(port), "sync::Init failure 14");
-  // close connection to master
-  master.Close();
-  // accept links from childs
-  for (int i = 0; i < nchild; ++i) {
-    LinkRecord r; 
-    while (true) {
-      r.sock = sock_listen.Accept();
-      if (r.sock.RecvAll(&magic, sizeof(magic)) == sizeof(magic) && magic == kMagic) {
-        utils::Assert(r.sock.SendAll(&magic, sizeof(magic)) == sizeof(magic), "sync::Init failure 15");
-        break;
-      } else {         
-        // not a valid child
-        r.sock.Close();
-      }
-    }
-    links.push_back(r);
-  }
-  // close listening sockets
-  sock_listen.Close();
-  // setup selecter
-  for (size_t i = 0; i < links.size(); ++i) {
-    // set the socket to non-blocking mode
-    links[i].sock.SetNonBlock(true);
-  }
-  // done
+  this->ReConnectLinks();
 }
 
 void AllreduceBase::Shutdown(void) {
@@ -110,6 +40,22 @@ void AllreduceBase::Shutdown(void) {
     links[i].sock.Close();
   }
   links.clear();
+  
+  if (master_uri == "NULL") return;
+  int magic = kMagic;
+  // notify master rank i have shutdown
+  utils::TCPSocket master;
+  master.Create();
+  if (!master.Connect(utils::SockAddr(master_uri.c_str(), master_port))) {
+    utils::Socket::Error("Connect Master");
+  }
+  utils::Assert(master.SendAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 1");
+  utils::Assert(master.RecvAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 2");
+  utils::Check(magic == kMagic, "sync::Invalid master message, init failure");
+
+  utils::Assert(master.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 3");
+  master.SendStr(job_id);
+  master.SendStr(std::string("shutdown"));
   utils::TCPSocket::Finalize();
 }
 /*!
@@ -120,6 +66,7 @@ void AllreduceBase::Shutdown(void) {
 void AllreduceBase::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "master_uri")) master_uri = val;
   if (!strcmp(name, "master_port")) master_port = atoi(val);
+  if (!strcmp(name, "job_id")) job_id = val;
   if (!strcmp(name, "reduce_buffer")) {
     char unit;
     unsigned long amount;
@@ -136,7 +83,129 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
     }
   }
 }
+/*!
+ * \brief connect to the master to fix the the missing links
+ *   this function is also used when the engine start up
+ */
+void AllreduceBase::ReConnectLinks(void) {
+  // single node mode
+  if (master_uri == "NULL") {
+    rank = 0; return;
+  }
+  int magic = kMagic;
+  // get information from master
+  utils::TCPSocket master;
+  master.Create();
+  if (!master.Connect(utils::SockAddr(master_uri.c_str(), master_port))) {
+    utils::Socket::Error("Connect");
+  }
+  utils::Assert(master.SendAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 1");
+  utils::Assert(master.RecvAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 2");
+  utils::Check(magic == kMagic, "sync::Invalid master message, init failure");
 
+  utils::Assert(master.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 3");
+  master.SendStr(job_id);
+  master.SendStr(std::string("start"));
+  {// get new ranks
+    int newrank;
+    utils::Assert(master.RecvAll(&newrank, sizeof(newrank)) == sizeof(newrank),
+                  "ReConnectLink failure 4");
+    utils::Assert(master.RecvAll(&parent_rank, sizeof(parent_rank)) == sizeof(parent_rank),
+                  "ReConnectLink failure 4");
+    utils::Assert(rank == -1 || newrank == rank, "must keep rank to same if the node already have one");
+    rank = newrank;    
+  }
+  
+  // create listening socket
+  utils::TCPSocket sock_listen;
+  sock_listen.Create();
+  int port = sock_listen.TryBindHost(slave_port, slave_port + nport_trial);
+  utils::Check(port != -1, "ReConnectLink fail to bind the ports specified");
+  sock_listen.Listen();
+
+  // get number of to connect and number of to accept nodes from master
+  int num_conn, num_accept, num_error = 1;
+
+  do {
+    // send over good links
+    std::vector<int> good_link;
+    for (size_t i = 0; i < links.size(); ++i) {
+      if (!links[i].sock.BadSocket()) {
+        good_link.push_back(static_cast<int>(links[i].rank));
+      } else {
+        if (!links[i].sock.IsClosed()) links[i].sock.Close();
+      }
+    }
+    int ngood = static_cast<int>(good_link.size());
+    utils::Assert(master.SendAll(&ngood, sizeof(ngood)) == sizeof(ngood),
+                  "ReConnectLink failure 5");  
+    for (size_t i = 0; i < good_link.size(); ++i) {
+      utils::Assert(master.SendAll(&good_link[i], sizeof(good_link[i])) == sizeof(good_link[i]),
+                    "ReConnectLink failure 6");
+    }
+    utils::Assert(master.RecvAll(&num_conn, sizeof(num_conn)) == sizeof(num_conn),
+                  "ReConnectLink failure 7");
+    utils::Assert(master.RecvAll(&num_accept, sizeof(num_accept)) == sizeof(num_accept),
+                  "ReConnectLink failure 8");
+    num_error = 0;
+    for (int i = 0; i < num_conn; ++i) {
+      LinkRecord r;
+      int hport, hrank;
+      std::string hname;
+      master.RecvStr(&hname);      
+      utils::Assert(master.RecvAll(&hport, sizeof(hport)) == sizeof(hport), "ReConnectLink failure 9");
+      utils::Assert(master.RecvAll(&hrank, sizeof(hrank)) == sizeof(hrank), "ReConnectLink failure 10");
+      r.sock.Create();
+      if (!r.sock.Connect(utils::SockAddr(hname.c_str(), hport))) {
+        num_error += 1; r.sock.Close(); continue;
+      }
+      utils::Assert(r.sock.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 12");
+      utils::Assert(r.sock.RecvAll(&r.rank, sizeof(r.rank)) == sizeof(r.rank), "ReConnectLink failure 13");
+      utils::Check(hrank == r.rank, "ReConnectLink failure, link rank inconsistent");
+      bool match = false;
+      for (size_t i = 0; i < links.size(); ++i) {
+        if (links[i].rank == hrank) {
+          utils::Assert(links[i].sock.IsClosed(), "Override a link that is active");
+          links[i].sock = r.sock; match = true; break;
+        }
+      }
+      if (!match) links.push_back(r);
+    }
+    utils::Assert(master.SendAll(&num_error, sizeof(num_error)) == sizeof(num_error), "ReConnectLink failure 14");
+  } while (num_error != 0);
+  // send back socket listening port to master
+  utils::Assert(master.SendAll(&port, sizeof(port)) == sizeof(port), "ReConnectLink failure 14");
+  // close connection to master
+  master.Close();  
+  // listen to incoming links
+  for (int i = 0; i < num_accept; ++i) {
+    LinkRecord r;
+    r.sock = sock_listen.Accept();
+    utils::Assert(r.sock.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 15");
+    utils::Assert(r.sock.RecvAll(&r.rank, sizeof(r.rank)) == sizeof(r.rank), "ReConnectLink failure 15");
+    bool match = false;
+    for (size_t i = 0; i < links.size(); ++i) {
+      if (links[i].rank == r.rank) {
+        utils::Assert(links[i].sock.IsClosed(), "Override a link that is active");
+        links[i].sock = r.sock; match = true; break;
+      }
+    }
+    if (!match) links.push_back(r);
+  }
+  // close listening sockets
+  sock_listen.Close();
+  this->parent_index = -1;
+  // setup selecter
+  for (size_t i = 0; i < links.size(); ++i) {
+    utils::Assert(!links[i].sock.BadSocket(), "ReConnectLink: bad socket");
+    // set the socket to non-blocking mode
+    links[i].sock.SetNonBlock(true);
+    if (links[i].rank == parent_rank) parent_index = static_cast<int>(i);
+  }
+  if (parent_rank != -1) {
+    utils::Assert(parent_index != -1, "cannot find parent in the link");
+  }
+}
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf, this function can fail, and will return the cause of failure
  *
@@ -209,7 +278,6 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
           finished = false;
         }
       }
-
     }
     // finish runing allreduce
     if (finished) break;

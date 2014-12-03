@@ -331,6 +331,31 @@ class TCPSocket : public Socket{
     }
     return ndone;
   }
+  /*!
+   * \brief send a string over network 
+   * \param str the string to be sent
+   */
+  inline void SendStr(const std::string &str) {
+    unsigned len = static_cast<int>(str.length());
+    utils::Assert(this->SendAll(&len, sizeof(len)) == sizeof(len),
+                  "error during send SendStr");
+    utils::Assert(this->SendAll(str.c_str(), str.length()) == str.length(),
+                  "error during send SendStr");
+  }
+  /*!
+   * \brief recv a string from network
+   * \param out_str the string to receive
+   */
+  inline void RecvStr(std::string *out_str) {
+    unsigned len;
+    utils::Assert(this->RecvAll(&len, sizeof(len)) == sizeof(len),
+                  "error during send RecvStr");
+    out_str->resize(len);
+    if (len != 0) {
+      utils::Assert(this->RecvAll(&(*out_str)[0], len) == len,
+                    "error during send SendStr");
+    }
+  }
 };
 
 /*! \brief helper data structure to perform select */

@@ -42,7 +42,7 @@ public:
 
   inline void Broadcast(std::string *sendrecv_data, int root) {
     utils::Assert(verify(broadcast), "[%d] error when broadcasting", rank);
-    rabit::Bcast(sendrecv_data, root);
+    rabit::Broadcast(sendrecv_data, root);
 
   }
 

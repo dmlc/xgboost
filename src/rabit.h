@@ -8,6 +8,8 @@
  *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
+#include <string>
+#include <vector>
 #include "./engine.h"
 
 /*! \brief namespace of rabit */
@@ -43,11 +45,27 @@ inline std::string GetProcessorName(void);
 /*!
  * \brief broadcast an std::string to all others from root
  * \param sendrecv_data the pointer to send or recive buffer,
- *                      receive buffer does not need to be pre-allocated
- *                      and string will be resized to correct length
+ * \param size the size of the data
  * \param root the root of process
  */
-inline void Bcast(std::string *sendrecv_data, int root);
+inline void Broadcast(void *sendrecv_data, size_t size, int root);
+/*!
+ * \brief broadcast an std::vector<DType> to all others from root
+ * \param sendrecv_data the pointer to send or recive vector,
+ *        for receiver, the vector does not need to be pre-allocated
+ * \param root the root of process
+ * \tparam DType the data type stored in vector, have to be simple data type
+ *               that can be directly send by sending the sizeof(DType) data
+ */
+template<typename DType>
+inline void Broadcast(std::vector<DType> *sendrecv_data, int root);
+/*!
+ * \brief broadcast an std::string to all others from root
+ * \param sendrecv_data the pointer to send or recive vector,
+ *        for receiver, the vector does not need to be pre-allocated
+ * \param root the root of process
+ */
+inline void Broadcast(std::string *sendrecv_data, int root);
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf 
  *        this function is NOT thread-safe

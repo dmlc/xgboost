@@ -91,16 +91,32 @@ inline int GetWorldSize(void) {
 inline std::string GetProcessorName(void) {
   return engine::GetEngine()->GetHost();
 }
-// broadcast an std::string to all others from root
-inline void Bcast(std::string *sendrecv_data, int root) {
-  engine::IEngine *e = engine::GetEngine();
-  unsigned len = static_cast<unsigned>(sendrecv_data->length());
-  e->Broadcast(&len, sizeof(len), root);
-  sendrecv_data->resize(len);
-  if (len != 0) {
-    e->Broadcast(&(*sendrecv_data)[0], len, root);  
+// broadcast data to all other nodes from root
+inline void Broadcast(void *sendrecv_data, size_t size, int root) {
+  engine::GetEngine()->Broadcast(sendrecv_data, size, root);
+}
+template<typename DType>
+inline void Broadcast(std::vector<DType> *sendrecv_data, int root) {
+  size_t size = sendrecv_data->size();
+  Broadcast(&size, sizeof(size), root);
+  if (sendrecv_data->size() != size) {
+    sendrecv_data->resize(size);
+  }
+  if (size != 0) {
+    Broadcast(&sendrecv_data[0], size * sizeof(DType), root);
   }
 }
+inline void Broadcast(std::string *sendrecv_data, int root) {
+  size_t size = sendrecv_data->length();
+  Broadcast(&size, sizeof(size), root);
+  if (sendrecv_data->length() != size) {
+    sendrecv_data->resize(size);
+  }
+  if (size != 0) {
+    Broadcast(&sendrecv_data[0], size * sizeof(char), root);
+  }
+}
+
 // perform inplace Allreduce
 template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count) {
