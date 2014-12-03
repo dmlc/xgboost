@@ -70,7 +70,7 @@ class AllreduceRobust : public AllreduceBase {
    *    this function is only used for test purpose
    */
   virtual void InitAfterException(void) {
-    //this->CheckAndRecover(kGetExcept);
+    this->CheckAndRecover(kGetExcept);
   }
 
  private:
@@ -234,12 +234,7 @@ class AllreduceRobust : public AllreduceBase {
    *         when kSockError is returned, it simply means there are bad sockets in the links,
    *         and some link recovery proceduer is needed
    */
-  ReturnType TryResetLinks(void);  
-  /*!
-   * \brief try to reconnect the broken links
-   * \return this function can kSuccess or kSockError
-   */
-  ReturnType TryReConnectLinks(void);
+  ReturnType TryResetLinks(void);
   /*!
    * \brief if err_type indicates an error
    *         recover links according to the error type reported

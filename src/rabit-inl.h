@@ -1,7 +1,7 @@
 /*!
  * \file rabit-inl.h
  * \brief implementation of inline template function for rabit interface
- *   
+ *
  * \author Tianqi Chen
  */
 #ifndef RABIT_RABIT_INL_H

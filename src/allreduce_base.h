@@ -227,8 +227,9 @@ class AllreduceBase : public IEngine {
   /*!
    * \brief connect to the master to fix the the missing links
    *   this function is also used when the engine start up
+   * \param cmd possible command to sent to master
    */
-  void ReConnectLinks(void);
+  void ReConnectLinks(const char *cmd = "start");
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf, this function can fail, and will return the cause of failure
    *

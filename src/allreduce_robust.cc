@@ -282,14 +282,6 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
   return kSuccess;
 }
 /*!
- * \brief try to reconnect the broken links
- * \return this function can kSuccess or kSockError
- */
-AllreduceRobust::ReturnType AllreduceRobust::TryReConnectLinks(void) {
-  utils::Error("TryReConnectLinks: not implemented");
-  return kSuccess;
-}
-/*!
  * \brief if err_type indicates an error
  *         recover links according to the error type reported
  *        if there is no error, return true
@@ -298,12 +290,20 @@ AllreduceRobust::ReturnType AllreduceRobust::TryReConnectLinks(void) {
  */
 bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
   if (err_type == kSuccess) return true;
+  // simple way, shutdown all links
+  for (size_t i = 0; i < links.size(); ++i) {
+    if (!links[i].sock.BadSocket()) links[i].sock.Close();
+  }
+  ReConnectLinks("recover");  
+  return false;
+  // this was old way
   while(err_type != kSuccess) {
     switch(err_type) {
       case kGetExcept: err_type = TryResetLinks(); break;
       case kSockError: {
         TryResetLinks();
-        err_type = TryReConnectLinks();
+        ReConnectLinks();
+        err_type = kSuccess;
         break;
       }
       default: utils::Assert(false, "RecoverLinks: cannot reach here");

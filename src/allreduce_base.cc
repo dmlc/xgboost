@@ -88,7 +88,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
  * \brief connect to the master to fix the the missing links
  *   this function is also used when the engine start up
  */
-void AllreduceBase::ReConnectLinks(void) {
+void AllreduceBase::ReConnectLinks(const char *cmd) {
   // single node mode
   if (master_uri == "NULL") {
     rank = 0; return;
@@ -105,7 +105,7 @@ void AllreduceBase::ReConnectLinks(void) {
   utils::Check(magic == kMagic, "sync::Invalid master message, init failure");
   utils::Assert(master.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 3");
   master.SendStr(job_id);
-  master.SendStr(std::string("start"));
+  master.SendStr(std::string(cmd));
   {// get new ranks
     int newrank;
     utils::Assert(master.RecvAll(&newrank, sizeof(newrank)) == sizeof(newrank),

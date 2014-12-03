@@ -10,6 +10,7 @@ import os
 import socket
 import struct
 import subprocess
+import random
 from threading import Thread
 
 """
@@ -136,6 +137,7 @@ class Master:
         wait_conn = {}
         # set of nodes that is pending for getting up
         todo_nodes = range(nslave)
+        random.shuffle(todo_nodes)
         # maps job id to rank
         job_map = {}
         # list of workers that is pending to be assigned rank
@@ -149,7 +151,10 @@ class Master:
                 assert s.rank not in wait_conn
                 shutdown[s.rank] = s
                 continue
-            assert s.cmd == 'start'
+            assert s.cmd == 'start' or s.cmd == 'recover'
+            if s.cmd == 'recover':
+                assert s.rank >= 0
+                print 'Recieve recover signal from %d' % s.rank
             rank = s.decide_rank(job_map)
             if rank == -1:
                 assert len(todo_nodes) != 0
