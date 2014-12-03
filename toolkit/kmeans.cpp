@@ -14,20 +14,25 @@ using namespace rabit;
 
 class Model : public rabit::utils::ISerializable {
  public:
-  std::vector<float> data;
+  std::vector<float> centroids;
   // load from stream
   virtual void Load(rabit::utils::IStream &fi) {
-    fi.Read(&data);
+    fi.Read(&centroids);
   }
   /*! \brief save the model to the stream */
   virtual void Save(rabit::utils::IStream &fo) const {
-    fo.Write(data);
+    fo.Write(centroids);
   }
   virtual void InitModel(int k, int d) {
-    data.resize(k * d + k, 0.0f);
+    centroids.resize(k * d, 0.0f);
   }
   
 };
+
+/*!\brief computes a random number modulo the value */
+inline int Random(int value) {
+  return rand() % value;
+}
 
 inline void KMeans(int ntrial, int iter, int k, int d, std::vector<std::vector<float> >& data, Model *model) {
   int rank = rabit::GetRank();
@@ -35,59 +40,43 @@ inline void KMeans(int ntrial, int iter, int k, int d, std::vector<std::vector<f
 
   utils::LogPrintf("[%d] Running KMeans iter=%d\n", rank, iter);
 
-  // compute centroids
-  std::vector<std::vector<float> > centroids;
-  centroids.resize(k, std::vector<float>(d));
-  for (int i = 0; i < k; ++i) {
-    std::vector<float> centroid(d);
-    int start = i * d + i;
-    int count = model->data[start + d];
-    //utils::LogPrintf("[%d] count=%d\n", rank, count);
-    for (int j = start, l = 0; l < d; ++j, ++l) {
-      centroid[l] = model->data[j] / count;
-    }
-    centroids[i] = centroid;
-  }
-
-  // compute assignments
-  int size = data.size();
-  std::vector<int> assignments(size, -1);
-  for (int i = 0; i < size; ++i) {
+  // compute ndata based on assignments
+  std::vector<float> ndata(k * d + k, 0.0f);
+  for (int i = 0; i < data.size(); ++i) {
     float max_sim = FLT_MIN;
+    int cindex = -1;
     for (int j = 0; j < k; ++j) {
-      float sim = utils::DotProduct(data[i], centroids[j]);
+      float sim = 0.0f;
+      int cstart = j * d;
+      for (int y = 0, z = cstart; y < d; ++y, ++z) {
+        sim += model->centroids[z] * data[i][y];
+      }
       if (sim > max_sim) {
-        assignments[i] = j;
+        cindex = j;
         max_sim = sim;
       }
     }
-  }
-
-  // add values and increment counts
-  std::vector<float> ndata(k * d + k, 0.0f);
-  for (int i=0; i < size; i++) {
-    int index = assignments[i];
-    int start = index * d + index;
+    int start = cindex * d + cindex;
     int j = start;
     for (int l = 0; l < d; ++j, ++l) {
       ndata[j] += data[i][l];
     }
+    // update count
     ndata[j] += 1;
   }
 
-  // reduce
+  // do Allreduce
   rabit::Allreduce<op::Sum>(&ndata[0], ndata.size());
-  model->data = ndata;
 
-  /*
-  if (rank == 0) {
-    int counts = 0;
-    for (int i = 0; i < k; ++i) {
-      counts += model->data[i * d + i + d];
+  for (int i = 0; i < k; ++i) {
+    int nstart = i * d + i;
+    int cstart = i * d;
+    int cend= cstart + d;
+    int count = ndata[nstart + d];
+    for (int j = nstart, l = cstart; l < cend; ++j, ++l) {
+      model->centroids[l] = ndata[j] / count;
     }
-    utils::LogPrintf("[%d] counts=%d\n", rank, counts);
   }
-  */
 }
 
 inline void ReadData(char* data_dir, int d, std::vector<std::vector<float> >* data) {
@@ -118,12 +107,11 @@ inline void InitCentroids(int k, int d, std::vector<std::vector<float> >& data, 
   candidate_centroids.resize(k, std::vector<float>(d));
   int elements = data.size();
   for (size_t i = 0; i < k; ++i) {
-    int index = rand() % elements;
+    int index = Random(elements);
     candidate_centroids[i] = data[index];
   }
   for (size_t i = 0; i < k; ++i) {
-    int proc = rand() % nproc;
-    //utils::LogPrintf("[%d] proc=%d\n", rank, proc);
+    int proc = Random(nproc);
     std::vector<float> tmp(d, 0.0f);
     if (proc == rank) {
       tmp = candidate_centroids[i];
@@ -131,12 +119,11 @@ inline void InitCentroids(int k, int d, std::vector<std::vector<float> >& data, 
     } else {
       rabit::Broadcast(&tmp, proc);
     }
-    int start = i * d + i;
+    int start = i * d;
     int j = start;
     for (int l = 0; l < d; ++j, ++l) {
-      model->data[j] = tmp[l];
+      model->centroids[j] = tmp[l];
     }
-    model->data[j] = 1;
   }
 }
 
