@@ -5,4 +5,4 @@ then
     exit -1
 fi
 
-../submit_job_tcp.py $1 kmeans "${@:2}"
+../submit_job.py $1 kmeans "${@:2}"

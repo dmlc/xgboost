@@ -8,6 +8,7 @@
 #include <sstream>
 #include <fstream>
 #include <ctime>
+#include <cfloat>
 
 using namespace rabit;
 
@@ -28,30 +29,65 @@ class Model : public rabit::utils::ISerializable {
   
 };
 
-inline void KMeans(int ntrial, int iter, int k, int d, std::vector<float>& data, Model *model) {
+inline void KMeans(int ntrial, int iter, int k, int d, std::vector<std::vector<float> >& data, Model *model) {
   int rank = rabit::GetRank();
   int nproc = rabit::GetWorldSize();
 
-/*  const int z = iter + 111;
+  utils::LogPrintf("[%d] Running KMeans iter=%d\n", rank, iter);
 
-  std::vector<float> ndata(model->data.size());
-  for (size_t i = 0; i < ndata.size(); ++i) {
-    ndata[i] = (i * (rank+1)) % z  + model->data[i];
-  }
-  rabit::Allreduce<op::Max>(&ndata[0], ndata.size());  
-  if (ntrial == iter && rank == 3) {
-    //throw MockException();
-  }
-  for (size_t i = 0; i < ndata.size(); ++i) {
-    float rmax = (i * 1) % z + model->data[i];
-    for (int r = 0; r < nproc; ++r) {
-      rmax = std::max(rmax, (float)((i * (r+1)) % z) + model->data[i]);
+  // compute centroids
+  std::vector<std::vector<float> > centroids;
+  centroids.resize(k, std::vector<float>(d));
+  for (int i = 0; i < k; ++i) {
+    std::vector<float> centroid(d);
+    int start = i * d + i;
+    int count = model->data[start + d];
+    //utils::LogPrintf("[%d] count=%d\n", rank, count);
+    for (int j = start, l = 0; l < d; ++j, ++l) {
+      centroid[l] = model->data[j] / count;
     }
-    utils::Check(rmax == ndata[i], "[%d] TestMax check failure\n", rank);
+    centroids[i] = centroid;
   }
+
+  // compute assignments
+  int size = data.size();
+  std::vector<int> assignments(size, -1);
+  for (int i = 0; i < size; ++i) {
+    float max_sim = FLT_MIN;
+    for (int j = 0; j < k; ++j) {
+      float sim = utils::DotProduct(data[i], centroids[j]);
+      if (sim > max_sim) {
+        assignments[i] = j;
+        max_sim = sim;
+      }
+    }
+  }
+
+  // add values and increment counts
+  std::vector<float> ndata(k * d + k, 0.0f);
+  for (int i=0; i < size; i++) {
+    int index = assignments[i];
+    int start = index * d + index;
+    int j = start;
+    for (int l = 0; l < d; ++j, ++l) {
+      ndata[j] += data[i][l];
+    }
+    ndata[j] += 1;
+  }
+
+  // reduce
+  rabit::Allreduce<op::Sum>(&ndata[0], ndata.size());
   model->data = ndata;
 
-*/
+  /*
+  if (rank == 0) {
+    int counts = 0;
+    for (int i = 0; i < k; ++i) {
+      counts += model->data[i * d + i + d];
+    }
+    utils::LogPrintf("[%d] counts=%d\n", rank, counts);
+  }
+  */
 }
 
 inline void ReadData(char* data_dir, int d, std::vector<std::vector<float> >* data) {
@@ -88,30 +124,19 @@ inline void InitCentroids(int k, int d, std::vector<std::vector<float> >& data, 
   for (size_t i = 0; i < k; ++i) {
     int proc = rand() % nproc;
     //utils::LogPrintf("[%d] proc=%d\n", rank, proc);
-    std::string tmp_str;
+    std::vector<float> tmp(d, 0.0f);
     if (proc == rank) {
-      std::ostringstream tmp;
-      for (size_t j = 0; j < d ; ++j) {
-        tmp << candidate_centroids[i][j];
-        if (j != d-1) tmp << " ";
-      }
-      tmp_str = tmp.str();
-      //utils::LogPrintf("[%d] centroid %s\n", rank, tmp_str.c_str());
-      rabit::Bcast(&tmp_str, proc);
+      tmp = candidate_centroids[i];
+      rabit::Broadcast(&tmp, proc);
     } else {
-      rabit::Bcast(&tmp_str, proc);
+      rabit::Broadcast(&tmp, proc);
     }
-    std::stringstream ss;
-    ss.str(tmp_str);
-    float val = 0.0f;
-    int j = i * d;
-    while(ss >> val) {
-      model->data[j++] = val;
-      //utils::LogPrintf("[%d] model[%d]=%.5f\n", rank, j-1, model->data[j-1]);
+    int start = i * d + i;
+    int j = start;
+    for (int l = 0; l < d; ++j, ++l) {
+      model->data[j] = tmp[l];
     }
-    //count
-    model->data[j] = 0;
-    //utils::LogPrintf("[%d] model[375]=%.5f\n", rank, model->data[375]);
+    model->data[j] = 1;
   }
 }
 
@@ -143,7 +168,8 @@ int main(int argc, char *argv[]) {
     utils::LogPrintf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
   }
   for (int r = iter; r < max_itr; ++r) { 
-    //KMeans(ntrial, r, k, d, data, &model);
+    KMeans(ntrial, r, k, d, data, &model);
+    rabit::CheckPoint(model);
   }
   rabit::Finalize();
   return 0;
