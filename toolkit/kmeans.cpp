@@ -54,7 +54,7 @@ inline void KMeans(int ntrial, int iter, int k, int d, std::vector<float>& data,
 */
 }
 
-inline void ReadData(char* data_dir, int d, std::vector<float>* data) {
+inline void ReadData(char* data_dir, int d, std::vector<std::vector<float> >* data) {
   int rank = rabit::GetRank();
   std::stringstream ss;
   ss << data_dir << rank;
@@ -63,37 +63,37 @@ inline void ReadData(char* data_dir, int d, std::vector<float>* data) {
   utils::Check(ifs.good(), "[%d] File %s does not exist\n", rank, file);
   float v = 0.0f;
   while(!ifs.eof()) {
-    ifs >> v;
-    data->push_back(v);
+    int i=0;
+    std::vector<float> vec;
+    while (i < d) {
+      ifs >> v;
+      vec.push_back(v);
+      i++;
+    }
+    utils::Check(vec.size() % d == 0, "[%d] Invalid data size. %d instead of %d\n", rank, vec.size(), d);
+    data->push_back(vec);
   }
-  utils::Check(data->size() % d == 0, "[%d] Invalid data size. %d instead of %d\n", rank, data->size(), d);
 }
 
-inline void InitCentroids(int k, int d, std::vector<float>& data, Model* model) {
+inline void InitCentroids(int k, int d, std::vector<std::vector<float> >& data, Model* model) {
   int rank = rabit::GetRank();
   int nproc = rabit::GetWorldSize();
-  std::vector<float> candidate_centroids(model->data.size() - k);
-  int elements = data.size() / d;
+  std::vector<std::vector<float> > candidate_centroids;
+  candidate_centroids.resize(k, std::vector<float>(d));
+  int elements = data.size();
   for (size_t i = 0; i < k; ++i) {
     int index = rand() % elements;
-    int start = index * d;
-    int end = start + d;
-    int cstart = i * d;
-    //utils::LogPrintf("[%d] index=%d,start=%d\n", rank, index, start);
-    for (size_t j = start, l = cstart; j < end; ++j, ++l) {
-      candidate_centroids[l] = data[j];
-    }
+    candidate_centroids[i] = data[index];
   }
   for (size_t i = 0; i < k; ++i) {
     int proc = rand() % nproc;
     //utils::LogPrintf("[%d] proc=%d\n", rank, proc);
     std::string tmp_str;
-    int start = i * d;
     if (proc == rank) {
       std::ostringstream tmp;
-      for (size_t j = start, l = 0; l < d ; ++j, ++l) {
-        tmp << candidate_centroids[j];
-        if (l != d-1) tmp << " ";
+      for (size_t j = 0; j < d ; ++j) {
+        tmp << candidate_centroids[i][j];
+        if (j != d-1) tmp << " ";
       }
       tmp_str = tmp.str();
       //utils::LogPrintf("[%d] centroid %s\n", rank, tmp_str.c_str());
@@ -101,16 +101,17 @@ inline void InitCentroids(int k, int d, std::vector<float>& data, Model* model) 
     } else {
       rabit::Bcast(&tmp_str, proc);
     }
-    std::stringstream tmp;
-    tmp.str(tmp_str);
+    std::stringstream ss;
+    ss.str(tmp_str);
     float val = 0.0f;
-    int j = start;
-    while(tmp >> val) {
+    int j = i * d;
+    while(ss >> val) {
       model->data[j++] = val;
       //utils::LogPrintf("[%d] model[%d]=%.5f\n", rank, j-1, model->data[j-1]);
     }
     //count
     model->data[j] = 0;
+    //utils::LogPrintf("[%d] model[375]=%.5f\n", rank, model->data[375]);
   }
 }
 
@@ -132,7 +133,7 @@ int main(int argc, char *argv[]) {
   int ntrial = 0;
   Model model;
 
-  std::vector<float> data;
+  std::vector<std::vector<float> > data;
   int iter = rabit::LoadCheckPoint(&model);
   if (iter == 0) {
     ReadData(argv[4], d, &data);
@@ -142,7 +143,7 @@ int main(int argc, char *argv[]) {
     utils::LogPrintf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
   }
   for (int r = iter; r < max_itr; ++r) { 
-    KMeans(ntrial, r, k, d, data, &model);
+    //KMeans(ntrial, r, k, d, data, &model);
   }
   rabit::Finalize();
   return 0;
