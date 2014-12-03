@@ -43,7 +43,8 @@ inline int GetWorldSize(void);
 /*! \brief get name of processor */
 inline std::string GetProcessorName(void);
 /*!
- * \brief broadcast an std::string to all others from root
+ * \brief broadcast an memory region to all others from root
+ *     Example: int a = 1; Broadcast(&a, sizeof(a), root); 
  * \param sendrecv_data the pointer to send or recive buffer,
  * \param size the size of the data
  * \param root the root of process
