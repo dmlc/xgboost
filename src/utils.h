@@ -161,6 +161,16 @@ inline void Error(const char *fmt, ...) {
 }
 #endif
 
+/*!\brief computes the dot product between two dense vectors */
+inline float DotProduct(const std::vector<float>& v1, const std::vector<float>& v2) {
+  utils::Assert(v1.size() == v2.size(), "Arrays have different sizes");
+  float result = 0.0f;
+  for (int i = 0; i < v1.size(); ++i) {
+    result += v1[i] * v2[i];
+  }
+  return result;
+}
+
 /*! \brief replace fopen, report error when the file open fails */
 inline std::FILE *FopenCheck(const char *fname, const char *flag) {
   std::FILE *fp = fopen64(fname, flag);
