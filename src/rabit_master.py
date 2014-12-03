@@ -58,7 +58,7 @@ class SlaveEntry:
         if self.rank >= 0:
             return self.rank
         if self.jobid != 'NULL' and self.jobid in job_map:
-            job_map[self.jobid]
+            return job_map[self.jobid]
         return -1
 
     def get_neighbor(self, rank, nslave):
