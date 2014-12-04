@@ -81,8 +81,8 @@ inline size_t GetCluster(const Matrix &centroids,
 }
                   
 int main(int argc, char *argv[]) {
-  if (argc < 4) {
-    printf("Usage: <data_dir> num_cluster max_iter\n");
+  if (argc < 5) {
+    printf("Usage: <data_dir> num_cluster max_iter <out_model>\n");
     return 0;
   }
   srand(0);
@@ -131,6 +131,11 @@ int main(int argc, char *argv[]) {
     model.Normalize();
     rabit::CheckPoint(model);
   }
+  // output the model file to somewhere
+  if (rabit::GetRank() == 0) {
+    model.centroids.Print(argv[4]);
+  }
   rabit::Finalize();
   return 0;
 }
+

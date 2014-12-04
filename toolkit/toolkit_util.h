@@ -77,6 +77,25 @@ struct Matrix {
   inline const float *operator[](size_t i) const {
     return &data[0] + i * ncol;
   }
+  inline void Print(const char *fname) {
+    FILE *fo;
+    if (!strcmp(fname, "stdout")) {
+      fo = stdout;
+    } else {
+      fo = utils::FopenCheck(fname, "r");
+    }
+    fprintf(fo, "%lu %lu\n", nrow, ncol);
+    for (size_t i = 0; i < data.size(); ++i) {
+      fprintf(fo, "%g", data[i]);
+      if ((i+1) % ncol == 0) {
+        fprintf(fo, "\n");
+      } else {
+        fprintf(fo, " ");
+      }
+    }
+    // close the filed
+    if (fo != stdout) fclose(fo);
+  }
   // number of data
   size_t nrow, ncol;
   std::vector<float> data;
