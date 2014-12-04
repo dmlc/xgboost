@@ -82,7 +82,7 @@ struct Matrix {
     if (!strcmp(fname, "stdout")) {
       fo = stdout;
     } else {
-      fo = utils::FopenCheck(fname, "r");
+      fo = utils::FopenCheck(fname, "w");
     }
     fprintf(fo, "%lu %lu\n", nrow, ncol);
     for (size_t i = 0; i < data.size(); ++i) {
