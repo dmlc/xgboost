@@ -4,17 +4,6 @@ rabit is a light weight library that provides a fault tolerant interface of Allr
 
 Contributors: https://github.com/tqchen/rabit/graphs/contributors
 
-Design Note
-====
-* Rabit is designed for algorithms that replicate same global model across nodes, while each node operating on local parition of data.
-* The global statistics collection is done by using Allreduce
-
-Design Goal
-====
-* rabit should run fast
-* rabit is light weight
-* rabit dig safe burrows to avoid disasters
-
 Features
 ====
 * Portable library
@@ -27,3 +16,15 @@ Features
 * MPI compatible
   - Codes using rabit interface naturally compiles with existing MPI compiler
   - User can fall back to use MPI Allreduce if they like with no code modification
+
+Design Note
+====
+* Rabit is designed for algorithms that replicate same global model across nodes, while each node operating on local parition of data.
+* The global statistics collection is done by using Allreduce
+
+Design Goal
+====
+* rabit should run fast
+* rabit is light weight
+* rabit dig safe burrows to avoid disasters
+
