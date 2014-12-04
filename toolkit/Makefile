@@ -1,7 +1,7 @@
 export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
-export LDFLAGS= -pthread -lm 
+export LDFLAGS= -pthread -lm -L../lib
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../src
 
 # specify tensor path
@@ -12,31 +12,27 @@ MPIOBJ = engine_mpi.o
 
 OBJ = $(RABIT_OBJ) kmeans.o
 MPIBIN = kmeans.mpi
-.PHONY: clean all
+.PHONY: clean all lib
 
-all: $(BIN) $(MPIBIN)
+all: $(BIN) $(MPIBIN) 
 
-allreduce_base.o: ../src/allreduce_base.cc ../src/*.h
-engine.o: ../src/engine.cc ../src/*.h
-allreduce_robust.o: ../src/allreduce_robust.cc ../src/*.h
-engine_mpi.o: ../src/engine_mpi.cc
+lib:
+	cd ..;make;cd -
+
 kmeans.o: kmeans.cpp ../src/*.h
 
 # we can link against MPI version to get use MPI
-kmeans: kmeans.o  $(RABIT_OBJ)
-kmeans.mpi: kmeans.o $(MPIOBJ)
- 
+kmeans: kmeans.o lib
+kmeans.mpi: kmeans.o lib
+
 $(BIN) : 
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^)
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) $(LDFLAGS) -lrabit
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
 $(MPIBIN) : 
-	$(MPICXX) $(CFLAGS)  $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^)
-
-$(MPIOBJ) : 
-	$(MPICXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
+	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^)  $(LDFLAGS) -lrabit_mpi 
 
 clean:
 	$(RM) $(OBJ) $(BIN) $(MPIBIN) *~ ../src/*~

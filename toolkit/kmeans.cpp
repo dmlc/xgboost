@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
   Model model; 
   int iter = rabit::LoadCheckPoint(&model);
   if (iter == 0) {
-    rabit::Allreduce<op::Max>(&data.feat_dim, sizeof(data.feat_dim));
+    rabit::Allreduce<op::Max>(&data.feat_dim, 1);
     model.InitModel(num_cluster, data.feat_dim);
     InitCentroids(data, &model.centroids);
     model.Normalize();
@@ -121,7 +121,9 @@ int main(int argc, char *argv[]) {
       }
       temp[k][num_feat] += 1.0f;
     }
+    // call allreduce
     rabit::Allreduce<op::Sum>(&temp.data[0], temp.data.size());
+    // set number
     for (int k = 0; k < num_cluster; ++k) {
       float cnt = temp[k][num_feat];
       for (unsigned i = 0; i < num_feat; ++i) {
