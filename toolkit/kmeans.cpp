@@ -73,13 +73,13 @@ inline size_t GetCluster(const Matrix &centroids,
   double dmin = Cos(centroids[0], v);
   for (size_t k = 1; k < centroids.nrow; ++k) {
     double dist = Cos(centroids[k], v);
-    if (dist < dmin) {
+    if (dist > dmin) {
       dmin = dist; imin = k;
-    }    
+    }
   }
   return imin;
 }
-                  
+             
 int main(int argc, char *argv[]) {
   if (argc < 5) {
     printf("Usage: <data_dir> num_cluster max_iter <out_model>\n");
@@ -116,9 +116,11 @@ int main(int argc, char *argv[]) {
     for (size_t i = 0; i < ndata; ++i) {
       SparseMat::Vector v = data[i];
       size_t k = GetCluster(model.centroids, v);
+      // temp[k] += v
       for (size_t j = 0; j < v.length; ++j) {
         temp[k][v[j].findex] += v[j].fvalue;
       }
+      // use last column to record counts
       temp[k][num_feat] += 1.0f;
     }
     // call allreduce
@@ -126,6 +128,7 @@ int main(int argc, char *argv[]) {
     // set number
     for (int k = 0; k < num_cluster; ++k) {
       float cnt = temp[k][num_feat];
+      utils::Check(cnt != 0.0f, "get zero sized cluster");
       for (unsigned i = 0; i < num_feat; ++i) {
         model.centroids[k][i] = temp[k][i] / cnt;
       }
