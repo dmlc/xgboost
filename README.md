@@ -8,7 +8,6 @@ Design Note
 ====
 * Rabit is designed for algorithms that replicate same global model across nodes, while each node operating on local parition of data.
 * The global statistics collection is done by using Allreduce
-* Currently, Rabit is not good at problems where model is distributed across nodes, other abstractions might suits the purpose (for example [parameter server](https://github.com/mli/parameter_server))
 
 Design Goal
 ====
@@ -28,8 +27,3 @@ Features
 * MPI compatible
   - Codes using rabit interface naturally compiles with existing MPI compiler
   - User can fall back to use MPI Allreduce if they like with no code modification
-
-Persistence of Program
-====
-Many complicated Machine learning algorithm involves things like temporal memory allocation, result caching. 
-It is good to have a program that persist over iterations and keeps the resources instead of re-allocate and re-compute the caching every time. Rabit allows the process to persist over all iterations.
