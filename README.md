@@ -10,16 +10,21 @@ Design Note
 * The global statistics collection is done by using Allreduce
 * Currently, Rabit is not good at problems where model is distributed across nodes, other abstractions might suits the purpose (for example [parameter server](https://github.com/mli/parameter_server))
 
+Design Goal
+====
+* rabit should run fast
+* rabit is light weight
+* rabit dig safe burrows to avoid disasters
+
 Features
 ====
 * Portable library
   - Rabit is a library instead of framework, program only need to link the library to run, without restricting to a single framework.
 * Flexibility in programming
-  - Many frameworks only allow user to define limited functions(map,reduce), and the framework call these operation
-  - When program with rabit, programs call rabit functions, Allreduce, CheckPoint in any sequence
+  - Programs call rabit functions, Allreduce, CheckPoint in any sequence, as opposed to defines limited functions and being called.
   - Program persist over all the iterations, unless it fails and recover
 * Fault tolerance 
-  - Rabit program can recover model and results of syncrhonization functions calls(Allreduce and Broadcast)
+  - Rabit program can recover model and results of syncrhonization functions calls
 * MPI compatible
   - Codes using rabit interface naturally compiles with existing MPI compiler
   - User can fall back to use MPI Allreduce if they like with no code modification
@@ -28,9 +33,4 @@ Persistence of Program
 ====
 Many complicated Machine learning algorithm involves things like temporal memory allocation, result caching. It is good to have a persist program that runs over iterations and keeps the resources instead of re-allocate and re-compute the caching every time. Rabit allows the process to persist over all iterations.
 
-Design Goal
-====
-* rabit should run fast
-* rabit is light weight
-* rabit dig safe burrows to avoid disasters
 
