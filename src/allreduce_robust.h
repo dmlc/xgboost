@@ -49,21 +49,46 @@ class AllreduceRobust : public AllreduceBase {
   virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root);
   /*!
    * \brief load latest check point
-   * \param p_model pointer to the model
+   * \param global_model pointer to the globally shared model/state
+   *   when calling this function, the caller need to gauranttees that global_model
+   *   is the same in all nodes
+   * \param local_model pointer to local model, that is specific to current node/rank
+   *   this can be NULL when no local model is needed
+   *
    * \return the version number of check point loaded
    *     if returned version == 0, this means no model has been CheckPointed
    *     the p_model is not touched, user should do necessary initialization by themselves
+   *   
+   *   Common usage example:
+   *      int iter = rabit::LoadCheckPoint(&model);
+   *      if (iter == 0) model.InitParameters();
+   *      for (i = iter; i < max_iter; ++i) {
+   *        do many things, include allreduce
+   *        rabit::CheckPoint(model);
+   *      } 
+   *
    * \sa CheckPoint, VersionNumber
    */
-  virtual int LoadCheckPoint(utils::ISerializable *p_model);
+  virtual int LoadCheckPoint(utils::ISerializable *global_model,
+                             utils::ISerializable *local_model = NULL);
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
    *  every time we call check point, there is a version number which will increase by one
    * 
-   * \param p_model pointer to the model
+   * \param global_model pointer to the globally shared model/state
+   *   when calling this function, the caller need to gauranttees that global_model
+   *   is the same in all nodes
+   * \param local_model pointer to local model, that is specific to current node/rank
+   *   this can be NULL when no local state is needed
+   *
+   * NOTE: local_model requires explicit replication of the model for fault-tolerance, which will
+   *       bring replication cost in CheckPoint function. global_model do not need explicit replication.
+   *       So only CheckPoint with global_model if possible
+   *
    * \sa LoadCheckPoint, VersionNumber
    */
-  virtual void CheckPoint(const utils::ISerializable &model);
+  virtual void CheckPoint(const utils::ISerializable *global_model,
+                          const utils::ISerializable *local_model = NULL);
   /*!
    * \brief explicitly re-init everything before calling LoadCheckPoint
    *    call this function when IEngine throw an exception out,
@@ -259,7 +284,7 @@ class AllreduceRobust : public AllreduceBase {
  *           result by recovering procedure, the action is complete, no further action is needed
    *    - false means this is the lastest action that has not yet been executed, need to execute the action
    */
-  bool RecoverExec(void *buf, size_t size, int flag, int seqno = ActionSummary::kMaxSeq);  
+  bool RecoverExec(void *buf, size_t size, int flag, int seqno = ActionSummary::kMaxSeq);
   /*!
    * \brief try to load check point
    *        
@@ -326,6 +351,30 @@ class AllreduceRobust : public AllreduceBase {
                             int recv_link,
                             const std::vector<bool> &req_in);
   /*!
+   * \brief perform a ring passing to receive data from prev link, and sent data to next link
+   *  this allows data to stream over a ring structure
+   *  sendrecvbuf[0:read_ptr] are already provided by current node
+   *  current node will recv sendrecvbuf[read_ptr:read_end] from prev link
+   *  current node will send sendrecvbuf[write_ptr:write_end] to next link
+   *  write_ptr will wait till the data is readed before sending the data
+   *  this function requires read_end >= write_end
+   *
+   * \param sendrecvbuf_ the place to hold the incoming and outgoing data
+   * \param read_ptr the initial read pointer
+   * \param read_end the ending position to read
+   * \param write_ptr the initial write pointer
+   * \param write_end the ending position to write
+   * \param prev pointer to link to previous position in ring
+   * \param prev pointer to link of next position in ring
+   */
+  ReturnType RingPassing(void *senrecvbuf_,
+                         size_t read_ptr,
+                         size_t read_end,
+                         size_t write_ptr,
+                         size_t write_end,
+                         LinkRecord *prev_link,
+                         LinkRecord *next_link);
+  /*!
    * \brief run message passing algorithm on the allreduce tree 
    *        the result is edge message stored in p_edge_in and p_edge_out
    * \param node_value the value associated with current node
@@ -358,10 +407,21 @@ class AllreduceRobust : public AllreduceBase {
   int seq_counter;
   // the round of result buffer, used to mode the result
   int result_buffer_round;
-  // result buffer
+  // result buffer of all reduce
   ResultBuffer resbuf;
-  // last check point model
-  std::string checked_model; 
+  // last check point global model
+  std::string mglobal_model; 
+  // number of replica for local state/model
+  int num_local_replica;
+  // pointer to memory position in the local model
+  // local model is stored in CSR format(like a sparse matrices)
+  // local_model[rptr[0]:rptr[1]] stores the model of current node
+  // local_model[rptr[k]:rptr[k+1]] stores the model of node in previous k hops in the ring
+  std::vector<size_t> local_rptr;
+  // storage for local model replicas
+  std::string mlocal_model;
+  // temporal storage 
+  std::string tmp_local_model;
 };
 }  // namespace engine
 }  // namespace rabit

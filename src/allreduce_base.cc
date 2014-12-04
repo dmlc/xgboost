@@ -348,7 +348,7 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
         }
         if (len != -1) {
           size_down_in += static_cast<size_t>(len);
-            utils::Assert(size_down_in <= size_up_out, "Allreduce: boundary error");
+          utils::Assert(size_down_in <= size_up_out, "Allreduce: boundary error");
         } else {
           if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
         }

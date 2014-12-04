@@ -129,7 +129,7 @@ inline int LoadCheckPoint(utils::ISerializable *p_model) {
 }
 // checkpoint the model, meaning we finished a stage of execution
 inline void CheckPoint(const utils::ISerializable &model) {
-  engine::GetEngine()->CheckPoint(model);
+  engine::GetEngine()->CheckPoint(&model);
 }
 // return the version number of currently stored model
 inline int VersionNumber(void) {

@@ -32,10 +32,12 @@ class MPIEngine : public IEngine {
   virtual void InitAfterException(void) {
     utils::Error("MPI is not fault tolerant");
   }
-  virtual int LoadCheckPoint(utils::ISerializable *p_model) {
+  virtual int LoadCheckPoint(utils::ISerializable *global_model,
+                             utils::ISerializable *local_model = NULL) {
     return 0;
   }
-  virtual void CheckPoint(const utils::ISerializable &model) {
+  virtual void CheckPoint(const utils::ISerializable *global_model,
+                          const utils::ISerializable *local_model = NULL) {
     version_number += 1;
   }
   virtual int VersionNumber(void) const {

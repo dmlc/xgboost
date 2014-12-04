@@ -60,7 +60,12 @@ class IEngine {
   virtual void InitAfterException(void) = 0;
   /*!
    * \brief load latest check point
-   * \param p_model pointer to the model
+   * \param global_model pointer to the globally shared model/state
+   *   when calling this function, the caller need to gauranttees that global_model
+   *   is the same in all nodes
+   * \param local_model pointer to local model, that is specific to current node/rank
+   *   this can be NULL when no local model is needed
+   *
    * \return the version number of check point loaded
    *     if returned version == 0, this means no model has been CheckPointed
    *     the p_model is not touched, user should do necessary initialization by themselves
@@ -75,15 +80,26 @@ class IEngine {
    *
    * \sa CheckPoint, VersionNumber
    */
-  virtual int LoadCheckPoint(utils::ISerializable *p_model) = 0;
+  virtual int LoadCheckPoint(utils::ISerializable *global_model,
+                             utils::ISerializable *local_model = NULL) = 0;
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
    *  every time we call check point, there is a version number which will increase by one
    * 
-   * \param p_model pointer to the model
+   * \param global_model pointer to the globally shared model/state
+   *   when calling this function, the caller need to gauranttees that global_model
+   *   is the same in all nodes
+   * \param local_model pointer to local model, that is specific to current node/rank
+   *   this can be NULL when no local state is needed
+   *
+   * NOTE: local_model requires explicit replication of the model for fault-tolerance, which will
+   *       bring replication cost in CheckPoint function. global_model do not need explicit replication.
+   *       So only CheckPoint with global_model if possible
+   *
    * \sa LoadCheckPoint, VersionNumber
    */
-  virtual void CheckPoint(const utils::ISerializable &model) = 0;
+  virtual void CheckPoint(const utils::ISerializable *global_model,
+                          const utils::ISerializable *local_model = NULL) = 0;
   /*!
    * \return version number of current stored model,
    *         which means how many calls to CheckPoint we made so far
