@@ -16,10 +16,10 @@ Features
   - Rabit is a library instead of framework, program only need to link the library to run, without restricting to a single framework.
 * Flexibility in programming
   - Many frameworks only allow user to define limited functions(map,reduce), and the framework call these operation
-  - Programs call rabit functions, Allreduce, CheckPoint in any sequence
-  - Program persist over all the iterations, unless it fails and recover. 
+  - When program with rabit, programs call rabit functions, Allreduce, CheckPoint in any sequence
+  - Program persist over all the iterations, unless it fails and recover
 * Fault tolerance 
-  - Rabit program can recover model and results of functions calls  
+  - Rabit program can recover model and results of syncrhonization functions calls(Allreduce and Broadcast)
 * MPI compatible
   - Codes using rabit interface naturally compiles with existing MPI compiler
   - User can fall back to use MPI Allreduce if they like with no code modification
