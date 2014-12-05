@@ -402,9 +402,6 @@ class AllreduceRobust : public AllreduceBase {
                                                  size_t out_index)
                                );
   //---- recovery data structure ----
-  // call sequence counter, records how many calls we made so far
-  // from last call to CheckPoint, LoadCheckPoint
-  int seq_counter;
   // the round of result buffer, used to mode the result
   int result_buffer_round;
   // result buffer of all reduce

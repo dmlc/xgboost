@@ -645,6 +645,7 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
   // request
   ActionSummary req(flag, seqno);
   while (true) {
+    this->ReportStatus();
     // action
     ActionSummary act = req;    
     // get the reduced action

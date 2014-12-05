@@ -144,6 +144,16 @@ class AllreduceBase : public IEngine {
   virtual void InitAfterException(void) {
     utils::Error("InitAfterException: not implemented");
   }
+  /*! 
+   * \brief report current status to the job tracker 
+   * depending on the job tracker we are in
+   */
+  inline void ReportStatus(void) const {
+    if (hadoop_mode != 0) {
+      fprintf(stderr, "reporter:status:Rabit Phase[%03d] Operation %03d\n",
+              version_number, seq_counter);
+    }
+  }
 
  protected:
   /*! \brief enumeration of possible returning results from Try functions */
@@ -284,6 +294,10 @@ class AllreduceBase : public IEngine {
    */
   ReturnType TryBroadcast(void *sendrecvbuf_, size_t size, int root);
   //---- data structure related to model ----
+  // call sequence counter, records how many calls we made so far
+  // from last call to CheckPoint, LoadCheckPoint
+  int seq_counter;
+  // version number of model
   int version_number;
   // whether the job is running in hadoop
   int hadoop_mode;
