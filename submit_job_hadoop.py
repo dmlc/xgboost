@@ -12,7 +12,7 @@ from threading import Thread
 
 
 def hadoop_streaming(nslaves, slave_args):
-  cmd = '%s jar %s -input %s -output %s -mapper %s -reducer /bin/cat stdin %d %d stdout' % (args.hadoop_binary, args.hadoop_streaming_jar, args.input, args.output, args.mapper, args.nclusters, args.iterations)
+  cmd = '%s jar %s -input %s -output %s -mapper \"%s %s\" -reducer /bin/cat stdin %d %d stdout' % (args.hadoop_binary, args.hadoop_streaming_jar, args.input, args.output, args.mapper, slave_args, args.nclusters, args.iterations)
   print cmd
   subprocess.check_call(cmd, shell = True)
 
