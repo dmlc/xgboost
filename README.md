@@ -1,29 +1,29 @@
 ## rabit: Reliable Allreduce and Broadcast Interface
 
-rabit is a light weight library that provides a fault tolerant interface of Allreduce and Broadcast. It is designed to support easy implementation of distributed machine learning programs, many of which sits naturally under Allreduce abstraction.
+rabit is a light weight library that provides a fault tolerant interface of Allreduce and Broadcast. It is designed to support easy implementations of distributed machine learning programs, many of which fall naturally under the Allreduce abstraction.
 
 * See the [package interface file](src/rabit.h)
 
 Features
 ====
 * Portable library
-  - Rabit is a library instead of framework, program only need to link the library to run, without restricting to a single framework.
+  - Rabit is a library instead of a framework, a program only needs to link the library to run, without restricting to a single framework.
 * Flexibility in programming
-  - Programs call rabit functions in any sequence, as opposed to defines limited functions and being called.
-  - Program persist over all the iterations, unless it fails and recover
+  - Programs can call rabit functions in any sequence, as opposed to frameworks where callbacks are being offered and are called by the framework, i.e. inversion of control principle.
+  - Programs persist over all the iterations, unless they fail and recover
 * Fault tolerance 
-  - Rabit program can recover model and results of syncrhonization functions calls
+  - Rabit programs can recover the model and results from synchronized function calls
 * MPI compatible
-  - Codes using rabit interface naturally compiles with existing MPI compiler
-  - User can fall back to use MPI Allreduce if they like with no code modification
+  - Code that uses the rabit interface also compiles with existing MPI compilers
+  - Users can use MPI Allreduce with no code modification
 
-Design Note
+Design Notes
 ====
-* Rabit is designed for algorithms that replicate same global model across nodes, while each node operating on local parition of data.
-* The global statistics collection is done by using Allreduce
+* Rabit is designed for algorithms that replicate the same global model across nodes, while each node operates on a local partition of the data.
+* The collection of global statistics is done using Allreduce
 
-Design Goal
+Design Goals
 ====
 * rabit should run fast
-* rabit is light weight
-* rabit dig safe burrows to avoid disasters
+* rabit should be light weight
+* rabit should safely dig burrows to avoid disasters
