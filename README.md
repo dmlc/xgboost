@@ -7,12 +7,12 @@ rabit is a light weight library that provides a fault tolerant interface of Allr
 Features
 ====
 * Portable library
-  - Rabit is a library instead of a framework, a program only needs to link the library to run, without restricting to a single framework.
+  - Rabit is a library instead of a framework, a program only needs to link the library to run.
 * Flexibility in programming
-  - Programs can call rabit functions in any sequence, as opposed to frameworks where callbacks are being offered and are called by the framework, i.e. inversion of control principle.
-  - Programs persist over all the iterations, unless they fail and recover
+  - Programs can call rabit functions in any order, as opposed to frameworks where callbacks are offered and called by the framework, i.e. inversion of control principle.
+  - Programs persist over all the iterations, unless they fail and recover.
 * Fault tolerance 
-  - Rabit programs can recover the model and results from synchronized function calls
+  - Rabit programs can recover the model and results using synchronous function calls.
 * MPI compatible
   - Code that uses the rabit interface also compiles with existing MPI compilers
   - Users can use MPI Allreduce with no code modification
