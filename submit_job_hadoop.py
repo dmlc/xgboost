@@ -22,7 +22,7 @@ parser.add_argument('-itr', '--iterations', required=True, type=int)
 args = parser.parse_args()
 
 def hadoop_streaming(nslaves, slave_args):
-  cmd = '%s jar %s -input %s -output %s -mapper \"%s %s\" -reducer /bin/cat stdin %d %d stdout' % (args.hadoop_binary, args.hadoop_streaming_jar, args.input, args.output, args.mapper, ' '.join(slave_args), args.nclusters, args.iterations)
+  cmd = '%s jar %s -input %s -output %s -mapper \"%s stdin %d %d stdout %s\" -reducer /bin/cat -file %s' % (args.hadoop_binary, args.hadoop_streaming_jar, args.input, args.output, args.mapper, args.nclusters, args.iterations, ' '.join(slave_args), args.mapper)
   print cmd
   subprocess.check_call(cmd, shell = True)
   
