@@ -137,7 +137,7 @@ int AllreduceRobust::LoadCheckPoint(utils::ISerializable *global_model,
     // reset result buffer
     resbuf.Clear(); seq_counter = 0;
     // load from buffer
-    utils::MemoryBufferStream fs(&mglobal_model);
+    utils::MemoryBufferStream fs(&global_checkpoint);
     fs.Read(&version_number, sizeof(version_number));
     if (version_number == 0) return version_number;
     global_model->Load(fs);
@@ -155,7 +155,7 @@ int AllreduceRobust::LoadCheckPoint(utils::ISerializable *global_model,
 /*!
  * \brief checkpoint the model, meaning we finished a stage of execution
  *  every time we call check point, there is a version number which will increase by one
- * 
+ *
  * \param global_model pointer to the globally shared model/state
  *   when calling this function, the caller need to gauranttees that global_model
  *   is the same in all nodes
@@ -174,11 +174,12 @@ void AllreduceRobust::CheckPoint(const utils::ISerializable *global_model,
   // execute checkpoint, note: when checkpoint existing, load will not happen
   utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kMaxSeq),
                 "check point must return true");
+  // this is the critical region where we will change all the stored models
   // increase version number
   version_number += 1;
   // save model
-  mglobal_model.resize(0);
-  utils::MemoryBufferStream fs(&mglobal_model);
+  global_checkpoint.resize(0);
+  utils::MemoryBufferStream fs(&global_checkpoint);
   fs.Write(&version_number, sizeof(version_number));
   global_model->Save(fs);
   // reset result buffer
@@ -580,16 +581,16 @@ AllreduceRobust::TryRecoverData(RecoverType role,
  */
 AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
   RecoverType role =  requester ? kRequestData : kHaveData;
-  size_t size = this->mglobal_model.length();
+  size_t size = this->global_checkpoint.length();
   int recv_link;
   std::vector<bool> req_in;
   ReturnType succ = TryDecideRouting(role, &size, &recv_link, &req_in);
   if (succ != kSuccess) return succ;
   if (role == kRequestData) {
-    mglobal_model.resize(size);
+    global_checkpoint.resize(size);
   }
   if (size == 0) return kSuccess;
-  return TryRecoverData(role, &mglobal_model[0], size, recv_link, req_in);
+  return TryRecoverData(role, &global_checkpoint[0], size, recv_link, req_in);
 }
 /*!
  * \brief try to get the result of operation specified by seqno

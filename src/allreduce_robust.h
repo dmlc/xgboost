@@ -349,7 +349,7 @@ class AllreduceRobust : public AllreduceBase {
                             void *sendrecvbuf_,
                             size_t size,
                             int recv_link,
-                            const std::vector<bool> &req_in);
+                            const std::vector<bool> &req_in);  
   /*!
    * \brief perform a ring passing to receive data from prev link, and sent data to next link
    *  this allows data to stream over a ring structure
@@ -410,7 +410,7 @@ class AllreduceRobust : public AllreduceBase {
   // result buffer of all reduce
   ResultBuffer resbuf;
   // last check point global model
-  std::string mglobal_model; 
+  std::string global_checkpoint; 
   // number of replica for local state/model
   int num_local_replica;
   // pointer to memory position in the local model
@@ -419,9 +419,9 @@ class AllreduceRobust : public AllreduceBase {
   // local_model[rptr[k]:rptr[k+1]] stores the model of node in previous k hops in the ring
   std::vector<size_t> local_rptr;
   // storage for local model replicas
-  std::string mlocal_model;
-  // temporal storage 
-  std::string tmp_local_model;
+  std::string local_checkpoint;
+  // temporal storage for doing local checkpointing
+  std::string tmp_local_check;
 };
 }  // namespace engine
 }  // namespace rabit

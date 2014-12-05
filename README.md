@@ -2,7 +2,7 @@
 
 rabit is a light weight library that provides a fault tolerant interface of Allreduce and Broadcast. It is designed to support easy implementation of distributed machine learning programs, many of which sits naturally under Allreduce abstraction.
 
-Contributors: https://github.com/tqchen/rabit/graphs/contributors
+Interface: [rabit.h](src/rabit.h)
 
 Features
 ====
@@ -27,4 +27,3 @@ Design Goal
 * rabit should run fast
 * rabit is light weight
 * rabit dig safe burrows to avoid disasters
-
