@@ -1,4 +1,4 @@
-## rabit: Robust Allreduce and Broadcast Interface
+## rabit: Reliable Allreduce and Broadcast Interface
 
 rabit is a light weight library that provides a fault tolerant interface of Allreduce and Broadcast. It is designed to support easy implementation of distributed machine learning programs, many of which sits naturally under Allreduce abstraction.
 
