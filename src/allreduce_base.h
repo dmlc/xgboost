@@ -285,6 +285,8 @@ class AllreduceBase : public IEngine {
   ReturnType TryBroadcast(void *sendrecvbuf_, size_t size, int root);
   //---- data structure related to model ----
   int version_number;
+  // whether the job is running in hadoop
+  int hadoop_mode;
   //---- local data related to link ----
   // index of parent link, can be -1, meaning this is root of the tree
   int parent_index;
@@ -297,7 +299,7 @@ class AllreduceBase : public IEngine {
   //----- meta information-----
   // unique identifier of the possible job this process is doing
   // used to assign ranks, optional, default to NULL
-  std::string job_id;
+  std::string task_id;
   // uri of current host, to be set by Init
   std::string host_uri;
   // uri of master
