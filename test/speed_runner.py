@@ -3,7 +3,7 @@ import argparse
 
 def main():
   parser = argparse.ArgumentParser(description='TODO')
-  parser.add_argument('-h', '--host_dir', required=True)
+  parser.add_argument('-ho', '--host_dir', required=True)
   parser.add_argument('-s', '--submit_script', required=True)
   args = parser.parse_args()
 
