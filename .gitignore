@@ -28,4 +28,7 @@
 *.app
 *~
 *.pyc
-test_allreduce
+*.mpi
+*.exe
+*.txt
+*tmp*
