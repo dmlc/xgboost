@@ -16,7 +16,7 @@ def main():
   for data in ndata:
     for repeat in nrepeat:
       for machine in machines:
-        host_file = os.path.join(args.host_dir, 'host%d' % machine)
+        host_file = os.path.join(args.host_dir, 'hosts%d' % machine)
         cmd = 'python %s %d %s %s %d %d' % (args.submit_script, machine, host_file, args.executable, data, repeat)
         print 'data=%d, repeat=%d, machine=%d' % (data, repeat, machine)
         os.system(cmd)
