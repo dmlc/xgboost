@@ -5,6 +5,7 @@ This is an example job submit script for hadoop streaming
 import argparse
 import sys
 import os
+import time
 import subprocess
 sys.path.append('./src/')
 import rabit_master as master
@@ -25,5 +26,7 @@ def hadoop_streaming(nslaves, slave_args):
   cmd = '%s jar %s -input %s -output %s -mapper \"%s stdin %d %d stdout %s\" -reducer \"/bin/cat\" -file %s' % (args.hadoop_binary, args.hadoop_streaming_jar, args.input, args.output, args.mapper, args.nclusters, args.iterations, ' '.join(slave_args), args.mapper)
   print cmd
   subprocess.check_call(cmd, shell = True)
-  
+
+start = time.time()
 master.submit(args.nslaves, [], fun_submit= hadoop_streaming)
+print 'All run took %s' % (time.time() - start)

@@ -3,6 +3,7 @@
 #include <rabit.h>
 #include <utils.h>
 #include "./toolkit_util.h"
+#include <time.h>
 
 using namespace rabit;
 
@@ -85,6 +86,8 @@ int main(int argc, char *argv[]) {
     printf("Usage: <data_dir> num_cluster max_iter <out_model>\n");
     return 0;
   }
+  clock_t tStart = clock();
+
   srand(0);
   // load the data 
   SparseMat data;
@@ -140,6 +143,7 @@ int main(int argc, char *argv[]) {
   if (rabit::GetRank() == 0) {
     model.centroids.Print(argv[4]);
   }
+  utils::LogPrintf("[%d] Time taken: %f seconds\n", rabit::GetRank(), static_cast<float>(clock() - tStart) / CLOCKS_PER_SEC);
   rabit::Finalize();
   return 0;
 }
