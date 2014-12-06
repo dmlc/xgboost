@@ -38,16 +38,17 @@ inline void TestSum(size_t n) {
 
 inline void TestBcast(size_t n, int root) {
   int rank = rabit::GetRank();
-  std::string s; s.resize(n);      
+  std::string s; s.resize(n);
   for (size_t i = 0; i < n; ++i) {
     s[i] = char(i % 126 + 1);
   }
-  std::string res;  
+  std::string res;
+  res.resize(n);
   if (root == rank) {
     res = s;
   }
   double tstart = utils::GetTime();  
-  rabit::Broadcast(&res, root);
+  rabit::Broadcast(&res[0], res.length(), root);
   bcast_tdiff += utils::GetTime() - tstart;  
 }
 
