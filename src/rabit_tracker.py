@@ -166,7 +166,7 @@ class Tracker:
             s.assign_rank(rank, wait_conn, nslave)
             if s.wait_accept > 0:
                 wait_conn[rank] = s            
-        print 'all slaves setup complete'
+        print 'All nodes finishes job'
 
 def mpi_submit(nslave, args):
     cmd = ' '.join(['mpirun -n %d' % nslave] + args)

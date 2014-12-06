@@ -122,7 +122,11 @@ class AllreduceRobust : public AllreduceBase {
    */
   struct ActionSummary {
     // maximumly allowed sequence id
-    const static int kMaxSeq = 1 << 26;
+    const static int kSpecialOp = (1 << 26);
+    // special sequence number for local state checkpoint
+    const static int kLocalCheckPoint = (1 << 26) - 2;
+    // special sequnce number for local state checkpoint ack signal
+    const static int kLocalCheckAck = (1 << 26) - 1;    
     //---------------------------------------------
     // The following are bit mask of flag used in 
     //----------------------------------------------
@@ -140,7 +144,7 @@ class AllreduceRobust : public AllreduceBase {
     // constructor
     ActionSummary(void) {}
     // constructor of action 
-    ActionSummary(int flag, int minseqno = kMaxSeq) {
+    ActionSummary(int flag, int minseqno = kSpecialOp) {
       seqcode = (minseqno << 4) | flag;
     }
     // minimum number of all operations
@@ -277,14 +281,14 @@ class AllreduceRobust : public AllreduceBase {
    * \param buf the buffer to store the result
    * \param size the total size of the buffer
    * \param flag flag information about the action \sa ActionSummary
-   * \param seqno sequence number of the action, if it is special action with flag set, seqno needs to be set to ActionSummary::kMaxSeq
+   * \param seqno sequence number of the action, if it is special action with flag set, seqno needs to be set to ActionSummary::kSpecialOp
    *
    * \return if this function can return true or false 
  *    - true means buf already set to the
  *           result by recovering procedure, the action is complete, no further action is needed
    *    - false means this is the lastest action that has not yet been executed, need to execute the action
    */
-  bool RecoverExec(void *buf, size_t size, int flag, int seqno = ActionSummary::kMaxSeq);
+  bool RecoverExec(void *buf, size_t size, int flag, int seqno = ActionSummary::kSpecialOp);
   /*!
    * \brief try to load check point
    *        
@@ -344,12 +348,30 @@ class AllreduceRobust : public AllreduceBase {
    *
    * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
    * \sa ReturnType, TryDecideRouting
-   */  
+   */
   ReturnType TryRecoverData(RecoverType role,
                             void *sendrecvbuf_,
                             size_t size,
                             int recv_link,
                             const std::vector<bool> &req_in);  
+  /*!
+   * \brief try to recover the local state, making each local state to be the result of itself
+   *        plus replication of states in previous num_local_replica hops in the ring
+   *
+   * The input parameters must contain the valid local states available in current nodes,
+   * This function try ist best to "complete" the missing parts of local_rptr and local_chkpt 
+   * If there is sufficient information in the ring, when the function returns, local_chkpt will
+   * contain num_local_replica + 1 checkpoints (including the chkpt of this node)
+   * If there is no sufficient information in the ring, this function the number of checkpoints
+   * will be less than the specified value
+   *
+   * \param p_local_rptr the pointer to the segment pointers in the states array
+   * \param p_local_chkpt the pointer to the storage of local check points
+   * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
+   * \sa ReturnType
+   */
+  ReturnType TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
+                                  std::string *p_local_chkpt);
   /*!
    * \brief perform a ring passing to receive data from prev link, and sent data to next link
    *  this allows data to stream over a ring structure
@@ -364,16 +386,16 @@ class AllreduceRobust : public AllreduceBase {
    * \param read_end the ending position to read
    * \param write_ptr the initial write pointer
    * \param write_end the ending position to write
-   * \param prev pointer to link to previous position in ring
-   * \param prev pointer to link of next position in ring
+   * \param read_link pointer to link to previous position in ring
+   * \param write_link pointer to link of next position in ring
    */
   ReturnType RingPassing(void *senrecvbuf_,
                          size_t read_ptr,
                          size_t read_end,
                          size_t write_ptr,
                          size_t write_end,
-                         LinkRecord *prev_link,
-                         LinkRecord *next_link);
+                         LinkRecord *read_link,
+                         LinkRecord *write_link);
   /*!
    * \brief run message passing algorithm on the allreduce tree 
    *        the result is edge message stored in p_edge_in and p_edge_out
@@ -410,15 +432,18 @@ class AllreduceRobust : public AllreduceBase {
   std::string global_checkpoint; 
   // number of replica for local state/model
   int num_local_replica;
+  // --- recovery data structure for local checkpoint
+  // there is two version of the data structure,
+  // at one time one version is valid and another is used as temp memory
   // pointer to memory position in the local model
   // local model is stored in CSR format(like a sparse matrices)
   // local_model[rptr[0]:rptr[1]] stores the model of current node
   // local_model[rptr[k]:rptr[k+1]] stores the model of node in previous k hops in the ring
-  std::vector<size_t> local_rptr;
+  std::vector<size_t> local_rptr[2];
   // storage for local model replicas
-  std::string local_checkpoint;
-  // temporal storage for doing local checkpointing
-  std::string tmp_local_check;
+  std::string local_checkpoint[2];
+  // version of local checkpoint can be 1 or 0
+  int local_chkpt_version;  
 };
 }  // namespace engine
 }  // namespace rabit

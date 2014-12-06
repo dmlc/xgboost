@@ -24,12 +24,12 @@ AllreduceRobust::AllreduceRobust(void) {
 void AllreduceRobust::Shutdown(void) {
   // need to sync the exec before we shutdown, do a pesudo check point
   // execute checkpoint, note: when checkpoint existing, load will not happen
-  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kMaxSeq),
+  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp),
                 "check point must return true");
   // reset result buffer
   resbuf.Clear(); seq_counter = 0;  
   // execute check ack step, load happens here
-  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kMaxSeq),
+  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
                 "check ack must return true");    
   AllreduceBase::Shutdown();
 }
@@ -133,7 +133,7 @@ int AllreduceRobust::LoadCheckPoint(utils::ISerializable *global_model,
                                     utils::ISerializable *local_model) {
   utils::Check(local_model == NULL, "CheckPoint local_model is not yet supported");
   // check if we succesfll
-  if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kMaxSeq)) {
+  if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kSpecialOp)) {
     // reset result buffer
     resbuf.Clear(); seq_counter = 0;
     // load from buffer
@@ -142,7 +142,7 @@ int AllreduceRobust::LoadCheckPoint(utils::ISerializable *global_model,
     if (version_number == 0) return version_number;
     global_model->Load(fs);
     // run another phase of check ack, if recovered from data
-    utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kMaxSeq),
+    utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
                   "check ack must return true");
     return version_number;
   } else {
@@ -172,7 +172,7 @@ void AllreduceRobust::CheckPoint(const utils::ISerializable *global_model,
                                  const utils::ISerializable *local_model) {
   utils::Assert(local_model == NULL, "CheckPoint local model is not supported yet");
   // execute checkpoint, note: when checkpoint existing, load will not happen
-  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kMaxSeq),
+  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp),
                 "check point must return true");
   // this is the critical region where we will change all the stored models
   // increase version number
@@ -185,7 +185,7 @@ void AllreduceRobust::CheckPoint(const utils::ISerializable *global_model,
   // reset result buffer
   resbuf.Clear(); seq_counter = 0;  
   // execute check ack step, load happens here
-  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kMaxSeq),
+  utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
                 "check ack must return true");  
 }
 /*!
@@ -608,6 +608,10 @@ AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
  */
 AllreduceRobust::ReturnType
 AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool requester) {  RecoverType role;
+  // if minimum sequence requested is local check point ack,
+  // this means all nodes have finished local check point, directly return
+  if (seqno == ActionSummary::kLocalCheckAck) return kSuccess;  
+
   if (!requester) {
     sendrecvbuf = resbuf.Query(seqno, &size);
     role = sendrecvbuf != NULL ? kHaveData : kPassData;
@@ -631,7 +635,7 @@ AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool re
  * \param size the total size of the buffer
  * \param flag flag information about the action \sa ActionSummary
  * \param seqno sequence number of the action, if it is special action with flag set, 
- *              seqno needs to be set to ActionSummary::kMaxSeq
+ *              seqno needs to be set to ActionSummary::kSpecialOp
  *
  * \return if this function can return true or false 
  *    - true means buf already set to the
@@ -640,7 +644,7 @@ AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool re
  */
 bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
   if (flag != 0) {
-    utils::Assert(seqno == ActionSummary::kMaxSeq, "must only set seqno for normal operations");
+    utils::Assert(seqno == ActionSummary::kSpecialOp, "must only set seqno for normal operations");
   }
   // request
   ActionSummary req(flag, seqno);
@@ -672,7 +676,7 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
     } else {
       if (act.check_point()) {
         if (act.diff_seq()) {
-          utils::Assert(act.min_seqno() != ActionSummary::kMaxSeq, "min seq bug");
+          utils::Assert(act.min_seqno() != ActionSummary::kSpecialOp, "min seq bug");
           bool requester = req.min_seqno() == act.min_seqno();
           if (!CheckAndRecover(TryGetResult(buf, size, act.min_seqno(), requester))) continue;
           if (requester) return true;
@@ -691,7 +695,7 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
           if (req.load_check()) return true;
         } else {
           // no special flags, no checkpoint, check ack, load_check
-          utils::Assert(act.min_seqno() != ActionSummary::kMaxSeq, "min seq bug");
+          utils::Assert(act.min_seqno() != ActionSummary::kSpecialOp, "min seq bug");
           if (act.diff_seq()) {
             bool requester = req.min_seqno() == act.min_seqno();
             if (!CheckAndRecover(TryGetResult(buf, size, act.min_seqno(), requester))) continue;
@@ -708,7 +712,54 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
   utils::Assert(false, "RecoverExec: should not reach here");
   return true;
 }
-
+/*!
+ * \brief try to recover the local state, making each local state to be the result of itself
+ *        plus replication of states in previous num_local_replica hops in the ring
+ *
+ * The input parameters must contain the valid local states available in current nodes,
+ * This function try ist best to "complete" the missing parts of local_rptr and local_chkpt 
+ * If there is sufficient information in the ring, when the function returns, local_chkpt will
+ * contain num_local_replica + 1 checkpoints (including the chkpt of this node)
+ * If there is no sufficient information in the ring, this function the number of checkpoints
+ * will be less than the specified value
+ *
+ * \param p_local_rptr the pointer to the segment pointers in the states array
+ * \param p_local_chkpt the pointer to the storage of local check points
+ * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
+ * \sa ReturnType
+ */
+AllreduceRobust::ReturnType
+AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
+                                      std::string *p_local_chkpt) {
+  // if there is no local replica, we can do nothing
+  if (num_local_replica == 0) return kSuccess;
+  std::vector<size_t> &rptr = *p_local_rptr;
+  std::string &chkpt = *p_local_chkpt;
+  if (rptr.size() == 0) {
+    rptr.push_back(0);
+    utils::Assert(chkpt.length() == 0, "local chkpt space inconsistent");
+  }
+  const int n = num_local_replica;
+  // message send to previous link
+  {
+    int msg_forward[2];
+    int nlocal = static_cast<int>(rptr.size() - 1);
+    msg_forward[0] = nlocal;
+    utils::Assert(msg_forward[0] <= n, "invalid local replica");
+    // backward passing one hop the request
+    ReturnType succ = RingPassing(msg_forward,
+                                  1 * sizeof(int), 2 * sizeof(int),
+                                  0 * sizeof(int), 1 * sizeof(int),
+                                  ring_prev, ring_next);
+    if (succ != kSuccess) return succ;
+    // check how much current node can help with the request
+    //    if (nlocal > ) {
+      
+    //}
+    
+  }
+  return kSuccess;
+}
 /*!
  * \brief perform a ring passing to receive data from prev link, and sent data to next link
  *  this allows data to stream over a ring structure
@@ -723,8 +774,8 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno) {
  * \param read_end the ending position to read
  * \param write_ptr the initial write pointer
  * \param write_end the ending position to write
- * \param prev pointer to link to previous position in ring
- * \param prev pointer to link of next position in ring
+ * \param read_link pointer to link to previous position in ring
+ * \param write_link pointer to link of next position in ring
  */
 AllreduceRobust::ReturnType
 AllreduceRobust::RingPassing(void *sendrecvbuf_,
@@ -732,14 +783,14 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
                              size_t read_end,
                              size_t write_ptr,
                              size_t write_end,
-                             LinkRecord *prev_link,
-                             LinkRecord *next_link) {
+                             LinkRecord *read_link,
+                             LinkRecord *write_link) {
   if (links.size() == 0 || read_end == 0) return kSuccess;
   utils::Assert(read_end <= write_end, "boundary check");
   utils::Assert(read_ptr <= read_end, "boundary check");
   utils::Assert(write_ptr <= write_end, "boundary check");
   // take reference
-  LinkRecord &prev = *prev_link, &next = *next_link;
+  LinkRecord &prev = *read_link, &next = *write_link;
   // send recv buffer
   char *buf = reinterpret_cast<char*>(sendrecvbuf_);  
   while (true) {
