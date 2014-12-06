@@ -8,7 +8,7 @@ import os
 import time
 import subprocess
 sys.path.append('./src/')
-import rabit_master as master
+import rabit_tracker as tracker
 
 parser = argparse.ArgumentParser(description='Hadoop Streaming submission script')
 parser.add_argument('-s', '--nslaves', required=True, type=int)
@@ -28,5 +28,5 @@ def hadoop_streaming(nslaves, slave_args):
   subprocess.check_call(cmd, shell = True)
 
 start = time.time()
-master.submit(args.nslaves, [], fun_submit= hadoop_streaming)
+tracker.submit(args.nslaves, [], fun_submit= hadoop_streaming)
 print 'All run took %s' % (time.time() - start)

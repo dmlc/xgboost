@@ -112,7 +112,7 @@ class SlaveEntry:
             self.wait_accept = len(badset) - len(conset)
             return rmset
     
-class Master:
+class Tracker:
     def __init__(self, port = 9000, port_end = 9999):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         for port in range(port, port_end):
@@ -172,7 +172,7 @@ def mpi_submit(nslave, args):
     return subprocess.check_call(cmd, shell = True)
     
 def submit(nslave, args, fun_submit = mpi_submit):
-    master = Master()
+    master = Tracker()
     submit_thread = Thread(target = fun_submit, args = (nslave, args + master.slave_args()))
     submit_thread.start()
     master.accept_slaves(nslave)

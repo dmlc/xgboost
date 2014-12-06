@@ -9,7 +9,7 @@ import subprocess
 # import the tcp_master.py
 # add path to sync
 sys.path.append(os.path.dirname(__file__)+'/src/')
-import rabit_master as master
+import rabit_tracker as tracker
 
 #
 #  Note: this submit script is only used for example purpose
@@ -33,4 +33,4 @@ if __name__ == '__main__':
         print 'Usage: <nslave> <cmd>'
         exit(0)        
     # call submit, with nslave, the commands to run each job and submit function
-    master.submit(int(sys.argv[1]), sys.argv[2:], fun_submit= mpi_submit)
+    tracker.submit(int(sys.argv[1]), sys.argv[2:], fun_submit= mpi_submit)
