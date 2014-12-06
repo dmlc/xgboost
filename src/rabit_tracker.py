@@ -1,6 +1,8 @@
 """
-Master script for rabit
-Implements the master control protocol to start rabit jobs and assign necessary information
+Tracker script for rabit
+Implements the tracker control protocol 
+ - start rabit jobs
+ - help nodes to establish links with each other
 
 Tianqi Chen
 """
@@ -128,8 +130,8 @@ class Tracker:
     def __del__(self):
         self.sock.close()
     def slave_args(self):
-        return ['master_uri=%s' % socket.gethostname(),
-                'master_port=%s' % self.port]
+        return ['rabit_tracker_uri=%s' % socket.gethostname(),
+                'rabit_tracker_port=%s' % self.port]
     def accept_slaves(self, nslave):
         # set of nodes that finishs the job
         shutdown = {}

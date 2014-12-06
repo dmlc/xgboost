@@ -260,9 +260,9 @@ class AllreduceBase : public IEngine {
     std::vector<uint64_t> buffer_;
   };
   /*!
-   * \brief connect to the master to fix the the missing links
+   * \brief connect to the tracker to fix the the missing links
    *   this function is also used when the engine start up
-   * \param cmd possible command to sent to master
+   * \param cmd possible command to sent to tracker
    */
   void ReConnectLinks(const char *cmd = "start");
   /*!
@@ -316,10 +316,10 @@ class AllreduceBase : public IEngine {
   std::string task_id;
   // uri of current host, to be set by Init
   std::string host_uri;
-  // uri of master
-  std::string master_uri;
-  // port of master address
-  int master_port;
+  // uri of tracker
+  std::string tracker_uri;
+  // port of tracker address
+  int tracker_port;
   // port of slave process
   int slave_port, nport_trial;
   // reduce buffer size
