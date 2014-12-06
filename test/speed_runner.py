@@ -1,5 +1,6 @@
 import os
 import argparse
+import sys
 
 def main():
   parser = argparse.ArgumentParser(description='TODO')
@@ -17,7 +18,8 @@ def main():
     for machine in machines:
       host_file = os.path.join(args.host_dir, 'hosts%d' % machine)
       cmd = 'python %s %d %s %s %d %d' % (args.submit_script, machine, host_file, args.executable, data, nrepeat[i])
-      print 'data=%d, repeat=%d, machine=%d' % (data, nrepeat[i], machine)
+      sys.stderr.write('data=%d, repeat=%d, machine=%d\n' % (data, nrepeat[i], machine))
+      sys.stderr.flush()
       os.system(cmd)
 
 if __name__ == "__main__":
