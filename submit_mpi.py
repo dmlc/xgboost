@@ -24,7 +24,7 @@ def mpi_submit(nslave, args):
          args arguments to launch each job
               this usually includes the parameters of master_uri and parameters passed into submit
     """
-    cmd = ' '.join(['mpirun -n %d -machinefile %s' % (nslave, args[0])] + args[1:])
+    cmd = ' '.join(['mpirun -n %d --hostfile %s' % (nslave, args[0])] + args[1:])
     print cmd
     subprocess.check_call(cmd, shell = True)
 
