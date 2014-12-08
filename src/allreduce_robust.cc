@@ -45,6 +45,9 @@ void AllreduceRobust::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "result_replicate")) {
     result_buffer_round = std::max(world_size / atoi(val), 1);
   }
+  if (!strcmp(name, "num_local_replica")) {
+    num_local_replica = atoi(val);
+  }
 }
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf 
@@ -1010,9 +1013,9 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
                              LinkRecord *read_link,
                              LinkRecord *write_link) {
   if (read_link == NULL || write_link == NULL || read_end == 0) return kSuccess;
-  utils::Assert(read_end <= write_end, "boundary check");
-  utils::Assert(read_ptr <= read_end, "boundary check");
-  utils::Assert(write_ptr <= write_end, "boundary check");
+  utils::Assert(write_end <= read_end, "RingPassing: boundary check1");
+  utils::Assert(read_ptr <= read_end, "RingPassing: boundary check2");
+  utils::Assert(write_ptr <= write_end, "RingPassing: boundary check3");
   // take reference
   LinkRecord &prev = *read_link, &next = *write_link;
   // send recv buffer
