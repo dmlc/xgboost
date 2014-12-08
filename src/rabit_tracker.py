@@ -63,25 +63,32 @@ class SlaveEntry:
             return job_map[self.jobid]
         return -1
 
-    def get_neighbor(self, rank, nslave):
-        rank = rank + 1
-        ret = []
-        if rank > 1:
-            ret.append(rank / 2 - 1)
-        if rank * 2 - 1  < nslave:
-            ret.append(rank * 2 - 1)            
-        if rank * 2 < nslave:
-            ret.append(rank * 2)
-        return set(ret)
-
-    def assign_rank(self, rank, wait_conn, nslave):        
+    def assign_rank(self, rank, wait_conn, tree_map, parent_map, ring_map):
         self.rank = rank
-        nnset = self.get_neighbor(rank, nslave)
+        nnset = set(tree_map[rank])
+        rprev, rnext = ring_map[rank]
         self.sock.sendint(rank)
         # send parent rank
-        self.sock.sendint((rank + 1) / 2 - 1)
+        self.sock.sendint(parent_map[rank])
         # send world size
-        self.sock.sendint(nslave)
+        self.sock.sendint(len(tree_map))
+        self.sock.sendint(len(nnset))
+        # send the rprev and next link
+        for r in nnset:
+            self.sock.sendint(r)
+        # send prev link
+        if rprev != -1 and rprev != rank:
+            nnset.add(rprev)
+            self.sock.sendint(rprev)
+        else:
+            self.sock.sendint(-1)
+        # send next link
+        if rnext != -1 and rnext != rank:
+            nnset.add(rnext)
+            self.sock.sendint(rnext)
+        else:
+            self.sock.sendint(-1)
+
         while True:
             ngood = self.sock.recvint()
             goodset = set([])
@@ -131,8 +138,35 @@ class Tracker:
         self.sock.close()
     def slave_args(self):
         return ['rabit_tracker_uri=%s' % socket.gethostname(),
-                'rabit_tracker_port=%s' % self.port]
+                'rabit_tracker_port=%s' % self.port]        
+    def get_neighbor(self, rank, nslave):
+        rank = rank + 1
+        ret = []
+        if rank > 1:
+            ret.append(rank / 2 - 1)
+        if rank * 2 - 1  < nslave:
+            ret.append(rank * 2 - 1)            
+        if rank * 2 < nslave:
+            ret.append(rank * 2)
+        return ret
+    def get_tree(self, nslave):
+        tree_map = {}
+        parent_map = {}
+        for r in range(nslave):
+            tree_map[r] = self.get_neighbor(r, nslave)
+            parent_map[r] = (r + 1) / 2 - 1
+        return tree_map, parent_map
+    def get_ring(self, tree_map, parent_map):
+        ring_map = {}
+        nslave = len(tree_map)
+        for r in range(nslave):
+            rprev = (r + nslave - 1) % nslave
+            rnext = (r + 1) % nslave            
+            ring_map[r] = (rprev, rnext)
+        return ring_map
     def accept_slaves(self, nslave):
+        tree_map, parent_map = self.get_tree(nslave)
+        ring_map = self.get_ring(tree_map, parent_map)
         # set of nodes that finishs the job
         shutdown = {}
         # set of nodes that is waiting for connections
@@ -163,7 +197,7 @@ class Tracker:
                 rank = todo_nodes.pop(0)
                 if s.jobid != 'NULL':
                     job_map[s.jobid] = rank                
-            s.assign_rank(rank, wait_conn, nslave)
+            s.assign_rank(rank, wait_conn, tree_map, parent_map, ring_map)
             if s.wait_accept > 0:
                 wait_conn[rank] = s            
         print 'All nodes finishes job'

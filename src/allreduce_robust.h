@@ -373,6 +373,23 @@ class AllreduceRobust : public AllreduceBase {
   ReturnType TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
                                   std::string *p_local_chkpt);
   /*!
+   * \brief try to checkpoint local state, this function is called in normal executation phase
+   *    of checkpoint that contains local state
+o   *  the input state must exactly one saved state(local state of current node),
+   *  after complete, this function will get local state from previous num_local_replica nodes and put them
+   *  into local_chkpt and local_rptr
+   *
+   *  It is also OK to call TryRecoverLocalState instead,
+   *  TryRecoverLocalState makes less assumption about the input, and requires more communications
+   *
+   * \param p_local_rptr the pointer to the segment pointers in the states array
+   * \param p_local_chkpt the pointer to the storage of local check points
+   * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
+   * \sa ReturnType, TryRecoverLocalState
+   */
+  ReturnType TryCheckinLocalState(std::vector<size_t> *p_local_rptr,
+                                  std::string *p_local_chkpt);
+  /*!
    * \brief perform a ring passing to receive data from prev link, and sent data to next link
    *  this allows data to stream over a ring structure
    *  sendrecvbuf[0:read_ptr] are already provided by current node
@@ -441,7 +458,7 @@ class AllreduceRobust : public AllreduceBase {
   // local_model[rptr[k]:rptr[k+1]] stores the model of node in previous k hops in the ring
   std::vector<size_t> local_rptr[2];
   // storage for local model replicas
-  std::string local_checkpoint[2];
+  std::string local_chkpt[2];
   // version of local checkpoint can be 1 or 0
   int local_chkpt_version;  
 };

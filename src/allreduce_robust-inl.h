@@ -37,6 +37,7 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
                                               const std::vector<EdgeType> &edge_in,
                                               size_t out_index)
                             ) {
+  RefLinkVector &links = tree_links;
   if (links.size() == 0) return kSuccess;
   // number of links
   const int nlink = static_cast<int>(links.size());  

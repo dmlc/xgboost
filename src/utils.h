@@ -187,5 +187,13 @@ inline const T *BeginPtr(const std::vector<T> &vec) {
     return &vec[0];
   }
 }
+inline char* BeginPtr(std::string &str) {
+  if (str.length() == 0) return NULL;
+  return &str[0];
+}
+inline const char* BeginPtr(const std::string &str) {
+  if (str.length() == 0) return NULL;
+  return &str[0];
+}
 } // namespace rabit
 #endif  // RABIT_UTILS_H_

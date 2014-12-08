@@ -11,13 +11,14 @@
 #include <utility>
 #include "./io.h"
 #include "./utils.h"
+#include "./rabit.h"
 #include "./allreduce_robust.h"
 
 namespace rabit {
 namespace engine {
 AllreduceRobust::AllreduceRobust(void) {
   result_buffer_round = 1;
-  num_local_replica = 2;
+  num_local_replica = 0;
   seq_counter = 0;
 }
 /*! \brief shutdown the engine */
@@ -131,9 +132,17 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root)
  */
 int AllreduceRobust::LoadCheckPoint(utils::ISerializable *global_model,
                                     utils::ISerializable *local_model) {
-  utils::Check(local_model == NULL, "CheckPoint local_model is not yet supported");
-  // check if we succesfll
+  if (num_local_replica == 0) {
+    utils::Check(local_model == NULL, "need to set num_local_replica larger than 1 to checkpoint local_model");
+  }
+  // check if we succesful
   if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kSpecialOp)) {
+    if (local_model != NULL) {
+      // load in local model
+      utils::MemoryFixSizeBuffer fs(BeginPtr(local_chkpt[local_chkpt_version]),
+                                    local_rptr[local_chkpt_version][1]);
+      local_model->Load(fs);
+    }    
     // reset result buffer
     resbuf.Clear(); seq_counter = 0;
     // load from buffer
@@ -170,7 +179,31 @@ int AllreduceRobust::LoadCheckPoint(utils::ISerializable *global_model,
  */
 void AllreduceRobust::CheckPoint(const utils::ISerializable *global_model,
                                  const utils::ISerializable *local_model) {
-  utils::Assert(local_model == NULL, "CheckPoint local model is not supported yet");
+  if (num_local_replica == 0) {
+    utils::Check(local_model == NULL, "need to set num_local_replica larger than 1 to checkpoint local_model");
+  }
+  if (num_local_replica != 0) {
+    while (true) {
+      if (RecoverExec(NULL, 0, 0, ActionSummary::kLocalCheckPoint)) break;
+      // save model model to new version place
+      int new_version = !local_chkpt_version;
+      local_chkpt[new_version].clear();
+      utils::MemoryBufferStream fs(&local_chkpt[new_version]);
+      if (local_model != NULL) {
+        local_model->Save(fs);
+      }
+      local_rptr[new_version].clear();
+      local_rptr[new_version].push_back(0);
+      local_rptr[new_version].push_back(local_chkpt[new_version].length());
+      if (CheckAndRecover(TryCheckinLocalState(&local_rptr[new_version],
+                                               &local_chkpt[new_version]))) break;
+    }
+    // run the ack phase
+    utils::Assert(RecoverExec(NULL, 0, 0, ActionSummary::kLocalCheckAck),
+                  "check point must return true");
+    // switch pointer to new version
+    local_chkpt_version = !local_chkpt_version;
+  }
   // execute checkpoint, note: when checkpoint existing, load will not happen
   utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp),
                 "check point must return true");
@@ -199,32 +232,32 @@ void AllreduceRobust::CheckPoint(const utils::ISerializable *global_model,
  */
 AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
   // number of links
-  const int nlink = static_cast<int>(links.size());
+  const int nlink = static_cast<int>(all_links.size());
   for (int i = 0; i < nlink; ++i) {
-    links[i].InitBuffer(sizeof(int), 1 << 10, reduce_buffer_size);
-    links[i].ResetSize();
+    all_links[i].InitBuffer(sizeof(int), 1 << 10, reduce_buffer_size);
+    all_links[i].ResetSize();
   }  
   // read and discard data from all channels until pass mark
   while (true) {
     for (int i = 0; i < nlink; ++i) {
-      if (links[i].sock.BadSocket()) continue;
-      if (links[i].size_write == 0) {
+      if (all_links[i].sock.BadSocket()) continue;
+      if (all_links[i].size_write == 0) {
         char sig = kOOBReset;
-        ssize_t len = links[i].sock.Send(&sig, sizeof(sig), MSG_OOB);
+        ssize_t len = all_links[i].sock.Send(&sig, sizeof(sig), MSG_OOB);
         // error will be filtered in next loop
-        if (len == sizeof(sig)) links[i].size_write = 1;
+        if (len == sizeof(sig)) all_links[i].size_write = 1;
       }
-      if (links[i].size_write == 1) {
+      if (all_links[i].size_write == 1) {
         char sig = kResetMark;
-        ssize_t len = links[i].sock.Send(&sig, sizeof(sig));
-        if (len == sizeof(sig)) links[i].size_write = 2;
+        ssize_t len = all_links[i].sock.Send(&sig, sizeof(sig));
+        if (len == sizeof(sig)) all_links[i].size_write = 2;
       }
     }
     utils::SelectHelper rsel;
     bool finished = true;
     for (int i = 0; i < nlink; ++i) {
-      if (links[i].size_write != 2 && !links[i].sock.BadSocket()) {
-        rsel.WatchWrite(links[i].sock); finished = false;
+      if (all_links[i].size_write != 2 && !all_links[i].sock.BadSocket()) {
+        rsel.WatchWrite(all_links[i].sock); finished = false;
       }
     }
     if (finished) break;
@@ -232,32 +265,32 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
     rsel.Select();
   }
   for (int i = 0; i < nlink; ++i) {
-    if (!links[i].sock.BadSocket()) {
-      utils::SelectHelper::WaitExcept(links[i].sock);
+    if (!all_links[i].sock.BadSocket()) {
+      utils::SelectHelper::WaitExcept(all_links[i].sock);
     }
   }
   while (true) {
     for (int i = 0; i < nlink; ++i) {
-      if (links[i].size_read == 0) {
-        int atmark = links[i].sock.AtMark();
+      if (all_links[i].size_read == 0) {
+        int atmark = all_links[i].sock.AtMark();
         if (atmark < 0) {
-          utils::Assert(links[i].sock.BadSocket(), "must already gone bad");
+          utils::Assert(all_links[i].sock.BadSocket(), "must already gone bad");
         } else if (atmark > 0) {
-          links[i].size_read = 1;
+          all_links[i].size_read = 1;
         } else {
           // no at mark, read and discard data
-          ssize_t len = links[i].sock.Recv(links[i].buffer_head, links[i].buffer_size);
-          if (links[i].sock.AtMark()) links[i].size_read = 1;
+          ssize_t len = all_links[i].sock.Recv(all_links[i].buffer_head, all_links[i].buffer_size);
+          if (all_links[i].sock.AtMark()) all_links[i].size_read = 1;
           // zero length, remote closed the connection, close socket
-          if (len == 0) links[i].sock.Close();
+          if (len == 0) all_links[i].sock.Close();
         }
       }
     }
     utils::SelectHelper rsel;
     bool finished = true;    
     for (int i = 0; i < nlink; ++i) {
-      if (links[i].size_read == 0 && !links[i].sock.BadSocket()) {
-        rsel.WatchRead(links[i].sock); finished = false;
+      if (all_links[i].size_read == 0 && !all_links[i].sock.BadSocket()) {
+        rsel.WatchRead(all_links[i].sock); finished = false;
       }
     }
     if (finished) break;
@@ -266,22 +299,22 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
 
   // start synchronization, use blocking I/O to avoid select
   for (int i = 0; i < nlink; ++i) {
-    if (!links[i].sock.BadSocket()) {
+    if (!all_links[i].sock.BadSocket()) {
       char oob_mark;
-      links[i].sock.SetNonBlock(false);
-      ssize_t len = links[i].sock.Recv(&oob_mark, sizeof(oob_mark), MSG_WAITALL);
+      all_links[i].sock.SetNonBlock(false);
+      ssize_t len = all_links[i].sock.Recv(&oob_mark, sizeof(oob_mark), MSG_WAITALL);
       if (len == 0) {
-        links[i].sock.Close(); continue;
+        all_links[i].sock.Close(); continue;
       } else if (len > 0) {
         utils::Assert(oob_mark == kResetMark, "wrong oob msg");
-        utils::Assert(links[i].sock.AtMark() != 1, "should already read past mark");
+        utils::Assert(all_links[i].sock.AtMark() != 1, "should already read past mark");
       } else {
         utils::Assert(errno != EAGAIN|| errno != EWOULDBLOCK, "BUG");
       }
       // send out ack
       char ack = kResetAck;
       while (true) {
-        len = links[i].sock.Send(&ack, sizeof(ack));
+        len = all_links[i].sock.Send(&ack, sizeof(ack));
         if (len == sizeof(ack)) break;
         if (len == -1) {
           if (errno != EAGAIN && errno != EWOULDBLOCK) break;
@@ -291,22 +324,22 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
   }
   // wait all ack
   for (int i = 0; i < nlink; ++i) {
-    if (!links[i].sock.BadSocket()) {
+    if (!all_links[i].sock.BadSocket()) {
       char ack;
-      ssize_t len = links[i].sock.Recv(&ack, sizeof(ack), MSG_WAITALL);
+      ssize_t len = all_links[i].sock.Recv(&ack, sizeof(ack), MSG_WAITALL);
       if (len == 0) {
-        links[i].sock.Close(); continue;
+        all_links[i].sock.Close(); continue;
       } else if (len > 0) {
         utils::Assert(ack == kResetAck, "wrong Ack MSG");
       } else {
         utils::Assert(errno != EAGAIN|| errno != EWOULDBLOCK, "BUG");
       }
       // set back to nonblock mode
-      links[i].sock.SetNonBlock(true);
+      all_links[i].sock.SetNonBlock(true);
     }
   }
   for (int i = 0; i < nlink; ++i) {
-    if (links[i].sock.BadSocket()) return kSockError;
+    if (all_links[i].sock.BadSocket()) return kSockError;
   }
   return kSuccess;
 }
@@ -320,8 +353,8 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
 bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
   if (err_type == kSuccess) return true;
   // simple way, shutdown all links
-  for (size_t i = 0; i < links.size(); ++i) {
-    if (!links[i].sock.BadSocket()) links[i].sock.Close();
+  for (size_t i = 0; i < all_links.size(); ++i) {
+    if (!all_links[i].sock.BadSocket()) all_links[i].sock.Close();
   }
   ReConnectLinks("recover");  
   return false;
@@ -479,6 +512,7 @@ AllreduceRobust::TryRecoverData(RecoverType role,
                                 size_t size,
                                 int recv_link,
                                 const std::vector<bool> &req_in) {
+  RefLinkVector &links = tree_links;
   // no need to run recovery for zero size message
   if (links.size() == 0 || size == 0) return kSuccess;
   utils::Assert(req_in.size() == links.size(), "TryRecoverData");
@@ -580,17 +614,48 @@ AllreduceRobust::TryRecoverData(RecoverType role,
  * \sa ReturnType
  */
 AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
-  RecoverType role =  requester ? kRequestData : kHaveData;
+  // check in local data
+  RecoverType role =  requester ? kRequestData : kHaveData;  
+  ReturnType succ;  
+  if (num_local_replica != 0) {
+    if (requester) {
+      // clear existing history, if any, before load
+      local_rptr[local_chkpt_version].clear();
+      local_chkpt[local_chkpt_version].clear();    
+    }
+    // recover local checkpoint  
+    succ = TryRecoverLocalState(&local_rptr[local_chkpt_version],
+                                &local_chkpt[local_chkpt_version]);
+    if (succ != kSuccess) return succ;
+    int nlocal = std::max(static_cast<int>(local_rptr[local_chkpt_version].size()) - 1, 0);
+    // check if everyone is OK
+    unsigned state = 0;
+    if (nlocal == num_local_replica + 1) {
+      // complete recovery
+      state = 1;
+    } else if (nlocal == 0) {
+      // get nothing
+      state = 2;
+    } else {
+      // partially complete state
+      state = 4;
+    }
+    succ = TryAllreduce(&state, sizeof(state), 1, op::Reducer<op::BitOR, unsigned>);
+    if (succ != kSuccess) return succ;
+    utils::Check(state == 1 || state == 2,
+                 "LoadCheckPoint: too many nodes fails, cannot recover local state");
+  }
+  // recover global checkpoint
   size_t size = this->global_checkpoint.length();
   int recv_link;
   std::vector<bool> req_in;
-  ReturnType succ = TryDecideRouting(role, &size, &recv_link, &req_in);
+  succ = TryDecideRouting(role, &size, &recv_link, &req_in);
   if (succ != kSuccess) return succ;
   if (role == kRequestData) {
     global_checkpoint.resize(size);
   }
   if (size == 0) return kSuccess;
-  return TryRecoverData(role, &global_checkpoint[0], size, recv_link, req_in);
+  return TryRecoverData(role, BeginPtr(global_checkpoint), size, recv_link, req_in);
 }
 /*!
  * \brief try to get the result of operation specified by seqno
@@ -607,11 +672,21 @@ AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
  * \sa ReturnType
  */
 AllreduceRobust::ReturnType
-AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool requester) {  RecoverType role;
+AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool requester) {
   // if minimum sequence requested is local check point ack,
   // this means all nodes have finished local check point, directly return
   if (seqno == ActionSummary::kLocalCheckAck) return kSuccess;  
-
+  if (seqno == ActionSummary::kLocalCheckPoint) {
+    // new version of local model
+    int new_version = !local_chkpt_version;
+    int nlocal = std::max(static_cast<int>(local_rptr[new_version].size()) - 1, 0);
+    // if we goes to this place, use must have already setup the state once
+    utils::Assert(nlocal == 1 || nlocal == num_local_replica + 1,
+                  "TryGetResult::Checkpoint");
+    return TryRecoverLocalState(&local_rptr[new_version], &local_chkpt[new_version]);    
+  }
+  // handles normal data recovery
+  RecoverType role;
   if (!requester) {
     sendrecvbuf = resbuf.Query(seqno, &size);
     role = sendrecvbuf != NULL ? kHaveData : kPassData;
@@ -786,7 +861,7 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
     }
     chkpt.resize(rptr.back());
     // pass data through the link 
-    succ = RingPassing(&chkpt[0], rptr[nlocal], rptr[nread_end],
+    succ = RingPassing(BeginPtr(chkpt), rptr[nlocal], rptr[nread_end],
                        rptr[nwrite_start], rptr[nread_end],
                        ring_next, ring_prev);
     if (succ != kSuccess) {
@@ -849,12 +924,63 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
     }
     chkpt.resize(rptr.back());
     // pass data through the link 
-    succ = RingPassing(&chkpt[0], rptr[nlocal], rptr[nread_end],
+    succ = RingPassing(BeginPtr(chkpt), rptr[nlocal], rptr[nread_end],
                        rptr[nwrite_start], rptr[nwrite_end],
                        ring_prev, ring_next);
     if (succ != kSuccess) {
       rptr.resize(nlocal + 1); chkpt.resize(rptr.back()); return succ;
     }
+  }
+  return kSuccess;
+}
+/*!
+ * \brief try to checkpoint local state, this function is called in normal executation phase
+ *    of checkpoint that contains local state
+ *  the input state must exactly one saved state(local state of current node),
+ *  after complete, this function will get local state from previous num_local_replica nodes and put them
+ *  into local_chkpt and local_rptr
+ *
+ *  It is also OK to call TryRecoverLocalState instead,
+ *  TryRecoverLocalState makes less assumption about the input, and requires more communications
+ *
+ * \param p_local_rptr the pointer to the segment pointers in the states array
+ * \param p_local_chkpt the pointer to the storage of local check points
+ * \return this function can return kSuccess/kSockError/kGetExcept, see ReturnType for details
+ * \sa ReturnType, TryRecoverLocalState
+ */
+AllreduceRobust::ReturnType
+AllreduceRobust::TryCheckinLocalState(std::vector<size_t> *p_local_rptr,
+                                      std::string *p_local_chkpt) {
+  // if there is no local replica, we can do nothing
+  if (num_local_replica == 0) return kSuccess;
+  std::vector<size_t> &rptr = *p_local_rptr;
+  std::string &chkpt = *p_local_chkpt;
+  utils::Assert(rptr.size() == 2, "TryCheckinLocalState must have exactly 1 state");
+  const int n = num_local_replica;
+  std::vector<size_t> sizes(n + 1);
+  sizes[0] = rptr[1] - rptr[0];
+  ReturnType succ;
+  // pass size through the link
+  succ = RingPassing(BeginPtr(sizes),
+                     1 * sizeof(size_t),
+                     (n + 1) * sizeof(size_t),
+                     0 * sizeof(size_t),
+                     n * sizeof(size_t),
+                     ring_prev, ring_next);
+  if (succ != kSuccess) return succ;
+  // update rptr
+  rptr.resize(n + 1);
+  for (int i = 1; i < n; ++i) {
+    rptr[i + 1] = rptr[i] + sizes[i];
+  }  
+  chkpt.resize(rptr.back());
+  // pass data through the link 
+  succ = RingPassing(BeginPtr(chkpt),
+                     rptr[1], rptr[n + 1],
+                     rptr[0], rptr[n],
+                     ring_prev, ring_next);
+  if (succ != kSuccess) {
+    rptr.resize(2); chkpt.resize(rptr.back()); return succ;
   }
   return kSuccess;
 }
@@ -883,7 +1009,7 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
                              size_t write_end,
                              LinkRecord *read_link,
                              LinkRecord *write_link) {
-  if (links.size() == 0 || read_end == 0) return kSuccess;
+  if (read_link == NULL || write_link == NULL || read_end == 0) return kSuccess;
   utils::Assert(read_end <= write_end, "boundary check");
   utils::Assert(read_ptr <= read_end, "boundary check");
   utils::Assert(write_ptr <= write_end, "boundary check");

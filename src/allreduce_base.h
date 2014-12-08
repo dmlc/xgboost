@@ -260,6 +260,19 @@ class AllreduceBase : public IEngine {
     std::vector<uint64_t> buffer_;
   };
   /*!
+   * \brief simple data structure that works like a vector
+   *  but takes reference instead of space
+   */
+  struct RefLinkVector {
+    std::vector<LinkRecord*> plinks;
+    inline LinkRecord &operator[](size_t i) {
+      return *plinks[i];
+    }
+    inline size_t size(void) const {
+      return plinks.size();
+    }
+  };
+  /*!
    * \brief connect to the tracker to fix the the missing links
    *   this function is also used when the engine start up
    * \param cmd possible command to sent to tracker
@@ -306,9 +319,11 @@ class AllreduceBase : public IEngine {
   int parent_index;
   // rank of parent node, can be -1
   int parent_rank;
-  // sockets of all links
-  std::vector<LinkRecord> links;
-  // pointer to someplace in the ring
+  // sockets of all links this connects to
+  std::vector<LinkRecord> all_links;
+  // all the links in the reduction tree connection
+  RefLinkVector tree_links;
+  // pointer to links in the ring
   LinkRecord *ring_prev, *ring_next;
   //----- meta information-----
   // unique identifier of the possible job this process is doing
