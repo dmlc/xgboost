@@ -211,9 +211,9 @@ class Tracker:
                 shutdown[s.rank] = s
                 continue
             assert s.cmd == 'start' or s.cmd == 'recover'
-            if s.cmd == 'recover':
+            if s.cmd == 'recover'
                 assert s.rank >= 0
-                print 'Recieve recover signal from %d' % s.rank
+            print 'Recieve %s signal from %d' % (s.cmd, s.rank)
             rank = s.decide_rank(job_map)
             if rank == -1:
                 assert len(todo_nodes) != 0
