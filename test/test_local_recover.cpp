@@ -25,42 +25,46 @@ class Model : public rabit::utils::ISerializable {
   virtual void Save(rabit::utils::IStream &fo) const {
     fo.Write(data);
   }
-  virtual void InitModel(size_t n) {
-    data.resize(n, 1.0f);
+  virtual void InitModel(size_t n, float v) {
+    data.resize(n, v);
   }
 };
 
-inline void TestMax(test::Mock &mock, Model *model, int ntrial, int iter) {
+inline void TestMax(test::Mock &mock, Model *model, Model *local, int ntrial, int iter) {
   int rank = rabit::GetRank();
   int nproc = rabit::GetWorldSize();
   const int z = iter + 111;
 
   std::vector<float> ndata(model->data.size());
   for (size_t i = 0; i < ndata.size(); ++i) {
-    ndata[i] = (i * (rank+1)) % z  + model->data[i];
+    ndata[i] = (i * (rank+1)) % z  + local->data[i];
   }
   mock.Allreduce<op::Max>(&ndata[0], ndata.size());  
   if (ntrial == iter && rank == 3) {
-    exit(-1);
+    //exit(-1);
   }
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rmax = (i * 1) % z + model->data[i];
     for (int r = 0; r < nproc; ++r) {
-      rmax = std::max(rmax, (float)((i * (r+1)) % z) + model->data[i]);
+      rmax = std::max(rmax, (float)((i * (r+1)) % z) + model->data[i] + r);
     }
     utils::Check(rmax == ndata[i], "[%d] TestMax check failure", rank);
   }
   model->data = ndata;
+  local->data = ndata;
+  for (size_t i = 0; i < ndata.size(); ++i) {
+    local->data[i] = ndata[i] + rank;
+  }
 }
 
-inline void TestSum(test::Mock &mock, Model *model, int ntrial, int iter) {
+inline void TestSum(test::Mock &mock, Model *model, Model *local, int ntrial, int iter) {
   int rank = rabit::GetRank();
   int nproc = rabit::GetWorldSize();
   const int z = 131 + iter;
 
   std::vector<float> ndata(model->data.size());
   for (size_t i = 0; i < ndata.size(); ++i) {
-    ndata[i] = (i * (rank+1)) % z + model->data[i];
+    ndata[i] = (i * (rank+1)) % z + local->data[i];
   }
   mock.Allreduce<op::Sum>(&ndata[0], ndata.size());
 
@@ -69,14 +73,17 @@ inline void TestSum(test::Mock &mock, Model *model, int ntrial, int iter) {
   }
 
   for (size_t i = 0; i < ndata.size(); ++i) {
-    float rsum = model->data[i] * nproc;
+    float rsum = 0.0f;
     for (int r = 0; r < nproc; ++r) {
-      rsum += (float)((i * (r+1)) % z);
+      rsum += (float)((i * (r+1)) % z) + model->data[i] + r;
     }
     utils::Check(fabsf(rsum - ndata[i]) < 1e-5 ,
                  "[%d] TestSum check failure, local=%g, allreduce=%g", rank, rsum, ndata[i]);
   }
   model->data = ndata;
+  for (size_t i = 0; i < ndata.size(); ++i) {
+    local->data[i] = ndata[i] + rank;
+  }
 }
 
 inline void TestBcast(test::Mock &mock, size_t n, int root, int ntrial) {
@@ -106,7 +113,7 @@ int main(int argc, char *argv[]) {
   int nproc = rabit::GetWorldSize();
   std::string name = rabit::GetProcessorName();
   test::Mock mock(rank, argv[2], argv[3]);
-  Model model;  
+  Model model, local;  
   srand(0);
   int ntrial = 0;
   for (int i = 1; i < argc; ++i) {
@@ -115,24 +122,25 @@ int main(int argc, char *argv[]) {
   } 
   while (true) {
     try {
-      int iter = rabit::LoadCheckPoint(&model);
+      int iter = rabit::LoadCheckPoint(&model, &local);
       if (iter == 0) {
-        model.InitModel(n);
+        model.InitModel(n, 1.0f);
+        local.InitModel(n, 1.0f + rank);
         utils::LogPrintf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
       } else {
         utils::LogPrintf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
       }
       for (int r = iter; r < 3; ++r) { 
-        TestMax(mock, &model, ntrial, r);
+        TestMax(mock, &model, &local, ntrial, r);
         utils::LogPrintf("[%d] !!!TestMax pass, iter=%d\n",  rank, r);  
         int step = std::max(nproc / 3, 1);
         for (int i = 0; i < nproc; i += step) {
           TestBcast(mock, n, i, ntrial);
         }
         utils::LogPrintf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
-        TestSum(mock, &model, ntrial, r);
+        TestSum(mock, &model, &local, ntrial, r);
         utils::LogPrintf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
-        rabit::CheckPoint(&model);
+        rabit::CheckPoint(&model, &local);
         utils::LogPrintf("[%d] !!!CheckPont pass, iter=%d\n", rank, r);
       }
       break;

@@ -124,12 +124,14 @@ inline void Allreduce(DType *sendrecvbuf, size_t count) {
                      engine::mpi::GetType<DType>(), OP::kType);
 }
 // load latest check point
-inline int LoadCheckPoint(utils::ISerializable *p_model) {
-  return engine::GetEngine()->LoadCheckPoint(p_model);
+inline int LoadCheckPoint(utils::ISerializable *global_model,
+                          utils::ISerializable *local_model) {
+  return engine::GetEngine()->LoadCheckPoint(global_model, local_model);
 }
 // checkpoint the model, meaning we finished a stage of execution
-inline void CheckPoint(const utils::ISerializable &model) {
-  engine::GetEngine()->CheckPoint(&model);
+inline void CheckPoint(const utils::ISerializable *global_model,
+                       const utils::ISerializable *local_model) {
+  engine::GetEngine()->CheckPoint(global_model, local_model);
 }
 // return the version number of currently stored model
 inline int VersionNumber(void) {

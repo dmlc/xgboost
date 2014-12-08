@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
       }
     }
     model.Normalize();
-    rabit::CheckPoint(model);
+    rabit::CheckPoint(&model);
   }
   // output the model file to somewhere
   if (rabit::GetRank() == 0) {

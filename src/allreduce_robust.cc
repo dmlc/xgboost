@@ -26,12 +26,12 @@ void AllreduceRobust::Shutdown(void) {
   // need to sync the exec before we shutdown, do a pesudo check point
   // execute checkpoint, note: when checkpoint existing, load will not happen
   utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp),
-                "check point must return true");
+                "Shutdown: check point must return true");
   // reset result buffer
   resbuf.Clear(); seq_counter = 0;  
   // execute check ack step, load happens here
   utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
-                "check ack must return true");    
+                "Shutdown: check ack must return true");    
   AllreduceBase::Shutdown();
 }
 /*!
@@ -201,9 +201,8 @@ void AllreduceRobust::CheckPoint(const utils::ISerializable *global_model,
       if (CheckAndRecover(TryCheckinLocalState(&local_rptr[new_version],
                                                &local_chkpt[new_version]))) break;
     }
-    // run the ack phase
-    utils::Assert(RecoverExec(NULL, 0, 0, ActionSummary::kLocalCheckAck),
-                  "check point must return true");
+    // run the ack phase, can be true or false
+    RecoverExec(NULL, 0, 0, ActionSummary::kLocalCheckAck);
     // switch pointer to new version
     local_chkpt_version = !local_chkpt_version;
   }
@@ -678,7 +677,7 @@ AllreduceRobust::ReturnType
 AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool requester) {
   // if minimum sequence requested is local check point ack,
   // this means all nodes have finished local check point, directly return
-  if (seqno == ActionSummary::kLocalCheckAck) return kSuccess;  
+  if (seqno == ActionSummary::kLocalCheckAck) return kSuccess;
   if (seqno == ActionSummary::kLocalCheckPoint) {
     // new version of local model
     int new_version = !local_chkpt_version;
@@ -972,8 +971,8 @@ AllreduceRobust::TryCheckinLocalState(std::vector<size_t> *p_local_rptr,
                      ring_prev, ring_next);
   if (succ != kSuccess) return succ;
   // update rptr
-  rptr.resize(n + 1);
-  for (int i = 1; i < n; ++i) {
+  rptr.resize(n + 2);
+  for (int i = 1; i <= n; ++i) {
     rptr[i + 1] = rptr[i] + sizes[i];
   }  
   chkpt.resize(rptr.back());
@@ -1013,7 +1012,7 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
                              LinkRecord *read_link,
                              LinkRecord *write_link) {
   if (read_link == NULL || write_link == NULL || read_end == 0) return kSuccess;
-  utils::Assert(write_end <= read_end, "RingPassing: boundary check1");
+  utils::Assert(write_end <= read_end, "RingPassing: boundary check1, write_end=%lu, read_end=%lu", write_end, read_end);
   utils::Assert(read_ptr <= read_end, "RingPassing: boundary check2");
   utils::Assert(write_ptr <= write_end, "RingPassing: boundary check3");
   // take reference
