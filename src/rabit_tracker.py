@@ -121,7 +121,7 @@ class SlaveEntry:
             return rmset
     
 class Tracker:
-    def __init__(self, port = 9000, port_end = 9999):
+    def __init__(self, port = 9091, port_end = 9999):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         for port in range(port, port_end):
             try:
@@ -213,7 +213,7 @@ class Tracker:
             assert s.cmd == 'start' or s.cmd == 'recover'
             if s.cmd == 'recover':
                 assert s.rank >= 0
-                print 'Recieve recover signal from %d' % s.rank
+            print 'Recieve %s signal from %d' % (s.cmd, s.rank)
             rank = s.decide_rank(job_map)
             if rank == -1:
                 assert len(todo_nodes) != 0
