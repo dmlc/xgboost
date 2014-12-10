@@ -10,6 +10,7 @@
  */
 #include <string>
 #include <vector>
+#include "./io.h"
 #include "./engine.h"
 
 /*! \brief namespace of rabit */
