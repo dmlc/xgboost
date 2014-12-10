@@ -20,6 +20,7 @@ AllreduceRobust::AllreduceRobust(void) {
   result_buffer_round = 1;
   num_local_replica = 0;
   seq_counter = 0;
+  local_chkpt_version = 0;
 }
 /*! \brief shutdown the engine */
 void AllreduceRobust::Shutdown(void) {
@@ -619,16 +620,16 @@ AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
   // check in local data
   RecoverType role =  requester ? kRequestData : kHaveData;  
   ReturnType succ;  
-  if (num_local_replica != 0) {
+  if (false) {
     if (requester) {
       // clear existing history, if any, before load
       local_rptr[local_chkpt_version].clear();
       local_chkpt[local_chkpt_version].clear();    
     }
     // recover local checkpoint  
-    succ = TryRecoverLocalState(&local_rptr[local_chkpt_version],
-                                &local_chkpt[local_chkpt_version]);
-    if (succ != kSuccess) return succ;
+    //succ = TryRecoverLocalState(&local_rptr[local_chkpt_version],
+    //m&local_chkpt[local_chkpt_version]);
+    //if (succ != kSuccess) return succ;
     int nlocal = std::max(static_cast<int>(local_rptr[local_chkpt_version].size()) - 1, 0);
     // check if everyone is OK
     unsigned state = 0;
@@ -817,7 +818,8 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
     utils::Assert(chkpt.length() == 0, "local chkpt space inconsistent");
   }
   const int n = num_local_replica;
-  {// backward passing, passing state in backward direction of the ring
+  utils::LogPrintf("[%d] backward!!\n", rabit::GetRank());
+  if(false){// backward passing, passing state in backward direction of the ring
     const int nlocal = static_cast<int>(rptr.size() - 1);
     utils::Assert(nlocal <= n + 1, "invalid local replica");
     std::vector<int> msg_back(n + 1);
@@ -870,6 +872,8 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
       rptr.resize(nlocal + 1); chkpt.resize(rptr.back()); return succ;
     }
   }
+
+  utils::LogPrintf("[%d] FORward!!\n", rabit::GetRank());
   {// forward passing, passing state in forward direction of the ring
     const int nlocal = static_cast<int>(rptr.size() - 1);
     utils::Assert(nlocal <= n + 1, "invalid local replica");
@@ -933,6 +937,7 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
       rptr.resize(nlocal + 1); chkpt.resize(rptr.back()); return succ;
     }
   }
+  utils::LogPrintf("[%d] Finished!!\n", rabit::GetRank());
   return kSuccess;
 }
 /*!

@@ -41,7 +41,7 @@ inline void TestMax(test::Mock &mock, Model *model, Model *local, int ntrial, in
   }
   mock.Allreduce<op::Max>(&ndata[0], ndata.size());  
   if (ntrial == iter && rank == 3) {
-    //exit(-1);
+    throw MockException();
   }
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rmax = (i * 1) % z + model->data[i];
