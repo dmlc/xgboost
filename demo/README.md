@@ -43,3 +43,4 @@ Basic Examples by Tasks
 Benchmarks
 ====
 * [Starter script for Kaggle Higgs Boson](kaggle-higgs)
+* [Kaggle Tradeshift winning solution](https://github.com/daxiongshu/kaggle-tradeshift-winning-solution) by daxiongshu
