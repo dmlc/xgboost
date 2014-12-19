@@ -114,20 +114,23 @@ int main(int argc, char *argv[]) {
   // matrix to store the result
   Matrix temp;
   for (int r = iter; r < max_iter; ++r) { 
-    temp.Init(num_cluster, num_feat + 1, 0.0f);
-    const size_t ndata = data.NumRow();
-    for (size_t i = 0; i < ndata; ++i) {
-      SparseMat::Vector v = data[i];
-      size_t k = GetCluster(model.centroids, v);
-      // temp[k] += v
-      for (size_t j = 0; j < v.length; ++j) {
-        temp[k][v[j].findex] += v[j].fvalue;
-      }
-      // use last column to record counts
-      temp[k][num_feat] += 1.0f;
-    }
+    temp.Init(num_cluster, num_feat + 1, 0.0f);    
     // call allreduce
-    rabit::Allreduce<op::Sum>(&temp.data[0], temp.data.size());
+    rabit::Allreduce<op::Sum>(&temp.data[0], temp.data.size(), [&]() {
+        // lambda function used to calculate the data if necessary
+        // this function may not be called when the result can be directly recovered
+        const size_t ndata = data.NumRow();
+        for (size_t i = 0; i < ndata; ++i) {
+          SparseMat::Vector v = data[i];
+          size_t k = GetCluster(model.centroids, v);
+          // temp[k] += v
+          for (size_t j = 0; j < v.length; ++j) {
+            temp[k][v[j].findex] += v[j].fvalue;
+          }
+          // use last column to record counts
+          temp[k][num_feat] += 1.0f;
+        }
+      });
     // set number
     for (int k = 0; k < num_cluster; ++k) {
       float cnt = temp[k][num_feat];

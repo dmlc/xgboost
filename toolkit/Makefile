@@ -2,15 +2,12 @@ export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm -L../lib
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../src
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../src -std=c++11
 
 # specify tensor path
 BIN = kmeans
 # objectives that makes up rabit library
-RABIT_OBJ = allreduce_base.o allreduce_robust.o engine.o
-MPIOBJ = engine_mpi.o
-
-OBJ = $(RABIT_OBJ) kmeans.o
+OBJ = kmeans.o
 MPIBIN = kmeans.mpi
 .PHONY: clean all lib
 
