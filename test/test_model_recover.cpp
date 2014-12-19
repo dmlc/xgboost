@@ -26,6 +26,7 @@ class Model : public rabit::utils::ISerializable {
     fo.Write(data);
   }
   virtual void InitModel(size_t n) {
+    data.clear();
     data.resize(n, 1.0f);
   }
 };
@@ -40,15 +41,15 @@ inline void TestMax(test::Mock &mock, Model *model, int ntrial, int iter) {
     ndata[i] = (i * (rank+1)) % z  + model->data[i];
   }
   mock.Allreduce<op::Max>(&ndata[0], ndata.size());  
-  if (ntrial == iter && rank == 3) {
-    //    exit(-1);
+  if (ntrial == 0 && rank == 3) {
+    exit(-1);
   }
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rmax = (i * 1) % z + model->data[i];
     for (int r = 0; r < nproc; ++r) {
       rmax = std::max(rmax, (float)((i * (r+1)) % z) + model->data[i]);
     }
-    utils::Check(rmax == ndata[i], "[%d] TestMax check failure", rank);
+    utils::Check(rmax == ndata[i], "[%d] TestMax check failurem i=%lu, rmax=%f, ndata=%f", rank, i, rmax, ndata[i]);
   }
   model->data = ndata;
 }
@@ -62,11 +63,11 @@ inline void TestSum(test::Mock &mock, Model *model, int ntrial, int iter) {
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % z + model->data[i];
   }
-  mock.Allreduce<op::Sum>(&ndata[0], ndata.size());
-
-  if (ntrial == iter && rank == 0) {
+  if (iter == 0 && ntrial==0 && rank == 0) {
     throw MockException();
   }
+
+  mock.Allreduce<op::Sum>(&ndata[0], ndata.size());
 
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rsum = model->data[i] * nproc;
@@ -125,11 +126,11 @@ int main(int argc, char *argv[]) {
       for (int r = iter; r < 3; ++r) { 
         TestMax(mock, &model, ntrial, r);
         utils::LogPrintf("[%d] !!!TestMax pass, iter=%d\n",  rank, r);  
-        int step = std::max(nproc / 3, 1);
-        for (int i = 0; i < nproc; i += step) {
-          TestBcast(mock, n, i, ntrial);
-        }
-        utils::LogPrintf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
+        //int step = std::max(nproc / 3, 1);
+        //for (int i = 0; i < nproc; i += step) {
+          //TestBcast(mock, n, i, ntrial);
+          //}
+        //utils::LogPrintf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
         TestSum(mock, &model, ntrial, r);
         utils::LogPrintf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
         rabit::CheckPoint(&model);
