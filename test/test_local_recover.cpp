@@ -5,12 +5,28 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
-#include <mock.h>
+#include "./mock.h"
 
 using namespace rabit;
-
-struct MockException {
-};
+namespace rabit {
+namespace test {
+inline void CallBegin(const char *fun, int ntrial, int iter) {
+  int rank = rabit::GetRank();
+  if (!strcmp(fun, "Allreduce::Sum")) {
+    if (ntrial == iter && rank == 0) throw MockException(); 
+  }
+  if (!strcmp(fun, "Allreduce::Max")) {
+    if (ntrial == iter && rank == 3) throw MockException(); 
+  }
+}
+inline void CallEnd(const char *fun, int ntrial, int iter) {
+  int rank = rabit::GetRank();
+  if (!strcmp(fun, "Allreduce::Bcast")) {
+    if (ntrial == iter && rand() % 10 == rank) throw MockException(); 
+  }
+}
+}
+}
 
 // dummy model
 class Model : public rabit::utils::ISerializable {
@@ -31,7 +47,7 @@ class Model : public rabit::utils::ISerializable {
   }
 };
 
-inline void TestMax(test::Mock &mock, Model *model, Model *local, int ntrial, int iter) {
+inline void TestMax(Model *model, Model *local, int ntrial, int iter) {
   int rank = rabit::GetRank();
   int nproc = rabit::GetWorldSize();
   const int z = iter + 111;
@@ -39,11 +55,11 @@ inline void TestMax(test::Mock &mock, Model *model, Model *local, int ntrial, in
   std::vector<float> ndata(model->data.size());
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % z  + local->data[i];
-  }
-  mock.Allreduce<op::Max>(&ndata[0], ndata.size());  
-  if (ntrial == iter && rank == 1) {
-    throw MockException();
-  }
+  }  
+  test::CallBegin("Allreduce::Max", ntrial, iter);
+  rabit::Allreduce<op::Max>(&ndata[0], ndata.size());  
+  test::CallEnd("Allreduce::Max", ntrial, iter);
+
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rmax = (i * 1) % z + model->data[i];
     for (int r = 0; r < nproc; ++r) {
@@ -58,7 +74,7 @@ inline void TestMax(test::Mock &mock, Model *model, Model *local, int ntrial, in
   }
 }
 
-inline void TestSum(test::Mock &mock, Model *model, Model *local, int ntrial, int iter) {
+inline void TestSum(Model *model, Model *local, int ntrial, int iter) {
   int rank = rabit::GetRank();
   int nproc = rabit::GetWorldSize();
   const int z = 131 + iter;
@@ -67,11 +83,10 @@ inline void TestSum(test::Mock &mock, Model *model, Model *local, int ntrial, in
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % z + local->data[i];
   }
-  if (ntrial == iter && rank == 0) {
-    throw MockException();
-  }
-  mock.Allreduce<op::Sum>(&ndata[0], ndata.size());
-
+  test::CallBegin("Allreduce::Sum", ntrial, iter);
+  Allreduce<op::Sum>(&ndata[0], ndata.size());
+  test::CallEnd("Allreduce::Sum", ntrial, iter);
+  
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rsum = 0.0f;
     for (int r = 0; r < nproc; ++r) {
@@ -86,7 +101,7 @@ inline void TestSum(test::Mock &mock, Model *model, Model *local, int ntrial, in
   }
 }
 
-inline void TestBcast(test::Mock &mock, size_t n, int root, int ntrial) {
+inline void TestBcast(size_t n, int root, int ntrial, int iter) {
   int rank = rabit::GetRank();
   std::string s; s.resize(n);      
   for (size_t i = 0; i < n; ++i) {
@@ -95,16 +110,20 @@ inline void TestBcast(test::Mock &mock, size_t n, int root, int ntrial) {
   std::string res;
   if (root == rank) {
     res = s;
-    mock.Broadcast(&res, root);
+    test::CallBegin("Broadcast", ntrial, iter);
+    rabit::Broadcast(&res, root);
+    test::CallBegin("Broadcast", ntrial, iter);
   } else {
-    mock.Broadcast(&res, root);
+    test::CallBegin("Broadcast", ntrial, iter);
+    rabit::Broadcast(&res, root);
+    test::CallEnd("Broadcast", ntrial, iter);
   }
   utils::Check(res == s, "[%d] TestBcast fail", rank);
 }
 
 int main(int argc, char *argv[]) {
   if (argc < 3) {
-    printf("Usage: <ndata> <config>\n");
+    printf("Usage: <ndata>\n");
     return 0;
   }
   int n = atoi(argv[1]);
@@ -112,7 +131,6 @@ int main(int argc, char *argv[]) {
   int rank = rabit::GetRank();
   int nproc = rabit::GetWorldSize();
   std::string name = rabit::GetProcessorName();
-  test::Mock mock(rank, argv[2], argv[3]);
   Model model, local;  
   srand(0);
   int ntrial = 0;
@@ -131,14 +149,14 @@ int main(int argc, char *argv[]) {
         utils::LogPrintf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
       }
       for (int r = iter; r < 3; ++r) { 
-        TestMax(mock, &model, &local, ntrial, r);
+        TestMax(&model, &local, ntrial, r);
         utils::LogPrintf("[%d] !!!TestMax pass, iter=%d\n",  rank, r);  
         int step = std::max(nproc / 3, 1);
         for (int i = 0; i < nproc; i += step) {
-          //TestBcast(mock, n, i, ntrial);
+          TestBcast(n, i, ntrial, r);
         }
-        //utils::LogPrintf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
-        TestSum(mock, &model, &local, ntrial, r);
+        utils::LogPrintf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
+        TestSum(&model, &local, ntrial, r);
         utils::LogPrintf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
         rabit::CheckPoint(&model, &local);
         utils::LogPrintf("[%d] !!!CheckPont pass, iter=%d\n", rank, r);

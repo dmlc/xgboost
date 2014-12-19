@@ -6,9 +6,9 @@ then
     exit -1
 fi
 nrep=0
-echo ./$@ task_id=$OMPI_COMM_WORLD_RANK
-until ./$@ task_id=$OMPI_COMM_WORLD_RANK repeat=$nrep; do
+echo ./$@ rabit_task_id=$OMPI_COMM_WORLD_RANK
+until ./$@ rabit_task_id=$OMPI_COMM_WORLD_RANK repeat=$nrep; do
     sleep 1
     nrep=$((nrep+1))
-    echo ./$@ job_id=$OMPI_COMM_WORLD_RANK repeat=$nrep
+    echo ./$@ rabit_task_id=$OMPI_COMM_WORLD_RANK repeat=$nrep
 done

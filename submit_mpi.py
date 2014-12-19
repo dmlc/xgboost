@@ -1,6 +1,6 @@
 #!/usr/bin/python
 """
-This is an example script to create a customized job submit
+This is an example script to create a customized job submit with mpi
 script using rabit engine
 """
 import sys
@@ -34,6 +34,7 @@ def mpi_submit(nslave, args):
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print 'Usage: <nslave> <machine_file> <cmd>'
+        print 'if <machine_file> == local, we will run using local mode'
         exit(0)        
     # call submit, with nslave, the commands to run each job and submit function
     tracker.submit(int(sys.argv[1]), sys.argv[2:], fun_submit= mpi_submit)

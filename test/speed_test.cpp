@@ -1,3 +1,4 @@
+// This program is used to test the speed of rabit API
 #include <rabit.h>
 #include <utils.h>
 #include <timer.h>
@@ -12,8 +13,6 @@ double max_tdiff, sum_tdiff, bcast_tdiff, tot_tdiff;
 
 inline void TestMax(size_t n) {
   int rank = rabit::GetRank();
-  //int nproc = rabit::GetWorldSize();
-
   std::vector<float> ndata(n);
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % 111;
@@ -25,7 +24,6 @@ inline void TestMax(size_t n) {
 
 inline void TestSum(size_t n) {
   int rank = rabit::GetRank();
-  //int nproc = rabit::GetWorldSize();
   const int z = 131;
   std::vector<float> ndata(n);
   for (size_t i = 0; i < ndata.size(); ++i) {

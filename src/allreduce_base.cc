@@ -26,7 +26,7 @@ AllreduceBase::AllreduceBase(void) {
   hadoop_mode = 0;
   version_number = 0;
   task_id = "NULL";
-  this->SetParam("reduce_buffer", "256MB");
+  this->SetParam("rabit_reduce_buffer", "256MB");
 }
 
 // initialization function
@@ -38,8 +38,8 @@ void AllreduceBase::Init(void) {
       utils::Check(task_id != NULL, "hadoop_mode is set but cannot find mapred_task_id");
     }
     if (task_id != NULL) {
-      this->SetParam("task_id", task_id);
-      this->SetParam("hadoop_mode", "1");
+      this->SetParam("rabit_task_id", task_id);
+      this->SetParam("rabit_hadoop_mode", "1");
     }
   }  
   // start socket
@@ -83,9 +83,9 @@ void AllreduceBase::Shutdown(void) {
 void AllreduceBase::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "rabit_tracker_uri")) tracker_uri = val;
   if (!strcmp(name, "rabit_tracker_port")) tracker_port = atoi(val);
-  if (!strcmp(name, "task_id")) task_id = val;
-  if (!strcmp(name, "hadoop_mode")) hadoop_mode = atoi(val);
-  if (!strcmp(name, "reduce_buffer")) {
+  if (!strcmp(name, "rabit_task_id")) task_id = val;
+  if (!strcmp(name, "rabit_hadoop_mode")) hadoop_mode = atoi(val);
+  if (!strcmp(name, "rabit_reduce_buffer")) {
     char unit;
     unsigned long amount;
     if (sscanf(val, "%lu%c", &amount, &unit) == 2) {

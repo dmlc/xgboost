@@ -17,10 +17,10 @@
 namespace rabit {
 namespace engine {
 AllreduceRobust::AllreduceRobust(void) {
-  result_buffer_round = 1;
   num_local_replica = 0;
   seq_counter = 0;
   local_chkpt_version = 0;
+  result_buffer_round = 1;
 }
 /*! \brief shutdown the engine */
 void AllreduceRobust::Shutdown(void) {
@@ -42,11 +42,11 @@ void AllreduceRobust::Shutdown(void) {
  */
 void AllreduceRobust::SetParam(const char *name, const char *val) {
   AllreduceBase::SetParam(name, val);
-  if (!strcmp(name, "result_buffer_round")) result_buffer_round = atoi(val);
-  if (!strcmp(name, "result_replicate")) {
+  if (!strcmp(name, "rabit_buffer_round")) result_buffer_round = atoi(val);
+  if (!strcmp(name, "rabit_global_replica")) {
     result_buffer_round = std::max(world_size / atoi(val), 1);
   }
-  if (!strcmp(name, "num_local_replica")) {
+  if (!strcmp(name, "rabit_local_replica")) {
     num_local_replica = atoi(val);
   }
 }

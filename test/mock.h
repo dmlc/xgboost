@@ -11,6 +11,9 @@
 #include <sstream>
 #include <fstream>
 
+struct MockException {
+};
+
 namespace rabit {
 /*! \brief namespace of mock */
 namespace test {
