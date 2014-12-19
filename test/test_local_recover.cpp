@@ -26,6 +26,7 @@ class Model : public rabit::utils::ISerializable {
     fo.Write(data);
   }
   virtual void InitModel(size_t n, float v) {
+    data.clear();
     data.resize(n, v);
   }
 };
@@ -34,13 +35,13 @@ inline void TestMax(test::Mock &mock, Model *model, Model *local, int ntrial, in
   int rank = rabit::GetRank();
   int nproc = rabit::GetWorldSize();
   const int z = iter + 111;
-
+  
   std::vector<float> ndata(model->data.size());
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % z  + local->data[i];
   }
   mock.Allreduce<op::Max>(&ndata[0], ndata.size());  
-  if (ntrial == iter && rank == 3) {
+  if (ntrial == iter && rank == 1) {
     throw MockException();
   }
   for (size_t i = 0; i < ndata.size(); ++i) {
@@ -66,11 +67,10 @@ inline void TestSum(test::Mock &mock, Model *model, Model *local, int ntrial, in
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % z + local->data[i];
   }
-  mock.Allreduce<op::Sum>(&ndata[0], ndata.size());
-
   if (ntrial == iter && rank == 0) {
-    exit(-1);
+    throw MockException();
   }
+  mock.Allreduce<op::Sum>(&ndata[0], ndata.size());
 
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rsum = 0.0f;
@@ -135,9 +135,9 @@ int main(int argc, char *argv[]) {
         utils::LogPrintf("[%d] !!!TestMax pass, iter=%d\n",  rank, r);  
         int step = std::max(nproc / 3, 1);
         for (int i = 0; i < nproc; i += step) {
-          TestBcast(mock, n, i, ntrial);
+          //TestBcast(mock, n, i, ntrial);
         }
-        utils::LogPrintf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
+        //utils::LogPrintf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
         TestSum(mock, &model, &local, ntrial, r);
         utils::LogPrintf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
         rabit::CheckPoint(&model, &local);

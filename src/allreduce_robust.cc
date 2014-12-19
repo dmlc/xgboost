@@ -141,12 +141,17 @@ int AllreduceRobust::LoadCheckPoint(utils::ISerializable *global_model,
   }
   // check if we succesful
   if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kSpecialOp)) {
+    int nlocal = std::max(static_cast<int>(local_rptr[local_chkpt_version].size()) - 1, 0);
     if (local_model != NULL) {
-      // load in local model
-      utils::MemoryFixSizeBuffer fs(BeginPtr(local_chkpt[local_chkpt_version]),
-                                    local_rptr[local_chkpt_version][1]);
-      local_model->Load(fs);
-    }    
+      if (nlocal == num_local_replica + 1) {
+        // load in local model
+        utils::MemoryFixSizeBuffer fs(BeginPtr(local_chkpt[local_chkpt_version]),
+                                      local_rptr[local_chkpt_version][1]);
+        local_model->Load(fs);
+      } else {
+        utils::Assert(nlocal == 0, "[%d] local model inconsistent, nlocal=%d", rank, nlocal);
+      }
+    }
     // reset result buffer
     resbuf.Clear(); seq_counter = 0;
     // load from buffer
@@ -156,6 +161,8 @@ int AllreduceRobust::LoadCheckPoint(utils::ISerializable *global_model,
     } else {
       utils::Assert(fs.Read(&version_number, sizeof(version_number)) != 0, "read in version number");      
       global_model->Load(fs);
+      utils::Assert(local_model == NULL || nlocal == num_local_replica + 1,
+                    "local model inconsistent, nlocal=%d", nlocal);
     }
     // run another phase of check ack, if recovered from data
     utils::Assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck, ActionSummary::kSpecialOp),
