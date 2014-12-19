@@ -35,11 +35,17 @@ class AllreduceRobust : public AllreduceBase {
    * \param type_nbytes the unit number of bytes the type have
    * \param count number of elements to be reduced
    * \param reducer reduce function
-   */  
+   * \param prepare_func Lazy preprocessing function, lazy prepare_fun(prepare_arg)
+   *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+   *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
+   * \param prepare_arg argument used to passed into the lazy preprocessing function
+   */
   virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
-                         size_t count,           
-                         ReduceFunction reducer);
+                         size_t count,
+                         ReduceFunction reducer,
+                         PreprocFunction prepare_fun = NULL,
+                         void *prepare_arg = NULL);
   /*!
    * \brief broadcast data from root to all nodes
    * \param sendrecvbuf_ buffer for both sending and recving data

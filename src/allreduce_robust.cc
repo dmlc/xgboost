@@ -57,17 +57,24 @@ void AllreduceRobust::SetParam(const char *name, const char *val) {
  * \param type_nbytes the unit number of bytes the type have
  * \param count number of elements to be reduced
  * \param reducer reduce function
+ * \param prepare_func Lazy preprocessing function, lazy prepare_fun(prepare_arg)
+ *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+ *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
+ * \param prepare_arg argument used to passed into the lazy preprocessing function
  */
 void AllreduceRobust::Allreduce(void *sendrecvbuf_,
                                 size_t type_nbytes,
                                 size_t count,
-                                ReduceFunction reducer) {
+                                ReduceFunction reducer,
+                                PreprocFunction prepare_fun,
+                                void *prepare_arg) {
   bool recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter);
   // now we are free to remove the last result, if any
   if (resbuf.LastSeqNo() != -1 &&
       (resbuf.LastSeqNo() % result_buffer_round != rank % result_buffer_round)) {
     resbuf.DropLast();
   }
+  if (!recovered && prepare_fun != NULL) prepare_fun(prepare_arg);
   void *temp = resbuf.AllocTemp(type_nbytes, count);
   while (true) {
     if (recovered) {

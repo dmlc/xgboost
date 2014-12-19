@@ -23,7 +23,9 @@ class MPIEngine : public IEngine {
   virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
                          size_t count,
-                         ReduceFunction reducer) {
+                         ReduceFunction reducer,
+                         PreprocFunction prepare_fun,
+                         void *prepare_arg) {
     utils::Error("MPIEngine:: Allreduce is not supported, use Allreduce_ instead");
   }
   virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) {   
@@ -110,7 +112,10 @@ void Allreduce_(void *sendrecvbuf,
                 size_t count,
                 IEngine::ReduceFunction red,               
                 mpi::DataType dtype,
-                mpi::OpType op) {  
+                mpi::OpType op,
+                IEngine::PreprocFunction prepare_fun,
+                void *prepare_arg) {
+  if (prepare_fun != NULL) prepare_fun(prepare_arg);
   MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, GetType(dtype), GetOp(op));
 }
 }  // namespace engine

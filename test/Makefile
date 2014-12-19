@@ -2,7 +2,7 @@ export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm  -lrt
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../src
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../src  -std=c++11
 
 # specify tensor path
 BIN = speed_test test_model_recover test_local_recover

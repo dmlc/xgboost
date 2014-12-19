@@ -50,14 +50,17 @@ class Model : public rabit::utils::ISerializable {
 inline void TestMax(Model *model, Model *local, int ntrial, int iter) {
   int rank = rabit::GetRank();
   int nproc = rabit::GetWorldSize();
-  const int z = iter + 111;
-  
+  const int z = iter + 111;  
   std::vector<float> ndata(model->data.size());
-  for (size_t i = 0; i < ndata.size(); ++i) {
-    ndata[i] = (i * (rank+1)) % z  + local->data[i];
-  }  
+
   test::CallBegin("Allreduce::Max", ntrial, iter);
-  rabit::Allreduce<op::Max>(&ndata[0], ndata.size());  
+  rabit::Allreduce<op::Max>(&ndata[0], ndata.size(), 
+                            [&]() {
+                              // use lambda expression to prepare the data
+                              for (size_t i = 0; i < ndata.size(); ++i) {
+                                ndata[i] = (i * (rank+1)) % z  + local->data[i];
+                              }
+                            });  
   test::CallEnd("Allreduce::Max", ntrial, iter);
 
   for (size_t i = 0; i < ndata.size(); ++i) {

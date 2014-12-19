@@ -43,8 +43,10 @@ void Allreduce_(void *sendrecvbuf,
                 size_t count,
                 IEngine::ReduceFunction red,               
                 mpi::DataType dtype,
-                mpi::OpType op) {
-  GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count, red);
+                mpi::OpType op,
+                IEngine::PreprocFunction prepare_fun,
+                void *prepare_arg) {
+  GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count, red, prepare_fun, prepare_arg);
 }
 }  // namespace engine
 }  // namespace rabit

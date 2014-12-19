@@ -119,10 +119,25 @@ inline void Broadcast(std::string *sendrecv_data, int root) {
 
 // perform inplace Allreduce
 template<typename OP, typename DType>
-inline void Allreduce(DType *sendrecvbuf, size_t count) {
+inline void Allreduce(DType *sendrecvbuf, size_t count,
+                      void (*prepare_fun)(void *arg), 
+                      void *prepare_arg) {
   engine::Allreduce_(sendrecvbuf, sizeof(DType), count, op::Reducer<OP,DType>,
-                     engine::mpi::GetType<DType>(), OP::kType);
+                     engine::mpi::GetType<DType>(), OP::kType, prepare_fun, prepare_arg);
 }
+
+// C++11 support for lambda prepare function
+#if __cplusplus >= 201103L
+inline void InvokeLambda_(void *fun) {
+  (*static_cast<std::function<void()>*>(fun))();
+}
+template<typename OP, typename DType>
+inline void Allreduce(DType *sendrecvbuf, size_t count, std::function<void()> prepare_fun) {
+  engine::Allreduce_(sendrecvbuf, sizeof(DType), count, op::Reducer<OP,DType>,
+                     engine::mpi::GetType<DType>(), OP::kType, InvokeLambda_, &prepare_fun);
+}
+#endif // C++11
+
 // load latest check point
 inline int LoadCheckPoint(utils::ISerializable *global_model,
                           utils::ISerializable *local_model) {

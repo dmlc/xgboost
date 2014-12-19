@@ -20,6 +20,12 @@ namespace engine {
 class IEngine {
  public:
   /*! 
+   * \brief Preprocessing function, that is called before AllReduce,
+   *        used to prepare the data used by AllReduce
+   * \param arg additional possible argument used to invoke the preprocessor
+   */
+  typedef void (PreprocFunction) (void *arg);
+  /*!
    * \brief reduce function, the same form of MPI reduce function is used,
    *        to be compatible with MPI interface
    *        In all the functions, the memory is ensured to aligned to 64-bit
@@ -34,17 +40,23 @@ class IEngine {
                                  void *dst, int count,
                                  const MPI::Datatype &dtype);
   /*!
-   * \brief perform in-place allreduce, on sendrecvbuf 
+   * \brief perform in-place allreduce, on sendrecvbuf
    *        this function is NOT thread-safe
    * \param sendrecvbuf_ buffer for both sending and recving data
    * \param type_nbytes the unit number of bytes the type have
    * \param count number of elements to be reduced
    * \param reducer reduce function
+   * \param prepare_func Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
+   *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+   *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
+   * \param prepare_arg argument used to passed into the lazy preprocessing function
    */
   virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
                          size_t count,
-                         ReduceFunction reducer) = 0;
+                         ReduceFunction reducer,
+                         PreprocFunction prepare_fun = NULL,
+                         void *prepare_arg = NULL) = 0;
   /*!
    * \brief broadcast data from root to all nodes
    * \param sendrecvbuf_ buffer for both sending and recving data
@@ -145,13 +157,19 @@ enum DataType {
  * \param reducer reduce function
  * \param dtype the data type 
  * \param op the reduce operator type
+ * \param prepare_func Lazy preprocessing function, lazy prepare_fun(prepare_arg)
+ *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+ *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
+ * \param prepare_arg argument used to passed into the lazy preprocessing function *
  */
 void Allreduce_(void *sendrecvbuf,
                 size_t type_nbytes,
                 size_t count,
-                IEngine::ReduceFunction red,               
+                IEngine::ReduceFunction red,
                 mpi::DataType dtype,
-                mpi::OpType op);
+                mpi::OpType op,
+                IEngine::PreprocFunction prepare_fun = NULL,
+                void *prepare_arg = NULL);
 }  // namespace engine
 }  // namespace rabit
 #endif  // RABIT_ENGINE_H
