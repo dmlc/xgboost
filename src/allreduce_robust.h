@@ -95,7 +95,11 @@ class AllreduceRobust : public AllreduceBase {
    *    this function is only used for test purpose
    */
   virtual void InitAfterException(void) {
-    this->CheckAndRecover(kGetExcept);
+    // simple way, shutdown all links
+    for (size_t i = 0; i < all_links.size(); ++i) {
+      if (!all_links[i].sock.BadSocket()) all_links[i].sock.Close();
+    }
+    ReConnectLinks("recover");
   }
 
  private:
