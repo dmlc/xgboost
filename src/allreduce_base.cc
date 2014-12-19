@@ -22,7 +22,7 @@ AllreduceBase::AllreduceBase(void) {
   slave_port = 9010;
   nport_trial = 1000;
   rank = -1;
-  world_size = 1;
+  world_size = -1;
   hadoop_mode = 0;
   version_number = 0;
   task_id = "NULL";
@@ -31,8 +31,8 @@ AllreduceBase::AllreduceBase(void) {
 
 // initialization function
 void AllreduceBase::Init(void) {
-  {
-    // handling for hadoop
+  // setup from enviroment variables
+  {// handling for hadoop
     const char *task_id = getenv("mapred_task_id");
     if (hadoop_mode != 0) {
       utils::Check(task_id != NULL, "hadoop_mode is set but cannot find mapred_task_id");
@@ -41,7 +41,16 @@ void AllreduceBase::Init(void) {
       this->SetParam("rabit_task_id", task_id);
       this->SetParam("rabit_hadoop_mode", "1");
     }
-  }  
+    // handling for hadoop
+    const char *num_task = getenv("mapred_map_tasks");
+    if (hadoop_mode != 0) {
+      utils::Check(num_task != NULL, "hadoop_mode is set but cannot find mapred_map_tasks");      
+    }
+    if (num_task != NULL) {
+      this->SetParam("rabit_world_size", num_task);
+    }
+  }
+  //---------------------
   // start socket
   utils::Socket::Startup();
   utils::Assert(all_links.size() == 0, "can only call Init once");
@@ -70,6 +79,7 @@ void AllreduceBase::Shutdown(void) {
   utils::Check(magic == kMagic, "sync::Invalid tracker message, init failure");
 
   utils::Assert(tracker.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 3");
+  utils::Assert(tracker.SendAll(&world_size, sizeof(world_size)) == sizeof(world_size), "ReConnectLink failure 3");
   tracker.SendStr(task_id);
   tracker.SendStr(std::string("shutdown"));  
   tracker.Close();
@@ -84,6 +94,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "rabit_tracker_uri")) tracker_uri = val;
   if (!strcmp(name, "rabit_tracker_port")) tracker_port = atoi(val);
   if (!strcmp(name, "rabit_task_id")) task_id = val;
+  if (!strcmp(name, "rabit_world_size")) world_size = atoi(val); 
   if (!strcmp(name, "rabit_hadoop_mode")) hadoop_mode = atoi(val);
   if (!strcmp(name, "rabit_reduce_buffer")) {
     char unit;
@@ -108,7 +119,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
 void AllreduceBase::ReConnectLinks(const char *cmd) {
   // single node mode
   if (tracker_uri == "NULL") {
-    rank = 0; return;
+    rank = 0; world_size = 1; return;
   }
   int magic = kMagic;
   // get information from tracker
@@ -121,6 +132,7 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
   utils::Assert(tracker.RecvAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 2");
   utils::Check(magic == kMagic, "sync::Invalid tracker message, init failure");
   utils::Assert(tracker.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 3");
+  utils::Assert(tracker.SendAll(&world_size, sizeof(world_size)) == sizeof(world_size), "ReConnectLink failure 3");
   tracker.SendStr(task_id);
   tracker.SendStr(std::string(cmd));
   // the rank of previous link, next link in ring

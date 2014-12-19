@@ -53,6 +53,7 @@ class SlaveEntry:
         assert magic == kMagic, 'invalid magic number=%d from %s' % (magic, s_addr[0])
         slave.sendint(kMagic)
         self.rank = slave.recvint()
+        self.world_size = slave.recvint()
         self.jobid = slave.recvstr()
         self.cmd = slave.recvstr()
 
@@ -188,32 +189,42 @@ class Tracker:
             ring_map[rlst[r]] = (rlst[rprev], rlst[rnext])
         return ring_map
     def accept_slaves(self, nslave):
-        tree_map, parent_map = self.get_tree(nslave)
-        ring_map = self.get_ring(tree_map, parent_map)
         # set of nodes that finishs the job
         shutdown = {}
         # set of nodes that is waiting for connections
         wait_conn = {}
-        # set of nodes that is pending for getting up
-        todo_nodes = range(nslave)
-        random.shuffle(todo_nodes)
         # maps job id to rank
         job_map = {}
         # list of workers that is pending to be assigned rank
         pending = []
+        # lazy initialize tree_map
+        tree_map = None
         
         while len(shutdown) != nslave:
             fd, s_addr = self.sock.accept()
-            s = SlaveEntry(fd, s_addr)
+            s = SlaveEntry(fd, s_addr)                       
             if s.cmd == 'shutdown':
                 assert s.rank >= 0 and s.rank not in shutdown
                 assert s.rank not in wait_conn
                 shutdown[s.rank] = s
+                print 'Recieve %s signal from %d' % (s.cmd, s.rank)
                 continue
-            assert s.cmd == 'start' or s.cmd == 'recover'
+            assert s.cmd == 'start' or s.cmd == 'recover'            
+            # lazily initialize the slaves
+            if tree_map == None:
+                assert s.cmd == 'start'
+                print s.world_size
+                if s.world_size > 0:
+                    nslave = s.world_size
+                tree_map, parent_map = self.get_tree(nslave)
+                ring_map = self.get_ring(tree_map, parent_map)
+                # set of nodes that is pending for getting up
+                todo_nodes = range(nslave)
+                random.shuffle(todo_nodes)
+            else:
+                assert s.world_size == -1 or s.world_size == nslave
             if s.cmd == 'recover':
                 assert s.rank >= 0
-            print 'Recieve %s signal from %d' % (s.cmd, s.rank)
             rank = s.decide_rank(job_map)
             if rank == -1:
                 assert len(todo_nodes) != 0
@@ -221,6 +232,10 @@ class Tracker:
                 if s.jobid != 'NULL':
                     job_map[s.jobid] = rank                
             s.assign_rank(rank, wait_conn, tree_map, parent_map, ring_map)
+            if s.cmd != 'start':
+                print 'Recieve %s signal from %d' % (s.cmd, s.rank)
+            else:
+                print 'Recieve %s signal from %s assign rank %d' % (s.cmd, s.host, s.rank)
             if s.wait_accept > 0:
                 wait_conn[rank] = s            
         print 'All nodes finishes job'
@@ -234,5 +249,5 @@ def submit(nslave, args, fun_submit = mpi_submit):
     master = Tracker()
     submit_thread = Thread(target = fun_submit, args = (nslave, args + master.slave_args()))
     submit_thread.start()
-    master.accept_slaves(nslave)
+    master.accept_slaves(nslaves)
     submit_thread.join()
