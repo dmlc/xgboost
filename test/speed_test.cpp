@@ -60,11 +60,11 @@ inline void PrintStats(const char *name, double tdiff, int n, int nrep, size_t s
   rabit::Allreduce<op::Sum>(&tsqr, 1);
   double tstd = sqrt(tsqr / nproc);
   if (rabit::GetRank() == 0) {
-    utils::LogPrintf("%s: mean=%g, std=%g sec\n", name, tavg, tstd);
+    rabit::TrackerPrintf("%s: mean=%g, std=%g sec\n", name, tavg, tstd);
     double ndata = n;
     ndata *= nrep * size;
     if (n != 0) {
-      utils::LogPrintf("%s-speed: %g MB/sec\n", name, (ndata / tavg) / 1024 / 1024 );
+      rabit::TrackerPrintf("%s-speed: %g MB/sec\n", name, (ndata / tavg) / 1024 / 1024 );
     }
   }
 }

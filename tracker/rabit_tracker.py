@@ -188,6 +188,11 @@ class Tracker:
             rnext = (r + 1) % nslave            
             ring_map[rlst[r]] = (rlst[rprev], rlst[rnext])
         return ring_map
+    def handle_print(self,slave, msg):
+        sys.stdout.write(msg)
+    def log_print(self, msg):
+        sys.stderr.write(msg+'\n')
+
     def accept_slaves(self, nslave):
         # set of nodes that finishs the job
         shutdown = {}
@@ -202,12 +207,16 @@ class Tracker:
         
         while len(shutdown) != nslave:
             fd, s_addr = self.sock.accept()
-            s = SlaveEntry(fd, s_addr)                       
+            s = SlaveEntry(fd, s_addr)
+            if s.cmd == 'print':
+                msg = s.sock.recvstr()
+                self.handle_print(s, msg)
+                continue                
             if s.cmd == 'shutdown':
                 assert s.rank >= 0 and s.rank not in shutdown
                 assert s.rank not in wait_conn
                 shutdown[s.rank] = s
-                print 'Recieve %s signal from %d' % (s.cmd, s.rank)
+                self.log_print('Recieve %s signal from %d' % (s.cmd, s.rank))
                 continue
             assert s.cmd == 'start' or s.cmd == 'recover'            
             # lazily initialize the slaves
@@ -233,21 +242,16 @@ class Tracker:
                     job_map[s.jobid] = rank                
             s.assign_rank(rank, wait_conn, tree_map, parent_map, ring_map)
             if s.cmd != 'start':
-                print 'Recieve %s signal from %d' % (s.cmd, s.rank)
+                self.log_print('Recieve %s signal from %d' % (s.cmd, s.rank))
             else:
-                print 'Recieve %s signal from %s assign rank %d' % (s.cmd, s.host, s.rank)
+                self.log_print('Recieve %s signal from %s assign rank %d' % (s.cmd, s.host, s.rank))
             if s.wait_accept > 0:
                 wait_conn[rank] = s            
-        print 'All nodes finishes job'
+        self.log_print('All nodes finishes job')
 
-def mpi_submit(nslave, args):
-    cmd = ' '.join(['mpirun -n %d' % nslave] + args)
-    print cmd
-    return subprocess.check_call(cmd, shell = True)
-    
-def submit(nslave, args, fun_submit = mpi_submit):
+def submit(nslave, args, fun_submit):
     master = Tracker()
     submit_thread = Thread(target = fun_submit, args = (nslave, args + master.slave_args()))
     submit_thread.start()
-    master.accept_slaves(nslaves)
+    master.accept_slaves(nslave)
     submit_thread.join()

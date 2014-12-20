@@ -147,22 +147,22 @@ int main(int argc, char *argv[]) {
       if (iter == 0) {
         model.InitModel(n, 1.0f);
         local.InitModel(n, 1.0f + rank);
-        utils::LogPrintf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
+        printf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
       } else {
-        utils::LogPrintf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
+        printf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
       }
       for (int r = iter; r < 3; ++r) { 
         TestMax(&model, &local, ntrial, r);
-        utils::LogPrintf("[%d] !!!TestMax pass, iter=%d\n",  rank, r);  
+        printf("[%d] !!!TestMax pass, iter=%d\n",  rank, r);  
         int step = std::max(nproc / 3, 1);
         for (int i = 0; i < nproc; i += step) {
           TestBcast(n, i, ntrial, r);
         }
-        utils::LogPrintf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
+        printf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
         TestSum(&model, &local, ntrial, r);
-        utils::LogPrintf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
+        printf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
         rabit::CheckPoint(&model, &local);
-        utils::LogPrintf("[%d] !!!CheckPont pass, iter=%d\n", rank, r);
+        printf("[%d] !!!CheckPont pass, iter=%d\n", rank, r);
       }
       break;
     } catch (MockException &e) {

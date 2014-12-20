@@ -48,6 +48,23 @@ inline int GetWorldSize(void);
 /*! \brief get name of processor */
 inline std::string GetProcessorName(void);
 /*!
+ * \brief print the msg to the tracker,
+ *    this function can be used to communicate the information of the progress to
+ *    the user who monitors the tracker
+ * \param msg, the message to be printed
+ */
+inline void TrackerPrint(const std::string &msg);
+#ifndef RABIT_STRICT_CXX98_
+/*!
+ * \brief print the msg to the tracker, this function may not be available
+ *    in very strict c++98 compilers, but is available most of the time
+ *    this function can be used to communicate the information of the progress to
+ *    the user who monitors the tracker
+ * \param fmt the format string
+ */
+inline void TrackerPrintf(const char *fmt, ...);
+#endif
+/*!
  * \brief broadcast an memory region to all others from root
  *     Example: int a = 1; Broadcast(&a, sizeof(a), root); 
  * \param sendrecv_data the pointer to send or recive buffer,

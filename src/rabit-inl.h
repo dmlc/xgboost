@@ -8,6 +8,7 @@
 #define RABIT_RABIT_INL_H
 // use engine for implementation
 #include "./engine.h"
+#include "./utils.h"
 
 namespace rabit {
 namespace engine {
@@ -140,6 +141,21 @@ inline void Allreduce(DType *sendrecvbuf, size_t count, std::function<void()> pr
 }
 #endif // C++11
 
+// print message to the tracker
+inline void TrackerPrint(const std::string &msg) {
+  engine::GetEngine()->TrackerPrint(msg);
+}
+#ifndef RABIT_STRICT_CXX98_
+inline void TrackerPrintf(const char *fmt, ...) {
+  const int kPrintBuffer = 1 << 10;
+  std::string msg(kPrintBuffer, '\0');
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(&msg[0], kPrintBuffer, fmt, args);
+  va_end(args);
+  TrackerPrint(msg);
+}
+#endif
 // load latest check point
 inline int LoadCheckPoint(ISerializable *global_model,
                           ISerializable *local_model) {

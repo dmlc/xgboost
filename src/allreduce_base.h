@@ -45,6 +45,13 @@ class AllreduceBase : public IEngine {
    * \param val parameter value
    */
   virtual void SetParam(const char *name, const char *val);
+  /*!
+   * \brief print the msg in the tracker,
+   *    this function can be used to communicate the information of the progress to
+   *    the user who monitors the tracker
+   * \param msg message to be printed in the tracker
+   */
+  virtual void TrackerPrint(const std::string &msg);
   /*! \brief get rank */
   virtual int GetRank(void) const {
     return rank;
@@ -279,6 +286,11 @@ class AllreduceBase : public IEngine {
       return plinks.size();
     }
   };
+  /*!
+   * \brief initialize connection to the tracker
+   * \return a socket that initializes the connection
+   */
+  utils::TCPSocket ConnectTracker(void) const;
   /*!
    * \brief connect to the tracker to fix the the missing links
    *   this function is also used when the engine start up

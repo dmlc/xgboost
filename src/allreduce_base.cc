@@ -67,23 +67,20 @@ void AllreduceBase::Shutdown(void) {
   tree_links.plinks.clear();
   
   if (tracker_uri == "NULL") return;
-  int magic = kMagic;
   // notify tracker rank i have shutdown
-  utils::TCPSocket tracker;
-  tracker.Create();
-  if (!tracker.Connect(utils::SockAddr(tracker_uri.c_str(), tracker_port))) {
-    utils::Socket::Error("Connect Tracker");
-  }
-  utils::Assert(tracker.SendAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 1");
-  utils::Assert(tracker.RecvAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 2");
-  utils::Check(magic == kMagic, "sync::Invalid tracker message, init failure");
-
-  utils::Assert(tracker.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 3");
-  utils::Assert(tracker.SendAll(&world_size, sizeof(world_size)) == sizeof(world_size), "ReConnectLink failure 3");
-  tracker.SendStr(task_id);
+  utils::TCPSocket tracker = this->ConnectTracker();
   tracker.SendStr(std::string("shutdown"));  
   tracker.Close();
   utils::TCPSocket::Finalize();
+}
+void AllreduceBase::TrackerPrint(const std::string &msg) {
+  if (tracker_uri == "NULL") {
+    utils::Printf("%s", msg.c_str()); return;
+  }
+  utils::TCPSocket tracker = this->ConnectTracker();
+  tracker.SendStr(std::string("print"));
+  tracker.SendStr(msg);
+  tracker.Close();
 }
 /*!
  * \brief set parameters to the engine 
@@ -113,14 +110,10 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
   }
 }
 /*!
- * \brief connect to the tracker to fix the the missing links
- *   this function is also used when the engine start up
+ * \brief initialize connection to the tracker
+ * \return a socket that initializes the connection
  */
-void AllreduceBase::ReConnectLinks(const char *cmd) {
-  // single node mode
-  if (tracker_uri == "NULL") {
-    rank = 0; world_size = 1; return;
-  }
+utils::TCPSocket AllreduceBase::ConnectTracker(void) const {
   int magic = kMagic;
   // get information from tracker
   utils::TCPSocket tracker;
@@ -134,7 +127,20 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
   utils::Assert(tracker.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 3");
   utils::Assert(tracker.SendAll(&world_size, sizeof(world_size)) == sizeof(world_size), "ReConnectLink failure 3");
   tracker.SendStr(task_id);
+  return tracker;
+}
+/*!
+ * \brief connect to the tracker to fix the the missing links
+ *   this function is also used when the engine start up
+ */
+void AllreduceBase::ReConnectLinks(const char *cmd) {
+  // single node mode
+  if (tracker_uri == "NULL") {
+    rank = 0; world_size = 1; return;
+  }
+  utils::TCPSocket tracker = this->ConnectTracker();
   tracker.SendStr(std::string(cmd));
+
   // the rank of previous link, next link in ring
   int prev_rank, next_rank;
   // the rank of neighbors

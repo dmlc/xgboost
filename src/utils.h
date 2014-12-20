@@ -106,15 +106,6 @@ inline void Printf(const char *fmt, ...) {
   va_end(args);
   HandlePrint(msg.c_str());
 }
-/*! \brief printf, print message to the console */
-inline void LogPrintf(const char *fmt, ...) {
-  std::string msg(kPrintBuffer, '\0');
-  va_list args;
-  va_start(args, fmt);
-  vsnprintf(&msg[0], kPrintBuffer, fmt, args);
-  va_end(args);
-  HandleLogPrint(msg.c_str());
-}
 /*! \brief portable version of snprintf */
 inline int SPrintf(char *buf, size_t size, const char *fmt, ...) {
   va_list args;

@@ -1,24 +1,21 @@
 /*!
- * \file engine_mpi.cc
- * \brief this file gives an implementation of engine interface using MPI,
- *   this will allow rabit program to run with MPI, but do not comes with fault tolerant
- *   
+ * \file engine_empty.cc
+ * \brief this file provides a dummy implementation of engine that does nothing
+ *  this file provides a way to fall back to single node program without causing too many dependencies
+ *  This is usually NOT needed, use engine_mpi or engine for real distributed version
  * \author Tianqi Chen
  */
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
-#include <cstdio>
-#include "./engine.h"
-#include "./utils.h"
-#include <mpi.h>
 
+#include "./engine.h"
 namespace rabit {
 namespace engine {
-/*! \brief implementation of engine using MPI */
-class MPIEngine : public IEngine {
+/*! \brief EmptyEngine */
+class EmptyEngine : public IEngine {
  public:
-  MPIEngine(void) {
+  EmptyEngine(void) {
     version_number = 0;
   }
   virtual void Allreduce(void *sendrecvbuf_,
@@ -27,13 +24,12 @@ class MPIEngine : public IEngine {
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun,
                          void *prepare_arg) {
-    utils::Error("MPIEngine:: Allreduce is not supported, use Allreduce_ instead");
+    utils::Error("EmptyEngine:: Allreduce is not supported, use Allreduce_ instead");
   }
   virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) {   
-    MPI::COMM_WORLD.Bcast(sendrecvbuf_, size, MPI::CHAR, root);
   }
   virtual void InitAfterException(void) {
-    utils::Error("MPI is not fault tolerant");
+    utils::Error("EmptyEngine is not fault tolerant");
   }
   virtual int LoadCheckPoint(ISerializable *global_model,
                              ISerializable *local_model = NULL) {
@@ -48,69 +44,37 @@ class MPIEngine : public IEngine {
   }
   /*! \brief get rank of current node */
   virtual int GetRank(void) const {
-    return MPI::COMM_WORLD.Get_rank();    
+    return 0;
   }
   /*! \brief get total number of */
   virtual int GetWorldSize(void) const {
-    return MPI::COMM_WORLD.Get_size();    
+    return 1;
   }
   /*! \brief get the host name of current node */  
   virtual std::string GetHost(void) const {
-    int len;
-    char name[MPI_MAX_PROCESSOR_NAME];
-    MPI::Get_processor_name(name, len);
-    name[len] = '\0';
-    return std::string(name);
+    return std::string("");
   }
   virtual void TrackerPrint(const std::string &msg) {
     // simply print information into the tracker
-    if (GetRank() == 0) {
-      utils::Printf("%s", msg.c_str());
-    }
+    utils::Printf("%s", msg.c_str());
   }
  private:
   int version_number;
 };
 
 // singleton sync manager
-MPIEngine manager;
+EmptyEngine manager;
 
 /*! \brief intiialize the synchronization module */
 void Init(int argc, char *argv[]) {
-  MPI::Init(argc, argv);
 }
 /*! \brief finalize syncrhonization module */
 void Finalize(void) {
-  MPI::Finalize();
 }
 
 /*! \brief singleton method to get engine */
 IEngine *GetEngine(void) {
   return &manager;
-}
-// transform enum to MPI data type
-inline MPI::Datatype GetType(mpi::DataType dtype) {
-  using namespace mpi;
-  switch(dtype) {
-    case kInt: return MPI::INT;
-    case kUInt: return MPI::UNSIGNED;
-    case kFloat: return MPI::FLOAT;
-    case kDouble: return MPI::DOUBLE;
-  }
-  utils::Error("unknown mpi::DataType");
-  return MPI::CHAR;
-}
-// transform enum to MPI OP
-inline MPI::Op GetOp(mpi::OpType otype) {
-  using namespace mpi;
-  switch(otype) {
-    case kMax: return MPI::MAX;
-    case kMin: return MPI::MIN;
-    case kSum: return MPI::SUM;
-    case kBitwiseOR: return MPI::BOR;
-  }
-  utils::Error("unknown mpi::OpType");
-  return MPI::MAX;
 }
 // perform in-place allreduce, on sendrecvbuf 
 void Allreduce_(void *sendrecvbuf,
@@ -121,8 +85,6 @@ void Allreduce_(void *sendrecvbuf,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun,
                 void *prepare_arg) {
-  if (prepare_fun != NULL) prepare_fun(prepare_arg);
-  MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, GetType(dtype), GetOp(op));
 }
 }  // namespace engine
 }  // namespace rabit

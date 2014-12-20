@@ -124,6 +124,13 @@ class IEngine {
   virtual int GetWorldSize(void) const = 0;
   /*! \brief get the host name of current node */  
   virtual std::string GetHost(void) const = 0;
+  /*!
+   * \brief print the msg in the tracker,
+   *    this function can be used to communicate the information of the progress to
+   *    the user who monitors the tracker
+   * \param msg message to be printed in the tracker
+   */
+  virtual void TrackerPrint(const std::string &msg) = 0;
 };
 
 /*! \brief intiialize the engine module */
