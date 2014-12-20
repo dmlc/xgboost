@@ -27,13 +27,15 @@ class IGradBooster {
   /*!
    * \brief load model from stream
    * \param fi input stream
+   * \param with_pbuffer whether the incoming data contains pbuffer
    */
-  virtual void LoadModel(utils::IStream &fi) = 0;
+  virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) = 0;
   /*!
    * \brief save model to stream
    * \param fo output stream
+   * \param with_pbuffer whether save out pbuffer
    */
-  virtual void SaveModel(utils::IStream &fo) const = 0;
+  virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const = 0;
   /*!
    * \brief initialize the model
    */

@@ -32,10 +32,10 @@ class GBLinear : public IGradBooster {
       model.param.SetParam(name, val);
     }
   }
-  virtual void LoadModel(utils::IStream &fi) {
+  virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) {
     model.LoadModel(fi);
   }
-  virtual void SaveModel(utils::IStream &fo) const {
+  virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const {
     model.SaveModel(fo);
   }
   virtual void InitModel(void) {
