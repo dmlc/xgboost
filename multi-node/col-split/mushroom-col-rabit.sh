@@ -16,13 +16,13 @@ k=$1
 python splitsvm.py ../../demo/data/agaricus.txt.train train $k
 
 # run xgboost mpi
-../submit_job_tcp.py $k ../../xgboost mushroom-col.conf dsplit=col
+../../rabit/tracker/rabit_mpi.py $k local ../../xgboost mushroom-col.conf dsplit=col
 
 # the model can be directly loaded by single machine xgboost solver, as usuall
 ../../xgboost mushroom-col.conf task=dump model_in=0002.model fmap=../../demo/data/featmap.txt name_dump=dump.nice.$k.txt
 
 # run for one round, and continue training
-../submit_job_tcp.py $k ../../xgboost mushroom-col.conf dsplit=col num_round=1
-../submit_job_tcp.py $k ../../xgboost mushroom-col.conf dsplit=col model_in=0001.model
+../../rabit/tracker/rabit_mpi.py $k local  ../../xgboost mushroom-col.conf dsplit=col num_round=1
+../../rabit/tracker/rabit_mpi.py $k local  ../../xgboost mushroom-col.conf  mushroom-col.conf dsplit=col model_in=0001.model
 
 cat dump.nice.$k.txt

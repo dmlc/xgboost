@@ -8,7 +8,7 @@
  */
 #include <vector>
 #include <algorithm>
-#include "../sync/sync.h"
+#include <rabit.h>
 #include "../utils/quantile.h"
 #include "./updater_basemaker-inl.hpp"
 
@@ -166,8 +166,8 @@ class SketchMaker: public BaseMaker {
       sketchs[i].GetSummary(&out);
       summary_array.Set(i, out);
     }
-    size_t n4bytes = (summary_array.MemSize() + 3) / 4;
-    sketch_reducer.AllReduce(&summary_array, n4bytes);    
+    size_t nbytes = summary_array.MemSize();;
+    sketch_reducer.Allreduce(&summary_array, nbytes);    
   }
   // update sketch information in column fid
   inline void UpdateSketchCol(const std::vector<bst_gpair> &gpair,
@@ -256,7 +256,7 @@ class SketchMaker: public BaseMaker {
     for (size_t i = 0; i < qexpand.size(); ++i) {
       tmp[i] = node_stats[qexpand[i]];
     }
-    stats_reducer.AllReduce(BeginPtr(tmp), tmp.size());
+    stats_reducer.Allreduce(BeginPtr(tmp), tmp.size());
     for (size_t i = 0; i < qexpand.size(); ++i) {
       node_stats[qexpand[i]] = tmp[i];
     }
@@ -382,9 +382,9 @@ class SketchMaker: public BaseMaker {
   // summary array
   WXQSketch::SummaryArray summary_array;
   // reducer for summary
-  sync::Reducer<SKStats> stats_reducer;
+  rabit::Reducer<SKStats> stats_reducer;
   // reducer for summary
-  sync::ComplexReducer<WXQSketch::SummaryArray> sketch_reducer;
+  rabit::SerializeReducer<WXQSketch::SummaryArray> sketch_reducer;
   // per node, per feature sketch
   std::vector< utils::WXQuantileSketch<bst_float, bst_float> > sketchs;
 };

@@ -574,14 +574,16 @@ class QuantileSketchTemplate {
       return sizeof(size_t) + sizeof(Entry) * nentry;
     }
     /*! \brief save the data structure into stream */
-    inline void Save(IStream &fo) const {
+    template<typename TStream>
+    inline void Save(TStream &fo) const {
       fo.Write(&(this->size), sizeof(this->size));
       if (this->size != 0) {
         fo.Write(this->data, this->size * sizeof(Entry));
       }
     }
     /*! \brief load data structure from input stream */
-    inline void Load(IStream &fi) {
+    template<typename TStream>
+    inline void Load(TStream &fi) {
       utils::Check(fi.Read(&this->size, sizeof(this->size)) != 0, "invalid SummaryArray 1");
       this->Reserve(this->size);
       if (this->size != 0) {

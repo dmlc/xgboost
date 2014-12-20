@@ -17,6 +17,6 @@ k=$1
 python splitsvm.py ../../demo/data/agaricus.txt.train train $k
 
 # run xgboost mpi
-../submit_job_tcp.py $k python mushroom-col.py
+../../rabit/tracker/rabit_mpi.py $k local python mushroom-col.py
 
 cat dump.nice.$k.txt

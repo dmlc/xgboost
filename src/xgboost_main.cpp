@@ -4,8 +4,8 @@
 #include <ctime>
 #include <string>
 #include <cstring>
+#include <rabit.h>
 #include "io/io.h"
-#include "sync/sync.h"
 #include "utils/utils.h"
 #include "utils/config.h"
 #include "learner/learner-inl.hpp"
@@ -31,10 +31,10 @@ class BoostLearnTask {
         this->SetParam(name, val);
       }
     }
-    if (sync::IsDistributed()) {
+    if (rabit::IsDistributed()) {
       this->SetParam("data_split", "col");
     }
-    if (sync::GetRank() != 0) {
+    if (rabit::GetRank() != 0) {
       this->SetParam("silent", "2");
     }
     this->InitData();
@@ -109,7 +109,7 @@ class BoostLearnTask {
   inline void InitData(void) {
     if (strchr(train_path.c_str(), '%') != NULL) {
       char s_tmp[256];
-      utils::SPrintf(s_tmp, sizeof(s_tmp), train_path.c_str(), sync::GetRank());
+      utils::SPrintf(s_tmp, sizeof(s_tmp), train_path.c_str(), rabit::GetRank());
       train_path = s_tmp;
       load_part = 1;
     }
@@ -193,7 +193,7 @@ class BoostLearnTask {
     fclose(fo);
   }
   inline void SaveModel(const char *fname) const {
-    if (sync::GetRank() != 0) return;
+    if (rabit::GetRank() != 0) return;
     utils::FileStream fo(utils::FopenCheck(fname, "wb"));
     learner.SaveModel(fo);
     fo.Close();
@@ -263,14 +263,14 @@ class BoostLearnTask {
 }
 
 int main(int argc, char *argv[]){
-  xgboost::sync::Init(argc, argv);
-  if (xgboost::sync::IsDistributed()) {
-    std::string pname = xgboost::sync::GetProcessorName();
-    printf("start %s:%d\n", pname.c_str(), xgboost::sync::GetRank());
+  rabit::Init(argc, argv);
+  if (rabit::IsDistributed()) {
+    std::string pname = rabit::GetProcessorName();
+    printf("start %s:%d\n", pname.c_str(), rabit::GetRank());
   }
   xgboost::random::Seed(0);
   xgboost::BoostLearnTask tsk;
   int ret = tsk.Run(argc, argv);
-  xgboost::sync::Finalize();
+  rabit::Finalize();
   return ret;
 }

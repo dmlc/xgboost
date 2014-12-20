@@ -8,8 +8,8 @@
 #include "./updater_refresh-inl.hpp"
 #include "./updater_colmaker-inl.hpp"
 #include "./updater_distcol-inl.hpp"
-//#include "./updater_skmaker-inl.hpp"
 #include "./updater_histmaker-inl.hpp"
+//#include "./updater_skmaker-inl.hpp"
 
 namespace xgboost {
 namespace tree {

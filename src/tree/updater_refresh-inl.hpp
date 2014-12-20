@@ -7,10 +7,10 @@
  */
 #include <vector>
 #include <limits>
+#include <rabit.h>
 #include "./param.h"
 #include "./updater.h"
 #include "../utils/omp.h"
-#include "../sync/sync.h"
 
 namespace xgboost {
 namespace tree {
@@ -85,7 +85,7 @@ class TreeRefresher: public IUpdater {
       }
     }
     // AllReduce, add statistics up
-    reducer.AllReduce(BeginPtr(stemp[0]), stemp[0].size());
+    reducer.Allreduce(BeginPtr(stemp[0]), stemp[0].size());
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
@@ -137,7 +137,7 @@ class TreeRefresher: public IUpdater {
   // training parameter
   TrainParam param;
   // reducer
-  sync::Reducer<TStats> reducer;  
+  rabit::Reducer<TStats> reducer;  
 };
 
 }  // namespace tree

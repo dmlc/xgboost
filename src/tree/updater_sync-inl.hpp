@@ -7,8 +7,8 @@
  */
 #include <vector>
 #include <limits>
+#include <rabit.h>
 #include "./updater.h"
-#include "../sync/sync.h"
 
 namespace xgboost {
 namespace tree {
@@ -32,22 +32,22 @@ class TreeSyncher: public IUpdater {
  private:
   // synchronize the trees in different nodes, take tree from rank 0
   inline void SyncTrees(const std::vector<RegTree *> &trees) {
-    if (sync::GetWorldSize() == 1) return;
+    if (rabit::GetWorldSize() == 1) return;
     std::string s_model;
     utils::MemoryBufferStream fs(&s_model);
-    int rank = sync::GetRank();
+    int rank = rabit::GetRank();
     if (rank == 0) {
       for (size_t i = 0; i < trees.size(); ++i) {
         trees[i]->SaveModel(fs);
       }
-      sync::Bcast(&s_model, 0);
+      rabit::Broadcast(&s_model, 0);
     } else {
-      sync::Bcast(&s_model, 0);
+      rabit::Broadcast(&s_model, 0);
       for (size_t i = 0; i < trees.size(); ++i) {      
         trees[i]->LoadModel(fs);
       }
     }
-  }    
+  }
 };
 }  // namespace tree
 }  // namespace xgboost

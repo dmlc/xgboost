@@ -6,9 +6,9 @@
  *        and construct a tree
  * \author Tianqi Chen
  */
+#include <rabit.h>
 #include "../utils/bitmap.h"
 #include "../utils/io.h"
-#include "../sync/sync.h"
 #include "./updater_colmaker-inl.hpp"
 #include "./updater_prune-inl.hpp"
 
@@ -114,7 +114,7 @@ class DistColMaker : public ColMaker<TStats> {
       
       bitmap.InitFromBool(boolmap);
       // communicate bitmap
-      sync::AllReduce(BeginPtr(bitmap.data), bitmap.data.size(), sync::kBitwiseOR);
+      rabit::Allreduce<rabit::op::BitOR>(BeginPtr(bitmap.data), bitmap.data.size());
       const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
       // get the new position
       const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
@@ -142,8 +142,9 @@ class DistColMaker : public ColMaker<TStats> {
         }
         vec.push_back(this->snode[nid].best);
       }
+      // TODO, lazy version
       // communicate best solution
-      reducer.AllReduce(BeginPtr(vec), vec.size());
+      reducer.Allreduce(BeginPtr(vec), vec.size());
       // assign solution back
       for (size_t i = 0; i < qexpand.size(); ++i) {
         const int nid = qexpand[i];
@@ -154,7 +155,7 @@ class DistColMaker : public ColMaker<TStats> {
    private:
     utils::BitMap bitmap;
     std::vector<int> boolmap;
-    sync::Reducer<SplitEntry> reducer;
+    rabit::Reducer<SplitEntry> reducer;
   };
   // we directly introduce pruner here
   TreePruner pruner;

@@ -8,6 +8,7 @@
 #include <vector>
 #include <algorithm>
 #include <limits>
+#include <rabit.h>
 #include "../utils/random.h"
 #include "../utils/quantile.h"
 
@@ -50,7 +51,7 @@ class BaseMaker: public IUpdater {
           }
         }
       }      
-      sync::AllReduce(BeginPtr(fminmax), fminmax.size(), sync::kMax);
+      rabit::Allreduce<rabit::op::Max>(BeginPtr(fminmax), fminmax.size());
     }
     // get feature type, 0:empty 1:binary 2:real
     inline int Type(bst_uint fid) const {
@@ -80,11 +81,11 @@ class BaseMaker: public IUpdater {
         std::string s_cache;
         utils::MemoryBufferStream fc(&s_cache);
         utils::IStream &fs = fc;
-        if (sync::GetRank() == 0) {
+        if (rabit::GetRank() == 0) {
           fs.Write(findex);
-          sync::Bcast(&s_cache, 0);
+          rabit::Broadcast(&s_cache, 0);
         } else {
-          sync::Bcast(&s_cache, 0);
+          rabit::Broadcast(&s_cache, 0);
           fs.Read(&findex);
         }
       }

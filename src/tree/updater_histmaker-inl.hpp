@@ -7,7 +7,7 @@
  */
 #include <vector>
 #include <algorithm>
-#include "../sync/sync.h"
+#include <rabit.h>
 #include "../utils/quantile.h"
 #include "../utils/group_data.h"
 #include "./updater_basemaker-inl.hpp"
@@ -117,7 +117,7 @@ class HistMaker: public BaseMaker {
   // workspace of thread
   ThreadWSpace wspace;
   // reducer for histogram
-  sync::Reducer<TStats> histred;
+  rabit::Reducer<TStats> histred;
   // set of working features
   std::vector<bst_uint> fwork_set;
   // update function implementation
@@ -331,7 +331,7 @@ class CQHistMaker: public HistMaker<TStats> {
           .data[0] = node_stats[nid];
     }
     // sync the histogram
-    this->histred.AllReduce(BeginPtr(this->wspace.hset[0].data), this->wspace.hset[0].data.size());    
+    this->histred.Allreduce(BeginPtr(this->wspace.hset[0].data), this->wspace.hset[0].data.size());    
   }
   virtual void ResetPositionAfterSplit(IFMatrix *p_fmat,
                                        const RegTree &tree) {
@@ -394,8 +394,8 @@ class CQHistMaker: public HistMaker<TStats> {
       summary_array[i].SetPrune(out, max_size);
     }
     if (summary_array.size() != 0) {
-      size_t n4bytes = (WXQSketch::SummaryContainer::CalcMemCost(max_size) + 3) / 4;
-      sreducer.AllReduce(BeginPtr(summary_array), n4bytes, summary_array.size());
+      size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
+      sreducer.Allreduce(BeginPtr(summary_array), nbytes, summary_array.size());
     }
     // now we get the final result of sketch, setup the cut
     this->wspace.cut.clear();
@@ -540,7 +540,7 @@ class CQHistMaker: public HistMaker<TStats> {
   // summary array
   std::vector<WXQSketch::SummaryContainer> summary_array;
   // reducer for summary
-  sync::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
+  rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
   // per node, per feature sketch
   std::vector< utils::WXQuantileSketch<bst_float, bst_float> > sketchs;  
 };
@@ -623,8 +623,8 @@ class QuantileHistMaker: public HistMaker<TStats> {
       summary_array[i].Reserve(max_size);
       summary_array[i].SetPrune(out, max_size);
     }
-    size_t n4bytes = (WXQSketch::SummaryContainer::CalcMemCost(max_size) + 3) / 4;
-    sreducer.AllReduce(BeginPtr(summary_array), n4bytes, summary_array.size());
+    size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
+    sreducer.Allreduce(BeginPtr(summary_array), nbytes, summary_array.size());
     // now we get the final result of sketch, setup the cut
     this->wspace.cut.clear();
     this->wspace.rptr.clear();
@@ -660,7 +660,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
   // summary array
   std::vector<WXQSketch::SummaryContainer> summary_array;
   // reducer for summary
-  sync::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
+  rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
   // local temp column data structure
   std::vector<size_t> col_ptr;
   // local storage of column data

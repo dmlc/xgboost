@@ -10,7 +10,8 @@
 #include <utility>
 #include <string>
 #include <limits>
-#include "../sync/sync.h"
+// rabit library for synchronization
+#include <rabit.h>
 #include "./objective.h"
 #include "./evaluation.h"
 #include "../gbm/gbm.h"
@@ -31,7 +32,6 @@ class BoostLearner {
     name_gbm_ = "gbtree";
     silent= 0;
     prob_buffer_row = 1.0f;
-    part_load_col = 0;
     distributed_mode = 0;
     pred_buffer_size = 0;
   }
@@ -65,7 +65,7 @@ class BoostLearner {
       buffer_size += mats[i]->info.num_row();
       num_feature = std::max(num_feature, static_cast<unsigned>(mats[i]->info.num_col()));
     }
-    sync::AllReduce(&num_feature, 1, sync::kMax);
+    rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
     char str_temp[25];
     if (num_feature > mparam.num_feature) {
       utils::SPrintf(str_temp, sizeof(str_temp), "%u", num_feature);
@@ -103,7 +103,6 @@ class BoostLearner {
         utils::Error("%s is invalid value for dsplit, should be row or col", val);
       }
     }
-    if (!strcmp(name, "part_load_col")) part_load_col = atoi(val);
     if (!strcmp(name, "prob_buffer_row")) {
       prob_buffer_row = static_cast<float>(atof(val));
       utils::Check(distributed_mode == 0,
@@ -153,7 +152,7 @@ class BoostLearner {
     if (gbm_ != NULL) delete gbm_;
     this->InitObjGBM();
     gbm_->LoadModel(fi);
-    if (keep_predbuffer && distributed_mode == 2 && sync::GetRank() != 0) {
+    if (keep_predbuffer && distributed_mode == 2 && rabit::GetRank() != 0) {
       gbm_->ResetPredBuffer(pred_buffer_size);
     }
   }
@@ -188,38 +187,7 @@ class BoostLearner {
    */
   inline void CheckInit(DMatrix *p_train) {
     int ncol = static_cast<int>(p_train->info.info.num_col);    
-    std::vector<bool> enabled(ncol, true);
-    
-    if (part_load_col != 0) {      
-      std::vector<unsigned> col_index;
-      for (int i = 0; i < ncol; ++i) {
-        col_index.push_back(i);
-      }
-      random::Shuffle(col_index);
-      std::string s_model;
-      utils::MemoryBufferStream ms(&s_model);
-      utils::IStream &fs = ms;
-      if (sync::GetRank() == 0) {
-        fs.Write(col_index);
-        sync::Bcast(&s_model, 0);
-      } else {
-        sync::Bcast(&s_model, 0);
-        fs.Read(&col_index);
-      }
-      int nsize = sync::GetWorldSize();
-      int step = (ncol + nsize -1) / nsize;
-      int pid = sync::GetRank();
-      std::fill(enabled.begin(), enabled.end(), false);
-      int start = step * pid;
-      int end = std::min(step * (pid + 1), ncol);
-      std::string name = sync::GetProcessorName();
-      utils::Printf("rank %d of %s idset:", pid, name.c_str());
-      for (int i = start; i < end; ++i) {
-        enabled[col_index[i]] = true;
-        utils::Printf(" %u", col_index[i]);
-      }
-      utils::Printf("\n");
-    }
+    std::vector<bool> enabled(ncol, true);    
     // initialize column access
     p_train->fmat()->InitColAccess(enabled, prob_buffer_row);    
   }
@@ -380,8 +348,6 @@ class BoostLearner {
   int silent;
   // distributed learning mode, if any, 0:none, 1:col, 2:row
   int distributed_mode;
-  // randomly load part of data
-  int part_load_col;
   // cached size of predict buffer
   size_t pred_buffer_size;
   // maximum buffred row value

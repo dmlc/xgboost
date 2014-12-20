@@ -83,21 +83,21 @@ using namespace xgboost::wrapper;
 
 extern "C"{
   void XGSyncInit(int argc, char *argv[]) {
-    sync::Init(argc, argv);
-    if (sync::IsDistributed()) {
-      std::string pname = xgboost::sync::GetProcessorName();
-      utils::Printf("distributed job start %s:%d\n", pname.c_str(), xgboost::sync::GetRank());
+    rabit::Init(argc, argv);
+    if (rabit::GetWorldSize() != 1) {
+      std::string pname = rabit::GetProcessorName();
+      utils::Printf("distributed job start %s:%d\n", pname.c_str(), rabit::GetRank());
     }
   }
   void XGSyncFinalize(void) {
-    sync::Finalize();
+    rabit::Finalize();
   }
   int XGSyncGetRank(void) {
-    int rank = xgboost::sync::GetRank();
+    int rank = rabit::GetRank();
     return rank;
   }
   int XGSyncGetWorldSize(void) {
-    return sync::GetWorldSize();
+    return rabit::GetWorldSize();
   }
   void* XGDMatrixCreateFromFile(const char *fname, int silent) {
     return LoadDataMatrix(fname, silent != 0, false);
