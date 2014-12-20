@@ -124,5 +124,59 @@ void Allreduce_(void *sendrecvbuf,
   if (prepare_fun != NULL) prepare_fun(prepare_arg);
   MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, GetType(dtype), GetOp(op));
 }
+
+// code for reduce handle
+ReduceHandle::ReduceHandle(void) : handle_(NULL), htype_(NULL) {
+}
+ReduceHandle::~ReduceHandle(void) {
+  if (handle_ != NULL) {
+    MPI::Op *op = reinterpret_cast<MPI::Op*>(handle_);
+    op->Free();
+    delete op;
+  }
+  if (htype_ != NULL) {
+    MPI::Datatype *dtype = reinterpret_cast<MPI::Datatype*>(htype_);
+    dtype->Free();
+    delete dtype;
+  }
+}
+int ReduceHandle::TypeSize(const MPI::Datatype &dtype) {
+  return dtype.Get_size();
+}
+void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
+  utils::Assert(handle_ == NULL, "cannot initialize reduce handle twice");
+  if (type_nbytes != 0) {
+    MPI::Datatype *dtype = new MPI::Datatype();
+    *dtype = MPI::CHAR.Create_contiguous(type_nbytes);
+    dtype->Commit();
+    created_type_nbytes_ = type_nbytes;
+    htype_ = dtype;
+  }
+  
+  MPI::Op *op = new MPI::Op();
+  MPI::User_function *pf = redfunc;
+  op->Init(pf, true);
+  handle_ = op;
+}
+void ReduceHandle::Allreduce(void *sendrecvbuf,
+                             size_t type_nbytes, size_t count,
+                             IEngine::PreprocFunction prepare_fun,
+                             void *prepare_arg) {
+  utils::Assert(handle_ != NULL, "must intialize handle to call AllReduce");
+  MPI::Op *op = reinterpret_cast<MPI::Op*>(handle_);
+  MPI::Datatype *dtype = reinterpret_cast<MPI::Datatype*>(htype_);
+  if (created_type_nbytes_ != type_nbytes || dtype == NULL) {
+    if (dtype == NULL) {
+      dtype = new MPI::Datatype();
+    } else {
+      dtype->Free();
+    }
+    *dtype = MPI::CHAR.Create_contiguous(type_nbytes);
+    dtype->Commit();
+    created_type_nbytes_ = type_nbytes;
+  }
+  if (prepare_fun != NULL) prepare_fun(prepare_arg);  
+  MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, *dtype, *op);
+}
 }  // namespace engine
 }  // namespace rabit

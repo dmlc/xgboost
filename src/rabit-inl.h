@@ -8,6 +8,7 @@
 #define RABIT_RABIT_INL_H
 // use engine for implementation
 #include "./engine.h"
+#include "./io.h"
 #include "./utils.h"
 
 namespace rabit {
@@ -169,6 +170,72 @@ inline void CheckPoint(const ISerializable *global_model,
 // return the version number of currently stored model
 inline int VersionNumber(void) {
   return engine::GetEngine()->VersionNumber();
+}
+// ---------------------------------
+// Code to handle customized Reduce
+// ---------------------------------
+// function to perform reduction for Reducer
+template<typename DType>
+inline void Reducer<DType>::ReduceFunc(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype) {
+  const size_t kUnit = sizeof(DType);
+  const char *psrc = reinterpret_cast<const char*>(src_);
+  char *pdst = reinterpret_cast<char*>(dst_);
+  DType tdst, tsrc;
+  for (size_t i = 0; i < len_; ++i) {
+    // use memcpy to avoid alignment issue
+    std::memcpy(&tdst, pdst + i * kUnit, sizeof(tdst));
+    std::memcpy(&tsrc, psrc + i * kUnit, sizeof(tsrc));
+    tdst.Reduce(tsrc);
+    std::memcpy(pdst + i * kUnit, &tdst, sizeof(tdst));
+  }
+}
+template<typename DType>
+inline Reducer<DType>::Reducer(void) {
+  handle_.Init(Reducer<DType>::ReduceFunc, sizeof(DType));
+}
+template<typename DType>
+inline void Reducer<DType>::Allreduce(DType *sendrecvbuf, size_t count,
+                                      void (*prepare_fun)(void *arg),
+                                      void *prepare_arg) {
+  handle_.Allreduce(sendrecvbuf, sizeof(DType), count, prepare_fun, prepare_arg);
+}
+// function to perform reduction for SerializeReducer
+template<typename DType>
+inline void 
+SerializeReducer<DType>::ReduceFunc(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype) {
+  int nbytes = engine::ReduceHandle::TypeSize(dtype);
+  // temp space
+  DType tsrc, tdst;
+  for (int i = 0; i < len_; ++i) {
+    utils::MemoryFixSizeBuffer fsrc((char*)(src_) + i * nbytes, nbytes);
+    utils::MemoryFixSizeBuffer fdst((char*)(dst_) + i * nbytes, nbytes);
+    tsrc.Load(fsrc);
+    tdst.Load(fdst);
+    // govern const check
+    tdst.Reduce(static_cast<const DType &>(tsrc), nbytes);
+    fdst.Seek(0);
+    tdst.Save(fdst);
+  }
+}
+template<typename DType>
+inline SerializeReducer<DType>::SerializeReducer(void) {
+  handle_.Init(SerializeReducer<DType>::ReduceFunc, sizeof(DType));
+}
+template<typename DType>
+inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
+                                               size_t max_nbyte, size_t count,
+                                               void (*prepare_fun)(void *arg),
+                                               void *prepare_arg) {
+  buffer_.resize(max_nbyte);
+  for (size_t i = 0; i < count; ++i) {
+    utils::MemoryFixSizeBuffer fs(BeginPtr(buffer_) + i * max_nbyte, max_nbyte);
+    sendrecvobj[i].Save(fs);
+  }
+  handle_.Allreduce(BeginPtr(buffer_), max_nbyte, count, prepare_fun, prepare_arg);
+  for (size_t i = 0; i < count; ++i) {
+    utils::MemoryFixSizeBuffer fs(BeginPtr(buffer_) + i * max_nbyte, max_nbyte);
+    sendrecvobj[i].Load(fs);
+  }
 }
 }  // namespace rabit
 #endif

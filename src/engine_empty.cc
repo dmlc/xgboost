@@ -86,5 +86,19 @@ void Allreduce_(void *sendrecvbuf,
                 IEngine::PreprocFunction prepare_fun,
                 void *prepare_arg) {
 }
+
+// code for reduce handle
+ReduceHandle::ReduceHandle(void) : handle_(NULL), htype_(NULL) {
+}
+ReduceHandle::~ReduceHandle(void) {}
+
+int ReduceHandle::TypeSize(const MPI::Datatype &dtype) {
+  return 0;
+}
+void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {}
+void ReduceHandle::Allreduce(void *sendrecvbuf,
+                             size_t type_nbytes, size_t count,
+                             IEngine::PreprocFunction prepare_fun,
+                             void *prepare_arg) {}
 }  // namespace engine
 }  // namespace rabit

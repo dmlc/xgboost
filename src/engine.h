@@ -177,6 +177,48 @@ void Allreduce_(void *sendrecvbuf,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun = NULL,
                 void *prepare_arg = NULL);
+
+/*!
+ * \brief handle for customized reducer, used to handle customized reduce
+ *  this class is mainly created for compatiblity issue with MPI's customized reduce
+ */
+class ReduceHandle {
+ public:
+  // constructor
+  ReduceHandle(void);
+  // destructor
+  ~ReduceHandle(void);
+  /*!
+   * \brief initialize the reduce function,
+   *   with the type the reduce function need to deal with
+   *   the reduce function MUST be communicative
+   */
+  void Init(IEngine::ReduceFunction redfunc, size_t type_nbytes);
+  /*!
+   * \brief customized in-place all reduce operation 
+   * \param sendrecvbuf the in place send-recv buffer
+   * \param type_n4bytes unit size of the type, in terms of 4bytes
+   * \param count number of elements to send
+   * \param prepare_func Lazy preprocessing function, lazy prepare_fun(prepare_arg)
+   *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+   *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
+   * \param prepare_arg argument used to passed into the lazy preprocessing function
+   */
+  void Allreduce(void *sendrecvbuf,
+                 size_t type_nbytes, size_t count,
+                 IEngine::PreprocFunction prepare_fun = NULL,
+                 void *prepare_arg = NULL);
+  /*! \return the number of bytes occupied by the type */
+  static int TypeSize(const MPI::Datatype &dtype);
+
+ private:
+  // handle data field
+  void *handle_;
+  // handle to the type field
+  void *htype_;
+  // the created type in 4 bytes
+  size_t created_type_nbytes_;
+};
 }  // namespace engine
 }  // namespace rabit
 #endif  // RABIT_ENGINE_H

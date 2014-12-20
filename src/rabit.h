@@ -183,6 +183,77 @@ inline void CheckPoint(const ISerializable *global_model,
  * \sa LoadCheckPoint, CheckPoint
  */
 inline int VersionNumber(void);
+// ----- extensions that allow customized reducer ------
+// helper class to do customized reduce, user do not need to know the type
+namespace engine {
+class ReduceHandle;
+}  // namespace engine
+/*!
+ * \brief template class to make customized reduce and all reduce easy  
+ *  Do not use reducer directly in the function you call Finalize, because the destructor can happen after Finalize
+ * \tparam DType data type that to be reduced
+ *  DType must be a struct, with no pointer, and contains a function Reduce(const DType &d);
+ */
+template<typename DType>
+class Reducer {
+ public:
+  Reducer(void);
+  /*!
+   * \brief customized in-place all reduce operation 
+   * \param sendrecvbuf the in place send-recv buffer
+   * \param count number of elements to be reduced
+   * \param prepare_func Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
+   *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+   *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
+   * \param prepare_arg argument used to passed into the lazy preprocessing function 
+   */
+  inline void Allreduce(DType *sendrecvbuf, size_t count,
+                        void (*prepare_fun)(void *arg) = NULL,
+                        void *prepare_arg = NULL);
+
+ private:
+  // inner implementation of reducer
+  inline static void ReduceFunc(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype);
+  /*! \brief function handle to do reduce */
+  engine::ReduceHandle handle_;
+};
+/*!
+ * \brief template class to make customized reduce,
+ *  this class defines complex reducer handles all the data structure that can be
+ *  serialized/deserialzed into fixed size buffer
+ *  Do not use reducer directly in the function you call Finalize, because the destructor can happen after Finalize
+ * 
+ * \tparam DType data type that to be reduced, DType must contain following functions:
+ *   (1) Save(IStream &fs)  (2) Load(IStream &fs) (3) Reduce(const DType &d);
+ */
+template<typename DType>
+class SerializeReducer {
+ public:
+  SerializeReducer(void);
+  /*!
+   * \brief customized in-place all reduce operation 
+   * \param sendrecvobj pointer to the array of objects to be reduced
+   * \param max_nbyte maximum amount of memory needed to serialize each object
+   *        this includes budget limit for intermediate and final result
+   * \param count number of elements to be reduced
+   * \param prepare_func Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
+   *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+   *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
+   * \param prepare_arg argument used to passed into the lazy preprocessing function 
+   */
+  inline void Allreduce(DType *sendrecvobj,
+                        size_t max_nbyte, size_t count,
+                        void (*prepare_fun)(void *arg) = NULL,
+                        void *prepare_arg = NULL);
+
+ private:
+  // inner implementation of reducer
+  inline static void ReduceFunc(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype);
+  /*! \brief function handle to do reduce */
+  engine::ReduceHandle handle_;
+  /*! \brief temporal buffer used to do reduce*/
+  std::string buffer_;
+};
 }  // namespace rabit
 // implementation of template functions
 #include "./rabit-inl.h"
