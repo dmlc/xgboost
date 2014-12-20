@@ -11,8 +11,8 @@
 #include <utility>
 #include "./io.h"
 #include "./utils.h"
-#include "./rabit.h"
 #include "./allreduce_robust.h"
+#include "./rabit.h"
 
 namespace rabit {
 namespace engine {
@@ -141,8 +141,8 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root)
  *
  * \sa CheckPoint, VersionNumber
  */
-int AllreduceRobust::LoadCheckPoint(utils::ISerializable *global_model,
-                                    utils::ISerializable *local_model) {
+int AllreduceRobust::LoadCheckPoint(ISerializable *global_model,
+                                    ISerializable *local_model) {
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL, "need to set num_local_replica larger than 1 to checkpoint local_model");
   }
@@ -198,8 +198,8 @@ int AllreduceRobust::LoadCheckPoint(utils::ISerializable *global_model,
  *
  * \sa LoadCheckPoint, VersionNumber
  */
-void AllreduceRobust::CheckPoint(const utils::ISerializable *global_model,
-                                 const utils::ISerializable *local_model) {
+void AllreduceRobust::CheckPoint(const ISerializable *global_model,
+                                 const ISerializable *local_model) {
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL, "need to set num_local_replica larger than 1 to checkpoint local_model");
   } 

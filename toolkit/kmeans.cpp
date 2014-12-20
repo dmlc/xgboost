@@ -8,18 +8,18 @@
 using namespace rabit;
 
 // kmeans model
-class Model : public rabit::utils::ISerializable {
+class Model : public rabit::ISerializable {
  public:
   // matrix of centroids
   Matrix centroids;
   // load from stream
-  virtual void Load(rabit::utils::IStream &fi) {
+  virtual void Load(rabit::IStream &fi) {
     fi.Read(&centroids.nrow, sizeof(centroids.nrow));
     fi.Read(&centroids.ncol, sizeof(centroids.ncol));
     fi.Read(&centroids.data);
   }
   /*! \brief save the model to the stream */
-  virtual void Save(rabit::utils::IStream &fo) const {
+  virtual void Save(rabit::IStream &fo) const {
     fo.Write(&centroids.nrow, sizeof(centroids.nrow));
     fo.Write(&centroids.ncol, sizeof(centroids.ncol));
     fo.Write(centroids.data);

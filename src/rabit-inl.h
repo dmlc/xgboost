@@ -6,6 +6,8 @@
  */
 #ifndef RABIT_RABIT_INL_H
 #define RABIT_RABIT_INL_H
+// use engine for implementation
+#include "./engine.h"
 
 namespace rabit {
 namespace engine {
@@ -139,13 +141,13 @@ inline void Allreduce(DType *sendrecvbuf, size_t count, std::function<void()> pr
 #endif // C++11
 
 // load latest check point
-inline int LoadCheckPoint(utils::ISerializable *global_model,
-                          utils::ISerializable *local_model) {
+inline int LoadCheckPoint(ISerializable *global_model,
+                          ISerializable *local_model) {
   return engine::GetEngine()->LoadCheckPoint(global_model, local_model);
 }
 // checkpoint the model, meaning we finished a stage of execution
-inline void CheckPoint(const utils::ISerializable *global_model,
-                       const utils::ISerializable *local_model) {
+inline void CheckPoint(const ISerializable *global_model,
+                       const ISerializable *local_model) {
   engine::GetEngine()->CheckPoint(global_model, local_model);
 }
 // return the version number of currently stored model

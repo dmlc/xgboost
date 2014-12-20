@@ -33,14 +33,14 @@ public:
     rabit::Allreduce<OP>(sendrecvbuf, count);
   }
 
-inline int LoadCheckPoint(utils::ISerializable *global_model,
-                          utils::ISerializable *local_model) {
+inline int LoadCheckPoint(ISerializable *global_model,
+                          ISerializable *local_model) {
     utils::Assert(verify(loadCheckpoint), "[%d] error when loading checkpoint", rank);
     return rabit::LoadCheckPoint(global_model, local_model);
   }
   
-  inline void CheckPoint(const utils::ISerializable *global_model,
-                         const utils::ISerializable *local_model) {
+  inline void CheckPoint(const ISerializable *global_model,
+                         const ISerializable *local_model) {
     utils::Assert(verify(checkpoint), "[%d] error when checkpointing", rank);
     rabit::CheckPoint(global_model, local_model);
   }

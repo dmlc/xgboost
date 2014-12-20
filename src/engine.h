@@ -5,7 +5,7 @@
  */
 #ifndef RABIT_ENGINE_H
 #define RABIT_ENGINE_H
-#include "./io.h"
+#include "./serializable.h"
 
 namespace MPI {
 /*! \brief MPI data type just to be compatible with MPI reduce function*/
@@ -92,8 +92,8 @@ class IEngine {
    *
    * \sa CheckPoint, VersionNumber
    */
-  virtual int LoadCheckPoint(utils::ISerializable *global_model,
-                             utils::ISerializable *local_model = NULL) = 0;
+  virtual int LoadCheckPoint(ISerializable *global_model,
+                             ISerializable *local_model = NULL) = 0;
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
    *  every time we call check point, there is a version number which will increase by one
@@ -110,8 +110,8 @@ class IEngine {
    *
    * \sa LoadCheckPoint, VersionNumber
    */
-  virtual void CheckPoint(const utils::ISerializable *global_model,
-                          const utils::ISerializable *local_model = NULL) = 0;
+  virtual void CheckPoint(const ISerializable *global_model,
+                          const ISerializable *local_model = NULL) = 0;
   /*!
    * \return version number of current stored model,
    *         which means how many calls to CheckPoint we made so far

@@ -75,8 +75,8 @@ class AllreduceRobust : public AllreduceBase {
    *
    * \sa CheckPoint, VersionNumber
    */
-  virtual int LoadCheckPoint(utils::ISerializable *global_model,
-                             utils::ISerializable *local_model = NULL);
+  virtual int LoadCheckPoint(ISerializable *global_model,
+                             ISerializable *local_model = NULL);
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
    *  every time we call check point, there is a version number which will increase by one
@@ -93,8 +93,8 @@ class AllreduceRobust : public AllreduceBase {
    *
    * \sa LoadCheckPoint, VersionNumber
    */
-  virtual void CheckPoint(const utils::ISerializable *global_model,
-                          const utils::ISerializable *local_model = NULL);
+  virtual void CheckPoint(const ISerializable *global_model,
+                          const ISerializable *local_model = NULL);
   /*!
    * \brief explicitly re-init everything before calling LoadCheckPoint
    *    call this function when IEngine throw an exception out,

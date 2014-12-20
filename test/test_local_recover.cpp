@@ -29,16 +29,16 @@ inline void CallEnd(const char *fun, int ntrial, int iter) {
 }
 
 // dummy model
-class Model : public rabit::utils::ISerializable {
+class Model : public rabit::ISerializable {
  public:
   // iterations
   std::vector<float> data;
   // load from stream
-  virtual void Load(rabit::utils::IStream &fi) {
+  virtual void Load(rabit::IStream &fi) {
     fi.Read(&data);
   }
   /*! \brief save the model to the stream */
-  virtual void Save(rabit::utils::IStream &fo) const {
+  virtual void Save(rabit::IStream &fo) const {
     fo.Write(data);
   }
   virtual void InitModel(size_t n, float v) {

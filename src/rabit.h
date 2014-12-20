@@ -6,6 +6,7 @@
  *   The actual implementation is redirected to rabit engine
  *   Code only using this header can also compiled with MPI Allreduce(with no fault recovery),
  *
+ *   rabit.h and serializable.h is all the user need to use rabit interface
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #include <string>
@@ -14,9 +15,8 @@
 #if __cplusplus >= 201103L
 #include <functional>
 #endif // C++11
-// rabit headers
-#include "./io.h"
-#include "./engine.h"
+// contains definition of ISerializable
+#include "./serializable.h"
 
 /*! \brief namespace of rabit */
 namespace rabit {
@@ -31,7 +31,6 @@ struct Sum;
 /*! \brief perform bitwise OR */
 struct BitOR;
 }  // namespace op
-
 /*!
  * \brief intialize the rabit module, call this once function before using anything
  * \param argc number of arguments in argv
@@ -143,8 +142,8 @@ inline void Allreduce(DType *sendrecvbuf, size_t count, std::function<void()> pr
  *
  * \sa CheckPoint, VersionNumber
  */
-inline int LoadCheckPoint(utils::ISerializable *global_model,
-                          utils::ISerializable *local_model = NULL);
+inline int LoadCheckPoint(ISerializable *global_model,
+                          ISerializable *local_model = NULL);
 /*!
  * \brief checkpoint the model, meaning we finished a stage of execution
  *  every time we call check point, there is a version number which will increase by one
@@ -159,8 +158,8 @@ inline int LoadCheckPoint(utils::ISerializable *global_model,
    *       So only CheckPoint with global_model if possible
    * \sa LoadCheckPoint, VersionNumber
    */
-inline void CheckPoint(const utils::ISerializable *global_model,
-                       const utils::ISerializable *local_model = NULL);
+inline void CheckPoint(const ISerializable *global_model,
+                       const ISerializable *local_model = NULL);
 /*!
  * \return version number of current stored model,
  *         which means how many calls to CheckPoint we made so far
