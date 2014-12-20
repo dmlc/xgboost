@@ -7,7 +7,6 @@
 #ifndef RABIT_RABIT_INL_H
 #define RABIT_RABIT_INL_H
 // use engine for implementation
-#include "./engine.h"
 #include "./io.h"
 #include "./utils.h"
 
@@ -176,7 +175,7 @@ inline int VersionNumber(void) {
 // ---------------------------------
 // function to perform reduction for Reducer
 template<typename DType>
-inline void Reducer<DType>::ReduceFunc(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype) {
+inline void ReducerFunc_(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype) {
   const size_t kUnit = sizeof(DType);
   const char *psrc = reinterpret_cast<const char*>(src_);
   char *pdst = reinterpret_cast<char*>(dst_);
@@ -191,7 +190,7 @@ inline void Reducer<DType>::ReduceFunc(const void *src_, void *dst_, int len_, c
 }
 template<typename DType>
 inline Reducer<DType>::Reducer(void) {
-  handle_.Init(Reducer<DType>::ReduceFunc, sizeof(DType));
+  this->handle_.Init(ReducerFunc_<DType>, sizeof(DType));
 }
 template<typename DType>
 inline void Reducer<DType>::Allreduce(DType *sendrecvbuf, size_t count,
@@ -201,8 +200,7 @@ inline void Reducer<DType>::Allreduce(DType *sendrecvbuf, size_t count,
 }
 // function to perform reduction for SerializeReducer
 template<typename DType>
-inline void 
-SerializeReducer<DType>::ReduceFunc(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype) {
+inline void SerializeReducerFunc_(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype) {
   int nbytes = engine::ReduceHandle::TypeSize(dtype);
   // temp space
   DType tsrc, tdst;
@@ -219,7 +217,7 @@ SerializeReducer<DType>::ReduceFunc(const void *src_, void *dst_, int len_, cons
 }
 template<typename DType>
 inline SerializeReducer<DType>::SerializeReducer(void) {
-  handle_.Init(SerializeReducer<DType>::ReduceFunc, sizeof(DType));
+  handle_.Init(SerializeReducerFunc_<DType>, sizeof(DType));
 }
 template<typename DType>
 inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
@@ -237,5 +235,19 @@ inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
     sendrecvobj[i].Load(fs);
   }
 }
+
+#if __cplusplus >= 201103L
+template<typename DType>
+inline void Reducer<DType>::Allreduce(DType *sendrecvbuf, size_t count,
+                                      std::function<void()> prepare_fun) {
+  this->AllReduce(sendrecvbuf, count, InvokeLambda_, &prepare_fun);
+}
+template<typename DType>
+inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
+                                               size_t max_nbytes, size_t count,
+                                               std::function<void()> prepare_fun) {
+  this->AllReduce(sendrecvobj, count, max_nbytes, InvokeLambda_, &prepare_fun);
+}
+#endif
 }  // namespace rabit
 #endif

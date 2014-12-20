@@ -17,6 +17,10 @@
 #endif // C++11
 // contains definition of ISerializable
 #include "./serializable.h"
+// engine definition of rabit, defines internal implementation
+// to use rabit interface, there is no need to read engine.h rabit.h and serializable.h
+// is suffice to use the interface
+#include "./engine.h"
 
 /*! \brief namespace of rabit */
 namespace rabit {
@@ -210,10 +214,17 @@ class Reducer {
   inline void Allreduce(DType *sendrecvbuf, size_t count,
                         void (*prepare_fun)(void *arg) = NULL,
                         void *prepare_arg = NULL);
-
+#if __cplusplus >= 201103L
+  /*!
+   * \brief customized in-place all reduce operation, with lambda function as preprocessor
+   * \param sendrecvbuf pointer to the array of objects to be reduced
+   * \param count number of elements to be reduced
+   * \param prepare_fun lambda function executed to prepare the data, if necessary
+   */  
+  inline void Allreduce(DType *sendrecvbuf, size_t count,
+                        std::function<void()> prepare_fun);
+#endif
  private:
-  // inner implementation of reducer
-  inline static void ReduceFunc(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype);
   /*! \brief function handle to do reduce */
   engine::ReduceHandle handle_;
 };
@@ -245,10 +256,21 @@ class SerializeReducer {
                         size_t max_nbyte, size_t count,
                         void (*prepare_fun)(void *arg) = NULL,
                         void *prepare_arg = NULL);
-
+// C++11 support for lambda prepare function
+#if __cplusplus >= 201103L
+  /*!
+   * \brief customized in-place all reduce operation, with lambda function as preprocessor
+   * \param sendrecvobj pointer to the array of objects to be reduced
+   * \param max_nbyte maximum amount of memory needed to serialize each object
+   *        this includes budget limit for intermediate and final result
+   * \param count number of elements to be reduced
+   * \param prepare_fun lambda function executed to prepare the data, if necessary
+   */  
+  inline void Allreduce(DType *sendrecvobj,
+                        size_t max_nbyte, size_t count,
+                        std::function<void()> prepare_fun);
+#endif
  private:
-  // inner implementation of reducer
-  inline static void ReduceFunc(const void *src_, void *dst_, int len_, const MPI::Datatype &dtype);
   /*! \brief function handle to do reduce */
   engine::ReduceHandle handle_;
   /*! \brief temporal buffer used to do reduce*/
