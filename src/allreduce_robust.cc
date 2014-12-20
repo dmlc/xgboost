@@ -68,6 +68,8 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
                                 ReduceFunction reducer,
                                 PreprocFunction prepare_fun,
                                 void *prepare_arg) {
+  // skip action in single node
+  if (world_size == 1) return;
   bool recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter);
   // now we are free to remove the last result, if any
   if (resbuf.LastSeqNo() != -1 &&
@@ -98,6 +100,8 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
  * \param root the root worker id to broadcast the data
  */
 void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
+  // skip action in single node
+  if (world_size == 1) return; 
   bool recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter);
   // now we are free to remove the last result, if any
   if (resbuf.LastSeqNo() != -1 &&
@@ -143,6 +147,8 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root)
  */
 int AllreduceRobust::LoadCheckPoint(ISerializable *global_model,
                                     ISerializable *local_model) {
+  // skip action in single node
+  if (world_size == 1) return 0;
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL, "need to set num_local_replica larger than 1 to checkpoint local_model");
   }
@@ -200,6 +206,10 @@ int AllreduceRobust::LoadCheckPoint(ISerializable *global_model,
  */
 void AllreduceRobust::CheckPoint(const ISerializable *global_model,
                                  const ISerializable *local_model) {
+  // never do check point in single machine mode
+  if (world_size == 1) {
+    version_number += 1; return;
+  }
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL, "need to set num_local_replica larger than 1 to checkpoint local_model");
   } 
