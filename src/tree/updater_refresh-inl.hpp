@@ -52,40 +52,50 @@ class TreeRefresher: public IUpdater {
       std::fill(stemp[tid].begin(), stemp[tid].end(), TStats(param));
       fvec_temp[tid].Init(trees[0]->param.num_feature);
     }
-    // start accumulating statistics
-    utils::IIterator<RowBatch> *iter = p_fmat->RowIterator();
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      const RowBatch &batch = iter->Value();
-      utils::Check(batch.size < std::numeric_limits<unsigned>::max(),
-                   "too large batch size ");
-      const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nbatch; ++i) {
-        RowBatch::Inst inst = batch[i];
-        const int tid = omp_get_thread_num();
-        const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
-        RegTree::FVec &feats = fvec_temp[tid];
-        feats.Fill(inst);
-        int offset = 0;
-        for (size_t j = 0; j < trees.size(); ++j) {
-          AddStats(*trees[j], feats, gpair, info, ridx,
-                   BeginPtr(stemp[tid]) + offset);
-          offset += trees[j]->param.num_nodes;
+    // if it is C++11, use lazy evaluation for Allreduce,
+    // to gain speedup in recovery
+#if __cplusplus >= 201103L
+    auto lazy_get_stats = [&]()
+#endif
+    {
+      // start accumulating statistics
+      utils::IIterator<RowBatch> *iter = p_fmat->RowIterator();
+      iter->BeforeFirst();
+      while (iter->Next()) {
+        const RowBatch &batch = iter->Value();
+        utils::Check(batch.size < std::numeric_limits<unsigned>::max(),
+                     "too large batch size ");
+        const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
+        #pragma omp parallel for schedule(static)
+        for (bst_omp_uint i = 0; i < nbatch; ++i) {
+          RowBatch::Inst inst = batch[i];
+          const int tid = omp_get_thread_num();
+          const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+          RegTree::FVec &feats = fvec_temp[tid];
+          feats.Fill(inst);
+          int offset = 0;
+          for (size_t j = 0; j < trees.size(); ++j) {
+            AddStats(*trees[j], feats, gpair, info, ridx,
+                     BeginPtr(stemp[tid]) + offset);
+            offset += trees[j]->param.num_nodes;
+          }
+          feats.Drop(inst);
         }
-        feats.Drop(inst);
       }
-    }
-    // aggregate the statistics
-    int num_nodes = static_cast<int>(stemp[0].size());
-    #pragma omp parallel for schedule(static)
-    for (int nid = 0; nid < num_nodes; ++nid) {
-      for (int tid = 1; tid < nthread; ++tid) {
-        stemp[0][nid].Add(stemp[tid][nid]);
+      // aggregate the statistics
+      int num_nodes = static_cast<int>(stemp[0].size());
+      #pragma omp parallel for schedule(static)
+      for (int nid = 0; nid < num_nodes; ++nid) {
+        for (int tid = 1; tid < nthread; ++tid) {
+          stemp[0][nid].Add(stemp[tid][nid]);
+        }
       }
-    }
-    // AllReduce, add statistics up
+    };
+#if __cplusplus >= 201103L
+    reducer.Allreduce(BeginPtr(stemp[0]), stemp[0].size(), lazy_get_stats);
+#else
     reducer.Allreduce(BeginPtr(stemp[0]), stemp[0].size());
+#endif
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();

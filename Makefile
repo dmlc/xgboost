@@ -10,6 +10,12 @@ else
 	CFLAGS += -fopenmp
 endif
 
+# by default use c++11
+ifeq ($(no_cxx11),1)
+else 
+	CFLAGS += -std=c++11
+endif
+
 # specify tensor path
 BIN = xgboost
 OBJ = updater.o gbm.o io.o main.o 

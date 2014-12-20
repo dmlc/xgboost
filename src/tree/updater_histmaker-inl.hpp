@@ -152,7 +152,7 @@ class HistMaker: public BaseMaker {
                                   IFMatrix *p_fmat,
                                   const BoosterInfo &info,
                                   const std::vector <bst_uint> &fset,
-                                  const RegTree &tree)  = 0;
+                                  const RegTree &tree) = 0;
   // initialize the current working set of features in this round
   virtual void InitWorkSet(IFMatrix *p_fmat,
                            const RegTree &tree,
@@ -306,32 +306,45 @@ class CQHistMaker: public HistMaker<TStats> {
     } 
     // start to work
     this->wspace.Init(this->param, 1);
-    thread_hist.resize(this->get_nthread());
-    // start accumulating statistics
-    utils::IIterator<ColBatch> *iter = p_fmat->ColIterator(fset);
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      const ColBatch &batch = iter->Value();
-      // start enumeration
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
-      #pragma omp parallel for schedule(dynamic, 1)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
-        int offset = feat2workindex[batch.col_index[i]];
-        if (offset >= 0) {
-          this->UpdateHistCol(gpair, batch[i], info, tree,
-                              fset, offset,
-                              &thread_hist[omp_get_thread_num()]);
+    // if it is C++11, use lazy evaluation for Allreduce,
+    // to gain speedup in recovery
+#if __cplusplus >= 201103L
+    auto lazy_get_hist = [&]()
+#endif
+    {
+      thread_hist.resize(this->get_nthread());
+      // start accumulating statistics
+      utils::IIterator<ColBatch> *iter = p_fmat->ColIterator(fset);
+      iter->BeforeFirst();
+      while (iter->Next()) {
+        const ColBatch &batch = iter->Value();
+        // start enumeration
+        const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+        #pragma omp parallel for schedule(dynamic, 1)
+        for (bst_omp_uint i = 0; i < nsize; ++i) {
+          int offset = feat2workindex[batch.col_index[i]];
+          if (offset >= 0) {
+            this->UpdateHistCol(gpair, batch[i], info, tree,
+                                fset, offset,
+                                &thread_hist[omp_get_thread_num()]);
+          }
         }
       }
-    }
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const int nid = this->qexpand[i];
-      const int wid = this->node2workindex[nid];
-      this->wspace.hset[0][fset.size() + wid * (fset.size()+1)]
-          .data[0] = node_stats[nid];
-    }
+      for (size_t i = 0; i < this->qexpand.size(); ++i) {
+        const int nid = this->qexpand[i];
+        const int wid = this->node2workindex[nid];
+        this->wspace.hset[0][fset.size() + wid * (fset.size()+1)]
+            .data[0] = node_stats[nid];
+      }
+    };
     // sync the histogram
-    this->histred.Allreduce(BeginPtr(this->wspace.hset[0].data), this->wspace.hset[0].data.size());    
+    // if it is C++11, use lazy evaluation for Allreduce
+#if __cplusplus >= 201103L
+    this->histred.Allreduce(BeginPtr(this->wspace.hset[0].data), 
+                            this->wspace.hset[0].data.size(), lazy_get_hist);
+#else
+    this->histred.Allreduce(BeginPtr(this->wspace.hset[0].data), this->wspace.hset[0].data.size());   
+#endif    
   }
   virtual void ResetPositionAfterSplit(IFMatrix *p_fmat,
                                        const RegTree &tree) {
@@ -353,49 +366,61 @@ class CQHistMaker: public HistMaker<TStats> {
       } else {
         feat2workindex[fset[i]] = -2;  
       }
-    }
-        
+    }      
     this->GetNodeStats(gpair, *p_fmat, tree, info,
-                       &thread_stats, &node_stats);
+                       &thread_stats, &node_stats);       
     sketchs.resize(this->qexpand.size() * freal_set.size());
     for (size_t i = 0; i < sketchs.size(); ++i) {
       sketchs[i].Init(info.num_row, this->param.sketch_eps);
     }
-    thread_sketch.resize(this->get_nthread());
-    // number of rows in
-    const size_t nrows = p_fmat->buffered_rowset().size();
-    // start accumulating statistics
-    utils::IIterator<ColBatch> *iter = p_fmat->ColIterator(freal_set);
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      const ColBatch &batch = iter->Value();
-      // start enumeration
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
-      #pragma omp parallel for schedule(dynamic, 1)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
-        int offset = feat2workindex[batch.col_index[i]];
-        if (offset >= 0) {
-          this->UpdateSketchCol(gpair, batch[i], tree,
-                                node_stats,
-                                freal_set, offset,
-                                batch[i].length == nrows,
-                                &thread_sketch[omp_get_thread_num()]);
-        }
-      }
-    }
+    // intitialize the summary array
+    summary_array.resize(sketchs.size());
     // setup maximum size
     unsigned max_size = this->param.max_sketch_size();
-    // synchronize sketch
-    summary_array.resize(sketchs.size());
     for (size_t i = 0; i < sketchs.size(); ++i) {
-      utils::WXQuantileSketch<bst_float, bst_float>::SummaryContainer out;
-      sketchs[i].GetSummary(&out);
       summary_array[i].Reserve(max_size);
-      summary_array[i].SetPrune(out, max_size);
     }
+    // if it is C++11, use lazy evaluation for Allreduce
+#if __cplusplus >= 201103L
+    auto lazy_get_summary = [&]()
+#endif
+    {// get smmary
+      thread_sketch.resize(this->get_nthread());
+      // number of rows in
+      const size_t nrows = p_fmat->buffered_rowset().size();
+      // start accumulating statistics
+      utils::IIterator<ColBatch> *iter = p_fmat->ColIterator(freal_set);
+      iter->BeforeFirst();
+      while (iter->Next()) {
+        const ColBatch &batch = iter->Value();
+        // start enumeration
+        const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+        #pragma omp parallel for schedule(dynamic, 1)
+        for (bst_omp_uint i = 0; i < nsize; ++i) {
+          int offset = feat2workindex[batch.col_index[i]];
+          if (offset >= 0) {
+            this->UpdateSketchCol(gpair, batch[i], tree,
+                                  node_stats,
+                                  freal_set, offset,
+                                  batch[i].length == nrows,
+                                  &thread_sketch[omp_get_thread_num()]);
+          }
+        }
+      }
+      for (size_t i = 0; i < sketchs.size(); ++i) {
+        utils::WXQuantileSketch<bst_float, bst_float>::SummaryContainer out;
+        sketchs[i].GetSummary(&out);
+        summary_array[i].SetPrune(out, max_size);
+      }
+      utils::Assert(summary_array.size() == sketchs.size(), "shape mismatch");
+    };
     if (summary_array.size() != 0) {
       size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
+#if __cplusplus >= 201103L
+      sreducer.Allreduce(BeginPtr(summary_array), nbytes, summary_array.size(), lazy_get_summary);
+#else
       sreducer.Allreduce(BeginPtr(summary_array), nbytes, summary_array.size());
+#endif
     }
     // now we get the final result of sketch, setup the cut
     this->wspace.cut.clear();
@@ -623,7 +648,8 @@ class QuantileHistMaker: public HistMaker<TStats> {
       summary_array[i].Reserve(max_size);
       summary_array[i].SetPrune(out, max_size);
     }
-    size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
+    
+    size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);    
     sreducer.Allreduce(BeginPtr(summary_array), nbytes, summary_array.size());
     // now we get the final result of sketch, setup the cut
     this->wspace.cut.clear();
