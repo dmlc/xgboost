@@ -17,4 +17,5 @@ local_recover_10_10k:
 
 # this experiment test recovery with actually process exit, use keepalive to keep program alive
 model_recover_10_10k:
-	../tracker/rabit_mpi.py 10 local keepalive.sh test_model_recover 10000
+	../tracker/rabit_mpi.py 10 local keepalive.sh test_model_recover 10000 mock=0,0,1,0 mock=1,1,1,0
+

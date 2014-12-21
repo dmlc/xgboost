@@ -7,8 +7,8 @@ then
 fi
 nrep=0
 echo ./$@ rabit_task_id=$OMPI_COMM_WORLD_RANK
-until ./$@ rabit_task_id=$OMPI_COMM_WORLD_RANK repeat=$nrep; do
+until ./$@ rabit_task_id=$OMPI_COMM_WORLD_RANK rabit_num_trial=$nrep; do
     sleep 1
     nrep=$((nrep+1))
-    echo ./$@ rabit_task_id=$OMPI_COMM_WORLD_RANK repeat=$nrep
+    echo ./$@ rabit_task_id=$OMPI_COMM_WORLD_RANK rabit_num_trial=$nrep
 done

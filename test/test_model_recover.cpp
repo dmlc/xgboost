@@ -11,6 +11,7 @@ using namespace rabit;
 namespace rabit {
 namespace test {
 inline void CallBegin(const char *fun, int ntrial, int iter) {
+  return;
   int rank = rabit::GetRank();
   if (!strcmp(fun, "Allreduce::Sum")) {
     if (ntrial == iter && rank == 0) exit(-1);
@@ -20,6 +21,7 @@ inline void CallBegin(const char *fun, int ntrial, int iter) {
   }
 }
 inline void CallEnd(const char *fun, int ntrial, int iter) {
+  return;
   int rank = rabit::GetRank();
   if (!strcmp(fun, "Allreduce::Bcast")) {
     if (ntrial == iter && rand() % 10 == rank) exit(-1);
@@ -129,7 +131,7 @@ int main(int argc, char *argv[]) {
   int ntrial = 0;
   for (int i = 1; i < argc; ++i) {
     int n;
-    if (sscanf(argv[i], "repeat=%d", &n) == 1) ntrial = n; 
+    if (sscanf(argv[i], "rabit_num_trial=%d", &n) == 1) ntrial = n; 
   } 
   while (true) {
     try {
