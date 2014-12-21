@@ -222,12 +222,9 @@ class BoostLearner : public rabit::ISerializable {
    * \param p_train pointer to the data matrix
    */
   inline void UpdateOneIter(int iter, const DMatrix &train) {
-    printf("!!UpdateOneIter\n");
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train.info, iter, &gpair_);
-    printf("!!UpdateOneDoboost\n");
     gbm_->DoBoost(train.fmat(), this->FindBufferOffset(train), train.info.info, &gpair_);
-    printf("!!UpdateOneIter finish\n");
   }
   /*!
    * \brief evaluate the model for specific iteration
