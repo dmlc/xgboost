@@ -2,7 +2,7 @@
 
 rabit is a light weight library that provides a fault tolerant interface of Allreduce and Broadcast. It is designed to support easy implementations of distributed machine learning programs, many of which fall naturally under the Allreduce abstraction.
 
-* See the [package interface file](src/rabit.h)
+* See the [package interface file](include/rabit.h)
 
 Features
 ====
@@ -16,6 +16,11 @@ Features
 * MPI compatible
   - Code that uses the rabit interface also compiles with existing MPI compilers
   - Users can use MPI Allreduce with no code modification
+
+Use Rabit
+====
+* Type make in the root folder will compile the rabit library in lib folder
+* Add lib to the library path and include to the include path of compiler
 
 Design Notes
 ====
