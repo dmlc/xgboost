@@ -21,7 +21,7 @@ AllreduceBase::AllreduceBase(void) {
   host_uri = "";
   slave_port = 9010;
   nport_trial = 1000;
-  rank = -1;
+  rank = 0;
   world_size = -1;
   hadoop_mode = 0;
   version_number = 0;
@@ -50,6 +50,8 @@ void AllreduceBase::Init(void) {
       this->SetParam("rabit_world_size", num_task);
     }
   }
+  // clear the setting before start reconnection
+  this->rank = -1;
   //---------------------
   // start socket
   utils::Socket::Startup();

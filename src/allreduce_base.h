@@ -58,6 +58,7 @@ class AllreduceBase : public IEngine {
   }
   /*! \brief get rank */
   virtual int GetWorldSize(void) const {
+    if (world_size == -1) return 1;
     return world_size;
   }
   /*! \brief get rank */
