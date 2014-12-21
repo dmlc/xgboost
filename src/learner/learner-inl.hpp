@@ -48,11 +48,9 @@ class BoostLearner : public rabit::ISerializable {
    * \param mats array of pointers to matrix whose prediction result need to be cached
    */          
   inline void SetCacheData(const std::vector<DMatrix*>& mats) {
-    // estimate feature bound
-    unsigned num_feature = 0;
+    utils::Assert(cache_.size() == 0, "can only call cache data once");
     // assign buffer index
     size_t buffer_size = 0;
-    utils::Assert(cache_.size() == 0, "can only call cache data once");
     for (size_t i = 0; i < mats.size(); ++i) {
       bool dupilicate = false;
       for (size_t j = 0; j < i; ++j) {
@@ -63,16 +61,10 @@ class BoostLearner : public rabit::ISerializable {
       mats[i]->cache_learner_ptr_ = this;
       cache_.push_back(CacheEntry(mats[i], buffer_size, mats[i]->info.num_row()));
       buffer_size += mats[i]->info.num_row();
-      num_feature = std::max(num_feature, static_cast<unsigned>(mats[i]->info.num_col()));
     }
-    rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
     char str_temp[25];
-    if (num_feature > mparam.num_feature) {
-      utils::SPrintf(str_temp, sizeof(str_temp), "%u", num_feature);
-      this->SetParam("bst:num_feature", str_temp);
-    }
-    utils::SPrintf(str_temp, sizeof(str_temp), "%lu",
-			 static_cast<unsigned long>(buffer_size));
+    utils::SPrintf(str_temp, sizeof(str_temp), "%lu", 
+                   static_cast<unsigned long>(buffer_size));
     this->SetParam("num_pbuffer", str_temp);
     if (!silent) {
       utils::Printf("buffer_size=%ld\n", static_cast<long>(buffer_size));
@@ -126,10 +118,29 @@ class BoostLearner : public rabit::ISerializable {
       cfg_.push_back(std::make_pair(std::string(name), std::string(val)));
     }
   }
+  // this is an internal function
+  // initialize the trainer, called at InitModel and LoadModel
+  inline void InitTrainer(bool calc_num_feature = true) {
+    if (calc_num_feature) {
+      // estimate feature bound
+      unsigned num_feature = 0;
+      for (size_t i = 0; i < cache_.size(); ++i) {
+        num_feature = std::max(num_feature, 
+                               static_cast<unsigned>(cache_[i].mat_->info.num_col()));
+      }
+      // run allreduce on num_feature to find the maximum value
+      rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
+      if (num_feature > mparam.num_feature) mparam.num_feature = num_feature;
+    } 
+    char str_temp[25];
+    utils::SPrintf(str_temp, sizeof(str_temp), "%d", mparam.num_feature);
+    this->SetParam("bst:num_feature", str_temp);   
+  }
   /*!
    * \brief initialize the model
    */
   inline void InitModel(void) {
+    this->InitTrainer();
     // initialize model
     this->InitObjGBM();
     // reset the base score
@@ -141,8 +152,9 @@ class BoostLearner : public rabit::ISerializable {
    * \brief load model from stream
    * \param fi input stream
    * \param with_pbuffer whether to load with predict buffer
+   * \param calc_num_feature whether call InitTrainer with calc_num_feature
    */
-  inline void LoadModel(utils::IStream &fi, bool with_pbuffer = true) {
+  inline void LoadModel(utils::IStream &fi, bool with_pbuffer = true, bool calc_num_feature = true) {
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "BoostLearner: wrong model format");
     utils::Check(fi.Read(&name_obj_), "BoostLearner: wrong model format");
@@ -150,9 +162,10 @@ class BoostLearner : public rabit::ISerializable {
     // delete existing gbm if any
     if (obj_ != NULL) delete obj_;
     if (gbm_ != NULL) delete gbm_;
+    this->InitTrainer(calc_num_feature);
     this->InitObjGBM();
     gbm_->LoadModel(fi, with_pbuffer);
-    if (with_pbuffer && distributed_mode == 2 && rabit::GetRank() != 0) {
+    if (!with_pbuffer || distributed_mode == 2) {
       gbm_->ResetPredBuffer(pred_buffer_size);
     }
   }
@@ -160,7 +173,7 @@ class BoostLearner : public rabit::ISerializable {
   virtual void Load(rabit::IStream &fi) {
     RabitStreamAdapter fs(fi);
     // for row split, we should not keep pbuffer
-    this->LoadModel(fs, distributed_mode != 2);
+    this->LoadModel(fs, distributed_mode != 2, false);
   }
   // rabit save model to rabit checkpoint
   virtual void Save(rabit::IStream &fo) const {
@@ -209,9 +222,12 @@ class BoostLearner : public rabit::ISerializable {
    * \param p_train pointer to the data matrix
    */
   inline void UpdateOneIter(int iter, const DMatrix &train) {
+    printf("!!UpdateOneIter\n");
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train.info, iter, &gpair_);
+    printf("!!UpdateOneDoboost\n");
     gbm_->DoBoost(train.fmat(), this->FindBufferOffset(train), train.info.info, &gpair_);
+    printf("!!UpdateOneIter finish\n");
   }
   /*!
    * \brief evaluate the model for specific iteration
@@ -335,7 +351,7 @@ class BoostLearner : public rabit::ISerializable {
     /* \brief number of class, if it is multi-class classification  */
     int num_class;
     /*! \brief reserved field */
-    int reserved[32];
+    int reserved[31];
     /*! \brief constructor */
     ModelParam(void) {
       base_score = 0.5f;

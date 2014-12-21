@@ -48,8 +48,7 @@ class BoostLearnTask {
     }
     if (rabit::GetRank() != 0) {
       this->SetParam("silent", "2");
-    }
-    
+    }    
     if (task == "train") {
       // if task is training, will try recover from checkpoint
       this->TaskTrain();
@@ -151,7 +150,7 @@ class BoostLearnTask {
       learner.SetCacheData(dcache);
       
       // add training set to evaluation set if needed
-      if( eval_train != 0 ) {
+      if (eval_train != 0) {
         devalall.push_back(data);
         eval_data_names.push_back(std::string("train"));
       }

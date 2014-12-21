@@ -53,19 +53,13 @@ class GBTree : public IGradBooster {
       utils::Check(fi.Read(&tree_info[0], sizeof(int) * mparam.num_trees) != 0,
                    "GBTree: invalid model file");
     }
-    if (mparam.num_pbuffer != 0) {
+    if (mparam.num_pbuffer != 0 && with_pbuffer) {
       pred_buffer.resize(mparam.PredBufferSize());
       pred_counter.resize(mparam.PredBufferSize());
-      if (with_pbuffer) {
-        utils::Check(fi.Read(&pred_buffer[0], pred_buffer.size() * sizeof(float)) != 0,
-                     "GBTree: invalid model file");
-        utils::Check(fi.Read(&pred_counter[0], pred_counter.size() * sizeof(unsigned)) != 0,
-                     "GBTree: invalid model file");
-      } else {
-        // reset predict buffer if the input do not have them
-        std::fill(pred_buffer.begin(), pred_buffer.end(), 0.0f);
-        std::fill(pred_counter.begin(), pred_counter.end(), 0);
-      }
+      utils::Check(fi.Read(&pred_buffer[0], pred_buffer.size() * sizeof(float)) != 0,
+                   "GBTree: invalid model file");
+      utils::Check(fi.Read(&pred_counter[0], pred_counter.size() * sizeof(unsigned)) != 0,
+                   "GBTree: invalid model file");
     }
   }
   virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const {
@@ -77,7 +71,7 @@ class GBTree : public IGradBooster {
     if (tree_info.size() != 0) {
       fo.Write(&tree_info[0], sizeof(int) * tree_info.size());
     }
-    if (mparam.num_pbuffer != 0 && with_pbuffer) {      
+    if (mparam.num_pbuffer != 0 && with_pbuffer) {
       fo.Write(&pred_buffer[0], pred_buffer.size() * sizeof(float));
       fo.Write(&pred_counter[0], pred_counter.size() * sizeof(unsigned));
     }
