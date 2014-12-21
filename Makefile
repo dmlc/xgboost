@@ -2,7 +2,7 @@ export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -Lrabit/lib -pthread -lm 
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC  -Irabit/src
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC  -Irabit/include
 
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP 
