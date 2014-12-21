@@ -16,11 +16,11 @@
 #include <functional>
 #endif // C++11
 // contains definition of ISerializable
-#include "./serializable.h"
+#include "./rabit_serializable.h"
 // engine definition of rabit, defines internal implementation
-// to use rabit interface, there is no need to read engine.h rabit.h and serializable.h
-// is suffice to use the interface
-#include "./engine.h"
+// to use rabit interface, there is no need to read engine.h
+// rabit.h and serializable.h are suffice to use the interface
+#include "./rabit/engine.h"
 
 /*! \brief namespace of rabit */
 namespace rabit {
@@ -282,5 +282,5 @@ class SerializeReducer {
 };
 }  // namespace rabit
 // implementation of template functions
-#include "./rabit-inl.h"
+#include "./rabit/rabit-inl.h"
 #endif  // RABIT_ALLREDUCE_H

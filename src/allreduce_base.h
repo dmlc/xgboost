@@ -13,9 +13,9 @@
 
 #include <vector>
 #include <string>
-#include "./utils.h"
+#include <rabit/utils.h>
+#include <rabit/engine.h>
 #include "./socket.h"
-#include "./engine.h"
 
 namespace MPI {
 // MPI data type to be compatible with existing MPI interface

@@ -1,7 +1,7 @@
 // this is a test case to test whether rabit can recover model when 
 // facing an exception
 #include <rabit.h>
-#include <utils.h>
+#include <rabit/utils.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>

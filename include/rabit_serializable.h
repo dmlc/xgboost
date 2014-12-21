@@ -1,8 +1,8 @@
-#ifndef RABIT_SERIALIZABLE_H
-#define RABIT_SERIALIZABLE_H
+#ifndef RABIT_RABIT_SERIALIZABLE_H
+#define RABIT_RABIT_SERIALIZABLE_H
 #include <vector>
 #include <string>
-#include "./utils.h"
+#include "./rabit/utils.h"
 /*!
  * \file serializable.h
  * \brief defines serializable interface of rabit

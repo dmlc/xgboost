@@ -10,7 +10,7 @@
 #include <string>
 #include <istream>
 #include <fstream>
-#include "./utils.h"
+#include "./rabit/utils.h"
 
 namespace rabit {
 namespace utils {

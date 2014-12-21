@@ -5,7 +5,7 @@
  */
 #ifndef RABIT_ENGINE_H
 #define RABIT_ENGINE_H
-#include "./serializable.h"
+#include "../rabit_serializable.h"
 
 namespace MPI {
 /*! \brief MPI data type just to be compatible with MPI reduce function*/
@@ -222,3 +222,4 @@ class ReduceHandle {
 }  // namespace engine
 }  // namespace rabit
 #endif  // RABIT_ENGINE_H
+

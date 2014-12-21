@@ -10,6 +10,7 @@
 
 namespace rabit {
 namespace utils {
+// TODO not net cross platform, avoid to use this in most places
 /*!
  * \brief return time in seconds 
  */

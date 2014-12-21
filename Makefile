@@ -2,23 +2,23 @@ export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS=
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../src
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -Iinclude
 
 BPATH=lib
 # objectives that makes up rabit library
 MPIOBJ= $(BPATH)/engine_mpi.o
 OBJ= $(BPATH)/allreduce_base.o $(BPATH)/allreduce_robust.o $(BPATH)/engine.o $(BPATH)/engine_empty.o
 ALIB= lib/librabit.a lib/librabit_mpi.a lib/librabit_empty.a
-
+HEADERS=src/*.h include/*.h include/rabit/*.h
 .PHONY: clean all
 
 all: $(ALIB)
 
-$(BPATH)/allreduce_base.o: src/allreduce_base.cc src/*.h
-$(BPATH)/engine.o: src/engine.cc src/*.h
-$(BPATH)/allreduce_robust.o: src/allreduce_robust.cc src/*.h
-$(BPATH)/engine_mpi.o: src/engine_mpi.cc src/*.h
-$(BPATH)/engine_empty.o: src/engine_empty.cc src/*.h
+$(BPATH)/allreduce_base.o: src/allreduce_base.cc $(HEADERS)
+$(BPATH)/engine.o: src/engine.cc $(HEADERS)
+$(BPATH)/allreduce_robust.o: src/allreduce_robust.cc $(HEADERS)
+$(BPATH)/engine_mpi.o: src/engine_mpi.cc $(HEADERS)
+$(BPATH)/engine_empty.o: src/engine_empty.cc $(HEADERS)
 
 lib/librabit.a: $(BPATH)/allreduce_base.o $(BPATH)/allreduce_robust.o $(BPATH)/engine.o
 lib/librabit_empty.a: $(BPATH)/engine_empty.o

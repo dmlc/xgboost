@@ -10,7 +10,7 @@
 #ifndef RABIT_ALLREDUCE_ROBUST_H
 #define RABIT_ALLREDUCE_ROBUST_H
 #include <vector>
-#include "./engine.h"
+#include <rabit/engine.h>
 #include "./allreduce_base.h"
 
 namespace rabit {

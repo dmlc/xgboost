@@ -9,7 +9,7 @@
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
 
-#include "./engine.h"
+#include <rabit/engine.h>
 #include "./allreduce_base.h"
 #include "./allreduce_robust.h"
 

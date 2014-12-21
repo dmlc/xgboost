@@ -1,7 +1,7 @@
 // This program is used to test the speed of rabit API
 #include <rabit.h>
-#include <utils.h>
-#include <timer.h>
+#include <rabit/utils.h>
+#include <rabit/timer.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>

@@ -1,30 +1,22 @@
 export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
-export LDFLAGS= -pthread -lm  -lrt
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../src  -std=c++11
+export LDFLAGS= -pthread -lm  -lrt -L../lib
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include  -std=c++11
 
 # specify tensor path
 BIN = speed_test test_model_recover test_local_recover
-# objectives that makes up rabit library
-RABIT_OBJ = allreduce_base.o allreduce_robust.o engine.o
-MPIOBJ = engine_mpi.o
-
 OBJ = $(RABIT_OBJ) speed_test.o test_model_recover.o test_local_recover.o
 MPIBIN = speed_test.mpi
-.PHONY: clean all
+.PHONY: clean all lib
 
 all: $(BIN) $(MPIBIN)
-# the rabit library
-allreduce_base.o: ../src/allreduce_base.cc ../src/*.h
-engine.o: ../src/engine.cc ../src/*.h
-engine_mpi.o: ../src/engine_mpi.cc
-allreduce_robust.o: ../src/allreduce_robust.cc ../src/*.h
-
+lib:
+	cd ..;make;cd -
 # programs 
-speed_test.o: speed_test.cpp ../src/*.h
-test_model_recover.o: test_model_recover.cpp ../src/*.h
-test_local_recover.o: test_local_recover.cpp ../src/*.h
+speed_test.o: speed_test.cpp ../include/*.h lib
+test_model_recover.o: test_model_recover.cpp ../include/*.h lib
+test_local_recover.o: test_local_recover.cpp ../include/*.h lib
 
 # we can link against MPI version to get use MPI
 speed_test: speed_test.o  $(RABIT_OBJ)
@@ -33,16 +25,13 @@ test_model_recover: test_model_recover.o  $(RABIT_OBJ)
 test_local_recover: test_local_recover.o  $(RABIT_OBJ)
 
 $(BIN) : 
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^) $(LDFLAGS)
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^) $(LDFLAGS) -lrabit
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
 $(MPIBIN) : 
-	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^) $(LDFLAGS)
-
-$(MPIOBJ) : 
-	$(MPICXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
+	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^) $(LDFLAGS) -lrabit_mpi
 
 clean:
 	$(RM) $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) *~ ../src/*~

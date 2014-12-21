@@ -2,7 +2,7 @@ export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm -L../lib
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../src -std=c++11
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include -std=c++11
 
 # specify tensor path
 BIN = kmeans

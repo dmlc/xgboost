@@ -5,7 +5,7 @@
 #include <cstring>
 #include <string>
 #include "./utils.h"
-#include "./serializable.h"
+#include "../rabit_serializable.h"
 /*!
  * \file io.h
  * \brief utilities that implements different serializable interface

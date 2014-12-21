@@ -9,6 +9,7 @@
 // use engine for implementation
 #include "./io.h"
 #include "./utils.h"
+#include "../rabit.h"
 
 namespace rabit {
 namespace engine {

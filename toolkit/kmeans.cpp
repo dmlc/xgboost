@@ -1,7 +1,7 @@
 // this is a test case to test whether rabit can recover model when 
 // facing an exception
 #include <rabit.h>
-#include <utils.h>
+#include <rabit/utils.h>
 #include "./toolkit_util.h"
 #include <time.h>
 
@@ -105,32 +105,33 @@ int main(int argc, char *argv[]) {
     model.InitModel(num_cluster, data.feat_dim);
     InitCentroids(data, &model.centroids);
     model.Normalize();
-    utils::LogPrintf("[%d] start at %s\n",
-                     rabit::GetRank(), rabit::GetProcessorName().c_str());
+    rabit::TrackerPrintf("[%d] start at %s\n",
+                         rabit::GetRank(), rabit::GetProcessorName().c_str());
   } else {
-    utils::LogPrintf("[%d] restart iter=%d\n", rabit::GetRank(), iter);    
+    rabit::TrackerPrintf("[%d] restart iter=%d\n", rabit::GetRank(), iter);    
   }
   const unsigned num_feat = data.feat_dim;
   // matrix to store the result
   Matrix temp;
-  for (int r = iter; r < max_iter; ++r) { 
+  for (int r = iter; r < max_iter; ++r) {    
     temp.Init(num_cluster, num_feat + 1, 0.0f);    
-    // call allreduce
-    rabit::Allreduce<op::Sum>(&temp.data[0], temp.data.size(), [&]() {
-        // lambda function used to calculate the data if necessary
-        // this function may not be called when the result can be directly recovered
-        const size_t ndata = data.NumRow();
-        for (size_t i = 0; i < ndata; ++i) {
-          SparseMat::Vector v = data[i];
-          size_t k = GetCluster(model.centroids, v);
-          // temp[k] += v
-          for (size_t j = 0; j < v.length; ++j) {
-            temp[k][v[j].findex] += v[j].fvalue;
-          }
-          // use last column to record counts
-          temp[k][num_feat] += 1.0f;
+    auto lazy_get_centroid = [&]() {
+      // lambda function used to calculate the data if necessary
+      // this function may not be called when the result can be directly recovered
+      const size_t ndata = data.NumRow();
+      for (size_t i = 0; i < ndata; ++i) {
+        SparseMat::Vector v = data[i];
+        size_t k = GetCluster(model.centroids, v);
+        // temp[k] += v
+        for (size_t j = 0; j < v.length; ++j) {
+          temp[k][v[j].findex] += v[j].fvalue;
         }
-      });
+        // use last column to record counts
+        temp[k][num_feat] += 1.0f;
+      }
+    };
+    // call allreduce
+    rabit::Allreduce<op::Sum>(&temp.data[0], temp.data.size(), lazy_get_centroid);
     // set number
     for (int k = 0; k < num_cluster; ++k) {
       float cnt = temp[k][num_feat];
@@ -146,7 +147,7 @@ int main(int argc, char *argv[]) {
   if (rabit::GetRank() == 0) {
     model.centroids.Print(argv[4]);
   }
-  utils::LogPrintf("[%d] Time taken: %f seconds\n", rabit::GetRank(), static_cast<float>(clock() - tStart) / CLOCKS_PER_SEC);
+  rabit::TrackerPrintf("[%d] Time taken: %f seconds\n", rabit::GetRank(), static_cast<float>(clock() - tStart) / CLOCKS_PER_SEC);
   rabit::Finalize();
   return 0;
 }

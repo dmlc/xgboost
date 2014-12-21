@@ -21,7 +21,7 @@
 #endif
 #include <string>
 #include <cstring>
-#include "./utils.h"
+#include <rabit/utils.h>
 
 #if defined(_WIN32)
 typedef int ssize_t;

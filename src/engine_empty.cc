@@ -9,7 +9,8 @@
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
 
-#include "./engine.h"
+#include <rabit/engine.h>
+
 namespace rabit {
 namespace engine {
 /*! \brief EmptyEngine */
