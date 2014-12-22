@@ -33,13 +33,21 @@ AllreduceBase::AllreduceBase(void) {
 void AllreduceBase::Init(void) {
   // setup from enviroment variables
   {// handling for hadoop
-    const char *task_id = getenv("mapred_task_id");
+    const char *task_id = getenv("mapred_tip_id");
     if (hadoop_mode != 0) {
       utils::Check(task_id != NULL, "hadoop_mode is set but cannot find mapred_task_id");
     }
     if (task_id != NULL) {
       this->SetParam("rabit_task_id", task_id);
       this->SetParam("rabit_hadoop_mode", "1");
+    }
+    const char *attempt_id = getenv("mapred_task_id");
+    if (attempt_id != 0) {
+      const char *att = strrchr(attempt_id, '_');
+      int num_trial;
+      if (att != NULL && sscanf(att+1, "%d", &num_trial) == 1) {        
+        this->SetParam("rabit_num_trial", att + 1);
+      }
     }
     // handling for hadoop
     const char *num_task = getenv("mapred_map_tasks");
