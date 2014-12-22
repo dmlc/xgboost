@@ -9,18 +9,20 @@ BIN = kmeans.rabit
 # objectives that makes up rabit library
 OBJ = kmeans.o
 MPIBIN = kmeans.mpi
-.PHONY: clean all lib
+.PHONY: clean all lib libmpi
 
-all: $(BIN) 
+all: $(BIN)
 
 lib:
-	cd ..;make;cd -
+	cd ..;make lib/librabit.a;cd -
+libmpi:
+	cd ..;make lib/librabit_mpi.a;cd -
 
 kmeans.o: kmeans.cpp ../src/*.h
 
 # we can link against MPI version to get use MPI
 kmeans.rabit: kmeans.o lib
-kmeans.mpi: kmeans.o lib
+kmeans.mpi: kmeans.o libmpi
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) $(LDFLAGS) -lrabit
