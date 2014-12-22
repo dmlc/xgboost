@@ -43,6 +43,9 @@ void AllreduceBase::Init(void) {
     }
     // handling for hadoop
     const char *num_task = getenv("mapred_map_tasks");
+    if (num_task == NULL) {
+      num_task = getenv("mapreduce_job_maps");
+    }
     if (hadoop_mode != 0) {
       utils::Check(num_task != NULL, "hadoop_mode is set but cannot find mapred_map_tasks");      
     }
