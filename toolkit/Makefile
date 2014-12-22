@@ -5,16 +5,17 @@ export LDFLAGS= -pthread -lm -L../lib
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include 
 
 # specify tensor path
-BIN = kmeans.rabit
+BIN = kmeans.rabit 
+MOCKBIN= kmeans.mock
 # objectives that makes up rabit library
 OBJ = kmeans.o
 MPIBIN = kmeans.mpi
 .PHONY: clean all lib libmpi
 
-all: $(BIN)
+all: $(BIN) $(MOCKBIN)
 
 lib:
-	cd ..;make lib/librabit.a;cd -
+	cd ..;make lib/librabit.a lib/librabit_mock.a; cd -
 libmpi:
 	cd ..;make lib/librabit_mpi.a;cd -
 
@@ -22,10 +23,13 @@ kmeans.o: kmeans.cpp ../src/*.h
 
 # we can link against MPI version to get use MPI
 kmeans.rabit: kmeans.o lib
+kmeans.mock: kmeans.o lib
 kmeans.mpi: kmeans.o libmpi
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) $(LDFLAGS) -lrabit
+$(MOCKBIN) : 
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) $(LDFLAGS) -lrabit_mock
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
