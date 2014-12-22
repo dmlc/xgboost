@@ -40,12 +40,11 @@ class TreeSyncher: public IUpdater {
       for (size_t i = 0; i < trees.size(); ++i) {
         trees[i]->SaveModel(fs);
       }
-      rabit::Broadcast(&s_model, 0);
-    } else {
-      rabit::Broadcast(&s_model, 0);
-      for (size_t i = 0; i < trees.size(); ++i) {      
-        trees[i]->LoadModel(fs);
-      }
+    }
+    fs.Seek(0);
+    rabit::Broadcast(&s_model, 0);
+    for (size_t i = 0; i < trees.size(); ++i) {      
+      trees[i]->LoadModel(fs);
     }
   }
 };

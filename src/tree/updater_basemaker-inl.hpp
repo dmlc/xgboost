@@ -76,19 +76,15 @@ class BaseMaker: public IUpdater {
       unsigned n = static_cast<unsigned>(p * findex.size());
       random::Shuffle(findex);
       findex.resize(n);
-      if (n != findex.size()) {
-        // sync the findex if it is subsample
-        std::string s_cache;
-        utils::MemoryBufferStream fc(&s_cache);
-        utils::IStream &fs = fc;
-        if (rabit::GetRank() == 0) {
-          fs.Write(findex);
-          rabit::Broadcast(&s_cache, 0);
-        } else {
-          rabit::Broadcast(&s_cache, 0);
-          fs.Read(&findex);
-        }
+      // sync the findex if it is subsample
+      std::string s_cache;
+      utils::MemoryBufferStream fc(&s_cache);
+      utils::IStream &fs = fc;
+      if (rabit::GetRank() == 0) {
+        fs.Write(findex);
       }
+      rabit::Broadcast(&s_cache, 0);
+      fs.Read(&findex);
     }
     
    private:

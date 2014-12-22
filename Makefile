@@ -13,7 +13,7 @@ endif
 # by default use c++11
 ifeq ($(no_cxx11),1)
 else 
-	CFLAGS += -std=c++11
+	CFLAGS += 
 endif
 
 # specify tensor path
@@ -30,7 +30,7 @@ mpi: $(MPIBIN)
 # rules to get rabit library
 librabit:
 	if [ ! -d rabit ]; then git clone https://github.com/tqchen/rabit.git; fi
-	cd rabit;make lib/librabit.a; cd -
+	cd rabit;make lib/librabit.a lib/librabit_mock.a; cd -
 librabit_mpi:
 	if [ ! -d rabit ]; then git clone https://github.com/tqchen/rabit.git; fi
 	cd rabit;make lib/librabit_mpi.a; cd -

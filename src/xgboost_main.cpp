@@ -284,8 +284,8 @@ class BoostLearnTask {
 }
 
 int main(int argc, char *argv[]){
-  xgboost::random::Seed(0);
   xgboost::BoostLearnTask tsk;
+  tsk.SetParam("seed", "0");
   int ret = tsk.Run(argc, argv);
   rabit::Finalize();
   return ret;
