@@ -27,6 +27,7 @@ parser.add_argument('-i', '--input', required=True)
 parser.add_argument('-o', '--output', required=True)
 parser.add_argument('-m', '--mapper', required=True)
 parser.add_argument('-a', '--args', required=True)
+parser.add_argument('-f', '--file', required=True)
 args = parser.parse_args()
 
 if hadoop_binary != None:
@@ -38,7 +39,8 @@ def hadoop_streaming(nslaves, slave_args):
   cmd = '%s jar %s -D mapred.map.tasks=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nslaves)
   cmd += ' -input %s -output %s' % (args.input, args.output)
   cmd += ' -mapper \"%s %s %s\" -reducer \"/bin/cat\" ' % (args.mapper, args.args, ' '.join(slave_args))
-  cmd += ' -file %s' % (args.mapper)
+  for f in args.file.split('#'):
+    cmd += ' -file %s' % (f)
   print cmd
   subprocess.check_call(cmd, shell = True)
 
