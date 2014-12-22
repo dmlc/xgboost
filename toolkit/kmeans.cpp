@@ -115,7 +115,10 @@ int main(int argc, char *argv[]) {
   Matrix temp;
   for (int r = iter; r < max_iter; ++r) {    
     temp.Init(num_cluster, num_feat + 1, 0.0f);    
-    auto lazy_get_centroid = [&]() {
+#if __cplusplus >= 201103L    
+    auto lazy_get_centroid = [&]()
+#endif
+    {
       // lambda function used to calculate the data if necessary
       // this function may not be called when the result can be directly recovered
       const size_t ndata = data.NumRow();
@@ -131,7 +134,11 @@ int main(int argc, char *argv[]) {
       }
     };
     // call allreduce
+#if __cplusplus >= 201103L
     rabit::Allreduce<op::Sum>(&temp.data[0], temp.data.size(), lazy_get_centroid);
+#else
+    rabit::Allreduce<op::Sum>(&temp.data[0], temp.data.size());
+#endif
     // set number
     for (int k = 0; k < num_cluster; ++k) {
       float cnt = temp[k][num_feat];

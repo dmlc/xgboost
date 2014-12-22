@@ -2,16 +2,16 @@ export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm -L../lib
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include -std=c++11
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include 
 
 # specify tensor path
-BIN = kmeans
+BIN = kmeans.rabit
 # objectives that makes up rabit library
 OBJ = kmeans.o
 MPIBIN = kmeans.mpi
 .PHONY: clean all lib
 
-all: $(BIN) $(MPIBIN) 
+all: $(BIN) 
 
 lib:
 	cd ..;make;cd -
@@ -19,7 +19,7 @@ lib:
 kmeans.o: kmeans.cpp ../src/*.h
 
 # we can link against MPI version to get use MPI
-kmeans: kmeans.o lib
+kmeans.rabit: kmeans.o lib
 kmeans.mpi: kmeans.o lib
 
 $(BIN) : 
