@@ -35,8 +35,10 @@ if hadoop_streaming_jar != None:
   args.hadoop_streaming_jar = hadoop_streaming_jar
 
 def hadoop_streaming(nslaves, slave_args):
-  cmd = '%s jar %s -input %s -output %s -mapper \"%s %s %s\" -reducer \"/bin/cat\" -file %s -D mapred.map.tasks=%d' 
-  % (args.hadoop_binary, args.hadoop_streaming_jar, args.input, args.output, args.mapper, args.args, ' '.join(slave_args), args.mapper, nslaves)
+  cmd = '%s jar %s' % (args.hadoop_binary, args.hadoop_streaming_jar)
+  cmd += ' -input %s -output %s'  (args.input, args.output)
+  cmd += ' -mapper \"%s %s %s\" -reducer \"/bin/cat\" ' % (args.mapper, args.args, ' '.join(slave_args))
+  cmd += ' -file %s -D mapred.map.tasks=%d' % (args.mapper, nslaves)
   print cmd
   subprocess.check_call(cmd, shell = True)
 
