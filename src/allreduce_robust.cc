@@ -431,7 +431,7 @@ ShortestDist(const std::pair<bool, size_t> &node_value,
     if (dist_in[i].first + 1 < res) {
       res = dist_in[i].first + 1;
       size = dist_in[i].second;
-    } 
+    }
   }
   // add one hop
 
@@ -575,7 +575,7 @@ AllreduceRobust::TryRecoverData(RecoverType role,
       }
       if (req_in[i] && links[i].size_write != size) {
         if (role == kHaveData ||
-            (role == kPassData && links[recv_link].size_read != links[i].size_write)) {
+            (links[recv_link].size_read != links[i].size_write)) {
           selecter.WatchWrite(links[i].sock);
         }
         finished = false;
@@ -728,10 +728,17 @@ AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool re
   }
   int recv_link;
   std::vector<bool> req_in;
-  ReturnType succ = TryDecideRouting(role, &size, &recv_link, &req_in);
+  // size of data
+  size_t data_size = size;
+  ReturnType succ = TryDecideRouting(role, &data_size, &recv_link, &req_in);
   if (succ != kSuccess) return succ;
-  utils::Check(size != 0, "zero size check point is not allowed");  
-  return TryRecoverData(role, sendrecvbuf, size, recv_link, req_in);
+  utils::Check(data_size != 0, "zero size check point is not allowed");
+  if (role == kRequestData || role == kHaveData) {
+    utils::Check(data_size == size,
+                 "Allreduce Recovered data size do not match the specification of function call\n"\
+                 "Please check if calling sequence of recovered program is the same the original one in current VersionNumber");
+  }
+  return TryRecoverData(role, sendrecvbuf, data_size, recv_link, req_in);
 }
 /*!
  * \brief try to run recover execution for a request action described by flag and seqno,

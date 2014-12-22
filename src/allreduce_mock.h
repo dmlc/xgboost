@@ -40,17 +40,17 @@ class AllreduceMock : public AllreduceRobust {
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun,
                          void *prepare_arg) {
-    this->Verify(MockKey(rank, version_number, seq_counter, num_trial));
+    this->Verify(MockKey(rank, version_number, seq_counter, num_trial), "AllReduce");
     AllreduceRobust::Allreduce(sendrecvbuf_, type_nbytes,
                                count, reducer, prepare_fun, prepare_arg);
   }
   virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
-    this->Verify(MockKey(rank, version_number, seq_counter, num_trial));
+    this->Verify(MockKey(rank, version_number, seq_counter, num_trial), "Broadcast");
     AllreduceRobust::Broadcast(sendrecvbuf_, total_size, root);
   }
   virtual void CheckPoint(const ISerializable *global_model,
                           const ISerializable *local_model) {
-    this->Verify(MockKey(rank, version_number, seq_counter, num_trial));
+    this->Verify(MockKey(rank, version_number, seq_counter, num_trial), "CheckPoint");
     AllreduceRobust::CheckPoint(global_model, local_model);
   }
   
@@ -82,10 +82,10 @@ class AllreduceMock : public AllreduceRobust {
   // record all mock actions
   std::map<MockKey, int> mock_map;
   // used to generate all kinds of exceptions
-  inline void Verify(const MockKey &key) {
+  inline void Verify(const MockKey &key, const char *name) {
     if (mock_map.count(key) != 0) {
       num_trial += 1;
-      utils::Error("[%d]@@@Hit Mock Error", rank);
+      utils::Error("[%d]@@@Hit Mock Error:%s", rank, name);
     }
   }
 };

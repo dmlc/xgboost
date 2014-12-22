@@ -252,8 +252,9 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
   tree_links.plinks.clear();
   for (size_t i = 0; i < all_links.size(); ++i) {
     utils::Assert(!all_links[i].sock.BadSocket(), "ReConnectLink: bad socket");
-    // set the socket to non-blocking mode
-    all_links[i].sock.SetNonBlock(true);    
+    // set the socket to non-blocking mode, enable TCP keepalive
+    all_links[i].sock.SetNonBlock(true);
+    all_links[i].sock.SetKeepAlive(true);
     if (tree_neighbors.count(all_links[i].rank) != 0) {
       if (all_links[i].rank == parent_rank) {
         parent_index = static_cast<int>(tree_links.plinks.size());

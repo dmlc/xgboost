@@ -151,4 +151,3 @@ int main(int argc, char *argv[]) {
   rabit::Finalize();
   return 0;
 }
-
