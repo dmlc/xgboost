@@ -1,5 +1,5 @@
-#ifndef XGBOOST_UTILS_THREAD_BUFFER_H
-#define XGBOOST_UTILS_THREAD_BUFFER_H
+#ifndef XGBOOST_UTILS_THREAD_BUFFER_H_
+#define XGBOOST_UTILS_THREAD_BUFFER_H_
 /*!
  * \file thread_buffer.h
  * \brief  multi-thread buffer, iterator, can be used to create parallel pipeline
