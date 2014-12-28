@@ -1,11 +1,13 @@
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file allreduce_robust-inl.h
  * \brief implementation of inline template function in AllreduceRobust
  *   
  * \author Tianqi Chen
  */
-#ifndef RABIT_ENGINE_ROBUST_INL_H
-#define RABIT_ENGINE_ROBUST_INL_H
+#ifndef RABIT_ENGINE_ROBUST_INL_H_
+#define RABIT_ENGINE_ROBUST_INL_H_
+#include <vector>
 
 namespace rabit {
 namespace engine {
@@ -33,14 +35,14 @@ inline AllreduceRobust::ReturnType
 AllreduceRobust::MsgPassing(const NodeType &node_value,
                             std::vector<EdgeType> *p_edge_in,
                             std::vector<EdgeType> *p_edge_out,
-                            EdgeType (*func) (const NodeType &node_value,
-                                              const std::vector<EdgeType> &edge_in,
-                                              size_t out_index)
-                            ) {
+                            EdgeType (*func)
+                            (const NodeType &node_value,
+                             const std::vector<EdgeType> &edge_in,
+                             size_t out_index)) {
   RefLinkVector &links = tree_links;
   if (links.size() == 0) return kSuccess;
   // number of links
-  const int nlink = static_cast<int>(links.size());  
+  const int nlink = static_cast<int>(links.size());
   // initialize the pointers
   for (int i = 0; i < nlink; ++i) {
     links[i].ResetSize();
@@ -58,7 +60,7 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
   // if no childs, no need to, directly start passing message
   if (nlink == static_cast<int>(parent_index != -1)) {
     utils::Assert(parent_index == 0, "parent must be 0");
-    edge_out[parent_index] = func(node_value, edge_in, parent_index);    
+    edge_out[parent_index] = func(node_value, edge_in, parent_index);
     stage = 1;
   }
   // while we have not passed the messages out
@@ -94,7 +96,7 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
     selecter.Select();
     // exception handling
     for (int i = 0; i < nlink; ++i) {
-        // recive OOB message from some link 
+      // recive OOB message from some link
       if (selecter.CheckExcept(links[i].sock)) return kGetExcept;
     }
     if (stage == 0) {
@@ -103,7 +105,9 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
       for (int i = 0; i < nlink; ++i) {
         if (i != parent_index) {
           if (selecter.CheckRead(links[i].sock)) {
-            if (!links[i].ReadToArray(&edge_in[i], sizeof(EdgeType))) return kSockError;
+            if (!links[i].ReadToArray(&edge_in[i], sizeof(EdgeType))) {
+              return kSockError;
+            }
           }
           if (links[i].size_read != sizeof(EdgeType)) finished = false;
         }
@@ -124,13 +128,17 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
     if (stage == 1) {
       const int pid = this->parent_index;
       utils::Assert(pid != -1, "MsgPassing invalid stage");
-      if (!links[pid].WriteFromArray(&edge_out[pid], sizeof(EdgeType))) return kSockError;
+      if (!links[pid].WriteFromArray(&edge_out[pid], sizeof(EdgeType))) {
+        return kSockError;
+      }
       if (links[pid].size_write == sizeof(EdgeType)) stage = 2;
     }
     if (stage == 2) {
       const int pid = this->parent_index;
-      utils::Assert(pid != -1, "MsgPassing invalid stage");      
-      if (!links[pid].ReadToArray(&edge_in[pid], sizeof(EdgeType))) return kSockError;
+      utils::Assert(pid != -1, "MsgPassing invalid stage");
+      if (!links[pid].ReadToArray(&edge_in[pid], sizeof(EdgeType))) {
+        return kSockError;
+      }
       if (links[pid].size_read == sizeof(EdgeType)) {
         for (int i = 0; i < nlink; ++i) {
           if (i != pid) edge_out[i] = func(node_value, edge_in, i);
@@ -141,7 +149,9 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
     if (stage == 3) {
       for (int i = 0; i < nlink; ++i) {
         if (i != parent_index && links[i].size_write != sizeof(EdgeType)) {
-          if (!links[i].WriteFromArray(&edge_out[i], sizeof(EdgeType))) return kSockError;
+          if (!links[i].WriteFromArray(&edge_out[i], sizeof(EdgeType))) {
+            return kSockError;
+          }
         }
       }
     }
@@ -150,4 +160,4 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
 }
 }  // namespace engine
 }  // namespace rabit
-#endif  // RABIT_ENGINE_ROBUST_INL_H
+#endif  // RABIT_ENGINE_ROBUST_INL_H_

@@ -1,10 +1,11 @@
-#ifndef RABIT_SOCKET_H
-#define RABIT_SOCKET_H
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file socket.h
  * \brief this file aims to provide a wrapper of sockets
  * \author Tianqi Chen
  */
+#ifndef RABIT_SOCKET_H_
+#define RABIT_SOCKET_H_
 #if defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -21,7 +22,7 @@
 #endif
 #include <string>
 #include <cstring>
-#include <rabit/utils.h>
+#include "rabit/utils.h"
 
 #if defined(_WIN32)
 typedef int ssize_t;
@@ -68,9 +69,11 @@ struct SockAddr {
   inline std::string AddrStr(void) const {
     std::string buf; buf.resize(256);
 #ifdef _WIN32
-    const char *s = inet_ntop(AF_INET, (PVOID)&addr.sin_addr, &buf[0], buf.length());
+    const char *s = inet_ntop(AF_INET, (PVOID)&addr.sin_addr,
+                              &buf[0], buf.length());
 #else
-	const char *s = inet_ntop(AF_INET, &addr.sin_addr, &buf[0], buf.length());
+    const char *s = inet_ntop(AF_INET, &addr.sin_addr,
+                              &buf[0], buf.length());
 #endif
     Assert(s != NULL, "cannot decode address");
     return std::string(s);
@@ -94,12 +97,12 @@ class Socket {
    */
   inline static void Startup(void) {
 #ifdef _WIN32
-	WSADATA wsa_data;
+    WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != -1) {
-	  Socket::Error("Startup");
-	}
+      Socket::Error("Startup");
+    }
     if (LOBYTE(wsa_data.wVersion) != 2 || HIBYTE(wsa_data.wVersion) != 2) {
-	  WSACleanup();
+      WSACleanup();
       utils::Error("Could not find a usable version of Winsock.dll\n");
     }
 #endif
@@ -118,11 +121,11 @@ class Socket {
    *        it will set it back to block mode
    */
   inline void SetNonBlock(bool non_block) {
-#ifdef _WIN32  
-	u_long mode = non_block ? 1 : 0;
-	if (ioctlsocket(sockfd, FIONBIO, &mode) != NO_ERROR) {
+#ifdef _WIN32
+    u_long mode = non_block ? 1 : 0;
+    if (ioctlsocket(sockfd, FIONBIO, &mode) != NO_ERROR) {
       Socket::Error("SetNonBlock");
-	}
+    }
 #else
     int flag = fcntl(sockfd, F_GETFL, 0);
     if (flag == -1) {
@@ -143,7 +146,8 @@ class Socket {
    * \param addr
    */
   inline void Bind(const SockAddr &addr) {
-    if (bind(sockfd, (sockaddr*)&addr.addr, sizeof(addr.addr)) == -1) {
+    if (bind(sockfd, reinterpret_cast<const sockaddr*>(&addr.addr),
+             sizeof(addr.addr)) == -1) {
       Socket::Error("Bind");
     }
   }
@@ -154,10 +158,11 @@ class Socket {
    * \return the port successfully bind to, return -1 if failed to bind any port
    */
   inline int TryBindHost(int start_port, int end_port) {
-    // TODO, add prefix check
+    // TODO(tqchen) add prefix check
     for (int port = start_port; port < end_port; ++port) {
       SockAddr addr("0.0.0.0", port);
-      if (bind(sockfd, (sockaddr*)&addr.addr, sizeof(addr.addr)) == 0) {
+      if (bind(sockfd, reinterpret_cast<sockaddr*>(&addr.addr),
+               sizeof(addr.addr)) == 0) {
         return port;
       }
       if (errno != EADDRINUSE) {
@@ -179,22 +184,22 @@ class Socket {
   inline bool BadSocket(void) const {
     if (IsClosed()) return true;
     int err = GetSockError();
-    if (err == EBADF || err == EINTR) return true;    
+    if (err == EBADF || err == EINTR) return true;
     return false;
   }
   /*! \brief check if socket is already closed */
   inline bool IsClosed(void) const {
     return sockfd == INVALID_SOCKET;
-  }  
+  }
   /*! \brief close the socket */
   inline void Close(void) {
     if (sockfd != INVALID_SOCKET) {
 #ifdef _WIN32
       closesocket(sockfd);
 #else
-	  close(sockfd);
+      close(sockfd);
 #endif
-	  sockfd = INVALID_SOCKET;
+      sockfd = INVALID_SOCKET;
     } else {
       Error("Socket::Close double close the socket or close without create");
     }
@@ -204,6 +209,7 @@ class Socket {
     int errsv = errno;
     utils::Error("Socket %s Error:%s", msg, strerror(errsv));
   }
+
  protected:
   explicit Socket(SOCKET sockfd) : sockfd(sockfd) {
   }
@@ -227,7 +233,7 @@ class TCPSocket : public Socket{
     int opt = static_cast<int>(keepalive);
     if (setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)) < 0) {
       Socket::Error("SetKeepAlive");
-    }    
+    }
   }
   /*!
    * \brief create the socket, call this before using socket
@@ -273,7 +279,8 @@ class TCPSocket : public Socket{
    * \return whether connect is successful
    */
   inline bool Connect(const SockAddr &addr) {
-    return connect(sockfd, (sockaddr*)&addr.addr, sizeof(addr.addr)) == 0;
+    return connect(sockfd, reinterpret_cast<const sockaddr*>(&addr.addr),
+                   sizeof(addr.addr)) == 0;
   }
   /*!
    * \brief send data using the socket
@@ -284,7 +291,7 @@ class TCPSocket : public Socket{
    *         return -1 if error occurs
    */
   inline ssize_t Send(const void *buf_, size_t len, int flag = 0) {
-	const char *buf = reinterpret_cast<const char*>(buf_);
+    const char *buf = reinterpret_cast<const char*>(buf_);
     return send(sockfd, buf, static_cast<sock_size_t>(len), flag);
   }
   /*! 
@@ -296,7 +303,7 @@ class TCPSocket : public Socket{
    *         return -1 if error occurs
    */
   inline ssize_t Recv(void *buf_, size_t len, int flags = 0) {
-	char *buf = reinterpret_cast<char*>(buf_);
+    char *buf = reinterpret_cast<char*>(buf_);
     return recv(sockfd, buf, static_cast<sock_size_t>(len), flags);
   }
   /*!
@@ -331,7 +338,8 @@ class TCPSocket : public Socket{
     char *buf = reinterpret_cast<char*>(buf_);
     size_t ndone = 0;
     while (ndone <  len) {
-      ssize_t ret = recv(sockfd, buf, static_cast<sock_size_t>(len - ndone), MSG_WAITALL);
+      ssize_t ret = recv(sockfd, buf,
+                         static_cast<sock_size_t>(len - ndone), MSG_WAITALL);
       if (ret == -1) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) return ndone;
         Socket::Error("RecvAll");
@@ -385,7 +393,7 @@ struct SelectHelper {
    * \param fd file descriptor to be watched
    */
   inline void WatchRead(SOCKET fd) {
-    FD_SET(fd, &read_set);    
+    FD_SET(fd, &read_set);
     if (fd > maxfd) maxfd = fd;
   }
   /*!
@@ -403,7 +411,7 @@ struct SelectHelper {
   inline void WatchException(SOCKET fd) {
     FD_SET(fd, &except_set);
     if (fd > maxfd) maxfd = fd;
-  }  
+  }
   /*!
    * \brief Check if the descriptor is ready for read
    * \param fd file descriptor to check status
@@ -435,8 +443,9 @@ struct SelectHelper {
     fd_set wait_set;
     FD_ZERO(&wait_set);
     FD_SET(fd, &wait_set);
-    return Select_(static_cast<int>(fd + 1), NULL, NULL, &wait_set, timeout);
-  }  
+    return Select_(static_cast<int>(fd + 1),
+                   NULL, NULL, &wait_set, timeout);
+  }
   /*!
    * \brief peform select on the set defined
    * \param select_read whether to watch for read event
@@ -454,9 +463,10 @@ struct SelectHelper {
     }
     return ret;
   }
-  
+
  private:
-  inline static int Select_(int maxfd, fd_set *rfds, fd_set *wfds, fd_set *efds, long timeout) {
+  inline static int Select_(int maxfd, fd_set *rfds,
+                            fd_set *wfds, fd_set *efds, long timeout) {
     utils::Assert(maxfd < FD_SETSIZE, "maxdf must be smaller than FDSETSIZE");
     if (timeout == 0) {
       return select(maxfd, rfds, wfds, efds, NULL);
@@ -465,12 +475,12 @@ struct SelectHelper {
       tm.tv_usec = (timeout % 1000) * 1000;
       tm.tv_sec = timeout / 1000;
       return select(maxfd, rfds, wfds, efds, &tm);
-    }    
+    }
   }
-  
-  SOCKET maxfd; 
+
+  SOCKET maxfd;
   fd_set read_set, write_set, except_set;
 };
 }  // namespace utils
 }  // namespace rabit
-#endif
+#endif  // RABIT_SOCKET_H_

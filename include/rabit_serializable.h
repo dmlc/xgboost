@@ -1,13 +1,14 @@
-#ifndef RABIT_RABIT_SERIALIZABLE_H
-#define RABIT_RABIT_SERIALIZABLE_H
-#include <vector>
-#include <string>
-#include "./rabit/utils.h"
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file serializable.h
  * \brief defines serializable interface of rabit
  * \author Tianqi Chen
  */
+#ifndef RABIT_RABIT_SERIALIZABLE_H_
+#define RABIT_RABIT_SERIALIZABLE_H_
+#include <vector>
+#include <string>
+#include "./rabit/utils.h"
 namespace rabit {
 /*!
  * \brief interface of stream I/O, used by ISerializable
@@ -96,4 +97,4 @@ class ISerializable {
   virtual void Save(IStream &fo) const = 0;
 };
 }  // namespace rabit
-#endif
+#endif  // RABIT_RABIT_SERIALIZABLE_H_

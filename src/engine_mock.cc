@@ -1,4 +1,5 @@
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file engine_mock.cc
  * \brief this is an engine implementation that will 
  * insert failures in certain call point, to test if the engine is robust to failure

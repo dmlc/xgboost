@@ -1,16 +1,19 @@
-#ifndef RABIT_UTILS_IO_H
-#define RABIT_UTILS_IO_H
-#include <cstdio>
-#include <vector>
-#include <cstring>
-#include <string>
-#include "./utils.h"
-#include "../rabit_serializable.h"
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file io.h
  * \brief utilities that implements different serializable interface
  * \author Tianqi Chen
  */
+#ifndef RABIT_UTILS_IO_H_
+#define RABIT_UTILS_IO_H_
+#include <cstdio>
+#include <vector>
+#include <cstring>
+#include <string>
+#include <algorithm>
+#include "./utils.h"
+#include "../rabit_serializable.h"
+
 namespace rabit {
 namespace utils {
 /*! \brief interface of i/o stream that support seek */
@@ -25,8 +28,9 @@ class ISeekStream: public IStream {
 /*! \brief fixed size memory buffer */
 struct MemoryFixSizeBuffer : public ISeekStream {
  public:
-  MemoryFixSizeBuffer(void *p_buffer, size_t buffer_size) 
-      : p_buffer_(reinterpret_cast<char*>(p_buffer)), buffer_size_(buffer_size) {
+  MemoryFixSizeBuffer(void *p_buffer, size_t buffer_size)
+      : p_buffer_(reinterpret_cast<char*>(p_buffer)),
+        buffer_size_(buffer_size) {
     curr_ptr_ = 0;
   }
   virtual ~MemoryFixSizeBuffer(void) {}
@@ -40,7 +44,7 @@ struct MemoryFixSizeBuffer : public ISeekStream {
   }
   virtual void Write(const void *ptr, size_t size) {
     if (size == 0) return;
-    utils::Assert(curr_ptr_ + size <=  buffer_size_, 
+    utils::Assert(curr_ptr_ + size <=  buffer_size_,
                   "write position exceed fixed buffer size");
     memcpy(p_buffer_ + curr_ptr_, ptr, size);
     curr_ptr_ += size;
@@ -59,12 +63,12 @@ struct MemoryFixSizeBuffer : public ISeekStream {
   size_t buffer_size_;
   /*! \brief current pointer */
   size_t curr_ptr_;
-}; // class MemoryFixSizeBuffer
+};  // class MemoryFixSizeBuffer
 
 /*! \brief a in memory buffer that can be read and write as stream interface */
 struct MemoryBufferStream : public ISeekStream {
  public:
-  MemoryBufferStream(std::string *p_buffer) 
+  explicit MemoryBufferStream(std::string *p_buffer)
       : p_buffer_(p_buffer) {
     curr_ptr_ = 0;
   }
@@ -82,7 +86,7 @@ struct MemoryBufferStream : public ISeekStream {
     if (curr_ptr_ + size > p_buffer_->length()) {
       p_buffer_->resize(curr_ptr_+size);
     }
-    memcpy(&(*p_buffer_)[0] + curr_ptr_, ptr, size); 
+    memcpy(&(*p_buffer_)[0] + curr_ptr_, ptr, size);
     curr_ptr_ += size;
   }
   virtual void Seek(size_t pos) {
@@ -97,36 +101,7 @@ struct MemoryBufferStream : public ISeekStream {
   std::string *p_buffer_;
   /*! \brief current pointer */
   size_t curr_ptr_;
-}; // class MemoryBufferStream
-
-/*! \brief implementation of file i/o stream */
-class FileStream : public ISeekStream {
- public:
-  explicit FileStream(FILE *fp) : fp(fp) {}
-  explicit FileStream(void) {
-    this->fp = NULL;
-  }
-  virtual size_t Read(void *ptr, size_t size) {
-    return std::fread(ptr, size, 1, fp);
-  }
-  virtual void Write(const void *ptr, size_t size) {
-    std::fwrite(ptr, size, 1, fp);
-  }
-  virtual void Seek(size_t pos) {
-    std::fseek(fp, static_cast<long>(pos), SEEK_SET);
-  }
-  virtual size_t Tell(void) {
-    return std::ftell(fp);
-  }
-  inline void Close(void) {
-    if (fp != NULL){
-      std::fclose(fp); fp = NULL;
-    }
-  }
-
- private:
-  FILE *fp;
-};
+};  // class MemoryBufferStream
 }  // namespace utils
 }  // namespace rabit
-#endif
+#endif  // RABIT_UTILS_IO_H_

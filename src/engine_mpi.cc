@@ -1,4 +1,5 @@
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file engine_mpi.cc
  * \brief this file gives an implementation of engine interface using MPI,
  *   this will allow rabit program to run with MPI, but do not comes with fault tolerant
@@ -8,10 +9,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
-#include <cstdio>
-#include <rabit/engine.h>
-#include <rabit/utils.h>
 #include <mpi.h>
+#include <cstdio>
+#include "rabit/engine.h"
+#include "rabit/utils.h"
 
 namespace rabit {
 namespace engine {
@@ -27,9 +28,10 @@ class MPIEngine : public IEngine {
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun,
                          void *prepare_arg) {
-    utils::Error("MPIEngine:: Allreduce is not supported, use Allreduce_ instead");
+    utils::Error("MPIEngine:: Allreduce is not supported,"\
+                 "use Allreduce_ instead");
   }
-  virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) {   
+  virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) {
     MPI::COMM_WORLD.Bcast(sendrecvbuf_, size, MPI::CHAR, root);
   }
   virtual void InitAfterException(void) {
@@ -48,13 +50,13 @@ class MPIEngine : public IEngine {
   }
   /*! \brief get rank of current node */
   virtual int GetRank(void) const {
-    return MPI::COMM_WORLD.Get_rank();    
+    return MPI::COMM_WORLD.Get_rank();
   }
   /*! \brief get total number of */
   virtual int GetWorldSize(void) const {
-    return MPI::COMM_WORLD.Get_size();    
+    return MPI::COMM_WORLD.Get_size();
   }
-  /*! \brief get the host name of current node */  
+  /*! \brief get the host name of current node */
   virtual std::string GetHost(void) const {
     int len;
     char name[MPI_MAX_PROCESSOR_NAME];
@@ -68,6 +70,7 @@ class MPIEngine : public IEngine {
       utils::Printf("%s", msg.c_str());
     }
   }
+
  private:
   int version_number;
 };
@@ -91,7 +94,7 @@ IEngine *GetEngine(void) {
 // transform enum to MPI data type
 inline MPI::Datatype GetType(mpi::DataType dtype) {
   using namespace mpi;
-  switch(dtype) {
+  switch (dtype) {
     case kInt: return MPI::INT;
     case kUInt: return MPI::UNSIGNED;
     case kFloat: return MPI::FLOAT;
@@ -103,7 +106,7 @@ inline MPI::Datatype GetType(mpi::DataType dtype) {
 // transform enum to MPI OP
 inline MPI::Op GetOp(mpi::OpType otype) {
   using namespace mpi;
-  switch(otype) {
+  switch (otype) {
     case kMax: return MPI::MAX;
     case kMin: return MPI::MIN;
     case kSum: return MPI::SUM;
@@ -112,17 +115,18 @@ inline MPI::Op GetOp(mpi::OpType otype) {
   utils::Error("unknown mpi::OpType");
   return MPI::MAX;
 }
-// perform in-place allreduce, on sendrecvbuf 
+// perform in-place allreduce, on sendrecvbuf
 void Allreduce_(void *sendrecvbuf,
                 size_t type_nbytes,
                 size_t count,
-                IEngine::ReduceFunction red,               
+                IEngine::ReduceFunction red,
                 mpi::DataType dtype,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun,
                 void *prepare_arg) {
   if (prepare_fun != NULL) prepare_fun(prepare_arg);
-  MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, GetType(dtype), GetOp(op));
+  MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf,
+                            count, GetType(dtype), GetOp(op));
 }
 
 // code for reduce handle
@@ -152,7 +156,7 @@ void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
     created_type_nbytes_ = type_nbytes;
     htype_ = dtype;
   }
-  
+
   MPI::Op *op = new MPI::Op();
   MPI::User_function *pf = redfunc;
   op->Init(pf, true);
@@ -175,7 +179,7 @@ void ReduceHandle::Allreduce(void *sendrecvbuf,
     dtype->Commit();
     created_type_nbytes_ = type_nbytes;
   }
-  if (prepare_fun != NULL) prepare_fun(prepare_arg);  
+  if (prepare_fun != NULL) prepare_fun(prepare_arg);
   MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf, count, *dtype, *op);
 }
 }  // namespace engine

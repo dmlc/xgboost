@@ -1,4 +1,5 @@
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file engine.cc
  * \brief this file governs which implementation of engine we are actually using
  *  provides an singleton of engine interface
@@ -41,16 +42,17 @@ void Finalize(void) {
 IEngine *GetEngine(void) {
   return &manager;
 }
-// perform in-place allreduce, on sendrecvbuf 
+// perform in-place allreduce, on sendrecvbuf
 void Allreduce_(void *sendrecvbuf,
                 size_t type_nbytes,
                 size_t count,
-                IEngine::ReduceFunction red,               
+                IEngine::ReduceFunction red,
                 mpi::DataType dtype,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun,
                 void *prepare_arg) {
-  GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count, red, prepare_fun, prepare_arg);
+  GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count,
+                         red, prepare_fun, prepare_arg);
 }
 
 // code for reduce handle

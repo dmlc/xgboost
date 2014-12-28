@@ -1,4 +1,5 @@
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file allreduce_base.h
  * \brief Basic implementation of AllReduce
  *   using TCP non-block socket and tree-shape reduction.
@@ -8,13 +9,14 @@
  *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
-#ifndef RABIT_ALLREDUCE_BASE_H
-#define RABIT_ALLREDUCE_BASE_H
+#ifndef RABIT_ALLREDUCE_BASE_H_
+#define RABIT_ALLREDUCE_BASE_H_
 
 #include <vector>
 #include <string>
-#include <rabit/utils.h>
-#include <rabit/engine.h>
+#include <algorithm>
+#include "rabit/utils.h"
+#include "rabit/engine.h"
 #include "./socket.h"
 
 namespace MPI {
@@ -22,7 +24,7 @@ namespace MPI {
 class Datatype {
  public:
   size_t type_size;
-  Datatype(size_t type_size) : type_size(type_size) {}
+  explicit Datatype(size_t type_size) : type_size(type_size) {}
 };
 }
 namespace rabit {
@@ -31,7 +33,7 @@ namespace engine {
 class AllreduceBase : public IEngine {
  public:
   // magic number to verify server
-  const static int kMagic = 0xff99;
+  static const int kMagic = 0xff99;
   // constant one byte out of band message to indicate error happening
   AllreduceBase(void);
   virtual ~AllreduceBase(void) {}
@@ -79,12 +81,13 @@ class AllreduceBase : public IEngine {
    */  
   virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
-                         size_t count,           
+                         size_t count,
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun = NULL,
                          void *prepare_arg = NULL) {
     if (prepare_fun != NULL) prepare_fun(prepare_arg);
-    utils::Assert(TryAllreduce(sendrecvbuf_, type_nbytes, count, reducer) == kSuccess,
+    utils::Assert(TryAllreduce(sendrecvbuf_,
+                               type_nbytes, count, reducer) == kSuccess,
                   "Allreduce failed");
   }
   /*!
@@ -201,12 +204,16 @@ class AllreduceBase : public IEngine {
     // constructor
     LinkRecord(void) {}
     // initialize buffer
-    inline void InitBuffer(size_t type_nbytes, size_t count, size_t reduce_buffer_size) {
+    inline void InitBuffer(size_t type_nbytes, size_t count,
+                           size_t reduce_buffer_size) {
       size_t n = (type_nbytes * count + 7)/ 8;
       buffer_.resize(std::min(reduce_buffer_size, n));
       // make sure align to type_nbytes
-      buffer_size = buffer_.size() * sizeof(uint64_t) / type_nbytes * type_nbytes;
-      utils::Assert(type_nbytes <= buffer_size, "too large type_nbytes=%lu, buffer_size=%lu", type_nbytes, buffer_size);
+      buffer_size =
+          buffer_.size() * sizeof(uint64_t) / type_nbytes * type_nbytes;
+      utils::Assert(type_nbytes <= buffer_size,
+                    "too large type_nbytes=%lu, buffer_size=%lu",
+                    type_nbytes, buffer_size);
       // set buffer head
       buffer_head = reinterpret_cast<char*>(BeginPtr(buffer_));
     }
@@ -225,7 +232,7 @@ class AllreduceBase : public IEngine {
       size_t ngap = size_read - protect_start;
       utils::Assert(ngap <= buffer_size, "Allreduce: boundary check");
       size_t offset = size_read % buffer_size;
-      size_t nmax = std::min(buffer_size - ngap, buffer_size - offset);      
+      size_t nmax = std::min(buffer_size - ngap, buffer_size - offset);
       if (nmax == 0) return true;
       ssize_t len = sock.Recv(buffer_head + offset, nmax);
       // length equals 0, remote disconnected
@@ -235,7 +242,7 @@ class AllreduceBase : public IEngine {
       if (len == -1) return errno == EAGAIN || errno == EWOULDBLOCK;
       size_read += static_cast<size_t>(len);
       return true;
-    }    
+    }
     /*!
      * \brief read data into array,
      * this function can not be used together with ReadToRingBuffer

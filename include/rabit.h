@@ -1,6 +1,5 @@
-#ifndef RABIT_RABIT_H
-#define RABIT_RABIT_H
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file rabit.h
  * \brief This file defines unified Allreduce/Broadcast interface of rabit
  *   The actual implementation is redirected to rabit engine
@@ -9,12 +8,14 @@
  *   rabit.h and serializable.h is all the user need to use rabit interface
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
+#ifndef RABIT_RABIT_H_
+#define RABIT_RABIT_H_
 #include <string>
 #include <vector>
 // optionally support of lambda function in C++11, if available
 #if __cplusplus >= 201103L
 #include <functional>
-#endif // C++11
+#endif  // C++11
 // contains definition of ISerializable
 #include "./rabit_serializable.h"
 // engine definition of rabit, defines internal implementation
@@ -116,7 +117,7 @@ inline void Broadcast(std::string *sendrecv_data, int root);
  */
 template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
-                      void (*prepare_fun)(void *arg) = NULL, 
+                      void (*prepare_fun)(void *arg) = NULL,
                       void *prepare_arg = NULL);
 
 // C++11 support for lambda prepare function
@@ -142,9 +143,9 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
  * \tparam DType type of data
  */
 template<typename OP, typename DType>
-inline void Allreduce(DType *sendrecvbuf, size_t count, std::function<void()> prepare_fun);
-#endif // C++11
-
+inline void Allreduce(DType *sendrecvbuf, size_t count,
+                      std::function<void()> prepare_fun);
+#endif  // C++11
 /*!
  * \brief load latest check point
  * \param global_model pointer to the globally shared model/state
@@ -228,6 +229,7 @@ class Reducer {
   inline void Allreduce(DType *sendrecvbuf, size_t count,
                         std::function<void()> prepare_fun);
 #endif
+
  private:
   /*! \brief function handle to do reduce */
   engine::ReduceHandle handle_;
@@ -274,6 +276,7 @@ class SerializeReducer {
                         size_t max_nbyte, size_t count,
                         std::function<void()> prepare_fun);
 #endif
+
  private:
   /*! \brief function handle to do reduce */
   engine::ReduceHandle handle_;
@@ -283,4 +286,4 @@ class SerializeReducer {
 }  // namespace rabit
 // implementation of template functions
 #include "./rabit/rabit-inl.h"
-#endif  // RABIT_ALLREDUCE_H
+#endif  // RABIT_RABIT_H_

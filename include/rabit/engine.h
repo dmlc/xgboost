@@ -1,10 +1,12 @@
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file engine.h
  * \brief This file defines the core interface of allreduce library
  * \author Tianqi Chen, Nacho, Tianyi
  */
-#ifndef RABIT_ENGINE_H
-#define RABIT_ENGINE_H
+#ifndef RABIT_ENGINE_H_
+#define RABIT_ENGINE_H_
+#include <string>
 #include "../rabit_serializable.h"
 
 namespace MPI {
@@ -122,7 +124,7 @@ class IEngine {
   virtual int GetRank(void) const = 0;
   /*! \brief get total number of */
   virtual int GetWorldSize(void) const = 0;
-  /*! \brief get the host name of current node */  
+  /*! \brief get the host name of current node */
   virtual std::string GetHost(void) const = 0;
   /*!
    * \brief print the msg in the tracker,
@@ -211,7 +213,7 @@ class ReduceHandle {
   /*! \return the number of bytes occupied by the type */
   static int TypeSize(const MPI::Datatype &dtype);
 
- private:
+ protected:
   // handle data field
   void *handle_;
   // handle to the type field
@@ -221,5 +223,4 @@ class ReduceHandle {
 };
 }  // namespace engine
 }  // namespace rabit
-#endif  // RABIT_ENGINE_H
-
+#endif  // RABIT_ENGINE_H_

@@ -1,4 +1,5 @@
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file engine_empty.cc
  * \brief this file provides a dummy implementation of engine that does nothing
  *  this file provides a way to fall back to single node program without causing too many dependencies
@@ -25,9 +26,10 @@ class EmptyEngine : public IEngine {
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun,
                          void *prepare_arg) {
-    utils::Error("EmptyEngine:: Allreduce is not supported, use Allreduce_ instead");
+    utils::Error("EmptyEngine:: Allreduce is not supported,"\
+                 "use Allreduce_ instead");
   }
-  virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) {   
+  virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) {
   }
   virtual void InitAfterException(void) {
     utils::Error("EmptyEngine is not fault tolerant");
@@ -51,7 +53,7 @@ class EmptyEngine : public IEngine {
   virtual int GetWorldSize(void) const {
     return 1;
   }
-  /*! \brief get the host name of current node */  
+  /*! \brief get the host name of current node */
   virtual std::string GetHost(void) const {
     return std::string("");
   }
@@ -59,6 +61,7 @@ class EmptyEngine : public IEngine {
     // simply print information into the tracker
     utils::Printf("%s", msg.c_str());
   }
+
  private:
   int version_number;
 };
@@ -77,11 +80,11 @@ void Finalize(void) {
 IEngine *GetEngine(void) {
   return &manager;
 }
-// perform in-place allreduce, on sendrecvbuf 
+// perform in-place allreduce, on sendrecvbuf
 void Allreduce_(void *sendrecvbuf,
                 size_t type_nbytes,
                 size_t count,
-                IEngine::ReduceFunction red,               
+                IEngine::ReduceFunction red,
                 mpi::DataType dtype,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun,

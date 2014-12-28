@@ -1,4 +1,5 @@
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file allreduce_robust.h
  * \brief Robust implementation of Allreduce
  *   using TCP non-block socket and tree-shape reduction.
@@ -7,10 +8,12 @@
  *   
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
-#ifndef RABIT_ALLREDUCE_ROBUST_H
-#define RABIT_ALLREDUCE_ROBUST_H
+#ifndef RABIT_ALLREDUCE_ROBUST_H_
+#define RABIT_ALLREDUCE_ROBUST_H_
 #include <vector>
-#include <rabit/engine.h>
+#include <string>
+#include <algorithm>
+#include "rabit/engine.h"
 #include "./allreduce_base.h"
 
 namespace rabit {
@@ -111,11 +114,11 @@ class AllreduceRobust : public AllreduceBase {
  private:
   // constant one byte out of band message to indicate error happening
   // and mark for channel cleanup
-  const static char kOOBReset = 95;
+  static const char kOOBReset = 95;
   // and mark for channel cleanup, after OOB signal
-  const static char kResetMark = 97;
+  static const char kResetMark = 97;
   // and mark for channel cleanup
-  const static char kResetAck = 97;
+  static const char kResetAck = 97;
   /*! \brief type of roles each node can play during recovery */
   enum RecoverType {
     /*! \brief current node have data */
@@ -132,29 +135,29 @@ class AllreduceRobust : public AllreduceBase {
    */
   struct ActionSummary {
     // maximumly allowed sequence id
-    const static int kSpecialOp = (1 << 26);
+    static const int kSpecialOp = (1 << 26);
     // special sequence number for local state checkpoint
-    const static int kLocalCheckPoint = (1 << 26) - 2;
+    static const int kLocalCheckPoint = (1 << 26) - 2;
     // special sequnce number for local state checkpoint ack signal
-    const static int kLocalCheckAck = (1 << 26) - 1;    
+    static const int kLocalCheckAck = (1 << 26) - 1;
     //---------------------------------------------
-    // The following are bit mask of flag used in 
+    // The following are bit mask of flag used in
     //----------------------------------------------
     // some node want to load check point
-    const static int kLoadCheck = 1;
+    static const int kLoadCheck = 1;
     // some node want to do check point
-    const static int kCheckPoint = 2;
+    static const int kCheckPoint = 2;
     // check point Ack, we use a two phase message in check point,
     // this is the second phase of check pointing
-    const static int kCheckAck = 4;
+    static const int kCheckAck = 4;
     // there are difference sequence number the nodes proposed
     // this means we want to do recover execution of the lower sequence
     // action instead of normal execution
-    const static int kDiffSeq = 8;
+    static const int kDiffSeq = 8;
     // constructor
     ActionSummary(void) {}
-    // constructor of action 
-    ActionSummary(int flag, int minseqno = kSpecialOp) {
+    // constructor of action
+    explicit ActionSummary(int flag, int minseqno = kSpecialOp) {
       seqcode = (minseqno << 4) | flag;
     }
     // minimum number of all operations
@@ -181,10 +184,11 @@ class AllreduceRobust : public AllreduceBase {
     inline int flag(void) const {
       return seqcode & 15;
     }
-    // reducer for Allreduce, used to get the result ActionSummary from all nodes
-    inline static void Reducer(const void *src_, void *dst_, int len, const MPI::Datatype &dtype) {
+    // reducer for Allreduce, get the result ActionSummary from all nodes
+    inline static void Reducer(const void *src_, void *dst_,
+                               int len, const MPI::Datatype &dtype) {
       const ActionSummary *src = (const ActionSummary*)src_;
-      ActionSummary *dst = (ActionSummary*)dst_;
+      ActionSummary *dst = reinterpret_cast<ActionSummary*>(dst_);
       for (int i = 0; i < len; ++i) {
         int src_seqno = src[i].min_seqno();
         int dst_seqno = dst[i].min_seqno();
@@ -192,7 +196,8 @@ class AllreduceRobust : public AllreduceBase {
         if (src_seqno == dst_seqno) {
           dst[i] = ActionSummary(flag, src_seqno);
         } else {
-          dst[i] = ActionSummary(flag | kDiffSeq, std::min(src_seqno, dst_seqno));
+          dst[i] = ActionSummary(flag | kDiffSeq,
+                                 std::min(src_seqno, dst_seqno));
         }
       }
     }
@@ -222,7 +227,7 @@ class AllreduceRobust : public AllreduceBase {
       data_.resize(rptr_.back() + nhop);
       return BeginPtr(data_) + rptr_.back();
     }
-    // push the result in temp to the 
+    // push the result in temp to the
     inline void PushTemp(int seqid, size_t type_nbytes, size_t count) {
       size_t size = type_nbytes * count;
       size_t nhop = (size + sizeof(uint64_t) - 1) / sizeof(uint64_t);
@@ -234,13 +239,14 @@ class AllreduceRobust : public AllreduceBase {
       size_.push_back(size);
       utils::Assert(data_.size() == rptr_.back(), "PushTemp inconsistent");
     }
-    // return the stored result of seqid, if any 
+    // return the stored result of seqid, if any
     inline void* Query(int seqid, size_t *p_size) {
-      size_t idx = std::lower_bound(seqno_.begin(), seqno_.end(), seqid) - seqno_.begin();
+      size_t idx = std::lower_bound(seqno_.begin(),
+                                    seqno_.end(), seqid) - seqno_.begin();
       if (idx == seqno_.size() || seqno_[idx] != seqid) return NULL;
       *p_size = size_[idx];
       return BeginPtr(data_) + rptr_[idx];
-    } 
+    }
     // drop last stored result
     inline void DropLast(void) {
       utils::Assert(seqno_.size() != 0, "there is nothing to be dropped");
@@ -254,15 +260,16 @@ class AllreduceRobust : public AllreduceBase {
       if (seqno_.size() == 0) return -1;
       return seqno_.back();
     }
+
    private:
-    // sequence number of each 
+    // sequence number of each
     std::vector<int> seqno_;
     // pointer to the positions
     std::vector<size_t> rptr_;
     // actual size of each buffer
     std::vector<size_t> size_;
     // content of the buffer
-    std::vector<uint64_t> data_;    
+    std::vector<uint64_t> data_;
   };
   /*!
    * \brief reset the all the existing links by sending Out-of-Band message marker
@@ -291,14 +298,16 @@ class AllreduceRobust : public AllreduceBase {
    * \param buf the buffer to store the result
    * \param size the total size of the buffer
    * \param flag flag information about the action \sa ActionSummary
-   * \param seqno sequence number of the action, if it is special action with flag set, seqno needs to be set to ActionSummary::kSpecialOp
+   * \param seqno sequence number of the action, if it is special action with flag set,
+   *        seqno needs to be set to ActionSummary::kSpecialOp
    *
    * \return if this function can return true or false 
- *    - true means buf already set to the
- *           result by recovering procedure, the action is complete, no further action is needed
+   *    - true means buf already set to the
+   *           result by recovering procedure, the action is complete, no further action is needed
    *    - false means this is the lastest action that has not yet been executed, need to execute the action
    */
-  bool RecoverExec(void *buf, size_t size, int flag, int seqno = ActionSummary::kSpecialOp);
+  bool RecoverExec(void *buf, size_t size, int flag,
+                   int seqno = ActionSummary::kSpecialOp);
   /*!
    * \brief try to load check point
    *        
@@ -363,7 +372,7 @@ class AllreduceRobust : public AllreduceBase {
                             void *sendrecvbuf_,
                             size_t size,
                             int recv_link,
-                            const std::vector<bool> &req_in);  
+                            const std::vector<bool> &req_in);
   /*!
    * \brief try to recover the local state, making each local state to be the result of itself
    *        plus replication of states in previous num_local_replica hops in the ring
@@ -446,17 +455,17 @@ o   *  the input state must exactly one saved state(local state of current node)
   inline ReturnType MsgPassing(const NodeType &node_value,
                                std::vector<EdgeType> *p_edge_in,
                                std::vector<EdgeType> *p_edge_out,
-                               EdgeType (*func) (const NodeType &node_value,
-                                                 const std::vector<EdgeType> &edge_in,
-                                                 size_t out_index)
-                               );
+                               EdgeType (*func)
+                               (const NodeType &node_value,
+                                const std::vector<EdgeType> &edge_in,
+                                size_t out_index));
   //---- recovery data structure ----
   // the round of result buffer, used to mode the result
   int result_buffer_round;
   // result buffer of all reduce
   ResultBuffer resbuf;
   // last check point global model
-  std::string global_checkpoint; 
+  std::string global_checkpoint;
   // number of replica for local state/model
   int num_local_replica;
   // --- recovery data structure for local checkpoint
@@ -465,16 +474,15 @@ o   *  the input state must exactly one saved state(local state of current node)
   // pointer to memory position in the local model
   // local model is stored in CSR format(like a sparse matrices)
   // local_model[rptr[0]:rptr[1]] stores the model of current node
-  // local_model[rptr[k]:rptr[k+1]] stores the model of node in previous k hops in the ring
+  // local_model[rptr[k]:rptr[k+1]] stores the model of node in previous k hops
   std::vector<size_t> local_rptr[2];
   // storage for local model replicas
   std::string local_chkpt[2];
   // version of local checkpoint can be 1 or 0
-  int local_chkpt_version;  
+  int local_chkpt_version;
 };
 }  // namespace engine
 }  // namespace rabit
 // implementation of inline template function
 #include "./allreduce_robust-inl.h"
-
-#endif // RABIT_ALLREDUCE_ROBUST_H
+#endif  // RABIT_ALLREDUCE_ROBUST_H_

@@ -1,4 +1,5 @@
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file allreduce_base.cc
  * \brief Basic implementation of AllReduce
  *
@@ -32,13 +33,15 @@ AllreduceBase::AllreduceBase(void) {
 // initialization function
 void AllreduceBase::Init(void) {
   // setup from enviroment variables
-  {// handling for hadoop
+  {
+    // handling for hadoop
     const char *task_id = getenv("mapred_tip_id");
     if (task_id == NULL) {
       task_id = getenv("mapreduce_task_id");
     }
     if (hadoop_mode != 0) {
-      utils::Check(task_id != NULL, "hadoop_mode is set but cannot find mapred_task_id");
+      utils::Check(task_id != NULL,
+                   "hadoop_mode is set but cannot find mapred_task_id");
     }
     if (task_id != NULL) {
       this->SetParam("rabit_task_id", task_id);
@@ -48,7 +51,7 @@ void AllreduceBase::Init(void) {
     if (attempt_id != 0) {
       const char *att = strrchr(attempt_id, '_');
       int num_trial;
-      if (att != NULL && sscanf(att + 1, "%d", &num_trial) == 1) {        
+      if (att != NULL && sscanf(att + 1, "%d", &num_trial) == 1) {
         this->SetParam("rabit_num_trial", att + 1);
       }
     }
@@ -58,7 +61,8 @@ void AllreduceBase::Init(void) {
       num_task = getenv("mapreduce_job_maps");
     }
     if (hadoop_mode != 0) {
-      utils::Check(num_task != NULL, "hadoop_mode is set but cannot find mapred_map_tasks");      
+      utils::Check(num_task != NULL,
+                   "hadoop_mode is set but cannot find mapred_map_tasks");
     }
     if (num_task != NULL) {
       this->SetParam("rabit_world_size", num_task);
@@ -81,11 +85,11 @@ void AllreduceBase::Shutdown(void) {
   }
   all_links.clear();
   tree_links.plinks.clear();
-  
+
   if (tracker_uri == "NULL") return;
   // notify tracker rank i have shutdown
   utils::TCPSocket tracker = this->ConnectTracker();
-  tracker.SendStr(std::string("shutdown"));  
+  tracker.SendStr(std::string("shutdown"));
   tracker.Close();
   utils::TCPSocket::Finalize();
 }
@@ -107,11 +111,11 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "rabit_tracker_uri")) tracker_uri = val;
   if (!strcmp(name, "rabit_tracker_port")) tracker_port = atoi(val);
   if (!strcmp(name, "rabit_task_id")) task_id = val;
-  if (!strcmp(name, "rabit_world_size")) world_size = atoi(val); 
+  if (!strcmp(name, "rabit_world_size")) world_size = atoi(val);
   if (!strcmp(name, "rabit_hadoop_mode")) hadoop_mode = atoi(val);
   if (!strcmp(name, "rabit_reduce_buffer")) {
     char unit;
-    unsigned long amount;
+    uint64_t amount;
     if (sscanf(val, "%lu%c", &amount, &unit) == 2) {
       switch (unit) {
         case 'B': reduce_buffer_size = (amount + 7)/ 8; break;
@@ -121,7 +125,8 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
         default: utils::Error("invalid format for reduce buffer");
       }
     } else {
-      utils::Error("invalid format for reduce_buffer, shhould be {integer}{unit}, unit can be {B, KB, MB, GB}");
+      utils::Error("invalid format for reduce_buffer,"\
+                   "shhould be {integer}{unit}, unit can be {B, KB, MB, GB}");
     }
   }
 }
@@ -137,11 +142,16 @@ utils::TCPSocket AllreduceBase::ConnectTracker(void) const {
   if (!tracker.Connect(utils::SockAddr(tracker_uri.c_str(), tracker_port))) {
     utils::Socket::Error("Connect");
   }
-  utils::Assert(tracker.SendAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 1");
-  utils::Assert(tracker.RecvAll(&magic, sizeof(magic)) == sizeof(magic), "ReConnectLink failure 2");
+  using utils::Assert;
+  Assert(tracker.SendAll(&magic, sizeof(magic)) == sizeof(magic),
+         "ReConnectLink failure 1");
+  Assert(tracker.RecvAll(&magic, sizeof(magic)) == sizeof(magic),
+         "ReConnectLink failure 2");
   utils::Check(magic == kMagic, "sync::Invalid tracker message, init failure");
-  utils::Assert(tracker.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 3");
-  utils::Assert(tracker.SendAll(&world_size, sizeof(world_size)) == sizeof(world_size), "ReConnectLink failure 3");
+  Assert(tracker.SendAll(&rank, sizeof(rank)) == sizeof(rank),
+                "ReConnectLink failure 3");
+  Assert(tracker.SendAll(&world_size, sizeof(world_size)) == sizeof(world_size),
+         "ReConnectLink failure 3");
   tracker.SendStr(task_id);
   return tracker;
 }
@@ -161,29 +171,30 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
   int prev_rank, next_rank;
   // the rank of neighbors
   std::map<int, int> tree_neighbors;
-  {// get new ranks
-    int newrank, num_neighbors;
-    utils::Assert(tracker.RecvAll(&newrank, sizeof(newrank)) == sizeof(newrank),
-                  "ReConnectLink failure 4");
-    utils::Assert(tracker.RecvAll(&parent_rank, sizeof(parent_rank)) == sizeof(parent_rank),
-                  "ReConnectLink failure 4");
-    utils::Assert(tracker.RecvAll(&world_size, sizeof(world_size)) == sizeof(world_size),
-                  "ReConnectLink failure 4");
-    utils::Assert(rank == -1 || newrank == rank, "must keep rank to same if the node already have one");
-    rank = newrank;
-    utils::Assert(tracker.RecvAll(&num_neighbors, sizeof(num_neighbors)) == sizeof(num_neighbors),
-                  "ReConnectLink failure 4");
-    for (int i = 0; i < num_neighbors; ++i) {
-      int nrank;
-      utils::Assert(tracker.RecvAll(&nrank, sizeof(nrank)) == sizeof(nrank),
-                    "ReConnectLink failure 4");
-      tree_neighbors[nrank] = 1;
-    }
-    utils::Assert(tracker.RecvAll(&prev_rank, sizeof(prev_rank)) == sizeof(prev_rank),
-                  "ReConnectLink failure 4");
-    utils::Assert(tracker.RecvAll(&next_rank, sizeof(next_rank)) == sizeof(next_rank),
-                  "ReConnectLink failure 4");
+  using utils::Assert;
+  // get new ranks
+  int newrank, num_neighbors;
+  Assert(tracker.RecvAll(&newrank, sizeof(newrank)) == sizeof(newrank),
+           "ReConnectLink failure 4");
+  Assert(tracker.RecvAll(&parent_rank, sizeof(parent_rank)) ==\
+         sizeof(parent_rank), "ReConnectLink failure 4");
+  Assert(tracker.RecvAll(&world_size, sizeof(world_size)) == sizeof(world_size),
+         "ReConnectLink failure 4");
+  Assert(rank == -1 || newrank == rank,
+         "must keep rank to same if the node already have one");
+  rank = newrank;
+  Assert(tracker.RecvAll(&num_neighbors, sizeof(num_neighbors)) ==  \
+         sizeof(num_neighbors), "ReConnectLink failure 4");
+  for (int i = 0; i < num_neighbors; ++i) {
+    int nrank;
+    Assert(tracker.RecvAll(&nrank, sizeof(nrank)) == sizeof(nrank),
+           "ReConnectLink failure 4");
+    tree_neighbors[nrank] = 1;
   }
+  Assert(tracker.RecvAll(&prev_rank, sizeof(prev_rank)) == sizeof(prev_rank),
+         "ReConnectLink failure 4");
+  Assert(tracker.RecvAll(&next_rank, sizeof(next_rank)) == sizeof(next_rank),
+         "ReConnectLink failure 4");
   // create listening socket
   utils::TCPSocket sock_listen;
   sock_listen.Create();
@@ -204,56 +215,67 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
       }
     }
     int ngood = static_cast<int>(good_link.size());
-    utils::Assert(tracker.SendAll(&ngood, sizeof(ngood)) == sizeof(ngood),
-                  "ReConnectLink failure 5");  
+    Assert(tracker.SendAll(&ngood, sizeof(ngood)) == sizeof(ngood),
+           "ReConnectLink failure 5");
     for (size_t i = 0; i < good_link.size(); ++i) {
-      utils::Assert(tracker.SendAll(&good_link[i], sizeof(good_link[i])) == sizeof(good_link[i]),
-                    "ReConnectLink failure 6");
+      Assert(tracker.SendAll(&good_link[i], sizeof(good_link[i])) == \
+             sizeof(good_link[i]), "ReConnectLink failure 6");
     }
-    utils::Assert(tracker.RecvAll(&num_conn, sizeof(num_conn)) == sizeof(num_conn),
-                  "ReConnectLink failure 7");
-    utils::Assert(tracker.RecvAll(&num_accept, sizeof(num_accept)) == sizeof(num_accept),
-                  "ReConnectLink failure 8");    
+    Assert(tracker.RecvAll(&num_conn, sizeof(num_conn)) == sizeof(num_conn),
+           "ReConnectLink failure 7");
+    Assert(tracker.RecvAll(&num_accept, sizeof(num_accept)) ==  \
+           sizeof(num_accept), "ReConnectLink failure 8");
     num_error = 0;
     for (int i = 0; i < num_conn; ++i) {
       LinkRecord r;
       int hport, hrank;
       std::string hname;
-      tracker.RecvStr(&hname);      
-      utils::Assert(tracker.RecvAll(&hport, sizeof(hport)) == sizeof(hport), "ReConnectLink failure 9");
-      utils::Assert(tracker.RecvAll(&hrank, sizeof(hrank)) == sizeof(hrank), "ReConnectLink failure 10");
+      tracker.RecvStr(&hname);
+      Assert(tracker.RecvAll(&hport, sizeof(hport)) == sizeof(hport),
+             "ReConnectLink failure 9");
+      Assert(tracker.RecvAll(&hrank, sizeof(hrank)) == sizeof(hrank),
+             "ReConnectLink failure 10");
       r.sock.Create();
       if (!r.sock.Connect(utils::SockAddr(hname.c_str(), hport))) {
         num_error += 1; r.sock.Close(); continue;
       }
-      utils::Assert(r.sock.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 12");
-      utils::Assert(r.sock.RecvAll(&r.rank, sizeof(r.rank)) == sizeof(r.rank), "ReConnectLink failure 13");
-      utils::Check(hrank == r.rank, "ReConnectLink failure, link rank inconsistent");
+      Assert(r.sock.SendAll(&rank, sizeof(rank)) == sizeof(rank),
+             "ReConnectLink failure 12");
+      Assert(r.sock.RecvAll(&r.rank, sizeof(r.rank)) == sizeof(r.rank),
+             "ReConnectLink failure 13");
+      utils::Check(hrank == r.rank,
+                   "ReConnectLink failure, link rank inconsistent");
       bool match = false;
       for (size_t i = 0; i < all_links.size(); ++i) {
         if (all_links[i].rank == hrank) {
-          utils::Assert(all_links[i].sock.IsClosed(), "Override a link that is active");
+          Assert(all_links[i].sock.IsClosed(),
+                 "Override a link that is active");
           all_links[i].sock = r.sock; match = true; break;
         }
       }
       if (!match) all_links.push_back(r);
     }
-    utils::Assert(tracker.SendAll(&num_error, sizeof(num_error)) == sizeof(num_error), "ReConnectLink failure 14");
+    Assert(tracker.SendAll(&num_error, sizeof(num_error)) == sizeof(num_error),
+           "ReConnectLink failure 14");
   } while (num_error != 0);
   // send back socket listening port to tracker
-  utils::Assert(tracker.SendAll(&port, sizeof(port)) == sizeof(port), "ReConnectLink failure 14");
+  Assert(tracker.SendAll(&port, sizeof(port)) == sizeof(port),
+         "ReConnectLink failure 14");
   // close connection to tracker
-  tracker.Close();  
+  tracker.Close();
   // listen to incoming links
   for (int i = 0; i < num_accept; ++i) {
     LinkRecord r;
     r.sock = sock_listen.Accept();
-    utils::Assert(r.sock.SendAll(&rank, sizeof(rank)) == sizeof(rank), "ReConnectLink failure 15");
-    utils::Assert(r.sock.RecvAll(&r.rank, sizeof(r.rank)) == sizeof(r.rank), "ReConnectLink failure 15");
+    Assert(r.sock.SendAll(&rank, sizeof(rank)) == sizeof(rank),
+           "ReConnectLink failure 15");
+    Assert(r.sock.RecvAll(&r.rank, sizeof(r.rank)) == sizeof(r.rank),
+           "ReConnectLink failure 15");
     bool match = false;
     for (size_t i = 0; i < all_links.size(); ++i) {
       if (all_links[i].rank == r.rank) {
-        utils::Assert(all_links[i].sock.IsClosed(), "Override a link that is active");
+        utils::Assert(all_links[i].sock.IsClosed(),
+                      "Override a link that is active");
         all_links[i].sock = r.sock; match = true; break;
       }
     }
@@ -278,9 +300,12 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
     if (all_links[i].rank == prev_rank) ring_prev = &all_links[i];
     if (all_links[i].rank == next_rank) ring_next = &all_links[i];
   }
-  utils::Assert(parent_rank == -1 || parent_index != -1, "cannot find parent in the link");
-  utils::Assert(prev_rank == -1 || ring_prev != NULL, "cannot find prev ring in the link");
-  utils::Assert(next_rank == -1 || ring_next != NULL, "cannot find next ring in the link");  
+  Assert(parent_rank == -1 || parent_index != -1,
+         "cannot find parent in the link");
+  Assert(prev_rank == -1 || ring_prev != NULL,
+         "cannot find prev ring in the link");
+  Assert(next_rank == -1 || ring_next != NULL,
+         "cannot find next ring in the link");
 }
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf, this function can fail, and will return the cause of failure
@@ -326,7 +351,7 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
   // if no childs, no need to reduce
   if (nlink == static_cast<int>(parent_index != -1)) {
     size_up_reduce = total_size;
-  }  
+  }
   // while we have not passed the messages out
   while (true) {
     // select helper
@@ -347,7 +372,7 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
         if (links[i].size_read != total_size) {
           selecter.WatchRead(links[i].sock);
         }
-        // size_write <= size_read 
+        // size_write <= size_read
         if (links[i].size_write != total_size) {
           selecter.WatchWrite(links[i].sock);
           // only watch for exception in live channels
@@ -358,11 +383,11 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
     }
     // finish runing allreduce
     if (finished) break;
-    // select must return 
+    // select must return
     selecter.Select();
     // exception handling
     for (int i = 0; i < nlink; ++i) {
-        // recive OOB message from some link 
+      // recive OOB message from some link
       if (selecter.CheckExcept(links[i].sock)) return kGetExcept;
     }
     // read data from childs
@@ -392,7 +417,8 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
         // start position
         size_t start = size_up_reduce % buffer_size;
         // peform read till end of buffer
-        size_t nread = std::min(buffer_size - start, max_reduce - size_up_reduce);          
+        size_t nread = std::min(buffer_size - start,
+                                max_reduce - size_up_reduce);
         utils::Assert(nread % type_nbytes == 0, "Allreduce: size check");
         for (int i = 0; i < nlink; ++i) {
           if (i != parent_index) {
@@ -407,7 +433,7 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
     }
     if (parent_index != -1) {
       // pass message up to parent, can pass data that are already been reduced
-      if (selecter.CheckWrite(links[parent_index].sock)) {              
+      if (selecter.CheckWrite(links[parent_index].sock)) {
         ssize_t len = links[parent_index].sock.
             Send(sendrecvbuf + size_up_out, size_up_reduce - size_up_out);
         if (len != -1) {
@@ -417,7 +443,8 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
         }
       }
       // read data from parent
-      if (selecter.CheckRead(links[parent_index].sock) && total_size > size_down_in) {
+      if (selecter.CheckRead(links[parent_index].sock) &&
+          total_size > size_down_in) {
         ssize_t len = links[parent_index].sock.
             Recv(sendrecvbuf + size_down_in, total_size - size_down_in);
         if (len == 0) {
@@ -425,7 +452,8 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
         }
         if (len != -1) {
           size_down_in += static_cast<size_t>(len);
-          utils::Assert(size_down_in <= size_up_out, "Allreduce: boundary error");
+          utils::Assert(size_down_in <= size_up_out,
+                        "Allreduce: boundary error");
         } else {
           if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
         }
@@ -437,11 +465,13 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
     // can pass message down to childs
     for (int i = 0; i < nlink; ++i) {
       if (i != parent_index && selecter.CheckWrite(links[i].sock)) {
-        if (!links[i].WriteFromArray(sendrecvbuf, size_down_in)) return kSockError;
+        if (!links[i].WriteFromArray(sendrecvbuf, size_down_in)) {
+          return kSockError;
+        }
       }
     }
   }
-  return kSuccess;  
+  return kSuccess;
 }
 /*!
  * \brief broadcast data from root to all nodes, this function can fail,and will return the cause of failure
@@ -455,14 +485,15 @@ AllreduceBase::ReturnType
 AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
   RefLinkVector &links = tree_links;
   if (links.size() == 0 || total_size == 0) return kSuccess;
-  utils::Check(root < world_size, "Broadcast: root should be smaller than world size");  
+  utils::Check(root < world_size,
+               "Broadcast: root should be smaller than world size");
   // number of links
   const int nlink = static_cast<int>(links.size());
   // size of space already read from data
   size_t size_in = 0;
   // input link, -2 means unknown yet, -1 means this is root
   int in_link = -2;
-  
+
   // initialize the link statistics
   for (int i = 0; i < nlink; ++i) {
     links[i].ResetSize();
@@ -471,9 +502,9 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
   if (this->rank == root) {
     size_in = total_size;
     in_link = -1;
-  }  
+  }
   // while we have not passed the messages out
-  while(true) {
+  while (true) {
     bool finished = true;
     // select helper
     utils::SelectHelper selecter;
@@ -487,7 +518,7 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
       if (in_link != -2 && i != in_link && links[i].size_write != total_size) {
         selecter.WatchWrite(links[i].sock); finished = false;
       }
-      selecter.WatchException(links[i].sock);        
+      selecter.WatchException(links[i].sock);
     }
     // finish running
     if (finished) break;
@@ -495,14 +526,16 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
     selecter.Select();
     // exception handling
     for (int i = 0; i < nlink; ++i) {
-        // recive OOB message from some link 
+      // recive OOB message from some link
       if (selecter.CheckExcept(links[i].sock)) return kGetExcept;
     }
     if (in_link == -2) {
       // probe in-link
       for (int i = 0; i < nlink; ++i) {
         if (selecter.CheckRead(links[i].sock)) {
-          if (!links[i].ReadToArray(sendrecvbuf_, total_size)) return kSockError;
+          if (!links[i].ReadToArray(sendrecvbuf_, total_size)) {
+            return kSockError;
+          }
           size_in = links[i].size_read;
           if (size_in != 0) {
             in_link = i; break;
@@ -512,7 +545,9 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
     } else {
       // read from in link
       if (in_link >= 0 && selecter.CheckRead(links[in_link].sock)) {
-        if(!links[in_link].ReadToArray(sendrecvbuf_, total_size)) return kSockError;
+        if (!links[in_link].ReadToArray(sendrecvbuf_, total_size)) {
+          return kSockError;
+        }
         size_in = links[in_link].size_read;
       }
     }

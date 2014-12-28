@@ -36,4 +36,4 @@ $(ALIB):
 	ar cr $@ $+
 
 clean:
-	$(RM) $(OBJ) $(MPIOBJ) $(ALIB) $(MPIALIB) *~ src/*~
+	$(RM) $(OBJ) $(MPIOBJ) $(ALIB) $(MPIALIB) *~ src/*~ include/*~ include/*/*~

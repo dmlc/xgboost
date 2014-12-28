@@ -1,10 +1,11 @@
-#ifndef RABIT_UTILS_H_
-#define RABIT_UTILS_H_
 /*!
+ *  Copyright (c) 2014 by Contributors
  * \file utils.h
  * \brief simple utils to support the code
  * \author Tianqi Chen
  */
+#ifndef RABIT_UTILS_H_
+#define RABIT_UTILS_H_
 #define _CRT_SECURE_NO_WARNINGS
 #include <cstdio>
 #include <string>
@@ -19,7 +20,7 @@
 #define fopen64 std::fopen
 #endif
 #ifdef _MSC_VER
-// NOTE: sprintf_s is not equivalent to snprintf, 
+// NOTE: sprintf_s is not equivalent to snprintf,
 // they are equivalent when success, which is sufficient for our case
 #define snprintf sprintf_s
 #define vsnprintf vsprintf_s
@@ -30,7 +31,7 @@
 #endif
 #endif
 
-#ifdef __APPLE__ 
+#ifdef __APPLE__
 #define off64_t off_t
 #define fopen64 std::fopen
 #endif
@@ -186,5 +187,5 @@ inline const char* BeginPtr(const std::string &str) {
   if (str.length() == 0) return NULL;
   return &str[0];
 }
-} // namespace rabit
+}  // namespace rabit
 #endif  // RABIT_UTILS_H_
