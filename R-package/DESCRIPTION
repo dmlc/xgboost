@@ -1,8 +1,8 @@
 Package: xgboost
 Type: Package
 Title: eXtreme Gradient Boosting
-Version: 0.3-2
-Date: 2014-08-23
+Version: 0.3-3
+Date: 2014-12-28
 Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>
 Maintainer: Tong He <hetong007@gmail.com>
 Description: This package is a R wrapper of xgboost, which is short for eXtreme
@@ -21,4 +21,6 @@ Depends:
     R (>= 2.10)
 Imports:
     Matrix (>= 1.1-0),
-    methods
+    methods,
+    data.table (>= 1.9),
+    magrittr (>= 1.5)
