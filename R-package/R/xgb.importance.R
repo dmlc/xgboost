@@ -38,10 +38,9 @@ xgb.importance <- function(feature_names, filename_dump){
 treeDump <- function(feature_names, text){  
   result <- c()
   for(line in text){
-    m <- regexec("\\[f.*\\]", line)
-    p <- regmatches(line, m)
+    p <- regexec("\\[f.*\\]", line) %>% regmatches(line, .)
     if (length(p[[1]]) > 0) {      
-      splits <- sub("\\]", "", sub("\\[f", "", p[[1]])) %>% strsplit("<")[[1]] %>% as.numeric
+      splits <- sub("\\[f", "", p[[1]]) %>% sub("\\]", "", .) %>% strsplit("<") %>% .[[1]] %>% as.numeric
       result <- c(result, feature_names[splits[1]+ 1])
     }
   }
@@ -50,5 +49,5 @@ treeDump <- function(feature_names, text){
 }
 
 linearDump <- function(feature_names, text){
-  which(text == "weight:") %>% {a=.+1; text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
+  which(text == "weight:") %>% {a=.+1;text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
 }
