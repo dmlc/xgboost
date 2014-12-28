@@ -41,14 +41,14 @@ treeDump <- function(feature_names, text){
     m <- regexec("\\[f.*\\]", line)
     p <- regmatches(line, m)
     if (length(p[[1]]) > 0) {      
-      splits <- as.numeric(strsplit(sub("\\]", "", sub("\\[f", "", p[[1]])), "<")[[1]])
+      splits <- sub("\\]", "", sub("\\[f", "", p[[1]])) %>% strsplit("<")[[1]] %>% as.numeric
       result <- c(result, feature_names[splits[1]+ 1])
     }
   }
-  #1. Reduce, 2. %, 3. remove temp col, 4. reorder - bigger top
+  #1. Reduce, 2. %, 3. reorder - bigger top, 4. remove temp col
   data.table(Feature = result)[,.N, by = Feature][, Weight:= N /sum(N)][order(-rank(Weight))][,-2,with=F]
 }
 
 linearDump <- function(feature_names, text){
-  which(text == "weight:") %>% {a=.+1;text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
+  which(text == "weight:") %>% {a=.+1; text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
 }
