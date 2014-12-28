@@ -1,7 +1,10 @@
 #' Show importance of features in a model
 #' 
-#' Read a xgboost model in text file format. Return a data.table of the features with their weight.
+#' Read a xgboost model in text file format. 
+#' Can be tree or linear model (text dump of linear model are only supported in dev version of Xgboost for now).
 #' 
+#' Return a data.table of the features with their weight.
+#' #' 
 #' @importFrom data.table data.table
 #' @importFrom magrittr %>%
 #' @importFrom data.table :=
