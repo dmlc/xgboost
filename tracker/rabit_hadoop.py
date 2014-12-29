@@ -19,8 +19,10 @@ hadoop_home = os.getenv('HADOOP_HOME')
 if hadoop_home != None:
   if hadoop_binary == None:
     hadoop_binary = hadoop_home + '/bin/hadoop'
+    assert os.path.exists(hadoop_binary), "HADDOP_HOME does not contain the hadoop binary"
   if hadoop_streaming_jar == None:
-    hadoop_streaming_jar = hadoop_home + '/bin/hadoop'
+    hadoop_streaming_jar = hadoop_home + '/lib/hadoop-streaming.har'
+    assert os.path.exists(hadoop_streaming_jar), "HADDOP_HOME does not contain the haddop streaming jar"
 
 if hadoop_binary == None or hadoop_streaming_jar == None:
   print 'Warning: Cannot auto-detect path to hadoop and streaming jar, need to set them via arguments -hs and -hb'
