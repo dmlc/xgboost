@@ -122,7 +122,7 @@ class SlaveEntry:
             return rmset
     
 class Tracker:
-    def __init__(self, port = 9091, port_end = 9999):
+    def __init__(self, port = 9091, port_end = 9999, verbose = True):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         for port in range(port, port_end):
             try:
@@ -132,8 +132,9 @@ class Tracker:
             except socket.error:
                 continue
         sock.listen(16)
-        self.sock = sock        
-        print 'start listen on %s:%d' % (socket.gethostname(), self.port)
+        self.sock = sock
+        self.verbose = verbose
+        self.log_print('start listen on %s:%d' % (socket.gethostname(), self.port), 1)
     def __del__(self):
         self.sock.close()
     def slave_args(self):
@@ -190,9 +191,12 @@ class Tracker:
         return ring_map
     def handle_print(self,slave, msg):
         sys.stdout.write(msg)
-    def log_print(self, msg):
-        sys.stderr.write(msg+'\n')
-
+    def log_print(self, msg, level):
+        if level == 1:
+            if self.verbose:
+                sys.stderr.write(msg + '\n')
+        else:
+            sys.stderr.write(msg + '\n')
     def accept_slaves(self, nslave):
         # set of nodes that finishs the job
         shutdown = {}
@@ -216,13 +220,12 @@ class Tracker:
                 assert s.rank >= 0 and s.rank not in shutdown
                 assert s.rank not in wait_conn
                 shutdown[s.rank] = s
-                self.log_print('Recieve %s signal from %d' % (s.cmd, s.rank))
+                self.log_print('Recieve %s signal from %d' % (s.cmd, s.rank), 1)
                 continue
-            assert s.cmd == 'start' or s.cmd == 'recover'            
+            assert s.cmd == 'start' or s.cmd == 'recover'
             # lazily initialize the slaves
             if tree_map == None:
                 assert s.cmd == 'start'
-                print s.world_size
                 if s.world_size > 0:
                     nslave = s.world_size
                 tree_map, parent_map = self.get_tree(nslave)
@@ -239,18 +242,20 @@ class Tracker:
                 assert len(todo_nodes) != 0
                 rank = todo_nodes.pop(0)
                 if s.jobid != 'NULL':
-                    job_map[s.jobid] = rank                
+                    job_map[s.jobid] = rank
+                if len(todo_nodes) == 0:
+                    self.log_print('@tracker All of %d nodes getting started' % nslave, 2)
             s.assign_rank(rank, wait_conn, tree_map, parent_map, ring_map)
-            if s.cmd != 'start':
-                self.log_print('Recieve %s signal from %d' % (s.cmd, s.rank))
+            if s.cmd != 'start':                
+                self.log_print('Recieve %s signal from %d' % (s.cmd, s.rank), 1)
             else:
-                self.log_print('Recieve %s signal from %s assign rank %d' % (s.cmd, s.host, s.rank))
+                self.log_print('Recieve %s signal from %s; assign rank %d' % (s.cmd, s.host, s.rank), 1)
             if s.wait_accept > 0:
-                wait_conn[rank] = s            
-        self.log_print('All nodes finishes job')
+                wait_conn[rank] = s
+        self.log_print('@tracker All nodes finishes job', 2)
 
-def submit(nslave, args, fun_submit):
-    master = Tracker()
+def submit(nslave, args, fun_submit, verbose):
+    master = Tracker(verbose = verbose)
     submit_thread = Thread(target = fun_submit, args = (nslave, args + master.slave_args()))
     submit_thread.start()
     master.accept_slaves(nslave)
