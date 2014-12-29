@@ -33,6 +33,8 @@ parser.add_argument('-n', '--nslaves', required=True, type=int,
                     help = 'number of slaves proccess to be launched')
 parser.add_argument('-v', '--verbose', default=0, choices=[0, 1], type=int,
                     help = 'print more messages into the console')
+parser.add_argument('-ac', '--auto_file_cache', default=1, choices=[0, 1], type=int,
+                    help = 'whether automatically cache the files in the command list to hadoop localfile')
 parser.add_argument('-i', '--input', required=True,
                     help = 'input path in HDFS')
 parser.add_argument('-o', '--output', required=True,
@@ -61,8 +63,10 @@ def hadoop_streaming(nslaves, slave_args):
   cmd += ' -input %s -output %s' % (args.input, args.output)
   cmd += ' -mapper \"%s\" -reducer \"/bin/cat\" ' % (' '.join(args.command + slave_args))
   fset = set()
-  if os.path.exists(args.command[0]):
-    fset.add(args.command[0])
+  if args.auto_file_cache:
+    for f in args.command:
+      if os.path.exists(f):
+        fset.add(f)
   for flst in args.files:
     for f in flst.split('#'):
       fset.add(f)
