@@ -39,8 +39,6 @@ parser.add_argument('-o', '--output', required=True,
                     help = 'output path in HDFS')
 parser.add_argument('-f', '--files', nargs = '*',
                     help = 'the cached file list in mapreduce')
-parser.add_argument('command', nargs='+',
-                    help = 'command for rabit program')
 if hadoop_binary == None:
   parser.add_argument('-hb', '--hadoop_binary', required = True,
                       help="path-to-hadoop binary folder")  
@@ -54,6 +52,8 @@ if hadoop_streaming_jar == None:
 else:
   parser.add_argument('-jar', '--hadoop_streaming_jar', default = hadoop_streaming_jar,
                       help='path-to hadoop streamimg jar file')
+parser.add_argument('command', nargs='+',
+                    help = 'command for rabit program')
 args = parser.parse_args()
 
 def hadoop_streaming(nslaves, slave_args):
