@@ -4,30 +4,35 @@
 \alias{xgb.importance}
 \title{Show importance of features in a model}
 \usage{
-xgb.importance(feature_names, filename_dump)
+xgb.importance(feature_names = NULL, filename_dump = NULL)
 }
 \arguments{
-\item{feature_names}{names of each feature as a character vector. Can be extracted from a sparse matrix.}
+\item{feature_names}{names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.}
 
-\item{filename_dump}{the name of the text file.}
+\item{filename_dump}{the path to the text file storing the model.}
 }
 \description{
-Read a xgboost model in text file format. Return a data.table of the features with their weight.
+Read a xgboost model in text file format.
+Can be tree or linear model (text dump of linear model are only supported in dev version of Xgboost for now).
+}
+\details{
+Return a data.table of the features with their weight.
+#'
 }
 \examples{
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 
-#Both dataset are list with two items, a sparse matrix and labels (outcome column which will be learned).
+#Both dataset are list with two items, a sparse matrix and labels (labels = outcome column which will be learned).
 #Each column of the sparse Matrix is a feature in one hot encoding format.
 train <- agaricus.train
 test <- agaricus.test
 
 bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
                eta = 1, nround = 2,objective = "binary:logistic")
-xgb.dump(bst, 'xgb.model.dump')
+xgb.dump(bst, 'xgb.model.dump', with.stats = T)
 
-#agaricus.test$data@Dimnames[[2]] represents the column name of the sparse matrix.
+#agaricus.test$data@Dimnames[[2]] represents the column names of the sparse matrix.
 xgb.importance(agaricus.test$data@Dimnames[[2]], 'xgb.model.dump')
 }
 

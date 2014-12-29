@@ -4,7 +4,7 @@
 \alias{xgb.dump}
 \title{Save xgboost model to text file}
 \usage{
-xgb.dump(model, fname, fmap = "")
+xgb.dump(model, fname, fmap = "", with.stats = FALSE)
 }
 \arguments{
 \item{model}{the model object.}
@@ -12,11 +12,16 @@ xgb.dump(model, fname, fmap = "")
 \item{fname}{the name of the binary file.}
 
 \item{fmap}{feature map file representing the type of feature.
-       Detailed description could be found at
-       \url{https://github.com/tqchen/xgboost/wiki/Binary-Classification#dump-model}.
-       See demo/ for walkthrough example in R, and
-       \url{https://github.com/tqchen/xgboost/blob/master/demo/data/featmap.txt}
-       for example Format.}
+Detailed description could be found at
+\url{https://github.com/tqchen/xgboost/wiki/Binary-Classification#dump-model}.
+See demo/ for walkthrough example in R, and
+\url{https://github.com/tqchen/xgboost/blob/master/demo/data/featmap.txt}
+for example Format.}
+
+\item{with.stats}{whether dump statistics of splits
+       When this option is on, the model dump comes with two additional statistics:
+       gain is the approximate loss function gain we get in each split;
+       cover is the sum of second order gradient in each node.}
 }
 \description{
 Save a xgboost model to text file. Could be parsed later.
