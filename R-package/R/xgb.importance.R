@@ -29,6 +29,12 @@
 #' 
 #' @export
 xgb.importance <- function(feature_names, filename_dump){  
+  if (class(feature_names) != "character") {  	   
+    stop("feature_names: Has to be a vector of character. See help to see where to get it.")
+  }
+  if (class(filename_dump) != "character" & file.exists(filename_dump)) {       
+    stop("filename_dump: Has to be a path to the model dump file.")
+  }
   text <- readLines(filename_dump)  
   if(text[2] == "bias:"){
     result <- linearDump(feature_names, text)
