@@ -368,13 +368,15 @@ class Booster:
                 None
         """
         xglib.XGBoosterLoadModel( self.handle, ctypes.c_char_p(fname.encode('utf-8')) )
-    def dump_model(self, fo, fmap=''):
+    def dump_model(self, fo, fmap='', with_stats = False):
         """dump model into text file
             Args:
                 fo: string
                     file name to be dumped
                 fmap: string, optional
                       file name of feature map names
+                with_stats: bool, optional
+                      whether output statistics of the split
             Returns:
                 None
         """
@@ -383,16 +385,18 @@ class Booster:
             need_close = True
         else:
             need_close = False
-        ret = self.get_dump(fmap)
+        ret = self.get_dump(fmap, with_stats)
         for i in range(len(ret)):
             fo.write('booster[%d]:\n' %i)
             fo.write( ret[i] )
         if need_close:
             fo.close()
-    def get_dump(self, fmap=''):
+    def get_dump(self, fmap='', with_stats=False):
         """get dump of model as list of strings """
         length = ctypes.c_ulong()
-        sarr = xglib.XGBoosterDumpModel(self.handle, ctypes.c_char_p(fmap.encode('utf-8')), ctypes.byref(length))
+        sarr = xglib.XGBoosterDumpModel(self.handle,
+                                        ctypes.c_char_p(fmap.encode('utf-8')),
+                                        int(with_stats), ctypes.byref(length))
         res = []
         for i in range(length.value):
             res.append( str(sarr[i]) )

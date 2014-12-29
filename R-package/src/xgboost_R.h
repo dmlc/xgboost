@@ -132,7 +132,8 @@ extern "C" {
    * \param handle handle
    * \param fname file name of model that can be dumped into
    * \param fmap  name to fmap can be empty string
+   * \param with_stats whether dump statistics of splits
    */
-  void XGBoosterDumpModel_R(SEXP handle, SEXP fname, SEXP fmap);
+  void XGBoosterDumpModel_R(SEXP handle, SEXP fname, SEXP fmap, SEXP with_stats);
 }
 #endif  // XGBOOST_WRAPPER_R_H_

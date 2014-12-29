@@ -241,10 +241,10 @@ extern "C" {
     for (int i = 0; i < len; ++i) {
       vec_sptr.push_back(vec_names[i].c_str());
     }
+    _WrapperEnd();
     return mkString(XGBoosterEvalOneIter(R_ExternalPtrAddr(handle),
                                          asInteger(iter),
                                          BeginPtr(vec_dmats), BeginPtr(vec_sptr), len));
-    _WrapperEnd();
   }
   SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin, SEXP ntree_limit) {
     _WrapperBegin();
@@ -272,11 +272,13 @@ extern "C" {
     XGBoosterSaveModel(R_ExternalPtrAddr(handle), CHAR(asChar(fname)));
     _WrapperEnd();
   }
-  void XGBoosterDumpModel_R(SEXP handle, SEXP fname, SEXP fmap) {
+  void XGBoosterDumpModel_R(SEXP handle, SEXP fname,
+                            SEXP fmap, SEXP with_stats) {
     _WrapperBegin();
     bst_ulong olen;
     const char **res = XGBoosterDumpModel(R_ExternalPtrAddr(handle),
                                           CHAR(asChar(fmap)),
+                                          asInteger(with_stats),
                                           &olen);
     FILE *fo = utils::FopenCheck(CHAR(asChar(fname)), "w");
     for (size_t i = 0; i < olen; ++i) {
