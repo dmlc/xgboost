@@ -1,8 +1,8 @@
 XGBoost Examples
 ====
-This folder contains the all example codes using xgboost. 
+This folder contains all the code examples using xgboost. 
 
-* Contribution of exampls, benchmarks is more than welcomed!
+* Contribution of examples, benchmarks is more than welcome!
 * If you like to share how you use xgboost to solve your problem, send a pull request:)
  
 Features Walkthrough
@@ -12,7 +12,7 @@ This is a list of short codes introducing different functionalities of xgboost a
   [python](guide-python/basic_walkthrough.py)
   [R](../R-package/demo/basic_walkthrough.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/basic_walkthrough.jl)
-* Cutomize loss function, and evaluation metric
+* Customize loss function, and evaluation metric
   [python](guide-python/custom_objective.py)
   [R](../R-package/demo/custom_objective.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/custom_objective.jl)
