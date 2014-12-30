@@ -10,8 +10,8 @@ import subprocess
 import rabit_tracker as tracker
 
 parser = argparse.ArgumentParser(description='Rabit script to submit rabit job using MPI')
-parser.add_argument('-n', '--nslaves', required=True, type=int,
-                    help = 'number of slaves proccess to be launched')
+parser.add_argument('-n', '--nworker', required=True, type=int,
+                    help = 'number of worker proccess to be launched')
 parser.add_argument('-v', '--verbose', default=0, choices=[0, 1], type=int,
                     help = 'print more messages into the console')
 parser.add_argument('-H', '--hostfile', type=str,
@@ -42,4 +42,4 @@ def mpi_submit(nslave, slave_args):
     subprocess.check_call(cmd, shell = True)
 
 # call submit, with nslave, the commands to run each job and submit function
-tracker.submit(args.nslaves, [], fun_submit = mpi_submit, verbose = args.verbose)
+tracker.submit(args.nworker, [], fun_submit = mpi_submit, verbose = args.verbose)

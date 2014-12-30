@@ -29,20 +29,21 @@ if hadoop_binary == None or hadoop_streaming_jar == None:
     print '\tTo enable auto-detection, you can set enviroment variable HADOOP_HOME or modify rabit_hadoop.py line 14'
 
 parser = argparse.ArgumentParser(description='Rabit script to submit rabit jobs using Hadoop Streaming')
-parser.add_argument('-n', '--nslaves', required=True, type=int,
-                    help = 'number of slaves proccess to be launched')
-parser.add_argument('-v', '--verbose', default=0, choices=[0, 1], type=int,
-                    help = 'print more messages into the console')
-parser.add_argument('-ac', '--auto_file_cache', default=1, choices=[0, 1], type=int,
-                    help = 'whether automatically cache the files in the command to hadoop localfile, this is on by defaultz')
+parser.add_argument('-n', '--nworker', required=True, type=int,
+                    help = 'number of worker proccess to be launched')
 parser.add_argument('-i', '--input', required=True,
                     help = 'input path in HDFS')
 parser.add_argument('-o', '--output', required=True,
                     help = 'output path in HDFS')
+parser.add_argument('-v', '--verbose', default=0, choices=[0, 1], type=int,
+                    help = 'print more messages into the console')
+parser.add_argument('-ac', '--auto_file_cache', default=1, choices=[0, 1], type=int,
+                    help = 'whether automatically cache the files in the command to hadoop localfile, this is on by default')
 parser.add_argument('-f', '--files', nargs = '*',
                     help = 'the cached file list in mapreduce,'\
                         ' the submission script will automatically cache all the files which appears in command.'\
                         ' you may need this option to cache additional files, or manually cache files when auto_file_cache is off')
+parser.add_argument('--jobname', help = 'customize jobname in tracker')
 if hadoop_binary == None:
     parser.add_argument('-hb', '--hadoop_binary', required = True,
                         help="path-to-hadoop binary folder")  
@@ -60,8 +61,12 @@ parser.add_argument('command', nargs='+',
                     help = 'command for rabit program')
 args = parser.parse_args()
 
-def hadoop_streaming(nslaves, slave_args):
-    cmd = '%s jar %s -D mapred.map.tasks=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nslaves)
+if args.jobname is None:
+    args.jobname = ('Rabit(nworker=%d):' % args.nworker) + args.command[0].split('/')[-1];
+
+def hadoop_streaming(nworker, slave_args):
+    cmd = '%s jar %s -D mapred.map.tasks=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nworker)
+    cmd += ' -D mapred.job.name=%d' % (a)
     cmd += ' -input %s -output %s' % (args.input, args.output)
     cmd += ' -mapper \"%s\" -reducer \"/bin/cat\" ' % (' '.join(args.command + slave_args))
     fset = set()
@@ -77,4 +82,4 @@ def hadoop_streaming(nslaves, slave_args):
     print cmd
     subprocess.check_call(cmd, shell = True)
 
-tracker.submit(args.nslaves, [], fun_submit = hadoop_streaming, verbose = args.verbose)
+tracker.submit(args.nworker, [], fun_submit = hadoop_streaming, verbose = args.verbose)
