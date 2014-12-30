@@ -36,6 +36,8 @@
 #' @param feval custimized evaluation function. Returns 
 #'   \code{list(metric='metric-name', value='metric-value')} with given 
 #'   prediction and dtrain,
+#' @param missing Missing is only used when input is dense matrix, pick a float
+#     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 
@@ -73,7 +75,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   }
 
   folds <- xgb.cv.mknfold(dtrain, nfold, params)
-  history <- list()
+  history <- c()
   for (i in 1:nrounds) {
     msg <- list()
     for (k in 1:nfold) {
@@ -83,8 +85,12 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
                            "\t")[[1]]
     }
     ret <- xgb.cv.aggcv(msg, showsd)
-    history <- append(history, ret)
+    history <- c(history, ret)
     cat(paste(ret, "\n", sep=""))
   }
-  return (TRUE)
+  return (history)
+}
+
+xgb.cv.strip.numeric <- function(x) {
+  as.numeric(strsplit(regmatches(x, regexec("test-(.*):(.*)$", x))[[1]][3], "\\+")[[1]])
 }
