@@ -5,7 +5,7 @@
 \alias{agaricus.test}
 \title{Test part from Mushroom Data Set}
 \format{A list containing a label vector, and a dgCMatrix object with 1611
-rows and 127 variables}
+rows and 126 variables}
 \usage{
 data(agaricus.test)
 }
@@ -18,7 +18,7 @@ This data set includes the following fields:
 
 \itemize{
  \item \code{label} the label for each record
- \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 127 columns.
+ \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 126 columns.
 }
 }
 \references{

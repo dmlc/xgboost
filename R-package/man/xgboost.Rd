@@ -13,6 +13,8 @@ xgboost(data = NULL, label = NULL, missing = NULL, params = list(),
 
 \item{label}{the response variable. User should not set this field,}
 
+\item{missing}{Missing is only used when input is dense matrix, pick a float}
+
 \item{params}{the list of parameters. Commonly used ones are:
 \itemize{
   \item \code{objective} objective function, common ones are
