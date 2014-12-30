@@ -287,7 +287,7 @@ class BoostLearner : public rabit::ISerializable {
     for (size_t i = 0; i < evals.size(); ++i) {
       this->PredictRaw(*evals[i], &preds_);
       obj_->EvalTransform(&preds_);
-      res += evaluator_.Eval(evname[i].c_str(), preds_, evals[i]->info);
+      res += evaluator_.Eval(evname[i].c_str(), preds_, evals[i]->info, distributed_mode == 2);
     }
     return res;
   }
