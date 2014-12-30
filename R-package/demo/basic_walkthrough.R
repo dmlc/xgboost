@@ -88,6 +88,9 @@ pred <- predict(bst, dtest)
 err <- as.numeric(sum(as.integer(pred > 0.5) != label))/length(label)
 print(paste("test-error=", err))
 
-# Finally, you can dump the tree you learned using xgb.dump into a text file
-xgb.dump(bst, "dump.raw.txt")
+# You can dump the tree you learned using xgb.dump into a text file
+xgb.dump(bst, "dump.raw.txt", with.stats = T)
 
+# Finally, you can check which features are the most important.
+print("Most important features (look at column Gain):")
+print(xgb.importance(feature_names = train$data@Dimnames[[2]], filename_dump = "dump.raw.txt"))
