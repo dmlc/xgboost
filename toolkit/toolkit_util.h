@@ -29,7 +29,7 @@ struct SparseMat {
     v.length = static_cast<unsigned>(row_ptr[i + 1]-row_ptr[i]);
     return v;
   }
-  // load data from file
+  // load data from LibSVM format
   inline void Load(const char *fname) {
     FILE *fi;
     if (!strcmp(fname, "stdin")) {
@@ -41,17 +41,25 @@ struct SparseMat {
     row_ptr.push_back(0);
     data.clear();    
     feat_dim = 0;
-    unsigned num_feat;
-    while (fscanf(fi, "%u", &num_feat) == 1) {
+    float label; bool init = true;
+    char tmp[1024];
+    while (fscanf(file, "%s", tmp) == 1) {
       Entry e;
-      for (unsigned i = 0; i < num_feat; ++i) {
-        utils::Check(fscanf(fi, "%u:%f", &e.findex, &e.fvalue) == 2,
-                     "invalid format");
+      if (sscanf(tmp, "%u:%f", &e.findex, &e.fvalue) == 2) {
         data.push_back(e);
         feat_dim = std::max(e.findex, feat_dim);
+      } else {
+        if (!init) {
+          labels.push_back(label);
+          row_ptr.push_back(data.size());
+        }
+        utils::Check(sscanf(tmp, "%f", &label) == 1, "invalid LibSVM format");
+        init = false;
       }
-      row_ptr.push_back(data.size());
     }
+    // last row
+    labels.push_back(label);
+    row_ptr.push_back(data.size());
     feat_dim += 1;
     // close the filed
     if (fi != stdin) fclose(fi);
@@ -63,6 +71,7 @@ struct SparseMat {
   unsigned feat_dim;
   std::vector<size_t> row_ptr;
   std::vector<Entry> data;
+  std::vector<float> labels;
 };
 // dense matrix
 struct Matrix {
@@ -85,7 +94,6 @@ struct Matrix {
     } else {
       fo = utils::FopenCheck(fname, "w");
     }
-    fprintf(fo, "%lu %lu\n", nrow, ncol);
     for (size_t i = 0; i < data.size(); ++i) {
       fprintf(fo, "%g", data[i]);
       if ((i+1) % ncol == 0) {

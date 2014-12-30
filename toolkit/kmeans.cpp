@@ -83,7 +83,9 @@ inline size_t GetCluster(const Matrix &centroids,
              
 int main(int argc, char *argv[]) {
   if (argc < 5) {
-    printf("Usage: <data_dir> num_cluster max_iter <out_model>\n");
+    if (rabit::GetRank() == 0) {
+      rabit::TrackerPrintf("Usage: <data_dir> num_cluster max_iter <out_model>\n");
+    }
     return 0;
   }
   clock_t tStart = clock();

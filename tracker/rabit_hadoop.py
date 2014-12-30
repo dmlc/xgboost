@@ -11,7 +11,7 @@ import subprocess
 import rabit_tracker as tracker
 
 #!!! Set path to hadoop and hadoop streaming jar here
-hadoop_binary = None
+hadoop_binary = 'hadoop'
 hadoop_streaming_jar = None
 
 # code 

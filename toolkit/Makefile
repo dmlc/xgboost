@@ -7,12 +7,11 @@ export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include
 # specify tensor path
 BIN = kmeans.rabit 
 MOCKBIN= kmeans.mock
+MPIBIN = kmeans.mpi
 # objectives that makes up rabit library
 OBJ = kmeans.o
-MPIBIN = kmeans.mpi
-.PHONY: clean all lib libmpi
-
-all: $(BIN) $(MOCKBIN)
+.PHONY: clean all lib 
+all: $(BIN)
 
 lib:
 	cd ..;make lib/librabit.a lib/librabit_mock.a; cd -
@@ -38,4 +37,4 @@ $(MPIBIN) :
 	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^)  $(LDFLAGS) -lrabit_mpi 
 
 clean:
-	$(RM) $(OBJ) $(BIN) $(MPIBIN) *~ ../src/*~
+	$(RM) $(OBJ) $(BIN) $(MPIBIN) $(MOCKBIN) *~ ../src/*~
