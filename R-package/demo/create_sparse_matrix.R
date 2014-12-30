@@ -60,6 +60,6 @@ bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 3,
 xgb.dump(bst, 'xgb.model.dump', with.stats = T)
 
 # sparse_matrix@Dimnames[[2]] represents the column names of the sparse matrix.
-importance = xgb.importance(sparse_matrix@Dimnames[[2]], 'xgb.model.dump')
+importance <- xgb.importance(sparse_matrix@Dimnames[[2]], 'xgb.model.dump')
 print(importance)
 # According to the matrix below, the most important feature in this dataset to predict if the treatment will work is having received a Placebo or not.
