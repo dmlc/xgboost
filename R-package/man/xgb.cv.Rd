@@ -32,6 +32,8 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
 
 \item{label}{option field, when data is Matrix}
 
+\item{missing}{Missing is only used when input is dense matrix, pick a float}
+
 \item{showsd}{boolean, whether show standard deviation of cross validation}
 
 \item{metrics,}{list of evaluation metrics to be used in corss validation,

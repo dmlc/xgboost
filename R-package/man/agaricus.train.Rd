@@ -18,7 +18,7 @@ This data set includes the following fields:
 
 \itemize{
  \item \code{label} the label for each record
- \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 127 columns.
+ \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 126 columns.
 }
 }
 \references{

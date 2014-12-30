@@ -6,6 +6,7 @@ XGBoost R Feature Walkthrough
 * [Predicting using first n trees](predict_first_ntree.R)
 * [Generalized Linear Model](generalized_linear_model.R)
 * [Cross validation](cross_validation.R)
+* [Create a sparse matrix from a dense one](create_sparse_matrix.R)
 
 Benchmarks
 ====
