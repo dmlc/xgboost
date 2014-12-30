@@ -23,4 +23,5 @@ Imports:
     Matrix (>= 1.1-0),
     methods,
     data.table (>= 1.9),
-    magrittr (>= 1.5)
+    magrittr (>= 1.5),
+    stringr
