@@ -1,19 +1,19 @@
 #' Show importance of features in a model
 #' 
-#' Read a xgboost model in text file format. 
-#' Can be tree or linear model (text dump of linear model are only supported in dev version of Xgboost for now).
+#' Read a xgboost model text dump. 
+#' Can be tree or linear model (text dump of linear model are only supported in dev version of \code{Xgboost} for now).
+#' Return a data.table of the features used in the model with their average gain (and their weight for boosted tree model) in the model.
 #' 
-#' Return a data.table of the features used in the model with their average gain (and their weight for boosted tree model)in the model.
-#' #' 
 #' @importFrom data.table data.table
 #' @importFrom magrittr %>%
 #' @importFrom data.table :=
 #' @importFrom stringr str_extract
 #' @param feature_names names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.
-#' @param filename_dump the path to the text file storing the model.
+#' @param filename_dump the path to the text file storing the model. Model dump must include the gain per feature and per tree (\code{with.stats = T} in function \code{xgb.dump}).
 #'
 #' @details 
 #' This is the function to understand the model trained (and through your model, your data).
+#' 
 #' Results are returned for both linear and tree models.
 #' 
 #' \code{data.table} is returned by the function. 
@@ -72,7 +72,7 @@ treeDump <- function(feature_names, text){
     featureVec %<>% as.numeric %>% {c =.+1; feature_names[c]} #+1 because in R indexing start with 1 instead of 0.
   }
   #1. Reduce, 2. %, 3. reorder - bigger top, 4. remove temp col
-  data.table(Feature = featureVec, Weight = gainVec)[,list(sum(Weight), .N), by = Feature][, Gain:= V1 /sum(V1)][,Weight:= N / sum(N)][order(-rank(Gain))][,-c(2,3), with = F]
+  data.table(Feature = featureVec, Weight = gainVec)[,list(sum(Weight), .N), by = Feature][, Gain:= V1/sum(V1)][,Weight:= N/sum(N)][order(-rank(Gain))][,-c(2,3), with = F]
 }
 
 linearDump <- function(feature_names, text){
