@@ -42,7 +42,8 @@ parser.add_argument('-ac', '--auto_file_cache', default=1, choices=[0, 1], type=
 parser.add_argument('-f', '--files', nargs = '*',
                     help = 'the cached file list in mapreduce,'\
                         ' the submission script will automatically cache all the files which appears in command.'\
-                        ' you may need this option to cache additional files, or manually cache files when auto_file_cache is off')
+                        ' You may need this option to cache additional files.'\
+                        ' You can also use it to manually cache files when auto_file_cache is off')
 parser.add_argument('--jobname', help = 'customize jobname in tracker')
 if hadoop_binary == None:
     parser.add_argument('-hb', '--hadoop_binary', required = True,
