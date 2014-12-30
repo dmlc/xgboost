@@ -19,7 +19,7 @@ Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washin
 
 What's New
 =====
-* XGBoost wins [Tradeshift Text Classification](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
+* XGBoost wins [Tradeshift Text Classification](https://kaggle2.blob.core.windows.net/forum-message-attachments/60041/1813/TradeshiftTextClassification.pdf?sv=2012-02-12&se=2015-01-02T13%3A55%3A16Z&sr=b&sp=r&sig=5MHvyjCLESLexYcvbSRFumGQXCS7MVmfdBIY3y01tMk%3D)
 * XGBoost wins [HEP meets ML Award in Higgs Boson Challenge](http://atlas.ch/news/2014/machine-learning-wins-the-higgs-challenge.html)
 * Thanks to Bing Xu, [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl) allows you to use xgboost from Julia
 * See the updated [demo folder](demo) for feature walkthrough
