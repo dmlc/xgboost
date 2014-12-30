@@ -85,7 +85,8 @@ class AllreduceMock : public AllreduceRobust {
   inline void Verify(const MockKey &key, const char *name) {
     if (mock_map.count(key) != 0) {
       num_trial += 1;
-      utils::Error("[%d]@@@Hit Mock Error:%s", rank, name);
+      fprintf(stderr, "[%d]@@@Hit Mock Error:%s\n", rank, name);
+      exit(-2);
     }
   }
 };
