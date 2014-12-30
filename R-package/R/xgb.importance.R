@@ -3,7 +3,7 @@
 #' Read a xgboost model in text file format. 
 #' Can be tree or linear model (text dump of linear model are only supported in dev version of Xgboost for now).
 #' 
-#' Return a data.table of the features with their weight.
+#' Return a data.table of the features used in the model with their average gain (and their weight for boosted tree model)in the model.
 #' #' 
 #' @importFrom data.table data.table
 #' @importFrom magrittr %>%
@@ -12,6 +12,19 @@
 #' @param feature_names names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.
 #' @param filename_dump the path to the text file storing the model.
 #'
+#' @details 
+#' This is the function to understand the model trained (and through your model, your data).
+#' Results are returned for both linear and tree models.
+#' 
+#' \code{data.table} is returned by the function. 
+#' There are 3 columns :
+#' \itemize{
+#'   \item \code{Features} name of the features as provided in \code{feature_names} or already present in the model dump.
+#'   \item \code{Gain} contribution of each feature to the model. For boosted tree model, each gain of each feature of each tree is taken into account, then average per feature to give a vision of the entire model. Highest percentage means most important feature regarding the \code{label} used for the training.
+#'   \item \code{Weight} percentage representing the relative number of times a feature have been taken into trees. \code{Gain} should be prefered to search the most important feature. For boosted linear model, this column has no meaning.
+#' }
+#' 
+#' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')
@@ -45,7 +58,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL){
   result
 }
 
-treeDump <- function(feature_names, text){   
+treeDump <- function(feature_names, text){
   featureVec <- c()
   gainVec <- c()
   for(line in text){
@@ -59,7 +72,7 @@ treeDump <- function(feature_names, text){
     featureVec %<>% as.numeric %>% {c =.+1; feature_names[c]} #+1 because in R indexing start with 1 instead of 0.
   }
   #1. Reduce, 2. %, 3. reorder - bigger top, 4. remove temp col
-  data.table(Feature = featureVec, Weight = gainVec)[,sum(Weight), by = Feature][, Weight:= V1 /sum(V1)][order(-rank(Weight))][,-2,with=F]
+  data.table(Feature = featureVec, Weight = gainVec)[,list(sum(Weight), .N), by = Feature][, Gain:= V1 /sum(V1)][,Weight:= N / sum(N)][order(-rank(Gain))][,-c(2,3), with = F]
 }
 
 linearDump <- function(feature_names, text){
