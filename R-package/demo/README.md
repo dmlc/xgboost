@@ -10,6 +10,11 @@ XGBoost R Feature Walkthrough
 Benchmarks
 ====
 * [Starter script for Kaggle Higgs Boson](../../demo/kaggle-higgs)
+
+R language Demo
+====
+R demo are contained in the [R package source code](https://github.com/pommedeterresautee/xgboost/tree/master/R-package/demo) as usually done in R.
+
  
 Notes
 ====
