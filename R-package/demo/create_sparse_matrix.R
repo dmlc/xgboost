@@ -82,8 +82,8 @@ print(chisq.test(df$AgeDiscret, df$Y))
 # Our first simplification of Age gives a Pearson correlation of 8.
 
 print(chisq.test(df$AgeCat, df$Y))
-# The perfectly random split I did between young and old at 30 years old have a low correlation of 2.
+# The perfectly random split I did between young and old at 30 years old have a low correlation of 2. It's a result we may expect as may be in my mind > 30 years is being old (I am 32 and starting feeling old, this may explain that), but  for the illness we are studying, the age to be vulnerable is not the same. Don't let your "gut" lower the quality of your model. In "data science", there is science :-)
 
-# As you can see, destroying information by simplying it won't improve your model. Chi2 just demonstrates that.
-# It's even worse when you add some arbitrary rules.
-# However, even if we have added some not useful new features highly correlated with other features, the boosting tree algorithm have been able to choose the best one, which in this case is the Age.
+# As you can see, in general destroying information by simplying it won't improve your model. Chi2 just demonstrates that. But in more complex cases, creating a new feature which makes link with the outcome more obvious may help the algorithm and improve the model. The case studied here is not enough complex to show that. Check Kaggle forum for some challenging datasets.
+# However it's almost always worse when you add some arbitrary rules.
+# Moreover, you can notice that even if we have added some not useful new features highly correlated with other features, the boosting tree algorithm have been able to choose the best one, which in this case is the Age. Linear model may not be that strong in these scenario.
