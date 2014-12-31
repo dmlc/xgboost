@@ -6,7 +6,7 @@ For up-to-date version(which is recommended), please install from github. Window
 
 ```r
 require(devtools)
-install_github('xgboost','tqchen',subdir='R-package')
+install_github('tqchen/xgboost',subdir='R-package')
 ```
 
 For stable version on CRAN, please run
