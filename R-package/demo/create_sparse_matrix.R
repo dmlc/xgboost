@@ -70,7 +70,7 @@ xgb.dump(bst, 'xgb.model.dump', with.stats = T)
 # sparse_matrix@Dimnames[[2]] represents the column names of the sparse matrix.
 importance <- xgb.importance(sparse_matrix@Dimnames[[2]], 'xgb.model.dump')
 print(importance)
-# According to the matrix below, the most important feature in this dataset to predict if the treatment will work is the Age. The second most important feature is having received a placebo or not. The sex is third. Then we see our generated features (AgeDiscret). We can see that there contribution is very low.
+# According to the matrix below, the most important feature in this dataset to predict if the treatment will work is the Age. The second most important feature is having received a placebo or not. The sex is third. Then we see our generated features (AgeDiscret). We can see that their contribution is very low (Gain column).
 
 # Does these results make sense?
 # Let's check some Chi2 between each of these features and the outcome.
