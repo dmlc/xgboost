@@ -8,6 +8,7 @@
  */
 #include <vector>
 #include <string>
+#include <sstream>
 #include <algorithm>
 #include "./gbm.h"
 #include "../tree/updater.h"
@@ -134,11 +135,24 @@ class GBLinear : public IGradBooster {
       }
     }
   }
-  virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
-    utils::Error("gblinear does not support dump model");
-    return std::vector<std::string>();
-  }
 
+ virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
+    std::stringstream fo("");
+    fo << "bias:\n";
+    for (int i = 0; i < model.param.num_output_group; ++i) {
+      fo << model.bias()[i] << std::endl;
+    }
+    fo << "weight:\n";
+    for (int i = 0; i < model.param.num_output_group; ++i) {
+      for (int j = 0; j <model.param.num_feature; ++j) {
+        fo << model[i][j] << std::endl;
+      }
+    }
+    std::vector<std::string> v;
+    v.push_back(fo.str());
+    return v;
+ }
+  
  protected:
   inline void Pred(const RowBatch::Inst &inst, float *preds) {
     for (int gid = 0; gid < model.param.num_output_group; ++gid) {

@@ -11,10 +11,12 @@ xgb.importance(feature_names = NULL, filename_dump = NULL)
 
 \item{filename_dump}{the path to the text file storing the model. Model dump must include the gain per feature and per tree (\code{with.stats = T} in function \code{xgb.dump}).}
 }
+\value{
+A \code{data.table} of the features used in the model with their average gain (and their weight for boosted tree model) in the model.
+}
 \description{
 Read a xgboost model text dump.
 Can be tree or linear model (text dump of linear model are only supported in dev version of \code{Xgboost} for now).
-Return a data.table of the features used in the model with their average gain (and their weight for boosted tree model) in the model.
 }
 \details{
 This is the function to understand the model trained (and through your model, your data).

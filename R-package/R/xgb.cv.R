@@ -1,7 +1,14 @@
 #' Cross Validation
 #' 
 #' The cross valudation function of xgboost
-#'
+#' 
+#' @importFrom data.table data.table
+#' @importFrom magrittr %>%
+#' @importFrom data.table :=
+#' @importFrom data.table rbindlist
+#' @importFrom stringr str_extract_all
+#' @importFrom stringr str_split
+#' 
 #' @param params the list of parameters. Commonly used ones are:
 #' \itemize{
 #'   \item \code{objective} objective function, common ones are
@@ -39,6 +46,8 @@
 #' @param missing Missing is only used when input is dense matrix, pick a float
 #     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
 #' @param ... other parameters to pass to \code{params}.
+#' 
+#' @return a \code{data.table} with each mean and standard deviation stat for training set and test set.
 #' 
 #' @details 
 #' This is the cross validation function for xgboost
@@ -88,9 +97,15 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     history <- c(history, ret)
     cat(paste(ret, "\n", sep=""))
   }
-  return (history)
+  
+  dt <- data.table(train_rmse_mean=numeric(), train_rmse_std=numeric(), train_auc_mean=numeric(), train_auc_std=numeric(), test_rmse_mean=numeric(), test_rmse_std=numeric(), test_auc_mean=numeric(), test_auc_std=numeric())
+  
+  split = str_split(string = history, pattern = "\t")
+  for(line in split){
+    dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d.\\d*") %>% unlist %>% as.list %>% {vec <- .;rbindlist(list(dt, vec), use.names = F, fill = F)}
+  }
+  dt
 }
 
-xgb.cv.strip.numeric <- function(x) {
-  as.numeric(strsplit(regmatches(x, regexec("test-(.*):(.*)$", x))[[1]][3], "\\+")[[1]])
-}
+
+
