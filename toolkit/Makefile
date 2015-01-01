@@ -18,7 +18,7 @@ lib:
 libmpi:
 	cd ..;make lib/librabit_mpi.a;cd -
 
-kmeans.o: kmeans.cpp ../src/*.h
+kmeans.o: kmeans.cc ../src/*.h
 
 # we can link against MPI version to get use MPI
 kmeans.rabit: kmeans.o lib

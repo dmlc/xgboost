@@ -43,7 +43,7 @@ struct SparseMat {
     feat_dim = 0;
     float label; bool init = true;
     char tmp[1024];
-    while (fscanf(file, "%s", tmp) == 1) {
+    while (fscanf(fi, "%s", tmp) == 1) {
       Entry e;
       if (sscanf(tmp, "%u:%f", &e.findex, &e.fvalue) == 2) {
         data.push_back(e);

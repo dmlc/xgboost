@@ -5,11 +5,12 @@ export LDFLAGS= -pthread -lm -L../lib
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include 
 
 .PHONY: clean all lib libmpi
-BIN = basic.rabit
+BIN = basic.rabit broadcast.rabit
 MOCKBIN= 
 
 all: $(BIN) $(MOCKBIN)
 basic.rabit: basic.cc lib
+broadcast.rabit: broadcast.cc lib
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) $(LDFLAGS) -lrabit
