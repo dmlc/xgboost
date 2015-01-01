@@ -6,7 +6,9 @@
 #' @importFrom magrittr %>%
 #' @importFrom data.table :=
 #' @importFrom data.table rbindlist
-#' @importFrom stringr str_extract
+#' @importFrom stringr str_extract_all
+#' @importFrom stringr str_split
+#' 
 #' @param params the list of parameters. Commonly used ones are:
 #' \itemize{
 #'   \item \code{objective} objective function, common ones are
