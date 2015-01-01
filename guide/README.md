@@ -11,7 +11,9 @@ Please also refer to the [API Documentation](http://home.cs.washington.edu/~tqch
 * [Common Use Case](#common-use-case)
 * [Structure of Rabit Program](#structure-of-rabit-program)
 * [Fault Tolerance](#fault-tolerance)
-
+* [Running Rabit Jobs](#running-rabit-jobs)
+  - [Running Rabit on Hadoop](#running-rabit-on-hadoop)
+  - [Running Rabit using MPI](#running-rabit-using-mpi)
 
 What is Allreduce
 =====
@@ -163,3 +165,15 @@ touching the disk. This makes rabit program more reliable and efficient.
 
 This is an conceptual introduction to the fault tolerant model of rabit. The actual implementation is more sophiscated,
 and can deal with more complicated cases such as multiple nodes failure and node failure during recovery phase.
+
+Running Rabit Jobs
+====
+TODO
+
+Running Rabit on Hadoop
+====
+TODO
+
+Running Rabit using MPI
+====
+TODO
