@@ -3,11 +3,15 @@
 #' The cross valudation function of xgboost
 #' 
 #' @importFrom data.table data.table
+#' @importFrom data.table as.data.table
 #' @importFrom magrittr %>%
 #' @importFrom data.table :=
 #' @importFrom data.table rbindlist
 #' @importFrom stringr str_extract_all
 #' @importFrom stringr str_split
+#' @importFrom stringr str_replace_all
+#' @importFrom stringr str_replace
+#' @importFrom stringr str_match
 #' 
 #' @param params the list of parameters. Commonly used ones are:
 #' \itemize{
@@ -98,7 +102,16 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     cat(paste(ret, "\n", sep=""))
   }
   
-  dt <- data.table(train_rmse_mean=numeric(), train_rmse_std=numeric(), train_auc_mean=numeric(), train_auc_std=numeric(), test_rmse_mean=numeric(), test_rmse_std=numeric(), test_auc_mean=numeric(), test_auc_std=numeric())
+  colnames <- str_split(string = history[1], pattern = "\t")[[1]] %>% .[2:length(.)] %>% str_extract(".*:") %>% str_replace(":","") %>% str_replace_all("-", ".")
+  
+  colnamesMean <- paste(colnames, "mean")
+  colnamesStd <- paste(colnames, "std")
+  colnames <- c()
+  for(i in 1:length(colnamesMean)) colnames <- c(colnames, colnamesMean[i], colnamesStd[i])
+  
+  type <- rep(x = "numeric", times = length(colnames))
+  
+  dt <- read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
   
   split = str_split(string = history, pattern = "\t")
   for(line in split){
@@ -106,6 +119,3 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   }
   dt
 }
-
-
-
