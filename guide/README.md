@@ -168,12 +168,13 @@ and can deal with more complicated cases such as multiple nodes failure and node
 
 Running Rabit Jobs
 ====
+* To run demo locally, use [rabit_demo.py](../tracker/rabit_demo.py)
 TODO
 
 Running Rabit on Hadoop
 ====
-TODO
+TODO, use [rabit_hadoop.py](../tracker/rabit_hadoop.py)
 
 Running Rabit using MPI
 ====
-TODO
+TODO, use [rabit_mpi.py](../tracker/rabit_mpi.py) or directly use mpirun if compiled with MPI backend.
