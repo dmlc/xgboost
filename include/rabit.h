@@ -60,7 +60,7 @@ inline std::string GetProcessorName(void);
  * \brief print the msg to the tracker,
  *    this function can be used to communicate the information of the progress to
  *    the user who monitors the tracker
- * \param msg, the message to be printed
+ * \param msg the message to be printed
  */
 inline void TrackerPrint(const std::string &msg);
 #ifndef RABIT_STRICT_CXX98_
@@ -108,8 +108,8 @@ inline void Broadcast(std::string *sendrecv_data, int root);
  *     ...
  * \param sendrecvbuf buffer for both sending and recving data
  * \param count number of elements to be reduced
- * \param prepare_func Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
- *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+ * \param prepare_fun Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
+ *                    will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
  * \param prepare_arg argument used to passed into the lazy preprocessing function 
  * \tparam OP see namespace op, reduce operator 
@@ -136,7 +136,7 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
  *     ...
  * \param sendrecvbuf buffer for both sending and recving data
  * \param count number of elements to be reduced
- * \param prepare_func Lazy lambda preprocessing function, prepare_fun() will be invoked
+ * \param prepare_fun  Lazy lambda preprocessing function, prepare_fun() will be invoked
  *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
  * \tparam OP see namespace op, reduce operator 
@@ -211,7 +211,7 @@ class Reducer {
    * \brief customized in-place all reduce operation 
    * \param sendrecvbuf the in place send-recv buffer
    * \param count number of elements to be reduced
-   * \param prepare_func Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
+   * \param prepare_fun Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
    *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to passed into the lazy preprocessing function 
@@ -253,7 +253,7 @@ class SerializeReducer {
    * \param max_nbyte maximum amount of memory needed to serialize each object
    *        this includes budget limit for intermediate and final result
    * \param count number of elements to be reduced
-   * \param prepare_func Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
+   * \param prepare_fun Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
    *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to passed into the lazy preprocessing function 

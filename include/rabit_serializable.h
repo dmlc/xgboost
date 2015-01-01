@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2014 by Contributors
- * \file serializable.h
+ * \file rabit_serializable.h
  * \brief defines serializable interface of rabit
  * \author Tianqi Chen
  */
