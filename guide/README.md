@@ -3,11 +3,15 @@ Tutorial of Rabit
 This is an tutorial of rabit, a ***Reliable Allreduce and Broadcast interface***.
 To run the examples locally, you will need to type ```make``` to build all the examples.
 
+Please also refer to the [API Documentation](http://home.cs.washington.edu/~tqchen/rabit/doc)
+
+
 **List of Topics**
 * [What is Allreduce](#what-is-allreduce)
 * [Common Use Case](#common-use-case)
 * [Structure of Rabit Program](#structure-of-rabit-program)
 * [Fault Tolerance](#fault-tolerance)
+
 
 What is Allreduce
 =====
