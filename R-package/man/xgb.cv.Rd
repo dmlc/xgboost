@@ -6,7 +6,7 @@
 \usage{
 xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
   missing = NULL, showsd = TRUE, metrics = list(), obj = NULL,
-  feval = NULL, ...)
+  feval = NULL, verbose = T, ...)
 }
 \arguments{
 \item{params}{the list of parameters. Commonly used ones are:
@@ -34,7 +34,7 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
 
 \item{missing}{Missing is only used when input is dense matrix, pick a float}
 
-\item{showsd}{boolean, whether show standard deviation of cross validation}
+\item{showsd}{\code{boolean}, whether show standard deviation of cross validation}
 
 \item{metrics,}{list of evaluation metrics to be used in corss validation,
   when it is not specified, the evaluation metric is chosen according to objective function.
@@ -54,10 +54,12 @@ gradient with given prediction and dtrain,}
 \code{list(metric='metric-name', value='metric-value')} with given
 prediction and dtrain,}
 
+\item{verbose}{\code{boolean}, print the statistics during the process.}
+
 \item{...}{other parameters to pass to \code{params}.}
 }
 \value{
-a \code{data.table} with each mean and standard deviation stat for training set and test set.
+A \code{data.table} with each mean and standard deviation stat for training set and test set.
 }
 \description{
 The cross valudation function of xgboost
@@ -75,5 +77,6 @@ data(agaricus.train, package='xgboost')
 dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 history <- xgb.cv(data = dtrain, nround=3, nfold = 5, metrics=list("rmse","auc"),
                   "max.depth"=3, "eta"=1, "objective"="binary:logistic")
+print(history)
 }
 
