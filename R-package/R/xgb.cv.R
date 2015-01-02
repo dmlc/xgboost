@@ -1,7 +1,18 @@
 #' Cross Validation
 #' 
 #' The cross valudation function of xgboost
-#'
+#' 
+#' @importFrom data.table data.table
+#' @importFrom data.table as.data.table
+#' @importFrom magrittr %>%
+#' @importFrom data.table :=
+#' @importFrom data.table rbindlist
+#' @importFrom stringr str_extract_all
+#' @importFrom stringr str_split
+#' @importFrom stringr str_replace_all
+#' @importFrom stringr str_replace
+#' @importFrom stringr str_match
+#' 
 #' @param params the list of parameters. Commonly used ones are:
 #' \itemize{
 #'   \item \code{objective} objective function, common ones are
@@ -39,6 +50,8 @@
 #' @param missing Missing is only used when input is dense matrix, pick a float
 #     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
 #' @param ... other parameters to pass to \code{params}.
+#' 
+#' @return a \code{data.table} with each mean and standard deviation stat for training set and test set.
 #' 
 #' @details 
 #' This is the cross validation function for xgboost
@@ -88,9 +101,21 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     history <- c(history, ret)
     cat(paste(ret, "\n", sep=""))
   }
-  return (history)
-}
-
-xgb.cv.strip.numeric <- function(x) {
-  as.numeric(strsplit(regmatches(x, regexec("test-(.*):(.*)$", x))[[1]][3], "\\+")[[1]])
+  
+  colnames <- str_split(string = history[1], pattern = "\t")[[1]] %>% .[2:length(.)] %>% str_extract(".*:") %>% str_replace(":","") %>% str_replace_all("-", ".")
+  
+  colnamesMean <- paste(colnames, "mean")
+  colnamesStd <- paste(colnames, "std")
+  colnames <- c()
+  for(i in 1:length(colnamesMean)) colnames <- c(colnames, colnamesMean[i], colnamesStd[i])
+  
+  type <- rep(x = "numeric", times = length(colnames))
+  
+  dt <- read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
+  
+  split = str_split(string = history, pattern = "\t")
+  for(line in split){
+    dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d.\\d*") %>% unlist %>% as.list %>% {vec <- .;rbindlist(list(dt, vec), use.names = F, fill = F)}
+  }
+  dt
 }

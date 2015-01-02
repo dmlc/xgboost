@@ -56,6 +56,9 @@ prediction and dtrain,}
 
 \item{...}{other parameters to pass to \code{params}.}
 }
+\value{
+a \code{data.table} with each mean and standard deviation stat for training set and test set.
+}
 \description{
 The cross valudation function of xgboost
 }
