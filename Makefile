@@ -4,15 +4,17 @@ export MPICXX = mpicxx
 export LDFLAGS=
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -Iinclude
 
-BPATH=lib
+# build path
+BPATH=.
 # objectives that makes up rabit library
 MPIOBJ= $(BPATH)/engine_mpi.o
 OBJ= $(BPATH)/allreduce_base.o $(BPATH)/allreduce_robust.o $(BPATH)/engine.o $(BPATH)/engine_empty.o $(BPATH)/engine_mock.o
 ALIB= lib/librabit.a lib/librabit_mpi.a lib/librabit_empty.a lib/librabit_mock.a
 HEADERS=src/*.h include/*.h include/rabit/*.h
-.PHONY: clean all
+.PHONY: clean all install mpi
 
-all: $(ALIB)
+all: lib/librabit.a lib/librabit_mock.a
+mpi: lib/librabit_mpi.a
 
 $(BPATH)/allreduce_base.o: src/allreduce_base.cc $(HEADERS)
 $(BPATH)/engine.o: src/engine.cc $(HEADERS)

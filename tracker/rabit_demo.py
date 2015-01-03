@@ -37,7 +37,7 @@ def exec_cmd(cmd, taskid):
 #  Note: this submit script is only used for demo purpose
 #  submission script using pyhton multi-threading
 #
-def mthread_submit(nslave, slave_args):
+def mthread_submit(nslave, worker_args):
     """
       customized submit script, that submit nslave jobs, each must contain args as parameter
       note this can be a lambda function containing additional parameters in input
@@ -48,7 +48,7 @@ def mthread_submit(nslave, slave_args):
     """       
     procs = {}
     for i in range(nslave):
-        procs[i] = Thread(target = exec_cmd, args = (args.command + slave_args, i))
+        procs[i] = Thread(target = exec_cmd, args = (args.command + worker_args, i))
         procs[i].start()
     for i in range(nslave):
         procs[i].join()

@@ -65,11 +65,11 @@ args = parser.parse_args()
 if args.jobname is None:
     args.jobname = ('Rabit(nworker=%d):' % args.nworker) + args.command[0].split('/')[-1];
 
-def hadoop_streaming(nworker, slave_args):
+def hadoop_streaming(nworker, worker_args):
     cmd = '%s jar %s -D mapred.map.tasks=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nworker)
     cmd += ' -D mapred.job.name=%d' % (a)
     cmd += ' -input %s -output %s' % (args.input, args.output)
-    cmd += ' -mapper \"%s\" -reducer \"/bin/cat\" ' % (' '.join(args.command + slave_args))
+    cmd += ' -mapper \"%s\" -reducer \"/bin/cat\" ' % (' '.join(args.command + worker_args))
     fset = set()
     if args.auto_file_cache:
         for f in args.command:

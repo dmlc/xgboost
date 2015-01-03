@@ -22,7 +22,7 @@ args = parser.parse_args()
 #
 # submission script using MPI
 #
-def mpi_submit(nslave, slave_args):
+def mpi_submit(nslave, worker_args):
     """
       customized submit script, that submit nslave jobs, each must contain args as parameter
       note this can be a lambda function containing additional parameters in input
@@ -31,11 +31,11 @@ def mpi_submit(nslave, slave_args):
          args arguments to launch each job
               this usually includes the parameters of master_uri and parameters passed into submit
     """
-    sargs = ' '.join(args.command + slave_args)
+    sargs = ' '.join(args.command + worker_args)
     if args.hostfile is None:
-        cmd = ' '.join(['mpirun -n %d' % (nslave)] + args.command + slave_args) 
+        cmd = ' '.join(['mpirun -n %d' % (nslave)] + args.command + worker_args) 
     else:
-        ' '.join(['mpirun -n %d --hostfile %s' % (nslave, args.hostfile)] + args.command + slave_args)
+        ' '.join(['mpirun -n %d --hostfile %s' % (nslave, args.hostfile)] + args.command + worker_args)
     print cmd
     subprocess.check_call(cmd, shell = True)
 

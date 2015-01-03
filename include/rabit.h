@@ -25,15 +25,29 @@
 
 /*! \brief namespace of rabit */
 namespace rabit {
-/*! \brief namespace of operator */
+/*!
+ * \brief namespace of reduction operators
+ */
 namespace op {
-/*! \brief maximum value */
+/*!
+ * \class rabit::op::Max
+ * \brief maximum reduction operator
+ */
 struct Max;
-/*! \brief minimum value */
+/*!
+ * \class rabit::op::Min
+ * \brief minimum reduction operator
+ */
 struct Min;
-/*! \brief perform sum */
+/*!
+ * \class rabit::op::Sum
+ * \brief sum reduction operator
+ */
 struct Sum;
-/*! \brief perform bitwise OR */
+/*!
+ * \class rabit::op::BitOR
+ * \brief bitwise or reduction operator
+ */
 struct BitOR;
 }  // namespace op
 /*!
@@ -75,6 +89,7 @@ inline void TrackerPrintf(const char *fmt, ...);
 #endif
 /*!
  * \brief broadcast an memory region to all others from root
+ *
  *     Example: int a = 1; Broadcast(&a, sizeof(a), root); 
  * \param sendrecv_data the pointer to send or recive buffer,
  * \param size the size of the data
@@ -101,6 +116,7 @@ inline void Broadcast(std::string *sendrecv_data, int root);
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf 
  *        this function is NOT thread-safe
+ *
  * Example Usage: the following code gives sum of the result
  *     vector<int> data(10);
  *     ...
@@ -125,6 +141,7 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf
  *        with a prepare function specified by lambda function
+ *
  * Example Usage: the following code gives sum of the result
  *     vector<int> data(10);
  *     ...

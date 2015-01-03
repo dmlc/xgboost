@@ -88,7 +88,7 @@ class IStream {
   }
 };
 
-/*! \brief interface of se*/
+/*! \brief interface of serializable objects */
 class ISerializable {
  public:
   /*! \brief load the model from file */
