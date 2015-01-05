@@ -437,7 +437,6 @@ class TreeModel {
            << ",missing=" << nodes[nid].cdefault();
       }
       if (with_stats) {
-        fo << ' ';
         stat(nid).Print(fo, false);
       }
       fo << '\n';
@@ -460,9 +459,9 @@ struct RTreeNodeStat {
   /*! \brief print information of current stats to fo */
   inline void Print(std::stringstream &fo, bool is_leaf) const {
     if (!is_leaf) {
-      fo << "gain=" << loss_chg << ",cover=" << sum_hess;
+      fo << ",gain=" << loss_chg << ",cover=" << sum_hess;
     } else {
-      fo << "cover=" << sum_hess;
+      fo << ",cover=" << sum_hess;
     }
   }
 };
