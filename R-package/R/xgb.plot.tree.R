@@ -6,10 +6,11 @@
 #' @importFrom data.table data.table
 #' @importFrom data.table set
 #' @importFrom data.table rbindlist
+#' @importFrom data.table :=
+#' @importFrom data.table copy
 #' @importFrom magrittr %>%
 #' @importFrom magrittr not
 #' @importFrom magrittr add
-#' @importFrom data.table :=
 #' @importFrom stringr str_extract
 #' @importFrom stringr str_split
 #' @importFrom stringr str_extract
@@ -93,10 +94,11 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, n_first_tr
     coverLeaf <- extract(leaf, "cover=\\d*\\.*\\d*")
     dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=i]
     
-    set(dt, i = which(dt[,Feature]!= "Leaf"), j = "YesFeature", value = dt[ID == dt[,Yes], Feature])
-    set(dt, i = which(dt[,Feature]!= "Leaf"), j = "NoFeature", value = dt[ID == dt[,No], Feature])
+    set(dt, i = which(dt[,Feature]!= "Leaf"), j = "YesFeature", value = merge(copy(dt)[,ID:=Yes][, .(ID)], dt[,.(ID, Feature, Quality, Cover)], by = "ID")[,paste(Feature, "<br/>Cover: ", Cover, sep = "")])
     
-    dt[Feature!="Leaf" ,yesPath:= paste(ID,"[", Feature, "]-->|< ", Split, "|", Yes, "[", YesFeature, "]", sep = "")]
+    set(dt, i = which(dt[,Feature]!= "Leaf"), j = "NoFeature", value = merge(copy(dt)[,ID:=No][, .(ID)], dt[,.(ID, Feature, Quality, Cover)], by = "ID")[,paste(Feature, "<br/>Cover: ", Cover, sep = "")])
+    
+    dt[Feature!="Leaf" ,yesPath:= paste(ID,"[", Feature, "<br/>Cover: ", Cover, "<br/>Gain: ", Quality, "]-->|< ", Split, "|", Yes, "[", YesFeature, "]", sep = "")]
     
     dt[Feature!="Leaf" ,noPath:= paste(ID,"[", Feature, "]-->|>= ", Split, "|", No, "[", NoFeature, "]", sep = "")]
     
@@ -112,6 +114,5 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, n_first_tr
   no <- allTrees[Feature!="Leaf", c(No)] %>% paste(collapse = ",") %>% paste("class ", ., " redNode", sep = "")
   
   path <- allTrees[Feature!="Leaf", c(yesPath, noPath)] %>% .[order(.)] %>% paste(sep = "", collapse = ";") %>% paste("graph LR", .,collapse = "", sep = ";") %>% paste(styles, yes, no, sep = ";")
-  
   DiagrammeR(path)
 }
