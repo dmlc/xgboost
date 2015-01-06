@@ -10,9 +10,9 @@ xgb.plot.tree(feature_names = NULL, filename_dump = NULL,
 \arguments{
 \item{feature_names}{names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.}
 
-\item{filename_dump}{the path to the text file storing the model. Model dump must include the gain per feature and per tree (\code{with.stats = T} in function \code{xgb.dump}).}
+\item{filename_dump}{the path to the text file storing the model. Model dump must include the gain per feature and per tree (parameter \code{with.stats = T} in function \code{xgb.dump}).}
 
-\item{n_first_tree}{limit the plot to the n first trees.}
+\item{n_first_tree}{limit the plot to the n first trees. If \code{NULL}, all trees of the model are plotted. Performance can be low for huge models.}
 }
 \value{
 A \code{data.table} of the features used in the model with their average gain (and their weight for boosted tree model) in the model.
@@ -22,9 +22,16 @@ Read a xgboost model text dump.
 Only works for boosted tree model (not linear model).
 }
 \details{
-This is the function to plot the trees growned.
+The content of each node is organised that way:
+
+\itemize{
+ \item{\code{feature} value}{ ;}
+ \item{\code{cover}}{: the sum of second order gradient of training data classified to the leaf, if it is square loss, this simply corresponds to the number of instances in that branch. Deeper in the tree a node is, lower this metric will be ;}
+ \item{\code{gain}}{: metric the importance of the node in the model.}
+}
+
+Each branch finished with a leaf. For each leaf, only the \code{cover} is indicated.
 It uses Mermaid JS library for that purpose.
-Performance can be low for huge models.
 }
 \examples{
 data(agaricus.train, package='xgboost')
