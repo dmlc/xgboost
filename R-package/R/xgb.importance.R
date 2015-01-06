@@ -47,7 +47,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL){
   if (!class(feature_names) %in% c("character", "NULL")) {	   
     stop("feature_names: Has to be a vector of character or NULL if the model dump already contains feature name. Look at this function documentation to see where to get feature names.")
   }
-  if (class(filename_dump) != "character" & file.exists(filename_dump)) {
+  if (class(filename_dump) != "character" || !file.exists(filename_dump)) {
     stop("filename_dump: Has to be a path to the model dump file.")
   }
   text <- readLines(filename_dump)
