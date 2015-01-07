@@ -19,6 +19,7 @@
 #' @param feature_names names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.
 #' @param filename_dump the path to the text file storing the model. Model dump must include the gain per feature and per tree (parameter \code{with.stats = T} in function \code{xgb.dump}).
 #' @param n_first_tree limit the plot to the n first trees. If \code{NULL}, all trees of the model are plotted. Performance can be low for huge models.
+#' @param style a \code{character} vector storing a css style to customize the appearance of nodes. Look at the \href{https://github.com/knsv/mermaid/wiki}{Mermaid wiki} for more information.
 #'
 #' @return A \code{data.table} of the features used in the model with their average gain (and their weight for boosted tree model) in the model.
 #'
@@ -27,9 +28,9 @@
 #' The content of each node is organised that way:
 #' 
 #' \itemize{
-#'  \item{\code{feature} value}{ ;}
-#'  \item{\code{cover}}{: the sum of second order gradient of training data classified to the leaf, if it is square loss, this simply corresponds to the number of instances in that branch. Deeper in the tree a node is, lower this metric will be ;}
-#'  \item{\code{gain}}{: metric the importance of the node in the model.}
+#'  \item \code{feature} value ;
+#'  \item \code{cover}: the sum of second order gradient of training data classified to the leaf, if it is square loss, this simply corresponds to the number of instances in that branch. Deeper in the tree a node is, lower this metric will be ;
+#'  \item \code{gain}: metric the importance of the node in the model.
 #' } 
 #' 
 #' Each branch finished with a leaf. For each leaf, only the \code{cover} is indicated.
@@ -50,7 +51,7 @@
 #' xgb.plot.tree(agaricus.train$data@@Dimnames[[2]], 'xgb.model.dump')
 #' 
 #' @export
-xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, n_first_tree = NULL){
+xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, n_first_tree = NULL, styles = NULL){
   
   if (!class(feature_names) %in% c("character", "NULL")) {     
     stop("feature_names: Has to be a vector of character or NULL if the model dump already contains feature name. Look at this function documentation to see where to get feature names.")
@@ -60,6 +61,10 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, n_first_tr
   }
   if (!class(n_first_tree) %in% c("numeric", "NULL") | length(n_first_tree) > 1) {
     stop("n_first_tree: Has to be a numeric vector of size 1.")
+  }
+  
+  if (!class(styles) %in% c("character", "NULL") | length(styles) > 1) {
+    stop("style: Has to be a character vector of size 1.")
   }
   
   text <- readLines(filename_dump) %>% str_trim(side = "both")
@@ -114,7 +119,9 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, n_first_tr
     allTrees <- rbindlist(list(allTrees, dt), use.names = T, fill = F)
   }
   
-  styles <- "classDef greenNode fill:#A2EB86, stroke:#04C4AB, stroke-width:2px;classDef redNode fill:#FFA070, stroke:#FF5E5E, stroke-width:2px"
+  if(is.null(styles)){
+    styles <- "classDef greenNode fill:#A2EB86, stroke:#04C4AB, stroke-width:2px;classDef redNode fill:#FFA070, stroke:#FF5E5E, stroke-width:2px"  
+  }  
   
   yes <- allTrees[Feature!="Leaf", c(Yes)] %>% paste(collapse = ",") %>% paste("class ", ., " greenNode", sep = "")
   
