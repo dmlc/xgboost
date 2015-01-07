@@ -1,7 +1,7 @@
 #' Plot a boosted tree model
 #' 
 #' Read a xgboost model text dump. 
-#' Only works for boosted tree model (not linear model).
+#' Plotting only works for boosted tree model (not linear model).
 #' 
 #' @importFrom data.table data.table
 #' @importFrom data.table set
@@ -33,7 +33,7 @@
 #'  \item \code{gain}: metric the importance of the node in the model.
 #' } 
 #' 
-#' Each branch finished with a leaf. For each leaf, only the \code{cover} is indicated.
+#' Each branch finishes with a leaf. For each leaf, only the \code{cover} is indicated.
 #' It uses Mermaid JS library for that purpose.
 #'  
 #' @examples
@@ -105,19 +105,18 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, n_first_tr
     coverBranch <- extract(branch, "cover=\\d*\\.*\\d*")
     coverLeaf <- extract(leaf, "cover=\\d*\\.*\\d*")
     dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=i]
-    
-    set(dt, i = which(dt[,Feature]!= "Leaf"), j = "YesFeature", value = merge(copy(dt)[,ID:=Yes][, .(ID)], dt[,.(ID, Feature, Quality, Cover)], by = "ID")[,paste(Feature, "<br/>Cover: ", Cover, sep = "")])
-    
-    set(dt, i = which(dt[,Feature]!= "Leaf"), j = "NoFeature", value = merge(copy(dt)[,ID:=No][, .(ID)], dt[,.(ID, Feature, Quality, Cover)], by = "ID")[,paste(Feature, "<br/>Cover: ", Cover, sep = "")])
-    
-    dt[Feature!="Leaf" ,yesPath:= paste(ID,"(", Feature, "<br/>Cover: ", Cover, "<br/>Gain: ", Quality, ")-->|< ", Split, "|", Yes, ">", YesFeature, "]", sep = "")]
-    
-    dt[Feature!="Leaf" ,noPath:= paste(ID,"(", Feature, ")-->|>= ", Split, "|", No, ">", NoFeature, "]", sep = "")]
-    
-    #missingPath <- paste(dtBranch[,ID], "-->|Missing|", dtBranch[,Missing], sep = "") 
-    
+        
     allTrees <- rbindlist(list(allTrees, dt), use.names = T, fill = F)
   }
+  
+  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), j = "YesFeature", value = merge(copy(allTrees)[,ID:=Yes][, .(ID)], allTrees[,.(ID, Feature, Quality, Cover)], by = "ID")[,paste(Feature, "<br/>Cover: ", Cover, sep = "")])
+  
+  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), j = "NoFeature", value = merge(copy(allTrees)[,ID:=No][, .(ID)], allTrees[,.(ID, Feature, Quality, Cover)], by = "ID")[,paste(Feature, "<br/>Cover: ", Cover, sep = "")])
+  
+  allTrees[Feature!="Leaf" ,yesPath:= paste(ID,"(", Feature, "<br/>Cover: ", Cover, "<br/>Gain: ", Quality, ")-->|< ", Split, "|", Yes, ">", YesFeature, "]", sep = "")]
+  
+  allTrees[Feature!="Leaf" ,noPath:= paste(ID,"(", Feature, ")-->|>= ", Split, "|", No, ">", NoFeature, "]", sep = "")]
+  
   
   if(is.null(styles)){
     styles <- "classDef greenNode fill:#A2EB86, stroke:#04C4AB, stroke-width:2px;classDef redNode fill:#FFA070, stroke:#FF5E5E, stroke-width:2px"  

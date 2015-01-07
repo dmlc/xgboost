@@ -21,9 +21,10 @@ A \code{data.table} of the features used in the model with their average gain (a
 }
 \description{
 Read a xgboost model text dump.
-Only works for boosted tree model (not linear model).
 }
 \details{
+Plotting only works for boosted tree model (not linear model).
+
 The content of each node is organised that way:
 
 \itemize{
@@ -32,7 +33,7 @@ The content of each node is organised that way:
  \item \code{gain}: metric the importance of the node in the model.
 }
 
-Each branch finished with a leaf. For each leaf, only the \code{cover} is indicated.
+Each branch finishes with a leaf. For each leaf, only the \code{cover} is indicated.
 It uses Mermaid JS library for that purpose.
 }
 \examples{
