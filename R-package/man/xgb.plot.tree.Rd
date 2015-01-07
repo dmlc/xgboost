@@ -17,14 +17,13 @@ xgb.plot.tree(feature_names = NULL, filename_dump = NULL,
 \item{style}{a \code{character} vector storing a css style to customize the appearance of nodes. Look at the \href{https://github.com/knsv/mermaid/wiki}{Mermaid wiki} for more information.}
 }
 \value{
-A \code{data.table} of the features used in the model with their average gain (and their weight for boosted tree model) in the model.
+A \code{DiagrammeR} of the model.
 }
 \description{
-Read a xgboost model text dump.
+Read a tree model text dump.
+Plotting only works for boosted tree model (not linear model).
 }
 \details{
-Plotting only works for boosted tree model (not linear model).
-
 The content of each node is organised that way:
 
 \itemize{
@@ -34,7 +33,7 @@ The content of each node is organised that way:
 }
 
 Each branch finishes with a leaf. For each leaf, only the \code{cover} is indicated.
-It uses Mermaid JS library for that purpose.
+It uses \href{https://github.com/knsv/mermaid/}{Mermaid} library for that purpose.
 }
 \examples{
 data(agaricus.train, package='xgboost')
