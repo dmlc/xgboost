@@ -51,19 +51,29 @@
 #' xgb.model.dt.tree(agaricus.train$data@@Dimnames[[2]], 'xgb.model.dump')
 #' 
 #' @export
-xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, n_first_tree = NULL){
+xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, text = NULL, n_first_tree = NULL){
   
   if (!class(feature_names) %in% c("character", "NULL")) {     
     stop("feature_names: Has to be a vector of character or NULL if the model dump already contains feature name. Look at this function documentation to see where to get feature names.")
   }
-  if (class(filename_dump) != "character" || !file.exists(filename_dump)) {
-    stop("filename_dump: Has to be a path to the model dump file.")
+  if (!class(filename_dump) %in% c("character", "NULL")) {
+    stop("filename_dump: Has to be a character vector representing the path to the model dump file.")
+  } else if (class(filename_dump) == "character" && !file.exists(filename_dump)) {
+    stop("filename_dump: path to the model doesn't exist.")
+  } else if(is.null(filename_dump) & is.null(text)){
+    stop("filename_dump: no path and no string version of the model dump have been provided.")
+  }
+  if (!class(text) %in% c("character", "NULL")) {     
+    stop("text: Has to be a vector of character or NULL if a path to the model dump has already been provided.")
   }
   if (!class(n_first_tree) %in% c("numeric", "NULL") | length(n_first_tree) > 1) {
     stop("n_first_tree: Has to be a numeric vector of size 1.")
   }
   
-  text <- readLines(filename_dump) %>% str_trim(side = "both")
+  if(is.null(text)){
+    text <- readLines(filename_dump) %>% str_trim(side = "both")  
+  }
+  
   position <- str_match(text, "booster") %>% is.na %>% not %>% which %>% c(length(text)+1)
   
   extract <- function(x, pattern)  str_extract(x, pattern) %>% str_split("=") %>% lapply(function(x) x[2] %>% as.numeric) %>% unlist

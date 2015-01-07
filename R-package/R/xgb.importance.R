@@ -6,7 +6,6 @@
 #' @importFrom data.table data.table
 #' @importFrom magrittr %>%
 #' @importFrom data.table :=
-#' @importFrom stringr str_extract
 #' @param feature_names names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.
 #' @param filename_dump the path to the text file storing the model. Model dump must include the gain per feature and per tree (\code{with.stats = T} in function \code{xgb.dump}).
 #'
@@ -21,7 +20,8 @@
 #' There are 3 columns :
 #' \itemize{
 #'   \item \code{Features} name of the features as provided in \code{feature_names} or already present in the model dump.
-#'   \item \code{Gain} contribution of each feature to the model. For boosted tree model, each gain of each feature of each tree is taken into account, then average per feature to give a vision of the entire model. Highest percentage means most important feature regarding the \code{label} used for the training.
+#'   \item \code{Gain} contribution of each feature to the model. For boosted tree model, each gain of each feature of each tree is taken into account, then average per feature to give a vision of the entire model. Highest percentage means important feature to predict the \code{label} used for the training ;
+#'   \item \code{Cover} metric of the number of observation related to this feature (only available for tree models) ;
 #'   \item \code{Weight} percentage representing the relative number of times a feature have been taken into trees. \code{Gain} should be prefered to search the most important feature. For boosted linear model, this column has no meaning.
 #' }
 #' 
@@ -59,21 +59,10 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL){
   result
 }
 
-treeDump <- function(feature_names, text){
-  featureVec <- c()
-  gainVec <- c()
-  for(line in text){
-    p <- str_extract(line, "\\[f.*<")
-    if (!is.na(p)) {
-      featureVec <- substr(p, 3, nchar(p)-1) %>% c(featureVec)
-      gainVec <- str_extract(line, "gain.*,") %>%  substr(x = ., 6, nchar(.)-1) %>% as.numeric %>% c(gainVec)
-    }
-  }
-  if(!is.null(feature_names)) {
-    featureVec %<>% as.numeric %>% {c =.+1; feature_names[c]} #+1 because in R indexing start with 1 instead of 0.
-  }
-  #1. Reduce, 2. %, 3. reorder - bigger top, 4. remove temp col
-  data.table(Feature = featureVec, Weight = gainVec)[,list(sum(Weight), .N), by = Feature][, Gain:= V1/sum(V1)][,Weight:= N/sum(N)][order(-rank(Gain))][,-c(2,3), with = F]
+treeDump <- function(feature_names, text){  
+  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",][,.(sum(Quality), sum(Cover), .N),by = Feature][,V1:=V1/sum(V1)][,V2:=V2/sum(V2)][,N:=N/sum(N)][order(-rank(V1))]
+  setnames(result, c("Feature", "Gain", "Cover", "Frequence"))
+  result  
 }
 
 linearDump <- function(feature_names, text){

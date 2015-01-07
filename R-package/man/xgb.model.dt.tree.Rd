@@ -4,7 +4,7 @@
 \alias{xgb.model.dt.tree}
 \title{Convert tree model dump to data.table}
 \usage{
-xgb.model.dt.tree(feature_names = NULL, filename_dump = NULL,
+xgb.model.dt.tree(feature_names = NULL, filename_dump = NULL, text = NULL,
   n_first_tree = NULL)
 }
 \arguments{
