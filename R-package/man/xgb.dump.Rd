@@ -4,12 +4,12 @@
 \alias{xgb.dump}
 \title{Save xgboost model to text file}
 \usage{
-xgb.dump(model, fname, fmap = "", with.stats = FALSE)
+xgb.dump(model, fname = NULL, fmap = "", with.stats = FALSE)
 }
 \arguments{
 \item{model}{the model object.}
 
-\item{fname}{the name of the binary file.}
+\item{fname}{the name of the text file where to save the model. If not provided or set to \code{NULL} the function will return the model as a \code{character} vector.}
 
 \item{fmap}{feature map file representing the type of feature.
 Detailed description could be found at
@@ -22,6 +22,9 @@ for example Format.}
        When this option is on, the model dump comes with two additional statistics:
        gain is the approximate loss function gain we get in each split;
        cover is the sum of second order gradient in each node.}
+}
+\value{
+if fname is not provided or set to \code{NULL} the function will return the model as a \code{character} vector. Otherwise it will return \code{TRUE}.
 }
 \description{
 Save a xgboost model to text file. Could be parsed later.
