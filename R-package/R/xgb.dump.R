@@ -32,6 +32,8 @@ xgb.dump <- function(model, fname, fmap = "", with.stats=FALSE) {
   if (typeof(fname) != "character") {
     stop("xgb.dump: second argument must be type character")
   }
-  .Call("XGBoosterDumpModel_R", model, fname, fmap, as.integer(with.stats), PACKAGE = "xgboost")
+  result <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost")
+  writeLines(result, fname)
+  #unlist(str_split(a, "\n"))==""
   return(TRUE)
 } 
