@@ -24,4 +24,5 @@ Imports:
     methods,
     data.table (>= 1.9),
     magrittr (>= 1.5),
-    stringr
+    stringr,
+    DiagrammeR
