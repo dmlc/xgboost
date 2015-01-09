@@ -276,9 +276,9 @@ extern "C" {
     _WrapperBegin();
     bst_ulong olen;
     const char **res = XGBoosterDumpModel(R_ExternalPtrAddr(handle),
-                                          CHAR(asChar(fmap)),
-                                          asInteger(with_stats),
-                                          &olen);
+    CHAR(asChar(fmap)),
+    asInteger(with_stats),
+    &olen);
     SEXP out = PROTECT(allocVector(STRSXP, olen));    
     char buffer [2000];
     for (size_t i = 0; i < olen; ++i) {     
@@ -287,7 +287,7 @@ extern "C" {
       SET_STRING_ELT(out, i, mkChar(buffer));
     }
     _WrapperEnd();
-  UNPROTECT(1);
-  return out;
+    UNPROTECT(1);
+    return out;
   }
 }
