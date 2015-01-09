@@ -47,7 +47,7 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   if(is.null(fname)) {
     return(str_split(result, "\n") %>% unlist %>% str_replace("^\t+","") %>% Filter(function(x) x != "", .))
   } else {
-    writeLines(result, fname)
+    result %>% str_split("\n") %>% unlist %>% Filter(function(x) x != "", .) %>% writeLines(fname)
     return(TRUE)
   }
 }

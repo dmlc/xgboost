@@ -59,13 +59,9 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, n_first_tr
     
   allTrees <- xgb.model.dt.tree(feature_names, filename_dump, n_first_tree)
   
-  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), j = "YesFeature", value = merge(copy(allTrees)[,ID:=Yes][, .(ID)], allTrees[,.(ID, Feature, Quality, Cover)], by = "ID")[,paste(Feature, "<br/>Cover: ", Cover, sep = "")])
+  allTrees[Feature!="Leaf" ,yesPath:= paste(ID,"(", Feature, "<br/>Cover: ", Cover, "<br/>Gain: ", Quality, ")-->|< ", Split, "|", Yes, ">", Yes.Feature, "]", sep = "")]
   
-  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), j = "NoFeature", value = merge(copy(allTrees)[,ID:=No][, .(ID)], allTrees[,.(ID, Feature, Quality, Cover)], by = "ID")[,paste(Feature, "<br/>Cover: ", Cover, sep = "")])
-  
-  allTrees[Feature!="Leaf" ,yesPath:= paste(ID,"(", Feature, "<br/>Cover: ", Cover, "<br/>Gain: ", Quality, ")-->|< ", Split, "|", Yes, ">", YesFeature, "]", sep = "")]
-  
-  allTrees[Feature!="Leaf" ,noPath:= paste(ID,"(", Feature, ")-->|>= ", Split, "|", No, ">", NoFeature, "]", sep = "")]
+  allTrees[Feature!="Leaf" ,noPath:= paste(ID,"(", Feature, ")-->|>= ", Split, "|", No, ">", No.Feature, "]", sep = "")]
   
   
   if(is.null(styles)){

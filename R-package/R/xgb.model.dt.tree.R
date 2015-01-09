@@ -5,6 +5,7 @@
 #' @importFrom data.table data.table
 #' @importFrom data.table set
 #' @importFrom data.table rbindlist
+#' @importFrom data.table copy
 #' @importFrom data.table :=
 #' @importFrom magrittr %>%
 #' @importFrom magrittr not
@@ -88,11 +89,13 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, text =
     
     tree <- text[(position[i]+1):(position[i+1]-1)]
     
+    treeID <- i-1
+    
     notLeaf <- str_match(tree, "leaf") %>% is.na
     leaf <- notLeaf %>% not %>% tree[.]
     branch <- notLeaf %>% tree[.]
-    idBranch <- str_extract(branch, "\\d*:") %>% str_replace(":", "") %>% addTreeId(i)
-    idLeaf <- str_extract(leaf, "\\d*:") %>% str_replace(":", "") %>% addTreeId(i)
+    idBranch <- str_extract(branch, "\\d*:") %>% str_replace(":", "") %>% addTreeId(treeID)
+    idLeaf <- str_extract(leaf, "\\d*:") %>% str_replace(":", "") %>% addTreeId(treeID)
     featureBranch <- str_extract(branch, "f\\d*<") %>% str_replace("<", "") %>% str_replace("f", "") %>% as.numeric 
     if(!is.null(feature_names)){
       featureBranch <- feature_names[featureBranch + 1]
@@ -100,20 +103,48 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, text =
     featureLeaf <- rep("Leaf", length(leaf))
     splitBranch <- str_extract(branch, "<\\d*\\.*\\d*\\]") %>% str_replace("<", "") %>% str_replace("\\]", "") 
     splitLeaf <- rep(NA, length(leaf)) 
-    yesBranch <- extract(branch, "yes=\\d*") %>% addTreeId(i)
+    yesBranch <- extract(branch, "yes=\\d*") %>% addTreeId(treeID)
     yesLeaf <- rep(NA, length(leaf)) 
-    noBranch <- extract(branch, "no=\\d*") %>% addTreeId(i)
+    noBranch <- extract(branch, "no=\\d*") %>% addTreeId(treeID)
     noLeaf <- rep(NA, length(leaf))
-    missingBranch <- extract(branch, "missing=\\d+") %>% addTreeId(i)
+    missingBranch <- extract(branch, "missing=\\d+") %>% addTreeId(treeID)
     missingLeaf <- rep(NA, length(leaf))
     qualityBranch <- extract(branch, "gain=\\d*\\.*\\d*")
     qualityLeaf <- extract(leaf, "leaf=\\-*\\d*\\.*\\d*")
     coverBranch <- extract(branch, "cover=\\d*\\.*\\d*")
     coverLeaf <- extract(leaf, "cover=\\d*\\.*\\d*")
-    dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=i]
+    dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=treeID]
         
     allTrees <- rbindlist(list(allTrees, dt), use.names = T, fill = F)
   }
   
+  yes <- allTrees[!is.na(Yes),Yes]
+  
+  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+      j = "Yes.Feature", 
+      value = allTrees[ID == yes,Feature])
+
+  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+      j = "Yes.Cover", 
+      value = allTrees[ID == yes,Cover])
+
+  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+    j = "Yes.Quality", 
+    value = allTrees[ID == yes,Quality])
+  
+  no <- allTrees[!is.na(No),No]
+  
+  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+      j = "No.Feature", 
+      value = allTrees[ID == no,Feature])
+  
+  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+      j = "No.Cover", 
+      value = allTrees[ID == no,Cover])
+  
+  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+      j = "No.Quality", 
+      value = allTrees[ID == no,Quality])
+      
   allTrees
 }
