@@ -4,12 +4,12 @@
 \alias{xgb.dump}
 \title{Save xgboost model to text file}
 \usage{
-xgb.dump(model, fname = NULL, fmap = "", with.stats = FALSE)
+xgb.dump(model = NULL, fname = NULL, fmap = "", with.stats = FALSE)
 }
 \arguments{
 \item{model}{the model object.}
 
-\item{fname}{the name of the text file where to save the model. If not provided or set to \code{NULL} the function will return the model as a \code{character} vector.}
+\item{fname}{the name of the text file where to save the model text dump. If not provided or set to \code{NULL} the function will return the model as a \code{character} vector.}
 
 \item{fmap}{feature map file representing the type of feature.
 Detailed description could be found at
@@ -36,6 +36,10 @@ train <- agaricus.train
 test <- agaricus.test
 bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
                eta = 1, nround = 2,objective = "binary:logistic")
+# save the model in file 'xgb.model.dump'
 xgb.dump(bst, 'xgb.model.dump')
+
+# print the model without saving it to a file
+print(xgb.dump(bst))
 }
 

@@ -6,7 +6,7 @@
 #' @importFrom stringr str_split
 #' @importFrom stringr str_replace
 #' @param model the model object.
-#' @param fname the name of the text file where to save the model. If not provided or set to \code{NULL} the function will return the model as a \code{character} vector.
+#' @param fname the name of the text file where to save the model text dump. If not provided or set to \code{NULL} the function will return the model as a \code{character} vector.
 #' @param fmap feature map file representing the type of feature. 
 #'        Detailed description could be found at 
 #'        \url{https://github.com/tqchen/xgboost/wiki/Binary-Classification#dump-model}.
@@ -28,15 +28,19 @@
 #' test <- agaricus.test
 #' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
 #'                eta = 1, nround = 2,objective = "binary:logistic")
+#' # save the model in file 'xgb.model.dump'
 #' xgb.dump(bst, 'xgb.model.dump')
+#' 
+#' # print the model without saving it to a file
+#' print(xgb.dump(bst))
 #' @export
 #' 
-xgb.dump <- function(model, fname = NULL, fmap = "", with.stats=FALSE) {
+xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   if (class(model) != "xgb.Booster") {
     stop("xgb.dump: first argument must be type xgb.Booster")
   }
   if (!class(fname) %in% c("character", "NULL")) {
-    stop("xgb.dump: second argument must be type character if provided")
+    stop("xgb.dump: second argument must be type character when provided")
   }
   result <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost")
   
