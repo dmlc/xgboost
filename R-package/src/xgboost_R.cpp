@@ -281,7 +281,8 @@ extern "C" {
                                           &olen);
     SEXP out = PROTECT(allocVector(STRSXP, olen));    
     char buffer [2000];
-    for (size_t i = 0; i < olen; ++i) {      
+    for (size_t i = 0; i < olen; ++i) {     
+      memset(buffer, 0, sizeof buffer);
       sprintf (buffer, "booster[%u]:\n%s", static_cast<unsigned>(i), res[i]);
       SET_STRING_ELT(out, i, mkChar(buffer));
     }
