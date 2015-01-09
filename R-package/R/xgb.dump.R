@@ -4,7 +4,7 @@
 #' 
 #' @importFrom magrittr %>%
 #' @importFrom stringr str_split
-#' @importFrom stringr str_replace_all
+#' @importFrom stringr str_replace
 #' @param model the model object.
 #' @param fname the name of the text file where to save the model. If not provided or set to \code{NULL} the function will return the model as a \code{character} vector.
 #' @param fmap feature map file representing the type of feature. 
