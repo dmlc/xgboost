@@ -112,8 +112,8 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   
   type <- rep(x = "numeric", times = length(colnames))
   dt <- read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
-  split = str_split(string = history, pattern = "\t")
+  split <- str_split(string = history, pattern = "\t")
   
-  for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.*\\d*") %>% unlist %>% as.list %>% {vec <- .; rbindlist(list(dt, vec), use.names = F, fill = F)}
+  for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.list %>% {vec <- .; rbindlist(list(dt, vec), use.names = F, fill = F)}
   dt
 }
