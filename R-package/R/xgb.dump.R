@@ -40,8 +40,10 @@ xgb.dump <- function(model, fname = NULL, fmap = "", with.stats=FALSE) {
   }
   result <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost")
   
-  if(is.null(fname)) return(str_split(result, "\n") %>% unlist %>% str_replace_all("\t","  ") %>% Filter(function(x) x != "", .))
-  
-  writeLines(result, fname)
-  TRUE
-} 
+  if(is.null(fname)) {
+    return(str_split(result, "\n") %>% unlist %>% str_replace("^\t+","") %>% Filter(function(x) x != "", .))
+  } else {
+    writeLines(result, fname)
+    return(TRUE)
+  }
+}
