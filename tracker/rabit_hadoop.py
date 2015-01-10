@@ -12,7 +12,7 @@ import rabit_tracker as tracker
 
 #!!! Set path to hadoop and hadoop streaming jar here
 hadoop_binary = 'hadoop'
-hadoop_streaming_jar = None
+hadoop_streaming_jar = None 
 
 # code 
 hadoop_home = os.getenv('HADOOP_HOME')
@@ -67,7 +67,7 @@ if args.jobname is None:
 
 def hadoop_streaming(nworker, worker_args):
     cmd = '%s jar %s -D mapred.map.tasks=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nworker)
-    cmd += ' -D mapred.job.name=%d' % (a)
+    cmd += ' -D mapred.job.name=%s' % (args.jobname)
     cmd += ' -input %s -output %s' % (args.input, args.output)
     cmd += ' -mapper \"%s\" -reducer \"/bin/cat\" ' % (' '.join(args.command + worker_args))
     fset = set()
@@ -75,9 +75,10 @@ def hadoop_streaming(nworker, worker_args):
         for f in args.command:
             if os.path.exists(f):
                 fset.add(f)
-    for flst in args.files:
-        for f in flst.split('#'):
-            fset.add(f)
+    if args.files != None:
+        for flst in args.files:
+            for f in flst.split('#'):
+                fset.add(f)
     for f in fset:
         cmd += ' -file %s' % f
     print cmd
