@@ -22,6 +22,8 @@ Design Choice
   - Row-based solver split data by row, each node work on subset of rows,
     it uses an approximate histogram count algorithm, and will only examine subset of 
     potential split points as opposed to all split points.
+  - Hadoop version can run on the existing hadoop platform,
+    it use Rabit to submit jobs as map-reduce tasks.
 
 Usage
 ====
