@@ -21,11 +21,11 @@ if hadoop_home != None:
         hadoop_binary = hadoop_home + '/bin/hadoop'
         assert os.path.exists(hadoop_binary), "HADDOP_HOME does not contain the hadoop binary"
     if hadoop_streaming_jar == None:
-        hadoop_streaming_jar = hadoop_home + '/lib/hadoop-streaming.har'
+        hadoop_streaming_jar = hadoop_home + '/lib/hadoop-streaming.jar'
         assert os.path.exists(hadoop_streaming_jar), "HADDOP_HOME does not contain the haddop streaming jar"
 
 if hadoop_binary == None or hadoop_streaming_jar == None:
-    print 'Warning: Cannot auto-detect path to hadoop and streaming jar, need to set them via arguments -hs and -hb'
+    print 'Warning: Cannot auto-detect path to hadoop and hadoop-streaming jar, need to set them via arguments -hs and -hb'
     print '\tTo enable auto-detection, you can set enviroment variable HADOOP_HOME or modify rabit_hadoop.py line 14'
 
 parser = argparse.ArgumentParser(description='Rabit script to submit rabit jobs using Hadoop Streaming')
@@ -53,10 +53,10 @@ else:
                         help="path-to-hadoop binary folder")  
 
 if hadoop_streaming_jar == None:
-    parser.add_argument('-jar', '--hadoop_streaming_jar', required = True,
+    parser.add_argument('-hs', '--hadoop_streaming_jar', required = True,
                         help='path-to hadoop streamimg jar file')
 else:
-    parser.add_argument('-jar', '--hadoop_streaming_jar', default = hadoop_streaming_jar,
+    parser.add_argument('-hs', '--hadoop_streaming_jar', default = hadoop_streaming_jar,
                         help='path-to hadoop streamimg jar file')
 parser.add_argument('command', nargs='+',
                     help = 'command for rabit program')
@@ -67,7 +67,7 @@ if args.jobname is None:
 
 def hadoop_streaming(nworker, worker_args):
     cmd = '%s jar %s -D mapred.map.tasks=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nworker)
-    cmd += ' -D mapred.job.name=%d' % (a)
+    cmd += ' -D mapred.job.name=%s' % (args.jobname)
     cmd += ' -input %s -output %s' % (args.input, args.output)
     cmd += ' -mapper \"%s\" -reducer \"/bin/cat\" ' % (' '.join(args.command + worker_args))
     fset = set()
@@ -75,9 +75,10 @@ def hadoop_streaming(nworker, worker_args):
         for f in args.command:
             if os.path.exists(f):
                 fset.add(f)
-    for flst in args.files:
-        for f in flst.split('#'):
-            fset.add(f)
+    if args.files != None:
+        for flst in args.files:
+            for f in flst.split('#'):
+                fset.add(f)
     for f in fset:
         cmd += ' -file %s' % f
     print cmd
