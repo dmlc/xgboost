@@ -43,7 +43,8 @@ parser.add_argument('-f', '--files', nargs = '*',
                     help = 'the cached file list in mapreduce,'\
                         ' the submission script will automatically cache all the files which appears in command to local folder'\
                         ' This will also cause rewritten of all the file names in the command to current path,'\
-                        ' for example `../../kmeans ../kmeans.conf` will be rewritten to ./kmeans kmeans.conf because the two files are cached to running folder.'\
+                        ' for example `../../kmeans ../kmeans.conf` will be rewritten to `./kmeans kmeans.conf`'\
+                        ' because the two files are cached to running folder.'\
                         ' You may need this option to cache additional files.'\
                         ' You can also use it to manually cache files when auto_file_cache is off')
 parser.add_argument('--jobname', help = 'customize jobname in tracker')
