@@ -12,7 +12,7 @@ import rabit_tracker as tracker
 
 #!!! Set path to hadoop and hadoop streaming jar here
 hadoop_binary = 'hadoop'
-hadoop_streaming_jar = None 
+hadoop_streaming_jar = None
 
 # code 
 hadoop_home = os.getenv('HADOOP_HOME')
