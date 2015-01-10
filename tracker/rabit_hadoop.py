@@ -25,7 +25,7 @@ if hadoop_home != None:
         assert os.path.exists(hadoop_streaming_jar), "HADDOP_HOME does not contain the haddop streaming jar"
 
 if hadoop_binary == None or hadoop_streaming_jar == None:
-    print 'Warning: Cannot auto-detect path to hadoop and streaming jar, need to set them via arguments -hs and -hb'
+    print 'Warning: Cannot auto-detect path to hadoop and hadoop-streaming jar, need to set them via arguments -hs and -hb'
     print '\tTo enable auto-detection, you can set enviroment variable HADOOP_HOME or modify rabit_hadoop.py line 14'
 
 parser = argparse.ArgumentParser(description='Rabit script to submit rabit jobs using Hadoop Streaming')
@@ -53,10 +53,10 @@ else:
                         help="path-to-hadoop binary folder")  
 
 if hadoop_streaming_jar == None:
-    parser.add_argument('-jar', '--hadoop_streaming_jar', required = True,
+    parser.add_argument('-hs', '--hadoop_streaming_jar', required = True,
                         help='path-to hadoop streamimg jar file')
 else:
-    parser.add_argument('-jar', '--hadoop_streaming_jar', default = hadoop_streaming_jar,
+    parser.add_argument('-hs', '--hadoop_streaming_jar', default = hadoop_streaming_jar,
                         help='path-to hadoop streamimg jar file')
 parser.add_argument('command', nargs='+',
                     help = 'command for rabit program')
