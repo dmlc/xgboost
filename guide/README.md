@@ -251,9 +251,9 @@ This fault tolerance model is based on a key property of Allreduce and Broadcast
 All the nodes get the same result when calling Allreduce/Broadcast. Because of this property, any node can record the history,
 and when a node recovers, the result can be forwarded to it.
 
-The checkpoint is introduced so that we do not have to discard the history before checkpointing, so that the iterative program can be more
+The checkpoint is introduced so that we can discard the history after checkpointing, so that the iterative program can be more
 efficient. The strategy of rabit is different from the fail-restart strategy where all the nodes restart from the same checkpoint
-when any of them fails. All the processes block in the Allreduce call to help the recovery, and the checkpoint is only saved locally without
+when any of them fail. All the processes will block in the Allreduce call to help the recovery, and the checkpoint is only saved locally without
 touching the disk. This makes rabit programs more reliable and efficient.
 
 This is just a conceptual introduction to rabit's fault tolerance model. The actual implementation is more sophisticated,
