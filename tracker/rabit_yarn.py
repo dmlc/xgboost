@@ -71,10 +71,9 @@ parser.add_argument('command', nargs='+',
                     help = 'command for rabit program')
 args = parser.parse_args()
 
-if args.jobname is None:
-    args.jobname = ('Rabit(nworker=%d):' % args.nworker) + args.command[0].split('/')[-1];
-
-	 
+if args.jobname == 'auto':
+        args.jobname = ('Rabit[nworker=%d]:' % args.nworker) + args.command[0].split('/')[-1];
+ 
 	
 def hadoop_streaming(nworker, slave_args):
     cmd = '%s jar %s -D mapreduce.job.maps=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nworker)
