@@ -48,6 +48,11 @@ parser.add_argument('-f', '--files', nargs = '*',
                         ' You may need this option to cache additional files.'\
                         ' You can also use it to manually cache files when auto_file_cache is off')
 parser.add_argument('--jobname', help = 'customize jobname in tracker')
+parser.add_argument('--timeout', default=600000000, type=int,
+                    help = 'timeout of each mapper job, automatically set to a very long time normally you donot need to set this ')
+parser.add_argument('-m', '--memory_mb', default=-1, type=int,
+                    help = 'maximum memory used by the process, Guide: set it large (near mapred.cluster.max.map.memory.mb) if you are running multi-threading rabit,'\
+                        'so that each node can occupy all the mapper slots in a machine for maximum performance')
 if hadoop_binary == None:
     parser.add_argument('-hb', '--hadoop_binary', required = True,
                         help="path-to-hadoop binary folder")  
@@ -80,7 +85,9 @@ def hadoop_streaming(nworker, worker_args):
                 else:
                     args.command[i] = args.command[i].split('/')[-1]    
     cmd = '%s jar %s -D mapred.map.tasks=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nworker)
-    cmd += ' -D mapred.job.name=%s' % (args.jobname)
+    cmd += ' -Dmapred.job.name=%s' % (args.jobname)
+    cmd += ' -Dmapred.task.timeout=%d' % (args.timeout)
+    cmd += ' -Dmapred.job.map.memory.mb=%d' % (args.memory_mb)
     cmd += ' -input %s -output %s' % (args.input, args.output)
     cmd += ' -mapper \"%s\" -reducer \"/bin/cat\" ' % (' '.join(args.command + worker_args))
     if args.files != None:
