@@ -10,6 +10,7 @@ import time
 import subprocess
 import rabit_tracker as tracker
 
+
 #!!! Set path to hadoop and hadoop streaming jar here
 hadoop_binary = 'hadoop'
 hadoop_streaming_jar = None
@@ -28,9 +29,12 @@ if hadoop_binary == None or hadoop_streaming_jar == None:
     print 'Warning: Cannot auto-detect path to hadoop and hadoop-streaming jar, need to set them via arguments -hs and -hb'
     print '\tTo enable auto-detection, you can set enviroment variable HADOOP_HOME or modify rabit_hadoop.py line 14'
 
-parser = argparse.ArgumentParser(description='Rabit script to submit rabit jobs using Hadoop Streaming')
+parser = argparse.ArgumentParser(description='Rabit script to submit rabit jobs using Hadoop Streaming.'\
+                                     'This script support both Hadoop 1.0 and Yarn(MRv2), Yarn is recommended')
 parser.add_argument('-n', '--nworker', required=True, type=int,
                     help = 'number of worker proccess to be launched')
+parser.add_argument('-nt', '--nthread', default = -1, type=int,
+                    help = 'number of thread in each mapper to be launched, set it if each rabit job is multi-threaded')
 parser.add_argument('-i', '--input', required=True,
                     help = 'input path in HDFS')
 parser.add_argument('-o', '--output', required=True,
@@ -51,7 +55,7 @@ parser.add_argument('--jobname', default='auto', help = 'customize jobname in tr
 parser.add_argument('--timeout', default=600000000, type=int,
                     help = 'timeout (in million seconds) of each mapper job, automatically set to a very long time,'\
                         'normally you do not need to set this ')
-parser.add_argument('-m', '--memory_mb', default=-1, type=int,
+parser.add_argument('-mem', '--memory_mb', default=-1, type=int,
                     help = 'maximum memory used by the process, Guide: set it large (near mapred.cluster.max.map.memory.mb)'\
                         'if you are running multi-threading rabit,'\
                         'so that each node can occupy all the mapper slots in a machine for maximum performance')
@@ -75,7 +79,7 @@ args = parser.parse_args()
 if args.jobname == 'auto':
     args.jobname = ('Rabit[nworker=%d]:' % args.nworker) + args.command[0].split('/')[-1];
 
-def hadoop_streaming(nworker, worker_args):
+def hadoop_streaming(nworker, worker_args, yarn = False):
     fset = set()
     if args.auto_file_cache:
         for i in range(len(args.command)):
@@ -86,10 +90,30 @@ def hadoop_streaming(nworker, worker_args):
                     args.command[i] = './' + args.command[i].split('/')[-1]                    
                 else:
                     args.command[i] = args.command[i].split('/')[-1]    
-    cmd = '%s jar %s -D mapred.map.tasks=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nworker)
-    cmd += ' -Dmapred.job.name=%s' % (args.jobname)
-    cmd += ' -Dmapred.task.timeout=%d' % (args.timeout)
-    cmd += ' -Dmapred.job.map.memory.mb=%d' % (args.memory_mb)
+    kmap = {}
+    # setup keymaps
+    if yarn:
+        kmap['nworker'] = 'mapreduce.job.maps'
+        kmap['jobname'] = 'mapreduce.job.name'
+        kmap['nthread'] = 'mapreduce.map.cpu.vcores'
+        kmap['timeout'] = 'mapreduce.task.timeout'
+        kmap['memory_mb'] = 'mapreduce.map.memory.mb'
+    else:
+        kmap['nworker'] = 'mapred.map.tasks'
+        kmap['jobname'] = 'mapred.job.name'
+        kmap['nthread'] = None
+        kmap['timeout'] = 'mapred.task.timeout'
+        kmap['memory_mb'] = 'mapred.job.map.memory.mb'
+    cmd = '%s jar %s' % (args.hadoop_binary, args.hadoop_streaming_jar)
+    cmd += ' -D%s=%d' % (kmap['nworker'], nworker)
+    cmd += ' -D%s=%s' % (kmap['jobname'], args.jobname)
+    if args.nthread != -1:
+        assert kmap['nthread'] is not None, "nthread can only be set in Yarn cluster, it is highly recommended to "
+        cmd += ' -D%s=%d' % (kmap['ntread'], args.nthread)
+    cmd += ' -D%s=%d' % (kmap['timeout'], args.timeout)
+    if args.memory_mb != -1:
+        cmd += ' -D%s=%d' % (kmap['timeout'], args.timeout)
+
     cmd += ' -input %s -output %s' % (args.input, args.output)
     cmd += ' -mapper \"%s\" -reducer \"/bin/cat\" ' % (' '.join(args.command + worker_args))
     if args.files != None:
@@ -101,4 +125,6 @@ def hadoop_streaming(nworker, worker_args):
     print cmd
     subprocess.check_call(cmd, shell = True)
 
-tracker.submit(args.nworker, [], fun_submit = hadoop_streaming, verbose = args.verbose)
+if __name__ == 'main':
+    fun_submit = lambda nworker, worker_args: hadoop_streaming(nworker, worker_args, False)
+    tracker.submit(args.nworker, [], fun_submit = fun_submit, verbose = args.verbose)
