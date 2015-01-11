@@ -79,7 +79,7 @@ def hadoop_streaming(nworker, slave_args):
     cmd += ' -D mapreduce.job.name=%s' % (args.jobname)
     cmd += ' -D mapreduce.map.cpu.vcores=%d' % (args.nthread)
     cmd += ' -D mapreduce.map.memory.mb=%d' % (args.memory_mb)
-	cmd += ' -D mapreduce.task.timeout=%d' % (args.timeout)
+cmd += ' -D mapreduce.task.timeout=%d' % (args.timeout)
     cmd += ' -input %s -output %s' % (args.input, args.output)
     cmd += ' -mapper \"%s\" -reducer \"/bin/cat\" ' % (' '.join(args.command + slave_args))
     fset = set()
