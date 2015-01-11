@@ -22,20 +22,21 @@ How to Use
 XGBoost: Single machine verison VS Hadoop version
 ====
 If you have used xgboost (single machine version) before, this section will show you how to run xgboost on hadoop with a slight modification on conf file.
+* Hadoop version needs to set up how many slave nodes/machines/workers you would like to use at first. 
 * IO: instead of reading and writing file locally, hadoop version use "stdin" to read training file and use "stdout" to store the final model file. Therefore, you should change the parameters "data" and "model_out" in conf file to ```data = stdin; model_out = stdout```.
 * File cache: ```rabit_hadoop.py``` also provide several ways to cache necesary files, including binary file (xgboost), conf file, small size of dataset which used for eveluation during the training process, and so on.
   - Any file used in config file, excluding stdin, should be cached in the script. ```rabit_hadoop.py``` will automatically cache files in the command line. For example, ```rabit_hadoop.py -n 3 -i $hdfsPath/agaricus.txt.train -o $hdfsPath/mushroom.final.model $localPath/xgboost mushroom.hadoop.conf``` will cache "xgboost" and "mushroom.hadoop.conf".
-  - You could also use "-f" to manually cache one or more files, like ```-f file1 -f file2``` or ```-f file1#file2```.
-* Test locally
-* 
-* 
-
-Usage of rabit_hadoop.py
-====
+  - You could also use "-f" to manually cache one or more files, like ```-f file1 -f file2``` or ```-f file1#file2``` (use "#" to spilt file names).
+  - The local path of cached files in command is "./".
+  - Since the cached files will be packaged and delivered to hadoop slave nodes, the cached file should not be large. For instance, trying to cache files of GB size may reduce the performance.
+* Hadoop version also support evaluting each training round. You just need to modify parameters "eval_train" and "eval[test]" in conf file and cache the evaluation file.
+* Hadoop version now can only save the final model.
+* Predict locally. Althought the hadoop version supports training process, you should do prediction locally, just the same as single machine version.
+* The hadoop version now can only save the final model. 
+* More details of hadoop version can be referred to the usage of ```rabit_hadoop.py```.  
 
 Notes
 ====
 * The code has been tested on MapReduce 1 (MRv1), it should be ok to run on MapReduce 2 (MRv2, YARN).
 * The code is multi-threaded, so you want to run one xgboost per node/worker, which means the parameter <n_workers> should be less than the number of slaves/workers. 
-* The hadoop version now can only save the final model.
 
