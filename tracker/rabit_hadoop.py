@@ -39,7 +39,7 @@ parser.add_argument('-v', '--verbose', default=0, choices=[0, 1], type=int,
                     help = 'print more messages into the console')
 parser.add_argument('-ac', '--auto_file_cache', default=1, choices=[0, 1], type=int,
                     help = 'whether automatically cache the files in the command to hadoop localfile, this is on by default')
-parser.add_argument('-f', '--files', nargs = '*',
+parser.add_argument('-f', '--files', default = [], action='append',
                     help = 'the cached file list in mapreduce,'\
                         ' the submission script will automatically cache all the files which appears in command.'\
                         ' You may need this option to cache additional files.'\
@@ -63,7 +63,7 @@ parser.add_argument('command', nargs='+',
 args = parser.parse_args()
 
 if args.jobname is None:
-    args.jobname = ('Rabit(nworker=%d):' % args.nworker) + args.command[0].split('/')[-1];
+    args.jobname = ('Rabit[nworker=%d]:' % args.nworker) + args.command[0].split('/')[-1];
 
 def hadoop_streaming(nworker, worker_args):
     cmd = '%s jar %s -D mapred.map.tasks=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nworker)
