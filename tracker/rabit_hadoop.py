@@ -27,8 +27,10 @@ if hadoop_home != None:
         assert os.path.exists(hadoop_streaming_jar), "HADDOP_HOME does not contain the haddop streaming jar"
 
 if hadoop_binary == None or hadoop_streaming_jar == None:
-    warnings.warn('Warning: Cannot auto-detect path to hadoop and hadoop-streaming jar, need to set them via arguments -hs and -hb\n'\
-                      '\tTo enable auto-detection, you can set enviroment variable HADOOP_HOME or modify rabit_hadoop.py line 14')
+    warnings.warn('Warning: Cannot auto-detect path to hadoop and hadoop-streaming jar\n'\
+                      '\tneed to set them via arguments -hs and -hb\n'\
+                      '\tTo enable auto-detection, you can set enviroment variable HADOOP_HOME'\
+                      ', or modify rabit_hadoop.py line 14')
 
 parser = argparse.ArgumentParser(description='Rabit script to submit rabit jobs using Hadoop Streaming.'\
                                      'This script support both Hadoop 1.0 and Yarn(MRv2), Yarn is recommended')
