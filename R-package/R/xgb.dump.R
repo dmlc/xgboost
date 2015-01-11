@@ -37,11 +37,15 @@
 #' 
 xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   if (class(model) != "xgb.Booster") {
-    stop("xgb.dump: first argument must be type xgb.Booster")
+    stop("model: argument must be type xgb.Booster")
   }
-  if (!class(fname) %in% c("character", "NULL")) {
-    stop("xgb.dump: second argument must be type character when provided")
+  if (!(class(fname) %in% c("character", "NULL") && length(fname) <= 1)) {
+    stop("fname: argument must be type character (when provided)")
   }
+  if (!(class(fmap) %in% c("character", "NULL") && length(fname) <= 1)) {
+    stop("fmap: argument must be type character (when provided)")
+  }
+  
   result <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost")
   
   if(is.null(fname)) {
