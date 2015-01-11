@@ -64,9 +64,9 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
   } 
   
   if(text[2] == "bias:"){
-    result <- linearDump(feature_names, text)
+    result <- readLines(filename_dump) %>% linearDump(feature_names, .)
   }  else {
-    result <- treeDump(feature_names, text)
+    result <- treeDump(feature_names, text = text)
   }
   result
 }
