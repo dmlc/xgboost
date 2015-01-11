@@ -100,7 +100,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     tree <- text[(position[i]+1):(position[i+1]-1)]
     
     # avoid tree made of a leaf only (no split)
-    if(length(tree) <2) break
+    if(length(tree) <2) next
     
     treeID <- i-1
     
