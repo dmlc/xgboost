@@ -21,7 +21,7 @@ if hadoop_home != None:
         hadoop_binary = hadoop_home + '/bin/hadoop'
         assert os.path.exists(hadoop_binary), "HADDOP_HOME does not contain the hadoop binary"
     if hadoop_streaming_jar == None:
-		hadoop_streaming_jar = hadoop_home + '/lib/hadoop-streaming.jar'
+	hadoop_streaming_jar = hadoop_home + '/lib/hadoop-streaming.jar'
         assert os.path.exists(hadoop_streaming_jar), "HADDOP_HOME does not contain the haddop streaming jar"
 
 if hadoop_binary == None or hadoop_streaming_jar == None:
@@ -48,12 +48,14 @@ parser.add_argument('-f', '--files', nargs = '*',
                         ' You can also use it to manually cache files when auto_file_cache is off')
 parser.add_argument('--jobname', default='auto', help = 'customize jobname in tracker')
 parser.add_argument('--timeout', default=600000000, type=int,
-                    help = 'timeout (in million seconds) of each mapper job, automatically set to a very long time,'\
-                       'normally you do not need to set this ')
+		    help = 'timeout (in million seconds) of each mapper job, automatically set to a very long time,'\
+		       'normally you do not need to set this ')
 parser.add_argument('-m', '--memory_mb', default=1024, type=int,
-                    help = 'maximum memory used by the process, Guide: set it large (near mapreduce.jobtracker.maxmapmemory.mb).'\
-                    'if you are running multi-threading rabit,'\
-                    'so that each node can occupy all the mapper slots in a machine for maximum performance')
+		    help = 'maximum memory used by the process, Guide: set it large (near mapreduce.jobtracker.maxmapmemory.mb).'\
+		    'if you are running multi-threading rabit,'\
+		    'so that each node can occupy all the mapper slots in a machine for maximum performance')
+
+
 if hadoop_binary == None:
     parser.add_argument('-hb', '--hadoop_binary', required = True,
                         help="path-to-hadoop binary folder")  
@@ -72,15 +74,14 @@ parser.add_argument('command', nargs='+',
 args = parser.parse_args()
 
 if args.jobname == 'auto':
-        args.jobname = ('Rabit[nworker=%d]:' % args.nworker) + args.command[0].split('/')[-1];
- 
-	
+	args.jobname = ('Rabit[nworker=%d]:' % args.nworker) + args.command[0].split('/')[-1];
+
 def hadoop_streaming(nworker, slave_args):
     cmd = '%s jar %s -D mapreduce.job.maps=%d' % (args.hadoop_binary, args.hadoop_streaming_jar, nworker)
-    cmd += ' -D mapreduce.job.name' % (args.jobname)
+    cmd += ' -D mapreduce.job.name=%s' % (args.jobname)
+    cmd += ' -D mapreduce.map.cpu.vcores=%d' % (args.nthread)
     cmd += ' -D mapreduce.task.timeout=%d' % (args.timeout)
     cmd += ' -D mapreduce.map.memory.mb=%d' % (args.memory_mb)
-    cmd += ' -D mapreduce.map.cpu.vcores=%d' % (args.nthread)
     cmd += ' -input %s -output %s' % (args.input, args.output)
     cmd += ' -mapper \"%s\" -reducer \"/bin/cat\" ' % (' '.join(args.command + slave_args))
     fset = set()
