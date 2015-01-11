@@ -108,7 +108,8 @@ def hadoop_streaming(nworker, worker_args, yarn = False):
     cmd += ' -D%s=%d' % (kmap['nworker'], nworker)
     cmd += ' -D%s=%s' % (kmap['jobname'], args.jobname)
     if args.nthread != -1:
-        assert kmap['nthread'] is not None, "nthread can only be set in Yarn cluster, it is highly recommended to "
+        assert kmap['nthread'] is not None, 'nthread can only be set in Yarn(Hadoop 2.x) cluster'\
+            'it is recommended to use Yarn to submit rabit jobs'
         cmd += ' -D%s=%d' % (kmap['ntread'], args.nthread)
     cmd += ' -D%s=%d' % (kmap['timeout'], args.timeout)
     if args.memory_mb != -1:
@@ -126,5 +127,5 @@ def hadoop_streaming(nworker, worker_args, yarn = False):
     subprocess.check_call(cmd, shell = True)
 
 if __name__ == 'main':
-    fun_submit = lambda nworker, worker_args: hadoop_streaming(nworker, worker_args, False)
+    fun_submit = lambda nworker, worker_args: hadoop_streaming(nworker, worker_args, yarn=False)
     tracker.submit(args.nworker, [], fun_submit = fun_submit, verbose = args.verbose)
