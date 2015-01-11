@@ -3,6 +3,7 @@
 #include <utility>
 #include <cstring>
 #include <cstdio>
+#include <sstream> 
 #include "xgboost_R.h"
 #include "wrapper/xgboost_wrapper.h"
 #include "src/utils/utils.h"
@@ -280,11 +281,10 @@ extern "C" {
     asInteger(with_stats),
     &olen);
     SEXP out = PROTECT(allocVector(STRSXP, olen));    
-    char buffer [2000];
     for (size_t i = 0; i < olen; ++i) {     
-      memset(buffer, 0, sizeof buffer);
-      sprintf (buffer, "booster[%u]:\n%s", static_cast<unsigned>(i), res[i]);
-      SET_STRING_ELT(out, i, mkChar(buffer));
+      stringstream stream;
+      stream <<  "booster["<<i<<"]\n" << res[i];
+      SET_STRING_ELT(out, i, mkChar(stream.str().c_str()));
     }
     _WrapperEnd();
     UNPROTECT(1);
