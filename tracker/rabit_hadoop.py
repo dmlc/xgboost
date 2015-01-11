@@ -40,7 +40,7 @@ parser.add_argument('-v', '--verbose', default=0, choices=[0, 1], type=int,
                     help = 'print more messages into the console')
 parser.add_argument('-ac', '--auto_file_cache', default=1, choices=[0, 1], type=int,
                     help = 'whether automatically cache the files in the command to hadoop localfile, this is on by default')
-parser.add_argument('-f', '--files', nargs = '*',
+parser.add_argument('-f', '--files', default = [], action='append',
                     help = 'the cached file list in mapreduce,'\
                         ' the submission script will automatically cache all the files which appears in command to local folder'\
                         ' This will also cause rewritten of all the file names in the command to current path,'\
