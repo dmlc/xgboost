@@ -49,9 +49,11 @@ parser.add_argument('-f', '--files', nargs = '*',
                         ' You can also use it to manually cache files when auto_file_cache is off')
 parser.add_argument('--jobname', help = 'customize jobname in tracker')
 parser.add_argument('--timeout', default=600000000, type=int,
-                    help = 'timeout of each mapper job, automatically set to a very long time normally you donot need to set this ')
+                    help = 'timeout of each mapper job, automatically set to a very long time,'\
+                        'normally you do not need to set this ')
 parser.add_argument('-m', '--memory_mb', default=-1, type=int,
-                    help = 'maximum memory used by the process, Guide: set it large (near mapred.cluster.max.map.memory.mb) if you are running multi-threading rabit,'\
+                    help = 'maximum memory used by the process, Guide: set it large (near mapred.cluster.max.map.memory.mb)'\
+                        'if you are running multi-threading rabit,'\
                         'so that each node can occupy all the mapper slots in a machine for maximum performance')
 if hadoop_binary == None:
     parser.add_argument('-hb', '--hadoop_binary', required = True,
