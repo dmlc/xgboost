@@ -12,8 +12,7 @@ import rabit_tracker as tracker
 
 #!!! Set path to hadoop and hadoop streaming jar here
 hadoop_binary = 'hadoop'
-#hadoop_streaming_jar = None
-hadoop_streaming_jar = '/home/likewise-open/APEXLAB/blchen/streaming.jar'
+hadoop_streaming_jar = None
 
 # code 
 hadoop_home = os.getenv('HADOOP_HOME')
@@ -50,7 +49,7 @@ parser.add_argument('-f', '--files', default = [], action='append',
                         ' You can also use it to manually cache files when auto_file_cache is off')
 parser.add_argument('--jobname', default='auto', help = 'customize jobname in tracker')
 parser.add_argument('--timeout', default=600000000, type=int,
-                    help = 'timeout ((in milli seconds)) of each mapper job, automatically set to a very long time,'\
+                    help = 'timeout (in milli seconds) of each mapper job, automatically set to a very long time,'\
                         'normally you do not need to set this ')
 parser.add_argument('-m', '--memory_mb', default=-1, type=int,
                     help = 'maximum memory used by the process, Guide: set it large (near mapred.cluster.max.map.memory.mb)'\
