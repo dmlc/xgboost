@@ -48,7 +48,7 @@ parser.add_argument('-f', '--files', nargs = '*',
                         ' because the two files are cached to running folder.'\
                         ' You may need this option to cache additional files.'\
                         ' You can also use it to manually cache files when auto_file_cache is off')
-parser.add_argument('--jobname', help = 'customize jobname in tracker')
+parser.add_argument('--jobname', default='auto', help = 'customize jobname in tracker')
 parser.add_argument('--timeout', default=600000000, type=int,
                     help = 'timeout of each mapper job, automatically set to a very long time,'\
                         'normally you do not need to set this ')
@@ -73,7 +73,7 @@ parser.add_argument('command', nargs='+',
                     help = 'command for rabit program')
 args = parser.parse_args()
 
-if args.jobname is None:
+if args.jobname == 'auto':
     args.jobname = ('Rabit(nworker=%d):' % args.nworker) + args.command[0].split('/')[-1];
 
 def hadoop_streaming(nworker, worker_args):
