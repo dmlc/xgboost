@@ -1,15 +1,15 @@
-Tutorial of Rabit
+Tutorial
 =====
-This is an tutorial of rabit, a ***Reliable Allreduce and Broadcast interface***.
-To run the examples locally, you will need to type ```make``` to build all the examples.
+This is rabit's tutorial, a ***Reliable Allreduce and Broadcast Interface***.
+To run the examples locally, you will need to build them with ```make```.
 
-Please also refer to the [API Documentation](http://homes.cs.washington.edu/~tqchen/rabit/doc)
+Please also refer to the [API Documentation](http://homes.cs.washington.edu/~tqchen/rabit/doc) for further details.
 
 
 **List of Topics**
 * [What is Allreduce](#what-is-allreduce)
 * [Common Use Case](#common-use-case)
-* [Structure of Rabit Program](#structure-of-rabit-program)
+* [Structure of a Rabit Program](#structure-of-rabit-program)
 * [Compile Programs with Rabit](#compile-programs-with-rabit)
 * [Running Rabit Jobs](#running-rabit-jobs)
   - [Running Rabit on Hadoop](#running-rabit-on-hadoop)
@@ -19,8 +19,8 @@ Please also refer to the [API Documentation](http://homes.cs.washington.edu/~tqc
 
 What is Allreduce
 =====
-The main method provided by rabit are Allreduce and Broadcast. Allreduce performs reduction across different computation nodes,
-and returning the results to all the nodes. To understand the behavior of the function. Consider the following example in [basic.cc](basic.cc).
+The main methods provided by rabit are Allreduce and Broadcast. Allreduce performs reduction across different computation nodes,
+and returns the result to every node. To understand the behavior of the function, consider the following example in [basic.cc](basic.cc).
 ```c++
 #include <rabit.h>
 using namespace rabit;
@@ -41,24 +41,24 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 ```
-You can run the example using the rabit_demo.py script. The following commmand
-start rabit program with two worker processes.
+You can run the example using the rabit_demo.py script. The following command
+starts the rabit program with two worker processes.
 ```bash
 ../tracker/rabit_demo.py -n 2 basic.rabit
 ```
-This will start two process, one process with rank 0 and another rank 1, running the same code.
-The ```rabit::GetRank()``` function return the rank of current process.
+This will start two processes, one process with rank 0 and the other with rank 1, both processes run the same code.
+The ```rabit::GetRank()``` function returns the rank of current process.
 
-Before the call the allreduce, process 0 contains array ```a = {0, 1, 2}```, while process 1 have array 
-```a = {1, 2, 3}```. After the call of Allreduce, the array contents in all processes are replaced by the
-reduction result (in this case, the maximum value in each position across all the processes). So after the
+Before the call to Allreduce, process 0 contains the array ```a = {0, 1, 2}```, while process 1 has the array 
+```a = {1, 2, 3}```. After the call to Allreduce, the array contents in all processes are replaced by the
+reduction result (in this case, the maximum value in each position across all the processes). So, after the
 Allreduce call, the result will become ```a = {1, 2, 3}```.
-Rabit provides different reduction operators, for example,  you can change ```op::Max``` to ```op::Sum```,
-then the reduction operation will become the summation, and the result will become ```a = {1, 3, 5}```.
-You can also run example with different processes by setting -n to different values, to see the outcomming result.
+Rabit provides different reduction operators, for example,  if you change ```op::Max``` to ```op::Sum```,
+the reduction operation will be a summation, and the result will become ```a = {1, 3, 5}```.
+You can also run the example with different processes by setting -n to different values.
 
-Broadcast is another method provided by rabit besides Allreduce, this function allows one node to broadcast its
-local data to all the other nodes. The following code in [broadcast.cc](broadcast.cc) broadcast a string from
+Broadcast is another method provided by rabit besides Allreduce. This function allows one node to broadcast its
+local data to all other nodes. The following code in [broadcast.cc](broadcast.cc) broadcasts a string from
 node 0 to all other nodes.
 ```c++
 #include <rabit.h>
@@ -78,30 +78,29 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 ```
-You can run the program by the following command, using three workers.
+The following command starts the program with three worker processes.
 ```bash
 ../tracker/rabit_demo.py -n 3 broadcast.rabit
 ```
-Besides string, rabit also allows broadcast of constant size array and vector.
+Besides strings, rabit also allows to broadcast constant size array and vectors.
 
 Common Use Case
 =====
-Many distributed machine learning algorithm involves dividing the data into each node,
-compute statistics locally and aggregates them together. Such process is usually done repeatively in 
-many iterations before the algorithm converge. Allreduce naturally meets the need of such programs,
+Many distributed machine learning algorithms involve splitting the data into different nodes,
+computing statistics locally, and finally aggregating them. Such workflow is usually done repetitively through  
+many iterations before the algorithm converges. Allreduce naturally meets the structure of such programs,
 common use cases include:
 
 * Aggregation of gradient values, which can be used in optimization methods such as L-BFGS.
-* Aggregation of other statistics, which can be used in KMeans and Gaussian Mixture Model.
+* Aggregation of other statistics, which can be used in KMeans and Gaussian Mixture Models.
 * Find the best split candidate and aggregation of split statistics, used for tree based models.
 
-The main purpose of Rabit is to provide reliable and portable library for distributed machine learning programs.
-So that the program can be run reliably on different types of platforms.
+Rabit is a reliable and portable library for distributed machine learning programs, that allow programs to run reliably on different platforms.
 
-Structure of Rabit Program
+Structure of a Rabit Program
 =====
-The following code illustrates the common structure of rabit program. This is an abstract example,
-you can also refer to [kmeans.cc](../toolkit/kmeans.cc) for an example implementation of kmeans.
+The following code illustrates the common structure of a rabit program. This is an abstract example,
+you can also refer to [kmeans.cc](../toolkit/kmeans.cc) for an example implementation of kmeans algorithm.
 
 ```c++
 #include <rabit.h>
@@ -127,65 +126,65 @@ int main(int argc, char *argv[]) {
 }
 ```
 
-Besides the common Allreduce and Broadcast function, there are two additional functions: ```CheckPoint```
-and ```CheckPoint```. These two functions are used for fault-tolerance purpose. 
-Common machine learning programs involves several iterations. In each iteration, we start from a model, do some calls
-to Allreduce or Broadcasts and update the model to a new one. The calling sequence in each iteration does not need to be the same.
+Besides the common Allreduce and Broadcast functions, there are two additional functions: ```LoadCheckPoint```
+and ```CheckPoint```. These two functions are used for fault-tolerance purposes. 
+As mentioned before, traditional machine learning programs involve several iterations. In each iteration, we start with a model, make some calls
+to Allreduce or Broadcast and update the model. The calling sequence in each iteration does not need to be the same.
 
-* When the nodes start from beginning, LoadCheckPoint returns 0, and we can initialize the model.
+* When the nodes start from the beginning (i.e. iteration 0), LoadCheckPoint returns 0, so we can initialize the model.
 * ```CheckPoint``` saves the model after each iteration.
-  - Efficiency Note: the model is only kept in local memory and no save to disk is involved in Checkpoint
+  - Efficiency Note: the model is only kept in local memory and no save to disk is performed when calling Checkpoint
 * When a node goes down and restarts, ```LoadCheckPoint``` will recover the latest saved model, and 
-* When a node goes down, the rest of the node will block in the call of Allreduce/Broadcast and helps 
-  the recovery of the failure nodes, util it catches up. 
+* When a node goes down, the rest of the nodes will block in the call of Allreduce/Broadcast and wait for 
+  the recovery of the failed node until it catches up. 
 
-Please also see the section of [fault tolerance procedure](#fault-tolerance) in rabit to understand the recovery procedure under going in rabit
+Please see the [fault tolerance procedure](#fault-tolerance) section to understand the recovery procedure executed by rabit.
 
 Compile Programs with Rabit
 ====
 Rabit is a portable library, to use it, you only need to include the rabit header file.
-* You will need to add path to [../include](../include) to the header search path of compiler
+* You will need to add the path to [../include](../include) to the header search path of the compiler
   - Solution 1: add ```-I/path/to/rabit/include``` to the compiler flag in gcc or clang
-  - Solution 2: add the path to enviroment variable CPLUS_INCLUDE_PATH
-* You will need to add path to [../lib](../lib) to the library search path of compiler
+  - Solution 2: add the path to the environment variable CPLUS_INCLUDE_PATH
+* You will need to add the path to [../lib](../lib) to the library search path of the compiler
   - Solution 1: add ```-L/path/to/rabit/lib``` to the linker flag
-  - Solution 2: add the path to enviroment variable LIBRARY_PATH AND LD_LIBRARY_PATH
+  - Solution 2: add the path to environment variable LIBRARY_PATH AND LD_LIBRARY_PATH
 * Link against lib/rabit.a
-  - Add ```-lrabit``` to linker flag
+  - Add ```-lrabit``` to the linker flag
 
-The procedure above allows you to compile a program with rabit. The following two sections are additional
-advanced options you can take to link against different backend other than the normal one.
+The procedure above allows you to compile a program with rabit. The following two sections contain additional
+options you can use to link against different backends other than the normal one.
 
 #### Link against MPI Allreduce
-You can link against ```rabit_mpi.a``` instead to use MPI Allreduce, however, the resulting program is backed by MPI and
+You can link against ```rabit_mpi.a``` instead of using MPI Allreduce, however, the resulting program is backed by MPI and
 is not fault tolerant anymore.
-* Simply change linker flag from ```-lrabit``` to ```-lrabit_mpi```
+* Simply change the linker flag from ```-lrabit``` to ```-lrabit_mpi```
 * The final linking needs to be done by mpi wrapper compiler ```mpicxx```
 
 #### Link against Mock Test Rabit Library
-If you want to mock test the program to see the behavior of the code when some nodes goes down. You can link against ```rabit_mock.a``` .
-* Simply change linker flag from ```-lrabit``` to ```-lrabit_mock```
+If you want to use a mock to test the program in order to see the behavior of the code when some nodes go down, you can link against ```rabit_mock.a``` .
+* Simply change the linker flag from ```-lrabit``` to ```-lrabit_mock```
 
-The resulting rabit program can take in additional arguments in format of 
+The resulting rabit mock program can take in additional arguments in the following format
 ```
-mock=rank,version,seq,ndeath 
+mock=rank,version,seq,ndeath
 ```
 
-The four integers specifies an event that will cause the program to suicide(exit with -2)
-* rank specifies the rank of the node
-* version specifies the current version(iteration) of the model
-* seq specifies the sequence number of Allreduce/Broadcast call since last checkpoint
+The four integers specify an event that will cause the program to ```commit suicide```(exit with -2)
+* rank specifies the rank of the node to kill
+* version specifies the version (iteration) of the model where you want the process to die
+* seq specifies the sequence number of the Allreduce/Broadcast call since last checkpoint, where the process will be killed
 * ndeath specifies how many times this node died already
 
-For example, consider the  following script in the test case
+For example, consider the following script in the test case
 ```bash
 ../tracker/rabit_demo.py -n 10 test_model_recover 10000\
                          mock=0,0,1,0 mock=1,1,1,0 mock=1,1,1,1
 ```
-* The first mock will cause node 0 to exit when calling second Allreduce/Broadcast (seq = 1) in iteration 0
-* The second mock will cause node 1 to exit when calling second Allreduce/Broadcast (seq = 1) in iteration 1
-* The second mock will cause node 0 to exit again when calling second Allreduce/Broadcast (seq = 1) in iteration 1
-  - Note that ndeath = 1 means this will happen only if node 0 died once, which is our case
+* The first mock will cause node 0 to exit when calling the second Allreduce/Broadcast (seq = 1) in iteration 0
+* The second mock will cause node 1 to exit when calling the second Allreduce/Broadcast (seq = 1) in iteration 1
+* The third mock will cause node 1 to exit again when calling second Allreduce/Broadcast (seq = 1) in iteration 1
+  - Note that ndeath = 1 means this will happen only if node 1 died once, which is our case
 
 Running Rabit Jobs
 ====
