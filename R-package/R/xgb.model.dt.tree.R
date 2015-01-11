@@ -99,6 +99,9 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     
     tree <- text[(position[i]+1):(position[i+1]-1)]
     
+    # avoid tree made of a leaf only (no split)
+    if(length(tree) <2) break
+    
     treeID <- i-1
     
     notLeaf <- str_match(tree, "leaf") %>% is.na
@@ -129,7 +132,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
   }
   
   yes <- allTrees[!is.na(Yes),Yes]
-  
+                                                                                      
   set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
       j = "Yes.Feature", 
       value = allTrees[ID == yes,Feature])
