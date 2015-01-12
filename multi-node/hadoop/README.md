@@ -9,7 +9,7 @@ Distributed XGBoost: Hadoop Version
 Before you run the script
 ====
 * Make sure you have set up the hadoop environment.
-* If you want to only use single machine multi-threading, tryout single machine examples in the [demo folder](../../demo).
+* If you want to only use single machine multi-threading, try single machine examples in the [demo folder](../../demo).
 * Build: run ```bash build.sh``` in the root folder, it will automatically download rabit and build xgboost.
 * Check whether the environment variable $HADOOP_HOME exists (e.g. run ```echo $HADOOP_HOME```). If not, please set up hadoop-streaming.jar path in rabit_hadoop.py.
 
