@@ -1,6 +1,6 @@
 Distributed XGBoost: Hadoop Version
 ====
-* Hadoop version: run ```bash run_binary_classification.sh <n_hadoop_workers> <path_in_HDFS>```
+* Hadoop version: run ```bash run_binary_classification.sh <n_hadoop_workers> <n_thread_per_worker> <path_in_HDFS>```
   - This is the hadoop version of binary classification example in the demo folder.
 
 How to Use
@@ -9,7 +9,7 @@ How to Use
 
 Notes
 ====
-* The code has been tested on MapReduce 1 (MRv1), it should be ok to run on MapReduce 2 (MRv2, YARN).
-* The code is multi-threaded, so you want to run one xgboost per node/worker, which means the parameter <n_workers> should be less than the number of slaves/workers. 
-* The hadoop version now can only save the final model and evaluate test data locally after the training process.
-
+* The code has been tested on MapReduce 1 (MRv1) and YARN, it recommended run on MapReduce 2 (MRv2, YARN).
+* The code is multi-threaded, so you want to run one xgboost per node/worker, which means you want to set <n_thread_per_worker> to be number of cores you have on each machine.
+  - You will need YARN to set specify number of cores of each worker
+* The hadoop version save the final model into HDFS
