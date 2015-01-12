@@ -1,7 +1,7 @@
 #!/usr/bin/python
 """
-This is a script to submit rabit job using hadoop streaming
-submit the rabit process as mappers of MapReduce
+This is a script to submit rabit job using hadoop streaming.
+It will submit the rabit process as mappers of MapReduce.
 """
 import argparse
 import sys
@@ -21,16 +21,16 @@ hadoop_home = os.getenv('HADOOP_HOME')
 if hadoop_home != None:
     if hadoop_binary == None:
         hadoop_binary = hadoop_home + '/bin/hadoop'
-        assert os.path.exists(hadoop_binary), "HADDOP_HOME does not contain the hadoop binary"
+        assert os.path.exists(hadoop_binary), "HADOOP_HOME does not contain the hadoop binary"
     if hadoop_streaming_jar == None:
         hadoop_streaming_jar = hadoop_home + '/lib/hadoop-streaming.jar'
-        assert os.path.exists(hadoop_streaming_jar), "HADDOP_HOME does not contain the haddop streaming jar"
+        assert os.path.exists(hadoop_streaming_jar), "HADOOP_HOME does not contain the hadoop streaming jar"
 
 if hadoop_binary == None or hadoop_streaming_jar == None:
-    warnings.warn('Warning: Cannot auto-detect path to hadoop and hadoop-streaming jar\n'\
+    warnings.warn('Warning: Cannot auto-detect path to hadoop or hadoop-streaming jar\n'\
                       '\tneed to set them via arguments -hs and -hb\n'\
                       '\tTo enable auto-detection, you can set enviroment variable HADOOP_HOME'\
-                      ', or modify rabit_hadoop.py line 14')
+                      ', or modify rabit_hadoop.py line 16')
 
 parser = argparse.ArgumentParser(description='Rabit script to submit rabit jobs using Hadoop Streaming.'\
                                      'This script support both Hadoop 1.0 and Yarn(MRv2), Yarn is recommended')
@@ -59,22 +59,22 @@ parser.add_argument('--timeout', default=600000000, type=int,
                     help = 'timeout (in million seconds) of each mapper job, automatically set to a very long time,'\
                         'normally you do not need to set this ')
 parser.add_argument('-mem', '--memory_mb', default=-1, type=int,
-                    help = 'maximum memory used by the process, Guide: set it large (near mapred.cluster.max.map.memory.mb)'\
+                    help = 'maximum memory used by the process. Guide: set it large (near mapred.cluster.max.map.memory.mb)'\
                         'if you are running multi-threading rabit,'\
                         'so that each node can occupy all the mapper slots in a machine for maximum performance')
 if hadoop_binary == None:
     parser.add_argument('-hb', '--hadoop_binary', required = True,
-                        help="path-to-hadoop binary folder")  
+                        help="path to hadoop binary folder")  
 else:
     parser.add_argument('-hb', '--hadoop_binary', default = hadoop_binary, 
-                        help="path-to-hadoop binary folder")  
+                        help="path to hadoop binary folder")  
 
 if hadoop_streaming_jar == None:
     parser.add_argument('-hs', '--hadoop_streaming_jar', required = True,
-                        help='path-to hadoop streamimg jar file')
+                        help='path to hadoop streamimg jar file')
 else:
     parser.add_argument('-hs', '--hadoop_streaming_jar', default = hadoop_streaming_jar,
-                        help='path-to hadoop streamimg jar file')
+                        help='path to hadoop streamimg jar file')
 parser.add_argument('command', nargs='+',
                     help = 'command for rabit program')
 args = parser.parse_args()
