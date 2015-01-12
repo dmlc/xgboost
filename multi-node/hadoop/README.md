@@ -35,7 +35,9 @@ If you have used xgboost (single machine version) before, this section will show
 * The model saved by hadoop version is compatible with single machine version.
 
 Notes
-====       
-* The code has been tested on MapReduce 1 (MRv1) and YARN, it recommended run on MapReduce 2 (MRv2, YARN).
-* The code is multi-threaded, so you want to run one xgboost per node/worker, which means you want to set <n_thread_per_worker> to be number of cores you have on each machine.
+====
+* The code has been tested on MapReduce 1 (MRv1) and YARN.
+  - We recommend to run it on MapReduce 2 (MRv2, YARN) so that multi-threading can be enabled.
+* The code is optimized with multi-threading, so you will want to run one xgboost per node/worker for best performance.
+  - You will want to set <n_thread_per_worker> to be number of cores you have on each machine.
   - You will need YARN to set specify number of cores of each worker
