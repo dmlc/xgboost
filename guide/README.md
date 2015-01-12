@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
   if (version == 0) model.InitModel();
   // the version number marks the iteration to resume
   for (int iter = version; iter < max_iter; ++iter) {
-    // model should be sufficient variable at this point
+    // at this point, the model object should allow us to recover the program state
     ...
     // each iteration can contain multiple calls of allreduce/broadcast
     rabit::Allreduce(&data[0], n);
