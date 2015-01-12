@@ -64,10 +64,10 @@ parser.add_argument('-mem', '--memory_mb', default=-1, type=int,
                         'so that each node can occupy all the mapper slots in a machine for maximum performance')
 if hadoop_binary == None:
     parser.add_argument('-hb', '--hadoop_binary', required = True,
-                        help="path to hadoop binary folder")  
+                        help="path to hadoop binary file")  
 else:
     parser.add_argument('-hb', '--hadoop_binary', default = hadoop_binary, 
-                        help="path to hadoop binary folder")  
+                        help="path to hadoop binary file")  
 
 if hadoop_streaming_jar == None:
     parser.add_argument('-hs', '--hadoop_streaming_jar', required = True,
