@@ -9,10 +9,10 @@ fi
 hadoop fs -mkdir $3/data
 hadoop fs -put ../../demo/data/agaricus.txt.train $3/data
 
-../../rabit/tracker/rabit_hadoop.py  -n $1 -nt $2 -i $3/data/agaricus.txt.train -o $3/model ../../xgboost mushroom.hadoop.conf  nthread=$2
+../../rabit/tracker/rabit_hadoop.py  -n $1 -nt $2 -i $3/data/agaricus.txt.train -o $3/mushroom.final.model ../../xgboost mushroom.hadoop.conf  nthread=$2
 
 # get the final model file
-hadoop fs -get $3/model/part-00000 ./final.model
+hadoop fs -get $3/mushroom.final.model/part-00000 ./final.model
 
 # output prediction task=pred 
 ../../xgboost mushroom.hadoop.conf task=pred model_in=final.model test:data=../../demo/data/agaricus.txt.test
