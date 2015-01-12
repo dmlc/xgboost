@@ -197,12 +197,9 @@ Rabit is a portable library that can run on multiple platforms.
 * You can use [../tracker/rabit_hadoop.py](../tracker/rabit_hadoop.py) to run rabit programs on hadoop
 * This will start n rabit programs as mappers of MapReduce
 * Each program can read its portion of data from stdin
-* Yarn is highly recommended, since Yarn allows specifying number of cpus and memory of each mapper:
+* Yarn(Hadoop 2.0 or higher) is highly recommended, since Yarn allows specifying number of cpus and memory of each mapper:
   - This allows multi-threading programs in each node, which can be more efficient
   - An easy multi-threading solution could be to use OpenMP with rabit code
-
-#### Running Rabit on Yarn
-* To Be modified from [../tracker/rabit_hadoop.py](../tracker/rabit_hadoop.py)
 
 #### Running Rabit using MPI
 * You can submit rabit programs to an MPI cluster using [../tracker/rabit_mpi.py](../tracker/rabit_mpi.py).

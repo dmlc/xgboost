@@ -89,8 +89,7 @@ assert out[0] == 'Hadoop', 'cannot parse hadoop version string'
 hadoop_version = out[1].split('.')
 use_yarn = int(hadoop_version[0]) >= 2
 
-if not use_yarn:
-    print 'Current Hadoop Version is %s' % out[1]
+print 'Current Hadoop Version is %s' % out[1]
 
 def hadoop_streaming(nworker, worker_args, use_yarn):
     fset = set()
