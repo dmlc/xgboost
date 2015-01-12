@@ -20,7 +20,7 @@ How to Use
 * Use rabit ```rabit_hadoop.py``` to submit training task to hadoop, and save the final model file.
 * Get the final model file from HDFS, and locally do prediction as well as visualization of model.
 
-XGBoost: Single machine verison vs Hadoop version
+Single machine vs Hadoop version
 ====
 If you have used xgboost (single machine version) before, this section will show you how to run xgboost on hadoop with a slight modification on conf file.
 * Hadoop version needs to set up how many slave nodes/machines/workers you would like to use at first.
@@ -31,8 +31,8 @@ If you have used xgboost (single machine version) before, this section will show
   - The local path of cached files in command is "./".
   - Since the cached files will be packaged and delivered to hadoop slave nodes, the cached file should not be large. For instance, trying to cache files of GB size may reduce the performance.
 * Hadoop version also support evaluting each training round. You just need to modify parameters "eval_train".
-* Hadoop version now only saves the final model.
-* More details of submission can be referred to the usage of ```rabit_hadoop.py```.  
+* More details of submission can be referred to the usage of ```rabit_hadoop.py```.
+* The model saved by hadoop version is compatible with single machine version.
 
 Notes
 ====       
