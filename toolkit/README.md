@@ -25,7 +25,7 @@ Let's go over a more detailed example...
 
 Download the smallwiki dataset used in the Machine Learning for Big Data class at University of Washington.
 
-wget http://courses.cs.washington.edu/courses/cse547/14wi/datasets/smallwiki.zip
+http://courses.cs.washington.edu/courses/cse547/14wi/datasets/smallwiki.zip
 
 Unzip it, you should find three files:
 * tfidf.txt: each row is in the form of “docid||termid1:tfidf1,termid2:tfidf2,...
@@ -79,7 +79,7 @@ You will need to have a MPI cluster installed, for example OpenMPI. In order to 
 
 #### Running with Mock
 
-As previously mentioned, you can execute the kmeans example, an any of your own, with the mock binary. This will allow you to test error conditions while you are developing your algorithms. As explained in the Tutorial, passing the script certain parameters (e.g. mock=0,0,1,0) will cause certain node to exit after calling Allreduce/Broadcast in certain iteration. For more details refer to the [guide](./guide).
+As previously mentioned, you can execute the kmeans example, an any of your own, with the mock binary. This will allow you to test error conditions while you are developing your algorithms. As explained in the [Tutorial](../guide), passing the script certain parameters (e.g. mock=0,0,1,0) will cause certain node to exit after calling Allreduce/Broadcast in some iteration.
 
 #### Processing Output
 
