@@ -223,7 +223,7 @@ def load_model__(ptr, length):
         length: int
             the length of buffer
     """
-    data = (ctypes.c_char * length).from_address(addressof(ptr.contents))
+    data = (ctypes.c_char * length).from_address(ctypes.addressof(ptr.contents))
     return pickle.loads(data.raw)
 
 def load_checkpoint(with_local = False):
