@@ -1,20 +1,23 @@
 export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
-export LDFLAGS=
+export LDFLAGS= -Llib
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -Iinclude
 
 # build path
 BPATH=.
 # objectives that makes up rabit library
 MPIOBJ= $(BPATH)/engine_mpi.o
-OBJ= $(BPATH)/allreduce_base.o $(BPATH)/allreduce_robust.o $(BPATH)/engine.o $(BPATH)/engine_empty.o $(BPATH)/engine_mock.o
+OBJ= $(BPATH)/allreduce_base.o $(BPATH)/allreduce_robust.o $(BPATH)/engine.o $(BPATH)/engine_empty.o $(BPATH)/engine_mock.o\
+	$(BPATH)/rabit_wrapper.o
+SLIB= wrapper/librabit_wrapper.so
 ALIB= lib/librabit.a lib/librabit_mpi.a lib/librabit_empty.a lib/librabit_mock.a
 HEADERS=src/*.h include/*.h include/rabit/*.h
-.PHONY: clean all install mpi
+.PHONY: clean all install mpi python
 
-all: lib/librabit.a lib/librabit_mock.a
+all: lib/librabit.a lib/librabit_mock.a $(SLIB)
 mpi: lib/librabit_mpi.a
+python: wrapper/librabit_wrapper.so
 
 $(BPATH)/allreduce_base.o: src/allreduce_base.cc $(HEADERS)
 $(BPATH)/engine.o: src/engine.cc $(HEADERS)
@@ -27,6 +30,9 @@ lib/librabit.a: $(BPATH)/allreduce_base.o $(BPATH)/allreduce_robust.o $(BPATH)/e
 lib/librabit_mock.a: $(BPATH)/allreduce_base.o $(BPATH)/allreduce_robust.o $(BPATH)/engine_mock.o
 lib/librabit_empty.a: $(BPATH)/engine_empty.o
 lib/librabit_mpi.a: $(MPIOBJ)
+# wrapper code
+$(BPATH)/rabit_wrapper.o: wrapper/rabit_wrapper.cc
+wrapper/librabit_wrapper.so: $(BPATH)/rabit_wrapper.o lib/librabit.a
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
@@ -36,6 +42,9 @@ $(MPIOBJ) :
 
 $(ALIB):
 	ar cr $@ $+
+
+$(SLIB) :
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^)
 
 clean:
 	$(RM) $(OBJ) $(MPIOBJ) $(ALIB) $(MPIALIB) *~ src/*~ include/*~ include/*/*~
