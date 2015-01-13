@@ -262,5 +262,5 @@ In order to make the library available for a wider range of developers, we decid
 
 Developers can now program rabit applications in Python! We provide a couple of examples:
 
-* [./basic.py](./basic.py) : [./basic.cc] counterpart, explained above.
-* [./broadcast.py](./broadcast.py) : [./broadcast.cc] counterpart, explained above.
+* [./basic.py](./basic.py) : [./basic.cc](./basic.cc) counterpart, explained above.
+* [./broadcast.py](./broadcast.py) : [./broadcast.cc](./broadcast.cc) counterpart, explained above.
