@@ -18,12 +18,28 @@ namespace mpi {
 template<typename DType>
 inline DataType GetType(void);
 template<>
+inline DataType GetType<char>(void) {
+  return kChar;
+}
+template<>
+inline DataType GetType<unsigned char>(void) {
+  return kUChar;
+}
+template<>
 inline DataType GetType<int>(void) {
   return kInt;
 }
 template<>
 inline DataType GetType<unsigned>(void) {
   return kUInt;
+}
+template<>
+inline DataType GetType<long>(void) {
+  return kLong;
+}
+template<>
+inline DataType GetType<unsigned long>(void) {
+  return kULong;
 }
 template<>
 inline DataType GetType<float>(void) {

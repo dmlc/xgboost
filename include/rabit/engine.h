@@ -146,14 +146,21 @@ IEngine *GetEngine(void);
 namespace mpi {
 /*!\brief enum of all operators */
 enum OpType {
-  kMax, kMin, kSum, kBitwiseOR
+  kMax = 0,
+  kMin = 1,
+  kSum = 2,
+  kBitwiseOR = 3
 };
 /*!\brief enum of supported data types */
 enum DataType {
-  kInt,
-  kUInt,
-  kDouble,
-  kFloat
+  kChar = 0,
+  kUChar = 1,
+  kInt = 2,
+  kUInt = 3,
+  kLong = 4,
+  kULong = 5,
+  kFloat = 6,
+  kDouble = 7
 };
 }  // namespace mpi
 /*!

@@ -95,8 +95,12 @@ IEngine *GetEngine(void) {
 inline MPI::Datatype GetType(mpi::DataType dtype) {
   using namespace mpi;
   switch (dtype) {
+    case kChar: return MPI::CHAR;
+    case kUChar: return MPI::BYTE;
     case kInt: return MPI::INT;
     case kUInt: return MPI::UNSIGNED;
+    case kLong: return MPI::LONG;
+    case kULong: return MPI::UNSIGNED_LONG;
     case kFloat: return MPI::FLOAT;
     case kDouble: return MPI::DOUBLE;
   }

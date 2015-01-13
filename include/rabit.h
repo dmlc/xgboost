@@ -51,7 +51,7 @@ struct Sum;
 struct BitOR;
 }  // namespace op
 /*!
- * \brief intialize the rabit module, call this once function before using anything
+ * \brief intialize the rabit module, call this once before using anything
  * \param argc number of arguments in argv
  * \param argv the array of input arguments
  */
