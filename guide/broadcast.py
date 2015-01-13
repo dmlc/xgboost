@@ -5,7 +5,8 @@ demo python script of rabit
 import os
 import sys
 # add path to wrapper
-sys.path.append(os.path.dirname(__file__) + '/../wrapper')
+# for normal run without tracker script, add following line
+# sys.path.append(os.path.dirname(__file__) + '/../wrapper')
 import rabit
 
 rabit.init()

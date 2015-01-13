@@ -9,6 +9,7 @@ import os
 import subprocess
 from threading import Thread
 import rabit_tracker as tracker
+WRAPPER_PATH = os.path.dirname(__file__) + '/../wrapper'
 
 parser = argparse.ArgumentParser(description='Rabit script to submit rabit job locally using python subprocess')
 parser.add_argument('-n', '--nworker', required=True, type=int,
@@ -25,8 +26,9 @@ def exec_cmd(cmd, taskid):
     cmd = ' '.join(cmd)
     ntrial = 0
     while True:
+        prep = 'PYTHONPATH=\"%s\" ' % WRAPPER_PATH
         arg = ' rabit_task_id=%d rabit_num_trial=%d' % (taskid, ntrial)        
-        ret = subprocess.call(cmd + arg, shell = True)
+        ret = subprocess.call(prep + cmd + arg, shell = True)
         if ret == 254 or ret == -2:
             ntrial += 1
             continue

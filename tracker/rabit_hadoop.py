@@ -11,6 +11,7 @@ import subprocess
 import warnings
 import rabit_tracker as tracker
 
+WRAPPER_PATH = os.path.dirname(__file__) + '/../wrapper'
 
 #!!! Set path to hadoop and hadoop streaming jar here
 hadoop_binary = 'hadoop'
@@ -102,6 +103,13 @@ def hadoop_streaming(nworker, worker_args, use_yarn):
                     args.command[i] = './' + args.command[i].split('/')[-1]                    
                 else:
                     args.command[i] = args.command[i].split('/')[-1]    
+    if args.commands[0].endswith('.py'):
+        flst = [WRAPPER_PATH + '/rabit.py',
+                WRAPPER_PATH + '/librabit_wrapper.so',
+                WRAPPER_PATH + '/librabit_wrapper_mock.so']
+        for f in flst:
+            if os.path.exists(f):
+                fset.add(f)            
     kmap = {}
     # setup keymaps
     if use_yarn:

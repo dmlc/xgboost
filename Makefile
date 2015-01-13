@@ -10,14 +10,14 @@ BPATH=.
 MPIOBJ= $(BPATH)/engine_mpi.o
 OBJ= $(BPATH)/allreduce_base.o $(BPATH)/allreduce_robust.o $(BPATH)/engine.o $(BPATH)/engine_empty.o $(BPATH)/engine_mock.o\
 	$(BPATH)/rabit_wrapper.o
-SLIB= wrapper/librabit_wrapper.so
+SLIB= wrapper/librabit_wrapper.so wrapper/librabit_wrapper_mock.so
 ALIB= lib/librabit.a lib/librabit_mpi.a lib/librabit_empty.a lib/librabit_mock.a
 HEADERS=src/*.h include/*.h include/rabit/*.h
 .PHONY: clean all install mpi python
 
 all: lib/librabit.a lib/librabit_mock.a $(SLIB)
 mpi: lib/librabit_mpi.a
-python: wrapper/librabit_wrapper.so
+python: wrapper/librabit_wrapper.so wrpper/librabit_wrapper_mock.so
 
 $(BPATH)/allreduce_base.o: src/allreduce_base.cc $(HEADERS)
 $(BPATH)/engine.o: src/engine.cc $(HEADERS)
@@ -33,6 +33,7 @@ lib/librabit_mpi.a: $(MPIOBJ)
 # wrapper code
 $(BPATH)/rabit_wrapper.o: wrapper/rabit_wrapper.cc
 wrapper/librabit_wrapper.so: $(BPATH)/rabit_wrapper.o lib/librabit.a
+wrapper/librabit_wrapper_mock.so: $(BPATH)/rabit_wrapper.o lib/librabit_mock.a
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )

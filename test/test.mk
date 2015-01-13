@@ -9,12 +9,6 @@ endif
 .PHONY: model_recover local_recover speed
 
 
-local_recover:
-	../tracker/rabit_demo.py -n $(nslave)  test_local_recover $(ndata) rabit_local_replica=1
-
-local_recover_10_10k:
-	../tracker/rabit_demo.py -n 10  test_local_recover 10000 rabit_local_replica=1
-
 # this experiment test recovery with actually process exit, use keepalive to keep program alive
 model_recover_10_10k:
 	../tracker/rabit_demo.py -n 10 test_model_recover 10000 mock=0,0,1,0 mock=1,1,1,0

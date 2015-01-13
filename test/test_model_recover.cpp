@@ -5,30 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
-#include "./mock.h"
-
 using namespace rabit;
-namespace rabit {
-namespace test {
-inline void CallBegin(const char *fun, int ntrial, int iter) {
-  return;
-  int rank = rabit::GetRank();
-  if (!strcmp(fun, "Allreduce::Sum")) {
-    if (ntrial == iter && rank == 0) exit(-1);
-  }
-  if (!strcmp(fun, "Allreduce::Max")) {
-    if (ntrial == iter && rank == 3) exit(-1);
-  }
-}
-inline void CallEnd(const char *fun, int ntrial, int iter) {
-  return;
-  int rank = rabit::GetRank();
-  if (!strcmp(fun, "Allreduce::Bcast")) {
-    if (ntrial == iter && rand() % 10 == rank) exit(-1);
-  }
-}
-}
-}
 
 // dummy model
 class Model : public rabit::ISerializable {
@@ -58,9 +35,7 @@ inline void TestMax(Model *model, int ntrial, int iter) {
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % z  + model->data[i];
   }
-  test::CallBegin("Allreduce::Max", ntrial, iter);
   rabit::Allreduce<op::Max>(&ndata[0], ndata.size());  
-  test::CallEnd("Allreduce::Max", ntrial, iter);
 
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rmax = (i * 1) % z + model->data[i];
@@ -81,9 +56,7 @@ inline void TestSum(Model *model, int ntrial, int iter) {
   for (size_t i = 0; i < ndata.size(); ++i) {
     ndata[i] = (i * (rank+1)) % z + model->data[i];
   }
-  test::CallBegin("Allreduce::Sum", ntrial, iter);
   Allreduce<op::Sum>(&ndata[0], ndata.size());
-  test::CallEnd("Allreduce::Sum", ntrial, iter);
 
   for (size_t i = 0; i < ndata.size(); ++i) {
     float rsum = model->data[i] * nproc;
@@ -105,13 +78,9 @@ inline void TestBcast(size_t n, int root, int ntrial, int iter) {
   std::string res;
   if (root == rank) {
     res = s;
-    test::CallBegin("Broadcast", ntrial, iter);
     rabit::Broadcast(&res, root);
-    test::CallBegin("Broadcast", ntrial, iter);
   } else {
-    test::CallBegin("Broadcast", ntrial, iter);
     rabit::Broadcast(&res, root);
-    test::CallEnd("Broadcast", ntrial, iter);
   }
   utils::Check(res == s, "[%d] TestBcast fail", rank);
 }
@@ -133,33 +102,25 @@ int main(int argc, char *argv[]) {
     int n;
     if (sscanf(argv[i], "rabit_num_trial=%d", &n) == 1) ntrial = n; 
   } 
-  while (true) {
-    try {
-      int iter = rabit::LoadCheckPoint(&model);
-      if (iter == 0) {
-        model.InitModel(n);
-        printf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
-      } else {
-        printf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
-      }
-      for (int r = iter; r < 3; ++r) { 
-        TestMax(&model, ntrial, r);
-        printf("[%d] !!!TestMax pass, iter=%d\n",  rank, r);  
-        int step = std::max(nproc / 3, 1);
-        for (int i = 0; i < nproc; i += step) {
-          TestBcast(n, i, ntrial, r);
-        }
-        printf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
-        TestSum(&model, ntrial, r);
-        printf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
-        rabit::CheckPoint(&model);
-        printf("[%d] !!!CheckPont pass, iter=%d\n", rank, r);
-      }
-      break;
-    } catch (MockException &e) {
-      rabit::engine::GetEngine()->InitAfterException();
-      ++ntrial;
+  int iter = rabit::LoadCheckPoint(&model);
+  if (iter == 0) {
+    model.InitModel(n);
+    printf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
+  } else {
+    printf("[%d] reload-trail=%d, init iter=%d\n", rank, ntrial, iter);
+  }
+  for (int r = iter; r < 3; ++r) { 
+    TestMax(&model, ntrial, r);
+    printf("[%d] !!!TestMax pass, iter=%d\n",  rank, r);  
+    int step = std::max(nproc / 3, 1);
+    for (int i = 0; i < nproc; i += step) {
+      TestBcast(n, i, ntrial, r);
     }
+    printf("[%d] !!!TestBcast pass, iter=%d\n", rank, r);
+    TestSum(&model, ntrial, r);
+    printf("[%d] !!!TestSum pass, iter=%d\n", rank, r);
+    rabit::CheckPoint(&model);
+    printf("[%d] !!!CheckPont pass, iter=%d\n", rank, r);
   }
   rabit::Finalize();
   return 0;
