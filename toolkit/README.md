@@ -21,7 +21,7 @@ KMeans currently outputs the centroids as dense vectors. Each line in the output
 
 Let's go over a more detailed example...
 
-#### Preprocess
+#  Preprocess
 
 Download the smallwiki dataset used in the Machine Learning for Big Data class at University of Washington.
 
@@ -40,7 +40,7 @@ The first thing to do is to convert the tfidf file format into the input format 
     example = ' '.join(example)
     print '%s %s' % (1, example)
 ```
-#### Compile
+#  Compile
 
 You will then need to build the KMeans program with ```make```, which will produce three binaries:
 
@@ -48,15 +48,15 @@ You will then need to build the KMeans program with ```make```, which will produ
 * kmeans.mock: uses a mock to simulate error conditions for testing purposes.
 * kmeans.rabit: uses our C++ implementation.
 
-#### Running with Hadoop
+#  Running with Hadoop
  
 If you want to run it with Hadoop, you can execute the [./kmeans_hadoop.sh](./kmeans_hadoop.sh) script from your master node in cluster. 
 You will have to edit the file in order to specify the path to the Hadoop Streaming jar. Afterwards, you can execute it with the following arguments (in the exact same order):
 
 * number of worker nodes in your Hadoop cluster (i.e. number of slave nodes)
 * path to the input data (HDFS path where you put the preprocessed file in libsvm format)
-* number of clusters K
-* number of iterations to perform
+* number of clusters K (let's use 20 for this example)
+* number of iterations to perform (let's use just 5 iterations)
 * output path (HDFS path where to store the output data, must be a non-existent folder)
 
 The current implementation runs for the amount of iterations you specify in the command line argument. If you would like to add some convergence criteria (e.g. when no cluster assignment changes between iterations you stop or something like that) you will have to modify [./kmeans.cc](./kmeans.cc). We leave that as an exercise to the reader :)
@@ -72,16 +72,19 @@ $ ./hadoop fs -put tfidf.libsvm kmeans/in
 $ ./hadoop fs -mkdir kmeans/out
 ```
 
-#### Running with MPI
+#  Running with MPI
 
 You will need to have a MPI cluster installed, for example OpenMPI. In order to run the program, you can use mpirun to submit the job. This is a non-fault tolerant version as it is backed by MPI.
 
 
-#### Running with Mock
+#  Running with Mock
 
 As previously mentioned, you can execute the kmeans example, an any of your own, with the mock binary. This will allow you to test error conditions while you are developing your algorithms. As explained in the [Tutorial](../guide), passing the script certain parameters (e.g. mock=0,0,1,0) will cause certain node to exit after calling Allreduce/Broadcast in some iteration.
 
-#### Processing Output
+You can also run this locally, you will only need to split the input file into several smaller files, each will be used by a particular process in the shared memory environment. You can use some Unix command line tool such as split.
+
+
+#  Processing Output
 
 Once the program finishes running, you can fetch the output from HDFS. For example, inside the bin folder in Hadoop, you can execute the following:
 
