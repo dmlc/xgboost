@@ -7,6 +7,8 @@ import cPickle as pickle
 import ctypes
 import os
 import sys
+import numpy as np
+
 if os.name == 'nt':
     assert False, "Rabit windows is not yet compiled"
 else:
@@ -16,6 +18,12 @@ else:
 rbtlib = ctypes.cdll.LoadLibrary(RABIT_PATH)
 rbtlib.RabitGetRank.restype = ctypes.c_int
 rbtlib.RabitGetWorldSize.restype = ctypes.c_int
+
+# reduction operators
+MAX = 0
+MIN = 1
+SUM = 2
+BITOR = 3
 
 def check_err__():    
     """
@@ -89,12 +97,15 @@ def broadcast(data, root):
 
     Example: the following example broadcast hello from rank 0 to all other nodes
     ```python
-    import rabit
     rabit.init()
-    if rabit.get_rank() == 0:
-        res = rabit.broadcast('hello', 0)
-    else:
-        res = rabit.broadcast(None, 0)
+    n = 3
+    rank = rabit.get_rank()
+    s = None
+    if rank == 0:
+        s = {'hello world':100, 2:3}
+    print '@node[%d] before-broadcast: s=\"%s\"' % (rank, str(s))
+    s = rabit.broadcast(s, 0)
+    print '@node[%d] after-broadcast: s=\"%s\"' % (rank, str(s))
     rabit.finalize()
     ```
     
@@ -103,6 +114,8 @@ def broadcast(data, root):
               input data, if current rank does not equal root, this can be None        
         root: int
               rank of the node to broadcast data from
+    Returns:
+        the result of broadcast
     """
     rank = get_rank()
     length = ctypes.c_ulong()
@@ -124,3 +137,45 @@ def broadcast(data, root):
                           length.value, root)
     check_err__()
     return  pickle.loads(dptr.value)
+
+def allreduce(data, op, prepare_fun = None):
+    """
+    perform allreduce, return the result, this function is not thread-safe
+    Arguments:
+        data: numpy ndarray
+           input data 
+        op: reduction operators, can be MIN, MAX, SUM, BITOR
+        prepare_fun: lambda :
+            Lazy preprocessing function, if it is not None, prepare_fun()
+            will be called by the function before performing allreduce, to intialize the data
+            If the result of Allreduce can be recovered directly, then prepare_fun will NOT be called
+    Returns:
+        the result of allreduce, have same shape as data
+    """
+    if not isinstance(data, np.ndarray):
+        raise Exception('allreduce only takes in numpy.ndarray')
+    buf = data.ravel()
+    if buf.base is data.base:
+        buf = buf.copy()
+    if buf.dtype is np.dtype('int8'):
+        dtype = 0
+    elif buf.dtype is np.dtype('uint8'):
+        dtype = 1
+    elif buf.dtype is np.dtype('int32'):
+        dtype = 2
+    elif buf.dtype is np.dtype('uint32'):
+        dtype = 3
+    elif buf.dtype is np.dtype('int64'):
+        dtype = 4
+    elif buf.dtype is np.dtype('uint64'):
+        dtype = 5
+    elif buf.dtype is np.dtype('float32'):
+        dtype = 6
+    elif buf.dtype is np.dtype('float64'):
+        dtype = 7
+    else:
+        raise Exception('data type %s not supported' % str(buf.dtype))
+    rbtlib.RabitAllreduce(buf.ctypes.data_as(ctypes.c_void_p),
+                          buf.size, dtype, op, None, None);
+    check_err__()
+    return buf
