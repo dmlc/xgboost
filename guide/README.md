@@ -16,6 +16,7 @@ Please also refer to the [API Documentation](http://homes.cs.washington.edu/~tqc
   - [Running Rabit using MPI](#running-rabit-using-mpi)
   - [Customize Tracker Script](#customize-tracker-script)
 * [Fault Tolerance](#fault-tolerance)
+* [Python Wrapper](#python-wrapper)
 
 What is Allreduce
 =====
@@ -255,3 +256,11 @@ touching the disk. This makes rabit programs more reliable and efficient.
 This is just a conceptual introduction to rabit's fault tolerance model. The actual implementation is more sophisticated,
 and can deal with more complicated cases such as multiple nodes failure and node failure during recovery phase.
 
+Python Wrapper
+=====
+In order to make the library available for a wider range of developers, we decided to provide a python wrapper to our C++ code.
+
+Developers can now program rabit applications in Python! We provide a couple of examples:
+
+* [./basic.py](./basic.py) : [./basic.cc] counterpart, explained above.
+* [./broadcast.py](./broadcast.py) : [./broadcast.cc] counterpart, explained above.
