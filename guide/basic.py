@@ -21,4 +21,3 @@ print '@node[%d] before-allreduce: a=%s' % (rank, str(a))
 a = rabit.allreduce(a, rabit.MAX)
 print '@node[%d] after-allreduce: a=%s' % (rank, str(a))
 rabit.finalize()
-

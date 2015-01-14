@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
     // at this point, the model object should allow us to recover the program state
     ...
     // each iteration can contain multiple calls of allreduce/broadcast
-    rabit::Allreduce(&data[0], n);
+    rabit::Allreduce<rabit::op::Max>(&data[0], n);
     ...
     // checkpoint model after one iteration finishes
     rabit::CheckPoint(&model);

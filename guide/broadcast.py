@@ -20,4 +20,3 @@ s = rabit.broadcast(s, 0)
 
 print '@node[%d] after-broadcast: s=\"%s\"' % (rank, str(s))
 rabit.finalize()
-
