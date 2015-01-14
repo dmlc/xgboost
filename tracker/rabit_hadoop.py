@@ -103,7 +103,7 @@ def hadoop_streaming(nworker, worker_args, use_yarn):
                     args.command[i] = './' + args.command[i].split('/')[-1]                    
                 else:
                     args.command[i] = args.command[i].split('/')[-1]    
-    if args.commands[0].endswith('.py'):
+    if args.command[0].endswith('.py'):
         flst = [WRAPPER_PATH + '/rabit.py',
                 WRAPPER_PATH + '/librabit_wrapper.so',
                 WRAPPER_PATH + '/librabit_wrapper_mock.so']
