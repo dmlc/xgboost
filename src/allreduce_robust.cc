@@ -432,7 +432,7 @@ bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
   // this was old way
   // TryResetLinks still causes possible errors, so not use this one
   while (err_type != kSuccess) {
-    switch (err_type) {
+    switch (err_type.value) {
       case kGetExcept: err_type = TryResetLinks(); break;
       case kSockError: {
         TryResetLinks();

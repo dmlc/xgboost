@@ -561,8 +561,9 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
     } else {
       // read from in link
       if (in_link >= 0 && selecter.CheckRead(links[in_link].sock)) {
-        if (!links[in_link].ReadToArray(sendrecvbuf_, total_size)) {
-          return kSockError;
+        ReturnType ret = links[in_link].ReadToArray(sendrecvbuf_, total_size);
+        if (ret != kSuccess) {
+          return ReportError(&links[in_link], ret);
         }
         size_in = links[in_link].size_read;
       }

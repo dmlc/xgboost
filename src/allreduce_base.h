@@ -198,7 +198,7 @@ class AllreduceBase : public IEngine {
 
  protected:
   /*! \brief enumeration of possible returning results from Try functions */
-  enum ReturnType {
+  enum ReturnTypeEnum {
     /*! \brief execution is successful */
     kSuccess,
     /*! \brief a link was reset by peer */
@@ -212,6 +212,20 @@ class AllreduceBase : public IEngine {
      *   get Out-of-Band exception notification from my neighbor
      */
     kGetExcept
+  };
+  /*! \brief struct return type to avoid implicit conversion to int/bool */
+  struct ReturnType {
+    /*! \brief internal return type */
+    ReturnTypeEnum value;
+    // constructor
+    ReturnType() {}
+    ReturnType(ReturnTypeEnum value) : value(value){}
+    inline bool operator==(const ReturnTypeEnum &v) const {
+      return value == v;
+    }
+    inline bool operator!=(const ReturnTypeEnum &v) const {
+      return value != v;
+    }
   };
   /*! \brief translate errno to return type */
   inline static ReturnType Errno2Return(int errsv) {
