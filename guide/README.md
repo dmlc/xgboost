@@ -245,13 +245,25 @@ The scenario is as follows:
 * When node 1 calls the first Allreduce again, as the other nodes already know the result, node 1 can get it from one of them.
 * When node 1 reaches the second Allreduce, the other nodes find out that node 1 has catched up and they can continue the program normally.
 
-This fault tolerance model is based on a key property of Allreduce and Broadcast:
-All the nodes get the same result when calling Allreduce/Broadcast. Because of this property, any node can record the history,
-and when a node recovers, the result can be forwarded to it.
+This fault tolerance model is based on a key property of Allreduce and
+Broadcast: All the nodes get the same result after calling Allreduce/Broadcast.
+Because of this property, any node can record the results of history
+Allreduce/Broadcast calls.  When a node is recovered, it can fetch the lost
+results from some alive nodes and rebuild its model.
 
-The checkpoint is introduced so that we can discard the history after checkpointing, this makes the iterative program more efficient. The strategy of rabit is different from the fail-restart strategy where all the nodes restart from the same checkpoint
-when any of them fail. All the processes will block in the Allreduce call to help the recovery, and the checkpoint is only saved locally without
-touching the disk. This makes rabit programs more reliable and efficient.
+The checkpoint is introduced so that we can discard the history results of
+Allreduce/Broadcast calls before the latest checkpoint. This saves memory
+consumption used for backup.  The checkpoint of each node is a model defined by
+users and can be split into 2 parts: a global model and a local model. The
+global model is shared by all nodes and can be backed up by any nodes. The
+local model of a node is replicated to some other nodes (selected using a ring
+replication strategy).  The checkpoint is only saved in the memory without
+touching the disk which makes rabit programs more efficient.  The strategy of
+rabit is different from the fail-restart strategy where all the nodes restart
+from the same checkpoint when any of them fail.  In rabit, all the alive nodes
+will block in the Allreduce call and help the recovery.  To catch up, the
+recovered node fetches its latest checkpoint and the results of
+Allreduce/Broadcast calls after the checkpoint from some alive nodes.
 
 This is just a conceptual introduction to rabit's fault tolerance model. The actual implementation is more sophisticated,
 and can deal with more complicated cases such as multiple nodes failure and node failure during recovery phase.
