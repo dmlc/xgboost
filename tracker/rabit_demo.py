@@ -51,6 +51,7 @@ def mthread_submit(nslave, worker_args):
     procs = {}
     for i in range(nslave):
         procs[i] = Thread(target = exec_cmd, args = (args.command + worker_args, i))
+        procs[i].daemon = True
         procs[i].start()
     for i in range(nslave):
         procs[i].join()

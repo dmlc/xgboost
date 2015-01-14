@@ -2,7 +2,7 @@
 .PHONY:
 
 test:
-	../tracker/rabit_mpi.py -v 1 -n 10 bash keepalive.sh test_model_recover 1 mock=0,0,1,0 mock=1,1,1,0 mock=1,1,1,1 mock=0,1,1,0 mock=4,1,1,0 mock=8,1,2,0 
+	../tracker/rabit_demo.py -v 1 -n 10 test_model_recover 1 mock=0,0,1,0 mock=1,1,1,0 mock=1,1,1,1 mock=0,1,1,0 mock=4,1,1,0 mock=8,1,2,0 
 
 # this experiment test recovery with actually process exit, use keepalive to keep program alive
 model_recover_10_10k:
