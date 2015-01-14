@@ -25,6 +25,8 @@ AllreduceRobust::AllreduceRobust(void) {
   seq_counter = 0;
   local_chkpt_version = 0;
   result_buffer_round = 1;
+  global_lazycheck = NULL;
+  use_local_model = -1;
 }
 void AllreduceRobust::Init(void) {
   AllreduceBase::Init();
@@ -154,9 +156,7 @@ int AllreduceRobust::LoadCheckPoint(ISerializable *global_model,
                                     ISerializable *local_model) {
   // skip action in single node
   if (world_size == 1) return 0;
-  if (local_model != NULL && num_local_replica == 0) {
-    num_local_replica = default_local_replica;
-  }
+  this->LocalModelCheck(local_model != NULL);
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL,
                  "need to set rabit_local_replica larger than 1 to checkpoint local_model");
@@ -199,30 +199,50 @@ int AllreduceRobust::LoadCheckPoint(ISerializable *global_model,
   }
 }
 /*!
- * \brief checkpoint the model, meaning we finished a stage of execution
- *  every time we call check point, there is a version number which will increase by one
+ * \brief internal consistency check function,
+ *  use check to ensure user always call CheckPoint/LoadCheckPoint
+ *  with or without local but not both, this function will set the approperiate settings
+ *  in the first call of LoadCheckPoint/CheckPoint 
  *
+ * \param with_local whether the user calls CheckPoint with local model
+ */
+void AllreduceRobust::LocalModelCheck(bool with_local) {
+  if (use_local_model == -1) {
+    if (with_local) {
+      use_local_model = 1;
+      if (num_local_replica == 0) {
+        num_local_replica = default_local_replica;
+      }
+    } else {
+      use_local_model = 0;
+      num_local_replica = 0;
+    }
+  } else {
+    utils::Check(use_local_model == int(with_local),
+                 "Can only call Checkpoint/LoadCheckPoint always with"\
+                 "or without local_model, but not mixed case");
+  }
+}
+/*!
+ * \brief internal implementation of checkpoint, support both lazy and normal way
+ * 
  * \param global_model pointer to the globally shared model/state
  *   when calling this function, the caller need to gauranttees that global_model
  *   is the same in all nodes
  * \param local_model pointer to local model, that is specific to current node/rank
  *   this can be NULL when no local state is needed
+ * \param lazy_checkpt whether the action is lazy checkpoint
  *
- * NOTE: local_model requires explicit replication of the model for fault-tolerance, which will
- *       bring replication cost in CheckPoint function. global_model do not need explicit replication.
- *       So only CheckPoint with global_model if possible
- *
- * \sa LoadCheckPoint, VersionNumber
+ * \sa CheckPoint, LazyCheckPoint
  */
-void AllreduceRobust::CheckPoint(const ISerializable *global_model,
-                                 const ISerializable *local_model) {
+void AllreduceRobust::CheckPoint_(const ISerializable *global_model,
+                                  const ISerializable *local_model,
+                                  bool lazy_checkpt) {
   // never do check point in single machine mode
   if (world_size == 1) {
     version_number += 1; return;
   }
-  if (local_model != NULL && num_local_replica == 0) {
-    num_local_replica = default_local_replica;
-  }
+  this->LocalModelCheck(local_model != NULL);
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL,
                  "need to set rabit_local_replica larger than 1 to checkpoint local_model");
@@ -255,10 +275,15 @@ void AllreduceRobust::CheckPoint(const ISerializable *global_model,
   // increase version number
   version_number += 1;
   // save model
-  global_checkpoint.resize(0);
-  utils::MemoryBufferStream fs(&global_checkpoint);
-  fs.Write(&version_number, sizeof(version_number));
-  global_model->Save(fs);
+  if (lazy_checkpt) {
+    global_lazycheck = global_model;
+  } else {
+    global_checkpoint.resize(0);
+    utils::MemoryBufferStream fs(&global_checkpoint);
+    fs.Write(&version_number, sizeof(version_number));
+    global_model->Save(fs);
+    global_lazycheck = NULL;
+  }
   // reset result buffer
   resbuf.Clear(); seq_counter = 0;
   // execute check ack step, load happens here
@@ -697,6 +722,14 @@ AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
     if (succ != kSuccess) return succ;
     utils::Check(state == 1 || state == 2,
                  "LoadCheckPoint: too many nodes fails, cannot recover local state");
+  }
+  // do call save model if the checkpoint was lazy
+  if (role == kHaveData && global_lazycheck != NULL) {
+    global_checkpoint.resize(0);
+    utils::MemoryBufferStream fs(&global_checkpoint);
+    fs.Write(&version_number, sizeof(version_number));
+    global_lazycheck->Save(fs);
+    global_lazycheck = NULL;
   }
   // recover global checkpoint
   size_t size = this->global_checkpoint.length();

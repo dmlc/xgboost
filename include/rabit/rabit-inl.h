@@ -183,6 +183,10 @@ inline void CheckPoint(const ISerializable *global_model,
                        const ISerializable *local_model) {
   engine::GetEngine()->CheckPoint(global_model, local_model);
 }
+// lazy checkpoint the model, only remember the pointer to global_model
+inline void LazyCheckPoint(const ISerializable *global_model) {
+  engine::GetEngine()->LazyCheckPoint(global_model);
+}
 // return the version number of currently stored model
 inline int VersionNumber(void) {
   return engine::GetEngine()->VersionNumber();

@@ -1,13 +1,8 @@
-ifndef $(nslave)
-	nslave=2
-endif
-ifndef $(ndata)
-	ndata=10
-endif
-
 # this is a makefile used to show testcases of rabit
-.PHONY: model_recover local_recover speed
+.PHONY:
 
+test:
+	../tracker/rabit_mpi.py -v 1 -n 10 bash keepalive.sh test_model_recover 1 mock=0,0,1,0 mock=1,1,1,0 mock=1,1,1,1 mock=0,1,1,0 mock=4,1,1,0 mock=8,1,2,0 
 
 # this experiment test recovery with actually process exit, use keepalive to keep program alive
 model_recover_10_10k:
@@ -18,3 +13,4 @@ model_recover_10_10k_die_same:
 
 model_recover_10_10k_die_hard:
 	../tracker/rabit_demo.py -n 10 test_model_recover 10000 mock=0,0,1,0 mock=1,1,1,0 mock=1,1,1,1 mock=0,1,1,0 mock=4,1,1,0 mock=9,1,1,0 mock=8,1,2,0 mock=4,1,3,0
+
