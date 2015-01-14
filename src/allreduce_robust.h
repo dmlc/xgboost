@@ -23,6 +23,8 @@ class AllreduceRobust : public AllreduceBase {
  public:
   AllreduceRobust(void);
   virtual ~AllreduceRobust(void) {}
+  // initialize the manager
+  virtual void Init(void);
   /*! \brief shutdown the engine */
   virtual void Shutdown(void);
   /*!
@@ -468,6 +470,10 @@ o   *  the input state must exactly one saved state(local state of current node)
   std::string global_checkpoint;
   // number of replica for local state/model
   int num_local_replica;
+  // number of default local replica
+  int default_local_replica;
+  // number of replica for global state/model
+  int num_global_replica;
   // --- recovery data structure for local checkpoint
   // there is two version of the data structure,
   // at one time one version is valid and another is used as temp memory

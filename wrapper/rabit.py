@@ -18,15 +18,19 @@ else:
 rbtlib = None
 
 # load in xgboost library
-def loadlib__(with_mock = False):
+def loadlib__(lib = 'standard'):    
     global rbtlib
     if rbtlib != None:
         warnings.Warn('rabit.int call was ignored because it has already been initialized', level = 2)
         return
-    if with_mock:
+    if lib == 'standard':
+        rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH + '/librabit_wrapper.so')
+    elif lib == 'mock':
         rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH + '/librabit_wrapper_mock.so')
+    elif lib == 'mpi':
+        rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH + '/librabit_wrapper_mpi.so')
     else:
-        rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH + '/librabit_wrapper.so')        
+        raise Exception('unknown rabit lib %s, can be standard, mock, mpi' % lib)
     rbtlib.RabitGetRank.restype = ctypes.c_int
     rbtlib.RabitGetWorldSize.restype = ctypes.c_int
     rbtlib.RabitVersionNumber.restype = ctypes.c_int
@@ -48,7 +52,7 @@ def check_err__():
     """
     return
 
-def init(args = sys.argv, with_mock = False):
+def init(args = sys.argv, lib = 'standard'):
     """
     intialize the rabit module, call this once before using anything
     Arguments:
@@ -58,7 +62,7 @@ def init(args = sys.argv, with_mock = False):
         with_mock: boolean [default=False]
             Whether initialize the mock test module
     """
-    loadlib__(with_mock)
+    loadlib__(lib)
     arr = (ctypes.c_char_p * len(args))()
     arr[:] = args
     rbtlib.RabitInit(len(args), arr)

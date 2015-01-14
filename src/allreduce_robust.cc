@@ -20,9 +20,15 @@ namespace rabit {
 namespace engine {
 AllreduceRobust::AllreduceRobust(void) {
   num_local_replica = 0;
+  num_global_replica = 5;
+  default_local_replica = 2;
   seq_counter = 0;
   local_chkpt_version = 0;
   result_buffer_round = 1;
+}
+void AllreduceRobust::Init(void) {
+  AllreduceBase::Init();
+  result_buffer_round = std::max(world_size / num_global_replica, 1);
 }
 /*! \brief shutdown the engine */
 void AllreduceRobust::Shutdown(void) {
@@ -44,10 +50,7 @@ void AllreduceRobust::Shutdown(void) {
  */
 void AllreduceRobust::SetParam(const char *name, const char *val) {
   AllreduceBase::SetParam(name, val);
-  if (!strcmp(name, "rabit_buffer_round")) result_buffer_round = atoi(val);
-  if (!strcmp(name, "rabit_global_replica")) {
-    result_buffer_round = std::max(world_size / atoi(val), 1);
-  }
+  if (!strcmp(name, "rabit_global_replica")) num_global_replica = atoi(val);
   if (!strcmp(name, "rabit_local_replica")) {
     num_local_replica = atoi(val);
   }
@@ -151,9 +154,12 @@ int AllreduceRobust::LoadCheckPoint(ISerializable *global_model,
                                     ISerializable *local_model) {
   // skip action in single node
   if (world_size == 1) return 0;
+  if (local_model != NULL && num_local_replica == 0) {
+    num_local_replica = default_local_replica;
+  }
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL,
-                 "need to set num_local_replica larger than 1 to checkpoint local_model");
+                 "need to set rabit_local_replica larger than 1 to checkpoint local_model");
   }
   // check if we succesful
   if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kSpecialOp)) {
@@ -214,9 +220,12 @@ void AllreduceRobust::CheckPoint(const ISerializable *global_model,
   if (world_size == 1) {
     version_number += 1; return;
   }
+  if (local_model != NULL && num_local_replica == 0) {
+    num_local_replica = default_local_replica;
+  }
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL,
-                 "need to set num_local_replica larger than 1 to checkpoint local_model");
+                 "need to set rabit_local_replica larger than 1 to checkpoint local_model");
   }
   if (num_local_replica != 0) {
     while (true) {

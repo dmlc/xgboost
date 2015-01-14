@@ -2,7 +2,7 @@
 import rabit
 import numpy as np
 
-rabit.init(with_mock = True)
+rabit.init(lib='mock')
 rank = rabit.get_rank()
 n = 10
 nround = 3
