@@ -201,6 +201,10 @@ class AllreduceBase : public IEngine {
   enum ReturnType {
     /*! \brief execution is successful */
     kSuccess,
+    /*! \brief a link was reset by peer */
+    kConnReset,
+    /*! \brief received a zero length message */
+    kRecvZeroLen,
     /*! \brief a neighbor node go down, the connection is dropped */
     kSockError,
     /*! 
@@ -209,6 +213,12 @@ class AllreduceBase : public IEngine {
      */
     kGetExcept
   };
+  /*! \brief translate errno to return type */
+  inline static ReturnType Errno2Return(int errsv) {
+    if (errsv == EAGAIN || errsv == EWOULDBLOCK) return kSuccess;
+    if (errsv == ECONNRESET) return kConnReset;
+    return kSockError;
+  }
   // link record to a neighbor
   struct LinkRecord {
    public:
@@ -249,22 +259,22 @@ class AllreduceBase : public IEngine {
      *  position after protect_start
      * \param protect_start all data start from protect_start is still needed in buffer
      *                      read shall not override this 
-     * \return true if it is an successful read, false if there is some error happens, check errno
+     * \return the type of reading
      */
-    inline bool ReadToRingBuffer(size_t protect_start) {
+    inline ReturnType ReadToRingBuffer(size_t protect_start) {
       size_t ngap = size_read - protect_start;
       utils::Assert(ngap <= buffer_size, "Allreduce: boundary check");
       size_t offset = size_read % buffer_size;
       size_t nmax = std::min(buffer_size - ngap, buffer_size - offset);
-      if (nmax == 0) return true;
+      if (nmax == 0) return kSuccess;
       ssize_t len = sock.Recv(buffer_head + offset, nmax);
       // length equals 0, remote disconnected
       if (len == 0) {
-        sock.Close(); return false;
+        sock.Close(); return kRecvZeroLen;
       }
-      if (len == -1) return errno == EAGAIN || errno == EWOULDBLOCK;
+      if (len == -1) return Errno2Return(errno);
       size_read += static_cast<size_t>(len);
-      return true;
+      return kSuccess;
     }
     /*!
      * \brief read data into array,
@@ -273,17 +283,17 @@ class AllreduceBase : public IEngine {
      * \param max_size maximum size of array
      * \return true if it is an successful read, false if there is some error happens, check errno
      */
-    inline bool ReadToArray(void *recvbuf_, size_t max_size) {
-      if (max_size == size_read) return true;
+    inline ReturnType ReadToArray(void *recvbuf_, size_t max_size) {
+      if (max_size == size_read) return kSuccess;
       char *p = static_cast<char*>(recvbuf_);
       ssize_t len = sock.Recv(p + size_read, max_size - size_read);
       // length equals 0, remote disconnected
       if (len == 0) {
-        sock.Close(); return false;
+        sock.Close(); return kRecvZeroLen;
       }
-      if (len == -1) return errno == EAGAIN || errno == EWOULDBLOCK;
+      if (len == -1) return Errno2Return(errno);
       size_read += static_cast<size_t>(len);
-      return true;
+      return kSuccess;
     }
     /*!
      * \brief write data in array to sock
@@ -291,12 +301,12 @@ class AllreduceBase : public IEngine {
      * \param max_size maximum size of array
      * \return true if it is an successful write, false if there is some error happens, check errno
      */
-    inline bool WriteFromArray(const void *sendbuf_, size_t max_size) {
+    inline ReturnType WriteFromArray(const void *sendbuf_, size_t max_size) {
       const char *p = static_cast<const char*>(sendbuf_);
       ssize_t len = sock.Send(p + size_write, max_size - size_write);
-      if (len == -1) return errno == EAGAIN || errno == EWOULDBLOCK;
+      if (len == -1) return Errno2Return(errno);
       size_write += static_cast<size_t>(len);
-      return true;
+      return kSuccess;
     }
 
    private:
@@ -356,6 +366,14 @@ class AllreduceBase : public IEngine {
    * \sa ReturnType
    */
   ReturnType TryBroadcast(void *sendrecvbuf_, size_t size, int root);
+  /*!
+   * \brief function used to report error when a link goes wrong 
+   * \param link the pointer to the link who causes the error
+   * \param err the error type
+   */
+  inline ReturnType ReportError(LinkRecord *link, ReturnType err) {
+    err_link = link; return err;
+  }
   //---- data structure related to model ----
   // call sequence counter, records how many calls we made so far
   // from last call to CheckPoint, LoadCheckPoint
@@ -371,6 +389,8 @@ class AllreduceBase : public IEngine {
   int parent_rank;
   // sockets of all links this connects to
   std::vector<LinkRecord> all_links;
+  // used to record the link where things goes wrong
+  LinkRecord *err_link;
   // all the links in the reduction tree connection
   RefLinkVector tree_links;
   // pointer to links in the ring

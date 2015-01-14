@@ -626,18 +626,24 @@ AllreduceRobust::TryRecoverData(RecoverType role,
     selecter.Select();
     // exception handling
     for (int i = 0; i < nlink; ++i) {
-      if (selecter.CheckExcept(links[i].sock)) return kGetExcept;
+      if (selecter.CheckExcept(links[i].sock)) {
+        return ReportError(&links[i], kGetExcept);
+      }
     }
     if (role == kRequestData) {
       const int pid = recv_link;
       if (selecter.CheckRead(links[pid].sock)) {
-        if (!links[pid].ReadToArray(sendrecvbuf_, size)) return kSockError;
+        ReturnType ret = links[pid].ReadToArray(sendrecvbuf_, size);        
+        if (ret != kSuccess) {
+          return ReportError(&links[pid], ret);
+        }
       }
       for (int i = 0; i < nlink; ++i) {
         if (req_in[i] && links[i].size_write != links[pid].size_read &&
             selecter.CheckWrite(links[i].sock)) {
-          if (!links[i].WriteFromArray(sendrecvbuf_, links[pid].size_read)) {
-            return kSockError;
+          ReturnType ret = links[i].WriteFromArray(sendrecvbuf_, links[pid].size_read);
+          if (ret != kSuccess) {
+            return ReportError(&links[i], ret);
           }
         }
       }
@@ -645,8 +651,9 @@ AllreduceRobust::TryRecoverData(RecoverType role,
     if (role == kHaveData) {
       for (int i = 0; i < nlink; ++i) {
         if (req_in[i] && selecter.CheckWrite(links[i].sock)) {
-          if (!links[i].WriteFromArray(sendrecvbuf_, size)) {
-            return kSockError;
+          ReturnType ret = links[i].WriteFromArray(sendrecvbuf_, size);
+          if (ret != kSuccess) {
+            return ReportError(&links[i], ret);
           }
         }
       }
@@ -660,7 +667,10 @@ AllreduceRobust::TryRecoverData(RecoverType role,
           if (req_in[i]) min_write = std::min(links[i].size_write, min_write);
         }
         utils::Assert(min_write <= links[pid].size_read, "boundary check");
-        if (!links[pid].ReadToRingBuffer(min_write)) return kSockError;
+        ReturnType ret = links[pid].ReadToRingBuffer(min_write);
+        if (ret != kSuccess) {
+          return ReportError(&links[pid], ret);
+        }
       }
       for (int i = 0; i < nlink; ++i) {
         if (req_in[i] && selecter.CheckWrite(links[i].sock) &&
@@ -672,7 +682,8 @@ AllreduceRobust::TryRecoverData(RecoverType role,
           if (len != -1) {
             links[i].size_write += len;
           } else {
-            if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
+            ReturnType ret = Errno2Return(errno);
+            if (ret != kSuccess) return ReportError(&links[i], ret);
           }
         }
       }
@@ -1131,17 +1142,18 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
     selecter.WatchException(next.sock);
     if (finished) break;
     selecter.Select();
-    if (selecter.CheckExcept(prev.sock)) return kGetExcept;
-    if (selecter.CheckExcept(next.sock)) return kGetExcept;
+    if (selecter.CheckExcept(prev.sock)) return ReportError(&prev, kGetExcept);
+    if (selecter.CheckExcept(next.sock)) return ReportError(&next, kGetExcept);
     if (read_ptr != read_end && selecter.CheckRead(prev.sock)) {
       ssize_t len = prev.sock.Recv(buf + read_ptr, read_end - read_ptr);
       if (len == 0) {
-        prev.sock.Close(); return kSockError;
+        prev.sock.Close(); return ReportError(&prev, kRecvZeroLen);
       }
       if (len != -1) {
         read_ptr += static_cast<size_t>(len);
       } else {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
+        ReturnType ret = Errno2Return(errno);
+        if (ret != kSuccess) return ReportError(&prev, ret);
       }
     }
     if (write_ptr != write_end && write_ptr < read_ptr &&
@@ -1151,7 +1163,8 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
       if (len != -1) {
         write_ptr += static_cast<size_t>(len);
       } else {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
+        ReturnType ret = Errno2Return(errno);
+        if (ret != kSuccess) return ReportError(&prev, ret);
       }
     }
   }
