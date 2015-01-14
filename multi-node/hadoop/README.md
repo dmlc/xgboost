@@ -1,7 +1,7 @@
 Distributed XGBoost: Hadoop Version
 ====
 *  The script in this fold shows an example of how to run distributed xgboost on hadoop platform.
-*  It relies on [Rabit Library](https://github.com/tqchen/rabit) and Hadoop Streaming. 
+*  It relies on [Rabit Library](https://github.com/tqchen/rabit) (Reliable Allreduce and Broadcast Interface) and Hadoop Streaming. Rabit provides an interface to aggregate gradient values and split statistics, that allow xgboost to run reliably on hadoop. You do not need to care how to update model in each iteration, just use the script ```rabit_hadoop.py```. For those who want to know how it exactly works, plz refer to the main page of [Rabit](https://github.com/tqchen/rabit).
 *  Quick start: run ```bash run_binary_classification.sh <n_hadoop_workers> <path_in_HDFS>```
   - This is the hadoop version of binary classification example in the demo folder.
   - More info of the binary classification task can be refered to https://github.com/tqchen/xgboost/wiki/Binary-Classification.
@@ -37,6 +37,6 @@ If you have used xgboost (single machine version) before, this section will show
 
 Notes
 ====
-* The code has been tested on MapReduce 1 (MRv1), it should be ok to run on MapReduce 2 (MRv2, YARN).
+* The code has been tested on MapReduce 1 (MRv1), it should be ok and recommended to run on MapReduce 2 (MRv2, YARN).
 * The code is multi-threaded, so you want to run one xgboost per node/worker, which means the parameter <n_workers> should be less than the number of slaves/workers. 
 
