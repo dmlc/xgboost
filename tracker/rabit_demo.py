@@ -20,21 +20,41 @@ parser.add_argument('command', nargs='+',
                     help = 'command for rabit program')
 args = parser.parse_args()
 
+# bash script for keepalive
+# use it so that python do not need to communicate with subprocess
+echo="echo %s rabit_num_trial=$nrep;"
+keepalive = """
+nrep=0
+rc=254
+while [ $rc -eq 254 ]; 
+do
+    %s
+    %s %s rabit_num_trial=$nrep
+    rc=$?;
+    nrep=$((nrep+1));
+done
+"""
+
 def exec_cmd(cmd, taskid):
     if cmd[0].find('/') == -1 and os.path.exists(cmd[0]):
         cmd[0] = './' + cmd[0]
     cmd = ' '.join(cmd)
+    arg = ' rabit_task_id=%d' % (taskid) 
+    cmd = cmd + arg
     ntrial = 0
     while True:
         prep = 'PYTHONPATH=\"%s\" ' % WRAPPER_PATH
-        arg = ' rabit_task_id=%d rabit_num_trial=%d' % (taskid, ntrial)        
-        ret = subprocess.call(prep + cmd + arg, shell = True)
-        if ret == 254 or ret == -2:
-            ntrial += 1
-            continue
+        if args.verbose != 0:            
+            bash = keepalive % (echo % cmd, prep, cmd)
+        else:
+            bash = keepalive % ('', prep, cmd)            
+        ret = subprocess.call(bash, shell=True, executable='bash')
         if ret == 0:
+            if args.verbose != 0:        
+                print 'Thread %d exit with 0' % taskid
             return
-        raise Exception('Get nonzero return code=%d' % ret)
+        else:
+            raise Exception('Get nonzero return code=%d' % ret)
 #
 #  Note: this submit script is only used for demo purpose
 #  submission script using pyhton multi-threading
