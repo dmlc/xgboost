@@ -102,7 +102,7 @@ The following command starts the program with three worker processes.
 ```
 Besides strings, rabit also allows to broadcast constant size array and vectors.
 
-The counterpart in python can be found in [broadcast.py](broadcast.py). Here is a snippet so that you can get a better sense of how simple is to the python library:
+The counterpart in python can be found in [broadcast.py](broadcast.py). Here is a snippet so that you can get a better sense of how simple is to use the python library:
 
 ```python
 import rabit
