@@ -5,8 +5,8 @@ export LDFLAGS= -pthread -lm  -lrt -L../lib
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include  -std=c++11
 
 # specify tensor path
-BIN = speed_test test_model_recover test_local_recover
-OBJ = $(RABIT_OBJ) speed_test.o test_model_recover.o test_local_recover.o
+BIN = speed_test model_recover local_recover lazy_recover
+OBJ = $(RABIT_OBJ) speed_test.o model_recover.o local_recover.o lazy_recover.o
 MPIBIN = speed_test.mpi
 .PHONY: clean all lib mpi
 
@@ -16,15 +16,17 @@ lib:
 mpi:
 	cd ..;make mpi;cd -
 # programs 
-speed_test.o: speed_test.cpp ../include/*.h lib mpi
-test_model_recover.o: test_model_recover.cpp ../include/*.h lib
-test_local_recover.o: test_local_recover.cpp ../include/*.h lib
+speed_test.o: speed_test.cc ../include/*.h lib mpi
+model_recover.o: model_recover.cc ../include/*.h lib
+local_recover.o: local_recover.cc ../include/*.h lib
+lazy_recover.o: lazy_recover.cc ../include/*.h lib
 
 # we can link against MPI version to get use MPI
 speed_test: speed_test.o  $(RABIT_OBJ)
 speed_test.mpi: speed_test.o $(MPIOBJ)
-test_model_recover: test_model_recover.o  $(RABIT_OBJ)
-test_local_recover: test_local_recover.o  $(RABIT_OBJ)
+model_recover: model_recover.o  $(RABIT_OBJ)
+local_recover: local_recover.o  $(RABIT_OBJ)
+lazy_recover: lazy_recover.o  $(RABIT_OBJ)
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^) $(LDFLAGS) -lrabit_mock
