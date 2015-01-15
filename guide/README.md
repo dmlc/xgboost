@@ -16,7 +16,6 @@ Please also refer to the [API Documentation](http://homes.cs.washington.edu/~tqc
   - [Running Rabit using MPI](#running-rabit-using-mpi)
   - [Customize Tracker Script](#customize-tracker-script)
 * [Fault Tolerance](#fault-tolerance)
-* [Python Wrapper](#python-wrapper)
 
 What is Allreduce
 =====
