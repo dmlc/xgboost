@@ -216,8 +216,9 @@ inline void CheckPoint(const ISerializable *global_model,
  *   For example, suppose the calling sequence is:
  *   LazyCheckPoint, code1, Allreduce, code2, Broadcast, code3, LazyCheckPoint
  *   
- *   If user can only changes global_model in code3, then LazyCheckPoint can be used to
- *   improve efficiency of the program.
+ *   If user want to use LazyCheckPoint, then the user MUST only change global_model in code3.
+ *
+ *   The Use of LazyCheckPoint instead of CheckPoint will improve efficiency of the program.
  * \param global_model pointer to the globally shared model/state
  *   when calling this function, the caller need to gauranttees that global_model
  *   is the same in all nodes
