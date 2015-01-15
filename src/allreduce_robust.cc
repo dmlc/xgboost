@@ -645,8 +645,7 @@ AllreduceRobust::TryRecoverData(RecoverType role,
         }
       }
       for (int i = 0; i < nlink; ++i) {
-        if (req_in[i] && links[i].size_write != links[pid].size_read &&
-            selecter.CheckWrite(links[i].sock)) {
+        if (req_in[i] && links[i].size_write != links[pid].size_read) {
           ReturnType ret = links[i].WriteFromArray(sendrecvbuf_, links[pid].size_read);
           if (ret != kSuccess) {
             return ReportError(&links[i], ret);
@@ -656,7 +655,7 @@ AllreduceRobust::TryRecoverData(RecoverType role,
     }
     if (role == kHaveData) {
       for (int i = 0; i < nlink; ++i) {
-        if (req_in[i] && selecter.CheckWrite(links[i].sock)) {
+        if (req_in[i] && links[i].size_write != size) {
           ReturnType ret = links[i].WriteFromArray(sendrecvbuf_, size);
           if (ret != kSuccess) {
             return ReportError(&links[i], ret);
@@ -679,8 +678,7 @@ AllreduceRobust::TryRecoverData(RecoverType role,
         }
       }
       for (int i = 0; i < nlink; ++i) {
-        if (req_in[i] && selecter.CheckWrite(links[i].sock) &&
-            links[pid].size_read != links[i].size_write) {
+        if (req_in[i] && links[pid].size_read != links[i].size_write) {
           size_t start = links[i].size_write % buffer_size;
           // send out data from ring buffer
           size_t nwrite = std::min(buffer_size - start, links[pid].size_read - links[i].size_write);
@@ -1162,8 +1160,7 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
         if (ret != kSuccess) return ReportError(&prev, ret);
       }
     }
-    if (write_ptr != write_end && write_ptr < read_ptr &&
-        selecter.CheckWrite(next.sock)) {
+    if (write_ptr != write_end && write_ptr < read_ptr) {
       size_t nsend = std::min(write_end - write_ptr, read_ptr - write_ptr);
       ssize_t len = next.sock.Send(buf + write_ptr, nsend);
       if (len != -1) {
