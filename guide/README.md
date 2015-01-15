@@ -58,6 +58,24 @@ Rabit provides different reduction operators, for example,  if you change ```op:
 the reduction operation will be a summation, and the result will become ```a = {1, 3, 5}```.
 You can also run the example with different processes by setting -n to different values.
 
+In order to make the library available for a wider range of developers, we decided to provide a python wrapper to our C++ code. Developers can now program rabit applications in Python! The same example as before can be found in [basic.py](basic.py):
+
+```python
+import numpy as np
+import rabit
+rabit.init()
+n = 3
+rank = rabit.get_rank()
+a = np.zeros(n)
+for i in xrange(n):
+    a[i] = rank + i
+    
+print '@node[%d] before-allreduce: a=%s' % (rank, str(a))
+a = rabit.allreduce(a, rabit.MAX)
+print '@node[%d] after-allreduce: a=%s' % (rank, str(a))
+rabit.finalize()
+```
+
 Broadcast is another method provided by rabit besides Allreduce. This function allows one node to broadcast its
 local data to all other nodes. The following code in [broadcast.cc](broadcast.cc) broadcasts a string from
 node 0 to all other nodes.
@@ -84,6 +102,22 @@ The following command starts the program with three worker processes.
 ../tracker/rabit_demo.py -n 3 broadcast.rabit
 ```
 Besides strings, rabit also allows to broadcast constant size array and vectors.
+
+The counterpart in python can be found in [broadcast.py](broadcast.py). Here is a snippet so that you can get a better sense of how simple is to use the wrapper:
+
+```python
+import rabit
+rabit.init()
+n = 3
+rank = rabit.get_rank()
+s = None
+if rank == 0:
+    s = {'hello world':100, 2:3}
+print '@node[%d] before-broadcast: s=\"%s\"' % (rank, str(s))
+s = rabit.broadcast(s, 0)
+print '@node[%d] after-broadcast: s=\"%s\"' % (rank, str(s))
+rabit.finalize()
+```
 
 Common Use Case
 =====
@@ -267,12 +301,3 @@ Allreduce/Broadcast calls after the checkpoint from some alive nodes.
 
 This is just a conceptual introduction to rabit's fault tolerance model. The actual implementation is more sophisticated,
 and can deal with more complicated cases such as multiple nodes failure and node failure during recovery phase.
-
-Python Wrapper
-=====
-In order to make the library available for a wider range of developers, we decided to provide a python wrapper to our C++ code.
-
-Developers can now program rabit applications in Python! We provide a couple of examples:
-
-* [./basic.py](./basic.py) : [./basic.cc](./basic.cc) counterpart, explained above.
-* [./broadcast.py](./broadcast.py) : [./broadcast.cc](./broadcast.cc) counterpart, explained above.
