@@ -137,7 +137,8 @@ void Allreduce_(void *sendrecvbuf,
 }
 
 // code for reduce handle
-ReduceHandle::ReduceHandle(void) : handle_(NULL), htype_(NULL) {
+ReduceHandle::ReduceHandle(void) 
+    : handle_(NULL), redfunc_(NULL), htype_(NULL) {
 }
 ReduceHandle::~ReduceHandle(void) {
   if (handle_ != NULL) {

@@ -27,6 +27,7 @@ AllreduceRobust::AllreduceRobust(void) {
   result_buffer_round = 1;
   global_lazycheck = NULL;
   use_local_model = -1;
+  recover_counter = 0;
 }
 void AllreduceRobust::Init(void) {
   AllreduceBase::Init();
@@ -421,6 +422,8 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
  */
 bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
   if (err_type == kSuccess) return true;
+  utils::Assert(err_link != NULL, "must know the error source");
+  recover_counter += 1;
   {
     // simple way, shutdown all links
     for (size_t i = 0; i < all_links.size(); ++i) {
@@ -602,6 +605,9 @@ AllreduceRobust::TryRecoverData(RecoverType role,
     if (!req_data) return kSuccess;
   }
   utils::Assert(recv_link >= 0 || role == kHaveData, "recv_link must be active");
+  if (role == kPassData) {
+    links[recv_link].InitBuffer(1, size, reduce_buffer_size);
+  }
   for (int i = 0; i < nlink; ++i) {
     links[i].ResetSize();
   }

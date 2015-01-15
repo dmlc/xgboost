@@ -249,7 +249,9 @@ class AllreduceBase : public IEngine {
     // buffer size, in bytes
     size_t buffer_size;
     // constructor
-    LinkRecord(void) {}
+    LinkRecord(void) 
+        : buffer_head(NULL), buffer_size(0) {
+    }
     // initialize buffer
     inline void InitBuffer(size_t type_nbytes, size_t count,
                            size_t reduce_buffer_size) {
@@ -276,6 +278,7 @@ class AllreduceBase : public IEngine {
      * \return the type of reading
      */
     inline ReturnType ReadToRingBuffer(size_t protect_start) {
+      utils::Assert(buffer_head != NULL, "ReadToRingBuffer: buffer not allocated");
       size_t ngap = size_read - protect_start;
       utils::Assert(ngap <= buffer_size, "Allreduce: boundary check");
       size_t offset = size_read % buffer_size;

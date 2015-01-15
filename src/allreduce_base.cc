@@ -27,6 +27,7 @@ AllreduceBase::AllreduceBase(void) {
   hadoop_mode = 0;
   version_number = 0;
   task_id = "NULL";
+  err_link = NULL;
   this->SetParam("rabit_reduce_buffer", "256MB");
 }
 

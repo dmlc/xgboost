@@ -531,6 +531,8 @@ o   *  the input state must exactly one saved state(local state of current node)
   int use_local_model;
   // number of replica for global state/model
   int num_global_replica;
+  // number of times recovery happens
+  int recover_counter;
   // --- recovery data structure for local checkpoint
   // there is two version of the data structure,
   // at one time one version is valid and another is used as temp memory

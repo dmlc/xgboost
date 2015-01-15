@@ -242,8 +242,10 @@ class ReduceHandle {
   static int TypeSize(const MPI::Datatype &dtype);
 
  protected:
-  // handle data field
+  // handle function field
   void *handle_;
+  // reduce function of the reducer
+  IEngine::ReduceFunction *redfunc_;
   // handle to the type field
   void *htype_;
   // the created type in 4 bytes
