@@ -97,7 +97,9 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
     // exception handling
     for (int i = 0; i < nlink; ++i) {
       // recive OOB message from some link
-      if (selecter.CheckExcept(links[i].sock)) return kGetExcept;
+      if (selecter.CheckExcept(links[i].sock)) {
+        return ReportError(&links[i], kGetExcept);
+      }
     }
     if (stage == 0) {
       bool finished = true;
@@ -105,9 +107,8 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
       for (int i = 0; i < nlink; ++i) {
         if (i != parent_index) {
           if (selecter.CheckRead(links[i].sock)) {
-            if (!links[i].ReadToArray(&edge_in[i], sizeof(EdgeType))) {
-              return kSockError;
-            }
+            ReturnType ret = links[i].ReadToArray(&edge_in[i], sizeof(EdgeType));
+            if (ret != kSuccess) return ReportError(&links[i], ret);
           }
           if (links[i].size_read != sizeof(EdgeType)) finished = false;
         }
@@ -128,17 +129,15 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
     if (stage == 1) {
       const int pid = this->parent_index;
       utils::Assert(pid != -1, "MsgPassing invalid stage");
-      if (!links[pid].WriteFromArray(&edge_out[pid], sizeof(EdgeType))) {
-        return kSockError;
-      }
+      ReturnType ret = links[pid].WriteFromArray(&edge_out[pid], sizeof(EdgeType));
+      if (ret != kSuccess) return ReportError(&links[pid], ret);
       if (links[pid].size_write == sizeof(EdgeType)) stage = 2;
     }
     if (stage == 2) {
       const int pid = this->parent_index;
       utils::Assert(pid != -1, "MsgPassing invalid stage");
-      if (!links[pid].ReadToArray(&edge_in[pid], sizeof(EdgeType))) {
-        return kSockError;
-      }
+      ReturnType ret = links[pid].ReadToArray(&edge_in[pid], sizeof(EdgeType));
+      if (ret != kSuccess) return ReportError(&links[pid], ret);
       if (links[pid].size_read == sizeof(EdgeType)) {
         for (int i = 0; i < nlink; ++i) {
           if (i != pid) edge_out[i] = func(node_value, edge_in, i);
@@ -149,9 +148,8 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
     if (stage == 3) {
       for (int i = 0; i < nlink; ++i) {
         if (i != parent_index && links[i].size_write != sizeof(EdgeType)) {
-          if (!links[i].WriteFromArray(&edge_out[i], sizeof(EdgeType))) {
-            return kSockError;
-          }
+          ReturnType ret = links[i].WriteFromArray(&edge_out[i], sizeof(EdgeType));
+          if (ret != kSuccess) return ReportError(&links[i], ret);
         }
       }
     }

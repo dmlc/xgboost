@@ -45,6 +45,9 @@ class MPIEngine : public IEngine {
                           const ISerializable *local_model = NULL) {
     version_number += 1;
   }
+  virtual void LazyCheckPoint(const ISerializable *global_model) {
+    version_number += 1;
+  }
   virtual int VersionNumber(void) const {
     return version_number;
   }
@@ -134,7 +137,8 @@ void Allreduce_(void *sendrecvbuf,
 }
 
 // code for reduce handle
-ReduceHandle::ReduceHandle(void) : handle_(NULL), htype_(NULL) {
+ReduceHandle::ReduceHandle(void) 
+    : handle_(NULL), redfunc_(NULL), htype_(NULL) {
 }
 ReduceHandle::~ReduceHandle(void) {
   if (handle_ != NULL) {

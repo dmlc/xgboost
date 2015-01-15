@@ -25,6 +25,9 @@ AllreduceRobust::AllreduceRobust(void) {
   seq_counter = 0;
   local_chkpt_version = 0;
   result_buffer_round = 1;
+  global_lazycheck = NULL;
+  use_local_model = -1;
+  recover_counter = 0;
 }
 void AllreduceRobust::Init(void) {
   AllreduceBase::Init();
@@ -154,9 +157,7 @@ int AllreduceRobust::LoadCheckPoint(ISerializable *global_model,
                                     ISerializable *local_model) {
   // skip action in single node
   if (world_size == 1) return 0;
-  if (local_model != NULL && num_local_replica == 0) {
-    num_local_replica = default_local_replica;
-  }
+  this->LocalModelCheck(local_model != NULL);
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL,
                  "need to set rabit_local_replica larger than 1 to checkpoint local_model");
@@ -199,30 +200,50 @@ int AllreduceRobust::LoadCheckPoint(ISerializable *global_model,
   }
 }
 /*!
- * \brief checkpoint the model, meaning we finished a stage of execution
- *  every time we call check point, there is a version number which will increase by one
+ * \brief internal consistency check function,
+ *  use check to ensure user always call CheckPoint/LoadCheckPoint
+ *  with or without local but not both, this function will set the approperiate settings
+ *  in the first call of LoadCheckPoint/CheckPoint 
  *
+ * \param with_local whether the user calls CheckPoint with local model
+ */
+void AllreduceRobust::LocalModelCheck(bool with_local) {
+  if (use_local_model == -1) {
+    if (with_local) {
+      use_local_model = 1;
+      if (num_local_replica == 0) {
+        num_local_replica = default_local_replica;
+      }
+    } else {
+      use_local_model = 0;
+      num_local_replica = 0;
+    }
+  } else {
+    utils::Check(use_local_model == int(with_local),
+                 "Can only call Checkpoint/LoadCheckPoint always with"\
+                 "or without local_model, but not mixed case");
+  }
+}
+/*!
+ * \brief internal implementation of checkpoint, support both lazy and normal way
+ * 
  * \param global_model pointer to the globally shared model/state
  *   when calling this function, the caller need to gauranttees that global_model
  *   is the same in all nodes
  * \param local_model pointer to local model, that is specific to current node/rank
  *   this can be NULL when no local state is needed
+ * \param lazy_checkpt whether the action is lazy checkpoint
  *
- * NOTE: local_model requires explicit replication of the model for fault-tolerance, which will
- *       bring replication cost in CheckPoint function. global_model do not need explicit replication.
- *       So only CheckPoint with global_model if possible
- *
- * \sa LoadCheckPoint, VersionNumber
+ * \sa CheckPoint, LazyCheckPoint
  */
-void AllreduceRobust::CheckPoint(const ISerializable *global_model,
-                                 const ISerializable *local_model) {
+void AllreduceRobust::CheckPoint_(const ISerializable *global_model,
+                                  const ISerializable *local_model,
+                                  bool lazy_checkpt) {
   // never do check point in single machine mode
   if (world_size == 1) {
     version_number += 1; return;
   }
-  if (local_model != NULL && num_local_replica == 0) {
-    num_local_replica = default_local_replica;
-  }
+  this->LocalModelCheck(local_model != NULL);
   if (num_local_replica == 0) {
     utils::Check(local_model == NULL,
                  "need to set rabit_local_replica larger than 1 to checkpoint local_model");
@@ -255,10 +276,15 @@ void AllreduceRobust::CheckPoint(const ISerializable *global_model,
   // increase version number
   version_number += 1;
   // save model
-  global_checkpoint.resize(0);
-  utils::MemoryBufferStream fs(&global_checkpoint);
-  fs.Write(&version_number, sizeof(version_number));
-  global_model->Save(fs);
+  if (lazy_checkpt) {
+    global_lazycheck = global_model;
+  } else {
+    global_checkpoint.resize(0);
+    utils::MemoryBufferStream fs(&global_checkpoint);
+    fs.Write(&version_number, sizeof(version_number));
+    global_model->Save(fs);
+    global_lazycheck = NULL;
+  }
   // reset result buffer
   resbuf.Clear(); seq_counter = 0;
   // execute check ack step, load happens here
@@ -396,6 +422,8 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
  */
 bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
   if (err_type == kSuccess) return true;
+  utils::Assert(err_link != NULL, "must know the error source");
+  recover_counter += 1;
   {
     // simple way, shutdown all links
     for (size_t i = 0; i < all_links.size(); ++i) {
@@ -407,7 +435,7 @@ bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
   // this was old way
   // TryResetLinks still causes possible errors, so not use this one
   while (err_type != kSuccess) {
-    switch (err_type) {
+    switch (err_type.value) {
       case kGetExcept: err_type = TryResetLinks(); break;
       case kSockError: {
         TryResetLinks();
@@ -577,6 +605,9 @@ AllreduceRobust::TryRecoverData(RecoverType role,
     if (!req_data) return kSuccess;
   }
   utils::Assert(recv_link >= 0 || role == kHaveData, "recv_link must be active");
+  if (role == kPassData) {
+    links[recv_link].InitBuffer(1, size, reduce_buffer_size);
+  }
   for (int i = 0; i < nlink; ++i) {
     links[i].ResetSize();
   }
@@ -601,27 +632,33 @@ AllreduceRobust::TryRecoverData(RecoverType role,
     selecter.Select();
     // exception handling
     for (int i = 0; i < nlink; ++i) {
-      if (selecter.CheckExcept(links[i].sock)) return kGetExcept;
+      if (selecter.CheckExcept(links[i].sock)) {
+        return ReportError(&links[i], kGetExcept);
+      }
     }
     if (role == kRequestData) {
       const int pid = recv_link;
       if (selecter.CheckRead(links[pid].sock)) {
-        if (!links[pid].ReadToArray(sendrecvbuf_, size)) return kSockError;
+        ReturnType ret = links[pid].ReadToArray(sendrecvbuf_, size);        
+        if (ret != kSuccess) {
+          return ReportError(&links[pid], ret);
+        }
       }
       for (int i = 0; i < nlink; ++i) {
-        if (req_in[i] && links[i].size_write != links[pid].size_read &&
-            selecter.CheckWrite(links[i].sock)) {
-          if (!links[i].WriteFromArray(sendrecvbuf_, links[pid].size_read)) {
-            return kSockError;
+        if (req_in[i] && links[i].size_write != links[pid].size_read) {
+          ReturnType ret = links[i].WriteFromArray(sendrecvbuf_, links[pid].size_read);
+          if (ret != kSuccess) {
+            return ReportError(&links[i], ret);
           }
         }
       }
     }
     if (role == kHaveData) {
       for (int i = 0; i < nlink; ++i) {
-        if (req_in[i] && selecter.CheckWrite(links[i].sock)) {
-          if (!links[i].WriteFromArray(sendrecvbuf_, size)) {
-            return kSockError;
+        if (req_in[i] && links[i].size_write != size) {
+          ReturnType ret = links[i].WriteFromArray(sendrecvbuf_, size);
+          if (ret != kSuccess) {
+            return ReportError(&links[i], ret);
           }
         }
       }
@@ -635,11 +672,13 @@ AllreduceRobust::TryRecoverData(RecoverType role,
           if (req_in[i]) min_write = std::min(links[i].size_write, min_write);
         }
         utils::Assert(min_write <= links[pid].size_read, "boundary check");
-        if (!links[pid].ReadToRingBuffer(min_write)) return kSockError;
+        ReturnType ret = links[pid].ReadToRingBuffer(min_write);
+        if (ret != kSuccess) {
+          return ReportError(&links[pid], ret);
+        }
       }
       for (int i = 0; i < nlink; ++i) {
-        if (req_in[i] && selecter.CheckWrite(links[i].sock) &&
-            links[pid].size_read != links[i].size_write) {
+        if (req_in[i] && links[pid].size_read != links[i].size_write) {
           size_t start = links[i].size_write % buffer_size;
           // send out data from ring buffer
           size_t nwrite = std::min(buffer_size - start, links[pid].size_read - links[i].size_write);
@@ -647,7 +686,8 @@ AllreduceRobust::TryRecoverData(RecoverType role,
           if (len != -1) {
             links[i].size_write += len;
           } else {
-            if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
+            ReturnType ret = Errno2Return(errno);
+            if (ret != kSuccess) return ReportError(&links[i], ret);
           }
         }
       }
@@ -697,6 +737,14 @@ AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
     if (succ != kSuccess) return succ;
     utils::Check(state == 1 || state == 2,
                  "LoadCheckPoint: too many nodes fails, cannot recover local state");
+  }
+  // do call save model if the checkpoint was lazy
+  if (role == kHaveData && global_lazycheck != NULL) {
+    global_checkpoint.resize(0);
+    utils::MemoryBufferStream fs(&global_checkpoint);
+    fs.Write(&version_number, sizeof(version_number));
+    global_lazycheck->Save(fs);
+    global_lazycheck = NULL;
   }
   // recover global checkpoint
   size_t size = this->global_checkpoint.length();
@@ -1098,27 +1146,28 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
     selecter.WatchException(next.sock);
     if (finished) break;
     selecter.Select();
-    if (selecter.CheckExcept(prev.sock)) return kGetExcept;
-    if (selecter.CheckExcept(next.sock)) return kGetExcept;
+    if (selecter.CheckExcept(prev.sock)) return ReportError(&prev, kGetExcept);
+    if (selecter.CheckExcept(next.sock)) return ReportError(&next, kGetExcept);
     if (read_ptr != read_end && selecter.CheckRead(prev.sock)) {
       ssize_t len = prev.sock.Recv(buf + read_ptr, read_end - read_ptr);
       if (len == 0) {
-        prev.sock.Close(); return kSockError;
+        prev.sock.Close(); return ReportError(&prev, kRecvZeroLen);
       }
       if (len != -1) {
         read_ptr += static_cast<size_t>(len);
       } else {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
+        ReturnType ret = Errno2Return(errno);
+        if (ret != kSuccess) return ReportError(&prev, ret);
       }
     }
-    if (write_ptr != write_end && write_ptr < read_ptr &&
-        selecter.CheckWrite(next.sock)) {
+    if (write_ptr != write_end && write_ptr < read_ptr) {
       size_t nsend = std::min(write_end - write_ptr, read_ptr - write_ptr);
       ssize_t len = next.sock.Send(buf + write_ptr, nsend);
       if (len != -1) {
         write_ptr += static_cast<size_t>(len);
       } else {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
+        ReturnType ret = Errno2Return(errno);
+        if (ret != kSuccess) return ReportError(&prev, ret);
       }
     }
   }

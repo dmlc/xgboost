@@ -183,6 +183,10 @@ inline void CheckPoint(const ISerializable *global_model,
                        const ISerializable *local_model) {
   engine::GetEngine()->CheckPoint(global_model, local_model);
 }
+// lazy checkpoint the model, only remember the pointer to global_model
+inline void LazyCheckPoint(const ISerializable *global_model) {
+  engine::GetEngine()->LazyCheckPoint(global_model);
+}
 // return the version number of currently stored model
 inline int VersionNumber(void) {
   return engine::GetEngine()->VersionNumber();
@@ -197,7 +201,7 @@ inline void ReducerFunc_(const void *src_, void *dst_, int len_, const MPI::Data
   const char *psrc = reinterpret_cast<const char*>(src_);
   char *pdst = reinterpret_cast<char*>(dst_);
   DType tdst, tsrc;
-  for (size_t i = 0; i < len_; ++i) {
+  for (int i = 0; i < len_; ++i) {
     // use memcpy to avoid alignment issue
     std::memcpy(&tdst, pdst + i * kUnit, sizeof(tdst));
     std::memcpy(&tsrc, psrc + i * kUnit, sizeof(tsrc));

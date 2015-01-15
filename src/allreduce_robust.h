@@ -99,7 +99,32 @@ class AllreduceRobust : public AllreduceBase {
    * \sa LoadCheckPoint, VersionNumber
    */
   virtual void CheckPoint(const ISerializable *global_model,
-                          const ISerializable *local_model = NULL);
+                          const ISerializable *local_model = NULL) {
+    this->CheckPoint_(global_model, local_model, false);
+  }
+  /*!
+   * \brief This function can be used to replace CheckPoint for global_model only,
+   *   when certain condition is met(see detailed expplaination).
+   * 
+   *   This is a "lazy" checkpoint such that only the pointer to global_model is
+   *   remembered and no memory copy is taken. To use this function, the user MUST ensure that:
+   *   The global_model must remain unchanged util last call of Allreduce/Broadcast in current version finishs.
+   *   In another words, global_model model can be changed only between last call of 
+   *   Allreduce/Broadcast and LazyCheckPoint in current version
+   *   
+   *   For example, suppose the calling sequence is:
+   *   LazyCheckPoint, code1, Allreduce, code2, Broadcast, code3, LazyCheckPoint
+   *   
+   *   If user can only changes global_model in code3, then LazyCheckPoint can be used to
+   *   improve efficiency of the program.
+   * \param global_model pointer to the globally shared model/state
+   *   when calling this function, the caller need to gauranttees that global_model
+   *   is the same in all nodes
+   * \sa LoadCheckPoint, CheckPoint, VersionNumber
+   */
+  virtual void LazyCheckPoint(const ISerializable *global_model) {
+    this->CheckPoint_(global_model, NULL, true);
+  }
   /*!
    * \brief explicitly re-init everything before calling LoadCheckPoint
    *    call this function when IEngine throw an exception out,
@@ -274,10 +299,38 @@ class AllreduceRobust : public AllreduceBase {
     std::vector<uint64_t> data_;
   };
   /*!
-   * \brief reset the all the existing links by sending Out-of-Band message marker
-   *  after this function finishes, all the messages received and sent before in all live links are discarded,
-   *  This allows us to get a fresh start after error has happened
+   * \brief internal consistency check function,
+   *  use check to ensure user always call CheckPoint/LoadCheckPoint
+   *  with or without local but not both, this function will set the approperiate settings
+   *  in the first call of LoadCheckPoint/CheckPoint 
    *
+   * \param with_local whether the user calls CheckPoint with local model
+   */
+  void LocalModelCheck(bool with_local);
+  /*!
+   * \brief internal implementation of checkpoint, support both lazy and normal way
+   * 
+   * \param global_model pointer to the globally shared model/state
+   *   when calling this function, the caller need to gauranttees that global_model
+   *   is the same in all nodes
+   * \param local_model pointer to local model, that is specific to current node/rank
+   *   this can be NULL when no local state is needed
+   * \param lazy_checkpt whether the action is lazy checkpoint
+   *
+   * \sa CheckPoint, LazyCheckPoint
+   */
+  void CheckPoint_(const ISerializable *global_model,
+                   const ISerializable *local_model,
+                   bool lazy_checkpt);
+  /*!
+   * \brief reset the all the existing links by sending Out-of-Band message marker
+   *  after this function finishes, all the messages received and sent
+   *  before in all live links are discarded,
+   *  This allows us to get a fresh start after error has happened
+   *    
+   *  TODO(tqchen): this function is not yet functioning was not used by engine,
+   *   simple resetlink and reconnect strategy is used
+   * 
    * \return this function can return kSuccess or kSockError
    *         when kSockError is returned, it simply means there are bad sockets in the links,
    *         and some link recovery proceduer is needed
@@ -468,12 +521,18 @@ o   *  the input state must exactly one saved state(local state of current node)
   ResultBuffer resbuf;
   // last check point global model
   std::string global_checkpoint;
+  // lazy checkpoint of global model
+  const ISerializable *global_lazycheck;
   // number of replica for local state/model
   int num_local_replica;
   // number of default local replica
   int default_local_replica;
+  // flag to decide whether local model is used, -1: unknown, 0: no, 1:yes
+  int use_local_model;
   // number of replica for global state/model
   int num_global_replica;
+  // number of times recovery happens
+  int recover_counter;
   // --- recovery data structure for local checkpoint
   // there is two version of the data structure,
   // at one time one version is valid and another is used as temp memory

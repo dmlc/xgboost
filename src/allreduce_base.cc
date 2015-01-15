@@ -27,6 +27,7 @@ AllreduceBase::AllreduceBase(void) {
   hadoop_mode = 0;
   version_number = 0;
   task_id = "NULL";
+  err_link = NULL;
   this->SetParam("rabit_reduce_buffer", "256MB");
 }
 
@@ -213,7 +214,7 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
       } else {
         if (!all_links[i].sock.IsClosed()) all_links[i].sock.Close();
       }
-    }
+    }    
     int ngood = static_cast<int>(good_link.size());
     Assert(tracker.SendAll(&ngood, sizeof(ngood)) == sizeof(ngood),
            "ReConnectLink failure 5");
@@ -365,7 +366,7 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
           selecter.WatchException(links[i].sock);
           finished = false;
         }
-        if (size_up_out != total_size) {
+        if (size_up_out != total_size && size_up_out < size_up_reduce) {
           selecter.WatchWrite(links[i].sock);
         }
       } else {
@@ -373,8 +374,10 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
           selecter.WatchRead(links[i].sock);
         }
         // size_write <= size_read
-        if (links[i].size_write != total_size) {
-          selecter.WatchWrite(links[i].sock);
+        if (links[i].size_write != total_size){
+          if (links[i].size_write < size_down_in) {
+            selecter.WatchWrite(links[i].sock);
+          }
           // only watch for exception in live channels
           selecter.WatchException(links[i].sock);
           finished = false;
@@ -388,12 +391,17 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
     // exception handling
     for (int i = 0; i < nlink; ++i) {
       // recive OOB message from some link
-      if (selecter.CheckExcept(links[i].sock)) return kGetExcept;
+      if (selecter.CheckExcept(links[i].sock)) {
+        return ReportError(&links[i], kGetExcept);
+      }
     }
     // read data from childs
     for (int i = 0; i < nlink; ++i) {
       if (i != parent_index && selecter.CheckRead(links[i].sock)) {
-        if (!links[i].ReadToRingBuffer(size_up_out)) return kSockError;
+        ReturnType ret = links[i].ReadToRingBuffer(size_up_out);
+        if (ret != kSuccess) {
+          return ReportError(&links[i], ret);
+        }
       }
     }
     // this node have childs, peform reduce
@@ -433,13 +441,16 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
     }
     if (parent_index != -1) {
       // pass message up to parent, can pass data that are already been reduced
-      if (selecter.CheckWrite(links[parent_index].sock)) {
+      if (size_up_out < size_up_reduce) {
         ssize_t len = links[parent_index].sock.
             Send(sendrecvbuf + size_up_out, size_up_reduce - size_up_out);
         if (len != -1) {
           size_up_out += static_cast<size_t>(len);
         } else {
-          if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
+          ReturnType ret = Errno2Return(errno);
+          if (ret != kSuccess) {
+            return ReportError(&links[parent_index], ret);
+          }
         }
       }
       // read data from parent
@@ -448,14 +459,18 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
         ssize_t len = links[parent_index].sock.
             Recv(sendrecvbuf + size_down_in, total_size - size_down_in);
         if (len == 0) {
-          links[parent_index].sock.Close(); return kSockError;
+          links[parent_index].sock.Close(); 
+          return ReportError(&links[parent_index], kRecvZeroLen);
         }
         if (len != -1) {
           size_down_in += static_cast<size_t>(len);
           utils::Assert(size_down_in <= size_up_out,
                         "Allreduce: boundary error");
         } else {
-          if (errno != EAGAIN && errno != EWOULDBLOCK) return kSockError;
+          ReturnType ret = Errno2Return(errno);
+          if (ret != kSuccess) {
+            return ReportError(&links[parent_index], ret);
+          }
         }
       }
     } else {
@@ -464,9 +479,10 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
     }
     // can pass message down to childs
     for (int i = 0; i < nlink; ++i) {
-      if (i != parent_index && selecter.CheckWrite(links[i].sock)) {
-        if (!links[i].WriteFromArray(sendrecvbuf, size_down_in)) {
-          return kSockError;
+      if (i != parent_index && links[i].size_write < size_down_in) {
+        ReturnType ret = links[i].WriteFromArray(sendrecvbuf, size_down_in);
+        if (ret != kSuccess) {
+          return ReportError(&links[i], ret);
         }
       }
     }
@@ -516,7 +532,10 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
         selecter.WatchRead(links[i].sock); finished = false;
       }
       if (in_link != -2 && i != in_link && links[i].size_write != total_size) {
-        selecter.WatchWrite(links[i].sock); finished = false;
+        if (links[i].size_write < size_in) {
+          selecter.WatchWrite(links[i].sock);
+        }
+        finished = false;
       }
       selecter.WatchException(links[i].sock);
     }
@@ -527,14 +546,17 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
     // exception handling
     for (int i = 0; i < nlink; ++i) {
       // recive OOB message from some link
-      if (selecter.CheckExcept(links[i].sock)) return kGetExcept;
+      if (selecter.CheckExcept(links[i].sock)) {
+        return ReportError(&links[i], kGetExcept);
+      }
     }
     if (in_link == -2) {
       // probe in-link
       for (int i = 0; i < nlink; ++i) {
         if (selecter.CheckRead(links[i].sock)) {
-          if (!links[i].ReadToArray(sendrecvbuf_, total_size)) {
-            return kSockError;
+          ReturnType ret = links[i].ReadToArray(sendrecvbuf_, total_size);
+          if (ret != kSuccess) {
+            return ReportError(&links[i], ret);
           }
           size_in = links[i].size_read;
           if (size_in != 0) {
@@ -545,16 +567,20 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
     } else {
       // read from in link
       if (in_link >= 0 && selecter.CheckRead(links[in_link].sock)) {
-        if (!links[in_link].ReadToArray(sendrecvbuf_, total_size)) {
-          return kSockError;
+        ReturnType ret = links[in_link].ReadToArray(sendrecvbuf_, total_size);
+        if (ret != kSuccess) {
+          return ReportError(&links[in_link], ret);
         }
         size_in = links[in_link].size_read;
       }
     }
     // send data to all out-link
     for (int i = 0; i < nlink; ++i) {
-      if (i != in_link && selecter.CheckWrite(links[i].sock)) {
-        if (!links[i].WriteFromArray(sendrecvbuf_, size_in)) return kSockError;
+      if (i != in_link && links[i].size_write < size_in) {
+        ReturnType ret = links[i].WriteFromArray(sendrecvbuf_, size_in);
+        if (ret != kSuccess) {
+          return ReportError(&links[i], ret);
+        }
       }
     }
   }

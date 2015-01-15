@@ -257,6 +257,7 @@ class Tracker:
 def submit(nslave, args, fun_submit, verbose):
     master = Tracker(verbose = verbose)
     submit_thread = Thread(target = fun_submit, args = (nslave, args + master.slave_args()))
+    submit_thread.daemon = True
     submit_thread.start()
     master.accept_slaves(nslave)
     submit_thread.join()

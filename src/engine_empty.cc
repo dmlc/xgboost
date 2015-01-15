@@ -42,6 +42,9 @@ class EmptyEngine : public IEngine {
                           const ISerializable *local_model = NULL) {
     version_number += 1;
   }
+  virtual void LazyCheckPoint(const ISerializable *global_model) {
+    version_number += 1;
+  }
   virtual int VersionNumber(void) const {
     return version_number;
   }
