@@ -20,7 +20,7 @@ Please also refer to the [API Documentation](http://homes.cs.washington.edu/~tqc
 What is Allreduce
 =====
 The main methods provided by rabit are Allreduce and Broadcast. Allreduce performs reduction across different computation nodes,
-and returns the result to every node. To understand the behavior of the function, consider the following example in [basic.cc](basic.cc).
+and returns the result to every node. To understand the behavior of the function, consider the following example in [basic.cc](basic.cc) (there is a python example right after this if you are more familiar with python).
 ```c++
 #include <rabit.h>
 using namespace rabit;
@@ -57,7 +57,7 @@ Rabit provides different reduction operators, for example,  if you change ```op:
 the reduction operation will be a summation, and the result will become ```a = {1, 3, 5}```.
 You can also run the example with different processes by setting -n to different values.
 
-In order to make the library available for a wider range of developers, we decided to provide a python wrapper to our C++ code. Developers can now program rabit applications in Python! The same example as before can be found in [basic.py](basic.py):
+If you are more familiar with python, you can also use rabit in python. The same example as before can be found in [basic.py](basic.py):
 
 ```python
 import numpy as np
@@ -102,7 +102,7 @@ The following command starts the program with three worker processes.
 ```
 Besides strings, rabit also allows to broadcast constant size array and vectors.
 
-The counterpart in python can be found in [broadcast.py](broadcast.py). Here is a snippet so that you can get a better sense of how simple is to use the wrapper:
+The counterpart in python can be found in [broadcast.py](broadcast.py). Here is a snippet so that you can get a better sense of how simple is to the python library:
 
 ```python
 import rabit
