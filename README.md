@@ -8,29 +8,19 @@ rabit is a light weight library that provides a fault tolerant interface of Allr
 
 Features
 ====
-* Portable library
-  - Rabit is a library instead of a framework, a program only needs to link the library to run.
-* Flexibility in programming
+All these features comes from the facts about small rabbit:)
+* Portable: rabit is light weight and runs everywhere
+  - Rabit is a library instead of a framework, a program only needs to link the library to run
+  - Rabit only replies on a mechanism to start program, which was provided by most framework
+  - You can port rabit programs easily to many frameworks, including Hadoop, MPI without changing your code
+* Scalable and Flexible: rabit runs fast
+  * Rabit program use Allreduce to communicate, and do not suffer the cost between iterations of MapReduce abstraction.
   - Programs can call rabit functions in any order, as opposed to frameworks where callbacks are offered and called by the framework, i.e. inversion of control principle.
   - Programs persist over all the iterations, unless they fail and recover.
-* Fault tolerance 
+* Fault Tolerant: rabit dig burrows to avoid disasters
   - Rabit programs can recover the model and results using synchronous function calls.
-* MPI compatible
-  - Code that uses the rabit interface also compiles with existing MPI compilers
-  - Users can use MPI Allreduce with no code modification
 
 Use Rabit
 ====
 * Type make in the root folder will compile the rabit library in lib folder
 * Add lib to the library path and include to the include path of compiler
-
-Design Notes
-====
-* Rabit is designed for algorithms that replicate the same global model across nodes, while each node operates on a local partition of the data.
-* The collection of global statistics is done using Allreduce
-
-Design Goals
-====
-* rabit should run fast
-* rabit should be light weight
-* rabit should safely dig burrows to avoid disasters
