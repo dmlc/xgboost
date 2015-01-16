@@ -47,6 +47,7 @@ Debug
 *.cpage.col
 *.cpage
 xgboost
-xgboost-mpi
+xgboost.mpi
+xgboost.mock
 train*
 rabit
