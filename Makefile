@@ -18,9 +18,9 @@ endif
 
 # specify tensor path
 BIN = xgboost 
-MOCKBIN = xgboost-mock
+MOCKBIN = xgboost.mock
 OBJ = updater.o gbm.o io.o main.o 
-MPIBIN = xgboost-mpi
+MPIBIN = xgboost.mpi
 SLIB = wrapper/libxgboostwrapper.so 
 
 .PHONY: clean all mpi python Rpack librabit librabit_mpi
@@ -42,8 +42,8 @@ updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h src/utils/*
 gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h 
 io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
 main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h 
-xgboost-mpi:  updater.o gbm.o io.o main.o librabit_mpi
-xgboost-mock: updater.o gbm.o io.o main.o librabit
+xgboost.mpi:  updater.o gbm.o io.o main.o librabit_mpi
+xgboost.mock: updater.o gbm.o io.o main.o librabit
 xgboost:  updater.o gbm.o io.o main.o  librabit
 wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o librabit
 

@@ -16,7 +16,7 @@ k=$1
 python splitsvm.py ../../demo/data/agaricus.txt.train train $k
 
 # run xgboost mpi
-../../rabit/tracker/rabit_mpi.py $k local ../../rabit/test/keepalive.sh ../../xgboost-mock mushroom-col.conf dsplit=col mock=0,1,0,0 mock=1,1,0,0
+../../rabit/tracker/rabit_demo.py -n $k  ../../xgboost.mock mushroom-col.conf dsplit=col mock=0,2,0,0 mock=1,2,0,0 mock=2,2,8,0 mock=2,3,0,0
 
 # the model can be directly loaded by single machine xgboost solver, as usuall
 #../../xgboost mushroom-col.conf task=dump model_in=0002.model fmap=../../demo/data/featmap.txt name_dump=dump.nice.$k.txt

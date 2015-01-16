@@ -17,4 +17,4 @@ cd -
 python splitrows.py ../../demo/regression/machine.txt.train train-machine $k
 
 # run xgboost mpi
-../../rabit/tracker/rabit_mpi.py -n $k ../../rabit/test/keepalive.sh ../../xgboost-mock machine-row.conf dsplit=row num_round=3 mock=1,1,1,0 
+../../rabit/tracker/rabit_demo.py -n $k  ../../xgboost.mock machine-row.conf dsplit=row num_round=3 mock=1,1,1,0  mock=0,0,3,0 mock=2,2,3,0

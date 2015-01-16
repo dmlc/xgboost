@@ -271,6 +271,12 @@ class BoostLearner : public rabit::ISerializable {
     gbm_->DoBoost(train.fmat(), this->FindBufferOffset(train), train.info.info, &gpair_);
   }
   /*!
+   * \brief whether model allow lazy checkpoint
+   */
+  inline bool AllowLazyCheckPoint(void) const {
+    return gbm_->AllowLazyCheckPoint();
+  }
+  /*!
    * \brief evaluate the model for specific iteration
    * \param iter iteration number
    * \param evals datas i want to evaluate

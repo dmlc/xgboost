@@ -46,6 +46,14 @@ class IGradBooster {
    * and recalculate from scratch
    */
   virtual void ResetPredBuffer(size_t num_pbuffer) {}
+  /*! 
+   * \brief whether the model allow lazy checkpoint
+   * return true if model is only updated in DoBoost 
+   * after all Allreduce calls
+   */
+  virtual bool AllowLazyCheckPoint(void) const {
+    return false;
+  }
   /*!
    * \brief peform update to the model(boosting)
    * \param p_fmat feature matrix that provide access to features
@@ -76,7 +84,6 @@ class IGradBooster {
                        const BoosterInfo &info,
                        std::vector<float> *out_preds,
                        unsigned ntree_limit = 0) = 0;
-  
   /*!
    * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
    *        this is only valid in gbtree predictor
