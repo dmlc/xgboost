@@ -53,6 +53,11 @@ class AllreduceMock : public AllreduceRobust {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial), "CheckPoint");
     AllreduceRobust::CheckPoint(global_model, local_model);
   }
+
+  virtual void LazyCheckPoint(const ISerializable *global_model) {
+    this->Verify(MockKey(rank, version_number, seq_counter, num_trial), "LazyCheckPoint");
+    AllreduceRobust::LazyCheckPoint(global_model);
+  }
   
  private:
   // key to identify the mock stage
