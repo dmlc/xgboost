@@ -5,8 +5,8 @@ This folder contains information of Distributed XGBoost.
 * The distributed version is built on Rabit:[Reliable Allreduce and Broadcast Library](https://github.com/tqchen/rabit)
   - Rabit is a portable library that provides fault-tolerance for Allreduce calls for distributed machine learning  
   - This makes xgboost portable and fault-tolerant against node failures
-* You can run Distributed XGBoost on common platforms that rabit can port to,
-  including Hadoop(see [hadoop folder](hadoop)) and MPI
+* You can run Distributed XGBoost on platforms including Hadoop(see [hadoop folder](hadoop)) and MPI
+  - Rabit only replies a platform to start the programs, so it should be easy to port xgboost to most platforms
 
 Usage
 =====
