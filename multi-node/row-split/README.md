@@ -1,10 +1,8 @@
 Distributed XGBoost: Row Split Version
 ====
+* You might be interested to checkout the [Hadoop example](../hadoop)
 * Machine Rabit: run ```bash machine-row-rabit.sh <n-mpi-process>```
   - machine-col-rabit.sh starts xgboost job using rabit
-* Mushroom: run ```bash mushroom-row-mpi.sh <n-mpi-process>```
-* Machine: run ```bash machine-row-mpi.sh <n-mpi-process>```
-  - Machine case also include example to continue training from existing model
 
 How to Use
 ====

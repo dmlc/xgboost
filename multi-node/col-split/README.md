@@ -4,8 +4,6 @@ Distributed XGBoost: Column Split Version
   - mushroom-col-rabit.sh starts xgboost job using rabit's allreduce
 * run ```bash mushroom-col-rabit-mock.sh <n-process>```
   - mushroom-col-rabit-mock.sh starts xgboost job using rabit's allreduce, inserts suicide signal at certain point and test recovery
-* run ```bash mushroom-col-mpi.sh <n-mpi-process>```
-  - mushroom-col.sh starts xgboost-mpi job
 
 How to Use
 ====

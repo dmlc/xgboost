@@ -82,23 +82,6 @@ class Booster: public learner::BoostLearner {
 using namespace xgboost::wrapper;
 
 extern "C"{
-  void XGSyncInit(int argc, char *argv[]) {
-    rabit::Init(argc, argv);
-    if (rabit::GetWorldSize() != 1) {
-      std::string pname = rabit::GetProcessorName();
-      utils::Printf("distributed job start %s:%d\n", pname.c_str(), rabit::GetRank());
-    }
-  }
-  void XGSyncFinalize(void) {
-    rabit::Finalize();
-  }
-  int XGSyncGetRank(void) {
-    int rank = rabit::GetRank();
-    return rank;
-  }
-  int XGSyncGetWorldSize(void) {
-    return rabit::GetWorldSize();
-  }
   void* XGDMatrixCreateFromFile(const char *fname, int silent) {
     return LoadDataMatrix(fname, silent != 0, false);
   }
