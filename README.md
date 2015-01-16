@@ -1,6 +1,6 @@
 ## rabit: Reliable Allreduce and Broadcast Interface
 
-rabit is a light weight library that provides a fault tolerant interface of Allreduce and Broadcast. It is designed to support easy implementations of distributed machine learning programs, many of which fall naturally under the Allreduce abstraction.
+rabit is a light weight library that provides a fault tolerant interface of Allreduce and Broadcast. It is designed to support easy implementations of distributed machine learning programs, many of which fall naturally under the Allreduce abstraction. The goal of rabit is to support ***portable*** , ***scalable*** and ***reliable*** distributed machine learning programs. 
 
 * [Tutorial](guide)
 * [API Documentation](http://homes.cs.washington.edu/~tqchen/rabit/doc)
@@ -17,7 +17,7 @@ All these features comes from the facts about small rabbit:)
   * Rabit program use Allreduce to communicate, and do not suffer the cost between iterations of MapReduce abstraction.
   - Programs can call rabit functions in any order, as opposed to frameworks where callbacks are offered and called by the framework, i.e. inversion of control principle.
   - Programs persist over all the iterations, unless they fail and recover.
-* Fault Tolerant: rabit dig burrows to avoid disasters
+* Reliable: rabit dig burrows to avoid disasters
   - Rabit programs can recover the model and results using synchronous function calls.
 
 Use Rabit
