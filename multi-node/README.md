@@ -8,6 +8,10 @@ This folder contains information of Distributed XGBoost.
 * You can run Distributed XGBoost on platforms including Hadoop(see [hadoop folder](hadoop)) and MPI
   - Rabit only replies a platform to start the programs, so it should be easy to port xgboost to most platforms
 
+Build
+=====
+* In the root folder, run ```./build.sh```, this will give you xgboost, which uses rabit allreduce
+
 Notes
 ====
 * Rabit handles all the fault tolerant and communications efficiently, we only use platform specific command to start programs
