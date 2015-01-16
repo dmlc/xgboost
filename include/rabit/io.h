@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2014 by Contributors
  * \file io.h
- * \brief utilities that implements different serializable interface
+ * \brief utilities with different serializable implementations
  * \author Tianqi Chen
  */
 #ifndef RABIT_UTILS_IO_H_

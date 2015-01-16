@@ -60,7 +60,7 @@ const int kPrintBuffer = 1 << 12;
 
 #ifndef RABIT_CUSTOMIZE_MSG_
 /*! 
- * \brief handling of Assert error, caused by in-apropriate input
+ * \brief handling of Assert error, caused by inappropriate input
  * \param msg error message 
  */
 inline void HandleAssertError(const char *msg) {
@@ -68,7 +68,7 @@ inline void HandleAssertError(const char *msg) {
   exit(-1);
 }
 /*! 
- * \brief handling of Check error, caused by in-apropriate input
+ * \brief handling of Check error, caused by inappropriate input
  * \param msg error message 
  */
 inline void HandleCheckError(const char *msg) {
@@ -98,7 +98,7 @@ extern "C" void (*Assert)(int exp, const char *fmt, ...);
 extern "C" void (*Check)(int exp, const char *fmt, ...);
 extern "C" void (*Error)(const char *fmt, ...);
 #else
-/*! \brief printf, print message to the console */
+/*! \brief printf, prints messages to the console */
 inline void Printf(const char *fmt, ...) {
   std::string msg(kPrintBuffer, '\0');
   va_list args;
@@ -116,7 +116,7 @@ inline int SPrintf(char *buf, size_t size, const char *fmt, ...) {
   return ret;
 }
 
-/*! \brief assert an condition is true, use this to handle debug information */
+/*! \brief assert a condition is true, use this to handle debug information */
 inline void Assert(bool exp, const char *fmt, ...) {
   if (!exp) {
     std::string msg(kPrintBuffer, '\0');
@@ -128,7 +128,7 @@ inline void Assert(bool exp, const char *fmt, ...) {
   }
 }
 
-/*!\brief same as assert, but this is intended to be used as message for user*/
+/*!\brief same as assert, but this is intended to be used as a message for users */
 inline void Check(bool exp, const char *fmt, ...) {
   if (!exp) {
     std::string msg(kPrintBuffer, '\0');
@@ -160,7 +160,7 @@ inline std::FILE *FopenCheck(const char *fname, const char *flag) {
   return fp;
 }
 }  // namespace utils
-// easy utils that can be directly acessed in xgboost
+// easy utils that can be directly accessed in xgboost
 /*! \brief get the beginning address of a vector */
 template<typename T>
 inline T *BeginPtr(std::vector<T> &vec) {

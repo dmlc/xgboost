@@ -1,18 +1,18 @@
 /*!
  *  Copyright (c) 2014 by Contributors
  * \file rabit.h
- * \brief This file defines unified Allreduce/Broadcast interface of rabit
- *   The actual implementation is redirected to rabit engine
- *   Code only using this header can also compiled with MPI Allreduce(with no fault recovery),
+ * \brief This file defines rabit's Allreduce/Broadcast interface
+ *   The rabit engine contains the actual implementation
+ *   Code that only uses this header can also be compiled with MPI Allreduce (non fault-tolerant),
  *
- *   rabit.h and serializable.h is all the user need to use rabit interface
+ *   rabit.h and serializable.h is all what the user needs to use the rabit interface
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #ifndef RABIT_RABIT_H_
 #define RABIT_RABIT_H_
 #include <string>
 #include <vector>
-// optionally support of lambda function in C++11, if available
+// optionally support of lambda functions in C++11, if available
 #if __cplusplus >= 201103L
 #include <functional>
 #endif  // C++11
@@ -20,13 +20,13 @@
 #include "./rabit_serializable.h"
 // engine definition of rabit, defines internal implementation
 // to use rabit interface, there is no need to read engine.h
-// rabit.h and serializable.h are suffice to use the interface
+// rabit.h and serializable.h are enough to use the interface
 #include "./rabit/engine.h"
 
-/*! \brief namespace of rabit */
+/*! \brief rabit namespace */
 namespace rabit {
 /*!
- * \brief namespace of reduction operators
+ * \brief reduction operators namespace
  */
 namespace op {
 /*!
@@ -46,90 +46,90 @@ struct Min;
 struct Sum;
 /*!
  * \class rabit::op::BitOR
- * \brief bitwise or reduction operator
+ * \brief bitwise OR reduction operator
  */
 struct BitOR;
 }  // namespace op
 /*!
- * \brief intialize the rabit module, call this once before using anything
+ * \brief initializes rabit, call this once at the beginning of your program
  * \param argc number of arguments in argv
  * \param argv the array of input arguments
  */
 inline void Init(int argc, char *argv[]);
 /*! 
- * \brief finalize the rabit engine, call this function after you finished all jobs 
+ * \brief finalizes the rabit engine, call this function after you finished with all the jobs 
  */
 inline void Finalize(void);
-/*! \brief get rank of current process */
+/*! \brief gets rank of the current process */
 inline int GetRank(void);
-/*! \brief get total number of process */
+/*! \brief gets total number of processes */
 inline int GetWorldSize(void);
 /*! \brief whether rabit env is in distributed mode */
 inline bool IsDistributed(void) {
   return GetWorldSize() != 1;
 }
-/*! \brief get name of processor */
+/*! \brief gets processor's name */
 inline std::string GetProcessorName(void);
 /*!
- * \brief print the msg to the tracker,
- *    this function can be used to communicate the information of the progress to
+ * \brief prints the msg to the tracker,
+ *    this function can be used to communicate progress information to 
  *    the user who monitors the tracker
  * \param msg the message to be printed
  */
 inline void TrackerPrint(const std::string &msg);
 #ifndef RABIT_STRICT_CXX98_
 /*!
- * \brief print the msg to the tracker, this function may not be available
- *    in very strict c++98 compilers, but is available most of the time
- *    this function can be used to communicate the information of the progress to
+ * \brief prints the msg to the tracker, this function may not be available
+ *    in very strict c++98 compilers, though it usually is.
+ *    this function can be used to communicate progress information to
  *    the user who monitors the tracker
  * \param fmt the format string
  */
 inline void TrackerPrintf(const char *fmt, ...);
 #endif
 /*!
- * \brief broadcast an memory region to all others from root
+ * \brief broadcasts a memory region to every node from the root
  *
  *     Example: int a = 1; Broadcast(&a, sizeof(a), root); 
- * \param sendrecv_data the pointer to send or recive buffer,
- * \param size the size of the data
- * \param root the root of process
+ * \param sendrecv_data the pointer to the send/receive buffer,
+ * \param size the data size
+ * \param root the process root
  */
 inline void Broadcast(void *sendrecv_data, size_t size, int root);
 /*!
- * \brief broadcast an std::vector<DType> to all others from root
- * \param sendrecv_data the pointer to send or recive vector,
- *        for receiver, the vector does not need to be pre-allocated
- * \param root the root of process
- * \tparam DType the data type stored in vector, have to be simple data type
- *               that can be directly send by sending the sizeof(DType) data
+ * \brief broadcasts an std::vector<DType> to every node from root
+ * \param sendrecv_data the pointer to send/receive vector,
+ *        for the receiver, the vector does not need to be pre-allocated
+ * \param root the process root
+ * \tparam DType the data type stored in the vector, has to be a simple data type
+ *               that can be directly transmitted by sending the sizeof(DType)
  */
 template<typename DType>
 inline void Broadcast(std::vector<DType> *sendrecv_data, int root);
 /*!
- * \brief broadcast an std::string to all others from root
- * \param sendrecv_data the pointer to send or recive vector,
- *        for receiver, the vector does not need to be pre-allocated
- * \param root the root of process
+ * \brief broadcasts a std::string to every node from the root
+ * \param sendrecv_data the pointer to the send/receive buffer,
+ *        for the receiver, the vector does not need to be pre-allocated
+ * \param root the process root
  */
 inline void Broadcast(std::string *sendrecv_data, int root);
 /*!
- * \brief perform in-place allreduce, on sendrecvbuf 
+ * \brief performs in-place Allreduce on sendrecvbuf 
  *        this function is NOT thread-safe
  *
- * Example Usage: the following code gives sum of the result
+ * Example Usage: the following code does an Allreduce and outputs the sum as the result
  *     vector<int> data(10);
  *     ...
  *     Allreduce<op::Sum>(&data[0], data.size());
  *     ...
- * \param sendrecvbuf buffer for both sending and recving data
+ * \param sendrecvbuf buffer for both sending and receiving data
  * \param count number of elements to be reduced
  * \param prepare_fun Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
- *                    will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+ *                    will be called by the function before performing Allreduce in order to initialize the data in sendrecvbuf.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
- * \param prepare_arg argument used to passed into the lazy preprocessing function 
+ * \param prepare_arg argument used to pass into the lazy preprocessing function 
  * \tparam OP see namespace op, reduce operator 
- * \tparam DType type of data
+ * \tparam DType data type
  */
 template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
@@ -139,10 +139,10 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
 // C++11 support for lambda prepare function
 #if __cplusplus >= 201103L
 /*!
- * \brief perform in-place allreduce, on sendrecvbuf
- *        with a prepare function specified by lambda function
+ * \brief performs in-place Allreduce, on sendrecvbuf
+ *        with a prepare function specified by a lambda function
  *
- * Example Usage: the following code gives sum of the result
+ * Example Usage: the following code does an Allreduce and outputs the sum as the result
  *     vector<int> data(10);
  *     ...
  *     Allreduce<op::Sum>(&data[0], data.size(), [&]() {
@@ -151,29 +151,29 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
  *                          }
  *                        });
  *     ...
- * \param sendrecvbuf buffer for both sending and recving data
+ * \param sendrecvbuf buffer for both sending and receiving data
  * \param count number of elements to be reduced
  * \param prepare_fun  Lazy lambda preprocessing function, prepare_fun() will be invoked
- *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+ *                     by the function before performing Allreduce in order to initialize the data in sendrecvbuf.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
  * \tparam OP see namespace op, reduce operator 
- * \tparam DType type of data
+ * \tparam DType data type
  */
 template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
                       std::function<void()> prepare_fun);
 #endif  // C++11
 /*!
- * \brief load latest check point
+ * \brief loads the latest check point
  * \param global_model pointer to the globally shared model/state
- *   when calling this function, the caller need to gauranttees that global_model
- *   is the same in all nodes
- * \param local_model pointer to local model, that is specific to current node/rank
+ *   when calling this function, the caller needs to guarantee that the global_model
+ *   is the same in every node
+ * \param local_model pointer to the local model that is specific to the current node/rank
  *   this can be NULL when no local model is needed
  * 
- * \return the version number of check point loaded
+ * \return the version number of the check point loaded
  *     if returned version == 0, this means no model has been CheckPointed
- *     the p_model is not touched, user should do necessary initialization by themselves
+ *     the p_model is not touched, users should do the necessary initialization by themselves
  *   
  *   Common usage example:
  *      int iter = rabit::LoadCheckPoint(&model);
@@ -188,45 +188,45 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
 inline int LoadCheckPoint(ISerializable *global_model,
                           ISerializable *local_model = NULL);
 /*!
- * \brief checkpoint the model, meaning we finished a stage of execution
- *  every time we call check point, there is a version number which will increase by one
+ * \brief checkpoints the model, meaning a stage of execution has finished.
+ *  every time we call check point, a version number will be increased by one
  * 
  * \param global_model pointer to the globally shared model/state
- *   when calling this function, the caller need to gauranttees that global_model
- *   is the same in all nodes
- * \param local_model pointer to local model, that is specific to current node/rank
+ *   when calling this function, the caller needs to guarantee that the global_model
+ *   is the same in every node
+ * \param local_model pointer to the local model that is specific to the current node/rank
  *   this can be NULL when no local state is needed
    * NOTE: local_model requires explicit replication of the model for fault-tolerance, which will
-   *       bring replication cost in CheckPoint function. global_model do not need explicit replication.
-   *       So only CheckPoint with global_model if possible
+   *       bring replication cost in the CheckPoint function. global_model does not need explicit replication.
+   *       So, only CheckPoint with the global_model if possible
    * \sa LoadCheckPoint, VersionNumber
    */
 inline void CheckPoint(const ISerializable *global_model,
                        const ISerializable *local_model = NULL);
 /*!
  * \brief This function can be used to replace CheckPoint for global_model only,
- *   when certain condition is met(see detailed expplaination).
+ *   when certain condition is met (see detailed explanation).
  * 
- *   This is a "lazy" checkpoint such that only the pointer to global_model is
+ *   This is a "lazy" checkpoint such that only the pointer to the global_model is
  *   remembered and no memory copy is taken. To use this function, the user MUST ensure that:
- *   The global_model must remain unchanged util last call of Allreduce/Broadcast in current version finishs.
- *   In another words, global_model model can be changed only between last call of 
- *   Allreduce/Broadcast and LazyCheckPoint in current version
+ *   The global_model must remain unchanged until the last call of Allreduce/Broadcast in the current version finishes.
+ *   In other words, the global_model model can be changed only between the last call of 
+ *   Allreduce/Broadcast and LazyCheckPoint, both in the same version
  *   
  *   For example, suppose the calling sequence is:
  *   LazyCheckPoint, code1, Allreduce, code2, Broadcast, code3, LazyCheckPoint
  *   
- *   If user want to use LazyCheckPoint, then the user MUST only change global_model in code3.
+ *   If the user wants to use LazyCheckPoint, then she MUST only change the global_model in code3.
  *
- *   The Use of LazyCheckPoint instead of CheckPoint will improve efficiency of the program.
+ *   The use of LazyCheckPoint instead of CheckPoint will improve the efficiency of the program.
  * \param global_model pointer to the globally shared model/state
- *   when calling this function, the caller need to gauranttees that global_model
- *   is the same in all nodes
+ *   when calling this function, the caller needs to guarantee that the global_model
+ *   is the same in every node
  * \sa LoadCheckPoint, CheckPoint, VersionNumber
  */
 inline void LazyCheckPoint(const ISerializable *global_model);
 /*!
- * \return version number of current stored model,
+ * \return version number of the current stored model,
  *         which means how many calls to CheckPoint we made so far
  * \sa LoadCheckPoint, CheckPoint
  */
@@ -238,9 +238,9 @@ class ReduceHandle;
 }  // namespace engine
 /*!
  * \brief template class to make customized reduce and all reduce easy  
- *  Do not use reducer directly in the function you call Finalize, because the destructor can happen after Finalize
+ *  Do not use reducer directly in the function you call Finalize, because the destructor can execute after Finalize
  * \tparam DType data type that to be reduced
- *  DType must be a struct, with no pointer, and contains a function Reduce(const DType &d);
+ *  DType must be a struct, with no pointer, and contain a function Reduce(const DType &d);
  */
 template<typename DType>
 class Reducer {
@@ -251,9 +251,9 @@ class Reducer {
    * \param sendrecvbuf the in place send-recv buffer
    * \param count number of elements to be reduced
    * \param prepare_fun Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
-   *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
+   *                     will be called by the function before performing Allreduce, to initialize the data in sendrecvbuf.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
-   * \param prepare_arg argument used to passed into the lazy preprocessing function 
+   * \param prepare_arg argument used to pass into the lazy preprocessing function 
    */
   inline void Allreduce(DType *sendrecvbuf, size_t count,
                         void (*prepare_fun)(void *arg) = NULL,
@@ -276,10 +276,10 @@ class Reducer {
 /*!
  * \brief template class to make customized reduce,
  *  this class defines complex reducer handles all the data structure that can be
- *  serialized/deserialzed into fixed size buffer
- *  Do not use reducer directly in the function you call Finalize, because the destructor can happen after Finalize
+ *  serialized/deserialized into fixed size buffer
+ *  Do not use reducer directly in the function you call Finalize, because the destructor can execute after Finalize
  * 
- * \tparam DType data type that to be reduced, DType must contain following functions:
+ * \tparam DType data type that to be reduced, DType must contain the following functions:
  *   (1) Save(IStream &fs)  (2) Load(IStream &fs) (3) Reduce(const DType &d);
  */
 template<typename DType>
@@ -293,9 +293,9 @@ class SerializeReducer {
    *        this includes budget limit for intermediate and final result
    * \param count number of elements to be reduced
    * \param prepare_fun Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
-   *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
-   *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
-   * \param prepare_arg argument used to passed into the lazy preprocessing function 
+   *                     will be called by the function before performing Allreduce, to initialize the data in sendrecvbuf.
+   *                     If the result of Allreduce can be recovered directly, then the prepare_func will NOT be called
+   * \param prepare_arg argument used to pass into the lazy preprocessing function 
    */
   inline void Allreduce(DType *sendrecvobj,
                         size_t max_nbyte, size_t count,

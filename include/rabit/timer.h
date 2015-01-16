@@ -10,9 +10,8 @@
 
 namespace rabit {
 namespace utils {
-// TODO not net cross platform, avoid to use this in most places
 /*!
- * \brief return time in seconds 
+ * \brief return time in seconds, not cross platform, avoid to use this in most places
  */
 inline double GetTime(void) {
   timespec ts;

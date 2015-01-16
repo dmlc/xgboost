@@ -17,26 +17,26 @@ namespace rabit {
 class IStream {
  public:
   /*!
-   * \brief read data from stream
-   * \param ptr pointer to memory buffer
-   * \param size size of block
-   * \return usually is the size of data readed
+   * \brief reads data from a stream
+   * \param ptr pointer to a memory buffer
+   * \param size block size
+   * \return the size of data read
    */
   virtual size_t Read(void *ptr, size_t size) = 0;
   /*!
-   * \brief write data to stream
-   * \param ptr pointer to memory buffer
-   * \param size size of block
+   * \brief writes data to a stream
+   * \param ptr pointer to a memory buffer
+   * \param size block size
    */
   virtual void Write(const void *ptr, size_t size) = 0;
   /*! \brief virtual destructor */
   virtual ~IStream(void) {}
 
  public:
-  // helper functions to write various of data structures
+  // helper functions to write/read different data structures
   /*!
-   * \brief binary serialize a vector 
-   * \param vec vector to be serialized
+   * \brief writes a vector
+   * \param vec vector to be written/serialized
    */
   template<typename T>
   inline void Write(const std::vector<T> &vec) {
@@ -47,9 +47,9 @@ class IStream {
     }
   }
   /*!
-   * \brief binary load a vector 
-   * \param out_vec vector to be loaded
-   * \return whether load is successfull
+   * \brief loads a vector
+   * \param out_vec vector to be loaded/deserialized
+   * \return whether the load was successful
    */
   template<typename T>
   inline bool Read(std::vector<T> *out_vec) {
@@ -62,8 +62,8 @@ class IStream {
     return true;
   }
   /*!
-   * \brief binary serialize a string
-   * \param str the string to be serialized
+   * \brief writes a string
+   * \param str the string to be written/serialized
    */ 
   inline void Write(const std::string &str) {
     uint64_t sz = static_cast<uint64_t>(str.length());
@@ -73,9 +73,9 @@ class IStream {
     }
   }
   /*!
-   * \brief binary load a string
-   * \param out_str string to be loaded
-   * \return whether load is successful
+   * \brief loads a string
+   * \param out_str string to be loaded/deserialized
+   * \return whether the load/deserialization was successful
    */
   inline bool Read(std::string *out_str) {
     uint64_t sz;
@@ -88,12 +88,18 @@ class IStream {
   }
 };
 
-/*! \brief interface of serializable objects */
+/*! \brief interface for serializable objects */
 class ISerializable {
  public:
-  /*! \brief load the model from file */
+  /*! 
+  * \brief load the model from a stream
+  * \param fi stream where to load the model from
+  */
   virtual void Load(IStream &fi) = 0;
-  /*! \brief save the model to the stream*/
+  /*! 
+  * \brief saves the model to a stream
+  * \param fo stream where to save the model to
+  */
   virtual void Save(IStream &fo) const = 0;
 };
 }  // namespace rabit
