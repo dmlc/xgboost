@@ -12,7 +12,7 @@ All these features comes from the facts about small rabbit:)
 * Portable: rabit is light weight and runs everywhere
   - Rabit is a library instead of a framework, a program only needs to link the library to run
   - Rabit only replies on a mechanism to start program, which was provided by most framework
-  - You can port rabit programs easily to many frameworks, including Hadoop, MPI without changing your code
+  - You can run rabit programs easily on many platforms, including Hadoop, MPI using the same code
 * Scalable and Flexible: rabit runs fast
   * Rabit program use Allreduce to communicate, and do not suffer the cost between iterations of MapReduce abstraction.
   - Programs can call rabit functions in any order, as opposed to frameworks where callbacks are offered and called by the framework, i.e. inversion of control principle.
