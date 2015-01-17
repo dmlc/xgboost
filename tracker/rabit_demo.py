@@ -48,8 +48,7 @@ def exec_cmd(cmd, taskid):
     while True:
         if os.name == 'nt':
             prep = 'SET PYTHONPATH=\"%s\"\n' % WRAPPER_PATH
-            ret = subprocess.call(prep + cmd + ('rabit_num_trial=%d' % ntrial),
-                                  shell=True)
+            ret = subprocess.call(prep + cmd + ('rabit_num_trial=%d' % ntrial), shell=True)
             if ret == 254:
                 ntrial += 1
                 continue
@@ -66,7 +65,10 @@ def exec_cmd(cmd, taskid):
                 print 'Thread %d exit with 0' % taskid
             return
         else:
-            raise Exception('Get nonzero return code=%d' % ret)
+            if os.name == 'nt':
+                os.exit(-1)
+            else:
+                raise Exception('Get nonzero return code=%d' % ret)
 #
 #  Note: this submit script is only used for demo purpose
 #  submission script using pyhton multi-threading

@@ -7,7 +7,7 @@
 # Precompiled Headers
 *.gch
 *.pch
-
+*.lnk
 # Compiled Dynamic libraries
 *.so
 *.dylib
