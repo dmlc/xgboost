@@ -9,7 +9,10 @@ import os
 import subprocess
 from threading import Thread
 import rabit_tracker as tracker
-WRAPPER_PATH = os.path.dirname(__file__) + '/../wrapper'
+if os.name == 'nt':
+    WRAPPER_PATH = os.path.dirname(__file__) + '\\..\\wrapper'
+else:
+    WRAPPER_PATH = os.path.dirname(__file__) + '/../wrapper'
 
 parser = argparse.ArgumentParser(description='Rabit script to submit rabit job locally using python subprocess')
 parser.add_argument('-n', '--nworker', required=True, type=int,
@@ -36,19 +39,28 @@ done
 """
 
 def exec_cmd(cmd, taskid):
-    if cmd[0].find('/') == -1 and os.path.exists(cmd[0]):
+    if cmd[0].find('/') == -1 and os.path.exists(cmd[0]) and os.name != 'nt':
         cmd[0] = './' + cmd[0]
     cmd = ' '.join(cmd)
     arg = ' rabit_task_id=%d' % (taskid) 
     cmd = cmd + arg
     ntrial = 0
     while True:
-        prep = 'PYTHONPATH=\"%s\" ' % WRAPPER_PATH
-        if args.verbose != 0:            
-            bash = keepalive % (echo % cmd, prep, cmd)
+        if os.name == 'nt':
+            prep = 'SET PYTHONPATH=\"%s\"\n' % WRAPPER_PATH
+            ret = subprocess.call(prep + cmd + ('rabit_num_trial=%d' % ntrial),
+                                  shell=True)
+            if ret == 254:
+                ntrial += 1
+                continue
+            
         else:
-            bash = keepalive % ('', prep, cmd)            
-        ret = subprocess.call(bash, shell=True, executable='bash')
+            prep = 'PYTHONPATH=\"%s\" ' % WRAPPER_PATH
+            if args.verbose != 0:            
+                bash = keepalive % (echo % cmd, prep, cmd)
+            else:
+                bash = keepalive % ('', prep, cmd)            
+            ret = subprocess.call(bash, shell=True, executable='bash')
         if ret == 0:
             if args.verbose != 0:        
                 print 'Thread %d exit with 0' % taskid

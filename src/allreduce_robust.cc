@@ -10,7 +10,7 @@
 #define NOMINMAX
 #include <limits>
 #include <utility>
-#include "rabit/io.h"
+#include <rabit/io.h>
 #include "rabit/utils.h"
 #include "rabit/engine.h"
 #include "rabit/rabit-inl.h"

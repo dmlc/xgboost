@@ -26,7 +26,7 @@ class ExSocket:
         sock = self.sock
         nread = 0    
         while nread < nbytes:
-            chunk = self.sock.recv(min(nbytes - nread, 1024), socket.MSG_WAITALL)
+            chunk = self.sock.recv(min(nbytes - nread, 1024))
             nread += len(chunk)
             res.append(chunk)
         return ''.join(res)

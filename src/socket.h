@@ -9,6 +9,9 @@
 #if defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#ifdef _MSC_VER
+#pragma comment(lib, "Ws2_32.lib")
+#endif
 #else
 #include <fcntl.h>
 #include <netdb.h>
@@ -98,7 +101,7 @@ class Socket {
   inline static void Startup(void) {
 #ifdef _WIN32
     WSADATA wsa_data;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != -1) {
+    if (WSAStartup(MAKEWORD(2, 2), &wsa_data) == -1) {
       Socket::Error("Startup");
     }
     if (LOBYTE(wsa_data.wVersion) != 2 || HIBYTE(wsa_data.wVersion) != 2) {
@@ -165,17 +168,24 @@ class Socket {
                sizeof(addr.addr)) == 0) {
         return port;
       }
-      if (errno != EADDRINUSE) {
+#if defined(_WIN32)
+	  if (WSAGetLastError() != WSAEADDRINUSE) {
+        Socket::Error("TryBindHost");	  
+	  }
+#else
+	  if (errno != EADDRINUSE) {
         Socket::Error("TryBindHost");
       }
+#endif
     }
+
     return -1;
   }
   /*! \brief get last error code if any */
   inline int GetSockError(void) const {
     int error = 0;
     socklen_t len = sizeof(error);
-    if (getsockopt(sockfd,  SOL_SOCKET, SO_ERROR, &error, &len) != 0) {
+    if (getsockopt(sockfd,  SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &len) != 0) {
       Error("GetSockError");
     }
     return error;
@@ -231,7 +241,7 @@ class TCPSocket : public Socket{
    */  
   inline void SetKeepAlive(bool keepalive) {
     int opt = static_cast<int>(keepalive);
-    if (setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)) < 0) {
+    if (setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, reinterpret_cast<char*>(&opt), sizeof(opt)) < 0) {
       Socket::Error("SetKeepAlive");
     }
   }
@@ -265,13 +275,14 @@ class TCPSocket : public Socket{
    * \return 1 if at mark, 0 if not, -1 if an error occured
    */
   inline int AtMark(void) const {
-    int atmark;
 #ifdef _WIN32
+	unsigned long atmark;
     if (ioctlsocket(sockfd, SIOCATMARK, &atmark) != NO_ERROR) return -1;
 #else
+    int atmark;
     if (ioctl(sockfd, SIOCATMARK, &atmark) == -1) return -1;
 #endif
-    return atmark;
+    return static_cast<int>(atmark);
   }
   /*! 
    * \brief connect to an address 
@@ -467,7 +478,9 @@ struct SelectHelper {
  private:
   inline static int Select_(int maxfd, fd_set *rfds,
                             fd_set *wfds, fd_set *efds, long timeout) {
+#if !defined(_WIN32)
     utils::Assert(maxfd < FD_SETSIZE, "maxdf must be smaller than FDSETSIZE");
+#endif
     if (timeout == 0) {
       return select(maxfd, rfds, wfds, efds, NULL);
     } else {

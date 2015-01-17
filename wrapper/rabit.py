@@ -11,10 +11,11 @@ import warnings
 import numpy as np
 
 if os.name == 'nt':
-    assert False, "Rabit windows is not yet compiled"
+    WRAPPER_PATH = os.path.dirname(__file__) + '\\..\\windows\\x64\\Release\\'
+    WRAPPER_SUFFIX = 'dll'
 else:
-    WRAPPER_PATH = os.path.dirname(__file__) 
-
+    WRAPPER_PATH = os.path.dirname(__file__) + '/'
+    WRAPPER_SUFFIX = 'so'
 rbtlib = None
 
 # load in xgboost library
@@ -24,11 +25,11 @@ def loadlib__(lib = 'standard'):
         warnings.Warn('rabit.int call was ignored because it has already been initialized', level = 2)
         return
     if lib == 'standard':
-        rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH + '/librabit_wrapper.so')
+        rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH + 'librabit_wrapper.' + WRAPPER_SUFFIX)
     elif lib == 'mock':
-        rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH + '/librabit_wrapper_mock.so')
+        rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH + 'librabit_wrapper_mock.' + WRAPPER_SUFFIX)
     elif lib == 'mpi':
-        rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH + '/librabit_wrapper_mpi.so')
+        rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH + 'librabit_wrapper_mpi.so' + WRAPPER_SUFFIX)
     else:
         raise Exception('unknown rabit lib %s, can be standard, mock, mpi' % lib)
     rbtlib.RabitGetRank.restype = ctypes.c_int
