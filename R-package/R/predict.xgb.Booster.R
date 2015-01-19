@@ -48,7 +48,7 @@ setMethod("predict", signature = "xgb.Booster",
   if (predleaf) {
     option <- option + 2
   }
-  ret <- .Call("XGBoosterPredict_R", object, newdata, as.integer(predleaf), as.integer(ntreelimit), PACKAGE = "xgboost")
+  ret <- .Call("XGBoosterPredict_R", object, newdata, as.integer(option), as.integer(ntreelimit), PACKAGE = "xgboost")
   return(ret)
 })
  
