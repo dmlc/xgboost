@@ -1,6 +1,9 @@
 # package root
 PKGROOT=./
 # _*_ mode: Makefile; _*_
+
+# This file is only used for windows compilation from github
+# It will be replaced by Makevars in CRAN version
 .PHONY: all xgblib
 all: $(SHLIB)
 $(SHLIB): xgblib
