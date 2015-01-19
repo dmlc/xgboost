@@ -39,7 +39,7 @@ setMethod("getinfo", signature = "xgb.DMatrix",
               if (name != "nrow"){
                   ret <- .Call("XGDMatrixGetInfo_R", object, name, PACKAGE = "xgboost")
               } else {
-                  ret <- .Call("XGDMatrixNumRow_R", object)
+                  ret <- .Call("XGDMatrixNumRow_R", object, PACKAGE = "xgboost")
               }
               return(ret)
           })
