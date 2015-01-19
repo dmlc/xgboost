@@ -1,7 +1,7 @@
 export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
-export LDFLAGS= -Lrabit/lib -pthread -lm 
+export LDFLAGS= -pthread -lm 
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC
 
 ifeq ($(no_omp),1)
@@ -11,9 +11,9 @@ else
 endif
 
 # by default use c++11
-ifeq ($(no_cxx11),1)
+ifeq ($(cxx11),1)
+	CFLAGS += -std=c++11
 else 
-	CFLAGS += 
 endif
 
 # specify tensor path
@@ -72,15 +72,18 @@ install:
 
 Rpack:
 	make clean
+	cd subtree/rabit;make clean;cd -
 	rm -rf xgboost xgboost*.tar.gz
 	cp -r R-package xgboost
 	rm -rf xgboost/inst/examples/*.buffer
 	rm -rf xgboost/inst/examples/*.model
 	rm -rf xgboost/inst/examples/dump*
 	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
+	rm -rf xgboost/subtree/rabit/src/*.o
 	rm -rf xgboost/demo/*.model xgboost/demo/*.buffer xgboost/demo/*.txt
 	rm -rf xgboost/demo/runall.R
 	cp -r src xgboost/src/src
+	cp -r subtree xgboost/src/subtree
 	mkdir xgboost/src/wrapper
 	cp  wrapper/xgboost_wrapper.h xgboost/src/wrapper
 	cp  wrapper/xgboost_wrapper.cpp xgboost/src/wrapper

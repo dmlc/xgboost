@@ -38,6 +38,8 @@ Features
 Build
 =====
 * Run ```bash build.sh``` (you can also type make)
+* If you have C++11 compiler, it is recommended to type ```make cxx11=1```
+  - C++11 is not used by default
 * If your compiler does not come with OpenMP support, it will fire an warning telling you that the code will compile into single thread mode, and you will get single thread xgboost
 * You may get a error: -lgomp is not found
   - You can type ```make no_omp=1```, this will get you single thread xgboost

@@ -5,11 +5,7 @@
 # In most cases, type make will give what you want
 
 # download rabit
-if [ ! -d rabit ]; then
-    git clone https://github.com/tqchen/rabit.git
-else
-    cd rabit; git pull; cd ..
-fi
+
 if make; then
     echo "Successfully build multi-thread xgboost"
 else
