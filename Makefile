@@ -89,7 +89,7 @@ Rpack:
 	cp  wrapper/xgboost_wrapper.cpp xgboost/src/wrapper
 	cp ./LICENSE xgboost
 	cat R-package/src/Makevars|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars
-	cat R-package/src/Makevars.win|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars.win
+	cp xgboost/src/Makevars xgboost/src/Makevars.win
 	R CMD build xgboost
 	rm -rf xgboost
 	R CMD check --as-cran xgboost*.tar.gz
