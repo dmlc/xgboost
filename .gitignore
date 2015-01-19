@@ -32,5 +32,5 @@
 *.exe
 *.txt
 *tmp*
-doc
 *.rabit
+*.mock

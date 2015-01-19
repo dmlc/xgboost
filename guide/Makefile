@@ -6,22 +6,21 @@ export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include
 
 .PHONY: clean all lib libmpi
 BIN = basic.rabit broadcast.rabit
-MOCKBIN= 
+MOCKBIN= lazy_allreduce.mock
 
-all: $(BIN) $(MOCKBIN)
+all: $(BIN)
 basic.rabit: basic.cc lib
 broadcast.rabit: broadcast.cc lib
+lazy_allreduce.mock: lazy_allreduce.cc lib
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) $(LDFLAGS) -lrabit
+
 $(MOCKBIN) : 
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) $(LDFLAGS) -lrabit_mock
+	$(CXX) $(CFLAGS) -std=c++11 -o $@ $(filter %.cpp %.o %.c %.cc,  $^) $(LDFLAGS) -lrabit_mock
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
-$(MPIBIN) : 
-	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^)  $(LDFLAGS) -lrabit_mpi 
-
 clean:
-	$(RM) $(OBJ) $(BIN) $(MPIBIN) *~ ../src/*~
+	$(RM) $(OBJ) $(BIN) $(MOCKBIN) *~ ../src/*~
