@@ -23,7 +23,7 @@ Notes
 * The multi-threading nature of xgboost is inheritated in distributed mode
   - This means xgboost efficiently use all the threads in one machine, and communicates only between machines
   - Remember to run on xgboost process per machine and this will give you maximum speedup
-* For more information about rabit and how it works, see the [tutorial](https://github.com/tqchen/rabit/tree/master/guide)
+* For more information about rabit and how it works, see the [Rabit's Tutorial](https://github.com/tqchen/rabit/tree/master/guide)
 
 Solvers
 =====
