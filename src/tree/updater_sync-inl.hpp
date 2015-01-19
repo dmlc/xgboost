@@ -7,7 +7,7 @@
  */
 #include <vector>
 #include <limits>
-#include <rabit.h>
+#include "../sync/sync.h"
 #include "./updater.h"
 
 namespace xgboost {

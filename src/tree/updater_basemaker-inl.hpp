@@ -8,7 +8,7 @@
 #include <vector>
 #include <algorithm>
 #include <limits>
-#include <rabit.h>
+#include "../sync/sync.h"
 #include "../utils/random.h"
 #include "../utils/quantile.h"
 

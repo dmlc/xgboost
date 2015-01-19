@@ -7,7 +7,7 @@
  */
 #include <vector>
 #include <limits>
-#include <rabit.h>
+#include "../sync/sync.h"
 #include "./param.h"
 #include "./updater.h"
 #include "../utils/omp.h"

@@ -6,7 +6,7 @@
  *        and construct a tree
  * \author Tianqi Chen
  */
-#include <rabit.h>
+#include "../sync/sync.h"
 #include "../utils/bitmap.h"
 #include "../utils/io.h"
 #include "./updater_colmaker-inl.hpp"

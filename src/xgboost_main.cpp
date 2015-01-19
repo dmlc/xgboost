@@ -4,7 +4,7 @@
 #include <ctime>
 #include <string>
 #include <cstring>
-#include <rabit.h>
+#include "./sync/sync.h"
 #include "io/io.h"
 #include "utils/utils.h"
 #include "utils/config.h"

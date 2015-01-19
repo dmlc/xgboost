@@ -10,8 +10,7 @@
 #include <utility>
 #include <string>
 #include <limits>
-// rabit library for synchronization
-#include <rabit.h>
+#include "../sync/sync.h"
 #include "../utils/io.h"
 #include "../utils/base64.h"
 #include "./objective.h"

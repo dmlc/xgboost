@@ -2,7 +2,7 @@ export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -Lrabit/lib -pthread -lm 
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC  -Irabit/include
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC
 
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP 
@@ -23,18 +23,10 @@ OBJ = updater.o gbm.o io.o main.o
 MPIBIN = xgboost.mpi
 SLIB = wrapper/libxgboostwrapper.so 
 
-.PHONY: clean all mpi python Rpack librabit librabit_mpi
+.PHONY: clean all mpi python Rpack
 
 all: $(BIN) $(OBJ) $(SLIB) $(MOCKBIN)
 mpi: $(MPIBIN)
-
-# rules to get rabit library
-librabit:
-	if [ ! -d rabit ]; then git clone https://github.com/tqchen/rabit.git; fi
-	cd rabit;make lib/librabit.a lib/librabit_mock.a; cd -
-librabit_mpi:
-	if [ ! -d rabit ]; then git clone https://github.com/tqchen/rabit.git; fi
-	cd rabit;make lib/librabit_mpi.a; cd -
 
 python: wrapper/libxgboostwrapper.so
 # now the wrapper takes in two files. io and wrapper part
@@ -42,28 +34,38 @@ updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h src/utils/*
 gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h 
 io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
 main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h 
-xgboost.mpi:  updater.o gbm.o io.o main.o librabit_mpi
-xgboost.mock: updater.o gbm.o io.o main.o librabit
-xgboost:  updater.o gbm.o io.o main.o  librabit
-wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o librabit
+xgboost.mpi:  updater.o gbm.o io.o main.o subtree/rabit/lib/librabit_mpi.a
+xgboost.mock: updater.o gbm.o io.o main.o subtree/rabit/lib/librabit_mock.a
+xgboost:  updater.o gbm.o io.o main.o subtree/rabit/lib/librabit.a
+wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o subtree/rabit/lib/librabit.a
+
+# dependency on rabit
+subtree/rabit/lib/librabit.a: subtree/rabit/src/engine.cc
+	cd subtree/rabit;make lib/librabit.a; cd -
+subtree/rabit/lib/librabit_empty.a: subtree/rabit/src/engine_empty.cc
+	cd subtree/rabit;make lib/librabit_empty.a; cd -
+subtree/rabit/lib/librabit_mock.a: subtree/rabit/src/engine_mock.cc
+	cd subtree/rabit;make lib/librabit_mock.a; cd -
+subtree/rabit/lib/librabit_mpi.a: subtree/rabit/src/engine_mpi.cc
+	cd subtree/rabit;make lib/librabit_mpi.a; cd -
 
 $(BIN) : 
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c, $^) $(LDFLAGS)  -lrabit
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
 
 $(MOCKBIN) : 
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c, $^) $(LDFLAGS)  -lrabit_mock
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
 
 $(SLIB) :
-	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.cpp %.o %.c, $^) $(LDFLAGS)  -lrabit
+	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS) 
 
 $(OBJ) : 
-	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) )
+	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
 $(MPIOBJ) : 
 	$(MPICXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) ) 
 
 $(MPIBIN) : 
-	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c, $^) $(LDFLAGS) -lrabit_mpi
+	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
 
 install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
@@ -91,3 +93,4 @@ Rpack:
 
 clean:
 	$(RM) $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~
+	cd subtree/rabit; make clean; cd -

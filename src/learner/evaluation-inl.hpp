@@ -11,8 +11,7 @@
 #include <cmath>
 #include <climits>
 #include <algorithm>
-// rabit library for synchronization
-#include <rabit.h>
+#include "../sync/sync.h"
 #include "./evaluation.h"
 #include "./helper_utils.h"
 

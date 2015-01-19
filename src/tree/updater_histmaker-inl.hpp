@@ -7,7 +7,7 @@
  */
 #include <vector>
 #include <algorithm>
-#include <rabit.h>
+#include "../sync/sync.h"
 #include "../utils/quantile.h"
 #include "../utils/group_data.h"
 #include "./updater_basemaker-inl.hpp"
