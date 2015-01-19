@@ -27,25 +27,44 @@ class IGradBooster {
   /*!
    * \brief load model from stream
    * \param fi input stream
+   * \param with_pbuffer whether the incoming data contains pbuffer
    */
-  virtual void LoadModel(utils::IStream &fi) = 0;
+  virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) = 0;
   /*!
    * \brief save model to stream
    * \param fo output stream
+   * \param with_pbuffer whether save out pbuffer
    */
-  virtual void SaveModel(utils::IStream &fo) const = 0;
+  virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const = 0;
   /*!
    * \brief initialize the model
    */
   virtual void InitModel(void) = 0;
+  /*! 
+   * \brief reset the predict buffer
+   * this will invalidate all the previous cached results
+   * and recalculate from scratch
+   */
+  virtual void ResetPredBuffer(size_t num_pbuffer) {}
+  /*! 
+   * \brief whether the model allow lazy checkpoint
+   * return true if model is only updated in DoBoost 
+   * after all Allreduce calls
+   */
+  virtual bool AllowLazyCheckPoint(void) const {
+    return false;
+  }
   /*!
    * \brief peform update to the model(boosting)
    * \param p_fmat feature matrix that provide access to features
+   * \param buffer_offset buffer index offset of these instances, if equals -1
+   *        this means we do not have buffer index allocated to the gbm
    * \param info meta information about training
    * \param in_gpair address of the gradient pair statistics of the data
    * the booster may change content of gpair
    */
   virtual void DoBoost(IFMatrix *p_fmat,
+                       int64_t buffer_offset,
                        const BoosterInfo &info,
                        std::vector<bst_gpair> *in_gpair) = 0;
   /*!
@@ -64,7 +83,36 @@ class IGradBooster {
                        int64_t buffer_offset,
                        const BoosterInfo &info,
                        std::vector<float> *out_preds,
-                       unsigned ntree_limit = 0) = 0;
+                       unsigned ntree_limit = 0) = 0;  
+  /*!
+   * \brief online prediction funciton, predict score for one instance at a time
+   *  NOTE: use the batch prediction interface if possible, batch prediction is usually
+   *        more efficient than online prediction
+   *        This function is NOT threadsafe, make sure you only call from one thread
+   *    
+   * \param inst the instance you want to predict
+   * \param out_preds output vector to hold the predictions
+   * \param ntree_limit limit the number of trees used in prediction
+   * \param root_index the root index
+   * \sa Predict
+   */
+  virtual void Predict(const SparseBatch::Inst &inst,
+                       std::vector<float> *out_preds,
+                       unsigned ntree_limit = 0,
+                       unsigned root_index = 0)  = 0;
+  /*!
+   * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
+   *        this is only valid in gbtree predictor
+   * \param p_fmat feature matrix
+   * \param info extra side information that may be needed for prediction
+   * \param out_preds output vector to hold the predictions
+   * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means 
+   *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
+   */
+  virtual void PredictLeaf(IFMatrix *p_fmat,
+                           const BoosterInfo &info,
+                           std::vector<float> *out_preds,
+                           unsigned ntree_limit = 0) = 0;
   /*!
    * \brief dump the model in text format
    * \param fmap feature map that may help give interpretations of feature

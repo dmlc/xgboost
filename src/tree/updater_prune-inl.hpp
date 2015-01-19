@@ -8,6 +8,7 @@
 #include <vector>
 #include "./param.h"
 #include "./updater.h"
+#include "./updater_sync-inl.hpp"
 
 namespace xgboost {
 namespace tree {
@@ -19,6 +20,7 @@ class TreePruner: public IUpdater {
   virtual void SetParam(const char *name, const char *val) {
     using namespace std;
     param.SetParam(name, val);
+    syncher.SetParam(name, val);
     if (!strcmp(name, "silent")) silent = atoi(val);
   }
   // update the tree, do pruning
@@ -33,8 +35,8 @@ class TreePruner: public IUpdater {
       this->DoPrune(*trees[i]);
     }
     param.learning_rate = lr;
+    syncher.Update(gpair, p_fmat, info, trees);
   }
-
  private:
   // try to prune off current leaf
   inline int TryPruneLeaf(RegTree &tree, int nid, int depth, int npruned) {
@@ -70,6 +72,8 @@ class TreePruner: public IUpdater {
   }
 
  private:
+  // synchronizer
+  TreeSyncher syncher;
   // shutup
   int silent;
   // training parameter

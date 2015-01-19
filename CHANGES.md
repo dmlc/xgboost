@@ -20,3 +20,9 @@ xgboost-0.3
 * Linear booster is now parallelized, using parallel coordinated descent.
 * Add [Code Guide](src/README.md) for customizing objective function and evaluation
 * Add R module
+
+in progress version
+=====
+* Distributed version
+* Feature importance visualization in R module, thanks to Michael Benesty
+* Predict leaf inde

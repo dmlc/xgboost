@@ -6,3 +6,4 @@ XGBoost Python Feature Walkthrough
 * [Predicting using first n trees](predict_first_ntree.py)
 * [Generalized Linear Model](generalized_linear_model.py)
 * [Cross validation](cross_validation.py)
+* [Predicting leaf indices](predict_leaf_indices.py)
