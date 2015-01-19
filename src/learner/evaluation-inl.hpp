@@ -313,7 +313,9 @@ struct EvalAuc : public IEvaluator {
       }
     }
     if (distributed) {
-      float dat[2]; dat[0] = sum_auc; dat[1] = ngroup;      
+      float dat[2];
+	  dat[0] = static_cast<float>(sum_auc);
+	  dat[1] = static_cast<float>(ngroup);      
       // approximately estimate auc using mean
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
       return dat[0] / dat[1];
@@ -357,7 +359,9 @@ struct EvalRankList : public IEvaluator {
       }
     }
     if (distributed) {
-      float dat[2]; dat[0] = sum_metric; dat[1] = ngroup;      
+      float dat[2];
+	  dat[0] = static_cast<float>(sum_metric);
+	  dat[1] = static_cast<float>(ngroup);      
       // approximately estimate auc using mean
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
       return dat[0] / dat[1];
