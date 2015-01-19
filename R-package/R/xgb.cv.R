@@ -1,7 +1,18 @@
 #' Cross Validation
 #' 
 #' The cross valudation function of xgboost
-#'
+#' 
+#' @importFrom data.table data.table
+#' @importFrom data.table as.data.table
+#' @importFrom magrittr %>%
+#' @importFrom data.table :=
+#' @importFrom data.table rbindlist
+#' @importFrom stringr str_extract_all
+#' @importFrom stringr str_extract
+#' @importFrom stringr str_split
+#' @importFrom stringr str_replace
+#' @importFrom stringr str_match
+#' 
 #' @param params the list of parameters. Commonly used ones are:
 #' \itemize{
 #'   \item \code{objective} objective function, common ones are
@@ -20,7 +31,7 @@
 #' @param nrounds the max number of iterations
 #' @param nfold number of folds used
 #' @param label option field, when data is Matrix
-#' @param showsd boolean, whether show standard deviation of cross validation
+#' @param showsd \code{boolean}, whether show standard deviation of cross validation
 #' @param metrics, list of evaluation metrics to be used in corss validation,
 #'   when it is not specified, the evaluation metric is chosen according to objective function.
 #'   Possible options are:
@@ -36,7 +47,12 @@
 #' @param feval custimized evaluation function. Returns 
 #'   \code{list(metric='metric-name', value='metric-value')} with given 
 #'   prediction and dtrain,
+#' @param missing Missing is only used when input is dense matrix, pick a float
+#     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
+#' @param verbose \code{boolean}, print the statistics during the process.
 #' @param ... other parameters to pass to \code{params}.
+#' 
+#' @return A \code{data.table} with each mean and standard deviation stat for training set and test set.
 #' 
 #' @details 
 #' This is the cross validation function for xgboost
@@ -51,10 +67,11 @@
 #' dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 #' history <- xgb.cv(data = dtrain, nround=3, nfold = 5, metrics=list("rmse","auc"),
 #'                   "max.depth"=3, "eta"=1, "objective"="binary:logistic")
+#' print(history)
 #' @export
 #'
 xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NULL, 
-                   showsd = TRUE, metrics=list(), obj = NULL, feval = NULL, ...) {
+                   showsd = TRUE, metrics=list(), obj = NULL, feval = NULL, verbose = T,...) {
   if (typeof(params) != "list") {
     stop("xgb.cv: first argument params must be list")
   }
@@ -73,18 +90,30 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   }
 
   folds <- xgb.cv.mknfold(dtrain, nfold, params)
-  history <- list()
+  history <- c()
   for (i in 1:nrounds) {
     msg <- list()
     for (k in 1:nfold) {
       fd <- folds[[k]]
       succ <- xgb.iter.update(fd$booster, fd$dtrain, i - 1, obj)      
-      msg[[k]] <- strsplit(xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval), 
-                           "\t")[[1]]
+      msg[[k]] <- xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval) %>% str_split("\t") %>% .[[1]]
     }
     ret <- xgb.cv.aggcv(msg, showsd)
-    history <- append(history, ret)
-    cat(paste(ret, "\n", sep=""))
+    history <- c(history, ret)
+    if(verbose) paste(ret, "\n", sep="") %>% cat
   }
-  return (TRUE)
+  
+  colnames <- str_split(string = history[1], pattern = "\t")[[1]] %>% .[2:length(.)] %>% str_extract(".*:") %>% str_replace(":","") %>% str_replace("-", ".")
+  colnamesMean <- paste(colnames, "mean")
+  colnamesStd <- paste(colnames, "std")
+  
+  colnames <- c()
+  for(i in 1:length(colnamesMean)) colnames <- c(colnames, colnamesMean[i], colnamesStd[i])
+  
+  type <- rep(x = "numeric", times = length(colnames))
+  dt <- read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
+  split <- str_split(string = history, pattern = "\t")
+  
+  for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.list %>% {vec <- .; rbindlist(list(dt, vec), use.names = F, fill = F)}
+  dt
 }

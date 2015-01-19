@@ -44,6 +44,7 @@ Debug
 *dump
 *save
 *csv
+.Rproj.user
 *.cpage.col
 *.cpage
 xgboost
@@ -51,3 +52,4 @@ xgboost.mpi
 xgboost.mock
 train*
 rabit
+

@@ -295,11 +295,11 @@ extern "C"{
   void XGBoosterSaveModel(const void *handle, const char *fname) {
     static_cast<const Booster*>(handle)->SaveModel(fname);
   }
-  const char** XGBoosterDumpModel(void *handle, const char *fmap, bst_ulong *len){
+  const char** XGBoosterDumpModel(void *handle, const char *fmap, int with_stats, bst_ulong *len){
     utils::FeatMap featmap;
     if (strlen(fmap) != 0) {
       featmap.LoadText(fmap);
     }
-    return static_cast<Booster*>(handle)->GetModelDump(featmap, false, len);
+    return static_cast<Booster*>(handle)->GetModelDump(featmap, with_stats != 0, len);
   }
 }

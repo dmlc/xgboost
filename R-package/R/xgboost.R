@@ -24,6 +24,8 @@
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
 #'   information of performance. If 2, xgboost will print information of both
 #'   performance and construction progress information
+#' @param missing Missing is only used when input is dense matrix, pick a float
+#     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 
@@ -74,7 +76,7 @@ xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), 
 #' 
 #' \itemize{
 #'  \item \code{label} the label for each record
-#'  \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 127 columns.
+#'  \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 126 columns.
 #' }
 #'
 #' @references
@@ -101,7 +103,7 @@ NULL
 #' 
 #' \itemize{
 #'  \item \code{label} the label for each record
-#'  \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 127 columns.
+#'  \item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 126 columns.
 #' }
 #'
 #' @references
@@ -116,5 +118,5 @@ NULL
 #' @name agaricus.test
 #' @usage data(agaricus.test)
 #' @format A list containing a label vector, and a dgCMatrix object with 1611 
-#' rows and 127 variables
+#' rows and 126 variables
 NULL
