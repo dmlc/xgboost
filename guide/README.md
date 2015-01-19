@@ -268,6 +268,9 @@ Because the different nature of the two types of models, different strategy will
 nodes (selected using a ring replication strategy). The checkpoint is only saved in the memory without touching the disk which makes rabit programs more efficient. 
 User is encouraged to use ```global_model``` only when is sufficient for better efficiency.
 
+To enable a model class to be checked pointed, user can implement a [serialization interface](../include/rabit_serialization.h). The serialization interface already
+provide serialization functions of STL vector and string. For python API, user can checkpoint any python object that can be pickled.
+
 There is a special Checkpoint function called [LazyCheckpoint](http://homes.cs.washington.edu/~tqchen/rabit/doc/namespacerabit.html#a99f74c357afa5fba2c80cc0363e4e459),
 which can be used for ```global_model``` only cases under certain condition.
 When LazyCheckpoint is called, no action is taken and the rabit engine only remembers the pointer to the model.
@@ -281,6 +284,7 @@ LazyCheckPoint, code1, Allreduce, code2, Broadcast, code3, LazyCheckPoint
 ```
 The user must only change the model in code3. Such condition can usually be satiesfied in many scenarios, and user can use LazyCheckpoint to further
 improve the efficiency of the program.
+
 
 Compile Programs with Rabit
 ====
