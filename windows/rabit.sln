@@ -4,8 +4,14 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rabit", "rabit\rabit.vcxproj", "{D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "basic", "basic\basic.vcxproj", "{A6A95246-EB0A-46BA-9471-5939CB6B0006}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F} = {D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rabit_wrapper", "rabit_wrapper\rabit_wrapper.vcxproj", "{2F89A7C5-CA4F-4D77-A728-6702D9F33F9F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F} = {D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
