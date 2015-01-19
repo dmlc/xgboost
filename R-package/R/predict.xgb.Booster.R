@@ -52,7 +52,8 @@ setMethod("predict", signature = "xgb.Booster",
   ret <- .Call("XGBoosterPredict_R", object, newdata, as.integer(option), 
                as.integer(ntreelimit), PACKAGE = "xgboost")
   if (predleaf){
-      if (length(ret) == nrow(newdata)){
+      len <- getinfo(newdata, "nrow")
+      if (length(ret) == len){
           ret <- matrix(ret,ncol = 1)
       } else {
           ret <- matrix(ret, ncol = nrow(newdata))
