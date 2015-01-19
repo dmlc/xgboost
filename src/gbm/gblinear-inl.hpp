@@ -33,16 +33,17 @@ class GBLinear : public IGradBooster {
       model.param.SetParam(name, val);
     }
   }
-  virtual void LoadModel(utils::IStream &fi) {
+  virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) {
     model.LoadModel(fi);
   }
-  virtual void SaveModel(utils::IStream &fo) const {
+  virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const {
     model.SaveModel(fo);
   }
   virtual void InitModel(void) {
     model.InitModel();
   }
   virtual void DoBoost(IFMatrix *p_fmat,
+                       int64_t buffer_offset,
                        const BoosterInfo &info,
                        std::vector<bst_gpair> *in_gpair) {
     std::vector<bst_gpair> &gpair = *in_gpair;
@@ -135,8 +136,13 @@ class GBLinear : public IGradBooster {
       }
     }
   }
-
- virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
+  virtual void PredictLeaf(IFMatrix *p_fmat,
+                           const BoosterInfo &info,
+                           std::vector<float> *out_preds,
+                           unsigned ntree_limit = 0) {
+    utils::Error("gblinear does not support predict leaf index");
+  }
+  virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
     std::stringstream fo("");
     fo << "bias:\n";
     for (int i = 0; i < model.param.num_output_group; ++i) {
@@ -151,8 +157,8 @@ class GBLinear : public IGradBooster {
     std::vector<std::string> v;
     v.push_back(fo.str());
     return v;
- }
-  
+  }
+
  protected:
   inline void Pred(const RowBatch::Inst &inst, float *preds) {
     for (int gid = 0; gid < model.param.num_output_group; ++gid) {

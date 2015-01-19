@@ -18,6 +18,28 @@ typedef unsigned long bst_ulong;
 extern "C" {
 #endif
   /*!
+   * \brief initialize sync module, this is needed if used in distributed model
+   *        normally, argv need to contain master_uri and master_port
+   *        if start using submit_job_tcp script, then pass args to this will do
+   * \param argc number of arguments
+   * \param argv the arguments to be passed in sync module
+   */
+  XGB_DLL void XGSyncInit(int argc, char *argv[]);
+  /*!
+   * \brief finalize sync module, call this when everything is done
+   */
+  XGB_DLL void XGSyncFinalize(void);
+  /*!
+   * \brief get the rank 
+   * \return return the rank of 
+   */
+  XGB_DLL int XGSyncGetRank(void);
+  /*!
+   * \brief get the world size from sync
+   * \return return the number of distributed job ran in the group
+   */
+  XGB_DLL int XGSyncGetWorldSize(void);
+  /*!
    * \brief load a data matrix 
    * \return a loaded data matrix
    */
@@ -41,7 +63,7 @@ extern "C" {
    * \param col_ptr pointer to col headers
    * \param indices findex
    * \param data fvalue
-   * \param nindptr number of rows in the matix + 1 
+   * \param nindptr number of rows in the matix + 1
    * \param nelem number of nonzero elements in the matrix
    * \return created dmatrix
    */
@@ -178,12 +200,18 @@ extern "C" {
    * \brief make prediction based on dmat
    * \param handle handle
    * \param dmat data matrix
-   * \param output_margin whether only output raw margin value
+   * \param option_mask bit-mask of options taken in prediction, possible values
+   *          0:normal prediction
+   *          1:output margin instead of transformed value
+   *          2:output leaf index of trees instead of leaf value, note leaf index is unique per tree
    * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
    *    when the parameter is set to 0, we will use all the trees
    * \param len used to store length of returning result
    */
-  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, unsigned ntree_limit, bst_ulong *len);
+  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, 
+                                        int option_mask, 
+                                        unsigned ntree_limit,
+                                        bst_ulong *len);
   /*!
    * \brief load model from existing file
    * \param handle handle

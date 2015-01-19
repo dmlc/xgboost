@@ -3,6 +3,13 @@
 # basically, it first try to make with OpenMP, if fails, disable OpenMP and make again
 # This will automatically make xgboost for MAC users who do not have openmp support
 # In most cases, type make will give what you want
+
+# download rabit
+if [ ! -d rabit ]; then
+    git clone https://github.com/tqchen/rabit.git
+else
+    cd rabit; git pull; cd ..
+fi
 if make; then
     echo "Successfully build multi-thread xgboost"
 else

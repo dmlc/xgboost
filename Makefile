@@ -1,8 +1,8 @@
 export CC  = gcc
 export CXX = g++
-export LDFLAGS= -pthread -lm 
-
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -pedantic 
+export MPICXX = mpicxx
+export LDFLAGS= -Lrabit/lib -pthread -lm 
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC  -Irabit/include
 
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP 
@@ -10,32 +10,60 @@ else
 	CFLAGS += -fopenmp
 endif
 
+# by default use c++11
+ifeq ($(no_cxx11),1)
+else 
+	CFLAGS += 
+endif
+
 # specify tensor path
-BIN = xgboost
-OBJ = updater.o gbm.o io.o
+BIN = xgboost 
+MOCKBIN = xgboost.mock
+OBJ = updater.o gbm.o io.o main.o 
+MPIBIN = xgboost.mpi
 SLIB = wrapper/libxgboostwrapper.so 
 
-.PHONY: clean all python Rpack
+.PHONY: clean all mpi python Rpack librabit librabit_mpi
 
-all: $(BIN) $(OBJ) $(SLIB) 
+all: $(BIN) $(OBJ) $(SLIB) $(MOCKBIN)
+mpi: $(MPIBIN)
+
+# rules to get rabit library
+librabit:
+	if [ ! -d rabit ]; then git clone https://github.com/tqchen/rabit.git; fi
+	cd rabit;make lib/librabit.a lib/librabit_mock.a; cd -
+librabit_mpi:
+	if [ ! -d rabit ]; then git clone https://github.com/tqchen/rabit.git; fi
+	cd rabit;make lib/librabit_mpi.a; cd -
 
 python: wrapper/libxgboostwrapper.so
 # now the wrapper takes in two files. io and wrapper part
-wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp $(OBJ)
-updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h
-gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h
+updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h src/utils/*.h
+gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h 
 io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
-xgboost: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h $(OBJ)
-wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h $(OBJ)
+main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h 
+xgboost.mpi:  updater.o gbm.o io.o main.o librabit_mpi
+xgboost.mock: updater.o gbm.o io.o main.o librabit
+xgboost:  updater.o gbm.o io.o main.o  librabit
+wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o librabit
 
 $(BIN) : 
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(filter %.cpp %.o %.c, $^)
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c, $^) $(LDFLAGS)  -lrabit
+
+$(MOCKBIN) : 
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c, $^) $(LDFLAGS)  -lrabit_mock
 
 $(SLIB) :
-	$(CXX) $(CFLAGS) -fPIC $(LDFLAGS) -shared -o $@ $(filter %.cpp %.o %.c, $^)
+	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.cpp %.o %.c, $^) $(LDFLAGS)  -lrabit
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) )
+
+$(MPIOBJ) : 
+	$(MPICXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) ) 
+
+$(MPIBIN) : 
+	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c, $^) $(LDFLAGS) -lrabit_mpi
 
 install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
@@ -62,4 +90,4 @@ Rpack:
 	R CMD check --as-cran xgboost*.tar.gz
 
 clean:
-	$(RM) $(OBJ) $(BIN) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~
+	$(RM) $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~

@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\gbm\gbm.cpp" />
     <ClCompile Include="..\..\src\io\io.cpp" />
+    <ClCompile Include="..\..\src\sync\sync_tcp.cpp" />
     <ClCompile Include="..\..\src\tree\updater.cpp" />
     <ClCompile Include="..\..\wrapper\xgboost_wrapper.cpp" />
   </ItemGroup>
@@ -112,6 +113,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

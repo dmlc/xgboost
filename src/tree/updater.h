@@ -37,6 +37,16 @@ class IUpdater {
                       IFMatrix *p_fmat,
                       const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) = 0;
+
+  /*! 
+   * \brief this is simply a function for optimizing performance
+   * this function asks the updater to return the leaf position of each instance in the p_fmat,
+   * if it is cached in the updater, if it is not available, return NULL
+   * \return array of leaf position of each instance in the last updated tree
+   */
+  virtual const int* GetLeafPosition(void) const {
+    return NULL;
+  }
   // destructor
   virtual ~IUpdater(void) {}
 };
