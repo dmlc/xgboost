@@ -21,9 +21,9 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\gbm\gbm.cpp" />
     <ClCompile Include="..\..\src\io\io.cpp" />
-    <ClCompile Include="..\..\src\sync\sync_tcp.cpp" />
     <ClCompile Include="..\..\src\tree\updater.cpp" />
     <ClCompile Include="..\..\src\xgboost_main.cpp" />
+    <ClCompile Include="..\..\subtree\rabit\src\engine_empty.cc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{19766C3F-7508-49D0-BAAC-0988FCC9970C}</ProjectGuid>
