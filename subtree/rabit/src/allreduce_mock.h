@@ -8,8 +8,8 @@
 #ifndef RABIT_ALLREDUCE_MOCK_H
 #define RABIT_ALLREDUCE_MOCK_H
 #include <vector>
-#include <rabit/engine.h>
 #include <map>
+#include "../include/rabit/engine.h"
 #include "./allreduce_robust.h"
 
 namespace rabit {

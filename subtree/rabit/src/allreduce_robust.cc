@@ -10,10 +10,10 @@
 #define NOMINMAX
 #include <limits>
 #include <utility>
-#include <rabit/io.h>
-#include "rabit/utils.h"
-#include "rabit/engine.h"
-#include "rabit/rabit-inl.h"
+#include "../include/rabit/io.h"
+#include "../include/rabit/utils.h"
+#include "../include/rabit/engine.h"
+#include "../include/rabit/rabit-inl.h"
 #include "./allreduce_robust.h"
 
 namespace rabit {
