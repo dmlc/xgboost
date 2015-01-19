@@ -17,7 +17,7 @@ else
 endif
 
 # specify tensor path
-BIN = xgboost xgbpred
+BIN = xgboost
 MOCKBIN = xgboost.mock
 OBJ = updater.o gbm.o io.o main.o 
 MPIBIN = xgboost.mpi
@@ -37,7 +37,6 @@ main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner
 xgboost.mpi:  updater.o gbm.o io.o main.o subtree/rabit/lib/librabit_mpi.a
 xgboost.mock: updater.o gbm.o io.o main.o subtree/rabit/lib/librabit_mock.a
 xgboost:  updater.o gbm.o io.o main.o subtree/rabit/lib/librabit.a
-xgbpred:  updater.o gbm.o io.o src/xgbpred.cpp subtree/rabit/lib/librabit.a
 wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o subtree/rabit/lib/librabit.a
 
 # dependency on rabit
