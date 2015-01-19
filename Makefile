@@ -79,7 +79,7 @@ Rpack:
 	rm -rf xgboost/inst/examples/*.model
 	rm -rf xgboost/inst/examples/dump*
 	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
-	rm -rf xgboost/subtree/rabit/src/*.o
+	rm -rf subtree/rabit/src/*.o
 	rm -rf xgboost/demo/*.model xgboost/demo/*.buffer xgboost/demo/*.txt
 	rm -rf xgboost/demo/runall.R
 	cp -r src xgboost/src/src
