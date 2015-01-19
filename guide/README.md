@@ -9,7 +9,7 @@ Please also refer to the [API Documentation](http://homes.cs.washington.edu/~tqc
 * [What is Allreduce](#what-is-allreduce)
 * [Common Use Case](#common-use-case)
 * [Use Rabit API](#use-rabit-api)
-  - [Structure of a Rabit Program](#structure-of-rabit-program)
+  - [Structure of a Rabit Program](#structure-of-a-rabit-program)
   - [Allreduce and Lazy Preparation](#allreduce-and-lazy-preparation)
   - [Checkpoint and LazyCheckpoint](#checkpoint-and-lazycheckpoint)
 * [Compile Programs with Rabit](#compile-programs-with-rabit)
@@ -254,7 +254,7 @@ The example in [lazy_allreduce.cc](lazy_allreduce.cc) provides a simple way to m
 code with a lambda function, and pass it to allreduce. 
 
 #### Checkpoint and LazyCheckpoint
-Common machine learning algorithms usually involves iterative computation. As mentioned in the [Structure of Rabit Program](structure-of-a-rabit-program),
+Common machine learning algorithms usually involves iterative computation. As mentioned in the section ([Structure of a Rabit Program](#structure-of-a-rabit-program)),
 user can and should use Checkpoint to ```save``` the progress so far, so that when a node fails, the latest checkpointed model can be loaded.
 
 There are two model arguments you can pass to Checkpoint and LoadCheckpoint: ```global_model``` and ```local_model```:
@@ -272,7 +272,7 @@ There is a special Checkpoint function called [LazyCheckpoint](http://homes.cs.w
 which can be used for ```global_model``` only cases under certain condition.
 When LazyCheckpoint is called, no action is taken and the rabit engine only remembers the pointer to the model.
 The serialization will only happen when another node fails and the recovery starts. So user basically pays no extra cost calling LazyCheckpoint.
-However,  to use this function, the user MUST ensure the model remain unchanged until the last call of Allreduce/Broadcast in the current version finishes.
+To use this function, the user need to ensure the model remain unchanged until the last call of Allreduce/Broadcast in the current version finishes.
 So that when recovery procedure happens in these function calls, the serialized model will be the same.
 
 For example, consider the following calling sequence
