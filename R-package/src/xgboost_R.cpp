@@ -248,12 +248,12 @@ extern "C" {
                                          asInteger(iter),
                                          BeginPtr(vec_dmats), BeginPtr(vec_sptr), len));
   }
-  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin, SEXP ntree_limit) {
+  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask, SEXP ntree_limit) {
     _WrapperBegin();
     bst_ulong olen;
     const float *res = XGBoosterPredict(R_ExternalPtrAddr(handle),
                                         R_ExternalPtrAddr(dmat),
-                                        asInteger(output_margin),
+                                        asInteger(option_mask),
                                         asInteger(ntree_limit),
                                         &olen);
     SEXP ret = PROTECT(allocVector(REALSXP, olen));
