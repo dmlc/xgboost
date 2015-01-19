@@ -348,9 +348,9 @@ class LambdaRankObj : public IObjFunction {
           float h = loss.SecondOrderGradient(p, 1.0f);
           // accumulate gradient and hessian in both pid, and nid
           gpair[pos.rindex].grad += g * w;
-          gpair[pos.rindex].hess += 2.0f * h;
+          gpair[pos.rindex].hess += 2.0f * w * h;
           gpair[neg.rindex].grad -= g * w;
-          gpair[neg.rindex].hess += 2.0f * h;
+          gpair[neg.rindex].hess += 2.0f * w * h;
         }
       }
     }
