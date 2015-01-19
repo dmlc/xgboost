@@ -10,7 +10,8 @@ This folder contains information of Distributed XGBoost.
 
 Build
 =====
-* In the root folder, run ```./build.sh```, this will give you xgboost, which uses rabit allreduce
+* In the root folder, type ```make```
+  - If you have C++11 compiler, it is recommended to use ```make cxx11=1```
 
 Notes
 ====
