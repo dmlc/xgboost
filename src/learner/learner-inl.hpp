@@ -334,6 +334,31 @@ class BoostLearner : public rabit::ISerializable {
       }
     }
   }
+  /*!
+   * \brief online prediction funciton, predict score for one instance at a time
+   *  NOTE: use the batch prediction interface if possible, batch prediction is usually
+   *        more efficient than online prediction
+   *        This function is NOT threadsafe, make sure you only call from one thread
+   *    
+   * \param inst the instance you want to predict
+   * \param output_margin whether to only predict margin value instead of transformed prediction
+   * \param out_preds output vector to hold the predictions
+   * \param ntree_limit limit the number of trees used in prediction
+   * \param root_index the root index
+   * \sa Predict
+   */
+  inline void Predict(const SparseBatch::Inst &inst,
+                      bool output_margin,
+                      std::vector<float> *out_preds,
+                      unsigned ntree_limit = 0) const {
+    gbm_->Predict(inst, out_preds, ntree_limit);
+    if (out_preds->size() == 1) {
+      (*out_preds)[0] += mparam.base_score;
+    }
+    if (!output_margin) {
+      obj_->PredTransform(out_preds);
+    }
+  }
   /*! \brief dump model out */
   inline std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
     return gbm_->DumpModel(fmap, option);

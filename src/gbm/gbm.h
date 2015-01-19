@@ -83,7 +83,23 @@ class IGradBooster {
                        int64_t buffer_offset,
                        const BoosterInfo &info,
                        std::vector<float> *out_preds,
-                       unsigned ntree_limit = 0) = 0;
+                       unsigned ntree_limit = 0) = 0;  
+  /*!
+   * \brief online prediction funciton, predict score for one instance at a time
+   *  NOTE: use the batch prediction interface if possible, batch prediction is usually
+   *        more efficient than online prediction
+   *        This function is NOT threadsafe, make sure you only call from one thread
+   *    
+   * \param inst the instance you want to predict
+   * \param out_preds output vector to hold the predictions
+   * \param ntree_limit limit the number of trees used in prediction
+   * \param root_index the root index
+   * \sa Predict
+   */
+  virtual void Predict(const SparseBatch::Inst &inst,
+                       std::vector<float> *out_preds,
+                       unsigned ntree_limit = 0,
+                       unsigned root_index = 0)  = 0;
   /*!
    * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
    *        this is only valid in gbtree predictor

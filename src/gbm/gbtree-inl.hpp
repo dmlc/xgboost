@@ -160,6 +160,22 @@ class GBTree : public IGradBooster {
       }
     }
   }  
+  virtual void Predict(const SparseBatch::Inst &inst,
+                       std::vector<float> *out_preds,
+                       unsigned ntree_limit,
+                       unsigned root_index) {
+    if (thread_temp.size() == 0) {
+      thread_temp.resize(1, tree::RegTree::FVec());
+      thread_temp[0].Init(mparam.num_feature);
+    }
+    out_preds->resize(mparam.num_output_group * (mparam.size_leaf_vector+1));
+    // loop over output groups
+    for (int gid = 0; gid < mparam.num_output_group; ++gid) {
+      this->Pred(inst, -1, gid, root_index, &thread_temp[0],
+                 &(*out_preds)[gid], mparam.num_output_group, 
+                 ntree_limit);
+    }
+  }  
   virtual void PredictLeaf(IFMatrix *p_fmat,
                            const BoosterInfo &info,
                            std::vector<float> *out_preds,
