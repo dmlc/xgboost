@@ -10,7 +10,7 @@
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
 
-#include <rabit/engine.h>
+#include "../include/rabit/engine.h"
 
 namespace rabit {
 namespace engine {

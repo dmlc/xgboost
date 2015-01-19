@@ -3,7 +3,7 @@ export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -Llib
 export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -pedantic 
-export CFLAGS = -O3 -msse2 -fPIC -Iinclude $(WARNFLAGS) 
+export CFLAGS = -O3 -msse2 -fPIC $(WARNFLAGS) 
 
 # build path
 BPATH=.

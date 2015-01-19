@@ -2,9 +2,9 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 
-#include <rabit.h>
 #include <cstring>
 #include <string>
+#include "../include/rabit.h"
 #include "./rabit_wrapper.h"
 namespace rabit {
 namespace wrapper {

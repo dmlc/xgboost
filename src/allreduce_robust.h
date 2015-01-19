@@ -13,7 +13,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
-#include "rabit/engine.h"
+#include "../include/rabit/engine.h"
 #include "./allreduce_base.h"
 
 namespace rabit {
