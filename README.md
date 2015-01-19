@@ -26,7 +26,7 @@ What's New
 * New features in the lastest changes :)
   - Distributed version that scale xgboost to even larger problems with cluster
   - Feature importance visualization in R module, thanks to Michael Benesty
-  - Predict leaf index, see [demo/guide-python/pred_leaf_indices.py](demo/guide-python/pred_leaf_indices.py)  
+  - Predict leaf index, see [demo/guide-python/predict_leaf_indices.py](demo/guide-python/predict_leaf_indices.py)  
 * XGBoost wins [Tradeshift Text Classification](https://kaggle2.blob.core.windows.net/forum-message-attachments/60041/1813/TradeshiftTextClassification.pdf?sv=2012-02-12&se=2015-01-02T13%3A55%3A16Z&sr=b&sp=r&sig=5MHvyjCLESLexYcvbSRFumGQXCS7MVmfdBIY3y01tMk%3D)
 * XGBoost wins [HEP meets ML Award in Higgs Boson Challenge](http://atlas.ch/news/2014/machine-learning-wins-the-higgs-challenge.html)
 * Thanks to Bing Xu, [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl) allows you to use xgboost from Julia
