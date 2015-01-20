@@ -42,7 +42,8 @@
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' 
-#' #Both dataset are list with two items, a sparse matrix and labels (labels = outcome column which will be learned). 
+#' #Both dataset are list with two items, a sparse matrix and labels 
+#'   (labels = outcome column which will be learned). 
 #' #Each column of the sparse Matrix is a feature in one hot encoding format.
 #' train <- agaricus.train
 #' 

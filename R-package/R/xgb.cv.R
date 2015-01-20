@@ -32,7 +32,7 @@
 #' @param nfold number of folds used
 #' @param label option field, when data is Matrix
 #' @param missing Missing is only used when input is dense matrix, pick a float
-#     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
+#'    value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
 #' @param prediction A logical value indicating whether to return the prediction vector.
 #' @param showsd \code{boolean}, whether show standard deviation of cross validation
 #' @param metrics, list of evaluation metrics to be used in corss validation,

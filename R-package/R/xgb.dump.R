@@ -29,7 +29,7 @@
 #' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
 #'                eta = 1, nround = 2,objective = "binary:logistic")
 #' # save the model in file 'xgb.model.dump'
-#' xgb.dump(bst, 'xgb.model.dump', with.stats = T)
+#' xgb.dump(bst, 'xgb.model.dump', with.stats = TRUE)
 #' 
 #' # print the model without saving it to a file
 #' print(xgb.dump(bst))

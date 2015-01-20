@@ -25,5 +25,4 @@ Imports:
     data.table (>= 1.9),
     magrittr (>= 1.5),
     stringr,
-    DiagrammeR,
-    vcd
+    DiagrammeR
