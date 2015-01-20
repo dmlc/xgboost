@@ -128,7 +128,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.list %>% {vec <- .; rbindlist(list(dt, vec), use.names = F, fill = F)}
   
   if (prediction) {
-    return(list(dt,predictValues))
+    return(list(dt = dt,pred = predictValues))
   }
   return(dt)
 }
