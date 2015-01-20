@@ -135,7 +135,6 @@ template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
                       void (*prepare_fun)(void *arg) = NULL,
                       void *prepare_arg = NULL);
-
 // C++11 support for lambda prepare function
 #if __cplusplus >= 201103L
 /*!
@@ -238,11 +237,13 @@ class ReduceHandle;
 }  // namespace engine
 /*!
  * \brief template class to make customized reduce and all reduce easy  
- *  Do not use reducer directly in the function you call Finalize, because the destructor can execute after Finalize
+ *  Do not use reducer directly in the function you call Finalize, 
+ *   because the destructor can execute after Finalize
  * \tparam DType data type that to be reduced
- *  DType must be a struct, with no pointer, and contain a function Reduce(const DType &d);
+ * \tparam freduce the customized reduction function
+ *  DType must be a struct, with no pointer
  */
-template<typename DType>
+template<typename DType, void (*freduce)(DType &dst, const DType &src)>
 class Reducer {
  public:
   Reducer(void);
@@ -280,7 +281,8 @@ class Reducer {
  *  Do not use reducer directly in the function you call Finalize, because the destructor can execute after Finalize
  * 
  * \tparam DType data type that to be reduced, DType must contain the following functions:
- *   (1) Save(IStream &fs)  (2) Load(IStream &fs) (3) Reduce(const DType &d);
+ * \tparam freduce the customized reduction function
+ *   (1) Save(IStream &fs)  (2) Load(IStream &fs) (3) Reduce(const DType &src, size_t max_nbyte)
  */
 template<typename DType>
 class SerializeReducer {

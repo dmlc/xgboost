@@ -16,7 +16,7 @@ ALIB= lib/librabit.a lib/librabit_mpi.a lib/librabit_empty.a lib/librabit_mock.a
 HEADERS=src/*.h include/*.h include/rabit/*.h
 .PHONY: clean all install mpi python
 
-all: lib/librabit.a lib/librabit_mock.a  wrapper/librabit_wrapper.so wrapper/librabit_wrapper_mock.so
+all: lib/librabit.a lib/librabit_mock.a  wrapper/librabit_wrapper.so wrapper/librabit_wrapper_mock.so lib/librabit_base.a
 mpi: lib/librabit_mpi.a wrapper/librabit_wrapper_mpi.so
 python: wrapper/librabit_wrapper.so wrapper/librabit_wrapper_mock.so
 
