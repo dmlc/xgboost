@@ -155,7 +155,7 @@ class DistColMaker : public ColMaker<TStats> {
    private:
     utils::BitMap bitmap;
     std::vector<int> boolmap;
-    rabit::Reducer<SplitEntry> reducer;
+    rabit::Reducer<SplitEntry, SplitEntry::Reduce> reducer;
   };
   // we directly introduce pruner here
   TreePruner pruner;

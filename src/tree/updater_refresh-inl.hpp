@@ -147,7 +147,7 @@ class TreeRefresher: public IUpdater {
   // training parameter
   TrainParam param;
   // reducer
-  rabit::Reducer<TStats> reducer;  
+  rabit::Reducer<TStats, TStats::Reduce> reducer;  
 };
 
 }  // namespace tree

@@ -17,8 +17,8 @@ cd -
 python splitrows.py ../../demo/regression/machine.txt.train train-machine $k
 
 # run xgboost mpi
-../../rabit/tracker/rabit_mpi.py -n $k ../../xgboost machine-row.conf dsplit=row num_round=3 eval_train=1
+../../subtree/rabit/tracker/rabit_demo.py -n $k ../../xgboost machine-row.conf dsplit=row num_round=3 eval_train=1
 
 # run xgboost-mpi save model 0001, continue to run from existing model
-../../rabit/tracker/rabit_mpi.py -n $k ../../xgboost machine-row.conf dsplit=row num_round=1
-../../rabit/tracker/rabit_mpi.py -n $k ../../xgboost machine-row.conf dsplit=row num_round=2 model_in=0001.model
+../../subtree/rabit/tracker/rabit_demo.py -n $k ../../xgboost machine-row.conf dsplit=row num_round=1
+../../subtree/rabit/tracker/rabit_demo.py -n $k ../../xgboost machine-row.conf dsplit=row num_round=2 model_in=0001.model
