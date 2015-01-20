@@ -17,10 +17,14 @@
 namespace rabit {
 namespace engine {
 // singleton sync manager
+#ifndef RABIT_USE_BASE
 #ifndef RABIT_USE_MOCK
 AllreduceRobust manager;
 #else
 AllreduceMock manager;
+#endif
+#else
+AllreduceBase manager;
 #endif
 
 /*! \brief intiialize the synchronization module */
