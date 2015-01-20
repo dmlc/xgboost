@@ -1,6 +1,6 @@
 *.suo
 *.exp
-*.sdf
+*sdf
 *.exe
 ipch
 x64
