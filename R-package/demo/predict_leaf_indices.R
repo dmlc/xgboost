@@ -12,7 +12,6 @@ nround = 5
 # training the model for two rounds
 bst = xgb.train(param, dtrain, nround, watchlist)
 cat('start testing prediction from first n trees\n')
-labels <- getinfo(dtest,'label')
 
 ### predict using first 2 tree
 pred_with_leaf = predict(bst, dtest, ntreelimit = 2, predleaf = TRUE)

@@ -56,7 +56,7 @@ setMethod("predict", signature = "xgb.Booster",
       if (length(ret) == len){
           ret <- matrix(ret,ncol = 1)
       } else {
-          ret <- matrix(ret, ncol = nrow(newdata))
+          ret <- matrix(ret, ncol = len)
           ret <- t(ret)
       }
   }
