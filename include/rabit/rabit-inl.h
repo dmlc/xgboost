@@ -294,9 +294,9 @@ inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
 }
 
 #if __cplusplus >= 201103L
-template<typename DType>
-inline void Reducer<DType>::Allreduce(DType *sendrecvbuf, size_t count,
-                                      std::function<void()> prepare_fun) {
+template<typename DType, void (*freduce)(DType &dst, const DType &src)>
+inline void Reducer<DType, freduce>::Allreduce(DType *sendrecvbuf, size_t count,
+                                               std::function<void()> prepare_fun) {
   this->Allreduce(sendrecvbuf, count, InvokeLambda_, &prepare_fun);
 }
 template<typename DType>
