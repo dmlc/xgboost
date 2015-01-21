@@ -52,4 +52,5 @@ xgboost.mpi
 xgboost.mock
 train*
 rabit
-
+.Rbuildignore
+R-package.Rproj
