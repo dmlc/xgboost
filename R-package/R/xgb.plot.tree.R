@@ -87,3 +87,5 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, model = NU
   path <- allTrees[Feature!="Leaf", c(yesPath, noPath)] %>% .[order(.)] %>% paste(sep = "", collapse = ";") %>% paste("graph LR", .,collapse = "", sep = ";") %>% paste(CSSstyle, yes, no, sep = ";")
   DiagrammeR(path, width, height)
 }
+
+globalVariables("Feature", "yesPath", "ID", "Cover", "Quality", "Split", "Yes", "Yes.Feature", "noPath", "No", "No.Feature", ".")

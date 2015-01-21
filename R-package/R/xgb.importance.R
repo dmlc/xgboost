@@ -81,3 +81,5 @@ treeDump <- function(feature_names, text){
 linearDump <- function(feature_names, text){
   which(text == "weight:") %>% {a=.+1;text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
 }
+
+globalVariables(".")
