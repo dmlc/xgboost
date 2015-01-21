@@ -30,7 +30,8 @@ Use Rabit
 
 Contributing
 ====
-Rabit is an open-source library, contribution is welcomed, including
+Rabit is an open-source library, contributions are welcomed, including:
 * The rabit core library.
-* Toolkits, benchmarks, resource links to repos related to rabit.
+* Customized tracker script for new platforms and interface of new languages.
+* Toolkits, benchmarks, resource (links to related repos).
 * Tutorial and examples about the library.
