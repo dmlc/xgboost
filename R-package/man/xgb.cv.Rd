@@ -5,8 +5,8 @@
 \title{Cross Validation}
 \usage{
 xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
-  missing = NULL, showsd = TRUE, metrics = list(), obj = NULL,
-  feval = NULL, verbose = T, ...)
+  missing = NULL, prediction = FALSE, showsd = TRUE, metrics = list(),
+  obj = NULL, feval = NULL, verbose = T, ...)
 }
 \arguments{
 \item{params}{the list of parameters. Commonly used ones are:
@@ -33,6 +33,8 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
 \item{label}{option field, when data is Matrix}
 
 \item{missing}{Missing is only used when input is dense matrix, pick a float}
+
+\item{prediction}{A logical value indicating whether to return the prediction vector.}
 
 \item{showsd}{\code{boolean}, whether show standard deviation of cross validation}
 
