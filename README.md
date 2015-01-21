@@ -5,6 +5,7 @@ rabit is a light weight library that provides a fault tolerant interface of Allr
 * [Tutorial](guide)
 * [API Documentation](http://homes.cs.washington.edu/~tqchen/rabit/doc)
 * You can also directly read the [interface header](include/rabit.h)
+* [Machine Learning Tools](rabit-learn)
 
 Features
 ====
@@ -26,3 +27,10 @@ Use Rabit
 * Add lib to the library path and include to the include path of compiler
 * Languages: You can use rabit in C++ and python
   - It is also possible to port the library to other languages
+
+Contributing
+====
+Rabit is an open-source library, contribution is welcomed, including
+* The rabit core library.
+* Toolkits, benchmarks, resource links to repos related to rabit.
+* Tutorial and examples about the library.
