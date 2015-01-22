@@ -8,7 +8,7 @@ It also contain links to the Machine Learning packages that uses rabit.
 Toolkits
 ====
 * [KMeans Clustering](kmeans)
-* [XGBoost: eXtreme Gradient Boosting](https://github.com/tqchen/xgboost/tree/unity/multi-node)
+* [XGBoost: eXtreme Gradient Boosting](https://github.com/tqchen/xgboost/tree/master/multi-node)
   - xgboost is a very fast boosted tree(also known as GBDT) library, that can run more than
     10 times faster than existing packages
   - Rabit carries xgboost to distributed enviroment, inheritating all the benefits of xgboost
