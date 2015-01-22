@@ -130,3 +130,8 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   }
   return(dt)
 }
+
+# Avoid error messages during CRAN check.
+# The reason is that these variables are never declared
+# They are mainly column names inferred by Data.table...
+globalVariables(".")

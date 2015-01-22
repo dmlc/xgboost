@@ -87,3 +87,8 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, model = NU
   path <- allTrees[Feature!="Leaf", c(yesPath, noPath)] %>% .[order(.)] %>% paste(sep = "", collapse = ";") %>% paste("graph LR", .,collapse = "", sep = ";") %>% paste(CSSstyle, yes, no, sep = ";")
   DiagrammeR(path, width, height)
 }
+
+# Avoid error messages during CRAN check.
+# The reason is that these variables are never declared
+# They are mainly column names inferred by Data.table...
+globalVariables(c("Feature", "yesPath", "ID", "Cover", "Quality", "Split", "Yes", "Yes.Feature", "noPath", "No", "No.Feature", "."))

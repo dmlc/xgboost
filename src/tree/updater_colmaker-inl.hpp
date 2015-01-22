@@ -153,7 +153,8 @@ class ColMaker: public IUpdater {
         }
         unsigned n = static_cast<unsigned>(param.colsample_bytree * feat_index.size());
         random::Shuffle(feat_index);
-        utils::Check(n > 0, "colsample_bytree is too small that no feature can be included");
+        //utils::Check(n > 0, "colsample_bytree is too small that no feature can be included");
+        utils::Check(n > 0, "colsample_bytree=%g is too small that no feature can be included", param.colsample_bytree);
         feat_index.resize(n);
       }
       {// setup temp space for each thread
