@@ -25,4 +25,4 @@ Imports:
     data.table (>= 1.9.4),
     magrittr (>= 1.5),
     stringr,
-    DiagrammeR
+    DiagrammeR (>=0.3)
