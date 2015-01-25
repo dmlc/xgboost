@@ -31,7 +31,8 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
 
 \item{label}{option field, when data is Matrix}
 
-\item{missing}{Missing is only used when input is dense matrix, pick a float}
+\item{missing}{Missing is only used when input is dense matrix, pick a float
+value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.}
 
 \item{prediction}{A logical value indicating whether to return the prediction vector.}
 

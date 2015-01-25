@@ -11,7 +11,8 @@ indicating the data file.}
 
 \item{info}{a list of information of the xgb.DMatrix object}
 
-\item{missing}{Missing is only used when input is dense matrix, pick a float}
+\item{missing}{Missing is only used when input is dense matrix, pick a float
+value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.}
 
 \item{...}{other information to pass to \code{info}.}
 }

@@ -10,7 +10,8 @@ xgboost(data = NULL, label = NULL, missing = NULL, params = list(),
 \item{data}{takes \code{matrix}, \code{dgCMatrix}, local data file or
 \code{xgb.DMatrix}.}
 
-\item{label}{the response variable. User should not set this field,}
+\item{label}{the response variable. User should not set this field,
+if data is local data file or  \code{xgb.DMatrix}.}
 
 \item{params}{the list of parameters. Commonly used ones are:
 \itemize{
@@ -33,7 +34,8 @@ xgboost(data = NULL, label = NULL, missing = NULL, params = list(),
 information of performance. If 2, xgboost will print information of both
 performance and construction progress information}
 
-\item{missing}{Missing is only used when input is dense matrix, pick a float value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.}
+\item{missing}{Missing is only used when input is dense matrix, pick a float
+value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.}
 
 \item{...}{other parameters to pass to \code{params}.}
 }

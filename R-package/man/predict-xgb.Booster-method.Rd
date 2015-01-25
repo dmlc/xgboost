@@ -13,7 +13,8 @@
 \item{newdata}{takes \code{matrix}, \code{dgCMatrix}, local data file or
 \code{xgb.DMatrix}.}
 
-\item{missing}{Missing is only used when input is dense matrix, pick a float}
+\item{missing}{Missing is only used when input is dense matrix, pick a float
+value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.}
 
 \item{outputmargin}{whether the prediction should be shown in the original
 value of sum of functions, when outputmargin=TRUE, the prediction is
