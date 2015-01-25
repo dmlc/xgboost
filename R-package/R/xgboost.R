@@ -24,8 +24,7 @@
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
 #'   information of performance. If 2, xgboost will print information of both
 #'   performance and construction progress information
-#' @param missing Missing is only used when input is dense matrix, pick a float
-#     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
+#' @param missing Missing is only used when input is dense matrix, pick a float value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 
