@@ -2,7 +2,7 @@
 *.slo
 *.lo
 *.o
-
+*.page
 # Compiled Dynamic libraries
 *.so
 *.dylib
@@ -45,5 +45,13 @@ Debug
 *save
 *csv
 .Rproj.user
+*.cpage.col
+*.cpage
 xgboost
+xgboost.mpi
 xgboost.mock
+train*
+rabit
+.Rbuildignore
+R-package.Rproj
+

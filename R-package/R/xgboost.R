@@ -5,7 +5,7 @@
 #' @param data takes \code{matrix}, \code{dgCMatrix}, local data file or 
 #'   \code{xgb.DMatrix}. 
 #' @param label the response variable. User should not set this field,
-#    if data is local data file or  \code{xgb.DMatrix}. 
+#'    if data is local data file or  \code{xgb.DMatrix}. 
 #' @param params the list of parameters. Commonly used ones are:
 #' \itemize{
 #'   \item \code{objective} objective function, common ones are
@@ -24,8 +24,8 @@
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
 #'   information of performance. If 2, xgboost will print information of both
 #'   performance and construction progress information
-#' @param missing Missing is only used when input is dense matrix, pick a float
-#     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
+#' @param missing Missing is only used when input is dense matrix, pick a float 
+#'     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 

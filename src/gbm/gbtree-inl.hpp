@@ -19,6 +19,8 @@ namespace gbm {
  */
 class GBTree : public IGradBooster {
  public:
+  GBTree(void) {
+  }
   virtual ~GBTree(void) {
     this->Clear();
   }
@@ -37,7 +39,7 @@ class GBTree : public IGradBooster {
     tparam.SetParam(name, val);
     if (trees.size() == 0) mparam.SetParam(name, val);
   }
-  virtual void LoadModel(utils::IStream &fi) {
+  virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) {
     this->Clear();
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "GBTree: invalid model file");
@@ -51,7 +53,7 @@ class GBTree : public IGradBooster {
       utils::Check(fi.Read(&tree_info[0], sizeof(int) * mparam.num_trees) != 0,
                    "GBTree: invalid model file");
     }
-    if (mparam.num_pbuffer != 0) {
+    if (mparam.num_pbuffer != 0 && with_pbuffer) {
       pred_buffer.resize(mparam.PredBufferSize());
       pred_counter.resize(mparam.PredBufferSize());
       utils::Check(fi.Read(&pred_buffer[0], pred_buffer.size() * sizeof(float)) != 0,
@@ -60,7 +62,7 @@ class GBTree : public IGradBooster {
                    "GBTree: invalid model file");
     }
   }
-  virtual void SaveModel(utils::IStream &fo) const {
+  virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const {
     utils::Assert(mparam.num_trees == static_cast<int>(trees.size()), "GBTree");
     fo.Write(&mparam, sizeof(ModelParam));
     for (size_t i = 0; i < trees.size(); ++i) {
@@ -69,7 +71,7 @@ class GBTree : public IGradBooster {
     if (tree_info.size() != 0) {
       fo.Write(&tree_info[0], sizeof(int) * tree_info.size());
     }
-    if (mparam.num_pbuffer != 0) {
+    if (mparam.num_pbuffer != 0 && with_pbuffer) {
       fo.Write(&pred_buffer[0], pred_buffer.size() * sizeof(float));
       fo.Write(&pred_counter[0], pred_counter.size() * sizeof(unsigned));
     }
@@ -82,12 +84,23 @@ class GBTree : public IGradBooster {
     utils::Assert(mparam.num_trees == 0, "GBTree: model already initialized");
     utils::Assert(trees.size() == 0, "GBTree: model already initialized");
   }
+  virtual void ResetPredBuffer(size_t num_pbuffer) {
+    mparam.num_pbuffer = static_cast<int64_t>(num_pbuffer);
+    pred_buffer.clear(); pred_counter.clear();
+    pred_buffer.resize(mparam.PredBufferSize(), 0.0f);
+    pred_counter.resize(mparam.PredBufferSize(), 0);
+  }
+  virtual bool AllowLazyCheckPoint(void) const {
+    return !(tparam.distcol_mode != 0  && mparam.num_output_group != 1);
+  }
   virtual void DoBoost(IFMatrix *p_fmat,
+                       int64_t buffer_offset,
                        const BoosterInfo &info,
                        std::vector<bst_gpair> *in_gpair) {
     const std::vector<bst_gpair> &gpair = *in_gpair;
-    if (mparam.num_output_group == 1) {
-      this->BoostNewTrees(gpair, p_fmat, info, 0);
+    std::vector<std::vector<tree::RegTree*> > new_trees;
+    if (mparam.num_output_group == 1) {      
+      new_trees.push_back(BoostNewTrees(gpair, p_fmat, buffer_offset, info, 0));
     } else {
       const int ngroup = mparam.num_output_group;
       utils::Check(gpair.size() % ngroup == 0,
@@ -99,15 +112,18 @@ class GBTree : public IGradBooster {
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           tmp[i] = gpair[i * ngroup + gid];
         }
-        this->BoostNewTrees(tmp, p_fmat, info, gid);
+        new_trees.push_back(BoostNewTrees(tmp, p_fmat, buffer_offset, info, gid));
       }
+    }
+    for (int gid = 0; gid < mparam.num_output_group; ++gid) {
+      this->CommitModel(new_trees[gid], gid);
     }
   }
   virtual void Predict(IFMatrix *p_fmat,
                        int64_t buffer_offset,
                        const BoosterInfo &info,
                        std::vector<float> *out_preds,
-                       unsigned ntree_limit = 0) {
+                       unsigned ntree_limit = 0) {    
     int nthread;
     #pragma omp parallel
     {
@@ -117,7 +133,6 @@ class GBTree : public IGradBooster {
     for (int i = 0; i < nthread; ++i) {
       thread_temp[i].Init(mparam.num_feature);
     }
-
     std::vector<float> &preds = *out_preds;
     const size_t stride = info.num_row * mparam.num_output_group;
     preds.resize(stride * (mparam.size_leaf_vector+1));
@@ -144,6 +159,38 @@ class GBTree : public IGradBooster {
         }
       }
     }
+  }  
+  virtual void Predict(const SparseBatch::Inst &inst,
+                       std::vector<float> *out_preds,
+                       unsigned ntree_limit,
+                       unsigned root_index) {
+    if (thread_temp.size() == 0) {
+      thread_temp.resize(1, tree::RegTree::FVec());
+      thread_temp[0].Init(mparam.num_feature);
+    }
+    out_preds->resize(mparam.num_output_group * (mparam.size_leaf_vector+1));
+    // loop over output groups
+    for (int gid = 0; gid < mparam.num_output_group; ++gid) {
+      this->Pred(inst, -1, gid, root_index, &thread_temp[0],
+                 &(*out_preds)[gid], mparam.num_output_group, 
+                 ntree_limit);
+    }
+  }  
+  virtual void PredictLeaf(IFMatrix *p_fmat,
+                           const BoosterInfo &info,
+                           std::vector<float> *out_preds,
+                           unsigned ntree_limit) {
+    int nthread;
+    #pragma omp parallel
+    {
+      nthread = omp_get_num_threads();
+    }
+    thread_temp.resize(nthread, tree::RegTree::FVec());
+    for (int i = 0; i < nthread; ++i) {
+      thread_temp[i].Init(mparam.num_feature);
+    }
+    this->PredPath(p_fmat, info, out_preds, ntree_limit);
+    
   }
   virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
     std::vector<std::string> dump;
@@ -184,13 +231,15 @@ class GBTree : public IGradBooster {
     tparam.updater_initialized = 1;
   }
   // do group specific group
-  inline void BoostNewTrees(const std::vector<bst_gpair> &gpair,
-                            IFMatrix *p_fmat,
-                            const BoosterInfo &info,
-                            int bst_group) {
+  inline std::vector<tree::RegTree*>
+  BoostNewTrees(const std::vector<bst_gpair> &gpair,
+                IFMatrix *p_fmat,
+                int64_t buffer_offset,
+                const BoosterInfo &info,
+                int bst_group) {
+    std::vector<tree::RegTree *> new_trees;
     this->InitUpdater();
     // create the trees
-    std::vector<tree::RegTree *> new_trees;
     for (int i = 0; i < tparam.num_parallel_tree; ++i) {
       new_trees.push_back(new tree::RegTree());
       for (size_t j = 0; j < cfg.size(); ++j) {
@@ -201,13 +250,52 @@ class GBTree : public IGradBooster {
     // update the trees
     for (size_t i = 0; i < updaters.size(); ++i) {
       updaters[i]->Update(gpair, p_fmat, info, new_trees);
+    }    
+    // optimization, update buffer, if possible
+    // this is only under distributed column mode
+    // for safety check of lazy checkpoint
+    if (
+        buffer_offset >= 0 &&
+        new_trees.size() == 1 && updaters.size() > 0 &&
+        updaters.back()->GetLeafPosition() != NULL) {
+      utils::Check(info.num_row == p_fmat->buffered_rowset().size(),
+                   "distributed mode is not compatible with prob_buffer_row");
+      this->UpdateBufferByPosition(p_fmat,
+                                   buffer_offset, bst_group,
+                                   *new_trees[0],
+                                   updaters.back()->GetLeafPosition());
     }
-    // push back to model
+    return new_trees;
+  }
+  // commit new trees all at once
+  inline void CommitModel(const std::vector<tree::RegTree*> &new_trees, int bst_group) {
     for (size_t i = 0; i < new_trees.size(); ++i) {
       trees.push_back(new_trees[i]);
       tree_info.push_back(bst_group);
     }
-    mparam.num_trees += tparam.num_parallel_tree;
+    mparam.num_trees += static_cast<int>(new_trees.size());
+  }
+  // update buffer by pre-cached position
+  inline void UpdateBufferByPosition(IFMatrix *p_fmat,
+                                     int64_t buffer_offset, 
+                                     int bst_group,
+                                     const tree::RegTree &new_tree,
+                                     const int* leaf_position) {
+    const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
+    #pragma omp parallel for schedule(static)
+    for (bst_omp_uint i = 0; i < ndata; ++i) {
+      const bst_uint ridx = rowset[i];
+      const int64_t bid = mparam.BufferOffset(buffer_offset + ridx, bst_group);
+      const int tid = leaf_position[ridx];
+      utils::Assert(pred_counter[bid] == trees.size(), "cached buffer not up to date");
+      utils::Assert(tid >= 0, "invalid leaf position");
+      pred_buffer[bid] += new_tree[tid].leaf_value();
+      for (int i = 0; i < mparam.size_leaf_vector; ++i) {
+        pred_buffer[bid + i + 1] += new_tree.leafvec(tid)[i];
+      }
+      pred_counter[bid] += tparam.num_parallel_tree;
+    }
   }
   // make a prediction for a single instance
   inline void Pred(const RowBatch::Inst &inst,
@@ -215,7 +303,8 @@ class GBTree : public IGradBooster {
                    int bst_group,
                    unsigned root_index,
                    tree::RegTree::FVec *p_feats,
-                   float *out_pred, size_t stride, unsigned ntree_limit) {
+                   float *out_pred, size_t stride, 
+                   unsigned ntree_limit) {
     size_t itop = 0;
     float  psum = 0.0f;
     // sum of leaf vector 
@@ -258,6 +347,39 @@ class GBTree : public IGradBooster {
       out_pred[stride * (i + 1)] = vec_psum[i];
     }
   }
+  // predict independent leaf index
+  inline void PredPath(IFMatrix *p_fmat,
+                       const BoosterInfo &info,
+                       std::vector<float> *out_preds,
+                       unsigned ntree_limit) {
+    // number of valid trees
+    if (ntree_limit == 0 || ntree_limit > trees.size()) {
+      ntree_limit = static_cast<unsigned>(trees.size());
+    } 
+    std::vector<float> &preds = *out_preds;
+    preds.resize(info.num_row * ntree_limit);
+    // start collecting the prediction
+    utils::IIterator<RowBatch> *iter = p_fmat->RowIterator();
+    iter->BeforeFirst();
+    while (iter->Next()) {
+      const RowBatch &batch = iter->Value();
+      // parallel over local batch
+      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      #pragma omp parallel for schedule(static)
+      for (bst_omp_uint i = 0; i < nsize; ++i) {
+        const int tid = omp_get_thread_num();
+        int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
+        tree::RegTree::FVec &feats = thread_temp[tid];
+        feats.Fill(batch[i]);
+        for (unsigned j = 0; j < ntree_limit; ++j) {
+          int tid = trees[j]->GetLeafIndex(feats, info.GetRoot(ridx));
+          preds[ridx * ntree_limit + j] = static_cast<float>(tid);
+        }
+        feats.Drop(batch[i]);
+      }
+    }
+  }
+                       
   // --- data structure ---
   /*! \brief training parameters */
   struct TrainParam {
@@ -270,6 +392,8 @@ class GBTree : public IGradBooster {
     int num_parallel_tree;
     /*! \brief whether updater is already initialized */
     int updater_initialized;
+    /*! \brief distributed column mode */
+    int distcol_mode;
     /*! \brief tree updater sequence */
     std::string updater_seq;
     // construction
@@ -278,6 +402,7 @@ class GBTree : public IGradBooster {
       updater_seq = "grow_colmaker,prune";
       num_parallel_tree = 1;
       updater_initialized = 0;
+      distcol_mode = 0;
     }
     inline void SetParam(const char *name, const char *val){
       using namespace std;
@@ -285,6 +410,9 @@ class GBTree : public IGradBooster {
           strcmp(updater_seq.c_str(), val) != 0) {
         updater_seq = val;
         updater_initialized = 0;
+      }
+      if (!strcmp(name, "dsplit") && !strcmp(val, "col")) {
+        distcol_mode = 1;
       }
       if (!strcmp(name, "nthread")) {
         omp_set_num_threads(nthread = atoi(val));

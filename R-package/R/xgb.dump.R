@@ -29,7 +29,7 @@
 #' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
 #'                eta = 1, nround = 2,objective = "binary:logistic")
 #' # save the model in file 'xgb.model.dump'
-#' xgb.dump(bst, 'xgb.model.dump', with.stats = T)
+#' xgb.dump(bst, 'xgb.model.dump', with.stats = TRUE)
 #' 
 #' # print the model without saving it to a file
 #' print(xgb.dump(bst))
@@ -37,11 +37,15 @@
 #' 
 xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   if (class(model) != "xgb.Booster") {
-    stop("xgb.dump: first argument must be type xgb.Booster")
+    stop("model: argument must be type xgb.Booster")
   }
-  if (!class(fname) %in% c("character", "NULL")) {
-    stop("xgb.dump: second argument must be type character when provided")
+  if (!(class(fname) %in% c("character", "NULL") && length(fname) <= 1)) {
+    stop("fname: argument must be type character (when provided)")
   }
+  if (!(class(fmap) %in% c("character", "NULL") && length(fname) <= 1)) {
+    stop("fmap: argument must be type character (when provided)")
+  }
+  
   result <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost")
   
   if(is.null(fname)) {
@@ -51,3 +55,8 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
     return(TRUE)
   }
 }
+
+# Avoid error messages during CRAN check.
+# The reason is that these variables are never declared
+# They are mainly column names inferred by Data.table...
+globalVariables(".")

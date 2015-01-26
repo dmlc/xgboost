@@ -42,6 +42,25 @@ struct LossType {
     }
   }
   /*!
+   * \brief check if label range is valid
+   */
+  inline bool CheckLabel(float x) const {
+    if (loss_type != kLinearSquare) {
+      return x >= 0.0f && x <= 1.0f;
+    }
+    return true;
+  }
+  /*!
+   * \brief error message displayed when check label fail
+   */
+  inline const char * CheckLabelErrorMsg(void) const {
+    if (loss_type != kLinearSquare) {
+      return "label must be in [0,1] for logistic regression";
+    } else {
+      return "";
+    }
+  }
+  /*!
    * \brief calculate first order gradient of loss, given transformed prediction
    * \param predt transformed prediction
    * \param label true label
@@ -115,6 +134,8 @@ class RegLossObj : public IObjFunction{
                  "labels are not correctly provided");
     std::vector<bst_gpair> &gpair = *out_gpair;
     gpair.resize(preds.size());
+    // check if label in range
+    bool label_correct = true;
     // start calculating gradient
     const unsigned nstep = static_cast<unsigned>(info.labels.size());
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
@@ -124,9 +145,11 @@ class RegLossObj : public IObjFunction{
       float p = loss.PredTransform(preds[i]);
       float w = info.GetWeight(j);
       if (info.labels[j] == 1.0f) w *= scale_pos_weight;
+      if (!loss.CheckLabel(info.labels[j])) label_correct = false;
       gpair[i] = bst_gpair(loss.FirstOrderGradient(p, info.labels[j]) * w,
                            loss.SecondOrderGradient(p, info.labels[j]) * w);
     }
+    utils::Check(label_correct, loss.CheckLabelErrorMsg());
   }
   virtual const char* DefaultEvalMetric(void) const {
     return loss.DefaultEvalMetric();
@@ -183,7 +206,8 @@ class SoftmaxMultiClassObj : public IObjFunction {
         Softmax(&rec);
         const unsigned j = i % nstep;
         int label = static_cast<int>(info.labels[j]);
-        utils::Check(label < nclass, "SoftmaxMultiClassObj: label exceed num_class");
+        utils::Check(label >= 0 && label < nclass,
+                     "SoftmaxMultiClassObj: label must be in [0, num_class)");
         const float wt = info.GetWeight(j);
         for (int k = 0; k < nclass; ++k) {
           float p = rec[k];
@@ -325,9 +349,9 @@ class LambdaRankObj : public IObjFunction {
           float h = loss.SecondOrderGradient(p, 1.0f);
           // accumulate gradient and hessian in both pid, and nid
           gpair[pos.rindex].grad += g * w;
-          gpair[pos.rindex].hess += 2.0f * h;
+          gpair[pos.rindex].hess += 2.0f * w * h;
           gpair[neg.rindex].grad -= g * w;
-          gpair[neg.rindex].hess += 2.0f * h;
+          gpair[neg.rindex].hess += 2.0f * w * h;
         }
       }
     }

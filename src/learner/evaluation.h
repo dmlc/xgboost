@@ -19,9 +19,13 @@ struct IEvaluator{
    * \brief evaluate a specific metric
    * \param preds prediction
    * \param info information, including label etc.
+   * \param distributed whether a call to Allreduce is needed to gather 
+   *        the average statistics across all the node,
+   *        this is only supported by some metrics
    */
   virtual float Eval(const std::vector<float> &preds,
-                     const MetaInfo &info) const = 0;
+                     const MetaInfo &info,
+                     bool distributed = false) const = 0;
   /*! \return name of metric */
   virtual const char *Name(void) const = 0;
   /*! \brief virtual destructor */
@@ -70,10 +74,11 @@ class EvalSet{
   }
   inline std::string Eval(const char *evname,
                           const std::vector<float> &preds,
-                          const MetaInfo &info) const {
+                          const MetaInfo &info,
+                          bool distributed = false) {
     std::string result = "";
     for (size_t i = 0; i < evals_.size(); ++i) {
-      float res = evals_[i]->Eval(preds, info);
+      float res = evals_[i]->Eval(preds, info, distributed);
       char tmp[1024];
       utils::SPrintf(tmp, sizeof(tmp), "\t%s-%s:%f", evname, evals_[i]->Name(), res);
       result += tmp;

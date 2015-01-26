@@ -138,9 +138,10 @@ class IFMatrix {
   virtual utils::IIterator<ColBatch> *ColIterator(const std::vector<bst_uint> &fset) = 0;
   /*!
    * \brief check if column access is supported, if not, initialize column access
+   * \param enabled whether certain feature should be included in column access
    * \param subsample subsample ratio when generating column access
    */
-  virtual void InitColAccess(float subsample) = 0;
+  virtual void InitColAccess(const std::vector<bool> &enabled, float subsample) = 0;
   // the following are column meta data, should be able to answer them fast
   /*! \return whether column access is enabled */
   virtual bool HaveColAccess(void) const = 0;

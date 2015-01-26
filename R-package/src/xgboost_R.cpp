@@ -3,10 +3,12 @@
 #include <utility>
 #include <cstring>
 #include <cstdio>
-#include "xgboost_R.h"
+#include <sstream> 
 #include "wrapper/xgboost_wrapper.h"
 #include "src/utils/utils.h"
 #include "src/utils/omp.h"
+#include "xgboost_R.h"
+
 using namespace std;
 using namespace xgboost;
 
@@ -246,12 +248,12 @@ extern "C" {
                                          asInteger(iter),
                                          BeginPtr(vec_dmats), BeginPtr(vec_sptr), len));
   }
-  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin, SEXP ntree_limit) {
+  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask, SEXP ntree_limit) {
     _WrapperBegin();
     bst_ulong olen;
     const float *res = XGBoosterPredict(R_ExternalPtrAddr(handle),
                                         R_ExternalPtrAddr(dmat),
-                                        asInteger(output_margin),
+                                        asInteger(option_mask),
                                         asInteger(ntree_limit),
                                         &olen);
     SEXP ret = PROTECT(allocVector(REALSXP, olen));
@@ -280,11 +282,10 @@ extern "C" {
     asInteger(with_stats),
     &olen);
     SEXP out = PROTECT(allocVector(STRSXP, olen));    
-    char buffer [2000];
     for (size_t i = 0; i < olen; ++i) {     
-      memset(buffer, 0, sizeof buffer);
-      sprintf (buffer, "booster[%u]:\n%s", static_cast<unsigned>(i), res[i]);
-      SET_STRING_ELT(out, i, mkChar(buffer));
+      stringstream stream;
+      stream <<  "booster["<<i<<"]\n" << res[i];
+      SET_STRING_ELT(out, i, mkChar(stream.str().c_str()));
     }
     _WrapperEnd();
     UNPROTECT(1);

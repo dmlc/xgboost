@@ -22,7 +22,7 @@ Depends:
 Imports:
     Matrix (>= 1.1-0),
     methods,
-    data.table (>= 1.9),
+    data.table (>= 1.9.4),
     magrittr (>= 1.5),
     stringr,
     DiagrammeR

@@ -45,3 +45,7 @@ param <- list(max.depth=2,eta=1,silent=1)
 xgb.cv(param, dtrain, nround, nfold = 5,
        obj = logregobj, feval=evalerror)
 
+# do cross validation with prediction values for each fold
+res <- xgb.cv(param, dtrain, nround, nfold=5, prediction = TRUE)
+res$dt
+length(res$pred)

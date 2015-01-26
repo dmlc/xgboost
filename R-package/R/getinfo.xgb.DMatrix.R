@@ -32,10 +32,15 @@ setMethod("getinfo", signature = "xgb.DMatrix",
               if (class(object) != "xgb.DMatrix") {
                   stop("xgb.setinfo: first argument dtrain must be xgb.DMatrix")
               }
-              if (name != "label" && name != "weight" && name != "base_margin") {
+              if (name != "label" && name != "weight" && 
+                      name != "base_margin" && name != "nrow") {
                   stop(paste("xgb.getinfo: unknown info name", name))
               }
-              ret <- .Call("XGDMatrixGetInfo_R", object, name, PACKAGE = "xgboost")
+              if (name != "nrow"){
+                  ret <- .Call("XGDMatrixGetInfo_R", object, name, PACKAGE = "xgboost")
+              } else {
+                  ret <- xgb.numrow(object)
+              }
               return(ret)
           })
 
