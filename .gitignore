@@ -45,3 +45,5 @@ Debug
 *save
 *csv
 .Rproj.user
+xgboost
+xgboost.mock
