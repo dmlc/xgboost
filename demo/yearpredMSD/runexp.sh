@@ -15,6 +15,3 @@ head -n 463715 yearpredMSD.libsvm > yearpredMSD.libsvm.train
 tail -n 51630 yearpredMSD.libsvm > yearpredMSD.libsvm.test
 echo "finish making the data"
 ../../xgboost yearpredMSD.conf
-
-
- 
