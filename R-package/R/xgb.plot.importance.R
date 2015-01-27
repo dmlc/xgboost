@@ -2,7 +2,6 @@
 #' 
 #' Read a data.table containing feature importance details and plot it.
 #' 
-
 #' @importFrom ggplot2 ggplot
 #' @importFrom ggplot2 aes
 #' @importFrom ggplot2 geom_bar
