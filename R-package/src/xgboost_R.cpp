@@ -71,8 +71,8 @@ extern "C" {
                                 SEXP missing) {
     _WrapperBegin();
     SEXP dim = getAttrib(mat, R_DimSymbol);
-    int nrow = INTEGER(dim)[0];
-    int ncol = INTEGER(dim)[1];    
+    bst_ulong nrow = static_cast<bst_ulong>(INTEGER(dim)[0]);
+    bst_ulong ncol = static_cast<bst_ulong>(INTEGER(dim)[1]);
     double *din = REAL(mat);
     std::vector<float> data(nrow * ncol);
     #pragma omp parallel for schedule(static)
