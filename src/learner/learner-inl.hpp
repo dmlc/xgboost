@@ -227,14 +227,19 @@ class BoostLearner : public rabit::ISerializable {
    */
   inline void SaveModel(const char *fname) const {
     FILE *fp;
+    bool use_stdout = false;;
+#ifndef XGBOOST_STRICT_CXX98_
     if (!strcmp(fname, "stdout")) {
       fp = stdout;
-    } else {
+      use_stdout = true;
+    } else
+#endif
+    {
       fp = utils::FopenCheck(fname, "wb");      
     }
     utils::FileStream fo(fp);
     std::string header;
-    if (save_base64 != 0|| fp == stdout) {
+    if (save_base64 != 0|| use_stdout) {
       fo.Write("bs64\t", 5);
       utils::Base64OutStream bout(fp);
       this->SaveModel(bout);
@@ -243,7 +248,9 @@ class BoostLearner : public rabit::ISerializable {
       fo.Write("binf", 4);
       this->SaveModel(fo);      
     }
-    if (fp != stdout) fclose(fp);
+    if (!use_stdout) {
+      fclose(fp);
+    }
   }
   /*!
    * \brief check if data matrix is ready to be used by training,

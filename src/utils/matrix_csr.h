@@ -208,7 +208,6 @@ struct SparseCSRFileBuilder {
         fo->Write(BeginPtr(buffer_data), (rptr[end] - rptr[begin]) * sizeof(IndexType));
       }
     }
-    printf("CSV::begin_dat=%lu\n", begin_data);
   }
  protected:
   inline void WriteBuffer(void) {

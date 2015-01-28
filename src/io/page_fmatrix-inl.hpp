@@ -339,7 +339,7 @@ class FMatrixPage : public IFMatrix {
           }
           if (ktop % 100000 == 0) {
             utils::Printf("\r                         \r");
-            utils::Printf("InitCol: %lu rows ", static_cast<unsigned long>(ktop));            
+            utils::Printf("InitCol: %lu rows ", static_cast<unsigned long>(ktop));    
           }
         }
       }
