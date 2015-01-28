@@ -76,8 +76,8 @@ extern "C" {
     double *din = REAL(mat);
     std::vector<float> data(nrow * ncol);
     #pragma omp parallel for schedule(static)
-    for (int i = 0; i < nrow; ++i) {
-      for (int j = 0; j < ncol; ++j) {
+    for (bst_omp_uint i = 0; i < nrow; ++i) {
+      for (bst_ulong j = 0; j < ncol; ++j) {
         data[i * ncol +j] = din[i + nrow * j];
       }
     }
