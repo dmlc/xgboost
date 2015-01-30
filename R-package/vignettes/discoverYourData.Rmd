@@ -1,10 +1,11 @@
 ---
 title: "Understand your dataset with Xgboost"
-date: "Wednesday, January 28, 2015"
 output:
   html_document:
+    css: vignette.css
     number_sections: yes
     toc: yes
+date: "Wednesday, January 28, 2015"
 ---
 
 Introduction
@@ -73,7 +74,7 @@ For the first feature we create groups of age by rounding the real age. Note tha
 df[,AgeDiscret:= as.factor(round(Age/10,0))][1:10]
 ```
 
-Followinf is an even stronger simplification of the real age with an arbitrary split at 30 years old. I choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (I am sure you already have an idea of how well it will work!).
+Following is an even stronger simplification of the real age with an arbitrary split at 30 years old. I choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (I am sure you already have an idea of how well it will work!).
 
 ```{r}
 df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))][1:10]
