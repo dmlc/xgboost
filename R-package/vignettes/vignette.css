@@ -1,0 +1,201 @@
+body{
+    margin: 0 auto;
+    background-color: white;
+
+/*  --------- FONT FAMILY --------
+   following are some optional font families. Usually a family 
+	is safer to choose than a specific font, 
+	which may not be on the users computer		*/
+/    font-family:Georgia, Palatino, serif;
+    font-family: "Open Sans", "Book Antiqua", Palatino, serif;
+/    font-family:Arial, Helvetica, sans-serif;
+/    font-family:Tahoma, Verdana, Geneva, sans-serif;
+/    font-family:Courier, monospace;
+/    font-family:"Times New Roman", Times, serif;
+
+/*	-------------- COLOR OPTIONS ------------
+ 	following are additional color options for base font
+	you could uncomment another one to easily change the base color 
+	or add one to a specific element style below         */		
+    color: #333333; /* dark gray not black */
+/    color: #000000; /* black */
+/    color: #666666; /* medium gray  black */	
+/    color: #E3E3E3; /* very light gray */
+/    color: white; 
+
+    line-height: 1;
+    max-width: 960px;
+    padding: 20px;
+    font-size: 17px;
+}
+
+
+p   {
+    line-height: 150%;
+/    max-width: 540px;
+    max-width: 960px;
+    font-weight: 400;
+/    color: #333333
+}
+
+
+h1, h2, h3, h4 {
+/    color: #111111;
+    font-weight: 400;
+}
+
+h2, h3, h4, h5, p {
+    margin-bottom: 20px;
+    padding: 0;
+}
+
+h1 {
+    margin-bottom: 10px;
+    font-size:230%;
+    padding: 0px;
+    font-variant:small-caps;
+}
+
+h2 {
+    font-size:130%
+/    margin: 24px 0 6px; 
+}
+
+h3 {
+    font-size:110%
+    text-decoration: underline;
+     font-style: italic;
+}
+h4 {
+    font-size:100%
+    font-variant:small-caps;
+
+}
+h5 {
+    font-size:100%
+    font-weight: 100;
+    font-style: italic;
+}
+
+h6 {
+    font-size:100%
+    font-weight: 100;
+    color:red;
+    font-variant:small-caps;
+    font-style: italic;
+}
+a {
+    color: #606AAA;
+    margin: 0;
+    padding: 0;
+    vertical-align: baseline;
+}
+a:hover {
+    text-decoration: blink;
+    color: green;
+}
+a:visited {
+    color: gray;
+}
+ul, ol {
+    padding: 0;
+    margin: 0px 0px 0px 50px;
+}
+ul {
+    list-style-type: square;
+    list-style-position: inside;
+
+}
+
+li {
+     line-height:150%    
+}
+li ul, li ul {
+    margin-left: 24px;
+}
+
+pre {
+    padding: 0px 24px;
+    max-width: 800px;
+    white-space: pre-wrap;
+}
+code {
+    font-family: Consolas, Monaco, Andale Mono, monospace;
+    line-height: 1.5;
+    font-size: 15px;
+}
+aside {
+    display: block;
+    float: right;
+    width: 390px;
+}
+blockquote {
+    border-left:.5em solid #eee;
+    padding: 0 1em;
+    margin-left:0;
+    max-width: 476px;
+}
+blockquote  cite {
+ /   font-size:14px;
+    line-height:20px;
+    color:#bfbfbf;
+}
+blockquote cite:before {
+    content: '\2014 \00A0';
+}
+
+blockquote p {  
+    color: #666;
+    max-width: 460px;
+}
+hr {
+/    width: 540px;
+    text-align: left;
+    margin: 0 auto 0 0;
+    color: #999;
+}
+
+
+/* table */
+
+table {
+  width: 100%;
+  border-top: 1px solid #919699;
+	border-left: 1px solid #919699;
+	border-spacing: 0;
+}
+	
+table th {
+	padding: 4px 8px 4px 8px;
+  text-align: center;
+  color: white;
+	background: #606AAA;
+	border-bottom: 1px solid #919699;
+	border-right: 1px solid #919699;
+}
+table th p {
+	font-weight: bold;
+	margin-bottom: 0px; 
+}
+	
+table td {
+	padding: 8px;	
+	vertical-align: top;
+	border-bottom: 1px solid #919699;
+	border-right: 1px solid #919699;
+}
+
+table td:last-child {
+  /background: lightgray;
+  text-align: right;
+}
+
+table td p {
+	margin-bottom: 0px; 
+}
+table td p + p  {
+	margin-top: 5px; 
+}
+table td p + p + p {
+	margin-top: 5px; 
+}
