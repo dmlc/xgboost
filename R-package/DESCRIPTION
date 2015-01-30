@@ -18,6 +18,7 @@ License: Apache License (== 2.0) | file LICENSE
 URL: https://github.com/tqchen/xgboost
 BugReports: https://github.com/tqchen/xgboost/issues
 VignetteBuilder: knitr
+Suggests: knitr
 Depends:
     R (>= 2.10)
 Imports:
