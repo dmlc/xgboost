@@ -1,4 +1,4 @@
-ifndef 
+ifndef CXX
 export CXX = g++
 endif
 export MPICXX = mpicxx
