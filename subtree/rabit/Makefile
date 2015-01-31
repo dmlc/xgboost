@@ -1,5 +1,6 @@
-export CC  = gcc
+ifndef 
 export CXX = g++
+endif
 export MPICXX = mpicxx
 export LDFLAGS= -Llib
 export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -pedantic 

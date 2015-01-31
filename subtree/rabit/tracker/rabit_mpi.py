@@ -35,7 +35,7 @@ def mpi_submit(nslave, worker_args):
     if args.hostfile is None:
         cmd = ' '.join(['mpirun -n %d' % (nslave)] + args.command + worker_args) 
     else:
-        ' '.join(['mpirun -n %d --hostfile %s' % (nslave, args.hostfile)] + args.command + worker_args)
+        cmd = ' '.join(['mpirun -n %d --hostfile %s' % (nslave, args.hostfile)] + args.command + worker_args)
     print cmd
     subprocess.check_call(cmd, shell = True)
 
