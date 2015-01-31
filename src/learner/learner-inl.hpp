@@ -104,7 +104,7 @@ class BoostLearner : public rabit::ISerializable {
     }
     if (!strcmp(name, "eval_metric")) evaluator_.AddEval(val);
     if (!strcmp("seed", name)) {
-      this->seed = seed; random::Seed(atoi(val));
+      seed = atoi(val); random::Seed(seed);
     }
     if (!strcmp("seed_per_iter", name)) seed_per_iteration = atoi(val);
     if (!strcmp("save_base64", name)) save_base64 = atoi(val);
@@ -269,8 +269,8 @@ class BoostLearner : public rabit::ISerializable {
    * \param p_train pointer to the data matrix
    */
   inline void UpdateOneIter(int iter, const DMatrix &train) {
-    if (seed_per_iteration || rabit::IsDistributed()) {
-      random::Seed(this->seed * kRandSeedMagic);
+    if (seed_per_iteration != 0 || rabit::IsDistributed()) {
+      random::Seed(this->seed * kRandSeedMagic + iter);
     }
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train.info, iter, &gpair_);
