@@ -25,6 +25,6 @@ Imports:
     data.table (>= 1.9.4),
     magrittr (>= 1.5),
     stringr,
-    DiagrammeR (>= 0.3),
-    ggplot2(>= 1.0.0),
-    Ckmeans.1d.dp
+    DiagrammeR (>= 0.4),
+    ggplot2 (>= 1.0.0),
+    Ckmeans.1d.dp (>= 3.02)
