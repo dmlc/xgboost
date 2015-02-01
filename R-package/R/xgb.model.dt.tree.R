@@ -49,10 +49,9 @@
 #' 
 #' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
 #'                eta = 1, nround = 2,objective = "binary:logistic")
-#' xgb.dump(bst, 'xgb.model.dump', with.stats = TRUE)
 #' 
 #' #agaricus.test$data@@Dimnames[[2]] represents the column names of the sparse matrix.
-#' xgb.model.dt.tree(agaricus.train$data@@Dimnames[[2]], filename_dump = 'xgb.model.dump')
+#' xgb.model.dt.tree(agaricus.train$data@@Dimnames[[2]], model = bst)
 #' 
 #' @export
 xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model = NULL, text = NULL, n_first_tree = NULL){

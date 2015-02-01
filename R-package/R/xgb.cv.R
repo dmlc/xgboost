@@ -114,10 +114,11 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   
   colnames <- str_split(string = history[1], pattern = "\t")[[1]] %>% .[2:length(.)] %>% str_extract(".*:") %>% str_replace(":","") %>% str_replace("-", ".")
   colnamesMean <- paste(colnames, "mean")
-  colnamesStd <- paste(colnames, "std")
+  if(showsd) colnamesStd <- paste(colnames, "std")
   
   colnames <- c()
-  for(i in 1:length(colnamesMean)) colnames <- c(colnames, colnamesMean[i], colnamesStd[i])
+  if(showsd) for(i in 1:length(colnamesMean)) colnames <- c(colnames, colnamesMean[i], colnamesStd[i])
+  else colnames <- colnamesMean
   
   type <- rep(x = "numeric", times = length(colnames))
   dt <- read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
