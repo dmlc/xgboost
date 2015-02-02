@@ -57,6 +57,22 @@ class Booster: public learner::BoostLearner {
     learner::BoostLearner::LoadModel(fname);
     this->init_model = true;
   }
+  inline void LoadModelFromBuffer(const void *buf, size_t size) {
+    utils::MemoryFixSizeBuffer fs((void*)buf, size);
+    learner::BoostLearner::LoadModel(fs);
+    this->init_model = true;    
+  }
+  inline const char *GetModelRaw(bst_ulong *out_len) {
+    model_str.resize(0);
+    utils::MemoryBufferStream fs(&model_str);
+    learner::BoostLearner::SaveModel(fs);
+    *out_len = static_cast<bst_ulong>(model_str.length());
+    if (*out_len == 0) {
+      return NULL;
+    } else {
+      return &model_str[0];
+    }
+  }
   inline const char** GetModelDump(const utils::FeatMap& fmap, bool with_stats, bst_ulong *len) {
     model_dump = this->DumpModel(fmap, with_stats);
     model_dump_cptr.resize(model_dump.size());
@@ -69,6 +85,8 @@ class Booster: public learner::BoostLearner {
   // temporal fields
   // temporal data to save evaluation dump
   std::string eval_str;
+  // temporal data to save model dump
+  std::string model_str;
   // temporal space to save model dump
   std::vector<std::string> model_dump;
   std::vector<const char*> model_dump_cptr;
@@ -294,6 +312,12 @@ extern "C"{
   }
   void XGBoosterSaveModel(const void *handle, const char *fname) {
     static_cast<const Booster*>(handle)->SaveModel(fname);
+  }
+  void XGBoosterLoadModelFromBuffer(void *handle, const void *buf, bst_ulong len) {
+    static_cast<Booster*>(handle)->LoadModelFromBuffer(buf, len);
+  }
+  const char *XGBoosterGetModelRaw(void *handle, bst_ulong *out_len) {
+    return static_cast<Booster*>(handle)->GetModelRaw(out_len);
   }
   const char** XGBoosterDumpModel(void *handle, const char *fmap, int with_stats, bst_ulong *len){
     utils::FeatMap featmap;

@@ -274,6 +274,23 @@ extern "C" {
     XGBoosterSaveModel(R_ExternalPtrAddr(handle), CHAR(asChar(fname)));
     _WrapperEnd();
   }
+  void XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw) {    
+    _WrapperBegin();
+    XGBoosterLoadModelFromBuffer(R_ExternalPtrAddr(handle),
+                                 RAW(raw),
+                                 length(raw));
+    _WrapperEnd();
+  }
+  SEXP XGBoosterModelToRaw_R(SEXP handle) {
+    bst_ulong olen;
+    _WrapperBegin();
+    const char *raw = XGBoosterGetModelRaw(R_ExternalPtrAddr(handle), &olen);
+    _WrapperEnd();
+    SEXP ret = PROTECT(allocVector(RAWSXP, olen));
+    memcpy(RAW(ret), raw, olen);
+    UNPROTECT(1);    
+    return ret;
+  }
   SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats) {
     _WrapperBegin();
     bst_ulong olen;

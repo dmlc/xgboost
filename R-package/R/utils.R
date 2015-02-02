@@ -57,10 +57,13 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
     }
   }
   if (!is.null(modelfile)) {
-    if (typeof(modelfile) != "character") {
-      stop("xgb.Booster: modelfile must be character")
+    if (typeof(modelfile) == "character") {
+      .Call("XGBoosterLoadModel_R", handle, modelfile, PACKAGE = "xgboost")
+    } else if (typeof(modelfile) == "raw") {
+      .Call("XGBoosterLoadModelFromRaw_R", handle, modelfile, PACKAGE = "xgboost")      
+    } else {
+      stop("xgb.Booster: modelfile must be character or raw vector")
     }
-    .Call("XGBoosterLoadModel_R", handle, modelfile, PACKAGE = "xgboost")
   }
   return(structure(handle, class = "xgb.Booster"))
 }

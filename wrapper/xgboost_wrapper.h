@@ -225,6 +225,21 @@ extern "C" {
    */
   XGB_DLL void XGBoosterSaveModel(const void *handle, const char *fname);
   /*!
+   * \brief load model from in memory buffer
+   * \param handle handle
+   * \param buf pointer to the buffer
+   * \param len the length of the buffer
+   */
+  XGB_DLL void XGBoosterLoadModelFromBuffer(void *handle, const void *buf, bst_ulong len);
+  /*!
+   * \brief save model into binary raw bytes, return header of the array
+   * user must copy the result out, before next xgboost call
+   * \param handle handle
+   * \param out_len the argument to hold the output length
+   * \return the pointer to the beginning of binary buffer
+   */
+  XGB_DLL const char *XGBoosterGetModelRaw(void *handle, bst_ulong *out_len);
+  /*!
    * \brief dump model, return array of strings representing model dump
    * \param handle handle
    * \param fmap  name to fmap can be empty string

@@ -159,7 +159,9 @@ class BoostLearner : public rabit::ISerializable {
    * \param with_pbuffer whether to load with predict buffer
    * \param calc_num_feature whether call InitTrainer with calc_num_feature
    */
-  inline void LoadModel(utils::IStream &fi, bool with_pbuffer = true, bool calc_num_feature = true) {
+  inline void LoadModel(utils::IStream &fi,
+                        bool with_pbuffer = true,
+                        bool calc_num_feature = true) {
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "BoostLearner: wrong model format");
     utils::Check(fi.Read(&name_obj_), "BoostLearner: wrong model format");
@@ -192,8 +194,8 @@ class BoostLearner : public rabit::ISerializable {
    */
   inline void LoadModel(const char *fname) {
     FILE *fp = utils::FopenCheck(fname, "rb");
-    std::string header; header.resize(4);
     utils::FileStream fi(fp);
+    std::string header; header.resize(4);
     // check header for different binary encode
     // can be base64 or binary
     if (fi.Read(&header[0], 4) != 0) {
