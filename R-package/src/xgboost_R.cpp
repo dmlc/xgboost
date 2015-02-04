@@ -71,13 +71,13 @@ extern "C" {
                                 SEXP missing) {
     _WrapperBegin();
     SEXP dim = getAttrib(mat, R_DimSymbol);
-    bst_ulong nrow = static_cast<bst_ulong>(INTEGER(dim)[0]);
-    bst_ulong ncol = static_cast<bst_ulong>(INTEGER(dim)[1]);
+    size_t nrow = static_cast<size_t>(INTEGER(dim)[0]);
+    size_t ncol = static_cast<size_t>(INTEGER(dim)[1]);
     double *din = REAL(mat);
     std::vector<float> data(nrow * ncol);
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < nrow; ++i) {
-      for (bst_ulong j = 0; j < ncol; ++j) {
+      for (size_t j = 0; j < ncol; ++j) {
         data[i * ncol +j] = din[i + nrow * j];
       }
     }

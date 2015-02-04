@@ -151,7 +151,7 @@ extern "C"{
   void* XGDMatrixCreateFromMat(const float *data,
                                bst_ulong nrow,
                                bst_ulong ncol,
-                               float  missing) {
+                               float  missing) {    
     bool nan_missing = isnan(missing);
     DMatrixSimple *p_mat = new DMatrixSimple();
     DMatrixSimple &mat = *p_mat;
@@ -161,7 +161,8 @@ extern "C"{
       bst_ulong nelem = 0;
       for (bst_ulong j = 0; j < ncol; ++j) {
         if (isnan(data[j])) {
-          utils::Check(nan_missing, "There are NAN in the matrix, however, you did not set missing=NAN");          
+          utils::Check(nan_missing,
+                       "There are NAN in the matrix, however, you did not set missing=NAN"); 
         } else {
           if (nan_missing || data[j] != missing) {
             mat.row_data_.push_back(RowBatch::Entry(j, data[j]));
