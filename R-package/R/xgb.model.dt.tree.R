@@ -39,7 +39,7 @@
 #'  \item \code{Cover}: metric to measure the number of observation affected by the split ;
 #'  \item \code{Tree}: ID of the tree. It is included in the main ID ;
 #'  \item \code{Yes.X} or \code{No.X}: data related to the pointer in \code{Yes} or \code{No} column ;
-#'  \item \code{Included}:  \code{boolean} value which indicates if this value has been pointed by a Yes branch (\code{True}) or a No branch (\code{False}) ;
+#'  \item \code{Included}:  \code{boolean} value which indicates if this feature has been pointed by a Yes branch (\code{True}) or a No branch (\code{False}) ;
 #' } 
 #'   
 #' @examples
