@@ -129,8 +129,8 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     qualityLeaf <- extract(leaf, "leaf=\\-*\\d*\\.*\\d*")
     coverBranch <- extract(branch, "cover=\\d*\\.*\\d*")
     coverLeaf <- extract(leaf, "cover=\\d*\\.*\\d*")
-    dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=treeID]
-        
+    dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=treeID][,"Included":=F][ID == yesBranch, Included:=T][1, Included:=T]
+    
     allTrees <- rbindlist(list(allTrees, dt), use.names = T, fill = F)
   }
   
@@ -161,9 +161,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
   set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
       j = "No.Quality", 
       value = allTrees[ID == no,Quality])
-  
-  allTrees[,"Included":=F][ID == allTrees[!is.na(Yes), Yes], Included:=T][str_detect(ID, "-0$"), Included:=T]
-      
+        
   allTrees
 }
 
