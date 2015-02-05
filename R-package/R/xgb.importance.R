@@ -73,7 +73,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
 }
 
 treeDump <- function(feature_names, text){  
-  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = Feature][,`:=`(Gain=Gain/sum(Gain),Cover=Cover/sum(Cover),Frequence=Frequence/sum(Frequence))][order(-Gain)]
+  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N, Included = sum(Included)), by = Feature][,`:=`(Gain=Gain/sum(Gain),Cover=Cover/sum(Cover), Frequence = Frequence/sum(Frequence), Included = Included/Frequence)][,Gain:= ifelse(Included >= 0.5, Gain, -Gain)][order(-Gain)]
   
   result  
 }
