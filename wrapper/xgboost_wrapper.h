@@ -1,7 +1,7 @@
 #ifndef XGBOOST_WRAPPER_H_
 #define XGBOOST_WRAPPER_H_
 /*!
- * \file xgboost_wrapperh
+ * \file xgboost_wrapper.h
  * \author Tianqi Chen
  * \brief a C style wrapper of xgboost
  *  can be used to create wrapper of other languages
@@ -17,28 +17,6 @@ typedef unsigned long bst_ulong;
 #ifdef __cplusplus
 extern "C" {
 #endif
-  /*!
-   * \brief initialize sync module, this is needed if used in distributed model
-   *        normally, argv need to contain master_uri and master_port
-   *        if start using submit_job_tcp script, then pass args to this will do
-   * \param argc number of arguments
-   * \param argv the arguments to be passed in sync module
-   */
-  XGB_DLL void XGSyncInit(int argc, char *argv[]);
-  /*!
-   * \brief finalize sync module, call this when everything is done
-   */
-  XGB_DLL void XGSyncFinalize(void);
-  /*!
-   * \brief get the rank 
-   * \return return the rank of 
-   */
-  XGB_DLL int XGSyncGetRank(void);
-  /*!
-   * \brief get the world size from sync
-   * \return return the number of distributed job ran in the group
-   */
-  XGB_DLL int XGSyncGetWorldSize(void);
   /*!
    * \brief load a data matrix 
    * \return a loaded data matrix
