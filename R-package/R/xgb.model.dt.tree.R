@@ -37,6 +37,7 @@
 #'  \item \code{Quality}: it's the gain related to the split in this specific node ;
 #'  \item \code{Cover}: metric to measure the number of observation affected by the split ;
 #'  \item \code{Tree}: ID of the tree. It is included in the main ID ;
+#'  \item \code{Yes.X} or \code{No.X}: data related to the pointer in \code{Yes} or \code{No} column ;
 #' } 
 #'   
 #' @examples
@@ -127,7 +128,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     coverBranch <- extract(branch, "cover=\\d*\\.*\\d*")
     coverLeaf <- extract(leaf, "cover=\\d*\\.*\\d*")
     dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=treeID]
-        
+    
     allTrees <- rbindlist(list(allTrees, dt), use.names = T, fill = F)
   }
   
@@ -158,7 +159,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
   set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
       j = "No.Quality", 
       value = allTrees[ID == no,Quality])
-      
+        
   allTrees
 }
 
