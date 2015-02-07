@@ -11,7 +11,7 @@
 #' 1. General Parameters
 #' 
 #' \itemize{
-#'   \item \code{booster} which booster to use, can be gbtree or gblinear. Default: gbtree
+#'   \item \code{booster} which booster to use, can be \code{gbtree} or \code{gblinear}. Default: \code{gbtree}
 #'   \item \code{silent} 0 means printing running messages, 1 means silent mode. Default: 0
 #'   \item \code{nthread} number of parallel threads used to run xgboost. Default to maximum number of threads available if not set.
 #'   \item \code{num_pbuffer} size of prediction buffer, normally set to number of training instances. The buffers are used to save the prediction results of last boosting step. Default: set automatically by xgboost, no need to be set by user
@@ -27,7 +27,7 @@
 #'   \item \code{gamma} minimum loss reduction required to make a further partition on a leaf node of the tree. the larger, the more conservative the algorithm will be. 
 #'   \item \code{max_depth} maximum depth of a tree. Default: 6
 #'   \item \code{min_child_weight} minimum sum of instance weight(hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be. Default: 1
-#'   \item \code{subsample} subsample ratio of the training instance. Setting it to 0.5 means that XGBoost randomly collected half of the data instances to grow trees and this will prevent overfitting. Default: 1
+#'   \item \code{subsample} subsample ratio of the training instance. Setting it to 0.5 means that xgboost randomly collected half of the data instances to grow trees and this will prevent overfitting. Default: 1
 #'   \item \code{colsample_bytree} subsample ratio of columns when constructing each tree. Default: 1
 #' }
 #' 
@@ -48,9 +48,9 @@
 #'     \item \code{reg:logistic} logistic regression.
 #'     \item \code{binary:logistic} logistic regression for binary classification. Output probability.
 #'     \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
-#'     \item \code{multi:softmax} set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes).
+#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes).
 #'     \item \code{multi:softprob} same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
-#'     \item \code{rank:pairwise} set XGBoost to do ranking task by minimizing the pairwise loss.
+#'     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
 #'   }
 #'   \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
 #'   \item \code{eval_metric} evaluation metrics for validation data, a default metric will be assigned according to objective(rmse for regression, and error for classification, mean average precision for ranking). Default according to objective. The choices are listed below:
@@ -64,7 +64,7 @@
 #'   }
 #'   \item \code{map} Mean average precision. \url{http://en.wikipedia.org/wiki/Mean_average_precision#'Mean_average_precision}
 #'   \item \code{ndcg@@n} and \code{map@@n} n can be assigned as an integer to cut off the top positions in the lists for evaluation.
-#'   \item \code{ndcg-}, \code{map-}, \code{ndcg@@n-}, \code{map@@n-} In XGBoost, NDCG and MAP will evaluate the score of a list without any positive samples as 1. By adding "-" in the evaluation metric XGBoost will evaluate these score as 0 to be consistent under some conditions. Training repeatively.
+#'   \item \code{ndcg-}, \code{map-}, \code{ndcg@@n-}, \code{map@@n-} In xgboost, NDCG and MAP will evaluate the score of a list without any positive samples as 1. By adding "-" in the evaluation metric xgboost will evaluate these score as 0 to be consistent under some conditions. Training repeatively.
 #'   \item \code{seed} random number seed. Default: 0
 #' }
 #' 
