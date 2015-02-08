@@ -13,9 +13,6 @@
 #' \itemize{
 #'   \item \code{booster} which booster to use, can be \code{gbtree} or \code{gblinear}. Default: \code{gbtree}
 #'   \item \code{silent} 0 means printing running messages, 1 means silent mode. Default: 0
-#'   \item \code{nthread} number of parallel threads used to run xgboost. Default to maximum number of threads available if not set.
-#'   \item \code{num_pbuffer} size of prediction buffer, normally set to number of training instances. The buffers are used to save the prediction results of last boosting step. Default: set automatically by xgboost, no need to be set by user
-#'   \item \code{num_feature} feature dimension used in boosting, set to maximum dimension of the feature. Default: set automatically by xgboost, no need to be set by user.
 #' }
 #'  
 #' 2. Booster Parameters
@@ -53,7 +50,24 @@
 #'     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
 #'   }
 #'   \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
-#'   \item \code{eval_metric} evaluation metrics for validation data, a default metric will be assigned according to objective(rmse for regression, and error for classification, mean average precision for ranking). Default according to objective. The choices are listed below:
+#'   \item \code{eval_metric} evaluation metrics for validation data. Default: metric will be assigned according to objective(rmse for regression, and error for classification, mean average precision for ranking). List is provided in detail section.
+#' }
+#' 
+#' @param nrounds the max number of iterations
+#' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
+#'   information of performance. If 2, xgboost will print information of both
+#'   performance and construction progress information
+#' @param missing Missing is only used when input is dense matrix, pick a float 
+#'     value that represents missing value. Sometimes a data use 0 or other extreme value to represents missing values.
+#' @param ... other parameters to pass to \code{params}.
+#' 
+#' @details 
+#' This is the modeling function for xgboost.
+#' 
+#' Parallelization is automatically enabled if OpenMP is present.
+#' Number of threads can also be manually specified via "nthread" parameter.
+#' 
+#' \code{eval_metric} is set automatically by xgboost but can be overriden by parameter. Below is provided the list of different metric optimized by xgboost to help you to understand how it works inside. It should not be overriden until you have a real reason to do so.
 #'   \itemize{
 #'      \item \code{rmse} root mean square error. \url{http://en.wikipedia.org/wiki/Root_mean_square_error}
 #'      \item \code{logloss} negative log-likelihood. \url{http://en.wikipedia.org/wiki/Log-likelihood}
@@ -62,25 +76,8 @@
 #'      \item \code{auc} Area under the curve. \url{http://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
 #'      \item \code{ndcg} Normalized Discounted Cumulative Gain. \url{http://en.wikipedia.org/wiki/NDCG}
 #'   }
-#'   \item \code{map} Mean average precision. \url{http://en.wikipedia.org/wiki/Mean_average_precision#'Mean_average_precision}
-#'   \item \code{ndcg@@n} and \code{map@@n} n can be assigned as an integer to cut off the top positions in the lists for evaluation.
-#'   \item \code{ndcg-}, \code{map-}, \code{ndcg@@n-}, \code{map@@n-} In xgboost, NDCG and MAP will evaluate the score of a list without any positive samples as 1. By adding "-" in the evaluation metric xgboost will evaluate these score as 0 to be consistent under some conditions. Training repeatively.
-#'   \item \code{seed} random number seed. Default: 0
-#' }
-#' 
-#' @param nrounds the max number of iterations
-#' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
-#'   information of performance. If 2, xgboost will print information of both
-#'   performance and construction progress information
-#' @param missing Missing is only used when input is dense matrix, pick a float 
-#'     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
-#' @param ... other parameters to pass to \code{params}.
-#' 
-#' @details 
-#' This is the modeling function for xgboost.
-#' 
-#' Parallelization is automatically enabled if OpenMP is present.
-#' Number of threads can also be manually specified via "nthread" parameter
+#'   
+#' More parameters are available in the Wiki \url{https://github.com/tqchen/xgboost/wiki/Parameters}
 #' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
