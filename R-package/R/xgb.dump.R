@@ -52,13 +52,13 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   
   dt <- fread(paste(longString, collapse = ""), sep = "\n", header = F)
 
-  setnames(dt, "Content")
+  setnames(dt, "Lines")
   
   if(is.null(fname)) {
-    result <- dt[Content != "0"][,Content := str_replace(Content, "^\t+", "")][Content != ""][,paste(Content)]
+    result <- dt[Lines != "0"][, Lines := str_replace(Lines, "^\t+", "")][Lines != ""][, paste(Lines)]
     return(result)
   } else {
-    result <- dt[Content != "0"][Content != ""][,paste(Content)] %>% writeLines(fname)
+    result <- dt[Lines != "0"][Lines != ""][, paste(Lines)] %>% writeLines(fname)
     return(TRUE)
   }
 }
@@ -66,4 +66,4 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
 # They are mainly column names inferred by Data.table...
-globalVariables(".")
+globalVariables(c("Lines", "."))
