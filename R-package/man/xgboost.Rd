@@ -91,7 +91,7 @@ Number of threads can also be manually specified via "nthread" parameter.
      \item \code{ndcg} Normalized Discounted Cumulative Gain. \url{http://en.wikipedia.org/wiki/NDCG}
   }
 
-More parameters are available in the Wiki \url{https://github.com/tqchen/xgboost/wiki/Parameters}
+More parameters are available in the Wiki \url{https://github.com/tqchen/xgboost/wiki/Parameters}.
 }
 \examples{
 data(agaricus.train, package='xgboost')

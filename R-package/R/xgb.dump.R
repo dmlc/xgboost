@@ -3,8 +3,10 @@
 #' Save a xgboost model to text file. Could be parsed later.
 #' 
 #' @importFrom magrittr %>%
-#' @importFrom stringr str_split
 #' @importFrom stringr str_replace
+#' @importFrom data.table fread
+#' @importFrom data.table :=
+#' @importFrom data.table setnames
 #' @param model the model object.
 #' @param fname the name of the text file where to save the model text dump. If not provided or set to \code{NULL} the function will return the model as a \code{character} vector.
 #' @param fmap feature map file representing the type of feature. 
@@ -46,7 +48,9 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
     stop("fmap: argument must be type character (when provided)")
   }
   
-  dt <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost") %>% fread
+  longString <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost")
+  
+  dt <- fread(paste(longString, collapse = ""), sep = "\n", header = F)
 
   setnames(dt, "Content")
   
