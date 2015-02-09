@@ -12,7 +12,7 @@
 #' test <- agaricus.test
 #' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
 #'                eta = 1, nround = 2,objective = "binary:logistic")
-#' raw <- xgb.save(bst)
+#' raw <- xgb.save.raw(bst)
 #' bst <- xgb.load(raw)
 #' pred <- predict(bst, test$data)
 #' @export
