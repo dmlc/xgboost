@@ -46,12 +46,15 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
     stop("fmap: argument must be type character (when provided)")
   }
   
-  result <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost")
+  dt <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost") %>% fread
+
+  setnames(dt, "Content")
   
   if(is.null(fname)) {
-    return(str_split(result, "\n") %>% unlist %>% str_replace("^\t+","") %>% Filter(function(x) x != "", .))
+    result <- dt[Content != "0"][,Content := str_replace(Content, "^\t+", "")][Content != ""][,paste(Content)]
+    return(result)
   } else {
-    result %>% str_split("\n") %>% unlist %>% Filter(function(x) x != "", .) %>% writeLines(fname)
+    result <- dt[Content != "0"][Content != ""][,paste(Content)] %>% writeLines(fname)
     return(TRUE)
   }
 }
