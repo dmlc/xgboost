@@ -40,6 +40,13 @@
 xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   if (class(model) != "xgb.Booster") {
     stop("model: argument must be type xgb.Booster")
+  } else {
+    if (is.null(model$handle)) {
+      model$handle <- xgb.load(model$raw)
+    } else {
+      if (is.null(model$raw))
+        model$raw <- xgb.save.raw(model$handle)
+    }
   }
   if (!(class(fname) %in% c("character", "NULL") && length(fname) <= 1)) {
     stop("fname: argument must be type character (when provided)")
@@ -48,7 +55,7 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
     stop("fmap: argument must be type character (when provided)")
   }
   
-  longString <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost")
+  longString <- .Call("XGBoosterDumpModel_R", model$handle, fmap, as.integer(with.stats), PACKAGE = "xgboost")
   
   dt <- fread(paste(longString, collapse = ""), sep = "\n", header = F)
 

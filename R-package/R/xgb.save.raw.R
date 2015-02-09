@@ -17,11 +17,11 @@
 #' pred <- predict(bst, test$data)
 #' @export
 #' 
-xgb.save.raw <- function(model) {
-  if (class(model) == "xgb.Booster") {
-    raw <- .Call("XGBoosterModelToRaw_R", model, PACKAGE = "xgboost")
+xgb.save.raw <- function(handle) {
+  if (class(handle) == "xgb.Booster.handle") {
+    raw <- .Call("XGBoosterModelToRaw_R", handle, PACKAGE = "xgboost")
     return(raw)
   }
-  stop("xgb.raw: the input must be xgb.Booster. Use xgb.DMatrix.save to save
+  stop("xgb.raw: the input must be xgb.Booster.handle. Use xgb.DMatrix.save to save
        xgb.DMatrix object.")
 }

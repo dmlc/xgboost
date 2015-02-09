@@ -65,7 +65,7 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
       stop("xgb.Booster: modelfile must be character or raw vector")
     }
   }
-  return(structure(handle, class = "xgb.Booster"))
+  return(structure(handle, class = "xgb.Booster.handle"))
 }
 
 ## ----the following are low level iteratively function, not needed if
@@ -102,7 +102,7 @@ xgb.numrow <- function(dmat) {
 }
 # iteratively update booster with customized statistics
 xgb.iter.boost <- function(booster, dtrain, gpair) {
-  if (class(booster) != "xgb.Booster") {
+  if (class(booster) != "xgb.Booster.handle") {
     stop("xgb.iter.update: first argument must be type xgb.Booster")
   }
   if (class(dtrain) != "xgb.DMatrix") {
@@ -115,7 +115,7 @@ xgb.iter.boost <- function(booster, dtrain, gpair) {
 
 # iteratively update booster with dtrain
 xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
-  if (class(booster) != "xgb.Booster") {
+  if (class(booster) != "xgb.Booster.handle") {
     stop("xgb.iter.update: first argument must be type xgb.Booster")
   }
   if (class(dtrain) != "xgb.DMatrix") {
@@ -135,7 +135,7 @@ xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
 
 # iteratively evaluate one iteration
 xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL, prediction = FALSE) {
-  if (class(booster) != "xgb.Booster") {
+  if (class(booster) != "xgb.Booster.handle") {
     stop("xgb.eval: first argument must be type xgb.Booster")
   }
   if (typeof(watchlist) != "list") {
