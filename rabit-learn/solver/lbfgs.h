@@ -5,8 +5,8 @@
  *
  * \author Tianqi Chen
  */
-#ifndef RABIT_LBFGS_H_
-#define RABIT_LBFGS_H_
+#ifndef RABIT_LEARN_LBFGS_H_
+#define RABIT_LEARN_LBFGS_H_
 #include <cmath>
 #include <rabit.h>
 
@@ -62,7 +62,7 @@ class LBFGSSolver {
     linesearch_c1 = 1e-4;
     min_lbfgs_iter = 5;
     max_lbfgs_iter = 1000;
-    lbfgs_stop_tol = 1e-5f;
+    lbfgs_stop_tol = 3e-6f;
     silent = 0;
   }
   virtual ~LBFGSSolver(void) {}
@@ -80,6 +80,9 @@ class LBFGSSolver {
     }
     if (!strcmp("reg_L1", name)) {
       reg_L1 = static_cast<float>(atof(val));
+    }
+    if (!strcmp("lbfgs_stop_tol", name)) {
+      lbfgs_stop_tol = static_cast<float>(atof(val));
     }
     if (!strcmp("linesearch_backoff", name)) {
       linesearch_backoff = static_cast<float>(atof(val));
@@ -185,8 +188,13 @@ class LBFGSSolver {
       if (this->UpdateOneIter()) break;
     }
     if (silent == 0 && rabit::GetRank() == 0) {
+      size_t nonzero = 0;
+      for (size_t i = 0; i < gstate.num_dim; ++i) {
+        if (gstate.weight[i] != 0.0f) nonzero += 1;
+      }
       rabit::TrackerPrintf
-          ("L-BFGS: finishes at iteration %d\n", gstate.num_iteration);
+          ("L-BFGS: finishes at iteration %d, %lu/%lu active weights\n",
+           gstate.num_iteration, nonzero, gstate.num_dim);
     }
   }
  protected:
@@ -625,4 +633,4 @@ class LBFGSSolver {
 };
 }  // namespace solver
 }  // namespace rabit
-#endif // RABIT_LBFGS_H_
+#endif // RABIT_LEARN_LBFGS_H_

@@ -1,4 +1,6 @@
 #include "./linear.h"
+#include "../utils/io.h"
+#include "../utils/base64.h"
 
 namespace rabit {
 namespace linear {
@@ -22,9 +24,10 @@ class LinearObjFunction : public solver::IObjFunction<float> {
     model.weight = NULL;
     task = "train";
     model_in = "NULL";
+    name_pred = "pred.txt";
+    model_out = "final.model";
   }
   virtual ~LinearObjFunction(void) {
-    if (model.weight != NULL) delete [] model.weight;
   }
   // set parameters
   inline void SetParam(const char *name, const char *val) {
@@ -44,18 +47,77 @@ class LinearObjFunction : public solver::IObjFunction<float> {
     if (!strcmp(name, "task")) task = val;
     if (!strcmp(name, "model_in")) model_in = val;
     if (!strcmp(name, "model_out")) model_out = val;
+    if (!strcmp(name, "name_pred")) name_pred = val;
   }
   inline void Run(void) {
     if (model_in != "NULL") {
+      this->LoadModel(model_in.c_str());
     }
     if (task == "train") {
       lbfgs.Run();
-      
+      this->SaveModel(model_out.c_str(), lbfgs.GetWeight());
     } else if (task == "pred") {
-      
-    } else if (task == "eval") {
+      this->TaskPred();
     } else {
       utils::Error("unknown task=%s", task.c_str());
+    }
+  }
+  inline void TaskPred(void) {
+    utils::Check(model_in != "NULL",
+                 "must set model_in for task=pred");
+    FILE *fp = utils::FopenCheck(name_pred.c_str(), "w");
+    for (size_t i = 0; i < dtrain.NumRow(); ++i) {
+      float pred = model.Predict(dtrain[i]);
+      fprintf(fp, "%g\n", pred);
+    }
+    fclose(fp);
+    printf("Finishing writing to %s\n", name_pred.c_str());
+  }
+  inline void LoadModel(const char *fname) {
+    FILE *fp = utils::FopenCheck(fname, "rb");
+    std::string header; header.resize(4);
+    // check header for different binary encode
+    // can be base64 or binary
+    utils::FileStream fi(fp);
+    utils::Check(fi.Read(&header[0], 4) != 0, "invalid model");
+      // base64 format
+    if (header == "bs64") {
+      utils::Base64InStream bsin(fp);
+      bsin.InitPosition();
+      model.Load(bsin);
+      fclose(fp);
+      return;
+    } else if (header == "binf") {
+      model.Load(fi);
+      fclose(fp);
+      return;     
+    } else {
+      utils::Error("invalid model file");
+    }
+  }
+  inline void SaveModel(const char *fname,
+                        const float *wptr,
+                        bool save_base64 = false) {
+    FILE *fp;
+    bool use_stdout = false;
+    if (!strcmp(fname, "stdout")) {
+      fp = stdout;
+      use_stdout = true;
+    } else {
+      fp = utils::FopenCheck(fname, "wb");
+   }
+    utils::FileStream fo(fp);
+    if (save_base64 != 0|| use_stdout) {
+      fo.Write("bs64\t", 5);
+      utils::Base64OutStream bout(fp);
+      model.Save(bout, wptr);
+      bout.Finish('\n');
+    } else {
+      fo.Write("binf", 4);
+      model.Save(fo, wptr);
+    }
+    if (!use_stdout) {
+      fclose(fp);
     }
   }
   inline void LoadData(const char *fname) {
@@ -137,11 +199,12 @@ class LinearObjFunction : public solver::IObjFunction<float> {
       }
     }
   }
-
+    
  private:
   std::string task;
   std::string model_in;
   std::string model_out;
+  std::string name_pred;
 };
 }  // namespace linear
 }  // namespace rabit

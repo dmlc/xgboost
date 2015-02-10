@@ -2,8 +2,8 @@
 // facing an exception
 #include <rabit.h>
 #include <rabit/utils.h>
-#include "./toolkit_util.h"
 #include <time.h>
+#include "../utils/data.h"
 
 using namespace rabit;
 

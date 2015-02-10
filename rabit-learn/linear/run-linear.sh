@@ -12,4 +12,6 @@ k=$1
 python splitrows.py ../data/agaricus.txt.train mushroom $k
 
 # run xgboost mpi
-../../tracker/rabit_demo.py -n $k linear.rabit mushroom.row\%d "${*:2}"
+../../tracker/rabit_demo.py -n $k linear.rabit mushroom.row\%d "${*:2}" reg_L1=1
+
+./linear.rabit ../data/agaricus.txt.test task=pred model_in=final.model

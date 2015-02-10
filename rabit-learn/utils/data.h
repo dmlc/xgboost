@@ -1,12 +1,12 @@
 /*!
  *  Copyright (c) 2015 by Contributors
- * \file toolkit_util.h
+ * \file data.h
  * \brief simple data structure that could be used by model
  *
  * \author Tianqi Chen
  */
-#ifndef RABIT_TOOLKIT_UTIL_H_
-#define RABIT_TOOLKIT_UTIL_H_
+#ifndef RABIT_LEARN_DATA_H_
+#define RABIT_LEARN_DATA_H_
 
 #include <vector>
 #include <cstdlib>
@@ -140,4 +140,4 @@ inline int Random(int value) {
   return rand() % value;
 }
 } // namespace rabit
-#endif // RABIT_TOOLKIT_UTIL_H_
+#endif // RABIT_LEARN_DATA_H_

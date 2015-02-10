@@ -8,7 +8,7 @@
 #ifndef RABIT_LINEAR_H_
 #define RABIT_LINEAR_H_
 #include <omp.h>
-#include "../common/toolkit_util.h"
+#include "../utils/data.h"
 #include "../solver/lbfgs.h"
 
 namespace rabit {
@@ -92,6 +92,7 @@ struct LinearModel {
       // weight[num_feature] is bias
       float sum = base_score + weight[num_feature];
       for (unsigned i = 0; i < v.length; ++i) {
+        if (v[i].findex >= num_feature) continue;
         sum += weight[v[i].findex] * v[i].fvalue;
       }    
       return sum;
@@ -115,12 +116,13 @@ struct LinearModel {
     fi.Read(&param, sizeof(param));
     if (weight == NULL) {
       weight = new float[param.num_feature + 1];
-      fi.Read(weight, sizeof(float) * (param.num_feature + 1));
     }
+    fi.Read(weight, sizeof(float) * (param.num_feature + 1));
   }
-  inline void Save(rabit::IStream &fo) const {
+  inline void Save(rabit::IStream &fo, const float *wptr = NULL) const {
     fo.Write(&param, sizeof(param));
-    fo.Write(weight, sizeof(float) * (param.num_feature + 1));
+    if (wptr == NULL) wptr = weight;
+    fo.Write(wptr, sizeof(float) * (param.num_feature + 1));
   }
   inline float Predict(const SparseMat::Vector &v) const {
     return param.Predict(weight, v);
