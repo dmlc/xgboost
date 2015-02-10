@@ -12,16 +12,19 @@
 #' test <- agaricus.test
 #' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
 #'                eta = 1, nround = 2,objective = "binary:logistic")
-#' raw <- xgb.save(bst)
+#' raw <- xgb.save.raw(bst)
 #' bst <- xgb.load(raw)
 #' pred <- predict(bst, test$data)
 #' @export
 #' 
 xgb.save.raw <- function(model) {
-  if (class(model) == "xgb.Booster") {
+  if (class(model) == "xgb.Booster"){
+    model <- model$handle
+  }
+  if (class(model) == "xgb.Booster.handle") {
     raw <- .Call("XGBoosterModelToRaw_R", model, PACKAGE = "xgboost")
     return(raw)
   }
-  stop("xgb.raw: the input must be xgb.Booster. Use xgb.DMatrix.save to save
+  stop("xgb.raw: the input must be xgb.Booster.handle. Use xgb.DMatrix.save to save
        xgb.DMatrix object.")
 }

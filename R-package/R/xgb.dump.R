@@ -3,8 +3,10 @@
 #' Save a xgboost model to text file. Could be parsed later.
 #' 
 #' @importFrom magrittr %>%
-#' @importFrom stringr str_split
 #' @importFrom stringr str_replace
+#' @importFrom data.table fread
+#' @importFrom data.table :=
+#' @importFrom data.table setnames
 #' @param model the model object.
 #' @param fname the name of the text file where to save the model text dump. If not provided or set to \code{NULL} the function will return the model as a \code{character} vector.
 #' @param fmap feature map file representing the type of feature. 
@@ -38,6 +40,8 @@
 xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   if (class(model) != "xgb.Booster") {
     stop("model: argument must be type xgb.Booster")
+  } else {
+    model <- xgb.Booster.check(model)
   }
   if (!(class(fname) %in% c("character", "NULL") && length(fname) <= 1)) {
     stop("fname: argument must be type character (when provided)")
@@ -46,12 +50,17 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
     stop("fmap: argument must be type character (when provided)")
   }
   
-  result <- .Call("XGBoosterDumpModel_R", model, fmap, as.integer(with.stats), PACKAGE = "xgboost")
+  longString <- .Call("XGBoosterDumpModel_R", model$handle, fmap, as.integer(with.stats), PACKAGE = "xgboost")
+  
+  dt <- fread(paste(longString, collapse = ""), sep = "\n", header = F)
+
+  setnames(dt, "Lines")
   
   if(is.null(fname)) {
-    return(str_split(result, "\n") %>% unlist %>% str_replace("^\t+","") %>% Filter(function(x) x != "", .))
+    result <- dt[Lines != "0"][, Lines := str_replace(Lines, "^\t+", "")][Lines != ""][, paste(Lines)]
+    return(result)
   } else {
-    result %>% str_split("\n") %>% unlist %>% Filter(function(x) x != "", .) %>% writeLines(fname)
+    result <- dt[Lines != "0"][Lines != ""][, paste(Lines)] %>% writeLines(fname)
     return(TRUE)
   }
 }
@@ -59,4 +68,4 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
 # They are mainly column names inferred by Data.table...
-globalVariables(".")
+globalVariables(c("Lines", "."))
