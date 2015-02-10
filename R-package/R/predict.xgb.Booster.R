@@ -1,4 +1,3 @@
-setClass("xgb.Booster.handle")
 setClass("xgb.Booster",
          slots = c(handle = "xgb.Booster.handle",
                    raw = "raw"))
