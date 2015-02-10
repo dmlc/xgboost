@@ -42,9 +42,9 @@ train <- agaricus.train
 test <- agaricus.test
 ```
 
-> In the reality, it would be up to you to make this division between `train` and `test` data.
-
 > Each variable is a S3 object containing both label and data.
+
+> In the real world, it would be up to you to make this division between `train` and `test` data.
 
 The loaded data is stored in `dgCMatrix` which is a **sparse matrix** type. 
 
@@ -64,7 +64,7 @@ We are using the train data. Both `data` and `label` are in each data (explained
 
 > label is the outcome of our dataset. It is the classification we want to predict. For these data we already have it, but when our model is built, that is this column we want to guess.
 
-In sparse matrix, cells which contains `0` are not encoded. Therefore, in a dataset where there are plenty of `0`, dataset size is optimized. It is very usual to have such dataset. Xgboost can manage both dense and sparse matrix.
+In sparse matrix, cells which contains `0` are not encoded. Therefore, in a dataset where there are plenty of `0`, dataset size is optimized. It is very usual to have such dataset. **Xgboost** can manage both dense and sparse matrix.
 
 ```{r trainingSparse, message=F, warning=F}
 bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
@@ -79,9 +79,9 @@ bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth
 
 Above, data and label are not stored together. 
 
-Xgboost offer a way to group them in a `xgb.DMatrix`. You can even add other meta data. It will be usefull for the most advanced features.
+**Xgboost** offer a way to group them in a `xgb.DMatrix`. You can even add other meta data. It will be usefull for the most advanced features.
 
-```{r trainingDense, message=F, warning=F}
+```{r trainingDmatrix, message=F, warning=F}
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
 bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
 ```
@@ -89,76 +89,153 @@ bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2, objecti
 Below is a demonstration of the effect of verbose parameter.
 
 ```{r trainingVerbose, message=T, warning=F}
-print ('train xgboost with verbose 0, no message')
+# verbose 0, no message
 bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2,
                objective = "binary:logistic", verbose = 0)
 
-print ('train xgboost with verbose 1, print evaluation metric')
+# verbose 1, print evaluation metric
 bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2,
                objective = "binary:logistic", verbose = 1)
 
-print ('train xgboost with verbose 2, also print information about tree')
+# verbose 2, also print information about tree
 bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2,
                objective = "binary:logistic", verbose = 2)
 ```
 
-#--------------------basic prediction using xgboost--------------
-# you can do prediction using the following line
-# you can put in Matrix, sparseMatrix, or xgb.DMatrix 
+Basic prediction using Xgboost
+------------------------------
+
+The main use of **Xgboost** is to predict data. For that purpose we will use the test dataset. We remind you that the algorithm has never seen these data.
+
+```{r predicting, message=F, warning=F}
 pred <- predict(bst, test$data)
 err <- mean(as.numeric(pred > 0.5) != test$label)
 print(paste("test-error=", err))
+```
 
-#-------------------save and load models-------------------------
+> You can put data in Matrix, sparseMatrix, or xgb.DMatrix 
+
+Save and load models
+--------------------
+
+When your dataset is big, it may takes time to build a model. Or may be you are not a big fan of loosing time in redoing the same thing again and again. In these cases, you will want to save your model and load it when required.
+
+Hopefully for you, **Xgboost** implement such functions.
+
+```{r saveLoadModel, message=F, warning=F}
 # save model to binary local file
 xgb.save(bst, "xgboost.model")
+
 # load binary model to R
 bst2 <- xgb.load("xgboost.model")
 pred2 <- predict(bst2, test$data)
+
 # pred2 should be identical to pred
 print(paste("sum(abs(pred2-pred))=", sum(abs(pred2-pred))))
+```
 
+In some very specific cases, like when you want to pilot **Xgboost** from `caret`, you will want to save the model as a **R** binary vector. See below how to do it.
+
+```{r saveLoadRBinVectorModel, message=F, warning=F}
 # save model to R's raw vector
 raw = xgb.save.raw(bst)
+
 # load binary model to R
 bst3 <- xgb.load(raw)
 pred3 <- predict(bst3, test$data)
+
 # pred2 should be identical to pred
 print(paste("sum(abs(pred3-pred))=", sum(abs(pred2-pred))))
+``` 
 
-#----------------Advanced features --------------
-# to use advanced features, we need to put data in xgb.DMatrix
+
+
+Advanced features
+=================
+
+Most of the features below have been created to help you to improve your model by offering a better understanding of its content.
+
+
+Dataset preparation
+-------------------
+
+For the following advanced features, we need to put data in `xgb.DMatrix` as explained above.
+
+```{r DMatrix, message=F, warning=F}
 dtrain <- xgb.DMatrix(data = train$data, label=train$label)
 dtest <- xgb.DMatrix(data = test$data, label=test$label)
-#---------------Using watchlist----------------
-# watchlist is a list of xgb.DMatrix, each of them tagged with name
+```
+
+Using xgb.train
+---------------
+
+`xgb.train` is a powerfull way to follow progress in learning of one or more dataset.
+
+One way to measure progress in learning of a model is to provide to the **Xgboost** a second dataset already classified. Therefore it can learn on the real dataset and test its model on the second one. Some metrics are measured after each round during the learning.
+
+For that purpose, you will use `watchlist` parameter. It is a list of `xgb.DMatrix`, each of them tagged with a name.
+
+```{r watchlist, message=F, warning=F}
 watchlist <- list(train=dtrain, test=dtest)
-# to train with watchlist, use xgb.train, which contains more advanced features
-# watchlist allows us to monitor the evaluation result on all data in the list 
-print ('train xgboost using xgb.train with watchlist')
+
 bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist,
                  objective = "binary:logistic")
-# we can change evaluation metrics, or use multiple evaluation metrics
-print ('train xgboost using xgb.train with watchlist, watch logloss and error')
+```
+
+> To train with watchlist, we use `xgb.train`, which contains more advanced features than `xgboost` function.
+
+For a better understanding, you may want to have some specific metric or even use multiple evaluation metrics.
+
+`eval.metric` allows us to monitor the evaluation of several metrics at a time. Hereafter we will watch two new metrics, logloss and error.
+
+```{r watchlist2, message=F, warning=F}
 bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist,
                  eval.metric = "error", eval.metric = "logloss",
                  objective = "binary:logistic")
+```
 
-# xgb.DMatrix can also be saved using xgb.DMatrix.save
+Manipulating xgb.DMatrix
+------------------------
+
+### Save / Load
+
+Like saving models, `xgb.DMatrix` object (which groups both dataset and outcome) can also be saved using `xgb.DMatrix.save` function.
+
+```{r DMatrixSave, message=F, warning=F}
 xgb.DMatrix.save(dtrain, "dtrain.buffer")
 # to load it in, simply call xgb.DMatrix
 dtrain2 <- xgb.DMatrix("dtrain.buffer")
 bst <- xgb.train(data=dtrain2, max.depth=2, eta=1, nround=2, watchlist=watchlist,
                  objective = "binary:logistic")
-# information can be extracted from xgb.DMatrix using getinfo
+```
+
+### Information extraction
+
+Information can be extracted from `xgb.DMatrix` using `getinfo` function. Hereafter we will extract `label` data.
+
+```{r getinfo, message=F, warning=F}
 label = getinfo(dtest, "label")
 pred <- predict(bst, dtest)
 err <- as.numeric(sum(as.integer(pred > 0.5) != label))/length(label)
 print(paste("test-error=", err))
+```
 
-# You can dump the tree you learned using xgb.dump into a text file
-xgb.dump(bst, "dump.raw.txt", with.stats = T)
+View the trees from a model
+---------------------------
 
-# Finally, you can check which features are the most important.
-print("Most important features (look at column Gain):")
-print(xgb.importance(feature_names = train$data@Dimnames[[2]], filename_dump = "dump.raw.txt"))
+You can dump the tree you learned using `xgb.dump` into a text file.
+
+```{r dump, message=T, warning=F}
+xgb.dump(bst, with.stats = T)
+```
+
+Feature importance
+------------------
+
+Finally, you can check which features are the most important.
+
+```{r featureImportance, message=T, warning=F}
+importance_matrix <- xgb.importance(feature_names = train$data@Dimnames[[2]], model = bst)
+print(importance_matrix)
+xgb.plot.importance(importance_matrix)
+```
