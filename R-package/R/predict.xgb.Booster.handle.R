@@ -1,5 +1,3 @@
-setClass("xgb.Booster.handle")
-
 #' Predict method for eXtreme Gradient Boosting model handle
 #' 
 #' Predicted values based on xgb.Booster.handle object.
