@@ -11,5 +11,3 @@ CFLAGS+=-fopenmp
 linear.o: linear.cc ../../src/*.h linear.h ../solver/*.h
 # dependenies here
 linear.rabit: linear.o lib
-
-

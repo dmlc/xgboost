@@ -57,12 +57,12 @@ class LBFGSSolver {
   LBFGSSolver(void) {
     // set default values
     reg_L1 = 0.0f;
-    max_linesearch_iter = 1000;
+    max_linesearch_iter = 100;
     linesearch_backoff = 0.5f;
     linesearch_c1 = 1e-4;
     min_lbfgs_iter = 5;
-    max_lbfgs_iter = 1000;
-    lbfgs_stop_tol = 3e-6f;
+    max_lbfgs_iter = 500;
+    lbfgs_stop_tol = 1e-5f;
     silent = 0;
   }
   virtual ~LBFGSSolver(void) {}
@@ -89,6 +89,15 @@ class LBFGSSolver {
     }
     if (!strcmp("max_linesearch_iter", name)) {
       max_linesearch_iter = atoi(val);
+    }
+    if (!strcmp("max_lbfgs_iter", name)) {
+      max_lbfgs_iter = atoi(val);
+    }
+    if (!strcmp("min_lbfgs_iter", name)) {
+      min_lbfgs_iter = atoi(val);
+    }
+    if (!strcmp("linesearch_c1", name)) {
+      linesearch_c1 = static_cast<float>(atof(val));
     }
   }
   /*!
