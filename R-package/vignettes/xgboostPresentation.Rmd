@@ -7,34 +7,84 @@ output:
     toc: yes
 ---
 
+Introduction
+============
+
+The purpose of this Vignette is to show you how to use **Xgboost** to make prediction from a model based on your own dataset.
+
+You may know **Xgboost** as a state of the art tool to build some kind of Machine learning models. It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competition. 
+
+For the purpose of this tutorial we will first load the required packages.
+
+```{r libLoading, results='hold', message=F, warning=F}
 require(xgboost)
 require(methods)
-# we load in the agaricus dataset
-# In this example, we are aiming to predict whether a mushroom can be eated
+```
+
+In this example, we are aiming to predict whether a mushroom can be eated.
+
+Learning
+========
+
+Dataset loading
+---------------
+
+We load the `agaricus` datasets and link it to variables.
+
+The dataset is already separated in `train` and `test` data. 
+
+As their names imply, the train part will be used to build the model and the test part to check how well our model works. Without separation we would test the model on data the algorithm have already seen, as you may imagine, it's not the best methodology to check the performance of a prediction (would it even be a prediction?).
+
+```{r datasetLoading, results='hold', message=F, warning=F}
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 train <- agaricus.train
 test <- agaricus.test
-# the loaded data is stored in sparseMatrix, and label is a numeric vector in {0,1}
+```
+
+> In the reality, it would be up to you to make this division between `train` and `test` data.
+
+> Each variable is a S3 object containing both label and data.
+
+The loaded data is stored in `dgCMatrix` which is a **sparse matrix** type. 
+
+Label is a `numeric` vector in `{0,1}`.
+
+```{r dataClass, message=F, warning=F}
+class(train$data)[1]
 class(train$label)
-class(train$data)
+```
 
-#-------------Basic Training using XGBoost-----------------
-# this is the basic usage of xgboost you can put matrix in data field
-# note: we are puting in sparse matrix here, xgboost naturally handles sparse input
-# use sparse matrix when your feature is sparse(e.g. when you using one-hot encoding vector)
-print("training xgboost with sparseMatrix")
-bst <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nround = 2,
-               objective = "binary:logistic")
-# alternatively, you can put in dense matrix, i.e. basic R-matrix
-print("training xgboost with Matrix")
-bst <- xgboost(data = as.matrix(train$data), label = train$label, max.depth = 2, eta = 1, nround = 2,
-               objective = "binary:logistic")
+Basic Training using XGBoost
+----------------------------
 
-# you can also put in xgb.DMatrix object, stores label, data and other meta datas needed for advanced features
-print("training xgboost with xgb.DMatrix")
+The most critical part of the process is the training.
+
+We are using the train data. Both `data` and `label` are in each data (explained above). To access to the field of a `S3` object we use the `$` character in **R**.
+
+> label is the outcome of our dataset. It is the classification we want to predict. For these data we already have it, but when our model is built, that is this column we want to guess.
+
+In sparse matrix, cells which contains `0` are not encoded. Therefore, in a dataset where there are plenty of `0`, dataset size is optimized. It is very usual to have such dataset. Xgboost can manage both dense and sparse matrix.
+
+```{r trainingSparse, message=F, warning=F}
+bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
+```
+
+Alternatively, you can put your dataset in a dense matrix, i.e. a basic R-matrix.
+
+```{r trainingDense, message=F, warning=F}
+bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth = 2, eta = 1, nround = 2,
+               objective = "binary:logistic")
+```
+
+Above, data and label are not stored together. 
+
+Xgboost offer a way to group them in a `xgb.DMatrix`. You can even add other meta data. It will be usefull for the most advanced features.
+
+```{r trainingDense, message=F, warning=F}
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
 bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
+```
 
 # Verbose = 0,1,2
 print ('train xgboost with verbose 0, no message')
