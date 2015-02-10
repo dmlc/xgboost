@@ -21,12 +21,8 @@ namespace solver {
 template<typename DType>
 class IObjFunction : public rabit::ISerializable {
  public:
-  /*!
-   * \brief set parameters from outside
-   * \param name name of the parameter
-   * \param val value of the parameter
-   */
-  virtual void SetParam(const char *name, const char *val) = 0;
+  // destructor
+  virtual ~IObjFunction(void){}
   /*!
    * \brief evaluate function values for a given weight
    * \param weight weight of the function
@@ -34,7 +30,13 @@ class IObjFunction : public rabit::ISerializable {
    */
   virtual double Eval(const DType *weight, size_t size) = 0;
   /*!
-   * \brief initialize the weight before starting the solver   
+   * \return number of feature dimension to be allocated
+   * only called once during initialization
+   */
+  virtual size_t InitNumDim(void) = 0;
+  /*!
+   * \brief initialize the weight before starting the solver
+   * only called once for initialization
    */
   virtual void InitModel(DType *weight, size_t size) = 0;
   /*!
@@ -45,18 +47,7 @@ class IObjFunction : public rabit::ISerializable {
    */
   virtual void CalcGrad(DType *out_grad,
                         const DType *weight,
-                        size_t size);
-  /*!
-   * \brief add regularization gradient to the gradient if any
-   *  this is used to add data set invariant regularization
-   * \param out_grad used to store the gradient value of the function
-   * \param weight weight of the function
-   * \param size size of the weight
-   */
-  virtual void AddRegularization(DType *out_grad,
-                                 const DType *weight,
-                                 size_t size);
-  
+                        size_t size) = 0;
 };
 
 /*! \brief a basic version L-BFGS solver */
@@ -71,7 +62,7 @@ class LBFGSSolver {
     linesearch_c1 = 1e-4;
     min_lbfgs_iter = 5;
     max_lbfgs_iter = 1000;
-    lbfgs_stop_tol = 1e-6f;
+    lbfgs_stop_tol = 1e-5f;
     silent = 0;
   }
   virtual ~LBFGSSolver(void) {}
@@ -81,17 +72,17 @@ class LBFGSSolver {
    * \param val value of the parameter
    */
   virtual void SetParam(const char *name, const char *val) {
-    if (!strcmp("num_feature", name)) {
-      gstate.num_feature = static_cast<size_t>(atol(val));
+    if (!strcmp("num_dim", name)) {
+      gstate.num_dim = static_cast<size_t>(atol(val));
     }
     if (!strcmp("size_memory", name)) {
       gstate.size_memory = static_cast<size_t>(atol(val));
     }
     if (!strcmp("reg_L1", name)) {
-      reg_L1 = atof(val);
+      reg_L1 = static_cast<float>(atof(val));
     }
     if (!strcmp("linesearch_backoff", name)) {
-      linesearch_backoff = atof(val);
+      linesearch_backoff = static_cast<float>(atof(val));
     }
     if (!strcmp("max_linesearch_iter", name)) {
       max_linesearch_iter = atoi(val);
@@ -113,22 +104,35 @@ class LBFGSSolver {
   virtual void Init(void) {
     utils::Check(gstate.obj != NULL,
                  "LBFGSSolver.Init must SetObjFunction first");
-    if (rabit::LoadCheckPoint(&gstate, &hist) == 0) {
+    int version = rabit::LoadCheckPoint(&gstate, &hist);
+    if (version == 0) {
+      gstate.num_dim = gstate.obj->InitNumDim();
+    } 
+    {
+      // decide parameter partition
+      size_t nproc = rabit::GetWorldSize();
+      size_t rank = rabit::GetRank();
+      size_t step = (gstate.num_dim + nproc - 1) / nproc;
+      // upper align
+      step = (step + 7) / 8 * 8;
+      utils::Assert(step * nproc >= gstate.num_dim, "BUG");
+      range_begin_ = std::min(rank * step, gstate.num_dim);
+      range_end_ = std::min((rank + 1) * step, gstate.num_dim);
+    }
+    if (version == 0) {
       gstate.Init();
-      hist.Init(gstate.num_feature, gstate.size_memory);
-      if (rabit::GetRank() == 0) {
-        gstate.obj->InitModel(gstate.weight, gstate.num_feature);
-      }
+      hist.Init(range_end_ - range_begin_, gstate.size_memory);
+      gstate.obj->InitModel(gstate.weight, gstate.num_dim);
       // broadcast initialize model
       rabit::Broadcast(gstate.weight,
-                       sizeof(DType) * gstate.num_feature, 0);
+                       sizeof(DType) * gstate.num_dim, 0);
       gstate.old_objval = this->Eval(gstate.weight);
       gstate.init_objval = gstate.old_objval;
       
       if (silent == 0 && rabit::GetRank() == 0) {
         rabit::TrackerPrintf
-            ("L-BFGS solver starts, num_feature=%lu, init_objval=%g\n",
-             gstate.num_feature, gstate.init_objval);
+            ("L-BFGS solver starts, num_dim=%lu, init_objval=%g, size_memory=%lu\n",
+             gstate.num_dim, gstate.init_objval, gstate.size_memory);
       }
     }
   }
@@ -148,13 +152,16 @@ class LBFGSSolver {
   virtual bool UpdateOneIter(void) {
     bool stop = false;
     GlobalState &g = gstate;
-    g.obj->CalcGrad(g.grad, g.weight, g.num_feature);
-    rabit::Allreduce<rabit::op::Sum>(g.grad, g.num_feature);
-    g.obj->AddRegularization(g.grad, g.weight, g.num_feature);
+    g.obj->CalcGrad(g.grad, g.weight, g.num_dim);
+    rabit::Allreduce<rabit::op::Sum>(g.grad, g.num_dim);
+    // find change direction
     double vdot = FindChangeDirection(g.tempw, g.grad, g.weight);
+    // line-search, g.grad is now new weight
     int iter = BacktrackLineSearch(g.grad, g.tempw, g.weight, vdot);
     utils::Check(iter < max_linesearch_iter, "line search failed");
+    // swap new weight 
     std::swap(g.weight, g.grad);
+    // check stop condition
     if (gstate.num_iteration > min_lbfgs_iter) {
       if (g.old_objval - g.new_objval < lbfgs_stop_tol * g.init_objval) {
         return true;
@@ -177,6 +184,10 @@ class LBFGSSolver {
     while (gstate.num_iteration < max_lbfgs_iter) {
       if (this->UpdateOneIter()) break;
     }
+    if (silent == 0 && rabit::GetRank() == 0) {
+      rabit::TrackerPrintf
+          ("L-BFGS: finishes at iteration %d\n", gstate.num_iteration);
+    }
   }
  protected:
   // find the delta value, given gradient
@@ -186,7 +197,13 @@ class LBFGSSolver {
                                      const DType *weight) {
     int m = static_cast<int>(gstate.size_memory);
     int n = static_cast<int>(hist.num_useful());
-    const size_t num_feature = gstate.num_feature;
+    if (n < m) {
+      utils::Assert(hist.num_useful() == gstate.num_iteration,
+                    "BUG2");
+    } else {
+      utils::Assert(n == m, "BUG3");
+    }
+    const size_t num_dim = gstate.num_dim;
     const DType *gsub = grad + range_begin_;
     const size_t nsub = range_end_ - range_begin_;
     double vdot;
@@ -214,10 +231,11 @@ class LBFGSSolver {
       for (size_t i = 0; i < tmp.size(); ++i) {
         gstate.DotBuf(idxset[i].first, idxset[i].second) = tmp[i];
       }
-      // BFGS steps
+      // BFGS steps, use vector-free update
+      // parameterize vector using basis in hist
       std::vector<double> alpha(n);
-      std::vector<double> delta(2 * n + 1, 0.0);
-      delta[2 * n] = 1.0;
+      std::vector<double> delta(2 * m + 1, 0.0);
+      delta[2 * m] = 1.0;
       // backward step
       for (int j = n - 1; j >= 0; --j) {
         double vsum = 0.0;
@@ -243,26 +261,30 @@ class LBFGSSolver {
         delta[j] = delta[j] + (alpha[j] - beta);
       }
       // set all to zero
-      std::fill(dir, dir + num_feature, 0.0f);
+      std::fill(dir, dir + num_dim, 0.0f);
       DType *dirsub = dir + range_begin_; 
       for (int i = 0; i < n; ++i) {
-        AddScale(dirsub, dirsub, hist[i], delta[i], nsub);
         AddScale(dirsub, dirsub, hist[m + i], delta[m + i], nsub);
       }
       AddScale(dirsub, dirsub, hist[2 * m], delta[2 * m], nsub);
-      FixDirL1Sign(dir + range_begin_, hist[2 * m], nsub);
-      vdot = -Dot(dir + range_begin_, hist[2 * m], nsub);
+      for (int i = 0; i < n; ++i) {
+        AddScale(dirsub, dirsub, hist[i], delta[i], nsub);
+      }
+      FixDirL1Sign(dirsub, hist[2 * m], nsub);
+      vdot = -Dot(dirsub, hist[2 * m], nsub);
       // allreduce to get full direction
-      rabit::Allreduce<rabit::op::Sum>(dir, num_feature);
+      rabit::Allreduce<rabit::op::Sum>(dir, num_dim);
       rabit::Allreduce<rabit::op::Sum>(&vdot, 1);
-    } else {
-      SetL1Dir(dir, grad, weight, num_feature);
-      vdot = -Dot(dir, dir, num_feature);
+    } else {     
+      SetL1Dir(dir, grad, weight, num_dim);
+      vdot = -Dot(dir, dir, num_dim);
     }
-    // shift the history record
-    gstate.Shift(); hist.Shift();
-    // next n
-    if (n < m) n += 1;
+    // shift the history record    
+    if (n < m) {
+      n += 1;
+    } else {
+      gstate.Shift(); hist.Shift();
+    }
     hist.set_num_useful(n);
     // copy gradient to hist[m + n - 1]
     memcpy(hist[m + n - 1], gsub, nsub * sizeof(DType));
@@ -274,24 +296,25 @@ class LBFGSSolver {
                                  const DType *dir,
                                  const DType *weight,
                                  double dot_dir_l1grad) {
-    utils::Assert(dot_dir_l1grad < 0.0f, "gradient error");
+    utils::Assert(dot_dir_l1grad < 0.0f,
+                  "gradient error, dotv=%g", dot_dir_l1grad);
     double alpha = 1.0;
     double backoff = linesearch_backoff;
     // unit descent direction in first iter
     if (gstate.num_iteration == 0) {
       utils::Assert(hist.num_useful() == 1, "hist.nuseful");
       alpha = 1.0f / std::sqrt(-dot_dir_l1grad);
-      linesearch_backoff = 0.1f;
+      backoff = 0.1f;
     }
     int iter = 0;
     
     double old_val = gstate.old_objval;
     double c1 = this->linesearch_c1;
     while (true) {
-      const size_t num_feature = gstate.num_feature;
+      const size_t num_dim = gstate.num_dim;
       if (++iter >= max_linesearch_iter) return iter;
-      AddScale(new_weight, weight, dir, alpha, num_feature);
-      this->FixWeightL1Sign(new_weight, weight, num_feature);
+      AddScale(new_weight, weight, dir, alpha, num_dim);
+      this->FixWeightL1Sign(new_weight, weight, num_dim);
       double new_val = this->Eval(new_weight);
       if (new_val - old_val <= c1 * dot_dir_l1grad * alpha) {
         gstate.new_objval = new_val; break;
@@ -306,15 +329,16 @@ class LBFGSSolver {
     gstate.num_iteration += 1;
     return iter;
   }
+  // OWL-QN step for L1 regularization
   inline void SetL1Dir(DType *dst,
-                        const DType *grad,
-                        const DType *weight,
-                        size_t size) {
+                       const DType *grad,
+                       const DType *weight,
+                       size_t size) {
     if (reg_L1 == 0.0) {
       for (size_t i = 0; i < size; ++i) {
         dst[i] = -grad[i];
       }
-    } else{
+    } else {
       for (size_t i = 0; i < size; ++i) {
         if (weight[i] > 0.0f) {
           dst[i] = -grad[i] - reg_L1;
@@ -332,7 +356,7 @@ class LBFGSSolver {
       }
     }
   }
-  // fix direction sign to be consistent with proposal
+  // OWL-QN step: fix direction sign to be consistent with proposal
   inline void FixDirL1Sign(DType *dir,
                            const DType *steepdir,
                            size_t size) {
@@ -344,7 +368,7 @@ class LBFGSSolver {
       }
     }
   }
-  // fix direction sign to be consistent with proposal
+  // QWL-QN step: fix direction sign to be consistent with proposal
   inline void FixWeightL1Sign(DType *new_weight,
                               const DType *weight,
                               size_t size) {
@@ -357,11 +381,11 @@ class LBFGSSolver {
     }
   }
   inline double Eval(const DType *weight) {
-    double val = gstate.obj->Eval(weight, gstate.num_feature);    
+    double val = gstate.obj->Eval(weight, gstate.num_dim);    
     rabit::Allreduce<rabit::op::Sum>(&val, 1);
     if (reg_L1 != 0.0f) {
       double l1norm = 0.0;
-      for (size_t i = 0; i < gstate.num_feature; ++i) {
+      for (size_t i = 0; i < gstate.num_dim; ++i) {
         l1norm += std::abs(weight[i]);
       }
       val += l1norm * reg_L1;
@@ -401,13 +425,14 @@ class LBFGSSolver {
     return res;
   }
   // map rolling array index
-  inline static size_t MapIndex(size_t i, size_t offset, size_t size_memory) {
+  inline static size_t MapIndex(size_t i, size_t offset,
+                                size_t size_memory) {
     if (i == 2 * size_memory) return i;
     if (i < size_memory) {
       return (i + offset) % size_memory;
     } else {
       utils::Assert(i < 2 * size_memory,
-                    "MapIndex: index exceed bound");
+                    "MapIndex: index exceed bound, i=%lu", i);
       return (i + offset) % size_memory + size_memory;
     }
   }
@@ -419,7 +444,7 @@ class LBFGSSolver {
     // number of iterations passed
     size_t num_iteration;
     // number of features in the solver
-    size_t num_feature;
+    size_t num_dim;
     // initialize objective value
     double init_objval;
     // history objective value
@@ -436,7 +461,7 @@ class LBFGSSolver {
           weight(NULL), tempw(NULL) {
       size_memory = 10;
       num_iteration = 0;
-      num_feature = 0;
+      num_dim = 0;
       old_objval = 0.0;
     }
     ~GlobalState(void) {
@@ -461,25 +486,25 @@ class LBFGSSolver {
     virtual void Load(rabit::IStream &fi) {
       fi.Read(&size_memory, sizeof(size_memory));
       fi.Read(&num_iteration, sizeof(num_iteration));
-      fi.Read(&num_feature, sizeof(num_feature));
+      fi.Read(&num_dim, sizeof(num_dim));
       fi.Read(&init_objval, sizeof(init_objval));
       fi.Read(&old_objval, sizeof(old_objval));
       fi.Read(&offset_, sizeof(offset_));
       fi.Read(&data);
       this->AllocSpace();
-      fi.Read(weight, sizeof(DType) * num_feature);
+      fi.Read(weight, sizeof(DType) * num_dim);
       obj->Load(fi);
     }
     // save the shift array
     virtual void Save(rabit::IStream &fo) const {
       fo.Write(&size_memory, sizeof(size_memory));
       fo.Write(&num_iteration, sizeof(num_iteration));
-      fo.Write(&num_feature, sizeof(num_feature));
+      fo.Write(&num_dim, sizeof(num_dim));
       fo.Write(&init_objval, sizeof(init_objval));
       fo.Write(&old_objval, sizeof(old_objval));
       fo.Write(&offset_, sizeof(offset_));
       fo.Write(data);
-      fo.Write(weight, sizeof(DType) * num_feature);
+      fo.Write(weight, sizeof(DType) * num_dim);
       obj->Save(fo);
     }
     inline void Shift(void) {
@@ -493,16 +518,18 @@ class LBFGSSolver {
     // allocate sapce
     inline void AllocSpace(void) {
       if (grad == NULL) {
-        grad = new DType[num_feature];
-        weight = new DType[num_feature];
-        tempw = new DType[num_feature];
+        grad = new DType[num_dim];
+        weight = new DType[num_dim];
+        tempw = new DType[num_dim];
       }
     }
   };
   /*! \brief rolling array that carries history information */
   struct HistoryArray : public rabit::ISerializable {
    public:
-    HistoryArray(void) : dptr_(NULL) {}
+    HistoryArray(void) : dptr_(NULL) {
+      num_useful_ = 0;
+    }
     ~HistoryArray(void) {
       if (dptr_ != NULL) delete [] dptr_;
     }
@@ -516,7 +543,8 @@ class LBFGSSolver {
       size_memory_ = size_memory;
       stride_ = num_col_;
       offset_ = 0;
-      dptr_ = new DType[num_col_ * stride_];
+      size_t n = size_memory * 2 + 1;
+      dptr_ = new DType[n * stride_];
     }
     // fetch element from rolling array
     inline const DType *operator[](size_t i) const {
@@ -541,7 +569,7 @@ class LBFGSSolver {
     }
     // set number of useful memory
     inline void set_num_useful(size_t num_useful) {
-      utils::Assert(num_useful < size_memory_,
+      utils::Assert(num_useful <= size_memory_,
                     "num_useful exceed bound");
       num_useful_ = num_useful;
     }

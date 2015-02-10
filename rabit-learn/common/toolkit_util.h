@@ -1,24 +1,38 @@
-#include <rabit.h>
+/*!
+ *  Copyright (c) 2015 by Contributors
+ * \file toolkit_util.h
+ * \brief simple data structure that could be used by model
+ *
+ * \author Tianqi Chen
+ */
+#ifndef RABIT_TOOLKIT_UTIL_H_
+#define RABIT_TOOLKIT_UTIL_H_
+
 #include <vector>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <cmath>
+#include <rabit.h>
 
 namespace rabit {
+// typedef index type
+typedef unsigned index_t;
+
 /*! \brief sparse matrix, CSR format */
 struct SparseMat {
   // sparse matrix entry
   struct Entry {
     // feature index 
-    unsigned findex;
+    index_t findex;
     // feature value
     float fvalue;
   };
   // sparse vector
   struct Vector {
     const Entry *data;
-    unsigned length;
+    index_t length;
     inline const Entry &operator[](size_t i) const {
       return data[i];
     }
@@ -26,7 +40,7 @@ struct SparseMat {
   inline Vector operator[](size_t i) const {
     Vector v;
     v.data = &data[0] + row_ptr[i];
-    v.length = static_cast<unsigned>(row_ptr[i + 1]-row_ptr[i]);
+    v.length = static_cast<index_t>(row_ptr[i + 1]-row_ptr[i]);
     return v;
   }
   // load data from LibSVM format
@@ -35,7 +49,13 @@ struct SparseMat {
     if (!strcmp(fname, "stdin")) {
       fi = stdin;
     } else {
-      fi = utils::FopenCheck(fname, "r");
+      if (strchr(fname, '%') != NULL) {
+        char s_tmp[256];
+        snprintf(s_tmp, sizeof(s_tmp), fname, rabit::GetRank());
+        fi = utils::FopenCheck(s_tmp, "r");        
+      } else {
+        fi = utils::FopenCheck(fname, "r");
+      }
     }
     row_ptr.clear();
     row_ptr.push_back(0);
@@ -45,9 +65,11 @@ struct SparseMat {
     char tmp[1024];
     while (fscanf(fi, "%s", tmp) == 1) {
       Entry e;
-      if (sscanf(tmp, "%u:%f", &e.findex, &e.fvalue) == 2) {
+      unsigned long fidx;
+      if (sscanf(tmp, "%lu:%f", &fidx, &e.fvalue) == 2) {
+        e.findex = static_cast<index_t>(fidx);
         data.push_back(e);
-        feat_dim = std::max(e.findex, feat_dim);
+        feat_dim = std::max(fidx, feat_dim);
       } else {
         if (!init) {
           labels.push_back(label);
@@ -61,6 +83,9 @@ struct SparseMat {
     labels.push_back(label);
     row_ptr.push_back(data.size());
     feat_dim += 1;
+    utils::Check(feat_dim < std::numeric_limits<index_t>::max(),
+                 "feature dimension exceed limit of index_t"\
+                 "consider change the index_t to unsigned long");
     // close the filed
     if (fi != stdin) fclose(fi);
   }
@@ -68,7 +93,7 @@ struct SparseMat {
     return row_ptr.size() - 1;
   }
   // maximum feature dimension
-  unsigned feat_dim;
+  size_t feat_dim;
   std::vector<size_t> row_ptr;
   std::vector<Entry> data;
   std::vector<float> labels;
@@ -115,3 +140,4 @@ inline int Random(int value) {
   return rand() % value;
 }
 } // namespace rabit
+#endif // RABIT_TOOLKIT_UTIL_H_
