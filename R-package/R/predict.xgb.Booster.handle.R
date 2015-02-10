@@ -6,9 +6,9 @@ setMethod("predict", signature = "xgb.Booster.handle",
     stop("predict: model in prediction must be of class xgb.Booster.handle")
   }
   
-  bst <- list(handle = object,raw = NULL)
-  class(bst) <- 'xgb.Booster'
-  bst$raw <- xgb.save.raw(bst$handle)
+  bst <- xgb.handleToBooster(object)
+  # Avoid save a handle without update
+  # bst$raw <- xgb.save.raw(object)
   
   ret = predict(bst, ...)
   return(ret)

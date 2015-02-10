@@ -36,12 +36,7 @@ setMethod("predict", signature = "xgb.Booster",
   if (class(object) != "xgb.Booster"){
     stop("predict: model in prediction must be of class xgb.Booster")
   } else {
-    if (is.null(object$handle)) {
-      object$handle <- xgb.load(object$raw)
-    } else {
-      if (is.null(object$raw))
-        object$raw <- xgb.save.raw(object$handle)
-    }
+    object <- xgb.Booster.check(object, saveraw = FALSE)
   }
   if (class(newdata) != "xgb.DMatrix") {
     if (is.null(missing)) {

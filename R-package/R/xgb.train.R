@@ -86,9 +86,8 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   }
   params = append(params, list(...))
   
-  bst <- list(handle = NULL,raw = NULL)
-  class(bst) <- 'xgb.Booster'
-  bst$handle <- xgb.Booster(params, append(watchlist, dtrain))
+  handle <- xgb.Booster(params, append(watchlist, dtrain))
+  bst <- xgb.handleToBooster(handle)
   for (i in 1:nrounds) {
     succ <- xgb.iter.update(bst$handle, dtrain, i - 1, obj)
     if (length(watchlist) != 0) {
@@ -96,6 +95,6 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
       cat(paste(msg, "\n", sep=""))
     }
   }
-  bst$raw <- xgb.save.raw(bst$handle)
+  bst <- xgb.Booster.check(bst)
   return(bst)
 } 

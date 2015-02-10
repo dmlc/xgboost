@@ -41,12 +41,7 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   if (class(model) != "xgb.Booster") {
     stop("model: argument must be type xgb.Booster")
   } else {
-    if (is.null(model$handle)) {
-      model$handle <- xgb.load(model$raw)
-    } else {
-      if (is.null(model$raw))
-        model$raw <- xgb.save.raw(model$handle)
-    }
+    model <- xgb.Booster.check(model)
   }
   if (!(class(fname) %in% c("character", "NULL") && length(fname) <= 1)) {
     stop("fname: argument must be type character (when provided)")

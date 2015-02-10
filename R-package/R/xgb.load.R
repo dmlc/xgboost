@@ -20,9 +20,8 @@ xgb.load <- function(modelfile) {
   if (is.null(modelfile)) 
     stop("xgb.load: modelfile cannot be NULL")
   
-  bst <- list(handle = NULL,raw = NULL)
-  class(bst) <- 'xgb.Booster'
-  bst$handle <- xgb.Booster(modelfile = modelfile)
-  bst$raw <- xgb.save.raw(bst$handle)
+  handle <- xgb.Booster(modelfile = modelfile)
+  bst <- xgb.handleToBooster(handle)
+  bst <- xgb.Booster.check(bst)
   return(bst)
 } 

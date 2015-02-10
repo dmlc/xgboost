@@ -68,6 +68,26 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
   return(structure(handle, class = "xgb.Booster.handle"))
 }
 
+# convert xgb.Booster.handle to xgb.Booster
+xgb.handleToBooster <- function(handle)
+{
+  bst <- list(handle = handle, raw = NULL)
+  class(bst) <- "xgb.Booster"
+  return(bst)
+}
+
+# Check whether an xgb.Booster object is complete
+xgb.Booster.check <- function(bst, saveraw = TRUE)
+{
+  if (is.null(bst$handle)) {
+    bst$handle <- xgb.load(bst$raw)
+  } else {
+    if (is.null(bst$raw) && saveraw)
+      bst$raw <- xgb.save.raw(bst$handle)
+  }
+  return(bst)
+}
+
 ## ----the following are low level iteratively function, not needed if
 ## you do not want to use them ---------------------------------------
 # get dmatrix from data, label

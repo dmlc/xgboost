@@ -22,9 +22,7 @@ xgb.save <- function(model, fname) {
     stop("xgb.save: fname must be character")
   }
   if (class(model) == "xgb.Booster") {
-    if (is.null(model$handle)) {
-      model$handle <- xgb.load(model$raw)
-    }
+    model <- xgb.Booster.check(model)
     .Call("XGBoosterSaveModel_R", model$handle, fname, PACKAGE = "xgboost")
     return(TRUE)
   }
