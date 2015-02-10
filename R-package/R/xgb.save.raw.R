@@ -18,6 +18,9 @@
 #' @export
 #' 
 xgb.save.raw <- function(handle) {
+  if (class(handle) == "xgb.Booster"){
+    handle <- handle$handle
+  }
   if (class(handle) == "xgb.Booster.handle") {
     raw <- .Call("XGBoosterModelToRaw_R", handle, PACKAGE = "xgboost")
     return(raw)
