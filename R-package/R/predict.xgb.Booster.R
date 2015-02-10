@@ -77,4 +77,4 @@ setMethod("predict", signature = "xgb.Booster",
   }
   return(ret)
 })
- 
+
