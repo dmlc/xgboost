@@ -119,7 +119,9 @@ class LBFGSSolver {
     int version = rabit::LoadCheckPoint(&gstate, &hist);
     if (version == 0) {
       gstate.num_dim = gstate.obj->InitNumDim();
-    } 
+    } else {
+      printf("restart from version=%d\n", version);
+    }
     {
       // decide parameter partition
       size_t nproc = rabit::GetWorldSize();
@@ -216,7 +218,7 @@ class LBFGSSolver {
     int n = static_cast<int>(hist.num_useful());
     if (n < m) {
       utils::Assert(hist.num_useful() == gstate.num_iteration,
-                    "BUG2");
+                    "BUG2, n=%d, it=%d", n, gstate.num_iteration);
     } else {
       utils::Assert(n == m, "BUG3");
     }
@@ -592,7 +594,10 @@ class LBFGSSolver {
     }
     // load the shift array
     virtual void Load(rabit::IStream &fi) {
-      fi.Read(this, sizeof(size_t) * 4);
+      fi.Read(&num_col_, sizeof(num_col_));
+      fi.Read(&stride_, sizeof(stride_));
+      fi.Read(&size_memory_, sizeof(size_memory_));
+      fi.Read(&num_useful_, sizeof(num_useful_));
       this->Init(num_col_, size_memory_);
       for (size_t i = 0; i < num_useful_; ++i) {
         fi.Read((*this)[i], num_col_ * sizeof(DType));
@@ -601,7 +606,10 @@ class LBFGSSolver {
     }
     // save the shift array
     virtual void Save(rabit::IStream &fi) const {
-      fi.Write(this, sizeof(size_t) * 4);
+      fi.Write(&num_col_, sizeof(num_col_));
+      fi.Write(&stride_, sizeof(stride_));
+      fi.Write(&size_memory_, sizeof(size_memory_));
+      fi.Write(&num_useful_, sizeof(num_useful_));
       for (size_t i = 0; i < num_useful_; ++i) {
         fi.Write((*this)[i], num_col_ * sizeof(DType));
         fi.Write((*this)[i + size_memory_], num_col_ * sizeof(DType));

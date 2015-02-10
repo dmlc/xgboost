@@ -8,6 +8,10 @@ Parameters
 All the parameters can be set by param=value
 
 #### Important Parameters
+* objective [default = logistic]
+  - can be linear or logistic
+* base_score [default = 0.5]
+  - global bias, recommended set to mean value of label
 * reg_L1 [default = 0]
   - l1 regularization co-efficient
 * reg_L2 [default = 1]
