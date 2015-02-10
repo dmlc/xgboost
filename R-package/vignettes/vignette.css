@@ -130,13 +130,16 @@ aside {
     width: 390px;
 }
 blockquote {
-    border-left:.5em solid #eee;
-    padding: 0 1em;
-    margin-left:0;
-    max-width: 476px;
+    font-size:14px;
+    border-left:.5em solid #606AAA;
+    background: #f5f5f5;
+    color:#bfbfbf;
+    padding: 5px;
+    margin-left:25px;
+    max-width: 500px;
 }
 blockquote  cite {
- /   font-size:14px;
+    font-size:14px;
     line-height:20px;
     color:#bfbfbf;
 }
@@ -146,7 +149,6 @@ blockquote cite:before {
 
 blockquote p {  
     color: #666;
-    max-width: 460px;
 }
 hr {
 /    width: 540px;
