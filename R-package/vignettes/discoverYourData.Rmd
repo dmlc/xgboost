@@ -5,7 +5,6 @@ output:
     css: vignette.css
     number_sections: yes
     toc: yes
-date: "Wednesday, January 28, 2015"
 ---
 
 Introduction
