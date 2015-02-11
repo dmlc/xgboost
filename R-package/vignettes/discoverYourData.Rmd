@@ -18,6 +18,8 @@ During these competition, the purpose is to make prediction. This Vignette is no
 
 For the purpose of this tutorial we will first load the required packages.
 
+--> ADD PART REGARDING INSTALLATION FROM GITHUB
+
 ```{r libLoading, results='hold', message=F, warning=F}
 require(xgboost)
 require(Matrix)

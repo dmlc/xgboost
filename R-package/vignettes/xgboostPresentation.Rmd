@@ -12,9 +12,14 @@ Introduction
 
 The purpose of this Vignette is to show you how to use **Xgboost** to make prediction from a model based on your own dataset.
 
-You may know **Xgboost** as a state of the art tool to build some kind of Machine learning models. It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competition. 
+You may know **Xgboost** as a state of the art tool to build some kind of Machine learning models. It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competitions. 
+
+Installation
+============
 
 For the purpose of this tutorial we will first load the required packages.
+
+--> ADD PART REGARDING INSTALLATION FROM GITHUB
 
 ```{r libLoading, results='hold', message=F, warning=F}
 require(xgboost)
@@ -166,14 +171,14 @@ dtrain <- xgb.DMatrix(data = train$data, label=train$label)
 dtest <- xgb.DMatrix(data = test$data, label=test$label)
 ```
 
-Using xgb.train
----------------
+Measure learning progress xgb.train
+-----------------------------------
 
-`xgb.train` is a powerfull way to follow progress in learning of one or more dataset.
+Both `xgb.train` (advanced) and `xgboost` (simple) functions train models.
+
+One of the feature of `xgb.train` is the capacity to follow the progress of the learning after each round. Because of the way boosting works, there is a time when having too many rounds lead to an overfitting. You can see this feature as a cousin of cross-validation method. The following features will help you to avoid overfitting or optimizing the learning time in stopping it as soon as possible.
 
 One way to measure progress in learning of a model is to provide to the **Xgboost** a second dataset already classified. Therefore it can learn on the real dataset and test its model on the second one. Some metrics are measured after each round during the learning.
-
-For that purpose, you will use `watchlist` parameter. It is a list of `xgb.DMatrix`, each of them tagged with a name.
 
 ```{r watchlist, message=F, warning=F}
 watchlist <- list(train=dtrain, test=dtest)
@@ -182,17 +187,17 @@ bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist,
                  objective = "binary:logistic")
 ```
 
-> To train with watchlist, we use `xgb.train`, which contains more advanced features than `xgboost` function.
+> For the purpose of this example, we use `watchlist` parameter. It is a list of `xgb.DMatrix`, each of them tagged with a name.
 
-For a better understanding, you may want to have some specific metric or even use multiple evaluation metrics.
-
-`eval.metric` allows us to monitor the evaluation of several metrics at a time. Hereafter we will watch two new metrics, logloss and error.
+For a better understanding of the learning progression, you may want to have some specific metric or even use multiple evaluation metrics.
 
 ```{r watchlist2, message=F, warning=F}
 bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist,
                  eval.metric = "error", eval.metric = "logloss",
                  objective = "binary:logistic")
 ```
+
+> `eval.metric` allows us to monitor the evaluation of several metrics at a time. Hereafter we will watch two new metrics, logloss and error.
 
 Manipulating xgb.DMatrix
 ------------------------
