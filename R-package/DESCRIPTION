@@ -29,4 +29,4 @@ Imports:
     stringr (>= 0.6.2),
     DiagrammeR (>= 0.4),
     ggplot2 (>= 1.0.0),
-    Ckmeans.1d.dp (>= 3.3.0)
+    Ckmeans.1d.dp (>= 3.3.1)
