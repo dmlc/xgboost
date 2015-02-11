@@ -116,7 +116,7 @@ li ul, li ul {
 }
 
 pre {
-    padding: 0px 24px;
+    padding: 0px 10px;
     max-width: 800px;
     white-space: pre-wrap;
 }
@@ -145,18 +145,18 @@ aside {
 blockquote {
     font-size:14px;
     border-left:.5em solid #606AAA;
-    background: #f5f5f5;
-    color:#bfbfbf;
-    padding: 5px;
+    background: #F8F8F8;
+    padding: 5px ;
     margin-left:25px;
     max-width: 500px;
 }
 
 blockquote  cite {
     font-size:14px;
-    line-height:20px;
+    line-height:10px;
     color:#bfbfbf;
 }
+
 blockquote cite:before {
     content: '\2014 \00A0';
 }

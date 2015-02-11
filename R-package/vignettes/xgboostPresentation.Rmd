@@ -243,7 +243,7 @@ Feature importance
 
 Finally, you can check which features are the most important.
 
-```{r featureImportance, message=T, warning=F}
+```{r featureImportance, message=T, warning=F, fig.width=8, fig.height=5, fig.align='center'}
 importance_matrix <- xgb.importance(feature_names = train$data@Dimnames[[2]], model = bst)
 print(importance_matrix)
 xgb.plot.importance(importance_matrix)
