@@ -159,7 +159,7 @@ class GBLinear : public IGradBooster {
     }
     fo << "weight:\n";
     for (int i = 0; i < model.param.num_output_group; ++i) {
-      for (int j = 0; j <model.param.num_feature; ++j) {
+      for (unsigned j = 0; j <model.param.num_feature; ++j) {
         fo << model[i][j] << std::endl;
       }
     }
@@ -173,6 +173,7 @@ class GBLinear : public IGradBooster {
     for (int gid = 0; gid < model.param.num_output_group; ++gid) {
       float psum = model.bias()[gid];
       for (bst_uint i = 0; i < inst.length; ++i) {
+        if (inst[i].index >= model.param.num_feature) continue;
         psum += inst[i].fvalue * model[inst[i].index][gid];
       }
       preds[gid] = psum;
@@ -229,7 +230,7 @@ class GBLinear : public IGradBooster {
     // model parameter
     struct Param {
       // number of feature dimension
-      int num_feature;
+      unsigned num_feature;
       // number of output group
       int num_output_group;
       // reserved field
@@ -242,7 +243,7 @@ class GBLinear : public IGradBooster {
       }
       inline void SetParam(const char *name, const char *val) {
         using namespace std;
-        if (!strcmp(name, "bst:num_feature")) num_feature = atoi(val);
+        if (!strcmp(name, "bst:num_feature")) num_feature = static_cast<unsigned>(atoi(val));
         if (!strcmp(name, "num_output_group")) num_output_group = atoi(val);
       }
     };
