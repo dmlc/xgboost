@@ -1,10 +1,14 @@
 ---
 title: "Xgboost presentation"
-output:
-  html_document:
+output: 
+  rmarkdown::html_vignette:
     css: vignette.css
     number_sections: yes
     toc: yes
+vignette: >
+  %\VignetteIndexEntry{Xgboost presentation}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
 ---
 
 Introduction

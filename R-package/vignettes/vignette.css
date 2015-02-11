@@ -110,6 +110,7 @@ ul {
 li {
      line-height:150%    
 }
+
 li ul, li ul {
     margin-left: 24px;
 }
@@ -119,16 +120,28 @@ pre {
     max-width: 800px;
     white-space: pre-wrap;
 }
+
 code {
     font-family: Consolas, Monaco, Andale Mono, monospace;
     line-height: 1.5;
     font-size: 15px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    padding: 5px;
 }
+
+code.r, code.cpp {
+    display: block;
+    word-wrap: break-word;
+    border: 1px solid #989898;        
+}
+
 aside {
     display: block;
     float: right;
     width: 390px;
 }
+
 blockquote {
     font-size:14px;
     border-left:.5em solid #606AAA;
@@ -138,6 +151,7 @@ blockquote {
     margin-left:25px;
     max-width: 500px;
 }
+
 blockquote  cite {
     font-size:14px;
     line-height:20px;

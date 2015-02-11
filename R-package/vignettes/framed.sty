@@ -1,0 +1,548 @@
+% framed.sty   v 0.96    2011/10/22
+% Copyright (C) 1992-2011 by Donald Arseneau  (asnd@triumf.ca)
+% These macros may be freely transmitted, reproduced, or modified
+% for any purpose provided that this notice is left intact.
+% 
+%====================== Begin Instructions =======================
+%
+%                       framed.sty
+%                       ~~~~~~~~~~
+% Create framed, shaded, or differently highlighted regions that can 
+% break across pages.  The environments defined are 
+%   framed     - ordinary frame box (\fbox) with edge at margin
+%   oframed    - framed with open top/bottom at page breaks
+%   shaded     - shaded background (\colorbox) bleeding into margin
+%   shaded*    - shaded background (\colorbox) with edge at margin
+%   snugshade  - shaded with tight fit around text (esp. in lists)
+%   snugshade* - like snugshade with shading edge at margin
+%   leftbar    - thick vertical line in left margin
+% 
+% to be used like
+% \begin{framed}
+%  copious text
+% \end{framed}
+%
+% But the more general purpose of this package is to facilitate the
+% definition of new environments that take multi-line material,
+% wrap it with some non-breakable formatting (some kind of box or
+% decoration) and allow page breaks in the material.  Such environments
+% are defined to declare (or use) \FrameCommand for applying the boxy 
+% decoration, and \MakeFramed{settings} ... \endMakeFramed wrapped
+% around the main text argument (environment body).
+%
+% The "framed" environment uses "\fbox", by default, as its "\FrameCommand"
+% with the additional settings "\fboxrule=\FrameRule" and "\fboxsep=\FrameSep".
+% You can change these lengths (using "\setlength") and you can change 
+% the definition of "\FrameCommand" to use much fancier boxes.  
+%
+% In fact, the "shaded" environment just redefines \FrameCommand to be
+% "\colorbox{shadecolor}" (and you have to define the color `"shadecolor"':
+% "\definecolor{shadecolor}...").
+%
+% Although the intention is for other packages to define the varieties
+% of decoration, a command "\OpenFbox" is defined for frames with open 
+% tops or bottoms, and used for the "oframed" environment.  This facility
+% is based on a more complex and capable command "\CustomFBox" which can
+% be used for a wider range of frame styles.  One such style of a title-bar
+% frame with continuation marks is provided as an example.  It is used by
+% the "titled-frame" environment.  To make use of "titled-frame" in your
+% document, or the "\TitleBarFrame" command in your own environment
+% definitions, you must define the colors TFFrameColor (for the frame)
+% and a contrasting TFTitleColor (for the title text).
+%
+% A page break is allowed, and even encouraged, before the framed
+% environment.  If you want to attach some text (a box title) to the
+% frame, then the text should be inserted by \FrameCommand so it cannot
+% be separated from the body.
+%
+% The contents of the framed regions are restricted: 
+% Floats, footnotes, marginpars and head-line entries will be lost.
+% (Some of these may be handled in a later version.)
+% This package will not work with the page breaking of multicol.sty,
+% or other systems that perform column-balancing.
+%
+% The MakeFramed environment does the work.  Its `settings' argument
+% should contain any adjustments to the text width (via a setting of
+% "\hsize"). Here, the parameter "\width" gives the measured extra width
+% added by the frame, so a common setting is "\advance\hsize-\width"
+% which reduces the width of the text just enough that the outer edge
+% of the frame aligns with the margins.  The `settings' should also
+% include a `restore' command -- "\@parboxrestore" or "\FrameRestore"
+% or something similar; for instance, the snugshade environment uses
+% settings to eliminate list indents and vertical space, but uses
+% "\hspace" in "\FrameCommand" to reproduce the list margin ouside the
+% shading.
+%
+% There are actually four variants of "\FrameCommand" to allow different
+% formatting for each part of an environment broken over pages.  Unbroken
+% text is adorned by "\FrameCommand", whereas split text first uses 
+% "\FirstFrameCommand", possibly followed by "\MidFrameCommand", and
+% finishing with "\LastFrameCommand".  The default definitions for 
+% these three just invokes "\FrameCommand", so that all portions are
+% framed the same way.  See the oframe environment for use of distinct
+% First/Mid/Last frames.
+%
+% Expert commands:
+% \MakeFramed, \endMakeFramed: the "MakeFramed" environment
+% \FrameCommand: command to draw the frame around its argument
+% \FirstFrameCommand: the frame for the first part of a split environment
+% \LastFrameCommand: for the last portion
+% \MidFrameCommand: for any intermediate segments
+% \FrameRestore: restore some text settings, but fewer than \@parboxrestore
+% \FrameRule: length register; \fboxrule for default "framed".
+% \FrameSep: length register; \fboxsep for default "framed".
+% \FrameHeightAdjust: macro; height of frame above baseline at top of page
+% \OuterFrameSep: vertical space before and after the framed env. Defaults to "\topsep"
+%
+% This is still a `pre-production' version because I can think of many
+% features/improvements that should be made.  Also, a detailed manual needs
+% to be written.  Nevertheless, starting with version 0.5 it should be bug-free.
+%
+% ToDo: 
+% Test more varieties of list 
+% Improve and correct documentation
+% Propagation of \marks
+% Handle footnotes (how??) floats (?) and marginpars.
+% Stretchability modification.
+% Make inner contents height/depth influence placement.
+%======================== End Instructions ========================
+
+\ProvidesPackage{framed}[2011/10/22 v 0.96: 
+   framed or shaded text with page breaks]
+
+\newenvironment{framed}% using default \FrameCommand
+  {\MakeFramed {\advance\hsize-\width \FrameRestore}}%
+  {\endMakeFramed}
+
+\newenvironment{shaded}{%
+  \def\FrameCommand{\fboxsep=\FrameSep \colorbox{shadecolor}}%
+  \MakeFramed {\FrameRestore}}%
+ {\endMakeFramed}
+
+\newenvironment{shaded*}{%
+  \def\FrameCommand{\fboxsep=\FrameSep \colorbox{shadecolor}}%
+  \MakeFramed {\advance\hsize-\width \FrameRestore}}%
+ {\endMakeFramed}
+
+\newenvironment{leftbar}{%
+  \def\FrameCommand{\vrule width 3pt \hspace{10pt}}%
+  \MakeFramed {\advance\hsize-\width \FrameRestore}}%
+ {\endMakeFramed}
+
+% snugshde:  Shaded environment that 
+%  -- uses the default \fboxsep instead of \FrameSep
+%  -- leaves the text indent unchanged (shading bleeds out)
+%  -- eliminates possible internal \topsep glue (\@setminipage)
+%  -- shrinks inside the margins for lists
+%  An \item label will tend to hang outside the shading, thanks to
+%  the small \fboxsep.
+
+\newenvironment{snugshade}{%
+  \def\FrameCommand##1{\hskip\@totalleftmargin \hskip-\fboxsep
+  \colorbox{shadecolor}{##1}\hskip-\fboxsep
+      % There is no \@totalrightmargin, so:
+      \hskip-\linewidth \hskip-\@totalleftmargin \hskip\columnwidth}%
+  \MakeFramed {\advance\hsize-\width 
+    \@totalleftmargin\z@ \linewidth\hsize
+    \@setminipage}%
+ }{\par\unskip\@minipagefalse\endMakeFramed}
+
+\newenvironment{snugshade*}{%
+  \def\FrameCommand##1{\hskip\@totalleftmargin 
+  \colorbox{shadecolor}{##1}%
+      % There is no \@totalrightmargin, so:
+      \hskip-\linewidth \hskip-\@totalleftmargin \hskip\columnwidth}%
+  \MakeFramed {\advance\hsize-\width 
+    \@totalleftmargin\z@ \linewidth\hsize
+    \advance\labelsep\fboxsep
+    \@setminipage}%
+ }{\par\unskip\@minipagefalse\endMakeFramed}
+
+\newenvironment{oframed}{% open (top or bottom) framed
+  \def\FrameCommand{\OpenFBox\FrameRule\FrameRule}%
+  \def\FirstFrameCommand{\OpenFBox\FrameRule\z@}%
+  \def\MidFrameCommand{\OpenFBox\z@\z@}%
+  \def\LastFrameCommand{\OpenFBox\z@\FrameRule}%
+  \MakeFramed {\advance\hsize-\width \FrameRestore}%
+  }{\endMakeFramed}
+
+% A simplified entry to \CustomFBox with two customized parameters:
+% the thicknesses of the top and bottom rules.  Perhaps we want to
+% use less \fboxsep on the open edges?
+
+\def\OpenFBox#1#2{\fboxsep\FrameSep
+   \CustomFBox{}{}{#1}{#2}\FrameRule\FrameRule}
+
+% \CustomFBox is like an amalgamation of \fbox and \@frameb@x,
+% so it can be used by an alternate to \fbox or \fcolorbox, but
+% it has more parameters for various customizations.
+% Parameter #1 is inserted (in vmode) right after the top rule 
+% (useful for a title or assignments), and #2 is similar, but
+% inserted right above the bottom rule.
+% The thicknesses of the top, bottom, left, and right rules are
+% given as parameters #3,#4,#5,#6 respectively.  They should be
+% \fboxrule or \z@ (or some other thickness).
+% The text argument is #7.
+% An instance of this can be used for the frame of \fcolorbox by
+% locally defining \fbox before \fcolorbox; e.g.,
+% \def\fbox{\CustomFBox{}{}\z@\z@\fboxrule\fboxrule}\fcolorbox
+%
+% Do we need to use different \fboxsep on different sides too?
+%
+\long\def\CustomFBox#1#2#3#4#5#6#7{%
+  \leavevmode\begingroup
+  \setbox\@tempboxa\hbox{%
+    \color@begingroup
+      \kern\fboxsep{#7}\kern\fboxsep
+    \color@endgroup}%
+  \hbox{%
+    % Here we calculate and shift for the depth.  Done in
+    % a group because one of the arguments might be \@tempdima
+    % (we could use \dimexpr instead without grouping).
+    \begingroup
+      \@tempdima#4\relax
+      \advance\@tempdima\fboxsep
+      \advance\@tempdima\dp\@tempboxa
+    \expandafter\endgroup\expandafter
+    \lower\the\@tempdima\hbox{%
+      \vbox{%
+        \hrule\@height#3\relax
+        #1%
+        \hbox{%
+          \vrule\@width#5\relax
+          \vbox{%
+            \vskip\fboxsep % maybe these should be parameters too
+            \copy\@tempboxa
+            \vskip\fboxsep}%
+          \vrule\@width#6\relax}%
+        #2%
+        \hrule\@height#4\relax}%
+    }%
+  }%
+  \endgroup
+}
+
+
+% A particular type of titled frame with continuation marks.  
+% Parameter #1 is the title, repeated on each page.
+\newenvironment{titled-frame}[1]{%
+  \def\FrameCommand{\fboxsep8pt\fboxrule2pt
+     \TitleBarFrame{\textbf{#1}}}%
+  \def\FirstFrameCommand{\fboxsep8pt\fboxrule2pt
+     \TitleBarFrame[$\blacktriangleright$]{\textbf{#1}}}%
+  \def\MidFrameCommand{\fboxsep8pt\fboxrule2pt
+     \TitleBarFrame[$\blacktriangleright$]{\textbf{#1\ (cont)}}}%
+  \def\LastFrameCommand{\fboxsep8pt\fboxrule2pt
+     \TitleBarFrame{\textbf{#1\ (cont)}}}%
+  \MakeFramed{\advance\hsize-20pt \FrameRestore}}%
+%  note: 8 + 2 + 8 + 2 = 20.  Don't use \width because the frame title
+%  could interfere with the width measurement.
+ {\endMakeFramed}
+
+% \TitleBarFrame[marker]{title}{contents}
+% Frame with a label at top, optional continuation marker at bottom right.
+% Frame color is TFFrameColor and title color is a contrasting TFTitleColor; 
+% both need to be defined before use.  The frame itself use \fboxrule and
+% \fboxsep.  If the title is omitted entirely, the title bar is omitted
+% (use a blank space to force a blank title bar).
+% 
+\newcommand\TitleBarFrame[3][]{\begingroup
+  \ifx\delimiter#1\delimiter
+    \let\TF@conlab\@empty
+  \else
+    \def\TF@conlab{% continuation label
+     \nointerlineskip
+     \smash{\rlap{\kern\wd\@tempboxa\kern\fboxrule\kern\fboxsep #1}}}%
+  \fi
+  \let\TF@savecolor\current@color
+  \textcolor{TFFrameColor}{%
+  \CustomFBox
+    {\TF@Title{#2}}{\TF@conlab}%
+    \fboxrule\fboxrule\fboxrule\fboxrule
+    {\let\current@color\TF@savecolor\set@color #3}%
+  }\endgroup
+}
+
+% The title bar for \TitleBarFrame
+\newcommand\TF@Title[1]{%
+  \ifx\delimiter#1\delimiter\else
+  \kern-0.04pt\relax
+  \begingroup
+  \setbox\@tempboxa\vbox{%
+   \kern0.8ex
+   \hbox{\kern\fboxsep\textcolor{TFTitleColor}{#1}\vphantom{Tj)}}%
+   \kern0.8ex}%
+  \hrule\@height\ht\@tempboxa
+  \kern-\ht\@tempboxa
+  \box\@tempboxa
+  \endgroup
+  \nointerlineskip 
+  \kern-0.04pt\relax
+  \fi
+}
+
+\chardef\FrameRestore=\catcode`\| % for debug
+\catcode`\|=\catcode`\% % (debug: insert space after backslash)
+
+\newlength\OuterFrameSep \OuterFrameSep=\maxdimen \relax
+
+\def\MakeFramed#1{\par
+ % apply default \OuterFrameSep = \topsep
+ \ifdim\OuterFrameSep=\maxdimen \OuterFrameSep\topsep \fi
+ % measure added width and height; call result \width and \height
+ \fb@sizeofframe\FrameCommand
+ \let\width\fb@frw \let\height\fb@frh
+ % insert pre-penalties and skips
+ \begingroup
+ \skip@\lastskip
+ \if@nobreak\else 
+    \penalty9999 % updates \page parameters
+    \ifdim\pagefilstretch=\z@ \ifdim\pagefillstretch=\z@
+       % not infinitely stretchable, so encourage a page break here
+       \edef\@tempa{\the\skip@}%
+       \ifx\@tempa\zero@glue \penalty-30
+       \else \vskip-\skip@ \penalty-30 \vskip\skip@
+    \fi\fi\fi
+    \penalty\z@
+    % Give a stretchy breakpoint that will always be taken in preference
+    % to the \penalty 9999 used to update page parameters.  The cube root
+    % of 10000/100 indicates a multiplier of 0.21545, but the maximum 
+    % calculated badness is really 8192, not 10000, so the multiplier
+    % is 0.2301. 
+    \advance\skip@ \z@ plus-.5\baselineskip
+    \advance\skip@ \z@ plus-.231\height
+    \advance\skip@ \z@ plus-.231\skip@
+    \advance\skip@ \z@ plus-.231\OuterFrameSep
+    \vskip-\skip@ \penalty 1800 \vskip\skip@
+ \fi
+ \addvspace{\OuterFrameSep}%
+ \endgroup
+ % clear out pending page break
+ \penalty\@M \vskip 2\baselineskip \vskip\height
+ \penalty9999 \vskip -2\baselineskip \vskip-\height
+ \penalty9999 % updates \pagetotal
+|\message{After clearout, \pagetotal=\the\pagetotal, \pagegoal=\the\pagegoal. }%
+ \fb@adjheight 
+ \setbox\@tempboxa\vbox\bgroup
+   #1% Modifications to \hsize (can use \width and \height)
+   \textwidth\hsize \columnwidth\hsize
+}
+
+\def\endMakeFramed{\par
+     \kern\z@
+     \hrule\@width\hsize\@height\z@ % possibly bad
+     \penalty-100 % (\hrule moves depth into height)
+ \egroup
+%%%   {\showoutput\showbox\@tempboxa}%
+ \begingroup 
+   \fb@put@frame\FrameCommand\FirstFrameCommand
+ \endgroup
+ \@minipagefalse % In case it was set and not cleared
+}
+
+% \fb@put@frame takes the contents of \@tempboxa and puts all, or a piece,
+% of it on the page with a frame (\FrameCommand, \FirstFrameCommand,
+% \MidFrameCommand, or \LastFrameCommand).  It recurses until all of 
+% \@tempboxa has been used up. (\@tempboxa must have zero depth.)
+% #1 = attempted framing command, if no split
+% #2 = framing command if split
+% First iteration: Try to fit with \FrameCommand. If it does not fit,
+% split for \FirstFrameCommand.
+% Later iteration: Try to fit with \LastFrameCommand. If it does not
+% fit, split for \MidFrameCommand.
+\def\fb@put@frame#1#2{\relax
+ \ifdim\pagegoal=\maxdimen \pagegoal\vsize \fi
+|   \message{=============== Entering putframe ====================^^J
+|     \pagegoal=\the\pagegoal,  \pagetotal=\the\pagetotal. }%
+ \ifinner
+   \fb@putboxa#1%
+   \fb@afterframe
+ \else
+  \dimen@\pagegoal \advance\dimen@-\pagetotal % natural space left on page
+  \ifdim\dimen@<2\baselineskip % Too little room on page
+|   \message{Page has only \the\dimen@\space room left; eject. }%
+    \eject \fb@adjheight \fb@put@frame#1#2%
+  \else % there's appreciable room left on the page
+     \fb@sizeofframe#1%
+|    \message{\string\pagetotal=\the\pagetotal,
+|        \string\pagegoal=\the\pagegoal,
+|        \string\pagestretch=\the\pagestretch,
+|        \string\pageshrink=\the\pageshrink,
+|        \string\fb@frh=\the\fb@frh. \space}
+|    \message{^^JBox of size \the\ht\@tempboxa\space}%
+     \begingroup % temporarily set \dimen@ to be...
+     \advance\dimen@.8\pageshrink  % maximum space available on page
+     \advance\dimen@-\fb@frh\relax % max space available for frame's contents
+%%% LOOKS SUBTRACTED AND ADDED, SO DOUBLE ACCOUNTING!
+     \expandafter\endgroup
+     % expand \ifdim, then restore \dimen@ to real room left on page
+     \ifdim\dimen@>\ht\@tempboxa % whole box does fit
+|       \message{fits in \the\dimen@. }%
+        % ToDo: Change this to use vsplit anyway to capture the marks
+        % MERGE THIS WITH THE else CLAUSE!!!
+        \fb@putboxa#1%
+        \fb@afterframe
+     \else % box must be split
+|       \message{must be split to fit in \the\dimen@. }%
+        % update frame measurement to use \FirstFrameCommand or \MidFrameCommand
+        \fb@sizeofframe#2%
+        \setbox\@tempboxa\vbox{% simulate frame and flexiblity of the page:
+           \vskip \fb@frh \@plus\pagestretch \@minus.8\pageshrink
+           \kern137sp\kern-137sp\penalty-30
+           \unvbox\@tempboxa}%
+        \edef\fb@resto@set{\boxmaxdepth\the\boxmaxdepth 
+                           \splittopskip\the\splittopskip}%
+        \boxmaxdepth\z@ \splittopskip\z@
+|       \message{^^JPadded box of size \the\ht\@tempboxa\space split to \the\dimen@}%
+        % Split box here
+        \setbox\tw@\vsplit\@tempboxa to\dimen@
+|       \toks99\expandafter{\splitfirstmark}%
+|       \toks98\expandafter{\splitbotmark}%
+|       \message{Marks are: \the\toks99, \the\toks98. }%
+        \setbox\tw@\vbox{\unvbox\tw@}% natural-sized
+|       \message{Natural height of split box is \the\ht\tw@, leaving 
+|          \the\ht\@tempboxa\space remainder. }%
+        % If the split-to size > (\vsize-\topskip), then set box to full size.
+        \begingroup
+        \advance\dimen@\topskip
+        \expandafter\endgroup
+        \ifdim\dimen@>\pagegoal
+|         \message{Frame is big -- Use up the full column. }%
+          \dimen@ii\pagegoal
+          \advance\dimen@ii -\topskip
+          \advance\dimen@ii \FrameHeightAdjust\relax
+        \else  % suspect this is implemented incorrectly:
+          % If the split-to size > feasible room_on_page, rebox it smaller.
+          \advance\dimen@.8\pageshrink
+          \ifdim\ht\tw@>\dimen@
+|           \message{Box too tall; rebox it to \the\dimen@. }%
+            \dimen@ii\dimen@
+          \else % use natural size
+            \dimen@ii\ht\tw@
+          \fi
+        \fi
+        % Re-box contents to desired size \dimen@ii
+        \advance\dimen@ii -\fb@frh
+        \setbox\tw@\vbox to\dimen@ii \bgroup
+        % remove simulated frame and page flexibility:
+        \vskip -\fb@frh \@plus-\pagestretch \@minus-.8\pageshrink
+        \unvbox\tw@ \unpenalty\unpenalty
+        \ifdim\lastkern=-137sp % whole box went to next page
+|          \message{box split at beginning! }%
+           % need work here???
+           \egroup \fb@resto@set \eject % (\vskip for frame size was discarded) 
+           \fb@adjheight
+           \fb@put@frame#1#2% INSERTED ???
+        \else % Got material split off at the head
+           \egroup \fb@resto@set
+           \ifvoid\@tempboxa % it all fit after all
+|             \message{box split at end! }%
+              \setbox\@tempboxa\box\tw@
+              \fb@putboxa#1%
+              \fb@afterframe
+           \else % it really did split
+|             \message{box split as expected. Its reboxed height is \the\ht\tw@. }%
+              \ifdim\wd\tw@>\z@
+                \wd\tw@\wd\@tempboxa
+                \centerline{#2{\box\tw@}}%  ??? \centerline bad idea
+              \else
+|               \message{Zero width means likely blank. Don't frame it (guess)}%
+                \box\tw@
+              \fi
+              \hrule \@height\z@ \@width\hsize
+              \eject
+              \fb@adjheight
+              \fb@put@frame\LastFrameCommand\MidFrameCommand
+  \fi\fi\fi\fi\fi
+}
+
+\def\fb@putboxa#1{%
+  \ifvoid\@tempboxa
+    \PackageWarning{framed}{Boxa is void -- discard it. }%
+  \else
+|   \message{Frame and place boxa. }%
+|   %{\showoutput\showbox\@tempboxa}%
+    \centerline{#1{\box\@tempboxa}}%
+  \fi
+}
+
+\def\fb@afterframe{%
+    \nointerlineskip \null %{\showoutput \showlists}
+    \penalty-30 \vskip\OuterFrameSep \relax
+}
+
+% measure width and height added by frame (#1 = frame command)
+% call results \fb@frw and \fb@frh
+% todo: a mechanism to handle wide frame titles 
+\newdimen\fb@frw
+\newdimen\fb@frh
+\def\fb@sizeofframe#1{\begingroup
+ \setbox\z@\vbox{\vskip-5in \hbox{\hskip-5in 
+   #1{\hbox{\vrule \@height 4.7in \@depth.3in \@width 5in}}}%
+   \vskip\z@skip}%
+|  \message{Measuring frame addition for \string#1 in \@currenvir\space 
+|    gives ht \the\ht\z@\space and wd \the\wd\z@. }%
+|  %{\showoutput\showbox\z@}%
+ \global\fb@frw\wd\z@ \global\fb@frh\ht\z@
+ \endgroup
+}
+
+\def\fb@adjheight{%
+  \vbox to\FrameHeightAdjust{}% get proper baseline skip from above.
+  \penalty\@M \nointerlineskip
+  \vskip-\FrameHeightAdjust
+  \penalty\@M} % useful for tops of pages
+
+\edef\zero@glue{\the\z@skip}
+
+\catcode`\|=\FrameRestore
+
+% Provide configuration commands:
+\providecommand\FrameCommand{%
+ \setlength\fboxrule{\FrameRule}\setlength\fboxsep{\FrameSep}%
+ \fbox}
+\@ifundefined{FrameRule}{\newdimen\FrameRule \FrameRule=\fboxrule}{}
+\@ifundefined{FrameSep} {\newdimen\FrameSep  \FrameSep =3\fboxsep}{}
+\providecommand\FirstFrameCommand{\FrameCommand}
+\providecommand\MidFrameCommand{\FrameCommand}
+\providecommand\LastFrameCommand{\FrameCommand}
+
+% Height of frame above first baseline when frame starts a page:
+\providecommand\FrameHeightAdjust{6pt}
+
+% \FrameRestore has parts of \@parboxrestore, performing a similar but 
+% less complete restoration of the default layout.  See how it is used in
+% the "settings" argument of \MakeFrame.  Though not a parameter, \hsize 
+% should be set to the desired total line width available inside the
+% frame before invoking \FrameRestore.  
+\def\FrameRestore{%
+   \let\if@nobreak\iffalse
+   \let\if@noskipsec\iffalse
+   \let\-\@dischyph
+   \let\'\@acci\let\`\@accii\let\=\@acciii
+   %  \message{FrameRestore:
+   %    \@totalleftmargin=\the \@totalleftmargin,
+   %    \rightmargin=\the\rightmargin, 
+   %    \@listdepth=\the\@listdepth.  }%
+   % Test if we are in a list (or list-like paragraph)
+   \ifnum \ifdim\@totalleftmargin>\z@ 1\fi  
+          \ifdim\rightmargin>\z@ 1\fi
+          \ifnum\@listdepth>\z@ 1\fi 0>\z@
+     %     \message{In a list: \linewidth=\the\linewidth, \@totalleftmargin=\the\@totalleftmargin,
+     %       \parshape=\the\parshape, \columnwidth=\the\columnwidth, \hsize=\the\hsize, 
+     %       \labelwidth=\the\labelwidth. }%
+     \@setminipage % snug fit around the item.  I would like this to be non-global.
+     % Now try to propageate changes of width from \hsize to list parameters.
+     % This is deficient, but a more advanced way to indicate modification to text 
+     % dimensions is not (yet) provided; in particular, no separate left/right
+     % adjustment.
+     \advance\linewidth-\columnwidth \advance\linewidth\hsize
+     \parshape\@ne \@totalleftmargin \linewidth
+   \else % Not in list
+     \linewidth=\hsize
+     %\message{No list, set \string\linewidth=\the\hsize. }%
+   \fi
+   \sloppy
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
