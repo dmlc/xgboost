@@ -117,7 +117,7 @@ class HistMaker: public BaseMaker {
   // workspace of thread
   ThreadWSpace wspace;
   // reducer for histogram
-  rabit::Reducer<TStats> histred;
+  rabit::Reducer<TStats, TStats::Reduce> histred;
   // set of working features
   std::vector<bst_uint> fwork_set;
   // update function implementation

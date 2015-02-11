@@ -5,4 +5,5 @@ demo(boost_from_prediction)
 demo(predict_first_ntree)
 demo(generalized_linear_model)
 demo(cross_validation)
-
+demo(create_sparse_matrix)
+demo(predict_leaf_indices)

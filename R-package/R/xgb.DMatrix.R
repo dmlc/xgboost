@@ -6,7 +6,7 @@
 #'   indicating the data file.
 #' @param info a list of information of the xgb.DMatrix object
 #' @param missing Missing is only used when input is dense matrix, pick a float
-#     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
+#'     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
 #
 #' @param ... other information to pass to \code{info}.
 #' 

@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <vector>
 #include <string>
+#include <cstring>
 #include "./utils.h"
 /*!
  * \file io.h

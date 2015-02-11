@@ -104,7 +104,7 @@ class BoostLearner : public rabit::ISerializable {
     }
     if (!strcmp(name, "eval_metric")) evaluator_.AddEval(val);
     if (!strcmp("seed", name)) {
-      this->seed = seed; random::Seed(atoi(val));
+      seed = atoi(val); random::Seed(seed);
     }
     if (!strcmp("seed_per_iter", name)) seed_per_iteration = atoi(val);
     if (!strcmp("save_base64", name)) save_base64 = atoi(val);
@@ -159,7 +159,9 @@ class BoostLearner : public rabit::ISerializable {
    * \param with_pbuffer whether to load with predict buffer
    * \param calc_num_feature whether call InitTrainer with calc_num_feature
    */
-  inline void LoadModel(utils::IStream &fi, bool with_pbuffer = true, bool calc_num_feature = true) {
+  inline void LoadModel(utils::IStream &fi,
+                        bool with_pbuffer = true,
+                        bool calc_num_feature = true) {
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "BoostLearner: wrong model format");
     utils::Check(fi.Read(&name_obj_), "BoostLearner: wrong model format");
@@ -192,8 +194,8 @@ class BoostLearner : public rabit::ISerializable {
    */
   inline void LoadModel(const char *fname) {
     FILE *fp = utils::FopenCheck(fname, "rb");
-    std::string header; header.resize(4);
     utils::FileStream fi(fp);
+    std::string header; header.resize(4);
     // check header for different binary encode
     // can be base64 or binary
     if (fi.Read(&header[0], 4) != 0) {
@@ -227,14 +229,19 @@ class BoostLearner : public rabit::ISerializable {
    */
   inline void SaveModel(const char *fname) const {
     FILE *fp;
+    bool use_stdout = false;;
+#ifndef XGBOOST_STRICT_CXX98_
     if (!strcmp(fname, "stdout")) {
       fp = stdout;
-    } else {
+      use_stdout = true;
+    } else
+#endif
+    {
       fp = utils::FopenCheck(fname, "wb");      
     }
     utils::FileStream fo(fp);
     std::string header;
-    if (save_base64 != 0|| fp == stdout) {
+    if (save_base64 != 0|| use_stdout) {
       fo.Write("bs64\t", 5);
       utils::Base64OutStream bout(fp);
       this->SaveModel(bout);
@@ -243,7 +250,9 @@ class BoostLearner : public rabit::ISerializable {
       fo.Write("binf", 4);
       this->SaveModel(fo);      
     }
-    if (fp != stdout) fclose(fp);
+    if (!use_stdout) {
+      fclose(fp);
+    }
   }
   /*!
    * \brief check if data matrix is ready to be used by training,
@@ -262,8 +271,8 @@ class BoostLearner : public rabit::ISerializable {
    * \param p_train pointer to the data matrix
    */
   inline void UpdateOneIter(int iter, const DMatrix &train) {
-    if (seed_per_iteration || rabit::IsDistributed()) {
-      random::Seed(this->seed * kRandSeedMagic);
+    if (seed_per_iteration != 0 || rabit::IsDistributed()) {
+      random::Seed(this->seed * kRandSeedMagic + iter);
     }
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train.info, iter, &gpair_);

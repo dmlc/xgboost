@@ -75,15 +75,17 @@ Rpack:
 	cd subtree/rabit;make clean;cd ..
 	rm -rf xgboost xgboost*.tar.gz
 	cp -r R-package xgboost
-	rm -rf xgboost/inst/examples/*.buffer
-	rm -rf xgboost/inst/examples/*.model
-	rm -rf xgboost/inst/examples/dump*
 	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
+	rm -rf xgboost/src/*/*.o
 	rm -rf subtree/rabit/src/*.o
 	rm -rf xgboost/demo/*.model xgboost/demo/*.buffer xgboost/demo/*.txt
 	rm -rf xgboost/demo/runall.R
 	cp -r src xgboost/src/src
-	cp -r subtree xgboost/src/subtree
+	mkdir xgboost/src/subtree
+	mkdir xgboost/src/subtree/rabit
+	cp -r subtree/rabit/include xgboost/src/subtree/rabit/include
+	cp -r subtree/rabit/src xgboost/src/subtree/rabit/src
+	rm -rf xgboost/src/subtree/rabit/src/*.o
 	mkdir xgboost/src/wrapper
 	cp  wrapper/xgboost_wrapper.h xgboost/src/wrapper
 	cp  wrapper/xgboost_wrapper.cpp xgboost/src/wrapper
@@ -95,5 +97,5 @@ Rpack:
 	R CMD check --as-cran xgboost*.tar.gz
 
 clean:
-	$(RM) $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~
+	$(RM) -rf $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~
 	cd subtree/rabit; make clean; cd ..

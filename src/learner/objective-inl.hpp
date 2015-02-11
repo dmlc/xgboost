@@ -206,7 +206,8 @@ class SoftmaxMultiClassObj : public IObjFunction {
         Softmax(&rec);
         const unsigned j = i % nstep;
         int label = static_cast<int>(info.labels[j]);
-        utils::Check(label < nclass, "SoftmaxMultiClassObj: label exceed num_class");
+        utils::Check(label >= 0 && label < nclass,
+                     "SoftmaxMultiClassObj: label must be in [0, num_class)");
         const float wt = info.GetWeight(j);
         for (int k = 0; k < nclass; ++k) {
           float p = rec[k];

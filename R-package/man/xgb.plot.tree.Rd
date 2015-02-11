@@ -5,7 +5,7 @@
 \title{Plot a boosted tree model}
 \usage{
 xgb.plot.tree(feature_names = NULL, filename_dump = NULL, model = NULL,
-  n_first_tree = NULL, CSSstyle = NULL)
+  n_first_tree = NULL, CSSstyle = NULL, width = NULL, height = NULL)
 }
 \arguments{
 \item{feature_names}{names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.}
@@ -17,6 +17,10 @@ xgb.plot.tree(feature_names = NULL, filename_dump = NULL, model = NULL,
 \item{n_first_tree}{limit the plot to the n first trees. If \code{NULL}, all trees of the model are plotted. Performance can be low for huge models.}
 
 \item{CSSstyle}{a \code{character} vector storing a css style to customize the appearance of nodes. Look at the \href{https://github.com/knsv/mermaid/wiki}{Mermaid wiki} for more information.}
+
+\item{width}{the width of the diagram in pixels.}
+
+\item{height}{the height of the diagram in pixels.}
 }
 \value{
 A \code{DiagrammeR} of the model.
@@ -40,7 +44,8 @@ It uses \href{https://github.com/knsv/mermaid/}{Mermaid} library for that purpos
 \examples{
 data(agaricus.train, package='xgboost')
 
-#Both dataset are list with two items, a sparse matrix and labels (labels = outcome column which will be learned).
+#Both dataset are list with two items, a sparse matrix and labels
+#(labels = outcome column which will be learned).
 #Each column of the sparse Matrix is a feature in one hot encoding format.
 train <- agaricus.train
 

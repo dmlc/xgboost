@@ -71,13 +71,13 @@ extern "C" {
                                 SEXP missing) {
     _WrapperBegin();
     SEXP dim = getAttrib(mat, R_DimSymbol);
-    int nrow = INTEGER(dim)[0];
-    int ncol = INTEGER(dim)[1];    
+    size_t nrow = static_cast<size_t>(INTEGER(dim)[0]);
+    size_t ncol = static_cast<size_t>(INTEGER(dim)[1]);
     double *din = REAL(mat);
     std::vector<float> data(nrow * ncol);
     #pragma omp parallel for schedule(static)
-    for (int i = 0; i < nrow; ++i) {
-      for (int j = 0; j < ncol; ++j) {
+    for (bst_omp_uint i = 0; i < nrow; ++i) {
+      for (size_t j = 0; j < ncol; ++j) {
         data[i * ncol +j] = din[i + nrow * j];
       }
     }
@@ -273,6 +273,23 @@ extern "C" {
     _WrapperBegin();
     XGBoosterSaveModel(R_ExternalPtrAddr(handle), CHAR(asChar(fname)));
     _WrapperEnd();
+  }
+  void XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw) {    
+    _WrapperBegin();
+    XGBoosterLoadModelFromBuffer(R_ExternalPtrAddr(handle),
+                                 RAW(raw),
+                                 length(raw));
+    _WrapperEnd();
+  }
+  SEXP XGBoosterModelToRaw_R(SEXP handle) {
+    bst_ulong olen;
+    _WrapperBegin();
+    const char *raw = XGBoosterGetModelRaw(R_ExternalPtrAddr(handle), &olen);
+    _WrapperEnd();
+    SEXP ret = PROTECT(allocVector(RAWSXP, olen));
+    memcpy(RAW(ret), raw, olen);
+    UNPROTECT(1);    
+    return ret;
   }
   SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats) {
     _WrapperBegin();

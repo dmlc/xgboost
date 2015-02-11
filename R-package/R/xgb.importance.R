@@ -32,7 +32,8 @@
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')
 #' 
-#' #Both dataset are list with two items, a sparse matrix and labels (labels = outcome column which will be learned). 
+#' #Both dataset are list with two items, a sparse matrix and labels 
+#' #(labels = outcome column which will be learned). 
 #' #Each column of the sparse Matrix is a feature in one hot encoding format.
 #' train <- agaricus.train
 #' test <- agaricus.test
@@ -72,7 +73,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
 }
 
 treeDump <- function(feature_names, text){  
-  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = Feature][,`:=`(Gain=Gain/sum(Gain),Cover=Cover/sum(Cover),Frequence=Frequence/sum(Frequence))][order(-Gain)]
+  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = Feature][,`:=`(Gain = Gain/sum(Gain), Cover = Cover/sum(Cover), Frequence = Frequence/sum(Frequence))]
   
   result  
 }
@@ -80,3 +81,8 @@ treeDump <- function(feature_names, text){
 linearDump <- function(feature_names, text){
   which(text == "weight:") %>% {a=.+1;text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
 }
+
+# Avoid error messages during CRAN check.
+# The reason is that these variables are never declared
+# They are mainly column names inferred by Data.table...
+globalVariables(".")

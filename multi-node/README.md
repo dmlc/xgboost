@@ -1,6 +1,6 @@
 Distributed XGBoost
 ======
-This folder contains information of Distributed XGBoost.
+This folder contains information of Distributed XGBoost (Distributed GBDT).
 
 * The distributed version is built on Rabit:[Reliable Allreduce and Broadcast Library](https://github.com/tqchen/rabit)
   - Rabit is a portable library that provides fault-tolerance for Allreduce calls for distributed machine learning  

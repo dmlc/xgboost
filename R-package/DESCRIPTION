@@ -3,7 +3,7 @@ Type: Package
 Title: eXtreme Gradient Boosting
 Version: 0.3-3
 Date: 2014-12-28
-Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>
+Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>, Michaël Benesty <michael@benesty.fr>
 Maintainer: Tong He <hetong007@gmail.com>
 Description: This package is a R wrapper of xgboost, which is short for eXtreme
     Gradient Boosting. It is an efficient and scalable implementation of
@@ -17,13 +17,16 @@ Description: This package is a R wrapper of xgboost, which is short for eXtreme
 License: Apache License (== 2.0) | file LICENSE
 URL: https://github.com/tqchen/xgboost
 BugReports: https://github.com/tqchen/xgboost/issues
+VignetteBuilder: knitr
+Suggests: knitr
 Depends:
     R (>= 2.10)
 Imports:
     Matrix (>= 1.1-0),
     methods,
-    data.table (>= 1.9),
+    data.table (>= 1.9.4),
     magrittr (>= 1.5),
-    stringr,
-    DiagrammeR,
-    vcd
+    stringr (>= 0.6.2),
+    DiagrammeR (>= 0.4),
+    ggplot2 (>= 1.0.0),
+    Ckmeans.1d.dp (>= 3.3.0)

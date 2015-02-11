@@ -139,7 +139,7 @@ class Base64InStream: public IStream {
 
  private:
   FILE *fp;
-  unsigned char tmp_ch;
+  int tmp_ch;
   int num_prev;
   unsigned char buf_prev[2];
   // whether we need to do strict check

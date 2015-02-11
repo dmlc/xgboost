@@ -39,20 +39,21 @@ The content of the \code{data.table} is organised that way:
  \item \code{Quality}: it's the gain related to the split in this specific node ;
  \item \code{Cover}: metric to measure the number of observation affected by the split ;
  \item \code{Tree}: ID of the tree. It is included in the main ID ;
+ \item \code{Yes.X} or \code{No.X}: data related to the pointer in \code{Yes} or \code{No} column ;
 }
 }
 \examples{
 data(agaricus.train, package='xgboost')
 
-#Both dataset are list with two items, a sparse matrix and labels (labels = outcome column which will be learned).
+#Both dataset are list with two items, a sparse matrix and labels
+#(labels = outcome column which will be learned).
 #Each column of the sparse Matrix is a feature in one hot encoding format.
 train <- agaricus.train
 
 bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
                eta = 1, nround = 2,objective = "binary:logistic")
-xgb.dump(bst, 'xgb.model.dump', with.stats = T)
 
 #agaricus.test$data@Dimnames[[2]] represents the column names of the sparse matrix.
-xgb.model.dt.tree(agaricus.train$data@Dimnames[[2]], filename_dump = 'xgb.model.dump')
+xgb.model.dt.tree(agaricus.train$data@Dimnames[[2]], model = bst)
 }
 

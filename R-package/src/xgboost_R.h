@@ -128,6 +128,17 @@ extern "C" {
    */    
   void XGBoosterSaveModel_R(SEXP handle, SEXP fname);
   /*!
+   * \brief load model from raw array
+   * \param handle handle
+   */    
+  void XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw);
+  /*!
+   * \brief save model into R's raw array
+   * \param handle handle
+   * \return raw array
+   */
+  SEXP XGBoosterModelToRaw_R(SEXP handle);
+  /*!
    * \brief dump model into a string
    * \param handle handle
    * \param fmap  name to fmap can be empty string

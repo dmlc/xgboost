@@ -205,8 +205,8 @@ struct GradStats {
     this->Add(b.sum_grad, b.sum_hess);
   }
   /*! \brief same as add, reduce is used in All Reduce */
-  inline void Reduce(const GradStats &b) {
-    this->Add(b);
+  inline static void Reduce(GradStats &a, const GradStats &b) {
+    a.Add(b);
   }
   /*! \brief set current value to a - b */
   inline void SetSubstract(const GradStats &a, const GradStats &b) {
@@ -285,8 +285,8 @@ struct CVGradStats : public GradStats {
     }
   }
   /*! \brief same as add, reduce is used in All Reduce */
-  inline void Reduce(const CVGradStats &b) {
-    this->Add(b);
+  inline static void Reduce(CVGradStats &a, const CVGradStats &b) {
+    a.Add(b);
   }
   /*! \brief set current value to a - b */
   inline void SetSubstract(const CVGradStats &a, const CVGradStats &b) {
@@ -368,8 +368,8 @@ struct SplitEntry{
     }
   }
   /*! \brief same as update, used by AllReduce*/
-  inline void Reduce(const SplitEntry &e) {
-    this->Update(e);
+  inline static void Reduce(SplitEntry &dst, const SplitEntry &src) {
+    dst.Update(src);
   }
   /*!\return feature index to split on */
   inline unsigned split_index(void) const {

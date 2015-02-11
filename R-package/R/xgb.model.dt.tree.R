@@ -37,21 +37,22 @@
 #'  \item \code{Quality}: it's the gain related to the split in this specific node ;
 #'  \item \code{Cover}: metric to measure the number of observation affected by the split ;
 #'  \item \code{Tree}: ID of the tree. It is included in the main ID ;
+#'  \item \code{Yes.X} or \code{No.X}: data related to the pointer in \code{Yes} or \code{No} column ;
 #' } 
 #'   
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' 
-#' #Both dataset are list with two items, a sparse matrix and labels (labels = outcome column which will be learned). 
+#' #Both dataset are list with two items, a sparse matrix and labels 
+#' #(labels = outcome column which will be learned). 
 #' #Each column of the sparse Matrix is a feature in one hot encoding format.
 #' train <- agaricus.train
 #' 
 #' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
 #'                eta = 1, nround = 2,objective = "binary:logistic")
-#' xgb.dump(bst, 'xgb.model.dump', with.stats = T)
 #' 
 #' #agaricus.test$data@@Dimnames[[2]] represents the column names of the sparse matrix.
-#' xgb.model.dt.tree(agaricus.train$data@@Dimnames[[2]], filename_dump = 'xgb.model.dump')
+#' xgb.model.dt.tree(agaricus.train$data@@Dimnames[[2]], model = bst)
 #' 
 #' @export
 xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model = NULL, text = NULL, n_first_tree = NULL){
@@ -127,7 +128,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     coverBranch <- extract(branch, "cover=\\d*\\.*\\d*")
     coverLeaf <- extract(leaf, "cover=\\d*\\.*\\d*")
     dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=treeID]
-        
+    
     allTrees <- rbindlist(list(allTrees, dt), use.names = T, fill = F)
   }
   
@@ -158,6 +159,11 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
   set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
       j = "No.Quality", 
       value = allTrees[ID == no,Quality])
-      
+        
   allTrees
 }
+
+# Avoid error messages during CRAN check.
+# The reason is that these variables are never declared
+# They are mainly column names inferred by Data.table...
+globalVariables(c("ID", "Tree", "Yes", ".", ".N", "Feature", "Cover", "Quality", "No", "Gain", "Frequence"))

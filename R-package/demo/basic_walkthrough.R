@@ -58,6 +58,14 @@ pred2 <- predict(bst2, test$data)
 # pred2 should be identical to pred
 print(paste("sum(abs(pred2-pred))=", sum(abs(pred2-pred))))
 
+# save model to R's raw vector
+raw = xgb.save.raw(bst)
+# load binary model to R
+bst3 <- xgb.load(raw)
+pred3 <- predict(bst3, test$data)
+# pred2 should be identical to pred
+print(paste("sum(abs(pred3-pred))=", sum(abs(pred2-pred))))
+
 #----------------Advanced features --------------
 # to use advanced features, we need to put data in xgb.DMatrix
 dtrain <- xgb.DMatrix(data = train$data, label=train$label)
