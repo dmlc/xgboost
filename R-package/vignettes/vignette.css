@@ -24,7 +24,7 @@ body{
 /    color: white; 
 
     line-height: 1;
-    max-width: 960px;
+    max-width: 800px;
     padding: 20px;
     font-size: 17px;
 }
@@ -131,6 +131,8 @@ code {
     border-radius: 4px;
     padding: 5px;
     display: inline-block;
+    max-width: 800px;
+    white-space: pre-wrap;
 }
 
 code.r, code.cpp {
@@ -151,7 +153,7 @@ blockquote {
     border-left:.5em solid #606AAA;
     background: #F8F8F8;
     padding-left: 1em;
-    margin-left:25px;
+    margin-left:10px;
     max-width: 500px;
 }
 
@@ -162,14 +164,14 @@ blockquote  cite {
 }
 
 blockquote cite:before {
-    content: '\2014 \00A0';
+    /content: '\2014 \00A0';
 }
 
 blockquote p {  
     color: #666;
 }
 hr {
-/    width: 540px;
+/   width: 540px;
     text-align: left;
     margin: 0 auto 0 0;
     color: #999;

@@ -89,10 +89,14 @@ data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 train <- agaricus.train
 test <- agaricus.test
-# Each variable is a S3 object containing both label and data.
 ```
 
 > In the real world, it would be up to you to make this division between `train` and `test` data. The way you should do it is out of the purpose of this article, however `caret` package may [help](http://topepo.github.io/caret/splitting.html).
+
+Each variable is a `list` containing both label and data.
+```{r dataList, message=F, warning=F}
+str(train)
+```
 
 Let's discover the dimensionality of our datasets.
 
@@ -101,7 +105,7 @@ dim(train$data)
 dim(test$data)
 ```
 
-> Clearly, we have here a small dataset, however **Xgboost** can manage huge one very efficiently.
+Clearly, we have here a small dataset, however **Xgboost** can manage huge one very efficiently.
 
 The loaded `data` are stored in `dgCMatrix` which is a *sparse* matrix type and `label` is a `numeric` vector in `{0,1}`.
 
@@ -125,7 +129,7 @@ In *sparse* matrix, cells which contains `0` are not encoded. Therefore, in a da
 bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
 ```
 
-> To reach the value of a `S3` object field we use the `$` character.
+> To reach the value of a variable in a `list` use the `$` character followed by the name.
 
 Alternatively, you can put your dataset in a *dense* matrix, i.e. a basic *R* matrix.
 
@@ -193,8 +197,9 @@ Here, we have just computed a simple metric: the average error:
 * `probabilityVectorPreviouslyComputed != test$label` computes the vector of error between true data and computed probabilities ;
 * `mean(vectorOfErrors)` computes the average error itself.
 
-> The most important thing to remember is that to do a classification basically, you just do a regression and then apply a threeshold. 
-> Multiclass classification works in a very similar way.
+The most important thing to remember is that **to do a classification basically, you just do a regression and then apply a threeshold**. 
+
+Multiclass classification works in a very similar way.
 
 This metrix is **`r round(err, 2)`** and is pretty low: our yummly mushroom model works well!
 
@@ -282,7 +287,7 @@ watchlist <- list(train=dtrain, test=dtest)
 bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist, objective = "binary:logistic")
 ```
 
-> **Xgboost** has computed at each round the same average error metric than seen above (we set `nround` to 2, that is why we have two lines of metric here). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset. 
+**Xgboost** has computed at each round the same average error metric than seen above (we set `nround` to 2, that is why we have two lines of metric here). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset. 
 
 Both training and test error related metrics are very similar, and in some way, it makes sense: what we have learned from the training dataset matches the observations from the test dataset.
 
