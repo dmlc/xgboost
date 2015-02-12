@@ -14,9 +14,29 @@ vignette: >
 Introduction
 ============
 
-The purpose of this Vignette is to show you how to use **Xgboost** to make prediction from a model based on your own dataset.
+This is an introductory document of using the \verb@xgboost@ package in **R**. 
 
-You may know **Xgboost** as a state of the art tool to build some kind of Machine learning models. It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competitions. 
+**Xgboost** is short for e**X**treme **G**radient **B**oosting package. 
+
+It is an efficient and scalable implementation of gradient boosting framework by \citep{friedman2001greedy}. 
+
+The package includes efficient linear model solver and tree learning algorithm. It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objectives easily. 
+
+It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competitions. 
+
+It has several features:
+
+* Speed: it can automatically do parallel computation on *Windows* and *Linux*, with **OpenMP**. It is generally over 10 times faster than `gbm`.
+* Input Type: it takes several types of input data:
+    * Dense Matrix: **R**'s dense matrix, i.e. `matrix` ;
+    * Sparse Matrix: **R**'s sparse matrix, i.e. `Matrix::dgCMatrix` ;
+    * Data File: local data files ;
+    * `xgb.DMatrix`: it's own class (recommended) ;
+* Sparsity: it accepts sparse input for both *tree booster*  and *linear booster*, and is optimized for sparse input ;
+* Customization: it supports customized objective function and evaluation function ;
+* Performance: it has better performance on several different datasets.
+
+The purpose of this Vignette is to show you how to use **Xgboost** to make prediction from a model based on your own dataset.
 
 Installation
 ============
