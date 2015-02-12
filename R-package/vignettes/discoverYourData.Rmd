@@ -16,19 +16,15 @@ Introduction
 
 The purpose of this Vignette is to show you how to use **Xgboost** to discover and better understand your own dataset.
 
-You may know **Xgboost** as a state of the art tool to build some kind of Machine learning models. It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competition. 
-
-During these competition, the purpose is to make prediction. This Vignette is not about showing you how to predict anything (see [Xgboost presentation](www.somewhere.org)). The purpose of this document is to explain how to use **Xgboost** to understand the *link* between the *features* of your data and an *outcome*.
+This Vignette is not about showing you how to predict anything (see [Xgboost presentation](www.somewhere.org)). The purpose of this document is to explain how to use **Xgboost** to understand the *link* between the *features* of your data and an *outcome*.
 
 For the purpose of this tutorial we will first load the required packages.
-
---> ADD PART REGARDING INSTALLATION FROM GITHUB
 
 ```{r libLoading, results='hold', message=F, warning=F}
 require(xgboost)
 require(Matrix)
 require(data.table)
-if (!require(vcd)) install.packages('vcd') 
+if (!require('vcd')) install.packages('vcd') 
 ```
 > **VCD** package is used for one of its embedded dataset only (and not for its own functions).
 

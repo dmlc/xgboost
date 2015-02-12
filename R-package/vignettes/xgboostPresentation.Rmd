@@ -41,16 +41,27 @@ The purpose of this Vignette is to show you how to use **Xgboost** to make predi
 Installation
 ============
 
-For the purpose of this tutorial we will first load the required packages.
+For up-to-date version(which is *highly* recommended), please install from Github:
 
---> ADD PART REGARDING INSTALLATION FROM GITHUB
+```{r installGithub, eval=FALSE}
+devtools::install_github('tqchen/xgboost',subdir='R-package')
+```
+
+> *Windows* user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
+
+For stable version on CRAN, please run
+
+```{r installCran, eval=FALSE}
+install.packages('xgboost')
+```
+
+For the purpose of this tutorial we will load the required package.
 
 ```{r libLoading, results='hold', message=F, warning=F}
 require(xgboost)
-require(methods)
 ```
 
-In this example, we are aiming to predict whether a mushroom can be eated.
+In this example, we are aiming to predict whether a mushroom can be eated (yeah, as always, example data are super interesting :-).
 
 Learning
 ========
