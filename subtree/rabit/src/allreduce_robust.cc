@@ -77,7 +77,10 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
                                 PreprocFunction prepare_fun,
                                 void *prepare_arg) {
   // skip action in single node
-  if (world_size == 1) return;
+  if (world_size == 1) {
+    if (prepare_fun != NULL) prepare_fun(prepare_arg);
+    return;
+  }
   bool recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter);
   // now we are free to remove the last result, if any
   if (resbuf.LastSeqNo() != -1 &&
