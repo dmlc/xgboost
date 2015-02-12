@@ -111,10 +111,10 @@ extern "C" {
    * \brief make prediction based on dmat
    * \param handle handle
    * \param dmat data matrix
-   * \param output_margin whether only output raw margin value
+   * \param option_mask output_margin:1 predict_leaf:2
    * \param ntree_limit limit number of trees used in prediction
    */
-  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin, SEXP ntree_limit);
+  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask, SEXP ntree_limit);
   /*!
    * \brief load model from existing file
    * \param handle handle
@@ -128,12 +128,22 @@ extern "C" {
    */    
   void XGBoosterSaveModel_R(SEXP handle, SEXP fname);
   /*!
-   * \brief dump model into text file 
+   * \brief load model from raw array
    * \param handle handle
-   * \param fname file name of model that can be dumped into
+   */    
+  void XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw);
+  /*!
+   * \brief save model into R's raw array
+   * \param handle handle
+   * \return raw array
+   */
+  SEXP XGBoosterModelToRaw_R(SEXP handle);
+  /*!
+   * \brief dump model into a string
+   * \param handle handle
    * \param fmap  name to fmap can be empty string
    * \param with_stats whether dump statistics of splits
    */
-  void XGBoosterDumpModel_R(SEXP handle, SEXP fname, SEXP fmap, SEXP with_stats);
+  SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats);
 }
 #endif  // XGBOOST_WRAPPER_R_H_

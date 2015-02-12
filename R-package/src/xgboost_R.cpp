@@ -3,10 +3,12 @@
 #include <utility>
 #include <cstring>
 #include <cstdio>
-#include "xgboost_R.h"
+#include <sstream> 
 #include "wrapper/xgboost_wrapper.h"
 #include "src/utils/utils.h"
 #include "src/utils/omp.h"
+#include "xgboost_R.h"
+
 using namespace std;
 using namespace xgboost;
 
@@ -69,13 +71,13 @@ extern "C" {
                                 SEXP missing) {
     _WrapperBegin();
     SEXP dim = getAttrib(mat, R_DimSymbol);
-    int nrow = INTEGER(dim)[0];
-    int ncol = INTEGER(dim)[1];    
+    size_t nrow = static_cast<size_t>(INTEGER(dim)[0]);
+    size_t ncol = static_cast<size_t>(INTEGER(dim)[1]);
     double *din = REAL(mat);
     std::vector<float> data(nrow * ncol);
     #pragma omp parallel for schedule(static)
-    for (int i = 0; i < nrow; ++i) {
-      for (int j = 0; j < ncol; ++j) {
+    for (bst_omp_uint i = 0; i < nrow; ++i) {
+      for (size_t j = 0; j < ncol; ++j) {
         data[i * ncol +j] = din[i + nrow * j];
       }
     }
@@ -246,12 +248,12 @@ extern "C" {
                                          asInteger(iter),
                                          BeginPtr(vec_dmats), BeginPtr(vec_sptr), len));
   }
-  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP output_margin, SEXP ntree_limit) {
+  SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask, SEXP ntree_limit) {
     _WrapperBegin();
     bst_ulong olen;
     const float *res = XGBoosterPredict(R_ExternalPtrAddr(handle),
                                         R_ExternalPtrAddr(dmat),
-                                        asInteger(output_margin),
+                                        asInteger(option_mask),
                                         asInteger(ntree_limit),
                                         &olen);
     SEXP ret = PROTECT(allocVector(REALSXP, olen));
@@ -272,20 +274,38 @@ extern "C" {
     XGBoosterSaveModel(R_ExternalPtrAddr(handle), CHAR(asChar(fname)));
     _WrapperEnd();
   }
-  void XGBoosterDumpModel_R(SEXP handle, SEXP fname,
-                            SEXP fmap, SEXP with_stats) {
+  void XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw) {    
+    _WrapperBegin();
+    XGBoosterLoadModelFromBuffer(R_ExternalPtrAddr(handle),
+                                 RAW(raw),
+                                 length(raw));
+    _WrapperEnd();
+  }
+  SEXP XGBoosterModelToRaw_R(SEXP handle) {
+    bst_ulong olen;
+    _WrapperBegin();
+    const char *raw = XGBoosterGetModelRaw(R_ExternalPtrAddr(handle), &olen);
+    _WrapperEnd();
+    SEXP ret = PROTECT(allocVector(RAWSXP, olen));
+    memcpy(RAW(ret), raw, olen);
+    UNPROTECT(1);    
+    return ret;
+  }
+  SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats) {
     _WrapperBegin();
     bst_ulong olen;
     const char **res = XGBoosterDumpModel(R_ExternalPtrAddr(handle),
-                                          CHAR(asChar(fmap)),
-                                          asInteger(with_stats),
-                                          &olen);
-    FILE *fo = utils::FopenCheck(CHAR(asChar(fname)), "w");
-    for (size_t i = 0; i < olen; ++i) {
-      fprintf(fo, "booster[%u]:\n", static_cast<unsigned>(i));
-      fprintf(fo, "%s", res[i]);
+    CHAR(asChar(fmap)),
+    asInteger(with_stats),
+    &olen);
+    SEXP out = PROTECT(allocVector(STRSXP, olen));    
+    for (size_t i = 0; i < olen; ++i) {     
+      stringstream stream;
+      stream <<  "booster["<<i<<"]\n" << res[i];
+      SET_STRING_ELT(out, i, mkChar(stream.str().c_str()));
     }
-    fclose(fo);
     _WrapperEnd();
+    UNPROTECT(1);
+    return out;
   }
 }

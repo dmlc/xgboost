@@ -34,7 +34,6 @@ xglib.XGBoosterPredict.restype = ctypes.POINTER(ctypes.c_float)
 xglib.XGBoosterEvalOneIter.restype = ctypes.c_char_p
 xglib.XGBoosterDumpModel.restype = ctypes.POINTER(ctypes.c_char_p)
 
-
 def ctypes2numpy(cptr, length, dtype):
     """convert a ctypes pointer array to numpy array """
     assert isinstance(cptr, ctypes.POINTER(ctypes.c_float))
@@ -304,6 +303,7 @@ class Booster:
                                     (ctypes.c_float*len(grad))(*grad),
                                     (ctypes.c_float*len(hess))(*hess),
                                     len(grad))
+
     def eval_set(self, evals, it = 0, feval = None):
         """evaluates by metric
             Args:
@@ -332,24 +332,38 @@ class Booster:
             return res
     def eval(self, mat, name = 'eval', it = 0):
         return self.eval_set( [(mat,name)], it)
-    def predict(self, data, output_margin=False, ntree_limit=0):
+    def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False):
         """
         predict with data
             Args:
                 data: DMatrix
-                      the dmatrix storing the input
+                    the dmatrix storing the input
                 output_margin: bool
-                               whether output raw margin value that is untransformed
-
+                    whether output raw margin value that is untransformed
                 ntree_limit: int
-                             limit number of trees in prediction, default to 0, 0 means using all the trees
+                    limit number of trees in prediction, default to 0, 0 means using all the trees
+                pred_leaf: bool
+                    when this option is on, the output will be a matrix of (nsample, ntrees)
+                    with each record indicate the predicted leaf index of each sample in each tree
+                    Note that the leaf index of tree is unique per tree, so you may find leaf 1 in both tree 1 and tree 0
             Returns:
                 numpy array of prediction
         """
+        option_mask = 0
+        if output_margin:
+            option_mask += 1
+        if pred_leaf:
+            option_mask += 2
         length = ctypes.c_ulong()
         preds = xglib.XGBoosterPredict(self.handle, data.handle,
-                                       int(output_margin), ntree_limit, ctypes.byref(length))
-        return ctypes2numpy(preds, length.value, 'float32')
+                                       option_mask, ntree_limit, ctypes.byref(length))        
+        preds = ctypes2numpy(preds, length.value, 'float32')
+        if pred_leaf:
+            preds = preds.astype('int32')        
+        nrow = data.num_row()
+        if preds.size != nrow and preds.size % nrow == 0:
+            preds = preds.reshape(nrow, preds.size / nrow) 
+        return preds
     def save_model(self, fname):
         """ save model to file
             Args:
@@ -542,3 +556,4 @@ def cv(params, dtrain, num_boost_round = 10, nfold=3, metrics=[], \
         sys.stderr.write(res+'\n')
         results.append(res)
     return results
+

@@ -57,12 +57,35 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
     }
   }
   if (!is.null(modelfile)) {
-    if (typeof(modelfile) != "character") {
-      stop("xgb.Booster: modelfile must be character")
+    if (typeof(modelfile) == "character") {
+      .Call("XGBoosterLoadModel_R", handle, modelfile, PACKAGE = "xgboost")
+    } else if (typeof(modelfile) == "raw") {
+      .Call("XGBoosterLoadModelFromRaw_R", handle, modelfile, PACKAGE = "xgboost")      
+    } else {
+      stop("xgb.Booster: modelfile must be character or raw vector")
     }
-    .Call("XGBoosterLoadModel_R", handle, modelfile, PACKAGE = "xgboost")
   }
-  return(structure(handle, class = "xgb.Booster"))
+  return(structure(handle, class = "xgb.Booster.handle"))
+}
+
+# convert xgb.Booster.handle to xgb.Booster
+xgb.handleToBooster <- function(handle)
+{
+  bst <- list(handle = handle, raw = NULL)
+  class(bst) <- "xgb.Booster"
+  return(bst)
+}
+
+# Check whether an xgb.Booster object is complete
+xgb.Booster.check <- function(bst, saveraw = TRUE)
+{
+  if (is.null(bst$handle)) {
+    bst$handle <- xgb.load(bst$raw)
+  } else {
+    if (is.null(bst$raw) && saveraw)
+      bst$raw <- xgb.save.raw(bst$handle)
+  }
+  return(bst)
 }
 
 ## ----the following are low level iteratively function, not needed if
@@ -99,8 +122,8 @@ xgb.numrow <- function(dmat) {
 }
 # iteratively update booster with customized statistics
 xgb.iter.boost <- function(booster, dtrain, gpair) {
-  if (class(booster) != "xgb.Booster") {
-    stop("xgb.iter.update: first argument must be type xgb.Booster")
+  if (class(booster) != "xgb.Booster.handle") {
+    stop("xgb.iter.update: first argument must be type xgb.Booster.handle")
   }
   if (class(dtrain) != "xgb.DMatrix") {
     stop("xgb.iter.update: second argument must be type xgb.DMatrix")
@@ -112,8 +135,8 @@ xgb.iter.boost <- function(booster, dtrain, gpair) {
 
 # iteratively update booster with dtrain
 xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
-  if (class(booster) != "xgb.Booster") {
-    stop("xgb.iter.update: first argument must be type xgb.Booster")
+  if (class(booster) != "xgb.Booster.handle") {
+    stop("xgb.iter.update: first argument must be type xgb.Booster.handle")
   }
   if (class(dtrain) != "xgb.DMatrix") {
     stop("xgb.iter.update: second argument must be type xgb.DMatrix")
@@ -131,8 +154,8 @@ xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
 }
 
 # iteratively evaluate one iteration
-xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL) {
-  if (class(booster) != "xgb.Booster") {
+xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL, prediction = FALSE) {
+  if (class(booster) != "xgb.Booster.handle") {
     stop("xgb.eval: first argument must be type xgb.Booster")
   }
   if (typeof(watchlist) != "list") {
@@ -169,18 +192,27 @@ xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL) {
   } else {
     msg <- ""
   }
+  if (prediction){
+    preds <- predict(booster,watchlist[[2]])
+    return(list(msg,preds))
+  }
   return(msg)
-} 
+}
 #------------------------------------------
 # helper functions for cross validation
 #
 xgb.cv.mknfold <- function(dall, nfold, param) {
-  randidx <- sample(1 : xgb.numrow(dall))
-  kstep <- length(randidx) / nfold
-  idset <- list()
-  for (i in 1:nfold) {
-    idset[[i]] <- randidx[ ((i-1) * kstep + 1) : min(i * kstep, length(randidx)) ]
+  if (nfold <= 1) {
+    stop("nfold must be bigger than 1")
   }
+  randidx <- sample(1 : xgb.numrow(dall))
+  kstep <- length(randidx) %/% nfold
+  idset <- list()
+  for (i in 1:(nfold-1)) {
+    idset[[i]] = randidx[1:kstep]
+    randidx = setdiff(randidx,idset[[i]])
+  }
+  idset[[nfold]] = randidx
   ret <- list()
   for (k in 1:nfold) {
     dtest <- slice(dall, idset[[k]])
@@ -193,7 +225,7 @@ xgb.cv.mknfold <- function(dall, nfold, param) {
     dtrain <- slice(dall, didx)
     bst <- xgb.Booster(param, list(dtrain, dtest))
     watchlist = list(train=dtrain, test=dtest)
-    ret[[k]] <- list(dtrain=dtrain, booster=bst, watchlist=watchlist)
+    ret[[k]] <- list(dtrain=dtrain, booster=bst, watchlist=watchlist, index=idset[[k]])
   }
   return (ret)
 }

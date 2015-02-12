@@ -19,7 +19,7 @@ cat('running cross validation, disable standard deviation display\n')
 # [iteration]  metric_name:mean_value+std_value
 # std_value is standard deviation of the metric
 xgb.cv(param, dtrain, nround, nfold=5,
-       metrics={'error'}, , showsd = FALSE)
+       metrics={'error'}, showsd = FALSE)
 
 ###
 # you can also do cross validation with cutomized loss function
@@ -45,3 +45,7 @@ param <- list(max.depth=2,eta=1,silent=1)
 xgb.cv(param, dtrain, nround, nfold = 5,
        obj = logregobj, feval=evalerror)
 
+# do cross validation with prediction values for each fold
+res <- xgb.cv(param, dtrain, nround, nfold=5, prediction = TRUE)
+res$dt
+length(res$pred)

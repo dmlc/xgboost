@@ -1,7 +1,7 @@
 #ifndef XGBOOST_WRAPPER_H_
 #define XGBOOST_WRAPPER_H_
 /*!
- * \file xgboost_wrapperh
+ * \file xgboost_wrapper.h
  * \author Tianqi Chen
  * \brief a C style wrapper of xgboost
  *  can be used to create wrapper of other languages
@@ -41,7 +41,7 @@ extern "C" {
    * \param col_ptr pointer to col headers
    * \param indices findex
    * \param data fvalue
-   * \param nindptr number of rows in the matix + 1 
+   * \param nindptr number of rows in the matix + 1
    * \param nelem number of nonzero elements in the matrix
    * \return created dmatrix
    */
@@ -178,12 +178,18 @@ extern "C" {
    * \brief make prediction based on dmat
    * \param handle handle
    * \param dmat data matrix
-   * \param output_margin whether only output raw margin value
+   * \param option_mask bit-mask of options taken in prediction, possible values
+   *          0:normal prediction
+   *          1:output margin instead of transformed value
+   *          2:output leaf index of trees instead of leaf value, note leaf index is unique per tree
    * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
    *    when the parameter is set to 0, we will use all the trees
    * \param len used to store length of returning result
    */
-  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, unsigned ntree_limit, bst_ulong *len);
+  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, 
+                                        int option_mask, 
+                                        unsigned ntree_limit,
+                                        bst_ulong *len);
   /*!
    * \brief load model from existing file
    * \param handle handle
@@ -196,6 +202,21 @@ extern "C" {
    * \param fname file name
    */
   XGB_DLL void XGBoosterSaveModel(const void *handle, const char *fname);
+  /*!
+   * \brief load model from in memory buffer
+   * \param handle handle
+   * \param buf pointer to the buffer
+   * \param len the length of the buffer
+   */
+  XGB_DLL void XGBoosterLoadModelFromBuffer(void *handle, const void *buf, bst_ulong len);
+  /*!
+   * \brief save model into binary raw bytes, return header of the array
+   * user must copy the result out, before next xgboost call
+   * \param handle handle
+   * \param out_len the argument to hold the output length
+   * \return the pointer to the beginning of binary buffer
+   */
+  XGB_DLL const char *XGBoosterGetModelRaw(void *handle, bst_ulong *out_len);
   /*!
    * \brief dump model, return array of strings representing model dump
    * \param handle handle

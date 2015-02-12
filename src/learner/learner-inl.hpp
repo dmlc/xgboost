@@ -10,6 +10,9 @@
 #include <utility>
 #include <string>
 #include <limits>
+#include "../sync/sync.h"
+#include "../utils/io.h"
+#include "../utils/base64.h"
 #include "./objective.h"
 #include "./evaluation.h"
 #include "../gbm/gbm.h"
@@ -21,7 +24,7 @@ namespace learner {
  * \brief learner that takes do gradient boosting on specific objective functions
  *  and do training and prediction
  */
-class BoostLearner {
+class BoostLearner : public rabit::ISerializable {
  public:
   BoostLearner(void) {
     obj_ = NULL;
@@ -30,8 +33,13 @@ class BoostLearner {
     name_gbm_ = "gbtree";
     silent= 0;
     prob_buffer_row = 1.0f;
+    distributed_mode = 0;
+    pred_buffer_size = 0;
+    seed_per_iteration = 0;
+    seed = 0;
+    save_base64 = 0;
   }
-  ~BoostLearner(void) {
+  virtual ~BoostLearner(void) {
     if (obj_ != NULL) delete obj_;
     if (gbm_ != NULL) delete gbm_;
   }
@@ -44,11 +52,9 @@ class BoostLearner {
    * \param mats array of pointers to matrix whose prediction result need to be cached
    */          
   inline void SetCacheData(const std::vector<DMatrix*>& mats) {
-    // estimate feature bound
-    unsigned num_feature = 0;
+    utils::Assert(cache_.size() == 0, "can only call cache data once");
     // assign buffer index
     size_t buffer_size = 0;
-    utils::Assert(cache_.size() == 0, "can only call cache data once");
     for (size_t i = 0; i < mats.size(); ++i) {
       bool dupilicate = false;
       for (size_t j = 0; j < i; ++j) {
@@ -59,19 +65,12 @@ class BoostLearner {
       mats[i]->cache_learner_ptr_ = this;
       cache_.push_back(CacheEntry(mats[i], buffer_size, mats[i]->info.num_row()));
       buffer_size += mats[i]->info.num_row();
-      num_feature = std::max(num_feature, static_cast<unsigned>(mats[i]->info.num_col()));
     }
     char str_temp[25];
-    if (num_feature > mparam.num_feature) {
-      utils::SPrintf(str_temp, sizeof(str_temp), "%u", num_feature);
-      this->SetParam("bst:num_feature", str_temp);
-    }
-    utils::SPrintf(str_temp, sizeof(str_temp), "%lu",
-			 static_cast<unsigned long>(buffer_size));
+    utils::SPrintf(str_temp, sizeof(str_temp), "%lu", 
+                   static_cast<unsigned long>(buffer_size));
     this->SetParam("num_pbuffer", str_temp);
-    if (!silent) {
-      utils::Printf("buffer_size=%ld\n", static_cast<long>(buffer_size));
-    }
+    this->pred_buffer_size = buffer_size;
   }
   /*!
    * \brief set parameters from outside
@@ -86,9 +85,29 @@ class BoostLearner {
       this->SetParam(n.c_str(), val);
     }
     if (!strcmp(name, "silent")) silent = atoi(val);
-    if (!strcmp(name, "prob_buffer_row")) prob_buffer_row = static_cast<float>(atof(val));
+    if (!strcmp(name, "dsplit")) {
+      if (!strcmp(val, "col")) {
+        this->SetParam("updater", "distcol");
+        distributed_mode = 1;
+      } else if (!strcmp(val, "row")) {
+        this->SetParam("updater", "grow_histmaker,prune");
+        distributed_mode = 2;
+      } else {
+        utils::Error("%s is invalid value for dsplit, should be row or col", val);
+      }
+    }
+    if (!strcmp(name, "prob_buffer_row")) {
+      prob_buffer_row = static_cast<float>(atof(val));
+      utils::Check(distributed_mode == 0,
+                   "prob_buffer_row can only be used in single node mode so far");
+      this->SetParam("updater", "grow_colmaker,refresh,prune");
+    }
     if (!strcmp(name, "eval_metric")) evaluator_.AddEval(val);
-    if (!strcmp("seed", name)) random::Seed(atoi(val));
+    if (!strcmp("seed", name)) {
+      seed = atoi(val); random::Seed(seed);
+    }
+    if (!strcmp("seed_per_iter", name)) seed_per_iteration = atoi(val);
+    if (!strcmp("save_base64", name)) save_base64 = atoi(val);
     if (!strcmp(name, "num_class")) this->SetParam("num_output_group", val);
     if (!strcmp(name, "nthread")) {
       omp_set_num_threads(atoi(val));
@@ -104,10 +123,29 @@ class BoostLearner {
       cfg_.push_back(std::make_pair(std::string(name), std::string(val)));
     }
   }
+  // this is an internal function
+  // initialize the trainer, called at InitModel and LoadModel
+  inline void InitTrainer(bool calc_num_feature = true) {
+    if (calc_num_feature) {
+      // estimate feature bound
+      unsigned num_feature = 0;
+      for (size_t i = 0; i < cache_.size(); ++i) {
+        num_feature = std::max(num_feature, 
+                               static_cast<unsigned>(cache_[i].mat_->info.num_col()));
+      }
+      // run allreduce on num_feature to find the maximum value
+      rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
+      if (num_feature > mparam.num_feature) mparam.num_feature = num_feature;
+    } 
+    char str_temp[25];
+    utils::SPrintf(str_temp, sizeof(str_temp), "%d", mparam.num_feature);
+    this->SetParam("bst:num_feature", str_temp);   
+  }
   /*!
    * \brief initialize the model
    */
   inline void InitModel(void) {
+    this->InitTrainer();
     // initialize model
     this->InitObjGBM();
     // reset the base score
@@ -118,8 +156,12 @@ class BoostLearner {
   /*!
    * \brief load model from stream
    * \param fi input stream
+   * \param with_pbuffer whether to load with predict buffer
+   * \param calc_num_feature whether call InitTrainer with calc_num_feature
    */
-  inline void LoadModel(utils::IStream &fi) {
+  inline void LoadModel(utils::IStream &fi,
+                        bool with_pbuffer = true,
+                        bool calc_num_feature = true) {
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "BoostLearner: wrong model format");
     utils::Check(fi.Read(&name_obj_), "BoostLearner: wrong model format");
@@ -127,32 +169,90 @@ class BoostLearner {
     // delete existing gbm if any
     if (obj_ != NULL) delete obj_;
     if (gbm_ != NULL) delete gbm_;
+    this->InitTrainer(calc_num_feature);
     this->InitObjGBM();
-    gbm_->LoadModel(fi);
+    gbm_->LoadModel(fi, with_pbuffer);
+    if (!with_pbuffer || distributed_mode == 2) {
+      gbm_->ResetPredBuffer(pred_buffer_size);
+    }
+  }
+  // rabit load model from rabit checkpoint
+  virtual void Load(rabit::IStream &fi) {
+    RabitStreamAdapter fs(fi);
+    // for row split, we should not keep pbuffer
+    this->LoadModel(fs, distributed_mode != 2, false);
+  }
+  // rabit save model to rabit checkpoint
+  virtual void Save(rabit::IStream &fo) const {
+    RabitStreamAdapter fs(fo);
+    // for row split, we should not keep pbuffer
+    this->SaveModel(fs, distributed_mode != 2);
   }
   /*!
    * \brief load model from file
    * \param fname file name
    */
   inline void LoadModel(const char *fname) {
-    utils::FileStream fi(utils::FopenCheck(fname, "rb"));
+    FILE *fp = utils::FopenCheck(fname, "rb");
+    utils::FileStream fi(fp);
+    std::string header; header.resize(4);
+    // check header for different binary encode
+    // can be base64 or binary
+    if (fi.Read(&header[0], 4) != 0) {
+      // base64 format
+      if (header == "bs64") {
+        utils::Base64InStream bsin(fp);
+        bsin.InitPosition();
+        this->LoadModel(bsin);
+        fclose(fp);
+        return;
+      }
+      if (header == "binf") {
+        this->LoadModel(fi);
+        fclose(fp);
+        return;
+      }
+    }
+    fi.Seek(0);
     this->LoadModel(fi);
-    fi.Close();
+    fclose(fp);
   }
-  inline void SaveModel(utils::IStream &fo) const {
+  inline void SaveModel(utils::IStream &fo, bool with_pbuffer = true) const {
     fo.Write(&mparam, sizeof(ModelParam));
     fo.Write(name_obj_);
     fo.Write(name_gbm_);
-    gbm_->SaveModel(fo);
+    gbm_->SaveModel(fo, with_pbuffer);
   }
   /*!
    * \brief save model into file
    * \param fname file name
    */
   inline void SaveModel(const char *fname) const {
-    utils::FileStream fo(utils::FopenCheck(fname, "wb"));
-    this->SaveModel(fo);
-    fo.Close();
+    FILE *fp;
+    bool use_stdout = false;;
+#ifndef XGBOOST_STRICT_CXX98_
+    if (!strcmp(fname, "stdout")) {
+      fp = stdout;
+      use_stdout = true;
+    } else
+#endif
+    {
+      fp = utils::FopenCheck(fname, "wb");      
+    }
+    utils::FileStream fo(fp);
+    std::string header;
+    if (save_base64 != 0|| use_stdout) {
+      fo.Write("bs64\t", 5);
+      utils::Base64OutStream bout(fp);
+      this->SaveModel(bout);
+      bout.Finish('\n');
+    } else {
+      fo.Write("binf", 4);
+      this->SaveModel(fo);      
+    }
+    if (!use_stdout) {
+      fclose(fp);
+    }
   }
   /*!
    * \brief check if data matrix is ready to be used by training,
@@ -160,7 +260,10 @@ class BoostLearner {
    * \param p_train pointer to the matrix used by training
    */
   inline void CheckInit(DMatrix *p_train) {
-    p_train->fmat()->InitColAccess(prob_buffer_row);
+    int ncol = static_cast<int>(p_train->info.info.num_col);    
+    std::vector<bool> enabled(ncol, true);    
+    // initialize column access
+    p_train->fmat()->InitColAccess(enabled, prob_buffer_row);    
   }
   /*!
    * \brief update the model for one iteration
@@ -168,9 +271,18 @@ class BoostLearner {
    * \param p_train pointer to the data matrix
    */
   inline void UpdateOneIter(int iter, const DMatrix &train) {
+    if (seed_per_iteration != 0 || rabit::IsDistributed()) {
+      random::Seed(this->seed * kRandSeedMagic + iter);
+    }
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train.info, iter, &gpair_);
-    gbm_->DoBoost(train.fmat(), train.info.info, &gpair_);
+    gbm_->DoBoost(train.fmat(), this->FindBufferOffset(train), train.info.info, &gpair_);
+  }
+  /*!
+   * \brief whether model allow lazy checkpoint
+   */
+  inline bool AllowLazyCheckPoint(void) const {
+    return gbm_->AllowLazyCheckPoint();
   }
   /*!
    * \brief evaluate the model for specific iteration
@@ -189,7 +301,7 @@ class BoostLearner {
     for (size_t i = 0; i < evals.size(); ++i) {
       this->PredictRaw(*evals[i], &preds_);
       obj_->EvalTransform(&preds_);
-      res += evaluator_.Eval(evname[i].c_str(), preds_, evals[i]->info);
+      res += evaluator_.Eval(evname[i].c_str(), preds_, evals[i]->info, distributed_mode == 2);
     }
     return res;
   }
@@ -219,8 +331,39 @@ class BoostLearner {
   inline void Predict(const DMatrix &data,
                       bool output_margin,
                       std::vector<float> *out_preds,
+                      unsigned ntree_limit = 0,
+                      bool pred_leaf = false
+                      ) const {
+    if (pred_leaf) {
+      gbm_->PredictLeaf(data.fmat(), data.info.info, out_preds, ntree_limit);      
+    } else {
+      this->PredictRaw(data, out_preds, ntree_limit);
+      if (!output_margin) {
+        obj_->PredTransform(out_preds);
+      }
+    }
+  }
+  /*!
+   * \brief online prediction funciton, predict score for one instance at a time
+   *  NOTE: use the batch prediction interface if possible, batch prediction is usually
+   *        more efficient than online prediction
+   *        This function is NOT threadsafe, make sure you only call from one thread
+   *    
+   * \param inst the instance you want to predict
+   * \param output_margin whether to only predict margin value instead of transformed prediction
+   * \param out_preds output vector to hold the predictions
+   * \param ntree_limit limit the number of trees used in prediction
+   * \param root_index the root index
+   * \sa Predict
+   */
+  inline void Predict(const SparseBatch::Inst &inst,
+                      bool output_margin,
+                      std::vector<float> *out_preds,
                       unsigned ntree_limit = 0) const {
-    this->PredictRaw(data, out_preds, ntree_limit);
+    gbm_->Predict(inst, out_preds, ntree_limit);
+    if (out_preds->size() == 1) {
+      (*out_preds)[0] += mparam.base_score;
+    }
     if (!output_margin) {
       obj_->PredTransform(out_preds);
     }
@@ -240,6 +383,7 @@ class BoostLearner {
     utils::Assert(gbm_ == NULL, "GBM and obj should be NULL");
     obj_ = CreateObjFunction(name_obj_.c_str());
     gbm_ = gbm::CreateGradBooster(name_gbm_.c_str());
+    
     for (size_t i = 0; i < cfg_.size(); ++i) {
       obj_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
       gbm_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
@@ -287,7 +431,7 @@ class BoostLearner {
     /* \brief number of class, if it is multi-class classification  */
     int num_class;
     /*! \brief reserved field */
-    int reserved[32];
+    int reserved[31];
     /*! \brief constructor */
     ModelParam(void) {
       base_score = 0.5f;
@@ -308,14 +452,26 @@ class BoostLearner {
     }
   };
   // data fields
+  // stored random seed
+  int seed;
+  // whether seed the PRNG each iteration
+  // this is important for restart from existing iterations
+  // default set to no, but will auto switch on in distributed mode
+  int seed_per_iteration;
+  // save model in base64 encoding
+  int save_base64;
   // silent during training
   int silent;
+  // distributed learning mode, if any, 0:none, 1:col, 2:row
+  int distributed_mode;
+  // cached size of predict buffer
+  size_t pred_buffer_size;
   // maximum buffred row value
   float prob_buffer_row;
   // evaluation set
   EvalSet evaluator_;
   // model parameter
-  ModelParam   mparam;
+  ModelParam  mparam;
   // gbm model that back everything
   gbm::IGradBooster *gbm_;
   // name of gbm model used for training
@@ -331,7 +487,9 @@ class BoostLearner {
   // gradient pairs
   std::vector<bst_gpair> gpair_;
 
- private:
+ protected:
+  // magic number to transform random seed
+  const static int kRandSeedMagic = 127;
   // cache entry object that helps handle feature caching
   struct CacheEntry {
     const DMatrix *mat_;
@@ -354,6 +512,23 @@ class BoostLearner {
   // data structure field
   /*! \brief the entries indicates that we have internal prediction cache */
   std::vector<CacheEntry> cache_;
+
+ private:
+  // adapt rabit stream to utils stream
+  struct RabitStreamAdapter : public utils::IStream {
+    // rabit stream
+    rabit::IStream &fs;
+    // constructr
+    RabitStreamAdapter(rabit::IStream &fs) : fs(fs) {}
+    // destructor
+    virtual ~RabitStreamAdapter(void){}
+    virtual size_t Read(void *ptr, size_t size) {
+      return fs.Read(ptr, size);
+    }
+    virtual void Write(const void *ptr, size_t size) {
+      fs.Write(ptr, size);
+    }
+  };
 };
 }  // namespace learner
 }  // namespace xgboost

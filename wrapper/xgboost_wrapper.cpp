@@ -8,7 +8,9 @@
 #include <algorithm>
 // include all std functions
 using namespace std;
-
+#ifdef _MSC_VER
+#define isnan(x) (_isnan(x) != 0)
+#endif
 #include "./xgboost_wrapper.h"
 #include "../src/data.h"
 #include "../src/learner/learner-inl.hpp"
@@ -30,9 +32,9 @@ class Booster: public learner::BoostLearner {
     this->init_model = false;
     this->SetCacheData(mats);
   }
-  inline const float *Pred(const DataMatrix &dmat, int output_margin, unsigned ntree_limit, bst_ulong *len) {
+  inline const float *Pred(const DataMatrix &dmat, int option_mask, unsigned ntree_limit, bst_ulong *len) {
     this->CheckInitModel();
-    this->Predict(dmat, output_margin != 0, &this->preds_, ntree_limit);
+    this->Predict(dmat, (option_mask&1) != 0, &this->preds_, ntree_limit, (option_mask&2) != 0);
     *len = static_cast<bst_ulong>(this->preds_.size());
     return BeginPtr(this->preds_);
   }
@@ -44,7 +46,7 @@ class Booster: public learner::BoostLearner {
     for (bst_omp_uint j = 0; j < ndata; ++j) {
       gpair_[j] = bst_gpair(grad[j], hess[j]);
     }
-    gbm_->DoBoost(train.fmat(), train.info.info, &gpair_);
+    gbm_->DoBoost(train.fmat(), this->FindBufferOffset(train), train.info.info, &gpair_);
   }
   inline void CheckInitModel(void) {
     if (!init_model) {
@@ -54,6 +56,22 @@ class Booster: public learner::BoostLearner {
   inline void LoadModel(const char *fname) {
     learner::BoostLearner::LoadModel(fname);
     this->init_model = true;
+  }
+  inline void LoadModelFromBuffer(const void *buf, size_t size) {
+    utils::MemoryFixSizeBuffer fs((void*)buf, size);
+    learner::BoostLearner::LoadModel(fs);
+    this->init_model = true;    
+  }
+  inline const char *GetModelRaw(bst_ulong *out_len) {
+    model_str.resize(0);
+    utils::MemoryBufferStream fs(&model_str);
+    learner::BoostLearner::SaveModel(fs);
+    *out_len = static_cast<bst_ulong>(model_str.length());
+    if (*out_len == 0) {
+      return NULL;
+    } else {
+      return &model_str[0];
+    }
   }
   inline const char** GetModelDump(const utils::FeatMap& fmap, bool with_stats, bst_ulong *len) {
     model_dump = this->DumpModel(fmap, with_stats);
@@ -67,6 +85,8 @@ class Booster: public learner::BoostLearner {
   // temporal fields
   // temporal data to save evaluation dump
   std::string eval_str;
+  // temporal data to save model dump
+  std::string model_str;
   // temporal space to save model dump
   std::vector<std::string> model_dump;
   std::vector<const char*> model_dump_cptr;
@@ -131,8 +151,8 @@ extern "C"{
   void* XGDMatrixCreateFromMat(const float *data,
                                bst_ulong nrow,
                                bst_ulong ncol,
-                               float  missing) {
-    bool nan_missing = std::isnan(missing);
+                               float  missing) {    
+    bool nan_missing = isnan(missing);
     DMatrixSimple *p_mat = new DMatrixSimple();
     DMatrixSimple &mat = *p_mat;
     mat.info.info.num_row = nrow;
@@ -140,8 +160,9 @@ extern "C"{
     for (bst_ulong i = 0; i < nrow; ++i, data += ncol) {
       bst_ulong nelem = 0;
       for (bst_ulong j = 0; j < ncol; ++j) {
-        if (std::isnan(data[j])) {
-          utils::Check(nan_missing, "There are NAN in the matrix, however, you did not set missing=NAN");          
+        if (isnan(data[j])) {
+          utils::Check(nan_missing,
+                       "There are NAN in the matrix, however, you did not set missing=NAN"); 
         } else {
           if (nan_missing || data[j] != missing) {
             mat.row_data_.push_back(RowBatch::Entry(j, data[j]));
@@ -284,14 +305,20 @@ extern "C"{
     bst->eval_str = bst->EvalOneIter(iter, mats, names);
     return bst->eval_str.c_str();
   }
-  const float *XGBoosterPredict(void *handle, void *dmat, int output_margin, unsigned ntree_limit, bst_ulong *len) {
-    return static_cast<Booster*>(handle)->Pred(*static_cast<DataMatrix*>(dmat), output_margin, ntree_limit, len);
+  const float *XGBoosterPredict(void *handle, void *dmat, int option_mask, unsigned ntree_limit, bst_ulong *len) {
+    return static_cast<Booster*>(handle)->Pred(*static_cast<DataMatrix*>(dmat), option_mask, ntree_limit, len);
   }
   void XGBoosterLoadModel(void *handle, const char *fname) {
     static_cast<Booster*>(handle)->LoadModel(fname);
   }
   void XGBoosterSaveModel(const void *handle, const char *fname) {
     static_cast<const Booster*>(handle)->SaveModel(fname);
+  }
+  void XGBoosterLoadModelFromBuffer(void *handle, const void *buf, bst_ulong len) {
+    static_cast<Booster*>(handle)->LoadModelFromBuffer(buf, len);
+  }
+  const char *XGBoosterGetModelRaw(void *handle, bst_ulong *out_len) {
+    return static_cast<Booster*>(handle)->GetModelRaw(out_len);
   }
   const char** XGBoosterDumpModel(void *handle, const char *fmap, int with_stats, bst_ulong *len){
     utils::FeatMap featmap;

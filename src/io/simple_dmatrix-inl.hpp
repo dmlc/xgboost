@@ -44,8 +44,8 @@ class DMatrixSimple : public DataMatrix {
   }
   /*! \brief copy content data from source matrix */
   inline void CopyFrom(const DataMatrix &src) {
-    this->info = src.info;
     this->Clear();
+    this->info = src.info;
     // clone data content in thos matrix
     utils::IIterator<RowBatch> *iter = src.fmat()->RowIterator();
     iter->BeforeFirst();
@@ -84,7 +84,12 @@ class DMatrixSimple : public DataMatrix {
   inline void LoadText(const char* fname, bool silent = false) {
     using namespace std;
     this->Clear();
-    FILE* file = utils::FopenCheck(fname, "r");
+    FILE* file;
+    if (!strcmp(fname, "stdin")) {
+      file = stdin;
+    } else {
+      file = utils::FopenCheck(fname, "r");      
+    }
     float label; bool init = true;
     char tmp[1024];
     std::vector<RowBatch::Entry> feats;
@@ -112,7 +117,9 @@ class DMatrixSimple : public DataMatrix {
                     static_cast<unsigned long>(info.num_col()),
                     static_cast<unsigned long>(row_data_.size()), fname);
     }
-    fclose(file);
+    if (file != stdin) {
+      fclose(file);
+    }
     // try to load in additional file
     std::string name = fname;
     std::string gname = name + ".group";
@@ -152,7 +159,7 @@ class DMatrixSimple : public DataMatrix {
   inline void LoadBinary(utils::IStream &fs, bool silent = false, const char *fname = NULL) {
     int tmagic;
     utils::Check(fs.Read(&tmagic, sizeof(tmagic)) != 0, "invalid input file format");
-    utils::Check(tmagic == kMagic, "invalid format,magic number mismatch");
+    utils::Check(tmagic == kMagic, "\"%s\" invalid format, magic number mismatch", fname == NULL ? "" : fname);
 
     info.LoadBinary(fs);
     FMatrixS::LoadBinary(fs, &row_ptr_, &row_data_);

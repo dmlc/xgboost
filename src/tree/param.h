@@ -36,8 +36,14 @@ struct TrainParam{
   float colsample_bytree;
   // speed optimization for dense column
   float opt_dense_col;
+  // accuracy of sketch
+  float sketch_eps;
+  // accuracy of sketch
+  float sketch_ratio;
   // leaf vector size
-  int size_leaf_vector;
+  int size_leaf_vector;  
+  // option for parallelization
+  int parallel_option;
   // number of threads to be used for tree construction,
   // if OpenMP is enabled, if equals 0, use system default
   int nthread;
@@ -55,6 +61,9 @@ struct TrainParam{
     opt_dense_col = 1.0f;
     nthread = 0;
     size_leaf_vector = 0;
+    parallel_option = 2;
+    sketch_eps = 0.1f;
+    sketch_ratio = 2.0f;
   }
   /*! 
    * \brief set parameters from outside 
@@ -76,10 +85,13 @@ struct TrainParam{
     if (!strcmp(name, "subsample")) subsample = static_cast<float>(atof(val));
     if (!strcmp(name, "colsample_bylevel")) colsample_bylevel = static_cast<float>(atof(val));
     if (!strcmp(name, "colsample_bytree")) colsample_bytree  = static_cast<float>(atof(val));
+    if (!strcmp(name, "sketch_eps")) sketch_eps  = static_cast<float>(atof(val));
+    if (!strcmp(name, "sketch_ratio")) sketch_ratio  = static_cast<float>(atof(val));
     if (!strcmp(name, "opt_dense_col")) opt_dense_col = static_cast<float>(atof(val));
     if (!strcmp(name, "size_leaf_vector")) size_leaf_vector = atoi(val);
     if (!strcmp(name, "max_depth")) max_depth = atoi(val);
     if (!strcmp(name, "nthread")) nthread = atoi(val);
+    if (!strcmp(name, "parallel_option")) parallel_option = atoi(val);
     if (!strcmp(name, "default_direction")) {
       if (!strcmp(val, "learn")) default_direction = 0;
       if (!strcmp(val, "left")) default_direction = 1;
@@ -131,6 +143,12 @@ struct TrainParam{
   /*! \brief whether we can split with current hessian */
   inline bool cannot_split(double sum_hess, int depth) const {
     return sum_hess < this->min_child_weight * 2.0;
+  }
+  /*! \brief maximum sketch size */
+  inline unsigned max_sketch_size(void) const {
+    unsigned ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
+    utils::Check(ret > 0, "sketch_ratio/sketch_eps must be bigger than 1");
+    return ret;
   }
 
  protected:
@@ -185,6 +203,10 @@ struct GradStats {
   /*! \brief add statistics to the data */
   inline void Add(const GradStats &b) {
     this->Add(b.sum_grad, b.sum_hess);
+  }
+  /*! \brief same as add, reduce is used in All Reduce */
+  inline static void Reduce(GradStats &a, const GradStats &b) {
+    a.Add(b);
   }
   /*! \brief set current value to a - b */
   inline void SetSubstract(const GradStats &a, const GradStats &b) {
@@ -261,6 +283,10 @@ struct CVGradStats : public GradStats {
       train[i].Add(b.train[i]);
       valid[i].Add(b.valid[i]);
     }
+  }
+  /*! \brief same as add, reduce is used in All Reduce */
+  inline static void Reduce(CVGradStats &a, const CVGradStats &b) {
+    a.Add(b);
   }
   /*! \brief set current value to a - b */
   inline void SetSubstract(const CVGradStats &a, const CVGradStats &b) {
@@ -340,6 +366,10 @@ struct SplitEntry{
     } else {
       return false;
     }
+  }
+  /*! \brief same as update, used by AllReduce*/
+  inline static void Reduce(SplitEntry &dst, const SplitEntry &src) {
+    dst.Update(src);
   }
   /*!\return feature index to split on */
   inline unsigned split_index(void) const {

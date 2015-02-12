@@ -1,7 +1,7 @@
 require(xgboost)
 require(Matrix)
 require(data.table)
-require(vcd) #Available in Cran. Used for its dataset with categorical values.
+if (!require(vcd)) install.packages('vcd') #Available in Cran. Used for its dataset with categorical values.
 
 # According to its documentation, Xgboost works only on numbers.
 # Sometimes the dataset we have to work on have categorical data. 
