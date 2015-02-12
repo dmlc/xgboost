@@ -15,22 +15,22 @@ vignette: >
 Introduction
 ============
 
-This is an introductory document of using the \verb@xgboost@ package in **R**. 
+This is an introductory document of using the \verb@xgboost@ package in *R*. 
 
 **Xgboost** is short for e**X**treme **G**radient **B**oosting package. 
 
 It is an efficient and scalable implementation of gradient boosting framework by @friedman2001greedy.
 
-The package includes efficient linear model solver and tree learning algorithm. It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objectives easily. 
+The package includes efficient *linear model* solver and *tree learning* algorithm. It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objectives easily. 
 
 It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competitions. 
 
 It has several features:
 
-* Speed: it can automatically do parallel computation on *Windows* and *Linux*, with **OpenMP**. It is generally over 10 times faster than `gbm`.
+* Speed: it can automatically do parallel computation on *Windows* and *Linux*, with *OpenMP*. It is generally over 10 times faster than `gbm`.
 * Input Type: it takes several types of input data:
-    * Dense Matrix: **R**'s dense matrix, i.e. `matrix` ;
-    * Sparse Matrix: **R**'s sparse matrix, i.e. `Matrix::dgCMatrix` ;
+    * Dense Matrix: *R*'s dense matrix, i.e. `matrix` ;
+    * Sparse Matrix: *R*'s sparse matrix, i.e. `Matrix::dgCMatrix` ;
     * Data File: local data files ;
     * `xgb.DMatrix`: it's own class (recommended) ;
 * Sparsity: it accepts sparse input for both *tree booster*  and *linear booster*, and is optimized for sparse input ;
@@ -83,7 +83,7 @@ train <- agaricus.train
 test <- agaricus.test
 ```
 
-> Each variable is a S3 object containing both label and data.
+> Each variable is a `S3` object containing both label and data.
 
 > In the real world, it would be up to you to make this division between `train` and `test` data.
 
@@ -96,14 +96,14 @@ class(train$data)[1]
 class(train$label)
 ```
 
-Basic Training using XGBoost
+Basic Training using Xgboost
 ----------------------------
 
 The most critical part of the process is the training.
 
-We are using the train data. Both `data` and `label` are in each data (explained above). To access to the field of a `S3` object we use the `$` character in **R**.
+We are using the train data. Both `data` and `label` are in each data (explained above). To reach the value of a `S3` object field we use the `$` character.
 
-> label is the outcome of our dataset. It is the classification we want to predict. For these data we already have it, but when our model is built, that is this column we want to guess.
+> `label` is the outcome of our dataset. It is the classification we want to predict. For these data we already have it, but when our model is built, that is this column we want to guess.
 
 In sparse matrix, cells which contains `0` are not encoded. Therefore, in a dataset where there are plenty of `0`, dataset size is optimized. It is very usual to have such dataset. **Xgboost** can manage both dense and sparse matrix.
 
@@ -175,7 +175,7 @@ pred2 <- predict(bst2, test$data)
 print(paste("sum(abs(pred2-pred))=", sum(abs(pred2-pred))))
 ```
 
-In some very specific cases, like when you want to pilot **Xgboost** from `caret`, you will want to save the model as a **R** binary vector. See below how to do it.
+In some very specific cases, like when you want to pilot **Xgboost** from `caret`, you will want to save the model as a *R* binary vector. See below how to do it.
 
 ```{r saveLoadRBinVectorModel, message=F, warning=F}
 # save model to R's raw vector
@@ -273,10 +273,13 @@ xgb.dump(bst, with.stats = T)
 Feature importance
 ------------------
 
-Finally, you can check which features are the most important.
+Finally, you can check which features are the most important and plot the result (more information in vignette [Discover your data with **Xgboost**](www.somewhere.com)).
 
 ```{r featureImportance, message=T, warning=F, fig.width=8, fig.height=5, fig.align='center'}
 importance_matrix <- xgb.importance(feature_names = train$data@Dimnames[[2]], model = bst)
 print(importance_matrix)
 xgb.plot.importance(importance_matrix)
 ```
+
+References
+==========
