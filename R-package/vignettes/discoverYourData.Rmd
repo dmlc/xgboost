@@ -5,6 +5,7 @@ output:
     css: vignette.css
     number_sections: yes
     toc: yes
+author: Tianqi Chen, Tong He, Michaël Benesty
 vignette: >
   %\VignetteIndexEntry{Discover your data}
   %\VignetteEngine{knitr::rmarkdown}

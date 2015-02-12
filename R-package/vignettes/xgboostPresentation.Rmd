@@ -6,6 +6,7 @@ output:
     number_sections: yes
     toc: yes
 bibliography: xgboost.bib
+author: Tianqi Chen, Tong He, Michaël Benesty
 vignette: >
   %\VignetteIndexEntry{Xgboost presentation}
   %\VignetteEngine{knitr::rmarkdown}
@@ -42,7 +43,7 @@ The purpose of this Vignette is to show you how to use **Xgboost** to make predi
 Installation
 ============
 
-For up-to-date version(which is *highly* recommended), please install from Github:
+For up-to-date version (which is *highly* recommended), please install from Github:
 
 ```{r installGithub, eval=FALSE}
 devtools::install_github('tqchen/xgboost',subdir='R-package')
@@ -62,7 +63,9 @@ For the purpose of this tutorial we will load the required package.
 require(xgboost)
 ```
 
-In this example, we are aiming to predict whether a mushroom can be eated (yeah, as always, example data are super interesting :-). Mushroom data is cited from UCI Machine Learning Repository. @Bache+Lichman:2013.
+In this example, we are aiming to predict whether a mushroom can be eated (yeah, as always, example data are the exact one you will work on in your every day life :-). 
+
+Mushroom data is cited from UCI Machine Learning Repository. @Bache+Lichman:2013.
 
 Learning
 ========
@@ -70,46 +73,48 @@ Learning
 Dataset loading
 ---------------
 
-We load the `agaricus` datasets and link it to variables.
+We will load the `agaricus` datasets embedded with the package and will link them to variables.
 
-The dataset is already separated in `train` and `test` data. 
+The datasets are already separated in `train` and `test` data:
 
-As their names imply, the train part will be used to build the model and the test part to check how well our model works. Without separation we would test the model on data the algorithm have already seen, as you may imagine, it's not the best methodology to check the performance of a prediction (would it even be a prediction?).
+* As their names imply, the `train` part will be used to build the model ;
+* `test` will be used to check how well our model is. 
+
+Without dividing the dataset we would test the model on data the algorithm have already seen. As you may imagine, it's not the best methodology to check the performance of a prediction (can it even be called a *prediction*?).
 
 ```{r datasetLoading, results='hold', message=F, warning=F}
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 train <- agaricus.train
 test <- agaricus.test
+# Each variable is a S3 object containing both label and data.
 ```
 
-> Each variable is a `S3` object containing both label and data.
+> In the real world, it would be up to you to make this division between `train` and `test` data. The way you should do it is out of the purpose of this article, however `caret` package may help.
 
-> In the real world, it would be up to you to make this division between `train` and `test` data.
-
-The loaded data is stored in `dgCMatrix` which is a **sparse matrix** type. 
-
-Label is a `numeric` vector in `{0,1}`.
+The loaded `data` are stored in `dgCMatrix` which is a *sparse matrix* type and `label` is a `numeric` vector in `{0,1}`.
 
 ```{r dataClass, message=F, warning=F}
 class(train$data)[1]
 class(train$label)
 ```
 
+`label` is the outcome of our dataset. It is the binary classification we want to predict in future data.
+
 Basic Training using Xgboost
 ----------------------------
 
-The most critical part of the process is the training.
+The most critical part of the process is the training one.
 
-We are using the train data. Both `data` and `label` are in each data (explained above). To reach the value of a `S3` object field we use the `$` character.
+We are using the `train` data. As explained above, both `data` and `label` are in a variable.
 
-> `label` is the outcome of our dataset. It is the classification we want to predict. For these data we already have it, but when our model is built, that is this column we want to guess.
-
-In sparse matrix, cells which contains `0` are not encoded. Therefore, in a dataset where there are plenty of `0`, dataset size is optimized. It is very usual to have such dataset. **Xgboost** can manage both dense and sparse matrix.
+In sparse matrix, cells which contains `0` are not encoded. Therefore, in a dataset where there are plenty of `0`, memory size is optimized. It is very usual to have such dataset. **Xgboost** can manage both dense and sparse matrix.
 
 ```{r trainingSparse, message=F, warning=F}
 bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
 ```
+
+> To reach the value of a `S3` object field we use the `$` character.
 
 Alternatively, you can put your dataset in a dense matrix, i.e. a basic R-matrix.
 
@@ -120,14 +125,16 @@ bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth
 
 Above, data and label are not stored together. 
 
-**Xgboost** offer a way to group them in a `xgb.DMatrix`. You can even add other meta data. It will be usefull for the most advanced features.
+**Xgboost** offer a way to group them in a `xgb.DMatrix`. You can even add other meta data in it. It will be usefull for the most advanced features we will discover later.
 
 ```{r trainingDmatrix, message=F, warning=F}
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
 bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
 ```
 
-Below is a demonstration of the effect of verbose parameter.
+**Xgboost** have plenty of features to help you to view how the learning progress internally. The obvious purpose is to help you to set the best parameters, which is the key of the quality of the model you are building.
+
+One of the most simple way to see the progress is to set the `verbose` option. Look below of the effect of this parameter.
 
 ```{r trainingVerbose, message=T, warning=F}
 # verbose 0, no message
@@ -146,7 +153,7 @@ bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2,
 Basic prediction using Xgboost
 ------------------------------
 
-The main use of **Xgboost** is to predict data. For that purpose we will use the test dataset. We remind you that the algorithm has never seen these data.
+The main use of **Xgboost** is to predict data. For that purpose we will use the `test` dataset.
 
 ```{r predicting, message=F, warning=F}
 pred <- predict(bst, test$data)
@@ -154,26 +161,35 @@ err <- mean(as.numeric(pred > 0.5) != test$label)
 print(paste("test-error=", err))
 ```
 
-> You can put data in Matrix, sparseMatrix, or xgb.DMatrix 
+> We remind you that the algorithm has never seen the `test` data.
 
 Save and load models
 --------------------
 
-When your dataset is big, it may takes time to build a model. Or may be you are not a big fan of loosing time in redoing the same thing again and again. In these cases, you will want to save your model and load it when required.
+May be your dataset is big, and it takes time to train a model on it? May be you are not a big fan of loosing time in redoing the same task again and again? In these very rare cases, you will want to save your model and load it when required.
 
-Hopefully for you, **Xgboost** implement such functions.
+Hopefully for you, **Xgboost** implements such functions.
 
-```{r saveLoadModel, message=F, warning=F}
+```{r saveModel, message=F, warning=F}
 # save model to binary local file
 xgb.save(bst, "xgboost.model")
+```
 
+An interesting test to see how identic our saved model is to the original one by comparing the two predictions.
+
+```{r loadModel, message=F, warning=F}
 # load binary model to R
 bst2 <- xgb.load("xgboost.model")
 pred2 <- predict(bst2, test$data)
 
-# pred2 should be identical to pred
+# delete the created model (because cleaning is always better than dirtyness)
+rm("xgboost.model")
+
+# And now the test
 print(paste("sum(abs(pred2-pred))=", sum(abs(pred2-pred))))
 ```
+
+> result is `0`? We are good!
 
 In some very specific cases, like when you want to pilot **Xgboost** from `caret`, you will want to save the model as a *R* binary vector. See below how to do it.
 
@@ -189,7 +205,7 @@ pred3 <- predict(bst3, test$data)
 print(paste("sum(abs(pred3-pred))=", sum(abs(pred2-pred))))
 ``` 
 
-
+> Again `0`? It seems that `Xgboost` works prety well!
 
 Advanced features
 =================
@@ -210,9 +226,9 @@ dtest <- xgb.DMatrix(data = test$data, label=test$label)
 Measure learning progress xgb.train
 -----------------------------------
 
-Both `xgb.train` (advanced) and `xgboost` (simple) functions train models.
+Both `xgboost` (simple) and `xgb.train` (advanced) functions train models.
 
-One of the feature of `xgb.train` is the capacity to follow the progress of the learning after each round. Because of the way boosting works, there is a time when having too many rounds lead to an overfitting. You can see this feature as a cousin of cross-validation method. The following features will help you to avoid overfitting or optimizing the learning time in stopping it as soon as possible.
+One of the special feature of `xgb.train` is the capacity to follow the progress of the learning after each round. Because of the way boosting works, there is a time when having too many rounds lead to an overfitting. You can see this feature as a cousin of cross-validation method. The following features will help you to avoid overfitting or optimizing the learning time in stopping it as soon as possible.
 
 One way to measure progress in learning of a model is to provide to the **Xgboost** a second dataset already classified. Therefore it can learn on the real dataset and test its model on the second one. Some metrics are measured after each round during the learning.
 
@@ -269,6 +285,8 @@ You can dump the tree you learned using `xgb.dump` into a text file.
 ```{r dump, message=T, warning=F}
 xgb.dump(bst, with.stats = T)
 ```
+
+> if you provide a path to `fname` parameter you can save the trees to your hard drive.
 
 Feature importance
 ------------------
