@@ -214,8 +214,10 @@ competition.
 
 \end{document}
 
-<<Temp file cleaning>>=
+<<Temp file cleaning, include=FALSE>>=
 rm("xgb.DMAtrix")
 rm("xgb.model.dump")
 rm("model.save")
+rm("xgboost.model")
+rm("dtrain.buffer")
 @
