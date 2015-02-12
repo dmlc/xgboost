@@ -5,6 +5,7 @@ output:
     css: vignette.css
     number_sections: yes
     toc: yes
+bibliography: xgboost.bib
 vignette: >
   %\VignetteIndexEntry{Xgboost presentation}
   %\VignetteEngine{knitr::rmarkdown}
@@ -18,7 +19,7 @@ This is an introductory document of using the \verb@xgboost@ package in **R**.
 
 **Xgboost** is short for e**X**treme **G**radient **B**oosting package. 
 
-It is an efficient and scalable implementation of gradient boosting framework by \citep{friedman2001greedy}. 
+It is an efficient and scalable implementation of gradient boosting framework by @friedman2001greedy.
 
 The package includes efficient linear model solver and tree learning algorithm. It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objectives easily. 
 
@@ -61,7 +62,7 @@ For the purpose of this tutorial we will load the required package.
 require(xgboost)
 ```
 
-In this example, we are aiming to predict whether a mushroom can be eated (yeah, as always, example data are super interesting :-).
+In this example, we are aiming to predict whether a mushroom can be eated (yeah, as always, example data are super interesting :-). Mushroom data is cited from UCI Machine Learning Repository. @Bache+Lichman:2013.
 
 Learning
 ========
