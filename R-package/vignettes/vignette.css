@@ -90,10 +90,12 @@ a {
     padding: 0;
     vertical-align: baseline;
 }
+
 a:hover {
     text-decoration: blink;
     color: green;
 }
+
 a:visited {
     color: gray;
 }
@@ -125,15 +127,17 @@ code {
     font-family: Consolas, Monaco, Andale Mono, monospace;
     line-height: 1.5;
     font-size: 15px;
-    background: #f5f5f5;
+    background: #F0F0F0;
     border-radius: 4px;
     padding: 5px;
+    display: inline-block;
 }
 
 code.r, code.cpp {
     display: block;
     word-wrap: break-word;
-    border: 1px solid #989898;        
+    background: #F8F8F8;
+    border: 1px solid #606AAA;        
 }
 
 aside {
@@ -146,7 +150,7 @@ blockquote {
     font-size:14px;
     border-left:.5em solid #606AAA;
     background: #F8F8F8;
-    padding: 5px ;
+    padding-left: 1em;
     margin-left:25px;
     max-width: 500px;
 }
