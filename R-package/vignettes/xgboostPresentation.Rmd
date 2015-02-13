@@ -301,6 +301,15 @@ bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist,
 
 > `eval.metric` allows us to monitor two new metrics for each round, logloss and error.
 
+Until know, all the learnings we have performed were based on boosting trees. **Xgboost** implements a second algorithm, based on linear boosting. The only difference with previous command is `booster = "gblinear"` parameter (and removing `eta` parameter).
+
+```{r linearBoosting, message=F, warning=F}
+bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
+```
+
+In this specific case, linear boosting gets sligtly better performance metrics than decision trees based algorithm. In simple case, it will happem because there is nothing better than a linear algorithm to catch a linear link. However, decision trees are much better to catch a non linear link between predictors and outcome. Check both implementations with your own dataset to have an idea of what to use.
+
+
 Manipulating xgb.DMatrix
 ------------------------
 
