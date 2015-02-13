@@ -230,7 +230,7 @@ print(paste("sum(abs(pred2-pred))=", sum(abs(pred2-pred))))
 
 ```{r clean, include=FALSE}
 # delete the created model
-rm("xgboost.model")
+file.remove("./xgboost.model")
 ```
 
 > result is `0`? We are good!
@@ -313,6 +313,10 @@ xgb.DMatrix.save(dtrain, "dtrain.buffer")
 # to load it in, simply call xgb.DMatrix
 dtrain2 <- xgb.DMatrix("dtrain.buffer")
 bst <- xgb.train(data=dtrain2, max.depth=2, eta=1, nround=2, watchlist=watchlist, objective = "binary:logistic")
+```
+
+```{r DMatrixDel, include=FALSE}
+file.remove("dtrain.buffer")
 ```
 
 ### Information extraction
