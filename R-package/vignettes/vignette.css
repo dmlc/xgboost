@@ -27,6 +27,8 @@ body{
     max-width: 800px;
     padding: 20px;
     font-size: 17px;
+    text-align: justify;
+    text-justify: inter-word;
 }
 
 
@@ -34,7 +36,7 @@ p   {
     line-height: 150%;
 /    max-width: 540px;
     max-width: 960px;
-    font-weight: 400;
+    font-weight: 400;    
 /    color: #333333
 }
 
