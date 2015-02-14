@@ -1,8 +1,8 @@
 #!/bin/bash
-# this is a simple script to make xgboost in MAC nad Linux
-# basically, it first try to make with OpenMP, if fails, disable OpenMP and make again
-# This will automatically make xgboost for MAC users who do not have openmp support
-# In most cases, type make will give what you want
+# This is a simple script to make xgboost in MAC and Linux
+# Basically, it first try to make with OpenMP, if fails, disable OpenMP and make it again.
+# This will automatically make xgboost for MAC users who don't have OpenMP support.
+# In most cases, type make will give what you want.
 
 # download rabit
 

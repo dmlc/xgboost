@@ -214,3 +214,8 @@ competition.
 
 \end{document}
 
+<<Temp file cleaning, include=FALSE>>=
+file.remove("xgb.DMatrix")
+file.remove("model.dump")
+file.remove("model.save")
+@

@@ -1,27 +1,73 @@
 ---
 title: "Xgboost presentation"
-output:
-  html_document:
+output: 
+  rmarkdown::html_vignette:
     css: vignette.css
     number_sections: yes
     toc: yes
+bibliography: xgboost.bib
+author: Tianqi Chen, Tong He, Michaël Benesty
+vignette: >
+  %\VignetteIndexEntry{Xgboost presentation}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
 ---
 
 Introduction
 ============
 
+This is an introductory document of using the \verb@xgboost@ package in *R*. 
+
+**Xgboost** is short for e**X**treme **G**radient **B**oosting package. 
+
+It is an efficient and scalable implementation of gradient boosting framework by @friedman2001greedy.
+
+The package includes efficient *linear model* solver and *tree learning* algorithm. It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objectives easily. 
+
+It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competitions. 
+
+It has several features:
+
+* Speed: it can automatically do parallel computation on *Windows* and *Linux*, with *OpenMP*. It is generally over 10 times faster than the classical `gbm`.
+* Input Type: it takes several types of input data:
+    * *Dense* Matrix: *R*'s *dense* matrix, i.e. `matrix` ;
+    * *Sparse* Matrix: *R*'s *sparse* matrix, i.e. `Matrix::dgCMatrix` ;
+    * Data File: local data files ;
+    * `xgb.DMatrix`: it's own class (recommended).
+* Sparsity: it accepts *sparse* input for both *tree booster*  and *linear booster*, and is optimized for *sparse* input ;
+* Customization: it supports customized objective function and evaluation function ;
+* Performance: it has better performance on several different datasets.
+
 The purpose of this Vignette is to show you how to use **Xgboost** to make prediction from a model based on your own dataset.
 
-You may know **Xgboost** as a state of the art tool to build some kind of Machine learning models. It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competition. 
+Installation
+============
 
-For the purpose of this tutorial we will first load the required packages.
+The first step is of course to install the package.
+
+For up-to-date version (which is *highly* recommended), install from Github:
+
+```{r installGithub, eval=FALSE}
+devtools::install_github('tqchen/xgboost',subdir='R-package')
+```
+
+> *Windows* user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
+
+For stable version on CRAN, run:
+
+```{r installCran, eval=FALSE}
+install.packages('xgboost')
+```
+
+For the purpose of this tutorial we will load **Xgboost** package.
 
 ```{r libLoading, results='hold', message=F, warning=F}
 require(xgboost)
-require(methods)
 ```
 
-In this example, we are aiming to predict whether a mushroom can be eated.
+In this example, we are aiming to predict whether a mushroom can be eated or not (yeah I know, like many tutorial, example data are the exact one you will work on in your every day life :-). 
+
+Mushroom data is cited from UCI Machine Learning Repository. @Bache+Lichman:2013.
 
 Learning
 ========
@@ -29,11 +75,14 @@ Learning
 Dataset loading
 ---------------
 
-We load the `agaricus` datasets and link it to variables.
+We will load the `agaricus` datasets embedded with the package and will link them to variables.
 
-The dataset is already separated in `train` and `test` data. 
+The datasets are already separated in `train` and `test` data:
 
-As their names imply, the train part will be used to build the model and the test part to check how well our model works. Without separation we would test the model on data the algorithm have already seen, as you may imagine, it's not the best methodology to check the performance of a prediction (would it even be a prediction?).
+* As their names imply, the `train` part will be used to build the model ;
+* `test` will be used to check how well our model is. 
+
+Without dividing the dataset we would test the model on data the algorithm have already seen. As you may imagine, it's not the best methodology to check the performance of a prediction (can it even be called a *prediction*?).
 
 ```{r datasetLoading, results='hold', message=F, warning=F}
 data(agaricus.train, package='xgboost')
@@ -42,113 +91,168 @@ train <- agaricus.train
 test <- agaricus.test
 ```
 
-> Each variable is a S3 object containing both label and data.
+> In the real world, it would be up to you to make this division between `train` and `test` data. The way you should do it is out of the purpose of this article, however `caret` package may [help](http://topepo.github.io/caret/splitting.html).
 
-> In the real world, it would be up to you to make this division between `train` and `test` data.
+Each variable is a `list` containing both label and data.
+```{r dataList, message=F, warning=F}
+str(train)
+```
 
-The loaded data is stored in `dgCMatrix` which is a **sparse matrix** type. 
+Let's discover the dimensionality of our datasets.
 
-Label is a `numeric` vector in `{0,1}`.
+```{r dataSize, message=F, warning=F}
+dim(train$data)
+dim(test$data)
+```
+
+Clearly, we have here a small dataset, however **Xgboost** can manage huge one very efficiently.
+
+The loaded `data` are stored in `dgCMatrix` which is a *sparse* matrix type and `label` is a `numeric` vector in `{0,1}`.
 
 ```{r dataClass, message=F, warning=F}
 class(train$data)[1]
 class(train$label)
 ```
 
-Basic Training using XGBoost
+`label` is the outcome of our dataset meaning it is the binary *classification* we want to predict in future data.
+
+Basic Training using Xgboost
 ----------------------------
 
-The most critical part of the process is the training.
+The most critical part of the process is the training one.
 
-We are using the train data. Both `data` and `label` are in each data (explained above). To access to the field of a `S3` object we use the `$` character in **R**.
+We are using the `train` data. As explained above, both `data` and `label` are in a variable.
 
-> label is the outcome of our dataset. It is the classification we want to predict. For these data we already have it, but when our model is built, that is this column we want to guess.
-
-In sparse matrix, cells which contains `0` are not encoded. Therefore, in a dataset where there are plenty of `0`, dataset size is optimized. It is very usual to have such dataset. **Xgboost** can manage both dense and sparse matrix.
+In *sparse* matrix, cells which contains `0` are not encoded. Therefore, in a dataset where there are plenty of `0`, memory size is optimized. It is very usual to have such dataset. **Xgboost** can manage both *dense* and *sparse* matrix.
 
 ```{r trainingSparse, message=F, warning=F}
 bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
 ```
 
-Alternatively, you can put your dataset in a dense matrix, i.e. a basic R-matrix.
+> To reach the value of a variable in a `list` use the `$` character followed by the name.
+
+Alternatively, you can put your dataset in a *dense* matrix, i.e. a basic *R* matrix.
 
 ```{r trainingDense, message=F, warning=F}
-bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth = 2, eta = 1, nround = 2,
-               objective = "binary:logistic")
+bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
 ```
 
 Above, data and label are not stored together. 
 
-**Xgboost** offer a way to group them in a `xgb.DMatrix`. You can even add other meta data. It will be usefull for the most advanced features.
+**Xgboost** offer a way to group them in a `xgb.DMatrix`. You can even add other meta data in it. It will be usefull for the most advanced features we will discover later.
 
 ```{r trainingDmatrix, message=F, warning=F}
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
 bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
 ```
 
-Below is a demonstration of the effect of verbose parameter.
+**Xgboost** have plenty of features to help you to view how the learning progress internally. The obvious purpose is to help you to set the best parameters, which is the key in model quality you are building.
 
-```{r trainingVerbose, message=T, warning=F}
-# verbose 0, no message
-bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2,
-               objective = "binary:logistic", verbose = 0)
+One of the most simple way to see the training progress is to set the `verbose` option.
 
-# verbose 1, print evaluation metric
-bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2,
-               objective = "binary:logistic", verbose = 1)
+```{r trainingVerbose0, message=T, warning=F}
+# verbose = 0, no message
+bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic", verbose = 0)
+```
 
-# verbose 2, also print information about tree
-bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2,
-               objective = "binary:logistic", verbose = 2)
+```{r trainingVerbose1, message=T, warning=F}
+# verbose = 1, print evaluation metric
+bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic", verbose = 1)
+```
+
+```{r trainingVerbose2, message=T, warning=F}
+# verbose = 2, also print information about tree
+bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic", verbose = 2)
 ```
 
 Basic prediction using Xgboost
 ------------------------------
 
-The main use of **Xgboost** is to predict data. For that purpose we will use the test dataset. We remind you that the algorithm has never seen these data.
+The main use of **Xgboost** is to predict data. For that purpose we will use the `test` dataset.
 
 ```{r predicting, message=F, warning=F}
 pred <- predict(bst, test$data)
+
+# size of the prediction vector
+print(length(pred))
+
+# limit display of predictions to the first 10
+print(pred[1:10])
+```
+
+The only thing **Xgboost** do is a regression. But we are in a classification problem. If we think about this regression results, they are just kind of probabilities being classified as `1`. 
+
+Therefore, we will set the rule if the probability is `> 5` then the observation is classified as `1` and is classified `0` otherwise.
+
+```{r predictingTest, message=F, warning=F}
 err <- mean(as.numeric(pred > 0.5) != test$label)
 print(paste("test-error=", err))
 ```
 
-> You can put data in Matrix, sparseMatrix, or xgb.DMatrix 
+> We remind you that the algorithm has never seen the `test` data before.
+
+Here, we have just computed a simple metric: the average error:
+
+* `as.numeric(pred > 0.5)` applies our rule that when the probability (== prediction == regression) is over `0.5` the observation is classified as `1` and `0` otherwise ;
+* `probabilityVectorPreviouslyComputed != test$label` computes the vector of error between true data and computed probabilities ;
+* `mean(vectorOfErrors)` computes the average error itself.
+
+The most important thing to remember is that **to do a classification basically, you just do a regression and then apply a threeshold**. 
+
+Multiclass classification works in a very similar way.
+
+This metrix is **`r round(err, 2)`** and is pretty low: our yummly mushroom model works well!
 
 Save and load models
 --------------------
 
-When your dataset is big, it may takes time to build a model. Or may be you are not a big fan of loosing time in redoing the same thing again and again. In these cases, you will want to save your model and load it when required.
+May be your dataset is big, and it takes time to train a model on it? May be you are not a big fan of loosing time in redoing the same task again and again? In these very rare cases, you will want to save your model and load it when required.
 
-Hopefully for you, **Xgboost** implement such functions.
+Hopefully for you, **Xgboost** implements such functions.
 
-```{r saveLoadModel, message=F, warning=F}
+```{r saveModel, message=F, warning=F}
 # save model to binary local file
 xgb.save(bst, "xgboost.model")
+```
 
+> `xgb.save` function should return `r TRUE` if everything goes well and crashes otherwise.
+
+An interesting test to see how identic to the original one our saved model is would be to compare the two predictions.
+
+```{r loadModel, message=F, warning=F}
 # load binary model to R
 bst2 <- xgb.load("xgboost.model")
 pred2 <- predict(bst2, test$data)
 
-# pred2 should be identical to pred
+# And now the test
 print(paste("sum(abs(pred2-pred))=", sum(abs(pred2-pred))))
 ```
 
-In some very specific cases, like when you want to pilot **Xgboost** from `caret`, you will want to save the model as a **R** binary vector. See below how to do it.
+```{r clean, include=FALSE}
+# delete the created model
+file.remove("./xgboost.model")
+```
+
+> result is `0`? We are good!
+
+In some very specific cases, like when you want to pilot **Xgboost** from `caret` package, you will want to save the model as a *R* `binary` vector. See below how to do it.
 
 ```{r saveLoadRBinVectorModel, message=F, warning=F}
 # save model to R's raw vector
-raw = xgb.save.raw(bst)
+rawVec <- xgb.save.raw(bst)
+
+# print class
+print(class(rawVec))
 
 # load binary model to R
-bst3 <- xgb.load(raw)
+bst3 <- xgb.load(rawVec)
 pred3 <- predict(bst3, test$data)
 
 # pred2 should be identical to pred
 print(paste("sum(abs(pred3-pred))=", sum(abs(pred2-pred))))
 ``` 
 
-
+> Again `0`? It seems that `Xgboost` works prety well!
 
 Advanced features
 =================
@@ -166,33 +270,45 @@ dtrain <- xgb.DMatrix(data = train$data, label=train$label)
 dtest <- xgb.DMatrix(data = test$data, label=test$label)
 ```
 
-Using xgb.train
----------------
+Measure learning progress with xgb.train
+----------------------------------------
 
-`xgb.train` is a powerfull way to follow progress in learning of one or more dataset.
+Both `xgboost` (simple) and `xgb.train` (advanced) functions train models.
 
-One way to measure progress in learning of a model is to provide to the **Xgboost** a second dataset already classified. Therefore it can learn on the real dataset and test its model on the second one. Some metrics are measured after each round during the learning.
+One of the special feature of `xgb.train` is the capacity to follow the progress of the learning after each round. Because of the way boosting works, there is a time when having too many rounds lead to an overfitting. You can see this feature as a cousin of cross-validation method. The following features will help you to avoid overfitting or optimizing the learning time in stopping it as soon as possible.
 
-For that purpose, you will use `watchlist` parameter. It is a list of `xgb.DMatrix`, each of them tagged with a name.
+One way to measure progress in learning of a model is to provide to the **Xgboost** a second dataset already classified. Therefore it can learn on the first dataset and test its model on the second one. Some metrics are measured after each round during the learning.
+
+For the purpose of this example, we use `watchlist` parameter. It is a list of `xgb.DMatrix`, each of them tagged with a name.
 
 ```{r watchlist, message=F, warning=F}
 watchlist <- list(train=dtrain, test=dtest)
 
-bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist,
-                 objective = "binary:logistic")
+bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist, objective = "binary:logistic")
 ```
 
-> To train with watchlist, we use `xgb.train`, which contains more advanced features than `xgboost` function.
+**Xgboost** has computed at each round the same average error metric than seen above (we set `nround` to 2, that is why we have two lines of metric here). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset. 
 
-For a better understanding, you may want to have some specific metric or even use multiple evaluation metrics.
+Both training and test error related metrics are very similar, and in some way, it makes sense: what we have learned from the training dataset matches the observations from the test dataset.
 
-`eval.metric` allows us to monitor the evaluation of several metrics at a time. Hereafter we will watch two new metrics, logloss and error.
+If with your own dataset you have not such results, you should think about how you did to divide your dataset in training and test. May be there is something to fix. Again, `caret` package may [help](http://topepo.github.io/caret/splitting.html).
+
+For a better understanding of the learning progression, you may want to have some specific metric or even use multiple evaluation metrics.
 
 ```{r watchlist2, message=F, warning=F}
-bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist,
-                 eval.metric = "error", eval.metric = "logloss",
-                 objective = "binary:logistic")
+bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
 ```
+
+> `eval.metric` allows us to monitor two new metrics for each round, logloss and error.
+
+Until know, all the learnings we have performed were based on boosting trees. **Xgboost** implements a second algorithm, based on linear boosting. The only difference with previous command is `booster = "gblinear"` parameter (and removing `eta` parameter).
+
+```{r linearBoosting, message=F, warning=F}
+bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
+```
+
+In this specific case, linear boosting gets sligtly better performance metrics than decision trees based algorithm. In simple case, it will happem because there is nothing better than a linear algorithm to catch a linear link. However, decision trees are much better to catch a non linear link between predictors and outcome. Check both implementations with your own dataset to have an idea of what to use.
+
 
 Manipulating xgb.DMatrix
 ------------------------
@@ -205,8 +321,11 @@ Like saving models, `xgb.DMatrix` object (which groups both dataset and outcome)
 xgb.DMatrix.save(dtrain, "dtrain.buffer")
 # to load it in, simply call xgb.DMatrix
 dtrain2 <- xgb.DMatrix("dtrain.buffer")
-bst <- xgb.train(data=dtrain2, max.depth=2, eta=1, nround=2, watchlist=watchlist,
-                 objective = "binary:logistic")
+bst <- xgb.train(data=dtrain2, max.depth=2, eta=1, nround=2, watchlist=watchlist, objective = "binary:logistic")
+```
+
+```{r DMatrixDel, include=FALSE}
+file.remove("dtrain.buffer")
 ```
 
 ### Information extraction
@@ -229,13 +348,7 @@ You can dump the tree you learned using `xgb.dump` into a text file.
 xgb.dump(bst, with.stats = T)
 ```
 
-Feature importance
-------------------
+> if you provide a path to `fname` parameter you can save the trees to your hard drive.
 
-Finally, you can check which features are the most important.
-
-```{r featureImportance, message=T, warning=F}
-importance_matrix <- xgb.importance(feature_names = train$data@Dimnames[[2]], model = bst)
-print(importance_matrix)
-xgb.plot.importance(importance_matrix)
-```
+References
+==========

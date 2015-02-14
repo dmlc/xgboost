@@ -8,20 +8,52 @@ xgb.train(params = list(), data, nrounds, watchlist = list(), obj = NULL,
   feval = NULL, verbose = 1, ...)
 }
 \arguments{
-\item{params}{the list of parameters. Commonly used ones are:
+\item{params}{the list of parameters.
+
+1. General Parameters
+
 \itemize{
-  \item \code{objective} objective function, common ones are
-  \itemize{
-    \item \code{reg:linear} linear regression
-    \item \code{binary:logistic} logistic regression for classification
-  }
-  \item \code{eta} step size of each boosting step
-  \item \code{max.depth} maximum depth of the tree
-  \item \code{nthread} number of thread used in training, if not set, all threads are used
+  \item \code{booster} which booster to use, can be \code{gbtree} or \code{gblinear}. Default: \code{gbtree}
+  \item \code{silent} 0 means printing running messages, 1 means silent mode. Default: 0
 }
 
-  See \url{https://github.com/tqchen/xgboost/wiki/Parameters} for
-  further details. See also demo/ for walkthrough example in R.}
+2. Booster Parameters
+
+2.1. Parameter for Tree Booster
+
+\itemize{
+  \item \code{eta} step size shrinkage used in update to prevents overfitting. After each boosting step, we can directly get the weights of new features. and eta actually shrinkage the feature weights to make the boosting process more conservative. Default: 0.3
+  \item \code{gamma} minimum loss reduction required to make a further partition on a leaf node of the tree. the larger, the more conservative the algorithm will be.
+  \item \code{max_depth} maximum depth of a tree. Default: 6
+  \item \code{min_child_weight} minimum sum of instance weight(hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be. Default: 1
+  \item \code{subsample} subsample ratio of the training instance. Setting it to 0.5 means that xgboost randomly collected half of the data instances to grow trees and this will prevent overfitting. Default: 1
+  \item \code{colsample_bytree} subsample ratio of columns when constructing each tree. Default: 1
+}
+
+2.2. Parameter for Linear Booster
+
+\itemize{
+  \item \code{lambda} L2 regularization term on weights. Default: 0
+  \item \code{lambda_bias} L2 regularization term on bias. Default: 0
+  \item \code{alpha} L1 regularization term on weights. (there is no L1 reg on bias because it is not important). Default: 0
+}
+
+3. Task Parameters
+
+\itemize{
+\item \code{objective} specify the learning task and the corresponding learning objective, and the objective options are below:
+  \itemize{
+    \item \code{reg:linear} linear regression (Default).
+    \item \code{reg:logistic} logistic regression.
+    \item \code{binary:logistic} logistic regression for binary classification. Output probability.
+    \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
+    \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes).
+    \item \code{multi:softprob} same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
+    \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
+  }
+  \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
+  \item \code{eval_metric} evaluation metrics for validation data. Default: metric will be assigned according to objective(rmse for regression, and error for classification, mean average precision for ranking). List is provided in detail section.
+}}
 
 \item{data}{takes an \code{xgb.DMatrix} as the input.}
 
@@ -46,17 +78,30 @@ prediction and dtrain,}
 \item{...}{other parameters to pass to \code{params}.}
 }
 \description{
-The training function of xgboost
+An advanced interface for training xgboost model. Look at \code{\link{xgboost}} function for a simpler interface.
 }
 \details{
-This is the training function for xgboost.
+This is the training function for \code{xgboost}.
 
-Parallelization is automatically enabled if OpenMP is present.
-Number of threads can also be manually specified via "nthread" parameter.
+It supports advanced features such as \code{watchlist}, customized objective function (\code{feval}),
+therefore it is more flexible than \code{\link{xgboost}} function.
 
-This function only accepts an \code{xgb.DMatrix} object as the input.
-It supports advanced features such as watchlist, customized objective function,
-therefore it is more flexible than \code{\link{xgboost}}.
+Parallelization is automatically enabled if \code{OpenMP} is present.
+Number of threads can also be manually specified via \code{nthread} parameter.
+
+\code{eval_metric} parameter (not listed above) is set automatically by Xgboost but can be overriden by parameter. Below is provided the list of different metric optimized by Xgboost to help you to understand how it works inside or to use them with the \code{watchlist} parameter.
+  \itemize{
+     \item \code{rmse} root mean square error. \url{http://en.wikipedia.org/wiki/Root_mean_square_error}
+     \item \code{logloss} negative log-likelihood. \url{http://en.wikipedia.org/wiki/Log-likelihood}
+     \item \code{error} Binary classification error rate. It is calculated as \code{(wrong cases) / (all cases)}. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
+     \item \code{merror} Multiclass classification error rate. It is calculated as \code{(wrong cases) / (all cases)}.
+     \item \code{auc} Area under the curve. \url{http://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
+     \item \code{ndcg} Normalized Discounted Cumulative Gain. \url{http://en.wikipedia.org/wiki/NDCG}
+  }
+
+Full list of parameters is available in the Wiki \url{https://github.com/tqchen/xgboost/wiki/Parameters}.
+
+This function only accepts an \code{\link{xgb.DMatrix}} object as the input.
 }
 \examples{
 data(agaricus.train, package='xgboost')
