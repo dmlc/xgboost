@@ -129,7 +129,7 @@ code {
     font-family: Consolas, Monaco, Andale Mono, monospace;
     line-height: 1.5;
     font-size: 15px;
-    background: #F0F0F0;
+    background: #CDCDCD;
     border-radius: 4px;
     padding: 5px;
     display: inline-block;
@@ -154,7 +154,7 @@ blockquote {
     font-size:14px;
     border-left:.5em solid #606AAA;
     background: #F8F8F8;
-    padding-left: 1em;
+    padding: 0em 1em 0em 1em;
     margin-left:10px;
     max-width: 500px;
 }

@@ -235,7 +235,7 @@ file.remove("./xgboost.model")
 
 > result is `0`? We are good!
 
-In some very specific cases, like when you want to pilot **Xgboost** from `caret` package, you will want to save the model as a *R* `binary` vector. See below how to do it.
+In some very specific cases, like when you want to pilot **Xgboost** from `caret` package, you will want to save the model as a *R* binary vector. See below how to do it.
 
 ```{r saveLoadRBinVectorModel, message=F, warning=F}
 # save model to R's raw vector
