@@ -64,6 +64,6 @@ bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
 xgb.importance(train$data@Dimnames[[2]], model = bst)
 
 # Same thing with co-occurence computation this time
-xgb.importance(agaricus.test$data@Dimnames[[2]], model = bst, data = train$data, label = train$label)
+xgb.importance(train$data@Dimnames[[2]], model = bst, data = train$data, label = train$label)
 }
 

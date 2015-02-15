@@ -59,7 +59,7 @@
 #' xgb.importance(train$data@@Dimnames[[2]], model = bst)
 #' 
 #' # Same thing with co-occurence computation this time
-#' xgb.importance(agaricus.test$data@@Dimnames[[2]], model = bst, data = train$data, label = train$label)
+#' xgb.importance(train$data@@Dimnames[[2]], model = bst, data = train$data, label = train$label)
 #' 
 #' @export
 xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = NULL, data = NULL, label = NULL, target = function(x) ((x + label) == 2)){  
@@ -102,7 +102,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
 }
 
 treeDump <- function(feature_names, text){  
-  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = Feature][,`:=`(Gain = Gain/sum(Gain), Cover = Cover/sum(Cover), Frequence = Frequence/sum(Frequence))]
+  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = Feature][,`:=`(Gain = Gain/sum(Gain), Cover = Cover/sum(Cover), Frequence = Frequence/sum(Frequence))][order(Gain, decreasing = T)]
   
   result  
 }
