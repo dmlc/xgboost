@@ -93,7 +93,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
     
     # Co-occurence computation
     if(!is.null(data) & !is.null(label) & nrow(result) > 0) {
-      apply(data[, result[,Feature]], 2, . %>% target %>% sum) -> vec
+      apply(data[, result[,Feature],drop=FALSE], 2, . %>% target %>% sum) -> vec
       
       result <- result[Feature == names(vec), "RealCover":= as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)]  
     }    
