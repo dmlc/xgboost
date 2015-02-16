@@ -16,14 +16,13 @@
 namespace xgboost {
 namespace tree {
 
-  void SetQuantileGPair(const std::vector<bst_gpair> & gpair,float quantile,std::vector<bst_gpair> & quantile_gpair) {
+  void SetQuantileGPair(const std::vector<bst_gpair> & gpair,std::vector<bst_gpair> & quantile_gpair) {
 
     for (unsigned i = 0; i < gpair.size(); i++) {
-      //BUGBUG make sure the math is right
       if (gpair[i].grad > 0) {
-	quantile_gpair[i] = bst_gpair(quantile,1.0);
+	quantile_gpair[i] = bst_gpair(1.0,1.0);
       } else {
-	quantile_gpair[i] = bst_gpair(quantile-1.0,1.0);
+	quantile_gpair[i] = bst_gpair(-1.0,1.0);
       }
     }
 }
@@ -33,16 +32,6 @@ template<typename TStats>
 class QuantileColMaker: public ColMaker<TStats> {
  public:
   virtual ~QuantileColMaker(void) {}
-  // set training parameter
-  virtual void SetParam(const char *name, const char *val) {
-    using namespace std;
-
-
-    if (!strcmp(name, "quantile")) quantile = static_cast<float>(atof(val));
-    else {
-      ColMaker<TStats>::SetParam(name,val);
-    }
-  }
 
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       IFMatrix *p_fmat,
@@ -50,13 +39,10 @@ class QuantileColMaker: public ColMaker<TStats> {
                       const std::vector<RegTree*> &trees) {
     //create new set of gradient pairs for quantile regression
     std::vector<bst_gpair> quantile_gpairs (gpair.size());
-    SetQuantileGPair(gpair,quantile,quantile_gpairs);
+    SetQuantileGPair(gpair,quantile_gpairs);
     ColMaker<TStats>::Update(quantile_gpairs,p_fmat,info,trees);
   }
 
- protected:
-  // quantile
-  float quantile;
 };
 
 
@@ -64,27 +50,16 @@ class QuantileColMaker: public ColMaker<TStats> {
 class QuantileTreePruner: public TreePruner {
  public:
   virtual ~QuantileTreePruner(void) {}
-  // set training parameter
-  virtual void SetParam(const char *name, const char *val) {
-    using namespace std;
-    // sync-names                                                                                                                                                                                  
-    if (!strcmp(name, "quantile")) quantile = static_cast<float>(atof(val));
-    else {
-      TreePruner::SetParam(name,val);
-    }
-  }
-  // update the tree, do pruning
+
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       IFMatrix *p_fmat,
                       const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) {
     // rescale learning rate according to size of trees
     std::vector<bst_gpair> quantile_gpairs (gpair.size());
-    SetQuantileGPair(gpair,quantile,quantile_gpairs);
+    SetQuantileGPair(gpair,quantile_gpairs);
     TreePruner::Update(quantile_gpairs,p_fmat,info,trees);
   }
-protected:
-  float quantile;
 
 };
 
