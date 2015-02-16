@@ -39,6 +39,7 @@ Sometimes the dataset we have to work on have *categorical* data.
 A *categorical* variable is one which have a fixed number of different values. By exemple, if for each observation a variable called *Colour* can have only *red*, *blue* or *green* as value, it is a *categorical* variable.
 
 > In *R*, *categorical* variable is called `factor`.
+>
 > Type `?factor` in console for more information.
 
 In this demo we will see how to transform a dense dataframe (dense = few zero in the matrix) with *categorical* variables to a very sparse matrix (sparse = lots of zero in the matrix) of `numeric` features before analyzing these data in **Xgboost**.
@@ -65,8 +66,10 @@ str(df)
 ```
 
 > 2 columns have `factor` type, one has `ordinal` type.
-> `ordinal` variable is a categorical variable with values wich can be ordered
-> Here: `None` > `Some` > `Marked`.
+>
+> `ordinal` variable can take a limited number of values and these values can be ordered.
+>
+> `Marked > Some > None`
 
 Let's add some new *categorical* features to see if it helps.
 
@@ -158,6 +161,7 @@ print(importance)
 ```
 
 > The column `Gain` provide the information we are looking for.
+>
 > As you can see, features are classified by `Gain`.
 
 `Gain` is the improvement in accuracy brought by a feature to the branches it is on. The idea is that before adding a new split on a feature X to the branch there was some wrongly classified elements, after adding the split on this feature, there are two new branches, and each of these branch is more accurate (one branch saying if your observation is on this branch then it should be classified as 1, and the other branch saying the exact opposite, both new branches being more accurate than the one before the split).
@@ -165,6 +169,7 @@ print(importance)
 `Cover` measures the relative quantity of observations concerned by a feature.
 
 `Frequence` is a simpler way to measure the `Gain`. It just counts the number of times a feature is used in all generated trees. You should not use it (unless you know why you want to use it).
+
 
 Plotting the feature importance
 -------------------------------
