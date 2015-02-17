@@ -126,7 +126,7 @@ pre {
 }
 
 code {
-    font-family: Consolas, Monaco, Andale Mono, monospace;
+    font-family: Consolas, Monaco, Andale Mono, monospace, courrier new;
     line-height: 1.5;
     font-size: 15px;
     background: #F8F8F8;
@@ -137,14 +137,22 @@ code {
     white-space: pre-wrap;
 }
 
+<<<<<<< HEAD
 p code {
+=======
+blockquote code {
+>>>>>>> origin/master
   background: #CDCDCD;
   color: #606AAA;
 }
 
 code.r, code.cpp {
     display: block;
+<<<<<<< HEAD
     word-wrap: break-word;    
+=======
+    word-wrap: break-word;
+>>>>>>> origin/master
     border: 1px solid #606AAA;        
 }
 
