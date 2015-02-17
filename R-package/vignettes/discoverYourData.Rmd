@@ -170,7 +170,6 @@ print(importance)
 
 `Frequence` is a simpler way to measure the `Gain`. It just counts the number of times a feature is used in all generated trees. You should not use it (unless you know why you want to use it).
 
-<<<<<<< HEAD
 We can go deeper in the analysis. In the table above, we have discovered which feature counts to predict if the illness will go or not. But we don't yet know the role of these feature. 
 
 One simple way to see this role is to count the co-occurence. For that purpose we will execute the same function but with more arguments.
@@ -195,8 +194,6 @@ The two other new columns are `RealCover` and `RealCover %`. In the first column
 Therefore, according to our findings, getting a Placebo doesn't seem to help but being less than 61 years old may help.
 
 > You may wonder how to interpret the `< 1.00001 ` on the first line. Basically, in a sparse `Matrix`, there is no 0, therefore, looking for categorical observations validating the rule `< 1.00001` is like looking for `1` for this feature.
-=======
->>>>>>> origin/master
 
 Plotting the feature importance
 -------------------------------

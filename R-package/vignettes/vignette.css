@@ -137,22 +137,15 @@ code {
     white-space: pre-wrap;
 }
 
-<<<<<<< HEAD
+
 p code {
-=======
-blockquote code {
->>>>>>> origin/master
   background: #CDCDCD;
   color: #606AAA;
 }
 
 code.r, code.cpp {
     display: block;
-<<<<<<< HEAD
-    word-wrap: break-word;    
-=======
     word-wrap: break-word;
->>>>>>> origin/master
     border: 1px solid #606AAA;        
 }
 
