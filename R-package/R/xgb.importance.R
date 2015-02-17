@@ -7,6 +7,7 @@
 #' @importFrom data.table setnames
 #' @importFrom data.table :=
 #' @importFrom magrittr %>%
+#' @importFrom Matrix colSums
 #' 
 #' @param feature_names names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.
 #' 
@@ -18,7 +19,7 @@
 #' 
 #' @param label the label vetor used for the training step. Will be used with \code{data} parameter for co-occurence computation. More information in \code{Detail} part. This parameter is optional.
 #' 
-#' @param target a function which returns \code{TRUE} or \code{1} when an observation should be count as a co-occurence and \code{FALSE} or \code{0} otherwise. Default function is provided for computing co-occurence between a one-hot encoded categorical feature and a binary classification label.The \code{target} function should have only one parameter (will be used to provide each feature vector listed as importance feature). More information in \code{Detail} part. This parameter is optional.
+#' @param target a function which returns \code{TRUE} or \code{1} when an observation should be count as a co-occurence and \code{FALSE} or \code{0} otherwise. Default function is provided for computing co-occurence between in a binary classification. The \code{target} function should have only one parameter (will be used to provide each important feature vector after applying the split condition on it). More information in \code{Detail} part. This parameter is optional.
 #'
 #' @return A \code{data.table} of the features used in the model with their average gain (and their weight for boosted tree model) in the model.
 #'
@@ -40,7 +41,7 @@
 #' 
 #' The gain gives you indication about the information of how a feature is important in making a branch of a decision tree more pure. But, by itself, you can't know if this feature has to be present or not to get a specific classification. In the example code, you may wonder if odor=none should be \code{TRUE} to not eat a mushroom.
 #' 
-#' Co-occurence computation is here to help in understanding this relation. It will counts how many observations have target function true. In our example, there are 92 times only over the 3140 observations of the train dataset where a mushroom have no odor and can be eaten safely.
+#' Co-occurence computation is here to help in understanding this relation. It will counts how many observations have target function \code{TRUE}. In our example, there are 92 times only over the 3140 observations of the train dataset where a mushroom have no odor and can be eaten safely.
 #' 
 #' If you need to remember one thing of all of this: until you want to leave us early, don't eat a mushroom which has no odor :-)
 #' 
@@ -89,20 +90,23 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
     result <- readLines(filename_dump) %>% linearDump(feature_names, .)
     if(!is.null(data) | !is.null(label)) warning("data/label: these parameters should only be provided with decision tree based models.")
   }  else {
-    result <- treeDump(feature_names, text = text)
+    result <- treeDump(feature_names, text = text, keepDetail = !is.null(data))
     
     # Co-occurence computation
     if(!is.null(data) & !is.null(label) & nrow(result) > 0) {
-      apply(data[, result[,Feature],drop=FALSE], 2, . %>% target %>% sum) -> vec
       
-      result <- result[Feature == names(vec), "RealCover":= as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)]  
+      ((data[, result[,Feature],drop=FALSE] != 0) & (data[, result[,Feature],drop=FALSE] < as.numeric(result[,Split]))) %>% apply(., 2, . %>% target %>% sum) -> vec
+            
+      result <- result[, "RealCover":= as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)]  
     }    
   }
   result
 }
 
-treeDump <- function(feature_names, text){  
-  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = Feature][,`:=`(Gain = Gain/sum(Gain), Cover = Cover/sum(Cover), Frequence = Frequence/sum(Frequence))][order(Gain, decreasing = T)]
+treeDump <- function(feature_names, text, keepDetail){
+  if(keepDetail) groupBy <- c("Feature", "Split") else groupBy <- "Feature"
+  
+  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = groupBy, with = T][,`:=`(Gain = Gain/sum(Gain), Cover = Cover/sum(Cover), Frequence = Frequence/sum(Frequence))][order(Gain, decreasing = T)]
   
   result  
 }
