@@ -166,6 +166,31 @@ print(importance)
 
 `Frequence` is a simpler way to measure the `Gain`. It just counts the number of times a feature is used in all generated trees. You should not use it (unless you know why you want to use it).
 
+We can go deeper in the analysis. In the table above, we have discovered which feature counts to predict if the illness will go or not. But we don't yet know the role of these feature. 
+
+One simple way to see this role is to count the co-occurence. For that purpose we will execute the same function but with more arguments.
+
+```{r}
+importance <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst, data = sparse_matrix, label = output_vector)
+
+# Removing not important things for better display
+importance <- importance[,`:=`(Cover=NULL, Frequence=NULL)][1:10,]
+
+print(importance)
+```
+
+In the table above we have removed two not needed columns and select only the first 10 lines.
+
+First thing you notice is the new column `Split`. It is the split applied to the feature on a branch of one of the tree. Each split is present, therefore a feature can appear several times in this table. Here we can see the feature Age is used several times with different split.
+
+How the split is applied to count the co-occurences? It is always `<`. For instance, in the second line, we measure the number of person under 61 years with the illness gone.
+
+The two other new columns are `RealCover` and `RealCover %`. In the first column it measures the number of observation in the dataset where the split is respected and the label marked as `1`. The second column is the percentage of the all population that the previous figure represents.
+
+Therefore, according to our findings, getting a Placebo doesn't seem to help but being less than 61 years old may help.
+
+> You may wonder how to interpret the `< 1.00001 ` on the first line. Basically, in a sparse `Matrix`, there is no 0, therefore, looking for categorical observations validating the rule `< 1.00001` is like looking for `1` for this feature.
+
 Plotting the feature importance
 -------------------------------
 
