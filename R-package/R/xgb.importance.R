@@ -94,15 +94,19 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
     result <- treeDump(feature_names, text = text, keepDetail = !is.null(data))
     
     # Co-occurence computation
-    if(!is.null(data) & !is.null(label) & nrow(result) > 0) {
+    if(!is.null(data) & !is.null(label) & nrow(result) > 0) {      
+      # Apply split
       a <- data[, result[,Feature],drop=FALSE] < as.numeric(result[,Split])
+      # Take care of missing column 
       b <- data[, result[No == Missing,Feature],drop=FALSE] != 0
+      # Do nothing if missing should be included in Yes
       c <- data[, result[No != Missing,Feature],drop=FALSE]
+      # Bind the two previous Matrix and reorder columns
       d <- cBind(b,c) %>% .[,result[,Feature]]
       
       apply(a & d, 2, . %>% target %>% sum) -> vec
             
-      result <- result[, "RealCover":= as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)]  
+      result <- result[, "RealCover":= as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)][,`:=`(No = NULL, Missing = NULL)]
     }    
   }
   result
