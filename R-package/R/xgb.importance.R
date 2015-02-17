@@ -8,6 +8,7 @@
 #' @importFrom data.table :=
 #' @importFrom magrittr %>%
 #' @importFrom Matrix colSums
+#' @importFrom Matrix cBind
 #' 
 #' @param feature_names names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.
 #' 
@@ -94,8 +95,12 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
     
     # Co-occurence computation
     if(!is.null(data) & !is.null(label) & nrow(result) > 0) {
+      a <- data[, result[,Feature],drop=FALSE] < as.numeric(result[,Split])
+      b <- data[, result[No == Missing,Feature],drop=FALSE] != 0
+      c <- data[, result[No != Missing,Feature],drop=FALSE]
+      d <- cBind(b,c) %>% .[,result[,Feature]]
       
-      ((data[, result[,Feature],drop=FALSE] != 0) & (data[, result[,Feature],drop=FALSE] < as.numeric(result[,Split]))) %>% apply(., 2, . %>% target %>% sum) -> vec
+      apply(a & d, 2, . %>% target %>% sum) -> vec
             
       result <- result[, "RealCover":= as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)]  
     }    
@@ -104,7 +109,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
 }
 
 treeDump <- function(feature_names, text, keepDetail){
-  if(keepDetail) groupBy <- c("Feature", "Split") else groupBy <- "Feature"
+  if(keepDetail) groupBy <- c("Feature", "Split", "No", "Missing") else groupBy <- "Feature"
   
   result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = groupBy, with = T][,`:=`(Gain = Gain/sum(Gain), Cover = Cover/sum(Cover), Frequence = Frequence/sum(Frequence))][order(Gain, decreasing = T)]
   
