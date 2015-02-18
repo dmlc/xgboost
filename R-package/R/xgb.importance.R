@@ -95,28 +95,26 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
     result <- treeDump(feature_names, text = text, keepDetail = !is.null(data))
     
     # Co-occurence computation
-    if(!is.null(data) & !is.null(label) & nrow(result) > 0) {      
-      # Apply split
-      a <- data[, result[,Feature],drop=FALSE] < as.numeric(result[,Split])
+    if(!is.null(data) & !is.null(label) & nrow(result) > 0) {
       # Take care of missing column 
-      b <- data[, result[No == Missing,Feature],drop=FALSE] != 0
-      # Do nothing if missing should be included in Yes
-      c <- data[, result[No != Missing,Feature],drop=FALSE]
-      # Bind the two previous Matrix and reorder columns
-      d <- cBind(b,c) %>% .[,result[,Feature]]
-      
-      apply(a & d, 2, . %>% target %>% sum) -> vec
+      a <- data[, result[MissingNo == T,Feature], drop=FALSE] != 0
+      # Bind the two Matrix and reorder columns
+      c <- data[, result[MissingNo == F,Feature], drop=FALSE] %>% cBind(a,.) %>% .[,result[,Feature]]
+      rm(a)
+      # Apply split
+      d <- data[, result[,Feature], drop=FALSE] < as.numeric(result[,Split])
+      apply(c & d, 2, . %>% target %>% sum) -> vec
             
-      result <- result[, "RealCover":= as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)][,`:=`(No = NULL, Missing = NULL)]
+      result <- result[, "RealCover":= as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)][,MissingNo:=NULL]
     }    
   }
   result
 }
 
 treeDump <- function(feature_names, text, keepDetail){
-  if(keepDetail) groupBy <- c("Feature", "Split", "No", "Missing") else groupBy <- "Feature"
+  if(keepDetail) groupBy <- c("Feature", "Split", "MissingNo") else groupBy <- "Feature"
   
-  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = groupBy, with = T][,`:=`(Gain = Gain/sum(Gain), Cover = Cover/sum(Cover), Frequence = Frequence/sum(Frequence))][order(Gain, decreasing = T)]
+  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[,"MissingNo":= Missing == No ][Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = groupBy, with = T][,`:=`(Gain = Gain/sum(Gain), Cover = Cover/sum(Cover), Frequence = Frequence/sum(Frequence))][order(Gain, decreasing = T)]
   
   result  
 }
