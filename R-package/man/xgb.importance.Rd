@@ -18,7 +18,7 @@ xgb.importance(feature_names = NULL, filename_dump = NULL, model = NULL,
 
 \item{label}{the label vetor used for the training step. Will be used with \code{data} parameter for co-occurence computation. More information in \code{Detail} part. This parameter is optional.}
 
-\item{target}{a function which returns \code{TRUE} or \code{1} when an observation should be count as a co-occurence and \code{FALSE} or \code{0} otherwise. Default function is provided for computing co-occurence between in a binary classification. The \code{target} function should have only one parameter (will be used to provide each important feature vector after applying the split condition on it). More information in \code{Detail} part. This parameter is optional.}
+\item{target}{a function which returns \code{TRUE} or \code{1} when an observation should be count as a co-occurence and \code{FALSE} or \code{0} otherwise. Default function is provided for computing co-occurences in a binary classification. The \code{target} function should have only one parameter. This parameter will be used to provide each important feature vector after having applied the split condition, therefore these vector will be only made of 0 and 1 only, whatever was the information before. More information in \code{Detail} part. This parameter is optional.}
 }
 \value{
 A \code{data.table} of the features used in the model with their average gain (and their weight for boosted tree model) in the model.
@@ -42,12 +42,13 @@ There are 3 columns :
 }
 
 Co-occurence count
+------------------
 
-The gain gives you indication about the information of how a feature is important in making a branch of a decision tree more pure. But, by itself, you can't know if this feature has to be present or not to get a specific classification. In the example code, you may wonder if odor=none should be \code{TRUE} to not eat a mushroom.
+The gain gives you indication about the information of how a feature is important in making a branch of a decision tree more pure. However, with this information only, you can't know if this feature has to be present or not to get a specific classification. In the example code, you may wonder if odor=none should be \code{TRUE} to not eat a mushroom.
 
-Co-occurence computation is here to help in understanding this relation. It will counts how many observations have target function \code{TRUE}. In our example, there are 92 times only over the 3140 observations of the train dataset where a mushroom have no odor and can be eaten safely.
+Co-occurence computation is here to help in understanding this relation between a predictor and a specific class. It will count how many observations are returned as \code{TRUE} by the \code{target} function (see parameters). When you execute the example below, there are 92 times only over the 3140 observations of the train dataset where a mushroom have no odor and can be eaten safely.
 
-If you need to remember one thing of all of this: until you want to leave us early, don't eat a mushroom which has no odor :-)
+If you need to remember one thing only: until you want to leave us early, don't eat a mushroom which has no odor :-)
 }
 \examples{
 data(agaricus.train, package='xgboost')
