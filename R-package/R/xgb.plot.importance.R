@@ -45,6 +45,9 @@ xgb.plot.importance <- function(importance_matrix = NULL, numberOfClusters = c(1
     stop("importance_matrix: Should be a data.table.")
   }
     
+  # To avoid issues in clustering when co-occurences are used
+  importance_matrix <- importance_matrix[, .(Gain = sum(Gain)), by = Feature]
+  
   clusters <- suppressWarnings(Ckmeans.1d.dp(importance_matrix[,Gain], numberOfClusters))
   importance_matrix[,"Cluster":=clusters$cluster %>% as.character]
     
@@ -56,4 +59,4 @@ xgb.plot.importance <- function(importance_matrix = NULL, numberOfClusters = c(1
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
 # They are mainly column names inferred by Data.table...
-globalVariables(c("Feature","Gain", "Cluster"))
+globalVariables(c("Feature", "Gain", "Cluster"))
