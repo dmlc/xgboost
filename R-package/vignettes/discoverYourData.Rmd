@@ -164,7 +164,7 @@ print(importance)
 >
 > As you can see, features are classified by `Gain`.
 
-`Gain` is the improvement in accuracy brought by a feature to the branches it is on. The idea is that before adding a new split on a feature X to the branch there was some wrongly classified elements, after adding the split on this feature, there are two new branches, and each of these branch is more accurate (one branch saying if your observation is on this branch then it should be classified as 1, and the other branch saying the exact opposite, both new branches being more accurate than the one before the split).
+`Gain` is the improvement in accuracy brought by a feature to the branches it is on. The idea is that before adding a new split on a feature X to the branch there was some wrongly classified elements, after adding the split on this feature, there are two new branches, and each of these branch is more accurate (one branch saying if your observation is on this branch then it should be classified as `1`, and the other branch saying the exact opposite, both new branches being more accurate than the one before the split).
 
 `Cover` measures the relative quantity of observations concerned by a feature.
 
