@@ -126,10 +126,10 @@ pre {
 }
 
 code {
-    font-family: Consolas, Monaco, Andale Mono, monospace;
+    font-family: Consolas, Monaco, Andale Mono, monospace, courrier new;
     line-height: 1.5;
     font-size: 15px;
-    background: #CDCDCD;
+    background: #F8F8F8;
     border-radius: 4px;
     padding: 5px;
     display: inline-block;
@@ -137,10 +137,15 @@ code {
     white-space: pre-wrap;
 }
 
+
+p code {
+  background: #CDCDCD;
+  color: #606AAA;
+}
+
 code.r, code.cpp {
     display: block;
     word-wrap: break-word;
-    background: #F8F8F8;
     border: 1px solid #606AAA;        
 }
 
@@ -159,7 +164,7 @@ blockquote {
     max-width: 500px;
 }
 
-blockquote  cite {
+blockquote cite {
     font-size:14px;
     line-height:10px;
     color:#bfbfbf;

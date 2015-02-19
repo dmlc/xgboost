@@ -39,6 +39,7 @@ Sometimes the dataset we have to work on have *categorical* data.
 A *categorical* variable is one which have a fixed number of different values. By exemple, if for each observation a variable called *Colour* can have only *red*, *blue* or *green* as value, it is a *categorical* variable.
 
 > In *R*, *categorical* variable is called `factor`.
+>
 > Type `?factor` in console for more information.
 
 In this demo we will see how to transform a dense dataframe (dense = few zero in the matrix) with *categorical* variables to a very sparse matrix (sparse = lots of zero in the matrix) of `numeric` features before analyzing these data in **Xgboost**.
@@ -65,8 +66,10 @@ str(df)
 ```
 
 > 2 columns have `factor` type, one has `ordinal` type.
-> `ordinal` variable is a categorical variable with values wich can be ordered
-> Here: `None` > `Some` > `Marked`.
+>
+> `ordinal` variable can take a limited number of values and these values can be ordered.
+>
+> `Marked > Some > None`
 
 Let's add some new *categorical* features to see if it helps.
 
@@ -77,7 +80,7 @@ df[,AgeDiscret:= as.factor(round(Age/10,0))][1:10]
 ```
 
 > For the first feature we create groups of age by rounding the real age.
-> Note that we transform it to `factor` so the algorithm treat these age groups as independant values.
+> Note that we transform it to `factor` so the algorithm treat these age groups as independent values.
 > Therefore, 20 is not closer to 30 than 60. To make it short, the distance between ages is lost in this transformation.
 
 Following is an even stronger simplification of the real age with an arbitrary split at 30 years old. I choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (I am sure you already have an idea of how well it will work!).
@@ -158,6 +161,7 @@ print(importance)
 ```
 
 > The column `Gain` provide the information we are looking for.
+>
 > As you can see, features are classified by `Gain`.
 
 `Gain` is the improvement in accuracy brought by a feature to the branches it is on. The idea is that before adding a new split on a feature X to the branch there was some wrongly classified elements, after adding the split on this feature, there are two new branches, and each of these branch is more accurate (one branch saying if your observation is on this branch then it should be classified as 1, and the other branch saying the exact opposite, both new branches being more accurate than the one before the split).
@@ -165,6 +169,33 @@ print(importance)
 `Cover` measures the relative quantity of observations concerned by a feature.
 
 `Frequence` is a simpler way to measure the `Gain`. It just counts the number of times a feature is used in all generated trees. You should not use it (unless you know why you want to use it).
+
+We can go deeper in the analysis. In the table above, we have discovered which features counts to predict if the illness will go or not. But we don't yet know the role of these features. For instance, one of the question we will try to answer will be: does receiving a placebo helps to recover from the illness?
+
+One simple solution is to count the co-occurrences of a feature and a class of the classification. 
+
+For that purpose we will execute the same function as above but using two more parameters, `data` and `label`.
+
+```{r}
+importance <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst, data = sparse_matrix, label = output_vector)
+
+# Cleaning for better display
+importance <- importance[,`:=`(Cover=NULL, Frequence=NULL)][1:10,]
+
+print(importance)
+```
+
+> In the table above we have removed two not needed columns and select only the first 10 lines.
+
+First thing you notice is the new column `Split`. It is the split applied to the feature on a branch of one of the tree. Each split is present, therefore a feature can appear several times in this table. Here we can see the feature `Age` is used several times with different splits.
+
+How the split is applied to count the co-occurrences? It is always `<`. For instance, in the second line, we measure the number of persons under 61 years with the illness gone after the treatment.
+
+The two other new columns are `RealCover` and `RealCover %`. In the first column it measures the number of observations in the dataset where the split is respected and the label marked as `1`. The second column is the percentage of the whole population that `RealCover` represents.
+
+Therefore, according to our findings, getting a placebo doesn't seem to help but being younger than 61 years may help (seems logic).
+
+> You may wonder how to interpret the `< 1.00001 ` on the first line. Basically, in a sparse `Matrix`, there is no `0`, therefore, looking for one hot-encoded categorical observations validating the rule `< 1.00001` is like just looking for `1` for this feature.
 
 Plotting the feature importance
 -------------------------------
@@ -222,7 +253,7 @@ In *data science* expression, there is the word *science* :-)
 Conclusion
 ==========
 
-As you can see, in general *destroying information by simplying it won't improve your model*. **Chi2** just demonstrates that. 
+As you can see, in general *destroying information by simplifying it won't improve your model*. **Chi2** just demonstrates that. 
 
 But in more complex cases, creating a new feature based on existing one which makes link with the outcome more obvious may help the algorithm and improve the model. 
 
@@ -239,14 +270,14 @@ Linear model may not be that strong in these scenario.
 Special Note: What about Random forest?
 =======================================
 
-As you may know, [Random Forest](http://en.wikipedia.org/wiki/Random_forest) algorithm is cousin with boosting and both are part of the [ensemble leanrning](http://en.wikipedia.org/wiki/Ensemble_learning) family.
+As you may know, [Random Forest](http://en.wikipedia.org/wiki/Random_forest) algorithm is cousin with boosting and both are part of the [ensemble learning](http://en.wikipedia.org/wiki/Ensemble_learning) family.
 
-Both trains several decision trees for one dataset. The *main* difference is that in Random Forest, trees are independant and in boosting tree N+1 focus its learning on the loss (= what has no been well modeled by tree N).
+Both trains several decision trees for one dataset. The *main* difference is that in Random Forest, trees are independent and in boosting tree N+1 focus its learning on the loss (= what has no been well modeled by tree N).
 
 This difference have an impact on feature importance analysis: the *correlated features*.
 
 Imagine two features perfectly correlated, feature `A` and feature `B`. For one specific tree, if the algorithm needs one of them, it will choose randomly (true in both boosting and random forest).
 
-However, in Random Forest this random choice will be done for each tree, because each tree is independant from the others. Therefore, approximatively, depending of your parameters, 50% of the trees will choose feature `A` and the other 50% will choose feature `B`. So the **importance** of the information contained in `A` and `B` (which is the same, because they are perfectly correlated) is diluted in `A` and `B`. So you won't easily know this information is important to predict what you want to predict! It is even worse when you have 10 correlated features...
+However, in Random Forest this random choice will be done for each tree, because each tree is independent from the others. Therefore, approximatively, depending of your parameters, 50% of the trees will choose feature `A` and the other 50% will choose feature `B`. So the **importance** of the information contained in `A` and `B` (which is the same, because they are perfectly correlated) is diluted in `A` and `B`. So you won't easily know this information is important to predict what you want to predict! It is even worse when you have 10 correlated features...
 
 In boosting, when a specific link between feature and outcome have been learned by the algorithm, it will try to not refocus on it (in theory it is what happens, reality is never that simple). Therefore, all the importance will be on `A` or on `B`. You will know that one feature have an important role in the link between your dataset and the outcome. It is still up to you to search for the correlated features to the one detected as important if you need all of them.
