@@ -16,13 +16,16 @@ vignette: >
 Introduction
 ============
 
-This is an introductory document of using the \verb@xgboost@ package in *R*. 
+This is an introductory document for using the \verb@xgboost@ package in *R*. 
 
 **Xgboost** is short for e**X**treme **G**radient **B**oosting package. 
 
-It is an efficient and scalable implementation of gradient boosting framework by @friedman2001greedy.
+It is an efficient and scalable implementation of gradient boosting framework by @friedman2001greedy. Two solvers are included:
 
-The package includes efficient *linear model* solver and *tree learning* algorithm. It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objectives easily. 
+- *linear model*
+- *tree learning* algorithm
+
+It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objective function easily. 
 
 It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competitions. 
 
@@ -33,17 +36,17 @@ It has several features:
     * *Dense* Matrix: *R*'s *dense* matrix, i.e. `matrix` ;
     * *Sparse* Matrix: *R*'s *sparse* matrix, i.e. `Matrix::dgCMatrix` ;
     * Data File: local data files ;
-    * `xgb.DMatrix`: it's own class (recommended).
+    * `xgb.DMatrix`: its own class (recommended).
 * Sparsity: it accepts *sparse* input for both *tree booster*  and *linear booster*, and is optimized for *sparse* input ;
-* Customization: it supports customized objective function and evaluation function ;
+* Customization: it supports customized objective functions and evaluation functions ;
 * Performance: it has better performance on several different datasets.
 
-The purpose of this Vignette is to show you how to use **Xgboost** to make prediction from a model based on your own dataset.
+The purpose of this Vignette is to show you how to use **Xgboost** to make predictions from a model based on your dataset.
 
 Installation
 ============
 
-The first step is of course to install the package.
+The first step is to install the package.
 
 For up-to-date version (which is *highly* recommended), install from Github:
 
@@ -65,7 +68,7 @@ For the purpose of this tutorial we will load **Xgboost** package.
 require(xgboost)
 ```
 
-In this example, we are aiming to predict whether a mushroom can be eated or not (yeah I know, like many tutorial, example data are the exact one you will work on in your every day life :-). 
+In this example, we are aiming to predict whether a mushroom can be eaten or not (yeah I know, like many tutorials, example data are the the same as you will use on in your every day life :-). 
 
 Mushroom data is cited from UCI Machine Learning Repository. @Bache+Lichman:2013.
 
@@ -77,10 +80,10 @@ Dataset loading
 
 We will load the `agaricus` datasets embedded with the package and will link them to variables.
 
-The datasets are already separated in `train` and `test` data:
+The datasets are already split in:
 
-* As their names imply, the `train` part will be used to build the model ;
-* `test` will be used to check how well our model is. 
+* `train`: will be used to build the model ;
+* `test`: will be used to assess the quality of our model. 
 
 Without dividing the dataset we would test the model on data the algorithm have already seen. As you may imagine, it's not the best methodology to check the performance of a prediction (can it even be called a *prediction*?).
 
