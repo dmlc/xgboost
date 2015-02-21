@@ -22,8 +22,8 @@ This is an introductory document for using the \verb@xgboost@ package in *R*.
 
 It is an efficient and scalable implementation of gradient boosting framework by @friedman2001greedy. Two solvers are included:
 
-- *linear model*
-- *tree learning* algorithm
+- *linear* model ;
+- *tree learning* algorithm.
 
 It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objective function easily. 
 
@@ -48,7 +48,7 @@ Installation
 
 The first step is to install the package.
 
-For up-to-date version (which is *highly* recommended), install from Github:
+For up-to-date version (which is *highly* recommended), install from *Github*:
 
 ```{r installGithub, eval=FALSE}
 devtools::install_github('tqchen/xgboost',subdir='R-package')
@@ -56,7 +56,7 @@ devtools::install_github('tqchen/xgboost',subdir='R-package')
 
 > *Windows* user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
 
-For stable version on CRAN, run:
+For stable version on *CRAN*, run:
 
 ```{r installCran, eval=FALSE}
 install.packages('xgboost')
@@ -194,11 +194,11 @@ print(paste("test-error=", err))
 
 > We remind you that the algorithm has never seen the `test` data before.
 
-Here, we have just computed a simple metric: the average error:
+Here, we have just computed a simple metric, the average error.
 
-* `as.numeric(pred > 0.5)` applies our rule that when the probability (== prediction == regression) is over `0.5` the observation is classified as `1` and `0` otherwise ;
-* `probabilityVectorPreviouslyComputed != test$label` computes the vector of error between true data and computed probabilities ;
-* `mean(vectorOfErrors)` computes the average error itself.
+1. `as.numeric(pred > 0.5)` applies our rule that when the probability (== prediction == regression) is over `0.5` the observation is classified as `1` and `0` otherwise ;
+2. `probabilityVectorPreviouslyComputed != test$label` computes the vector of error between true data and computed probabilities ;
+3. `mean(vectorOfErrors)` computes the average error itself.
 
 The most important thing to remember is that **to do a classification basically, you just do a regression and then apply a threeshold**. 
 
