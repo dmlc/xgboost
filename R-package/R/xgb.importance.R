@@ -9,6 +9,7 @@
 #' @importFrom magrittr %>%
 #' @importFrom Matrix colSums
 #' @importFrom Matrix cBind
+#' @importFrom Matrix sparseVector
 #' 
 #' @param feature_names names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.
 #' 
@@ -80,6 +81,10 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
   
   if((is.null(data) & !is.null(label)) |(!is.null(data) & is.null(label))) {
     stop("data/label: Provide the two arguments if you want co-occurence computation or none of them if you are not interested but not one of them only.")
+  }
+  
+  if(class(label) == "numeric"){
+    if(sum(label == 0) / length(label) > 0.5) label <- as(label, "sparseVector")
   }
   
   if(is.null(model)){

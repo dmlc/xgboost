@@ -25,7 +25,7 @@ body{
 
     line-height: 1;
     max-width: 800px;
-    padding: 20px;
+    padding: 10px;
     font-size: 17px;
     text-align: justify;
     text-justify: inter-word;
@@ -33,9 +33,10 @@ body{
 
 
 p   {
-    line-height: 150%;
+    line-height: 140%;
 /    max-width: 540px;
     max-width: 960px;
+    margin-bottom: 5px;
     font-weight: 400;    
 /    color: #333333
 }
@@ -46,7 +47,7 @@ h1, h2, h3, h4 {
     font-weight: 400;
 }
 
-h2, h3, h4, h5, p {
+h2, h3, h4, h5 {
     margin-bottom: 20px;
     padding: 0;
 }
@@ -86,6 +87,7 @@ h6 {
     font-variant:small-caps;
     font-style: italic;
 }
+
 a {
     color: #606AAA;
     margin: 0;
@@ -101,6 +103,7 @@ a:hover {
 a:visited {
     color: gray;
 }
+
 ul, ol {
     padding: 0;
     margin: 0px 0px 0px 50px;
@@ -138,9 +141,10 @@ code {
 }
 
 
-p code {
+li code, p code {
   background: #CDCDCD;
   color: #606AAA;
+  padding: 0px 5px 0px 5px;
 }
 
 code.r, code.cpp {
