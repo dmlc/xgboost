@@ -9,6 +9,8 @@ Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
 
 Questions and Issues: [https://github.com/tqchen/xgboost/issues](https://github.com/tqchen/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
+User Google Group: [https://groups.google.com/forum/#!forum/xgboost-user/](https://groups.google.com/forum/#!forum/xgboost-user/)
+
 Examples Code: [Learning to use xgboost by examples](demo)
 
 Distributed Version: [Distributed XGBoost](multi-node)
@@ -22,6 +24,7 @@ Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washin
 
 What's New
 =====
+* [google group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
 * [Distributed XGBoost](multi-node) is now available!!
 * New features in the lastest changes :)
   - Distributed version that scale xgboost to even larger problems with cluster
