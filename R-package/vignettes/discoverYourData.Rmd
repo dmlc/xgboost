@@ -211,7 +211,7 @@ The two other new columns are `RealCover` and `RealCover %`. In the first column
 
 Therefore, according to our findings, getting a placebo doesn't seem to help but being younger than 61 years may help (seems logic).
 
-> You may wonder how to interpret the `< 1.00001 ` on the first line. Basically, in a sparse `Matrix`, there is no `0`, therefore, looking for one hot-encoded categorical observations validating the rule `< 1.00001` is like just looking for `1` for this feature.
+> You may wonder how to interpret the `< 1.00001` on the first line. Basically, in a sparse `Matrix`, there is no `0`, therefore, looking for one hot-encoded categorical observations validating the rule `< 1.00001` is like just looking for `1` for this feature.
 
 Plotting the feature importance
 -------------------------------
@@ -224,8 +224,7 @@ xgb.plot.importance(importance_matrix = importanceRaw)
 
 Feature have automatically been divided in 2 clusters: the interesting features... and the others.
 
-> Depending of the dataset and the learning parameters you may have more than two clusters. 
-> Default value is to limit them to 10, but you can increase this limit. Look at the function documentation for more information.
+> Depending of the dataset and the learning parameters you may have more than two clusters. Default value is to limit them to `10`, but you can increase this limit. Look at the function documentation for more information.
 
 According to the plot above, the most important features in this dataset to predict if the treatment will work are :
 
