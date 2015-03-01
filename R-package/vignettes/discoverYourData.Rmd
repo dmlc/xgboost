@@ -17,7 +17,7 @@ Introduction
 
 The purpose of this Vignette is to show you how to use **Xgboost** to discover and better understand your own dataset.
 
-This Vignette is not about showing you how to predict anything (see [Xgboost presentation](www.somewhere.org)). The purpose of this document is to explain how to use **Xgboost** to understand the *link* between the *features* of your data and an *outcome*.
+This Vignette is not about showing you how to predict anything (see [Xgboost presentation](https://github.com/tqchen/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). The purpose of this document is to explain how to use **Xgboost** to understand the *link* between the *features* of your data and an *outcome*.
 
 For the purpose of this tutorial we will first load the required packages.
 
@@ -131,7 +131,7 @@ output_vector = df[,Y:=0][Improved == "Marked",Y:=1][,Y]
 Build the model
 ===============
 
-The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or to the vignette [Xgboost presentation](www.somewhere.org)).
+The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or to the vignette [Xgboost presentation](https://github.com/tqchen/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
 
 ```{r}
 bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 4,
