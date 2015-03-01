@@ -204,7 +204,7 @@ pred <- predict(bst, test$data)
 print(length(pred))
 
 # limit display of predictions to the first 10
-print(pred[1:10])
+print(head(pred))
 ```
 
 These numbers doesn't look like *binary classification* `{0,1}`. We need to perform a simple transformation before being able to use these results.
@@ -220,7 +220,7 @@ If we think about the meaning of a regression applied to our data, the numbers w
 
 ```{r predictingTest, message=F, warning=F}
 prediction <- as.numeric(pred > 0.5)
-print(prediction[1:10])
+print(head(prediction))
 ```
 
 Measuring model performance
@@ -241,7 +241,7 @@ Steps explanation:
 2. `probabilityVectorPreviouslyComputed != test$label` computes the vector of error between true data and computed probabilities ;
 3. `mean(vectorOfErrors)` computes the *average error* itself.
 
-The most important thing to remember is that **to do a classification, you just do a regression to the `label` and then apply a threeshold**. 
+The most important thing to remember is that **to do a classification, you just do a regression to the** `label` **and then apply a threeshold**. 
 
 *Multiclass* classification works in a similar way.
 

@@ -17,9 +17,9 @@ Introduction
 
 The purpose of this Vignette is to show you how to use **Xgboost** to discover and better understand your own dataset.
 
-This Vignette is not about showing you how to predict anything (see [Xgboost presentation](https://github.com/tqchen/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). The purpose of this document is to explain how to use **Xgboost** to understand the *link* between the *features* of your data and an *outcome*.
+This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/tqchen/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and an *outcome*.
 
-For the purpose of this tutorial we will first load the required packages.
+Pacakge loading:
 
 ```{r libLoading, results='hold', message=F, warning=F}
 require(xgboost)
@@ -27,36 +27,45 @@ require(Matrix)
 require(data.table)
 if (!require('vcd')) install.packages('vcd') 
 ```
-> **VCD** package is used for one of its embedded dataset only (and not for its own functions).
+
+> **VCD** package is used for one of its embedded dataset only.
 
 Preparation of the dataset
 ==========================
 
-**Xgboost** works only on `numeric` variables.
+Numeric VS categorical variables
+----------------------------------
 
-Sometimes the dataset we have to work on have *categorical* data. 
+**Xgboost** manages only `numeric` vectors.
 
-A *categorical* variable is one which have a fixed number of different values. By exemple, if for each observation a variable called *Colour* can have only *red*, *blue* or *green* as value, it is a *categorical* variable.
+What to do when you have *categorical* data?
 
-> In *R*, *categorical* variable is called `factor`.
+A *categorical* variable is one which have a fixed number of different values. For instance, if a variable called *Colour* can have only one of these three values, *red*, *blue* or *green*, *Colour* is a *categorical* variable.
+
+> In **R**, a *categorical* variable is called `factor`.
 >
-> Type `?factor` in console for more information.
+> Type `?factor` in the console for more information.
 
-In this demo we will see how to transform a dense dataframe (dense = few zero in the matrix) with *categorical* variables to a very sparse matrix (sparse = lots of zero in the matrix) of `numeric` features before analyzing these data in **Xgboost**.
+Conversion from categorical to numeric variables
+------------------------------------------------
+
+In this demo we will see how to transform a *dense* dataframe (*dense* = few zero in the matrix) with *categorical* variables to a very *sparse* matrix (*sparse* = lots of zero in the matrix) of `numeric` features.
 
 The method we are going to see is usually called [one hot encoding](http://en.wikipedia.org/wiki/One-hot).
 
-The first step is to load Arthritis dataset in memory and wrap the dataset with `data.table` package (`data.table` is 100% compliant with *R* dataframe but its syntax is a lot more consistent and its performance are really good).
+The first step is to load `Arthritis` dataset in memory and wrap it with `data.table` package.
 
 ```{r, results='hide'}
 data(Arthritis)
 df <- data.table(Arthritis, keep.rownames = F)
 ```
 
-Let's have a look to the 10 first lines of the `data.table`:
+> `data.table` is 100% compliant with **R** dataframe but its syntax is very consistent and its performance is really good.
+
+The first thing we want to do is to have a look to the first lines of the `data.table`:
 
 ```{r}
-print(df[1:10])
+head(df)
 ```
 
 Now we will check the format of each column.
@@ -71,34 +80,35 @@ str(df)
 >
 > `Marked > Some > None`
 
-Let's add some new *categorical* features to see if it helps.
+We will add some new *categorical* features to see if it helps.
 
-Of course these feature are highly correlated to the Age feature. Usually it's not a good thing in Machine Learning. Fortunately, tree algorithms (including boosted trees) are very robust in this specific case.
+These feature will be highly correlated to the `Age` feature. Usually it's not a good thing in Machine Learning. Fortunately, tree algorithms (including boosted trees) are robust to correlated features.
 
 ```{r}
-df[,AgeDiscret:= as.factor(round(Age/10,0))][1:10]
+head(df[,AgeDiscret:= as.factor(round(Age/10,0))])
 ```
 
 > For the first feature we create groups of age by rounding the real age.
+>
 > Note that we transform it to `factor` so the algorithm treat these age groups as independent values.
 > Therefore, 20 is not closer to 30 than 60. To make it short, the distance between ages is lost in this transformation.
 
 Following is an even stronger simplification of the real age with an arbitrary split at 30 years old. I choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (I am sure you already have an idea of how well it will work!).
 
 ```{r}
-df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))][1:10]
+head(df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))])
 ```
 
-We remove ID as there is nothing to learn from this feature (it will just add some noise as the dataset is small).
+We remove ID as there is nothing to learn from this feature (it would just add some noise).
 
 ```{r, results='hide'}
 df[,ID:=NULL]
 ```
 
-Let's list the different values for the column Treatment.
+We will list the different values for the column `Treatment`:
 
 ```{r}
-print(levels(df[,Treatment]))
+levels(df[,Treatment])
 ```
 
 
@@ -107,16 +117,16 @@ This is the [one hot encoding](http://en.wikipedia.org/wiki/One-hot) part.
 
 The purpose is to transform each value of each *categorical* feature in a binary feature `{0, 1}`.
 
-For example, the column Treatment will be replaced by two columns, Placebo, and Treated. Each of them will be *binary*. Therefore, an observation which has the value Placebo in column Treatment before the transformation will have after the transformation the value `1` in the new column Placebo and the value `0` in the new column  Treated.
+For example, the column `Treatment` will be replaced by two columns, `Placebo`, and `Treated`. Each of them will be *binary*. Therefore, an observation which has the value `Placebo` in column `Treatment` before the transformation will have after the transformation the value `1` in the new column `Placebo` and the value `0` in the new column `Treated`.
 
-Column Improved is excluded because it will be our output column, the one we want to predict.
+Column `Improved` is excluded because it will be our `label` column, the one we want to predict.
 
 ```{r, warning=FALSE,message=FALSE}
 sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df)
-print(sparse_matrix[1:10,])
+head(sparse_matrix)
 ```
 
-> Formulae `Improved~.-1` used above means transform all *categorical* features but column Improved to binary values.
+> Formulae `Improved~.-1` used above means transform all *categorical* features but column `Improved` to binary values. The `-1` is here to remove the first column which is full of `1` (this column is generated by the conversion). For more information, you can type `?sparse.model.matrix` in the console.
 
 Create the output `numeric` vector (not as a sparse `Matrix`):
 
@@ -131,7 +141,7 @@ output_vector = df[,Y:=0][Improved == "Marked",Y:=1][,Y]
 Build the model
 ===============
 
-The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or to the vignette [Xgboost presentation](https://github.com/tqchen/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
+The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [Xgboost presentation](https://github.com/tqchen/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
 
 ```{r}
 bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 4,
@@ -139,13 +149,13 @@ bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 4,
 
 ```
 
-You can see plenty of `train-error: 0.XXXXX` lines followed by a number. It decreases. Each line shows how well your model explains your data. Lower is better.
+You can see some `train-error: 0.XXXXX` lines followed by a number. It decreases. Each line shows how well the model explains your data. Lower is better.
 
-A model which fits too well may [overfit](http://en.wikipedia.org/wiki/Overfitting) (meaning it copy paste too much the past, and is not that good to predict the future). 
+A model which fits too well may [overfit](http://en.wikipedia.org/wiki/Overfitting) (meaning it copy/paste too much the past, and won't be that good to predict the future). 
 
 > Here you can see the numbers decrease until line 7 and then increase. 
-> It probably means I am overfitting. To fix that I may reduce the number of rounds to `nround = 4`. 
-> I will let things like that because I don't really care for the purpose of this example :-)
+>
+> It probably means I am overfitting. To fix that I should reduce the number of rounds to `nround = 4`. I will let things like that because I don't really care for the purpose of this example :-)
 
 Feature importance
 ==================
@@ -157,7 +167,7 @@ In the code below, `sparse_matrix@Dimnames[[2]]` represents the column names of 
 
 ```{r}
 importance <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst)
-print(importance)
+importance
 ```
 
 > The column `Gain` provide the information we are looking for.
@@ -177,12 +187,12 @@ One simple solution is to count the co-occurrences of a feature and a class of t
 For that purpose we will execute the same function as above but using two more parameters, `data` and `label`.
 
 ```{r}
-importance <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst, data = sparse_matrix, label = output_vector)
+importanceRaw <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst, data = sparse_matrix, label = output_vector)
 
 # Cleaning for better display
-importanceClean <- importance[,`:=`(Cover=NULL, Frequence=NULL)][1:10,]
+importanceClean <- importanceRaw[,`:=`(Cover=NULL, Frequence=NULL)]
 
-print(importanceClean)
+importanceClean
 ```
 
 > In the table above we have removed two not needed columns and select only the first 10 lines.
@@ -203,7 +213,7 @@ Plotting the feature importance
 All these things are nice, but it would be even better to plot the result. Fortunately, such function already exists.
 
 ```{r, fig.width=8, fig.height=5, fig.align='center'}
-xgb.plot.importance(importance_matrix = importance)
+xgb.plot.importance(importance_matrix = importanceRaw)
 ```
 
 Feature have automatically been divided in 2 clusters: the interesting features... and the others.
@@ -244,7 +254,7 @@ c2 <- chisq.test(df$AgeCat, df$Y)
 print(c2)
 ```
 
-The perfectly random split I did between young and old at 30 years old have a low correlation of **`r round(c2$statistic, 2)`**. It's a result we may expect as may be in my mind > 30 years is being old (I am 32 and starting feeling old, this may explain that), but  for the illness we are studying, the age to be vulnerable is not the same. 
+The perfectly random split I did between young and old at 30 years old have a low correlation of **`r round(c2$statistic, 2)`**. It's a result we may expect as may be in my mind > 30 years is being old (I am 32 and starting feeling old, this may explain that), but for the illness we are studying, the age to be vulnerable is not the same. 
 
 Morality: don't let your *gut* lower the quality of your model. 
 
