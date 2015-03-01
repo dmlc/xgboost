@@ -180,9 +180,9 @@ For that purpose we will execute the same function as above but using two more p
 importance <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst, data = sparse_matrix, label = output_vector)
 
 # Cleaning for better display
-importance <- importance[,`:=`(Cover=NULL, Frequence=NULL)][1:10,]
+importanceClean <- importance[,`:=`(Cover=NULL, Frequence=NULL)][1:10,]
 
-print(importance)
+print(importanceClean)
 ```
 
 > In the table above we have removed two not needed columns and select only the first 10 lines.
