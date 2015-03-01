@@ -192,7 +192,10 @@ bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2, objective = "b
 Basic prediction using Xgboost
 ==============================
 
-The main use of **Xgboost** is to predict data. For that purpose we will use the `test` dataset.
+Perform the prediction
+----------------------
+
+The pupose of the model we have built is to classify new data. As explained before, we will use the `test` dataset for this step.
 
 ```{r predicting, message=F, warning=F}
 pred <- predict(bst, test$data)
@@ -204,33 +207,50 @@ print(length(pred))
 print(pred[1:10])
 ```
 
-The only thing **Xgboost** do is a regression. But we are in a binary classification problem. If we think about this regression results, they are just kind of probabilities being classified as `1`. 
+These numbers doesn't look like *binary classification* `{0,1}`. We need to perform a simple transformation before being able to use these results.
 
-Therefore, we will set the rule if the probability is `> 5` then the observation is classified as `1` and is classified `0` otherwise.
+Transform the regression in a binary classification
+---------------------------------------------------
+
+The only thing that **Xgboost** does is a *regression*. **Xgboost** is using `label` vector to build its *regression* model.
+
+How can we use a *regression* model to perform a binary classification?
+
+If we think about the meaning of a regression applied to our data, the numbers we get are probabilities that a datum will be classified as `1`. Therefore, we will set the rule that if this probability for a specific datum is `> 0.5` then the observation is classified as `1` (or `0` otherwise).
 
 ```{r predictingTest, message=F, warning=F}
+prediction <- as.numeric(pred > 0.5)
+print(prediction[1:10])
+```
+
+Measuring model performance
+---------------------------
+
+To measure the model performance, we will compute a simple metric, the *average error*.
+
+```{r predictingAverageError, message=F, warning=F}
 err <- mean(as.numeric(pred > 0.5) != test$label)
 print(paste("test-error=", err))
 ```
 
-> We remind you that the algorithm has never seen the `test` data before.
+> Note that the algorithm has not seen the `test` data during the model construction.
 
-Here, we have just computed a simple metric, the average error.
+Steps explanation:
 
-1. `as.numeric(pred > 0.5)` applies our rule that when the probability (== prediction == regression) is over `0.5` the observation is classified as `1` and `0` otherwise ;
+1. `as.numeric(pred > 0.5)` applies our rule that when the probability (<=> regression <=> prediction) is `> 0.5` the observation is classified as `1` and `0` otherwise ;
 2. `probabilityVectorPreviouslyComputed != test$label` computes the vector of error between true data and computed probabilities ;
-3. `mean(vectorOfErrors)` computes the average error itself.
+3. `mean(vectorOfErrors)` computes the *average error* itself.
 
-The most important thing to remember is that **to do a classification basically, you just do a regression and then apply a threeshold**. 
+The most important thing to remember is that **to do a classification, you just do a regression to the `label` and then apply a threeshold**. 
 
-Multiclass classification works in a very similar way.
+*Multiclass* classification works in a similar way.
 
-This metrix is **`r round(err, 2)`** and is pretty low: our yummly mushroom model works well!
+This metric is **`r round(err, 2)`** and is pretty low: our yummly mushroom model works well!
 
 Advanced features
 =================
 
-Most of the features below have been created to help you to improve your model by offering a better understanding of its content.
+Most of the features below have been implemented to help you to improve your model by offering a better understanding of its content.
 
 
 Dataset preparation
@@ -248,9 +268,11 @@ Measure learning progress with xgb.train
 
 Both `xgboost` (simple) and `xgb.train` (advanced) functions train models.
 
-One of the special feature of `xgb.train` is the capacity to follow the progress of the learning after each round. Because of the way boosting works, there is a time when having too many rounds lead to an overfitting. You can see this feature as a cousin of cross-validation method. The following features will help you to avoid overfitting or optimizing the learning time in stopping it as soon as possible.
+One of the special feature of `xgb.train` is the capacity to follow the progress of the learning after each round. Because of the way boosting works, there is a time when having too many rounds lead to an overfitting. You can see this feature as a cousin of cross-validation method. The following technics will help you to avoid overfitting or optimizing the learning time in stopping it as soon as possible.
 
-One way to measure progress in learning of a model is to provide to the **Xgboost** a second dataset already classified. Therefore it can learn on the first dataset and test its model on the second one. Some metrics are measured after each round during the learning.
+One way to measure progress in learning of a model is to provide to **Xgboost** a second dataset already classified. Therefore it can learn on the first dataset and test its model on the second one. Some metrics are measured after each round during the learning.
+
+> in some way it is similar to what we have done above with the average error. The main difference is that below it was after building the model, and now it is during the construction that we measure errors.
 
 For the purpose of this example, we use `watchlist` parameter. It is a list of `xgb.DMatrix`, each of them tagged with a name.
 
@@ -260,7 +282,7 @@ watchlist <- list(train=dtrain, test=dtest)
 bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist, objective = "binary:logistic")
 ```
 
-**Xgboost** has computed at each round the same average error metric than seen above (we set `nround` to 2, that is why we have two lines of metric here). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset. 
+**Xgboost** has computed at each round the same average error metric than seen above (we set `nround` to 2, that is why we have two lines). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset. 
 
 Both training and test error related metrics are very similar, and in some way, it makes sense: what we have learned from the training dataset matches the observations from the test dataset.
 
@@ -272,7 +294,10 @@ For a better understanding of the learning progression, you may want to have som
 bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
 ```
 
-> `eval.metric` allows us to monitor two new metrics for each round, logloss and error.
+> `eval.metric` allows us to monitor two new metrics for each round, `logloss` and `error`.
+
+Linear boosting
+---------------
 
 Until know, all the learnings we have performed were based on boosting trees. **Xgboost** implements a second algorithm, based on linear boosting. The only difference with previous command is `booster = "gblinear"` parameter (and removing `eta` parameter).
 
@@ -280,7 +305,9 @@ Until know, all the learnings we have performed were based on boosting trees. **
 bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
 ```
 
-In this specific case, linear boosting gets sligtly better performance metrics than decision trees based algorithm. In simple case, it will happem because there is nothing better than a linear algorithm to catch a linear link. However, decision trees are much better to catch a non linear link between predictors and outcome. Check both implementations with your own dataset to have an idea of what to use.
+In this specific case, *linear boosting* gets sligtly better performance metrics than decision trees based algorithm. 
+
+In simple cases, it will happem because there is nothing better than a linear algorithm to catch a linear link. However, decision trees are much better to catch a non linear link between predictors and outcome. Because there is no silver bullet, we advise you to check both algorithms with your own datasets to have an idea of what to use.
 
 Manipulating xgb.DMatrix
 ------------------------
@@ -336,7 +363,7 @@ xgb.save(bst, "xgboost.model")
 
 > `xgb.save` function should return `r TRUE` if everything goes well and crashes otherwise.
 
-An interesting test to see how identic to the original one our saved model is would be to compare the two predictions.
+An interesting test to see how identic is our saved model with the original one would be to compare the two predictions.
 
 ```{r loadModel, message=F, warning=F}
 # load binary model to R
