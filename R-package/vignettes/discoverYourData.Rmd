@@ -46,12 +46,14 @@ A *categorical* variable is one which have a fixed number of different values. F
 >
 > Type `?factor` in the console for more information.
 
+To answer the question above we will convert *categorical* variables to `numeric` one.
+
 Conversion from categorical to numeric variables
 ------------------------------------------------
 
 ### Looking at the raw data
 
-In this demo we will see how to transform a *dense* dataframe (*dense* = few zero in the matrix) with *categorical* variables to a very *sparse* matrix (*sparse* = lots of zero in the matrix) of `numeric` features.
+In this Vignette we will see how to transform a *dense* dataframe (*dense* = few zero in the matrix) with *categorical* variables to a very *sparse* matrix (*sparse* = lots of zero in the matrix) of `numeric` features.
 
 The method we are going to see is usually called [one hot encoding](http://en.wikipedia.org/wiki/One-hot).
 
