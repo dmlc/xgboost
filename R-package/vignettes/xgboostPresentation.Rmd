@@ -20,7 +20,7 @@ Introduction
 
 The purpose of this Vignette is to show you how to use **Xgboost** to build a model and make predictions.
 
-It is an efficient and scalable implementation of gradient boosting framework by @friedman2001greedy. Two solvers are included:
+It is an efficient and scalable implementation of gradient boosting framework by @friedman2000additive and @friedman2001greedy. Two solvers are included:
 
 - *linear* model ;
 - *tree learning* algorithm.

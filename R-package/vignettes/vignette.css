@@ -1,4 +1,4 @@
-body{
+body {
     margin: 0 auto;
     background-color: white;
 
@@ -23,7 +23,7 @@ body{
 /    color: #E3E3E3; /* very light gray */
 /    color: white; 
 
-    line-height: 1;
+    line-height: 100%;
     max-width: 800px;
     padding: 10px;
     font-size: 17px;
@@ -32,8 +32,8 @@ body{
 }
 
 
-p   {
-    line-height: 140%;
+p {
+    line-height: 150%;
 /    max-width: 540px;
     max-width: 960px;
     margin-bottom: 5px;
@@ -42,51 +42,43 @@ p   {
 }
 
 
-h1, h2, h3, h4 {
-/    color: #111111;
+h1, h2, h3, h4, h5, h6 {
     font-weight: 400;
-}
-
-h2, h3, h4, h5 {
-    margin-bottom: 20px;
-    padding: 0;
+    margin-top: 35px;
+    margin-bottom: 15px;
+    padding-top: 10px;
 }
 
 h1 {
-    margin-bottom: 10px;
+    margin-top: 70px;
+    color: #606AAA;
     font-size:230%;
-    padding: 0px;
     font-variant:small-caps;
+    padding-bottom:20px;
+    width:100%;
+    border-bottom:1px solid #606AAA;
 }
 
 h2 {
-    font-size:130%;
-/    margin: 24px 0 6px; 
+    font-size:160%;
 }
 
 h3 {
-    font-size:110%;
-    text-decoration: underline;
+    font-size:130%;
 }
 
 h4 {
-    font-size:100%;
-    font-style: italic;
+    font-size:120%;
     font-variant:small-caps;
 }
 
 h5 {
-    font-size:100%;
-    font-weight: 100;
-    font-style: italic;
+    font-size:120%;
 }
 
 h6 {
-    font-size:100%;
-    font-weight: 100;
-    color:red;
+    font-size:120%;
     font-variant:small-caps;
-    font-style: italic;
 }
 
 a {
