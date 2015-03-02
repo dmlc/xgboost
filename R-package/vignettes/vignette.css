@@ -60,28 +60,29 @@ h1 {
 }
 
 h2 {
-    font-size:130%
+    font-size:130%;
 /    margin: 24px 0 6px; 
 }
 
 h3 {
-    font-size:110%
+    font-size:110%;
     text-decoration: underline;
-     font-style: italic;
 }
-h4 {
-    font-size:100%
-    font-variant:small-caps;
 
+h4 {
+    font-size:100%;
+    font-style: italic;
+    font-variant:small-caps;
 }
+
 h5 {
-    font-size:100%
+    font-size:100%;
     font-weight: 100;
     font-style: italic;
 }
 
 h6 {
-    font-size:100%
+    font-size:100%;
     font-weight: 100;
     color:red;
     font-variant:small-caps;
@@ -160,7 +161,6 @@ aside {
 }
 
 blockquote {
-    font-size:14px;
     border-left:.5em solid #606AAA;
     background: #F8F8F8;
     padding: 0em 1em 0em 1em;
@@ -169,7 +169,6 @@ blockquote {
 }
 
 blockquote cite {
-    font-size:14px;
     line-height:10px;
     color:#bfbfbf;
 }
