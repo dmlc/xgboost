@@ -141,7 +141,7 @@ We will train decision tree model using the following parameters:
 
 * `objective = "binary:logistic"`: we will train a binary classification model ;
 * `max.deph = 2`: the trees won't be deep, because our case is very simple ;
-* `nround = 2`: there will be two pass on the data, the second one will focus on the data not correctly learned by the first pass.
+* `nround = 2`: there will be two pass on the data, the second one will enhance the model by reducing the difference between ground truth and prediction.
 
 ```{r trainingSparse, message=F, warning=F}
 bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
@@ -398,7 +398,7 @@ pred3 <- predict(bst3, test$data)
 print(paste("sum(abs(pred3-pred))=", sum(abs(pred2-pred))))
 ``` 
 
-> Again `0`? It seems that `Xgboost` works prety well!
+> Again `0`? It seems that `Xgboost` works pretty well!
 
 References
 ==========
