@@ -1,7 +1,8 @@
 Linear and Logistic Regression
 ====
 * input format: LibSVM
-* Example: [run-linear.sh](run-linear.sh)
+* Local Example: [run-linear.sh](run-linear.sh)
+* Runnig on Hadoop: [run-hadoop.sh](run-hadoop.sh)
 
 Parameters
 ===
