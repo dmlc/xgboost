@@ -15,9 +15,9 @@ vignette: >
 Introduction
 ============
 
-The purpose of this Vignette is to show you how to use **Xgboost** to discover and better understand your own dataset.
+The purpose of this Vignette is to show you how to use **Xgboost** to discover and understand your own dataset better.
 
-This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/tqchen/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and an *outcome*.
+This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/tqchen/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
 
 Pacakge loading:
 
@@ -40,7 +40,7 @@ Numeric VS categorical variables
 
 What to do when you have *categorical* data?
 
-A *categorical* variable is one which have a fixed number of different values. For instance, if a variable called *Colour* can have only one of these three values, *red*, *blue* or *green*, *Colour* is a *categorical* variable.
+A *categorical* variable has a fixed number of different values. For instance, if a variable called *Colour* can have only one of these three values, *red*, *blue* or *green*, then *Colour* is a *categorical* variable.
 
 > In **R**, a *categorical* variable is called `factor`.
 >
@@ -53,9 +53,9 @@ Conversion from categorical to numeric variables
 
 ### Looking at the raw data
 
-In this Vignette we will see how to transform a *dense* dataframe (*dense* = few zero in the matrix) with *categorical* variables to a very *sparse* matrix (*sparse* = lots of zero in the matrix) of `numeric` features.
+In this Vignette we will see how to transform a *dense* dataframe (*dense* = few zeroes in the matrix) with *categorical* variables to a very *sparse* matrix (*sparse* = lots of zero in the matrix) of `numeric` features.
 
-The method we are going to see is usually called [one hot encoding](http://en.wikipedia.org/wiki/One-hot).
+The method we are going to see is usually called [one-hot encoding](http://en.wikipedia.org/wiki/One-hot).
 
 The first step is to load `Arthritis` dataset in memory and wrap it with `data.table` package.
 
