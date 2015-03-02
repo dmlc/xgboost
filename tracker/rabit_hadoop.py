@@ -37,6 +37,8 @@ parser = argparse.ArgumentParser(description='Rabit script to submit rabit jobs 
                                      'This script support both Hadoop 1.0 and Yarn(MRv2), Yarn is recommended')
 parser.add_argument('-n', '--nworker', required=True, type=int,
                     help = 'number of worker proccess to be launched')
+parser.add_argument('-hip', '--host_ip', default='auto', type=str,
+                    help = 'host IP address if cannot be automatically guessed, specify the IP of submission machine')
 parser.add_argument('-nt', '--nthread', default = -1, type=int,
                     help = 'number of thread in each mapper to be launched, set it if each rabit job is multi-threaded')
 parser.add_argument('-i', '--input', required=True,
@@ -149,4 +151,4 @@ def hadoop_streaming(nworker, worker_args, use_yarn):
     subprocess.check_call(cmd, shell = True)
 
 fun_submit = lambda nworker, worker_args: hadoop_streaming(nworker, worker_args, int(hadoop_version[0]) >= 2)
-tracker.submit(args.nworker, [], fun_submit = fun_submit, verbose = args.verbose)
+tracker.submit(args.nworker, [], fun_submit = fun_submit, verbose = args.verbose, hostIP = args.host_ip)
