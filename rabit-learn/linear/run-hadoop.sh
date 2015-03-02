@@ -12,7 +12,7 @@ hadoop fs -mkdir $2/data
 hadoop fs -put ../data/agaricus.txt.train $2/data
 
 # submit to hadoop
-../../tracker/rabit_hadoop.py  -n $1 -i $2/data/agaricus.txt.train -o $2/mushroom.linear.model linear.rabit stdin model_out=stdout "${*:3}" 
+../../tracker/rabit_hadoop.py --host_ip ip  -n $1 -i $2/data/agaricus.txt.train -o $2/mushroom.linear.model linear.rabit stdin model_out=stdout "${*:3}" 
 
 # get the final model file
 hadoop fs -get $2/mushroom.linear.model/part-00000 ./linear.model
