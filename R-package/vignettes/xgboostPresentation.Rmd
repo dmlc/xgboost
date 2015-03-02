@@ -16,7 +16,7 @@ vignette: >
 Introduction
 ============
 
-**Xgboost** is short for e**X**treme **G**radient **B**oosting package. 
+**Xgboost** is short for e**X**treme **G**radient **Boost**ing package. 
 
 The purpose of this Vignette is to show you how to use **Xgboost** to build a model and make predictions.
 
@@ -25,7 +25,7 @@ It is an efficient and scalable implementation of gradient boosting framework by
 - *linear* model ;
 - *tree learning* algorithm.
 
-It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objective function easily. 
+It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objective functions easily. 
 
 It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competitions. 
 
@@ -91,7 +91,7 @@ The datasets are already split in:
 
 Why *split* the dataset in two parts?
 
-In a first part we will build our model. In a second part we will want to test it and assess its quality. Without dividing the dataset we would test the model on data the algorithm have already seen.
+In the first part we will build our model. In the second part we will want to test it and assess its quality. Without dividing the dataset we would test the model on the data which the algorithm have already seen.
 
 ```{r datasetLoading, results='hold', message=F, warning=F}
 data(agaricus.train, package='xgboost')
@@ -100,9 +100,9 @@ train <- agaricus.train
 test <- agaricus.test
 ```
 
-> In the real world, it would be up to you to make this division between `train` and `test` data. The way you should do it is out of the purpose of this article, however `caret` package may [help](http://topepo.github.io/caret/splitting.html).
+> In the real world, it would be up to you to make this division between `train` and `test` data. The way to do it is out of the purpose of this article, however `caret` package may [help](http://topepo.github.io/caret/splitting.html).
 
-Each variable is a `list`, each containing two things, `label` and `data`:
+Each variable is a `list` containing two things, `label` and `data`:
 
 ```{r dataList, message=F, warning=F}
 str(train)
@@ -141,13 +141,13 @@ We will train decision tree model using the following parameters:
 
 * `objective = "binary:logistic"`: we will train a binary classification model ;
 * `max.deph = 2`: the trees won't be deep, because our case is very simple ;
-* `nround = 2`: there will be two pass on the data, the second one will enhance the model by reducing the difference between ground truth and prediction.
+* `nround = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
 
 ```{r trainingSparse, message=F, warning=F}
 bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nround = 2, objective = "binary:logistic")
 ```
 
-> More the link between your features and your `label` is complex, more pass you need.
+> More complex the relationship between your features and your `label` is, more passes you need.
 
 ### Parameter variations
 
@@ -241,7 +241,7 @@ Steps explanation:
 2. `probabilityVectorPreviouslyComputed != test$label` computes the vector of error between true data and computed probabilities ;
 3. `mean(vectorOfErrors)` computes the *average error* itself.
 
-The most important thing to remember is that **to do a classification, you just do a regression to the** `label` **and then apply a threeshold**. 
+The most important thing to remember is that **to do a classification, you just do a regression to the** `label` **and then apply a threshold**. 
 
 *Multiclass* classification works in a similar way.
 
