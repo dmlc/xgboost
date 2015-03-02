@@ -54,6 +54,9 @@ h1 {
     color: #606AAA;
     font-size:230%;
     font-variant:small-caps;
+    padding-bottom:20px;
+    width:100%;
+    border-bottom:1px solid #606AAA;
 }
 
 h2 {
