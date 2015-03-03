@@ -8,9 +8,11 @@
 #include <algorithm>
 // include all std functions
 using namespace std;
+
 #ifdef _MSC_VER
 #define isnan(x) (_isnan(x) != 0)
 #endif
+
 #include "./xgboost_wrapper.h"
 #include "../src/data.h"
 #include "../src/learner/learner-inl.hpp"
@@ -99,6 +101,14 @@ class Booster: public learner::BoostLearner {
 
 using namespace xgboost::wrapper;
 
+inline bool checknan(float v) {
+#if defined(__SUN__) || defined(__sum__) || defined(__SunOS)
+  return !(v==v);
+#else
+  return isnan(v);
+#endif
+}
+
 extern "C"{
   void* XGDMatrixCreateFromFile(const char *fname, int silent) {
     return LoadDataMatrix(fname, silent != 0, false);
@@ -152,7 +162,7 @@ extern "C"{
                                bst_ulong nrow,
                                bst_ulong ncol,
                                float  missing) {    
-    bool nan_missing = isnan(missing);
+    bool nan_missing = checknan(missing);
     DMatrixSimple *p_mat = new DMatrixSimple();
     DMatrixSimple &mat = *p_mat;
     mat.info.info.num_row = nrow;
@@ -160,7 +170,7 @@ extern "C"{
     for (bst_ulong i = 0; i < nrow; ++i, data += ncol) {
       bst_ulong nelem = 0;
       for (bst_ulong j = 0; j < ncol; ++j) {
-        if (isnan(data[j])) {
+        if (checknan(data[j])) {
           utils::Check(nan_missing,
                        "There are NAN in the matrix, however, you did not set missing=NAN"); 
         } else {
