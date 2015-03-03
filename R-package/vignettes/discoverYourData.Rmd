@@ -153,7 +153,7 @@ The code below is very usual. For more information, you can look at the document
 
 ```{r}
 bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 4,
-               eta = 1, nround = 10,objective = "binary:logistic")
+               eta = 1, nthread = 2, nround = 10,objective = "binary:logistic")
 
 ```
 

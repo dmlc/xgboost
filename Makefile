@@ -92,10 +92,10 @@ Rpack:
 	cp ./LICENSE xgboost
 	cat R-package/src/Makevars|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars
 	cp xgboost/src/Makevars xgboost/src/Makevars.win
-	#R CMD build --no-build-vignettes xgboost
+	# R CMD build --no-build-vignettes xgboost
 	R CMD build xgboost
-	rm -rf xgboost
-	R CMD check --as-cran xgboost*.tar.gz
+	#rm -rf xgboost
+	#R CMD check --as-cran xgboost*.tar.gz
 
 clean:
 	$(RM) -rf $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~

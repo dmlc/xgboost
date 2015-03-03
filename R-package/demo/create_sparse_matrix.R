@@ -64,7 +64,7 @@ output_vector = df[,Y:=0][Improved == "Marked",Y:=1][,Y]
 # Following is the same process as other demo
 cat("Learning...\n")
 bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 9,
-               eta = 1, nround = 10,objective = "binary:logistic")
+               eta = 1, nthread = 2, nround = 10,objective = "binary:logistic")
 xgb.dump(bst, 'xgb.model.dump', with.stats = T)
 
 # sparse_matrix@Dimnames[[2]] represents the column names of the sparse matrix.

@@ -108,7 +108,7 @@
 #'   err <- as.numeric(sum(labels != (preds > 0)))/length(labels)
 #'   return(list(metric = "error", value = err))
 #' }
-#' bst <- xgb.train(param, dtrain, nround = 2, watchlist, logregobj, evalerror)
+#' bst <- xgb.train(param, dtrain, nthread = 2, nround = 2, watchlist, logregobj, evalerror)
 #' @export
 #' 
 xgb.train <- function(params=list(), data, nrounds, watchlist = list(), 

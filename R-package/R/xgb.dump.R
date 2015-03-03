@@ -29,7 +29,7 @@
 #' train <- agaricus.train
 #' test <- agaricus.test
 #' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
-#'                eta = 1, nround = 2,objective = "binary:logistic")
+#'                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
 #' # save the model in file 'xgb.model.dump'
 #' xgb.dump(bst, 'xgb.model.dump', with.stats = TRUE)
 #' 

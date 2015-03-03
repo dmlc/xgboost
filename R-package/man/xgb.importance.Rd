@@ -59,7 +59,7 @@ data(agaricus.train, package='xgboost')
 train <- agaricus.train
 
 bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
-               eta = 1, nround = 2,objective = "binary:logistic")
+               eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
 
 # train$data@Dimnames[[2]] represents the column names of the sparse matrix.
 xgb.importance(train$data@Dimnames[[2]], model = bst)

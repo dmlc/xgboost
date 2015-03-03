@@ -15,7 +15,7 @@ dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 # lambda is the L2 regularizer
 # you can also set lambda_bias which is L2 regularizer on the bias term
 param <- list(objective = "binary:logistic", booster = "gblinear",
-              alpha = 0.0001, lambda = 1)
+              nthread = 2, alpha = 0.0001, lambda = 1)
 
 # normally, you do not need to set eta (step_size)
 # XGBoost uses a parallel coordinate descent algorithm (shotgun), 
