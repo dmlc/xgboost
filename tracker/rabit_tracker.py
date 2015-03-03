@@ -141,11 +141,11 @@ class Tracker:
     def slave_args(self):
         if self.hostIP == 'auto':
             host = socket.gethostname()
-        elif self.hostIP = 'ip':
+        elif self.hostIP == 'ip':
             host = socket.gethostbyname(socket.getfqdn())
         else:
-            host = hostIP
-        return ['rabit_tracker_uri=%s' % hostIP,
+            host = self.hostIP
+        return ['rabit_tracker_uri=%s' % host,
                 'rabit_tracker_port=%s' % self.port]        
     def get_neighbor(self, rank, nslave):
         rank = rank + 1
@@ -261,8 +261,8 @@ class Tracker:
                 wait_conn[rank] = s
         self.log_print('@tracker All nodes finishes job', 2)
 
-def submit(nslave, args, fun_submit, verbose):
-    master = Tracker(verbose = verbose)
+def submit(nslave, args, fun_submit, verbose, hostIP):
+    master = Tracker(verbose = verbose, hostIP = hostIP)
     submit_thread = Thread(target = fun_submit, args = (nslave, args + master.slave_args()))
     submit_thread.daemon = True
     submit_thread.start()
