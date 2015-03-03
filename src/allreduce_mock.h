@@ -81,6 +81,7 @@ class AllreduceMock : public AllreduceRobust {
       ComboSerializer com(global_model, local_model);
       AllreduceRobust::CheckPoint(&dum, &com);
     }
+    tsum_allreduce = 0.0;
     time_checkpoint = utils::GetTime();
     double tcost = utils::GetTime() - tstart;
     if (report_stats != 0 && rank == 0) {
