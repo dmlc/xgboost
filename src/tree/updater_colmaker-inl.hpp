@@ -6,6 +6,7 @@
  * \author Tianqi Chen
  */
 #include <vector>
+#include <cmath>
 #include <algorithm>
 #include "./param.h"
 #include "./updater.h"
@@ -279,7 +280,7 @@ class ColMaker: public IUpdater {
           ThreadEntry &e = stemp[tid][nid];
           float fsplit;
           if (tid != 0) {
-            if(fabsf(stemp[tid - 1][nid].last_fvalue - e.first_fvalue) > rt_2eps) {
+            if(std::abs(stemp[tid - 1][nid].last_fvalue - e.first_fvalue) > rt_2eps) {
               fsplit = (stemp[tid - 1][nid].last_fvalue - e.first_fvalue) * 0.5f;
             } else {
               continue;
@@ -334,7 +335,7 @@ class ColMaker: public IUpdater {
             e.first_fvalue = fvalue;
           } else {
             // forward default right
-            if (fabsf(fvalue - e.first_fvalue) > rt_2eps){
+            if (std::abs(fvalue - e.first_fvalue) > rt_2eps){
               if (need_forward) { 
                 c.SetSubstract(snode[nid].stats, e.stats);
                 if (c.sum_hess >= param.min_child_weight && e.stats.sum_hess >= param.min_child_weight) {

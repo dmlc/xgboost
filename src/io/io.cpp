@@ -15,7 +15,7 @@
 namespace xgboost {
 namespace io {
 DataMatrix* LoadDataMatrix(const char *fname, bool silent, bool savebuffer) {
-  if (!strcmp(fname, "stdin")) {
+  if (!std::strcmp(fname, "stdin")) {
     DMatrixSimple *dmat = new DMatrixSimple();
     dmat->LoadText(fname, silent);
     return dmat;
