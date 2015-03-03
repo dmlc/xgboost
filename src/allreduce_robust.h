@@ -138,7 +138,7 @@ class AllreduceRobust : public AllreduceBase {
     ReConnectLinks("recover");
   }
 
- private:
+ protected:
   // constant one byte out of band message to indicate error happening
   // and mark for channel cleanup
   static const char kOOBReset = 95;
