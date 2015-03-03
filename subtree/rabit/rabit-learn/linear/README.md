@@ -1,8 +1,10 @@
 Linear and Logistic Regression
 ====
 * input format: LibSVM
-* Example: [run-linear.sh](run-linear.sh)
-
+* Local Example: [run-linear.sh](run-linear.sh)
+* Runnig on Hadoop: [run-hadoop.sh](run-hadoop.sh)
+  - Set input data to stdin, and model_out=stdout
+    
 Parameters
 ===
 All the parameters can be set by param=value
