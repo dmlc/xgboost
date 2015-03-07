@@ -5,6 +5,8 @@
  * \brief normal filesystem I/O
  * \author Tianqi Chen
  */
+#include <string>
+#include <vector>
 #include <cstdio>
 #include "./io.h"
 #include "./line_split-inl.h"

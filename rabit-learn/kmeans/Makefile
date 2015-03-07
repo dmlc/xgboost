@@ -13,4 +13,3 @@ kmeans.rabit: kmeans.o lib
 kmeans.mock: kmeans.o lib
 kmeans.mpi: kmeans.o libmpi
 kmeans.o: kmeans.cc ../../src/*.h
-

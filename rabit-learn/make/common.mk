@@ -5,12 +5,11 @@ export CFLAGS = -Wall  -msse2  -Wno-unknown-pragmas -fPIC -I../../include
 
 # setup opencv
 ifeq ($(USE_HDFS),1)
-	CFLAGS+= -DRABIT_USE_HDFS=1 -I$(HDFS_HOME)/include
+	CFLAGS+= -DRABIT_USE_HDFS=1 -I$(LIBHDFS_INCLUDE) -I$(JAVA_HOME)/include
 	LDFLAGS+= -L$(HDFS_HOME)/lib/native -lhdfs
 else
 	CFLAGS+= -DRABIT_USE_HDFS=0
 endif
-
 
 .PHONY: clean all lib mpi
 

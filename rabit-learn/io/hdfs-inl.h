@@ -5,6 +5,8 @@
  * \brief HDFS I/O
  * \author Tianqi Chen
  */
+#include <string>
+#include <vector>
 #include <hdfs.h>
 #include <errno.h>
 #include "./io.h"
@@ -16,14 +18,14 @@ namespace io {
 class HDFSStream : public utils::ISeekStream {
  public:
   HDFSStream(hdfsFS fs, const char *fname, const char *mode)
-      : fs_(fs) {
+      : fs_(fs), at_end_(false) {
     int flag;
     if (!strcmp(mode, "r")) {
       flag = O_RDONLY;
     } else if (!strcmp(mode, "w"))  {
-      flag = O_WDONLY;
+      flag = O_WRONLY;
     } else if (!strcmp(mode, "a"))  {
-      flag = O_WDONLY | O_APPEND;
+      flag = O_WRONLY | O_APPEND;
     } else {
       utils::Error("HDFSStream: unknown flag %s", mode);
     }
@@ -31,7 +33,7 @@ class HDFSStream : public utils::ISeekStream {
     utils::Check(fp_ != NULL,
                  "HDFSStream: fail to open %s", fname);
   }
-  virtual ~FileStream(void) {
+  virtual ~HDFSStream(void) {
     this->Close();
   }
   virtual size_t Read(void *ptr, size_t size) {
@@ -39,6 +41,9 @@ class HDFSStream : public utils::ISeekStream {
     if (nread == -1) {
       int errsv = errno;
       utils::Error("HDFSStream.Read Error:%s", strerror(errsv));
+    }
+    if (nread == 0) {
+      at_end_ = true;
     }
     return static_cast<size_t>(nread);
   }
@@ -56,8 +61,8 @@ class HDFSStream : public utils::ISeekStream {
   }
   virtual void Seek(size_t pos) {
     if (hdfsSeek(fs_, fp_, pos) != 0) {
-        int errsv = errno;
-        utils::Error("HDFSStream.Seek Error:%s", strerror(errsv));
+      int errsv = errno;
+      utils::Error("HDFSStream.Seek Error:%s", strerror(errsv));
     }
   }
   virtual size_t Tell(void) {
@@ -68,8 +73,11 @@ class HDFSStream : public utils::ISeekStream {
     }
     return static_cast<size_t>(offset);
   }
+  virtual bool AtEnd(void) const {
+    return at_end_;
+  }
   inline void Close(void) {
-    if (fp != NULL) {
+    if (fp_ != NULL) {
       if (hdfsCloseFile(fs_, fp_) == 0) {
         int errsv = errno;
         utils::Error("HDFSStream.Close Error:%s", strerror(errsv));
@@ -81,14 +89,15 @@ class HDFSStream : public utils::ISeekStream {
  private:
   hdfsFS fs_;
   hdfsFile fp_;
+  bool at_end_;
 };
 
 /*! \brief line split from normal file system */
 class HDFSSplit : public LineSplitBase {
  public:
-  explicit FileSplit(const char *uri, unsigned rank, unsigned nsplit) {
+  explicit HDFSSplit(const char *uri, unsigned rank, unsigned nsplit) {
     fs_ = hdfsConnect("default", 0);
-    std::string paths;
+    std::vector<std::string> paths;
     LineSplitBase::SplitNames(&paths, uri, "#");
     // get the files
     std::vector<size_t> fsize;
@@ -103,16 +112,16 @@ class HDFSSplit : public LineSplitBase {
             fnames_.push_back(std::string(files[i].mName));
           }
         }
-        hdfsFileInfo(files, nentry);
+        hdfsFreeFileInfo(files, nentry);
       } else {
         fsize.push_back(info->mSize);
         fnames_.push_back(std::string(info->mName));
       }
-      hdfsFileInfo(info, 1);
+      hdfsFreeFileInfo(info, 1);
     }
     LineSplitBase::Init(fsize, rank, nsplit);
   }
-  virtual ~FileSplit(void) {}
+  virtual ~HDFSSplit(void) {}
   
  protected:
   virtual utils::ISeekStream *GetFile(size_t file_index) {

@@ -8,8 +8,7 @@
 #include <vector>
 #include <utility>
 #include <cstring>
-#include <iostream>
-#include <fstream>
+#include <string>
 #include "../../include/rabit.h"
 #include "./io.h"
 #include "./buffer_reader-inl.h"
