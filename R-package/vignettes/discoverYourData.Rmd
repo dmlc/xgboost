@@ -53,7 +53,7 @@ Conversion from categorical to numeric variables
 
 ### Looking at the raw data
 
-In this Vignette we will see how to transform a *dense* dataframe (*dense* = few zeroes in the matrix) with *categorical* variables to a very *sparse* matrix (*sparse* = lots of zero in the matrix) of `numeric` features.
+In this Vignette we will see how to transform a *dense* `data.frame` (*dense* = few zeroes in the matrix) with *categorical* variables to a very *sparse* matrix (*sparse* = lots of zero in the matrix) of `numeric` features.
 
 The method we are going to see is usually called [one-hot encoding](http://en.wikipedia.org/wiki/One-hot).
 
@@ -64,7 +64,7 @@ data(Arthritis)
 df <- data.table(Arthritis, keep.rownames = F)
 ```
 
-> `data.table` is 100% compliant with **R** dataframe but its syntax is very consistent and its performance is really good.
+> `data.table` is 100% compliant with **R** `data.frame` but its syntax is very consistent and its performance is really good.
 
 The first thing we want to do is to have a look to the first lines of the `data.table`:
 
