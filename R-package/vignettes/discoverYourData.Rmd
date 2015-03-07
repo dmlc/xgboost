@@ -64,7 +64,7 @@ data(Arthritis)
 df <- data.table(Arthritis, keep.rownames = F)
 ```
 
-> `data.table` is 100% compliant with **R** `data.frame` but its syntax is very consistent and its performance is really good.
+> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `panda` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **Xgboost** **R** package use `data.table`.
 
 The first thing we want to do is to have a look to the first lines of the `data.table`:
 
@@ -78,32 +78,46 @@ Now we will check the format of each column.
 str(df)
 ```
 
-> 2 columns have `factor` type, one has `ordinal` type.
+2 columns have `factor` type, one has `ordinal` type.
+
+> `ordinal` variable :
 >
-> `ordinal` variable can take a limited number of values and these values can be ordered.
->
-> `Marked > Some > None`
+> * can take a limited number of values (like `factor`) ;
+> * these values are ordered (unlike `factor`). Here these ordered values are: `Marked > Some > None`
 
 ### Creation of new features based on old ones
 
 We will add some new *categorical* features to see if it helps.
 
-These feature will be highly correlated to the `Age` feature. Usually it's not a good thing in machine learning. Fortunately, decision tree algorithms (including boosted trees) are robust to correlated features.
+#### Grouping per 10 years
+
+For the first feature we create groups of age by rounding the real age.
+
+Note that we transform it to `factor` so the algorithm treat these age groups as independent values.
+
+Therefore, 20 is not closer to 30 than 60. To make it short, the distance between ages is lost in this transformation.
 
 ```{r}
-head(df[,AgeDiscret:= as.factor(round(Age/10,0))])
+head(df[,AgeDiscret := as.factor(round(Age/10,0))])
 ```
 
-> For the first feature we create groups of age by rounding the real age.
->
-> Note that we transform it to `factor` so the algorithm treat these age groups as independent values.
-> Therefore, 20 is not closer to 30 than 60. To make it short, the distance between ages is lost in this transformation.
+#### Random split in two groups
 
 Following is an even stronger simplification of the real age with an arbitrary split at 30 years old. I choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (you may already have an idea of how well it will work...).
 
 ```{r}
 head(df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))])
 ```
+
+#### Risks in adding correlated features
+
+These new features are highly correlated to the `Age` feature because they are simple transformations of this feature. 
+
+For many machine learning algorithms, using correlated features is not a good idea. It may sometimes make prediction less accurate, and most of the time make interpretation of the model almost impossible. GLM, for instance, assumes that the features are uncorrelated.
+
+Fortunately, decision tree algorithms (including boosted trees) are very robust to these features. Therefore we have nothing to do to manage this situation.
+
+#### Cleaning data
 
 We remove ID as there is nothing to learn from this feature (it would just add some noise).
 

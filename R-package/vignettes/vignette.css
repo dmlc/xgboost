@@ -169,7 +169,7 @@ blockquote cite:before {
     /content: '\2014 \00A0';
 }
 
-blockquote p {  
+blockquote p, blockquote li {  
     color: #666;
 }
 hr {
