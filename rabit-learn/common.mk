@@ -3,8 +3,8 @@
 export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
-export LDFLAGS= -pthread -lm -L../../lib
-export CFLAGS = -Wall  -msse2  -Wno-unknown-pragmas -fPIC -I../../include
+export LDFLAGS= -pthread -lm -L../../lib -lrt
+export CFLAGS = -Wall  -msse2  -Wno-unknown-pragmas -fPIC -I../../include 
 
 .PHONY: clean all lib mpi
 all: $(BIN) $(MOCKBIN)
@@ -16,9 +16,10 @@ libmpi:
 	cd ../..;make lib/librabit_mpi.a;cd -
 
 $(BIN) : 
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) $(LDFLAGS) -lrabit
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) -lrabit $(LDFLAGS) 
+
 $(MOCKBIN) : 
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) $(LDFLAGS) -lrabit_mock
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc,  $^) -lrabit_mock $(LDFLAGS) 
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )

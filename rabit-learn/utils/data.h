@@ -14,7 +14,9 @@
 #include <cstring>
 #include <limits>
 #include <cmath>
+#include <sstream>
 #include <rabit.h>
+#include "../io/io.h"
 
 namespace rabit {
 // typedef index type
@@ -45,49 +47,37 @@ struct SparseMat {
   }
   // load data from LibSVM format
   inline void Load(const char *fname) {
-    FILE *fi;
-    if (!strcmp(fname, "stdin")) {
-      fi = stdin;
-    } else {
-      if (strchr(fname, '%') != NULL) {
-        char s_tmp[256];
-        snprintf(s_tmp, sizeof(s_tmp), fname, rabit::GetRank());
-        fi = utils::FopenCheck(s_tmp, "r");        
-      } else {
-        fi = utils::FopenCheck(fname, "r");
-      }
-    }
+    io::InputSplit *in =
+        io::CreateInputSplit
+        (fname, rabit::GetRank(),
+         rabit::GetWorldSize());
     row_ptr.clear();
     row_ptr.push_back(0);
     data.clear();    
     feat_dim = 0;
-    float label; bool init = true;
-    char tmp[1024];
-    while (fscanf(fi, "%s", tmp) == 1) {
+    std::string line;
+    while (in->NextLine(&line)) {
+      float label;
+      std::istringstream ss(line);
+      ss >> label;
       Entry e;
       unsigned long fidx;
-      if (sscanf(tmp, "%lu:%f", &fidx, &e.fvalue) == 2) {
+      while (!ss.eof()) {
+        if (!(ss >> fidx)) break;
+        ss.ignore(32, ':');
+        if (!(ss >> e.fvalue)) break;
         e.findex = static_cast<index_t>(fidx);
         data.push_back(e);
         feat_dim = std::max(fidx, feat_dim);
-      } else {
-        if (!init) {
-          labels.push_back(label);
-          row_ptr.push_back(data.size());
-        }
-        utils::Check(sscanf(tmp, "%f", &label) == 1, "invalid LibSVM format");
-        init = false;
       }
+      labels.push_back(label);
+      row_ptr.push_back(data.size());
     }
-    // last row
-    labels.push_back(label);
-    row_ptr.push_back(data.size());
+    delete in;
     feat_dim += 1;
     utils::Check(feat_dim < std::numeric_limits<index_t>::max(),
                  "feature dimension exceed limit of index_t"\
                  "consider change the index_t to unsigned long");
-    // close the filed
-    if (fi != stdin) fclose(fi);
   }
   inline size_t NumRow(void) const {
     return row_ptr.size() - 1;
@@ -98,6 +88,7 @@ struct SparseMat {
   std::vector<Entry> data;
   std::vector<float> labels;
 };
+
 // dense matrix
 struct Matrix {
   inline void Init(size_t nrow, size_t ncol, float v = 0.0f) {
