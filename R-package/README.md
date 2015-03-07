@@ -2,7 +2,7 @@
 
 ## Installation
 
-For up-to-date version(which is recommended), please install from github. Windows user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
+For up-to-date version (which is recommended), please install from github. Windows user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
 
 ```r
 devtools::install_github('tqchen/xgboost',subdir='R-package')
