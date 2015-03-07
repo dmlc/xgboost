@@ -25,7 +25,7 @@ SLIB = wrapper/libxgboostwrapper.so
 
 .PHONY: clean all mpi python Rpack
 
-all: $(BIN) $(OBJ) $(SLIB) $(MOCKBIN)
+all: $(BIN) $(OBJ) $(SLIB)
 mpi: $(MPIBIN)
 
 python: wrapper/libxgboostwrapper.so
