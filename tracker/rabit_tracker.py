@@ -134,12 +134,14 @@ class Tracker:
         sock.listen(16)
         self.sock = sock
         self.verbose = verbose
+        if hostIP == 'auto':
+            hostIP = 'dns'
         self.hostIP = hostIP
         self.log_print('start listen on %s:%d' % (socket.gethostname(), self.port), 1)
     def __del__(self):
         self.sock.close()
     def slave_args(self):
-        if self.hostIP == 'auto':
+        if self.hostIP == 'dns':
             host = socket.gethostname()
         elif self.hostIP == 'ip':
             host = socket.gethostbyname(socket.getfqdn())
@@ -261,7 +263,7 @@ class Tracker:
                 wait_conn[rank] = s
         self.log_print('@tracker All nodes finishes job', 2)
 
-def submit(nslave, args, fun_submit, verbose, hostIP):
+def submit(nslave, args, fun_submit, verbose, hostIP = 'auto'):
     master = Tracker(verbose = verbose, hostIP = hostIP)
     submit_thread = Thread(target = fun_submit, args = (nslave, args + master.slave_args()))
     submit_thread.daemon = True
