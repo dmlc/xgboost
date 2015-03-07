@@ -6,7 +6,7 @@ MPIBIN = kmeans.mpi
 OBJ = kmeans.o
 
 # common build script for programs
-include ../common.mk
+include ../make/common.mk
 
 # dependenies here
 kmeans.rabit: kmeans.o lib
