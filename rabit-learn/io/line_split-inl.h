@@ -1,7 +1,7 @@
-#ifndef RABIT_LEARN_IO_LINE_SPLIT_H_
-#define RABIT_LEARN_IO_LINE_SPLIT_H_
+#ifndef RABIT_LEARN_IO_LINE_SPLIT_INL_H_
+#define RABIT_LEARN_IO_LINE_SPLIT_INL_H_
 /*!
- * \file line_split.h
+ * \file line_split-inl.h
  * \brief base implementation of line-spliter
  * \author Tianqi Chen
  */
@@ -12,7 +12,7 @@
 #include <fstream>
 #include "../../include/rabit.h"
 #include "./io.h"
-#include "./utils.h"
+#include "./buffer_reader-inl.h"
 
 namespace rabit {
 namespace io {
@@ -175,43 +175,6 @@ class SingleFileSplit : public InputSplit {
   bool use_stdin_;
   bool end_of_file_;
 };
-
-/*! \brief line split from normal file system */
-class FileSplit : public LineSplitBase {
- public:
-  explicit FileSplit(const char *uri, unsigned rank, unsigned nsplit) {
-    LineSplitBase::SplitNames(&fnames_, uri, "#");
-    std::vector<size_t> fsize;
-    for (size_t  i = 0; i < fnames_.size(); ++i) {
-      if (!strncmp(fnames_[i].c_str(), "file://", 7)) {
-        std::string tmp = fnames_[i].c_str() + 7;
-        fnames_[i] = tmp;        
-      }
-      fsize.push_back(GetFileSize(fnames_[i].c_str()));
-    }
-    LineSplitBase::Init(fsize, rank, nsplit);
-  }
-  virtual ~FileSplit(void) {}
-  
- protected:
-  virtual utils::ISeekStream *GetFile(size_t file_index) {
-    utils::Assert(file_index < fnames_.size(), "file index exceed bound"); 
-    return new FileStream(fnames_[file_index].c_str(), "rb");
-  }
-  // get file size
-  inline static size_t GetFileSize(const char *fname) {
-    FILE *fp = utils::FopenCheck(fname, "rb");
-    // NOTE: fseek may not be good, but serves as ok solution
-    fseek(fp, 0, SEEK_END);
-    size_t fsize = static_cast<size_t>(ftell(fp));
-    fclose(fp);
-    return fsize;
-  }
-  
- private:
-  // file names
-  std::vector<std::string> fnames_;  
-};
 }  // namespace io
 }  // namespace rabit
-#endif  // RABIT_LEARN_IO_LINE_SPLIT_H_
+#endif  // RABIT_LEARN_IO_LINE_SPLIT_INL_H_

@@ -1,5 +1,5 @@
-#ifndef RABIT_LEARN_IO_BASE64_H_
-#define RABIT_LEARN_IO_BASE64_H_
+#ifndef RABIT_LEARN_IO_BASE64_INL_H_
+#define RABIT_LEARN_IO_BASE64_INL_H_
 /*!
  * \file base64.h
  * \brief data stream support to input and output from/to base64 stream
@@ -9,7 +9,7 @@
 #include <cctype>
 #include <cstdio>
 #include "./io.h"
-#include "./utils.h"
+#include "./buffer_reader-inl.h"
 
 namespace rabit {
 namespace io {
@@ -215,4 +215,4 @@ class Base64OutStream: public IStream {
 };
 }  // namespace utils
 }  // namespace rabit
-#endif  // RABIT_LEARN_UTILS_BASE64_H_
+#endif  // RABIT_LEARN_UTILS_BASE64_INL_H_

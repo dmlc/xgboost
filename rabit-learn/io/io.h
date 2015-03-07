@@ -7,12 +7,19 @@
  * \author Tianqi Chen
  */
 #include "../../include/rabit_serializable.h"
+
+/*! \brief whether compile with HDFS support */
+#ifndef RABIT_USE_HDFS
+#define RABIT_USE_HDFS 0
+#endif
+
 /*! \brief io interface */
 namespace rabit {
 /*!
  * \brief namespace to handle input split and filesystem interfacing
  */
 namespace io {
+typedef utils::ISeekStream ISeekStream;
 /*!
  * \brief user facing input split helper,
  *   can be used to get the partition of data used by current node
@@ -50,4 +57,5 @@ inline IStream *CreateStream(const char *uri, const char *mode);
 }  // namespace rabit
 
 #include "./io-inl.h"
+#include "./base64-inl.h"
 #endif  // RABIT_LEARN_IO_IO_H_
