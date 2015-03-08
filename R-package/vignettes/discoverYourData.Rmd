@@ -250,7 +250,7 @@ According to the plot above, the most important features in this dataset to pred
 
 * the Age ;
 * having received a placebo or not ;
-* the sex is third but already included in the not interesting feature ; 
+* the sex is third but already included in the not interesting features group ; 
 * then we see our generated features (AgeDiscret). We can see that their contribution is very low.
 
 Do these results make sense?
