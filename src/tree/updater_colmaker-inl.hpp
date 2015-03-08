@@ -423,7 +423,7 @@ class ColMaker: public IUpdater {
       #endif
       int poption = param.parallel_option;
       if (poption == 2) {
-        poption = nsize * 2 < nthread ? 1 : 0;
+        poption = static_cast<int>(nsize) * 2 < nthread ? 1 : 0;
       }
       if (poption == 0) {
         #pragma omp parallel for schedule(dynamic, batch_size)
