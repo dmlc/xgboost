@@ -78,7 +78,7 @@ class HDFSStream : public utils::ISeekStream {
   }
   inline void Close(void) {
     if (fp_ != NULL) {
-      if (hdfsCloseFile(fs_, fp_) == 0) {
+      if (hdfsCloseFile(fs_, fp_) == -1) {
         int errsv = errno;
         utils::Error("HDFSStream.Close Error:%s", strerror(errsv));
       }

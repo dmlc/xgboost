@@ -17,5 +17,5 @@ export MPICXX = mpicxx
 # whether use HDFS support during compile
 USE_HDFS = 1
 
-# home of hadoop
-HDFS_HOME = $(HADOOP_HDFS_HOME)
+# path to libjvm.so
+LIBJVM=$(JAVA_HOME)/jre/lib/amd64/server

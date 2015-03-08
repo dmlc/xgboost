@@ -140,8 +140,10 @@ class LineSplitBase : public InputSplit {
 class SingleFileSplit : public InputSplit {
  public:
   explicit SingleFileSplit(const char *fname) {
-    if (!strcmp(fname, "stdin")) {      
-      use_stdin_ = true;
+    if (!strcmp(fname, "stdin")) {
+#ifndef RABIT_STRICT_CXX98_
+      use_stdin_ = true; fp_ = stdin;
+#endif
     }
     if (!use_stdin_) {
       fp_ = utils::FopenCheck(fname, "r");

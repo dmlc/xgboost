@@ -1,12 +1,12 @@
 # this is the common build script for rabit programs
 # you do not have to use it
-export LDFLAGS= -pthread -lm -L../../lib -lrt
+export LDFLAGS= -L../../lib -pthread -lm -lrt
 export CFLAGS = -Wall  -msse2  -Wno-unknown-pragmas -fPIC -I../../include  
 
 # setup opencv
 ifeq ($(USE_HDFS),1)
-	CFLAGS+= -DRABIT_USE_HDFS=1 -I$(LIBHDFS_INCLUDE) -I$(JAVA_HOME)/include
-	LDFLAGS+= -L$(HDFS_HOME)/lib/native -lhdfs
+	CFLAGS+= -DRABIT_USE_HDFS=1 -I$(HADOOP_HDFS_HOME)/include -I$(JAVA_HOME)/include
+	LDFLAGS+= -L$(HADOOP_HDFS_HOME)/lib/native -L$(LIBJVM) -lhdfs -ljvm
 else
 	CFLAGS+= -DRABIT_USE_HDFS=0
 endif
