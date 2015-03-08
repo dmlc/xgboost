@@ -413,6 +413,8 @@ class AllreduceBase : public IEngine {
   // pointer to links in the ring
   LinkRecord *ring_prev, *ring_next;
   //----- meta information-----
+  // list of enviroment variables that are of possible interest
+  std::vector<std::string> env_vars;
   // unique identifier of the possible job this process is doing
   // used to assign ranks, optional, default to NULL
   std::string task_id;

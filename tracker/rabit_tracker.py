@@ -140,15 +140,19 @@ class Tracker:
         self.log_print('start listen on %s:%d' % (socket.gethostname(), self.port), 1)
     def __del__(self):
         self.sock.close()
-    def slave_args(self):
+    def slave_envs(self):
+        """
+        get enviroment variables for slaves
+        can be passed in as args or envs
+        """
         if self.hostIP == 'dns':
             host = socket.gethostname()
         elif self.hostIP == 'ip':
             host = socket.gethostbyname(socket.getfqdn())
         else:
             host = self.hostIP
-        return ['rabit_tracker_uri=%s' % host,
-                'rabit_tracker_port=%s' % self.port]        
+        return {'rabit_tracker_uri': host,
+                'rabit_tracker_port': self.port}        
     def get_neighbor(self, rank, nslave):
         rank = rank + 1
         ret = []
@@ -265,7 +269,7 @@ class Tracker:
 
 def submit(nslave, args, fun_submit, verbose, hostIP = 'auto'):
     master = Tracker(verbose = verbose, hostIP = hostIP)
-    submit_thread = Thread(target = fun_submit, args = (nslave, args + master.slave_args()))
+    submit_thread = Thread(target = fun_submit, args = (nslave, args, master.slave_envs()))
     submit_thread.daemon = True
     submit_thread.start()
     master.accept_slaves(nslave)

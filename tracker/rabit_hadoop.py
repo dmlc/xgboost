@@ -94,8 +94,8 @@ use_yarn = int(hadoop_version[0]) >= 2
 
 print 'Current Hadoop Version is %s' % out[1]
 
-def hadoop_streaming(nworker, worker_args, use_yarn):
-    fset = set()
+def hadoop_streaming(nworker, worker_args, worker_envs, use_yarn):
+    fset = set()    
     if args.auto_file_cache:
         for i in range(len(args.command)):
             f = args.command[i]
@@ -113,6 +113,7 @@ def hadoop_streaming(nworker, worker_args, use_yarn):
             if os.path.exists(f):
                 fset.add(f)            
     kmap = {}
+    kmap['env'] = 'mapred.child.env'
     # setup keymaps
     if use_yarn:
         kmap['nworker'] = 'mapreduce.job.maps'
@@ -129,6 +130,8 @@ def hadoop_streaming(nworker, worker_args, use_yarn):
     cmd = '%s jar %s' % (args.hadoop_binary, args.hadoop_streaming_jar)
     cmd += ' -D%s=%d' % (kmap['nworker'], nworker)
     cmd += ' -D%s=%s' % (kmap['jobname'], args.jobname)
+    envstr = ','.join('%s=%s' % (k, str(v)) for k, v in worker_envs.items())
+    cmd += ' -D%s=\"%s\"' % (kmap['env'], envstr)
     if args.nthread != -1:
         if kmap['nthread'] is None:
             warnings.warn('nthread can only be set in Yarn(Hadoop version greater than 2.0),'\
