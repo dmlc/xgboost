@@ -27,7 +27,9 @@ AllreduceRobust::AllreduceRobust(void) {
   result_buffer_round = 1;
   global_lazycheck = NULL;
   use_local_model = -1;
-  recover_counter = 0;
+  recover_counter = 0;  
+  env_vars.push_back("rabit_global_replica");
+  env_vars.push_back("rabit_local_replica");
 }
 void AllreduceRobust::Init(void) {
   AllreduceBase::Init();

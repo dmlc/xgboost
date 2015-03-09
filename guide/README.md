@@ -341,12 +341,11 @@ Rabit is a portable library that can run on multiple platforms.
 * This script will restart the program when it exits with -2, so it can be used for [mock test](#link-against-mock-test-library)
 
 #### Running Rabit on Hadoop
-* You can use [../tracker/rabit_hadoop.py](../tracker/rabit_hadoop.py) to run rabit programs on hadoop
-* This will start n rabit programs as mappers of MapReduce
-* Each program can read its portion of data from stdin
-* Yarn(Hadoop 2.0 or higher) is highly recommended, since Yarn allows specifying number of cpus and memory of each mapper:
+* You can use [../tracker/rabit_yarn.py](../tracker/rabit_yarn.py) to run rabit programs as Yarn application
+* This will start rabit programs as yarn applications
   - This allows multi-threading programs in each node, which can be more efficient
   - An easy multi-threading solution could be to use OpenMP with rabit code
+* It is also possible to run rabit program via hadoop streaming, however, YARN is highly recommended.
 
 #### Running Rabit using MPI
 * You can submit rabit programs to an MPI cluster using [../tracker/rabit_mpi.py](../tracker/rabit_mpi.py).
@@ -358,15 +357,15 @@ tracker scripts, such as [../tracker/rabit_hadoop.py](../tracker/rabit_hadoop.py
 
 You will need to implement a platform dependent submission function with the following definition
 ```python
-def fun_submit(nworkers, worker_args):
+def fun_submit(nworkers, worker_args, worker_envs):
     """
       customized submit script, that submits nslave jobs,
       each must contain args as parameter
       note this can be a lambda closure
       Parameters
          nworkers number of worker processes to start
-         worker_args tracker information which must be passed to the arguments 
-              this usually includes the parameters of master_uri and port, etc.
+         worker_args addtiional arguments that needs to be passed to worker
+         worker_envs enviroment variables that need to be set to the worker
     """
 ```
 The submission function should start nworkers processes in the platform, and append worker_args to the end of the other arguments.
@@ -374,7 +373,7 @@ Then you can simply call ```tracker.submit``` with fun_submit to submit jobs to 
 
 Note that the current rabit tracker does not restart a worker when it dies, the restart of a node is done by the platform, otherwise we should write the fail-restart logic in the custom script.
 * Fail-restart is usually provided by most platforms.
-* For example, mapreduce will restart a mapper when it fails
+  - rabit-yarn provides such functionality in YARN
 
 Fault Tolerance
 =====

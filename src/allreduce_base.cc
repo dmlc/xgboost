@@ -29,11 +29,24 @@ AllreduceBase::AllreduceBase(void) {
   task_id = "NULL";
   err_link = NULL;
   this->SetParam("rabit_reduce_buffer", "256MB");
+  // setup possible enviroment variable of intrest
+  env_vars.push_back("rabit_task_id");
+  env_vars.push_back("rabit_num_trial");
+  env_vars.push_back("rabit_reduce_buffer");
+  env_vars.push_back("rabit_tracker_uri");  
+  env_vars.push_back("rabit_tracker_port");
 }
 
 // initialization function
 void AllreduceBase::Init(void) {
   // setup from enviroment variables
+  // handler to get variables from env
+  for (size_t i = 0; i < env_vars.size(); ++i) {
+    const char *value = getenv(env_vars[i].c_str());
+    if (value != NULL) {
+      this->SetParam(env_vars[i].c_str(), value);
+    }
+  }
   {
     // handling for hadoop
     const char *task_id = getenv("mapred_tip_id");

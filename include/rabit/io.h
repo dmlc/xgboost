@@ -23,6 +23,8 @@ class ISeekStream: public IStream {
   virtual void Seek(size_t pos) = 0;
   /*! \brief tell the position of the stream */
   virtual size_t Tell(void) = 0;
+  /*! \return whether we are at end of file */
+  virtual bool AtEnd(void) const = 0;
 };
 
 /*! \brief fixed size memory buffer */
@@ -55,7 +57,9 @@ struct MemoryFixSizeBuffer : public ISeekStream {
   virtual size_t Tell(void) {
     return curr_ptr_;
   }
-
+  virtual bool AtEnd(void) const {
+    return curr_ptr_ == buffer_size_;
+  }
  private:
   /*! \brief in memory buffer */
   char *p_buffer_;
@@ -95,7 +99,9 @@ struct MemoryBufferStream : public ISeekStream {
   virtual size_t Tell(void) {
     return curr_ptr_;
   }
-
+  virtual bool AtEnd(void) const {
+    return curr_ptr_ == p_buffer_->length();
+  }
  private:
   /*! \brief in memory buffer */
   std::string *p_buffer_;
