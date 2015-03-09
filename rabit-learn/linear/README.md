@@ -13,7 +13,7 @@ Multi-Threading Optimization
   - Simply add ```nthread=k``` where k is the number of threads you want to use
 * If you submit with YARN 
   - Use ```--vcores``` and ```-mem``` to request CPU and memory resources
-  - Some scheduler in YARN do not honor CPU request, you can request more memory to grab a more working slot
+  - Some scheduler in YARN do not honor CPU request, you can request more memory to grab working slots
 * Usually multi-threading improves speed in general
   - You can use less workers and assign more resources to each of worker
   - This means less communication overhead and faster 
