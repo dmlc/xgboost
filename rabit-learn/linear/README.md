@@ -16,7 +16,7 @@ Multi-Threading Optimization
   - Some scheduler in YARN do not honor CPU request, you can request more memory to grab working slots
 * Usually multi-threading improves speed in general
   - You can use less workers and assign more resources to each of worker
-  - This means less communication overhead and faster 
+  - This usually means less communication overhead and faster running time
 
 Parameters
 ====
