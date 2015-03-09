@@ -16,6 +16,13 @@ ifeq ($(cxx11),1)
 else 
 endif
 
+ifeq ($(hdfs),1)
+	CFLAGS+= -DRABIT_USE_HDFS=1 -I$(HADOOP_HDFS_HOME)/include -I$(JAVA_HOME)/include
+	LDFLAGS+= -L$(HADOOP_HDFS_HOME)/lib/native -L$(JAVA_HOME)/jre/lib/amd64/server -lhdfs -ljvm
+else 
+	CFLAGS+= -DRABIT_USE_HDFS=0
+endif
+
 # specify tensor path
 BIN = xgboost
 MOCKBIN = xgboost.mock

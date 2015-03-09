@@ -14,10 +14,11 @@
 
 namespace xgboost {
 namespace io {
-DataMatrix* LoadDataMatrix(const char *fname, bool silent, bool savebuffer) {
-  if (!std::strcmp(fname, "stdin")) {
+DataMatrix* LoadDataMatrix(const char *fname, bool silent,
+                           bool savebuffer, bool loadsplit) {
+  if (!std::strcmp(fname, "stdin") || loadsplit) {
     DMatrixSimple *dmat = new DMatrixSimple();
-    dmat->LoadText(fname, silent);
+    dmat->LoadText(fname, silent, loadsplit);
     return dmat;
   }
   int magic;
