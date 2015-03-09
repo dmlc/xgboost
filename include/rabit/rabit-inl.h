@@ -107,6 +107,10 @@ inline int GetRank(void) {
 inline int GetWorldSize(void) {
   return engine::GetEngine()->GetWorldSize();
 }
+// whether rabit is distributed
+inline bool IsDistributed(void) {
+  return engine::GetEngine()->IsDistributed();
+}
 // get the name of current processor
 inline std::string GetProcessorName(void) {
   return engine::GetEngine()->GetHost();

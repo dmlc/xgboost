@@ -65,9 +65,8 @@ inline int GetRank(void);
 /*! \brief gets total number of processes */
 inline int GetWorldSize(void);
 /*! \brief whether rabit env is in distributed mode */
-inline bool IsDistributed(void) {
-  return GetWorldSize() != 1;
-}
+inline bool IsDistributed(void);
+
 /*! \brief gets processor's name */
 inline std::string GetProcessorName(void);
 /*!

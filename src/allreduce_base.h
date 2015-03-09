@@ -63,6 +63,10 @@ class AllreduceBase : public IEngine {
     if (world_size == -1) return 1;
     return world_size;
   }
+  /*! \brief whether is distributed or not */
+  virtual bool IsDistributed(void) const {
+    return tracker_uri == "NULL";
+  }
   /*! \brief get rank */
   virtual std::string GetHost(void) const {
     return host_uri;
