@@ -1,7 +1,7 @@
 #!/usr/bin/python
 """
-This is a script to submit rabit job using hadoop streaming.
-It will submit the rabit process as mappers of MapReduce.
+This is a script to submit rabit job via Yarn
+rabit will run as a Yarn application
 """
 import argparse
 import sys

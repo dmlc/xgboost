@@ -5,6 +5,7 @@ It also contain links to the Machine Learning packages that uses rabit.
 
 * Contribution of toolkits, examples, benchmarks is more than welcomed!
 
+
 Toolkits
 ====
 * [KMeans Clustering](kmeans)
@@ -14,5 +15,3 @@ Toolkits
     10 times faster than existing packages
   - Rabit carries xgboost to distributed enviroment, inheritating all the benefits of xgboost
     single node version, and scale it to even larger problems
-
-

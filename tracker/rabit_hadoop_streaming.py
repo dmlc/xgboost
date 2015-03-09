@@ -1,7 +1,11 @@
 #!/usr/bin/python
 """
+Deprecated
+
 This is a script to submit rabit job using hadoop streaming.
 It will submit the rabit process as mappers of MapReduce.
+
+This script is deprecated, it is highly recommended to use rabit_yarn.py instead
 """
 import argparse
 import sys
@@ -91,6 +95,8 @@ out = out.split('\n')[0].split()
 assert out[0] == 'Hadoop', 'cannot parse hadoop version string'
 hadoop_version = out[1].split('.')
 use_yarn = int(hadoop_version[0]) >= 2
+if use_yarn:
+    warnings.warn('It is highly recommended to use rabit_yarn.py to submit jobs to yarn instead', stacklevel = 2)
 
 print 'Current Hadoop Version is %s' % out[1]
 
