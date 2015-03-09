@@ -4,11 +4,22 @@ Linear and Logistic Regression
 * Local Example: [run-linear.sh](run-linear.sh)
 * Runnig on YARN: [run-yarn.sh](run-yarn.sh)
   - You will need to have YARN 
-  - Modify  ```../make/config.mk``` to set USE_HDFS=1
-  - Run build.sh on [../../yarn](../../yarn) on to build yarn jar file
-    
+  - Modify  ```../make/config.mk``` to set USE_HDFS=1 to compile with HDFS support
+  - Run build.sh on [../../yarn](../../yarn) on to build yarn jar file 
+
+Multi-Threading Optimization
+====
+* The code can be  multi-threaded, we encourage you to use it
+  - Simply add ```nthread=k``` where k is the number of threads you want to use
+* If you submit with YARN 
+  - Use ```--vcores``` and ```-mem``` to request CPU and memory resources
+  - Some scheduler in YARN do not honor CPU request, you can request more memory to grab a more working slot
+* Usually multi-threading improves speed in general
+  - You can use less workers and assign more resources to each of worker
+  - This means less communication overhead and faster 
+
 Parameters
-===
+====
 All the parameters can be set by param=value
 
 #### Important Parameters
