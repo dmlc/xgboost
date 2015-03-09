@@ -1,7 +1,11 @@
 #!/usr/bin/python
 """
+Deprecated
+
 This is a script to submit rabit job using hadoop streaming.
 It will submit the rabit process as mappers of MapReduce.
+
+This script is deprecated, it is highly recommended to use rabit_yarn.py instead
 """
 import argparse
 import sys
@@ -34,13 +38,11 @@ if hadoop_binary == None or hadoop_streaming_jar == None:
                       ', or modify rabit_hadoop.py line 16', stacklevel = 2)
 
 parser = argparse.ArgumentParser(description='Rabit script to submit rabit jobs using Hadoop Streaming.'\
-                                     'This script support both Hadoop 1.0 and Yarn(MRv2), Yarn is recommended')
+                                     'It is Highly recommended to use rabit_yarn.py instead')
 parser.add_argument('-n', '--nworker', required=True, type=int,
                     help = 'number of worker proccess to be launched')
 parser.add_argument('-hip', '--host_ip', default='auto', type=str,
                     help = 'host IP address if cannot be automatically guessed, specify the IP of submission machine')
-parser.add_argument('-nt', '--nthread', default = -1, type=int,
-                    help = 'number of thread in each mapper to be launched, set it if each rabit job is multi-threaded')
 parser.add_argument('-i', '--input', required=True,
                     help = 'input path in HDFS')
 parser.add_argument('-o', '--output', required=True,
@@ -61,6 +63,8 @@ parser.add_argument('--jobname', default='auto', help = 'customize jobname in tr
 parser.add_argument('--timeout', default=600000000, type=int,
                     help = 'timeout (in million seconds) of each mapper job, automatically set to a very long time,'\
                         'normally you do not need to set this ')
+parser.add_argument('--vcores', default = -1, type=int,
+                    help = 'number of vcpores to request in each mapper, set it if each rabit job is multi-threaded')
 parser.add_argument('-mem', '--memory_mb', default=-1, type=int,
                     help = 'maximum memory used by the process. Guide: set it large (near mapred.cluster.max.map.memory.mb)'\
                         'if you are running multi-threading rabit,'\
@@ -91,10 +95,14 @@ out = out.split('\n')[0].split()
 assert out[0] == 'Hadoop', 'cannot parse hadoop version string'
 hadoop_version = out[1].split('.')
 use_yarn = int(hadoop_version[0]) >= 2
+if use_yarn:
+    warnings.warn('It is highly recommended to use rabit_yarn.py to submit jobs to yarn instead', stacklevel = 2)
 
 print 'Current Hadoop Version is %s' % out[1]
 
-def hadoop_streaming(nworker, worker_args, use_yarn):
+def hadoop_streaming(nworker, worker_args, worker_envs, use_yarn):
+    worker_envs['CLASSPATH'] = '`$HADOOP_HOME/bin/hadoop classpath --glob` '
+    worker_envs['LD_LIBRARY_PATH'] = '{LD_LIBRARY_PATH}:$HADOOP_HDFS_HOME/lib/native:$JAVA_HOME/jre/lib/amd64/server'
     fset = set()
     if args.auto_file_cache:
         for i in range(len(args.command)):
@@ -113,6 +121,7 @@ def hadoop_streaming(nworker, worker_args, use_yarn):
             if os.path.exists(f):
                 fset.add(f)            
     kmap = {}
+    kmap['env'] = 'mapred.child.env'
     # setup keymaps
     if use_yarn:
         kmap['nworker'] = 'mapreduce.job.maps'
@@ -129,12 +138,14 @@ def hadoop_streaming(nworker, worker_args, use_yarn):
     cmd = '%s jar %s' % (args.hadoop_binary, args.hadoop_streaming_jar)
     cmd += ' -D%s=%d' % (kmap['nworker'], nworker)
     cmd += ' -D%s=%s' % (kmap['jobname'], args.jobname)
-    if args.nthread != -1:
+    envstr = ','.join('%s=%s' % (k, str(v)) for k, v in worker_envs.items())
+    cmd += ' -D%s=\"%s\"' % (kmap['env'], envstr)
+    if args.vcores != -1:
         if kmap['nthread'] is None:
             warnings.warn('nthread can only be set in Yarn(Hadoop version greater than 2.0),'\
                               'it is recommended to use Yarn to submit rabit jobs', stacklevel = 2)
         else:
-            cmd += ' -D%s=%d' % (kmap['nthread'], args.nthread)
+            cmd += ' -D%s=%d' % (kmap['nthread'], args.vcores)
     cmd += ' -D%s=%d' % (kmap['timeout'], args.timeout)
     if args.memory_mb != -1:
         cmd += ' -D%s=%d' % (kmap['timeout'], args.timeout)
@@ -150,5 +161,5 @@ def hadoop_streaming(nworker, worker_args, use_yarn):
     print cmd
     subprocess.check_call(cmd, shell = True)
 
-fun_submit = lambda nworker, worker_args: hadoop_streaming(nworker, worker_args, int(hadoop_version[0]) >= 2)
+fun_submit = lambda nworker, worker_args, worker_envs: hadoop_streaming(nworker, worker_args, worker_envs, int(hadoop_version[0]) >= 2)
 tracker.submit(args.nworker, [], fun_submit = fun_submit, verbose = args.verbose, hostIP = args.host_ip)

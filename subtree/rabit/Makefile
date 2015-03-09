@@ -2,7 +2,7 @@ ifndef CXX
 export CXX = g++
 endif
 export MPICXX = mpicxx
-export LDFLAGS= -Llib
+export LDFLAGS= -Llib -lrt
 export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -pedantic 
 export CFLAGS = -O3 -msse2 -fPIC $(WARNFLAGS) 
 
@@ -50,7 +50,7 @@ $(ALIB):
 	ar cr $@ $+
 
 $(SLIB) :
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^)
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS)
 
 clean:
 	$(RM) $(OBJ) $(MPIOBJ) $(ALIB) $(MPIALIB) *~ src/*~ include/*~ include/*/*~ wrapper/*~

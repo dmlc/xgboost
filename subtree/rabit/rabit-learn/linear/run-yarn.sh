@@ -9,12 +9,11 @@ fi
 hadoop fs -rm -r -f $2/data
 hadoop fs -rm -r -f $2/mushroom.linear.model
 hadoop fs -mkdir $2/data
-hadoop fs -put ../data/agaricus.txt.train $2/data
 
 # submit to hadoop
-../../tracker/rabit_hadoop.py --host_ip ip  -n $1 -i $2/data/agaricus.txt.train -o $2/mushroom.linear.model linear.rabit stdin model_out=stdout "${*:3}" 
+../../tracker/rabit_yarn.py  -n $1 --vcores 1 linear.rabit hdfs://$2/data/agaricus.txt.train model_out=hdfs://$2/mushroom.linear.model "${*:3}" 
 
 # get the final model file
-hadoop fs -get $2/mushroom.linear.model/part-00000 ./linear.model
+hadoop fs -get $2/mushroom.linear.model ./linear.model
 
 ./linear.rabit ../data/agaricus.txt.test task=pred model_in=linear.model
