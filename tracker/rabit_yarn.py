@@ -14,7 +14,13 @@ import rabit_tracker as tracker
 WRAPPER_PATH = os.path.dirname(__file__) + '/../wrapper'
 YARN_JAR_PATH = os.path.dirname(__file__) + '/../yarn/rabit-yarn.jar'
 
-assert os.path.exists(YARN_JAR_PATH), ("cannot find \"%s\", please run build.sh on the yarn folder" % YARN_JAR_PATH)
+if not os.path.exists(YARN_JAR_PATH):
+    warnings.warn("cannot find \"%s\", I will try to run build" % YARN_JAR_PATH)
+    cmd = 'cd %s;./build.sh' % (os.path.dirname(__file__) + '/../yarn/')
+    print cmd
+    subprocess.check_call(cmd, shell = True, env = os.environ) 
+    assert os.path.exists(YARN_JAR_PATH), "failed to build rabit-yarn.jar, try it manually"
+
 hadoop_binary  = 'hadoop'
 # code 
 hadoop_home = os.getenv('HADOOP_HOME')
@@ -116,7 +122,8 @@ def submit_yarn(nworker, worker_args, worker_env):
     cmd += ' -jobname %s ' % args.jobname
     cmd += ' -tempdir %s ' % args.tempdir
     cmd += (' '.join(args.command + worker_args))    
-    print cmd
+    if args.verbose != 0:
+        print cmd
     subprocess.check_call(cmd, shell = True, env = env)
 
 tracker.submit(args.nworker, [], fun_submit = submit_yarn, verbose = args.verbose, hostIP = args.host_ip)
