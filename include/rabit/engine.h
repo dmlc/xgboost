@@ -145,6 +145,8 @@ class IEngine {
   virtual int GetRank(void) const = 0;
   /*! \brief gets total number of nodes */
   virtual int GetWorldSize(void) const = 0;
+  /*! \brief whether we run in distribted mode */
+  virtual bool IsDistributed(void) const = 0;
   /*! \brief gets the host name of the current node */
   virtual std::string GetHost(void) const = 0;
   /*!

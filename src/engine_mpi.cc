@@ -59,6 +59,10 @@ class MPIEngine : public IEngine {
   virtual int GetWorldSize(void) const {
     return MPI::COMM_WORLD.Get_size();
   }
+  /*! \brief whether it is distributed */
+  virtual bool IsDistributed(void) const {
+    return true;
+  }
   /*! \brief get the host name of current node */
   virtual std::string GetHost(void) const {
     int len;
