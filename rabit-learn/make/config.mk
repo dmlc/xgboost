@@ -15,7 +15,7 @@ export CXX = g++
 export MPICXX = mpicxx
 
 # whether use HDFS support during compile
-USE_HDFS = 0
+USE_HDFS = 1
 
 # path to libjvm.so
 LIBJVM=$(JAVA_HOME)/jre/lib/amd64/server

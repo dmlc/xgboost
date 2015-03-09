@@ -1,13 +1,14 @@
 package org.apache.hadoop.yarn.rabit;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
@@ -27,35 +28,82 @@ import org.apache.hadoop.yarn.util.Records;
 
 public class Client {
     // logger
-    private static final Log LOG = LogFactory.getLog(ApplicationMaster.class);
+    private static final Log LOG = LogFactory.getLog(Client.class);
+    // permission for temp file
+    private static final FsPermission permTemp = new FsPermission("777");
     // configuration
     private YarnConfiguration conf = new YarnConfiguration();
+    // hdfs handler
+    private FileSystem dfs;
     // cached maps
-    private Map<String, Path> cacheFiles = new java.util.HashMap<String, Path>();
+    private Map<String, String> cacheFiles = new java.util.HashMap<String, String>();
+    // enviroment variable to setup cachefiles
+    private String cacheFileArg = "";
     // args to pass to application master
-    private String appArgs;
-
+    private String appArgs = "";
+    // HDFS Path to store temporal result
+    private String tempdir = "/tmp";
+    // job name
+    private String jobName = "";
     /**
-     * get the local resource setting
+     * constructor
+     * @throws IOException
+     */
+    private Client() throws IOException {
+        dfs = FileSystem.get(conf);
+    }
+    
+    /**
+     * ge
      * 
      * @param fmaps
      *            the file maps
      * @return the resource map
      * @throws IOException
      */
-    private Map<String, LocalResource> getLocalResource() throws IOException {
+    private Map<String, LocalResource> setupCacheFiles(ApplicationId appId) throws IOException {
+        // create temporary rabit directory
+        Path tmpPath = new Path(this.tempdir);
+        if (!dfs.exists(tmpPath)) {
+            dfs.mkdirs(tmpPath, permTemp);
+            LOG.info("HDFS temp directory do not exist, creating.. " + tmpPath);
+        }
+        tmpPath = new Path(tmpPath + "/temp-rabit-yarn-" + appId);
+        if (dfs.exists(tmpPath)) {
+            dfs.delete(tmpPath, true);
+        }
+        // create temporary directory
+        FileSystem.mkdirs(dfs, tmpPath, permTemp);
+        
+        StringBuilder cstr = new StringBuilder();
         Map<String, LocalResource> rmap = new java.util.HashMap<String, LocalResource>();
-        for (Map.Entry<String, Path> e : cacheFiles.entrySet()) {
+        for (Map.Entry<String, String> e : cacheFiles.entrySet()) {
             LocalResource r = Records.newRecord(LocalResource.class);
-            Path path = e.getValue();
-            FileStatus status = FileSystem.get(conf).getFileStatus(path);
+            Path path = new Path(e.getValue());
+            // copy local data to temporary folder in HDFS
+            if (!e.getValue().startsWith("hdfs://")) {
+                Path dst = new Path("hdfs://" + tmpPath + "/"+  path.getName());
+                dfs.copyFromLocalFile(false, true, path, dst);
+                dfs.setPermission(dst, permTemp);
+                dfs.deleteOnExit(dst);
+                path = dst;
+            }
+            FileStatus status = dfs.getFileStatus(path);
             r.setResource(ConverterUtils.getYarnUrlFromPath(path));
             r.setSize(status.getLen());
             r.setTimestamp(status.getModificationTime());
             r.setType(LocalResourceType.FILE);
-            r.setVisibility(LocalResourceVisibility.PUBLIC);
+            r.setVisibility(LocalResourceVisibility.APPLICATION);
             rmap.put(e.getKey(), r);
+            cstr.append(" -file \"");
+            cstr.append(path.toString());
+            cstr.append('#');
+            cstr.append(e.getKey());
+            cstr.append("\"");
         }
+        
+        dfs.deleteOnExit(tmpPath);
+        this.cacheFileArg = cstr.toString();
         return rmap;
     }
 
@@ -80,6 +128,7 @@ public class Client {
                 env.put(e.getKey(), e.getValue());
             }
         }
+        LOG.debug(env);
         return env;
     }
 
@@ -89,18 +138,20 @@ public class Client {
      * @param args
      */
     private void initArgs(String[] args) {
-        // directly pass all args except args0
+        // directly pass all arguments except args0
         StringBuilder sargs = new StringBuilder("");
         for (int i = 0; i < args.length; ++i) {
-            if (args[i] == "-file") {
-                String[] arr = args[i + 1].split("#");
-                Path path = new Path(arr[0]);
+            if (args[i].equals("-file")) {
+                String[] arr = args[++i].split("#");
                 if (arr.length == 1) {
-                    cacheFiles.put(path.getName(), path);
+                    cacheFiles.put(new Path(arr[0]).getName(), arr[0]);
                 } else {
-                    cacheFiles.put(arr[1], path);
+                    cacheFiles.put(arr[1], arr[0]);
                 }
-                ++i;
+            } else if(args[i].equals("-jobname")) {
+                this.jobName = args[++i];
+            } else if(args[i].equals("-tempdir")) {
+                this.tempdir = args[++i];
             } else {
                 sargs.append(" ");
                 sargs.append(args[i]);
@@ -128,33 +179,34 @@ public class Client {
         // Set up the container launch context for the application master
         ContainerLaunchContext amContainer = Records
                 .newRecord(ContainerLaunchContext.class);
-        amContainer.setCommands(Collections.singletonList("$JAVA_HOME/bin/java"
+        ApplicationSubmissionContext appContext = app
+                .getApplicationSubmissionContext();
+        // Submit application
+        ApplicationId appId = appContext.getApplicationId();
+        // setup cache-files and environment variables
+        amContainer.setLocalResources(this.setupCacheFiles(appId));
+        amContainer.setEnvironment(this.getEnvironment());
+        String cmd = "$JAVA_HOME/bin/java"
                 + " -Xmx256M"
                 + " org.apache.hadoop.yarn.rabit.ApplicationMaster"
-                + this.appArgs + " 1>"
+                + this.cacheFileArg + ' ' + this.appArgs + " 1>"
                 + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"
-                + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR
-                + "/stderr"));
-
-        // setup cache files
-        amContainer.setLocalResources(this.getLocalResource());
-        amContainer.setEnvironment(this.getEnvironment());
+                + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr";
+        LOG.debug(cmd);
+        amContainer.setCommands(Collections.singletonList(cmd));
 
         // Set up resource type requirements for ApplicationMaster
         Resource capability = Records.newRecord(Resource.class);
         capability.setMemory(256);
         capability.setVirtualCores(1);
+        LOG.info("jobname=" + this.jobName);
 
-        ApplicationSubmissionContext appContext = app
-                .getApplicationSubmissionContext();
-        appContext.setApplicationName("Rabit-YARN");
+        appContext.setApplicationName(jobName + ":RABIT-YARN");
         appContext.setAMContainerSpec(amContainer);
         appContext.setResource(capability);
         appContext.setQueue("default");
-
-        // Submit application
-        ApplicationId appId = appContext.getApplicationId();
-        LOG.info("Submitting application " + appId);
+  
+        LOG.info("Submitting application " + appId);      
         yarnClient.submitApplication(appContext);
 
         ApplicationReport appReport = yarnClient.getApplicationReport(appId);

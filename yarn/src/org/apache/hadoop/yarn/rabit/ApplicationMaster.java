@@ -1,15 +1,19 @@
 package org.apache.hadoop.yarn.rabit;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Collection;
 import java.util.Collections;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
@@ -19,6 +23,9 @@ import org.apache.hadoop.yarn.api.records.ContainerExitStatus;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.FinalApplicationStatus;
+import org.apache.hadoop.yarn.api.records.LocalResource;
+import org.apache.hadoop.yarn.api.records.LocalResourceType;
+import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.api.records.Priority;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.api.records.ContainerId;
@@ -38,6 +45,8 @@ public class ApplicationMaster {
     private static final Log LOG = LogFactory.getLog(ApplicationMaster.class);
     // configuration
     private Configuration conf = new YarnConfiguration();
+    // hdfs handler
+    private FileSystem dfs;
 
     // number of cores allocated for each task
     private int numVCores = 1;
@@ -48,7 +57,7 @@ public class ApplicationMaster {
     // total number of tasks
     private int numTasks = 1;
     // maximum number of attempts to try in each task
-    private int maxNumAttempt = 10;
+    private int maxNumAttempt = 3;
     // command to launch
     private String command = "";
 
@@ -61,6 +70,8 @@ public class ApplicationMaster {
 
     // whether we start to abort the application, due to whatever fatal reasons
     private boolean startAbort = false;
+    // worker resources
+    private Map<String, LocalResource> workerResources = new java.util.HashMap<String, LocalResource>();
     // record the aborting reason
     private String abortDiagnosis = "";
     // resource manager
@@ -81,6 +92,10 @@ public class ApplicationMaster {
         new ApplicationMaster().run(args);
     }
 
+    private ApplicationMaster() throws IOException {
+        dfs = FileSystem.get(conf);
+    }
+
     /**
      * get integer argument from environment variable
      * 
@@ -92,11 +107,16 @@ public class ApplicationMaster {
      *            default value
      * @return the requested result
      */
-    private int getEnvInteger(String name, boolean required, int defv) {
+    private int getEnvInteger(String name, boolean required, int defv)
+            throws IOException {
         String value = System.getenv(name);
         if (value == null) {
-            if (required)
-                LOG.fatal("environment variable " + name + "not set");
+            if (required) {
+                throw new IOException("environment variable " + name
+                        + " not set");
+            } else {
+                return defv;
+            }
         }
         return Integer.valueOf(value);
     }
@@ -106,14 +126,37 @@ public class ApplicationMaster {
      * 
      * @param args
      */
-    private void initArgs(String args[]) {
-        for (String c : args) {
-            this.command += c + " ";
+    private void initArgs(String args[]) throws IOException {
+        LOG.info("Invoke initArgs");
+        // cached maps
+        Map<String, Path> cacheFiles = new java.util.HashMap<String, Path>();
+        for (int i = 0; i < args.length; ++i) {
+            if (args[i].equals("-file")) {
+                String[] arr = args[++i].split("#");
+                Path path = new Path(arr[0]);
+                if (arr.length == 1) {
+                    cacheFiles.put(path.getName(), path);
+                } else {
+                    cacheFiles.put(arr[1], path);
+                }
+            } else {
+                this.command += args[i] + " ";
+            }
+        }
+        for (Map.Entry<String, Path> e : cacheFiles.entrySet()) {
+            LocalResource r = Records.newRecord(LocalResource.class);
+            FileStatus status = dfs.getFileStatus(e.getValue());
+            r.setResource(ConverterUtils.getYarnUrlFromPath(e.getValue()));
+            r.setSize(status.getLen());
+            r.setTimestamp(status.getModificationTime());
+            r.setType(LocalResourceType.FILE);
+            r.setVisibility(LocalResourceVisibility.APPLICATION);
+            workerResources.put(e.getKey(), r);
         }
         numVCores = this.getEnvInteger("rabit_cpu_vcores", true, numVCores);
         numMemoryMB = this.getEnvInteger("rabit_memory_mb", true, numMemoryMB);
-        maxNumAttempt = this.getEnvInteger("rabit_max_attempt", false,
-                maxNumAttempt);
+        numTasks = this.getEnvInteger("rabit_world_size", true, numTasks);
+        maxNumAttempt = this.getEnvInteger("rabit_max_attempt", false, maxNumAttempt);
     }
 
     /**
@@ -121,12 +164,6 @@ public class ApplicationMaster {
      */
     private void run(String args[]) throws Exception {
         this.initArgs(args);
-        // list of tasks that waits to be submit
-        java.util.Collection<TaskRecord> tasks = new java.util.LinkedList<TaskRecord>();
-        // add waiting tasks
-        for (int i = 0; i < this.numTasks; ++i) {
-            tasks.add(new TaskRecord(i));
-        }
         this.rmClient = AMRMClientAsync.createAMRMClientAsync(1000,
                 new RMCallbackHandler());
         this.nmClient = NMClientAsync
@@ -138,37 +175,52 @@ public class ApplicationMaster {
         RegisterApplicationMasterResponse response = this.rmClient
                 .registerApplicationMaster(this.appHostName,
                         this.appTrackerPort, this.appTrackerUrl);
-        Resource maxResource = response.getMaximumResourceCapability();
-        if (maxResource.getMemory() < this.numMemoryMB) {
-            LOG.warn("[Rabit] memory requested exceed bound "
-                    + maxResource.getMemory());
-            this.numMemoryMB = maxResource.getMemory();
-        }
-        if (maxResource.getVirtualCores() < this.numVCores) {
-            LOG.warn("[Rabit] memory requested exceed bound "
-                    + maxResource.getVirtualCores());
-            this.numVCores = maxResource.getVirtualCores();
-        }
-        this.submitTasks(tasks);
-        LOG.info("[Rabit] ApplicationMaster started");
-        while (!this.doneAllJobs()) {
-            try {
-                Thread.sleep(100);
-                ;
-            } catch (InterruptedException e) {
+        
+        boolean success = false;
+        String diagnostics = "";
+        try {
+            // list of tasks that waits to be submit
+            java.util.Collection<TaskRecord> tasks = new java.util.LinkedList<TaskRecord>();
+            // add waiting tasks
+            for (int i = 0; i < this.numTasks; ++i) {
+                tasks.add(new TaskRecord(i));
             }
+            Resource maxResource = response.getMaximumResourceCapability();
+
+            if (maxResource.getMemory() < this.numMemoryMB) {
+                LOG.warn("[Rabit] memory requested exceed bound "
+                        + maxResource.getMemory());
+                this.numMemoryMB = maxResource.getMemory();
+            }
+            if (maxResource.getVirtualCores() < this.numVCores) {
+                LOG.warn("[Rabit] memory requested exceed bound "
+                        + maxResource.getVirtualCores());
+                this.numVCores = maxResource.getVirtualCores();
+            }
+            this.submitTasks(tasks);
+            LOG.info("[Rabit] ApplicationMaster started");
+            while (!this.doneAllJobs()) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                }
+            }
+            assert (killedTasks.size() + finishedTasks.size() == numTasks);
+            success = finishedTasks.size() == numTasks;
+            LOG.info("Application completed. Stopping running containers");
+            nmClient.stop();
+            diagnostics = "Diagnostics." + ", num_tasks" + this.numTasks
+                    + ", finished=" + this.finishedTasks.size() + ", failed="
+                    + this.killedTasks.size() + "\n" + this.abortDiagnosis;
+            LOG.info(diagnostics);
+        } catch (Exception e) {
+            diagnostics = e.toString();
         }
-        assert (killedTasks.size() + finishedTasks.size() == numTasks);
-        boolean success = finishedTasks.size() == numTasks;
-        LOG.info("Application completed. Stopping running containers");
-        nmClient.stop();
-        String diagnostics = "Diagnostics." + ", num_tasks" + this.numTasks
-                + ", finished=" + this.finishedTasks.size() + ", failed="
-                + this.killedTasks.size() + "\n" + this.abortDiagnosis;
         rmClient.unregisterApplicationMaster(
                 success ? FinalApplicationStatus.SUCCEEDED
                         : FinalApplicationStatus.FAILED, diagnostics,
                 appTrackerUrl);
+        if (!success) throw new Exception("Application not successful");
     }
 
     /**
@@ -213,14 +265,21 @@ public class ApplicationMaster {
         task.containerRequest = null;
         ContainerLaunchContext ctx = Records
                 .newRecord(ContainerLaunchContext.class);
-        String cmd = command + " 1>"
+        String cmd = 
+                // use this to setup CLASSPATH correctly for libhdfs 
+                "CLASSPATH=${CLASSPATH}:`${HADOOP_PREFIX}/bin/hadoop classpath --glob` "
+                + this.command + " 1>"
                 + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"
                 + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR
                 + "/stderr";
+        LOG.info(cmd);
         ctx.setCommands(Collections.singletonList(cmd));
+        LOG.info(workerResources);
+        ctx.setLocalResources(this.workerResources);
         // setup environment variables
         Map<String, String> env = new java.util.HashMap<String, String>();
-        // setup class path
+        
+        // setup class path, this is kind of duplicated, ignoring
         StringBuilder cpath = new StringBuilder("${CLASSPATH}:./*");
         for (String c : conf.getStrings(
                 YarnConfiguration.YARN_APPLICATION_CLASSPATH,
@@ -228,10 +287,12 @@ public class ApplicationMaster {
             cpath.append(':');
             cpath.append(c.trim());
         }
-        env.put("CLASSPATH", cpath.toString());
-        // setup LD_LIBARY_pATH path for libhdfs
+        // already use hadoop command to get class path in worker, maybe a better solution in future
+        // env.put("CLASSPATH", cpath.toString());
+        // setup LD_LIBARY_PATH path for libhdfs
         env.put("LD_LIBRARY_PATH",
                 "${LD_LIBRARY_PATH}:$HADOOP_HDFS_HOME/lib/native:$JAVA_HOME/jre/lib/amd64/server");
+        env.put("PYTHONPATH", "${PYTHONPATH}:.");
         // inherit all rabit variables
         for (Map.Entry<String, String> e : System.getenv().entrySet()) {
             if (e.getKey().startsWith("rabit_")) {
@@ -240,6 +301,7 @@ public class ApplicationMaster {
         }
         env.put("rabit_task_id", String.valueOf(task.taskId));
         env.put("rabit_num_trial", String.valueOf(task.attemptCounter));
+        
         ctx.setEnvironment(env);
         synchronized (this) {
             assert (!this.runningTasks.containsKey(container.getId()));

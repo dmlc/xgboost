@@ -2,8 +2,10 @@ Linear and Logistic Regression
 ====
 * input format: LibSVM
 * Local Example: [run-linear.sh](run-linear.sh)
-* Runnig on Hadoop: [run-hadoop.sh](run-hadoop.sh)
-  - Set input data to stdin, and model_out=stdout
+* Runnig on YARN: [run-yarn.sh](run-yarn.sh)
+  - You will need to have YARN 
+  - Modify  ```../make/config.mk``` to set USE_HDFS=1
+  - Run build.sh on [../../yarn](../../yarn) on to build yarn jar file
     
 Parameters
 ===

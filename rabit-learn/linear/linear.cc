@@ -54,7 +54,9 @@ class LinearObjFunction : public solver::IObjFunction<float> {
     }
     if (task == "train") {
       lbfgs.Run();
-      this->SaveModel(model_out.c_str(), lbfgs.GetWeight());
+      if (rabit::GetRank() == 0) {
+        this->SaveModel(model_out.c_str(), lbfgs.GetWeight());
+      }
     } else if (task == "pred") {
       this->TaskPred();
     } else {
