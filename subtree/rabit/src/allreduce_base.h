@@ -65,7 +65,7 @@ class AllreduceBase : public IEngine {
   }
   /*! \brief whether is distributed or not */
   virtual bool IsDistributed(void) const {
-    return tracker_uri == "NULL";
+    return tracker_uri != "NULL";
   }
   /*! \brief get rank */
   virtual std::string GetHost(void) const {
