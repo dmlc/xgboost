@@ -34,6 +34,7 @@ import org.apache.hadoop.yarn.api.records.NodeReport;
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest;
 import org.apache.hadoop.yarn.client.api.async.NMClientAsync;
 import org.apache.hadoop.yarn.client.api.async.AMRMClientAsync;
+import org.apache.hadoop.security.UserGroupInformation;
 
 /**
  * application master for allocating resources of rabit client
@@ -61,6 +62,8 @@ public class ApplicationMaster {
     // command to launch
     private String command = "";
 
+    // username
+    private String userName = "";
     // application tracker hostname
     private String appHostName = "";
     // tracker URL to do
@@ -128,6 +131,8 @@ public class ApplicationMaster {
      */
     private void initArgs(String args[]) throws IOException {
         LOG.info("Invoke initArgs");
+        // get user name
+        userName = UserGroupInformation.getCurrentUser().getShortUserName();
         // cached maps
         Map<String, Path> cacheFiles = new java.util.HashMap<String, Path>();
         for (int i = 0; i < args.length; ++i) {
@@ -272,7 +277,6 @@ public class ApplicationMaster {
                 + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"
                 + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR
                 + "/stderr";
-        LOG.info(cmd);
         ctx.setCommands(Collections.singletonList(cmd));
         LOG.info(workerResources);
         ctx.setLocalResources(this.workerResources);
@@ -376,8 +380,12 @@ public class ApplicationMaster {
         Collection<TaskRecord> tasks = new java.util.LinkedList<TaskRecord>();
         for (ContainerId cid : failed) {
             TaskRecord r = runningTasks.remove(cid);
-            if (r == null)
+            if (r == null) {
                 continue;
+            }
+            LOG.info("Task " + r.taskId + "failed on " + r.container.getId() + ". See LOG at : " + 
+                    String.format("http://%s/node/containerlogs/%s/" + userName,
+                                   r.container.getNodeHttpAddress(), r.container.getId()));
             r.attemptCounter += 1;
             r.container = null;
             tasks.add(r);
