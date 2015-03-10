@@ -1,4 +1,9 @@
-# specify tensor path
+ifneq ("$(wildcard ../config.mk)","")
+	config = ../config.mk
+else
+	config = ../make/config.mk
+endif
+
 BIN = linear.rabit
 MOCKBIN= linear.mock
 MPIBIN = 
@@ -6,7 +11,6 @@ MPIBIN =
 OBJ = linear.o
 
 # common build script for programs
-include ../make/config.mk
 include ../make/common.mk
 CFLAGS+=-fopenmp
 linear.o: linear.cc ../../src/*.h linear.h ../solver/*.h

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 """
 This is the demo submission script of rabit, it is created to
-submit rabit jobs using hadoop streaming
+submit rabit jobs using MPI
 """
 import argparse
 import sys

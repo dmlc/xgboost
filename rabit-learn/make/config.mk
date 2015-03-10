@@ -6,7 +6,7 @@
 #
 #  - copy this file to the root of rabit-learn folder
 #  - modify the configuration you want
-#  - type make or make -j n for parallel build
+#  - type make or make -j n on each of the folder
 #----------------------------------------------------
 
 # choice of compiler
