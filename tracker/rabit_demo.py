@@ -1,7 +1,6 @@
 #!/usr/bin/python
 """
-This is the demo submission script of rabit, it is created to
-submit rabit jobs using hadoop streaming
+This is the demo submission script of rabit for submitting jobs in local machine
 """
 import argparse
 import sys

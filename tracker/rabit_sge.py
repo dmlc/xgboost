@@ -1,7 +1,6 @@
 #!/usr/bin/python
 """
-This is the demo submission script of rabit, it is created to
-submit rabit jobs to Sun Grid Engine
+Submit rabit jobs to Sun Grid Engine
 """
 import argparse
 import sys
