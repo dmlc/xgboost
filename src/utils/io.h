@@ -41,7 +41,7 @@ class FileStream : public ISeekStream {
     return std::ftell(fp);
   }
   virtual bool AtEnd(void) const {
-    return std::feof(fp);
+    return std::feof(fp) != 0;
   }
   inline void Close(void) {
     if (fp != NULL){

@@ -57,10 +57,10 @@ class SketchMaker: public BaseMaker {
     for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
       this->SetStats(nid, node_stats[nid], p_tree);
       if (!(*p_tree)[nid].is_leaf()) {
-        p_tree->stat(nid).loss_chg =
+        p_tree->stat(nid).loss_chg = static_cast<float>(
             node_stats[(*p_tree)[nid].cleft()].CalcGain(param) +
             node_stats[(*p_tree)[nid].cright()].CalcGain(param) -
-            node_stats[nid].CalcGain(param);
+            node_stats[nid].CalcGain(param));
       }
     }
     // set left leaves
@@ -207,9 +207,9 @@ class SketchMaker: public BaseMaker {
     } else {
       for (size_t i = 0; i < this->qexpand.size(); ++i) {
         const unsigned nid = this->qexpand[i];
-        sbuilder[3 * nid + 0].sum_total = nstats[nid].pos_grad;
-        sbuilder[3 * nid + 1].sum_total = nstats[nid].neg_grad;
-        sbuilder[3 * nid + 2].sum_total = nstats[nid].sum_hess;        
+        sbuilder[3 * nid + 0].sum_total = static_cast<bst_float>(nstats[nid].pos_grad);
+        sbuilder[3 * nid + 1].sum_total = static_cast<bst_float>(nstats[nid].neg_grad);
+        sbuilder[3 * nid + 2].sum_total = static_cast<bst_float>(nstats[nid].sum_hess);        
       }
     }
     // if only one value, no need to do second pass
@@ -307,7 +307,7 @@ class SketchMaker: public BaseMaker {
   }
   // set statistics on ptree
   inline void SetStats(int nid, const SKStats &node_sum, RegTree *p_tree) {
-    p_tree->stat(nid).base_weight = node_sum.CalcWeight(param);
+    p_tree->stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
     p_tree->stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
     node_sum.SetLeafVec(param, p_tree->leafvec(nid));
   }
@@ -350,7 +350,7 @@ class SketchMaker: public BaseMaker {
       if (s.sum_hess >= param.min_child_weight &&
           c.sum_hess >= param.min_child_weight) {
         double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;        
-        best->Update(loss_chg, fid, fsplits[i], false);
+        best->Update(static_cast<bst_float>(loss_chg), fid, fsplits[i], false);
       }
       // backward
       c.SetSubstract(feat_sum, s);
@@ -358,7 +358,7 @@ class SketchMaker: public BaseMaker {
       if (s.sum_hess >= param.min_child_weight &&
           c.sum_hess >= param.min_child_weight) {
         double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;        
-        best->Update(loss_chg, fid, fsplits[i], true);
+        best->Update(static_cast<bst_float>(loss_chg), fid, fsplits[i], true);
       }      
     }
     {// all including
@@ -368,7 +368,7 @@ class SketchMaker: public BaseMaker {
           c.sum_hess >= param.min_child_weight) {
         bst_float cpt = fsplits.back();
         double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;        
-        best->Update(loss_chg, fid, cpt + fabsf(cpt) + 1.0f, false);
+        best->Update(static_cast<bst_float>(loss_chg), fid, cpt + fabsf(cpt) + 1.0f, false);
       }
     }
   }
