@@ -19,6 +19,7 @@ class FileStream : public utils::ISeekStream {
  public:
   explicit FileStream(const char *fname, const char *mode)
       : use_stdio(false) {
+    using namespace std;
 #ifndef RABIT_STRICT_CXX98_
     if (!strcmp(fname, "stdin")) {
       use_stdio = true; fp = stdin;
@@ -51,7 +52,7 @@ class FileStream : public utils::ISeekStream {
     return std::ftell(fp);
   }
   virtual bool AtEnd(void) const {
-    return feof(fp) != 0;
+    return std::feof(fp) != 0;
   }
   inline void Close(void) {
     if (fp != NULL && !use_stdio) {
@@ -60,7 +61,7 @@ class FileStream : public utils::ISeekStream {
   }
 
  private:
-  FILE *fp;
+  std::FILE *fp;
   bool use_stdio;
 };
 
@@ -71,7 +72,7 @@ class FileSplit : public LineSplitBase {
     LineSplitBase::SplitNames(&fnames_, uri, "#");
     std::vector<size_t> fsize;
     for (size_t  i = 0; i < fnames_.size(); ++i) {
-      if (!strncmp(fnames_[i].c_str(), "file://", 7)) {
+      if (!std::strncmp(fnames_[i].c_str(), "file://", 7)) {
         std::string tmp = fnames_[i].c_str() + 7;
         fnames_[i] = tmp;        
       }
@@ -88,11 +89,11 @@ class FileSplit : public LineSplitBase {
   }
   // get file size
   inline static size_t GetFileSize(const char *fname) {
-    FILE *fp = utils::FopenCheck(fname, "rb");
+    std::FILE *fp = utils::FopenCheck(fname, "rb");
     // NOTE: fseek may not be good, but serves as ok solution
-    fseek(fp, 0, SEEK_END);
-    size_t fsize = static_cast<size_t>(ftell(fp));
-    fclose(fp);
+    std::fseek(fp, 0, SEEK_END);
+    size_t fsize = static_cast<size_t>(std::ftell(fp));
+    std::fclose(fp);
     return fsize;
   }
   
