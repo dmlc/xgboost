@@ -25,6 +25,7 @@ namespace io {
 inline InputSplit *CreateInputSplit(const char *uri,
                                     unsigned part,
                                     unsigned nsplit) {
+  using namespace std;
   if (!strcmp(uri, "stdin")) {
     return new SingleFileSplit(uri);
   }
@@ -48,6 +49,7 @@ inline InputSplit *CreateInputSplit(const char *uri,
  * \param mode can be 'w' or 'r' for read or write
  */
 inline IStream *CreateStream(const char *uri, const char *mode) {
+  using namespace std;
   if (!strncmp(uri, "file://", 7)) {
     return new FileStream(uri + 7, mode);
   }

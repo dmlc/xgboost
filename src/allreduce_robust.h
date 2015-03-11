@@ -287,7 +287,6 @@ class AllreduceRobust : public AllreduceBase {
       if (seqno_.size() == 0) return -1;
       return seqno_.back();
     }
-
    private:
     // sequence number of each
     std::vector<int> seqno_;

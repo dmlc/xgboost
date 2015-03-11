@@ -145,8 +145,9 @@ class LBFGSSolver {
       
       if (silent == 0 && rabit::GetRank() == 0) {
         rabit::TrackerPrintf
-            ("L-BFGS solver starts, num_dim=%lu, init_objval=%g, size_memory=%lu\n",
-             gstate.num_dim, gstate.init_objval, gstate.size_memory);
+            ("L-BFGS solver starts, num_dim=%lu, init_objval=%g, size_memory=%lu, RAM-approx=%lu\n",
+             gstate.num_dim, gstate.init_objval, gstate.size_memory,
+             gstate.MemCost() + hist.MemCost());
       }
     }
   }
@@ -496,6 +497,10 @@ class LBFGSSolver {
       data.resize(n * n, 0.0);
       this->AllocSpace();
     }
+    // memory cost
+    inline size_t MemCost(void) const {
+      return sizeof(DType) * 3 * num_dim;
+    }
     inline double &DotBuf(size_t i, size_t j)  {
       if (i > j) std::swap(i, j);
       return data[MapIndex(i, offset_, size_memory) * (size_memory * 2 + 1) +
@@ -564,6 +569,10 @@ class LBFGSSolver {
       offset_ = 0;
       size_t n = size_memory * 2 + 1;
       dptr_ = new DType[n * stride_];
+    }
+    // memory cost
+    inline size_t MemCost(void) const {
+      return sizeof(DType) * (size_memory_ * 2 + 1) * stride_;
     }
     // fetch element from rolling array
     inline const DType *operator[](size_t i) const {
