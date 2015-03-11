@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 """
 Submit rabit jobs to Sun Grid Engine
 """
@@ -38,7 +38,7 @@ else:
     
 runscript = '%s/runrabit.sh' % args.logdir
 fo = open(runscript, 'w')
-fo.write('\"$@\"')
+fo.write('\"$@\"\n')
 fo.close()
 #
 # submission script using MPI
@@ -63,7 +63,7 @@ def sge_submit(nslave, worker_args, worker_envs):
     cmd += ' %s %s' % (runscript, ' '.join(args.command + worker_args))
     print cmd
     subprocess.check_call(cmd, shell = True)
-    print 'Waiting for the jobs to get up...' % args.jobname
+    print 'Waiting for the jobs to get up...'
 
 # call submit, with nslave, the commands to run each job and submit function
 tracker.submit(args.nworker, [], fun_submit = sge_submit, verbose = args.verbose)

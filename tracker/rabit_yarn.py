@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 """
 This is a script to submit rabit job via Yarn
 rabit will run as a Yarn application

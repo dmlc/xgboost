@@ -13,6 +13,7 @@ import socket
 import struct
 import subprocess
 import random
+import time
 from threading import Thread
 
 """
@@ -258,6 +259,7 @@ class Tracker:
                     job_map[s.jobid] = rank
                 if len(todo_nodes) == 0:
                     self.log_print('@tracker All of %d nodes getting started' % nslave, 2)
+                    self.start_time = time.time()
             s.assign_rank(rank, wait_conn, tree_map, parent_map, ring_map)
             if s.cmd != 'start':                
                 self.log_print('Recieve %s signal from %d' % (s.cmd, s.rank), 1)
@@ -266,6 +268,8 @@ class Tracker:
             if s.wait_accept > 0:
                 wait_conn[rank] = s
         self.log_print('@tracker All nodes finishes job', 2)
+        self.end_time = time.time()
+        self.log_print('@tracker %s secs between node start and job finish' % str(self.end_time - self.start_time), 2)
 
 def submit(nslave, args, fun_submit, verbose, hostIP = 'auto'):
     master = Tracker(verbose = verbose, hostIP = hostIP)

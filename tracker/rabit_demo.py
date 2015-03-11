@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 """
 This is the demo submission script of rabit for submitting jobs in local machine
 """
