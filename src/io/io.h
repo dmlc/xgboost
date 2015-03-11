@@ -19,9 +19,14 @@ typedef learner::DMatrix DataMatrix;
  * \param fname file name to be loaded
  * \param silent whether print message during loading
  * \param savebuffer whether temporal buffer the file if the file is in text format
+ * \param loadsplit whether we only load a split of input files
+ *   such that each worker node get a split of the data
  * \return a loaded DMatrix
  */
-DataMatrix* LoadDataMatrix(const char *fname, bool silent = false, bool savebuffer = true);
+DataMatrix* LoadDataMatrix(const char *fname,
+                           bool silent,
+                           bool savebuffer,
+                           bool loadsplit);
 /*!
  * \brief save DataMatrix into stream, 
  *  note: the saved dmatrix format may not be in exactly same as input

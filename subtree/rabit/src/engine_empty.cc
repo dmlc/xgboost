@@ -56,6 +56,10 @@ class EmptyEngine : public IEngine {
   virtual int GetWorldSize(void) const {
     return 1;
   }
+  /*! \brief whether it is distributed */
+  virtual bool IsDistributed(void) const {
+    return false;
+  }
   /*! \brief get the host name of current node */
   virtual std::string GetHost(void) const {
     return std::string("");

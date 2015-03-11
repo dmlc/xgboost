@@ -69,11 +69,11 @@ class GBTree : public IGradBooster {
       trees[i]->SaveModel(fo);
     }
     if (tree_info.size() != 0) {
-      fo.Write(&tree_info[0], sizeof(int) * tree_info.size());
+      fo.Write(BeginPtr(tree_info), sizeof(int) * tree_info.size());
     }
     if (mparam.num_pbuffer != 0 && with_pbuffer) {
-      fo.Write(&pred_buffer[0], pred_buffer.size() * sizeof(float));
-      fo.Write(&pred_counter[0], pred_counter.size() * sizeof(unsigned));
+      fo.Write(BeginPtr(pred_buffer), pred_buffer.size() * sizeof(float));
+      fo.Write(BeginPtr(pred_counter), pred_counter.size() * sizeof(unsigned));
     }
   }
   // initialize the predic buffer
@@ -99,7 +99,7 @@ class GBTree : public IGradBooster {
                        std::vector<bst_gpair> *in_gpair) {
     const std::vector<bst_gpair> &gpair = *in_gpair;
     std::vector<std::vector<tree::RegTree*> > new_trees;
-    if (mparam.num_output_group == 1) {      
+    if (mparam.num_output_group == 1) {
       new_trees.push_back(BoostNewTrees(gpair, p_fmat, buffer_offset, info, 0));
     } else {
       const int ngroup = mparam.num_output_group;

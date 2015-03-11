@@ -63,6 +63,10 @@ class AllreduceBase : public IEngine {
     if (world_size == -1) return 1;
     return world_size;
   }
+  /*! \brief whether is distributed or not */
+  virtual bool IsDistributed(void) const {
+    return tracker_uri != "NULL";
+  }
   /*! \brief get rank */
   virtual std::string GetHost(void) const {
     return host_uri;
@@ -413,6 +417,8 @@ class AllreduceBase : public IEngine {
   // pointer to links in the ring
   LinkRecord *ring_prev, *ring_next;
   //----- meta information-----
+  // list of enviroment variables that are of possible interest
+  std::vector<std::string> env_vars;
   // unique identifier of the possible job this process is doing
   // used to assign ranks, optional, default to NULL
   std::string task_id;

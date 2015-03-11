@@ -8,11 +8,16 @@ fi
 # put the local training file to HDFS
 hadoop fs -mkdir $3/data
 hadoop fs -put ../../demo/data/agaricus.txt.train $3/data
+hadoop fs -put ../../demo/data/agaricus.txt.test $3/data
 
-../../subtree/rabit/tracker/rabit_hadoop.py  -n $1 -nt $2 -i $3/data/agaricus.txt.train -o $3/mushroom.final.model ../../xgboost mushroom.hadoop.conf  nthread=$2
+# running rabit, pass address in hdfs
+../../subtree/rabit/tracker/rabit_yarn.py  -n $1 --vcores $2 ../../xgboost mushroom.hadoop.conf nthread=$2\
+    data=hdfs://$3/data/agaricus.txt.train\
+    eval[test]=hdfs://$3/data/agaricus.txt.test\
+    model_out=hdfs://$3/mushroom.final.model
 
 # get the final model file
-hadoop fs -get $3/mushroom.final.model/part-00000 ./final.model
+hadoop fs -get $3/mushroom.final.model final.model
 
 # output prediction task=pred 
 ../../xgboost mushroom.hadoop.conf task=pred model_in=final.model test:data=../../demo/data/agaricus.txt.test

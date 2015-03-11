@@ -112,7 +112,7 @@ using namespace xgboost::wrapper;
 
 extern "C"{
   void* XGDMatrixCreateFromFile(const char *fname, int silent) {
-    return LoadDataMatrix(fname, silent != 0, false);
+    return LoadDataMatrix(fname, silent != 0, false, false);
   }
   void* XGDMatrixCreateFromCSR(const bst_ulong *indptr,
                                const unsigned *indices,

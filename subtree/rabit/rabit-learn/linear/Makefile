@@ -6,7 +6,8 @@ MPIBIN =
 OBJ = linear.o
 
 # common build script for programs
-include ../common.mk
+include ../make/config.mk
+include ../make/common.mk
 CFLAGS+=-fopenmp
 linear.o: linear.cc ../../src/*.h linear.h ../solver/*.h
 # dependenies here

@@ -16,6 +16,13 @@ ifeq ($(cxx11),1)
 else 
 endif
 
+ifeq ($(hdfs),1)
+	CFLAGS+= -DRABIT_USE_HDFS=1 -I$(HADOOP_HDFS_HOME)/include -I$(JAVA_HOME)/include
+	LDFLAGS+= -L$(HADOOP_HDFS_HOME)/lib/native -L$(JAVA_HOME)/jre/lib/amd64/server -lhdfs -ljvm
+else 
+	CFLAGS+= -DRABIT_USE_HDFS=0
+endif
+
 # specify tensor path
 BIN = xgboost
 MOCKBIN = xgboost.mock
@@ -83,8 +90,10 @@ Rpack:
 	cp -r src xgboost/src/src
 	mkdir xgboost/src/subtree
 	mkdir xgboost/src/subtree/rabit
+	mkdir xgboost/src/subtree/rabit/rabit-learn
 	cp -r subtree/rabit/include xgboost/src/subtree/rabit/include
 	cp -r subtree/rabit/src xgboost/src/subtree/rabit/src
+	cp -r subtree/rabit/rabit-learn/io xgboost/src/subtree/rabit/rabit-learn/io
 	rm -rf xgboost/src/subtree/rabit/src/*.o
 	mkdir xgboost/src/wrapper
 	cp  wrapper/xgboost_wrapper.h xgboost/src/wrapper

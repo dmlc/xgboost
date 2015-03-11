@@ -31,35 +31,38 @@ nrep=0
 rc=254
 while [ $rc -eq 254 ]; 
 do
+    export rabit_num_trial=$nrep
     %s
-    %s %s rabit_num_trial=$nrep
+    %s 
     rc=$?;
     nrep=$((nrep+1));
 done
 """
 
-def exec_cmd(cmd, taskid):
+def exec_cmd(cmd, taskid, worker_env):
     if cmd[0].find('/') == -1 and os.path.exists(cmd[0]) and os.name != 'nt':
         cmd[0] = './' + cmd[0]
     cmd = ' '.join(cmd)
-    arg = ' rabit_task_id=%d' % (taskid) 
-    cmd = cmd + arg
+    env = {}
+    for k, v in worker_env.items():
+        env[k] = str(v)        
+    env['rabit_task_id'] = str(taskid)
+    env['PYTHONPATH'] = WRAPPER_PATH
+
     ntrial = 0
     while True:
         if os.name == 'nt':
-            prep = 'SET PYTHONPATH=\"%s\"\n' % WRAPPER_PATH
-            ret = subprocess.call(prep + cmd + ('rabit_num_trial=%d' % ntrial), shell=True)
+            env['rabit_num_trial'] = str(ntrial)
+            ret = subprocess.call(cmd, shell=True, env = env)
             if ret == 254:
                 ntrial += 1
                 continue
-            
         else:
-            prep = 'PYTHONPATH=\"%s\" ' % WRAPPER_PATH
-            if args.verbose != 0:            
-                bash = keepalive % (echo % cmd, prep, cmd)
+            if args.verbose != 0: 
+                bash = keepalive % (echo % cmd, cmd)
             else:
-                bash = keepalive % ('', prep, cmd)            
-            ret = subprocess.call(bash, shell=True, executable='bash')
+                bash = keepalive % ('', cmd)
+            ret = subprocess.call(bash, shell=True, executable='bash', env = env)
         if ret == 0:
             if args.verbose != 0:        
                 print 'Thread %d exit with 0' % taskid
@@ -73,7 +76,7 @@ def exec_cmd(cmd, taskid):
 #  Note: this submit script is only used for demo purpose
 #  submission script using pyhton multi-threading
 #
-def mthread_submit(nslave, worker_args):
+def mthread_submit(nslave, worker_args, worker_envs):
     """
       customized submit script, that submit nslave jobs, each must contain args as parameter
       note this can be a lambda function containing additional parameters in input
@@ -84,7 +87,7 @@ def mthread_submit(nslave, worker_args):
     """       
     procs = {}
     for i in range(nslave):
-        procs[i] = Thread(target = exec_cmd, args = (args.command + worker_args, i))
+        procs[i] = Thread(target = exec_cmd, args = (args.command + worker_args, i, worker_envs))
         procs[i].daemon = True
         procs[i].start()
     for i in range(nslave):

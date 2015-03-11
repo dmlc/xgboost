@@ -24,6 +24,7 @@ Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washin
 
 What's New
 =====
+* [Distributed XGBoost now runs on YARN](multi-node/hadoop)!
 * [xgboost user group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
 * [Distributed XGBoost](multi-node) is now available!!
 * New features in the lastest changes :)
