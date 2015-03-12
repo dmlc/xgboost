@@ -272,7 +272,7 @@ public class ApplicationMaster {
                 .newRecord(ContainerLaunchContext.class);
         String cmd = 
                 // use this to setup CLASSPATH correctly for libhdfs 
-                "CLASSPATH=${CLASSPATH}:`${HADOOP_PREFIX}/bin/hadoop classpath --glob` "
+                "CLASSPATH=${CLASSPATH}:`${HADOOP_HOME}/bin/hadoop classpath --glob` "
                 + this.command + " 1>"
                 + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"
                 + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR
