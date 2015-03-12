@@ -448,7 +448,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
     // read data from childs
     for (int i = 0; i < nlink; ++i) {
       if (i != parent_index && selecter.CheckRead(links[i].sock)) {
-        ReturnType ret = links[i].ReadToRingBuffer(size_up_out);
+        ReturnType ret = links[i].ReadToRingBuffer(size_up_out, total_size);
         if (ret != kSuccess) {
           return ReportError(&links[i], ret);
         }
@@ -778,13 +778,13 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
     if (finished) break;
     selecter.Select();
     if (read_ptr != stop_read && selecter.CheckRead(next.sock)) {
-      ReturnType ret = next.ReadToRingBuffer(reduce_ptr);
+      ReturnType ret = next.ReadToRingBuffer(reduce_ptr, stop_read);
       if (ret != kSuccess) {
         return ReportError(&next, ret);
       }
       // sync the rate
       read_ptr = next.size_read;
-      utils::Assert(read_ptr <= stop_read, "read_ptr boundary check");      
+      utils::Assert(read_ptr <= stop_read, "[%d] read_ptr boundary check", rank);
       const size_t buffer_size = next.buffer_size;
       size_t max_reduce = (read_ptr  / type_nbytes) * type_nbytes;
       while (reduce_ptr < max_reduce) {
