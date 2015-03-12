@@ -3,6 +3,7 @@ ifneq ("$(wildcard ../config.mk)","")
 else
 	config = ../make/config.mk
 endif
+include $(config)
 
 BIN = linear.rabit
 MOCKBIN= linear.mock
