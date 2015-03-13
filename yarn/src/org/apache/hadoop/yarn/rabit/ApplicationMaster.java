@@ -274,10 +274,17 @@ public class ApplicationMaster {
         task.containerRequest = null;
         ContainerLaunchContext ctx = Records
                 .newRecord(ContainerLaunchContext.class);
+        String hadoop = "hadoop";
+        if (System.getenv("HADOOP_HOME") != null) {
+            hadoop = "${HADOOP_HOME}/bin/hadoop";
+        } else if (System.getenv("HADOOP_PREFIX") != null) {
+            hadoop = "${HADOOP_PREFIX}/bin/hadoop";
+        }
+
         String cmd =
         // use this to setup CLASSPATH correctly for libhdfs
-       // "CLASSPATH=${CLASSPATH}:`" + hadoop + " classpath --glob` "
-                 this.command + " 1>"
+        "CLASSPATH=${CLASSPATH}:`" + hadoop + " classpath --glob` "
+                + this.command + " 1>"
                 + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"
                 + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR
                 + "/stderr";
