@@ -97,15 +97,18 @@ class HDFSSplit : public LineSplitBase {
  public:
   explicit HDFSSplit(const char *uri, unsigned rank, unsigned nsplit) {
     fs_ = hdfsConnect("default", 0);
+    utils::Check(fs_ != NULL, "error when connecting to default HDFS");
     std::vector<std::string> paths;
     LineSplitBase::SplitNames(&paths, uri, "#");
     // get the files
     std::vector<size_t> fsize;
     for (size_t  i = 0; i < paths.size(); ++i) {
       hdfsFileInfo *info = hdfsGetPathInfo(fs_, paths[i].c_str());
+      utils::Check(info != NULL, "path %s do not exist", paths[i].c_str());
       if (info->mKind == 'D') {
         int nentry;
         hdfsFileInfo *files = hdfsListDirectory(fs_, info->mName, &nentry);
+        utils::Check(files != NULL, "error when ListDirectory %s", info->mName);
         for (int i = 0; i < nentry; ++i) {
           if (files[i].mKind == 'F') {
             fsize.push_back(files[i].mSize);

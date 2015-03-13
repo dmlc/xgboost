@@ -50,6 +50,7 @@ public class Client {
      * @throws IOException
      */
     private Client() throws IOException {
+        conf.addResource(new Path(System.getenv("HADOOP_CONF_DIR") +"/core-site.xml"));
         dfs = FileSystem.get(conf);
     }
     

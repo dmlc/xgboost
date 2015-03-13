@@ -21,7 +21,7 @@ if not os.path.exists(YARN_JAR_PATH):
     subprocess.check_call(cmd, shell = True, env = os.environ) 
     assert os.path.exists(YARN_JAR_PATH), "failed to build rabit-yarn.jar, try it manually"
 
-hadoop_binary  = 'hadoop'
+hadoop_binary  = None
 # code 
 hadoop_home = os.getenv('HADOOP_HOME')
 
