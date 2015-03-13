@@ -344,7 +344,7 @@ public class ApplicationMaster {
         }
         env.put("rabit_task_id", String.valueOf(task.taskId));
         env.put("rabit_num_trial", String.valueOf(task.attemptCounter));
-
+        // ctx.setUser(userName);
         ctx.setEnvironment(env);
         synchronized (this) {
             assert (!this.runningTasks.containsKey(container.getId()));

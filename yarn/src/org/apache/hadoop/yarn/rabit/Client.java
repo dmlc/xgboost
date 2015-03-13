@@ -9,6 +9,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
@@ -43,6 +44,8 @@ public class Client {
     private String appArgs = "";
     // HDFS Path to store temporal result
     private String tempdir = "/tmp";
+    // user name
+    private String userName = "";
     // job name
     private String jobName = "";
     /**
@@ -53,6 +56,7 @@ public class Client {
         conf.addResource(new Path(System.getenv("HADOOP_CONF_DIR") +"/core-site.xml"));
         conf.addResource(new Path(System.getenv("HADOOP_CONF_DIR") +"/hdfs-site.xml"));
         dfs = FileSystem.get(conf);
+        userName = UserGroupInformation.getCurrentUser().getShortUserName();
     }
     
     /**
@@ -182,6 +186,7 @@ public class Client {
                 .newRecord(ContainerLaunchContext.class);
         ApplicationSubmissionContext appContext = app
                 .getApplicationSubmissionContext();
+        
         // Submit application
         ApplicationId appId = appContext.getApplicationId();
         // setup cache-files and environment variables
@@ -200,13 +205,13 @@ public class Client {
         Resource capability = Records.newRecord(Resource.class);
         capability.setMemory(256);
         capability.setVirtualCores(1);
-        LOG.info("jobname=" + this.jobName);
-
+        LOG.info("jobname=" + this.jobName + ",username=" + this.userName);
+        
         appContext.setApplicationName(jobName + ":RABIT-YARN");
         appContext.setAMContainerSpec(amContainer);
         appContext.setResource(capability);
         appContext.setQueue("default");
-  
+        //appContext.setUser(userName);
         LOG.info("Submitting application " + appId);      
         yarnClient.submitApplication(appContext);
 
