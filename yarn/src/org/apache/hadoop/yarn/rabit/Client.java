@@ -51,6 +51,7 @@ public class Client {
      */
     private Client() throws IOException {
         conf.addResource(new Path(System.getenv("HADOOP_CONF_DIR") +"/core-site.xml"));
+        conf.addResource(new Path(System.getenv("HADOOP_CONF_DIR") +"/hdfs-site.xml"));
         dfs = FileSystem.get(conf);
     }
     
@@ -169,7 +170,6 @@ public class Client {
         }
         this.initArgs(args);
         // Create yarnClient
-        YarnConfiguration conf = new YarnConfiguration();
         YarnClient yarnClient = YarnClient.createYarnClient();
         yarnClient.init(conf);
         yarnClient.start();
