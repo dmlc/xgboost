@@ -13,6 +13,7 @@ import rabit_tracker as tracker
 
 WRAPPER_PATH = os.path.dirname(__file__) + '/../wrapper'
 YARN_JAR_PATH = os.path.dirname(__file__) + '/../yarn/rabit-yarn.jar'
+YARN_BOOT_PY = os.path.dirname(__file__) + '/../yarn/run_hdfs_prog.py'
 
 if not os.path.exists(YARN_JAR_PATH):
     warnings.warn("cannot find \"%s\", I will try to run build" % YARN_JAR_PATH)
@@ -87,7 +88,7 @@ if hadoop_version < 2:
     print 'Current Hadoop Version is %s, rabit_yarn will need Yarn(Hadoop 2.0)' % out[1]
 
 def submit_yarn(nworker, worker_args, worker_env):
-    fset = set([YARN_JAR_PATH]) 
+    fset = set([YARN_JAR_PATH, YARN_BOOT_PY]) 
     if args.auto_file_cache != 0:
         for i in range(len(args.command)):
             f = args.command[i]
@@ -121,7 +122,7 @@ def submit_yarn(nworker, worker_args, worker_env):
         cmd += ' -file %s' % f
     cmd += ' -jobname %s ' % args.jobname
     cmd += ' -tempdir %s ' % args.tempdir
-    cmd += (' '.join(args.command + worker_args))    
+    cmd += (' '.join(['./rabit_hdfs_prog.py'] + args.command + worker_args))
     if args.verbose != 0:
         print cmd
     subprocess.check_call(cmd, shell = True, env = env)
