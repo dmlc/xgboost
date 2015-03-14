@@ -293,7 +293,9 @@ extern "C" {
     const char *raw = XGBoosterGetModelRaw(R_ExternalPtrAddr(handle), &olen);
     _WrapperEnd();
     SEXP ret = PROTECT(allocVector(RAWSXP, olen));
-    memcpy(RAW(ret), raw, olen);
+    if (olen != 0) {
+      memcpy(RAW(ret), raw, olen);
+    }
     UNPROTECT(1);    
     return ret;
   }
