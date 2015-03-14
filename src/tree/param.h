@@ -50,6 +50,7 @@ struct TrainParam{
   /*! \brief constructor */
   TrainParam(void) {
     learning_rate = 0.3f;
+    min_split_loss = 0.0f;
     min_child_weight = 1.0f;
     max_depth = 6;
     reg_lambda = 1.0f;
