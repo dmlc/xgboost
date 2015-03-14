@@ -122,7 +122,7 @@ def submit_yarn(nworker, worker_args, worker_env):
         cmd += ' -file %s' % f
     cmd += ' -jobname %s ' % args.jobname
     cmd += ' -tempdir %s ' % args.tempdir
-    cmd += (' '.join(['./rabit_hdfs_prog.py'] + args.command + worker_args))
+    cmd += (' '.join(['./run_hdfs_prog.py'] + args.command + worker_args))
     if args.verbose != 0:
         print cmd
     subprocess.check_call(cmd, shell = True, env = env)
