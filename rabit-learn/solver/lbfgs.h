@@ -226,7 +226,7 @@ class LBFGSSolver {
     const size_t num_dim = gstate.num_dim;
     const DType *gsub = grad + range_begin_;
     const size_t nsub = range_end_ - range_begin_;
-    double vdot;
+    double vdot = 0.0;
     if (n != 0) {
       // hist[m + n - 1] stores old gradient
       Minus(hist[m + n - 1], gsub, hist[m + n - 1], nsub);
@@ -242,15 +242,19 @@ class LBFGSSolver {
         idxset.push_back(std::make_pair(m + j, 2 * m));
         idxset.push_back(std::make_pair(m + j, m + n - 1));
       }
+
       // calculate dot products
       std::vector<double> tmp(idxset.size());
       for (size_t i = 0; i < tmp.size(); ++i) {
         tmp[i] = hist.CalcDot(idxset[i].first, idxset[i].second);
       }
+
       rabit::Allreduce<rabit::op::Sum>(BeginPtr(tmp), tmp.size());
+
       for (size_t i = 0; i < tmp.size(); ++i) {
         gstate.DotBuf(idxset[i].first, idxset[i].second) = tmp[i];
       }
+
       // BFGS steps, use vector-free update
       // parameterize vector using basis in hist
       std::vector<double> alpha(n);
@@ -264,7 +268,7 @@ class LBFGSSolver {
         }
         alpha[j] = vsum / gstate.DotBuf(j, m + j);
         delta[m + j] = delta[m + j] - alpha[j];
-      }
+      }      
       // scale
       double scale = gstate.DotBuf(n - 1, m + n - 1) /
       gstate.DotBuf(m + n - 1, m + n - 1);
@@ -280,6 +284,7 @@ class LBFGSSolver {
         double beta = vsum / gstate.DotBuf(j, m + j);
         delta[j] = delta[j] + (alpha[j] - beta);
       }
+
       // set all to zero
       std::fill(dir, dir + num_dim, 0.0f);
       DType *dirsub = dir + range_begin_; 
@@ -292,10 +297,11 @@ class LBFGSSolver {
       }
       FixDirL1Sign(dirsub, hist[2 * m], nsub);
       vdot = -Dot(dirsub, hist[2 * m], nsub);
+
       // allreduce to get full direction
       rabit::Allreduce<rabit::op::Sum>(dir, num_dim);
       rabit::Allreduce<rabit::op::Sum>(&vdot, 1);
-    } else {     
+    } else {
       SetL1Dir(dir, grad, weight, num_dim);
       vdot = -Dot(dir, dir, num_dim);
     }
@@ -483,6 +489,7 @@ class LBFGSSolver {
       num_iteration = 0;
       num_dim = 0;
       old_objval = 0.0;
+      offset_ = 0;
     }
     ~GlobalState(void) {
       if (grad != NULL) {
