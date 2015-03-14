@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
-this script helps setup classpath env for HDFS, before running the program
+this script helps setup classpath env for HDFS, before running program
+that links with libhdfs
 """
 import glob
 import sys

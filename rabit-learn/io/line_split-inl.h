@@ -18,7 +18,7 @@ namespace io {
 class LineSplitBase : public InputSplit {
  public:
   virtual ~LineSplitBase() {
-    if (fs_ != NULL) delete fs_;
+    this->Destroy();
   }
   virtual bool NextLine(std::string *out_data) {
     if (file_ptr_ >= file_ptr_end_ &&
@@ -56,6 +56,15 @@ class LineSplitBase : public InputSplit {
   // constructor
   LineSplitBase(void)
       : fs_(NULL), reader_(kBufferSize) {
+  }
+  /*!
+   * \brief destroy all the filesystem resources owned
+   * can be called by child destructor
+   */
+  inline void Destroy(void) {
+    if (fs_ != NULL) {
+      delete fs_; fs_ = NULL;
+    }
   }
   /*!
    * \brief initialize the line spliter,
