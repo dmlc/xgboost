@@ -283,11 +283,10 @@ public class ApplicationMaster {
 
         String cmd =
         // use this to setup CLASSPATH correctly for libhdfs
-        "CLASSPATH=${CLASSPATH}:`" + hadoop + " classpath --glob` "
-                + this.command + " 1>"
-                + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"
-                + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR
-                + "/stderr";
+             this.command + " 1>"
+            + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"
+            + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR
+            + "/stderr";
         ctx.setCommands(Collections.singletonList(cmd));
         LOG.info(workerResources);
         ctx.setLocalResources(this.workerResources);

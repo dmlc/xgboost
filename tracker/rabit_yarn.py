@@ -96,7 +96,7 @@ def submit_yarn(nworker, worker_args, worker_env):
                 if i == 0:
                     args.command[i] = './' + args.command[i].split('/')[-1]
                 else:
-                    args.command[i] = args.command[i].split('/')[-1]
+                    args.command[i] = './' + args.command[i].split('/')[-1]
     if args.command[0].endswith('.py'):
         flst = [WRAPPER_PATH + '/rabit.py',
                 WRAPPER_PATH + '/librabit_wrapper.so',
