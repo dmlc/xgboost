@@ -23,7 +23,7 @@ class HDFSStream : public utils::ISeekStream {
              bool disconnect_when_done)
       : fs_(fs), at_end_(false),
         disconnect_when_done_(disconnect_when_done) {
-    int flag;
+    int flag = 0;
     if (!strcmp(mode, "r")) {
       flag = O_RDONLY;
     } else if (!strcmp(mode, "w"))  {

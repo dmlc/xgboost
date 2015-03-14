@@ -19,6 +19,8 @@ namespace utils {
 /*! \brief interface of i/o stream that support seek */
 class ISeekStream: public IStream {
  public:
+  // virtual destructor
+  virtual ~ISeekStream(void) {}
   /*! \brief seek to certain position of the file */
   virtual void Seek(size_t pos) = 0;
   /*! \brief tell the position of the stream */
