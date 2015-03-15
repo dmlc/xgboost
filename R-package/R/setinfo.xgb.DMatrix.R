@@ -2,6 +2,15 @@
 #' 
 #' Set information of an xgb.DMatrix object
 #' 
+#' It can be one of the following:
+#' 
+#' \itemize{
+#'     \item \code{label}
+#'     \item \code{weight}
+#'     \item \code{base_margin}
+#'     \item \code{group}
+#' }
+#' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' train <- agaricus.train

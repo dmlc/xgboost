@@ -11,7 +11,7 @@ getinfo(object, ...)
 \S4method{getinfo}{xgb.DMatrix}(object, name)
 }
 \arguments{
-\item{object}{Object of class "xgb.DMatrix"}
+\item{object}{Object of class \code{xgb.DMatrix}}
 
 \item{...}{other parameters}
 
@@ -19,6 +19,16 @@ getinfo(object, ...)
 }
 \description{
 Get information of an xgb.DMatrix object
+}
+\details{
+The information can be one of the following:
+
+\itemize{
+    \item \code{label}
+    \item \code{weight}
+    \item \code{base_margin}
+    \item \code{nrow}
+}
 }
 \examples{
 data(agaricus.train, package='xgboost')
