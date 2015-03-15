@@ -1,8 +1,8 @@
 setGeneric("nrow")
 
 #' @param x Object of class \code{xgb.DMatrix}
-#' @title \code{nrow} return the number of rows present in x.
-#' @rdname nrow
+#' @title Number of xgb.DMatrix rows
+#' @description \code{nrow} return the number of rows present in the \code{xgb.DMatrix}.
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' train <- agaricus.train

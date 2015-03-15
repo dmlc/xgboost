@@ -3,7 +3,7 @@
 \docType{methods}
 \name{nrow,xgb.DMatrix-method}
 \alias{nrow,xgb.DMatrix-method}
-\title{\code{nrow} return the number of rows present in x.}
+\title{Number of xgb.DMatrix rows}
 \usage{
 \S4method{nrow}{xgb.DMatrix}(x)
 }
@@ -11,7 +11,7 @@
 \item{x}{Object of class \code{xgb.DMatrix}}
 }
 \description{
-\code{nrow} return the number of rows present in x.
+\code{nrow} return the number of rows present in the \code{xgb.DMatrix}.
 }
 \examples{
 data(agaricus.train, package='xgboost')
