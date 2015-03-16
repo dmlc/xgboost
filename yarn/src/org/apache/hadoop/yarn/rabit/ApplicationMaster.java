@@ -223,7 +223,7 @@ public class ApplicationMaster {
             LOG.info(diagnostics);
         } catch (Exception e) {
             diagnostics = e.toString();
-        }
+        } 
         rmClient.unregisterApplicationMaster(
                 success ? FinalApplicationStatus.SUCCEEDED
                         : FinalApplicationStatus.FAILED, diagnostics,
