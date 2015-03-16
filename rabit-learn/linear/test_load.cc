@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     n++;
   }
   delete in;
-  rabit::TrackerPrintf("[%d] finishes loading %d lines\n",
+  rabit::TrackerPrintf("[%d] ALL finishes loading %d lines\n",
                        rabit::GetRank(), n);
   rabit::Finalize();
   return 0;
