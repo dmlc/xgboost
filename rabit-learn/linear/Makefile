@@ -5,7 +5,7 @@ else
 endif
 include $(config)
 
-BIN = linear.rabit
+BIN = linear.rabit test.rabit
 MOCKBIN= linear.mock
 MPIBIN = 
 # objectives that makes up rabit library
@@ -18,3 +18,4 @@ linear.o: linear.cc ../../src/*.h linear.h ../solver/*.h
 # dependenies here
 linear.rabit: linear.o lib
 linear.mock: linear.o lib
+test.rabit: test_load.cc lib
