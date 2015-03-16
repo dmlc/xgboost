@@ -12,6 +12,7 @@ int main(int argc, char *argv[]) {
     rabit::Finalize();
     return 0;
   }
+  rabit::Init(argc, argv);
   int n = 0;
   InputSplit *in = CreateInputSplit(argv[1],
                                     rabit::GetRank(),
@@ -27,5 +28,6 @@ int main(int argc, char *argv[]) {
   delete in;
   rabit::TrackerPrintf("[%d] finishes loading %d lines\n",
                        rabit::GetRank(), n);
+  rabit::Finalize();
   return 0;
 }
