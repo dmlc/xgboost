@@ -20,6 +20,7 @@ import org.apache.hadoop.yarn.api.records.LocalResource;
 import org.apache.hadoop.yarn.api.records.LocalResourceType;
 import org.apache.hadoop.yarn.api.records.LocalResourceVisibility;
 import org.apache.hadoop.yarn.api.records.Resource;
+import org.apache.hadoop.yarn.api.records.QueueInfo;
 import org.apache.hadoop.yarn.api.records.YarnApplicationState;
 import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.hadoop.yarn.client.api.YarnClientApplication;
@@ -228,12 +229,16 @@ public class Client {
             appReport = yarnClient.getApplicationReport(appId);
             appState = appReport.getYarnApplicationState();
         }
-
+        
         System.out.println("Application " + appId + " finished with"
                 + " state " + appState + " at " + appReport.getFinishTime());
         if (!appReport.getFinalApplicationStatus().equals(
                 FinalApplicationStatus.SUCCEEDED)) {
             System.err.println(appReport.getDiagnostics());
+            System.out.println("Available queues:");
+            for (QueueInfo q : yarnClient.getAllQueues()) {
+              System.out.println(q.getQueueName());
+            }
         }
     }
 
