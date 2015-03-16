@@ -198,7 +198,7 @@ public class Client {
         amContainer.setLocalResources(this.setupCacheFiles(appId));
         amContainer.setEnvironment(this.getEnvironment());
         String cmd = "$JAVA_HOME/bin/java"
-                + " -Xmx256M"
+                + " -Xmx900M"
                 + " org.apache.hadoop.yarn.rabit.ApplicationMaster"
                 + this.cacheFileArg + ' ' + this.appArgs + " 1>"
                 + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"
@@ -208,7 +208,7 @@ public class Client {
 
         // Set up resource type requirements for ApplicationMaster
         Resource capability = Records.newRecord(Resource.class);
-        capability.setMemory(256);
+        capability.setMemory(1024);
         capability.setVirtualCores(1);
         LOG.info("jobname=" + this.jobName + ",username=" + this.userName);
         

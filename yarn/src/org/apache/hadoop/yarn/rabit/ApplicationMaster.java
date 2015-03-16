@@ -216,12 +216,14 @@ public class ApplicationMaster {
             assert (killedTasks.size() + finishedTasks.size() == numTasks);
             success = finishedTasks.size() == numTasks;
             LOG.info("Application completed. Stopping running containers");
-            if (success) {
-              nmClient.stop();
-            }
             diagnostics = "Diagnostics." + ", num_tasks" + this.numTasks
                     + ", finished=" + this.finishedTasks.size() + ", failed="
                     + this.killedTasks.size() + "\n" + this.abortDiagnosis;
+            if (success) {
+              nmClient.stop();
+            } else {
+              throw new Exception("Application not successful" + diagnostics);
+            }
             LOG.info(diagnostics);
         } catch (Exception e) {
             diagnostics = e.toString();
