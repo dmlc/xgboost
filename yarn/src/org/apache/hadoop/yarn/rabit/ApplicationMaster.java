@@ -216,7 +216,9 @@ public class ApplicationMaster {
             assert (killedTasks.size() + finishedTasks.size() == numTasks);
             success = finishedTasks.size() == numTasks;
             LOG.info("Application completed. Stopping running containers");
-            nmClient.stop();
+            if (success) {
+              nmClient.stop();
+            }
             diagnostics = "Diagnostics." + ", num_tasks" + this.numTasks
                     + ", finished=" + this.finishedTasks.size() + ", failed="
                     + this.killedTasks.size() + "\n" + this.abortDiagnosis;
