@@ -48,6 +48,8 @@ public class Client {
     private String userName = "";
     // job name
     private String jobName = "";
+    // queue
+    private String queue = "default";
     /**
      * constructor
      * @throws IOException
@@ -158,6 +160,8 @@ public class Client {
                 this.jobName = args[++i];
             } else if(args[i].equals("-tempdir")) {
                 this.tempdir = args[++i];
+            } else if(args[i].equals("-queue")) {
+                this.queue = args[++i];
             } else {
                 sargs.append(" ");
                 sargs.append(args[i]);
@@ -210,7 +214,7 @@ public class Client {
         appContext.setApplicationName(jobName + ":RABIT-YARN");
         appContext.setAMContainerSpec(amContainer);
         appContext.setResource(capability);
-        appContext.setQueue("default");
+        appContext.setQueue(queue);
         //appContext.setUser(userName);
         LOG.info("Submitting application " + appId);      
         yarnClient.submitApplication(appContext);

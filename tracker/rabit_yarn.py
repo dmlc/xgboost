@@ -39,6 +39,8 @@ parser.add_argument('-hip', '--host_ip', default='auto', type=str,
                     help = 'host IP address if cannot be automatically guessed, specify the IP of submission machine')
 parser.add_argument('-v', '--verbose', default=0, choices=[0, 1], type=int,
                     help = 'print more messages into the console')
+parser.add_argument('-q', '--queue', default='default', type=str,
+                    help = 'the queue we want to submit the job to')
 parser.add_argument('-ac', '--auto_file_cache', default=1, choices=[0, 1], type=int,
                     help = 'whether automatically cache the files in the command to hadoop localfile, this is on by default')
 parser.add_argument('-f', '--files', default = [], action='append',
@@ -122,6 +124,7 @@ def submit_yarn(nworker, worker_args, worker_env):
         cmd += ' -file %s' % f
     cmd += ' -jobname %s ' % args.jobname
     cmd += ' -tempdir %s ' % args.tempdir
+    cmd += ' -queue %s ' % args.queue
     cmd += (' '.join(['./run_hdfs_prog.py'] + args.command + worker_args))
     if args.verbose != 0:
         print cmd
