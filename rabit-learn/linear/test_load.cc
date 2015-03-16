@@ -19,13 +19,13 @@ int main(int argc, char *argv[]) {
   std::string line;
   while (in->NextLine(&line)) {
     if (n % 100 == 0) {
-      rabit::TrackerPrintf("[%d] finishes loading %d lines",
+      rabit::TrackerPrintf("[%d] finishes loading %d lines\n",
                            rabit::GetRank(), n);
     }
     n++;
   }
   delete in;
-  rabit::TrackerPrintf("[%d] finishes loading %d lines",
+  rabit::TrackerPrintf("[%d] finishes loading %d lines\n",
                        rabit::GetRank(), n);
   return 0;
 }
