@@ -15,11 +15,15 @@ xgb.setinfo <- function(dmat, name, info) {
     stop("xgb.setinfo: first argument dtrain must be xgb.DMatrix")
   }
   if (name == "label") {
+    if (length(info)!=xgb.numrow(dmat))
+      stop("The length of labels must equal to the number of rows in the input data")
     .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info), 
           PACKAGE = "xgboost")
     return(TRUE)
   }
   if (name == "weight") {
+    if (length(info)!=xgb.numrow(dmat))
+      stop("The length of weights must equal to the number of rows in the input data")
     .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info), 
           PACKAGE = "xgboost")
     return(TRUE)
