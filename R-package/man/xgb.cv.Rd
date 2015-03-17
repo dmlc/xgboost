@@ -21,16 +21,16 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
   \item \code{nthread} number of thread used in training, if not set, all threads are used
 }
 
-  See \url{https://github.com/tqchen/xgboost/wiki/Parameters} for
-  further details. See also demo/ for walkthrough example in R.}
+  See \link{xgb.train} for further details.
+  See also demo/ for walkthrough example in R.}
 
-\item{data}{takes an \code{xgb.DMatrix} as the input.}
+\item{data}{takes an \code{xgb.DMatrix} or \code{Matrix} as the input.}
 
 \item{nrounds}{the max number of iterations}
 
-\item{nfold}{number of folds used}
+\item{nfold}{the original dataset is randomly partitioned into \code{nfold} equal size subsamples.}
 
-\item{label}{option field, when data is Matrix}
+\item{label}{option field, when data is \code{Matrix}}
 
 \item{missing}{Missing is only used when input is dense matrix, pick a float
 value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.}
@@ -68,18 +68,21 @@ A \code{data.table} with each mean and standard deviation stat for training set 
 The cross valudation function of xgboost
 }
 \details{
-This is the cross validation function for xgboost
+The original sample is randomly partitioned into \code{nfold} equal size subsamples.
 
-Parallelization is automatically enabled if OpenMP is present.
-Number of threads can also be manually specified via "nthread" parameter.
+Of the \code{nfold} subsamples, a single subsample is retained as the validation data for testing the model, and the remaining \code{nfold - 1} subsamples are used as training data.
 
-This function only accepts an \code{xgb.DMatrix} object as the input.
+The cross-validation process is then repeated \code{nrounds} times, with each of the \code{nfold} subsamples used exactly once as the validation data.
+
+All observations are used for both training and validation.
+
+Adapted from \url{http://en.wikipedia.org/wiki/Cross-validation_\%28statistics\%29#k-fold_cross-validation}
 }
 \examples{
 data(agaricus.train, package='xgboost')
 dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 history <- xgb.cv(data = dtrain, nround=3, nthread = 2, nfold = 5, metrics=list("rmse","auc"),
-                  "max.depth"=3, "eta"=1, "objective"="binary:logistic")
+                  max.depth =3, eta = 1, objective = "binary:logistic")
 print(history)
 }
 
