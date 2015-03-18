@@ -1,5 +1,5 @@
-xgboost: eXtreme Gradient Boosting 
-======
+XGBoost: eXtreme Gradient Boosting 
+==================================
 An optimized general purpose gradient boosting library. The library is parallelized, and also provides an optimized distributed version.
 It implements machine learning algorithm under gradient boosting framework, including generalized linear model and gradient boosted regression tree (GBDT). XGBoost can also also distributed and scale to even larger data.
 
@@ -23,7 +23,7 @@ Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washin
 * The model presented is used by xgboost for boosted trees
 
 What's New
-=====
+==========
 * [Distributed XGBoost now runs on YARN](multi-node/hadoop)!
 * [xgboost user group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
 * [Distributed XGBoost](multi-node) is now available!!
@@ -37,7 +37,7 @@ What's New
 * Thanks to Tong He, the new [R package](R-package) is available
 
 Features
-======
+========
 * Sparse feature format:
   - Sparse feature format allows easy handling of missing values, and improve computation efficiency.
 * Push the limit on single machine:
@@ -74,7 +74,7 @@ Build
   Then run ```bash build.sh``` normally.
 
 Version
-======
+=======
 * This version xgboost-0.3, the code has been refactored from 0.2x to be cleaner and more flexibility
 * This version of xgboost is not compatible with 0.2x, due to huge amount of changes in code structure
   - This means the model and buffer file of previous version can not be loaded in xgboost-3.0
@@ -82,6 +82,6 @@ Version
 * Change log in [CHANGES.md](CHANGES.md)
 
 XGBoost in Graphlab Create
-======
+==========================
 * XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to data manipulation, graph processing, hyper-parameter search, and visualization of TeraBytes scale data in one framework. Try the Graphlab Create in http://graphlab.com/products/create/quick-start-guide.html
 * Nice blogpost by Jay Gu using GLC boosted tree to solve kaggle bike sharing challenge: http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand
