@@ -27,21 +27,28 @@ inline static void Softmax(std::vector<float>* p_rec) {
     rec[i] /= static_cast<float>(wsum);
   }
 }
-// simple helper function to do softmax
-inline static int FindMaxIndex(const std::vector<float>& rec) {
+
+inline static int FindMaxIndex(const float  *rec, size_t size) {
   size_t mxid = 0;
-  for (size_t i = 1; i < rec.size(); ++i) {
-    if (rec[i] > rec[mxid] + 1e-6f) {
+  for (size_t i = 1; i < size; ++i) {
+    if (rec[i] > rec[mxid]) {
       mxid = i;
     }
   }
   return static_cast<int>(mxid);
 }
 
+// simple helper function to do softmax
+inline static int FindMaxIndex(const std::vector<float>& rec) {
+  return FindMaxIndex(BeginPtr(rec), rec.size());
+}
+
+
 inline static bool CmpFirst(const std::pair<float, unsigned> &a,
                             const std::pair<float, unsigned> &b) {
   return a.first > b.first;
 }
+
 inline static bool CmpSecond(const std::pair<float, unsigned> &a,
                              const std::pair<float, unsigned> &b) {
   return a.second > b.second;
