@@ -166,6 +166,7 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
   inline static float EvalRow(float label,
                               const float *pred,
                               size_t nclass) {
+    const float eps = 1e-16f;
     size_t k = static_cast<size_t>(label);
     utils::Check(k < nclass, "mlogloss: label must be in [0, num_class)");
     if (pred[k] > eps) {
@@ -173,8 +174,7 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
     } else {
       return -std::log(eps);
     }
-  }
-  const static float eps = 1e-16;
+  } 
 };
 
 /*! \brief ctest */
