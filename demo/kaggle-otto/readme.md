@@ -14,7 +14,7 @@ The parameter `nthread` controls the number of cores to run on, please set it to
 
 To install the R-package of xgboost, please run
 
-```
+```r
 devtools::install_github('tqchen/xgboost',subdir='R-package')
 ```
 
