@@ -23,6 +23,7 @@ class HDFSStream : public ISeekStream {
              bool disconnect_when_done)
       : fs_(fs), at_end_(false),
         disconnect_when_done_(disconnect_when_done) {
+    fsbk_ = fs_;
     int flag = 0;
     if (!strcmp(mode, "r")) {
       flag = O_RDONLY;
@@ -44,6 +45,7 @@ class HDFSStream : public ISeekStream {
     }
   }
   virtual size_t Read(void *ptr, size_t size) {
+    CheckFS();
     tSize nread = hdfsRead(fs_, fp_, ptr, size);
     if (nread == -1) {
       int errsv = errno;
@@ -55,6 +57,7 @@ class HDFSStream : public ISeekStream {
     return static_cast<size_t>(nread);
   }
   virtual void Write(const void *ptr, size_t size) {
+    CheckFS();
     const char *buf = reinterpret_cast<const char*>(ptr);
     while (size != 0) {
       tSize nwrite = hdfsWrite(fs_, fp_, buf, size);
@@ -67,12 +70,14 @@ class HDFSStream : public ISeekStream {
     }
   }
   virtual void Seek(size_t pos) {
+    CheckFS();
     if (hdfsSeek(fs_, fp_, pos) != 0) {
       int errsv = errno;
       utils::Error("HDFSStream.Seek Error:%s", strerror(errsv));
     }
   }
   virtual size_t Tell(void) {
+    CheckFS();
     tOffset offset = hdfsTell(fs_, fp_);
     if (offset == -1) {
       int errsv = errno;
@@ -84,6 +89,7 @@ class HDFSStream : public ISeekStream {
     return at_end_;
   }
   inline void Close(void) {
+    CheckFS();
     if (fp_ != NULL) {
       if (hdfsCloseFile(fs_, fp_) == -1) {
         int errsv = errno;
@@ -93,11 +99,17 @@ class HDFSStream : public ISeekStream {
     }
   }  
   
- private:  
+ private:
+  inline void CheckFS(void) const {
+    if (fs_ != fsbk_) {
+      rabit::TrackerPrintf("[%d] fs flag inconstent\n", rabit::GetRank());
+    }
+  }
   hdfsFS fs_;
   hdfsFile fp_;
   bool at_end_;
   bool disconnect_when_done_;
+  hdfsFS fsbk_;
 };
 
 /*! \brief line split from normal file system */

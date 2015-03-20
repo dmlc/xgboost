@@ -3,11 +3,11 @@
 
 int main(int argc, char *argv[]) {
   using namespace rabit::io;
-  if (argc < 2) {
+  if (argc < 4) {
     // intialize rabit engine
     rabit::Init(argc, argv);
     if (rabit::GetRank() == 0) {
-      rabit::TrackerPrintf("Usage: <data_in> param=val\n");
+      rabit::TrackerPrintf("Usage: <data_in> npart rank\n");
     }
     rabit::Finalize();
     return 0;
@@ -15,8 +15,8 @@ int main(int argc, char *argv[]) {
   rabit::Init(argc, argv);
   int n = 0;
   InputSplit *in = CreateInputSplit(argv[1],
-                                    rabit::GetRank(),
-                                    rabit::GetWorldSize());
+                                    atoi(argv[2]),
+                                    atoi(argv[3]));
   std::string line;
   while (in->NextLine(&line)) {
     if (n % 100 == 0) {
