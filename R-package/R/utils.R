@@ -29,8 +29,8 @@ xgb.setinfo <- function(dmat, name, info) {
     return(TRUE)
   }
   if (name == "base_margin") {
-    if (length(info)!=xgb.numrow(dmat))
-      stop("The length of base margin must equal to the number of rows in the input data")
+    # if (length(info)!=xgb.numrow(dmat))
+    #   stop("The length of base margin must equal to the number of rows in the input data")
     .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info), 
           PACKAGE = "xgboost")
     return(TRUE)
