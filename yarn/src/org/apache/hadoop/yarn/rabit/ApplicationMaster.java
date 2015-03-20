@@ -60,7 +60,7 @@ public class ApplicationMaster {
     // total number of tasks
     private int numTasks = 1;
     // maximum number of attempts to try in each task
-    private int maxNumAttempt = 3;
+    private int maxNumAttempt = 1;
     // command to launch
     private String command = "";
 
