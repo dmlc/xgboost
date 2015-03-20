@@ -27,8 +27,9 @@ struct EvalEWiseBase : public IEvaluator {
                      const MetaInfo &info,
                      bool distributed) const {
     utils::Check(info.labels.size() != 0, "label set cannot be empty");
-    utils::Check(preds.size() % info.labels.size() == 0,
-                 "label and prediction size not match");
+    utils::Check(preds.size() == info.labels.size(),
+                 "label and prediction size not match"\
+                 "hint: use merror or mlogloss for multi-class classification");
 
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
 
@@ -50,7 +51,6 @@ struct EvalEWiseBase : public IEvaluator {
    *   get evaluation result from one row 
    * \param label label of current instance
    * \param pred prediction value of current instance
-   * \param weight weight of current instance
    */
   inline static float EvalRow(float label, float pred);
   /*! 
@@ -98,14 +98,83 @@ struct EvalError : public EvalEWiseBase<EvalError> {
   }
 };
 
+/*! 
+ * \brief base class of multi-class evaluation
+ * \tparam Derived the name of subclass
+ */
+template<typename Derived>
+struct EvalMClassBase : public IEvaluator {
+  virtual float Eval(const std::vector<float> &preds,
+                     const MetaInfo &info,
+                     bool distributed) const {
+    utils::Check(info.labels.size() != 0, "label set cannot be empty");
+    utils::Check(preds.size() % info.labels.size() == 0,
+                 "label and prediction size not match");
+    const size_t nclass = preds.size() / info.labels.size();
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
+    
+    float sum = 0.0, wsum = 0.0;
+    #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
+    for (bst_omp_uint i = 0; i < ndata; ++i) {
+      const float wt = info.GetWeight(i);
+      sum += Derived::EvalRow(info.labels[i],
+                              BeginPtr(preds) + i * nclass,
+                              nclass) * wt;
+      wsum += wt;
+    }
+    float dat[2]; dat[0] = sum, dat[1] = wsum;
+    if (distributed) {
+      rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    }
+    return Derived::GetFinal(dat[0], dat[1]);
+  }
+  /*! 
+   * \brief to be implemented by subclass, 
+   *   get evaluation result from one row 
+   * \param label label of current instance
+   * \param pred prediction value of current instance 
+   * \param nclass number of class in the prediction
+   */
+  inline static float EvalRow(float label,
+                              const float *pred,
+                              size_t nclass);
+  /*! 
+   * \brief to be overide by subclas, final trasnformation 
+   * \param esum the sum statistics returned by EvalRow
+   * \param wsum sum of weight
+   */
+  inline static float GetFinal(float esum, float wsum) {
+    return esum / wsum;
+  }
+};
 /*! \brief match error */
-struct EvalMatchError : public EvalEWiseBase<EvalMatchError> {
+struct EvalMatchError : public EvalMClassBase<EvalMatchError> {
   virtual const char *Name(void) const {
     return "merror";
   }
-  inline static float EvalRow(float label, float pred) {
-    return static_cast<int>(pred) != static_cast<int>(label);
+  inline static float EvalRow(float label,
+                              const float *pred,
+                              size_t nclass) {
+    return FindMaxIndex(pred, nclass) != static_cast<int>(label);
   }
+};
+/*! \brief match error */
+struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
+  virtual const char *Name(void) const {
+    return "mlogloss";
+  }
+  inline static float EvalRow(float label,
+                              const float *pred,
+                              size_t nclass) {
+    const float eps = 1e-16f;
+    size_t k = static_cast<size_t>(label);
+    utils::Check(k < nclass, "mlogloss: label must be in [0, num_class)");
+    if (pred[k] > eps) {
+      return -std::log(pred[k]);
+    } else {
+      return -std::log(eps);
+    }
+  } 
 };
 
 /*! \brief ctest */

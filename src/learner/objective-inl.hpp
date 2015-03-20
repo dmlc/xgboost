@@ -225,7 +225,7 @@ class SoftmaxMultiClassObj : public IObjFunction {
     this->Transform(io_preds, output_prob);
   }
   virtual void EvalTransform(std::vector<float> *io_preds) {
-    this->Transform(io_preds, 0);
+    this->Transform(io_preds, 1);
   }
   virtual const char* DefaultEvalMetric(void) const {
     return "merror";
