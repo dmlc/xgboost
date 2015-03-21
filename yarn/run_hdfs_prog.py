@@ -33,6 +33,13 @@ lpath.append('%s/jre/lib/amd64/server' % java_home)
 
 env = os.environ.copy()
 env['CLASSPATH'] = '${CLASSPATH}:' + (':'.join(cpath))
+
+# setup hdfs options
+if 'rabit_hdfs_opts' in env:
+    env['LIBHDFS_OPTS'] = env['rabit_hdfs_opts']
+elif 'LIBHDFS_OPTS' not in env:
+    env['LIBHDFS_OPTS'] = '--Xmx128m'
+
 env['LD_LIBRARY_PATH'] = '${LD_LIBRARY_PATH}:' + (':'.join(lpath)) 
 ret = subprocess.call(args = sys.argv[1:], env = env)
 sys.exit(ret)

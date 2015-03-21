@@ -18,4 +18,4 @@ linear.o: linear.cc ../../src/*.h linear.h ../solver/*.h
 # dependenies here
 linear.rabit: linear.o lib
 linear.mock: linear.o lib
-test.rabit: test_load.cc lib
+

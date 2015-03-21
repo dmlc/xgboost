@@ -60,7 +60,7 @@ public class ApplicationMaster {
     // total number of tasks
     private int numTasks = 1;
     // maximum number of attempts to try in each task
-    private int maxNumAttempt = 1;
+    private int maxNumAttempt = 3;
     // command to launch
     private String command = "";
 
@@ -340,6 +340,9 @@ public class ApplicationMaster {
             if (e.getKey().startsWith("rabit_")) {
                 env.put(e.getKey(), e.getValue());
             }
+            if (e.getKey() == "LIBHDFS_OPTS") {
+                env.put(e.getKey(), e.getValue());
+            }
         }
         env.put("rabit_task_id", String.valueOf(task.taskId));
         env.put("rabit_num_trial", String.valueOf(task.attemptCounter));
@@ -480,7 +483,7 @@ public class ApplicationMaster {
                 } catch (Exception e) {
                 }
                 LOG.info("[Rabit] Task " + r.taskId + " exited with status "
-                        + exstatus);
+                         + exstatus + " Diagnostics:"+ s.getDiagnostics());
                 failed.add(s.getContainerId());
             }
         }
