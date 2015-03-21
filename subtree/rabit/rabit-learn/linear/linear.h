@@ -26,10 +26,11 @@ struct LinearModel {
     int reserved[16];
     // constructor
     ModelParam(void) {
+      memset(this, 0, sizeof(ModelParam));
       base_score = 0.5f;
       num_feature = 0;
       loss_type = 1;
-      std::memset(reserved, 0, sizeof(reserved));
+      num_feature = 0;
     }
     // initialize base score
     inline void InitBaseScore(void) {
@@ -119,7 +120,7 @@ struct LinearModel {
     }
     fi.Read(weight, sizeof(float) * (param.num_feature + 1));
   }
-  inline void Save(rabit::IStream &fo, const float *wptr = NULL) const {
+  inline void Save(rabit::IStream &fo, const float *wptr = NULL) {
     fo.Write(&param, sizeof(param));
     if (wptr == NULL) wptr = weight;
     fo.Write(wptr, sizeof(float) * (param.num_feature + 1));

@@ -38,6 +38,7 @@ class StreamBufferReader {
       }
     }
   }
+  /*! \brief whether we are reaching the end of file */
   inline bool AtEnd(void) const {
     return read_len_ == 0;
   }

@@ -19,6 +19,7 @@ namespace rabit {
  * \brief namespace to handle input split and filesystem interfacing
  */
 namespace io {
+/*! \brief reused ISeekStream's definition */
 typedef utils::ISeekStream ISeekStream;
 /*!
  * \brief user facing input split helper,

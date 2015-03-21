@@ -145,8 +145,9 @@ class LBFGSSolver {
       
       if (silent == 0 && rabit::GetRank() == 0) {
         rabit::TrackerPrintf
-            ("L-BFGS solver starts, num_dim=%lu, init_objval=%g, size_memory=%lu\n",
-             gstate.num_dim, gstate.init_objval, gstate.size_memory);
+            ("L-BFGS solver starts, num_dim=%lu, init_objval=%g, size_memory=%lu, RAM-approx=%lu\n",
+             gstate.num_dim, gstate.init_objval, gstate.size_memory,
+             gstate.MemCost() + hist.MemCost());
       }
     }
   }
@@ -176,7 +177,7 @@ class LBFGSSolver {
     // swap new weight 
     std::swap(g.weight, g.grad);
     // check stop condition
-    if (gstate.num_iteration > min_lbfgs_iter) {
+    if (gstate.num_iteration > static_cast<size_t>(min_lbfgs_iter)) {
       if (g.old_objval - g.new_objval < lbfgs_stop_tol * g.init_objval) {
         return true;
       }
@@ -195,7 +196,7 @@ class LBFGSSolver {
   /*! \brief run optimization */
   virtual void Run(void) {
     this->Init();
-    while (gstate.num_iteration < max_lbfgs_iter) {
+    while (gstate.num_iteration < static_cast<size_t>(max_lbfgs_iter)) {
       if (this->UpdateOneIter()) break;
     }
     if (silent == 0 && rabit::GetRank() == 0) {
@@ -225,7 +226,7 @@ class LBFGSSolver {
     const size_t num_dim = gstate.num_dim;
     const DType *gsub = grad + range_begin_;
     const size_t nsub = range_end_ - range_begin_;
-    double vdot;
+    double vdot = 0.0;
     if (n != 0) {
       // hist[m + n - 1] stores old gradient
       Minus(hist[m + n - 1], gsub, hist[m + n - 1], nsub);
@@ -241,15 +242,19 @@ class LBFGSSolver {
         idxset.push_back(std::make_pair(m + j, 2 * m));
         idxset.push_back(std::make_pair(m + j, m + n - 1));
       }
+
       // calculate dot products
       std::vector<double> tmp(idxset.size());
       for (size_t i = 0; i < tmp.size(); ++i) {
         tmp[i] = hist.CalcDot(idxset[i].first, idxset[i].second);
       }
+
       rabit::Allreduce<rabit::op::Sum>(BeginPtr(tmp), tmp.size());
+
       for (size_t i = 0; i < tmp.size(); ++i) {
         gstate.DotBuf(idxset[i].first, idxset[i].second) = tmp[i];
       }
+
       // BFGS steps, use vector-free update
       // parameterize vector using basis in hist
       std::vector<double> alpha(n);
@@ -263,7 +268,7 @@ class LBFGSSolver {
         }
         alpha[j] = vsum / gstate.DotBuf(j, m + j);
         delta[m + j] = delta[m + j] - alpha[j];
-      }
+      }      
       // scale
       double scale = gstate.DotBuf(n - 1, m + n - 1) /
       gstate.DotBuf(m + n - 1, m + n - 1);
@@ -279,6 +284,7 @@ class LBFGSSolver {
         double beta = vsum / gstate.DotBuf(j, m + j);
         delta[j] = delta[j] + (alpha[j] - beta);
       }
+
       // set all to zero
       std::fill(dir, dir + num_dim, 0.0f);
       DType *dirsub = dir + range_begin_; 
@@ -291,10 +297,11 @@ class LBFGSSolver {
       }
       FixDirL1Sign(dirsub, hist[2 * m], nsub);
       vdot = -Dot(dirsub, hist[2 * m], nsub);
+
       // allreduce to get full direction
       rabit::Allreduce<rabit::op::Sum>(dir, num_dim);
       rabit::Allreduce<rabit::op::Sum>(&vdot, 1);
-    } else {     
+    } else {
       SetL1Dir(dir, grad, weight, num_dim);
       vdot = -Dot(dir, dir, num_dim);
     }
@@ -482,6 +489,7 @@ class LBFGSSolver {
       num_iteration = 0;
       num_dim = 0;
       old_objval = 0.0;
+      offset_ = 0;
     }
     ~GlobalState(void) {
       if (grad != NULL) {
@@ -495,6 +503,10 @@ class LBFGSSolver {
       size_t n = size_memory * 2 + 1;
       data.resize(n * n, 0.0);
       this->AllocSpace();
+    }
+    // memory cost
+    inline size_t MemCost(void) const {
+      return sizeof(DType) * 3 * num_dim;
     }
     inline double &DotBuf(size_t i, size_t j)  {
       if (i > j) std::swap(i, j);
@@ -564,6 +576,10 @@ class LBFGSSolver {
       offset_ = 0;
       size_t n = size_memory * 2 + 1;
       dptr_ = new DType[n * stride_];
+    }
+    // memory cost
+    inline size_t MemCost(void) const {
+      return sizeof(DType) * (size_memory_ * 2 + 1) * stride_;
     }
     // fetch element from rolling array
     inline const DType *operator[](size_t i) const {

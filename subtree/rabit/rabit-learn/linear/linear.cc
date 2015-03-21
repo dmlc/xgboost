@@ -206,21 +206,22 @@ int main(int argc, char *argv[]) {
     rabit::Finalize();
     return 0;
   }
-  rabit::linear::LinearObjFunction linear;
+  rabit::linear::LinearObjFunction *linear = new rabit::linear::LinearObjFunction();
   if (!strcmp(argv[1], "stdin")) {
-    linear.LoadData(argv[1]);
+    linear->LoadData(argv[1]);
     rabit::Init(argc, argv);
   } else {
     rabit::Init(argc, argv);
-    linear.LoadData(argv[1]);
+    linear->LoadData(argv[1]);
   }
   for (int i = 2; i < argc; ++i) {
     char name[256], val[256];
     if (sscanf(argv[i], "%[^=]=%s", name, val) == 2) {
-      linear.SetParam(name, val);
+      linear->SetParam(name, val);
     }
   }
-  linear.Run();
+  linear->Run();
+  delete linear;
   rabit::Finalize();
   return 0;
 }

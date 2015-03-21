@@ -81,18 +81,18 @@ class AllreduceMock : public AllreduceRobust {
       ComboSerializer com(global_model, local_model);
       AllreduceRobust::CheckPoint(&dum, &com);
     }
-    tsum_allreduce = 0.0;
     time_checkpoint = utils::GetTime();
     double tcost = utils::GetTime() - tstart;
     if (report_stats != 0 && rank == 0) {
       std::stringstream ss;
       ss << "[v" << version_number << "] global_size=" << global_checkpoint.length()
-         << "local_size=" << local_chkpt[local_chkpt_version].length()
-         << "check_tcost="<< tcost <<" sec,"
-         << "allreduce_tcost=" << tsum_allreduce << " sec,"
-         << "between_chpt=" << tbet_chkpt << "sec\n";
+         << ",local_size=" << (local_chkpt[0].length() + local_chkpt[1].length())
+         << ",check_tcost="<< tcost <<" sec"
+         << ",allreduce_tcost=" << tsum_allreduce << " sec"
+         << ",between_chpt=" << tbet_chkpt << "sec\n";
       this->TrackerPrint(ss.str());
     }
+    tsum_allreduce = 0.0;
   }
 
   virtual void LazyCheckPoint(const ISerializable *global_model) {

@@ -1,7 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 """
-This is the demo submission script of rabit, it is created to
-submit rabit jobs using hadoop streaming
+Submission script to submit rabit jobs using MPI
 """
 import argparse
 import sys
