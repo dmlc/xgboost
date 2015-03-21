@@ -59,6 +59,8 @@ parser.add_argument('-mem', '--memory_mb', default=1024, type=int,
                     help = 'maximum memory used by the process. Guide: set it large (near mapred.cluster.max.map.memory.mb)'\
                         'if you are running multi-threading rabit,'\
                         'so that each node can occupy all the mapper slots in a machine for maximum performance')
+parser.add_argument('--libhdfs-opts', default='-Xmx128m', type=str,
+                    help = 'setting to be passed to libhdfs')
 parser.add_argument('command', nargs='+',
                     help = 'command for rabit program')
 args = parser.parse_args()
@@ -115,6 +117,7 @@ def submit_yarn(nworker, worker_args, worker_env):
     env['rabit_cpu_vcores'] = str(args.vcores)
     env['rabit_memory_mb'] = str(args.memory_mb)
     env['rabit_world_size'] = str(args.nworker)
+    env['rabit_hdfs_opts'] = str(args.libhdfs_opts)
 
     if args.files != None:
         for flst in args.files:
