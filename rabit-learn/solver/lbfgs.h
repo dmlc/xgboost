@@ -177,7 +177,7 @@ class LBFGSSolver {
     // swap new weight 
     std::swap(g.weight, g.grad);
     // check stop condition
-    if (gstate.num_iteration > static_cast<int>(min_lbfgs_iter)) {
+    if (gstate.num_iteration > static_cast<size_t>(min_lbfgs_iter)) {
       if (g.old_objval - g.new_objval < lbfgs_stop_tol * g.init_objval) {
         return true;
       }
