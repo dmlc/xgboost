@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 """
 This is a script to submit rabit job via Yarn
 rabit will run as a Yarn application
@@ -13,6 +13,7 @@ import rabit_tracker as tracker
 
 WRAPPER_PATH = os.path.dirname(__file__) + '/../wrapper'
 YARN_JAR_PATH = os.path.dirname(__file__) + '/../yarn/rabit-yarn.jar'
+YARN_BOOT_PY = os.path.dirname(__file__) + '/../yarn/run_hdfs_prog.py'
 
 if not os.path.exists(YARN_JAR_PATH):
     warnings.warn("cannot find \"%s\", I will try to run build" % YARN_JAR_PATH)
@@ -21,7 +22,7 @@ if not os.path.exists(YARN_JAR_PATH):
     subprocess.check_call(cmd, shell = True, env = os.environ) 
     assert os.path.exists(YARN_JAR_PATH), "failed to build rabit-yarn.jar, try it manually"
 
-hadoop_binary  = 'hadoop'
+hadoop_binary  = None
 # code 
 hadoop_home = os.getenv('HADOOP_HOME')
 
@@ -38,6 +39,8 @@ parser.add_argument('-hip', '--host_ip', default='auto', type=str,
                     help = 'host IP address if cannot be automatically guessed, specify the IP of submission machine')
 parser.add_argument('-v', '--verbose', default=0, choices=[0, 1], type=int,
                     help = 'print more messages into the console')
+parser.add_argument('-q', '--queue', default='default', type=str,
+                    help = 'the queue we want to submit the job to')
 parser.add_argument('-ac', '--auto_file_cache', default=1, choices=[0, 1], type=int,
                     help = 'whether automatically cache the files in the command to hadoop localfile, this is on by default')
 parser.add_argument('-f', '--files', default = [], action='append',
@@ -56,6 +59,11 @@ parser.add_argument('-mem', '--memory_mb', default=1024, type=int,
                     help = 'maximum memory used by the process. Guide: set it large (near mapred.cluster.max.map.memory.mb)'\
                         'if you are running multi-threading rabit,'\
                         'so that each node can occupy all the mapper slots in a machine for maximum performance')
+parser.add_argument('--libhdfs-opts', default='-Xmx128m', type=str,
+                    help = 'setting to be passed to libhdfs')
+parser.add_argument('--name-node', default='default', type=str,
+                    help = 'the namenode address of hdfs, libhdfs should connect to, normally leave it as default')
+
 parser.add_argument('command', nargs='+',
                     help = 'command for rabit program')
 args = parser.parse_args()
@@ -87,7 +95,7 @@ if hadoop_version < 2:
     print 'Current Hadoop Version is %s, rabit_yarn will need Yarn(Hadoop 2.0)' % out[1]
 
 def submit_yarn(nworker, worker_args, worker_env):
-    fset = set([YARN_JAR_PATH]) 
+    fset = set([YARN_JAR_PATH, YARN_BOOT_PY]) 
     if args.auto_file_cache != 0:
         for i in range(len(args.command)):
             f = args.command[i]
@@ -96,7 +104,7 @@ def submit_yarn(nworker, worker_args, worker_env):
                 if i == 0:
                     args.command[i] = './' + args.command[i].split('/')[-1]
                 else:
-                    args.command[i] = args.command[i].split('/')[-1]
+                    args.command[i] = './' + args.command[i].split('/')[-1]
     if args.command[0].endswith('.py'):
         flst = [WRAPPER_PATH + '/rabit.py',
                 WRAPPER_PATH + '/librabit_wrapper.so',
@@ -112,6 +120,8 @@ def submit_yarn(nworker, worker_args, worker_env):
     env['rabit_cpu_vcores'] = str(args.vcores)
     env['rabit_memory_mb'] = str(args.memory_mb)
     env['rabit_world_size'] = str(args.nworker)
+    env['rabit_hdfs_opts'] = str(args.libhdfs_opts)
+    env['rabit_hdfs_namenode'] = str(args.name_node)
 
     if args.files != None:
         for flst in args.files:
@@ -121,7 +131,8 @@ def submit_yarn(nworker, worker_args, worker_env):
         cmd += ' -file %s' % f
     cmd += ' -jobname %s ' % args.jobname
     cmd += ' -tempdir %s ' % args.tempdir
-    cmd += (' '.join(args.command + worker_args))    
+    cmd += ' -queue %s ' % args.queue
+    cmd += (' '.join(['./run_hdfs_prog.py'] + args.command + worker_args))
     if args.verbose != 0:
         print cmd
     subprocess.check_call(cmd, shell = True, env = env)

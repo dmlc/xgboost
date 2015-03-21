@@ -1,7 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 """
-This is the demo submission script of rabit, it is created to
-submit rabit jobs using hadoop streaming
+This is the demo submission script of rabit for submitting jobs in local machine
 """
 import argparse
 import sys
@@ -43,7 +42,7 @@ def exec_cmd(cmd, taskid, worker_env):
     if cmd[0].find('/') == -1 and os.path.exists(cmd[0]) and os.name != 'nt':
         cmd[0] = './' + cmd[0]
     cmd = ' '.join(cmd)
-    env = {}
+    env = os.environ.copy()
     for k, v in worker_env.items():
         env[k] = str(v)        
     env['rabit_task_id'] = str(taskid)

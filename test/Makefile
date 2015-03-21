@@ -1,7 +1,7 @@
 export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
-export LDFLAGS= -pthread -lm  -lrt -L../lib
+export LDFLAGS=  -L../lib -pthread -lm  -lrt 
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC -I../include  -std=c++11
 
 # specify tensor path
@@ -29,7 +29,7 @@ local_recover: local_recover.o  $(RABIT_OBJ)
 lazy_recover: lazy_recover.o  $(RABIT_OBJ)
 
 $(BIN) : 
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^) $(LDFLAGS) -lrabit_mock
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^) -lrabit_mock $(LDFLAGS) 
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )

@@ -1,5 +1,6 @@
 package org.apache.hadoop.yarn.rabit;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -7,6 +8,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Collection;
 import java.util.Collections;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -34,6 +36,7 @@ import org.apache.hadoop.yarn.api.records.NodeReport;
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest;
 import org.apache.hadoop.yarn.client.api.async.NMClientAsync;
 import org.apache.hadoop.yarn.client.api.async.AMRMClientAsync;
+import org.apache.hadoop.security.UserGroupInformation;
 
 /**
  * application master for allocating resources of rabit client
@@ -61,6 +64,8 @@ public class ApplicationMaster {
     // command to launch
     private String command = "";
 
+    // username
+    private String userName = "";
     // application tracker hostname
     private String appHostName = "";
     // tracker URL to do
@@ -128,6 +133,8 @@ public class ApplicationMaster {
      */
     private void initArgs(String args[]) throws IOException {
         LOG.info("Invoke initArgs");
+        // get user name
+        userName = UserGroupInformation.getCurrentUser().getShortUserName();
         // cached maps
         Map<String, Path> cacheFiles = new java.util.HashMap<String, Path>();
         for (int i = 0; i < args.length; ++i) {
@@ -156,7 +163,8 @@ public class ApplicationMaster {
         numVCores = this.getEnvInteger("rabit_cpu_vcores", true, numVCores);
         numMemoryMB = this.getEnvInteger("rabit_memory_mb", true, numMemoryMB);
         numTasks = this.getEnvInteger("rabit_world_size", true, numTasks);
-        maxNumAttempt = this.getEnvInteger("rabit_max_attempt", false, maxNumAttempt);
+        maxNumAttempt = this.getEnvInteger("rabit_max_attempt", false,
+                maxNumAttempt);
     }
 
     /**
@@ -175,7 +183,7 @@ public class ApplicationMaster {
         RegisterApplicationMasterResponse response = this.rmClient
                 .registerApplicationMaster(this.appHostName,
                         this.appTrackerPort, this.appTrackerUrl);
-        
+
         boolean success = false;
         String diagnostics = "";
         try {
@@ -208,19 +216,20 @@ public class ApplicationMaster {
             assert (killedTasks.size() + finishedTasks.size() == numTasks);
             success = finishedTasks.size() == numTasks;
             LOG.info("Application completed. Stopping running containers");
-            nmClient.stop();
             diagnostics = "Diagnostics." + ", num_tasks" + this.numTasks
-                    + ", finished=" + this.finishedTasks.size() + ", failed="
-                    + this.killedTasks.size() + "\n" + this.abortDiagnosis;
+                + ", finished=" + this.finishedTasks.size() + ", failed="
+                + this.killedTasks.size() + "\n" + this.abortDiagnosis;
+            nmClient.stop();
             LOG.info(diagnostics);
         } catch (Exception e) {
             diagnostics = e.toString();
-        }
+        } 
         rmClient.unregisterApplicationMaster(
                 success ? FinalApplicationStatus.SUCCEEDED
                         : FinalApplicationStatus.FAILED, diagnostics,
                 appTrackerUrl);
-        if (!success) throw new Exception("Application not successful");
+        if (!success)
+            throw new Exception("Application not successful");
     }
 
     /**
@@ -265,30 +274,63 @@ public class ApplicationMaster {
         task.containerRequest = null;
         ContainerLaunchContext ctx = Records
                 .newRecord(ContainerLaunchContext.class);
-        String cmd = 
-                // use this to setup CLASSPATH correctly for libhdfs 
-                "CLASSPATH=${CLASSPATH}:`${HADOOP_PREFIX}/bin/hadoop classpath --glob` "
-                + this.command + " 1>"
-                + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"
-                + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR
-                + "/stderr";
-        LOG.info(cmd);
+        String hadoop = "hadoop";
+        if (System.getenv("HADOOP_HOME") != null) {
+            hadoop = "${HADOOP_HOME}/bin/hadoop";
+        } else if (System.getenv("HADOOP_PREFIX") != null) {
+            hadoop = "${HADOOP_PREFIX}/bin/hadoop";
+        }
+
+        String cmd =
+        // use this to setup CLASSPATH correctly for libhdfs
+             this.command + " 1>"
+            + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"
+            + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR
+            + "/stderr";
         ctx.setCommands(Collections.singletonList(cmd));
         LOG.info(workerResources);
         ctx.setLocalResources(this.workerResources);
         // setup environment variables
         Map<String, String> env = new java.util.HashMap<String, String>();
-        
+
         // setup class path, this is kind of duplicated, ignoring
         StringBuilder cpath = new StringBuilder("${CLASSPATH}:./*");
         for (String c : conf.getStrings(
                 YarnConfiguration.YARN_APPLICATION_CLASSPATH,
                 YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH)) {
-            cpath.append(':');
-            cpath.append(c.trim());
+            String[] arrPath = c.split(":");
+            for (String ps : arrPath) {
+                if (ps.endsWith("*.jar") || ps.endsWith("*")) {
+                    ps = ps.substring(0, ps.lastIndexOf('*'));
+                    String prefix = ps.substring(0, ps.lastIndexOf('/'));
+                    if (ps.startsWith("$")) {
+                        String[] arr =ps.split("/", 2);
+                        if (arr.length != 2) continue;
+                        try {
+                            ps = System.getenv(arr[0].substring(1)) + '/' + arr[1];
+                        } catch (Exception e){
+                            continue;
+                        }
+                    }
+                    File dir = new File(ps);
+                    if (dir.isDirectory()) {
+                        for (File f: dir.listFiles()) {
+                            if (f.isFile() && f.getPath().endsWith(".jar")) {
+                                cpath.append(":");
+                                cpath.append(prefix + '/' + f.getName());
+                            }
+                        }
+                    }
+                } else {
+                    cpath.append(':');
+                    cpath.append(ps.trim());
+                }
+            }
         }
-        // already use hadoop command to get class path in worker, maybe a better solution in future
-        // env.put("CLASSPATH", cpath.toString());
+        // already use hadoop command to get class path in worker, maybe a
+        // better solution in future
+        env.put("CLASSPATH", cpath.toString());
+        //LOG.info("CLASSPATH =" + cpath.toString());
         // setup LD_LIBARY_PATH path for libhdfs
         env.put("LD_LIBRARY_PATH",
                 "${LD_LIBRARY_PATH}:$HADOOP_HDFS_HOME/lib/native:$JAVA_HOME/jre/lib/amd64/server");
@@ -298,10 +340,13 @@ public class ApplicationMaster {
             if (e.getKey().startsWith("rabit_")) {
                 env.put(e.getKey(), e.getValue());
             }
+            if (e.getKey() == "LIBHDFS_OPTS") {
+                env.put(e.getKey(), e.getValue());
+            }
         }
         env.put("rabit_task_id", String.valueOf(task.taskId));
         env.put("rabit_num_trial", String.valueOf(task.attemptCounter));
-        
+        // ctx.setUser(userName);
         ctx.setEnvironment(env);
         synchronized (this) {
             assert (!this.runningTasks.containsKey(container.getId()));
@@ -376,8 +421,17 @@ public class ApplicationMaster {
         Collection<TaskRecord> tasks = new java.util.LinkedList<TaskRecord>();
         for (ContainerId cid : failed) {
             TaskRecord r = runningTasks.remove(cid);
-            if (r == null)
+            if (r == null) {
                 continue;
+            }
+            LOG.info("Task "
+                    + r.taskId
+                    + "failed on "
+                    + r.container.getId()
+                    + ". See LOG at : "
+                    + String.format("http://%s/node/containerlogs/%s/"
+                            + userName, r.container.getNodeHttpAddress(),
+                            r.container.getId()));
             r.attemptCounter += 1;
             r.container = null;
             tasks.add(r);
@@ -411,22 +465,26 @@ public class ApplicationMaster {
                 finishedTasks.add(r);
                 runningTasks.remove(s.getContainerId());
             } else {
-                switch (exstatus) {
-                case ContainerExitStatus.KILLED_EXCEEDED_PMEM:
-                    this.abortJob("[Rabit] Task "
-                            + r.taskId
-                            + " killed because of exceeding allocated physical memory");
-                    break;
-                case ContainerExitStatus.KILLED_EXCEEDED_VMEM:
-                    this.abortJob("[Rabit] Task "
-                            + r.taskId
-                            + " killed because of exceeding allocated virtual memory");
-                    break;
-                default:
-                    LOG.info("[Rabit] Task " + r.taskId
-                            + " exited with status " + exstatus);
-                    failed.add(s.getContainerId());
+                try {
+                    if (exstatus == ContainerExitStatus.class.getField(
+                            "KILLED_EXCEEDED_PMEM").getInt(null)) {
+                        this.abortJob("[Rabit] Task "
+                                + r.taskId
+                                + " killed because of exceeding allocated physical memory");
+                        continue;
+                    }
+                    if (exstatus == ContainerExitStatus.class.getField(
+                            "KILLED_EXCEEDED_VMEM").getInt(null)) {
+                        this.abortJob("[Rabit] Task "
+                                + r.taskId
+                                + " killed because of exceeding allocated virtual memory");
+                        continue;
+                    }
+                } catch (Exception e) {
                 }
+                LOG.info("[Rabit] Task " + r.taskId + " exited with status "
+                         + exstatus + " Diagnostics:"+ s.getDiagnostics());
+                failed.add(s.getContainerId());
             }
         }
         this.handleFailure(failed);

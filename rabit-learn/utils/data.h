@@ -77,10 +77,14 @@ struct SparseMat {
     feat_dim += 1;
     utils::Check(feat_dim < std::numeric_limits<index_t>::max(),
                  "feature dimension exceed limit of index_t"\
-                 "consider change the index_t to unsigned long");
+                 "consider change the index_t to unsigned long");    
   }
   inline size_t NumRow(void) const {
     return row_ptr.size() - 1;
+  }
+  // memory cost
+  inline size_t MemCost(void) const {
+    return data.size() * sizeof(Entry);
   }
   // maximum feature dimension
   size_t feat_dim;
