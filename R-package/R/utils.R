@@ -193,7 +193,8 @@ xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL, prediction = F
         if (length(names(w)) == 0) {
           stop("xgb.eval: name tag must be presented for every elements in watchlist")
         }
-        ret <- feval(predict(booster, w[[1]]), w[[1]])
+        preds <- predict(booster, w[[1]])
+        ret <- feval(preds, w[[1]])
         msg <- paste(msg, "\t", names(w), "-", ret$metric, ":", ret$value, sep="")
       }
     }
