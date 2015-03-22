@@ -3,11 +3,11 @@ XGBoost: eXtreme Gradient Boosting
 An optimized general purpose gradient boosting library. The library is parallelized, and also provides an optimized distributed version.
 It implements machine learning algorithm under gradient boosting framework, including generalized linear model and gradient boosted regression tree (GBDT). XGBoost can also also distributed and scale to even larger data.
 
-Contributors: https://github.com/tqchen/xgboost/graphs/contributors
+Contributors: https://github.com/dmlc/xgboost/graphs/contributors
 
-Turorial and Documentation: https://github.com/tqchen/xgboost/wiki
+Turorial and Documentation: https://github.com/dmlc/xgboost/wiki
 
-Issues Tracker: [https://github.com/tqchen/xgboost/issues](https://github.com/tqchen/xgboost/issues?q=is%3Aissue+label%3Aquestion)
+Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
 Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask questions and share your experience on xgboost.
 
