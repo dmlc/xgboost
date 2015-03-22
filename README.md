@@ -13,6 +13,8 @@ Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost
 
 Examples Code: [Learning to use xgboost by examples](demo)
 
+Video tutorial: [Better Optimization with Repeated Cross Validation and the XGBoost model - Machine Learning with R](https://www.youtube.com/watch?v=Og7CGAfSr_Y)
+
 Distributed Version: [Distributed XGBoost](multi-node)
 
 Notes on the Code: [Code Guide](src)
