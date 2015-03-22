@@ -17,7 +17,7 @@ Introduction
 
 The purpose of this Vignette is to show you how to use **Xgboost** to discover and understand your own dataset better.
 
-This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/tqchen/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
+This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
 
 Pacakge loading:
 
@@ -34,7 +34,7 @@ Preparation of the dataset
 ==========================
 
 Numeric VS categorical variables
-----------------------------------
+--------------------------------
 
 **Xgboost** manages only `numeric` vectors.
 
@@ -163,7 +163,7 @@ output_vector = df[,Improved] == "Marked"
 Build the model
 ===============
 
-The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [Xgboost presentation](https://github.com/tqchen/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
+The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
 
 ```{r}
 bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 4,

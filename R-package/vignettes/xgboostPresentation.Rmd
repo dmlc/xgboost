@@ -27,7 +27,7 @@ It is an efficient and scalable implementation of gradient boosting framework by
 
 It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objective functions easily. 
 
-It has been [used](https://github.com/tqchen/xgboost) to win several [Kaggle](http://www.kaggle.com) competitions. 
+It has been [used](https://github.com/dmlc/xgboost) to win several [Kaggle](http://www.kaggle.com) competitions. 
 
 It has several features:
 
@@ -49,7 +49,7 @@ Github version
 For up-to-date version (highly recommended), install from *Github*:
 
 ```{r installGithub, eval=FALSE}
-devtools::install_github('tqchen/xgboost', subdir='R-package')
+devtools::install_github('dmlc/xgboost', subdir='R-package')
 ```
 
 > *Windows* user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.

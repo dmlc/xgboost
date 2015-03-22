@@ -86,7 +86,7 @@
 #'      \item \code{ndcg} Normalized Discounted Cumulative Gain. \url{http://en.wikipedia.org/wiki/NDCG}
 #'   }
 #'   
-#' Full list of parameters is available in the Wiki \url{https://github.com/tqchen/xgboost/wiki/Parameters}.
+#' Full list of parameters is available in the Wiki \url{https://github.com/dmlc/xgboost/wiki/Parameters}.
 #' 
 #' This function only accepts an \code{\link{xgb.DMatrix}} object as the input.
 #' 

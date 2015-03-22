@@ -15,8 +15,8 @@ Description: Xgboost is short for eXtreme Gradient Boosting, which is an
     package is made to be extensible, so that users are also allowed to define
     their own objectives easily.
 License: Apache License (== 2.0) | file LICENSE
-URL: https://github.com/tqchen/xgboost
-BugReports: https://github.com/tqchen/xgboost/issues
+URL: https://github.com/dmlc/xgboost
+BugReports: https://github.com/dmlc/xgboost/issues
 VignetteBuilder: knitr
 Suggests: knitr
 Depends:
