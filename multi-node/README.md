@@ -2,7 +2,7 @@ Distributed XGBoost
 ======
 This folder contains information of Distributed XGBoost (Distributed GBDT).
 
-* The distributed version is built on Rabit:[Reliable Allreduce and Broadcast Library](https://github.com/tqchen/rabit)
+* The distributed version is built on Rabit:[Reliable Allreduce and Broadcast Library](https://github.com/dmlc/rabit)
   - Rabit is a portable library that provides fault-tolerance for Allreduce calls for distributed machine learning  
   - This makes xgboost portable and fault-tolerant against node failures
 * You can run Distributed XGBoost on platforms including Hadoop(see [hadoop folder](hadoop)) and MPI
@@ -23,7 +23,7 @@ Notes
 * The multi-threading nature of xgboost is inheritated in distributed mode
   - This means xgboost efficiently use all the threads in one machine, and communicates only between machines
   - Remember to run on xgboost process per machine and this will give you maximum speedup
-* For more information about rabit and how it works, see the [Rabit's Tutorial](https://github.com/tqchen/rabit/tree/master/guide)
+* For more information about rabit and how it works, see the [Rabit's Tutorial](https://github.com/dmlc/rabit/tree/master/guide)
 
 Solvers
 =====
