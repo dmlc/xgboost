@@ -13,9 +13,9 @@ xgb.dump(model = NULL, fname = NULL, fmap = "", with.stats = FALSE)
 
 \item{fmap}{feature map file representing the type of feature.
 Detailed description could be found at
-\url{https://github.com/tqchen/xgboost/wiki/Binary-Classification#dump-model}.
+\url{https://github.com/dmlc/xgboost/wiki/Binary-Classification#dump-model}.
 See demo/ for walkthrough example in R, and
-\url{https://github.com/tqchen/xgboost/blob/master/demo/data/featmap.txt}
+\url{https://github.com/dmlc/xgboost/blob/master/demo/data/featmap.txt}
 for example Format.}
 
 \item{with.stats}{whether dump statistics of splits

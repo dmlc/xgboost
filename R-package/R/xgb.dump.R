@@ -11,9 +11,9 @@
 #' @param fname the name of the text file where to save the model text dump. If not provided or set to \code{NULL} the function will return the model as a \code{character} vector.
 #' @param fmap feature map file representing the type of feature. 
 #'        Detailed description could be found at 
-#'        \url{https://github.com/tqchen/xgboost/wiki/Binary-Classification#dump-model}.
+#'        \url{https://github.com/dmlc/xgboost/wiki/Binary-Classification#dump-model}.
 #'        See demo/ for walkthrough example in R, and
-#'        \url{https://github.com/tqchen/xgboost/blob/master/demo/data/featmap.txt} 
+#'        \url{https://github.com/dmlc/xgboost/blob/master/demo/data/featmap.txt} 
 #'        for example Format.
 #' @param with.stats whether dump statistics of splits 
 #'        When this option is on, the model dump comes with two additional statistics:

@@ -20,7 +20,7 @@
 #'   \item \code{nthread} number of thread used in training, if not set, all threads are used
 #' }
 #'   
-#'   Look at \code{\link{xgb.train}} for a more complete list of parameters or \url{https://github.com/tqchen/xgboost/wiki/Parameters} for the full list.
+#'   Look at \code{\link{xgb.train}} for a more complete list of parameters or \url{https://github.com/dmlc/xgboost/wiki/Parameters} for the full list.
 #'   
 #'   See also \code{demo/} for walkthrough example in R.
 #' 
