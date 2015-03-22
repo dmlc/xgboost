@@ -16,5 +16,5 @@ install.packages('xgboost')
 
 ## Examples
 
-* Please visit [walk through example](https://github.com/tqchen/xgboost/blob/master/R-package/demo).
-* See also the [example scripts](https://github.com/tqchen/xgboost/tree/master/demo/kaggle-higgs) for Kaggle Higgs Challenge, including [speedtest script](https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/speedtest.R) on this dataset.
+* Please visit [walk through example](demo).
+* See also the [example scripts](../demo/kaggle-higgs) for Kaggle Higgs Challenge, including [speedtest script](../demo/kaggle-higgs/speedtest.R) on this dataset.
