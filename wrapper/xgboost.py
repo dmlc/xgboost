@@ -678,11 +678,12 @@ class XGBModel(BaseEstimator):
     silent : boolean
         Whether to print messages while running boosting.
     """
-    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True):
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear"):
         self.max_depth = max_depth
         self.eta = learning_rate
         self.silent = 1 if silent else 0
         self.n_rounds = n_estimators
+        self.objective = objective
         self._Booster = Booster()
     
     def get_params(self, deep=True):
@@ -690,17 +691,65 @@ class XGBModel(BaseEstimator):
                 'learning_rate': self.eta,
                 'n_estimators': self.n_rounds,
                 'silent': True if self.silent == 1 else False,
+                'objective': self.objective
                 }
     def get_xgb_params(self):
-        return {'eta': self.eta, 'max_depth': self.max_depth, 'silent': self.silent}
+        return {'eta': self.eta, 'max_depth': self.max_depth, 'silent': self.silent, 'objective': self.objective}
     
     def fit(self, X, y):
         trainDmatrix = DMatrix(X, label=y)
         self._Booster = train(self.get_xgb_params(), trainDmatrix, self.n_rounds)
         return self
+
+class XGBClassifier(XGBModel):    
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True):
+        super().__init__(max_depth, learning_rate, n_estimators, silent, objective="binary:logistic")
+    
+    def fit(self, X, y, sample_weight=None):
+        assert len(np.unique(y)) == 2, "Currently can only handle binary classification."
+        # Map the two classes in the y vector into {0,1}, and record the mapping so that
+        # the predict() method can return results in the original range
+        y_values = list(np.unique(y))
+        assert (-1 in y_values and 1 in y_values) or (0 in y_values and 1 in y_values) or (True in y_values and False in y_values)
+        if -1 in y_values:
+            self._yspace = "svm_like"
+            yZeroOne = y.copy()
+            yZeroOne[yZeroOne == -1] = 0
+        elif False in y_values:
+            self._yspace = "boolean"
+            yZeroOne = np.array(y, dtype=int)
+        else:
+            self._yspace = "zero_one"
+            yZeroOne = y 
+        if sample_weight is not None:
+            trainDmatrix = DMatrix(X, label=yZeroOne, weight=sample_weight)
+        else:    
+            trainDmatrix = DMatrix(X, label=yZeroOne)
+        self._Booster = train(self.get_xgb_params(), trainDmatrix, self.n_rounds)
+        return self
     
     def predict(self, X):
         testDmatrix = DMatrix(X)
-        return self._Booster.predict(testDmatrix)
+        classone_probs = self._Booster.predict(testDmatrix)
+        if self._yspace == "svm_like":
+            base_value = -1
+            one_value = 1
+        elif self._yspace == "boolean":
+            base_value = False
+            one_value = True
+        else:
+            base_value = 0
+            one_value = 1
+        fitted_values = np.repeat(base_value, X.shape[0])
+        fitted_values[classone_probs > 0.5] = one_value
+        return fitted_values
+    
+    def predict_proba(self, X):
+        testDmatrix = DMatrix(X)
+        classone_probs = self._Booster.predict(testDmatrix)
+        classzero_probs = 1.0 - classone_probs
+        return np.vstack((classzero_probs,classone_probs)).transpose()
+
+
 
 
