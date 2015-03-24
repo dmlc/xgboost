@@ -678,7 +678,7 @@ class XGBModel(BaseEstimator):
     silent : boolean
         Whether to print messages while running boosting.
     """
-    def XGBModel(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True):
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True):
         self.max_depth = max_depth
         self.eta = learning_rate
         self.silent = 1 if silent else 0
@@ -692,11 +692,11 @@ class XGBModel(BaseEstimator):
                 'silent': True if self.silent == 1 else False,
                 }
     def get_xgb_params(self):
-        return {'eta': self.eta, 'max_depth': self.max_depth}
+        return {'eta': self.eta, 'max_depth': self.max_depth, 'silent': self.silent}
     
     def fit(self, X, y):
         trainDmatrix = DMatrix(X, label=y)
-        self._Booster = train(self.get_xgb_params(), trainDmatrix, self.n_estimators)
+        self._Booster = train(self.get_xgb_params(), trainDmatrix, self.n_rounds)
 
     def predict(self, X):
         testDmatrix = DMatrix(X)
