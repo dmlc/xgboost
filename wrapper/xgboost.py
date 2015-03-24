@@ -697,7 +697,8 @@ class XGBModel(BaseEstimator):
     def fit(self, X, y):
         trainDmatrix = DMatrix(X, label=y)
         self._Booster = train(self.get_xgb_params(), trainDmatrix, self.n_rounds)
-
+        return self
+    
     def predict(self, X):
         testDmatrix = DMatrix(X)
         return self._Booster.predict(testDmatrix)
