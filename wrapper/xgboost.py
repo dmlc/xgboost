@@ -14,6 +14,8 @@ import collections
 import numpy as np
 import scipy.sparse
 
+from sklearn.base import BaseEstimator
+
 __all__ = ['DMatrix', 'CVPack', 'Booster', 'aggcv', 'cv', 'mknfold', 'train']
 
 if sys.version_info[0] == 3:
@@ -660,3 +662,44 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         sys.stderr.write(res + '\n')
         results.append(res)
     return results
+
+class XGBModel(BaseEstimator):
+    """
+    Implementation of the Scikit-Learn API for XGBoost.
+
+    Parameters
+    ----------
+    max_depth : int
+        Maximum tree depth for base learners.
+    learning_rate : float
+        Boosting learning rate (xgb's "eta")
+    n_estimators : int
+        Number of boosted trees to fit.
+    silent : boolean
+        Whether to print messages while running boosting.
+    """
+    def XGBModel(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True):
+        self.max_depth = max_depth
+        self.eta = learning_rate
+        self.silent = 1 if silent else 0
+        self.n_rounds = n_estimators
+        self._Booster = Booster()
+    
+    def get_params(self, deep=True):
+        return {'max_depth': self.max_depth,
+                'learning_rate': self.eta,
+                'n_estimators': self.n_rounds,
+                'silent': True if self.silent == 1 else False,
+                }
+    def get_xgb_params(self):
+        return {'eta': self.eta, 'max_depth': self.max_depth}
+    
+    def fit(self, X, y):
+        trainDmatrix = DMatrix(X, label=y)
+        self._Booster = train(self.get_xgb_params(), trainDmatrix, self.n_estimators)
+
+    def predict(self, X):
+        testDmatrix = DMatrix(X)
+        return self._Booster.predict(testDmatrix)
+
+
