@@ -58,3 +58,5 @@ R-package.Rproj
 R-package/inst
 R-package/src
 
+.project
+.pydevproject
