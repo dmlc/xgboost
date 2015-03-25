@@ -82,11 +82,13 @@ struct LossType {
    * \return second order gradient
    */
   inline float SecondOrderGradient(float predt, float label) const {
+    // cap second order gradient to postive value
+    const float eps = 1e-16f;
     switch (loss_type) {
       case kLinearSquare: return 1.0f;
       case kLogisticRaw: predt = 1.0f / (1.0f + std::exp(-predt));
       case kLogisticClassify:
-      case kLogisticNeglik: return predt * (1 - predt);
+      case kLogisticNeglik: return std::max(predt * (1.0f - predt), eps);
       default: utils::Error("unknown loss_type"); return 0.0f;
     }
   }

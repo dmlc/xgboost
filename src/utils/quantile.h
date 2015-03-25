@@ -296,14 +296,16 @@ struct WXQSummary : public WQSummary<DType, RType> {
     }
     RType begin = src.data[0].rmax;
     size_t n = maxsize - 1, nbig = 0;
-    const RType range = src.data[src.size - 1].rmin - begin;
+    RType range = src.data[src.size - 1].rmin - begin;
     // prune off zero weights 
-    if (range == 0) {
+    if (range == 0.0f) {
       // special case, contain only two effective data pts
       this->data[0] = src.data[0];
       this->data[1] = src.data[src.size - 1];
       this->size = 2;
       return;
+    } else {
+      range = std::max(range, static_cast<RType>(1e-3f));
     }
     const RType chunk = 2 * range / n;
     // minimized range
