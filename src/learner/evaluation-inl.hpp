@@ -83,7 +83,15 @@ struct EvalLogLoss : public EvalEWiseBase<EvalLogLoss> {
     return "logloss";
   }
   inline static float EvalRow(float y, float py) {
-    return - y * std::log(py) - (1.0f - y) * std::log(1 - py);
+    const float eps = 1e-16f;
+    const float pneg = 1.0f - py;
+    if (py < eps) {
+      return -y * std::log(eps) - (1.0f - y)  * std::log(1.0f - eps); 
+    } else if (pneg < eps) {
+      return -y * std::log(1.0f - eps) - (1.0f - y)  * std::log(eps); 
+    } else {
+      return -y * std::log(py) - (1.0f - y) * std::log(pneg);
+    }
   }
 };
 
