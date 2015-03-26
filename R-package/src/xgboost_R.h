@@ -12,6 +12,12 @@ extern "C" {
 
 extern "C" {
   /*!
+   * \brief check whether a handle is NULL
+   * \param handle
+   * \return whether it is null ptr
+   */
+  SEXP XGCheckNullPtr_R(SEXP handle);
+  /*!
    * \brief load a data matrix 
    * \param fname name of the content
    * \param silent whether print messages

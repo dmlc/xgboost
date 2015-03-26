@@ -87,8 +87,12 @@ xgb.handleToBooster <- function(handle)
 # Check whether an xgb.Booster object is complete
 xgb.Booster.check <- function(bst, saveraw = TRUE)
 {
-  if (is.null(bst$handle)) {
-    bst$handle <- xgb.load(bst$raw)
+  isnull <- is.null(bst$handle)
+  if (!isnull) {
+    isnull <- .Call("XGCheckNullPtr_R", bst$handle, PACKAGE="xgboost")
+  }
+  if (isnull) {
+    bst$handle <- xgb.Booster(modelfile = bst$raw)
   } else {
     if (is.null(bst$raw) && saveraw)
       bst$raw <- xgb.save.raw(bst$handle)

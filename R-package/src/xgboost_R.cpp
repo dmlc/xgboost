@@ -59,6 +59,9 @@ inline void _WrapperEnd(void) {
 }
 
 extern "C" {
+  SEXP XGCheckNullPtr_R(SEXP handle) {
+    return ScalarLogical(R_ExternalPtrAddr(handle) == NULL);
+  }
   void _DMatrixFinalizer(SEXP ext) {    
     if (R_ExternalPtrAddr(ext) == NULL) return;
     XGDMatrixFree(R_ExternalPtrAddr(ext));
