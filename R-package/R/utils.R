@@ -77,9 +77,9 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
 }
 
 # convert xgb.Booster.handle to xgb.Booster
-xgb.handleToBooster <- function(handle)
+xgb.handleToBooster <- function(handle, raw = NULL)
 {
-  bst <- list(handle = handle, raw = NULL)
+  bst <- list(handle = handle, raw = raw)
   class(bst) <- "xgb.Booster"
   return(bst)
 }
