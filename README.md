@@ -74,6 +74,18 @@ Build
   export CXX = g++-4.9
   ```
   Then run ```bash build.sh``` normally.
+  
+  - For users who want to use [High Performance Computing for Mac OS X](http://hpc.sourceforge.net/), download the GCC 4.9 binary tar ball and follow the installation guidance to install them under `/usr/local`. Then edit [Makefile](Makefile/) by replacing:
+  ```
+  export CC  = gcc
+  export CXX = g++
+  ```
+  with
+  ```
+  export CC  = /usr/local/bin/gcc
+  export CXX = /usr/local/bin/g++
+  ```
+  Then run ```bash build.sh``` normally. This solution is given by [Phil Culliton](https://www.kaggle.com/c/otto-group-product-classification-challenge/forums/t/12947/achieve-0-50776-on-the-leaderboard-in-a-minute-with-xgboost/68308#post68308).
 
 Version
 =======
