@@ -49,9 +49,9 @@ class SlaveEntry:
     def __init__(self, sock, s_addr):
         slave = ExSocket(sock)
         self.sock = slave
-        self.host = s_addr[0]
+        self.host = socket.gethostbyname(s_addr[0])
         magic = slave.recvint()
-        assert magic == kMagic, 'invalid magic number=%d from %s' % (magic, s_addr[0])
+        assert magic == kMagic, 'invalid magic number=%d from %s' % (magic, self.host)
         slave.sendint(kMagic)
         self.rank = slave.recvint()
         self.world_size = slave.recvint()
@@ -136,7 +136,7 @@ class Tracker:
         self.sock = sock
         self.verbose = verbose
         if hostIP == 'auto':
-            hostIP = 'dns'
+            hostIP = 'ip'
         self.hostIP = hostIP
         self.log_print('start listen on %s:%d' % (socket.gethostname(), self.port), 1)
     def __del__(self):
@@ -145,7 +145,7 @@ class Tracker:
         """
         get enviroment variables for slaves
         can be passed in as args or envs
-        """
+        """        
         if self.hostIP == 'dns':
             host = socket.gethostname()
         elif self.hostIP == 'ip':
