@@ -1,5 +1,6 @@
 package org.apache.hadoop.yarn.rabit;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 
@@ -9,7 +10,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
@@ -47,6 +50,8 @@ public class Client {
     private String tempdir = "/tmp";
     // user name
     private String userName = "";
+    // user credentials
+    private Credentials credentials = null;
     // job name
     private String jobName = "";
     // queue
@@ -60,10 +65,22 @@ public class Client {
         conf.addResource(new Path(System.getenv("HADOOP_CONF_DIR") +"/hdfs-site.xml"));
         dfs = FileSystem.get(conf);
         userName = UserGroupInformation.getCurrentUser().getShortUserName();
+        credentials = UserGroupInformation.getCurrentUser().getCredentials();
     }
     
     /**
-     * ge
+     * setup security token given current user
+     * @return the ByeBuffer containing the security tokens
+     * @throws IOException
+     */
+    private ByteBuffer setupTokens() throws IOException {
+        DataOutputBuffer buffer = new DataOutputBuffer();
+        this.credentials.writeTokenStorageToStream(buffer);
+        return ByteBuffer.wrap(buffer.getData());
+    }
+    
+    /**
+     * setup all the cached files
      * 
      * @param fmaps
      *            the file maps
@@ -194,9 +211,10 @@ public class Client {
                 .newRecord(ContainerLaunchContext.class);
         ApplicationSubmissionContext appContext = app
                 .getApplicationSubmissionContext();
-        
         // Submit application
         ApplicationId appId = appContext.getApplicationId();
+        // setup security token
+        amContainer.setTokens(this.setupTokens());
         // setup cache-files and environment variables
         amContainer.setLocalResources(this.setupCacheFiles(appId));
         amContainer.setEnvironment(this.getEnvironment());
