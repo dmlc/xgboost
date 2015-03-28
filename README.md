@@ -7,9 +7,9 @@ Contributors: https://github.com/dmlc/xgboost/graphs/contributors
 
 Turorial and Documentation: https://github.com/dmlc/xgboost/wiki
 
-Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion)
+Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion) for bugreport and other issues
 
-Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask questions and share your experience on xgboost.
+Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask usage questions and share your experience on xgboost.
 
 Examples Code: [Learning to use xgboost by examples](demo)
 
