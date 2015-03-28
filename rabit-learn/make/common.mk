@@ -4,12 +4,21 @@ export LDFLAGS= -L../../lib -pthread -lm -lrt
 export CFLAGS = -Wall  -msse2  -Wno-unknown-pragmas -fPIC -I../../include  
 
 # setup opencv
+ifeq ($(USE_WORMHOLE),1)
+	CFLAGS+= -DRABIT_USE_WORMHOLE=1 -I ../../wormhole/include
+	LDFLAGS+= -L../../wormhole -lwormhole
+else
+	CFLAGS+= -DRABIT_USE_WORMHOLE=0
+endif
+
+# setup opencv
 ifeq ($(USE_HDFS),1)
 	CFLAGS+= -DRABIT_USE_HDFS=1 -I$(HADOOP_HDFS_HOME)/include -I$(JAVA_HOME)/include
 	LDFLAGS+= -L$(HADOOP_HDFS_HOME)/lib/native -L$(LIBJVM) -lhdfs -ljvm
 else
 	CFLAGS+= -DRABIT_USE_HDFS=0
 endif
+
 
 .PHONY: clean all lib mpi
 
