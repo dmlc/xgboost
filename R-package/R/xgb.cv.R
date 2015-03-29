@@ -113,15 +113,20 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     for (k in 1:nfold) {
       fd <- folds[[k]]
       succ <- xgb.iter.update(fd$booster, fd$dtrain, i - 1, obj)
-      if (!prediction){
-        msg[[k]] <- xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval) %>% str_split("\t") %>% .[[1]]
+      if (i<nrounds) {
+          msg[[k]] <- xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval) %>% str_split("\t") %>% .[[1]]
       } else {
-        res <- xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval, prediction)
-        if (mat_pred)
-          predictValues[fd$index,] <- res[[2]]
-        else
-          predictValues[fd$index] <- res[[2]]
-        msg[[k]] <- res[[1]] %>% str_split("\t") %>% .[[1]]
+        if (!prediction) {
+          msg[[k]] <- xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval) %>% str_split("\t") %>% .[[1]]
+        } else {
+          res <- xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval, prediction)
+          if (mat_pred) {
+            predictValues[fd$index,] <- res[[2]]
+          } else {
+            predictValues[fd$index] <- res[[2]]
+          }
+          msg[[k]] <- res[[1]] %>% str_split("\t") %>% .[[1]]
+        }
       }
     }
     ret <- xgb.cv.aggcv(msg, showsd)
