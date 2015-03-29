@@ -121,7 +121,8 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         } else {
           res <- xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval, prediction)
           if (mat_pred) {
-            predictValues[fd$index,] <- res[[2]]
+            pred_mat = matrix(res[[2]],num_class,length(fd$index))
+            predictValues[fd$index,] <- t(pred_mat)
           } else {
             predictValues[fd$index] <- res[[2]]
           }
