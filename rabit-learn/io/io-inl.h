@@ -77,7 +77,7 @@ class StreamAdapter : public IStream {
  */
 inline IStream *CreateStream(const char *uri, const char *mode) {
 #if RABIT_USE_WORMHOLE
-  return new StreamAdapter<dmlc::ISeekStream>(dmlc::ISeekStream::Create(uri, mode));
+  return new StreamAdapter<dmlc::IStream>(dmlc::IStream::Create(uri, mode));
 #else
   using namespace std;
   if (!strncmp(uri, "file://", 7)) {

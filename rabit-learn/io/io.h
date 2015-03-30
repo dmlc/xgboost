@@ -18,7 +18,7 @@
 #endif
 
 #if RABIT_USE_WORMHOLE
-#include <io.h>
+#include <dmlc/io.h>
 #endif
 /*! \brief io interface */
 namespace rabit {
