@@ -170,6 +170,9 @@ class BoostLearner : public rabit::ISerializable {
     if (gbm_ != NULL) delete gbm_;
     this->InitTrainer(calc_num_feature);
     this->InitObjGBM();
+    char tmp[32];
+    utils::SPrintf(tmp, sizeof(tmp), "%u", mparam.num_class);
+    obj_->SetParam("num_class", tmp);
     gbm_->LoadModel(fi, with_pbuffer);
     if (!with_pbuffer || distributed_mode == 2) {
       gbm_->ResetPredBuffer(pred_buffer_size);
