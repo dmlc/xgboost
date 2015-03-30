@@ -577,8 +577,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None):
         # either minimize loss or maximize AUC/MAP/NDCG
         maximize_score = False
         if 'eval_metric' in params:
-			maximize_metrics = ('auc', 'map', 'ndcg')
-			if filter( lambda x: params['eval_metric'].startswith(x), maximize_metrics ):
+            maximize_metrics = ('auc', 'map', 'ndcg')
+            if filter( lambda x: params['eval_metric'].startswith(x), maximize_metrics ):
                 maximize_score = True
         
         if maximize_score:
