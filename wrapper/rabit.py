@@ -87,7 +87,7 @@ def get_world_size():
     """
     Returns get total number of process
     """
-    ret = rbtlib.RabitGetWorlSize()
+    ret = rbtlib.RabitGetWorldSize()
     check_err__()
     return ret
 
