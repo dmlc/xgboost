@@ -578,7 +578,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None):
         maximize_score = False
         if 'eval_metric' in params:
             maximize_metrics = ('auc', 'map', 'ndcg')
-            if filter( lambda x: params['eval_metric'].startswith(x), maximize_metrics ):
+            if filter(lambda x: params['eval_metric'].startswith(x), maximize_metrics):
                 maximize_score = True
         
         if maximize_score:
@@ -601,7 +601,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None):
                 
             sys.stderr.write(msg + '\n')
             
-            score = float(msg.rsplit( ':', 1 )[1])
+            score = float(msg.rsplit(':', 1)[1])
             if (maximize_score and score > best_score) or \
                 (not maximize_score and score < best_score):
                 best_score = score
