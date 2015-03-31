@@ -5,8 +5,9 @@ export CFLAGS = -Wall  -msse2  -Wno-unknown-pragmas -fPIC -I../../include
 
 # setup opencv
 ifeq ($(USE_WORMHOLE),1)
-	CFLAGS+= -DRABIT_USE_WORMHOLE=1 -I ../../wormhole/include
-	LDFLAGS+= -L../../wormhole -lwormhole
+	include ../../wormhole/make/wormhole.mk
+	CFLAGS+= -DRABIT_USE_WORMHOLE=1 -I ../../wormhole/include $(WORMHOLE_CFLAGS)
+	LDFLAGS+= -L../../wormhole -lwormhole $(WORMHOLE_LDFLAGS)
 else
 	CFLAGS+= -DRABIT_USE_WORMHOLE=0
 endif
