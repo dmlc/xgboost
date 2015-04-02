@@ -14,6 +14,16 @@ import collections
 import numpy as np
 import scipy.sparse
 
+try:
+    from sklearn.base import BaseEstimator
+    from sklearn.base import RegressorMixin, ClassifierMixin
+    from sklearn.preprocessing import LabelEncoder
+    SKLEARN_INSTALLED = True
+except ImportError:
+    SKLEARN_INSTALLED = False
+
+
+
 __all__ = ['DMatrix', 'CVPack', 'Booster', 'aggcv', 'cv', 'mknfold', 'train']
 
 if sys.version_info[0] == 3:
@@ -660,3 +670,104 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         sys.stderr.write(res + '\n')
         results.append(res)
     return results
+
+
+XGBModelBase = object
+if SKLEARN_INSTALLED:
+    XGBModelBase = BaseEstimator
+
+
+class XGBModel(BaseEstimator):
+    """
+    Implementation of the Scikit-Learn API for XGBoost.
+
+    Parameters
+    ----------
+    max_depth : int
+        Maximum tree depth for base learners.
+    learning_rate : float
+        Boosting learning rate (xgb's "eta")
+    n_estimators : int
+        Number of boosted trees to fit.
+    silent : boolean
+        Whether to print messages while running boosting.
+    """
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear"):
+        if not SKLEARN_INSTALLED:
+            raise Exception('sklearn needs to be installed in order to use this module')
+        self.max_depth = max_depth
+        self.eta = learning_rate
+        self.silent = 1 if silent else 0
+        self.n_rounds = n_estimators
+        self.objective = objective
+        self._Booster = Booster()
+    
+    def get_params(self, deep=True):
+        return {'max_depth': self.max_depth,
+                'learning_rate': self.eta,
+                'n_estimators': self.n_rounds,
+                'silent': True if self.silent == 1 else False,
+                'objective': self.objective
+                }
+    def get_xgb_params(self):
+        return {'eta': self.eta, 'max_depth': self.max_depth, 'silent': self.silent, 'objective': self.objective}
+    
+    def fit(self, X, y):
+        trainDmatrix = DMatrix(X, label=y)
+        self._Booster = train(self.get_xgb_params(), trainDmatrix, self.n_rounds)
+        return self
+    
+    def predict(self, X):
+        testDmatrix = DMatrix(X)
+        return self._Booster.predict(testDmatrix)
+
+class XGBClassifier(XGBModel, ClassifierMixin):    
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True):
+        super().__init__(max_depth, learning_rate, n_estimators, silent, objective="binary:logistic")
+    
+    def fit(self, X, y, sample_weight=None):
+        y_values = list(np.unique(y))
+        if len(y_values) > 2:
+            # Switch to using a multiclass objective in the underlying XGB instance
+            self.objective = "multi:softprob"
+            xgb_options = self.get_xgb_params()
+            xgb_options['num_class'] = len(y_values)
+        else:
+            xgb_options = self.get_xgb_params()
+        
+        self._le = LabelEncoder().fit(y)
+        training_labels = self._le.transform(y)
+            
+        if sample_weight is not None:
+            trainDmatrix = DMatrix(X, label=training_labels, weight=sample_weight)
+        else:
+            trainDmatrix = DMatrix(X, label=training_labels)
+        
+        self._Booster = train(xgb_options, trainDmatrix, self.n_rounds)
+        
+        return self
+    
+    def predict(self, X):
+        testDmatrix = DMatrix(X)
+        class_probs = self._Booster.predict(testDmatrix)
+        if len(class_probs.shape) > 1:
+            column_indexes = np.argmax(class_probs, axis=1)
+        else:
+            column_indexes = np.repeat(0, X.shape[0])
+            column_indexes[class_probs > 0.5] = 1
+        return self._le.inverse_transform(column_indexes)
+    
+    def predict_proba(self, X):
+        testDmatrix = DMatrix(X)
+        class_probs = self._Booster.predict(testDmatrix)
+        if self._yspace == "multiclass":
+            return class_probs
+        else:
+            classone_probs = class_probs
+            classzero_probs = 1.0 - classone_probs
+            return np.vstack((classzero_probs,classone_probs)).transpose()
+
+class XGBRegressor(XGBModel, RegressorMixin):  
+    pass
+
+
