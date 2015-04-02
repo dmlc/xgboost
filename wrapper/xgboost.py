@@ -16,6 +16,7 @@ import scipy.sparse
 
 try:
     from sklearn.base import BaseEstimator
+    from sklearn.base import RegressorMixin, ClassifierMixin
     from sklearn.preprocessing import LabelEncoder
     SKLEARN_INSTALLED = True
 except ImportError:
@@ -715,41 +716,33 @@ class XGBModel(BaseEstimator):
         trainDmatrix = DMatrix(X, label=y)
         self._Booster = train(self.get_xgb_params(), trainDmatrix, self.n_rounds)
         return self
+    
+    def predict(self, X):
+        testDmatrix = DMatrix(X)
+        return self._Booster.predict(testDmatrix)
 
-class XGBClassifier(XGBModel):    
+class XGBClassifier(XGBModel, ClassifierMixin):    
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True):
         super().__init__(max_depth, learning_rate, n_estimators, silent, objective="binary:logistic")
     
     def fit(self, X, y, sample_weight=None):
         y_values = list(np.unique(y))
-        if len(y_values) == 2:
-            # Map the two classes in the y vector into {0,1}, and record the mapping so that
-            # the predict() method can return results in the original range
-            if not (-1 in y_values and 1 in y_values) or (0 in y_values and 1 in y_values) or (True in y_values and False in y_values):
-                raise ValueError("For a binary classifier, y must be in (0,1), or (-1,1), or (True,False).")
-            if -1 in y_values:
-                self._yspace = "svm_like"
-                training_labels = y.copy()
-                training_labels[training_labels == -1] = 0
-            elif False in y_values:
-                self._yspace = "boolean"
-                training_labels = np.array(y, dtype=int)
-            else:
-                self._yspace = "zero_one"
-                training_labels = y 
-            xgb_options = self.get_xgb_params()
-        else:
+        if len(y_values) > 2:
             # Switch to using a multiclass objective in the underlying XGB instance
-            self._yspace = "multiclass"
             self.objective = "multi:softprob"
-            self._le = LabelEncoder().fit(y)
-            training_labels = self._le.transform(y)
             xgb_options = self.get_xgb_params()
             xgb_options['num_class'] = len(y_values)
+        else:
+            xgb_options = self.get_xgb_params()
+        
+        self._le = LabelEncoder().fit(y)
+        training_labels = self._le.transform(y)
+            
         if sample_weight is not None:
             trainDmatrix = DMatrix(X, label=training_labels, weight=sample_weight)
         else:
             trainDmatrix = DMatrix(X, label=training_labels)
+        
         self._Booster = train(xgb_options, trainDmatrix, self.n_rounds)
         
         return self
@@ -757,22 +750,12 @@ class XGBClassifier(XGBModel):
     def predict(self, X):
         testDmatrix = DMatrix(X)
         class_probs = self._Booster.predict(testDmatrix)
-        if self._yspace == "multiclass":
+        if len(class_probs.shape) > 1:
             column_indexes = np.argmax(class_probs, axis=1)
-            fitted_values = self._le.inverse_transform(column_indexes)
         else:
-            if self._yspace == "svm_like":
-                base_value = -1
-                one_value = 1
-            elif self._yspace == "boolean":
-                base_value = False
-                one_value = True
-            else:
-                base_value = 0
-                one_value = 1
-            fitted_values = np.repeat(base_value, X.shape[0])
-            fitted_values[class_probs > 0.5] = one_value
-        return fitted_values
+            column_indexes = np.repeat(0, X.shape[0])
+            column_indexes[class_probs > 0.5] = 1
+        return self._le.inverse_transform(column_indexes)
     
     def predict_proba(self, X):
         testDmatrix = DMatrix(X)
@@ -784,6 +767,7 @@ class XGBClassifier(XGBModel):
             classzero_probs = 1.0 - classone_probs
             return np.vstack((classzero_probs,classone_probs)).transpose()
 
- 
+class XGBRegressor(XGBModel, RegressorMixin):  
+    pass
 
 
