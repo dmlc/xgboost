@@ -46,11 +46,12 @@
 #'   \item \code{merror} Exact matching error, used to evaluate multi-class classification
 #' }
 #' @param obj customized objective function. Returns gradient and second order 
-#'   gradient with given prediction and dtrain, 
+#'   gradient with given prediction and dtrain.
 #' @param feval custimized evaluation function. Returns 
 #'   \code{list(metric='metric-name', value='metric-value')} with given 
-#'   prediction and dtrain,
-#' @param verbose \code{boolean}, print the statistics during the process.
+#'   prediction and dtrain.
+#' @param stratified \code{boolean}, whether the sampling of folds should be stratified by the values of labels in \code{data}
+#' @param verbose \code{boolean}, print the statistics during the process
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @return A \code{data.table} with each mean and standard deviation stat for training set and test set.
@@ -76,7 +77,7 @@
 #'
 xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NULL, 
                    prediction = FALSE, showsd = TRUE, metrics=list(), 
-                   obj = NULL, feval = NULL, verbose = T,...) {
+                   obj = NULL, feval = NULL, stratified = TRUE, verbose = T,...) {
   if (typeof(params) != "list") {
     stop("xgb.cv: first argument params must be list")
   }
@@ -94,7 +95,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     params <- append(params, list("eval_metric"=mc))
   }
 
-  folds <- xgb.cv.mknfold(dtrain, nfold, params)
+  folds <- xgb.cv.mknfold(dtrain, nfold, params, stratified)
   obj_type = params[['objective']]
   mat_pred = FALSE
   if (!is.null(obj_type) && obj_type=='multi:softprob')

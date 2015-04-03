@@ -214,18 +214,30 @@ xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL, prediction = F
 #------------------------------------------
 # helper functions for cross validation
 #
-xgb.cv.mknfold <- function(dall, nfold, param) {
+xgb.cv.mknfold <- function(dall, nfold, param, stratified) {
   if (nfold <= 1) {
     stop("nfold must be bigger than 1")
   }
   randidx <- sample(1 : xgb.numrow(dall))
-  kstep <- length(randidx) %/% nfold
-  idset <- list()
-  for (i in 1:(nfold-1)) {
-    idset[[i]] = randidx[1:kstep]
-    randidx = setdiff(randidx,idset[[i]])
+  y <- getinfo(dall, 'label')
+  if (stratified & length(y) == length(randidx)) {
+    y <- y[randidx]
+    # by default assume that y is a classification label, and only
+    # leave it numeric for the reg:linear objective
+    # WARNING: if there would be any objectives with truly numerical 
+    #  they would not currently be treated correctly.
+    if (param[['objective']] != 'reg:linear') y <- factor(y)
+    idset <- xgb.createFolds(y, nfold)
+  } else { 
+    # make simple non-stratified folds
+    kstep <- length(randidx) %/% nfold
+    idset <- list()
+    for (i in 1:(nfold-1)) {
+      idset[[i]] = randidx[1:kstep]
+      randidx = setdiff(randidx,idset[[i]])
+    }
+    idset[[nfold]] = randidx
   }
-  idset[[nfold]] = randidx
   ret <- list()
   for (k in 1:nfold) {
     dtest <- slice(dall, idset[[k]])
@@ -242,6 +254,7 @@ xgb.cv.mknfold <- function(dall, nfold, param) {
   }
   return (ret)
 }
+
 xgb.cv.aggcv <- function(res, showsd = TRUE) {
   header <- res[[1]]
   ret <- header[1]
@@ -260,4 +273,54 @@ xgb.cv.aggcv <- function(res, showsd = TRUE) {
     }
   }
   return (ret)
+}
+
+# Shamelessly copied from caret::createFolds
+# and simplified by always returning an unnamed list of test indices
+xgb.createFolds <- function(y, k = 10)
+{
+  if(is.numeric(y)) {
+    ## Group the numeric data based on their magnitudes
+    ## and sample within those groups.
+
+    ## When the number of samples is low, we may have
+    ## issues further slicing the numeric data into
+    ## groups. The number of groups will depend on the
+    ## ratio of the number of folds to the sample size.
+    ## At most, we will use quantiles. If the sample
+    ## is too small, we just do regular unstratified
+    ## CV
+    cuts <- floor(length(y)/k)
+    if(cuts < 2) cuts <- 2
+    if(cuts > 5) cuts <- 5
+    y <- cut(y,
+             unique(quantile(y, probs = seq(0, 1, length = cuts))),
+             include.lowest = TRUE)
+  }
+
+  if(k < length(y)) {
+    ## reset levels so that the possible levels and
+    ## the levels in the vector are the same
+    y <- factor(as.character(y))
+    numInClass <- table(y)
+    foldVector <- vector(mode = "integer", length(y))
+    
+    ## For each class, balance the fold allocation as far
+    ## as possible, then resample the remainder.
+    ## The final assignment of folds is also randomized.
+    for(i in 1:length(numInClass)) {
+      ## create a vector of integers from 1:k as many times as possible without
+      ## going over the number of samples in the class. Note that if the number
+      ## of samples in a class is less than k, nothing is producd here.
+      seqVector <- rep(1:k, numInClass[i] %/% k)
+      ## add enough random integers to get  length(seqVector) == numInClass[i]
+      if(numInClass[i] %% k > 0) seqVector <- c(seqVector, sample(1:k, numInClass[i] %% k))
+      ## shuffle the integers for fold assignment and assign to this classes's data
+      foldVector[which(y == dimnames(numInClass)$y[i])] <- sample(seqVector)
+    }
+  } else foldVector <- seq(along = y)
+
+  out <- split(seq(along = y), foldVector)
+  names(out) <- NULL
+  out
 }
