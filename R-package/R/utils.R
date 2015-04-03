@@ -222,10 +222,10 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified) {
   y <- getinfo(dall, 'label')
   if (stratified & length(y) == length(randidx)) {
     y <- y[randidx]
-    # by default assume that y is a classification label, and only
-    # leave it numeric for the reg:linear objective
-    # WARNING: if there would be any objectives with truly numerical 
-    #  they would not currently be treated correctly.
+    # By default assume that y is a classification label,
+    # and only leave it numeric for the reg:linear objective.
+    # WARNING: if there would be any other objectives with truly
+    #   numerical labels, they currently would not be treated correctly!
     if (param[['objective']] != 'reg:linear') y <- factor(y)
     idset <- xgb.createFolds(y, nfold)
   } else { 
