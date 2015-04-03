@@ -829,7 +829,7 @@ class XGBClassifier(XGBModel, ClassifierMixin):
     def predict_proba(self, X):
         testDmatrix = DMatrix(X)
         class_probs = self._Booster.predict(testDmatrix)
-        if self._yspace == "multiclass":
+        if self.objective == "multi:softprob":
             return class_probs
         else:
             classone_probs = class_probs
