@@ -6,7 +6,7 @@
 \usage{
 xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
   missing = NULL, prediction = FALSE, showsd = TRUE, metrics = list(),
-  obj = NULL, feval = NULL, verbose = T, ...)
+  obj = NULL, feval = NULL, stratified = TRUE, verbose = T, ...)
 }
 \arguments{
 \item{params}{the list of parameters. Commonly used ones are:
@@ -51,13 +51,15 @@ value that represents missing value. Sometime a data use 0 or other extreme valu
 }}
 
 \item{obj}{customized objective function. Returns gradient and second order
-gradient with given prediction and dtrain,}
+gradient with given prediction and dtrain.}
 
 \item{feval}{custimized evaluation function. Returns
 \code{list(metric='metric-name', value='metric-value')} with given
-prediction and dtrain,}
+prediction and dtrain.}
 
-\item{verbose}{\code{boolean}, print the statistics during the process.}
+\item{stratified}{\code{boolean}, whether the sampling of folds should be stratified by the values of labels in \code{data}}
+
+\item{verbose}{\code{boolean}, print the statistics during the process}
 
 \item{...}{other parameters to pass to \code{params}.}
 }
