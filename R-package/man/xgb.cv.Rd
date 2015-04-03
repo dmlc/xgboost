@@ -6,7 +6,8 @@
 \usage{
 xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
   missing = NULL, prediction = FALSE, showsd = TRUE, metrics = list(),
-  obj = NULL, feval = NULL, stratified = TRUE, verbose = T, ...)
+  obj = NULL, feval = NULL, stratified = TRUE, folds = NULL,
+  verbose = T, ...)
 }
 \arguments{
 \item{params}{the list of parameters. Commonly used ones are:
@@ -57,7 +58,10 @@ gradient with given prediction and dtrain.}
 \code{list(metric='metric-name', value='metric-value')} with given
 prediction and dtrain.}
 
-\item{stratified}{\code{boolean}, whether sampling of folds should be stratified by the values of labels in \code{data}}
+\item{stratified}{\code{boolean} whether sampling of folds should be stratified by the values of labels in \code{data}}
+
+\item{folds}{\code{list} provides a possibility of using a list of pre-defined CV folds (each element must be a vector of fold's indices).
+If folds are supplied, the nfold and stratified parameters would be ignored.}
 
 \item{verbose}{\code{boolean}, print the statistics during the process}
 
