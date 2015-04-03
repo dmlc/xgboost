@@ -50,12 +50,19 @@
 #' @param feval custimized evaluation function. Returns 
 #'   \code{list(metric='metric-name', value='metric-value')} with given 
 #'   prediction and dtrain.
-#' @param stratified \code{boolean}, whether the sampling of folds should be stratified by the values of labels in \code{data}
+#' @param stratified \code{boolean}, whether sampling of folds should be stratified by the values of labels in \code{data}
 #' @param verbose \code{boolean}, print the statistics during the process
 #' @param ... other parameters to pass to \code{params}.
 #' 
-#' @return A \code{data.table} with each mean and standard deviation stat for training set and test set.
-#' 
+#' @return
+#' If \code{prediction = TRUE}, a list with the following elements is returned:
+#' \itemize{
+#'   \item \code{dt} a \code{data.table} with each mean and standard deviation stat for training set and test set
+#'   \item \code{pred} an array or matrix (for multiclass classification) with predictions for each CV-fold for the model having been trained on the data in all other folds.
+#' }
+#'
+#' If \code{prediction = FALSE}, just a \code{data.table} with each mean and standard deviation stat for training set and test set is returned.
+#'
 #' @details 
 #' The original sample is randomly partitioned into \code{nfold} equal size subsamples. 
 #' 
@@ -148,7 +155,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   dt <- read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
   split <- str_split(string = history, pattern = "\t")
   
-  for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.list %>% {vec <- .; rbindlist(list(dt, vec), use.names = F, fill = F)}
+  for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.numeric %>% as.list %>% {rbindlist(list(dt, .), use.names = F, fill = F)}
   
   if (prediction) {
     return(list(dt = dt,pred = predictValues))
