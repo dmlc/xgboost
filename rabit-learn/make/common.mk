@@ -4,12 +4,12 @@ export LDFLAGS= -L../../lib -pthread -lm -lrt
 export CFLAGS = -Wall  -msse2  -Wno-unknown-pragmas -fPIC -I../../include  
 
 # setup opencv
-ifeq ($(USE_WORMHOLE),1)
-	include ../../wormhole/make/wormhole.mk
-	CFLAGS+= -DRABIT_USE_WORMHOLE=1 -I ../../wormhole/include $(WORMHOLE_CFLAGS)
-	LDFLAGS+= -L../../wormhole -lwormhole $(WORMHOLE_LDFLAGS)
+ifeq ($(USE_DMLC),1)
+	include ../../dmlc-core/make/dmlc.mk
+	CFLAGS+= -DRABIT_USE_DMLC=1 -I ../../dmlc-core/include $(DMLC_CFLAGS)
+	LDFLAGS+= -L../../dmlc-core -ldmlc $(DMLC_LDFLAGS)
 else
-	CFLAGS+= -DRABIT_USE_WORMHOLE=0
+	CFLAGS+= -DRABIT_USE_DMLC=0
 endif
 
 # setup opencv
