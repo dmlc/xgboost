@@ -9,10 +9,13 @@
 #include <cstring>
 
 #include "./io.h"
+
+#if RABIT_USE_WORMHOLE == 0
 #if RABIT_USE_HDFS
 #include "./hdfs-inl.h"
 #endif
 #include "./file-inl.h"
+#endif
 
 namespace rabit {
 namespace io {
@@ -25,6 +28,9 @@ namespace io {
 inline InputSplit *CreateInputSplit(const char *uri,
                                     unsigned part,
                                     unsigned nsplit) {
+#if RABIT_USE_WORMHOLE
+  return dmlc::InputSplit::Create(uri, part, nsplit);
+#else
   using namespace std;
   if (!strcmp(uri, "stdin")) {
     return new SingleFileSplit(uri);
@@ -40,7 +46,28 @@ inline InputSplit *CreateInputSplit(const char *uri,
 #endif
   }
   return new LineSplitter(new FileProvider(uri), part, nsplit);
+#endif
 }
+
+template<typename TStream>
+class StreamAdapter : public IStream {
+ public:
+  explicit StreamAdapter(TStream *stream)
+      : stream_(stream) {
+  }
+  virtual ~StreamAdapter(void) {
+    delete stream_;
+  }
+  virtual size_t Read(void *ptr, size_t size) {
+    return stream_->Read(ptr, size);
+  }
+  virtual void Write(const void *ptr, size_t size) {
+    stream_->Write(ptr, size);
+  }  
+ private:
+  TStream *stream_;
+};
+
 /*!
  * \brief create an stream, the stream must be able to close
  *    the underlying resources(files) when deleted
@@ -49,6 +76,9 @@ inline InputSplit *CreateInputSplit(const char *uri,
  * \param mode can be 'w' or 'r' for read or write
  */
 inline IStream *CreateStream(const char *uri, const char *mode) {
+#if RABIT_USE_WORMHOLE
+  return new StreamAdapter<dmlc::IStream>(dmlc::IStream::Create(uri, mode));
+#else
   using namespace std;
   if (!strncmp(uri, "file://", 7)) {
     return new FileStream(uri + 7, mode);
@@ -62,6 +92,7 @@ inline IStream *CreateStream(const char *uri, const char *mode) {
 #endif
   }
   return new FileStream(uri, mode);
+#endif
 }
 }  // namespace io
 }  // namespace rabit

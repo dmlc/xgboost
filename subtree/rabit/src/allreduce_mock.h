@@ -31,6 +31,7 @@ class AllreduceMock : public AllreduceRobust {
     AllreduceRobust::SetParam(name, val);
     // additional parameters
     if (!strcmp(name, "rabit_num_trial")) num_trial = atoi(val);
+    if (!strcmp(name, "DMLC_NUM_ATTEMPT")) num_trial = atoi(val);
     if (!strcmp(name, "report_stats")) report_stats = atoi(val);
     if (!strcmp(name, "force_local")) force_local = atoi(val);
     if (!strcmp(name, "mock")) {

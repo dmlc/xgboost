@@ -13,6 +13,13 @@
 #define RABIT_USE_HDFS 0
 #endif
 
+#ifndef RABIT_USE_WORMHOLE
+#define RABIT_USE_WORMHOLE 0
+#endif
+
+#if RABIT_USE_WORMHOLE
+#include <dmlc/io.h>
+#endif
 /*! \brief io interface */
 namespace rabit {
 /*!
@@ -20,6 +27,10 @@ namespace rabit {
  */
 namespace io {
 /*! \brief reused ISeekStream's definition */
+#if RABIT_USE_WORMHOLE
+typedef dmlc::ISeekStream ISeekStream;
+typedef dmlc::InputSplit InputSplit;
+#else
 typedef utils::ISeekStream ISeekStream;
 /*!
  * \brief user facing input split helper,
@@ -33,10 +44,11 @@ class InputSplit {
    *        \n is not included
    * \return true of next line was found, false if we read all the lines
    */
-  virtual bool NextLine(std::string *out_data) = 0;
+  virtual bool ReadLine(std::string *out_data) = 0;
   /*! \brief destructor*/
   virtual ~InputSplit(void) {}
 };
+#endif
 /*!
  * \brief create input split given a uri
  * \param uri the uri of the input, can contain hdfs prefix

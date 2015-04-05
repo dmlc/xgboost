@@ -496,6 +496,8 @@ class AllreduceBase : public IEngine {
   std::string host_uri;
   // uri of tracker
   std::string tracker_uri;
+  // role in dmlc jobs
+  std::string dmlc_role;
   // port of tracker address
   int tracker_port;
   // port of slave process
