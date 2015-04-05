@@ -26,7 +26,6 @@ except ImportError:
     SKLEARN_INSTALLED = False
 
 
-
 __all__ = ['DMatrix', 'CVPack', 'Booster', 'aggcv', 'cv', 'mknfold', 'train']
 
 if sys.version_info[0] == 3:
@@ -619,7 +618,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, ea
 
             score = float(msg.rsplit(':', 1)[1])
             if (maximize_score and score > best_score) or \
-                (not maximize_score and score < best_score):
+                    (not maximize_score and score < best_score):
                 best_score = score
                 best_score_i = i
                 best_msg = msg
@@ -630,7 +629,6 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, ea
                 return bst
 
         return bst
-
 
 
 class CVPack(object):
@@ -778,6 +776,7 @@ class XGBModel(BaseEstimator):
                 'silent': True if self.silent == 1 else False,
                 'objective': self.objective
                 }
+
     def get_xgb_params(self):
         return {'eta': self.eta, 'max_depth': self.max_depth, 'silent': self.silent, 'objective': self.objective}
 
@@ -789,6 +788,7 @@ class XGBModel(BaseEstimator):
     def predict(self, X):
         testDmatrix = DMatrix(X)
         return self._Booster.predict(testDmatrix)
+
 
 class XGBClassifier(XGBModel, ClassifierMixin):
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True):
@@ -834,9 +834,8 @@ class XGBClassifier(XGBModel, ClassifierMixin):
         else:
             classone_probs = class_probs
             classzero_probs = 1.0 - classone_probs
-            return np.vstack((classzero_probs,classone_probs)).transpose()
+            return np.vstack((classzero_probs, classone_probs)).transpose()
+
 
 class XGBRegressor(XGBModel, RegressorMixin):
     pass
-
-
