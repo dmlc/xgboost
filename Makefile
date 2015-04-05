@@ -16,18 +16,28 @@ ifeq ($(cxx11),1)
 else 
 endif
 
-ifeq ($(hdfs),1)
-	CFLAGS+= -DRABIT_USE_HDFS=1 -I$(HADOOP_HDFS_HOME)/include -I$(JAVA_HOME)/include
-	LDFLAGS+= -L$(HADOOP_HDFS_HOME)/lib/native -L$(JAVA_HOME)/jre/lib/amd64/server -lhdfs -ljvm
-else 
-	CFLAGS+= -DRABIT_USE_HDFS=0
+# handling dmlc
+ifdef dmlc
+	ifndef config
+		ifneq ("$(wildcard $(dmlc)/config.mk)","")
+			config = $(dmlc)/config.mk
+		else
+			config = $(dmlc)/make/config.mk
+		endif	
+	endif
+	include $(config)
+	include $(dmlc)/make/dmlc.mk
+	LDFLAGS+= $(DMLC_LDFLAGS)
+	LIBDMLC=$(dmlc)/libdmlc.a
+else
+	LIBDMLC=dmlc_simple.o
 endif
 
 # specify tensor path
 BIN = xgboost
 MOCKBIN = xgboost.mock
-OBJ = updater.o gbm.o io.o main.o 
-MPIBIN = xgboost.mpi
+OBJ = updater.o gbm.o io.o main.o dmlc_simple.o
+MPIBIN =
 SLIB = wrapper/libxgboostwrapper.so 
 
 .PHONY: clean all mpi python Rpack
@@ -38,13 +48,12 @@ mpi: $(MPIBIN)
 python: wrapper/libxgboostwrapper.so
 # now the wrapper takes in two files. io and wrapper part
 updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h src/utils/*.h
+dmlc_simple.o: src/io/dmlc_simple.cpp src/utils/*.h
 gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h 
 io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
 main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h 
-xgboost.mpi:  updater.o gbm.o io.o main.o subtree/rabit/lib/librabit_mpi.a
-xgboost.mock: updater.o gbm.o io.o main.o subtree/rabit/lib/librabit_mock.a
-xgboost:  updater.o gbm.o io.o main.o subtree/rabit/lib/librabit.a
-wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o subtree/rabit/lib/librabit.a
+xgboost:  updater.o gbm.o io.o main.o subtree/rabit/lib/librabit.a $(LIBDMLC)
+wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o subtree/rabit/lib/librabit.a $(LIBDMLC)
 
 # dependency on rabit
 subtree/rabit/lib/librabit.a: subtree/rabit/src/engine.cc

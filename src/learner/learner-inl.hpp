@@ -193,7 +193,7 @@ class BoostLearner : public rabit::ISerializable {
    * \param fname file name
    */
   inline void LoadModel(const char *fname) {
-    utils::IStream *fi = rabit::io::CreateStream(fname, "r");
+    utils::IStream *fi = utils::IStream::Create(fname, "r");
     std::string header; header.resize(4);
     // check header for different binary encode
     // can be base64 or binary
@@ -207,7 +207,7 @@ class BoostLearner : public rabit::ISerializable {
       this->LoadModel(*fi);
     } else {
       delete fi;
-      fi = rabit::io::CreateStream(fname, "r");
+      fi = utils::IStream::Create(fname, "r");
       this->LoadModel(*fi);
     }
     delete fi;   
@@ -224,7 +224,7 @@ class BoostLearner : public rabit::ISerializable {
    * \param save_base64 whether save in base64 format
    */
   inline void SaveModel(const char *fname, bool save_base64 = false) const {
-    utils::IStream *fo = rabit::io::CreateStream(fname, "w");
+    utils::IStream *fo = utils::IStream::Create(fname, "w");
     if (save_base64 != 0 || !strcmp(fname, "stdout")) {
       fo->Write("bs64\t", 5);
       utils::Base64OutStream bout(fo);
