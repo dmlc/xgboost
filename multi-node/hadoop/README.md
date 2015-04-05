@@ -10,7 +10,7 @@ Before you run the script
 ====
 * Make sure you have set up the hadoop environment.  
   - Check variable $HADOOP_PREFIX exists (e.g. run ```echo $HADOOP_PREFIX```)
-  - Compile xgboost with hdfs support by typing ```make hdfs=1```
+  - Compile xgboost with hdfs support
 
 How to Use
 ====
