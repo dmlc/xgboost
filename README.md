@@ -26,6 +26,7 @@ Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washin
 
 What's New
 ==========
+* XGBoost now support HDFS and S3
 * [Distributed XGBoost now runs on YARN](multi-node/hadoop)!
 * [xgboost user group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
 * [Distributed XGBoost](multi-node) is now available!!
@@ -35,8 +36,7 @@ What's New
   - Predict leaf index, see [demo/guide-python/predict_leaf_indices.py](demo/guide-python/predict_leaf_indices.py)  
 * XGBoost wins [Tradeshift Text Classification](https://kaggle2.blob.core.windows.net/forum-message-attachments/60041/1813/TradeshiftTextClassification.pdf?sv=2012-02-12&se=2015-01-02T13%3A55%3A16Z&sr=b&sp=r&sig=5MHvyjCLESLexYcvbSRFumGQXCS7MVmfdBIY3y01tMk%3D)
 * XGBoost wins [HEP meets ML Award in Higgs Boson Challenge](http://atlas.ch/news/2014/machine-learning-wins-the-higgs-challenge.html)
-* Thanks to Bing Xu, [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl) allows you to use xgboost from Julia
-* Thanks to Tong He, the new [R package](R-package) is available
+
 
 Features
 ========
@@ -86,6 +86,16 @@ Build
   export CXX = /usr/local/bin/g++
   ```
   Then run ```bash build.sh``` normally. This solution is given by [Phil Culliton](https://www.kaggle.com/c/otto-group-product-classification-challenge/forums/t/12947/achieve-0-50776-on-the-leaderboard-in-a-minute-with-xgboost/68308#post68308).
+
+Build with HDFS and S3 Support
+=====
+* To build xgboost use with HDFS/S3 support and distributed learnig. It is recommended to build with dmlc, with the following steps
+  - ```git clone https://github.com/dmlc/dmlc-core```
+  - Follow instruction in dmlc-core/make/config.mk to compile libdmlc.a
+  - In root folder of xgboost, type ```make dmlc=dmlc-core```
+* This will allow xgboost to directly load data and save model from/to hdfs and s3
+  - Simply replace the filename with prefix s3:// or hdfs://
+* This xgboost that can be used for distributed learning
 
 Version
 =======
