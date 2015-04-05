@@ -17,5 +17,8 @@ export MPICXX = mpicxx
 # whether use HDFS support during compile
 USE_HDFS = 1
 
+# whether use dmlc's io utils
+USE_DMLC = 0
+
 # path to libjvm.so
 LIBJVM=$(JAVA_HOME)/jre/lib/amd64/server
