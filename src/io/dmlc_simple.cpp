@@ -10,7 +10,8 @@ namespace xgboost {
 namespace utils {
 class SingleFileSplit : public dmlc::InputSplit {
  public:
-  explicit SingleFileSplit(const char *fname) {
+  explicit SingleFileSplit(const char *fname) 
+      : use_stdin_(false) {
     if (!std::strcmp(fname, "stdin")) {
 #ifndef XGBOOST_STRICT_CXX98_
       use_stdin_ = true; fp_ = stdin;
