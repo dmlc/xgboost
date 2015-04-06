@@ -57,13 +57,13 @@ wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h 
 
 # dependency on rabit
 subtree/rabit/lib/librabit.a: subtree/rabit/src/engine.cc
-	cd subtree/rabit;make lib/librabit.a; cd ../..
+	+	cd subtree/rabit;make lib/librabit.a; cd ../..
 subtree/rabit/lib/librabit_empty.a: subtree/rabit/src/engine_empty.cc
-	cd subtree/rabit;make lib/librabit_empty.a; cd ../..
+	+	cd subtree/rabit;make lib/librabit_empty.a; cd ../..
 subtree/rabit/lib/librabit_mock.a: subtree/rabit/src/engine_mock.cc
-	cd subtree/rabit;make lib/librabit_mock.a; cd ../..
+	+	cd subtree/rabit;make lib/librabit_mock.a; cd ../..
 subtree/rabit/lib/librabit_mpi.a: subtree/rabit/src/engine_mpi.cc
-	cd subtree/rabit;make lib/librabit_mpi.a; cd ../..
+	+	cd subtree/rabit;make lib/librabit_mpi.a; cd ../..
 
 $(BIN) : 
 	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
