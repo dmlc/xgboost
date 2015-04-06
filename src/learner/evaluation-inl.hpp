@@ -119,6 +119,9 @@ struct EvalMClassBase : public IEvaluator {
     utils::Check(preds.size() % info.labels.size() == 0,
                  "label and prediction size not match");
     const size_t nclass = preds.size() / info.labels.size();
+    utils::Check(nclass > 1,
+                 "mlogloss and merror are only used for multi-class classification,"\
+                 " use logloss for binary classification");
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
     float sum = 0.0, wsum = 0.0;
     int label_error = 0;
