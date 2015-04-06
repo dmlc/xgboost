@@ -225,7 +225,8 @@ class SoftmaxMultiClassObj : public IObjFunction {
       }
     }
     utils::Check(label_error >= 0 && label_error < nclass,
-                 "SoftmaxMultiClassObj: label must be in [0, num_class), found %d in label", label_error);
+                 "SoftmaxMultiClassObj: label must be in [0, num_class),"\
+                 " num_class=%d but found %d in label", nclass, label_error);
   }
   virtual void PredTransform(std::vector<float> *io_preds) {
     this->Transform(io_preds, output_prob);
