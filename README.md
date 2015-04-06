@@ -27,7 +27,7 @@ Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washin
 What's New
 ==========
 * XGBoost now support HDFS and S3
-* [Distributed XGBoost now runs on YARN](multi-node/hadoop)!
+* [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/learn/xgboost)!
 * [xgboost user group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
 * [Distributed XGBoost](multi-node) is now available!!
 * New features in the lastest changes :)
@@ -36,7 +36,6 @@ What's New
   - Predict leaf index, see [demo/guide-python/predict_leaf_indices.py](demo/guide-python/predict_leaf_indices.py)  
 * XGBoost wins [Tradeshift Text Classification](https://kaggle2.blob.core.windows.net/forum-message-attachments/60041/1813/TradeshiftTextClassification.pdf?sv=2012-02-12&se=2015-01-02T13%3A55%3A16Z&sr=b&sp=r&sig=5MHvyjCLESLexYcvbSRFumGQXCS7MVmfdBIY3y01tMk%3D)
 * XGBoost wins [HEP meets ML Award in Higgs Boson Challenge](http://atlas.ch/news/2014/machine-learning-wins-the-higgs-challenge.html)
-
 
 Features
 ========

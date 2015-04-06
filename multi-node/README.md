@@ -1,17 +1,10 @@
 Distributed XGBoost
 ======
-This folder contains information of Distributed XGBoost (Distributed GBDT).
-
+Distributed XGBoost is now part of [Wormhole](https://github.com/dmlc/wormhole/learn/xgboost).
+See the [Wormhole](https://github.com/dmlc/wormhole/learn/xgboost) for usage examples, build and job submissions.
 * The distributed version is built on Rabit:[Reliable Allreduce and Broadcast Library](https://github.com/dmlc/rabit)
   - Rabit is a portable library that provides fault-tolerance for Allreduce calls for distributed machine learning  
   - This makes xgboost portable and fault-tolerant against node failures
-* You can run Distributed XGBoost on platforms including Hadoop(see [hadoop folder](hadoop)) and MPI
-  - Rabit only replies a platform to start the programs, so it should be easy to port xgboost to most platforms
-
-Build
-=====
-* In the root folder, type ```make```
-  - If you have C++11 compiler, it is recommended to use ```make cxx11=1```
 
 Notes
 ====
@@ -27,11 +20,9 @@ Notes
 
 Solvers
 =====
-There are two solvers in distributed xgboost. You can check for local demo of the two solvers, see [row-split](row-split) and [col-split](col-split)
-  * Column-based solver split data by column, each node work on subset of columns, 
-    it uses exactly the same algorithm as single node version.
-  * Row-based solver split data by row, each node work on subset of rows,
-    it uses an approximate histogram count algorithm, and will only examine subset of 
-    potential split points as opposed to all split points.
-    - This is the mode used by current hadoop version, since usually data was stored by rows in many industry system
-    
+* Column-based solver split data by column, each node work on subset of columns, 
+  it uses exactly the same algorithm as single node version.
+* Row-based solver split data by row, each node work on subset of rows,
+  it uses an approximate histogram count algorithm, and will only examine subset of 
+  potential split points as opposed to all split points.
+  - This is the mode used by current hadoop version, since usually data was stored by rows in many industry system
