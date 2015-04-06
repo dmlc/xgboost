@@ -1,7 +1,7 @@
 Distributed XGBoost
 ======
-Distributed XGBoost is now part of [Wormhole](https://github.com/dmlc/wormhole/learn/xgboost).
-See the [Wormhole](https://github.com/dmlc/wormhole/learn/xgboost) for usage examples, build and job submissions.
+Distributed XGBoost is now part of [Wormhole](https://github.com/dmlc/wormhole).
+Checkout this [Link](https://github.com/dmlc/wormhole/tree/master/learn/xgboost) for usage examples, build and job submissions.
 * The distributed version is built on Rabit:[Reliable Allreduce and Broadcast Library](https://github.com/dmlc/rabit)
   - Rabit is a portable library that provides fault-tolerance for Allreduce calls for distributed machine learning  
   - This makes xgboost portable and fault-tolerant against node failures

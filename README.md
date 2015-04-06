@@ -27,7 +27,7 @@ Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washin
 What's New
 ==========
 * XGBoost now support HDFS and S3
-* [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/learn/xgboost)!
+* [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/tree/master/learn/xgboost)!
 * [xgboost user group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
 * [Distributed XGBoost](multi-node) is now available!!
 * New features in the lastest changes :)
