@@ -163,7 +163,19 @@ class BoostLearner : public rabit::ISerializable {
                         bool calc_num_feature = true) {
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "BoostLearner: wrong model format");
-    utils::Check(fi.Read(&name_obj_), "BoostLearner: wrong model format");
+    {
+      // backward compatibility code for compatible with old model type
+      // for new model, Read(&name_obj_) is suffice      
+      size_t len;
+      utils::Check(fi.Read(&len, sizeof(len)) != 0, "BoostLearner: wrong model format");
+      if (len >= std::numeric_limits<unsigned>::max()) {
+        int gap;
+        utils::Check(fi.Read(&gap, sizeof(gap)) != 0, "BoostLearner: wrong model format");
+        len = len >> 32UL;
+      }      
+      name_obj_.resize(len);
+      utils::Check(fi.Read(&name_obj_[0], len) != 0, "BoostLearner: wrong model format");
+    }
     utils::Check(fi.Read(&name_gbm_), "BoostLearner: wrong model format");
     // delete existing gbm if any
     if (obj_ != NULL) delete obj_;
