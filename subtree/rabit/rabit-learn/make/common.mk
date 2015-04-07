@@ -4,12 +4,22 @@ export LDFLAGS= -L../../lib -pthread -lm -lrt
 export CFLAGS = -Wall  -msse2  -Wno-unknown-pragmas -fPIC -I../../include  
 
 # setup opencv
+ifeq ($(USE_DMLC),1)
+	include ../../dmlc-core/make/dmlc.mk
+	CFLAGS+= -DRABIT_USE_DMLC=1 -I ../../dmlc-core/include $(DMLC_CFLAGS)
+	LDFLAGS+= -L../../dmlc-core -ldmlc $(DMLC_LDFLAGS)
+else
+	CFLAGS+= -DRABIT_USE_DMLC=0
+endif
+
+# setup opencv
 ifeq ($(USE_HDFS),1)
 	CFLAGS+= -DRABIT_USE_HDFS=1 -I$(HADOOP_HDFS_HOME)/include -I$(JAVA_HOME)/include
 	LDFLAGS+= -L$(HADOOP_HDFS_HOME)/lib/native -L$(LIBJVM) -lhdfs -ljvm
 else
 	CFLAGS+= -DRABIT_USE_HDFS=0
 endif
+
 
 .PHONY: clean all lib mpi
 

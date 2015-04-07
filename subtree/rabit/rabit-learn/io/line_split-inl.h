@@ -51,7 +51,7 @@ class LineSplitter : public InputSplit {
     delete provider_;
   }
   // get next line
-  virtual bool NextLine(std::string *out_data) {
+  virtual bool ReadLine(std::string *out_data) {
     if (file_ptr_ >= file_ptr_end_ &&
         offset_curr_ >= offset_end_) return false;
     out_data->clear();
@@ -178,7 +178,7 @@ class SingleFileSplit : public InputSplit {
   virtual ~SingleFileSplit(void) {
     if (!use_stdin_) std::fclose(fp_);
   }
-  virtual bool NextLine(std::string *out_data) {
+  virtual bool ReadLine(std::string *out_data) {
     if (end_of_file_) return false;
     out_data->clear();
     while (true) {

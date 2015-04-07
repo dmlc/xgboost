@@ -90,11 +90,11 @@ class DMatrixSimple : public DataMatrix {
       rank = rabit::GetRank();
       npart = rabit::GetWorldSize();
     }
-    rabit::io::InputSplit *in =
-        rabit::io::CreateInputSplit(uri, rank, npart);
+    dmlc::InputSplit *in =
+        dmlc::InputSplit::Create(uri, rank, npart);
     this->Clear();
     std::string line;
-    while (in->NextLine(&line)) {
+    while (in->ReadLine(&line)) {
       float label;
       std::istringstream ss(line);
       std::vector<RowBatch::Entry> feats;
