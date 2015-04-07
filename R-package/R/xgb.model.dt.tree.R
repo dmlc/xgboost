@@ -115,7 +115,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
       featureBranch <- feature_names[featureBranch + 1]
     }
     featureLeaf <- rep("Leaf", length(leaf))
-    splitBranch <- str_extract(branch, "<\\d*\\.*\\d*\\]") %>% str_replace("<", "") %>% str_replace("\\]", "") 
+    splitBranch <- str_extract(branch, "<-?\\d*(\\.|e)?-?\\d*\\]") %>% str_replace("<", "") %>% str_replace("\\]", "") 
     splitLeaf <- rep(NA, length(leaf)) 
     yesBranch <- extract(branch, "yes=\\d*") %>% addTreeId(treeID)
     yesLeaf <- rep(NA, length(leaf)) 
@@ -123,8 +123,8 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     noLeaf <- rep(NA, length(leaf))
     missingBranch <- extract(branch, "missing=\\d+") %>% addTreeId(treeID)
     missingLeaf <- rep(NA, length(leaf))
-    qualityBranch <- extract(branch, "gain=\\d*\\.*\\d*")
-    qualityLeaf <- extract(leaf, "leaf=\\-*\\d*\\.*\\d*")
+    qualityBranch <- extract(branch, "gain=-?\\d*(\\.|e)?-?\\d*")
+    qualityLeaf <- extract(leaf, "leaf=-?\\d*(\\.|e)?-?\\d*")
     coverBranch <- extract(branch, "cover=\\d*\\.*\\d*")
     coverLeaf <- extract(leaf, "cover=\\d*\\.*\\d*")
     dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=treeID]
