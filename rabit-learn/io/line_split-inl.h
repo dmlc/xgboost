@@ -26,7 +26,7 @@ class LineSplitter : public InputSplit {
      * \return the corresponding seek stream at head of the stream
      *  the seek stream's resource can be freed by calling delete 
      */
-    virtual ISeekStream *Open(size_t file_index) = 0;
+    virtual SeekStream *Open(size_t file_index) = 0;
     /*!
      * \return const reference to size of each files
      */
@@ -142,7 +142,7 @@ class LineSplitter : public InputSplit {
   /*! \brief FileProvider */
   IFileProvider *provider_;
   /*! \brief current input stream */
-  utils::ISeekStream *fs_;
+  utils::SeekStream *fs_;
   /*! \brief file pointer of which file to read on */
   size_t file_ptr_;
   /*! \brief file pointer where the end of file lies */

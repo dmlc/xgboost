@@ -33,9 +33,9 @@ static const char EncodeTable[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 } // namespace base64
 /*! \brief the stream that reads from base64, note we take from file pointers */
-class Base64InStream: public IStream {
+class Base64InStream: public Stream {
  public:
-  explicit Base64InStream(IStream *fs) : reader_(256) {
+  explicit Base64InStream(Stream *fs) : reader_(256) {
     reader_.set_stream(fs);
     num_prev = 0; tmp_ch = 0;
   }
@@ -147,9 +147,9 @@ class Base64InStream: public IStream {
   static const bool kStrictCheck = false;
 };
 /*! \brief the stream that write to base64, note we take from file pointers */
-class Base64OutStream: public IStream {
+class Base64OutStream: public Stream {
  public:
-  explicit Base64OutStream(IStream *fp) : fp(fp) {
+  explicit Base64OutStream(Stream *fp) : fp(fp) {
     buf_top = 0;
   }
   virtual void Write(const void *ptr, size_t size) {
@@ -198,7 +198,7 @@ class Base64OutStream: public IStream {
   }
     
  private:  
-  IStream *fp;
+  Stream *fp;
   int buf_top;
   unsigned char buf[4];
   std::string out_buf;

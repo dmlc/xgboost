@@ -26,12 +26,12 @@ namespace rabit {
  * \brief namespace to handle input split and filesystem interfacing
  */
 namespace io {
-/*! \brief reused ISeekStream's definition */
+/*! \brief reused SeekStream's definition */
 #if RABIT_USE_WORMHOLE
-typedef dmlc::ISeekStream ISeekStream;
+typedef dmlc::SeekStream SeekStream;
 typedef dmlc::InputSplit InputSplit;
 #else
-typedef utils::ISeekStream ISeekStream;
+typedef utils::SeekStream SeekStream;
 /*!
  * \brief user facing input split helper,
  *   can be used to get the partition of data used by current node
@@ -65,7 +65,7 @@ inline InputSplit *CreateInputSplit(const char *uri,
  * \param uri the uri of the input, can contain hdfs prefix
  * \param mode can be 'w' or 'r' for read or write
  */
-inline IStream *CreateStream(const char *uri, const char *mode);
+inline Stream *CreateStream(const char *uri, const char *mode);
 }  // namespace io
 }  // namespace rabit
 
