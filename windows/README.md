@@ -10,13 +10,17 @@ This should give you xgboost.exe for CLI version and xgboost_wrapper.dll for pyt
 
 Use Python Module
 =====
-* After you build the dll, you can simply add the path to [../wrapper](../wrapper) to sys.path and import xgboost
+* After you build the dll, you can install the Python package from the [../wrapper](../wrapper) folder
+
 ```
-sys.path.append('path/to/xgboost/wrapper')
+python setup.py install
+```
+
+And import it as usual
+
+```
 import xgboost as xgb
 ```
-* Alternatively, you can add that path to system enviroment variable ```PYTHONPATH```
-  - Doing so allows you to import xgboost directly like other python packages
 
 R Package
 ====
