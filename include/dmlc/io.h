@@ -38,6 +38,7 @@ class Stream {
    * \param uri the uri of the input currently we support
    *            hdfs://, s3://, and file:// by default file:// will be used
    * \param flag can be "w", "r", "a"
+   * \return a created stream
    */
   static Stream *Create(const char *uri, const char* const flag);
   // helper functions to write/read different data structures
@@ -115,6 +116,7 @@ class InputSplit {
    * \param uri the uri of the input, can contain hdfs prefix
    * \param part_index the part id of current input
    * \param num_parts total number of splits
+   * \return a created input split
    */
   static InputSplit* Create(const char *uri,
                             unsigned part_index,
