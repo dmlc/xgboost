@@ -16,19 +16,8 @@
 
 namespace rabit {
 namespace utils {
-/*! \brief interface of i/o stream that support seek */
-class ISeekStream: public IStream {
- public:
-  // virtual destructor
-  virtual ~ISeekStream(void) {}
-  /*! \brief seek to certain position of the file */
-  virtual void Seek(size_t pos) = 0;
-  /*! \brief tell the position of the stream */
-  virtual size_t Tell(void) = 0;
-  /*! \return whether we are at end of file */
-  virtual bool AtEnd(void) const = 0;
-};
-
+/*! \brief re-use definition of dmlc::ISeekStream */
+typedef dmlc::ISeekStream ISeekStream;
 /*! \brief fixed size memory buffer */
 struct MemoryFixSizeBuffer : public ISeekStream {
  public:

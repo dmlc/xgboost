@@ -56,7 +56,7 @@ struct SparseMat {
     data.clear();    
     feat_dim = 0;
     std::string line;
-    while (in->NextLine(&line)) {
+    while (in->ReadLine(&line)) {
       float label;
       std::istringstream ss(line);
       ss >> label;
