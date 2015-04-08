@@ -1,7 +1,5 @@
 #!/usr/bin/python
-import sys
 import numpy as np
-sys.path.append('../../wrapper')
 import xgboost as xgb
 
 ### load data in do training
@@ -56,7 +54,7 @@ def evalerror(preds, dtrain):
     labels = dtrain.get_label()
     return 'error', float(sum(labels != (preds > 0.0))) / len(labels)
 
-param = {'max_depth':2, 'eta':1, 'silent':1} 
+param = {'max_depth':2, 'eta':1, 'silent':1}
 # train with customized objective
 xgb.cv(param, dtrain, num_round, nfold = 5, seed = 0,
        obj = logregobj, feval=evalerror)

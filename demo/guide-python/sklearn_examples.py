@@ -4,8 +4,6 @@ Created on 1 Apr 2015
 @author: Jamie Hall
 '''
 
-import sys
-sys.path.append('../../wrapper')
 import xgboost as xgb
 
 import numpy as np
