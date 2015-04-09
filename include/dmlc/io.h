@@ -14,7 +14,7 @@ namespace dmlc {
 /*!
  * \brief interface of stream I/O for serialization
  */
-class IStream {
+class Stream {
  public:
   /*!
    * \brief reads data from a stream
@@ -30,7 +30,7 @@ class IStream {
    */
   virtual void Write(const void *ptr, size_t size) = 0;
   /*! \brief virtual destructor */
-  virtual ~IStream(void) {}
+  virtual ~Stream(void) {}
   /*!
    * \brief generic factory function
    *    create an stream, the stream will close the underlying files
@@ -38,8 +38,9 @@ class IStream {
    * \param uri the uri of the input currently we support
    *            hdfs://, s3://, and file:// by default file:// will be used
    * \param flag can be "w", "r", "a"
+   * \return a created stream
    */
-  static IStream *Create(const char *uri, const char* const flag);
+  static Stream *Create(const char *uri, const char* const flag);
   // helper functions to write/read different data structures
   /*!
    * \brief writes a vector
@@ -68,10 +69,10 @@ class IStream {
 };
 
 /*! \brief interface of i/o stream that support seek */
-class ISeekStream: public IStream {
+class SeekStream: public Stream {
  public:
   // virtual destructor
-  virtual ~ISeekStream(void) {}
+  virtual ~SeekStream(void) {}
   /*! \brief seek to certain position of the file */
   virtual void Seek(size_t pos) = 0;
   /*! \brief tell the position of the stream */
@@ -81,18 +82,18 @@ class ISeekStream: public IStream {
 };
 
 /*! \brief interface for serializable objects */
-class ISerializable {
+class Serializable {
  public:
   /*! 
   * \brief load the model from a stream
   * \param fi stream where to load the model from
   */
-  virtual void Load(IStream &fi) = 0;
+  virtual void Load(Stream *fi) = 0;
   /*! 
   * \brief saves the model to a stream
   * \param fo stream where to save the model to
   */
-  virtual void Save(IStream &fo) const = 0;
+  virtual void Save(Stream *fo) const = 0;
 };
 
 /*!
@@ -115,6 +116,7 @@ class InputSplit {
    * \param uri the uri of the input, can contain hdfs prefix
    * \param part_index the part id of current input
    * \param num_parts total number of splits
+   * \return a created input split
    */
   static InputSplit* Create(const char *uri,
                             unsigned part_index,
@@ -123,7 +125,7 @@ class InputSplit {
 
 // implementations of inline functions
 template<typename T>
-inline void IStream::Write(const std::vector<T> &vec) {
+inline void Stream::Write(const std::vector<T> &vec) {
   size_t sz = vec.size();
   this->Write(&sz, sizeof(sz));
   if (sz != 0) {
@@ -131,7 +133,7 @@ inline void IStream::Write(const std::vector<T> &vec) {
   }
 }
 template<typename T>
-inline bool IStream::Read(std::vector<T> *out_vec) {
+inline bool Stream::Read(std::vector<T> *out_vec) {
   size_t sz;
   if (this->Read(&sz, sizeof(sz)) == 0) return false;
   out_vec->resize(sz);
@@ -140,14 +142,14 @@ inline bool IStream::Read(std::vector<T> *out_vec) {
   }
   return true;
 }
-inline void IStream::Write(const std::string &str) {
+inline void Stream::Write(const std::string &str) {
   size_t sz = str.length();
   this->Write(&sz, sizeof(sz));
   if (sz != 0) {
     this->Write(&str[0], sizeof(char) * sz);
   }
 }
-inline bool IStream::Read(std::string *out_str) {
+inline bool Stream::Read(std::string *out_str) {
   size_t sz;
   if (this->Read(&sz, sizeof(sz)) == 0) return false;
   out_str->resize(sz);

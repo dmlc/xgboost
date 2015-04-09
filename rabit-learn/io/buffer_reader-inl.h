@@ -20,7 +20,7 @@ class StreamBufferReader {
   /*!
    * \brief set input stream
    */
-  inline void set_stream(IStream *stream) {
+  inline void set_stream(Stream *stream) {
     stream_ = stream;
     read_len_ = read_ptr_ = 1;
   }
@@ -45,7 +45,7 @@ class StreamBufferReader {
   
  private:
   /*! \brief the underlying stream */
-  IStream *stream_;
+  Stream *stream_;
   /*! \brief buffer to hold data */
   std::string buffer_;
   /*! \brief length of valid data in buffer */

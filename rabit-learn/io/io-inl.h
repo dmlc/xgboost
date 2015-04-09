@@ -50,7 +50,7 @@ inline InputSplit *CreateInputSplit(const char *uri,
 }
 
 template<typename TStream>
-class StreamAdapter : public IStream {
+class StreamAdapter : public Stream {
  public:
   explicit StreamAdapter(TStream *stream)
       : stream_(stream) {
@@ -75,9 +75,9 @@ class StreamAdapter : public IStream {
  * \param uri the uri of the input, can contain hdfs prefix
  * \param mode can be 'w' or 'r' for read or write
  */
-inline IStream *CreateStream(const char *uri, const char *mode) {
+inline Stream *CreateStream(const char *uri, const char *mode) {
 #if RABIT_USE_WORMHOLE
-  return new StreamAdapter<dmlc::IStream>(dmlc::IStream::Create(uri, mode));
+  return new StreamAdapter<dmlc::Stream>(dmlc::Stream::Create(uri, mode));
 #else
   using namespace std;
   if (!strncmp(uri, "file://", 7)) {
