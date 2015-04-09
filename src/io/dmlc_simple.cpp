@@ -49,7 +49,7 @@ class SingleFileSplit : public dmlc::InputSplit {
   bool end_of_file_;
 };
 
-class StdFile : public dmlc::IStream {
+class StdFile : public dmlc::Stream {
  public:
   explicit StdFile(const char *fname, const char *mode)
       : use_stdio(false) {
@@ -115,7 +115,7 @@ InputSplit* InputSplit::Create(const char *uri,
   return new utils::SingleFileSplit(uri);
 }
 
-IStream *IStream::Create(const char *uri, const char * const flag) {
+Stream *Stream::Create(const char *uri, const char * const flag) {
   using namespace xgboost;
   const char *msg = "xgboost is compiled in local mode\n"\
       "to use hdfs, s3 or distributed version, compile with make dmlc=1";

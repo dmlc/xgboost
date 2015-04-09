@@ -23,7 +23,7 @@ namespace learner {
  * \brief learner that takes do gradient boosting on specific objective functions
  *  and do training and prediction
  */
-class BoostLearner : public rabit::ISerializable {
+class BoostLearner : public rabit::Serializable {
  public:
   BoostLearner(void) {
     obj_ = NULL;
@@ -193,14 +193,14 @@ class BoostLearner : public rabit::ISerializable {
     }
   }
   // rabit load model from rabit checkpoint
-  virtual void Load(rabit::IStream &fi) {
+  virtual void Load(rabit::Stream *fi) {
     // for row split, we should not keep pbuffer
-    this->LoadModel(fi, distributed_mode != 2, false);
+    this->LoadModel(*fi, distributed_mode != 2, false);
   }
   // rabit save model to rabit checkpoint
-  virtual void Save(rabit::IStream &fo) const {
+  virtual void Save(rabit::Stream *fo) const {
     // for row split, we should not keep pbuffer
-    this->SaveModel(fo, distributed_mode != 2);
+    this->SaveModel(*fo, distributed_mode != 2);
   }
   /*!
    * \brief load model from file

@@ -14,8 +14,8 @@
 namespace xgboost {
 namespace utils {
 // reuse the definitions of streams
-typedef rabit::IStream IStream;
-typedef rabit::utils::ISeekStream ISeekStream;
+typedef rabit::Stream IStream;
+typedef rabit::utils::SeekStream ISeekStream;
 typedef rabit::utils::MemoryFixSizeBuffer MemoryFixSizeBuffer;
 typedef rabit::utils::MemoryBufferStream MemoryBufferStream;
 
