@@ -36,8 +36,8 @@ xgb.setinfo <- function(dmat, name, info) {
     return(TRUE)
   }
   if (name == "group") {
-    if (length(info)!=xgb.numrow(dmat))
-      stop("The length of groups must equal to the number of rows in the input data")
+    if (sum(info)!=xgb.numrow(dmat))
+      stop("The sum of groups must equal to the number of rows in the input data")
     .Call("XGDMatrixSetInfo_R", dmat, name, as.integer(info), 
           PACKAGE = "xgboost")
     return(TRUE)
