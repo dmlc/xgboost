@@ -113,17 +113,17 @@ struct LinearModel {
     if (weight != NULL) delete [] weight;
   }
   // load model
-  inline void Load(rabit::IStream &fi) {
-    fi.Read(&param, sizeof(param));
+  inline void Load(rabit::Stream *fi) {
+    fi->Read(&param, sizeof(param));
     if (weight == NULL) {
       weight = new float[param.num_feature + 1];
     }
-    fi.Read(weight, sizeof(float) * (param.num_feature + 1));
+    fi->Read(weight, sizeof(float) * (param.num_feature + 1));
   }
-  inline void Save(rabit::IStream &fo, const float *wptr = NULL) {
-    fo.Write(&param, sizeof(param));
+  inline void Save(rabit::Stream *fo, const float *wptr = NULL) {
+    fo->Write(&param, sizeof(param));
     if (wptr == NULL) wptr = weight;
-    fo.Write(wptr, sizeof(float) * (param.num_feature + 1));
+    fo->Write(wptr, sizeof(float) * (param.num_feature + 1));
   }
   inline float Predict(const SparseMat::Vector &v) const {
     return param.Predict(weight, v);

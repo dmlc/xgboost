@@ -14,14 +14,14 @@
 namespace rabit {
 /*!
  * \brief defines stream used in rabit 
- * see definition of IStream in dmlc/io.h 
+ * see definition of Stream in dmlc/io.h 
  */
-typedef dmlc::IStream IStream;
+typedef dmlc::Stream Stream;
 /*!
  * \brief defines serializable objects used in rabit 
- * see definition of ISerializable in dmlc/io.h 
+ * see definition of Serializable in dmlc/io.h 
  */
-typedef dmlc::ISerializable ISerializable;
+typedef dmlc::Serializable Serializable;
 
 }  // namespace rabit
 #endif  // RABIT_RABIT_SERIALIZABLE_H_
