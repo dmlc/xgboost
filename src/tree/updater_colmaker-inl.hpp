@@ -498,6 +498,9 @@ class ColMaker: public IUpdater {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
+        if (ridx >= position.size()) {
+          utils::Printf("ridx exceed bound\n");
+        }
         const int nid = this->DecodePosition(ridx);
         if (tree[nid].is_leaf()) {
           // mark finish when it is not a fresh leaf
