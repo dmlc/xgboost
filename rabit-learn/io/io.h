@@ -13,11 +13,11 @@
 #define RABIT_USE_HDFS 0
 #endif
 
-#ifndef RABIT_USE_WORMHOLE
-#define RABIT_USE_WORMHOLE 0
+#ifndef RABIT_USE_DMLC
+#define RABIT_USE_DMLC 0
 #endif
 
-#if RABIT_USE_WORMHOLE
+#if RABIT_USE_DMLC
 #include <dmlc/io.h>
 #endif
 /*! \brief io interface */
@@ -27,7 +27,7 @@ namespace rabit {
  */
 namespace io {
 /*! \brief reused SeekStream's definition */
-#if RABIT_USE_WORMHOLE
+#if RABIT_USE_DMLC
 typedef dmlc::SeekStream SeekStream;
 typedef dmlc::InputSplit InputSplit;
 #else

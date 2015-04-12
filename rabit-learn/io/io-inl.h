@@ -10,7 +10,7 @@
 
 #include "./io.h"
 
-#if RABIT_USE_WORMHOLE == 0
+#if RABIT_USE_DMLC == 0
 #if RABIT_USE_HDFS
 #include "./hdfs-inl.h"
 #endif
@@ -28,7 +28,7 @@ namespace io {
 inline InputSplit *CreateInputSplit(const char *uri,
                                     unsigned part,
                                     unsigned nsplit) {
-#if RABIT_USE_WORMHOLE
+#if RABIT_USE_DMLC
   return dmlc::InputSplit::Create(uri, part, nsplit);
 #else
   using namespace std;
@@ -76,7 +76,7 @@ class StreamAdapter : public Stream {
  * \param mode can be 'w' or 'r' for read or write
  */
 inline Stream *CreateStream(const char *uri, const char *mode) {
-#if RABIT_USE_WORMHOLE
+#if RABIT_USE_DMLC
   return new StreamAdapter<dmlc::Stream>(dmlc::Stream::Create(uri, mode));
 #else
   using namespace std;
