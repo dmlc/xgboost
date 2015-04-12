@@ -150,6 +150,10 @@ class ostream : public std::basic_ostream<char> {
       : basic_ostream<char>(NULL), buf_(buffer_size) {
     this->set_stream(stream);
   }
+  // explictly synchronize the buffer
+  virtual ~ostream() {
+    buf_.pubsync();
+  }
   /*!
    * \brief set internal stream to be stream, reset states
    * \param stream new stream as output
@@ -209,6 +213,7 @@ class istream : public std::basic_istream<char> {
       : basic_istream<char>(NULL), buf_(buffer_size) {
     this->set_stream(stream);
   }
+  virtual ~istream() {}
   /*!
    * \brief set internal stream to be stream, reset states
    * \param stream new stream as output
@@ -281,6 +286,7 @@ inline bool Stream::Read(std::string *out_str) {
 
 // implementations for ostream
 inline void ostream::OutBuf::set_stream(Stream *stream) {
+  if (stream_ != NULL) this->pubsync();
   this->stream_ = stream;
   this->setp(&buffer_[0], &buffer_[0] + buffer_.size() - 1);
 }
