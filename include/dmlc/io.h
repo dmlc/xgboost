@@ -106,11 +106,14 @@ class Serializable {
 class InputSplit {
  public:
   /*!
-   * \brief read next line, store into out_data
+   * \brief read next record, store into out_data
+   *   the data in outcomming record depends on the input data format
+   *   if input is text data, each line is returned as a record (\n not included)
+   *   if input is recordio, each record is returned
    * \param out_data the string that stores the line data, \n is not included
    * \return true of next line was found, false if we read all the lines
    */
-  virtual bool ReadLine(std::string *out_data) = 0;
+  virtual bool ReadRecord(std::string *out_data) = 0;
   /*! \brief destructor*/
   virtual ~InputSplit(void) {}  
   /*!
