@@ -94,7 +94,7 @@ class DMatrixSimple : public DataMatrix {
         dmlc::InputSplit::Create(uri, rank, npart);
     this->Clear();
     std::string line;
-    while (in->ReadLine(&line)) {
+    while (in->ReadRecord(&line)) {
       float label;
       std::istringstream ss(line);
       std::vector<RowBatch::Entry> feats;
