@@ -5,7 +5,8 @@ rabit is a light weight library that provides a fault tolerant interface of Allr
 * [Tutorial](guide)
 * [API Documentation](http://homes.cs.washington.edu/~tqchen/rabit/doc)
 * You can also directly read the [interface header](include/rabit.h)
-* [Machine Learning Tools](rabit-learn)
+* [Distributed Machine Learning Tools](https://github.com/dmlc/wormhole)
+  - Rabit is one of the backbone library to support wormhole machine learning tools
 
 Features
 ====
@@ -33,5 +34,4 @@ Contributing
 Rabit is an open-source library, contributions are welcomed, including:
 * The rabit core library.
 * Customized tracker script for new platforms and interface of new languages.
-* Toolkits, benchmarks, resource (links to related repos).
 * Tutorial and examples about the library.
