@@ -91,12 +91,12 @@ class Serializable {
   * \brief load the model from a stream
   * \param fi stream where to load the model from
   */
-  virtual void Load(Stream &fi) = 0;
+  virtual void Load(Stream *fi) = 0;
   /*! 
   * \brief saves the model to a stream
   * \param fo stream where to save the model to
   */
-  virtual void Save(Stream &fo) const = 0;
+  virtual void Save(Stream *fo) const = 0;
 };
 
 /*!
