@@ -313,7 +313,11 @@ However, in Random Forests™ this random choice will be done for each tree, bec
 
 In boosting, when a specific link between feature and outcome have been learned by the algorithm, it will try to not refocus on it (in theory it is what happens, reality is not always that simple). Therefore, all the importance will be on feature `A` or on feature `B` (but not both). You will know that one feature have an important role in the link between the observations and the label. It is still up to you to search for the correlated features to the one detected as important if you need to know all of them.
 
-If you want to try Random Forests™ algorithm, you can tweak Xgboost parameters! For instance, to compute a model with 1000 trees, with a 0.5 factor on sampling rows and columns:
+If you want to try Random Forests™ algorithm, you can tweak Xgboost parameters! 
+
+**Warning**: this is still an experimental parameter.
+
+For instance, to compute a model with 1000 trees, with a 0.5 factor on sampling rows and columns:
 
 ```{r, warning=FALSE, message=FALSE}
 data(agaricus.train, package='xgboost')
@@ -327,5 +331,7 @@ bst <- xgboost(data = train$data, label = train$label, max.depth = 4, num_parall
 #Boosting - 3 rounds
 bst <- xgboost(data = train$data, label = train$label, max.depth = 4, nround = 3, objective = "binary:logistic")
 ```
+
+> Note that the parameter `round` is set to `1`.
 
 > [**Random Forests™**](https://www.stat.berkeley.edu/~breiman/RandomForests/cc_papers.htm) is a trademark of Leo Breiman and Adele Cutler and is licensed exclusively to Salford Systems for the commercial release of the software.
