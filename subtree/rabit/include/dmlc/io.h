@@ -150,7 +150,7 @@ class ostream : public std::basic_ostream<char> {
    */
   explicit ostream(Stream *stream,
                    size_t buffer_size = 1 << 10)
-      : basic_ostream<char>(NULL), buf_(buffer_size) {
+      : std::basic_ostream<char>(NULL), buf_(buffer_size) {
     this->set_stream(stream);
   }
   // explictly synchronize the buffer
@@ -213,7 +213,7 @@ class istream : public std::basic_istream<char> {
    */
   explicit istream(Stream *stream,
                    size_t buffer_size = 1 << 10)                   
-      : basic_istream<char>(NULL), buf_(buffer_size) {
+      : std::basic_istream<char>(NULL), buf_(buffer_size) {
     this->set_stream(stream);
   }
   virtual ~istream() {}
