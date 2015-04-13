@@ -5,24 +5,26 @@ It implements machine learning algorithm under gradient boosting framework, incl
 
 Contributors: https://github.com/dmlc/xgboost/graphs/contributors
 
-Turorial and Documentation: https://github.com/dmlc/xgboost/wiki
-
 Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
 Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask questions and share your experience on xgboost.
 
 Examples Code: [Learning to use xgboost by examples](demo)
 
-Video tutorial: [Better Optimization with Repeated Cross Validation and the XGBoost model - Machine Learning with R](https://www.youtube.com/watch?v=Og7CGAfSr_Y)
-
 Distributed Version: [Distributed XGBoost](multi-node)
 
 Notes on the Code: [Code Guide](src)
+
+Turorial and Documentation: https://github.com/dmlc/xgboost/wiki
+
+Video tutorial: [Better Optimization with Repeated Cross Validation and the XGBoost model - Machine Learning with R](https://www.youtube.com/watch?v=Og7CGAfSr_Y)
 
 Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
 * This slide is made by Tianqi Chen to introduce gradient boosting in a statistical view.
 * It present boosted tree learning as formal functional space optimization of defined objective.
 * The model presented is used by xgboost for boosted trees
+
+Presention of a real use case of XGBoost to prepare tax audit in France: [Feature Importance Analysis with XGBoost in Tax audit](http://fr.slideshare.net/MichaelBENESTY/feature-importance-analysis-with-xgboost-in-tax-audit)
 
 What's New
 ==========
