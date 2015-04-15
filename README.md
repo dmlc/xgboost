@@ -5,30 +5,29 @@ It implements machine learning algorithm under gradient boosting framework, incl
 
 Contributors: https://github.com/dmlc/xgboost/graphs/contributors
 
-Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion)
+Turorial and Documentation: https://github.com/dmlc/xgboost/wiki
 
-Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask questions and share your experience on xgboost.
+Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion) for bugreport and other issues
+
+Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask usage questions and share your experience on xgboost.
 
 Examples Code: [Learning to use xgboost by examples](demo)
+
+Video tutorial: [Better Optimization with Repeated Cross Validation and the XGBoost model - Machine Learning with R](https://www.youtube.com/watch?v=Og7CGAfSr_Y)
 
 Distributed Version: [Distributed XGBoost](multi-node)
 
 Notes on the Code: [Code Guide](src)
-
-Turorial and Documentation: https://github.com/dmlc/xgboost/wiki
-
-Video tutorial: [Better Optimization with Repeated Cross Validation and the XGBoost model - Machine Learning with R](https://www.youtube.com/watch?v=Og7CGAfSr_Y)
 
 Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
 * This slide is made by Tianqi Chen to introduce gradient boosting in a statistical view.
 * It present boosted tree learning as formal functional space optimization of defined objective.
 * The model presented is used by xgboost for boosted trees
 
-Presention of a real use case of XGBoost to prepare tax audit in France: [Feature Importance Analysis with XGBoost in Tax audit](http://fr.slideshare.net/MichaelBENESTY/feature-importance-analysis-with-xgboost-in-tax-audit)
-
 What's New
 ==========
-* [Distributed XGBoost now runs on YARN](multi-node/hadoop)!
+* XGBoost now support HDFS and S3
+* [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/tree/master/learn/xgboost)!
 * [xgboost user group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
 * [Distributed XGBoost](multi-node) is now available!!
 * New features in the lastest changes :)
@@ -37,8 +36,6 @@ What's New
   - Predict leaf index, see [demo/guide-python/predict_leaf_indices.py](demo/guide-python/predict_leaf_indices.py)  
 * XGBoost wins [Tradeshift Text Classification](https://kaggle2.blob.core.windows.net/forum-message-attachments/60041/1813/TradeshiftTextClassification.pdf?sv=2012-02-12&se=2015-01-02T13%3A55%3A16Z&sr=b&sp=r&sig=5MHvyjCLESLexYcvbSRFumGQXCS7MVmfdBIY3y01tMk%3D)
 * XGBoost wins [HEP meets ML Award in Higgs Boson Challenge](http://atlas.ch/news/2014/machine-learning-wins-the-higgs-challenge.html)
-* Thanks to Bing Xu, [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl) allows you to use xgboost from Julia
-* Thanks to Tong He, the new [R package](R-package) is available
 
 Features
 ========
@@ -76,6 +73,28 @@ Build
   export CXX = g++-4.9
   ```
   Then run ```bash build.sh``` normally.
+  
+  - For users who want to use [High Performance Computing for Mac OS X](http://hpc.sourceforge.net/), download the GCC 4.9 binary tar ball and follow the installation guidance to install them under `/usr/local`. Then edit [Makefile](Makefile/) by replacing:
+  ```
+  export CC  = gcc
+  export CXX = g++
+  ```
+  with
+  ```
+  export CC  = /usr/local/bin/gcc
+  export CXX = /usr/local/bin/g++
+  ```
+  Then run ```bash build.sh``` normally. This solution is given by [Phil Culliton](https://www.kaggle.com/c/otto-group-product-classification-challenge/forums/t/12947/achieve-0-50776-on-the-leaderboard-in-a-minute-with-xgboost/68308#post68308).
+
+Build with HDFS and S3 Support
+=====
+* To build xgboost use with HDFS/S3 support and distributed learnig. It is recommended to build with dmlc, with the following steps
+  - ```git clone https://github.com/dmlc/dmlc-core```
+  - Follow instruction in dmlc-core/make/config.mk to compile libdmlc.a
+  - In root folder of xgboost, type ```make dmlc=dmlc-core```
+* This will allow xgboost to directly load data and save model from/to hdfs and s3
+  - Simply replace the filename with prefix s3:// or hdfs://
+* This xgboost that can be used for distributed learning
 
 Version
 =======
