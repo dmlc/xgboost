@@ -47,6 +47,7 @@ Debug
 .Rproj.user
 *.cpage.col
 *.cpage
+*.Rproj
 xgboost
 xgboost.mpi
 xgboost.mock
