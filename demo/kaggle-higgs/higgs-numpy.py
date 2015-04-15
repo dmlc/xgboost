@@ -1,14 +1,6 @@
 #!/usr/bin/python
-# this is the example script to use xgboost to train 
-import inspect
-import os
-import sys
+# this is the example script to use xgboost to train
 import numpy as np
-# add path of xgboost python module
-code_path = os.path.join(
-    os.path.split(inspect.getfile(inspect.currentframe()))[0], "../../wrapper")
-
-sys.path.append(code_path)
 
 import xgboost as xgb
 
@@ -29,7 +21,7 @@ weight = dtrain[:,31] * float(test_size) / len(label)
 sum_wpos = sum( weight[i] for i in range(len(label)) if label[i] == 1.0  )
 sum_wneg = sum( weight[i] for i in range(len(label)) if label[i] == 0.0  )
 
-# print weight statistics 
+# print weight statistics
 print ('weight statistics: wpos=%g, wneg=%g, ratio=%g' % ( sum_wpos, sum_wneg, sum_wneg/sum_wpos ))
 
 # construct xgboost.DMatrix from numpy array, treat -999.0 as missing value
@@ -42,13 +34,13 @@ param = {}
 param['objective'] = 'binary:logitraw'
 # scale weight of positive examples
 param['scale_pos_weight'] = sum_wneg/sum_wpos
-param['eta'] = 0.1 
+param['eta'] = 0.1
 param['max_depth'] = 6
 param['eval_metric'] = 'auc'
 param['silent'] = 1
 param['nthread'] = 16
 
-# you can directly throw param in, though we want to watch multiple metrics here 
+# you can directly throw param in, though we want to watch multiple metrics here
 plst = list(param.items())+[('eval_metric', 'ams@0.15')]
 
 watchlist = [ (xgmat,'train') ]

@@ -206,6 +206,10 @@ class GBTree : public IGradBooster {
     for (size_t i = 0; i < trees.size(); ++i) {
       delete trees[i];
     }
+    for (size_t i = 0; i < updaters.size(); ++i) {
+      delete updaters[i];
+    }
+    updaters.clear();
     trees.clear();
     pred_buffer.clear();
     pred_counter.clear();
@@ -444,12 +448,12 @@ class GBTree : public IGradBooster {
     int reserved[31];
     /*! \brief constructor */
     ModelParam(void) {
+      std::memset(this, 0, sizeof(ModelParam));
       num_trees = 0;
       num_roots = num_feature = 0;
       num_pbuffer = 0;
       num_output_group = 1;
       size_leaf_vector = 0;
-      std::memset(reserved, 0, sizeof(reserved));
     }
     /*!
      * \brief set parameters from outside

@@ -14,12 +14,10 @@
 namespace xgboost {
 namespace utils {
 // reuse the definitions of streams
-typedef rabit::IStream IStream;
-typedef rabit::utils::ISeekStream ISeekStream;
+typedef rabit::Stream IStream;
+typedef rabit::utils::SeekStream ISeekStream;
 typedef rabit::utils::MemoryFixSizeBuffer MemoryFixSizeBuffer;
 typedef rabit::utils::MemoryBufferStream MemoryBufferStream;
-typedef rabit::io::Base64InStream Base64InStream;
-typedef rabit::io::Base64OutStream Base64OutStream;
 
 /*! \brief implementation of file i/o stream */
 class FileStream : public ISeekStream {
@@ -54,4 +52,6 @@ class FileStream : public ISeekStream {
 };
 }  // namespace utils
 }  // namespace xgboost
+
+#include "./base64-inl.h"
 #endif

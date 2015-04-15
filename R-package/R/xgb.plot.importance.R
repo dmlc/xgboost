@@ -2,17 +2,6 @@
 #' 
 #' Read a data.table containing feature importance details and plot it.
 #' 
-#' @importFrom ggplot2 ggplot
-#' @importFrom ggplot2 aes
-#' @importFrom ggplot2 geom_bar
-#' @importFrom ggplot2 coord_flip
-#' @importFrom ggplot2 xlab
-#' @importFrom ggplot2 ylab
-#' @importFrom ggplot2 ggtitle
-#' @importFrom ggplot2 theme
-#' @importFrom ggplot2 element_text
-#' @importFrom ggplot2 element_blank
-#' @importFrom Ckmeans.1d.dp Ckmeans.1d.dp
 #' @importFrom magrittr %>%
 #' @param importance_matrix a \code{data.table} returned by the \code{xgb.importance} function.
 #' @param numberOfClusters a \code{numeric} vector containing the min and the max range of the possible number of clusters of bars.
@@ -44,11 +33,17 @@ xgb.plot.importance <- function(importance_matrix = NULL, numberOfClusters = c(1
   if (!"data.table" %in% class(importance_matrix))  {     
     stop("importance_matrix: Should be a data.table.")
   }
-    
+  if (!require(ggplot2, quietly = TRUE)) {
+    stop("ggplot2 package is required for plotting the importance", call. = FALSE)
+  }
+  if (!requireNamespace("Ckmeans.1d.dp", quietly = TRUE)) {
+    stop("Ckmeans.1d.dp package is required for plotting the importance", call. = FALSE)
+  }
+
   # To avoid issues in clustering when co-occurences are used
   importance_matrix <- importance_matrix[, .(Gain = sum(Gain)), by = Feature]
   
-  clusters <- suppressWarnings(Ckmeans.1d.dp(importance_matrix[,Gain], numberOfClusters))
+  clusters <- suppressWarnings(Ckmeans.1d.dp::Ckmeans.1d.dp(importance_matrix[,Gain], numberOfClusters))
   importance_matrix[,"Cluster":=clusters$cluster %>% as.character]
     
   plot <- ggplot(importance_matrix, aes(x=reorder(Feature, Gain), y = Gain, width= 0.05), environment = environment())+  geom_bar(aes(fill=Cluster), stat="identity", position="identity") + coord_flip() + xlab("Features") + ylab("Gain") + ggtitle("Feature importance") + theme(plot.title = element_text(lineheight=.9, face="bold"), panel.grid.major.y = element_blank() )

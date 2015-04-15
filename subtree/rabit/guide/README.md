@@ -151,7 +151,7 @@ This section trys to gives examples of different aspectes of rabit API.
 
 #### Structure of a Rabit Program
 The following code illustrates the common structure of a rabit program. This is an abstract example,
-you can also refer to [kmeans.cc](../rabit-learn/kmeans/kmeans.cc) for an example implementation of kmeans algorithm.
+you can also refer to [wormhole](https://github.com/dmlc/wormhole/blob/master/learn/kmeans/kmeans.cc) for an example implementation of kmeans algorithm.
 
 ```c++
 #include <rabit.h>

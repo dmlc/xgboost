@@ -15,6 +15,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
@@ -36,6 +37,7 @@ import org.apache.hadoop.yarn.api.records.NodeReport;
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest;
 import org.apache.hadoop.yarn.client.api.async.NMClientAsync;
 import org.apache.hadoop.yarn.client.api.async.AMRMClientAsync;
+import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 
 /**
@@ -66,6 +68,10 @@ public class ApplicationMaster {
 
     // username
     private String userName = "";
+    // user credentials
+    private Credentials credentials = null;
+    // security tokens
+    private ByteBuffer securityTokens = null;
     // application tracker hostname
     private String appHostName = "";
     // tracker URL to do
@@ -99,8 +105,12 @@ public class ApplicationMaster {
 
     private ApplicationMaster() throws IOException {
         dfs = FileSystem.get(conf);
+        userName = UserGroupInformation.getCurrentUser().getShortUserName();
+        credentials = UserGroupInformation.getCurrentUser().getCredentials();
+        DataOutputBuffer buffer = new DataOutputBuffer();
+        this.credentials.writeTokenStorageToStream(buffer);
+        this.securityTokens = ByteBuffer.wrap(buffer.getData());
     }
-
     /**
      * get integer argument from environment variable
      * 
@@ -132,7 +142,7 @@ public class ApplicationMaster {
      * @param args
      */
     private void initArgs(String args[]) throws IOException {
-        LOG.info("Invoke initArgs");
+        LOG.info("Start AM as user=" + this.userName);
         // get user name
         userName = UserGroupInformation.getCurrentUser().getShortUserName();
         // cached maps
@@ -183,7 +193,7 @@ public class ApplicationMaster {
         RegisterApplicationMasterResponse response = this.rmClient
                 .registerApplicationMaster(this.appHostName,
                         this.appTrackerPort, this.appTrackerUrl);
-
+      
         boolean success = false;
         String diagnostics = "";
         try {
@@ -274,13 +284,6 @@ public class ApplicationMaster {
         task.containerRequest = null;
         ContainerLaunchContext ctx = Records
                 .newRecord(ContainerLaunchContext.class);
-        String hadoop = "hadoop";
-        if (System.getenv("HADOOP_HOME") != null) {
-            hadoop = "${HADOOP_HOME}/bin/hadoop";
-        } else if (System.getenv("HADOOP_PREFIX") != null) {
-            hadoop = "${HADOOP_PREFIX}/bin/hadoop";
-        }
-
         String cmd =
         // use this to setup CLASSPATH correctly for libhdfs
              this.command + " 1>"
@@ -288,6 +291,7 @@ public class ApplicationMaster {
             + " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR
             + "/stderr";
         ctx.setCommands(Collections.singletonList(cmd));
+        ctx.setTokens(this.securityTokens);
         LOG.info(workerResources);
         ctx.setLocalResources(this.workerResources);
         // setup environment variables

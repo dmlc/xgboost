@@ -36,8 +36,8 @@ xgb.setinfo <- function(dmat, name, info) {
     return(TRUE)
   }
   if (name == "group") {
-    if (length(info)!=xgb.numrow(dmat))
-      stop("The length of groups must equal to the number of rows in the input data")
+    if (sum(info)!=xgb.numrow(dmat))
+      stop("The sum of groups must equal to the number of rows in the input data")
     .Call("XGDMatrixSetInfo_R", dmat, name, as.integer(info), 
           PACKAGE = "xgboost")
     return(TRUE)
@@ -77,9 +77,9 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
 }
 
 # convert xgb.Booster.handle to xgb.Booster
-xgb.handleToBooster <- function(handle)
+xgb.handleToBooster <- function(handle, raw = NULL)
 {
-  bst <- list(handle = handle, raw = NULL)
+  bst <- list(handle = handle, raw = raw)
   class(bst) <- "xgb.Booster"
   return(bst)
 }
@@ -87,8 +87,12 @@ xgb.handleToBooster <- function(handle)
 # Check whether an xgb.Booster object is complete
 xgb.Booster.check <- function(bst, saveraw = TRUE)
 {
-  if (is.null(bst$handle)) {
-    bst$handle <- xgb.load(bst$raw)
+  isnull <- is.null(bst$handle)
+  if (!isnull) {
+    isnull <- .Call("XGCheckNullPtr_R", bst$handle, PACKAGE="xgboost")
+  }
+  if (isnull) {
+    bst$handle <- xgb.Booster(modelfile = bst$raw)
   } else {
     if (is.null(bst$raw) && saveraw)
       bst$raw <- xgb.save.raw(bst$handle)

@@ -192,8 +192,10 @@ class FMatrixS : public IFMatrix{
     bst_omp_uint ncol = static_cast<bst_omp_uint>(this->NumCol());
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < ncol; ++i) {
-      std::sort(&col_data_[0] + col_ptr_[i],
-                &col_data_[0] + col_ptr_[i + 1], Entry::CmpValue);
+      if (col_ptr_[i] < col_ptr_[i + 1]) {
+        std::sort(BeginPtr(col_data_) + col_ptr_[i],
+                  BeginPtr(col_data_) + col_ptr_[i + 1], Entry::CmpValue);
+      }
     }
   }
 

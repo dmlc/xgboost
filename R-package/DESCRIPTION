@@ -18,7 +18,12 @@ License: Apache License (== 2.0) | file LICENSE
 URL: https://github.com/dmlc/xgboost
 BugReports: https://github.com/dmlc/xgboost/issues
 VignetteBuilder: knitr
-Suggests: knitr
+Suggests:
+    knitr,
+    ggplot2 (>= 1.0.0),
+    DiagrammeR (>= 0.4),
+    Ckmeans.1d.dp (>= 3.3.1),
+    vcd (>= 1.3)
 Depends:
     R (>= 2.10)
 Imports:
@@ -26,8 +31,4 @@ Imports:
     methods,
     data.table (>= 1.9.4),
     magrittr (>= 1.5),
-    stringr (>= 0.6.2),
-    DiagrammeR (>= 0.4),
-    ggplot2 (>= 1.0.0),
-    Ckmeans.1d.dp (>= 3.3.1),
-    vcd (>= 1.3)
+    stringr (>= 0.6.2)

@@ -23,7 +23,7 @@ namespace learner {
  * \brief learner that takes do gradient boosting on specific objective functions
  *  and do training and prediction
  */
-class BoostLearner : public rabit::ISerializable {
+class BoostLearner : public rabit::Serializable {
  public:
   BoostLearner(void) {
     obj_ = NULL;
@@ -163,34 +163,51 @@ class BoostLearner : public rabit::ISerializable {
                         bool calc_num_feature = true) {
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "BoostLearner: wrong model format");
-    utils::Check(fi.Read(&name_obj_), "BoostLearner: wrong model format");
+    {
+      // backward compatibility code for compatible with old model type
+      // for new model, Read(&name_obj_) is suffice      
+      size_t len;
+      utils::Check(fi.Read(&len, sizeof(len)) != 0, "BoostLearner: wrong model format");
+      if (len >= std::numeric_limits<unsigned>::max()) {
+        int gap;
+        utils::Check(fi.Read(&gap, sizeof(gap)) != 0, "BoostLearner: wrong model format");
+        len = len >> 32UL;
+      }
+      if (len != 0) {
+        name_obj_.resize(len);
+        utils::Check(fi.Read(&name_obj_[0], len) != 0, "BoostLearner: wrong model format");
+      }
+    }
     utils::Check(fi.Read(&name_gbm_), "BoostLearner: wrong model format");
     // delete existing gbm if any
     if (obj_ != NULL) delete obj_;
     if (gbm_ != NULL) delete gbm_;
     this->InitTrainer(calc_num_feature);
     this->InitObjGBM();
+    char tmp[32];
+    utils::SPrintf(tmp, sizeof(tmp), "%u", mparam.num_class);
+    obj_->SetParam("num_class", tmp);
     gbm_->LoadModel(fi, with_pbuffer);
     if (!with_pbuffer || distributed_mode == 2) {
       gbm_->ResetPredBuffer(pred_buffer_size);
     }
   }
   // rabit load model from rabit checkpoint
-  virtual void Load(rabit::IStream &fi) {
+  virtual void Load(rabit::Stream *fi) {
     // for row split, we should not keep pbuffer
-    this->LoadModel(fi, distributed_mode != 2, false);
+    this->LoadModel(*fi, distributed_mode != 2, false);
   }
   // rabit save model to rabit checkpoint
-  virtual void Save(rabit::IStream &fo) const {
+  virtual void Save(rabit::Stream *fo) const {
     // for row split, we should not keep pbuffer
-    this->SaveModel(fo, distributed_mode != 2);
+    this->SaveModel(*fo, distributed_mode != 2);
   }
   /*!
    * \brief load model from file
    * \param fname file name
    */
   inline void LoadModel(const char *fname) {
-    utils::IStream *fi = rabit::io::CreateStream(fname, "r");
+    utils::IStream *fi = utils::IStream::Create(fname, "r");
     std::string header; header.resize(4);
     // check header for different binary encode
     // can be base64 or binary
@@ -204,7 +221,7 @@ class BoostLearner : public rabit::ISerializable {
       this->LoadModel(*fi);
     } else {
       delete fi;
-      fi = rabit::io::CreateStream(fname, "r");
+      fi = utils::IStream::Create(fname, "r");
       this->LoadModel(*fi);
     }
     delete fi;   
@@ -221,7 +238,7 @@ class BoostLearner : public rabit::ISerializable {
    * \param save_base64 whether save in base64 format
    */
   inline void SaveModel(const char *fname, bool save_base64 = false) const {
-    utils::IStream *fo = rabit::io::CreateStream(fname, "w");
+    utils::IStream *fo = utils::IStream::Create(fname, "w");
     if (save_base64 != 0 || !strcmp(fname, "stdout")) {
       fo->Write("bs64\t", 5);
       utils::Base64OutStream bout(fo);

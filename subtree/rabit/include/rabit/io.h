@@ -16,21 +16,10 @@
 
 namespace rabit {
 namespace utils {
-/*! \brief interface of i/o stream that support seek */
-class ISeekStream: public IStream {
- public:
-  // virtual destructor
-  virtual ~ISeekStream(void) {}
-  /*! \brief seek to certain position of the file */
-  virtual void Seek(size_t pos) = 0;
-  /*! \brief tell the position of the stream */
-  virtual size_t Tell(void) = 0;
-  /*! \return whether we are at end of file */
-  virtual bool AtEnd(void) const = 0;
-};
-
+/*! \brief re-use definition of dmlc::SeekStream */
+typedef dmlc::SeekStream SeekStream;
 /*! \brief fixed size memory buffer */
-struct MemoryFixSizeBuffer : public ISeekStream {
+struct MemoryFixSizeBuffer : public SeekStream {
  public:
   MemoryFixSizeBuffer(void *p_buffer, size_t buffer_size)
       : p_buffer_(reinterpret_cast<char*>(p_buffer)),
@@ -72,7 +61,7 @@ struct MemoryFixSizeBuffer : public ISeekStream {
 };  // class MemoryFixSizeBuffer
 
 /*! \brief a in memory buffer that can be read and write as stream interface */
-struct MemoryBufferStream : public ISeekStream {
+struct MemoryBufferStream : public SeekStream {
  public:
   explicit MemoryBufferStream(std::string *p_buffer)
       : p_buffer_(p_buffer) {

@@ -83,7 +83,15 @@ struct EvalLogLoss : public EvalEWiseBase<EvalLogLoss> {
     return "logloss";
   }
   inline static float EvalRow(float y, float py) {
-    return - y * std::log(py) - (1.0f - y) * std::log(1 - py);
+    const float eps = 1e-16f;
+    const float pneg = 1.0f - py;
+    if (py < eps) {
+      return -y * std::log(eps) - (1.0f - y)  * std::log(1.0f - eps); 
+    } else if (pneg < eps) {
+      return -y * std::log(1.0f - eps) - (1.0f - y)  * std::log(eps); 
+    } else {
+      return -y * std::log(py) - (1.0f - y) * std::log(pneg);
+    }
   }
 };
 
@@ -111,17 +119,29 @@ struct EvalMClassBase : public IEvaluator {
     utils::Check(preds.size() % info.labels.size() == 0,
                  "label and prediction size not match");
     const size_t nclass = preds.size() / info.labels.size();
+    utils::Check(nclass > 1,
+                 "mlogloss and merror are only used for multi-class classification,"\
+                 " use logloss for binary classification");
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
-    
     float sum = 0.0, wsum = 0.0;
+    int label_error = 0;
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
-    for (bst_omp_uint i = 0; i < ndata; ++i) {
+    for (bst_omp_uint i = 0; i < ndata; ++i) {      
       const float wt = info.GetWeight(i);
-      sum += Derived::EvalRow(info.labels[i],
-                              BeginPtr(preds) + i * nclass,
-                              nclass) * wt;
-      wsum += wt;
+      int label =  static_cast<int>(info.labels[i]);
+      if (label >= 0 && label < static_cast<int>(nclass)) {
+        sum += Derived::EvalRow(info.labels[i],
+                                BeginPtr(preds) + i * nclass,
+                                nclass) * wt;
+        wsum += wt;
+      } else {
+        label_error = label;
+      }
     }
+    utils::Check(label_error >= 0 && label_error < static_cast<int>(nclass),
+                 "MultiClassEvaluation: label must be in [0, num_class)," \
+                 " num_class=%d but found %d in label",
+                 static_cast<int>(nclass), label_error);
     float dat[2]; dat[0] = sum, dat[1] = wsum;
     if (distributed) {
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
@@ -135,7 +155,7 @@ struct EvalMClassBase : public IEvaluator {
    * \param pred prediction value of current instance 
    * \param nclass number of class in the prediction
    */
-  inline static float EvalRow(float label,
+  inline static float EvalRow(int label,
                               const float *pred,
                               size_t nclass);
   /*! 
@@ -146,13 +166,15 @@ struct EvalMClassBase : public IEvaluator {
   inline static float GetFinal(float esum, float wsum) {
     return esum / wsum;
   }
+  // used to store error message
+  const char *error_msg_;
 };
 /*! \brief match error */
 struct EvalMatchError : public EvalMClassBase<EvalMatchError> {
   virtual const char *Name(void) const {
     return "merror";
   }
-  inline static float EvalRow(float label,
+  inline static float EvalRow(int label,
                               const float *pred,
                               size_t nclass) {
     return FindMaxIndex(pred, nclass) != static_cast<int>(label);
@@ -163,12 +185,11 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
   virtual const char *Name(void) const {
     return "mlogloss";
   }
-  inline static float EvalRow(float label,
+  inline static float EvalRow(int label,
                               const float *pred,
                               size_t nclass) {
     const float eps = 1e-16f;
     size_t k = static_cast<size_t>(label);
-    utils::Check(k < nclass, "mlogloss: label must be in [0, num_class)");
     if (pred[k] > eps) {
       return -std::log(pred[k]);
     } else {

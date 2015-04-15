@@ -1,5 +1,5 @@
-#ifndef RABIT_LEARN_IO_BASE64_INL_H_
-#define RABIT_LEARN_IO_BASE64_INL_H_
+#ifndef XGBOOST_UTILS_BASE64_INL_H_
+#define XGBOOST_UTILS_BASE64_INL_H_
 /*!
  * \file base64.h
  * \brief data stream support to input and output from/to base64 stream
@@ -9,10 +9,54 @@
 #include <cctype>
 #include <cstdio>
 #include "./io.h"
-#include "./buffer_reader-inl.h"
 
-namespace rabit {
-namespace io {
+namespace xgboost {
+namespace utils {
+/*! \brief buffer reader of the stream that allows you to get */
+class StreamBufferReader {
+ public:
+  StreamBufferReader(size_t buffer_size)
+      :stream_(NULL),
+       read_len_(1), read_ptr_(1) {
+    buffer_.resize(buffer_size);
+  }
+  /*!
+   * \brief set input stream
+   */
+  inline void set_stream(IStream *stream) {
+    stream_ = stream;
+    read_len_ = read_ptr_ = 1;
+  }
+  /*!
+   * \brief allows quick read using get char
+   */
+  inline char GetChar(void) {
+    while (true) {
+      if (read_ptr_ < read_len_) {
+        return buffer_[read_ptr_++];
+      } else {
+        read_len_ = stream_->Read(&buffer_[0], buffer_.length());
+        if (read_len_ == 0) return EOF;
+        read_ptr_ = 0;
+      }
+    }
+  }
+  /*! \brief whether we are reaching the end of file */
+  inline bool AtEnd(void) const {
+    return read_len_ == 0;
+  }
+  
+ private:
+  /*! \brief the underlying stream */
+  IStream *stream_;
+  /*! \brief buffer to hold data */
+  std::string buffer_;
+  /*! \brief length of valid data in buffer */
+  size_t read_len_;
+  /*! \brief pointer in the buffer */
+  size_t read_ptr_;
+};
+
 /*! \brief namespace of base64 decoding and encoding table */
 namespace base64 {
 const char DecodeTable[] = {
@@ -209,8 +253,10 @@ class Base64OutStream: public IStream {
     if (out_buf.length() >= kBufferSize) Flush();
   }
   inline void Flush(void) {
-    fp->Write(BeginPtr(out_buf), out_buf.length());
-    out_buf.clear();
+    if (out_buf.length() != 0) {
+      fp->Write(&out_buf[0], out_buf.length());
+      out_buf.clear();
+    }
   }
 };
 }  // namespace utils

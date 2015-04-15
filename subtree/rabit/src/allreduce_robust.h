@@ -80,8 +80,8 @@ class AllreduceRobust : public AllreduceBase {
    *
    * \sa CheckPoint, VersionNumber
    */
-  virtual int LoadCheckPoint(ISerializable *global_model,
-                             ISerializable *local_model = NULL);
+  virtual int LoadCheckPoint(Serializable *global_model,
+                             Serializable *local_model = NULL);
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
    *  every time we call check point, there is a version number which will increase by one
@@ -98,8 +98,8 @@ class AllreduceRobust : public AllreduceBase {
    *
    * \sa LoadCheckPoint, VersionNumber
    */
-  virtual void CheckPoint(const ISerializable *global_model,
-                          const ISerializable *local_model = NULL) {
+  virtual void CheckPoint(const Serializable *global_model,
+                          const Serializable *local_model = NULL) {
     this->CheckPoint_(global_model, local_model, false);
   }
   /*!
@@ -122,7 +122,7 @@ class AllreduceRobust : public AllreduceBase {
    *   is the same in all nodes
    * \sa LoadCheckPoint, CheckPoint, VersionNumber
    */
-  virtual void LazyCheckPoint(const ISerializable *global_model) {
+  virtual void LazyCheckPoint(const Serializable *global_model) {
     this->CheckPoint_(global_model, NULL, true);
   }
   /*!
@@ -318,8 +318,8 @@ class AllreduceRobust : public AllreduceBase {
    *
    * \sa CheckPoint, LazyCheckPoint
    */
-  void CheckPoint_(const ISerializable *global_model,
-                   const ISerializable *local_model,
+  void CheckPoint_(const Serializable *global_model,
+                   const Serializable *local_model,
                    bool lazy_checkpt);
   /*!
    * \brief reset the all the existing links by sending Out-of-Band message marker
@@ -521,7 +521,7 @@ o   *  the input state must exactly one saved state(local state of current node)
   // last check point global model
   std::string global_checkpoint;
   // lazy checkpoint of global model
-  const ISerializable *global_lazycheck;
+  const Serializable *global_lazycheck;
   // number of replica for local state/model
   int num_local_replica;
   // number of default local replica

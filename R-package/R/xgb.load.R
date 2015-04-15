@@ -21,7 +21,12 @@ xgb.load <- function(modelfile) {
     stop("xgb.load: modelfile cannot be NULL")
   
   handle <- xgb.Booster(modelfile = modelfile)
-  bst <- xgb.handleToBooster(handle)
+  # re-use modelfile if it is raw so we donot need to serialize
+  if (typeof(modelfile) == "raw") {
+    bst <- xgb.handleToBooster(handle, modelfile)
+  } else {
+    bst <- xgb.handleToBooster(handle, NULL)
+  }
   bst <- xgb.Booster.check(bst)
   return(bst)
 } 

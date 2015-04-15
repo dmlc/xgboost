@@ -1,7 +1,10 @@
+# coding: utf-8
+
 """
 xgboost: eXtreme Gradient Boosting library
 
 Authors: Tianqi Chen, Bing Xu
+Early stopping by Zygmunt Zając
 """
 
 from __future__ import absolute_import
@@ -13,6 +16,15 @@ import collections
 
 import numpy as np
 import scipy.sparse
+
+try:
+    from sklearn.base import BaseEstimator
+    from sklearn.base import RegressorMixin, ClassifierMixin
+    from sklearn.preprocessing import LabelEncoder
+    SKLEARN_INSTALLED = True
+except ImportError:
+    SKLEARN_INSTALLED = False
+
 
 __all__ = ['DMatrix', 'CVPack', 'Booster', 'aggcv', 'cv', 'mknfold', 'train']
 
@@ -517,7 +529,7 @@ class Booster(object):
         return fmap
 
 
-def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None):
+def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, early_stopping_rounds=None):
     """
     Train a booster with given parameters.
 
@@ -532,26 +544,91 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None):
     watchlist : list of pairs (DMatrix, string)
         List of items to be evaluated during training, this allows user to watch
         performance on the validation set.
-    obj :  function
+    obj : function
         Customized objective function.
     feval : function
         Customized evaluation function.
+    early_stopping_rounds: int
+        Activates early stopping. Validation error needs to decrease at least
+        every <early_stopping_rounds> round(s) to continue training.
+        Requires at least one item in evals.
+        If there's more than one, will use the last.
+        Returns the model from the last iteration (not the best one).
+        If early stopping occurs, the model will have two additional fields:
+        bst.best_score and bst.best_iteration.
 
     Returns
     -------
     booster : a trained booster model
     """
+
     evals = list(evals)
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
-    for i in range(num_boost_round):
-        bst.update(dtrain, i, obj)
-        if len(evals) != 0:
+
+    if not early_stopping_rounds:
+        for i in range(num_boost_round):
+            bst.update(dtrain, i, obj)
+            if len(evals) != 0:
+                bst_eval_set = bst.eval_set(evals, i, feval)
+                if isinstance(bst_eval_set, string_types):
+                    sys.stderr.write(bst_eval_set + '\n')
+                else:
+                    sys.stderr.write(bst_eval_set.decode() + '\n')
+        return bst
+
+    else:
+        # early stopping
+
+        if len(evals) < 1:
+            raise ValueError('For early stopping you need at least on set in evals.')
+
+        sys.stderr.write("Will train until {} error hasn't decreased in {} rounds.\n".format(evals[-1][1], early_stopping_rounds))
+
+        # is params a list of tuples? are we using multiple eval metrics?
+        if type(params) == list:
+            if len(params) != len(dict(params).items()):
+                raise ValueError('Check your params. Early stopping works with single eval metric only.')
+            params = dict(params)
+
+        # either minimize loss or maximize AUC/MAP/NDCG
+        maximize_score = False
+        if 'eval_metric' in params:
+            maximize_metrics = ('auc', 'map', 'ndcg')
+            if filter(lambda x: params['eval_metric'].startswith(x), maximize_metrics):
+                maximize_score = True
+
+        if maximize_score:
+            best_score = 0.0
+        else:
+            best_score = float('inf')
+
+        best_msg = ''
+        best_score_i = 0
+
+        for i in range(num_boost_round):
+            bst.update(dtrain, i, obj)
             bst_eval_set = bst.eval_set(evals, i, feval)
+
             if isinstance(bst_eval_set, string_types):
-                sys.stderr.write(bst_eval_set + '\n')
+                msg = bst_eval_set
             else:
-                sys.stderr.write(bst_eval_set.decode() + '\n')
-    return bst
+                msg = bst_eval_set.decode()
+
+            sys.stderr.write(msg + '\n')
+
+            score = float(msg.rsplit(':', 1)[1])
+            if (maximize_score and score > best_score) or \
+                    (not maximize_score and score < best_score):
+                best_score = score
+                best_score_i = i
+                best_msg = msg
+            elif i - best_score_i >= early_stopping_rounds:
+                sys.stderr.write("Stopping. Best iteration:\n{}\n\n".format(best_msg))
+                bst.best_score = best_score
+                bst.best_iteration = best_score_i
+                return bst
+
+        return bst
 
 
 class CVPack(object):
@@ -660,3 +737,109 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         sys.stderr.write(res + '\n')
         results.append(res)
     return results
+
+
+XGBModelBase = object
+if SKLEARN_INSTALLED:
+    XGBModelBase = BaseEstimator
+
+
+class XGBModel(BaseEstimator):
+    """
+    Implementation of the Scikit-Learn API for XGBoost.
+
+    Parameters
+    ----------
+    max_depth : int
+        Maximum tree depth for base learners.
+    learning_rate : float
+        Boosting learning rate (xgb's "eta")
+    n_estimators : int
+        Number of boosted trees to fit.
+    silent : boolean
+        Whether to print messages while running boosting.
+    """
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear"):
+        if not SKLEARN_INSTALLED:
+            raise Exception('sklearn needs to be installed in order to use this module')
+        self.max_depth = max_depth
+        self.learning_rate = learning_rate
+        self.silent = silent
+        self.n_estimators = n_estimators
+        self.objective = objective
+        self._Booster = Booster()
+
+    def get_params(self, deep=True):
+        return {'max_depth': self.max_depth,
+                'learning_rate': self.learning_rate,
+                'n_estimators': self.n_estimators,
+                'silent': self.silent,
+                'objective': self.objective
+                }
+
+    def get_xgb_params(self):
+        return {'eta': self.learning_rate,
+                'max_depth': self.max_depth,
+                'silent': 1 if self.silent else 0,
+                'objective': self.objective
+                }
+
+    def fit(self, X, y):
+        trainDmatrix = DMatrix(X, label=y)
+        self._Booster = train(self.get_xgb_params(), trainDmatrix, self.n_estimators)
+        return self
+
+    def predict(self, X):
+        testDmatrix = DMatrix(X)
+        return self._Booster.predict(testDmatrix)
+
+
+class XGBClassifier(XGBModel, ClassifierMixin):
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="binary:logistic"):
+        super(XGBClassifier, self).__init__(max_depth, learning_rate, n_estimators, silent, objective)
+
+    def fit(self, X, y, sample_weight=None):
+        y_values = list(np.unique(y))
+        if len(y_values) > 2:
+            # Switch to using a multiclass objective in the underlying XGB instance
+            self.objective = "multi:softprob"
+            xgb_options = self.get_xgb_params()
+            xgb_options['num_class'] = len(y_values)
+        else:
+            xgb_options = self.get_xgb_params()
+
+        self._le = LabelEncoder().fit(y)
+        training_labels = self._le.transform(y)
+
+        if sample_weight is not None:
+            trainDmatrix = DMatrix(X, label=training_labels, weight=sample_weight)
+        else:
+            trainDmatrix = DMatrix(X, label=training_labels)
+
+        self._Booster = train(xgb_options, trainDmatrix, self.n_estimators)
+
+        return self
+
+    def predict(self, X):
+        testDmatrix = DMatrix(X)
+        class_probs = self._Booster.predict(testDmatrix)
+        if len(class_probs.shape) > 1:
+            column_indexes = np.argmax(class_probs, axis=1)
+        else:
+            column_indexes = np.repeat(0, X.shape[0])
+            column_indexes[class_probs > 0.5] = 1
+        return self._le.inverse_transform(column_indexes)
+
+    def predict_proba(self, X):
+        testDmatrix = DMatrix(X)
+        class_probs = self._Booster.predict(testDmatrix)
+        if self.objective == "multi:softprob":
+            return class_probs
+        else:
+            classone_probs = class_probs
+            classzero_probs = 1.0 - classone_probs
+            return np.vstack((classzero_probs, classone_probs)).transpose()
+
+
+class XGBRegressor(XGBModel, RegressorMixin):
+    pass

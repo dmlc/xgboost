@@ -43,6 +43,26 @@ inline static int FindMaxIndex(const std::vector<float>& rec) {
   return FindMaxIndex(BeginPtr(rec), rec.size());
 }
 
+// perform numerical safe logsum
+inline float LogSum(float x, float y) {
+  if (x < y) {
+    return y + std::log(std::exp(x - y) + 1.0f);
+  } else {
+    return x + std::log(std::exp(y - x) + 1.0f);
+  }
+}
+// numerical safe logsum
+inline float LogSum(const float *rec, size_t size) {
+  float mx = rec[0];
+  for (size_t i = 1; i < size; ++i) {
+    mx = std::max(mx, rec[i]);
+  }
+  float sum = 0.0f;
+  for (size_t i = 0; i < size; ++i) {
+    sum += std::exp(rec[i] - mx);
+  }
+  return mx + std::log(sum);  
+}
 
 inline static bool CmpFirst(const std::pair<float, unsigned> &a,
                             const std::pair<float, unsigned> &b) {

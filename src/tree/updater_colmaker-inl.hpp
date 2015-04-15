@@ -406,7 +406,8 @@ class ColMaker: public IUpdater {
         c.SetSubstract(snode[nid].stats, e.stats);
         if (e.stats.sum_hess >= param.min_child_weight && c.sum_hess >= param.min_child_weight) {
           bst_float loss_chg = static_cast<bst_float>(e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
-          const float delta = d_step == +1 ? rt_eps : -rt_eps;
+          const float gap = std::abs(e.last_fvalue) + rt_eps;
+          const float delta = d_step == +1 ? gap: -gap;
           e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1);
         }
       }
@@ -497,6 +498,9 @@ class ColMaker: public IUpdater {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
+        if (ridx >= position.size()) {
+          utils::Printf("ridx exceed bound\n");
+        }
         const int nid = this->DecodePosition(ridx);
         if (tree[nid].is_leaf()) {
           // mark finish when it is not a fresh leaf

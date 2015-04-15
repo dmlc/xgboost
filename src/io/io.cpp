@@ -16,7 +16,10 @@ namespace xgboost {
 namespace io {
 DataMatrix* LoadDataMatrix(const char *fname, bool silent,
                            bool savebuffer, bool loadsplit) {
-  if (!std::strcmp(fname, "stdin") || loadsplit) {
+  if (!std::strcmp(fname, "stdin") ||
+      !std::strncmp(fname, "s3://", 5) ||
+      !std::strncmp(fname, "hdfs://", 7) ||
+      loadsplit) {
     DMatrixSimple *dmat = new DMatrixSimple();
     dmat->LoadText(fname, silent, loadsplit);
     return dmat;
