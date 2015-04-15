@@ -20,5 +20,3 @@ devtools::install_github('tqchen/xgboost',subdir='R-package')
 ```
 
 Windows users may need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
-
-
