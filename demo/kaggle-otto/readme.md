@@ -7,6 +7,7 @@ This is a folder containing the benchmark for the [Otto Group Competition on Kag
 
 1. Put `train.csv` and `test.csv` under the `data` folder
 2. Run the script
+3. Submit the `submission.csv`
 
 The parameter `nthread` controls the number of cores to run on, please set it to suit your machine.
 
