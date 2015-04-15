@@ -114,6 +114,11 @@ extern "C"{
   void* XGDMatrixCreateFromFile(const char *fname, int silent) {
     return LoadDataMatrix(fname, silent != 0, false, false);
   }
+  void* XGDMatrixCreateCache(const char *fname,
+                             const char *cache_file, 
+                             int silent) {
+    return LoadDataMatrix(fname, silent != 0, false, false, cache_file);
+  }
   void* XGDMatrixCreateFromCSR(const bst_ulong *indptr,
                                const unsigned *indices,
                                const float *data,

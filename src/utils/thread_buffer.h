@@ -31,7 +31,7 @@ class ThreadBuffer {
   }
   /*!\brief set parameter, will also pass the parameter to factory */
   inline void SetParam(const char *name, const char *val) {
-    if (!strcmp( name, "buffer_size")) buf_size = atoi(val);
+    if (!std::strcmp( name, "buffer_size")) buf_size = atoi(val);
     factory.SetParam(name, val);
   }
   /*!

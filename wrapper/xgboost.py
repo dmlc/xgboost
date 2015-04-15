@@ -87,27 +87,39 @@ def c_array(ctype, values):
 
 
 class DMatrix(object):
-    def __init__(self, data, label=None, missing=0.0, weight=None):
+    def __init__(self, data, label=None, missing=0.0, weight=None, cache_file=None):
         """
         Data matrix used in XGBoost.
 
         Parameters
         ----------
         data : string/numpy array/scipy.sparse
-            Data source, string type is the path of svmlight format txt file or xgb buffer.
+            Data source, string type is the path of svmlight format txt file,
+            xgb buffer or path to cache_file
         label : list or numpy 1-D array (optional)
             Label of the training data.
         missing : float
             Value in the data which needs to be present as a missing value.
         weight : list or numpy 1-D array (optional)
             Weight for each instance.
+        cache_file: string
+            Path to the binary cache of input data, when this is enabled,
+            several binary cache files with the prefix cache_file will be created,
+            xgboost will try to use external memory as much as possible,
+            thus save memory during computation in general
         """
 
         # force into void_p, mac need to pass things in as void_p
         if data is None:
             self.handle = None
             return
-        if isinstance(data, string_types):
+        if cache_file is not None:
+            if not isinstance(data, string_types):
+                raise Exception('cache_file must be used together with input file name')
+            if not isinstance(cache_file, string_types):
+                raise Exception('cache_file must be string')
+            self.handle = ctypes.c_void_p(xglib.XGDMatrixCreateCache(c_str(data), c_str(cache_file), 0))
+        elif isinstance(data, string_types):
             self.handle = ctypes.c_void_p(xglib.XGDMatrixCreateFromFile(c_str(data), 0))
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)

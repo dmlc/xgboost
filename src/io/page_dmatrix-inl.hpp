@@ -2,7 +2,7 @@
 #define XGBOOST_IO_PAGE_ROW_ITER_INL_HPP_
 /*!
  * \file page_row_iter-inl.hpp
- * row iterator based on sparse page
+ *   row iterator based on sparse page
  * \author Tianqi Chen
  */
 #include <vector>
@@ -212,23 +212,24 @@ class DMatrixPageBase : public DataMatrix {
     // to be cleaned up in a more clear way
   }
   /*! \brief load and initialize the iterator with fi */
-  inline void Load(utils::FileStream &fi,
-                   bool silent = false,
-                   const char *fname = NULL,
-                   bool skip_magic_check = false) {
+  inline void LoadBinary(utils::FileStream &fi,
+                         bool silent,
+                         const char *fname_) {
+    std::string fname = fname_;
     int tmagic;
     utils::Check(fi.Read(&tmagic, sizeof(tmagic)) != 0, "invalid input file format");
-    if (!skip_magic_check) {
-      utils::Check(tmagic == magic, "invalid format,magic number mismatch");
-    }
+    utils::Check(tmagic == magic, "invalid format,magic number mismatch");
     this->info.LoadBinary(fi);
-    iter_->Load(fi);
+    // load in the row data file
+    fname += ".row.blob";
+    utils::FileStream fs(utils::FopenCheck(fname.c_str(), "rb"));
+    iter_->Load(fs);
     if (!silent) {
       utils::Printf("DMatrixPage: %lux%lu matrix is loaded",
                     static_cast<unsigned long>(info.num_row()),
                     static_cast<unsigned long>(info.num_col()));
-      if (fname != NULL) {
-        utils::Printf(" from %s\n", fname);
+      if (fname_ != NULL) {
+        utils::Printf(" from %s\n", fname_);
       } else {
         utils::Printf("\n");
       }
@@ -237,18 +238,83 @@ class DMatrixPageBase : public DataMatrix {
       }
     }
   }
-  /*! \brief save a DataMatrix as DMatrixPage*/
-  inline static void Save(const char* fname, const DataMatrix &mat, bool silent) {
-    utils::FileStream fs(utils::FopenCheck(fname, "wb"));
+  /*! \brief save a DataMatrix as DMatrixPage */
+  inline static void Save(const char *fname_, const DataMatrix &mat, bool silent) {
+    std::string fname = fname_;
+    utils::FileStream fs(utils::FopenCheck(fname.c_str(), "wb"));
     int magic = kMagic;
     fs.Write(&magic, sizeof(magic));
     mat.info.SaveBinary(fs);
-    ThreadRowPageIterator::Save(mat.fmat()->RowIterator(), fs);
     fs.Close();
+    fname += ".row.blob";
+    utils::FileStream fbin(utils::FopenCheck(fname.c_str(), "wb"));
+    ThreadRowPageIterator::Save(mat.fmat()->RowIterator(), fbin);
+    fbin.Close();
     if (!silent) {
       utils::Printf("DMatrixPage: %lux%lu is saved to %s\n",
                     static_cast<unsigned long>(mat.info.num_row()),
-                    static_cast<unsigned long>(mat.info.num_col()), fname);
+                    static_cast<unsigned long>(mat.info.num_col()), fname_);
+    }
+  }
+  /*! \brief save a LibSVM format file as DMatrixPage */
+  inline void LoadText(const char *uri,
+                       const char* cache_file,
+                       bool silent,
+                       bool loadsplit) {
+    int rank = 0, npart = 1;
+    if (loadsplit) {
+      rank = rabit::GetRank();
+      npart = rabit::GetWorldSize();
+    }
+    std::string fname_row = std::string(cache_file) + ".row.blob";
+    utils::FileStream fo(utils::FopenCheck(fname_row.c_str(), "wb"));
+    RowBatchPage page(ThreadRowPageIterator::kPageSize);
+    dmlc::InputSplit *in =
+        dmlc::InputSplit::Create(uri, rank, npart);
+    std::string line;
+    info.Clear();
+    while (in->ReadRecord(&line)) {
+      float label;
+      std::istringstream ss(line);
+      std::vector<RowBatch::Entry> feats;
+      ss >> label;
+      while (!ss.eof()) {
+        RowBatch::Entry e;
+        if (!(ss >> e.index)) break;
+        ss.ignore(32, ':');
+        if (!(ss >> e.fvalue)) break;
+        feats.push_back(e);
+      }
+      RowBatch::Inst row(BeginPtr(feats), feats.size());
+      if (!page.PushRow(row)) {
+        page.Save(fo);
+        page.Clear();
+        utils::Check(page.PushRow(row), "row is too big");
+      }
+      for (size_t i = 0; i < feats.size(); ++i) {
+        info.info.num_col = std::max(info.info.num_col,
+                                     static_cast<size_t>(feats[i].index+1));
+      }
+      this->info.labels.push_back(label);
+      info.info.num_row += 1;
+    }
+    if (page.Size() != 0) {
+      page.Save(fo);
+    }
+    delete in;
+    fo.Close();    
+    iter_->Load(utils::FileStream(utils::FopenCheck(fname_row.c_str(), "rb")));    
+    // save data matrix
+    utils::FileStream fs(utils::FopenCheck(cache_file, "wb"));
+    int magic = kMagic;
+    fs.Write(&magic, sizeof(magic));
+    this->info.SaveBinary(fs);
+    fs.Close();
+    if (!silent) {
+      utils::Printf("DMatrixPage: %lux%lu is parsed from %s\n",
+                    static_cast<unsigned long>(info.num_row()),
+                    static_cast<unsigned long>(info.num_col()),
+                    uri);
     }
   }
   /*! \brief magic number used to identify DMatrix */

@@ -25,6 +25,15 @@ extern "C" {
    */
   SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent);
   /*!
+   * \brief load a cached DMatrix, this is backed by several cache_files
+   *  and usually cost less memory
+   * \param fname the name of the file, can be a cached buffer or text
+   * \param cache_file the name of cached file
+   * \param silent whether print messages during loading
+   * \return a loaded data matrix
+   */
+  SEXP XGDMatrixCreateCache_R(SEXP fname, SEXP cache_file, SEXP silent);
+  /*!
    * \brief create matrix content from dense matrix
    * This assumes the matrix is stored in column major format
    * \param data R Matrix object
