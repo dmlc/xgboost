@@ -16,7 +16,7 @@ namespace io {
 /*!
  * \brief sparse matrix that support column access, CSC
  */
-class FMatrixS : public IFMatrix{
+class FMatrixS : public IFMatrix {
  public:
   typedef SparseBatch::Entry Entry;
   /*! \brief constructor */
@@ -238,7 +238,7 @@ class FMatrixS : public IFMatrix{
     inline void SetBatch(const std::vector<size_t> &ptr,
                          const std::vector<ColBatch::Entry> &data) {
       batch_.size = col_index_.size();
-      col_data_.resize(col_index_.size(), SparseBatch::Inst(NULL,0));
+      col_data_.resize(col_index_.size(), SparseBatch::Inst(NULL, 0));
       for (size_t i = 0; i < col_data_.size(); ++i) {
         const bst_uint ridx = col_index_[i];
         col_data_[i] = SparseBatch::Inst(&data[0] + ptr[ridx],
