@@ -15,6 +15,18 @@ DataMatrix* LoadDataMatrix(const char *fname,
                            bool savebuffer,
                            bool loadsplit,
                            const char *cache_file) {
+  std::string fname_ = fname;
+  const char *dlm = strchr(fname, '#');
+  if (dlm != NULL) {
+    utils::Check(strchr(dlm + 1, '#') == NULL,
+                 "only one `#` is allowed in file path for cachefile specification");
+    utils::Check(cache_file == NULL,
+                 "can only specify the cachefile with `#` or argument, not both");
+    fname_ = std::string(fname, dlm - fname);
+    fname = fname_.c_str();
+    cache_file = dlm +1;
+  }
+  
   if (cache_file == NULL) { 
     if (!std::strcmp(fname, "stdin") ||
         !std::strncmp(fname, "s3://", 5) ||
@@ -39,16 +51,18 @@ DataMatrix* LoadDataMatrix(const char *fname,
     dmat->CacheLoad(fname, silent, savebuffer);
     return dmat;
   } else {
-    if (!strcmp(fname, cache_file)) {
+    FILE *fi = fopen64(cache_file, "rb");
+    if (fi != NULL) {
       DMatrixPage *dmat = new DMatrixPage();
-      utils::FileStream fs(utils::FopenCheck(fname, "rb"));      
-      dmat->LoadBinary(fs, silent, fname);
+      utils::FileStream fs(fi);
+      dmat->LoadBinary(fs, silent, cache_file);
       fs.Close();
       return dmat;
+    } else {   
+      DMatrixPage *dmat = new DMatrixPage();
+      dmat->LoadText(fname, cache_file, false, loadsplit);
+      return dmat;
     }
-    DMatrixPage *dmat = new DMatrixPage();
-    dmat->LoadText(fname, cache_file, false, loadsplit);
-    return dmat;
   }
 }
 

@@ -149,7 +149,7 @@ class IFMatrix {
   virtual size_t NumCol(void) const = 0;
   /*! \brief get number of non-missing entries in column */
   virtual size_t GetColSize(size_t cidx) const = 0;
-  /*! \brief get column density */  
+  /*! \brief get column density */
   virtual float GetColDensity(size_t cidx) const = 0;  
   /*! \brief reference of buffered rowset */
   virtual const std::vector<bst_uint> &buffered_rowset(void) const = 0;

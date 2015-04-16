@@ -69,7 +69,7 @@ class BoostLearner : public rabit::Serializable {
     utils::SPrintf(str_temp, sizeof(str_temp), "%lu", 
                    static_cast<unsigned long>(buffer_size));
     this->SetParam("num_pbuffer", str_temp);
-    this->pred_buffer_size = buffer_size;
+    this->pred_buffer_size = buffer_size;    
   }
   /*!
    * \brief set parameters from outside
@@ -259,7 +259,12 @@ class BoostLearner : public rabit::Serializable {
     int ncol = static_cast<int>(p_train->info.info.num_col);    
     std::vector<bool> enabled(ncol, true);    
     // initialize column access
-    p_train->fmat()->InitColAccess(enabled, prob_buffer_row);    
+    p_train->fmat()->InitColAccess(enabled, prob_buffer_row);
+    const int kMagicSimple = 0xffffab01;
+    // check, if it is not DMatrix simple, then use hist maker
+    if (p_train->magic != kMagicSimple) {
+      this->SetParam("updater", "grow_histmaker,prune");
+    }
   }
   /*!
    * \brief update the model for one iteration
