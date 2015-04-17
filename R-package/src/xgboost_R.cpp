@@ -76,17 +76,6 @@ extern "C" {
     _WrapperEnd();
     return ret;
   }
-  SEXP XGDMatrixCreateCache_R(SEXP fname, SEXP cache_file, SEXP silent) {
-    _WrapperBegin();
-    void *handle = XGDMatrixCreateCache(CHAR(asChar(fname)),
-                                        CHAR(asChar(cache_file)),
-                                        asInteger(silent));
-    SEXP ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
-    R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
-    UNPROTECT(1);
-    _WrapperEnd();
-    return ret;
-  }
   SEXP XGDMatrixCreateFromMat_R(SEXP mat, 
                                 SEXP missing) {
     _WrapperBegin();

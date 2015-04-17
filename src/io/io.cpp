@@ -16,6 +16,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
                            bool loadsplit,
                            const char *cache_file) {
   std::string fname_ = fname;
+  
   const char *dlm = strchr(fname, '#');
   if (dlm != NULL) {
     utils::Check(strchr(dlm + 1, '#') == NULL,
@@ -26,7 +27,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
     fname = fname_.c_str();
     cache_file = dlm +1;
   }
-  
+
   if (cache_file == NULL) { 
     if (!std::strcmp(fname, "stdin") ||
         !std::strncmp(fname, "s3://", 5) ||
@@ -51,6 +52,13 @@ DataMatrix* LoadDataMatrix(const char *fname,
     dmat->CacheLoad(fname, silent, savebuffer);
     return dmat;
   } else {
+    std::string cache_fname = cache_file;
+    if (loadsplit) {
+      std::ostringstream os;
+      os << cache_file << ".r" << rabit::GetRank();
+      cache_fname = os.str();
+      cache_file = cache_fname.c_str();
+    }
     FILE *fi = fopen64(cache_file, "rb");
     if (fi != NULL) {
       DMatrixPage *dmat = new DMatrixPage();

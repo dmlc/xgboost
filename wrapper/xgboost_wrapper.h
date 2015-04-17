@@ -25,17 +25,6 @@ extern "C" {
    */
   XGB_DLL void* XGDMatrixCreateFromFile(const char *fname, int silent);
   /*!
-   * \brief load a cached DMatrix, this is backed by several cache_files
-   *  and usually cost less memory
-   * \param fname the name of the file, can be a cached buffer or text
-   * \param cache_file the name of cached file
-   * \param silent whether print messages during loading
-   * \return a loaded data matrix
-   */
-  XGB_DLL void* XGDMatrixCreateCache(const char *fname,
-                                     const char *cache_file,
-                                     int silent);
-  /*!
    * \brief create a matrix content from csr format
    * \param indptr pointer to row headers
    * \param indices findex
