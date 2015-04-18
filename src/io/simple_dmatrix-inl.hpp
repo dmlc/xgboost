@@ -19,6 +19,7 @@
 #include "./io.h"
 #include "./simple_fmatrix-inl.hpp"
 #include "../sync/sync.h"
+#include "./libsvm_parser.h"
 
 namespace xgboost {
 namespace io {
@@ -72,7 +73,8 @@ class DMatrixSimple : public DataMatrix {
   inline size_t AddRow(const std::vector<RowBatch::Entry> &feats) {
     for (size_t i = 0; i < feats.size(); ++i) {
       row_data_.push_back(feats[i]);
-      info.info.num_col = std::max(info.info.num_col, static_cast<size_t>(feats[i].index+1));
+      info.info.num_col = std::max(info.info.num_col,
+                                   static_cast<size_t>(feats[i].index+1));
     }
     row_ptr_.push_back(row_ptr_.back() + feats.size());
     info.info.num_row += 1;
@@ -90,26 +92,35 @@ class DMatrixSimple : public DataMatrix {
       rank = rabit::GetRank();
       npart = rabit::GetWorldSize();
     }
-    dmlc::InputSplit *in =
-        dmlc::InputSplit::Create(uri, rank, npart);
+    LibSVMParser parser(
+        dmlc::InputSplit::Create(uri, rank, npart, "text"), 4);
     this->Clear();
-    std::string line;
-    while (in->ReadRecord(&line)) {
-      float label;
-      std::istringstream ss(line);
-      std::vector<RowBatch::Entry> feats;
-      ss >> label;
-      while (!ss.eof()) {
-        RowBatch::Entry e;
-        if (!(ss >> e.index)) break;
-        ss.ignore(32, ':');
-        if (!(ss >> e.fvalue)) break;
-        feats.push_back(e);
+    while (parser.Next()) {
+      const LibSVMPage &batch = parser.Value();
+      size_t nlabel = info.labels.size();
+      info.labels.resize(nlabel + batch.label.size());
+      if (batch.label.size() != 0) {
+        std::memcpy(BeginPtr(info.labels) + nlabel,
+                    BeginPtr(batch.label),
+                    batch.label.size() * sizeof(float));
       }
-      info.labels.push_back(label);
-      this->AddRow(feats);
+      size_t ndata = row_data_.size();
+      row_data_.resize(ndata + batch.data.size());
+      if (batch.data.size() != 0) {
+        std::memcpy(BeginPtr(row_data_) + ndata,
+                    BeginPtr(batch.data),
+                    batch.data.size() * sizeof(RowBatch::Entry));
+      }
+      row_ptr_.resize(row_ptr_.size() + batch.label.size());
+      for (size_t i = 0; i < batch.label.size(); ++i) {
+        row_ptr_[nlabel + i + 1] = row_ptr_[nlabel] + batch.offset[i + 1];
+      }
+      info.info.num_row += batch.Size();
+      for (size_t i = 0; i < batch.data.size(); ++i) {
+        info.info.num_col = std::max(info.info.num_col,
+                                     static_cast<size_t>(batch.data[i].index+1));
+      }      
     }
-    delete in;
     if (!silent) {
       utils::Printf("%lux%lu matrix with %lu entries is loaded from %s\n",
                     static_cast<unsigned long>(info.num_row()),
