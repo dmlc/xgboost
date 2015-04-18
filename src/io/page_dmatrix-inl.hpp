@@ -133,7 +133,9 @@ class DMatrixPageBase : public DataMatrix {
                        const char* cache_file,
                        bool silent,
                        bool loadsplit) {
-    
+    if (!silent) {
+      utils::Printf("start generate text file from %s\n", uri);
+    }
     int rank = 0, npart = 1;
     if (loadsplit) {
       rank = rabit::GetRank();
@@ -146,6 +148,8 @@ class DMatrixPageBase : public DataMatrix {
     dmlc::InputSplit *in =
         dmlc::InputSplit::Create(uri, rank, npart);
     std::string line;
+    size_t bytes_write = 0;
+    double tstart = rabit::utils::GetTime();
     info.Clear();
     while (in->ReadRecord(&line)) {
       float label;
@@ -162,8 +166,17 @@ class DMatrixPageBase : public DataMatrix {
       RowBatch::Inst row(BeginPtr(feats), feats.size());
       page.Push(row);
       if (page.MemCostBytes() >= kPageSize) {
-        page.Save(&fo); page.Clear();
+        bytes_write += page.MemCostBytes();
+        page.Save(&fo);
+        page.Clear();
+        double tdiff = rabit::utils::GetTime() - tstart;
+        if (!silent) {
+          utils::Printf("Writting to %s in %g MB/s, %g MB written\n",
+                        cache_file, (bytes_write >> 20UL) / tdiff,
+                        (bytes_write >> 20UL));
+        }
       }
+      
       for (size_t i = 0; i < feats.size(); ++i) {
         info.info.num_col = std::max(info.info.num_col,
                                      static_cast<size_t>(feats[i].index+1));
