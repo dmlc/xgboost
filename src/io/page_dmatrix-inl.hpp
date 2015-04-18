@@ -12,6 +12,7 @@
 #include "./simple_fmatrix-inl.hpp"
 #include "./sparse_batch_page.h"
 #include "./page_fmatrix-inl.hpp"
+#include "./libsvm_parser.h"
 
 namespace xgboost {
 namespace io {
@@ -145,26 +146,25 @@ class DMatrixPageBase : public DataMatrix {
     std::string fname_row = std::string(cache_file) + ".row.blob";
     utils::FileStream fo(utils::FopenCheck(fname_row.c_str(), "wb"));    
     SparsePage page;
-    dmlc::InputSplit *in =
-        dmlc::InputSplit::Create(uri, rank, npart);
-    std::string line;
     size_t bytes_write = 0;
     double tstart = rabit::utils::GetTime();
+    LibSVMParser parser(
+        dmlc::InputSplit::Create(uri, rank, npart, "text"), 4);
     info.Clear();
-    while (in->ReadRecord(&line)) {
-      float label;
-      std::istringstream ss(line);
-      std::vector<RowBatch::Entry> feats;
-      ss >> label;
-      while (!ss.eof()) {
-        RowBatch::Entry e;
-        if (!(ss >> e.index)) break;
-        ss.ignore(32, ':');
-        if (!(ss >> e.fvalue)) break;
-        feats.push_back(e);
+    while (parser.Next()) {
+      const LibSVMPage &batch = parser.Value();
+      size_t nlabel = info.labels.size();
+      info.labels.resize(nlabel + batch.label.size());
+      if (batch.label.size() != 0) {
+        std::memcpy(BeginPtr(info.labels) + nlabel,
+                    BeginPtr(batch.label),
+                    batch.label.size() * sizeof(float));
+      }      
+      page.Push(batch);
+      for (size_t i = 0; i < batch.data.size(); ++i) {
+        info.info.num_col = std::max(info.info.num_col,
+                                     static_cast<size_t>(batch.data[i].index+1));
       }
-      RowBatch::Inst row(BeginPtr(feats), feats.size());
-      page.Push(row);
       if (page.MemCostBytes() >= kPageSize) {
         bytes_write += page.MemCostBytes();
         page.Save(&fo);
@@ -176,18 +176,11 @@ class DMatrixPageBase : public DataMatrix {
                         (bytes_write >> 20UL));
         }
       }
-      
-      for (size_t i = 0; i < feats.size(); ++i) {
-        info.info.num_col = std::max(info.info.num_col,
-                                     static_cast<size_t>(feats[i].index+1));
-      }
-      this->info.labels.push_back(label);
-      info.info.num_row += 1;
+      info.info.num_row += batch.label.size();
     }
     if (page.data.size() != 0) {
       page.Save(&fo);
     }
-    delete in;
     fo.Close();    
     iter_->Load(utils::FileStream(utils::FopenCheck(fname_row.c_str(), "rb")));    
     // save data matrix
