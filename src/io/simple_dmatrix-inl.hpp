@@ -93,7 +93,7 @@ class DMatrixSimple : public DataMatrix {
       npart = rabit::GetWorldSize();
     }
     LibSVMParser parser(
-        dmlc::InputSplit::Create(uri, rank, npart, "text"), 4);
+        dmlc::InputSplit::Create(uri, rank, npart, "text"), 16);
     this->Clear();
     while (parser.Next()) {
       const LibSVMPage &batch = parser.Value();

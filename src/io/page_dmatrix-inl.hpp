@@ -149,7 +149,7 @@ class DMatrixPageBase : public DataMatrix {
     size_t bytes_write = 0;
     double tstart = rabit::utils::GetTime();
     LibSVMParser parser(
-        dmlc::InputSplit::Create(uri, rank, npart, "text"), 4);
+        dmlc::InputSplit::Create(uri, rank, npart, "text"), 16);
     info.Clear();
     while (parser.Next()) {
       const LibSVMPage &batch = parser.Value();
@@ -159,7 +159,7 @@ class DMatrixPageBase : public DataMatrix {
         std::memcpy(BeginPtr(info.labels) + nlabel,
                     BeginPtr(batch.label),
                     batch.label.size() * sizeof(float));
-      }      
+      }
       page.Push(batch);
       for (size_t i = 0; i < batch.data.size(); ++i) {
         info.info.num_col = std::max(info.info.num_col,
@@ -171,7 +171,7 @@ class DMatrixPageBase : public DataMatrix {
         page.Clear();
         double tdiff = rabit::utils::GetTime() - tstart;
         if (!silent) {
-          utils::Printf("Writting to %s in %g MB/s, %g MB written\n",
+          utils::Printf("Writting to %s in %g MB/s, %lu MB written\n",
                         cache_file, (bytes_write >> 20UL) / tdiff,
                         (bytes_write >> 20UL));
         }

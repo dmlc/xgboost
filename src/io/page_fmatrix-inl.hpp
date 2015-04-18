@@ -173,6 +173,8 @@ class FMatrixPage : public IFMatrix {
     std::fill(col_size_.begin(), col_size_.end(), 0);
     utils::FileStream fo;
     fo = utils::FileStream(utils::FopenCheck(col_data_name_.c_str(), "wb"));
+    size_t bytes_write = 0;
+    double tstart = rabit::utils::GetTime();
     // start working
     iter_->BeforeFirst();
     while (iter_->Next()) {
@@ -183,10 +185,17 @@ class FMatrixPage : public IFMatrix {
           buffered_rowset_.push_back(ridx);
           prow.Push(batch[i]);
           if (prow.MemCostBytes() >= kPageSize) {
+            bytes_write += prow.MemCostBytes();
             this->PushColPage(prow, BeginPtr(buffered_rowset_) + btop,
                               enabled, &pcol, &fo);
             btop += prow.Size();
             prow.Clear();
+            
+            double tdiff = rabit::utils::GetTime() - tstart;
+            utils::Printf("Writting to %s in %g MB/s, %lu MB written\n",
+                          col_data_name_.c_str(),
+                          (bytes_write >> 20UL) / tdiff,
+                          (bytes_write >> 20UL));
           }
         }
       }

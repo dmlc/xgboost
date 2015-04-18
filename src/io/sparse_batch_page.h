@@ -142,7 +142,7 @@ class SparsePage {
    * \param batch the row batch
    */
   inline void Push(const RowBatch &batch) {
-    data.resize(offset.back() + batch.size);
+    data.resize(offset.back() + batch.ind_ptr[batch.size]);
     std::memcpy(BeginPtr(data) + offset.back(),
                 batch.data_ptr + batch.ind_ptr[0],
                 sizeof(SparseBatch::Entry) * batch.ind_ptr[batch.size]);
@@ -158,13 +158,13 @@ class SparsePage {
    * \param batch the row page
    */
   inline void Push(const SparsePage &batch) {
-    data.resize(offset.back() + batch.Size());
-    std::memcpy(BeginPtr(data) + offset.back(),
+    size_t top = offset.back();
+    data.resize(top + batch.data.size());
+    std::memcpy(BeginPtr(data) + top,
                 BeginPtr(batch.data),
                 sizeof(SparseBatch::Entry) * batch.data.size());
-    size_t top = offset.back();
     size_t begin = offset.size();
-    offset.resize(offset.size() + batch.Size());
+    offset.resize(begin + batch.Size());
     for (size_t i = 0; i < batch.Size(); ++i) {
       offset[i + begin] = top + batch.offset[i + 1];
     }
