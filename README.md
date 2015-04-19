@@ -15,19 +15,16 @@ Distributed Version: [Distributed XGBoost](multi-node)
 
 Notes on the Code: [Code Guide](src)
 
-Turorial and Documentation: https://github.com/dmlc/xgboost/wiki
-
-Video tutorial: [Better Optimization with Repeated Cross Validation and the XGBoost model - Machine Learning with R](https://www.youtube.com/watch?v=Og7CGAfSr_Y)
+Documentation: https://github.com/dmlc/xgboost/doc
 
 Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
 * This slide is made by Tianqi Chen to introduce gradient boosting in a statistical view.
 * It present boosted tree learning as formal functional space optimization of defined objective.
 * The model presented is used by xgboost for boosted trees
 
-Presention of a real use case of XGBoost to prepare tax audit in France: [Feature Importance Analysis with XGBoost in Tax audit](http://fr.slideshare.net/MichaelBENESTY/feature-importance-analysis-with-xgboost-in-tax-audit)
-
 What's New
 ==========
+* [External Memory Version](doc/external_memory.md)
 * XGBoost wins [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
 * XGBoost now support HDFS and S3
 * [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/tree/master/learn/xgboost)!

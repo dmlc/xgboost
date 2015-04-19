@@ -1,4 +1,4 @@
-Using XGBoost External Memory Version
+Using XGBoost External Memory Version(beta)
 ====
 There is no big difference between using external memory version and in-memory version.
 The only difference is the filename format.
