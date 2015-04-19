@@ -149,9 +149,9 @@ extern "C"{
     DMatrixSimple &mat = *p_mat;
     utils::ParallelGroupBuilder<RowBatch::Entry> builder(&mat.row_ptr_, &mat.row_data_);
     builder.InitBudget(0, nthread);
-    bst_ulong ncol = nindptr - 1;
+    long ncol = static_cast<long>(nindptr - 1);
     #pragma omp parallel for schedule(static)
-    for (bst_ulong i = 0; i < ncol; ++i) {
+    for (long i = 0; i < ncol; ++i) {
       int tid = omp_get_thread_num();
       for (unsigned j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
         builder.AddBudget(indices[j], tid);
@@ -159,7 +159,7 @@ extern "C"{
     }
     builder.InitStorage();
     #pragma omp parallel for schedule(static)
-    for (bst_ulong i = 0; i < ncol; ++i) {
+    for (long i = 0; i < ncol; ++i) {
       int tid = omp_get_thread_num();
       for (unsigned j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
         builder.Push(indices[j],

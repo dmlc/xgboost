@@ -165,7 +165,8 @@ class FMatrixS : public IFMatrix {
     while (iter_->Next()) {
       const RowBatch &batch = iter_->Value();
       bmap.resize(bmap.size() + batch.size, true);
-      for (size_t i = 0; i < batch.size; ++i) {
+	  long batch_size = static_cast<long>(batch.size);
+      for (long i = 0; i < batch_size; ++i) {
         bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         if (pkeep == 1.0f || random::SampleBinary(pkeep)) {
           buffered_rowset_.push_back(ridx);
@@ -174,7 +175,7 @@ class FMatrixS : public IFMatrix {
         }
       }
       #pragma omp parallel for schedule(static)
-      for (size_t i = 0; i < batch.size; ++i) {
+      for (long i = 0; i < batch_size; ++i) {
         int tid = omp_get_thread_num();
         bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         if (bmap[ridx]) {
@@ -193,7 +194,7 @@ class FMatrixS : public IFMatrix {
     while (iter_->Next()) {
       const RowBatch &batch = iter_->Value();
       #pragma omp parallel for schedule(static)
-      for (size_t i = 0; i < batch.size; ++i) {
+      for (long i = 0; i < static_cast<long>(batch.size); ++i) {
         int tid = omp_get_thread_num();
         bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         if (bmap[ridx]) {

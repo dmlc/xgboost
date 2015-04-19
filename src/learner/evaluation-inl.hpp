@@ -130,7 +130,7 @@ struct EvalMClassBase : public IEvaluator {
       const float wt = info.GetWeight(i);
       int label =  static_cast<int>(info.labels[i]);
       if (label >= 0 && label < static_cast<int>(nclass)) {
-        sum += Derived::EvalRow(info.labels[i],
+        sum += Derived::EvalRow(label,
                                 BeginPtr(preds) + i * nclass,
                                 nclass) * wt;
         wsum += wt;

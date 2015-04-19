@@ -6,10 +6,11 @@
  */
 #ifndef XGBOOST_IO_LIBSVM_PARSER_H_
 #define XGBOOST_IO_LIBSVM_PARSER_H_
-
+#define NOMINMAX
 #include <vector>
 #include <cstring>
 #include <cctype>
+#include <algorithm>
 #include "../utils/omp.h"
 #include "../utils/utils.h"
 #include "../sync/sync.h"
@@ -120,12 +121,12 @@ class LibSVMPageFactory  {
       while (isdigit(*p) && p != end) ++p;
       if (*p == ':') {
         out->data.push_back(SparseBatch::Entry(atol(head),
-                                               atof(p + 1)));
+                                               static_cast<bst_float>(atof(p + 1))));
       } else {
         if (out->label.size() != 0) {
           out->offset.push_back(out->data.size());
         }
-        out->label.push_back(atof(head));
+        out->label.push_back(static_cast<float>(atof(head)));
       }
       while (!isspace(*p) && p != end) ++p;
     }

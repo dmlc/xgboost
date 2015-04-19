@@ -26,7 +26,7 @@ class ThreadColPageIterator: public utils::IIterator<ColBatch> {
     for (size_t i = 0; i < col_data_.size(); ++i) {
       col_data_[i] = SparseBatch::Inst
           (BeginPtr(page_->data) + page_->offset[i],
-           page_->offset[i + 1] - page_->offset[i]);
+           static_cast<bst_uint>(page_->offset[i + 1] - page_->offset[i]));
     }
     out_.col_data = BeginPtr(col_data_);
     out_.size = col_data_.size();
@@ -110,7 +110,7 @@ class FMatrixPage : public IFMatrix {
     size_t ncol = this->NumCol();
     col_index_.resize(0);
     for (size_t i = 0; i < ncol; ++i) {
-      col_index_.push_back(i);
+      col_index_.push_back(static_cast<bst_uint>(i));
     }
     col_iter_.SetIndexSet(col_index_, false);
     col_iter_.BeforeFirst();
@@ -229,7 +229,7 @@ class FMatrixPage : public IFMatrix {
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       int tid = omp_get_thread_num();
-      for (bst_uint j = prow.offset[i]; j < prow.offset[i+1]; ++j) {
+      for (size_t j = prow.offset[i]; j < prow.offset[i+1]; ++j) {
         const SparseBatch::Entry &e = prow.data[j];
         if (enabled[e.index]) { 
           builder.AddBudget(e.index, tid);
@@ -240,7 +240,7 @@ class FMatrixPage : public IFMatrix {
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       int tid = omp_get_thread_num();
-      for (bst_uint j = prow.offset[i]; j < prow.offset[i+1]; ++j) {
+      for (size_t j = prow.offset[i]; j < prow.offset[i+1]; ++j) {
         const SparseBatch::Entry &e = prow.data[j];
         builder.Push(e.index,
                      SparseBatch::Entry(ridx[i], e.fvalue),
