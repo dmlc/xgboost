@@ -11,7 +11,7 @@ In R-package, you can use .(dot) to replace under score in the parameters, for e
 
 ### General Parameters
 * booster [default=gbtree]
-  - which booster to use, can be gbtree or gblinear. The details about different boosters are described [here](https://github.com/dmlc/xgboost/wiki/Boosters). 
+  - which booster to use, can be gbtree or gblinear. gbtree uses tree based model while gblinear uses linear function.
 * silent [default=0]
   - 0 means printing running messages, 1 means silent mode.
 * nthread [default to maximum number of threads available if not set]

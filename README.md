@@ -15,7 +15,7 @@ Distributed Version: [Distributed XGBoost](multi-node)
 
 Notes on the Code: [Code Guide](src)
 
-Documentation: https://github.com/dmlc/xgboost/doc
+[Documentation](https://github.com/dmlc/xgboost/doc)
 
 Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
 * This slide is made by Tianqi Chen to introduce gradient boosting in a statistical view.
