@@ -14,7 +14,7 @@ train.txt
 Each line represent a single instance, and in the first line '1' is the instance label,'101' and '102' are feature indices, '1.2' and '0.03' are feature values. In the binary classification case, '1' is used to indicate positive samples, and '0' is used to indicate negative samples. We also support probability values in [0,1] as label, to indicate the probability of the instance being positive.
 
 ## Group Input Format
-As XGBoost supports accomplishing [ranking task](https://github.com/tqchen/xgboost/wiki/Ranking), we support the group input format. In ranking task, instances are categorized into different groups in real world scenarios, for example, in the learning to rank web pages scenario, the web page instances are grouped by their queries. Except the instance file mentioned in the group input format, XGBoost need an file indicating the group information. For example, if the instance file is the "train.txt" shown above,
+As XGBoost supports accomplishing [ranking task](../demo/rank), we support the group input format. In ranking task, instances are categorized into different groups in real world scenarios, for example, in the learning to rank web pages scenario, the web page instances are grouped by their queries. Except the instance file mentioned in the group input format, XGBoost need an file indicating the group information. For example, if the instance file is the "train.txt" shown above,
 and the group file is as below:
 
 train.txt.group

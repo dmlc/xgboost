@@ -62,7 +62,7 @@ dtrain = xgb.DMatrix( data, label=label, missing = -999.0, weight=w)
 
 =
 #### Setting Parameters
-XGBoost use list of pair to save [parameters](https://github.com/tqchen/xgboost/wiki/Parameters). Eg
+XGBoost use list of pair to save [parameters](parameter.md). Eg
 * Booster parameters 
 ```python
 param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
