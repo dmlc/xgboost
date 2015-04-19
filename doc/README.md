@@ -1,11 +1,13 @@
 List of Documentations
 ====
-* [Parameters](parameter.md)
 * [Using XGBoost in Python](python.md)
 * [Using XGBoost in R](../R-package/vignettes/xgboostPresentation.Rmd)
 * [Learning to use xgboost by example](../demo)
 * [External Memory Version](external_memory.md)
 * [Text input format](input_format.md)
+* [Notes on the Code](../src)
+* [Parameters](parameter.md)
+* Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
 
 How to get started
 ====

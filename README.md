@@ -5,22 +5,14 @@ It implements machine learning algorithm under gradient boosting framework, incl
 
 Contributors: https://github.com/dmlc/xgboost/graphs/contributors
 
+Documentations: [Documentation of xgboost](doc/README.md)
+
 Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
 Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask questions and share your experience on xgboost.
 
-Examples Code: [Learning to use xgboost by examples](demo)
-
 Distributed Version: [Distributed XGBoost](multi-node)
 
-Notes on the Code: [Code Guide](src)
-
-Documentation: [Documentation of xgboost](doc/README.md)
-
-Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
-* This slide is made by Tianqi Chen to introduce gradient boosting in a statistical view.
-* It present boosted tree learning as formal functional space optimization of defined objective.
-* The model presented is used by xgboost for boosted trees
 
 What's New
 ==========
