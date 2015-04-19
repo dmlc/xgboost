@@ -345,13 +345,13 @@ inline int ostream::OutBuf::sync(void) {
   if (stream_ == NULL) return -1;
   std::ptrdiff_t n = pptr() - pbase();
   stream_->Write(pbase(), n);
-  this->pbump(-n);
+  this->pbump(-static_cast<int>(n));
   return 0;
 }
 inline int ostream::OutBuf::overflow(int c) {
   *(this->pptr()) = c;
   std::ptrdiff_t n = pptr() - pbase();
-  this->pbump(-n);
+  this->pbump(-static_cast<int>(n));
   if (c == EOF) {
     stream_->Write(pbase(), n);
   } else {
