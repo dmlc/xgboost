@@ -13,6 +13,7 @@ Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost
 
 Distributed Version: [Distributed XGBoost](multi-node)
 
+Highlights of Usecases: [Highlight Links](doc/README.md#highlight-links)
 
 What's New
 ==========
