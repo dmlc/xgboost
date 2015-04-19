@@ -99,10 +99,8 @@ Rpack:
 	cp -r src xgboost/src/src
 	mkdir xgboost/src/subtree
 	mkdir xgboost/src/subtree/rabit
-	mkdir xgboost/src/subtree/rabit/rabit-learn
 	cp -r subtree/rabit/include xgboost/src/subtree/rabit/include
 	cp -r subtree/rabit/src xgboost/src/subtree/rabit/src
-	cp -r subtree/rabit/rabit-learn/io xgboost/src/subtree/rabit/rabit-learn/io
 	rm -rf xgboost/src/subtree/rabit/src/*.o
 	mkdir xgboost/src/wrapper
 	cp  wrapper/xgboost_wrapper.h xgboost/src/wrapper
