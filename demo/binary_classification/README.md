@@ -1,10 +1,8 @@
 Binary Classification
 ====
 This is the quick start tutorial for xgboost CLI version. You can also checkout [../../doc/README.md](../../doc/README.md) for links to tutorial in python or R.
-
 Here we demonstrate how to use XGBoost for a binary classification task. Before getting started, make sure you compile xgboost in the root directory of the project by typing ```make```
-
-The path of the binary classification demo is at [demo/binary_classification](../blob/master/demo/binary_classification), and the script runexp.sh can be used to run the demo. Here we use [mushroom dataset](https://archive.ics.uci.edu/ml/datasets/Mushroom) from UCI machine learning repository. 
+The script runexp.sh can be used to run the demo. Here we use [mushroom dataset](https://archive.ics.uci.edu/ml/datasets/Mushroom) from UCI machine learning repository. 
 
 ### Tutorial
 #### Generate Input Data
