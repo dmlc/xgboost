@@ -15,7 +15,7 @@ How to get started
 * Find the guide specific language guide above for the language you like to use
 * [Learning to use xgboost by example](../demo) contains lots of useful examples
 
-Highlights Links
+Highlight Links
 ====
 This section is about blogposts, presentation and videos discussing how to use xgboost to solve your interesting problem. If you think something belongs to here, send a pull request.
 * [Winning solution of Kaggle Higgs competition: what a single model can do](http://no2147483647.wordpress.com/2014/09/17/winning-solution-of-kaggle-higgs-competition-what-a-single-model-can-do/) 
