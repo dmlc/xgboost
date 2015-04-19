@@ -55,7 +55,6 @@ train*
 rabit
 .Rbuildignore
 R-package.Rproj
-
+*.cache*
 R-package/inst
 R-package/src
-

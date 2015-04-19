@@ -50,7 +50,7 @@ class BaseMaker: public IUpdater {
             fminmax[fid * 2 + 1] = std::max(c[c.length - 1].fvalue, fminmax[fid * 2 + 1]);
           }
         }
-      }      
+      }
       rabit::Allreduce<rabit::op::Max>(BeginPtr(fminmax), fminmax.size());
     }
     // get feature type, 0:empty 1:binary 2:real

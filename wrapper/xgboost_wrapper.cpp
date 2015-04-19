@@ -19,7 +19,7 @@ using namespace std;
 #include "../src/learner/learner-inl.hpp"
 #include "../src/io/io.h"
 #include "../src/utils/utils.h"
-#include "../src/utils/matrix_csr.h"
+#include "../src/utils/group_data.h"
 #include "../src/io/simple_dmatrix-inl.hpp"
 
 using namespace xgboost;
@@ -139,20 +139,32 @@ extern "C"{
                                        const float *data,
                                        bst_ulong nindptr,
                                        bst_ulong nelem) {
+    int nthread;
+    #pragma omp parallel
+    {
+      nthread = omp_get_num_threads();
+    }
+    
     DMatrixSimple *p_mat = new DMatrixSimple();
     DMatrixSimple &mat = *p_mat;
-    utils::SparseCSRMBuilder<RowBatch::Entry, false> builder(mat.row_ptr_, mat.row_data_);
-    builder.InitBudget();
-    bst_ulong ncol = nindptr - 1;
-    for (bst_ulong i = 0; i < ncol; ++i) {
+    utils::ParallelGroupBuilder<RowBatch::Entry> builder(&mat.row_ptr_, &mat.row_data_);
+    builder.InitBudget(0, nthread);
+    long ncol = static_cast<long>(nindptr - 1);
+    #pragma omp parallel for schedule(static)
+    for (long i = 0; i < ncol; ++i) {
+      int tid = omp_get_thread_num();
       for (unsigned j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
-        builder.AddBudget(indices[j]);
+        builder.AddBudget(indices[j], tid);
       }
     }
     builder.InitStorage();
-    for (bst_ulong i = 0; i < ncol; ++i) {
+    #pragma omp parallel for schedule(static)
+    for (long i = 0; i < ncol; ++i) {
+      int tid = omp_get_thread_num();
       for (unsigned j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
-        builder.PushElem(indices[j], RowBatch::Entry(static_cast<bst_uint>(i), data[j]));
+        builder.Push(indices[j],
+                     RowBatch::Entry(static_cast<bst_uint>(i), data[j]),
+                     tid);
       }
     }
     mat.info.info.num_row = mat.row_ptr_.size() - 1;

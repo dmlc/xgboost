@@ -366,7 +366,7 @@ class CQHistMaker: public HistMaker<TStats> {
       } else {
         feat2workindex[fset[i]] = -2;  
       }
-    }      
+    }
     this->GetNodeStats(gpair, *p_fmat, tree, info,
                        &thread_stats, &node_stats);       
     sketchs.resize(this->qexpand.size() * freal_set.size());
@@ -578,7 +578,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
                                   IFMatrix *p_fmat,
                                   const BoosterInfo &info,
                                   const std::vector <bst_uint> &fset,
-                                  const RegTree &tree) {
+                                  const RegTree &tree) {    
     // initialize the data structure
     int nthread = BaseMaker::get_nthread();
     sketchs.resize(this->qexpand.size() * tree.param.num_feature);

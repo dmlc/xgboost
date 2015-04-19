@@ -19,6 +19,8 @@ extern "C" {
 #endif
   /*!
    * \brief load a data matrix 
+   * \param fname the name of the file
+   * \param silent whether print messages during loading
    * \return a loaded data matrix
    */
   XGB_DLL void* XGDMatrixCreateFromFile(const char *fname, int silent);

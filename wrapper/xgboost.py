@@ -94,7 +94,8 @@ class DMatrix(object):
         Parameters
         ----------
         data : string/numpy array/scipy.sparse
-            Data source, string type is the path of svmlight format txt file or xgb buffer.
+            Data source, string type is the path of svmlight format txt file,
+            xgb buffer or path to cache_file
         label : list or numpy 1-D array (optional)
             Label of the training data.
         missing : float
