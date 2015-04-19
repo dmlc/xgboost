@@ -15,7 +15,7 @@ Distributed Version: [Distributed XGBoost](multi-node)
 
 Notes on the Code: [Code Guide](src)
 
-[Documentation](https://github.com/dmlc/xgboost/doc)
+Documentation: [Documentation of xgboost](doc/README.md)
 
 Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
 * This slide is made by Tianqi Chen to introduce gradient boosting in a statistical view.
@@ -27,9 +27,8 @@ What's New
 * [External Memory Version](doc/external_memory.md)
 * XGBoost wins [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
 * XGBoost now support HDFS and S3
-* [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/tree/master/learn/xgboost)!
+* [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/tree/master/learn/xgboost)
 * [xgboost user group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
-* [Distributed XGBoost](multi-node) is now available!!
 * New features in the lastest changes :)
   - Distributed version that scale xgboost to even larger problems with cluster
   - Feature importance visualization in R module, thanks to Michael Benesty

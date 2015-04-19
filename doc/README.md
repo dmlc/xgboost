@@ -1,7 +1,3 @@
-XGBoost Documentation
-====
-This is an ongoing effort to move the [wiki document](https://github.com/dmlc/xgboost/wiki) to here. You can already find all the most useful parts here.
-
 List of Documentations
 ====
 * [Parameters](parameter.md)
@@ -27,4 +23,4 @@ This section is about blogposts, presentation and videos discussing how to use x
 
 Contribution
 ====
-Contribution of document and usecases are welcomed!
+Contribution of documents and use-cases are welcomed!
