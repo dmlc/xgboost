@@ -260,9 +260,9 @@ class BoostLearner : public rabit::Serializable {
     std::vector<bool> enabled(ncol, true);    
     // initialize column access
     p_train->fmat()->InitColAccess(enabled, prob_buffer_row);
-    const int kMagicSimple = 0xffffab01;
-    // check, if it is not DMatrix simple, then use hist maker
-    if (p_train->magic != kMagicSimple) {
+    const int kMagicPage = 0xffffab02;
+    // check, if it is DMatrixPage, then use hist maker
+    if (p_train->magic == kMagicPage) {
       this->SetParam("updater", "grow_histmaker,prune");
     }
   }

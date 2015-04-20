@@ -224,6 +224,25 @@ class DMatrixPage : public DMatrixPageBase<0xffffab02> {
   /*! \brief the real fmatrix */
   FMatrixPage *fmat_;
 };
+
+// mix of FMatrix S and DMatrix
+// cost half of ram usually as DMatrixSimple
+class DMatrixHalfRAM : public DMatrixPageBase<0xffffab03> {
+ public:
+  DMatrixHalfRAM(void) {
+    fmat_ = new FMatrixS(iter_);
+  }
+  virtual ~DMatrixHalfRAM(void) {
+    delete fmat_;
+  }
+  virtual IFMatrix *fmat(void) const {
+    return fmat_;
+  }
+  virtual void set_cache_file(const std::string &cache_file) {
+  }
+  /*! \brief the real fmatrix */
+  IFMatrix *fmat_;
+};
 }  // namespace io
 }  // namespace xgboost
 #endif  // XGBOOST_IO_PAGE_ROW_ITER_INL_HPP_

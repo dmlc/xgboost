@@ -66,10 +66,16 @@ DataMatrix* LoadDataMatrix(const char *fname,
       dmat->LoadBinary(fs, silent, cache_file);
       fs.Close();
       return dmat;
-    } else {   
-      DMatrixPage *dmat = new DMatrixPage();
-      dmat->LoadText(fname, cache_file, false, loadsplit);
-      return dmat;
+    } else {
+      if (fname[0] == '!') {
+        DMatrixHalfRAM *dmat = new DMatrixHalfRAM();
+        dmat->LoadText(fname + 1, cache_file, false, loadsplit);
+        return dmat;
+      } else {
+        DMatrixPage *dmat = new DMatrixPage();
+        dmat->LoadText(fname, cache_file, false, loadsplit);
+        return dmat;
+      }
     }
   }
 }
