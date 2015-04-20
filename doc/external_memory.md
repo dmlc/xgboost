@@ -24,6 +24,16 @@ Performance Note
   - Most modern CPU offer hyperthreading, which means you can have a 4 core cpu with 8 threads
   - Set nthread to be 4 for maximum performance in such case
 
+Distributed Version
+====
+The external memory mode naturally works on distributed version, you can simply set path like
+```
+data = "hdfs:///path-to-data/#dtrain.cache"
+```
+xgboost will cache the data to the local position. When you run on YARN, the current folder is temporal
+so that you can directly use ```dtrain.cache``` to cache to current folder.
+
+
 Usage Note:
 ====
 * This is a experimental version
