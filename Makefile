@@ -16,6 +16,10 @@ ifeq ($(cxx11),1)
 else 
 endif
 
+ifndef HADOOP_HDFS_HOME
+	HADOOP_HDFS_HOME=$(HADOOP_HOME)
+endif
+
 # handling dmlc
 ifdef dmlc
 	ifndef config
@@ -29,6 +33,9 @@ ifdef dmlc
 	include $(dmlc)/make/dmlc.mk
 	LDFLAGS+= $(DMLC_LDFLAGS)
 	LIBDMLC=$(dmlc)/libdmlc.a
+	ifeq ($(HADOOP_CDH_BINARY), 1)
+		STATIC_LIB=$(HADOOP_HDFS_HOME)/lib/native/libhdfs.a
+	endif
 else
 	LIBDMLC=dmlc_simple.o
 endif
@@ -66,7 +73,7 @@ subtree/rabit/lib/librabit_mpi.a: subtree/rabit/src/engine_mpi.cc
 	+	cd subtree/rabit;make lib/librabit_mpi.a; cd ../..
 
 $(BIN) : 
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) $(STATIC_LIB)
 
 $(MOCKBIN) : 
 	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
