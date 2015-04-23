@@ -13,6 +13,7 @@ import os
 import sys
 import ctypes
 import collections
+import re
 
 import numpy as np
 import scipy.sparse
@@ -530,7 +531,7 @@ class Booster(object):
         return fmap
 
 
-def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, early_stopping_rounds=None):
+def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, early_stopping_rounds=None,evals_result=None):
     """
     Train a booster with given parameters.
 
@@ -542,7 +543,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, ea
         Data to be trained.
     num_boost_round: int
         Number of boosting iterations.
-    watchlist : list of pairs (DMatrix, string)
+    watchlist (evals) : list of pairs (DMatrix, string)
         List of items to be evaluated during training, this allows user to watch
         performance on the validation set.
     obj : function
@@ -557,6 +558,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, ea
         Returns the model from the last iteration (not the best one).
         If early stopping occurs, the model will have two additional fields:
         bst.best_score and bst.best_iteration.
+    evals_result: dict
+        This dictionary stores the evaluation results of all the items in watchlist
 
     Returns
     -------
@@ -566,6 +569,15 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, ea
     evals = list(evals)
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
 
+    if evals_result is not None:
+        if type(evals_result) is not dict:
+            raise ValueError('evals_result has to be a dictionary')
+        else:
+			evals_name = [x[1] for x in evals]
+			evals_result.clear()
+			evals_result.update({key:[] for key in evals_name})
+
+
     if not early_stopping_rounds:
         for i in range(num_boost_round):
             bst.update(dtrain, i, obj)
@@ -573,8 +585,18 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, ea
                 bst_eval_set = bst.eval_set(evals, i, feval)
                 if isinstance(bst_eval_set, string_types):
                     sys.stderr.write(bst_eval_set + '\n')
+                    if evals_result is not None:
+                    	res = re.findall(":([0-9.]+).",bst_eval_set)
+                    	for key,val in zip(evals_name,res):
+                    		evals_result[key].append(val)
+
                 else:
                     sys.stderr.write(bst_eval_set.decode() + '\n')
+                    if evals_result is not None:
+                    	res = re.findall(":([0-9.]+).",bst_eval_set.decode())
+                    	for key,val in zip(evals_name,res):
+                    		evals_result[key].append(val)
+
         return bst
 
     else:
@@ -616,6 +638,11 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, ea
                 msg = bst_eval_set.decode()
 
             sys.stderr.write(msg + '\n')
+
+            if evals_result is not None:
+                res = re.findall(":([0-9.]+).",msg)
+                for key,val in zip(evals_name,res):
+                    evals_result[key].append(val)
 
             score = float(msg.rsplit(':', 1)[1])
             if (maximize_score and score > best_score) or \
