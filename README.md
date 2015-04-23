@@ -54,7 +54,7 @@ Build
 * Windows(VS 2010): see [windows](windows) folder
   - In principle, you put all the cpp files in the Makefile to the project, and build
 * OS X:
-  - For users who want OpenMP support using [Homebrew](http://brew.sh/), run ```brew update``` (ensures that you install gcc-4.9 or above) and ```brew install gcc```. Once it is installed, edit [Makefile](Makefile/) by replacing:
+  - For users who want OpenMP support using [Homebrew](http://brew.sh/), run ```brew update``` (ensures that you install gcc-4.9 or above) and ```brew install gcc --without-multilib```. Once it is installed, edit [Makefile](Makefile/) by replacing:
   ```
   export CC  = gcc
   export CXX = g++
