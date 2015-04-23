@@ -753,37 +753,53 @@ class XGBModel(BaseEstimator):
     ----------
     max_depth : int
         Maximum tree depth for base learners.
+    min_child_weight : int
+        minimum sum of instance weight(hessian) needed in a child.
     learning_rate : float
         Boosting learning rate (xgb's "eta")
     n_estimators : int
         Number of boosted trees to fit.
     silent : boolean
         Whether to print messages while running boosting.
+    objective : string
+        Specify the learning task and the corresponding learning objective.
+    subsample : float
+        Subsample ratio of the training instance.
+    colsample_bytree : float
+        Subsample ratio of columns when constructing each tree.
+    eval_metric : string
+        Evaluation metrics for validation data.
+    nthread : int
+        Number of parallel threads used to run xgboost.
+    seed : int
+        Random number seed.
     """
-    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear"):
+    def __init__(self, max_depth=3, min_child_weight=1, learning_rate=0.1, n_estimators=100, 
+                 silent=True, objective="reg:linear", subsample=1, colsample_bytree=1, eval_metric='error',
+                 nthread=-1, seed=0):
         if not SKLEARN_INSTALLED:
             raise Exception('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
+        self.min_child_weight = min_child_weight
         self.learning_rate = learning_rate
         self.silent = silent
         self.n_estimators = n_estimators
         self.objective = objective
+        self.subsample = subsample
+        self.colsample_bytree = colsample_bytree
+        self.eval_metric = eval_metric
+        self.nthread = nthread
+        self.seed = seed
         self._Booster = Booster()
 
-    def get_params(self, deep=True):
-        return {'max_depth': self.max_depth,
-                'learning_rate': self.learning_rate,
-                'n_estimators': self.n_estimators,
-                'silent': self.silent,
-                'objective': self.objective
-                }
-
     def get_xgb_params(self):
-        return {'eta': self.learning_rate,
-                'max_depth': self.max_depth,
-                'silent': 1 if self.silent else 0,
-                'objective': self.objective
-                }
+        xgb_params = self.get_params()
+
+        xgb_params['silent'] = 1 if self.silent else 0
+
+        if self.nthread <= 0:
+            xgb_params.pop('nthread', None)
+        return xgb_params
 
     def fit(self, X, y):
         trainDmatrix = DMatrix(X, label=y)
@@ -796,8 +812,12 @@ class XGBModel(BaseEstimator):
 
 
 class XGBClassifier(XGBModel, ClassifierMixin):
-    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="binary:logistic"):
-        super(XGBClassifier, self).__init__(max_depth, learning_rate, n_estimators, silent, objective)
+    def __init__(self, max_depth=3, min_child_weight=1, learning_rate=0.1, n_estimators=100, 
+                 silent=True, objective="binary:logistic", subsample=1, colsample_bytree=1, eval_metric='error',
+                 nthread=-1, seed=0):
+        super(XGBClassifier, self).__init__(max_depth, min_child_weight, learning_rate, n_estimators, 
+                                            silent, objective, subsample, colsample_bytree,eval_metric,
+                                            nthread, seed)
 
     def fit(self, X, y, sample_weight=None):
         y_values = list(np.unique(y))
