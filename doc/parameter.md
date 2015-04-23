@@ -3,7 +3,7 @@ XGBoost Parameters
 Before running XGboost, we must set three types of parameters, general parameters, booster parameters and task parameters:
 - General parameters relates to which booster we are using to do boosting, commonly tree or linear model
 - Booster parameters depends on which booster you have chosen
-- Task parameters that decides on the learning scenario, for example, regression tasks may use different parameters with ranking tasks. 
+- Task parameters that decides on the learning scenario, for example, regression tasks may use different parameters with ranking tasks.
 - In addition to these parameters, there can be console parameters that relates to behavior of console version of xgboost(e.g. when to save model)
 
 ### Parameters in R Package
@@ -17,7 +17,7 @@ In R-package, you can use .(dot) to replace under score in the parameters, for e
 * nthread [default to maximum number of threads available if not set]
   - number of parallel threads used to run xgboost
 * num_pbuffer [set automatically by xgboost, no need to be set by user]
-  - size of prediction buffer, normally set to number of training instances. The buffers are used to save the prediction results of last boosting step. 
+  - size of prediction buffer, normally set to number of training instances. The buffers are used to save the prediction results of last boosting step.
 * num_feature [set automatically by xgboost, no need to be set by user]
   - feature dimension used in boosting, set to maximum dimension of the feature
 
@@ -25,17 +25,17 @@ In R-package, you can use .(dot) to replace under score in the parameters, for e
 From xgboost-unity, the ```bst:``` prefix is no longer needed for booster parameters. Parameter with or without bst: prefix will be equivalent(i.e. both bst:eta and eta will be valid parameter setting) .
 
 #### Parameter for Tree Booster
-* eta [default=0.3] 
-  - step size shrinkage used in update to prevents overfitting. After each boosting step, we can directly get the weights of new features. and eta actually shrinkage the feature weights to make the boosting process more conservative. 
-* gamma 
-  - minimum loss reduction required to make a further partition on a leaf node of the tree. the larger, the more conservative the algorithm will be. 
-* max_depth [default=6] 
+* eta [default=0.3]
+  - step size shrinkage used in update to prevents overfitting. After each boosting step, we can directly get the weights of new features. and eta actually shrinkage the feature weights to make the boosting process more conservative.
+* gamma [default=0]
+  - minimum loss reduction required to make a further partition on a leaf node of the tree. the larger, the more conservative the algorithm will be.
+* max_depth [default=6]
   - maximum depth of a tree
-* min_child_weight [default=1] 
+* min_child_weight [default=1]
   - minimum sum of instance weight(hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be.
 * max_delta_step [default=0]
   - Maximum delta step we allow each tree's weight estimation to be. If the value is set to 0, it means there is no constraint. If it is set to a positive value, it can help making the update step more conservative. Usually this parameter is not needed, but it might help in logistic regression when class is extremely imbalanced. Set it to value of 1-10 might help control the update
-* subsample [default=1] 
+* subsample [default=1]
   - subsample ratio of the training instance. Setting it to 0.5 means that XGBoost randomly collected half of the data instances to grow trees and this will prevent overfitting.
 * colsample_bytree [default=1]
   - subsample ratio of columns when constructing each tree.
@@ -44,11 +44,11 @@ From xgboost-unity, the ```bst:``` prefix is no longer needed for booster parame
 * lambda [default=0]
   - L2 regularization term on weights
 * alpha [default=0]
-  - L1 regularization term on weights 
-* lambda_bias 
+  - L1 regularization term on weights
+* lambda_bias
   - L2 regularization term on bias, default 0(no L1 reg on bias because it is not important)
 
-### Task Parameters 
+### Task Parameters
 * objective [ default=reg:linear ]
  - specify the learning task and the corresponding learning objective, and the objective options are below:
  - "reg:linear" --linear regression
@@ -60,8 +60,8 @@ From xgboost-unity, the ```bst:``` prefix is no longer needed for booster parame
  - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
 * base_score [ default=0.5 ]
   - the initial prediction score of all instances, global bias
-* eval_metric [ default according to objective ] 
-  - evaluation metrics for validation data, a default metric will be assigned according to objective( rmse for regression, and error for classification, mean average precision for ranking ) 
+* eval_metric [ default according to objective ]
+  - evaluation metrics for validation data, a default metric will be assigned according to objective( rmse for regression, and error for classification, mean average precision for ranking )
   - User can add multiple evaluation metrics, for python user, remember to pass the metrics in as list of parameters pairs instead of map, so that latter 'eval_metric' won't override previous one
   - The choices are listed below:
   - "rmse": [root mean square error](http://en.wikipedia.org/wiki/Root_mean_square_error)
@@ -70,25 +70,25 @@ From xgboost-unity, the ```bst:``` prefix is no longer needed for booster parame
   - "merror": Multiclass classification error rate. It is calculated as #(wrong cases)/#(all cases).
   - "mlogloss":  Multiclass logloss
   - "auc": [Area under the curve](http://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_curve) for ranking evaluation.
-  - "ndcg":[Normalized Discounted Cumulative Gain](http://en.wikipedia.org/wiki/NDCG) 
+  - "ndcg":[Normalized Discounted Cumulative Gain](http://en.wikipedia.org/wiki/NDCG)
   - "map":[Mean average precision](http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision)
   - "ndcg@n","map@n": n can be assigned as an integer to cut off the top positions in the lists for evaluation.
   - "ndcg-","map-","ndcg@n-","map@n-": In XGBoost, NDCG and MAP will evaluate the score of a list without any positive samples as 1. By adding "-" in the evaluation metric XGBoost will evaluate these score as 0 to be consistent under some conditions.
-training repeatively 
+training repeatively
 * seed [ default=0 ]
  - random number seed.
 
 ### Console Parameters
 The following parameters are only used in the console version of xgboost
 * use_buffer [ default=1 ]
- -  whether create binary buffer for text input, this normally will speedup loading when do 
-* num_round 
+ -  whether create binary buffer for text input, this normally will speedup loading when do
+* num_round
  - the number of round for boosting.
-* data 
+* data
   - The path of training data
-* test:data  
+* test:data
   - The path of test data to do prediction
-* save_period [default=0] 
+* save_period [default=0]
  - the period to save the model, setting save_period=10 means that for every 10 rounds XGBoost will save the model, setting it to 0 means not save any model during training.
 * task [default=train] options: train, pred, eval, dump
   - train: training using data
@@ -101,9 +101,9 @@ The following parameters are only used in the console version of xgboost
   - path to output model after training finishes, if not specified, will output like 0003.model where 0003 is number of rounds to do boosting.
 * model_dir [default=models]
   - The output directory of the saved models during training
-* fmap  
+* fmap
   - feature map, used for dump model
-* name_dump [default=dump.txt] 
+* name_dump [default=dump.txt]
   - name of model dump file
 * name_pred [default=pred.txt]
   - name of prediction file, used in pred mode
