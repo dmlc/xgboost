@@ -111,7 +111,7 @@ struct ColBatch : public SparseBatch {
   const bst_uint *col_index;
   /*! \brief pointer to the column data */
   const Inst *col_data;
-  /*! \brief get i-th row from the batch */
+  /*! \brief get i-th column from the batch */
   inline Inst operator[](size_t i) const {
     return col_data[i];
   }
