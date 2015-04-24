@@ -777,14 +777,12 @@ class XGBModel(BaseEstimator):
 
     base_score:
         The initial prediction score of all instances, global bias.
-    eval_metric : string
-        Evaluation metrics for validation data.
     seed : int
         Random number seed.
     """
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear", 
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1, 
-                 base_score=0.5, eval_metric='error', seed=0):
+                 base_score=0.5, seed=0):
         if not SKLEARN_INSTALLED:
             raise Exception('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
@@ -801,7 +799,6 @@ class XGBModel(BaseEstimator):
         self.colsample_bytree = colsample_bytree
 
         self.base_score = base_score
-        self.eval_metric = eval_metric
         self.seed = seed
         
         self._Booster = Booster()
@@ -828,10 +825,10 @@ class XGBModel(BaseEstimator):
 class XGBClassifier(XGBModel, ClassifierMixin):
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="binary:logistic", 
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1, 
-                 base_score=0.5, eval_metric='error', seed=0):
+                 base_score=0.5, seed=0):
         super(XGBClassifier, self).__init__(max_depth, learning_rate, n_estimators, silent, objective, 
                                             nthread, gamma, min_child_weight, max_delta_step, subsample, colsample_bytree,
-                                            base_score, eval_metric, seed)
+                                            base_score, seed)
 
     def fit(self, X, y, sample_weight=None):
         y_values = list(np.unique(y))
