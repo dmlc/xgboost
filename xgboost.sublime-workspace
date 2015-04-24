@@ -1,0 +1,1385 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"evals_",
+				"evals_result"
+			],
+			[
+				"data_",
+				"data_transform_test"
+			],
+			[
+				"lo",
+				"load_test_data〔function〕"
+			],
+			[
+				"mxSetp",
+				"mxSetPr"
+			],
+			[
+				"mxCre",
+				"mxCreateDoubleMatrixE"
+			],
+			[
+				"mxGen",
+				"mxGetNumberOfElements"
+			],
+			[
+				"mxGetN",
+				"mxGetNumberOfElements"
+			],
+			[
+				"mxSet",
+				"mxSetPr"
+			],
+			[
+				"dest",
+				"destmat"
+			],
+			[
+				"mxRea",
+				"mxREAL"
+			],
+			[
+				"mxCreate",
+				"mxCreateNumericArrayE"
+			],
+			[
+				"src",
+				"srcmat"
+			],
+			[
+				"pr",
+				"prhs"
+			],
+			[
+				"sys",
+				"system〔function〕"
+			],
+			[
+				"qs",
+				"qsubscript"
+			],
+			[
+				"X_",
+				"X_transformed"
+			],
+			[
+				"data",
+				"data_transform"
+			],
+			[
+				"predict",
+				"predict_proba〔function〕"
+			],
+			[
+				"num",
+				"num_features"
+			],
+			[
+				"cl",
+				"classes_"
+			],
+			[
+				"log_",
+				"log_path"
+			],
+			[
+				"R",
+				"RandomForestClassifier"
+			],
+			[
+				"e",
+				"ensemble"
+			],
+			[
+				"err",
+				"error"
+			],
+			[
+				"python",
+				"python_script"
+			],
+			[
+				"l",
+				"LOCK_EX〔variable〕"
+			],
+			[
+				"SF_MOTE_TY",
+				"SF_MOTE_TYPE_SENSOR"
+			],
+			[
+				"TDMA_SN_",
+				"TDMA_SN_listen"
+			],
+			[
+				"SN",
+				"SN_sleep_timer"
+			],
+			[
+				"SF_MOTE_",
+				"SF_MOTE_TYPE_SENSOR"
+			],
+			[
+				"tdma_rdc",
+				"tdma_rdc_buf"
+			],
+			[
+				"rdc",
+				"rdc_buf"
+			],
+			[
+				"tdma_",
+				"tdma_rdc_buffer"
+			],
+			[
+				"variable",
+				"variables"
+			],
+			[
+				"tdma_rd",
+				"tdma_rdc_buf_t"
+			],
+			[
+				"MAX_PKT_P",
+				"MAX_PKT_PAYLOAD_SIZE_BIT"
+			],
+			[
+				"MAX_PKT",
+				"MAX_PKT_PAYLOAD_SIZE"
+			],
+			[
+				"uint16",
+				"uint16_t"
+			],
+			[
+				"encode",
+				"encoder"
+			],
+			[
+				"packe",
+				"packethandle"
+			],
+			[
+				"hu",
+				"huffman_encoder_8bit"
+			],
+			[
+				"PROCE",
+				"PROCESS_END"
+			],
+			[
+				"app_co",
+				"app_conn_open"
+			],
+			[
+				"packet",
+				"packetbufptr"
+			],
+			[
+				"font",
+				"font-size"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "build.sh",
+			"settings":
+			{
+				"buffer_size": 612,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "wrapper/xgboost.py",
+			"settings":
+			{
+				"buffer_size": 28709,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "wrapper/xgboost_wrapper.cpp",
+			"settings":
+			{
+				"buffer_size": 13094,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "wrapper/xgboost_wrapper.h",
+			"settings":
+			{
+				"buffer_size": 8924,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "src/learner/evaluation-inl.hpp",
+			"settings":
+			{
+				"buffer_size": 19208,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "src/learner/learner-inl.hpp",
+			"settings":
+			{
+				"buffer_size": 18585,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "src/learner/evaluation.h",
+			"settings":
+			{
+				"buffer_size": 3220,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "src/utils/fmap.h",
+			"settings":
+			{
+				"buffer_size": 2427,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"contents": "def addToDict(x):\n    if type(x) is not dict:\n        raise ValueError('The variable to store eval results has to be a dictionary')\n\n    x.clear()\n\n    x['hello'] = 1\n    x['two'] = [1,3]\n\n\na = dict()\naddToDict(a)\nprint a\n\na['three'] = [1,5]\naddToDict(a)\nprint a\n\nb = [4,5]\naddToDict(b)\nprint b\n#re.findall(\":([0-9.]+).\",input)\n\n\n",
+			"file": "/Users/yzliao/Documents/kaggle/test.py",
+			"file_size": 328,
+			"file_write_time": 1429825199000000,
+			"settings":
+			{
+				"buffer_size": 330,
+				"line_ending": "Unix",
+				"name": "def addToDict(x):"
+			}
+		}
+	],
+	"build_system": "",
+	"command_palette":
+	{
+		"height": 115.0,
+		"selected_items":
+		[
+			[
+				"remove",
+				"Package Control: Remove Package"
+			],
+			[
+				"install",
+				"Package Control: Install Package"
+			],
+			[
+				"remov",
+				"Package Control: Remove Package"
+			],
+			[
+				"Cim",
+				"Set Syntax: C Improved"
+			],
+			[
+				"cimp",
+				"Set Syntax: C Improved"
+			],
+			[
+				"instal",
+				"Package Control: Install Package"
+			],
+			[
+				"bash",
+				"Set Syntax: Shell Script (Bash)"
+			],
+			[
+				"inst",
+				"Package Control: Install Package"
+			],
+			[
+				"ins",
+				"Package Control: Install Package"
+			],
+			[
+				"insta",
+				"Package Control: Install Package"
+			],
+			[
+				"Package ",
+				"Preferences: Browse Packages"
+			]
+		],
+		"width": 530.0
+	},
+	"console":
+	{
+		"height": 129.0
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"file_history":
+	[
+		"/Users/yzliao/Documents/kaggle/xgboost/src/utils/utils.h",
+		"/Users/yzliao/Documents/kaggle/xgboost/src/learner/objective-inl.hpp",
+		"/Users/yzliao/Documents/kaggle/xgboost/src/learner/objective.h",
+		"/Users/yzliao/Documents/researchCode/GraphicalChangePoint/CPDetectionV3/tools/logC",
+		"/Users/yzliao/Library/Application Support/Sublime Text 2/Packages/User/SublimeCodeIntel.sublime-settings",
+		"/Users/yzliao/Documents/kaggle/ottogroup/otto.sublime-project",
+		"/Users/yzliao/Library/Application Support/Sublime Text 2/Packages/User/Preferences.sublime-settings",
+		"/Users/yzliao/Library/Application Support/Sublime Text 2/Packages/Jedi - Python autocompletion/sublime_jedi.sublime-settings",
+		"/Users/yzliao/Documents/snowflake/core/net/rime/timesynch.h",
+		"/Users/yzliao/Documents/snowflake/core/net/rime/timesynch.c",
+		"/Users/yzliao/Documents/snowflake/cpu/msp430/f1xxx/rtimer-arch.c",
+		"/Users/yzliao/Documents/snowflake/core/sys/rtimer.c",
+		"/Users/yzliao/Documents/snowflake/core/net/mac/nullrdc-noframer.c",
+		"/Users/yzliao/Documents/snowflake/core/lib/list.h",
+		"/Users/yzliao/Documents/snowflake/core/net/queuebuf.h",
+		"/Users/yzliao/Documents/snowflake/core/net/queuebuf.c",
+		"/Users/yzliao/Documents/snowflake/core/lib/memb.h",
+		"/Users/yzliao/Documents/snowflake/core/net/mac/ctdma_mac.c",
+		"/Users/yzliao/Documents/snowflake/hello_world/project-conf.h",
+		"/Users/yzliao/Documents/snowflake/tools/timestamp",
+		"/Users/yzliao/Documents/snowflake/platform/sky/dev/mpu-6050.c",
+		"/Users/yzliao/Documents/snowflake/platform/sky/dev/mpu-6050.h",
+		"/Users/yzliao/Documents/snowflake/examples/udp-stream/project-conf.h",
+		"/Users/yzliao/Documents/snowflake/platform/sky/contiki-sky-platform.c",
+		"/Users/yzliao/Documents/snowflake/platform/sky/contiki-sky-main.c",
+		"/Users/yzliao/Documents/snowflake/core/net/rime/rime.c",
+		"/Users/yzliao/Documents/snowflake/apps/shell/shell-rime-netcmd.c",
+		"/Users/yzliao/Documents/snowflake/platform/sky/dev/button-sensor.c",
+		"/Users/yzliao/Documents/snowflake/platform/cc2530dk/dev/button-sensor.c",
+		"/Users/yzliao/Documents/snowflake/core/lib/sensors.h",
+		"/Users/yzliao/Documents/snowflake/cpu/msp430/f1xxx/clock.c",
+		"/Users/yzliao/Documents/snowflake/core/sys/clock.h",
+		"/Users/yzliao/Documents/snowflake/platform/sky/platform-conf.h",
+		"/Users/yzliao/Documents/snowflake/cpu/msp430/f1xxx/uart1.c",
+		"/Users/yzliao/Documents/snowflake/core/sys/rtimer.h",
+		"/Users/yzliao/Documents/snowflake/cpu/msp430/msp430def.h",
+		"/Users/yzliao/Documents/snowflake/core/sys/timer.c",
+		"/Users/yzliao/Documents/snowflake/core/sys/etimer.c",
+		"/Users/yzliao/Documents/snowflake/core/sys/etimer.h",
+		"/Users/yzliao/Library/Application Support/Sublime Text 2/Packages/User/Package Control.sublime-settings",
+		"/Users/yzliao/Documents/snowflake/cpu/msp430/rtimer-arch.h",
+		"/Users/yzliao/Documents/snowflake/hello_world/Makefile",
+		"/Users/yzliao/Documents/snowflake/core/net/mac/framer-tdma.c",
+		"/Users/yzliao/Documents/snowflake/core/net/mac/tdmardc.c",
+		"/Users/yzliao/Documents/snowflake/core/net/mac/rdc.h",
+		"/Users/yzliao/Documents/snowflake/core/lib/list.c",
+		"/Users/yzliao/Documents/snowflake/core/net/mac/contikimac.c",
+		"/Users/yzliao/Documents/snowflake/core/net/mac/frame802154.h",
+		"/Users/yzliao/Documents/snowflake/core/net/mac/framer-802154.h",
+		"/Users/yzliao/Documents/snowflake/hello_world/build.sh",
+		"/Users/yzliao/Documents/snowflake/hello_world/read_usb.py",
+		"/Users/yzliao/Documents/snowflake/core/net/mac/tdmardc.h",
+		"/Users/yzliao/Library/Application Support/Sublime Text 2/Packages/CTags/CTags.sublime-settings",
+		"/Users/yzliao/Library/Application Support/Sublime Text 2/Packages/User/CTags.sublime-settings",
+		"/Users/yzliao/Documents/snowflake/core/snowfort/snowfort.h",
+		"/Users/yzliao/Documents/snowflake/hello_world/encoderExample.c",
+		"/Users/yzliao/Documents/snowflake/platform/sky/dev/i2c.c",
+		"/Users/yzliao/Documents/snowflake/platform/sky/dev/sky-sensors.c",
+		"/Users/yzliao/Documents/snowflake/core/net/appconn/app_conn.h",
+		"/Users/yzliao/Documents/snowflake/hello_world/app_util.c",
+		"/Users/yzliao/Documents/snowflake/hello_world/app_util.h",
+		"/Users/yzliao/Documents/snowflake/hello_world/rebootExample.c",
+		"/Users/yzliao/Documents/snowflake/core/dev/sht11.c",
+		"/Users/yzliao/Documents/snowflake/core/dev/sht11-sensor.c",
+		"/Users/yzliao/Documents/snowflake/platform/sky/dev/temperature-sensor.c",
+		"/Users/yzliao/Documents/snowflake/core/snowfort/sf_math.h",
+		"/Users/yzliao/Documents/snowflake/core/snowfort/sf_math.c",
+		"/Users/yzliao/Documents/snowflake/Makefile.include",
+		"/Users/yzliao/Documents/snowflake/core/net/coder/coder_math.h",
+		"/Users/yzliao/Documents/snowflake/core/net/coder/coder_math.c",
+		"/Users/yzliao/Documents/snowflake/core/net/coder/huffman_code.c",
+		"/Users/yzliao/Documents/snowflake/core/net/coder/huffman_code.h",
+		"/Users/yzliao/Documents/snowflake/core/net/coder/Makefile.coder",
+		"/Users/yzliao/Documents/snowflake/core/contiki-net.h",
+		"/Users/yzliao/Library/Application Support/Sublime Text 2/Packages/Alignment/Default (OSX).sublime-keymap",
+		"/Users/yzliao/Documents/snowflake/core/contiki-lib.h",
+		"/Users/yzliao/Documents/snowflake/core/net/mac/frame802154.c",
+		"/Users/yzliao/Documents/snowflake/core/net/uip-ds6.h",
+		"/Users/yzliao/Documents/snowflake/mktag.sh",
+		"/Users/yzliao/Documents/sync_s.sh",
+		"/Users/yzliao/Documents/snowflake/core/net/packetbuf.c",
+		"/Users/yzliao/Documents/snowflake/README",
+		"/Users/yzliao/Documents/coursera_startup/hw4/index.html"
+	],
+	"find":
+	{
+		"height": 35.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+			"/Users/yzliao/Documents/snowflake/",
+			"/Users/yzliao/Documents/snowflake/core",
+			"/Users/yzliao/Documents/snowflake"
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"feat",
+			"dump",
+			"EvalSet",
+			"evaluator_",
+			"EvalOneIter",
+			"eval_set",
+			"Train",
+			"train",
+			"train(",
+			"ringbuf",
+			"ringbuf_init",
+			"rdc_buf_list",
+			"TX_WITH_INTERRUPT",
+			"coder",
+			"typedef struct",
+			"typdef struct",
+			"struct",
+			"/*",
+			"split",
+			"split2",
+			"img/",
+			"fav"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": true,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 1,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "build.sh",
+					"settings":
+					{
+						"buffer_size": 612,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"BracketHighlighterBusy": false,
+							"bh_regions":
+							[
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close"
+							],
+							"syntax": "Packages/ShellScript/Shell-Unix-Generic.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "wrapper/xgboost.py",
+					"settings":
+					{
+						"buffer_size": 28709,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								15221,
+								16387
+							]
+						],
+						"settings":
+						{
+							"BracketHighlighterBusy": false,
+							"auto_complete": false,
+							"bh_regions":
+							[
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close"
+							],
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 9882.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "wrapper/xgboost_wrapper.cpp",
+					"settings":
+					{
+						"buffer_size": 13094,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								12964,
+								12964
+							]
+						],
+						"settings":
+						{
+							"BracketHighlighterBusy": false,
+							"bh_regions":
+							[
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close"
+							],
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 6345.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "wrapper/xgboost_wrapper.h",
+					"settings":
+					{
+						"buffer_size": 8924,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								6419,
+								6439
+							]
+						],
+						"settings":
+						{
+							"BracketHighlighterBusy": false,
+							"bh_regions":
+							[
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close"
+							],
+							"syntax": "Packages/C Improved/C Improved.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "src/learner/evaluation-inl.hpp",
+					"settings":
+					{
+						"buffer_size": 19208,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								387,
+								391
+							]
+						],
+						"settings":
+						{
+							"BracketHighlighterBusy": false,
+							"bh_regions":
+							[
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close"
+							],
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "src/learner/learner-inl.hpp",
+					"settings":
+					{
+						"buffer_size": 18585,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								17039,
+								17046
+							]
+						],
+						"settings":
+						{
+							"BracketHighlighterBusy": false,
+							"bh_regions":
+							[
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close"
+							],
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "src/learner/evaluation.h",
+					"settings":
+					{
+						"buffer_size": 3220,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"BracketHighlighterBusy": false,
+							"bh_regions":
+							[
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close"
+							],
+							"syntax": "Packages/C Improved/C Improved.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 1215.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "src/utils/fmap.h",
+					"settings":
+					{
+						"buffer_size": 2427,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"BracketHighlighterBusy": false,
+							"bh_regions":
+							[
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close"
+							],
+							"syntax": "Packages/C Improved/C Improved.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 114.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		},
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 8,
+					"file": "/Users/yzliao/Documents/kaggle/test.py",
+					"settings":
+					{
+						"buffer_size": 330,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								296,
+								327
+							]
+						],
+						"settings":
+						{
+							"BracketHighlighterBusy": false,
+							"auto_complete": false,
+							"auto_name": "def addToDict(x):",
+							"bh_regions":
+							[
+								"bh_regex",
+								"bh_regex_center",
+								"bh_regex_open",
+								"bh_regex_close",
+								"bh_double_quote",
+								"bh_double_quote_center",
+								"bh_double_quote_open",
+								"bh_double_quote_close",
+								"bh_square",
+								"bh_square_center",
+								"bh_square_open",
+								"bh_square_close",
+								"bh_angle",
+								"bh_angle_center",
+								"bh_angle_open",
+								"bh_angle_close",
+								"bh_curly",
+								"bh_curly_center",
+								"bh_curly_open",
+								"bh_curly_close",
+								"bh_c_define",
+								"bh_c_define_center",
+								"bh_c_define_open",
+								"bh_c_define_close",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_round",
+								"bh_round_center",
+								"bh_round_open",
+								"bh_round_close",
+								"bh_tag",
+								"bh_tag_center",
+								"bh_tag_open",
+								"bh_tag_close",
+								"bh_single_quote",
+								"bh_single_quote_center",
+								"bh_single_quote_open",
+								"bh_single_quote_close"
+							],
+							"syntax": "Packages/Python/Python.tmLanguage"
+						},
+						"translation.x": 1.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 0.0
+	},
+	"input":
+	{
+		"height": 38.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			],
+			[
+				1,
+				0,
+				2,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			0.70196841586,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"replace":
+	{
+		"height": 0.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+			[
+				"mpu6050",
+				"platform/sky/dev/mpu-6050.h"
+			],
+			[
+				"i2c.h",
+				"platform/sky/dev/i2c.h"
+			],
+			[
+				"i2c",
+				"platform/sky/dev/i2c.c"
+			],
+			[
+				"mpu",
+				"platform/sky/dev/mpu-6050.c"
+			],
+			[
+				"rdc.h",
+				"core/net/mac/rdc.h"
+			],
+			[
+				"contikimac",
+				"core/net/mac/contikimac.c"
+			],
+			[
+				"tdmar",
+				"core/net/mac/tdmardc.h"
+			],
+			[
+				"butter",
+				"platform/sky/dev/button-sensor.c"
+			],
+			[
+				"dev/bu",
+				"platform/cc2530dk/dev/button-sensor.c"
+			],
+			[
+				"rime",
+				"apps/shell/shell-rime-netcmd.c"
+			],
+			[
+				"msp",
+				"cpu/msp430/msp430def.h"
+			],
+			[
+				"clock",
+				"core/sys/clock.h"
+			],
+			[
+				"rtimer",
+				"core/sys/rtimer.h"
+			],
+			[
+				"rtimer-ar",
+				"cpu/msp430/rtimer-arch.h"
+			],
+			[
+				"frametd",
+				"core/net/mac/framer-tdma.c"
+			],
+			[
+				"etimer",
+				"core/sys/etimer.c"
+			],
+			[
+				"times",
+				"core/net/rime/timesynch.h"
+			],
+			[
+				"802",
+				"core/net/mac/frame802154.h"
+			],
+			[
+				"framer",
+				"core/net/mac/framer-tdma.c"
+			],
+			[
+				"framer-",
+				"core/net/mac/framer-802154.h"
+			],
+			[
+				"tdmardc.",
+				"core/net/mac/tdmardc.h"
+			],
+			[
+				"queuebuf",
+				"core/net/queuebuf.h"
+			],
+			[
+				"list.h",
+				"core/lib/list.h"
+			],
+			[
+				"ctimer",
+				"core/sys/ctimer.h"
+			],
+			[
+				"hel",
+				"hello_world/helloWorld.c"
+			],
+			[
+				"tdma",
+				"core/net/mac/tdmardc.h"
+			],
+			[
+				"sht-",
+				"core/dev/sht11-sensor.c"
+			],
+			[
+				"sky-sens",
+				"platform/sky/dev/sky-sensors.c"
+			],
+			[
+				"coder",
+				"core/net/coder/coder_math.h"
+			],
+			[
+				"coder_",
+				"core/net/coder/coder_math.c"
+			],
+			[
+				"app_conn.c",
+				"core/net/appconn/app_conn.c"
+			],
+			[
+				"app_co",
+				"core/net/appconn/app_conn.h"
+			],
+			[
+				"coder_m",
+				"core/net/coder/coder_math.h"
+			],
+			[
+				"app_u",
+				"hello_world/app_util.c"
+			],
+			[
+				"huff",
+				"core/net/coder/huffman_code.c"
+			],
+			[
+				".sh",
+				"mktag.sh"
+			],
+			[
+				"",
+				"/Users/yzliao/Documents/WSN/snowfort_website/index.html"
+			]
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 500.0,
+		"selected_items":
+		[
+		],
+		"width": 380.0
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 186.0,
+	"status_bar_visible": true
+}

@@ -1,5 +1,7 @@
-export CC  = gcc
-export CXX = g++
+#export CC  = gcc
+#export CXX = g++
+export CC = /usr/local/Cellar/gcc/4.9.2_1/bin/gcc-4.9
+export CXX = /usr/local/Cellar/gcc/4.9.2_1/bin/g++-4.9
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm 
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC
