@@ -781,31 +781,58 @@ class XGBModel(BaseEstimator):
         Number of boosted trees to fit.
     silent : boolean
         Whether to print messages while running boosting.
+    objective : string
+        Specify the learning task and the corresponding learning objective.
+
+    nthread : int
+        Number of parallel threads used to run xgboost.
+    gamma : float
+        Minimum loss reduction required to make a further partition on a leaf node of the tree.
+    min_child_weight : int
+        Minimum sum of instance weight(hessian) needed in a child.        
+    max_delta_step : int
+        Maximum delta step we allow each tree's weight estimation to be.
+    subsample : float
+        Subsample ratio of the training instance.
+    colsample_bytree : float
+        Subsample ratio of columns when constructing each tree.
+
+    base_score:
+        The initial prediction score of all instances, global bias.
+    seed : int
+        Random number seed.
     """
-    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear"):
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear", 
+                 nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1, 
+                 base_score=0.5, seed=0):
         if not SKLEARN_INSTALLED:
             raise Exception('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
         self.learning_rate = learning_rate
-        self.silent = silent
         self.n_estimators = n_estimators
+        self.silent = silent
         self.objective = objective
+        
+        self.nthread = nthread
+        self.gamma = gamma
+        self.min_child_weight = min_child_weight
+        self.max_delta_step = max_delta_step
+        self.subsample = subsample
+        self.colsample_bytree = colsample_bytree
+
+        self.base_score = base_score
+        self.seed = seed
+        
         self._Booster = Booster()
 
-    def get_params(self, deep=True):
-        return {'max_depth': self.max_depth,
-                'learning_rate': self.learning_rate,
-                'n_estimators': self.n_estimators,
-                'silent': self.silent,
-                'objective': self.objective
-                }
-
     def get_xgb_params(self):
-        return {'eta': self.learning_rate,
-                'max_depth': self.max_depth,
-                'silent': 1 if self.silent else 0,
-                'objective': self.objective
-                }
+        xgb_params = self.get_params()
+
+        xgb_params['silent'] = 1 if self.silent else 0
+
+        if self.nthread <= 0:
+            xgb_params.pop('nthread', None)
+        return xgb_params
 
     def fit(self, X, y):
         trainDmatrix = DMatrix(X, label=y)
@@ -818,8 +845,12 @@ class XGBModel(BaseEstimator):
 
 
 class XGBClassifier(XGBModel, ClassifierMixin):
-    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="binary:logistic"):
-        super(XGBClassifier, self).__init__(max_depth, learning_rate, n_estimators, silent, objective)
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="binary:logistic", 
+                 nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1, 
+                 base_score=0.5, seed=0):
+        super(XGBClassifier, self).__init__(max_depth, learning_rate, n_estimators, silent, objective, 
+                                            nthread, gamma, min_child_weight, max_delta_step, subsample, colsample_bytree,
+                                            base_score, seed)
 
     def fit(self, X, y, sample_weight=None):
         y_values = list(np.unique(y))
