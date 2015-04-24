@@ -531,7 +531,8 @@ class Booster(object):
         return fmap
 
 
-def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, early_stopping_rounds=None,evals_result=None):
+def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
+    early_stopping_rounds=None,evals_result=None):
     """
     Train a booster with given parameters.
 
@@ -584,18 +585,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, ea
                 bst_eval_set = bst.eval_set(evals, i, feval)
                 if isinstance(bst_eval_set, string_types):
                     msg = bst_eval_set
-                    #sys.stderr.write(bst_eval_set + '\n')
-                    # if evals_result is not None:
-                    #     res = re.findall(":([0-9.]+).",bst_eval_set)
-                    #     for key,val in zip(evals_name,res):
-                    #         evals_result[key].append(val)
                 else:
                     msg = bst_eval_set.decode()
-                    # sys.stderr.write(bst_eval_set.decode() + '\n')
-                    # if evals_result is not None:
-                    #     res = re.findall(":([0-9.]+).",bst_eval_set.decode())
-                    #     for key,val in zip(evals_name,res):
-                    #         evals_result[key].append(val)
 
                 sys.stderr.write(msg + '\n')
                 if evals_result is not None:
