@@ -517,7 +517,6 @@ class Booster(object):
         trees = self.get_dump(fmap)
         fmap = {}
         for tree in trees:
-            sys.stdout.write(str(tree) + '\n')
             for l in tree.split('\n'):
                 arr = l.split('[')
                 if len(arr) == 1:
