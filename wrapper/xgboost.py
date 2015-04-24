@@ -531,7 +531,8 @@ class Booster(object):
         return fmap
 
 
-def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, early_stopping_rounds=None,evals_result=None):
+def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
+    early_stopping_rounds=None,evals_result=None):
     """
     Train a booster with given parameters.
 
@@ -573,9 +574,9 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, ea
         if type(evals_result) is not dict:
             raise ValueError('evals_result has to be a dictionary')
         else:
-			evals_name = [x[1] for x in evals]
-			evals_result.clear()
-			evals_result.update({key:[] for key in evals_name})
+            evals_name = [x[1] for x in evals]
+            evals_result.clear()
+            evals_result.update({key:[] for key in evals_name})
 
 
     if not early_stopping_rounds:
@@ -586,16 +587,16 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None, ea
                 if isinstance(bst_eval_set, string_types):
                     sys.stderr.write(bst_eval_set + '\n')
                     if evals_result is not None:
-                    	res = re.findall(":([0-9.]+).",bst_eval_set)
-                    	for key,val in zip(evals_name,res):
-                    		evals_result[key].append(val)
+                        res = re.findall(":([0-9.]+).",bst_eval_set)
+                        for key,val in zip(evals_name,res):
+                            evals_result[key].append(val)
 
                 else:
                     sys.stderr.write(bst_eval_set.decode() + '\n')
                     if evals_result is not None:
-                    	res = re.findall(":([0-9.]+).",bst_eval_set.decode())
-                    	for key,val in zip(evals_name,res):
-                    		evals_result[key].append(val)
+                        res = re.findall(":([0-9.]+).",bst_eval_set.decode())
+                        for key,val in zip(evals_name,res):
+                            evals_result[key].append(val)
 
         return bst
 
