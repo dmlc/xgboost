@@ -510,16 +510,13 @@ class Booster(object):
             res.append(str(sarr[i]))
         return res
 
-    def get_fscore(self, fmap='',verbose = False):
+    def get_fscore(self, fmap=''):
         """
         Get feature importance of each feature.
         """
         trees = self.get_dump(fmap)
         fmap = {}
         for tree in trees:
-            if verbos is True:
-                sys.stdout.write(str(tree) + '\n')
-
             for l in tree.split('\n'):
                 arr = l.split('[')
                 if len(arr) == 1:
