@@ -174,7 +174,7 @@ inline void TrackerPrintf(const char *fmt, ...) {
   va_start(args, fmt);
   vsnprintf(&msg[0], kPrintBuffer, fmt, args);
   va_end(args);
-  msg.resize(strlen(msg.c_str());
+  msg.resize(strlen(msg.c_str()));
   TrackerPrint(msg);
 }
 #endif
