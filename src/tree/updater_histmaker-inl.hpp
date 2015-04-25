@@ -525,7 +525,7 @@ class CQHistMaker: public HistMaker<TStats> {
     if (c[0].fvalue  == c[c.length-1].fvalue) {
       for (size_t i = 0; i < this->qexpand.size(); ++i) {
         const int nid = this->qexpand[i];
-        sbuilder[nid].sketch->Push(c[0].fvalue, sbuilder[nid].sum_total);
+        sbuilder[nid].sketch->Push(c[0].fvalue, static_cast<bst_float>(sbuilder[nid].sum_total));
       }
       return;
     }

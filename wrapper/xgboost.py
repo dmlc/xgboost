@@ -26,6 +26,8 @@ try:
 except ImportError:
     SKLEARN_INSTALLED = False
 
+class XGBoostLibraryNotFound(Exception):
+    pass
 
 __all__ = ['DMatrix', 'CVPack', 'Booster', 'aggcv', 'cv', 'mknfold', 'train']
 
@@ -36,14 +38,18 @@ else:
 
 
 def load_xglib():
-    dll_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    if os.name == 'nt':
-        dll_path = os.path.join(dll_path, '../windows/x64/Release/xgboost_wrapper.dll')
-    else:
-        dll_path = os.path.join(dll_path, 'libxgboostwrapper.so')
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    dll_path = [curr_path]
+    dll_path.append(os.path.join(curr_path, '../windows/x64/Release/'))
 
-    # load the xgboost wrapper library
-    lib = ctypes.cdll.LoadLibrary(dll_path)
+    if os.name == 'nt':
+        dll_path = [os.path.join(p, 'xgboost_wrapper.dll') for p in dll_path]
+    else:
+        dll_path = [os.path.join(p, 'libxgboostwrapper.so') for p in dll_path]
+    lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
+    if len(dll_path) == 0:
+        raise XGBoostLibraryNotFound('cannot find find the files in the candicate path ' + str(dll_path))
+    lib = ctypes.cdll.LoadLibrary(lib_path[0])
 
     # DMatrix functions
     lib.XGDMatrixCreateFromFile.restype = ctypes.c_void_p
@@ -762,12 +768,16 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
     return results
 
 
+# used for compatiblity without sklearn
 XGBModelBase = object
+XGBClassifier = object
+XGBRegressor = object
 if SKLEARN_INSTALLED:
     XGBModelBase = BaseEstimator
+    XGBRegressor = RegressorMixin
+    XGBClassifier = ClassifierMixin
 
-
-class XGBModel(BaseEstimator):
+class XGBModel(XGBModelBase):
     """
     Implementation of the Scikit-Learn API for XGBoost.
 
@@ -844,7 +854,7 @@ class XGBModel(BaseEstimator):
         return self._Booster.predict(testDmatrix)
 
 
-class XGBClassifier(XGBModel, ClassifierMixin):
+class XGBClassifier(XGBModel, XGBClassifier):
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="binary:logistic", 
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1, 
                  base_score=0.5, seed=0):
@@ -895,5 +905,5 @@ class XGBClassifier(XGBModel, ClassifierMixin):
             return np.vstack((classzero_probs, classone_probs)).transpose()
 
 
-class XGBRegressor(XGBModel, RegressorMixin):
+class XGBRegressor(XGBModel, XGBRegressor):
     pass

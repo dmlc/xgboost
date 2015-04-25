@@ -4,6 +4,11 @@ export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm 
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC
 
+ifeq ($(OS), Windows_NT)
+	export CXX = g++ -m64
+	export CC = gcc -m64
+endif
+
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP 
 else 
@@ -33,12 +38,20 @@ else
 	LIBDMLC=dmlc_simple.o
 endif
 
+ifeq ($(OS), Windows_NT)
+	LIBRABIT = subtree/rabit/lib/librabit_empty.a
+	SLIB = wrapper/xgboost_wrapper.dll
+else
+	LIBRABIT = subtree/rabit/lib/librabit.a
+	SLIB = wrapper/libxgboostwrapper.so
+endif
+
 # specify tensor path
 BIN = xgboost
 MOCKBIN = xgboost.mock
 OBJ = updater.o gbm.o io.o main.o dmlc_simple.o
 MPIBIN =
-SLIB = wrapper/libxgboostwrapper.so 
+TARGET = $(BIN) $(OBJ) $(SLIB)
 
 .PHONY: clean all mpi python Rpack
 
@@ -52,8 +65,8 @@ dmlc_simple.o: src/io/dmlc_simple.cpp src/utils/*.h
 gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h 
 io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
 main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h 
-xgboost:  updater.o gbm.o io.o main.o subtree/rabit/lib/librabit.a $(LIBDMLC)
-wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o subtree/rabit/lib/librabit.a $(LIBDMLC)
+xgboost:  updater.o gbm.o io.o main.o $(LIBRABIT) $(LIBDMLC)
+wrapper/xgboost_wrapper.dll wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o $(LIBRABIT) $(LIBDMLC)
 
 # dependency on rabit
 subtree/rabit/lib/librabit.a: subtree/rabit/src/engine.cc
@@ -72,7 +85,7 @@ $(MOCKBIN) :
 	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
 
 $(SLIB) :
-	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS) 
+	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS) $(DLLFLAGS)
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )

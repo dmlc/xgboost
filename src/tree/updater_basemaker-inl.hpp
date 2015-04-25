@@ -343,7 +343,9 @@ class BaseMaker: public IUpdater {
             // push to sketch
             sketch->temp.data[sketch->temp.size] =
                 utils::WXQuantileSketch<bst_float, bst_float>::
-                Entry(rmin, rmax, wmin, last_fvalue);
+                Entry(static_cast<bst_float>(rmin),
+			          static_cast<bst_float>(rmax),
+					  static_cast<bst_float>(wmin), last_fvalue);
             utils::Assert(sketch->temp.size < max_size,
                           "invalid maximum size max_size=%u, stemp.size=%lu\n",
                           max_size, sketch->temp.size);
@@ -377,7 +379,9 @@ class BaseMaker: public IUpdater {
         // push to sketch
         sketch->temp.data[sketch->temp.size] =
             utils::WXQuantileSketch<bst_float, bst_float>::
-            Entry(rmin, rmax, wmin, last_fvalue);
+            Entry(static_cast<bst_float>(rmin),
+			      static_cast<bst_float>(rmax),
+				  static_cast<bst_float>(wmin), last_fvalue);
         ++sketch->temp.size;
       }
       sketch->PushTemp();

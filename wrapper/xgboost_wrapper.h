@@ -6,7 +6,7 @@
  * \brief a C style wrapper of xgboost
  *  can be used to create wrapper of other languages
  */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(_WIN32)
 #define XGB_DLL __declspec(dllexport)
 #else
 #define XGB_DLL
