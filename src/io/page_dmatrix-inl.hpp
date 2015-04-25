@@ -20,7 +20,7 @@ namespace io {
 class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
  public:
   ThreadRowPageIterator(void) {
-    itr.SetParam("buffer_size", "2");
+    itr.SetParam("buffer_size", "4");
     page_ = NULL;
     base_rowid_ = 0;
   }

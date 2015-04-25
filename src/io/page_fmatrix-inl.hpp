@@ -112,8 +112,9 @@ struct ColConvertFactory {
     #pragma omp parallel
     {
       nthread = omp_get_num_threads();
-      if (nthread == omp_get_num_procs()) {
-        nthread = std::max(1, nthread / 2);
+      int max_nthread = std::max(omp_get_num_procs() / 2 - 4, 1); 
+      if (nthread > max_nthread) {
+        nthread = max_nthread;
       }
     }
     pcol->Clear();
@@ -302,9 +303,11 @@ class FMatrixPage : public IFMatrix {
         col_size_[i] += pcol->offset[i + 1] - pcol->offset[i];        
       }
       pcol->Save(&fo);
-      bytes_write += pcol->MemCostBytes();
-      double tdiff = rabit::utils::GetTime() - tstart;
-      utils::Printf("Writting to %s in %g MB/s, %lu MB written\n",
+      size_t spage = pcol->MemCostBytes();
+      bytes_write += spage;
+      double tnow = rabit::utils::GetTime();      
+      double tdiff = tnow - tstart;
+      utils::Printf("Writting to %s in %g MB/s, %lu MB written current speed:%g MB/s\n",
                     col_data_name_.c_str(),
                     (bytes_write >> 20UL) / tdiff,
                     (bytes_write >> 20UL));
