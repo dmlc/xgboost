@@ -13,6 +13,7 @@ import os
 import sys
 import re
 import ctypes
+import platform
 import collections
 
 import numpy as np
@@ -40,7 +41,11 @@ else:
 def load_xglib():
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     dll_path = [curr_path]
-    dll_path.append(os.path.join(curr_path, '../windows/x64/Release/'))
+    if os.name == 'nt':
+        if platform.architecture()[0] == '64bit':
+            dll_path.append(os.path.join(curr_dir, '../windows/Release/'))
+        else:
+            dll_path.append(os.path.join(curr_dir, '../windows/x64/Release/'))
 
     if os.name == 'nt':
         dll_path = [os.path.join(p, 'xgboost_wrapper.dll') for p in dll_path]

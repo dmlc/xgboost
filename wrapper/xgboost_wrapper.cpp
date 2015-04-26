@@ -266,7 +266,7 @@ extern "C"{
     pmat->info.group_ptr.resize(len + 1);
     pmat->info.group_ptr[0] = 0;
     for (uint64_t i = 0; i < len; ++i) {
-      pmat->info.group_ptr[i+1] = pmat->info.group_ptr[i]+group[i];
+      pmat->info.group_ptr[i+1] = pmat->info.group_ptr[i] + group[i];
     }
   }
   const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, bst_ulong* len) {

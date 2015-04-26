@@ -4,6 +4,7 @@ How to Build Windows Version
 =====
 * Open the solution file with Visual Studio
 * Select x64 and Release in build
+	- For 32bit windows or python, try win32 and Release (not fully tested)
 * Rebuild all
 
 This should give you xgboost.exe for CLI version and xgboost_wrapper.dll for python
