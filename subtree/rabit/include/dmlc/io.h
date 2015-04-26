@@ -303,7 +303,7 @@ inline void Stream::Write(const std::vector<T> &vec) {
   uint64_t sz = static_cast<uint64_t>(vec.size());
   this->Write(&sz, sizeof(sz));
   if (sz != 0) {
-    this->Write(&vec[0], sizeof(T) * sz);
+    this->Write(&vec[0], sizeof(T) * vec.size());
   }
 }
 template<typename T>
@@ -320,7 +320,7 @@ inline void Stream::Write(const std::string &str) {
   uint64_t sz = static_cast<uint64_t>(str.length());
   this->Write(&sz, sizeof(sz));
   if (sz != 0) {
-    this->Write(&str[0], sizeof(char) * sz);
+    this->Write(&str[0], sizeof(char) * str.length());
   }
 }
 inline bool Stream::Read(std::string *out_str) {
