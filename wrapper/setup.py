@@ -12,9 +12,10 @@ dll_path = [curr_dir]
 
 if os.name == 'nt':
     if platform.architecture()[0] == '64bit':
-        dll_path.append(os.path.join(curr_dir, '../windows/Release/'))
-    else:
         dll_path.append(os.path.join(curr_dir, '../windows/x64/Release/'))
+    else:
+        dll_path.append(os.path.join(curr_dir, '../windows/Release/'))
+        
 
 if os.name == 'nt':
     dll_path = [os.path.join(p, 'xgboost_wrapper.dll') for p in dll_path]
