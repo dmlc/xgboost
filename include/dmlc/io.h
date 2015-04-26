@@ -310,9 +310,10 @@ template<typename T>
 inline bool Stream::Read(std::vector<T> *out_vec) {
   uint64_t sz;
   if (this->Read(&sz, sizeof(sz)) == 0) return false;
-  out_vec->resize(static_cast<size_t>(sz));
+  size_t size = static_cast<size_t>(sz);
+  out_vec->resize(size);
   if (sz != 0) {
-    if (this->Read(&(*out_vec)[0], sizeof(T) * sz) == 0) return false;
+    if (this->Read(&(*out_vec)[0], sizeof(T) * size) == 0) return false;
   }
   return true;
 }
@@ -326,9 +327,10 @@ inline void Stream::Write(const std::string &str) {
 inline bool Stream::Read(std::string *out_str) {
   uint64_t sz;
   if (this->Read(&sz, sizeof(sz)) == 0) return false;
-  out_str->resize(static_cast<size_t>(sz));
+  size_t size = static_cast<size_t>(sz);
+  out_str->resize(size);
   if (sz != 0) {
-    if (this->Read(&(*out_str)[0], sizeof(char) * sz) == 0) {
+    if (this->Read(&(*out_str)[0], sizeof(char) * size) == 0) {
       return false;
     }
   }
