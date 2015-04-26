@@ -372,7 +372,7 @@ class GBTree : public IGradBooster {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         const int tid = omp_get_thread_num();
-        int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
+        size_t ridx = static_cast<size_t>(batch.base_rowid + i);
         tree::RegTree::FVec &feats = thread_temp[tid];
         feats.Fill(batch[i]);
         for (unsigned j = 0; j < ntree_limit; ++j) {

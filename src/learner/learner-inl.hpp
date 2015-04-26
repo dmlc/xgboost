@@ -166,12 +166,12 @@ class BoostLearner : public rabit::Serializable {
     {
       // backward compatibility code for compatible with old model type
       // for new model, Read(&name_obj_) is suffice      
-      size_t len;
+      uint64_t len;
       utils::Check(fi.Read(&len, sizeof(len)) != 0, "BoostLearner: wrong model format");
       if (len >= std::numeric_limits<unsigned>::max()) {
         int gap;
         utils::Check(fi.Read(&gap, sizeof(gap)) != 0, "BoostLearner: wrong model format");
-        len = len >> 32UL;
+        len = len >> static_cast<uint64_t>(32UL);
       }
       if (len != 0) {
         name_obj_.resize(len);
