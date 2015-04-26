@@ -300,7 +300,7 @@ class istream : public std::basic_istream<char> {
 // implementations of inline functions
 template<typename T>
 inline void Stream::Write(const std::vector<T> &vec) {
-  size_t sz = vec.size();
+  uint64_t sz = static_cast<uint64_t>(vec.size());
   this->Write(&sz, sizeof(sz));
   if (sz != 0) {
     this->Write(&vec[0], sizeof(T) * sz);
@@ -308,25 +308,25 @@ inline void Stream::Write(const std::vector<T> &vec) {
 }
 template<typename T>
 inline bool Stream::Read(std::vector<T> *out_vec) {
-  size_t sz;
+  uint64_t sz;
   if (this->Read(&sz, sizeof(sz)) == 0) return false;
-  out_vec->resize(sz);
+  out_vec->resize(static_cast<size_t>(sz));
   if (sz != 0) {
     if (this->Read(&(*out_vec)[0], sizeof(T) * sz) == 0) return false;
   }
   return true;
 }
 inline void Stream::Write(const std::string &str) {
-  size_t sz = str.length();
+  uint64_t sz = static_cast<uint64_t>(str.length());
   this->Write(&sz, sizeof(sz));
   if (sz != 0) {
     this->Write(&str[0], sizeof(char) * sz);
   }
 }
 inline bool Stream::Read(std::string *out_str) {
-  size_t sz;
+  uint64_t sz;
   if (this->Read(&sz, sizeof(sz)) == 0) return false;
-  out_str->resize(sz);
+  out_str->resize(static_cast<size_t>(sz));
   if (sz != 0) {
     if (this->Read(&(*out_str)[0], sizeof(char) * sz) == 0) {
       return false;
