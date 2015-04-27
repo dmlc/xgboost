@@ -36,13 +36,17 @@ class Stream {
   virtual ~Stream(void) {}
   /*!
    * \brief generic factory function
-   *    create an stream, the stream will close the underlying files
-   *    upon deletion
+   *  create an stream, the stream will close the underlying files upon deletion
+   *
    * \param uri the uri of the input currently we support
    *            hdfs://, s3://, and file:// by default file:// will be used
    * \param flag can be "w", "r", "a"
+   * \param allow_null whether NULL can be returned, or directly report error
+   * \return the created stream, can be NULL when allow_null == true and file do not exist
    */
-  static Stream *Create(const char *uri, const char* const flag);
+  static Stream *Create(const char *uri,
+                        const char* const flag,
+                        bool allow_null = false);
   // helper functions to write/read different data structures
   /*!
    * \brief writes a vector
@@ -80,7 +84,19 @@ class SeekStream: public Stream {
   /*! \brief tell the position of the stream */
   virtual size_t Tell(void) = 0;
   /*! \return whether we are at end of file */
-  virtual bool AtEnd(void) const = 0;  
+  virtual bool AtEnd(void) const = 0;
+  /*!
+   * \brief generic factory function
+   *  create an SeekStream for read only,
+   *  the stream will close the underlying files upon deletion
+   *  error will be reported and the system will exit when create failed 
+   * \param uri the uri of the input currently we support
+   *            hdfs://, s3://, and file:// by default file:// will be used
+   * \param allow_null whether NULL can be returned, or directly report error
+   * \return the created stream, can be NULL when allow_null == true and file do not exist
+   */
+  static SeekStream *CreateForRead(const char *uri,
+                                   bool allow_null = false);
 };
 
 /*! \brief interface for serializable objects */
@@ -114,6 +130,8 @@ class InputSplit {
     /*! \brief size of the memory region */
     size_t size;
   };
+  /*! \brief reset the position of InputSplit to beginning */
+  virtual void BeforeFirst(void) = 0;
   /*!
    * \brief get the next record, the returning value
    *   is valid until next call to NextRecord or NextChunk
