@@ -38,6 +38,7 @@ else:
     
 runscript = '%s/runrabit.sh' % args.logdir
 fo = open(runscript, 'w')
+fo.write('source ~/.bashrc\n')
 fo.write('\"$@\"\n')
 fo.close()
 #
@@ -51,7 +52,7 @@ def sge_submit(nslave, worker_args, worker_envs):
          nslave number of slave process to start up
          args arguments to launch each job
               this usually includes the parameters of master_uri and parameters passed into submit
-    """    
+    """
     env_arg = ','.join(['%s=\"%s\"' % (k, str(v)) for k, v in worker_envs.items()])
     cmd = 'qsub -cwd -t 1-%d -S /bin/bash' % nslave
     if args.queue != 'default':
