@@ -517,7 +517,7 @@ class Booster(object):
                                         int(with_stats), ctypes.byref(length))
         res = []
         for i in range(length.value):
-            res.append(str(sarr[i]))
+            res.append(str(sarr[i].decode('ascii')))
         return res
 
     def get_fscore(self, fmap=''):
