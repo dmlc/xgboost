@@ -803,7 +803,7 @@ class XGBModel(XGBModelBase):
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf node of the tree.
     min_child_weight : int
-        Minimum sum of instance weight(hessian) needed in a child.        
+        Minimum sum of instance weight(hessian) needed in a child.
     max_delta_step : int
         Maximum delta step we allow each tree's weight estimation to be.
     subsample : float
@@ -816,8 +816,8 @@ class XGBModel(XGBModelBase):
     seed : int
         Random number seed.
     """
-    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear", 
-                 nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1, 
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear",
+                 nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
                  base_score=0.5, seed=0):
         if not SKLEARN_INSTALLED:
             raise Exception('sklearn needs to be installed in order to use this module')
@@ -826,7 +826,7 @@ class XGBModel(XGBModelBase):
         self.n_estimators = n_estimators
         self.silent = silent
         self.objective = objective
-        
+
         self.nthread = nthread
         self.gamma = gamma
         self.min_child_weight = min_child_weight
@@ -836,7 +836,7 @@ class XGBModel(XGBModelBase):
 
         self.base_score = base_score
         self.seed = seed
-        
+
         self._Booster = Booster()
 
     def get_xgb_params(self):
@@ -859,10 +859,14 @@ class XGBModel(XGBModelBase):
 
 
 class XGBClassifier(XGBModel, XGBClassifier):
-    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="binary:logistic", 
-                 nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1, 
+    __doc__ = """
+    Implementation of the scikit-learn API for XGBoost classification
+    """ + "\n".join(XGBModel.__doc__.split('\n')[2:])
+
+    def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="binary:logistic",
+                 nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
                  base_score=0.5, seed=0):
-        super(XGBClassifier, self).__init__(max_depth, learning_rate, n_estimators, silent, objective, 
+        super(XGBClassifier, self).__init__(max_depth, learning_rate, n_estimators, silent, objective,
                                             nthread, gamma, min_child_weight, max_delta_step, subsample, colsample_bytree,
                                             base_score, seed)
 
@@ -910,4 +914,8 @@ class XGBClassifier(XGBModel, XGBClassifier):
 
 
 class XGBRegressor(XGBModel, XGBRegressor):
+    __doc__ = """
+    Implementation of the scikit-learn API for XGBoost regression
+    """ + "\n".join(XGBModel.__doc__.split('\n')[2:])
+
     pass
