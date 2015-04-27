@@ -14,7 +14,7 @@ A [walk through python example](https://github.com/tqchen/xgboost/blob/master/de
 =
 #### Install
 
-To install XGBoost, you need to run `make` in the root directory of the project and then in the `wrappers` directory run 
+To install XGBoost, you need to run `make` in the root directory of the project and then in the `wrappers` directory run
 
 ```shell
 python setup.py install
@@ -26,7 +26,7 @@ import xgboost as xgb
 
 =
 #### Data Interface
-XGBoost python module is able to loading from libsvm txt format file, Numpy 2D array and xgboost binary buffer file. The data will be store in ```DMatrix``` object. 
+XGBoost python module is able to loading from libsvm txt format file, Numpy 2D array and xgboost binary buffer file. The data will be store in ```DMatrix``` object.
 
 * To load libsvm text format file and XGBoost binary file into ```DMatrix```, the usage is like
 ```python
@@ -48,11 +48,11 @@ dtrain = xgb.DMatrix( csr )
 ```python
 dtrain = xgb.DMatrix('train.svm.txt')
 dtrain.save_binary("train.buffer")
-``` 
+```
 * To handle missing value in ```DMatrix```, you can initialize the ```DMatrix``` like:
 ```python
 dtrain = xgb.DMatrix( data, label=label, missing = -999.0)
-``` 
+```
 * Weight can be set when needed, like
 ```python
 w = np.random.rand(5,1)
@@ -63,13 +63,13 @@ dtrain = xgb.DMatrix( data, label=label, missing = -999.0, weight=w)
 =
 #### Setting Parameters
 XGBoost use list of pair to save [parameters](parameter.md). Eg
-* Booster parameters 
+* Booster parameters
 ```python
 param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
 param['nthread'] = 4
 plst = param.items()
 plst += [('eval_metric', 'auc')] # Multiple evals can be handled in this way
-plst += [('eval_metric', 'ams@0')] 
+plst += [('eval_metric', 'ams@0')]
 ```
 * Specify validations set to watch performance
 ```python
@@ -78,8 +78,8 @@ evallist  = [(dtest,'eval'), (dtrain,'train')]
 
 =
 #### Training Model
-With parameter list and data, you are able to train a model. 
-* Training 
+With parameter list and data, you are able to train a model.
+* Training
 ```python
 num_round = 10
 bst = xgb.train( plst, dtrain, num_round, evallist )
@@ -110,7 +110,7 @@ If you have a validation set, you can use early stopping to find the optimal num
 
 `train(..., evals=evals, early_stopping_rounds=10)`
 
-The model will train until the validation score stops improving. Validation error needs to decrease at least every `early_stopping_rounds` to continue training. 
+The model will train until the validation score stops improving. Validation error needs to decrease at least every `early_stopping_rounds` to continue training.
 
 If early stopping occurs, the model will have two additional fields: `bst.best_score` and `bst.best_iteration`. Note that `train()` will return a model from the last iteration, not the best one.
 
@@ -123,4 +123,9 @@ After you training/loading a model and preparing the data, you can start to do p
 data = np.random.rand(7,10) # 7 entities, each contains 10 features
 dtest = xgb.DMatrix( data, missing = -999.0 )
 ypred = bst.predict( xgmat )
+```
+
+If early stopping is enabled during training, you can predict with the best iteration.
+```python
+ypred = bst.predict(xgmat,ntree_limit=bst.best_iteration)
 ```
