@@ -55,8 +55,10 @@ inline void ThreadExit(void *status) {
 }  // namespace xgboost
 #else
 // thread interface using g++     
+extern "C" {
 #include <semaphore.h>
 #include <pthread.h>
+}
 namespace xgboost {
 namespace utils {
 /*!\brief semaphore class */
@@ -120,6 +122,7 @@ class Semaphore {
   }
   #endif  
 };
+
 /*!\brief simple thread class */
 class Thread {
  private:
@@ -130,7 +133,7 @@ class Thread {
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
     pthread_create(&thread, &attr, entry, param);
-  }  
+  }
   inline int Join(void) {
     void *status;
     return pthread_join(thread, &status);

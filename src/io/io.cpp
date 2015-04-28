@@ -15,6 +15,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
                            bool savebuffer,
                            bool loadsplit,
                            const char *cache_file) {
+  using namespace std;
   std::string fname_ = fname;
   
   const char *dlm = strchr(fname, '#');

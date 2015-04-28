@@ -255,7 +255,7 @@ class FMatrixPage : public IFMatrix {
 
  protected:
   inline bool TryLoadColData(void) {
-    FILE *fi = fopen64(col_meta_name_.c_str(), "rb");
+    std::FILE *fi = fopen64(col_meta_name_.c_str(), "rb");
     if (fi == NULL) return false;    
     utils::FileStream fs(fi);
     LoadMeta(&fs);

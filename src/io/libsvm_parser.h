@@ -111,7 +111,8 @@ class LibSVMPageFactory  {
    */
   inline void ParseBlock(char *begin,
                          char *end,
-                         LibSVMPage *out) {    
+                         LibSVMPage *out) {
+    using namespace std;
     out->Clear();
     char *p = begin;
     while (p != end) {

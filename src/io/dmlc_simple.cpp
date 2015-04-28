@@ -141,7 +141,7 @@ class SingleFileSplit : public dmlc::InputSplit {
 
 class StdFile : public dmlc::Stream {
  public:
-  explicit StdFile(FILE *fp, bool use_stdio)
+  explicit StdFile(std::FILE *fp, bool use_stdio)
       : fp(fp), use_stdio(use_stdio) {
   }  
   virtual ~StdFile(void) {
@@ -180,6 +180,7 @@ InputSplit* InputSplit::Create(const char *uri,
                                unsigned part,
                                unsigned nsplit,
                                const char *type) {
+  using namespace std;
   using namespace xgboost;
   const char *msg = "xgboost is compiled in local mode\n"\
       "to use hdfs, s3 or distributed version, compile with make dmlc=1";
@@ -190,13 +191,14 @@ InputSplit* InputSplit::Create(const char *uri,
 }
 
 Stream *Stream::Create(const char *fname, const char * const mode, bool allow_null) {
+  using namespace std;
   using namespace xgboost;
   const char *msg = "xgboost is compiled in local mode\n"\
       "to use hdfs, s3 or distributed version, compile with make dmlc=1";
   utils::Check(strncmp(fname, "s3://", 5) != 0, msg);
   utils::Check(strncmp(fname, "hdfs://", 7) != 0, msg);
   
-  FILE *fp = NULL;
+  std::FILE *fp = NULL;
   bool use_stdio = false;
   using namespace std;
 #ifndef XGBOOST_STRICT_CXX98_
