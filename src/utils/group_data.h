@@ -40,7 +40,7 @@ struct ParallelGroupBuilder {
    * \param nkeys number of keys in the matrix, can be smaller than expected
    * \param nthread number of thread that will be used in construction
    */
-  inline void InitBudget(size_t nkeys = 0, int nthread = 1) {
+  inline void InitBudget(size_t nkeys, int nthread) {
     thread_rptr.resize(nthread);
     for (size_t i = 0;  i < thread_rptr.size(); ++i) {
       thread_rptr[i].resize(nkeys);
@@ -53,7 +53,7 @@ struct ParallelGroupBuilder {
    * \param threadid the id of thread that calls this function
    * \param nelem number of element budget add to this row
    */
-  inline void AddBudget(size_t key, int threadid = 0, SizeType nelem = 1) {
+  inline void AddBudget(size_t key, int threadid, SizeType nelem = 1) {
     std::vector<SizeType> &trptr = thread_rptr[threadid];
     if (trptr.size() < key + 1) {
       trptr.resize(key + 1, 0);      
@@ -65,7 +65,7 @@ struct ParallelGroupBuilder {
     // set rptr to correct size
     for (size_t tid = 0; tid < thread_rptr.size(); ++tid) {
       if (rptr.size() <= thread_rptr[tid].size()) {
-        rptr.resize(thread_rptr[tid].size()+1);
+        rptr.resize(thread_rptr[tid].size() + 1);
       }
     }
     // initialize rptr to be beginning of each segment
@@ -90,7 +90,7 @@ struct ParallelGroupBuilder {
    * \param key the key of 
    * \param threadid the id of thread that calls this function
    */
-  inline void Push(size_t key, ValueType value, int threadid = 0) {    
+  inline void Push(size_t key, ValueType value, int threadid) {    
     SizeType &rp = thread_rptr[threadid][key];
     data[rp++] = value;
   }

@@ -1,4 +1,4 @@
 #!/bin/bash
 cd ../include
-doxygen ../doc/Doxyfile
+doxygen ../doc/Doxyfile 
 cd ../doc

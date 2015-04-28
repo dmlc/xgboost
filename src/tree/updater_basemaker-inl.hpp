@@ -50,7 +50,7 @@ class BaseMaker: public IUpdater {
             fminmax[fid * 2 + 1] = std::max(c[c.length - 1].fvalue, fminmax[fid * 2 + 1]);
           }
         }
-      }      
+      }
       rabit::Allreduce<rabit::op::Max>(BeginPtr(fminmax), fminmax.size());
     }
     // get feature type, 0:empty 1:binary 2:real
@@ -304,16 +304,16 @@ class BaseMaker: public IUpdater {
       }
     }
   }
-  /*! \brief common helper data structure to build sketch*/
+  /*! \brief common helper data structure to build sketch */
   struct SketchEntry {
     /*! \brief total sum of amount to be met */
-    bst_float sum_total;
+    double sum_total;
     /*! \brief statistics used in the sketch */
-    bst_float rmin, wmin;
+    double rmin, wmin;
     /*! \brief last seen feature value */
     bst_float last_fvalue;
     /*! \brief current size of sketch */
-    bst_float next_goal;
+    double next_goal;
     // pointer to the sketch to put things in
     utils::WXQuantileSketch<bst_float, bst_float> *sketch;
     // initialize the space
@@ -337,24 +337,31 @@ class BaseMaker: public IUpdater {
         return;
       }
       if (last_fvalue != fvalue) {
-        bst_float rmax = rmin + wmin;
-        if (rmax >= next_goal) {
+	double rmax = rmin + wmin;
+        if (rmax >= next_goal && sketch->temp.size != max_size) {
           if (sketch->temp.size == 0 || last_fvalue > sketch->temp.data[sketch->temp.size-1].value) {
             // push to sketch
             sketch->temp.data[sketch->temp.size] =
                 utils::WXQuantileSketch<bst_float, bst_float>::
-                Entry(rmin, rmax, wmin, last_fvalue);
+                Entry(static_cast<bst_float>(rmin),
+			          static_cast<bst_float>(rmax),
+					  static_cast<bst_float>(wmin), last_fvalue);
             utils::Assert(sketch->temp.size < max_size,
                           "invalid maximum size max_size=%u, stemp.size=%lu\n",
                           max_size, sketch->temp.size);
             ++sketch->temp.size;
           }
           if (sketch->temp.size == max_size) {
-            next_goal = sum_total * 2.0f + 1e-5f;
+            next_goal = sum_total * 2.0f + 1e-5f;	    
           } else{
             next_goal = static_cast<bst_float>(sketch->temp.size * sum_total / max_size);
           }
-        }
+        } else {
+	  if (rmax >= next_goal) {
+	    rabit::TrackerPrintf("INFO: rmax=%g, sum_total=%g, next_goal=%g, size=%lu\n",
+				 rmax, sum_total, next_goal, sketch->temp.size);
+	  }
+	}
         rmin = rmax;
         wmin = w;
         last_fvalue = fvalue;
@@ -364,7 +371,7 @@ class BaseMaker: public IUpdater {
     }
     /*! \brief push final unfinished value to the sketch */
     inline void Finalize(unsigned max_size) {
-      bst_float rmax = rmin + wmin;
+      double rmax = rmin + wmin;
       if (sketch->temp.size == 0 || last_fvalue > sketch->temp.data[sketch->temp.size-1].value) {
         utils::Assert(sketch->temp.size <= max_size,
                       "Finalize: invalid maximum size, max_size=%u, stemp.size=%lu",
@@ -372,7 +379,9 @@ class BaseMaker: public IUpdater {
         // push to sketch
         sketch->temp.data[sketch->temp.size] =
             utils::WXQuantileSketch<bst_float, bst_float>::
-            Entry(rmin, rmax, wmin, last_fvalue);
+            Entry(static_cast<bst_float>(rmin),
+			      static_cast<bst_float>(rmax),
+				  static_cast<bst_float>(wmin), last_fvalue);
         ++sketch->temp.size;
       }
       sketch->PushTemp();

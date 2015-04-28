@@ -9,13 +9,14 @@
 #include "../utils/utils.h"
 #include "../utils/random.h"
 #include "../utils/omp.h"
-#include "../utils/matrix_csr.h"
+#include "../utils/group_data.h"
+
 namespace xgboost {
 namespace io {
 /*!
  * \brief sparse matrix that support column access, CSC
  */
-class FMatrixS : public IFMatrix{
+class FMatrixS : public IFMatrix {
  public:
   typedef SparseBatch::Entry Entry;
   /*! \brief constructor */
@@ -147,21 +148,41 @@ class FMatrixS : public IFMatrix{
    * \param pkeep probability to keep a row
    */
   inline void InitColData(float pkeep, const std::vector<bool> &enabled) {
+    // clear rowset
     buffered_rowset_.clear();
-    // note: this part of code is serial, todo, parallelize this transformer
-    utils::SparseCSRMBuilder<RowBatch::Entry> builder(col_ptr_, col_data_);
-    builder.InitBudget(0);
+    // bit map
+    int nthread;
+    std::vector<bool> bmap;
+    #pragma omp parallel
+    {
+      nthread = omp_get_num_threads();
+    }
+    // build the column matrix in parallel
+    utils::ParallelGroupBuilder<RowBatch::Entry> builder(&col_ptr_, &col_data_);
+    builder.InitBudget(0, nthread);
     // start working
     iter_->BeforeFirst();
     while (iter_->Next()) {
       const RowBatch &batch = iter_->Value();
-      for (size_t i = 0; i < batch.size; ++i) {        
+      bmap.resize(bmap.size() + batch.size, true);
+	  long batch_size = static_cast<long>(batch.size);
+      for (long i = 0; i < batch_size; ++i) {
+        bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         if (pkeep == 1.0f || random::SampleBinary(pkeep)) {
-          buffered_rowset_.push_back(static_cast<bst_uint>(batch.base_rowid+i));
+          buffered_rowset_.push_back(ridx);
+        } else {
+          bmap[i] = false;
+        }
+      }
+      #pragma omp parallel for schedule(static)
+      for (long i = 0; i < batch_size; ++i) {
+        int tid = omp_get_thread_num();
+        bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+        if (bmap[ridx]) {
           RowBatch::Inst inst = batch[i];
           for (bst_uint j = 0; j < inst.length; ++j) {
             if (enabled[inst[j].index]){ 
-              builder.AddBudget(inst[j].index);
+              builder.AddBudget(inst[j].index, tid);
             }
           }
         }
@@ -170,19 +191,19 @@ class FMatrixS : public IFMatrix{
     builder.InitStorage();
 
     iter_->BeforeFirst();
-    size_t ktop = 0;
     while (iter_->Next()) {
       const RowBatch &batch = iter_->Value();
-      for (size_t i = 0; i < batch.size; ++i) {
-        if (ktop < buffered_rowset_.size() &&
-            buffered_rowset_[ktop] == batch.base_rowid+i) {
-          ++ktop;
+      #pragma omp parallel for schedule(static)
+      for (long i = 0; i < static_cast<long>(batch.size); ++i) {
+        int tid = omp_get_thread_num();
+        bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+        if (bmap[ridx]) {
           RowBatch::Inst inst = batch[i];
           for (bst_uint j = 0; j < inst.length; ++j) {
             if (enabled[inst[j].index]) { 
-              builder.PushElem(inst[j].index,
-                               Entry((bst_uint)(batch.base_rowid+i),
-                                     inst[j].fvalue));
+              builder.Push(inst[j].index,
+                           Entry((bst_uint)(batch.base_rowid+i),
+                                 inst[j].fvalue), tid);
             }
           }
         }
@@ -218,7 +239,7 @@ class FMatrixS : public IFMatrix{
     inline void SetBatch(const std::vector<size_t> &ptr,
                          const std::vector<ColBatch::Entry> &data) {
       batch_.size = col_index_.size();
-      col_data_.resize(col_index_.size(), SparseBatch::Inst(NULL,0));
+      col_data_.resize(col_index_.size(), SparseBatch::Inst(NULL, 0));
       for (size_t i = 0; i < col_data_.size(); ++i) {
         const bst_uint ridx = col_index_[i];
         col_data_[i] = SparseBatch::Inst(&data[0] + ptr[ridx],

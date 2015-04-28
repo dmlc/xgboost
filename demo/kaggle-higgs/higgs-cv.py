@@ -1,7 +1,5 @@
 #!/usr/bin/python
-import sys
 import numpy as np
-sys.path.append('../../wrapper')
 import xgboost as xgb
 
 ### load data in do training

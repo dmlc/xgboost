@@ -42,10 +42,10 @@ extern "C" {
 
 #ifdef _MSC_VER
 typedef unsigned char uint8_t;
-typedef unsigned short int uint16_t;
-typedef unsigned int uint32_t;
-typedef unsigned long uint64_t;
-typedef long int64_t;
+typedef unsigned __int16 uint16_t;
+typedef unsigned __int32 uint32_t;
+typedef unsigned __int64 uint64_t;
+typedef __int64 int64_t;
 #else
 #include <inttypes.h>
 #endif
@@ -173,6 +173,14 @@ inline const T *BeginPtr(const std::vector<T> &vec) {
   } else {
     return &vec[0];
   }
+}
+inline char* BeginPtr(std::string &str) {
+  if (str.length() == 0) return NULL;
+  return &str[0];
+}
+inline const char* BeginPtr(const std::string &str) {
+  if (str.length() == 0) return NULL;
+  return &str[0];
 }
 }  // namespace xgboost
 #endif  // XGBOOST_UTILS_UTILS_H_

@@ -16,10 +16,10 @@
 
 namespace rabit {
 namespace utils {
-/*! \brief re-use definition of dmlc::ISeekStream */
-typedef dmlc::ISeekStream ISeekStream;
+/*! \brief re-use definition of dmlc::SeekStream */
+typedef dmlc::SeekStream SeekStream;
 /*! \brief fixed size memory buffer */
-struct MemoryFixSizeBuffer : public ISeekStream {
+struct MemoryFixSizeBuffer : public SeekStream {
  public:
   MemoryFixSizeBuffer(void *p_buffer, size_t buffer_size)
       : p_buffer_(reinterpret_cast<char*>(p_buffer)),
@@ -61,7 +61,7 @@ struct MemoryFixSizeBuffer : public ISeekStream {
 };  // class MemoryFixSizeBuffer
 
 /*! \brief a in memory buffer that can be read and write as stream interface */
-struct MemoryBufferStream : public ISeekStream {
+struct MemoryBufferStream : public SeekStream {
  public:
   explicit MemoryBufferStream(std::string *p_buffer)
       : p_buffer_(p_buffer) {

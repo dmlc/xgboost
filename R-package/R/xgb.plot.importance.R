@@ -54,4 +54,4 @@ xgb.plot.importance <- function(importance_matrix = NULL, numberOfClusters = c(1
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
 # They are mainly column names inferred by Data.table...
-globalVariables(c("Feature", "Gain", "Cluster"))
+globalVariables(c("Feature", "Gain", "Cluster", "ggplot", "aes", "geom_bar", "coord_flip", "xlab", "ylab", "ggtitle", "theme", "element_blank", "element_text"))

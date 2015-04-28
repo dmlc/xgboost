@@ -47,14 +47,14 @@ Debug
 .Rproj.user
 *.cpage.col
 *.cpage
+*.Rproj
 xgboost
 xgboost.mpi
 xgboost.mock
 train*
 rabit
-.Rbuildignore
+#.Rbuildignore
 R-package.Rproj
-
+*.cache*
 R-package/inst
 R-package/src
-

@@ -174,21 +174,22 @@ inline void TrackerPrintf(const char *fmt, ...) {
   va_start(args, fmt);
   vsnprintf(&msg[0], kPrintBuffer, fmt, args);
   va_end(args);
+  msg.resize(strlen(msg.c_str()));
   TrackerPrint(msg);
 }
 #endif
 // load latest check point
-inline int LoadCheckPoint(ISerializable *global_model,
-                          ISerializable *local_model) {
+inline int LoadCheckPoint(Serializable *global_model,
+                          Serializable *local_model) {
   return engine::GetEngine()->LoadCheckPoint(global_model, local_model);
 }
 // checkpoint the model, meaning we finished a stage of execution
-inline void CheckPoint(const ISerializable *global_model,
-                       const ISerializable *local_model) {
+inline void CheckPoint(const Serializable *global_model,
+                       const Serializable *local_model) {
   engine::GetEngine()->CheckPoint(global_model, local_model);
 }
 // lazy checkpoint the model, only remember the pointer to global_model
-inline void LazyCheckPoint(const ISerializable *global_model) {
+inline void LazyCheckPoint(const Serializable *global_model) {
   engine::GetEngine()->LazyCheckPoint(global_model);
 }
 // return the version number of currently stored model

@@ -23,7 +23,7 @@ namespace learner {
  * \brief learner that takes do gradient boosting on specific objective functions
  *  and do training and prediction
  */
-class BoostLearner : public rabit::ISerializable {
+class BoostLearner : public rabit::Serializable {
  public:
   BoostLearner(void) {
     obj_ = NULL;
@@ -69,7 +69,7 @@ class BoostLearner : public rabit::ISerializable {
     utils::SPrintf(str_temp, sizeof(str_temp), "%lu", 
                    static_cast<unsigned long>(buffer_size));
     this->SetParam("num_pbuffer", str_temp);
-    this->pred_buffer_size = buffer_size;
+    this->pred_buffer_size = buffer_size;    
   }
   /*!
    * \brief set parameters from outside
@@ -166,12 +166,12 @@ class BoostLearner : public rabit::ISerializable {
     {
       // backward compatibility code for compatible with old model type
       // for new model, Read(&name_obj_) is suffice      
-      size_t len;
+      uint64_t len;
       utils::Check(fi.Read(&len, sizeof(len)) != 0, "BoostLearner: wrong model format");
       if (len >= std::numeric_limits<unsigned>::max()) {
         int gap;
         utils::Check(fi.Read(&gap, sizeof(gap)) != 0, "BoostLearner: wrong model format");
-        len = len >> 32UL;
+        len = len >> static_cast<uint64_t>(32UL);
       }
       if (len != 0) {
         name_obj_.resize(len);
@@ -193,14 +193,14 @@ class BoostLearner : public rabit::ISerializable {
     }
   }
   // rabit load model from rabit checkpoint
-  virtual void Load(rabit::IStream &fi) {
+  virtual void Load(rabit::Stream *fi) {
     // for row split, we should not keep pbuffer
-    this->LoadModel(fi, distributed_mode != 2, false);
+    this->LoadModel(*fi, distributed_mode != 2, false);
   }
   // rabit save model to rabit checkpoint
-  virtual void Save(rabit::IStream &fo) const {
+  virtual void Save(rabit::Stream *fo) const {
     // for row split, we should not keep pbuffer
-    this->SaveModel(fo, distributed_mode != 2);
+    this->SaveModel(*fo, distributed_mode != 2);
   }
   /*!
    * \brief load model from file
@@ -235,9 +235,8 @@ class BoostLearner : public rabit::ISerializable {
   /*!
    * \brief save model into file
    * \param fname file name
-   * \param save_base64 whether save in base64 format
    */
-  inline void SaveModel(const char *fname, bool save_base64 = false) const {
+  inline void SaveModel(const char *fname) const {
     utils::IStream *fo = utils::IStream::Create(fname, "w");
     if (save_base64 != 0 || !strcmp(fname, "stdout")) {
       fo->Write("bs64\t", 5);
@@ -259,7 +258,12 @@ class BoostLearner : public rabit::ISerializable {
     int ncol = static_cast<int>(p_train->info.info.num_col);    
     std::vector<bool> enabled(ncol, true);    
     // initialize column access
-    p_train->fmat()->InitColAccess(enabled, prob_buffer_row);    
+    p_train->fmat()->InitColAccess(enabled, prob_buffer_row);
+    const int kMagicPage = 0xffffab02;
+    // check, if it is DMatrixPage, then use hist maker
+    if (p_train->magic == kMagicPage) {
+      this->SetParam("updater", "grow_histmaker,prune");
+    }
   }
   /*!
    * \brief update the model for one iteration

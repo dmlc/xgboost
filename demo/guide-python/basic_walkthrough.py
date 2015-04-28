@@ -1,10 +1,6 @@
 #!/usr/bin/python
-import sys
 import numpy as np
 import scipy.sparse
-# append the path to xgboost, you may need to change the following line
-# alternatively, you can add the path to PYTHONPATH environment variable
-sys.path.append('../../wrapper')
 import xgboost as xgb
 
 ### simple example
@@ -33,7 +29,7 @@ bst.dump_model('dump.nice.txt','../data/featmap.txt')
 # save dmatrix into binary buffer
 dtest.save_binary('dtest.buffer')
 bst.save_model('xgb.model')
-# load model and data in 
+# load model and data in
 bst2 = xgb.Booster(model_file='xgb.model')
 dtest2 = xgb.DMatrix('dtest.buffer')
 preds2 = bst2.predict(dtest2)

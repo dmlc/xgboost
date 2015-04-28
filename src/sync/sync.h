@@ -7,6 +7,7 @@
  * \author Tianqi Chen
  */
 #include "../../subtree/rabit/include/rabit.h"
+#include "../../subtree/rabit/include/rabit/timer.h"
 #endif  // XGBOOST_SYNC_H_
 
 

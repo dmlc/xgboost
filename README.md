@@ -1,35 +1,29 @@
 XGBoost: eXtreme Gradient Boosting 
 ==================================
 An optimized general purpose gradient boosting library. The library is parallelized, and also provides an optimized distributed version.
-It implements machine learning algorithm under gradient boosting framework, including generalized linear model and gradient boosted regression tree (GBDT). XGBoost can also also distributed and scale to even larger data.
+It implements machine learning algorithm under gradient boosting framework, including generalized linear model and gradient boosted regression tree (GBDT). XGBoost can also also distributed and scale to Terascale data
 
 Contributors: https://github.com/dmlc/xgboost/graphs/contributors
 
-Turorial and Documentation: https://github.com/dmlc/xgboost/wiki
+Documentations: [Documentation of xgboost](doc/README.md)
 
-Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion) for bugreport and other issues
+Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
-Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask usage questions and share your experience on xgboost.
-
-Examples Code: [Learning to use xgboost by examples](demo)
-
-Video tutorial: [Better Optimization with Repeated Cross Validation and the XGBoost model - Machine Learning with R](https://www.youtube.com/watch?v=Og7CGAfSr_Y)
+Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask questions and share your experience on xgboost.
+  - Use issue tracker for bug reports, feature requests etc.
+  - Use the user group to post your experience, ask questions about general usages.
 
 Distributed Version: [Distributed XGBoost](multi-node)
 
-Notes on the Code: [Code Guide](src)
-
-Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
-* This slide is made by Tianqi Chen to introduce gradient boosting in a statistical view.
-* It present boosted tree learning as formal functional space optimization of defined objective.
-* The model presented is used by xgboost for boosted trees
+Highlights of Usecases: [Highlight Links](doc/README.md#highlight-links)
 
 What's New
 ==========
+* [External Memory Version](doc/external_memory.md)
+* XGBoost wins [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
 * XGBoost now support HDFS and S3
-* [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/tree/master/learn/xgboost)!
+* [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/tree/master/learn/xgboost)
 * [xgboost user group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
-* [Distributed XGBoost](multi-node) is now available!!
 * New features in the lastest changes :)
   - Distributed version that scale xgboost to even larger problems with cluster
   - Feature importance visualization in R module, thanks to Michael Benesty
@@ -62,7 +56,7 @@ Build
 * Windows(VS 2010): see [windows](windows) folder
   - In principle, you put all the cpp files in the Makefile to the project, and build
 * OS X:
-  - For users who want OpenMP support using [Homebrew](http://brew.sh/), run ```brew update``` (ensures that you install gcc-4.9 or above) and ```brew install gcc```. Once it is installed, edit [Makefile](Makefile/) by replacing:
+  - For users who want OpenMP support using [Homebrew](http://brew.sh/), run ```brew update``` (ensures that you install gcc-4.9 or above) and ```brew install gcc --without-multilib```. Once it is installed, edit [Makefile](Makefile/) by replacing:
   ```
   export CC  = gcc
   export CXX = g++

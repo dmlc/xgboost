@@ -217,7 +217,7 @@ class SketchMaker: public BaseMaker {
       for (size_t i = 0; i < this->qexpand.size(); ++i) {
         const int nid = this->qexpand[i];
         for (int k = 0; k < 3; ++k) {
-          sbuilder[3 * nid + k].sketch->Push(c[0].fvalue, sbuilder[3 * nid + k].sum_total);
+          sbuilder[3 * nid + k].sketch->Push(c[0].fvalue, static_cast<bst_float>(sbuilder[3 * nid + k].sum_total));
         }
       }
       return;
