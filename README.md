@@ -11,7 +11,7 @@ Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc
 
 Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask questions and share your experience on xgboost.
   - Use issue tracker for bug reports, feature requests etc.
-  - Use the user group to discuss your experience, ask questions about general usage and post your experience using xgboost.
+  - Use the user group to post your experience, ask questions about general usages.
 
 Distributed Version: [Distributed XGBoost](multi-node)
 
