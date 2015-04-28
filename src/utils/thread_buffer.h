@@ -167,7 +167,6 @@ class ThreadBuffer {
   /*!\brief entry point of loader thread */
   inline static XGBOOST_THREAD_PREFIX LoaderEntry(void *pthread) {
     static_cast< ThreadBuffer<Elem,ElemFactory>* >(pthread)->RunLoader();
-    ThreadExit(NULL);
     return NULL;
   }
   /*!\brief start loader thread */
@@ -199,6 +198,7 @@ class ThreadBuffer {
     loading_need.Post();
   }
 };
+
 }  // namespace utils
 }  // namespace xgboost
 #endif
