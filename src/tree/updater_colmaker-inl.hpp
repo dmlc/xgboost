@@ -237,7 +237,6 @@ class ColMaker: public IUpdater {
       bool need_forward = param.need_forward_search(fmat.GetColDensity(fid));
       bool need_backward = param.need_backward_search(fmat.GetColDensity(fid));
       const std::vector<int> &qexpand = qexpand_;
-      int nthread;
       #pragma omp parallel
       {
         const int tid = omp_get_thread_num();

@@ -235,9 +235,8 @@ class BoostLearner : public rabit::Serializable {
   /*!
    * \brief save model into file
    * \param fname file name
-   * \param save_base64 whether save in base64 format
    */
-  inline void SaveModel(const char *fname, bool save_base64 = false) const {
+  inline void SaveModel(const char *fname) const {
     utils::IStream *fo = utils::IStream::Create(fname, "w");
     if (save_base64 != 0 || !strcmp(fname, "stdout")) {
       fo->Write("bs64\t", 5);

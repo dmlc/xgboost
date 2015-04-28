@@ -185,8 +185,8 @@ class DMatrixPageBase : public DataMatrix {
     iter_->Load(utils::FileStream(utils::FopenCheck(fname_row.c_str(), "rb")));    
     // save data matrix
     utils::FileStream fs(utils::FopenCheck(cache_file, "wb"));
-    int magic = kMagic;
-    fs.Write(&magic, sizeof(magic));
+    int tmagic = kMagic;
+    fs.Write(&tmagic, sizeof(tmagic));
     this->info.SaveBinary(fs);
     fs.Close();
     if (!silent) {
