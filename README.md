@@ -10,6 +10,8 @@ Documentations: [Documentation of xgboost](doc/README.md)
 Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
 Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/) to ask questions and share your experience on xgboost.
+  - Use issue tracker for bug reports, feature requests etc.
+  - Use the user group to discuss your experience, ask questions about general usage and post your experience using xgboost.
 
 Distributed Version: [Distributed XGBoost](multi-node)
 
