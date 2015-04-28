@@ -83,8 +83,6 @@ class SeekStream: public Stream {
   virtual void Seek(size_t pos) = 0;
   /*! \brief tell the position of the stream */
   virtual size_t Tell(void) = 0;
-  /*! \return whether we are at end of file */
-  virtual bool AtEnd(void) const = 0;
   /*!
    * \brief generic factory function
    *  create an SeekStream for read only,
