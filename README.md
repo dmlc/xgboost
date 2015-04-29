@@ -14,7 +14,7 @@ Please join [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost
   - Use issue tracker for bug reports, feature requests etc.
   - Use the user group to post your experience, ask questions about general usages.
 
-[![Gitter chat for developers at https://gitter.im/dmlc/xgboost](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/dmlc/xgboost?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+Gitter for developers [![Gitter chat for developers at https://gitter.im/dmlc/xgboost](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/dmlc/xgboost?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Distributed Version: [Distributed XGBoost](multi-node)
 
