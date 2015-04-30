@@ -46,15 +46,25 @@
 #'   \item \code{merror} Exact matching error, used to evaluate multi-class classification
 #' }
 #' @param obj customized objective function. Returns gradient and second order 
-#'   gradient with given prediction and dtrain, 
+#'   gradient with given prediction and dtrain.
 #' @param feval custimized evaluation function. Returns 
 #'   \code{list(metric='metric-name', value='metric-value')} with given 
-#'   prediction and dtrain,
-#' @param verbose \code{boolean}, print the statistics during the process.
+#'   prediction and dtrain.
+#' @param stratified \code{boolean} whether sampling of folds should be stratified by the values of labels in \code{data}
+#' @param folds \code{list} provides a possibility of using a list of pre-defined CV folds (each element must be a vector of fold's indices).
+#'   If folds are supplied, the nfold and stratified parameters would be ignored.
+#' @param verbose \code{boolean}, print the statistics during the process
 #' @param ... other parameters to pass to \code{params}.
 #' 
-#' @return A \code{data.table} with each mean and standard deviation stat for training set and test set.
-#' 
+#' @return
+#' If \code{prediction = TRUE}, a list with the following elements is returned:
+#' \itemize{
+#'   \item \code{dt} a \code{data.table} with each mean and standard deviation stat for training set and test set
+#'   \item \code{pred} an array or matrix (for multiclass classification) with predictions for each CV-fold for the model having been trained on the data in all other folds.
+#' }
+#'
+#' If \code{prediction = FALSE}, just a \code{data.table} with each mean and standard deviation stat for training set and test set is returned.
+#'
 #' @details 
 #' The original sample is randomly partitioned into \code{nfold} equal size subsamples. 
 #' 
@@ -76,9 +86,15 @@
 #'
 xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NULL, 
                    prediction = FALSE, showsd = TRUE, metrics=list(), 
-                   obj = NULL, feval = NULL, verbose = T,...) {
+                   obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, verbose = T,...) {
   if (typeof(params) != "list") {
     stop("xgb.cv: first argument params must be list")
+  }
+  if(!is.null(folds)) {
+    if(class(folds)!="list" | length(folds) < 2) {
+      stop("folds must be a list with 2 or more elements that are vectors of indices for each CV-fold")
+    }
+    nfold <- length(folds)
   }
   if (nfold <= 1) {
     stop("nfold must be bigger than 1")
@@ -94,7 +110,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     params <- append(params, list("eval_metric"=mc))
   }
 
-  folds <- xgb.cv.mknfold(dtrain, nfold, params)
+  xgb_folds <- xgb.cv.mknfold(dtrain, nfold, params, stratified, folds)
   obj_type = params[['objective']]
   mat_pred = FALSE
   if (!is.null(obj_type) && obj_type=='multi:softprob')
@@ -111,7 +127,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   for (i in 1:nrounds) {
     msg <- list()
     for (k in 1:nfold) {
-      fd <- folds[[k]]
+      fd <- xgb_folds[[k]]
       succ <- xgb.iter.update(fd$booster, fd$dtrain, i - 1, obj)
       if (i<nrounds) {
           msg[[k]] <- xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval) %>% str_split("\t") %>% .[[1]]
@@ -147,7 +163,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   dt <- read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
   split <- str_split(string = history, pattern = "\t")
   
-  for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.list %>% {vec <- .; rbindlist(list(dt, vec), use.names = F, fill = F)}
+  for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.numeric %>% as.list %>% {rbindlist(list(dt, .), use.names = F, fill = F)}
   
   if (prediction) {
     return(list(dt = dt,pred = predictValues))

@@ -6,7 +6,8 @@
 \usage{
 xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
   missing = NULL, prediction = FALSE, showsd = TRUE, metrics = list(),
-  obj = NULL, feval = NULL, verbose = T, ...)
+  obj = NULL, feval = NULL, stratified = TRUE, folds = NULL,
+  verbose = T, ...)
 }
 \arguments{
 \item{params}{the list of parameters. Commonly used ones are:
@@ -51,18 +52,29 @@ value that represents missing value. Sometime a data use 0 or other extreme valu
 }}
 
 \item{obj}{customized objective function. Returns gradient and second order
-gradient with given prediction and dtrain,}
+gradient with given prediction and dtrain.}
 
 \item{feval}{custimized evaluation function. Returns
 \code{list(metric='metric-name', value='metric-value')} with given
-prediction and dtrain,}
+prediction and dtrain.}
 
-\item{verbose}{\code{boolean}, print the statistics during the process.}
+\item{stratified}{\code{boolean} whether sampling of folds should be stratified by the values of labels in \code{data}}
+
+\item{folds}{\code{list} provides a possibility of using a list of pre-defined CV folds (each element must be a vector of fold's indices).
+If folds are supplied, the nfold and stratified parameters would be ignored.}
+
+\item{verbose}{\code{boolean}, print the statistics during the process}
 
 \item{...}{other parameters to pass to \code{params}.}
 }
 \value{
-A \code{data.table} with each mean and standard deviation stat for training set and test set.
+If \code{prediction = TRUE}, a list with the following elements is returned:
+\itemize{
+  \item \code{dt} a \code{data.table} with each mean and standard deviation stat for training set and test set
+  \item \code{pred} an array or matrix (for multiclass classification) with predictions for each CV-fold for the model having been trained on the data in all other folds.
+}
+
+If \code{prediction = FALSE}, just a \code{data.table} with each mean and standard deviation stat for training set and test set is returned.
 }
 \description{
 The cross valudation function of xgboost
