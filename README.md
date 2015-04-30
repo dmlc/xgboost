@@ -22,8 +22,9 @@ Highlights of Usecases: [Highlight Links](doc/README.md#highlight-links)
 
 What's New
 ==========
-* [External Memory Version](doc/external_memory.md)
 * XGBoost wins [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
+  - Checkout the winning solution at [Highlight links](doc/README.md#highlight-links)
+* [External Memory Version](doc/external_memory.md)
 * XGBoost now support HDFS and S3
 * [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/tree/master/learn/xgboost)
 * [xgboost user group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
