@@ -16,7 +16,7 @@
 #ifdef _MSC_VER
 typedef unsigned __int64 uint64_t;
 #else
-#include <cinttypes>
+#include <inttypes.h>
 #endif
 
 /*! \brief namespace for dmlc */
