@@ -11,7 +11,13 @@
 #include <istream>
 #include <ostream>
 #include <streambuf>
-#include "./base.h"
+
+// include uint64_t only to make io standalone
+#ifdef _MSC_VER
+typedef unsigned __int64 uint64_t;
+#else
+#include <cinttypes>
+#endif
 
 /*! \brief namespace for dmlc */
 namespace dmlc {
