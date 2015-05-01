@@ -220,6 +220,10 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
     stop("nfold must be bigger than 1")
   }
   if(is.null(folds)) {
+    if (exists('objective', where=param) && strtrim(param[['objective']], 5) == 'rank:') {
+      stop("\tAutomatic creation of CV-folds is not implemented for ranking!\n",
+           "\tConsider providing pre-computed CV-folds through the folds parameter.")
+    }
     y <- getinfo(dall, 'label')
     randidx <- sample(1 : xgb.numrow(dall))
     if (stratified & length(y) == length(randidx)) {
