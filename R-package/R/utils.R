@@ -234,7 +234,6 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
       # For classification, need to convert y labels to factor before making the folds,
       # and then do stratification by factor levels.
       # For regression, leave y numeric and do stratification by quantiles.
-      n_uniq <- length(unique(y))
       if (exists('objective', where=param)) {
         # If 'objective' provided in params, assume that y is a classification label
         # unless objective is reg:linear
