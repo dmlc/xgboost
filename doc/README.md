@@ -6,9 +6,9 @@ List of Documentations
 * [External Memory Version](external_memory.md)
 * [Text input format](input_format.md)
 * [Build Instruction](build.md)
-* [Notes on Parameter Tunning](build.md)
 * [Notes on the Code](../src)
 * List of all parameters and their usage: [Parameters](parameter.md)
+  - [Notes on Parameter Tunning](param_tuning.md)
 * Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
 
 How to get started
