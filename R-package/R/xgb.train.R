@@ -43,7 +43,7 @@
 #'     \item \code{binary:logistic} logistic regression for binary classification. Output probability.
 #'     \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
 #'     \item \code{num_class} set the number of classes. To use only with multiclass objectives.
-#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is a number and should be from 0 \code{tonum_class}
+#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is represented by a number and should be from 0 to \code{tonum_class}.
 #'     \item \code{multi:softprob} same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging to each class.
 #'     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
 #'   }
@@ -85,7 +85,7 @@
 #'      \item \code{error} Binary classification error rate. It is calculated as \code{(wrong cases) / (all cases)}. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
 #'      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(wrong cases) / (all cases)}.
 #'      \item \code{auc} Area under the curve. \url{http://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
-#'      \item \code{ndcg} Normalized Discounted Cumulative Gain. \url{http://en.wikipedia.org/wiki/NDCG}
+#'      \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{http://en.wikipedia.org/wiki/NDCG}
 #'   }
 #'   
 #' Full list of parameters is available in the Wiki \url{https://github.com/dmlc/xgboost/wiki/Parameters}.
