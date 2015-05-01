@@ -16,8 +16,8 @@ The purpose of this RMarkdown document is to demonstrate how we can leverage the
 First we will train a model on the **OTTO** dataset, then we will generate two vizualisations to get a clue of what is important to the model, finally, we will see how we can leverage these information.
 
 
-Training of the model
-=====================
+Preparation of the data
+=======================
 
 This part is based on the tutorial posted on the [**OTTO Kaggle** forum](**LINK HERE**).
 
@@ -28,8 +28,8 @@ require(xgboost)
 require(methods)
 require(data.table)
 require(magrittr)
-train = fread('data/train.csv', header = T, stringsAsFactors = F)
-test = fread('data/test.csv', header=TRUE, stringsAsFactors = F)
+train <- fread('data/train.csv', header = T, stringsAsFactors = F)
+test <- fread('data/test.csv', header=TRUE, stringsAsFactors = F)
 ```
 > `magrittr` and `data.table` are here to make the code cleaner and more rapid.
 
@@ -48,14 +48,14 @@ dim(train)
 # Test content
 test[1:6,1:5, with =F]
 ```
-> we only display the 6 first rows and 5 first columns for convenience
+> We only display the 6 first rows and 5 first columns for convenience
 
 Each column represents a feature measured by an integer. Each row is a product.
 
 Obviously the first column (`ID`) doesn't contain any useful information. 
 To let the algorithm focus on real stuff, we will delete the column.
 
-```{r clean}
+```{r clean, results='hide'}
 # Delete ID column in training dataset
 train[, id := NULL]
 
@@ -68,6 +68,77 @@ According to the `OTTO` challenge description, we have here a multi class classi
 ```{r searchLabel}
 # Check the content of the last column
 train[1:6, ncol(train), with  = F]
+# Save the name of the last column
+nameLastCol <- names(train)[ncol(train)]
 ```
 
-The class are provided as character string. As you may know, **XGBoost** doesn't support anything else than numbers.
+The class are provided as character string in the `ncol(train)`th column called `nameLastCol`. As you may know, **XGBoost** doesn't support anything else than numbers. So we will convert classes to integers. Moreover, according to the documentation, it should start at 0.
+
+For that purpose, we will:
+
+* extract the target column
+* remove "Class_" from each class name
+* convert to integers
+* remove 1 to the new value
+
+```{r classToIntegers}
+# Convert to classes to numbers
+y <- train[, nameLastCol, with = F][[1]] %>% gsub('Class_','',.) %>% {as.integer(.) -1}
+# Display the first 5 levels
+y[1:5]
+```
+
+We remove label column from training dataset, otherwise XGBoost would use it to guess the labels!!!
+
+```{r deleteCols, results='hide'}
+train[, nameLastCol:=NULL, with = F]
+```
+
+`data.table` is an awesome implementation of data.frame, unfortunately it is not a format supported natively by XGBoost. We need to convert both datasets (training and test) in numeric Matrix format.
+
+```{r convertToNumericMatrix}
+trainMatrix <- train[,lapply(.SD,as.numeric)] %>% as.matrix
+testMatrix <- test[,lapply(.SD,as.numeric)] %>% as.matrix
+```
+
+Model training
+==============
+
+Before the learning we will use the cross validation to evaluate the our error rate.
+
+Basically XGBoost will divide the training data in `nfold` parts, then XGBoost will retain the first part and use it as the test data. Then it will reintegrate the first part to the training dataset and retain the second part, do a training and so on...
+
+Look at the function documentation for more information.
+
+
+```{r crossValidation}
+numberOfClasses <- max(y)
+
+param <- list("objective" = "multi:softprob",
+              "eval_metric" = "mlogloss",
+              "num_class" = numberOfClasses + 1)
+
+cv.nround <- 50
+cv.nfold <- 3
+
+bst.cv = xgb.cv(param=param, data = trainMatrix, label = y, 
+                nfold = cv.nfold, nrounds = cv.nround)
+```
+> As we can see the error rate is low on the test dataset (for a 5mn trained model).
+
+Finally, we are ready to train the real model!!!
+
+```{r modelTraining}
+nround = 50
+bst = xgboost(param=param, data = trainMatrix, label = y, nrounds=nround)
+```
+
+Model understanding
+===================
+
+```{r importanceFeature}
+names <- dimnames(trainMatrix)[[2]]
+
+importance_matrix <- xgb.importance(names, model = bst)
+xgb.plot.importance(importance_matrix[1:10,])
+```
