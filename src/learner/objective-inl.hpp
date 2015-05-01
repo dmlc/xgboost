@@ -27,6 +27,7 @@ struct LossType {
   static const int kLogisticNeglik = 1;
   static const int kLogisticClassify = 2;
   static const int kLogisticRaw = 3;
+  static const int kModifiedHuber = 4;
   /*!
    * \brief transform the linear sum to prediction
    * \param x linear sum of boosting ensemble
@@ -35,6 +36,7 @@ struct LossType {
   inline float PredTransform(float x) const {
     switch (loss_type) {
       case kLogisticRaw:
+      case kModifiedHuber:
       case kLinearSquare: return x;
       case kLogisticClassify:
       case kLogisticNeglik: return 1.0f / (1.0f + std::exp(-x));
@@ -72,6 +74,13 @@ struct LossType {
       case kLogisticRaw: predt = 1.0f / (1.0f + std::exp(-predt));
       case kLogisticClassify:
       case kLogisticNeglik: return predt - label;
+      case kModifiedHuber: {
+        float y_svm = (2.0f*label - 1.0f);
+        float z = y_svm * predt;
+        if (z < -1.0f) return -4.0f * y_svm;
+        else if (z > 1.0f) return 0.0f;
+        else return 2.0f * y_svm * (z - 1.0f);
+      }
       default: utils::Error("unknown loss_type"); return 0.0f;
     }
   }
@@ -89,6 +98,9 @@ struct LossType {
       case kLogisticRaw: predt = 1.0f / (1.0f + std::exp(-predt));
       case kLogisticClassify:
       case kLogisticNeglik: return std::max(predt * (1.0f - predt), eps);
+      case kModifiedHuber:
+        if (std::abs((2.0f*label - 1.0f) * predt) > 1.0f) return eps;
+        else return 2.0f;
       default: utils::Error("unknown loss_type"); return 0.0f;
     }
   }
@@ -108,7 +120,8 @@ struct LossType {
   /*! \brief get default evaluation metric for the objective */
   inline const char *DefaultEvalMetric(void) const {
     if (loss_type == kLogisticClassify) return "error";
-    if (loss_type == kLogisticRaw) return "auc";
+    if (loss_type == kLogisticRaw ||
+        loss_type == kModifiedHuber) return "auc";
     return "rmse";
   }
 };
