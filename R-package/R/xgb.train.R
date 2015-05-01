@@ -42,8 +42,9 @@
 #'     \item \code{reg:logistic} logistic regression.
 #'     \item \code{binary:logistic} logistic regression for binary classification. Output probability.
 #'     \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
-#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes).
-#'     \item \code{multi:softprob} same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
+#'     \item \code{num_class} set the number of classes. To use only with multiclass objectives.
+#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is a number and should be from 0 \code{tonum_class}
+#'     \item \code{multi:softprob} same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging to each class.
 #'     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
 #'   }
 #'   \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
