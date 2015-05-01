@@ -4,7 +4,7 @@ This folder provides wrapper of xgboost to other languages
 
 Python
 =====
-* To make the python module, type ```make``` in the root directory of project
+* To make the python module, type ```./build.sh``` in the root directory of project
 * Install with `python setup.py install` from this directory.
 * Refer also to the walk through example in [demo folder](../demo/guide-python)
 

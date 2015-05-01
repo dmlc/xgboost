@@ -4,7 +4,8 @@
 # This will automatically make xgboost for MAC users who don't have OpenMP support.
 # In most cases, type make will give what you want.
 
-# download rabit
+# See additional instruction in doc/build.md
+
 
 if make; then
     echo "Successfully build multi-thread xgboost"
@@ -15,4 +16,6 @@ else
     make clean
     make no_omp=1
     echo "Successfully build single-thread xgboost"
+    echo "If you want multi-threaded version"
+    echo "See additional instructions in doc/build.md"
 fi

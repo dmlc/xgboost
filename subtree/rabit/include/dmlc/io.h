@@ -12,6 +12,13 @@
 #include <ostream>
 #include <streambuf>
 
+// include uint64_t only to make io standalone
+#ifdef _MSC_VER
+typedef unsigned __int64 uint64_t;
+#else
+#include <inttypes.h>
+#endif
+
 /*! \brief namespace for dmlc */
 namespace dmlc {
 /*!
@@ -128,12 +135,25 @@ class InputSplit {
     /*! \brief size of the memory region */
     size_t size;
   };
+  /*!
+   * \brief hint the inputsplit how large the chunk size
+   *  it should return when implementing NextChunk
+   *  this is a hint so may not be enforced,
+   *  but InputSplit will try adjust its internal buffer
+   *  size to the hinted value
+   * \param chunk_size the chunk size 
+   */
+  virtual void HintChunkSize(size_t chunk_size) {}
   /*! \brief reset the position of InputSplit to beginning */
   virtual void BeforeFirst(void) = 0;
   /*!
    * \brief get the next record, the returning value
    *   is valid until next call to NextRecord or NextChunk
    *   caller can modify the memory content of out_rec
+   *   
+   *   For text, out_rec contains a single line
+   *   For recordio, out_rec contains one record content(with header striped)
+   *
    * \param out_rec used to store the result
    * \return true if we can successfully get next record
    *     false if we reached end of split
@@ -144,7 +164,7 @@ class InputSplit {
    * \brief get a chunk of memory that can contain multiple records, 
    *  the caller needs to parse the content of the resulting chunk,
    *  for text file, out_chunk can contain data of multiple lines
-   *  for recordio, out_chunk can contain data of multiple records
+   *  for recordio, out_chunk can contain multiple records(including headers)
    *   
    *  This function ensures there won't be partial record in the chunk
    *  caller can modify the memory content of out_chunk,
@@ -157,6 +177,7 @@ class InputSplit {
    * \return true if we can successfully get next record
    *     false if we reached end of split
    * \sa InputSplit::Create for definition of record
+   * \sa RecordIOChunkReader to parse recordio content from out_chunk
    */
   virtual bool NextChunk(Blob *out_chunk) = 0;
   /*! \brief destructor*/
