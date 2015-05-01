@@ -1,0 +1,73 @@
+---
+title: "Understanding XGBoost model using only embedded model"
+author: "Michaël Benesty"
+output: html_document
+---
+
+Introduction
+============
+
+According to the **Kaggle** forum, XGBoost seems to be one of the most used tool to make prediction regarding the classification of the products from **OTTO** dataset.
+
+**XGBoost** is an implementation of the famous gradient boosting algorithm described by Friedman in XYZ. This model is often described as a *blackbox*, meaning it works well but it is not trivial to understand how. Indeed, the model is made of hundreds (thousands?) of decision trees. You may wonder how possible a human would be able to have a general view of the model?
+
+The purpose of this RMarkdown document is to demonstrate how we can leverage the functions already implemented in **XGBoost R** package for that purpose. Of course, everything showed below can be applied to the dataset you may have to manipulate at work or wherever!
+
+First we will train a model on the **OTTO** dataset, then we will generate two vizualisations to get a clue of what is important to the model, finally, we will see how we can leverage these information.
+
+
+Training of the model
+=====================
+
+This part is based on the tutorial posted on the [**OTTO Kaggle** forum](**LINK HERE**).
+
+First, let's load the packages and the dataset.
+
+```{r loading}
+require(xgboost)
+require(methods)
+require(data.table)
+require(magrittr)
+train = fread('data/train.csv', header = T, stringsAsFactors = F)
+test = fread('data/test.csv', header=TRUE, stringsAsFactors = F)
+```
+> `magrittr` and `data.table` are here to make the code cleaner and more rapid.
+
+Let's see what is in this dataset.
+
+```{r explore}
+# Train dataset dimensions
+dim(train)
+
+# Training content
+train[1:6,1:5, with =F]
+
+# Test dataset dimensions
+dim(train)
+
+# Test content
+test[1:6,1:5, with =F]
+```
+> we only display the 6 first rows and 5 first columns for convenience
+
+Each column represents a feature measured by an integer. Each row is a product.
+
+Obviously the first column (`ID`) doesn't contain any useful information. 
+To let the algorithm focus on real stuff, we will delete the column.
+
+```{r clean}
+# Delete ID column in training dataset
+train[, id := NULL]
+
+# Delete ID column in testing dataset
+test[, id := NULL]
+```
+
+According to the `OTTO` challenge description, we have here a multi class classication challenge. We need to extract the labels (here the name of the different classes) from the dataset. We only have two files (test and training), it seems logic that the training file contains the class we are looking for. Usually the labels is in the first or the last column. Let's check the content of the last column.
+
+```{r searchLabel}
+# Check the content of the last column
+train[1:6, ncol(train), with  = F]
+```
+
+The class are provided as character string. As you may know, **XGBoost** doesn't support anything else than numbers.
