@@ -5,6 +5,7 @@ List of Documentations
 * [Learning to use xgboost by example](../demo)
 * [External Memory Version](external_memory.md)
 * [Text input format](input_format.md)
+* [Build Instruction](build.md)
 * [Notes on the Code](../src)
 * List of all parameters and their usage: [Parameters](parameter.md)
 * Learning about the model: [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
