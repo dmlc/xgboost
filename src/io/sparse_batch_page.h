@@ -136,6 +136,7 @@ class SparsePage {
     for (size_t i = 0; i < disk_offset_.size(); ++i) {
       offset[i + begin] = top + disk_offset_[i];
     }
+    return true;
   }
   /*! 
    * \brief Push row batch into the page
