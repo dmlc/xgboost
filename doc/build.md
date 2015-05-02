@@ -43,7 +43,7 @@ Here is the complete solution to use OpenMp-enabled compilers to install XGBoost
 
   Remember to change `header` if using clang-omp. 
   
-  Then `bash xgboost/build.sh` to compile XGBoost. And go to `xgboost/wrapper` to install python version.
+  Then `cd xgboost` then `bash build.sh` to compile XGBoost. And go to `wrapper` sub-folder to install python version.
 
 4. Set the `Makevars` file in highest piority for R. 
 
@@ -84,8 +84,6 @@ Here is the complete solution to use OpenMp-enabled compilers to install XGBoost
   ```R
   devtools::install_local('xgboost/', subdir = 'R-package') # you may use devtools
   ```
-
-  gcc shows no warnings when clang-omp shows with two warnings.
 
 
 Build with HDFS and S3 Support
