@@ -1,5 +1,5 @@
 ---
-title: "Understanding XGBoost model using only embedded model"
+title: "Understanding XGBoost Model on Otto Dataset"
 author: "Michaël Benesty"
 output: html_document
 ---
@@ -7,9 +7,9 @@ output: html_document
 Introduction
 ============
 
-According to the **Kaggle** forum, XGBoost seems to be one of the most used tool to make prediction regarding the classification of the products from **OTTO** dataset.
+XGBoost seems to be one of the most used tool to make prediction regarding the classification of the products from OTTO dataset.
 
-**XGBoost** is an implementation of the famous gradient boosting algorithm described by Friedman in XYZ. This model is often described as a *blackbox*, meaning it works well but it is not trivial to understand how. Indeed, the model is made of hundreds (thousands?) of decision trees. You may wonder how possible a human would be able to have a general view of the model?
+**XGBoost** is an implementation of the famous gradient boosting algorithm. This model is often described as a *blackbox*, meaning it works well but it is not trivial to understand how. Indeed, the model is made of hundreds (thousands?) of decision trees. You may wonder how possible a human would be able to have a general view of the model?
 
 The purpose of this RMarkdown document is to demonstrate how we can leverage the functions already implemented in **XGBoost R** package for that purpose. Of course, everything showed below can be applied to the dataset you may have to manipulate at work or wherever!
 
@@ -19,7 +19,7 @@ First we will train a model on the **OTTO** dataset, then we will generate two v
 Preparation of the data
 =======================
 
-This part is based on the tutorial posted on the [**OTTO Kaggle** forum](**LINK HERE**).
+This part is based on the tutorial example by [Tong He](https://github.com/dmlc/xgboost/blob/master/demo/kaggle-otto/otto_train_pred.R)
 
 First, let's load the packages and the dataset.
 
@@ -196,7 +196,7 @@ This function gives a color to each bar. Basically a K-mean clustering is  appli
 
 From here you can take several actions. For instance you can remove the less important feature (feature selection process), or go deeper in the interaction between the most important features and labels.
 
-Or you can just reason about why these features are so importat (in **OTTO** challenge we can't go this way because there is not enough information).
+Or you can just reason about why these features are so importat (in OTTO challenge we can't go this way because there is not enough information).
 
 Tree graph
 ----------
