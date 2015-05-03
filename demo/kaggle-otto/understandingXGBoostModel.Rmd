@@ -209,5 +209,6 @@ Feature importance gives you feature weight information but not interaction betw
 xgb.plot.tree(feature_names = names, model = bst, n_first_tree = 2)
 ```
 
-We are just displaying the first one here.
+We are just displaying the first trees here.
 
+On simple models first trees may be enough. Here, it may not be the case.
