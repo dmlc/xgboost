@@ -867,7 +867,8 @@ class XGBClassifier(XGBModel, XGBClassifier):
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
                  base_score=0.5, seed=0):
         super(XGBClassifier, self).__init__(max_depth, learning_rate, n_estimators, silent, objective,
-                                            nthread, gamma, min_child_weight, max_delta_step, subsample, colsample_bytree,
+                                            nthread, gamma, min_child_weight, max_delta_step, subsample,
+                                            colsample_bytree,
                                             base_score, seed)
 
     def fit(self, X, y, sample_weight=None):
