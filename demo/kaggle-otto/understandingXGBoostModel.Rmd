@@ -206,9 +206,9 @@ Feature importance gives you feature weight information but not interaction betw
 **XGBoost R** package have another useful function for that.
 
 ```{r treeGraph, dpi=300, fig.align='left'}
-xgb.plot.tree(feature_names = names, model = bst, n_first_tree = 2)
+xgb.plot.tree(feature_names = names, model = bst, n_first_tree = 1)
 ```
 
-We are just displaying the first trees here.
+We are just displaying the first tree here.
 
 On simple models first trees may be enough. Here, it may not be the case.
