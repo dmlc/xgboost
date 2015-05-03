@@ -136,9 +136,78 @@ bst = xgboost(param=param, data = trainMatrix, label = y, nrounds=nround)
 Model understanding
 ===================
 
+Feature importance
+------------------
+
+So far, we have built a model made of `nround` trees.
+
+To build a tree, the dataset is divided recursvely several times. At the end of the process, you get groups of observations (here, these observations are properties regarding **OTTO** products). 
+
+Each division operation is called a *split*.
+
+Each group at each division level is called a branch and the deepest level is called a **leaf**.
+
+In the final model, these leafs are supposed to be as pure as possible for each tree, meaning in our case that each leaf should be made of one class of **OTTO** product only (of course it is not true, but that's what we try to achieve in a minimum of splits).
+
+**Not all splits are equally important**. Basically the first split of a tree will have more impact on the purity that, for instance, the deepest split. Intuitively, we understand that the first split makes most of the work, and the following splits focus on smaller parts of the dataset which have been missclassified by the first tree.
+
+In the same way, in Boosting we try to optimize the missclassification at each round (it is called the **loss**). So the first tree will do the big work and the following trees will focus on the remaining, on the parts not correctly learned by the previous trees.
+
+The improvement brought by each split can be measured, it is the **gain**.
+
+Each split is done on one feature only at one value. 
+
+Let's see what the model looks like.
+
+```{r modelDump}
+model <- xgb.dump(bst, with.stats = T)
+model[1:10]
+```
+> For convenience, we are displaying the first 10 lines of the model only.
+
+Clearly, it is not easy to understand what it means. 
+
+Basically each line represents a branch, there is the tree ID, the feature ID, the point where it splits, and information regarding the next branches (left, right, when the row for this feature is N/A).
+
+Hopefully, XGBoost offers a better representation: **feature importance**.
+
+Feature importance is about averaging the gain of each feature for all split and all trees.
+
+Then we can use the function `xgb.plot.importance`.
+
 ```{r importanceFeature}
+# Get the feature real names
 names <- dimnames(trainMatrix)[[2]]
 
+# Compute feature importance matrix
 importance_matrix <- xgb.importance(names, model = bst)
+
+# Nice graph
 xgb.plot.importance(importance_matrix[1:10,])
 ```
+> To make it understandable we first extract the column names from the `Matrix`.
+
+Interpretation
+--------------
+
+In the feature importance above, we can see the first 10 most important features.
+
+This function gives a color to each bar. Basically a K-mean clustering is  applied to group each feature by importance.
+
+From here you can take several actions. For instance you can remove the less important feature (feature selection process), or go deeper in the interaction between the most important features and labels.
+
+Or you can just reason about why these features are so importat (in **OTTO** challenge we can't go this way because there is not enough information).
+
+Tree graph
+----------
+
+Feature importance gives you feature weight information but not interaction between features.
+
+**XGBoost R** package have another useful function for that.
+
+```{r treeGraph, dpi=300, fig.align='left'}
+xgb.plot.tree(feature_names = names, model = bst, n_first_tree = 2)
+```
+
+We are just displaying the first one here.
+
