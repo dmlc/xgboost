@@ -111,13 +111,13 @@ Look at the function documentation for more information.
 
 
 ```{r crossValidation}
-numberOfClasses <- max(y)
+numberOfClasses <- max(y) + 1
 
 param <- list("objective" = "multi:softprob",
               "eval_metric" = "mlogloss",
-              "num_class" = numberOfClasses + 1)
+              "num_class" = numberOfClasses)
 
-cv.nround <- 50
+cv.nround <- 5
 cv.nfold <- 3
 
 bst.cv = xgb.cv(param=param, data = trainMatrix, label = y, 
