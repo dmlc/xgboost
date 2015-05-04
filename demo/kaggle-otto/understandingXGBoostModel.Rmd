@@ -205,9 +205,10 @@ Feature importance gives you feature weight information but not interaction betw
 **XGBoost R** package have another useful function for that.
 
 ```{r treeGraph, dpi=300, fig.align='left'}
-xgb.plot.tree(feature_names = names, model = bst, n_first_tree = 1)
+xgb.plot.tree(feature_names = names, model = bst, n_first_tree = 2)
 ```
 
-We are just displaying the first tree here.
+We are just displaying the first two trees here.
 
-On simple models first trees may be enough. Here, it may not be the case.
+On simple models the first two trees may be enough. Here, it might not be the case. We can see from the size of the trees that the intersaction between features is complicated. 
+Besides, XGBoost generate `k` trees at each round for a `k`-classification problem. Therefore the two trees illustrated here are trying to classify data into different classes.
