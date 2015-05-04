@@ -9,16 +9,12 @@
 #include <algorithm>
 // include all std functions
 using namespace std;
-
-#ifdef _MSC_VER
-#define isnan(x) (_isnan(x) != 0)
-#endif
-
 #include "./xgboost_wrapper.h"
 #include "../src/data.h"
 #include "../src/learner/learner-inl.hpp"
 #include "../src/io/io.h"
 #include "../src/utils/utils.h"
+#include "../src/utils/math.h"
 #include "../src/utils/group_data.h"
 #include "../src/io/simple_dmatrix-inl.hpp"
 
@@ -97,14 +93,6 @@ class Booster: public learner::BoostLearner {
  private:
   bool init_model;
 };
-#if !defined(XGBOOST_STRICT_CXX98_)
-inline bool CheckNAN(float v) {
-  return isnan(v);
-}
-#else
-// redirect to defs in R
-bool CheckNAN(float v);
-#endif
 }  // namespace wrapper
 }  // namespace xgboost
 
@@ -175,7 +163,7 @@ extern "C"{
                                bst_ulong nrow,
                                bst_ulong ncol,
                                float  missing) {    
-    bool nan_missing = CheckNAN(missing);
+    bool nan_missing = utils::CheckNAN(missing);
     DMatrixSimple *p_mat = new DMatrixSimple();
     DMatrixSimple &mat = *p_mat;
     mat.info.info.num_row = nrow;
@@ -183,7 +171,7 @@ extern "C"{
     for (bst_ulong i = 0; i < nrow; ++i, data += ncol) {
       bst_ulong nelem = 0;
       for (bst_ulong j = 0; j < ncol; ++j) {
-        if (CheckNAN(data[j])) {
+        if (utils::CheckNAN(data[j])) {
           utils::Check(nan_missing,
                        "There are NAN in the matrix, however, you did not set missing=NAN"); 
         } else {

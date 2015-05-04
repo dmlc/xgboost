@@ -12,6 +12,7 @@
 #include <climits>
 #include <algorithm>
 #include "../sync/sync.h"
+#include "../utils/math.h"
 #include "./evaluation.h"
 #include "./helper_utils.h"
 
@@ -103,6 +104,18 @@ struct EvalError : public EvalEWiseBase<EvalError> {
   inline static float EvalRow(float label, float pred) {
     // assume label is in [0,1]
     return pred > 0.5f ? 1.0f - label : label;
+  }
+};
+
+/*! \brief loglikelihood of poission distribution */
+struct EvalPoissionNegLogLik : public EvalEWiseBase<EvalPoissionNegLogLik> {
+  virtual const char *Name(void) const {
+    return "poisson-nloglik";
+  }
+  inline static float EvalRow(float y, float py) {
+    const float eps = 1e-16f;
+    if (py < eps) py = eps;
+    return utils::LogGamma(y + 1.0f) + py - std::log(py) * y;
   }
 };
 

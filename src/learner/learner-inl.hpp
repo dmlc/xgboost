@@ -107,7 +107,9 @@ class BoostLearner : public rabit::Serializable {
     }
     if (!strcmp("seed_per_iter", name)) seed_per_iteration = atoi(val);
     if (!strcmp("save_base64", name)) save_base64 = atoi(val);
-    if (!strcmp(name, "num_class")) this->SetParam("num_output_group", val);
+    if (!strcmp(name, "num_class")) {
+      this->SetParam("num_output_group", val);
+    }
     if (!strcmp(name, "nthread")) {
       omp_set_num_threads(atoi(val));
     }
@@ -383,13 +385,23 @@ class BoostLearner : public rabit::Serializable {
     utils::Assert(gbm_ == NULL, "GBM and obj should be NULL");
     obj_ = CreateObjFunction(name_obj_.c_str());
     gbm_ = gbm::CreateGradBooster(name_gbm_.c_str());
-    
+    this->InitAdditionDefaultParam();
+    // set parameters
     for (size_t i = 0; i < cfg_.size(); ++i) {
       obj_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
       gbm_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
-    }
+    }   
     if (evaluator_.Size() == 0) {
       evaluator_.AddEval(obj_->DefaultEvalMetric());
+    }
+  }
+  /*! 
+   * \brief additional default value for specific objs
+   */
+  inline void InitAdditionDefaultParam(void) {
+    if (name_obj_ == "count:poisson") {
+      obj_->SetParam("max_delta_step", "0.7");
+      gbm_->SetParam("max_delta_step", "0.7");
     }
   }
   /*! 
