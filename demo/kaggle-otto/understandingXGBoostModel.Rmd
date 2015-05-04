@@ -9,7 +9,7 @@ Introduction
 
 **XGBoost** is an implementation of the famous gradient boosting algorithm. This model is often described as a *blackbox*, meaning it works well but it is not trivial to understand how. Indeed, the model is made of hundreds (thousands?) of decision trees. You may wonder how possible a human would be able to have a general view of the model?
 
-While xgboost is known for its fast speed and accuracy predictive power. It also comes with various functions to help you understand the model.
+While XGBoost is known for its fast speed and accurate predictive power. It also comes with various functions to help you understand the model.
 The purpose of this RMarkdown document is to demonstrate how we can leverage the functions already implemented in **XGBoost R** package for that purpose. Of course, everything showed below can be applied to the dataset you may have to manipulate at work or wherever!
 
 First we will train a model on the **OTTO** dataset, then we will generate two vizualisations to get a clue of what is important to the model, finally, we will see how we can leverage these information.
@@ -62,7 +62,7 @@ train[, id := NULL]
 test[, id := NULL]
 ```
 
-According to the `OTTO` challenge description, we have here a multi class classication challenge. We need to extract the labels (here the name of the different classes) from the dataset. We only have two files (test and training), it seems logic that the training file contains the class we are looking for. Usually the labels is in the first or the last column. Let's check the content of the last column.
+According to the `OTTO` challenge description, we have here a multi class classification challenge. We need to extract the labels (here the name of the different classes) from the dataset. We only have two files (test and training), it seems logical that the training file contains the class we are looking for. Usually the labels is in the first or the last column. Let's check the content of the last column.
 
 ```{r searchLabel}
 # Check the content of the last column
@@ -140,7 +140,7 @@ Feature importance
 
 So far, we have built a model made of `nround` trees.
 
-To build a tree, the dataset is divided recursvely several times. At the end of the process, you get groups of observations (here, these observations are properties regarding **OTTO** products). 
+To build a tree, the dataset is divided recursively several times. At the end of the process, you get groups of observations (here, these observations are properties regarding **OTTO** products). 
 
 Each division operation is called a *split*.
 
@@ -191,7 +191,7 @@ Interpretation
 
 In the feature importance above, we can see the first 10 most important features.
 
-This function gives a color to each bar. Basically a K-mean clustering is  applied to group each feature by importance.
+This function gives a color to each bar. Basically a K-means clustering is  applied to group each feature by importance.
 
 From here you can take several actions. For instance you can remove the less important feature (feature selection process), or go deeper in the interaction between the most important features and labels.
 
