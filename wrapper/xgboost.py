@@ -608,7 +608,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         # early stopping
 
         if len(evals) < 1:
-            raise ValueError('For early stopping you need at least on set in evals.')
+            raise ValueError('For early stopping you need at least one set in evals.')
 
         sys.stderr.write("Will train until {} error hasn't decreased in {} rounds.\n".format(evals[-1][1], early_stopping_rounds))
 
