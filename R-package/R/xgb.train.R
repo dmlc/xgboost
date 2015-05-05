@@ -139,11 +139,11 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   params = append(params, list(...))
   
   # Early stopping
-  if (!is.null(feval) && is.null(maximize))
+  if (!is.null(feval) && is.null(maximize) && !is.null(earlyStopRound))
     stop('Please set maximize to note whether the model is maximizing the evaluation or not.')
   if (length(watchlist) == 0 && !is.null(earlyStopRound))
     stop('For early stopping you need at least one set in watchlist.')
-  if (is.null(maximize) && is.null(params$eval_metric))
+  if (is.null(maximize) && is.null(params$eval_metric) && !is.null(earlyStopRound))
     stop('Please set maximize to note whether the model is maximizing the evaluation or not.')
   if (is.null(maximize))
   {
