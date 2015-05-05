@@ -218,5 +218,6 @@ Going deeper
 
 There are two documents you may want to check to go deeper:
 
-* [discoverYourData.Rmd](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/discoverYourData.Rmd)
-* [xgboostPresentation.Rmd](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)
+* [xgboostPresentation.Rmd](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd): general presentation
+* [discoverYourData.Rmd](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/discoverYourData.Rmd): explaining feature analysus
+* [Feature Importance Analysis with XGBoost in Tax audit](http://fr.slideshare.net/MichaelBENESTY/feature-importance-analysis-with-xgboost-in-tax-audit): use case
