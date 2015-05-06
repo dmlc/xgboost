@@ -64,7 +64,13 @@ class GBTree : public IGradBooster {
   }
   virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const {
     utils::Assert(mparam.num_trees == static_cast<int>(trees.size()), "GBTree");
-    fo.Write(&mparam, sizeof(ModelParam));
+    if (with_pbuffer) {
+      fo.Write(&mparam, sizeof(ModelParam));      
+    } else {
+      ModelParam p = mparam;
+      p.num_pbuffer = 0;
+      fo.Write(&p, sizeof(ModelParam));
+    }
     for (size_t i = 0; i < trees.size(); ++i) {
       trees[i]->SaveModel(fo);
     }
