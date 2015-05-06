@@ -1,7 +1,11 @@
 ---
 title: "Understanding XGBoost Model on Otto Dataset"
 author: "Michaël Benesty"
-output: html_document
+output: 
+  rmarkdown::html_vignette:
+    css: ../../R-package/vignettes/vignette.css
+    number_sections: yes
+    toc: yes
 ---
 
 Introduction
