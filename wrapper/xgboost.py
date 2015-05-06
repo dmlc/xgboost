@@ -478,7 +478,7 @@ class Booster(object):
         Parameters
         ----------
         fname : string
-            Output file name or handle
+            Output file name
         """
         if isinstance(fname, string_types):  # assume file name
             xglib.XGBoosterSaveModel(self.handle, c_str(fname))
@@ -504,7 +504,7 @@ class Booster(object):
 
         Parameters
         ----------
-        fname : string of file handle
+        fname : string or a memory buffer
             Input file name or memory buffer(see also save_raw)
         """
         if isinstance(fname, str):  # assume file name
