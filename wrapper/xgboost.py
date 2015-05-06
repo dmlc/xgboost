@@ -1,8 +1,8 @@
 # coding: utf-8
-
 """
 xgboost: eXtreme Gradient Boosting library
 
+Version: 0.40
 Authors: Tianqi Chen, Bing Xu
 Early stopping by Zygmunt Zając
 """
