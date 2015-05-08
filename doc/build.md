@@ -11,31 +11,80 @@ Build XGBoost
   - In principle, you put all the cpp files in the Makefile to the project, and build
 * OS X with multi-threading support: see [next section](#openmp-for-os-x)
 
-OpenMP for OS X
+Build XGBoost in OS X with OpenMP
 ====
-* For users who want OpenMP support using [Homebrew](http://brew.sh/), run ```brew update``` (ensures that you install gcc-4.9 or above) and ```brew install gcc --without-multilib```. Once it is installed, edit [../Makefile](../Makefile) by replacing:
-  ```bash
-  export CC  = gcc
-  export CXX = g++
+Here is the complete solution to use OpenMp-enabled compilers to install XGBoost.
+
+1. Obtain gcc with openmp support by `brew install gcc --without-multilib` **or** clang with openmp by `brew install clang-omp`. The clang one is recommended because the first method requires us compiling gcc inside the machine (more than an hour in mine)! (BTW, `brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.)
+
+2. **if plaing to use clang-omp** in step 3 and/or 4, change line 9 in `xgboost/src/utils/omp.h` to 
+
+  ```C++
+  #include <libiomp/omp.h> /* instead of #include <omp.h> */` 
   ```
-  with
-  ```bash
+
+  to make it work, otherwise the following steps would show `src/tree/../utils/omp.h:9:10: error: 'omp.h' file not found...`
+
+
+
+3. Set the `Makefile` correctly for compiling cpp version xgboost then python version xgboost.
+
+  ```Makefile
   export CC  = gcc-4.9
   export CXX = g++-4.9
   ```
-  Then run ```bash build.sh``` normally.
+
+  Or
+
+  ```Makefile
+  export CC = clang-omp
+  export CXX = clang-omp++
+  ```
+
+  Remember to change `header` if using clang-omp. 
   
-* For users who want to use [High Performance Computing for Mac OS X](http://hpc.sourceforge.net/), download the GCC 4.9 binary tar ball and follow the installation guidance to install them under `/usr/local`. Then edit [../Makefile](../Makefile) by replacing:
+  Then `cd xgboost` then `bash build.sh` to compile XGBoost. And go to `wrapper` sub-folder to install python version.
+
+4. Set the `Makevars` file in highest piority for R. 
+
+  The point is, there are three `Makevars` inside the machine: `~/.R/Makevars`, `xgboost/R-package/src/Makevars`, and `/usr/local/Cellar/r/3.2.0/R.framework/Resources/etc/Makeconf` (the last one obtained by runing `file.path(R.home("etc"), "Makeconf")` in R), and `SHLIB_OPENMP_CXXFLAGS` is not set by default!! After trying, it seems that the first one has highest piority (surprise!).
+
+  So, **add** or **change** `~/.R/Makevars` to the following lines:
+
+  ```Makefile
+  CC=gcc-4.9
+  CXX=g++-4.9
+  SHLIB_OPENMP_CFLAGS = -fopenmp
+  SHLIB_OPENMP_CXXFLAGS = -fopenmp
+  SHLIB_OPENMP_FCFLAGS = -fopenmp
+  SHLIB_OPENMP_FFLAGS = -fopenmp
   ```
-  export CC  = gcc
-  export CXX = g++
+
+  Or
+
+  ```Makefile
+  CC=clang-omp
+  CXX=clang-omp++
+  SHLIB_OPENMP_CFLAGS = -fopenmp
+  SHLIB_OPENMP_CXXFLAGS = -fopenmp
+  SHLIB_OPENMP_FCFLAGS = -fopenmp
+  SHLIB_OPENMP_FFLAGS = -fopenmp
   ```
-  with
+
+  Again, remember to change `header` if using clang-omp.
+
+  Then inside R, run 
+
+  ```R
+  install.packages('xgboost/R-package/', repos=NULL, type='source')
   ```
-  export CC  = /usr/local/bin/gcc
-  export CXX = /usr/local/bin/g++
+  
+  Or
+  
+  ```R
+  devtools::install_local('xgboost/', subdir = 'R-package') # you may use devtools
   ```
-  Then run ```bash build.sh``` normally. This solution is given by [Phil Culliton](https://www.kaggle.com/c/otto-group-product-classification-challenge/forums/t/12947/achieve-0-50776-on-the-leaderboard-in-a-minute-with-xgboost/68308#post68308).
+
 
 Build with HDFS and S3 Support
 =====

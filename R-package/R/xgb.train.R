@@ -42,8 +42,9 @@
 #'     \item \code{reg:logistic} logistic regression.
 #'     \item \code{binary:logistic} logistic regression for binary classification. Output probability.
 #'     \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
-#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes).
-#'     \item \code{multi:softprob} same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
+#'     \item \code{num_class} set the number of classes. To use only with multiclass objectives.
+#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is represented by a number and should be from 0 to \code{tonum_class}.
+#'     \item \code{multi:softprob} same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging to each class.
 #'     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
 #'   }
 #'   \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
@@ -65,7 +66,11 @@
 #'   prediction and dtrain,
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
 #'   information of performance. If 2, xgboost will print information of both
-#'
+#' @param earlyStopRound If \code{NULL}, the early stopping function is not triggered. 
+#'     If set to an integer \code{k}, training with a validation set will stop if the performance 
+#'     keeps getting worse consecutively for \code{k} rounds.
+#' @param maximize If \code{feval} and \code{earlyStopRound} are set, then \code{maximize} must be set as well.
+#'     \code{maximize=TRUE} means the larger the evaluation score the better.
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 
@@ -84,7 +89,7 @@
 #'      \item \code{error} Binary classification error rate. It is calculated as \code{(wrong cases) / (all cases)}. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
 #'      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(wrong cases) / (all cases)}.
 #'      \item \code{auc} Area under the curve. \url{http://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
-#'      \item \code{ndcg} Normalized Discounted Cumulative Gain. \url{http://en.wikipedia.org/wiki/NDCG}
+#'      \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{http://en.wikipedia.org/wiki/NDCG}
 #'   }
 #'   
 #' Full list of parameters is available in the Wiki \url{https://github.com/dmlc/xgboost/wiki/Parameters}.
@@ -113,7 +118,8 @@
 #' @export
 #' 
 xgb.train <- function(params=list(), data, nrounds, watchlist = list(), 
-                      obj = NULL, feval = NULL, verbose = 1, ...) {
+                      obj = NULL, feval = NULL, verbose = 1, 
+                      earlyStopRound = NULL, maximize = NULL, ...) {
   dtrain <- data
   if (typeof(params) != "list") {
     stop("xgb.train: first argument params must be list")
@@ -132,6 +138,36 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   }
   params = append(params, list(...))
   
+  # Early stopping
+  if (!is.null(earlyStopRound)){
+    if (!is.null(feval) && is.null(maximize))
+      stop('Please set maximize to note whether the model is maximizing the evaluation or not.')
+    if (length(watchlist) == 0)
+      stop('For early stopping you need at least one set in watchlist.')
+    if (is.null(maximize) && is.null(params$eval_metric))
+      stop('Please set maximize to note whether the model is maximizing the evaluation or not.')
+    if (is.null(maximize))
+    {
+      if (params$eval_metric %in% c('rmse','logloss','error','merror','mlogloss')) {
+        maximize = FALSE
+      } else {
+        maximize = TRUE
+      }
+    }
+    
+    if (maximize) {
+      bestScore = 0
+    } else {
+      bestScore = Inf
+    }
+    bestInd = 0
+    earlyStopflag = FALSE
+    
+    if (length(watchlist)>1)
+      warning('Only the first data set in watchlist is used for early stopping process.')
+  }
+  
+  
   handle <- xgb.Booster(params, append(watchlist, dtrain))
   bst <- xgb.handleToBooster(handle)
   for (i in 1:nrounds) {
@@ -139,8 +175,27 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     if (length(watchlist) != 0) {
       msg <- xgb.iter.eval(bst$handle, watchlist, i - 1, feval)
       cat(paste(msg, "\n", sep=""))
+      if (!is.null(earlyStopRound))
+      {
+        score = strsplit(msg,':|\\s+')[[1]][3]
+        score = as.numeric(score)
+        if ((maximize && score>bestScore) || (!maximize && score<bestScore)) {
+          bestScore = score
+          bestInd = i
+        } else {
+          if (i-bestInd>earlyStopRound) {
+            earlyStopflag = TRUE
+            cat('Stopping. Best iteration:',bestInd)
+            break
+          }
+        }
+      }
     }
   }
   bst <- xgb.Booster.check(bst)
+  if (!is.null(earlyStopRound)) {
+    bst$bestScore = bestScore
+    bst$bestInd = bestInd
+  }
   return(bst)
 } 

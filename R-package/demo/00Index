@@ -6,3 +6,4 @@ generalized_linear_model        Generalized Linear Model
 cross_validation                Cross validation
 create_sparse_matrix            Create Sparse Matrix
 predict_leaf_indices            Predicting the corresponding leaves
+early_Stopping                  Early Stop in training

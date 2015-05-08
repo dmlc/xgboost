@@ -8,6 +8,7 @@
 extern "C" {
 #include <Rinternals.h>
 #include <R_ext/Random.h>
+#include <Rmath.h>
 }
 
 extern "C" {

@@ -73,6 +73,7 @@ inline IObjFunction* CreateObjFunction(const char *name) {
   if (!strcmp("binary:logistic", name)) return new RegLossObj(LossType::kLogisticClassify);
   if (!strcmp("binary:logitraw", name)) return new RegLossObj(LossType::kLogisticRaw);
   if (!strcmp("binary:huber", name)) return new RegLossObj(LossType::kModifiedHuber);
+  if (!strcmp("count:poisson", name)) return new PoissonRegression();
   if (!strcmp("multi:softmax", name)) return new SoftmaxMultiClassObj(0);
   if (!strcmp("multi:softprob", name)) return new SoftmaxMultiClassObj(1);
   if (!strcmp("rank:pairwise", name )) return new PairwiseRankObj();

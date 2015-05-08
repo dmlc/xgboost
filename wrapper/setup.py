@@ -28,7 +28,7 @@ if len(lib_path) == 0:
     raise XGBoostLibraryNotFound("XGBoost library not found. Did you run "
                                  "../make?")
 setup(name="xgboost",
-      version="0.32",
+      version="0.40",
       description="Python wrappers for XGBoost: eXtreme Gradient Boosting",
       zip_safe=False,
       py_modules=['xgboost'],

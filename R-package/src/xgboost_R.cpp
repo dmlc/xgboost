@@ -28,13 +28,13 @@ extern "C" {
   void (*Check)(int exp, const char *fmt, ...) = XGBoostCheck_R;
   void (*Error)(const char *fmt, ...) = error;
 }
-}  // namespace utils
-
-namespace wrapper {
-bool CheckNAN(float v) {
+bool CheckNAN(double v) {
   return ISNAN(v);
 }
-} // namespace wrapper
+bool LogGamma(double v) {
+  return lgammafn(v);
+}
+} // namespace utils
 
 namespace random {
 void Seed(unsigned seed) {

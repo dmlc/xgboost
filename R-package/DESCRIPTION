@@ -1,7 +1,7 @@
 Package: xgboost
 Type: Package
 Title: eXtreme Gradient Boosting
-Version: 0.3-4
+Version: 0.4-0
 Date: 2014-12-28
 Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>, Michael Benesty <michael@benesty.fr>
 Maintainer: Tong He <hetong007@gmail.com>
@@ -21,7 +21,7 @@ VignetteBuilder: knitr
 Suggests:
     knitr,
     ggplot2 (>= 1.0.0),
-    DiagrammeR (>= 0.4),
+    DiagrammeR (>= 0.6),
     Ckmeans.1d.dp (>= 3.3.1),
     vcd (>= 1.3)
 Depends:

@@ -203,7 +203,7 @@ extern "C" {
    * \param handle handle
    * \param fname file name
    */
-  XGB_DLL void XGBoosterSaveModel(const void *handle, const char *fname);
+  XGB_DLL void XGBoosterSaveModel(void *handle, const char *fname);
   /*!
    * \brief load model from in memory buffer
    * \param handle handle
