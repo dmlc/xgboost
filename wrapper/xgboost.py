@@ -849,6 +849,8 @@ class XGBModel(XGBModelBase):
 
     base_score:
         The initial prediction score of all instances, global bias.
+    eval_metric: string
+        The evaluation metrics for validation data.
     seed : int
         Random number seed.
     """
