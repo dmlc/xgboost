@@ -861,7 +861,6 @@ class XGBModel(XGBModelBase):
             raise XGBError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
         self.learning_rate = learning_rate
-        self.eta = learning_rate # for capability
         self.n_estimators = n_estimators
         self.silent = silent
         self.objective = objective
@@ -924,6 +923,8 @@ class XGBModel(XGBModelBase):
 
         if self.nthread <= 0:
             xgb_params.pop('nthread', None)
+
+        xgb_params['eta'] = xgb_params.pop('learning_rate')
 
         return xgb_params
 
