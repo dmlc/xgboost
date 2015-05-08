@@ -9,16 +9,12 @@
 #include <algorithm>
 // include all std functions
 using namespace std;
-
-#ifdef _MSC_VER
-#define isnan(x) (_isnan(x) != 0)
-#endif
-
 #include "./xgboost_wrapper.h"
 #include "../src/data.h"
 #include "../src/learner/learner-inl.hpp"
 #include "../src/io/io.h"
 #include "../src/utils/utils.h"
+#include "../src/utils/math.h"
 #include "../src/utils/group_data.h"
 #include "../src/io/simple_dmatrix-inl.hpp"
 
@@ -62,13 +58,14 @@ class Booster: public learner::BoostLearner {
   }
   inline void LoadModelFromBuffer(const void *buf, size_t size) {
     utils::MemoryFixSizeBuffer fs((void*)buf, size);
-    learner::BoostLearner::LoadModel(fs);
+    learner::BoostLearner::LoadModel(fs, true);
     this->init_model = true;    
   }
   inline const char *GetModelRaw(bst_ulong *out_len) {
+    this->CheckInitModel();
     model_str.resize(0);
     utils::MemoryBufferStream fs(&model_str);
-    learner::BoostLearner::SaveModel(fs);
+    learner::BoostLearner::SaveModel(fs, false);
     *out_len = static_cast<bst_ulong>(model_str.length());
     if (*out_len == 0) {
       return NULL;
@@ -97,14 +94,6 @@ class Booster: public learner::BoostLearner {
  private:
   bool init_model;
 };
-#if !defined(XGBOOST_STRICT_CXX98_)
-inline bool CheckNAN(float v) {
-  return isnan(v);
-}
-#else
-// redirect to defs in R
-bool CheckNAN(float v);
-#endif
 }  // namespace wrapper
 }  // namespace xgboost
 
@@ -175,7 +164,7 @@ extern "C"{
                                bst_ulong nrow,
                                bst_ulong ncol,
                                float  missing) {    
-    bool nan_missing = CheckNAN(missing);
+    bool nan_missing = utils::CheckNAN(missing);
     DMatrixSimple *p_mat = new DMatrixSimple();
     DMatrixSimple &mat = *p_mat;
     mat.info.info.num_row = nrow;
@@ -183,7 +172,7 @@ extern "C"{
     for (bst_ulong i = 0; i < nrow; ++i, data += ncol) {
       bst_ulong nelem = 0;
       for (bst_ulong j = 0; j < ncol; ++j) {
-        if (CheckNAN(data[j])) {
+        if (utils::CheckNAN(data[j])) {
           utils::Check(nan_missing,
                        "There are NAN in the matrix, however, you did not set missing=NAN"); 
         } else {
@@ -334,8 +323,10 @@ extern "C"{
   void XGBoosterLoadModel(void *handle, const char *fname) {
     static_cast<Booster*>(handle)->LoadModel(fname);
   }
-  void XGBoosterSaveModel(const void *handle, const char *fname) {
-    static_cast<const Booster*>(handle)->SaveModel(fname);
+  void XGBoosterSaveModel(void *handle, const char *fname) {
+    Booster *bst = static_cast<Booster*>(handle);
+    bst->CheckInitModel();
+    bst->SaveModel(fname, false);
   }
   void XGBoosterLoadModelFromBuffer(void *handle, const void *buf, bst_ulong len) {
     static_cast<Booster*>(handle)->LoadModelFromBuffer(buf, len);

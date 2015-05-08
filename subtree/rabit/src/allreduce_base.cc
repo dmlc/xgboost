@@ -134,8 +134,9 @@ void AllreduceBase::TrackerPrint(const std::string &msg) {
 // util to parse data with unit suffix
 inline size_t ParseUnit(const char *name, const char *val) {
   char unit;
-  uint64_t amount;
-  int n = sscanf(val, "%lu%c", &amount, &unit);
+  unsigned long amt;
+  int n = sscanf(val, "%lu%c", &amt, &unit);
+  size_t amount = amt;
   if (n == 2) {
     switch (unit) {
       case 'B': return amount;
