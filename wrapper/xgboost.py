@@ -854,7 +854,7 @@ class XGBModel(XGBModelBase):
     """
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
-                 base_score=0.5, seed=0):
+                 base_score=0.5, eval_metric='rmse', seed=0):
         if not SKLEARN_INSTALLED:
             raise XGBError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
@@ -871,6 +871,7 @@ class XGBModel(XGBModelBase):
         self.colsample_bytree = colsample_bytree
 
         self.base_score = base_score
+        self.eval_metric = eval_metric
         self.seed = seed
 
         self._Booster = None
@@ -908,8 +909,19 @@ class XGBModel(XGBModelBase):
 
         xgb_params['silent'] = 1 if self.silent else 0
 
+        leagal_eval_metrics = ["rmse", "logloss", "error", "merror", 
+            "mlogloss", "auc", "ndcg", "map", "ndcg-", "map-"]
+        if not (self.eval_metric in leagal_eval_metrics):
+            if self.eval_metric.startswith("ndcg@"):
+                pass
+            elif self.eval_metric.startswith("map@"):
+                pass
+            else:
+                xgb_params.pop('eval_metric', None)
+
         if self.nthread <= 0:
             xgb_params.pop('nthread', None)
+
         return xgb_params
 
     def fit(self, X, y):
@@ -929,11 +941,11 @@ class XGBClassifier(XGBModel, XGBClassifier):
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="binary:logistic",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
-                 base_score=0.5, seed=0):
+                 base_score=0.5, eval_metric="merror", seed=0):
         super(XGBClassifier, self).__init__(max_depth, learning_rate, n_estimators, silent, objective,
                                             nthread, gamma, min_child_weight, max_delta_step, subsample,
                                             colsample_bytree,
-                                            base_score, seed)
+                                            base_score, eval_metric, seed)
 
     def fit(self, X, y, sample_weight=None):
         y_values = list(np.unique(y))
