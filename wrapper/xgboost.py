@@ -861,6 +861,7 @@ class XGBModel(XGBModelBase):
             raise XGBError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
         self.learning_rate = learning_rate
+        self.eta = learning_rate # for capability
         self.n_estimators = n_estimators
         self.silent = silent
         self.objective = objective
