@@ -66,6 +66,7 @@
 #'   prediction and dtrain,
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
 #'   information of performance. If 2, xgboost will print information of both
+#' @param printEveryN Print every N progress messages when \code{verbose>0}. Default is 1 which means all messages are printed.
 #' @param early_stop_round If \code{NULL}, the early stopping function is not triggered. 
 #'     If set to an integer \code{k}, training with a validation set will stop if the performance 
 #'     keeps getting worse consecutively for \code{k} rounds.
@@ -119,7 +120,7 @@
 #' @export
 #' 
 xgb.train <- function(params=list(), data, nrounds, watchlist = list(), 
-                      obj = NULL, feval = NULL, verbose = 1, 
+                      obj = NULL, feval = NULL, verbose = 1, printEveryN=1L,
                       early_stop_round = NULL, early.stop.round = NULL,
                       maximize = NULL, ...) {
   dtrain <- data
@@ -174,11 +175,13 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   
   handle <- xgb.Booster(params, append(watchlist, dtrain))
   bst <- xgb.handleToBooster(handle)
+  printEveryN=max( as.integer(printEveryN), 1L)
   for (i in 1:nrounds) {
     succ <- xgb.iter.update(bst$handle, dtrain, i - 1, obj)
     if (length(watchlist) != 0) {
       msg <- xgb.iter.eval(bst$handle, watchlist, i - 1, feval)
-      cat(paste(msg, "\n", sep=""))
+      if (0== ( (i-1) %% printEveryN))
+	    cat(paste(msg, "\n", sep=""))
       if (!is.null(early_stop_round))
       {
         score = strsplit(msg,':|\\s+')[[1]][3]

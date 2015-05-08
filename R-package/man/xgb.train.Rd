@@ -5,7 +5,7 @@
 \title{eXtreme Gradient Boosting Training}
 \usage{
 xgb.train(params = list(), data, nrounds, watchlist = list(), obj = NULL,
-  feval = NULL, verbose = 1, early_stop_round = NULL,
+  feval = NULL, verbose = 1, printEveryN=1L, early_stop_round = NULL,
   early.stop.round = NULL, maximize = NULL, ...)
 }
 \arguments{
@@ -77,6 +77,8 @@ prediction and dtrain,}
 
 \item{verbose}{If 0, xgboost will stay silent. If 1, xgboost will print
 information of performance. If 2, xgboost will print information of both}
+
+\item{printEveryN}{Print every N progress messages when \code{verbose>0}. Default is 1 which means all messages are printed.}
 
 \item{early_stop_round}{If \code{NULL}, the early stopping function is not triggered.
 If set to an integer \code{k}, training with a validation set will stop if the performance
