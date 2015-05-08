@@ -75,7 +75,7 @@ struct LossType {
       case kLogisticClassify:
       case kLogisticNeglik: return predt - label;
       case kModifiedHuber: {
-        float y_svm = (2.0f*label - 1.0f);
+        float y_svm = 2.0f*label - 1.0f;
         float z = y_svm * predt;
         if (z < -1.0f) return -4.0f * y_svm;
         else if (z > 1.0f) return 0.0f;
