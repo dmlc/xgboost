@@ -1,8 +1,8 @@
 # coding: utf-8
-
 """
 xgboost: eXtreme Gradient Boosting library
 
+Version: 0.40
 Authors: Tianqi Chen, Bing Xu
 Early stopping by Zygmunt Zając
 """
@@ -29,6 +29,9 @@ except ImportError:
     SKLEARN_INSTALLED = False
 
 class XGBoostLibraryNotFound(Exception):
+    pass
+
+class XGBoostError(Exception):
     pass
 
 __all__ = ['DMatrix', 'CVPack', 'Booster', 'aggcv', 'cv', 'mknfold', 'train']
@@ -91,6 +94,14 @@ def ctypes2numpy(cptr, length, dtype):
         raise RuntimeError('memmove failed')
     return res
 
+def ctypes2buffer(cptr, length):
+    if not isinstance(cptr, ctypes.POINTER(ctypes.c_char)):
+        raise RuntimeError('expected char pointer')
+    res = bytearray(length)
+    rptr = (ctypes.c_char * length).from_buffer(res)
+    if not ctypes.memmove(rptr, cptr, length):
+        raise RuntimeError('memmove failed')
+    return res
 
 def c_str(string):
     return ctypes.c_char_p(string.encode('utf-8'))
@@ -470,19 +481,26 @@ class Booster(object):
 
         Parameters
         ----------
-        fname : string or file handle
-            Output file name or handle. If a handle is given must be a BytesIO
-            object or a file opened for writing in binary format.
+        fname : string
+            Output file name
         """
         if isinstance(fname, string_types):  # assume file name
             xglib.XGBoosterSaveModel(self.handle, c_str(fname))
         else:
-            length = ctypes.c_ulong()
-            cptr = xglib.XGBoosterGetModelRaw(self.handle,
-                                              ctypes.byref(length))
-            address = ctypes.addressof(cptr.contents)
-            buf = (ctypes.c_char * length.value).from_address(address)
-            fname.write(buf)
+            raise TypeError("fname must be a string")
+
+    def save_raw(self):
+        """
+        Save the model to a in memory buffer represetation
+        
+        Returns
+        -------
+        a in memory buffer represetation of the model
+        """
+        length = ctypes.c_ulong()
+        cptr = xglib.XGBoosterGetModelRaw(self.handle,
+                                          ctypes.byref(length))
+        return ctypes2buffer(cptr, length.value)
 
     def load_model(self, fname):
         """
@@ -490,15 +508,15 @@ class Booster(object):
 
         Parameters
         ----------
-        fname : string of file handle
-            Input file name or file handle object.
+        fname : string or a memory buffer
+            Input file name or memory buffer(see also save_raw)
         """
-        if isinstance(fname, string_types):  # assume file name
+        if isinstance(fname, str):  # assume file name
             xglib.XGBoosterLoadModel(self.handle, c_str(fname))
         else:
-            buf = fname.getbuffer()
-            length = ctypes.c_ulong(buf.nbytes)
-            ptr = ctypes.byref(ctypes.c_void_p.from_buffer(buf))
+            buf = fname
+            length = ctypes.c_ulong(len(buf))
+            ptr = (ctypes.c_char * len(buf)).from_buffer(buf)
             xglib.XGBoosterLoadModelFromBuffer(self.handle, ptr, length)
 
     def dump_model(self, fo, fmap='', with_stats=False):
@@ -838,7 +856,7 @@ class XGBModel(XGBModelBase):
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
                  base_score=0.5, seed=0):
         if not SKLEARN_INSTALLED:
-            raise Exception('sklearn needs to be installed in order to use this module')
+            raise XGBError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.n_estimators = n_estimators
@@ -855,25 +873,36 @@ class XGBModel(XGBModelBase):
         self.base_score = base_score
         self.seed = seed
 
-        self._Booster = Booster()
+        self._Booster = None
 
     def __getstate__(self):
         # can't pickle ctypes pointers so put _Booster in a BytesIO obj
-
-        this = self.__dict__.copy()  # don't modify in place
-
-        tmp = BytesIO()
-        this["_Booster"].save_model(tmp)
-        tmp.seek(0)
-        this["_Booster"] = tmp
-
+        this = self.__dict__.copy()  # don't modify in place        
+        bst = this["_Booster"]
+        if bst is not None:
+            raw = this["_Booster"].save_raw()
+            this["_Booster"] = raw        
         return this
 
     def __setstate__(self, state):
-        booster = state["_Booster"]
-        state["_Booster"] = Booster(model_file=booster)
+        bst = state["_Booster"]
+        if bst is not None:
+            state["_Booster"] = Booster(model_file=bst)
         self.__dict__.update(state)
 
+    def booster(self):
+        """
+        get the underlying xgboost Booster of this model
+        will raise an exception when fit was not called
+        
+        Returns
+        -------
+        booster : a xgboost booster of underlying model
+        """
+        if self._Booster is None:
+            raise XGBError('need to call fit beforehand')
+        return self._Booster
+    
     def get_xgb_params(self):
         xgb_params = self.get_params()
 
@@ -890,7 +919,7 @@ class XGBModel(XGBModelBase):
 
     def predict(self, X):
         testDmatrix = DMatrix(X)
-        return self._Booster.predict(testDmatrix)
+        return self.booster().predict(testDmatrix)
 
 
 class XGBClassifier(XGBModel, XGBClassifier):
@@ -931,7 +960,7 @@ class XGBClassifier(XGBModel, XGBClassifier):
 
     def predict(self, X):
         testDmatrix = DMatrix(X)
-        class_probs = self._Booster.predict(testDmatrix)
+        class_probs = self.booster().predict(testDmatrix)
         if len(class_probs.shape) > 1:
             column_indexes = np.argmax(class_probs, axis=1)
         else:
@@ -941,7 +970,7 @@ class XGBClassifier(XGBModel, XGBClassifier):
 
     def predict_proba(self, X):
         testDmatrix = DMatrix(X)
-        class_probs = self._Booster.predict(testDmatrix)
+        class_probs = self.booster().predict(testDmatrix)
         if self.objective == "multi:softprob":
             return class_probs
         else:
