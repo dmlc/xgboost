@@ -30,10 +30,11 @@
 #'   performance and construction progress information
 #' @param missing Missing is only used when input is dense matrix, pick a float 
 #'     value that represents missing value. Sometimes a data use 0 or other extreme value to represents missing values.
-#' @param earlyStopRound If \code{NULL}, the early stopping function is not triggered. 
+#' @param early_stop_round If \code{NULL}, the early stopping function is not triggered. 
 #'     If set to an integer \code{k}, training with a validation set will stop if the performance 
 #'     keeps getting worse consecutively for \code{k} rounds.
-#' @param maximize If \code{feval} and \code{earlyStopRound} are set, then \code{maximize} must be set as well.
+#' @param early.stop.round An alternative of \code{early_stop_round}.
+#' @param maximize If \code{feval} and \code{early_stop_round} are set, then \code{maximize} must be set as well.
 #'     \code{maximize=TRUE} means the larger the evaluation score the better.
 #' @param ... other parameters to pass to \code{params}.
 #' 
@@ -56,7 +57,8 @@
 #' @export
 #' 
 xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), nrounds, 
-                    verbose = 1, earlyStopRound = NULL, maximize = NULL, ...) {
+                    verbose = 1, early_stop_round = NULL, early.stop.round = NULL, 
+                    maximize = NULL, ...) {
   if (is.null(missing)) {
     dtrain <- xgb.get.DMatrix(data, label)
   } else {
@@ -72,7 +74,8 @@ xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), 
   }
   
   bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose,
-                   earlyStopRound = earlyStopRound)
+                   early_stop_round = early_stop_round,
+                   early.stop.round = early.stop.round)
   
   return(bst)
 } 

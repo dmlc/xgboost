@@ -5,8 +5,8 @@
 \title{eXtreme Gradient Boosting Training}
 \usage{
 xgb.train(params = list(), data, nrounds, watchlist = list(), obj = NULL,
-  feval = NULL, verbose = 1, earlyStopRound = NULL, maximize = NULL,
-  ...)
+  feval = NULL, verbose = 1, early_stop_round = NULL,
+  early.stop.round = NULL, maximize = NULL, ...)
 }
 \arguments{
 \item{params}{the list of parameters.
@@ -78,11 +78,13 @@ prediction and dtrain,}
 \item{verbose}{If 0, xgboost will stay silent. If 1, xgboost will print
 information of performance. If 2, xgboost will print information of both}
 
-\item{earlyStopRound}{If \code{NULL}, the early stopping function is not triggered.
+\item{early_stop_round}{If \code{NULL}, the early stopping function is not triggered.
 If set to an integer \code{k}, training with a validation set will stop if the performance
 keeps getting worse consecutively for \code{k} rounds.}
 
-\item{maximize}{If \code{feval} and \code{earlyStopRound} are set, then \code{maximize} must be set as well.
+\item{early.stop.round}{An alternative of \code{early_stop_round}.}
+
+\item{maximize}{If \code{feval} and \code{early_stop_round} are set, then \code{maximize} must be set as well.
 \code{maximize=TRUE} means the larger the evaluation score the better.}
 
 \item{...}{other parameters to pass to \code{params}.}

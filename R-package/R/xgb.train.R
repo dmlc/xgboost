@@ -66,10 +66,11 @@
 #'   prediction and dtrain,
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
 #'   information of performance. If 2, xgboost will print information of both
-#' @param earlyStopRound If \code{NULL}, the early stopping function is not triggered. 
+#' @param early_stop_round If \code{NULL}, the early stopping function is not triggered. 
 #'     If set to an integer \code{k}, training with a validation set will stop if the performance 
 #'     keeps getting worse consecutively for \code{k} rounds.
-#' @param maximize If \code{feval} and \code{earlyStopRound} are set, then \code{maximize} must be set as well.
+#' @param early.stop.round An alternative of \code{early_stop_round}.
+#' @param maximize If \code{feval} and \code{early_stop_round} are set, then \code{maximize} must be set as well.
 #'     \code{maximize=TRUE} means the larger the evaluation score the better.
 #' @param ... other parameters to pass to \code{params}.
 #' 
@@ -119,7 +120,8 @@
 #' 
 xgb.train <- function(params=list(), data, nrounds, watchlist = list(), 
                       obj = NULL, feval = NULL, verbose = 1, 
-                      earlyStopRound = NULL, maximize = NULL, ...) {
+                      early_stop_round = NULL, early.stop.round = NULL,
+                      maximize = NULL, ...) {
   dtrain <- data
   if (typeof(params) != "list") {
     stop("xgb.train: first argument params must be list")
@@ -139,7 +141,9 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   params = append(params, list(...))
   
   # Early stopping
-  if (!is.null(earlyStopRound)){
+  if (is.null(early_stop_round) && !is.null(early.stop.round))
+    early_stop_round = early.stop.round
+  if (!is.null(early_stop_round)){
     if (!is.null(feval) && is.null(maximize))
       stop('Please set maximize to note whether the model is maximizing the evaluation or not.')
     if (length(watchlist) == 0)
@@ -175,7 +179,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     if (length(watchlist) != 0) {
       msg <- xgb.iter.eval(bst$handle, watchlist, i - 1, feval)
       cat(paste(msg, "\n", sep=""))
-      if (!is.null(earlyStopRound))
+      if (!is.null(early_stop_round))
       {
         score = strsplit(msg,':|\\s+')[[1]][3]
         score = as.numeric(score)
@@ -183,7 +187,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
           bestScore = score
           bestInd = i
         } else {
-          if (i-bestInd>earlyStopRound) {
+          if (i-bestInd>early_stop_round) {
             earlyStopflag = TRUE
             cat('Stopping. Best iteration:',bestInd)
             break
@@ -193,7 +197,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     }
   }
   bst <- xgb.Booster.check(bst)
-  if (!is.null(earlyStopRound)) {
+  if (!is.null(early_stop_round)) {
     bst$bestScore = bestScore
     bst$bestInd = bestInd
   }
