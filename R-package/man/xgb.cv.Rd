@@ -7,7 +7,8 @@
 xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
   missing = NULL, prediction = FALSE, showsd = TRUE, metrics = list(),
   obj = NULL, feval = NULL, stratified = TRUE, folds = NULL,
-  verbose = T, ...)
+  verbose = T, early_stop_round = NULL, early.stop.round = NULL,
+  maximize = NULL, ...)
 }
 \arguments{
 \item{params}{the list of parameters. Commonly used ones are:
@@ -64,6 +65,15 @@ prediction and dtrain.}
 If folds are supplied, the nfold and stratified parameters would be ignored.}
 
 \item{verbose}{\code{boolean}, print the statistics during the process}
+
+\item{early_stop_round}{If \code{NULL}, the early stopping function is not triggered.
+If set to an integer \code{k}, training with a validation set will stop if the performance
+keeps getting worse consecutively for \code{k} rounds.}
+
+\item{early.stop.round}{An alternative of \code{early_stop_round}.}
+
+\item{maximize}{If \code{feval} and \code{early_stop_round} are set, then \code{maximize} must be set as well.
+    \code{maximize=TRUE} means the larger the evaluation score the better.}
 
 \item{...}{other parameters to pass to \code{params}.}
 }

@@ -35,3 +35,5 @@ print ('start training with early Stopping setting')
 # simply look at xgboost.py's implementation of train
 bst <- xgb.train(param, dtrain, num_round, watchlist, logregobj, evalerror, maximize = FALSE,
                  earlyStopRound = 3)
+bst <- xgb.cv(param, dtrain, num_round, nfold=5, obj=logregobj, feval = evalerror,
+              maximize = FALSE, earlyStopRound = 3)
