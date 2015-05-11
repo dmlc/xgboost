@@ -28,6 +28,7 @@
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
 #'   information of performance. If 2, xgboost will print information of both
 #'   performance and construction progress information
+#' @param printEveryN Print every N progress messages when \code{verbose>0}. Default is 1 which means all messages are printed.
 #' @param missing Missing is only used when input is dense matrix, pick a float 
 #'     value that represents missing value. Sometimes a data use 0 or other extreme value to represents missing values.
 #' @param early_stop_round If \code{NULL}, the early stopping function is not triggered. 
@@ -57,7 +58,7 @@
 #' @export
 #' 
 xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), nrounds, 
-                    verbose = 1, early_stop_round = NULL, early.stop.round = NULL, 
+                    verbose = 1, printEveryN=1L, early_stop_round = NULL, early.stop.round = NULL,
                     maximize = NULL, ...) {
   if (is.null(missing)) {
     dtrain <- xgb.get.DMatrix(data, label)
@@ -73,7 +74,7 @@ xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), 
     watchlist <- list()
   }
   
-  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose,
+  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, printEveryN=printEveryN,
                    early_stop_round = early_stop_round,
                    early.stop.round = early.stop.round)
   
