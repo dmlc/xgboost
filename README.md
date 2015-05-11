@@ -37,16 +37,15 @@ What's New
 
 Features
 ========
-* Sparse feature format:
-  - Sparse feature format allows easy handling of missing values, and improve computation efficiency.
-* Push the limit on single machine:
-  - Efficient implementation that optimizes memory and computation.
-* Speed: XGBoost is very fast
-  - IN [demo/higgs/speedtest.py](demo/kaggle-higgs/speedtest.py), kaggle higgs data it is faster(on our machine 20 times faster using 4 threads) than sklearn.ensemble.GradientBoostingClassifier
-* Layout of gradient boosting algorithm to support user defined objective
-* Distributed and portable
-  - The distributed version of xgboost is highly portable and can be used in different platforms
-  - It inheritates all the optimizations made in single machine mode, maximumly utilize the resources using both multi-threading and distributed computing.
+* Easily accessible in python, R, Julia, CLI
+* Fast speed and memory efficient
+  - Can be more than 10 times faster than GBM in sklearn and R
+  - Handles sparse matrices, support external memory
+* Accurate prediction, and used extensively by data scientists and kagglers
+  - See [highlight links](https://github.com/dmlc/xgboost/blob/master/doc/README.md#highlight-links)
+* Distributed and Portable
+  - The distributed version runs on Hadoop (YARN), MPI, SGE etc.
+  - Scales to billions of examples and beyond
 
 Build
 =======
