@@ -15,7 +15,6 @@ import re
 import ctypes
 import platform
 import collections
-from io import BytesIO
 
 import numpy as np
 import scipy.sparse
@@ -492,7 +491,7 @@ class Booster(object):
     def save_raw(self):
         """
         Save the model to a in memory buffer represetation
-        
+
         Returns
         -------
         a in memory buffer represetation of the model
@@ -876,12 +875,12 @@ class XGBModel(XGBModelBase):
         self._Booster = None
 
     def __getstate__(self):
-        # can't pickle ctypes pointers so put _Booster in a BytesIO obj
-        this = self.__dict__.copy()  # don't modify in place        
+        # can't pickle ctypes pointers so put _Booster in a bytearray object
+        this = self.__dict__.copy()  # don't modify in place
         bst = this["_Booster"]
         if bst is not None:
             raw = this["_Booster"].save_raw()
-            this["_Booster"] = raw        
+            this["_Booster"] = raw
         return this
 
     def __setstate__(self, state):
@@ -894,7 +893,7 @@ class XGBModel(XGBModelBase):
         """
         get the underlying xgboost Booster of this model
         will raise an exception when fit was not called
-        
+
         Returns
         -------
         booster : a xgboost booster of underlying model
@@ -902,7 +901,7 @@ class XGBModel(XGBModelBase):
         if self._Booster is None:
             raise XGBError('need to call fit beforehand')
         return self._Booster
-    
+
     def get_xgb_params(self):
         xgb_params = self.get_params()
 
