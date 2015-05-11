@@ -34,6 +34,6 @@ print ('start training with early Stopping setting')
 # training with customized objective, we can also do step by step training
 # simply look at xgboost.py's implementation of train
 bst <- xgb.train(param, dtrain, num_round, watchlist, logregobj, evalerror, maximize = FALSE,
-                 earlyStopRound = 3)
+                 early.stop.round = 3)
 bst <- xgb.cv(param, dtrain, num_round, nfold=5, obj=logregobj, feval = evalerror,
-              maximize = FALSE, earlyStopRound = 3)
+              maximize = FALSE, early.stop.round = 3)

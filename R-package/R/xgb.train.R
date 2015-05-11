@@ -187,7 +187,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
           bestScore = score
           bestInd = i
         } else {
-          if (i-bestInd>early_stop_round) {
+          if (i-bestInd>=early_stop_round) {
             earlyStopflag = TRUE
             cat('Stopping. Best iteration:',bestInd)
             break

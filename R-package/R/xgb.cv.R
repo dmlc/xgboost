@@ -196,7 +196,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         bestScore = score
         bestInd = i
       } else {
-        if (i-bestInd>early_stop_round) {
+        if (i-bestInd>=early_stop_round) {
           earlyStopflag = TRUE
           cat('Stopping. Best iteration:',bestInd)
           break
