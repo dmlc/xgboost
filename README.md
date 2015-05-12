@@ -22,18 +22,10 @@ Highlights of Usecases: [Highlight Links](doc/README.md#highlight-links)
 
 What's New
 ==========
+* XGBoost-0.4 release, see [CHANGES.md](CHANGES.md)
 * XGBoost wins [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
   - Checkout the winning solution at [Highlight links](doc/README.md#highlight-links)
 * [External Memory Version](doc/external_memory.md)
-* XGBoost now support HDFS and S3
-* [Distributed XGBoost now runs on YARN](https://github.com/dmlc/wormhole/tree/master/learn/xgboost)
-* [xgboost user group](https://groups.google.com/forum/#!forum/xgboost-user/) for tracking changes, sharing your experience on xgboost
-* New features in the lastest changes :)
-  - Distributed version that scale xgboost to even larger problems with cluster
-  - Feature importance visualization in R module, thanks to Michael Benesty
-  - Predict leaf index, see [demo/guide-python/predict_leaf_indices.py](demo/guide-python/predict_leaf_indices.py)  
-* XGBoost wins [Tradeshift Text Classification](https://kaggle2.blob.core.windows.net/forum-message-attachments/60041/1813/TradeshiftTextClassification.pdf?sv=2012-02-12&se=2015-01-02T13%3A55%3A16Z&sr=b&sp=r&sig=5MHvyjCLESLexYcvbSRFumGQXCS7MVmfdBIY3y01tMk%3D)
-* XGBoost wins [HEP meets ML Award in Higgs Boson Challenge](http://atlas.ch/news/2014/machine-learning-wins-the-higgs-challenge.html)
 
 Features
 ========
@@ -55,11 +47,9 @@ Build
 
 Version
 =======
-* This version xgboost-0.3, the code has been refactored from 0.2x to be cleaner and more flexibility
-* This version of xgboost is not compatible with 0.2x, due to huge amount of changes in code structure
-  - This means the model and buffer file of previous version can not be loaded in xgboost-3.0
-* For legacy 0.2x code, refer to [Here](https://github.com/tqchen/xgboost/releases/tag/v0.22)
-* Change log in [CHANGES.md](CHANGES.md)
+* Current version xgboost-0.4, a lot improvment has been made since 0.3
+  - Change log in [CHANGES.md](CHANGES.md)
+  - This version is compatible with 0.3x versions
 
 XGBoost in Graphlab Create
 ==========================
