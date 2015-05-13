@@ -22,7 +22,7 @@ Highlights of Usecases: [Highlight Links](doc/README.md#highlight-links)
 
 What's New
 ==========
-* XGBoost-0.4 release, see [CHANGES.md](CHANGES.md)
+* XGBoost-0.4 release, see [CHANGES.md](CHANGES.md#xgboost-04)
 * XGBoost wins [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
   - Checkout the winning solution at [Highlight links](doc/README.md#highlight-links)
 * [External Memory Version](doc/external_memory.md)
