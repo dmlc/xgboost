@@ -2,7 +2,7 @@ export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm 
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas 
 
 ifeq ($(OS), Windows_NT)
 	export CXX = g++ -m64
@@ -18,7 +18,6 @@ endif
 # by default use c++11
 ifeq ($(cxx11),1)
 	CFLAGS += -std=c++11
-else 
 endif
 
 # handling dmlc
@@ -38,6 +37,14 @@ else
 	LIBDMLC=dmlc_simple.o
 endif
 
+ifndef WITH_FPIC
+	WITH_FPIC = 1
+endif
+ifeq ($(WITH_FPIC), 1)
+	CFLAGS += -fPIC	
+endif
+
+
 ifeq ($(OS), Windows_NT)
 	LIBRABIT = subtree/rabit/lib/librabit_empty.a
 	SLIB = wrapper/xgboost_wrapper.dll
@@ -51,11 +58,15 @@ BIN = xgboost
 MOCKBIN = xgboost.mock
 OBJ = updater.o gbm.o io.o main.o dmlc_simple.o
 MPIBIN =
-TARGET = $(BIN) $(OBJ) $(SLIB)
+ifeq ($(WITH_FPIC), 1)
+	TARGET = $(BIN) $(OBJ) $(SLIB)
+else
+	TARGET = $(BIN)
+endif
 
 .PHONY: clean all mpi python Rpack
 
-all: $(BIN) $(OBJ) $(SLIB)
+all: $(TARGET)
 mpi: $(MPIBIN)
 
 python: wrapper/libxgboostwrapper.so
@@ -79,7 +90,7 @@ subtree/rabit/lib/librabit_mpi.a: subtree/rabit/src/engine_mpi.cc
 	+	cd subtree/rabit;make lib/librabit_mpi.a; cd ../..
 
 $(BIN) : 
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
+	$(CXX) $(CFLAGS) -fPIC -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
 
 $(MOCKBIN) : 
 	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
