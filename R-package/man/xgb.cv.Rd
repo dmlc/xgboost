@@ -7,7 +7,7 @@
 xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
   missing = NULL, prediction = FALSE, showsd = TRUE, metrics = list(),
   obj = NULL, feval = NULL, stratified = TRUE, folds = NULL,
-  verbose = T, early_stop_round = NULL, early.stop.round = NULL,
+  verbose = T, printEveryN=1L, early_stop_round = NULL, early.stop.round = NULL,
   maximize = NULL, ...)
 }
 \arguments{
@@ -65,6 +65,8 @@ prediction and dtrain.}
 If folds are supplied, the nfold and stratified parameters would be ignored.}
 
 \item{verbose}{\code{boolean}, print the statistics during the process}
+
+\item{printEveryN}{Print every N progress messages when \code{verbose>0}. Default is 1 which means all messages are printed.}
 
 \item{early_stop_round}{If \code{NULL}, the early stopping function is not triggered.
 If set to an integer \code{k}, training with a validation set will stop if the performance

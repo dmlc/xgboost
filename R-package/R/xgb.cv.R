@@ -54,6 +54,7 @@
 #' @param folds \code{list} provides a possibility of using a list of pre-defined CV folds (each element must be a vector of fold's indices).
 #'   If folds are supplied, the nfold and stratified parameters would be ignored.
 #' @param verbose \code{boolean}, print the statistics during the process
+#' @param printEveryN Print every N progress messages when \code{verbose>0}. Default is 1 which means all messages are printed.
 #' @param early_stop_round If \code{NULL}, the early stopping function is not triggered. 
 #'     If set to an integer \code{k}, training with a validation set will stop if the performance 
 #'     keeps getting worse consecutively for \code{k} rounds.
@@ -93,7 +94,7 @@
 #'
 xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NULL, 
                    prediction = FALSE, showsd = TRUE, metrics=list(), 
-                   obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, verbose = T,
+                   obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, verbose = T, printEveryN=1L,
                    early_stop_round = NULL, early.stop.round = NULL, maximize = NULL, ...) {
   if (typeof(params) != "list") {
     stop("xgb.cv: first argument params must be list")
@@ -161,6 +162,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   else
     predictValues <- rep(0,xgb.numrow(dtrain))
   history <- c()
+  printEveryN = max(as.integer(printEveryN), 1L)
   for (i in 1:nrounds) {
     msg <- list()
     for (k in 1:nfold) {
@@ -185,7 +187,9 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     }
     ret <- xgb.cv.aggcv(msg, showsd)
     history <- c(history, ret)
-    if(verbose) paste(ret, "\n", sep="") %>% cat
+    if(verbose)
+      if (0==(i-1L)%%printEveryN)
+        cat(ret, "\n", sep="")
     
     # early_Stopping
     if (!is.null(early_stop_round)){
