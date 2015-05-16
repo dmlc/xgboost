@@ -72,7 +72,7 @@ struct TrainParam{
     parallel_option = 2;
     sketch_eps = 0.1f;
     sketch_ratio = 2.0f;
-    cache_opt = 0;
+    cache_opt = 1;
   }
   /*! 
    * \brief set parameters from outside 
