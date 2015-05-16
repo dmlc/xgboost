@@ -356,7 +356,100 @@ class ColMaker: public IUpdater {
           }
         }
       }
-    }    
+    }
+    // update enumeration solution
+    inline void UpdateEnumeration(int nid, bst_gpair gstats,
+                                  float fvalue, int d_step, bst_uint fid,
+                                  TStats &c, std::vector<ThreadEntry> &temp) {
+      // get the statistics of nid
+      ThreadEntry &e = temp[nid];
+      // test if first hit, this is fine, because we set 0 during init
+      if (e.stats.Empty()) {
+        e.stats.Add(gstats);
+        e.last_fvalue = fvalue;
+      } else {
+        // try to find a split
+        if (std::abs(fvalue - e.last_fvalue) > rt_2eps && e.stats.sum_hess >= param.min_child_weight) {
+          c.SetSubstract(snode[nid].stats, e.stats);
+          if (c.sum_hess >= param.min_child_weight) {
+            bst_float loss_chg = static_cast<bst_float>(e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
+            e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f, d_step == -1);
+          }
+        }
+        // update the statistics
+        e.stats.Add(gstats);
+        e.last_fvalue = fvalue;
+      }
+    }
+    // same as EnumerateSplit, with cacheline prefetch optimization
+    inline void EnumerateSplitCacheOpt(const ColBatch::Entry *begin,
+                                       const ColBatch::Entry *end,
+                                       int d_step,
+                                       bst_uint fid,
+                                       const std::vector<bst_gpair> &gpair,
+                                       std::vector<ThreadEntry> &temp) {
+      const std::vector<int> &qexpand = qexpand_;
+      // clear all the temp statistics
+      for (size_t j = 0; j < qexpand.size(); ++j) {
+        temp[qexpand[j]].stats.Clear();
+      }
+      // left statistics
+      TStats c(param);
+      // local cache buffer for position and gradient pair
+      const int kBuffer = 32;
+      int buf_position[kBuffer];
+      bst_gpair buf_gpair[kBuffer];
+      // aligned ending position
+      const ColBatch::Entry *align_end;
+      if (d_step > 0) {
+        align_end = begin + (end - begin) / kBuffer * kBuffer;
+      } else {
+        align_end = begin - (begin - end) / kBuffer * kBuffer;
+      }
+      int i;
+      const ColBatch::Entry *it;
+      const int align_step = d_step * kBuffer;
+      // internal cached loop
+      for (it = begin; it != align_end; it += align_step) {
+        const ColBatch::Entry *p;
+        for (i = 0, p = it; i < kBuffer; ++i, p += d_step) {
+          buf_position[i] = position[p->index];
+          buf_gpair[i] = gpair[p->index];
+        }
+        for (i = 0, p = it; i < kBuffer; ++i, p += d_step) {
+          const int nid = buf_position[i];
+          if (nid < 0) continue;
+          this->UpdateEnumeration(nid, buf_gpair[i],
+                                  p->fvalue, d_step,
+                                  fid, c, temp);
+        }        
+      }
+      // finish up the ending piece
+      for (it = align_end, i = 0; it != end; ++i, it += d_step) {
+        buf_position[i] = position[it->index];
+        buf_gpair[i] = gpair[it->index];
+      }
+      for (it = align_end, i = 0; it != end; ++i, it += d_step) {
+        const int nid = buf_position[i];
+        if (nid < 0) continue;
+        this->UpdateEnumeration(nid, buf_gpair[i],
+                                it->fvalue, d_step,
+                                fid, c, temp);
+      }            
+      // finish updating all statistics, check if it is possible to include all sum statistics
+      for (size_t i = 0; i < qexpand.size(); ++i) {
+        const int nid = qexpand[i];
+        ThreadEntry &e = temp[nid];
+        c.SetSubstract(snode[nid].stats, e.stats);
+        if (e.stats.sum_hess >= param.min_child_weight && c.sum_hess >= param.min_child_weight) {
+          bst_float loss_chg = static_cast<bst_float>(e.stats.CalcGain(param) + c.CalcGain(param) - snode[nid].root_gain);
+          const float gap = std::abs(e.last_fvalue) + rt_eps;
+          const float delta = d_step == +1 ? gap: -gap;
+          e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1);
+        }
+      }
+    }
+
     // enumerate the split values of specific feature
     inline void EnumerateSplit(const ColBatch::Entry *begin,
                                const ColBatch::Entry *end,
@@ -365,6 +458,11 @@ class ColMaker: public IUpdater {
                                const std::vector<bst_gpair> &gpair,
                                const BoosterInfo &info,
                                std::vector<ThreadEntry> &temp) {
+      // use cacheline aware optimization
+      if (TStats::kSimpleStats != 0 && param.cache_opt != 0) {
+        EnumerateSplitCacheOpt(begin, end, d_step, fid, gpair, temp);
+        return;
+      }
       const std::vector<int> &qexpand = qexpand_;
       // clear all the temp statistics
       for (size_t j = 0; j < qexpand.size(); ++j) {
@@ -411,6 +509,7 @@ class ColMaker: public IUpdater {
         }
       }
     }
+
     // update the solution candidate 
     virtual void UpdateSolution(const ColBatch &batch,
                                 const std::vector<bst_gpair> &gpair,
@@ -550,8 +649,8 @@ class ColMaker: public IUpdater {
           #pragma omp parallel for schedule(static)
           for (bst_omp_uint j = 0; j < ndata; ++j) {
             const bst_uint ridx = col[j].index;
-            const float fvalue = col[j].fvalue;
             const int nid = this->DecodePosition(ridx);
+            const float fvalue = col[j].fvalue;
             // go back to parent, correct those who are not default
             if (!tree[nid].is_leaf() && tree[nid].split_index() == fid) {
               if(fvalue < tree[nid].split_cond()) {

@@ -48,6 +48,8 @@ struct TrainParam{
   int size_leaf_vector;  
   // option for parallelization
   int parallel_option;
+  // option to open cacheline optimizaton
+  int cache_opt;
   // number of threads to be used for tree construction,
   // if OpenMP is enabled, if equals 0, use system default
   int nthread;
@@ -70,6 +72,7 @@ struct TrainParam{
     parallel_option = 2;
     sketch_eps = 0.1f;
     sketch_ratio = 2.0f;
+    cache_opt = 0;
   }
   /*! 
    * \brief set parameters from outside 
@@ -96,6 +99,7 @@ struct TrainParam{
     if (!strcmp(name, "sketch_ratio")) sketch_ratio  = static_cast<float>(atof(val));
     if (!strcmp(name, "opt_dense_col")) opt_dense_col = static_cast<float>(atof(val));
     if (!strcmp(name, "size_leaf_vector")) size_leaf_vector = atoi(val);
+    if (!strcmp(name, "cache_opt")) cache_opt = atoi(val);
     if (!strcmp(name, "max_depth")) max_depth = atoi(val);
     if (!strcmp(name, "nthread")) nthread = atoi(val);
     if (!strcmp(name, "parallel_option")) parallel_option = atoi(val);
@@ -192,6 +196,11 @@ struct GradStats {
   double sum_grad;
   /*! \brief sum hessian statistics */
   double sum_hess;
+  /*!
+   * \brief whether this is simply statistics and we only need to call
+   *   Add(gpair), instead of Add(gpair, info, ridx)
+   */
+  static const int kSimpleStats = 1;
   /*! \brief constructor, the object must be cleared during construction */
   explicit GradStats(const TrainParam &param) {
     this->Clear();
@@ -204,7 +213,14 @@ struct GradStats {
   inline static void CheckInfo(const BoosterInfo &info) {
   }
   /*!
-   * \brief accumulate statistics,
+   * \brief accumulate statistics 
+   * \param p the gradient pair
+   */
+  inline void Add(bst_gpair p) {
+    this->Add(p.grad, p.hess);
+  }
+  /*!
+   * \brief accumulate statistics, more complicated version
    * \param gpair the vector storing the gradient statistics
    * \param info the additional information 
    * \param ridx instance index of this instance

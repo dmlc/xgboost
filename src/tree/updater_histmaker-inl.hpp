@@ -282,6 +282,16 @@ class CQHistMaker: public HistMaker<TStats> {
       utils::Assert(istart != hist.size, "the bound variable must be max");
       hist.data[istart].Add(gpair, info, ridx);
     }
+    /*! 
+     * \brief add a histogram to data,
+     * do linear scan, start from istart
+     */
+    inline void Add(bst_float fv,
+                    bst_gpair gstats) {
+      while (istart < hist.size && !(fv < hist.cut[istart])) ++istart;
+      utils::Assert(istart != hist.size, "the bound variable must be max");
+      hist.data[istart].Add(gstats);
+    }
   };
   // sketch type used for this
   typedef utils::WXQuantileSketch<bst_float, bst_float> WXQSketch;
@@ -479,11 +489,38 @@ class CQHistMaker: public HistMaker<TStats> {
       hbuilder[nid].istart = 0;
       hbuilder[nid].hist = this->wspace.hset[0][fid_offset + wid * (fset.size()+1)];
     }
-    for (bst_uint j = 0; j < c.length; ++j) {
-      const bst_uint ridx = c[j].index;
-      const int nid = this->position[ridx];
-      if (nid >= 0) {
-        hbuilder[nid].Add(c[j].fvalue, gpair, info, ridx);
+    if (TStats::kSimpleStats != 0 && this->param.cache_opt != 0) {
+      const bst_uint kBuffer = 32;
+      bst_uint align_length = c.length / kBuffer * kBuffer;
+      int buf_position[kBuffer];
+      bst_gpair buf_gpair[kBuffer];
+      for (bst_uint j = 0; j < align_length; j += kBuffer) {
+        for (bst_uint i = 0; i < kBuffer; ++i) {
+          bst_uint ridx = c[j + i].index;
+          buf_position[i] = this->position[ridx];
+          buf_gpair[i] = gpair[ridx];
+        }
+        for (bst_uint i = 0; i < kBuffer; ++i) {
+          const int nid = buf_position[i];
+          if (nid >= 0) {
+            hbuilder[nid].Add(c[j + i].fvalue, buf_gpair[i]);
+          }
+        }
+      }
+      for (bst_uint j = align_length; j < c.length; ++j) {
+        const bst_uint ridx = c[j].index;
+        const int nid = this->position[ridx];
+        if (nid >= 0) {
+          hbuilder[nid].Add(c[j].fvalue, gpair[ridx]);
+        }
+      }
+    } else {
+      for (bst_uint j = 0; j < c.length; ++j) {
+        const bst_uint ridx = c[j].index;
+        const int nid = this->position[ridx];
+        if (nid >= 0) {
+          hbuilder[nid].Add(c[j].fvalue, gpair, info, ridx);
+        }
       }
     }
   }
@@ -536,11 +573,38 @@ class CQHistMaker: public HistMaker<TStats> {
       sbuilder[nid].Init(max_size);
     }
     // second pass, build the sketch
-    for (bst_uint j = 0; j < c.length; ++j) {
-      const bst_uint ridx = c[j].index;
-      const int nid = this->position[ridx];
-      if (nid >= 0) {
-        sbuilder[nid].Push(c[j].fvalue, gpair[ridx].hess, max_size);
+    if (TStats::kSimpleStats != 0 && this->param.cache_opt != 0) {
+      const bst_uint kBuffer = 32;
+      bst_uint align_length = c.length / kBuffer * kBuffer;
+      int buf_position[kBuffer];
+      bst_float buf_hess[kBuffer];
+      for (bst_uint j = 0; j < align_length; j += kBuffer) {
+        for (bst_uint i = 0; i < kBuffer; ++i) {
+          bst_uint ridx = c[j + i].index;
+          buf_position[i] = this->position[ridx];
+          buf_hess[i] = gpair[ridx].hess;
+        }
+        for (bst_uint i = 0; i < kBuffer; ++i) {
+          const int nid = buf_position[i];
+          if (nid >= 0) {
+            sbuilder[nid].Push(c[j + i].fvalue, buf_hess[i], max_size);
+          }
+        }        
+      }
+      for (bst_uint j = align_length; j < c.length; ++j) {
+        const bst_uint ridx = c[j].index;
+        const int nid = this->position[ridx];
+        if (nid >= 0) {
+          sbuilder[nid].Push(c[j].fvalue, gpair[ridx].hess, max_size);
+        }
+      }
+    } else {
+      for (bst_uint j = 0; j < c.length; ++j) {
+        const bst_uint ridx = c[j].index;
+        const int nid = this->position[ridx];
+        if (nid >= 0) {
+          sbuilder[nid].Push(c[j].fvalue, gpair[ridx].hess, max_size);
+        }
       }
     }
     for (size_t i = 0; i < this->qexpand.size(); ++i) {

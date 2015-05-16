@@ -2,7 +2,7 @@ export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm 
-export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas 
+export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops
 
 ifeq ($(OS), Windows_NT)
 	export CXX = g++ -m64
