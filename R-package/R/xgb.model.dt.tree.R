@@ -96,13 +96,14 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
   
   allTrees <- data.table()
  
-  anynumber_regex<-"[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?" 
+  anynumber_regex <- "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?" 
+  
   for(i in 1:n_round){
     
     tree <- text[(position[i]+1):(position[i+1]-1)]
     
     # avoid tree made of a leaf only (no split)
-    if(length(tree) <2) next
+    if(length(tree) < 2) next
     
     treeID <- i-1
     
