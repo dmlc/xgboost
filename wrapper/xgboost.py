@@ -920,7 +920,7 @@ class XGBModel(XGBModelBase):
 
         self.base_score = base_score
         self.seed = seed
-        self.missing = missing or np.nan
+        self.missing = missing if missing is not None else np.nan
 
         self._Booster = None
 
