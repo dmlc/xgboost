@@ -363,24 +363,24 @@ class Booster(object):
         if handle is not None:
             buf = handle
             dmats = c_array(ctypes.c_void_p, [])
-            handle = ctypes.c_void_p(xglib.XGBoosterCreate(dmats, 0))            
+            handle = ctypes.c_void_p(xglib.XGBoosterCreate(dmats, 0))
             length = ctypes.c_ulong(len(buf))
             ptr = (ctypes.c_char * len(buf)).from_buffer(buf)
             xglib.XGBoosterLoadModelFromBuffer(handle, ptr, length)
-            state['handle'] = handle            
+            state['handle'] = handle
         self.__dict__.update(state)
         self.set_param({'seed': 0})
-    
+
     def __copy__(self):
         return self.__deepcopy__()
 
     def __deepcopy__(self):
         return Booster(model_file = self.save_raw())
-    
+
     def copy(self):
         """
         Copy the booster object
-        
+
         Returns
         --------
         a copied booster model
@@ -899,7 +899,7 @@ class XGBModel(XGBModelBase):
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
                  base_score=0.5, seed=0):
         if not SKLEARN_INSTALLED:
-            raise XGBError('sklearn needs to be installed in order to use this module')
+            raise XGBoostError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.n_estimators = n_estimators
@@ -937,7 +937,7 @@ class XGBModel(XGBModelBase):
         booster : a xgboost booster of underlying model
         """
         if self._Booster is None:
-            raise XGBError('need to call fit beforehand')
+            raise XGBoostError('need to call fit beforehand')
         return self._Booster
 
     def get_xgb_params(self):
