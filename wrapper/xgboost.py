@@ -93,6 +93,7 @@ def ctypes2numpy(cptr, length, dtype):
         raise RuntimeError('memmove failed')
     return res
 
+
 def ctypes2buffer(cptr, length):
     if not isinstance(cptr, ctypes.POINTER(ctypes.c_char)):
         raise RuntimeError('expected char pointer')
@@ -101,6 +102,7 @@ def ctypes2buffer(cptr, length):
     if not ctypes.memmove(rptr, cptr, length):
         raise RuntimeError('memmove failed')
     return res
+
 
 def c_str(string):
     return ctypes.c_char_p(string.encode('utf-8'))
@@ -894,10 +896,13 @@ class XGBModel(XGBModelBase):
         The initial prediction score of all instances, global bias.
     seed : int
         Random number seed.
+    missing : float, optional
+        Value in the data which needs to be present as a missing value. If
+        None, defaults to np.nan.
     """
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="reg:linear",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
-                 base_score=0.5, seed=0):
+                 base_score=0.5, seed=0, missing=None):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
@@ -915,6 +920,7 @@ class XGBModel(XGBModelBase):
 
         self.base_score = base_score
         self.seed = seed
+        self.missing = missing or np.nan
 
         self._Booster = None
 
@@ -940,6 +946,12 @@ class XGBModel(XGBModelBase):
             raise XGBoostError('need to call fit beforehand')
         return self._Booster
 
+    def get_params(self, deep=False):
+        params = super(XGBModel, self).get_params(deep=deep)
+        if params['missing'] is np.nan:
+            params['missing'] = None  # sklearn doesn't handle nan. see #4725
+        return params
+
     def get_xgb_params(self):
         xgb_params = self.get_params()
 
@@ -950,12 +962,12 @@ class XGBModel(XGBModelBase):
         return xgb_params
 
     def fit(self, X, y):
-        trainDmatrix = DMatrix(X, label=y)
+        trainDmatrix = DMatrix(X, label=y, missing=self.missing)
         self._Booster = train(self.get_xgb_params(), trainDmatrix, self.n_estimators)
         return self
 
     def predict(self, X):
-        testDmatrix = DMatrix(X)
+        testDmatrix = DMatrix(X, missing=self.missing)
         return self.booster().predict(testDmatrix)
 
 
@@ -966,11 +978,11 @@ class XGBClassifier(XGBModel, XGBClassifier):
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, silent=True, objective="binary:logistic",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
-                 base_score=0.5, seed=0):
+                 base_score=0.5, seed=0, missing=None):
         super(XGBClassifier, self).__init__(max_depth, learning_rate, n_estimators, silent, objective,
                                             nthread, gamma, min_child_weight, max_delta_step, subsample,
                                             colsample_bytree,
-                                            base_score, seed)
+                                            base_score, seed, missing)
 
     def fit(self, X, y, sample_weight=None):
         self.classes_ = list(np.unique(y))
@@ -987,16 +999,18 @@ class XGBClassifier(XGBModel, XGBClassifier):
         training_labels = self._le.transform(y)
 
         if sample_weight is not None:
-            trainDmatrix = DMatrix(X, label=training_labels, weight=sample_weight)
+            trainDmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
+                                   missing=self.missing)
         else:
-            trainDmatrix = DMatrix(X, label=training_labels)
+            trainDmatrix = DMatrix(X, label=training_labels,
+                                   missing=self.missing)
 
         self._Booster = train(xgb_options, trainDmatrix, self.n_estimators)
 
         return self
 
     def predict(self, X):
-        testDmatrix = DMatrix(X)
+        testDmatrix = DMatrix(X, missing=self.missing)
         class_probs = self.booster().predict(testDmatrix)
         if len(class_probs.shape) > 1:
             column_indexes = np.argmax(class_probs, axis=1)
@@ -1006,7 +1020,7 @@ class XGBClassifier(XGBModel, XGBClassifier):
         return self._le.inverse_transform(column_indexes)
 
     def predict_proba(self, X):
-        testDmatrix = DMatrix(X)
+        testDmatrix = DMatrix(X, missing=self.missing)
         class_probs = self.booster().predict(testDmatrix)
         if self.objective == "multi:softprob":
             return class_probs
