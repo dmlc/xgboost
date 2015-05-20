@@ -27,19 +27,19 @@ inline DataType GetType<unsigned char>(void) {
   return kUChar;
 }
 template<>
-inline DataType GetType<int32_t>(void) {
+inline DataType GetType<int>(void) {
   return kInt;
 }
 template<>
-inline DataType GetType<uint32_t>(void) {
+inline DataType GetType<unsigned int>(void) {
   return kUInt;
 }
 template<>
-inline DataType GetType<int64_t>(void) {
+inline DataType GetType<long>(void) {
   return kLong;
 }
 template<>
-inline DataType GetType<uint64_t>(void) {
+inline DataType GetType<unsigned long>(void) {
   return kULong;
 }
 template<>
@@ -49,6 +49,14 @@ inline DataType GetType<float>(void) {
 template<>
 inline DataType GetType<double>(void) {
   return kDouble;
+}
+template<>
+inline DataType GetType<long long>(void) {
+	return kLongLong;
+}
+template<>
+inline DataType GetType<unsigned long long>(void) {
+	return kULongLong;
 }
 }  // namespace mpi
 }  // namespace engine
