@@ -7,6 +7,7 @@
 #ifndef RABIT_RABIT_INL_H
 #define RABIT_RABIT_INL_H
 // use engine for implementation
+#include <cstdint>
 #include "./io.h"
 #include "./utils.h"
 #include "../rabit.h"
@@ -26,19 +27,19 @@ inline DataType GetType<unsigned char>(void) {
   return kUChar;
 }
 template<>
-inline DataType GetType<int>(void) {
+inline DataType GetType<int32_t>(void) {
   return kInt;
 }
 template<>
-inline DataType GetType<unsigned>(void) {
+inline DataType GetType<uint32_t>(void) {
   return kUInt;
 }
 template<>
-inline DataType GetType<long>(void) {
+inline DataType GetType<int64_t>(void) {
   return kLong;
 }
 template<>
-inline DataType GetType<unsigned long>(void) {
+inline DataType GetType<uint64_t>(void) {
   return kULong;
 }
 template<>
