@@ -738,7 +738,7 @@ class Booster(object):
 
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
-          early_stopping_rounds=None, evals_result=None):
+          early_stopping_rounds=None, evals_result=None, verbose_eval=True):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -793,7 +793,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 else:
                     msg = bst_eval_set.decode()
 
-                sys.stderr.write(msg + '\n')
+                if verbose_eval:
+                    sys.stderr.write(msg + '\n')
                 if evals_result is not None:
                     res = re.findall(":-?([0-9.]+).", msg)
                     for key, val in zip(evals_name, res):
@@ -839,7 +840,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             else:
                 msg = bst_eval_set.decode()
 
-            sys.stderr.write(msg + '\n')
+            if verbose_eval:
+                sys.stderr.write(msg + '\n')
 
             if evals_result is not None:
                 res = re.findall(":-([0-9.]+).", msg)
@@ -1088,7 +1090,7 @@ class XGBModel(XGBModelBase):
         return xgb_params
 
     def fit(self, X, y, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, feval=None):
+            early_stopping_rounds=None, feval=None, verbose=True):
         # pylint: disable=missing-docstring,invalid-name
         """
         Fit the gradient boosting model
@@ -1116,6 +1118,9 @@ class XGBModel(XGBModelBase):
             feval(y_predicted, y_true) where y_true will be a DMatrix object
             such that you may need to call the get_label method. This objective
             if always assumed to be minimized, so use -feval when appropriate.
+        verbose : bool
+            If `verbose` and an evaluation set is used, writes the evaluation
+            metric measured on the validation set to stderr.
         """
         trainDmatrix = DMatrix(X, label=y, missing=self.missing)
 
@@ -1135,7 +1140,8 @@ class XGBModel(XGBModelBase):
         self._Booster = train(params, trainDmatrix,
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
-                              evals_result=eval_results, feval=None)
+                              evals_result=eval_results, feval=None,
+                              verbose_eval=verbose)
         if eval_results:
             eval_results = {k: np.array(v, dtype=float)
                             for k, v in eval_results.items()}
@@ -1171,7 +1177,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             base_score, seed, missing)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, feval=None):
+            early_stopping_rounds=None, feval=None, versbose=True):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -1201,6 +1207,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             feval(y_predicted, y_true) where y_true will be a DMatrix object
             such that you may need to call the get_label method. This objective
             if always assumed to be minimized, so use -feval when appropriate.
+        verbose : bool
+            If `verbose` and an evaluation set is used, writes the evaluation
+            metric measured on the validation set to stderr.
         """
         eval_results = {}
         self.classes_ = list(np.unique(y))
@@ -1238,7 +1247,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
-                              evals_result=eval_results, feval=feval)
+                              evals_result=eval_results, feval=feval,
+                              verbose_eval=verbose)
 
         if eval_results:
             eval_results = {k: np.array(v, dtype=float)
