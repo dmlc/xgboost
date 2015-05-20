@@ -767,6 +767,9 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         bst.best_score and bst.best_iteration.
     evals_result: dict
         This dictionary stores the evaluation results of all the items in watchlist
+    verbose_eval : bool
+        If `verbose_eval` then the evaluation metric on the validation set, if
+        given, is printed at each boosting stage.
 
     Returns
     -------
