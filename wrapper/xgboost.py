@@ -1108,7 +1108,7 @@ class XGBModel(XGBModelBase):
             A list of (X, y) tuple pairs to use as a validation set for
             early-stopping
         eval_metric : str, optional
-            Built-in evaluation metric to use.
+            Built-in evaluation metric to use. See doc/parameter.md.
         early_stopping_rounds : int
             Activates early stopping. Validation error needs to decrease at
             least every <early_stopping_rounds> round(s) to continue training.
@@ -1197,7 +1197,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             A list of (X, y) pairs to use as a validation set for
             early-stopping
         eval_metric : str
-            Built-in evaluation metric to use.
+            Built-in evaluation metric to use. See doc/parameter.md.
         early_stopping_rounds : int, optional
             Activates early stopping. Validation error needs to decrease at
             least every <early_stopping_rounds> round(s) to continue training.
