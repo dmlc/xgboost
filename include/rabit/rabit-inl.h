@@ -7,7 +7,6 @@
 #ifndef RABIT_RABIT_INL_H
 #define RABIT_RABIT_INL_H
 // use engine for implementation
-#include <cstdint>
 #include "./io.h"
 #include "./utils.h"
 #include "../rabit.h"
