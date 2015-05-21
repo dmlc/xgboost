@@ -20,6 +20,8 @@ Distributed Version: [Distributed XGBoost](multi-node)
 
 Highlights of Usecases: [Highlight Links](doc/README.md#highlight-links)
 
+XGBoost is part of [Distributed Machine Learning Common](http://dmlc.github.io/) projects
+
 What's New
 ==========
 * XGBoost-0.4 release, see [CHANGES.md](CHANGES.md#xgboost-04)
