@@ -33,10 +33,10 @@ From xgboost-unity, the ```bst:``` prefix is no longer needed for booster parame
   - range: [0,∞]
 * max_depth [default=6]
   - maximum depth of a tree
-  - range: [2,∞]
+  - range: [1,∞]
 * min_child_weight [default=1]
   - minimum sum of instance weight(hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be.
-  - range: [1,∞]
+  - range: [0,∞]
 * max_delta_step [default=0]
   - Maximum delta step we allow each tree's weight estimation to be. If the value is set to 0, it means there is no constraint. If it is set to a positive value, it can help making the update step more conservative. Usually this parameter is not needed, but it might help in logistic regression when class is extremely imbalanced. Set it to value of 1-10 might help control the update
   - range: [0,∞]
