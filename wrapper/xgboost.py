@@ -113,7 +113,7 @@ def c_array(ctype, values):
 
 
 class DMatrix(object):
-    def __init__(self, data, label=None, missing=0.0, weight=None):
+    def __init__(self, data, label=None, missing=0.0, weight=None, silent=False):
         """
         Data matrix used in XGBoost.
 
@@ -128,13 +128,15 @@ class DMatrix(object):
             Value in the data which needs to be present as a missing value.
         weight : list or numpy 1-D array (optional)
             Weight for each instance.
+        silent: boolean
+            Whether print messages during construction
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
             self.handle = None
             return
         if isinstance(data, string_types):
-            self.handle = ctypes.c_void_p(xglib.XGDMatrixCreateFromFile(c_str(data), 0))
+            self.handle = ctypes.c_void_p(xglib.XGDMatrixCreateFromFile(c_str(data), int(silent)))
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
