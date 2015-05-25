@@ -137,7 +137,6 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   }
   if (length(watchlist) != 0 && verbose == 0) {
     warning('watchlist is provided but verbose=0, no evaluation information will be printed')
-    watchlist <- list()
   }
   params = append(params, list(...))
   
