@@ -7,8 +7,8 @@
 xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
   missing = NULL, prediction = FALSE, showsd = TRUE, metrics = list(),
   obj = NULL, feval = NULL, stratified = TRUE, folds = NULL,
-  verbose = T, printEveryN=1L, early_stop_round = NULL, early.stop.round = NULL,
-  maximize = NULL, ...)
+  verbose = T, printEveryN = 1L, early_stop_round = NULL,
+  early.stop.round = NULL, maximize = NULL, ...)
 }
 \arguments{
 \item{params}{the list of parameters. Commonly used ones are:

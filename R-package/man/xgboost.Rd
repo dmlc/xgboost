@@ -5,8 +5,8 @@
 \title{eXtreme Gradient Boosting (Tree) library}
 \usage{
 xgboost(data = NULL, label = NULL, missing = NULL, params = list(),
-  nrounds, verbose = 1, printEveryN=1L, early_stop_round = NULL, early.stop.round = NULL,
-  maximize = NULL, ...)
+  nrounds, verbose = 1, printEveryN = 1L, early_stop_round = NULL,
+  early.stop.round = NULL, maximize = NULL, ...)
 }
 \arguments{
 \item{data}{takes \code{matrix}, \code{dgCMatrix}, local data file or

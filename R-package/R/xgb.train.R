@@ -36,7 +36,7 @@
 #' 3. Task Parameters 
 #' 
 #' \itemize{
-#' \item \code{objective} specify the learning task and the corresponding learning objective, and the objective options are below:
+#' \item \code{objective} specify the learning task and the corresponding learning objective, users can pass a self-defined function to it. The default objective options are below:
 #'   \itemize{
 #'     \item \code{reg:linear} linear regression (Default).
 #'     \item \code{reg:logistic} logistic regression.
@@ -48,7 +48,7 @@
 #'     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
 #'   }
 #'   \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
-#'   \item \code{eval_metric} evaluation metrics for validation data. Default: metric will be assigned according to objective(rmse for regression, and error for classification, mean average precision for ranking). List is provided in detail section.
+#'   \item \code{eval_metric} evaluation metrics for validation data. Users can pass a self-defined function to it. Default: metric will be assigned according to objective(rmse for regression, and error for classification, mean average precision for ranking). List is provided in detail section.
 #' }
 #' 
 #' @param data takes an \code{xgb.DMatrix} as the input.
@@ -103,7 +103,6 @@
 #' dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 #' dtest <- dtrain
 #' watchlist <- list(eval = dtest, train = dtrain)
-#' param <- list(max.depth = 2, eta = 1, silent = 1)
 #' logregobj <- function(preds, dtrain) {
 #'    labels <- getinfo(dtrain, "label")
 #'    preds <- 1/(1 + exp(-preds))
@@ -116,7 +115,8 @@
 #'   err <- as.numeric(sum(labels != (preds > 0)))/length(labels)
 #'   return(list(metric = "error", value = err))
 #' }
-#' bst <- xgb.train(param, dtrain, nthread = 2, nround = 2, watchlist, logregobj, evalerror)
+#' param <- list(max.depth = 2, eta = 1, silent = 1, objective=logregobj,eval_metric=evalerror)
+#' bst <- xgb.train(param, dtrain, nthread = 2, nround = 2, watchlist)
 #' @export
 #' 
 xgb.train <- function(params=list(), data, nrounds, watchlist = list(), 
