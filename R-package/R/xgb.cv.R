@@ -119,6 +119,22 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     params <- append(params, list("eval_metric"=mc))
   }
   
+  # customized objective and evaluation metric interface
+  if (!is.null(params$objective) && !is.null(obj))
+    stop("xgb.cv: cannot assign two different objectives")
+  if (!is.null(params$objective))
+    if (class(params$objective)=='function') {
+      obj = params$objective
+      params$objective = NULL
+    }
+  if (!is.null(params$eval_metric) && !is.null(feval))
+    stop("xgb.cv: cannot assign two different evaluation metrics")
+  if (!is.null(params$eval_metric))
+    if (class(params$eval_metric)=='function') {
+      feval = params$eval_metric
+      params$eval_metric = NULL
+    }
+  
   # Early Stopping
   if (is.null(early_stop_round) && !is.null(early.stop.round))
     early_stop_round = early.stop.round

@@ -140,6 +140,22 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   }
   params = append(params, list(...))
   
+  # customized objective and evaluation metric interface
+  if (!is.null(params$objective) && !is.null(obj))
+    stop("xgb.train: cannot assign two different objectives")
+  if (!is.null(params$objective))
+    if (class(params$objective)=='function') {
+      obj = params$objective
+      params$objective = NULL
+    }
+  if (!is.null(params$eval_metric) && !is.null(feval))
+    stop("xgb.train: cannot assign two different evaluation metrics")
+  if (!is.null(params$eval_metric))
+    if (class(params$eval_metric)=='function') {
+      feval = params$eval_metric
+      params$eval_metric = NULL
+    }
+    
   # Early stopping
   if (is.null(early_stop_round) && !is.null(early.stop.round))
     early_stop_round = early.stop.round
