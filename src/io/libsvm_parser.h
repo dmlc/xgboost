@@ -16,6 +16,7 @@
 #include "../sync/sync.h"
 #include "../utils/thread_buffer.h"
 #include "./sparse_batch_page.h"
+#include "../utils/fmap.h"
 
 namespace xgboost {
 namespace io {
@@ -38,11 +39,12 @@ class LibSVMPageFactory  {
   explicit LibSVMPageFactory() 
       : bytes_read_(0), at_head_(true) {
   }
-  inline bool Init(void) {
+
+  inline bool Init() {
     return true;
   }
   inline void Setup(dmlc::InputSplit *source,
-                    int nthread) {
+                    int nthread, utils::FeatMap *fmap = NULL) {
     source_ = source;
     int maxthread;
     #pragma omp parallel
@@ -51,6 +53,8 @@ class LibSVMPageFactory  {
     }
     maxthread = std::max(maxthread / 2, 1);
     nthread_ = std::min(maxthread, nthread);
+    fmap_ = fmap;
+
   }
   inline void SetParam(const char *name, const char *val) {}
   inline bool LoadNext(std::vector<LibSVMPage> *data) {
@@ -121,8 +125,9 @@ class LibSVMPageFactory  {
       char *head = p;
       while (isdigit(*p) && p != end) ++p;
       if (*p == ':') {
-        out->data.push_back(SparseBatch::Entry(atol(head),
-                                               static_cast<bst_float>(atof(p + 1))));
+        if(NULL == fmap_ || !fmap_->contain_exclude_feature(atoi(head))){
+        out->data.push_back(SparseBatch::Entry(atol(head), static_cast<bst_float>(atof(p + 1))));
+      }
       } else {
         if (out->label.size() != 0) {
           out->offset.push_back(out->data.size());
@@ -160,15 +165,19 @@ class LibSVMPageFactory  {
   bool at_head_;
   // source split that provides the data
   dmlc::InputSplit *source_;
+
+  //fmap
+  utils::FeatMap *fmap_;
+
 };
 
 class LibSVMParser : public utils::IIterator<LibSVMPage> {
  public:
   explicit LibSVMParser(dmlc::InputSplit *source,
-                        int nthread)
+                        int nthread, utils::FeatMap *fmap = NULL)
       : at_end_(false), data_ptr_(0), data_(NULL) {
     itr.SetParam("buffer_size", "2");
-    itr.get_factory().Setup(source, nthread);
+    itr.get_factory().Setup(source, nthread, fmap);
     itr.Init();
   }
   virtual void BeforeFirst(void) {

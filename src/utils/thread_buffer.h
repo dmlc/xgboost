@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include "./utils.h"
 #include "./thread.h"
+#include "./fmap.h"
 namespace xgboost {
 namespace utils {
 /*!
@@ -40,7 +41,18 @@ class ThreadBuffer {
    * \param param a initialize parameter that will pass to factory, ignore it if not necessary
    * \return false if the initlization can't be done, e.g. buffer file hasn't been created 
    */
-  inline bool Init(void) {
+  inline bool Init(utils::FeatMap *fmap) {
+    if (!factory.Init(fmap)) return false;
+    for (int i = 0; i < buf_size; ++i) {
+      bufA.push_back(factory.Create());
+      bufB.push_back(factory.Create());
+    }
+    this->init_end = true;
+    this->StartLoader();
+    return true;
+  }  
+
+  inline bool Init() {
     if (!factory.Init()) return false;
     for (int i = 0; i < buf_size; ++i) {
       bufA.push_back(factory.Create());

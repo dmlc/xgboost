@@ -6,6 +6,7 @@
  * \author Tianqi Chen
  */
 #include <vector>
+#include <set>
 #include <string>
 #include <cstring>
 #include "./utils.h"
@@ -32,15 +33,27 @@ class FeatMap {
   inline void LoadText(std::FILE *fi) {
     int fid;
     char fname[1256], ftype[1256];
-    while (std::fscanf(fi, "%d\t%[^\t]\t%s\n", &fid, fname, ftype) == 3) {
-      this->PushBack(fid, fname, ftype);
-    }
+    char line [4096];
+    while(std::fgets(line, 4096, fi) != NULL){
+      line[std::strlen(line)-1] = '\0';
+      if(line[0] == '#'){
+        if(std::sscanf(line, "#%d\t%[^\t]\t%s\n", &fid, fname, ftype) == 3){
+         this->PushBack(fid, fname, ftype, true);
+        }
+      }else
+         if(std::sscanf(line, "%d\t%[^\t]\t%s\n", &fid, fname, ftype) == 3){
+         this->PushBack(fid, fname, ftype, false);
+        }
+    }//end while
   }
   /*!\brief push back feature map */
-  inline void PushBack(int fid, const char *fname, const char *ftype) {
+  inline void PushBack(int fid, const char *fname, const char *ftype, bool is_exclude) {
     utils::Check(fid == static_cast<int>(names_.size()), "invalid fmap format");
-    names_.push_back(std::string(fname));
-    types_.push_back(GetType(ftype));
+    if(is_exclude){
+      exclude_features_.insert(fid);
+    }
+      names_.push_back(std::string(fname));
+      types_.push_back(GetType(ftype));
   }
   inline void Clear(void) {
     names_.clear(); types_.clear();
@@ -60,6 +73,16 @@ class FeatMap {
     return types_[idx];
   }
 
+  /*! \brief return whether input feature id in exclude feature ids*/
+  inline bool contain_exclude_feature(int val){
+    std::set<int>::iterator it = exclude_features_.find(val);
+    if(it == exclude_features_.end()){
+      return false;
+    }else{
+      return true;
+    }
+  }
+
  private:
   inline static Type GetType(const char *tname) {
     using namespace std;
@@ -74,6 +97,8 @@ class FeatMap {
   std::vector<std::string> names_;
   /*! \brief type of the feature */
   std::vector<Type> types_;
+  /*! \brief id of exclude feature */
+  std::set<int> exclude_features_;
 };
 
 }  // namespace utils

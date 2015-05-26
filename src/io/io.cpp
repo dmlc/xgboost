@@ -14,7 +14,8 @@ DataMatrix* LoadDataMatrix(const char *fname,
                            bool silent,
                            bool savebuffer,
                            bool loadsplit,
-                           const char *cache_file) {
+                           const char *cache_file, 
+                           utils::FeatMap *fmap) {
   using namespace std;
   std::string fname_ = fname;
   
@@ -35,7 +36,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
         !std::strncmp(fname, "hdfs://", 7) ||
         loadsplit) {
       DMatrixSimple *dmat = new DMatrixSimple();
-      dmat->LoadText(fname, silent, loadsplit);
+      dmat->LoadText(fname, silent, loadsplit, fmap);
       return dmat;
     }
     int magic;
@@ -50,7 +51,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
     }
     fs.Close();
     DMatrixSimple *dmat = new DMatrixSimple();
-    dmat->CacheLoad(fname, silent, savebuffer);
+    dmat->CacheLoad(fname, silent, savebuffer, fmap);
     return dmat;
   } else {
     std::string cache_fname = cache_file;
@@ -74,7 +75,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
         return dmat;
       } else {
         DMatrixPage *dmat = new DMatrixPage();
-        dmat->LoadText(fname, cache_file, false, loadsplit);
+        dmat->LoadText(fname, cache_file, false, loadsplit, fmap);
         return dmat;
       }
     }
