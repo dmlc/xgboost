@@ -133,7 +133,8 @@ class DMatrixPageBase : public DataMatrix {
   inline void LoadText(const char *uri,
                        const char* cache_file,
                        bool silent,
-                       bool loadsplit) {
+                       bool loadsplit,
+                       utils::FeatMap *fmap = NULL) {
     if (!silent) {
       utils::Printf("start generate text file from %s\n", uri);
     }
@@ -149,7 +150,7 @@ class DMatrixPageBase : public DataMatrix {
     size_t bytes_write = 0;
     double tstart = rabit::utils::GetTime();
     LibSVMParser parser(
-        dmlc::InputSplit::Create(uri, rank, npart, "text"), 16);
+        dmlc::InputSplit::Create(uri, rank, npart, "text"), 16, fmap);
     info.Clear();
     while (parser.Next()) {
       const LibSVMPage &batch = parser.Value();

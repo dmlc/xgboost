@@ -86,14 +86,15 @@ class DMatrixSimple : public DataMatrix {
    * \param loadsplit whether loadsplit of data or all the data
    * \param silent whether print information or not
    */
-  inline void LoadText(const char *uri, bool silent = false, bool loadsplit = false) {
+  inline void LoadText(const char *uri, bool silent = false, bool loadsplit = false, utils::FeatMap *fmap = NULL) {
     int rank = 0, npart = 1;
     if (loadsplit) {
       rank = rabit::GetRank();
       npart = rabit::GetWorldSize();
     }
+
     LibSVMParser parser(
-        dmlc::InputSplit::Create(uri, rank, npart, "text"), 16);
+        dmlc::InputSplit::Create(uri, rank, npart, "text"), 16, fmap);
     this->Clear();
     while (parser.Next()) {
       const LibSVMPage &batch = parser.Value();
@@ -224,7 +225,7 @@ class DMatrixSimple : public DataMatrix {
    * \param silent whether print information or not
    * \param savebuffer whether do save binary buffer if it is text
    */
-  inline void CacheLoad(const char *fname, bool silent = false, bool savebuffer = true) {
+  inline void CacheLoad(const char *fname, bool silent = false, bool savebuffer = true, utils::FeatMap *fmap = NULL) {
     using namespace std;
     size_t len = strlen(fname);
     if (len > 8 && !strcmp(fname + len - 7, ".buffer")) {
@@ -236,7 +237,7 @@ class DMatrixSimple : public DataMatrix {
     char bname[1024];
     utils::SPrintf(bname, sizeof(bname), "%s.buffer", fname);
     if (!this->LoadBinary(bname, silent)) {
-      this->LoadText(fname, silent);
+      this->LoadText(fname, silent, false, fmap);
       if (savebuffer) this->SaveBinary(bname, silent);
     }
   }

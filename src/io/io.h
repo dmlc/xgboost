@@ -8,6 +8,7 @@
  */
 #include "../data.h"
 #include "../learner/dmatrix.h"
+ #include "../utils/fmap.h"
 
 namespace xgboost {
 /*! \brief namespace related to data format */
@@ -30,7 +31,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
                            bool silent,
                            bool savebuffer,
                            bool loadsplit,
-                           const char *cache_file = NULL);
+                           const char *cache_file = NULL, utils::FeatMap *fmap = NULL);
 /*!
  * \brief save DataMatrix into stream, 
  *  note: the saved dmatrix format may not be in exactly same as input
