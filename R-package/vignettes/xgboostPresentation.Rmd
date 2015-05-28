@@ -57,11 +57,9 @@ devtools::install_github('dmlc/xgboost', subdir='R-package')
 Cran version
 ------------
 
-For stable version on *CRAN*, run:
+As of 2015-03-13, ‘xgboost’ was removed from the CRAN repository.
 
-```{r installCran, eval=FALSE}
-install.packages('xgboost')
-```
+Formerly available versions can be obtained from the CRAN [archive](http://cran.r-project.org/src/contrib/Archive/xgboost)
 
 Learning
 ========
