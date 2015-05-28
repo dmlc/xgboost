@@ -513,7 +513,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
         if (len != -1) {
           size_up_out += static_cast<size_t>(len);
         } else {
-          ReturnType ret = Errno2Return(errno);
+          ReturnType ret = Errno2Return();
           if (ret != kSuccess) {
             return ReportError(&links[parent_index], ret);
           }
@@ -533,7 +533,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
           utils::Assert(size_down_in <= size_up_out,
                         "Allreduce: boundary error");
         } else {
-          ReturnType ret = Errno2Return(errno);
+          ReturnType ret = Errno2Return();
           if (ret != kSuccess) {
             return ReportError(&links[parent_index], ret);
           }
@@ -709,7 +709,7 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
       if (len != -1) {
         read_ptr += static_cast<size_t>(len);
       } else {
-        ReturnType ret = Errno2Return(errno);
+        ReturnType ret = Errno2Return();
         if (ret != kSuccess) return ReportError(&next, ret);
       }
     }
@@ -723,7 +723,7 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
       if (len != -1) {
         write_ptr += static_cast<size_t>(len);
       } else {
-        ReturnType ret = Errno2Return(errno);
+        ReturnType ret = Errno2Return();
         if (ret != kSuccess) return ReportError(&prev, ret);
       }
     }
@@ -826,7 +826,7 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
       if (len != -1) {
         write_ptr += static_cast<size_t>(len);
       } else {
-        ReturnType ret = Errno2Return(errno);
+        ReturnType ret = Errno2Return();
         if (ret != kSuccess) return ReportError(&prev, ret);
       }
     }

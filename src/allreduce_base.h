@@ -234,8 +234,13 @@ class AllreduceBase : public IEngine {
     }
   };
   /*! \brief translate errno to return type */
-  inline static ReturnType Errno2Return(int errsv) {
-    if (errsv == EAGAIN || errsv == EWOULDBLOCK) return kSuccess;
+  inline static ReturnType Errno2Return() {
+	int errsv = utils::Socket::GetLastError();
+    if (errsv == EAGAIN || errsv == EWOULDBLOCK || errsv == 0) return kSuccess;
+#ifdef _WIN32
+	if (errsv == WSAEWOULDBLOCK) return kSuccess;
+	if (errsv == WSAECONNRESET) return kConnReset;
+#endif
     if (errsv == ECONNRESET) return kConnReset;
     return kSockError;
   }
@@ -299,7 +304,7 @@ class AllreduceBase : public IEngine {
       if (len == 0) {
         sock.Close(); return kRecvZeroLen;
       }
-      if (len == -1) return Errno2Return(errno);
+      if (len == -1) return Errno2Return();
       size_read += static_cast<size_t>(len);
       return kSuccess;
     }
@@ -318,7 +323,7 @@ class AllreduceBase : public IEngine {
       if (len == 0) {
         sock.Close(); return kRecvZeroLen;
       }
-      if (len == -1) return Errno2Return(errno);
+      if (len == -1) return Errno2Return();
       size_read += static_cast<size_t>(len);
       return kSuccess;
     }
@@ -331,7 +336,7 @@ class AllreduceBase : public IEngine {
     inline ReturnType WriteFromArray(const void *sendbuf_, size_t max_size) {
       const char *p = static_cast<const char*>(sendbuf_);
       ssize_t len = sock.Send(p + size_write, max_size - size_write);
-      if (len == -1) return Errno2Return(errno);
+      if (len == -1) return Errno2Return();
       size_write += static_cast<size_t>(len);
       return kSuccess;
     }

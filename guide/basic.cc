@@ -5,6 +5,8 @@
  *
  * \author Tianqi Chen
  */
+#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_DEPRECATE
 #include <vector>
 #include <rabit.h>
 using namespace rabit;

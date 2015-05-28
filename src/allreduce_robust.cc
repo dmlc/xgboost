@@ -691,7 +691,7 @@ AllreduceRobust::TryRecoverData(RecoverType role,
           if (len != -1) {
             links[i].size_write += len;
           } else {
-            ReturnType ret = Errno2Return(errno);
+            ReturnType ret = Errno2Return();
             if (ret != kSuccess) return ReportError(&links[i], ret);
           }
         }
@@ -1161,7 +1161,7 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
       if (len != -1) {
         read_ptr += static_cast<size_t>(len);
       } else {
-        ReturnType ret = Errno2Return(errno);
+        ReturnType ret = Errno2Return();
         if (ret != kSuccess) return ReportError(&prev, ret);
       }
     }
@@ -1171,7 +1171,7 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
       if (len != -1) {
         write_ptr += static_cast<size_t>(len);
       } else {
-        ReturnType ret = Errno2Return(errno);
+        ReturnType ret = Errno2Return();
         if (ret != kSuccess) return ReportError(&prev, ret);
       }
     }

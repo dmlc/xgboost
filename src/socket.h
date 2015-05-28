@@ -94,6 +94,13 @@ class Socket {
   inline operator SOCKET() const {
     return sockfd;
   }
+  inline static int GetLastError(void) {
+#ifdef _WIN32
+    return WSAGetLastError();
+#else
+    return errno;
+#endif
+  }
   /*!
    * \brief start up the socket module
    *   call this before using the sockets
