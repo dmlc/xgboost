@@ -4,7 +4,14 @@ endif
 export MPICXX = mpicxx
 export LDFLAGS= -Llib -lrt
 export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -pedantic 
-export CFLAGS = -O3 -msse2 -fPIC $(WARNFLAGS) 
+export CFLAGS = -O3 -msse2 $(WARNFLAGS) 
+
+ifndef WITH_FPIC
+	WITH_FPIC = 1
+endif
+ifeq ($(WITH_FPIC), 1)
+	CFLAGS += -fPIC	
+endif
 
 # build path
 BPATH=.
