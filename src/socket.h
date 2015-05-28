@@ -94,11 +94,23 @@ class Socket {
   inline operator SOCKET() const {
     return sockfd;
   }
+  /*!
+   * \return last error of socket operation   
+   */
   inline static int GetLastError(void) {
 #ifdef _WIN32
     return WSAGetLastError();
 #else
     return errno;
+#endif
+  }
+  /*! \return whether last error was would block */
+  inline static bool LastErrorWouldBlock(void) {
+    int errsv = GetLastError();    
+#ifdef _WIN32
+    return errsv == WSAEWOULDBLOCK;
+#else
+    return errsv == EAGAIN || errsv == EWOULDBLOCK;
 #endif
   }
   /*!
@@ -223,8 +235,12 @@ class Socket {
   }
   // report an socket error
   inline static void Error(const char *msg) {
-    int errsv = errno;
+    int errsv = GetLastError();
+#ifdef _WIN32
+    utils::Error("Socket %s Error:WSAError-code=%d", msg, errsv);
+#else
     utils::Error("Socket %s Error:%s", msg, strerror(errsv));
+#endif
   }
 
  protected:
@@ -337,7 +353,7 @@ class TCPSocket : public Socket{
     while (ndone <  len) {
       ssize_t ret = send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0);
       if (ret == -1) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) return ndone;
+        if (LastErrorWouldBlock()) return ndone;
         Socket::Error("SendAll");
       }
       buf += ret;
@@ -359,7 +375,7 @@ class TCPSocket : public Socket{
       ssize_t ret = recv(sockfd, buf,
                          static_cast<sock_size_t>(len - ndone), MSG_WAITALL);
       if (ret == -1) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) return ndone;
+        if (LastErrorWouldBlock()) return ndone;
         Socket::Error("RecvAll");
       }
       if (ret == 0) return ndone;

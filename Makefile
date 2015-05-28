@@ -3,7 +3,7 @@ export CXX = g++
 endif
 export MPICXX = mpicxx
 export LDFLAGS= -Llib -lrt
-export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -pedantic 
+export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas 
 export CFLAGS = -O3 -msse2 $(WARNFLAGS) 
 
 ifndef WITH_FPIC
