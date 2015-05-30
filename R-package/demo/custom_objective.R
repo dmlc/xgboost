@@ -61,4 +61,5 @@ logregobjattr <- function(preds, dtrain) {
 print ('start training with user customized objective, with additional attributes in DMatrix')
 # training with customized objective, we can also do step by step training
 # simply look at xgboost.py's implementation of train
-bst <- xgb.train(param, dtrain, num_round, watchlist, logregobjattr, evalerror)
+bst <- xgb.train(param, dtrain, num_round, watchlist, 
+                 objective=logregobj, eval_metric=evalerror)
