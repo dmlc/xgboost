@@ -5,7 +5,7 @@ export LDFLAGS= -pthread -lm
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -fPIC
 
 #set java include path
-export  JAVAINCFLAGS= -I/usr/local/lib/jdk1.7.0_75/include -I/usr/local/lib/jdk1.7.0_75/include/linux -I./java
+include java/Makefile.config
 
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP 
@@ -32,7 +32,6 @@ MOCKBIN = xgboost.mock
 OBJ = updater.o gbm.o io.o main.o 
 MPIBIN = xgboost.mpi
 SLIB = wrapper/libxgboostwrapper.so
-
 #java lib
 JLIB = java/libxgboostjavawrapper.so
 
