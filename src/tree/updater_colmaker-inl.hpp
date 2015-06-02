@@ -234,8 +234,9 @@ class ColMaker: public IUpdater {
                                   const IFMatrix &fmat,
                                   const std::vector<bst_gpair> &gpair,
                                   const BoosterInfo &info) {
-      bool need_forward = param.need_forward_search(fmat.GetColDensity(fid));
-      bool need_backward = param.need_backward_search(fmat.GetColDensity(fid));
+      const bool ind = col.length != 0 && col.data[0].fvalue == col.data[col.length - 1].fvalue;
+      bool need_forward = param.need_forward_search(fmat.GetColDensity(fid), ind);
+      bool need_backward = param.need_backward_search(fmat.GetColDensity(fid), ind);
       const std::vector<int> &qexpand = qexpand_;
       #pragma omp parallel
       {
@@ -530,11 +531,12 @@ class ColMaker: public IUpdater {
           const bst_uint fid = batch.col_index[i];
           const int tid = omp_get_thread_num();
           const ColBatch::Inst c = batch[i];
-          if (param.need_forward_search(fmat.GetColDensity(fid))) {
+          const bool ind = c.length != 0 && c.data[0].fvalue == c.data[c.length - 1].fvalue;
+          if (param.need_forward_search(fmat.GetColDensity(fid), ind)) {
             this->EnumerateSplit(c.data, c.data + c.length, +1, 
                                  fid, gpair, info, stemp[tid]);
           }
-          if (param.need_backward_search(fmat.GetColDensity(fid))) {
+          if (param.need_backward_search(fmat.GetColDensity(fid), ind)) {
             this->EnumerateSplit(c.data + c.length - 1, c.data - 1, -1, 
                                  fid, gpair, info, stemp[tid]);
           }
