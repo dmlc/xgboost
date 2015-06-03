@@ -8,11 +8,6 @@ For up-to-date version (which is recommended), please install from github. Windo
 devtools::install_github('dmlc/xgboost',subdir='R-package')
 ```
 
-For stable version on CRAN, please run
-
-```r
-install.packages('xgboost')
-```
 
 ## Examples
 

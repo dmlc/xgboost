@@ -58,13 +58,14 @@ class Booster: public learner::BoostLearner {
   }
   inline void LoadModelFromBuffer(const void *buf, size_t size) {
     utils::MemoryFixSizeBuffer fs((void*)buf, size);
-    learner::BoostLearner::LoadModel(fs);
+    learner::BoostLearner::LoadModel(fs, true);
     this->init_model = true;    
   }
   inline const char *GetModelRaw(bst_ulong *out_len) {
+    this->CheckInitModel();
     model_str.resize(0);
     utils::MemoryBufferStream fs(&model_str);
-    learner::BoostLearner::SaveModel(fs);
+    learner::BoostLearner::SaveModel(fs, false);
     *out_len = static_cast<bst_ulong>(model_str.length());
     if (*out_len == 0) {
       return NULL;
@@ -322,8 +323,10 @@ extern "C"{
   void XGBoosterLoadModel(void *handle, const char *fname) {
     static_cast<Booster*>(handle)->LoadModel(fname);
   }
-  void XGBoosterSaveModel(const void *handle, const char *fname) {
-    static_cast<const Booster*>(handle)->SaveModel(fname);
+  void XGBoosterSaveModel(void *handle, const char *fname) {
+    Booster *bst = static_cast<Booster*>(handle);
+    bst->CheckInitModel();
+    bst->SaveModel(fname, false);
   }
   void XGBoosterLoadModelFromBuffer(void *handle, const void *buf, bst_ulong len) {
     static_cast<Booster*>(handle)->LoadModelFromBuffer(buf, len);

@@ -140,8 +140,12 @@ class IFMatrix {
    * \brief check if column access is supported, if not, initialize column access
    * \param enabled whether certain feature should be included in column access
    * \param subsample subsample ratio when generating column access
+   * \param max_row_perbatch auxilary information, maximum row used in each column batch
+   *         this is a hint information that can be ignored by the implementation
    */
-  virtual void InitColAccess(const std::vector<bool> &enabled, float subsample) = 0;
+  virtual void InitColAccess(const std::vector<bool> &enabled,
+                             float subsample,
+                             size_t max_row_perbatch) = 0;
   // the following are column meta data, should be able to answer them fast
   /*! \return whether column access is enabled */
   virtual bool HaveColAccess(void) const = 0;

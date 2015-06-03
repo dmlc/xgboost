@@ -33,10 +33,7 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
   }
   virtual bool Next(void) {
     if (!itr.Next(page_)) return false;
-    out_.base_rowid  = base_rowid_;
-    out_.ind_ptr = BeginPtr(page_->offset);
-    out_.data_ptr = BeginPtr(page_->data);
-    out_.size = page_->offset.size() - 1;
+    out_ = page_->GetRowBatch(base_rowid_);
     base_rowid_ += out_.size;
     return true;
   }
@@ -198,8 +195,8 @@ class DMatrixPageBase : public DataMatrix {
   }
   /*! \brief magic number used to identify DMatrix */
   static const int kMagic = TKMagic;
-  /*! \brief page size 64 MB */
-  static const size_t kPageSize = 64UL << 20UL;
+  /*! \brief page size 32 MB */
+  static const size_t kPageSize = 32UL << 20UL;
 
  protected:
   virtual void set_cache_file(const std::string &cache_file)  = 0;
@@ -236,7 +233,7 @@ class DMatrixPage : public DMatrixPageBase<0xffffab02> {
 class DMatrixHalfRAM : public DMatrixPageBase<0xffffab03> {
  public:
   DMatrixHalfRAM(void) {
-    fmat_ = new FMatrixS(iter_);
+    fmat_ = new FMatrixS(iter_, this->info);
   }
   virtual ~DMatrixHalfRAM(void) {
     delete fmat_;
