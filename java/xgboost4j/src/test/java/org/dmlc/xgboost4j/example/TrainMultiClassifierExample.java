@@ -47,7 +47,7 @@ public class TrainMultiClassifierExample {
         };
         
         //set round
-        int round = 100;
+        int round = 50;
         
         //set evaluation data
         DMatrix[] dmats = new DMatrix[] {trainMat, validMat};
@@ -58,7 +58,7 @@ public class TrainMultiClassifierExample {
         Booster booster = Trainer.train(param, trainMat, round, dmats, evalNames);
         
         //save model to modelPath
-        String modelPath = "./tmp/xgb_trainer_text_model";
+        String modelPath = "./tmp/xgb_model";
         booster.saveModel(modelPath);
         
         System.out.println("training complete!!!!!!!!!!!!");

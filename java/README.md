@@ -13,9 +13,9 @@ core of this wrapper is two classes:
   
   simple examples could be found in test package:
 
-  * Simple Train Example: org.dmlc.xgboost4j.TrainExample.java
+  * Simple Train Example: org.dmlc.xgboost4j.example.TrainMultiClassifierExample.java
   
-  * Simple Predict Example: org.dmlc.xgboost4j.PredictExample.java
+  * Simple Predict Example: org.dmlc.xgboost4j.example.PredictExample.java
   
   * Cross Validation Example: org.dmlc.xgboost4j.example.CVExample.java
  
@@ -29,5 +29,5 @@ for windows: open the xgboost.sln in windows folder, you will found the xgboostj
  * move the dll "xgboostjavawrapper.dll" to "xgboost4j/src/main/resources/lib/"
 
 for linux: 
- * modify the "export JAVAINCFLAGS" line in Makefile.config to fit your environment (you may change nothing if you have proper JAVA_HOME setting beforehand)
+ * modify the "export JAVAINCFLAGS" line in "Makefile.config" to fit your environment (you may change nothing if you have proper JAVA_HOME setting beforehand)
  * run "create_wrap.sh"

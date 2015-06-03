@@ -45,7 +45,9 @@ public class CVExample {
         //do 5-fold cross validation
         int round = 30;
         int nfold = 5;
+        //set additional eval_metrics
         String[] metrics = new String[] {"merror"};
+        
         String[] evalHist = Trainer.crossValiation(param, trainMat, round, nfold, metrics);
     }
 }
