@@ -56,7 +56,7 @@ public class DMatrixTest {
         float[] data = new float[] {1, 2, 3, 4, 2, 3, 5, 3, 1, 2, 5};
         long[] colIndex = new long[] {0, 2, 3, 0, 2, 3, 4, 0, 1, 2, 3};
         long[] rowHeaders = new long[] {0, 3, 7, 11};
-        DMatrix dmat1 = new DMatrix(rowHeaders, colIndex, data);
+        DMatrix dmat1 = new DMatrix(rowHeaders, colIndex, data, DMatrix.SparseType.CSR);
         //check row num
         System.out.println(dmat1.rowNum());
         TestCase.assertTrue(dmat1.rowNum()==3);
@@ -67,6 +67,29 @@ public class DMatrixTest {
         TestCase.assertTrue(Arrays.equals(label1, label2));
         
         dmat1.delete();
+    }
+    
+    @Test
+    public void testCreateFromCSC() {
+        //create dmatrix from csc format sparse matrix and labels
+        /**
+         * sparse matrix
+         * 1 0 2 3 0
+         * 4 0 2 3 5
+         * 3 1 2 5 0
+         */
+        float[] data = new float[] {1, 4, 3, 1, 2, 2, 2, 3, 3, 5, 5};
+        long[] colHeaders = new long[] {0, 3, 4, 7, 10, 11};
+        long[] rowIndex = new long[] {0, 1, 2, 2, 0, 1, 2, 0, 1, 2, 1};
+        DMatrix dmat1 = new DMatrix(colHeaders, rowIndex, data, DMatrix.SparseType.CSC);
+         //check row num
+        System.out.println(dmat1.rowNum());
+        TestCase.assertTrue(dmat1.rowNum()==3);
+        //set label
+        float[] label1 = new float[] {1, 0, 1};
+        dmat1.setLabel(label1);
+        float[] label2  = dmat1.getLabel();
+        TestCase.assertTrue(Arrays.equals(label1, label2));
     }
     
     @Test

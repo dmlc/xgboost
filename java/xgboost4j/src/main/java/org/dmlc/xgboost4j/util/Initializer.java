@@ -21,23 +21,30 @@ public class Initializer {
     static boolean initialized = false;
     public static final String nativePath = "./lib";
     public static final String nativeResourcePath = "/lib/";
+    public static final String[] libNames = new String[] {"xgboostjavawrapper"};
     
     public static synchronized void InitXgboost() throws IOException {
         if(initialized == false) {
-            addNativeDir(nativePath);
-            try {
-                System.loadLibrary("xgboostjavawrapper");
-            } 
-            catch (UnsatisfiedLinkError e) {
-                try {
-                    NativeUtils.loadLibraryFromJar(nativeResourcePath + System.mapLibraryName("xgboostjavawrapper"));
-                }
-                catch (IOException e1) {
-                    throw e1;
-                }
+            for(String libName: libNames) {
+                smartLoad(libName);
             }
             initialized = true;
         }
+    }
+    
+    private static void smartLoad(String libName) throws IOException {
+        addNativeDir(nativePath);
+        try {
+             System.loadLibrary(libName);
+         } 
+         catch (UnsatisfiedLinkError e) {
+             try {
+                 NativeUtils.loadLibraryFromJar(nativeResourcePath + System.mapLibraryName(libName));
+             }
+             catch (IOException e1) {
+                 throw e1;
+             }
+         }
     }
     
     public static void addNativeDir(String s) throws IOException {

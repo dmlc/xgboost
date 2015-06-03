@@ -77,7 +77,7 @@ public class DMatrixCheck {
         float[] data = new float[] {1, 2, 3, 4, 2, 3, 5, 3, 1, 2, 5};
         long[] colIndex = new long[] {0, 2, 3, 0, 2, 3, 4, 0, 1, 2, 3};
         long[] rowHeaders = new long[] {0, 3, 7, 11};
-        DMatrix dmat1 = new DMatrix(rowHeaders, colIndex, data);
+        DMatrix dmat1 = new DMatrix(rowHeaders, colIndex, data, DMatrix.SparseType.CSR);
         float[] label1 = new float[] {1, 0, 1};
         dmat1.setLabel(label1);
         

@@ -16,8 +16,7 @@ import org.dmlc.xgboost4j.wrapper.XgboostJNI;
  * @author hzx
  */
 public class DMatrix {
-    private static final Log logger = LogFactory.getLog(DMatrix.class);
-    
+    private static final Log logger = LogFactory.getLog(DMatrix.class);    
     long handle = 0;
     
     //load native library
@@ -30,6 +29,12 @@ public class DMatrix {
         }
     }
     
+    //sparse matrix type
+    public static enum SparseType {
+        CSR,
+        CSC;
+    }
+    
     /**
      *  dataPath should be svmlight format
      * @param dataPath 
@@ -39,13 +44,22 @@ public class DMatrix {
     }
     
     /**
-     * init DMatrix with CSR sparse matrixs
-     * @param rowHeaders index to row headers
-     * @param colIndices colIndices
+     * init DMatrix withsparse matrixs
+     * @param headers index to headers
+     * @param indices Indices
      * @param data values
+     * @param st sparse matrix type (CSR or CSC)
      */
-    public DMatrix(long[] rowHeaders, long[] colIndices, float[] data) {
-        handle = XgboostJNI.XGDMatrixCreateFromCSR(rowHeaders, colIndices, data);
+    public DMatrix(long[] headers, long[] indices, float[] data, SparseType st) {
+        if(st == SparseType.CSR) {
+            handle = XgboostJNI.XGDMatrixCreateFromCSR(headers, indices, data);
+        }
+        else if(st == SparseType.CSC) {
+            handle = XgboostJNI.XGDMatrixCreateFromCSC(headers, indices, data);
+        }
+        else {
+            throw new UnknownError("unknow sparsetype");
+        }
     }
     
    /**
