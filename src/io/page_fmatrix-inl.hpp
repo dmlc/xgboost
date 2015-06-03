@@ -58,11 +58,13 @@ struct ColConvertFactory {
     return true;
   }
   inline void Setup(float pkeep,
+                    size_t max_row_perbatch,
                     size_t num_col,
                     utils::IIterator<RowBatch> *iter,
                     std::vector<bst_uint> *buffered_rowset,
                     const std::vector<bool> *enabled) {
     pkeep_ = pkeep;
+    max_row_perbatch_ = max_row_perbatch;
     num_col_ = num_col;
     iter_ = iter;
     buffered_rowset_ = buffered_rowset;
@@ -87,7 +89,8 @@ struct ColConvertFactory {
           tmp_.Push(batch[i]);
         }
       }
-      if (tmp_.MemCostBytes() >= kPageSize) {
+      if (tmp_.MemCostBytes() >= kPageSize ||
+          tmp_.Size() >= max_row_perbatch_) {
         this->MakeColPage(tmp_, BeginPtr(*buffered_rowset_) + btop,
                           *enabled_, val);
         return true;
@@ -157,6 +160,8 @@ struct ColConvertFactory {
   }
   // probability of keep
   float pkeep_;
+  // maximum number of rows per batch
+  size_t max_row_perbatch_;
   // number of columns
   size_t num_col_;
   // row batch iterator
@@ -208,10 +213,10 @@ class FMatrixPage : public IFMatrix {
     return 1.0f - (static_cast<float>(nmiss)) / num_buffered_row_;
   }
   virtual void InitColAccess(const std::vector<bool> &enabled, 
-                             float pkeep = 1.0f) {
+                             float pkeep, size_t max_row_perbatch) {
     if (this->HaveColAccess()) return;
     if (TryLoadColData()) return;
-    this->InitColData(enabled, pkeep);
+    this->InitColData(enabled, pkeep, max_row_perbatch);
     utils::Check(TryLoadColData(), "failed on creating col.blob");
   }
   /*!
@@ -282,7 +287,8 @@ class FMatrixPage : public IFMatrix {
    * \brief intialize column data
    * \param pkeep probability to keep a row
    */
-  inline void InitColData(const std::vector<bool> &enabled, float pkeep) {
+  inline void InitColData(const std::vector<bool> &enabled,
+                          float pkeep, size_t max_row_perbatch) {
     // clear rowset
     buffered_rowset_.clear();
     col_size_.resize(info.num_col());
@@ -294,7 +300,7 @@ class FMatrixPage : public IFMatrix {
     size_t bytes_write = 0;
     utils::ThreadBuffer<SparsePage*, ColConvertFactory> citer;
     citer.SetParam("buffer_size", "2");
-    citer.get_factory().Setup(pkeep, info.num_col(),
+    citer.get_factory().Setup(pkeep, max_row_perbatch, info.num_col(),
                               iter_, &buffered_rowset_, &enabled);
     citer.Init();
     SparsePage *pcol;

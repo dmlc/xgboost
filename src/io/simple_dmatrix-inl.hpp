@@ -28,7 +28,7 @@ class DMatrixSimple : public DataMatrix {
  public:
   // constructor
   DMatrixSimple(void) : DataMatrix(kMagic) {
-    fmat_ = new FMatrixS(new OneBatchIter(this));
+    fmat_ = new FMatrixS(new OneBatchIter(this), this->info);
     this->Clear();
   }
   // virtual destructor
@@ -171,7 +171,7 @@ class DMatrixSimple : public DataMatrix {
     utils::Check(tmagic == kMagic, "\"%s\" invalid format, magic number mismatch", fname == NULL ? "" : fname);
 
     info.LoadBinary(fs);
-    FMatrixS::LoadBinary(fs, &row_ptr_, &row_data_);
+    LoadBinary(fs, &row_ptr_, &row_data_);
     fmat_->LoadColAccess(fs);
 
     if (!silent) {
@@ -198,9 +198,8 @@ class DMatrixSimple : public DataMatrix {
     utils::FileStream fs(utils::FopenCheck(fname, "wb"));
     int tmagic = kMagic;
     fs.Write(&tmagic, sizeof(tmagic));
-
     info.SaveBinary(fs);
-    FMatrixS::SaveBinary(fs, row_ptr_, row_data_);
+    SaveBinary(fs, row_ptr_, row_data_);
     fmat_->SaveColAccess(fs);
     fs.Close();
 
@@ -251,6 +250,42 @@ class DMatrixSimple : public DataMatrix {
   static const int kMagic = 0xffffab01;
 
  protected:
+  /*!
+   * \brief save data to binary stream
+   * \param fo output stream
+   * \param ptr pointer data
+   * \param data data content
+   */
+  inline static void SaveBinary(utils::IStream &fo,
+                                const std::vector<size_t> &ptr,
+                                const std::vector<RowBatch::Entry> &data) {
+    size_t nrow = ptr.size() - 1;
+    fo.Write(&nrow, sizeof(size_t));
+    fo.Write(BeginPtr(ptr), ptr.size() * sizeof(size_t));
+    if (data.size() != 0) {
+      fo.Write(BeginPtr(data), data.size() * sizeof(RowBatch::Entry));
+    }
+  }
+  /*!
+   * \brief load data from binary stream
+   * \param fi input stream
+   * \param out_ptr pointer data
+   * \param out_data data content
+   */
+  inline static void LoadBinary(utils::IStream &fi,
+                                std::vector<size_t> *out_ptr,
+                                std::vector<RowBatch::Entry> *out_data) {
+    size_t nrow;
+    utils::Check(fi.Read(&nrow, sizeof(size_t)) != 0, "invalid input file format");
+    out_ptr->resize(nrow + 1);
+    utils::Check(fi.Read(BeginPtr(*out_ptr), out_ptr->size() * sizeof(size_t)) != 0,
+                  "invalid input file format");
+    out_data->resize(out_ptr->back());
+    if (out_data->size() != 0) {
+      utils::Assert(fi.Read(BeginPtr(*out_data), out_data->size() * sizeof(RowBatch::Entry)) != 0,
+                    "invalid input file format");
+    }
+  }
   // one batch iterator that return content in the matrix
   struct OneBatchIter: utils::IIterator<RowBatch> {
     explicit OneBatchIter(DMatrixSimple *parent)
