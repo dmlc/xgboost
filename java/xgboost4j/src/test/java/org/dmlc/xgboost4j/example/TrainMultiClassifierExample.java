@@ -29,9 +29,9 @@ import org.dmlc.xgboost4j.util.Trainer;
 public class TrainMultiClassifierExample {
     public static void main(String[] args) throws IOException {
         //load train mat (svmlight format)
-        DMatrix trainMat = new DMatrix("./examples/multi_classifier/train.txt");
+        DMatrix trainMat = new DMatrix("./tmp/final_train.txt");
         //load valid mat (svmlight format)
-        DMatrix validMat = new DMatrix("./examples/multi_classifier/valid.txt");
+        DMatrix validMat = new DMatrix("./tmp/final_valid.txt");
         
         //set params
         Map<String, String> param = new HashMap<String, String>() {
@@ -58,7 +58,7 @@ public class TrainMultiClassifierExample {
         Booster booster = Trainer.train(param, trainMat, round, dmats, evalNames);
         
         //save model to modelPath
-        String modelPath = "./examples/multi_classifier/xgb_trainer_text_model";
+        String modelPath = "./tmp/xgb_trainer_text_model";
         booster.saveModel(modelPath);
         
         System.out.println("training complete!!!!!!!!!!!!");
