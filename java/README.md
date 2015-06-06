@@ -30,5 +30,5 @@ for windows: open the xgboost.sln in windows folder, you will found the xgboostj
  * move the dll "xgboostjavawrapper.dll" to "xgboost4j/src/main/resources/lib/"
 
 for linux: 
- * modify the "export JAVAINCFLAGS" line in "Makefile.config" to fit your environment (you may change nothing if you have proper JAVA_HOME setting beforehand)
+ * make sure you have installed jdk and `JAVA_HOME` has been setted properly
  * run "create_wrap.sh"
