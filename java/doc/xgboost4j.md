@@ -1,4 +1,4 @@
-Java wrapper for xgboost: xgboost4j
+xgboost4j : java wrapper for xgboost
 ====
 
 This page will introduce xgboost4j, the java wrapper for xgboost, including:
