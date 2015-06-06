@@ -3,6 +3,8 @@ export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm 
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops
+# java include path
+export JAVAINCFLAGS = -I${JAVA_HOME}/include -I${JAVA_HOME}/include/linux -I./java
 
 ifeq ($(OS), Windows_NT)
 	export CXX = g++ -m64
@@ -53,6 +55,9 @@ else
 	SLIB = wrapper/libxgboostwrapper.so
 endif
 
+# java lib
+JLIB = java/libxgboostjavawrapper.so
+
 # specify tensor path
 BIN = xgboost
 MOCKBIN = xgboost.mock
@@ -79,6 +84,9 @@ main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner
 xgboost:  updater.o gbm.o io.o main.o $(LIBRABIT) $(LIBDMLC)
 wrapper/xgboost_wrapper.dll wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o $(LIBRABIT) $(LIBDMLC)
 
+java: java/libxgboostjavawrapper.so
+java/libxgboostjavawrapper.so: java/xgboost4j_wrapper.cpp wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o $(LIBRABIT) $(LIBDMLC)
+
 # dependency on rabit
 subtree/rabit/lib/librabit.a: subtree/rabit/src/engine.cc
 	+	cd subtree/rabit;make lib/librabit.a; cd ../..
@@ -98,6 +106,9 @@ $(MOCKBIN) :
 $(SLIB) :
 	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS) $(DLLFLAGS)
 
+$(JLIB) :
+	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.so %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS)  $(JAVAINCFLAGS)
+
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
@@ -105,7 +116,7 @@ $(MPIOBJ) :
 	$(MPICXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) ) 
 
 $(MPIBIN) : 
-	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
+	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS)
 
 install:
 	cp -f -r $(BIN)  $(INSTALL_PATH)
