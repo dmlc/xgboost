@@ -10,14 +10,15 @@ core of this wrapper is two classes:
 * Booster: for train and predict
 
 ## usage:
-  
-  simple examples could be found in test package:
+  please refer to doc/xgboost4j.md for more information.
 
-  * Simple Train Example: org.dmlc.xgboost4j.example.TrainMultiClassifierExample.java
+  besides, simple examples could be found in xgboost4j-demo:
+
+  * Simple Train Example: org.dmlc.xgboost4j.demo.TrainMultiClassifierExample.java
   
-  * Simple Predict Example: org.dmlc.xgboost4j.example.PredictExample.java
+  * Simple Predict Example: org.dmlc.xgboost4j.demo.PredictExample.java
   
-  * Cross Validation Example: org.dmlc.xgboost4j.example.CVExample.java
+  * Cross Validation Example: org.dmlc.xgboost4j.demo.CVExample.java
  
 
 ## build native library
