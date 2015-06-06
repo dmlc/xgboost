@@ -10,7 +10,7 @@ core of this wrapper is two classes:
 * Booster: for train and predict
 
 ## usage:
-  please refer to xgboost4j.md(doc/xgboost4j.md) for more information.
+  please refer to [xgboost4j.md](doc/xgboost4j.md) for more information.
 
   besides, simple examples could be found in xgboost4j-demo:
 
