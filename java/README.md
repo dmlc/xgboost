@@ -23,11 +23,11 @@ core of this wrapper is two classes:
 
 ## build native library
 
-for windows: open the xgboost.sln in windows folder, you will found the xgboostjavawrapper project, you should do the following steps first before build:
+for windows: open the xgboost.sln in windows folder, you will found the xgboostjavawrapper project, you should do the following steps to build wrapper library:
  * Select x64/win32 and Release in build
- * right click on xgboostjavawrapper project -> choose "Properties" -> click on "C/C++" in the window -> change the "Additional Include Directories" to fit your jdk install path.
+ * (if you have setted `JAVA_HOME` properly in windows environment variables, escape this step) right click on xgboostjavawrapper project -> choose "Properties" -> click on "C/C++" in the window -> change the "Additional Include Directories" to fit your jdk install path.
  * rebuild all
- * move the dll "xgboostjavawrapper.dll" to "xgboost4j/src/main/resources/lib/"
+ * move the dll "xgboostjavawrapper.dll" to "xgboost4j/src/main/resources/lib/"(you may need to create this folder if necessary.) 
 
 for linux: 
  * make sure you have installed jdk and `JAVA_HOME` has been setted properly
