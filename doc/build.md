@@ -15,35 +15,64 @@ Build XGBoost in OS X with OpenMP
 ====
 Here is the complete solution to use OpenMp-enabled compilers to install XGBoost.
 
-1. Obtain gcc with openmp support by `brew install gcc --without-multilib` **or** clang with openmp by `brew install clang-omp`. The clang one is recommended because the first method requires us compiling gcc inside the machine (more than an hour in mine)! (BTW, `brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.)
+1. Install dependencies.
 
-2. **if plaing to use clang-omp** in step 3 and/or 4, change line 9 in `xgboost/src/utils/omp.h` to 
+  [Homebrew](http://brew.sh/) is the de facto standard of `apt-get` on OS X. We install OpenMP runtime and compiler (gcc or clang) using `brew`:
 
-  ```C++
-  #include <libiomp/omp.h> /* instead of #include <omp.h> */` 
+  ```bash
+  # recommended
+  # the clang shpped with OS X does not support OpenMP
+  # so we need to install a special version of clang
+  brew install clang-omp
+  brew install libiomp && brew unlink libiomp && brew link libiomp
   ```
 
-  to make it work, otherwise the following steps would show `src/tree/../utils/omp.h:9:10: error: 'omp.h' file not found...`
+  or
+
+  ```bash
+  # not recommended, 
+  # it may take more than an hour to compile gcc itself!
+  brew install gcc --without-multilib
+  brew install libiomp && brew unlink libiomp && brew link libiomp
+  ```
+
+  BTW, installing [HPC](http://hpc.sourceforge.net/) separately without using homebrew is not recommended, but it should work.
 
 
+2. Download source code and Set up Makefile
 
-3. Set the `Makefile` correctly for compiling cpp version xgboost then python version xgboost.
+  ```bash
+  git clone https://github.com/dmlc/xgboost.git
+  cd xgboost/
+  ```
+
+  Consider the lines inside `ifeq ($(UNAME), Darwin)` near line 13 and line 14. If you decide to use gcc, change the lines to these:
 
   ```Makefile
-  export CC  = gcc-4.9
-  export CXX = g++-4.9
+  export CC  = gcc-5
+  export CXX = g++-5
   ```
 
-  Or
-
-  ```Makefile
-  export CC = clang-omp
-  export CXX = clang-omp++
-  ```
-
-  Remember to change `header` if using clang-omp. 
+  If you decide to use clang, no changes are needed.
   
-  Then `cd xgboost` then `bash build.sh` to compile XGBoost. And go to `wrapper` sub-folder to install python version.
+  Then compile it:
+
+  ```bash
+  bash build.sh # or make
+  ```
+
+  You should have built xgboost successfully now.
+
+3. Install python version.
+
+  Like what you would do in Linux.
+
+  ```bash
+  # you are in xgboost/ now
+  cd wrapper/
+  python setup.py install
+  ```
+
 
 4. Set the `Makevars` file in highest piority for R. 
 
@@ -52,8 +81,8 @@ Here is the complete solution to use OpenMp-enabled compilers to install XGBoost
   So, **add** or **change** `~/.R/Makevars` to the following lines:
 
   ```Makefile
-  CC=gcc-4.9
-  CXX=g++-4.9
+  CC=gcc-5
+  CXX=g++-5
   SHLIB_OPENMP_CFLAGS = -fopenmp
   SHLIB_OPENMP_CXXFLAGS = -fopenmp
   SHLIB_OPENMP_FCFLAGS = -fopenmp
@@ -71,9 +100,7 @@ Here is the complete solution to use OpenMp-enabled compilers to install XGBoost
   SHLIB_OPENMP_FFLAGS = -fopenmp
   ```
 
-  Again, remember to change `header` if using clang-omp.
-
-  Then inside R, run 
+  Then inside R, set the working directory as the parent of xgboost folder, run 
 
   ```R
   install.packages('xgboost/R-package/', repos=NULL, type='source')
@@ -82,7 +109,8 @@ Here is the complete solution to use OpenMp-enabled compilers to install XGBoost
   Or
   
   ```R
-  devtools::install_local('xgboost/', subdir = 'R-package') # you may use devtools
+  # you may use devtools
+  devtools::install_local('xgboost/', subdir = 'R-package')
   ```
 
 

@@ -7,6 +7,12 @@ export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops
 ifeq ($(OS), Windows_NT)
 	export CXX = g++ -m64
 	export CC = gcc -m64
+else
+	UNAME := $(shell uname)
+	ifeq ($(UNAME), Darwin)
+		export CC = clang-omp
+		export CXX = clang-omp++
+	endif
 endif
 
 ifeq ($(no_omp),1)
