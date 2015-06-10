@@ -58,3 +58,11 @@ R-package.Rproj
 *.cache*
 R-package/inst
 R-package/src
+#java
+java/xgboost4j/target
+java/xgboost4j/tmp
+java/xgboost4j-demo/target
+java/xgboost4j-demo/data/
+java/xgboost4j-demo/tmp/
+java/xgboost4j-demo/model/
+nb-configuration*
