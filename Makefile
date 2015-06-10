@@ -107,7 +107,7 @@ $(SLIB) :
 	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS) $(DLLFLAGS)
 
 $(JLIB) :
-	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.so %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS)  $(JAVAINCFLAGS)
+	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS)  $(JAVAINCFLAGS)
 
 $(OBJ) : 
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
