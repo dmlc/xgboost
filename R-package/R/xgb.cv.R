@@ -124,14 +124,14 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   if (!is.null(params$objective))
     if (class(params$objective)=='function') {
       obj = params$objective
-      params$objective = NULL
+      params[['objective']] = NULL
     }
   if (!is.null(params$eval_metric) && !is.null(feval))
     stop("xgb.cv: cannot assign two different evaluation metrics")
   if (!is.null(params$eval_metric))
     if (class(params$eval_metric)=='function') {
       feval = params$eval_metric
-      params$eval_metric = NULL
+      params[['eval_metric']] = NULL
     }
   
   # Early Stopping
