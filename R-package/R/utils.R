@@ -220,7 +220,8 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
     stop("nfold must be bigger than 1")
   }
   if(is.null(folds)) {
-    if (exists('objective', where=param) && strtrim(param[['objective']], 5) == 'rank:') {
+    if (exists('objective', where=param) && is.character(param$objective) &&
+        strtrim(param[['objective']], 5) == 'rank:') {
       stop("\tAutomatic creation of CV-folds is not implemented for ranking!\n",
            "\tConsider providing pre-computed CV-folds through the folds parameter.")
     }
@@ -234,7 +235,7 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
       # For classification, need to convert y labels to factor before making the folds,
       # and then do stratification by factor levels.
       # For regression, leave y numeric and do stratification by quantiles.
-      if (exists('objective', where=param)) {
+      if (exists('objective', where=param) && is.character(param$objective)) {
         # If 'objective' provided in params, assume that y is a classification label
         # unless objective is reg:linear
         if (param[['objective']] != 'reg:linear') y <- factor(y)
