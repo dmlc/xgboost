@@ -15,6 +15,7 @@
  */
 package org.dmlc.xgboost4j.util;
 
+import java.util.Map;
 import org.dmlc.xgboost4j.IEvaluation;
 import org.dmlc.xgboost4j.Booster;
 import org.dmlc.xgboost4j.DMatrix;
@@ -37,7 +38,7 @@ public class CVPack {
      * @param dtest test data
      * @param params parameters
      */
-    public CVPack(DMatrix dtrain, DMatrix dtest, Params params) {
+    public CVPack(DMatrix dtrain, DMatrix dtest, Iterable<Map.Entry<String, Object>> params) {
         dmats = new DMatrix[] {dtrain, dtest};
         booster = new Booster(params, dmats);
         names = new String[] {"train", "test"};

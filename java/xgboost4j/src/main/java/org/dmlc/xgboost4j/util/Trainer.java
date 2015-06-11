@@ -46,20 +46,22 @@ public class Trainer {
      * @param eval customized evaluation (set to null if not used)
      * @return trained booster
      */
-    public static Booster train(Params params, DMatrix dtrain, int round, 
-            WatchList watchs, IObjective obj, IEvaluation eval) {
+    public static Booster train(Iterable<Entry<String, Object>> params, DMatrix dtrain, int round, 
+            Iterable<Entry<String, DMatrix>> watchs, IObjective obj, IEvaluation eval) {
         
         //collect eval matrixs
-        int len = watchs.size();
-        int i = 0;
-        String[] evalNames = new String[len];
-        DMatrix[] evalMats = new DMatrix[len];
+        String[] evalNames;
+        DMatrix[] evalMats;
+        List<String> names = new ArrayList<>();
+        List<DMatrix> mats = new ArrayList<>();
         
         for(Entry<String, DMatrix> evalEntry : watchs) {
-            evalNames[i] = evalEntry.getKey();
-            evalMats[i] = evalEntry.getValue();
-            i++;
+            names.add(evalEntry.getKey());
+            mats.add(evalEntry.getValue());
         }
+        
+        evalNames = names.toArray(new String[names.size()]);
+        evalMats = mats.toArray(new DMatrix[mats.size()]);
         
         //collect all data matrixs
         DMatrix[] allMats;
@@ -110,7 +112,7 @@ public class Trainer {
      * @param eval customized evaluation (set to null if not used)
      * @return evaluation history
      */
-    public static String[] crossValiation(Params params, DMatrix data, int round, int nfold, String[] metrics, IObjective obj, IEvaluation eval) {
+    public static String[] crossValiation(Iterable<Entry<String, Object>> params, DMatrix data, int round, int nfold, String[] metrics, IObjective obj, IEvaluation eval) {
         CVPack[] cvPacks = makeNFold(data, nfold, params, metrics);
         String[] evalHist = new String[round];
         String[] results = new String[cvPacks.length];
@@ -147,7 +149,7 @@ public class Trainer {
      * @param evalMetrics Evaluation metrics
      * @return CV package array
      */
-    public static CVPack[] makeNFold(DMatrix data, int nfold, Params params, String[] evalMetrics) {
+    public static CVPack[] makeNFold(DMatrix data, int nfold, Iterable<Entry<String, Object>> params, String[] evalMetrics) {
         List<Integer> samples = genRandPermutationNums(0, (int) data.rowNum());
         int step = samples.size()/nfold;
         int[] testSlice = new int[step];

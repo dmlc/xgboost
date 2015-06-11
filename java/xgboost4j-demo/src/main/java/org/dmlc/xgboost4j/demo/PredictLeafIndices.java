@@ -15,12 +15,15 @@
  */
 package org.dmlc.xgboost4j.demo;
 
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import org.dmlc.xgboost4j.Booster;
 import org.dmlc.xgboost4j.DMatrix;
-import org.dmlc.xgboost4j.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
-import org.dmlc.xgboost4j.util.WatchList;
+import org.dmlc.xgboost4j.demo.util.Params;
 
 /**
  * predict leaf indices
@@ -43,9 +46,9 @@ public class PredictLeafIndices {
         };
         
         //specify watchList
-        WatchList watchs = new WatchList();
-        watchs.put("train", trainMat);
-        watchs.put("test", testMat);
+        List<Map.Entry<String, DMatrix>> watchs =  new ArrayList<>();
+        watchs.add(new AbstractMap.SimpleEntry<>("train", trainMat));
+        watchs.add(new AbstractMap.SimpleEntry<>("test", testMat));
         
         //train a booster
         int round = 3;

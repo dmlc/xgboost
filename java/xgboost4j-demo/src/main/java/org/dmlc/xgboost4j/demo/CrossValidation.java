@@ -18,7 +18,7 @@ package org.dmlc.xgboost4j.demo;
 import java.io.IOException;
 import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.util.Trainer;
-import org.dmlc.xgboost4j.util.Params;
+import org.dmlc.xgboost4j.demo.util.Params;
 
 /**
  * an example of cross validation

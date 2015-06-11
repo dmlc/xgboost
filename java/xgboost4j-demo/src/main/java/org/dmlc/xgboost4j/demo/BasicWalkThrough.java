@@ -18,13 +18,19 @@ package org.dmlc.xgboost4j.demo;
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import org.dmlc.xgboost4j.Booster;
 import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.demo.util.DataLoader;
-import org.dmlc.xgboost4j.util.Params;
+import org.dmlc.xgboost4j.demo.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
-import org.dmlc.xgboost4j.util.WatchList;
 
 /**
  * a simple example of java wrapper for xgboost
@@ -51,8 +57,32 @@ public class BasicWalkThrough {
         DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
         DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
         
+        
         //specify parameters
-        Params param = new Params() {
+        //note: any Iterable<Entry<String, Object>> object would be used as paramters
+        //e.g.
+        //        Map<String, Object> paramMap = new HashMap<String, Object>() {
+        //            {
+        //                put("eta", 1.0);
+        //                put("max_depth", 2);
+        //                put("silent", 1);
+        //                put("objective", "binary:logistic");
+        //            }
+        //        };
+        //        Iterable<Entry<String, Object>> param = paramMap.entrySet();
+        
+        //or
+        //        List<Entry<String, Object>> param = new ArrayList<Entry<String, Object>>() {
+        //            {
+        //                add(new SimpleEntry<String, Object>("eta", 1.0));
+        //                add(new SimpleEntry<String, Object>("max_depth", 2.0));
+        //                add(new SimpleEntry<String, Object>("silent", 1));
+        //                add(new SimpleEntry<String, Object>("objective", "binary:logistic"));
+        //            }
+        //        };
+        
+        //we use a util class Params to handle parameters as example
+        Iterable<Entry<String, Object>> param = new Params() {
             {
                 put("eta", 1.0);
                 put("max_depth", 2);
@@ -61,10 +91,21 @@ public class BasicWalkThrough {
             }
         };
         
-        //specify watchList
-        WatchList watchs = new WatchList();
-        watchs.put("train", trainMat);
-        watchs.put("test", testMat);
+        
+        
+        //specify watchList to set evaluation dmats
+        //note: any Iterable<Entry<String, DMatrix>> object would be used as watchList
+        //e.g.
+        //an entrySet of Map is good
+        //        Map<String, DMatrix> watchMap = new HashMap<>();
+        //        watchMap.put("train", trainMat);
+        //        watchMap.put("test", testMat);
+        //        Iterable<Entry<String, DMatrix>> watchs = watchMap.entrySet();
+       
+        //we use a List of Entry<String, DMatrix> WatchList as example
+        List<Entry<String, DMatrix>> watchs =  new ArrayList<>();
+        watchs.add(new SimpleEntry<>("train", trainMat));
+        watchs.add(new SimpleEntry<>("test", testMat));
         
         //set round
         int round = 2;
@@ -110,9 +151,9 @@ public class BasicWalkThrough {
         trainMat2.setLabel(spData.labels);
         
         //specify watchList
-        WatchList watchs2 = new WatchList();
-        watchs2.put("train", trainMat2);
-        watchs2.put("test", testMat);
+        List<Entry<String, DMatrix>> watchs2 =  new ArrayList<>();
+        watchs2.add(new SimpleEntry<>("train", trainMat2));
+        watchs2.add(new SimpleEntry<>("test", testMat2));
         Booster booster3 = Trainer.train(param, trainMat2, round, watchs2, null, null);
         float[][] predicts3 = booster3.predict(testMat2);
         
