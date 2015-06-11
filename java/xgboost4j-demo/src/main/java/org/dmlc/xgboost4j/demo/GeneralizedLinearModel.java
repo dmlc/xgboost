@@ -20,6 +20,7 @@ import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.demo.util.CustomEval;
 import org.dmlc.xgboost4j.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
+import org.dmlc.xgboost4j.util.WatchList;
 
 /**
  * this is an example of fit generalized linear model in xgboost
@@ -39,8 +40,8 @@ public class GeneralizedLinearModel {
         //you can also set lambda_bias which is L2 regularizer on the bias term
         Params param = new Params() {
             {
-                put("alpha", "0.0001");
-                put("silent", "1");
+                put("alpha", 0.0001);
+                put("silent", 1);
                 put("objective", "binary:logistic");
                 put("booster", "gblinear");
             }
@@ -52,13 +53,14 @@ public class GeneralizedLinearModel {
         //param.put("eta", "0.5");
         
         
-        //specify evaluate datasets and evaluate names
-        DMatrix[] dmats = new DMatrix[] {trainMat, testMat};
-        String[] evalNames = new String[] {"train", "test"};
+        //specify watchList
+        WatchList watchs = new WatchList();
+        watchs.put("train", trainMat);
+        watchs.put("test", testMat);
         
         //train a booster
         int round = 4;
-        Booster booster = Trainer.train(param, trainMat, round, dmats, evalNames, null, null);
+        Booster booster = Trainer.train(param, trainMat, round, watchs, null, null);
         
         float[][] predicts = booster.predict(testMat);
         

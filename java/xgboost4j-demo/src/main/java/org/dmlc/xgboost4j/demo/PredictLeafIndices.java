@@ -20,6 +20,7 @@ import org.dmlc.xgboost4j.Booster;
 import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
+import org.dmlc.xgboost4j.util.WatchList;
 
 /**
  * predict leaf indices
@@ -34,20 +35,21 @@ public class PredictLeafIndices {
         //specify parameters
         Params param = new Params() {
             {
-                put("eta", "1.0");
-                put("max_depth", "2");
-                put("silent", "1");
+                put("eta", 1.0);
+                put("max_depth", 2);
+                put("silent", 1);
                 put("objective", "binary:logistic");
             }
         };
         
-        //specify evaluate datasets and evaluate names
-        DMatrix[] dmats = new DMatrix[] {trainMat, testMat};
-        String[] evalNames = new String[] {"train", "test"};
+        //specify watchList
+        WatchList watchs = new WatchList();
+        watchs.put("train", trainMat);
+        watchs.put("test", testMat);
         
         //train a booster
         int round = 3;
-        Booster booster = Trainer.train(param, trainMat, round, dmats, evalNames, null, null);
+        Booster booster = Trainer.train(param, trainMat, round, watchs, null, null);
         
         //predict using first 2 tree
         float[][] leafindex = booster.predict(testMat, 2, true);

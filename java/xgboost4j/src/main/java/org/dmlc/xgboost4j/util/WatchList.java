@@ -15,40 +15,35 @@
  */
 package org.dmlc.xgboost4j.util;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.AbstractMap;
-
+import org.dmlc.xgboost4j.DMatrix;
 
 /**
- * a util class for handle params
+ * class to handle evaluation dmatrix
  * @author hzx
  */
-public class Params implements Iterable<Entry<String, Object>>{
-    List<Entry<String, Object>> params = new ArrayList<>();
+public class WatchList implements Iterable<Entry<String, DMatrix> >{
+    List<Entry<String, DMatrix>> watchList = new ArrayList<>();
     
     /**
-     * put param key-value pair
-     * @param key
-     * @param value 
+     * put eval dmatrix and it's name 
+     * @param name
+     * @param dmat 
      */
-    public void put(String key, Object value) {
-        params.add(new AbstractMap.SimpleEntry<>(key, value));
+    public void put(String name, DMatrix dmat) {
+        watchList.add(new AbstractMap.SimpleEntry<>(name, dmat));
     }
     
-    @Override
-    public String toString(){ 
-        String paramsInfo = "";
-        for(Entry<String, Object> param : params) {
-            paramsInfo += param.getKey() + ":" + param.getValue() + "\n";
-        }
-        return paramsInfo;
+    public int size() {
+        return watchList.size();
     }
 
     @Override
-    public Iterator<Entry<String, Object>> iterator() {
-        return params.iterator();
-    }
+    public Iterator<Entry<String, DMatrix>> iterator() {
+        return watchList.iterator();
+    }    
 }

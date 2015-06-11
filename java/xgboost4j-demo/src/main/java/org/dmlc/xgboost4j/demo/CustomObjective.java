@@ -16,7 +16,6 @@
 package org.dmlc.xgboost4j.demo;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import org.dmlc.xgboost4j.Booster;
 import org.dmlc.xgboost4j.IEvaluation;
@@ -24,6 +23,7 @@ import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.IObjective;
 import org.dmlc.xgboost4j.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
+import org.dmlc.xgboost4j.util.WatchList;
 
 /**
  * an example user define objective and eval
@@ -130,18 +130,19 @@ public class CustomObjective {
         //set params
         Params param = new Params() {
             {
-                put("eta", "1.0");
-                put("max_depth", "2");
-                put("silent", "1");
+                put("eta", 1.0);
+                put("max_depth", 2);
+                put("silent", 1);
             }
         };
         
         //set round
         int round = 2;
         
-        //set evaluation data
-        DMatrix[] dmats = new DMatrix[] {trainMat, testMat};
-        String[] evalNames = new String[] {"train", "eval"};
+        //specify watchList
+        WatchList watchs = new WatchList();
+        watchs.put("train", trainMat);
+        watchs.put("test", testMat);
         
         //user define obj and eval
         IObjective obj = new LogRegObj();
@@ -149,6 +150,6 @@ public class CustomObjective {
         
         //train a booster
         System.out.println("begin to train the booster model");        
-        Booster booster = Trainer.train(param, trainMat, round, dmats, evalNames, obj, eval);
+        Booster booster = Trainer.train(param, trainMat, round, watchs, obj, eval);
     }
 }

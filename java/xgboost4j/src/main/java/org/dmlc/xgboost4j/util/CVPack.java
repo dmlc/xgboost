@@ -28,7 +28,6 @@ public class CVPack {
     DMatrix dtrain;
     DMatrix dtest;
     DMatrix[] dmats;
-    long[] dataArray;
     String[] names;
     Booster booster;
     
@@ -41,7 +40,6 @@ public class CVPack {
     public CVPack(DMatrix dtrain, DMatrix dtest, Params params) {
         dmats = new DMatrix[] {dtrain, dtest};
         booster = new Booster(params, dmats);
-        dataArray = TransferUtil.dMatrixs2handles(dmats);
         names = new String[] {"train", "test"};
         this.dtrain = dtrain;
         this.dtest = dtest;
@@ -70,7 +68,7 @@ public class CVPack {
      * @return 
      */
     public String eval(int iter) {
-        return booster.evalSet(dataArray, names, iter);
+        return booster.evalSet(dmats, names, iter);
     }
     
     /**

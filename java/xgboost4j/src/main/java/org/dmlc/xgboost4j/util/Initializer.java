@@ -43,7 +43,7 @@ public class Initializer {
     }
     
     /**
-     * load native library, this method will first try to load library from java.library.path, then try to load from library in jar package.
+     * load native library, this method will first try to load library from java.library.path, then try to load library in jar package.
      * @param libName
      * @throws IOException 
      */

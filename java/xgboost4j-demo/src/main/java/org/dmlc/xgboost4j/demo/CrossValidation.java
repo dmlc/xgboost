@@ -32,12 +32,12 @@ public class CrossValidation {
         //set params
         Params param = new Params() {
             {
-                put("eta", "1.0");
-                put("max_depth", "3");
-                put("silent", "1");
-                put("nthread", "6");
+                put("eta", 1.0);
+                put("max_depth", 3);
+                put("silent", 1);
+                put("nthread", 6);
                 put("objective", "binary:logistic");
-                put("gamma", "1.0");
+                put("gamma", 1.0);
                 put("eval_metric", "error");
             }
         };

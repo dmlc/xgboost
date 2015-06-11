@@ -30,7 +30,6 @@ import org.apache.commons.logging.LogFactory;
 
 import org.dmlc.xgboost4j.util.Initializer;
 import org.dmlc.xgboost4j.util.Params;
-import org.dmlc.xgboost4j.util.TransferUtil;
 import org.dmlc.xgboost4j.wrapper.XgboostJNI;
 
 
@@ -85,7 +84,7 @@ public final class Booster {
     private void init(DMatrix[] dMatrixs) {
         long[] handles = null;
         if(dMatrixs != null) {
-            handles = TransferUtil.dMatrixs2handles(dMatrixs);
+            handles = dMatrixs2handles(dMatrixs);
         }
         handle = XgboostJNI.XGBoosterCreate(handles);
     }
@@ -105,8 +104,8 @@ public final class Booster {
      */
     public void setParams(Params params) {
         if(params!=null) {
-            for(Map.Entry<String, String> entry : params) {
-                setParam(entry.getKey(), entry.getValue());
+            for(Map.Entry<String, Object> entry : params) {
+                setParam(entry.getKey(), entry.getValue().toString());
             }
         }
     }
@@ -154,7 +153,7 @@ public final class Booster {
      * @return eval information
      */
     public String evalSet(DMatrix[] evalMatrixs, String[] evalNames,  int iter) {
-        long[] handles = TransferUtil.dMatrixs2handles(evalMatrixs);
+        long[] handles = dMatrixs2handles(evalMatrixs);
         String evalInfo = XgboostJNI.XGBoosterEvalOneIter(handle, iter, handles, evalNames);
         return evalInfo;
     }
@@ -422,6 +421,19 @@ public final class Booster {
             }
         }
         return featureScore;
+    }
+    
+    /**
+     * transfer DMatrix array to handle array (used for native functions)
+     * @param dmatrixs
+     * @return handle array for input dmatrixs
+     */
+    private static long[] dMatrixs2handles(DMatrix[] dmatrixs) {
+        long[] handles = new long[dmatrixs.length];
+        for(int i=0; i<dmatrixs.length; i++) {
+            handles[i] = dmatrixs[i].getHandle();
+        }
+        return handles;
     }
     
     @Override

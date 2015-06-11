@@ -19,6 +19,7 @@ import org.dmlc.xgboost4j.Booster;
 import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
+import org.dmlc.xgboost4j.util.WatchList;
 
 /**
  * simple example for using external memory version
@@ -35,25 +36,26 @@ public class ExternalMemory {
         //specify parameters
         Params param = new Params() {
             {
-                put("eta", "1.0");
-                put("max_depth", "2");
-                put("silent", "1");
+                put("eta", 1.0);
+                put("max_depth", 2);
+                put("silent", 1);
                 put("objective", "binary:logistic");
             }
         };
         
         //performance notice: set nthread to be the number of your real cpu
         //some cpu offer two threads per core, for example, a 4 core cpu with 8 threads, in such case set nthread=4
-        //param.put("nthread", "num_real_cpu");
+        //param.put("nthread", num_real_cpu);
         
-        //specify evaluate datasets and evaluate names
-        DMatrix[] dmats = new DMatrix[] {trainMat, testMat};
-        String[] evalNames = new String[] {"train", "test"};
+        //specify watchList
+        WatchList watchs = new WatchList();
+        watchs.put("train", trainMat);
+        watchs.put("test", testMat);
         
         //set round
         int round = 2;
         
         //train a boost model
-        Booster booster = Trainer.train(param, trainMat, round, dmats, evalNames, null, null);
+        Booster booster = Trainer.train(param, trainMat, round, watchs, null, null);
     }
 }

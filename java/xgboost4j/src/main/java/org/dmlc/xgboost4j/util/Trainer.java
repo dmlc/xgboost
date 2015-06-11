@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.dmlc.xgboost4j.IEvaluation;
@@ -40,14 +41,26 @@ public class Trainer {
      * @param params Booster params.
      * @param dtrain Data to be trained.
      * @param round Number of boosting iterations.
-     * @param evalMats Data to be evaluated (may include dtrain)
-     * @param evalNames name of data (used for evaluation info)
+     * @param watchs a group of items to be evaluated during training, this allows user to watch performance on the validation set.
      * @param obj customized objective (set to null if not used)
      * @param eval customized evaluation (set to null if not used)
      * @return trained booster
      */
-    public static Booster train(Params params, DMatrix dtrain, int round,
-            DMatrix[] evalMats, String[] evalNames, IObjective obj, IEvaluation eval) {
+    public static Booster train(Params params, DMatrix dtrain, int round, 
+            WatchList watchs, IObjective obj, IEvaluation eval) {
+        
+        //collect eval matrixs
+        int len = watchs.size();
+        int i = 0;
+        String[] evalNames = new String[len];
+        DMatrix[] evalMats = new DMatrix[len];
+        
+        for(Entry<String, DMatrix> evalEntry : watchs) {
+            evalNames[i] = evalEntry.getKey();
+            evalMats[i] = evalEntry.getValue();
+            i++;
+        }
+        
         //collect all data matrixs
         DMatrix[] allMats;
         if(evalMats!=null && evalMats.length>0) {
@@ -62,16 +75,6 @@ public class Trainer {
         
         //initialize booster
         Booster booster = new Booster(params, allMats);
-        
-        //used for evaluation
-        long[] dataArray = null;
-        String[] names = null;
-        
-        if(dataArray==null || names==null) {
-            //prepare data for evaluation
-            dataArray = TransferUtil.dMatrixs2handles(evalMats);
-            names = evalNames;
-        }
         
         //begin to train
         for(int iter=0; iter<round; iter++) {
@@ -88,7 +91,7 @@ public class Trainer {
                     evalInfo = booster.evalSet(evalMats, evalNames, iter, eval);
                 }
                 else {
-                    evalInfo = booster.evalSet(dataArray, names, iter);
+                    evalInfo = booster.evalSet(evalMats, evalNames, iter);
                 }
                 logger.info(evalInfo);
             }

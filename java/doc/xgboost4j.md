@@ -82,9 +82,9 @@ import org.dmlc.xgboost4j.util.Params;
 ```java
 Params params = new Params() {
   {
-    put("eta", "1.0");
-    put("max_depth", "2");
-    put("silent", "1");
+    put("eta", 1.0);
+    put("max_depth", 2);
+    put("silent", 1);
     put("objective", "binary:logistic");
     put("eval_metric", "logloss");
   }
@@ -94,9 +94,9 @@ Params params = new Params() {
 ```java
 Params params = new Params() {
   {
-    put("eta", "1.0");
-    put("max_depth", "2");
-    put("silent", "1");
+    put("eta", 1.0);
+    put("max_depth", 2);
+    put("silent", 1);
     put("objective", "binary:logistic");
     put("eval_metric", "logloss");
     put("eval_metric", "error");
@@ -110,16 +110,19 @@ With parameters and data, you are able to train a booster model.
 ```java
 import org.dmlc.xgboost4j.Booster;
 import org.dmlc.xgboost4j.util.Trainer;
+import org.dmlc.xgboost4j.util.WatchList;
 ```
 
 * Training
 ```java
 DMatrix trainMat = new DMatrix("train.svm.txt");
 DMatrix validMat = new DMatrix("valid.svm.txt");
-DMatrix[] evalMats = new DMatrix[] {trainMat, validMat};
-String[] evalNames = new String[] {"train", "valid"};
+//specifiy a watchList to see the performance
+WatchList watchs = new WatchList();
+watchs.put("train", trainMat);
+watchs.put("test", testMat);
 int round = 2;
-Booster booster = Trainer.train(params, trainMat, round, evalMats, evalNames, null, null);
+Booster booster = Trainer.train(params, trainMat, round, watchs, null, null);
 ```
 
 * Saving model
@@ -139,8 +142,8 @@ booster.dumpModel("modelInfo.txt", "featureMap.txt", false)
 ```java
 Params param = new Params() {
   {
-    put("silent", "1");
-    put("nthread", "6");
+    put("silent", 1);
+    put("nthread", 6);
   }
 };
 Booster booster = new Booster(param, "model.bin");

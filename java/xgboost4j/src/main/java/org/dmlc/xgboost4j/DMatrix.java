@@ -19,7 +19,6 @@ import java.io.IOException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.dmlc.xgboost4j.util.Initializer;
-import org.dmlc.xgboost4j.util.TransferUtil;
 import org.dmlc.xgboost4j.wrapper.XgboostJNI;
 
 /**
@@ -126,7 +125,7 @@ public class DMatrix {
      * @param baseMargin 
      */
     public void setBaseMargin(float[][] baseMargin) {
-        float[] flattenMargin = TransferUtil.flatten(baseMargin);
+        float[] flattenMargin = flatten(baseMargin);
         setBaseMargin(flattenMargin);
     }
     
@@ -201,6 +200,24 @@ public class DMatrix {
     
     public long getHandle() {
         return handle;
+    }
+    
+    /**
+     * flatten a mat to array
+     * @param mat
+     * @return 
+     */
+    private static float[] flatten(float[][] mat) {
+        int size = 0;
+        for (float[] array : mat) size += array.length;
+        float[] result = new float[size];
+        int pos = 0;
+        for (float[] ar : mat) {
+            System.arraycopy(ar, 0, result, pos, ar.length);
+            pos += ar.length;
+        }
+        
+        return result;
     }
     
     @Override

@@ -24,6 +24,7 @@ import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.demo.util.DataLoader;
 import org.dmlc.xgboost4j.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
+import org.dmlc.xgboost4j.util.WatchList;
 
 /**
  * a simple example of java wrapper for xgboost
@@ -53,22 +54,23 @@ public class BasicWalkThrough {
         //specify parameters
         Params param = new Params() {
             {
-                put("eta", "1.0");
-                put("max_depth", "2");
-                put("silent", "1");
+                put("eta", 1.0);
+                put("max_depth", 2);
+                put("silent", 1);
                 put("objective", "binary:logistic");
             }
         };
         
-        //specify evaluate datasets and evaluate names
-        DMatrix[] dmats = new DMatrix[] {trainMat, testMat};
-        String[] evalNames = new String[] {"train", "test"};
+        //specify watchList
+        WatchList watchs = new WatchList();
+        watchs.put("train", trainMat);
+        watchs.put("test", testMat);
         
         //set round
         int round = 2;
         
         //train a boost model
-        Booster booster = Trainer.train(param, trainMat, round, dmats, evalNames, null, null);
+        Booster booster = Trainer.train(param, trainMat, round, watchs, null, null);
         
          //predict
         float[][] predicts = booster.predict(testMat);
@@ -107,8 +109,11 @@ public class BasicWalkThrough {
         DMatrix trainMat2 = new DMatrix(spData.rowHeaders, spData.colIndex, spData.data, DMatrix.SparseType.CSR);
         trainMat2.setLabel(spData.labels);
         
-        dmats = new DMatrix[] {trainMat2, testMat};
-        Booster booster3 = Trainer.train(param, trainMat2, round, dmats, evalNames, null, null);
+        //specify watchList
+        WatchList watchs2 = new WatchList();
+        watchs2.put("train", trainMat2);
+        watchs2.put("test", testMat);
+        Booster booster3 = Trainer.train(param, trainMat2, round, watchs2, null, null);
         float[][] predicts3 = booster3.predict(testMat2);
         
         //check predicts

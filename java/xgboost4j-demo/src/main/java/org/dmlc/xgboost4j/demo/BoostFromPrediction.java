@@ -19,6 +19,7 @@ import org.dmlc.xgboost4j.Booster;
 import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
+import org.dmlc.xgboost4j.util.WatchList;
 
 /**
  * example for start from a initial base prediction
@@ -35,19 +36,20 @@ public class BoostFromPrediction {
         //specify parameters
         Params param = new Params() {
             {
-                put("eta", "1.0");
-                put("max_depth", "2");
-                put("silent", "1");
+                put("eta", 1.0);
+                put("max_depth", 2);
+                put("silent", 1);
                 put("objective", "binary:logistic");
             }
         };
         
-        //specify evaluate datasets and evaluate names
-        DMatrix[] dmats = new DMatrix[] {trainMat, testMat};
-        String[] evalNames = new String[] {"train", "test"};
+         //specify watchList
+        WatchList watchs = new WatchList();
+        watchs.put("train", trainMat);
+        watchs.put("test", testMat);
         
         //train xgboost for 1 round
-        Booster booster = Trainer.train(param, trainMat, 1, dmats, evalNames, null, null);
+        Booster booster = Trainer.train(param, trainMat, 1, watchs, null, null);
         
         float[][] trainPred = booster.predict(trainMat, true);
         float[][] testPred = booster.predict(testMat, true);
@@ -56,6 +58,6 @@ public class BoostFromPrediction {
         testMat.setBaseMargin(testPred);
         
         System.out.println("result of running from initial prediction");
-        Booster booster2 = Trainer.train(param, trainMat, 1, dmats, evalNames, null, null);
+        Booster booster2 = Trainer.train(param, trainMat, 1, watchs, null, null);
     }
 }
