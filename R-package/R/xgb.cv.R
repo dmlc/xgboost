@@ -112,7 +112,12 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   } else {
     dtrain <- xgb.get.DMatrix(data, label, missing)
   }
-  params <- append(params, list(...))
+  dot.params = list(...)
+  nms.params = names(params)
+  nms.dot.params = names(dot.params)
+  if (length(intersect(nms.params,nms.dot.params))>0)
+    stop("Duplicated defined term in parameters. Please check your list of params.")
+  params <- append(params, dot.params)
   params <- append(params, list(silent=1))
   for (mc in metrics) {
     params <- append(params, list("eval_metric"=mc))
@@ -126,8 +131,8 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
       obj = params$objective
       params[['objective']] = NULL
     }
-  if (!is.null(params$eval_metric) && !is.null(feval))
-    stop("xgb.cv: cannot assign two different evaluation metrics")
+  # if (!is.null(params$eval_metric) && !is.null(feval))
+  #  stop("xgb.cv: cannot assign two different evaluation metrics")
   if (!is.null(params$eval_metric))
     if (class(params$eval_metric)=='function') {
       feval = params$eval_metric

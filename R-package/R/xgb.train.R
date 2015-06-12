@@ -136,7 +136,13 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   if (length(watchlist) != 0 && verbose == 0) {
     warning('watchlist is provided but verbose=0, no evaluation information will be printed')
   }
-  params = append(params, list(...))
+  
+  dot.params = list(...)
+  nms.params = names(params)
+  nms.dot.params = names(dot.params)
+  if (length(intersect(nms.params,nms.dot.params))>0)
+    stop("Duplicated term in parameters. Please check your list of params.")
+  params = append(params, dot.params)
   
   # customized objective and evaluation metric interface
   if (!is.null(params$objective) && !is.null(obj))
