@@ -153,7 +153,7 @@ class FMatrixS : public IFMatrix {
     pcol->Clear();
     utils::ParallelGroupBuilder<SparseBatch::Entry>
         builder(&pcol->offset, &pcol->data);
-    builder.InitBudget(0, nthread);
+    builder.InitBudget(info_.num_col(), nthread);
     // start working
     iter_->BeforeFirst();
     while (iter_->Next()) {
@@ -204,7 +204,8 @@ class FMatrixS : public IFMatrix {
       }
     }
 
-    utils::Assert(pcol->Size() == info_.num_col(), "inconsistent col data");
+    utils::Assert(pcol->Size() == info_.num_col(),
+                  "inconsistent col data");
     // sort columns
     bst_omp_uint ncol = static_cast<bst_omp_uint>(pcol->Size());
     #pragma omp parallel for schedule(dynamic, 1) num_threads(nthread)
