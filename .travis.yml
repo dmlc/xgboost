@@ -1,0 +1,31 @@
+language: c
+
+env:
+    global:
+        - _R_CHECK_TIMINGS_=0
+
+warnings_are_errors: false
+
+sudo: required
+
+before_install:
+    - curl -OL http://raw.github.com/craigcitro/r-travis/master/scripts/travis-tool.sh
+    - chmod 755 ./travis-tool.sh
+    - ./travis-tool.sh bootstrap
+
+install:
+    - cd ./R-package
+    - ../travis-tool.sh install_deps
+
+script: ../travis-tool.sh run_tests
+
+on_failure:
+    - ../travis-tool.sh dump_logs
+
+notifications:
+    email:
+        recipients:
+            - hetong007@gmail.com
+        on_success: change
+        on_failure: always
+
