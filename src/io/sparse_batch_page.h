@@ -178,8 +178,22 @@ class SparsePage {
     offset.push_back(offset.back() + inst.length);
     size_t begin = data.size();
     data.resize(begin + inst.length);
-    std::memcpy(BeginPtr(data) + begin, inst.data,
-                sizeof(SparseBatch::Entry) * inst.length);
+    if (inst.length != 0) {
+      std::memcpy(BeginPtr(data) + begin, inst.data,
+                  sizeof(SparseBatch::Entry) * inst.length);
+    }
+  }
+  /*!
+   * \param base_rowid base_rowid of the data
+   * \return row batch representation of the page
+   */
+  inline RowBatch GetRowBatch(size_t base_rowid) const {
+    RowBatch out;
+    out.base_rowid  = base_rowid;
+    out.ind_ptr = BeginPtr(offset);
+    out.data_ptr = BeginPtr(data);
+    out.size = offset.size() - 1;
+    return out;
   }
 
  private:

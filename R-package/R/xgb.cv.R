@@ -54,6 +54,13 @@
 #' @param folds \code{list} provides a possibility of using a list of pre-defined CV folds (each element must be a vector of fold's indices).
 #'   If folds are supplied, the nfold and stratified parameters would be ignored.
 #' @param verbose \code{boolean}, print the statistics during the process
+#' @param print.every.n Print every N progress messages when \code{verbose>0}. Default is 1 which means all messages are printed.
+#' @param early.stop.round If \code{NULL}, the early stopping function is not triggered. 
+#'     If set to an integer \code{k}, training with a validation set will stop if the performance 
+#'     keeps getting worse consecutively for \code{k} rounds.
+#' @param maximize If \code{feval} and \code{early.stop.round} are set, then \code{maximize} must be set as well.
+#'     \code{maximize=TRUE} means the larger the evaluation score the better.
+#'     
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @return
@@ -86,7 +93,8 @@
 #'
 xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NULL, 
                    prediction = FALSE, showsd = TRUE, metrics=list(), 
-                   obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, verbose = T,...) {
+                   obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, verbose = T, print.every.n=1L,
+                   early.stop.round = NULL, maximize = NULL, ...) {
   if (typeof(params) != "list") {
     stop("xgb.cv: first argument params must be list")
   }
@@ -109,7 +117,50 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   for (mc in metrics) {
     params <- append(params, list("eval_metric"=mc))
   }
-
+  
+  # customized objective and evaluation metric interface
+  if (!is.null(params$objective) && !is.null(obj))
+    stop("xgb.cv: cannot assign two different objectives")
+  if (!is.null(params$objective))
+    if (class(params$objective)=='function') {
+      obj = params$objective
+      params$objective = NULL
+    }
+  if (!is.null(params$eval_metric) && !is.null(feval))
+    stop("xgb.cv: cannot assign two different evaluation metrics")
+  if (!is.null(params$eval_metric))
+    if (class(params$eval_metric)=='function') {
+      feval = params$eval_metric
+      params$eval_metric = NULL
+    }
+  
+  # Early Stopping
+  if (!is.null(early.stop.round)){
+    if (!is.null(feval) && is.null(maximize))
+      stop('Please set maximize to note whether the model is maximizing the evaluation or not.')
+    if (is.null(maximize) && is.null(params$eval_metric))
+      stop('Please set maximize to note whether the model is maximizing the evaluation or not.')
+    if (is.null(maximize))
+    {
+      if (params$eval_metric %in% c('rmse','logloss','error','merror','mlogloss')) {
+        maximize = FALSE
+      } else {
+        maximize = TRUE
+      }
+    }
+    
+    if (maximize) {
+      bestScore = 0
+    } else {
+      bestScore = Inf
+    }
+    bestInd = 0
+    earlyStopflag = FALSE
+    
+    if (length(metrics)>1)
+      warning('Only the first metric is used for early stopping process.')
+  }
+  
   xgb_folds <- xgb.cv.mknfold(dtrain, nfold, params, stratified, folds)
   obj_type = params[['objective']]
   mat_pred = FALSE
@@ -124,6 +175,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   else
     predictValues <- rep(0,xgb.numrow(dtrain))
   history <- c()
+  print.every.n = max(as.integer(print.every.n), 1L)
   for (i in 1:nrounds) {
     msg <- list()
     for (k in 1:nfold) {
@@ -148,7 +200,27 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     }
     ret <- xgb.cv.aggcv(msg, showsd)
     history <- c(history, ret)
-    if(verbose) paste(ret, "\n", sep="") %>% cat
+    if(verbose)
+      if (0==(i-1L)%%print.every.n)
+        cat(ret, "\n", sep="")
+    
+    # early_Stopping
+    if (!is.null(early.stop.round)){
+      score = strsplit(ret,'\\s+')[[1]][1+length(metrics)+2]
+      score = strsplit(score,'\\+|:')[[1]][[2]]
+      score = as.numeric(score)
+      if ((maximize && score>bestScore) || (!maximize && score<bestScore)) {
+        bestScore = score
+        bestInd = i
+      } else {
+        if (i-bestInd>=early.stop.round) {
+          earlyStopflag = TRUE
+          cat('Stopping. Best iteration:',bestInd)
+          break
+        }
+      }
+    }
+    
   }
   
   colnames <- str_split(string = history[1], pattern = "\t")[[1]] %>% .[2:length(.)] %>% str_extract(".*:") %>% str_replace(":","") %>% str_replace("-", ".")

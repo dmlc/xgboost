@@ -33,6 +33,7 @@ class BoostLearner : public rabit::Serializable {
     silent= 0;
     prob_buffer_row = 1.0f;
     distributed_mode = 0;
+    updater_mode = 0;
     pred_buffer_size = 0;
     seed_per_iteration = 0;
     seed = 0;
@@ -95,6 +96,7 @@ class BoostLearner : public rabit::Serializable {
         utils::Error("%s is invalid value for dsplit, should be row or col", val);
       }
     }
+    if (!strcmp(name, "updater_mode")) updater_mode = atoi(val);
     if (!strcmp(name, "prob_buffer_row")) {
       prob_buffer_row = static_cast<float>(atof(val));
       utils::Check(distributed_mode == 0,
@@ -157,11 +159,9 @@ class BoostLearner : public rabit::Serializable {
   /*!
    * \brief load model from stream
    * \param fi input stream
-   * \param with_pbuffer whether to load with predict buffer
    * \param calc_num_feature whether call InitTrainer with calc_num_feature
    */
   inline void LoadModel(utils::IStream &fi,
-                        bool with_pbuffer = true,
                         bool calc_num_feature = true) {
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "BoostLearner: wrong model format");
@@ -189,15 +189,15 @@ class BoostLearner : public rabit::Serializable {
     char tmp[32];
     utils::SPrintf(tmp, sizeof(tmp), "%u", mparam.num_class);
     obj_->SetParam("num_class", tmp);
-    gbm_->LoadModel(fi, with_pbuffer);
-    if (!with_pbuffer || distributed_mode == 2) {
+    gbm_->LoadModel(fi, mparam.saved_with_pbuffer != 0);
+    if (mparam.saved_with_pbuffer == 0) {
       gbm_->ResetPredBuffer(pred_buffer_size);
     }
   }
   // rabit load model from rabit checkpoint
   virtual void Load(rabit::Stream *fi) {
     // for row split, we should not keep pbuffer
-    this->LoadModel(*fi, distributed_mode != 2, false);
+    this->LoadModel(*fi, false);
   }
   // rabit save model to rabit checkpoint
   virtual void Save(rabit::Stream *fo) const {
@@ -218,18 +218,20 @@ class BoostLearner : public rabit::Serializable {
     if (header == "bs64") {
       utils::Base64InStream bsin(fi);
       bsin.InitPosition();
-      this->LoadModel(bsin);
+      this->LoadModel(bsin, true);
     } else if (header == "binf") {
-      this->LoadModel(*fi);
+      this->LoadModel(*fi, true);
     } else {
       delete fi;
       fi = utils::IStream::Create(fname, "r");
-      this->LoadModel(*fi);
+      this->LoadModel(*fi, true);
     }
     delete fi;   
   }
-  inline void SaveModel(utils::IStream &fo, bool with_pbuffer = true) const {
-    fo.Write(&mparam, sizeof(ModelParam));
+  inline void SaveModel(utils::IStream &fo, bool with_pbuffer) const {
+    ModelParam p = mparam;
+    p.saved_with_pbuffer = static_cast<int>(with_pbuffer);
+    fo.Write(&p, sizeof(ModelParam));
     fo.Write(name_obj_);
     fo.Write(name_gbm_);
     gbm_->SaveModel(fo, with_pbuffer);
@@ -237,17 +239,18 @@ class BoostLearner : public rabit::Serializable {
   /*!
    * \brief save model into file
    * \param fname file name
+   * \param with_pbuffer whether save pbuffer together
    */
-  inline void SaveModel(const char *fname) const {
+  inline void SaveModel(const char *fname, bool with_pbuffer) const {
     utils::IStream *fo = utils::IStream::Create(fname, "w");
     if (save_base64 != 0 || !strcmp(fname, "stdout")) {
       fo->Write("bs64\t", 5);
       utils::Base64OutStream bout(fo);
-      this->SaveModel(bout);
+      this->SaveModel(bout, with_pbuffer);
       bout.Finish('\n');    
     } else {
       fo->Write("binf", 4);
-      this->SaveModel(*fo);
+      this->SaveModel(*fo, with_pbuffer);
     }
     delete fo;
   }
@@ -258,9 +261,17 @@ class BoostLearner : public rabit::Serializable {
    */
   inline void CheckInit(DMatrix *p_train) {
     int ncol = static_cast<int>(p_train->info.info.num_col);    
-    std::vector<bool> enabled(ncol, true);    
+    std::vector<bool> enabled(ncol, true);
+    // set max row per batch to limited value
+    // in distributed mode, use safe choice otherwise
+    size_t max_row_perbatch = std::numeric_limits<size_t>::max();
+    if (updater_mode != 0 || distributed_mode == 2) {
+      max_row_perbatch = 32UL << 10UL;
+    }
     // initialize column access
-    p_train->fmat()->InitColAccess(enabled, prob_buffer_row);
+    p_train->fmat()->InitColAccess(enabled,
+                                   prob_buffer_row,
+                                   max_row_perbatch);
     const int kMagicPage = 0xffffab02;
     // check, if it is DMatrixPage, then use hist maker
     if (p_train->magic == kMagicPage) {
@@ -442,14 +453,17 @@ class BoostLearner : public rabit::Serializable {
     unsigned num_feature;
     /* \brief number of class, if it is multi-class classification  */
     int num_class;
+    /*! \brief whether the model itself is saved with pbuffer */
+    int saved_with_pbuffer;
     /*! \brief reserved field */
-    int reserved[31];
+    int reserved[30];
     /*! \brief constructor */
     ModelParam(void) {
+      std::memset(this, 0, sizeof(ModelParam));
       base_score = 0.5f;
       num_feature = 0;
       num_class = 0;
-      std::memset(reserved, 0, sizeof(reserved));
+      saved_with_pbuffer = 0;
     }
     /*!
      * \brief set parameters from outside
@@ -476,6 +490,8 @@ class BoostLearner : public rabit::Serializable {
   int silent;
   // distributed learning mode, if any, 0:none, 1:col, 2:row
   int distributed_mode;
+  // updater mode, 0:normal, reserved for internal test
+  int updater_mode;
   // cached size of predict buffer
   size_t pred_buffer_size;
   // maximum buffred row value

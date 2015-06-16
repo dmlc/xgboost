@@ -21,8 +21,16 @@ xgboost-0.3
 * Add [Code Guide](src/README.md) for customizing objective function and evaluation
 * Add R module
 
-in progress version
+xgboost-0.4
 =====
-* Distributed version
-* Feature importance visualization in R module, thanks to Michael Benesty
-* Predict leaf inde
+* Distributed version of xgboost that runs on YARN, scales to billions of examples
+* Direct save/load data and model from/to S3 and HDFS
+* Feature importance visualization in R module, by Michael Benesty
+* Predict leaf index
+* Poisson regression for counts data
+* Early stopping option in training
+* Native save load support in R and python
+  - xgboost models now can be saved using save/load in R
+  - xgboost python model is now pickable
+* sklearn wrapper is supported in python module
+* Experimental External memory version
