@@ -21,6 +21,7 @@ script: ../travis-tool.sh run_tests
 
 on_failure:
     - ../travis-tool.sh dump_logs
+    - cat /home/travis/build/dmlc/xgboost/R-package/xgboost.Rcheck/00install.out
 
 notifications:
     email:
