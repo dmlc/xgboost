@@ -6,7 +6,7 @@ env:
 
 warnings_are_errors: false
 
-sudo: required
+sudo: true
 
 before_install:
     - curl -OL http://raw.github.com/craigcitro/r-travis/master/scripts/travis-tool.sh
@@ -26,6 +26,7 @@ notifications:
     email:
         recipients:
             - hetong007@gmail.com
+            - tqchen@cs.washington.edu
         on_success: change
         on_failure: always
 
