@@ -17,11 +17,17 @@ install:
     - cd ./R-package
     - ../travis-tool.sh install_deps
 
-script: ../travis-tool.sh run_tests
+script: 
+    - bash ../travis-tool.sh run_tests  
+    - bash cat /home/travis/build/dmlc/xgboost/R-package/xgboost.Rcheck/00install.out
+
+after_failure: cat /home/travis/build/dmlc/xgboost/R-package/xgboost.Rcheck/00install.out
 
 on_failure:
-    - ../travis-tool.sh dump_logs
     - cat /home/travis/build/dmlc/xgboost/R-package/xgboost.Rcheck/00install.out
+    - ../travis-tool.sh dump_logs
+    
+after_script: cat /home/travis/build/dmlc/xgboost/R-package/xgboost.Rcheck/00install.out
 
 notifications:
     email:
