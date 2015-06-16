@@ -14,21 +14,16 @@ before_install:
     - ./travis-tool.sh bootstrap
 
 install:
-    - cd ./R-package
+    - make Rpack
+    - cd ./xgboost
     - ../travis-tool.sh install_deps
 
 script: 
     - bash ../travis-tool.sh run_tests  
-    - bash cat /home/travis/build/dmlc/xgboost/R-package/xgboost.Rcheck/00install.out
 
 after_failure: cat /home/travis/build/dmlc/xgboost/R-package/xgboost.Rcheck/00install.out
 
-on_failure:
-    - cat /home/travis/build/dmlc/xgboost/R-package/xgboost.Rcheck/00install.out
-    - ../travis-tool.sh dump_logs
-    
-after_script: cat /home/travis/build/dmlc/xgboost/R-package/xgboost.Rcheck/00install.out
-
+   
 notifications:
     email:
         recipients:

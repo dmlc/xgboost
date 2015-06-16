@@ -145,6 +145,11 @@ Rpack:
 	cp xgboost/src/Makevars xgboost/src/Makevars.win
 	# R CMD build --no-build-vignettes xgboost
 	R CMD build xgboost
+	# rm -rf xgboost
+	# R CMD check --as-cran xgboost*.tar.gz
+
+Rcheck:
+	make Rpack
 	rm -rf xgboost
 	R CMD check --as-cran xgboost*.tar.gz
 
