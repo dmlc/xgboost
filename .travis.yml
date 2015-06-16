@@ -3,6 +3,8 @@ language: c
 env:
     global:
         - _R_CHECK_TIMINGS_=0
+        - R_BUILD_ARGS=""
+        - R_CHECK_ARGS=""
 
 warnings_are_errors: false
 
