@@ -3,15 +3,14 @@ language: c
 env:
     global:
         - _R_CHECK_TIMINGS_=0
-        - R_BUILD_ARGS=""
-        - R_CHECK_ARGS=""
+        - R_BUILD_ARGS="--no-build-vignettes --no-manual"
+        - R_CHECK_ARGS="--no-vignettes --no-manual"
 
 warnings_are_errors: false
 
 sudo: true
 
 before_install:
-    - sudo apt-get install texinfo
     - curl -OL http://raw.github.com/craigcitro/r-travis/master/scripts/travis-tool.sh
     - chmod 755 ./travis-tool.sh
     - ./travis-tool.sh bootstrap
