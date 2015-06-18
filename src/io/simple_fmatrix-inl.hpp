@@ -39,7 +39,7 @@ class FMatrixS : public IFMatrix {
   /*! \brief get number of colmuns */
   virtual size_t NumCol(void) const {
     utils::Check(this->HaveColAccess(), "NumCol:need column access");
-    return col_size_.size() - 1;
+    return col_size_.size();
   }
   /*! \brief get number of buffered rows */
   virtual const std::vector<bst_uint> &buffered_rowset(void) const {
