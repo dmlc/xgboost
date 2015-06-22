@@ -150,8 +150,8 @@ Rpack:
 
 Rbuild:
 	make Rpack
-	rm -rf xgboost
 	R CMD build xgboost
+	rm -rf xgboost
 
 Rcheck:
 	make Rbuild
