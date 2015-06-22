@@ -216,7 +216,11 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     if (prediction) {
         for (k in 1:nfold) {
             fd = xgb_folds[[k]]
-            res = xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval, prediction)
+            if (!is.null(early.stop.round) && earlyStopflag) {
+              res = xgb.iter.eval(fd$booster, fd$watchlist, bestInd - 1, feval, prediction)
+            } else {
+              res = xgb.iter.eval(fd$booster, fd$watchlist, nrounds - 1, feval, prediction)
+            }
             if (mat_pred) {
                 pred_mat = matrix(res[[2]],num_class,length(fd$index))
                 predictValues[fd$index,] = t(pred_mat)
