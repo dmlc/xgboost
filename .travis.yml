@@ -8,6 +8,7 @@ env:
     - TASK=lint LINT_LANG=python
     - TASK=doc
     - TASK=build CXX=g++
+    - TASK=test CXX=g++
 
 # dependent apt packages
 addons:
