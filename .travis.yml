@@ -20,14 +20,15 @@ addons:
       - git
       - libcurl4-openssl-dev
       - unzip
-
+      - python-numpy
+      
 before_install:
   - git clone https://github.com/dmlc/dmlc-core
   - export TRAVIS=dmlc-core/scripts/travis/
   - source ${TRAVIS}/travis_setup_env.sh
 
 install:
-  - pip install cpplint pylint numpy --user `whoami`
+  - pip install cpplint pylint --user `whoami`
 
 script: scripts/travis_script.sh
 
