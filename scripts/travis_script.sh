@@ -17,6 +17,6 @@ fi
 if [ ${TASK} == "test" ]; then
     cd test
     make all || exit -1
-    ./travis_runtest.sh || exit -1
+    ../scripts/travis_runtest.sh || exit -1
 fi
 
