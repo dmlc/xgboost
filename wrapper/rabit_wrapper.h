@@ -1,18 +1,19 @@
-#ifndef RABIT_WRAPPER_H_
-#define RABIT_WRAPPER_H_
 /*!
+ * Copyright by Contributors
  * \file rabit_wrapper.h
  * \author Tianqi Chen
  * \brief a C style wrapper of rabit
  *  can be used to create wrapper of other languages
  */
+#ifndef RABIT_WRAPPER_H_
+#define RABIT_WRAPPER_H_
 #ifdef _MSC_VER
 #define RABIT_DLL __declspec(dllexport)
 #else
 #define RABIT_DLL
 #endif
 // manually define unsign long
-typedef unsigned long rbt_ulong;
+typedef unsigned long rbt_ulong;  // NOLINT(*)
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,8 +24,8 @@ extern "C" {
  * \param argv the array of input arguments
  */
   RABIT_DLL void RabitInit(int argc, char *argv[]);
-  /*! 
-   * \brief finalize the rabit engine, call this function after you finished all jobs 
+  /*!
+   * \brief finalize the rabit engine, call this function after you finished all jobs
    */
   RABIT_DLL void RabitFinalize(void);
   /*! \brief get rank of current process */
@@ -37,9 +38,9 @@ extern "C" {
    *    the user who monitors the tracker
    * \param msg the message to be printed
    */
-  RABIT_DLL void RabitTrackerPrint(const char *msg);  
+  RABIT_DLL void RabitTrackerPrint(const char *msg);
   /*!
-   * \brief get name of processor 
+   * \brief get name of processor
    * \param out_name hold output string
    * \param out_len hold length of output string
    * \param max_len maximum buffer length of input
@@ -50,7 +51,7 @@ extern "C" {
   /*!
    * \brief broadcast an memory region to all others from root
    *
-   *     Example: int a = 1; Broadcast(&a, sizeof(a), root); 
+   *     Example: int a = 1; Broadcast(&a, sizeof(a), root);
    * \param sendrecv_data the pointer to send or recive buffer,
    * \param size the size of the data
    * \param root the root of process
@@ -58,7 +59,7 @@ extern "C" {
   RABIT_DLL void RabitBroadcast(void *sendrecv_data,
                                 rbt_ulong size, int root);
   /*!
-   * \brief perform in-place allreduce, on sendrecvbuf 
+   * \brief perform in-place allreduce, on sendrecvbuf
    *        this function is NOT thread-safe
    *
    * Example Usage: the following code gives sum of the result
@@ -81,14 +82,14 @@ extern "C" {
                                 int enum_op,
                                 void (*prepare_fun)(void *arg),
                                 void *prepare_arg);
-  
+
   /*!
    * \brief load latest check point
    * \param out_global_model hold output of serialized global_model
    * \param out_global_len the output length of serialized global model
    * \param out_local_model hold output of serialized local_model, can be NULL
    * \param out_local_len the output length of serialized local model, can be NULL
-   * 
+   *
    * \return the version number of check point loaded
    *     if returned version == 0, this means no model has been CheckPointed
    *     nothing will be touched
@@ -100,7 +101,7 @@ extern "C" {
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
    *  every time we call check point, there is a version number which will increase by one
-   * 
+   *
    * \param global_model hold content of serialized global_model
    * \param global_len the content length of serialized global model
    * \param local_model hold content of serialized local_model, can be NULL
@@ -122,4 +123,4 @@ extern "C" {
 #ifdef __cplusplus
 }  // C
 #endif
-#endif  // XGBOOST_WRAPPER_H_
+#endif  // RABIT_WRAPPER_H_

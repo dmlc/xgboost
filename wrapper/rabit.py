@@ -3,6 +3,7 @@ Python interface for rabit
   Reliable Allreduce and Broadcast Library
 Author: Tianqi Chen
 """
+# pylint: disable=unused-argument,invalid-name,global-statement,dangerous-default-value,
 import cPickle as pickle
 import ctypes
 import os
@@ -17,10 +18,12 @@ else:
 rbtlib = None
 
 # load in xgboost library
-def loadlib__(lib = 'standard'):    
+def loadlib__(lib='standard'):
+    """Load rabit library"""
     global rbtlib
     if rbtlib != None:
-        warnings.Warn('rabit.int call was ignored because it has already been initialized', level = 2)
+        warnings.warn('rabit.int call was ignored because it has'\
+                          ' already been initialized', level=2)
         return
     if lib == 'standard':
         rbtlib = ctypes.cdll.LoadLibrary(WRAPPER_PATH % '')
@@ -35,6 +38,7 @@ def loadlib__(lib = 'standard'):
     rbtlib.RabitVersionNumber.restype = ctypes.c_int
 
 def unloadlib__():
+    """Unload rabit library"""
     global rbtlib
     del rbtlib
     rbtlib = None
@@ -45,13 +49,13 @@ MIN = 1
 SUM = 2
 BITOR = 3
 
-def check_err__():    
+def check_err__():
     """
-    reserved function used to check error    
+    reserved function used to check error
     """
     return
 
-def init(args = sys.argv, lib = 'standard'):
+def init(args=sys.argv, lib='standard'):
     """
     intialize the rabit module, call this once before using anything
     Arguments:
@@ -69,7 +73,7 @@ def init(args = sys.argv, lib = 'standard'):
 
 def finalize():
     """
-    finalize the rabit engine, call this function after you finished all jobs 
+    finalize the rabit engine, call this function after you finished all jobs
     """
     rbtlib.RabitFinalize()
     check_err__()
@@ -132,7 +136,7 @@ def broadcast(data, root):
     print '@node[%d] after-broadcast: s=\"%s\"' % (rank, str(s))
     rabit.finalize()
     ```
-    
+
     Arguments:
         data: anytype that can be pickled
               input data, if current rank does not equal root, this can be None
@@ -145,12 +149,12 @@ def broadcast(data, root):
     length = ctypes.c_ulong()
     if root == rank:
         assert data is not None, 'need to pass in data when broadcasting'
-        s = pickle.dumps(data, protocol = pickle.HIGHEST_PROTOCOL)
+        s = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
         length.value = len(s)
     # run first broadcast
     rbtlib.RabitBroadcast(ctypes.byref(length),
                           ctypes.sizeof(ctypes.c_ulong),
-                          root)    
+                          root)
     check_err__()
     if root != rank:
         dptr = (ctypes.c_char * length.value)()
@@ -179,18 +183,19 @@ DTYPE_ENUM__ = {
     np.dtype('float64') : 7
 }
 
-def allreduce(data, op, prepare_fun = None):
+def allreduce(data, op, prepare_fun=None):
     """
     perform allreduce, return the result, this function is not thread-safe
     Arguments:
         data: numpy ndarray
-           input data 
+           input data
         op: int
             reduction operators, can be MIN, MAX, SUM, BITOR
         prepare_fun: lambda data
             Lazy preprocessing function, if it is not None, prepare_fun(data)
             will be called by the function before performing allreduce, to intialize the data
-            If the result of Allreduce can be recovered directly, then prepare_fun will NOT be called
+            If the result of Allreduce can be recovered directly,
+            then prepare_fun will NOT be called
     Returns:
         the result of allreduce, have same shape as data
     """
@@ -206,12 +211,13 @@ def allreduce(data, op, prepare_fun = None):
                               buf.size, DTYPE_ENUM__[buf.dtype],
                               op, None, None)
     else:
-        PFUNC = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+        func_ptr = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
         def pfunc(args):
+            """prepare function."""
             prepare_fun(data)
         rbtlib.RabitAllreduce(buf.ctypes.data_as(ctypes.c_void_p),
                               buf.size, DTYPE_ENUM__[buf.dtype],
-                              op, PFUNC(pfunc), None)               
+                              op, func_ptr(pfunc), None)
     check_err__()
     return buf
 
@@ -229,49 +235,49 @@ def load_model__(ptr, length):
     data = (ctypes.c_char * length).from_address(ctypes.addressof(ptr.contents))
     return pickle.loads(data.raw)
 
-def load_checkpoint(with_local = False):
+def load_checkpoint(with_local=False):
     """
     load latest check point
     Arguments:
         with_local: boolean [default = False]
             whether the checkpoint contains local model
-    Returns: 
+    Returns:
         if with_local: return (version, gobal_model, local_model)
         else return (version, gobal_model)
         if returned version == 0, this means no model has been CheckPointed
         and global_model, local_model returned will be None
     """
-    gp = ctypes.POINTER(ctypes.c_char)()
+    gptr = ctypes.POINTER(ctypes.c_char)()
     global_len = ctypes.c_ulong()
     if with_local:
-        lp = ctypes.POINTER(ctypes.c_char)()
+        lptr = ctypes.POINTER(ctypes.c_char)()
         local_len = ctypes.c_ulong()
         version = rbtlib.RabitLoadCheckPoint(
-            ctypes.byref(gp),
+            ctypes.byref(gptr),
             ctypes.byref(global_len),
-            ctypes.byref(lp),
+            ctypes.byref(lptr),
             ctypes.byref(local_len))
         check_err__()
         if version == 0:
             return (version, None, None)
         return (version,
-                load_model__(gp, global_len.value),
-                load_model__(lp, local_len.value))
+                load_model__(gptr, global_len.value),
+                load_model__(lptr, local_len.value))
     else:
         version = rbtlib.RabitLoadCheckPoint(
-            ctypes.byref(gp),
+            ctypes.byref(gptr),
             ctypes.byref(global_len),
             None, None)
         check_err__()
         if version == 0:
             return (version, None)
         return (version,
-                load_model__(gp, global_len.value))
-    
-def checkpoint(global_model, local_model = None):
+                load_model__(gptr, global_len.value))
+
+def checkpoint(global_model, local_model=None):
     """
     checkpoint the model, meaning we finished a stage of execution
-    every time we call check point, there is a version number which will increase by one    
+    every time we call check point, there is a version number which will increase by one
 
     Arguments:
         global_model: anytype that can be pickled
@@ -285,16 +291,17 @@ def checkpoint(global_model, local_model = None):
             while global_model do not need explicit replication.
             It is recommended to use global_model if possible
     """
-    sg = pickle.dumps(global_model)
+    sglobal = pickle.dumps(global_model)
     if local_model is None:
-        rbtlib.RabitCheckPoint(sg, len(sg), None, 0)
+        rbtlib.RabitCheckPoint(sglobal, len(sglobal), None, 0)
         check_err__()
-        del sg;
+        del sglobal
     else:
-        sl = pickle.dumps(local_model)
-        rbtlib.RabitCheckPoint(sg, len(sg), sl, len(sl))
+        slocal = pickle.dumps(local_model)
+        rbtlib.RabitCheckPoint(sglobal, len(sglobal), slocal, len(slocal))
         check_err__()
-        del sl; del sg;
+        del slocal
+        del sglobal
 
 def version_number():
     """

@@ -94,7 +94,8 @@ void AllreduceBase::Init(void) {
     }
   }
   if (dmlc_role != "worker") {
-    fprintf(stderr, "Rabit Module currently only work with dmlc worker, quit this program by exit 0\n");
+    fprintf(stderr, "Rabit Module currently only work with dmlc worker"\
+            ", quit this program by exit 0\n");
     exit(0);
   }
   // clear the setting before start reconnection
@@ -134,7 +135,7 @@ void AllreduceBase::TrackerPrint(const std::string &msg) {
 // util to parse data with unit suffix
 inline size_t ParseUnit(const char *name, const char *val) {
   char unit;
-  unsigned long amt;
+  unsigned long amt;  // NOLINT(*)
   int n = sscanf(val, "%lu%c", &amt, &unit);
   size_t amount = amt;
   if (n == 2) {
@@ -154,7 +155,7 @@ inline size_t ParseUnit(const char *name, const char *val) {
   }
 }
 /*!
- * \brief set parameters to the engine 
+ * \brief set parameters to the engine
  * \param name parameter name
  * \param val parameter value
  */
@@ -258,7 +259,7 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
       } else {
         if (!all_links[i].sock.IsClosed()) all_links[i].sock.Close();
       }
-    }    
+    }
     int ngood = static_cast<int>(good_link.size());
     Assert(tracker.SendAll(&ngood, sizeof(ngood)) == sizeof(ngood),
            "ReConnectLink failure 5");
@@ -359,7 +360,7 @@ void AllreduceBase::ReConnectLinks(const char *cmd) {
  *    The kSuccess TryAllreduce does NOT mean every node have successfully finishes TryAllreduce.
  *    It only means the current node get the correct result of Allreduce.
  *    However, it means every node finishes LAST call(instead of this one) of Allreduce/Bcast
- * 
+ *
  * \param sendrecvbuf_ buffer for both sending and recving data
  * \param type_nbytes the unit number of bytes the type have
  * \param count number of elements to be reduced
@@ -440,7 +441,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
           selecter.WatchRead(links[i].sock);
         }
         // size_write <= size_read
-        if (links[i].size_write != total_size){
+        if (links[i].size_write != total_size) {
           if (links[i].size_write < size_down_in) {
             selecter.WatchWrite(links[i].sock);
           }
@@ -477,7 +478,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       size_t max_reduce = total_size;
       for (int i = 0; i < nlink; ++i) {
         if (i != parent_index) {
-          max_reduce= std::min(max_reduce, links[i].size_read);
+          max_reduce = std::min(max_reduce, links[i].size_read);
           utils::Assert(buffer_size == 0 || buffer_size == links[i].buffer_size,
                         "buffer size inconsistent");
           buffer_size = links[i].buffer_size;
@@ -525,7 +526,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
         ssize_t len = links[parent_index].sock.
             Recv(sendrecvbuf + size_down_in, total_size - size_down_in);
         if (len == 0) {
-          links[parent_index].sock.Close(); 
+          links[parent_index].sock.Close();
           return ReportError(&links[parent_index], kRecvZeroLen);
         }
         if (len != -1) {
@@ -670,7 +671,7 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
                                 size_t slice_begin,
                                 size_t slice_end,
                                 size_t size_prev_slice) {
-  // read from next link and send to prev one 
+  // read from next link and send to prev one
   LinkRecord &prev = *ring_prev, &next = *ring_next;
   // need to reply on special rank structure
   utils::Assert(next.rank == (rank + 1) % world_size &&
@@ -678,11 +679,11 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
                 "need to assume rank structure");
   // send recv buffer
   char *sendrecvbuf = reinterpret_cast<char*>(sendrecvbuf_);
-  const size_t stop_read = total_size + slice_begin; 
-  const size_t stop_write = total_size + slice_begin - size_prev_slice; 
+  const size_t stop_read = total_size + slice_begin;
+  const size_t stop_write = total_size + slice_begin - size_prev_slice;
   size_t write_ptr = slice_begin;
   size_t read_ptr = slice_end;
-  
+
   while (true) {
     // select helper
     bool finished = true;
@@ -733,7 +734,7 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf, this function can fail,
  *  and will return the cause of failure
- * 
+ *
  *  Ring-based algorithm
  *
  * \param sendrecvbuf_ buffer for both sending and recving data
@@ -748,7 +749,7 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
                                     size_t type_nbytes,
                                     size_t count,
                                     ReduceFunction reducer) {
-  // read from next link and send to prev one 
+  // read from next link and send to prev one
   LinkRecord &prev = *ring_prev, &next = *ring_next;
   // need to reply on special rank structure
   utils::Assert(next.rank == (rank + 1) % world_size &&
@@ -757,7 +758,7 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
   // total size of message
   const size_t total_size = type_nbytes * count;
   size_t n = static_cast<size_t>(world_size);
-  size_t step = (count + n - 1) / n;  
+  size_t step = (count + n - 1) / n;
   size_t r = static_cast<size_t>(next.rank);
   size_t write_ptr = std::min(r * step, count) * type_nbytes;
   size_t read_ptr = std::min((r + 1) * step, count) * type_nbytes;
@@ -830,7 +831,7 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
         if (ret != kSuccess) return ReportError(&prev, ret);
       }
     }
-  }  
+  }
   return kSuccess;
 }
 /*!
@@ -857,7 +858,7 @@ AllreduceBase::TryAllreduceRing(void *sendrecvbuf_,
   size_t end = std::min((rank + 1) * step, count) * type_nbytes;
   // previous rank
   int prank = ring_prev->rank;
-  // get rank of previous 
+  // get rank of previous
   return TryAllgatherRing
       (sendrecvbuf_, type_nbytes * count,
        begin, end,

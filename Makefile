@@ -3,14 +3,18 @@ export CXX = g++
 endif
 export MPICXX = mpicxx
 export LDFLAGS= -Llib -lrt
-export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas 
-export CFLAGS = -O3 -msse2 $(WARNFLAGS) 
+export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas
+export CFLAGS = -O3 -msse2 $(WARNFLAGS)
 
 ifndef WITH_FPIC
 	WITH_FPIC = 1
 endif
 ifeq ($(WITH_FPIC), 1)
-	CFLAGS += -fPIC	
+	CFLAGS += -fPIC
+endif
+
+ifndef LINT_LANG
+	LINT_LANG="all"
 endif
 
 # build path
@@ -22,7 +26,9 @@ OBJ= $(BPATH)/allreduce_base.o $(BPATH)/allreduce_robust.o $(BPATH)/engine.o $(B
 SLIB= wrapper/librabit_wrapper.so wrapper/librabit_wrapper_mock.so wrapper/librabit_wrapper_mpi.so
 ALIB= lib/librabit.a lib/librabit_mpi.a lib/librabit_empty.a lib/librabit_mock.a lib/librabit_base.a
 HEADERS=src/*.h include/*.h include/rabit/*.h
-.PHONY: clean all install mpi python
+DMLC=dmlc-core
+
+.PHONY: clean all install mpi python lint doc
 
 all: lib/librabit.a lib/librabit_mock.a  wrapper/librabit_wrapper.so wrapper/librabit_wrapper_mock.so lib/librabit_base.a
 mpi: lib/librabit_mpi.a wrapper/librabit_wrapper_mpi.so
@@ -47,10 +53,10 @@ wrapper/librabit_wrapper.so: $(BPATH)/rabit_wrapper.o lib/librabit.a
 wrapper/librabit_wrapper_mock.so: $(BPATH)/rabit_wrapper.o lib/librabit_mock.a
 wrapper/librabit_wrapper_mpi.so: $(BPATH)/rabit_wrapper.o lib/librabit_mpi.a
 
-$(OBJ) : 
+$(OBJ) :
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
-$(MPIOBJ) : 
+$(MPIOBJ) :
 	$(MPICXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
 $(ALIB):
@@ -58,6 +64,12 @@ $(ALIB):
 
 $(SLIB) :
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS)
+
+lint:
+	$(DMLC)/scripts/lint.py rabit $(LINT_LANG) src include wrapper
+
+doc:
+	cd include; doxygen ../doc/Doxyfile; cd -
 
 clean:
 	$(RM) $(OBJ) $(MPIOBJ) $(ALIB) $(MPIALIB) *~ src/*~ include/*~ include/*/*~ wrapper/*~
