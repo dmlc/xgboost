@@ -15,6 +15,7 @@ addons:
   apt:
     packages:
       - doxygen
+      - openmpi
       - wget
       - git
       - libcurl4-openssl-dev
