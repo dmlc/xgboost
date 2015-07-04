@@ -1,13 +1,16 @@
-#ifndef XGBOOST_GBM_GBTREE_INL_HPP_
-#define XGBOOST_GBM_GBTREE_INL_HPP_
 /*!
+ * Copyright by Contributors
  * \file gbtree-inl.hpp
  * \brief gradient boosted tree implementation
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_GBM_GBTREE_INL_HPP_
+#define XGBOOST_GBM_GBTREE_INL_HPP_
+
 #include <vector>
 #include <utility>
 #include <string>
+#include <limits>
 #include "./gbm.h"
 #include "../utils/omp.h"
 #include "../tree/updater.h"
@@ -39,7 +42,7 @@ class GBTree : public IGradBooster {
     tparam.SetParam(name, val);
     if (trees.size() == 0) mparam.SetParam(name, val);
   }
-  virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) {
+  virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) { // NOLINT(*)
     this->Clear();
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "GBTree: invalid model file");
@@ -62,10 +65,10 @@ class GBTree : public IGradBooster {
                    "GBTree: invalid model file");
     }
   }
-  virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const {
+  virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const { // NOLINT(*)
     utils::Assert(mparam.num_trees == static_cast<int>(trees.size()), "GBTree");
     if (with_pbuffer) {
-      fo.Write(&mparam, sizeof(ModelParam));      
+      fo.Write(&mparam, sizeof(ModelParam));
     } else {
       ModelParam p = mparam;
       p.num_pbuffer = 0;
@@ -129,7 +132,7 @@ class GBTree : public IGradBooster {
                        int64_t buffer_offset,
                        const BoosterInfo &info,
                        std::vector<float> *out_preds,
-                       unsigned ntree_limit = 0) {    
+                       unsigned ntree_limit = 0) {
     int nthread;
     #pragma omp parallel
     {
@@ -160,12 +163,12 @@ class GBTree : public IGradBooster {
           this->Pred(batch[i],
                      buffer_offset < 0 ? -1 : buffer_offset + ridx,
                      gid, info.GetRoot(ridx), &feats,
-                     &preds[ridx * mparam.num_output_group + gid], stride, 
+                     &preds[ridx * mparam.num_output_group + gid], stride,
                      ntree_limit);
         }
       }
     }
-  }  
+  }
   virtual void Predict(const SparseBatch::Inst &inst,
                        std::vector<float> *out_preds,
                        unsigned ntree_limit,
@@ -178,10 +181,10 @@ class GBTree : public IGradBooster {
     // loop over output groups
     for (int gid = 0; gid < mparam.num_output_group; ++gid) {
       this->Pred(inst, -1, gid, root_index, &thread_temp[0],
-                 &(*out_preds)[gid], mparam.num_output_group, 
+                 &(*out_preds)[gid], mparam.num_output_group,
                  ntree_limit);
     }
-  }  
+  }
   virtual void PredictLeaf(IFMatrix *p_fmat,
                            const BoosterInfo &info,
                            std::vector<float> *out_preds,
@@ -196,7 +199,6 @@ class GBTree : public IGradBooster {
       thread_temp[i].Init(mparam.num_feature);
     }
     this->PredPath(p_fmat, info, out_preds, ntree_limit);
-    
   }
   virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
     std::vector<std::string> dump;
@@ -260,7 +262,7 @@ class GBTree : public IGradBooster {
     // update the trees
     for (size_t i = 0; i < updaters.size(); ++i) {
       updaters[i]->Update(gpair, p_fmat, info, new_trees);
-    }    
+    }
     // optimization, update buffer, if possible
     // this is only under distributed column mode
     // for safety check of lazy checkpoint
@@ -287,7 +289,7 @@ class GBTree : public IGradBooster {
   }
   // update buffer by pre-cached position
   inline void UpdateBufferByPosition(IFMatrix *p_fmat,
-                                     int64_t buffer_offset, 
+                                     int64_t buffer_offset,
                                      int bst_group,
                                      const tree::RegTree &new_tree,
                                      const int* leaf_position) {
@@ -313,11 +315,11 @@ class GBTree : public IGradBooster {
                    int bst_group,
                    unsigned root_index,
                    tree::RegTree::FVec *p_feats,
-                   float *out_pred, size_t stride, 
+                   float *out_pred, size_t stride,
                    unsigned ntree_limit) {
     size_t itop = 0;
     float  psum = 0.0f;
-    // sum of leaf vector 
+    // sum of leaf vector
     std::vector<float> vec_psum(mparam.size_leaf_vector, 0.0f);
     const int64_t bid = mparam.BufferOffset(buffer_index, bst_group);
     // number of valid trees
@@ -339,7 +341,7 @@ class GBTree : public IGradBooster {
           for (int j = 0; j < mparam.size_leaf_vector; ++j) {
             vec_psum[j] += trees[i]->leafvec(tid)[j];
           }
-          if(--treeleft == 0) break;
+          if (--treeleft == 0) break;
         }
       }
       p_feats->Drop(inst);
@@ -365,7 +367,7 @@ class GBTree : public IGradBooster {
     // number of valid trees
     if (ntree_limit == 0 || ntree_limit > trees.size()) {
       ntree_limit = static_cast<unsigned>(trees.size());
-    } 
+    }
     std::vector<float> &preds = *out_preds;
     preds.resize(info.num_row * ntree_limit);
     // start collecting the prediction
@@ -389,7 +391,7 @@ class GBTree : public IGradBooster {
       }
     }
   }
-                       
+
   // --- data structure ---
   /*! \brief training parameters */
   struct TrainParam {
@@ -442,10 +444,10 @@ class GBTree : public IGradBooster {
     int num_feature;
     /*! \brief size of predicton buffer allocated used for buffering */
     int64_t num_pbuffer;
-    /*! 
+    /*!
      * \brief how many output group a single instance can produce
      *  this affects the behavior of number of output we have:
-     *    suppose we have n instance and k group, output will be k*n 
+     *    suppose we have n instance and k group, output will be k*n
      */
     int num_output_group;
     /*! \brief size of leaf vector needed in tree */
@@ -478,8 +480,8 @@ class GBTree : public IGradBooster {
     inline size_t PredBufferSize(void) const {
       return num_output_group * num_pbuffer * (size_leaf_vector + 1);
     }
-    /*! 
-     * \brief get the buffer offset given a buffer index and group id  
+    /*!
+     * \brief get the buffer offset given a buffer index and group id
      * \return calculated buffer offset
      */
     inline int64_t BufferOffset(int64_t buffer_index, int bst_group) const {

@@ -1,10 +1,12 @@
-#ifndef XGBOOST_TREE_UPDATER_PRUNE_INL_HPP_
-#define XGBOOST_TREE_UPDATER_PRUNE_INL_HPP_
 /*!
+ * Copyright 2014 by Contributors
  * \file updater_prune-inl.hpp
- * \brief prune a tree given the statistics 
+ * \brief prune a tree given the statistics
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_TREE_UPDATER_PRUNE_INL_HPP_
+#define XGBOOST_TREE_UPDATER_PRUNE_INL_HPP_
+
 #include <vector>
 #include "./param.h"
 #include "./updater.h"
@@ -37,9 +39,10 @@ class TreePruner: public IUpdater {
     param.learning_rate = lr;
     syncher.Update(gpair, p_fmat, info, trees);
   }
+
  private:
   // try to prune off current leaf
-  inline int TryPruneLeaf(RegTree &tree, int nid, int depth, int npruned) {
+  inline int TryPruneLeaf(RegTree &tree, int nid, int depth, int npruned) { // NOLINT(*)
     if (tree[nid].is_root()) return npruned;
     int pid = tree[nid].parent();
     RegTree::NodeStat &s = tree.stat(pid);
@@ -51,10 +54,10 @@ class TreePruner: public IUpdater {
       return this->TryPruneLeaf(tree, pid, depth - 1, npruned+2);
     } else {
       return npruned;
-    }    
+    }
   }
   /*! \brief do prunning of a tree */
-  inline void DoPrune(RegTree &tree) {
+  inline void DoPrune(RegTree &tree) { // NOLINT(*)
     int npruned = 0;
     // initialize auxiliary statistics
     for (int nid = 0; nid < tree.param.num_nodes; ++nid) {
