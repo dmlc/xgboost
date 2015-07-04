@@ -1,3 +1,4 @@
+// Copyright 2014 by Contributors
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
@@ -17,7 +18,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
                            const char *cache_file) {
   using namespace std;
   std::string fname_ = fname;
-  
+
   const char *dlm = strchr(fname, '#');
   if (dlm != NULL) {
     utils::Check(strchr(dlm + 1, '#') == NULL,
@@ -29,7 +30,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
     cache_file = dlm +1;
   }
 
-  if (cache_file == NULL) { 
+  if (cache_file == NULL) {
     if (!std::strcmp(fname, "stdin") ||
         !std::strncmp(fname, "s3://", 5) ||
         !std::strncmp(fname, "hdfs://", 7) ||
@@ -42,7 +43,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
     utils::FileStream fs(utils::FopenCheck(fname, "rb"));
     utils::Check(fs.Read(&magic, sizeof(magic)) != 0, "invalid input file format");
     fs.Seek(0);
-    if (magic == DMatrixSimple::kMagic) { 
+    if (magic == DMatrixSimple::kMagic) {
       DMatrixSimple *dmat = new DMatrixSimple();
       dmat->LoadBinary(fs, silent, fname);
       fs.Close();
@@ -81,7 +82,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
   }
 }
 
-void SaveDataMatrix(const DataMatrix &dmat, const char *fname, bool silent) {  
+void SaveDataMatrix(const DataMatrix &dmat, const char *fname, bool silent) {
   if (dmat.magic == DMatrixSimple::kMagic) {
     const DMatrixSimple *p_dmat = static_cast<const DMatrixSimple*>(&dmat);
     p_dmat->SaveBinary(fname, silent);

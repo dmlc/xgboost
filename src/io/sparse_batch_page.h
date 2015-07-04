@@ -1,18 +1,22 @@
-#ifndef XGBOOST_IO_SPARSE_BATCH_PAGE_H_
-#define XGBOOST_IO_SPARSE_BATCH_PAGE_H_
 /*!
+ * Copyright (c) 2014 by Contributors
  * \file sparse_batch_page.h
  *   content holder of sparse batch that can be saved to disk
  *   the representation can be effectively
  *   use in external memory computation
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_IO_SPARSE_BATCH_PAGE_H_
+#define XGBOOST_IO_SPARSE_BATCH_PAGE_H_
+
+#include <vector>
+#include <algorithm>
 #include "../data.h"
 
 namespace xgboost {
 namespace io {
 /*!
- * \brief storage unit of sparse batch  
+ * \brief storage unit of sparse batch
  */
 class SparsePage {
  public:
@@ -96,7 +100,7 @@ class SparsePage {
   }
   /*!
    * \brief save the data to fo, when a page was written
-   *    to disk it must contain all the elements in the 
+   *    to disk it must contain all the elements in the
    * \param fo output stream
    */
   inline void Save(utils::IStream *fo) const {
@@ -124,7 +128,7 @@ class SparsePage {
    */
   inline bool PushLoad(utils::IStream *fi) {
     if (!fi->Read(&disk_offset_)) return false;
-    data.resize(offset.back() + disk_offset_.back());    
+    data.resize(offset.back() + disk_offset_.back());
     if (disk_offset_.back() != 0) {
       utils::Check(fi->Read(BeginPtr(data) + offset.back(),
                             disk_offset_.back() * sizeof(SparseBatch::Entry)) != 0,
@@ -138,7 +142,7 @@ class SparsePage {
     }
     return true;
   }
-  /*! 
+  /*!
    * \brief Push row batch into the page
    * \param batch the row batch
    */
@@ -154,7 +158,7 @@ class SparsePage {
       offset[i + begin] = top + batch.ind_ptr[i + 1] - batch.ind_ptr[0];
     }
   }
-  /*! 
+  /*!
    * \brief Push a sparse page
    * \param batch the row page
    */
@@ -170,7 +174,7 @@ class SparsePage {
       offset[i + begin] = top + batch.offset[i + 1];
     }
   }
-  /*! 
+  /*!
    * \brief Push one instance into page
    *  \param row an instance row
    */
@@ -202,7 +206,7 @@ class SparsePage {
 };
 /*!
  * \brief factory class for SparsePage,
- *        used in threadbuffer template  
+ *        used in threadbuffer template
  */
 class SparsePageFactory {
  public:
@@ -217,7 +221,7 @@ class SparsePageFactory {
     return action_index_set_;
   }
   // set index set, will be used after next before first
-  inline void SetIndexSet(const std::vector<bst_uint> &index_set, 
+  inline void SetIndexSet(const std::vector<bst_uint> &index_set,
                           bool load_all) {
     set_load_all_ = load_all;
     if (!set_load_all_) {
@@ -229,7 +233,7 @@ class SparsePageFactory {
     return true;
   }
   inline void SetParam(const char *name, const char *val) {}
-  inline bool LoadNext(SparsePage *val) {    
+  inline bool LoadNext(SparsePage *val) {
     if (!action_load_all_) {
       if (action_index_set_.size() == 0) {
         return false;

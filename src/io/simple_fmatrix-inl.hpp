@@ -1,11 +1,15 @@
-#ifndef XGBOOST_IO_SIMPLE_FMATRIX_INL_HPP_
-#define XGBOOST_IO_SIMPLE_FMATRIX_INL_HPP_
 /*!
+ * Copyright 2014 by Contributors
  * \file simple_fmatrix-inl.hpp
  * \brief the input data structure for gradient boosting
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_IO_SIMPLE_FMATRIX_INL_HPP_
+#define XGBOOST_IO_SIMPLE_FMATRIX_INL_HPP_
+
 #include <limits>
+#include <algorithm>
+#include <vector>
 #include "../data.h"
 #include "../utils/utils.h"
 #include "../utils/random.h"
@@ -30,7 +34,7 @@ class FMatrixS : public IFMatrix {
   }
   // destructor
   virtual ~FMatrixS(void) {
-    if (iter_ != NULL) delete iter_;    
+    if (iter_ != NULL) delete iter_;
   }
   /*! \return whether column access is enabled */
   virtual bool HaveColAccess(void) const {
@@ -54,7 +58,7 @@ class FMatrixS : public IFMatrix {
     size_t nmiss = buffered_rowset_.size() - col_size_[cidx];
     return 1.0f - (static_cast<float>(nmiss)) / buffered_rowset_.size();
   }
-  virtual void InitColAccess(const std::vector<bool> &enabled, 
+  virtual void InitColAccess(const std::vector<bool> &enabled,
                              float pkeep, size_t max_row_perbatch) {
     if (this->HaveColAccess()) return;
     this->InitColData(enabled, pkeep, max_row_perbatch);
@@ -85,7 +89,7 @@ class FMatrixS : public IFMatrix {
     size_t ncol = this->NumCol();
     col_iter_.col_index_.resize(0);
     for (size_t i = 0; i < fset.size(); ++i) {
-      if (fset[i] < ncol) col_iter_.col_index_.push_back(fset[i]); 
+      if (fset[i] < ncol) col_iter_.col_index_.push_back(fset[i]);
     }
     col_iter_.BeforeFirst();
     return &col_iter_;
@@ -94,7 +98,7 @@ class FMatrixS : public IFMatrix {
    * \brief save column access data into stream
    * \param fo output stream to save to
    */
-  inline void SaveColAccess(utils::IStream &fo) const {
+  inline void SaveColAccess(utils::IStream &fo) const { // NOLINT(*)
     size_t n = 0;
     fo.Write(&n, sizeof(n));
   }
@@ -102,10 +106,10 @@ class FMatrixS : public IFMatrix {
    * \brief load column access data from stream
    * \param fo output stream to load from
    */
-  inline void LoadColAccess(utils::IStream &fi) {
+  inline void LoadColAccess(utils::IStream &fi) { // NOLINT(*)
     // do nothing in load col access
   }
-  
+
  protected:
   /*!
    * \brief intialize column data
@@ -129,7 +133,7 @@ class FMatrixS : public IFMatrix {
     for (size_t i = 0; i < col_iter_.cpages_.size(); ++i) {
       SparsePage *pcol = col_iter_.cpages_[i];
       for (size_t j = 0; j < pcol->Size(); ++j) {
-        col_size_[j] += pcol->offset[j + 1] - pcol->offset[j];        
+        col_size_[j] += pcol->offset[j + 1] - pcol->offset[j];
       }
     }
   }
@@ -139,7 +143,7 @@ class FMatrixS : public IFMatrix {
    * \param pcol the target column
    */
   inline void MakeOneBatch(const std::vector<bool> &enabled,
-                           float pkeep,                          
+                           float pkeep,
                            SparsePage *pcol) {
     // clear rowset
     buffered_rowset_.clear();
@@ -159,8 +163,8 @@ class FMatrixS : public IFMatrix {
     while (iter_->Next()) {
       const RowBatch &batch = iter_->Value();
       bmap.resize(bmap.size() + batch.size, true);
-	  long batch_size = static_cast<long>(batch.size);
-      for (long i = 0; i < batch_size; ++i) {
+      long batch_size = static_cast<long>(batch.size); // NOLINT(*)
+      for (long i = 0; i < batch_size; ++i) { // NOLINT(*)
         bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         if (pkeep == 1.0f || random::SampleBinary(pkeep)) {
           buffered_rowset_.push_back(ridx);
@@ -169,13 +173,13 @@ class FMatrixS : public IFMatrix {
         }
       }
       #pragma omp parallel for schedule(static)
-      for (long i = 0; i < batch_size; ++i) {
+      for (long i = 0; i < batch_size; ++i) { // NOLINT(*)
         int tid = omp_get_thread_num();
         bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         if (bmap[ridx]) {
           RowBatch::Inst inst = batch[i];
           for (bst_uint j = 0; j < inst.length; ++j) {
-            if (enabled[inst[j].index]){ 
+            if (enabled[inst[j].index]) {
               builder.AddBudget(inst[j].index, tid);
             }
           }
@@ -183,18 +187,18 @@ class FMatrixS : public IFMatrix {
       }
     }
     builder.InitStorage();
-    
+
     iter_->BeforeFirst();
     while (iter_->Next()) {
       const RowBatch &batch = iter_->Value();
       #pragma omp parallel for schedule(static)
-      for (long i = 0; i < static_cast<long>(batch.size); ++i) {
+      for (long i = 0; i < static_cast<long>(batch.size); ++i) { // NOLINT(*)
         int tid = omp_get_thread_num();
         bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
         if (bmap[ridx]) {
           RowBatch::Inst inst = batch[i];
           for (bst_uint j = 0; j < inst.length; ++j) {
-            if (enabled[inst[j].index]) { 
+            if (enabled[inst[j].index]) {
               builder.Push(inst[j].index,
                            Entry((bst_uint)(batch.base_rowid+i),
                                  inst[j].fvalue), tid);
@@ -261,7 +265,7 @@ class FMatrixS : public IFMatrix {
     #pragma omp parallel
     {
       nthread = omp_get_num_threads();
-      int max_nthread = std::max(omp_get_num_procs() / 2 - 2, 1); 
+      int max_nthread = std::max(omp_get_num_procs() / 2 - 2, 1);
       if (nthread > max_nthread) {
         nthread = max_nthread;
       }
@@ -277,7 +281,7 @@ class FMatrixS : public IFMatrix {
       RowBatch::Inst inst = batch[i];
       for (bst_uint j = 0; j < inst.length; ++j) {
         const SparseBatch::Entry &e = inst[j];
-        if (enabled[e.index]) { 
+        if (enabled[e.index]) {
           builder.AddBudget(e.index, tid);
         }
       }
@@ -330,10 +334,10 @@ class FMatrixS : public IFMatrix {
              static_cast<bst_uint>(pcol->offset[ridx + 1] - pcol->offset[ridx]));
       }
       batch_.col_index = BeginPtr(col_index_);
-      batch_.col_data = BeginPtr(col_data_);      
+      batch_.col_data = BeginPtr(col_data_);
       return true;
     }
-    virtual const ColBatch &Value(void) const {      
+    virtual const ColBatch &Value(void) const {
       return batch_;
     }
     inline void Clear(void) {
@@ -347,7 +351,7 @@ class FMatrixS : public IFMatrix {
     // column content
     std::vector<ColBatch::Inst> col_data_;
     // column sparse pages
-    std::vector<SparsePage*> cpages_;    
+    std::vector<SparsePage*> cpages_;
     // data pointer
     size_t data_ptr_;
     // temporal space for batch
@@ -357,7 +361,7 @@ class FMatrixS : public IFMatrix {
   // column iterator
   ColBatchIter col_iter_;
   // shared meta info with DMatrix
-  const learner::MetaInfo &info_;  
+  const learner::MetaInfo &info_;
   // row iterator
   utils::IIterator<RowBatch> *iter_;
   /*! \brief list of row index that are buffered */
@@ -367,4 +371,4 @@ class FMatrixS : public IFMatrix {
 };
 }  // namespace io
 }  // namespace xgboost
-#endif // XGBOOST_IO_SLICE_FMATRIX_INL_HPP
+#endif  // XGBOOST_IO_SLICE_FMATRIX_INL_HPP_
