@@ -1,36 +1,45 @@
-language: c
-
-env:
-    global:
-        - _R_CHECK_TIMINGS_=0
-        - R_BUILD_ARGS="--no-build-vignettes --no-manual"
-        - R_CHECK_ARGS="--no-vignettes --no-manual"
-
-warnings_are_errors: false
-
 sudo: true
 
+# Use Build Matrix to do lint and build seperately
+env:
+  matrix:
+    - TASK=lint LINT_LANG=cpp
+    - TASK=lint LINT_LANG=python
+    - TASK="R-package"
+    - TASK="python-package"
+    - TASK=build CXX=g++
+    - TASK=build-with-dmlc CXX=g++
+
+# dependent apt packages
+addons:
+  apt:
+    packages:
+      - doxygen
+      - libopenmpi-dev
+      - wget
+      - libcurl4-openssl-dev
+      - unzip
+      - python-numpy
+      - python-nose
+
 before_install:
-    - curl -OL http://raw.github.com/craigcitro/r-travis/master/scripts/travis-tool.sh
-    - chmod 755 ./travis-tool.sh
-    - ./travis-tool.sh bootstrap
+  - git clone https://github.com/dmlc/dmlc-core
+  - export TRAVIS=dmlc-core/scripts/travis/
+  - export PYTHONPATH=${PYTHONPATH}:${PWD}/wrapper
+  - source ${TRAVIS}/travis_setup_env.sh
 
 install:
-    - make Rpack
-    - cd ./xgboost
-    - ../travis-tool.sh install_deps
+  - pip install cpplint pylint --user `whoami`
 
-script: 
-    - bash ../travis-tool.sh run_tests  
+script: scripts/travis_script.sh
 
-after_failure: cat /home/travis/build/dmlc/xgboost/R-package/xgboost.Rcheck/00install.out
 
-   
+after_failure:
+  - scripts/travis_after_failure.sh
+
+
 notifications:
-    email:
-        recipients:
-            - hetong007@gmail.com
-            - tqchen@cs.washington.edu
-        on_success: change
-        on_failure: always
+  email:
+    on_success: change
+    on_failure: always
 
