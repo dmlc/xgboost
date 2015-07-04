@@ -1,9 +1,10 @@
+// Copyright (c) 2014 by Contributors
 #include <vector>
 #include <string>
 #include <utility>
 #include <cstring>
 #include <cstdio>
-#include <sstream> 
+#include <sstream>
 #include "wrapper/xgboost_wrapper.h"
 #include "src/utils/utils.h"
 #include "src/utils/omp.h"
@@ -34,7 +35,7 @@ bool CheckNAN(double v) {
 bool LogGamma(double v) {
   return lgammafn(v);
 }
-} // namespace utils
+}  // namespace utils
 
 namespace random {
 void Seed(unsigned seed) {
@@ -62,7 +63,7 @@ extern "C" {
   SEXP XGCheckNullPtr_R(SEXP handle) {
     return ScalarLogical(R_ExternalPtrAddr(handle) == NULL);
   }
-  void _DMatrixFinalizer(SEXP ext) {    
+  void _DMatrixFinalizer(SEXP ext) {
     if (R_ExternalPtrAddr(ext) == NULL) return;
     XGDMatrixFree(R_ExternalPtrAddr(ext));
     R_ClearExternalPtr(ext);
@@ -76,7 +77,7 @@ extern "C" {
     UNPROTECT(1);
     return ret;
   }
-  SEXP XGDMatrixCreateFromMat_R(SEXP mat, 
+  SEXP XGDMatrixCreateFromMat_R(SEXP mat,
                                 SEXP missing) {
     _WrapperBegin();
     SEXP dim = getAttrib(mat, R_DimSymbol);
@@ -95,7 +96,7 @@ extern "C" {
     SEXP ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
     R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
     UNPROTECT(1);
-    return ret;    
+    return ret;
   }
   SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
                                 SEXP indices,
@@ -138,7 +139,7 @@ extern "C" {
     SEXP ret = PROTECT(R_MakeExternalPtr(res, R_NilValue, R_NilValue));
     R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
     UNPROTECT(1);
-    return ret;        
+    return ret;
   }
   void XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent) {
     _WrapperBegin();
@@ -152,7 +153,7 @@ extern "C" {
     const char *name = CHAR(asChar(field));
     if (!strcmp("group", name)) {
       std::vector<unsigned> vec(len);
-      #pragma omp parallel for schedule(static)      
+      #pragma omp parallel for schedule(static)
       for (int i = 0; i < len; ++i) {
         vec[i] = static_cast<unsigned>(INTEGER(array)[i]);
       }
@@ -163,7 +164,7 @@ extern "C" {
       for (int i = 0; i < len; ++i) {
         vec[i] = REAL(array)[i];
       }
-      XGDMatrixSetFloatInfo(R_ExternalPtrAddr(handle), 
+      XGDMatrixSetFloatInfo(R_ExternalPtrAddr(handle),
                             CHAR(asChar(field)),
                             BeginPtr(vec), len);
     }
@@ -187,7 +188,7 @@ extern "C" {
     return ScalarInteger(static_cast<int>(nrow));
   }
   // functions related to booster
-  void _BoosterFinalizer(SEXP ext) {    
+  void _BoosterFinalizer(SEXP ext) {
     if (R_ExternalPtrAddr(ext) == NULL) return;
     XGBoosterFree(R_ExternalPtrAddr(ext));
     R_ClearExternalPtr(ext);
@@ -196,7 +197,7 @@ extern "C" {
     _WrapperBegin();
     int len = length(dmats);
     std::vector<void*> dvec;
-    for (int i = 0; i < len; ++i){
+    for (int i = 0; i < len; ++i) {
       dvec.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
     }
     void *handle = XGBoosterCreate(BeginPtr(dvec), dvec.size());
@@ -252,7 +253,7 @@ extern "C" {
     const char *ret =
         XGBoosterEvalOneIter(R_ExternalPtrAddr(handle),
                              asInteger(iter),
-                             BeginPtr(vec_dmats), BeginPtr(vec_sptr), len);  
+                             BeginPtr(vec_dmats), BeginPtr(vec_sptr), len);
     _WrapperEnd();
     return mkString(ret);
   }
@@ -282,7 +283,7 @@ extern "C" {
     XGBoosterSaveModel(R_ExternalPtrAddr(handle), CHAR(asChar(fname)));
     _WrapperEnd();
   }
-  void XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw) {    
+  void XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw) {
     _WrapperBegin();
     XGBoosterLoadModelFromBuffer(R_ExternalPtrAddr(handle),
                                  RAW(raw),
@@ -298,7 +299,7 @@ extern "C" {
     if (olen != 0) {
       memcpy(RAW(ret), raw, olen);
     }
-    UNPROTECT(1);    
+    UNPROTECT(1);
     return ret;
   }
   SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats) {
@@ -310,10 +311,10 @@ extern "C" {
                            asInteger(with_stats),
                            &olen);
     _WrapperEnd();
-    SEXP out = PROTECT(allocVector(STRSXP, olen));    
-    for (size_t i = 0; i < olen; ++i) {     
+    SEXP out = PROTECT(allocVector(STRSXP, olen));
+    for (size_t i = 0; i < olen; ++i) {
       stringstream stream;
-      stream <<  "booster["<<i<<"]\n" << res[i];
+      stream <<  "booster[" << i <<"]\n" << res[i];
       SET_STRING_ELT(out, i, mkChar(stream.str().c_str()));
     }
     UNPROTECT(1);

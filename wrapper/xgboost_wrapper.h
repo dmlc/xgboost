@@ -1,24 +1,26 @@
-#ifndef XGBOOST_WRAPPER_H_
-#define XGBOOST_WRAPPER_H_
 /*!
+ * Copyright (c) 2014 by Contributors
  * \file xgboost_wrapper.h
  * \author Tianqi Chen
  * \brief a C style wrapper of xgboost
  *  can be used to create wrapper of other languages
  */
+#ifndef XGBOOST_WRAPPER_H_
+#define XGBOOST_WRAPPER_H_
+
 #if defined(_MSC_VER) || defined(_WIN32)
 #define XGB_DLL __declspec(dllexport)
 #else
 #define XGB_DLL
 #endif
 // manually define unsign long
-typedef unsigned long bst_ulong;
+typedef unsigned long bst_ulong;  // NOLINT(*)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
   /*!
-   * \brief load a data matrix 
+   * \brief load a data matrix
    * \param fname the name of the file
    * \param silent whether print messages during loading
    * \return a loaded data matrix
@@ -29,7 +31,7 @@ extern "C" {
    * \param indptr pointer to row headers
    * \param indices findex
    * \param data fvalue
-   * \param nindptr number of rows in the matix + 1 
+   * \param nindptr number of rows in the matix + 1
    * \param nelem number of nonzero elements in the matrix
    * \return created dmatrix
    */
@@ -51,7 +53,7 @@ extern "C" {
                                        const unsigned *indices,
                                        const float *data,
                                        bst_ulong nindptr,
-                                       bst_ulong nelem);  
+                                       bst_ulong nelem);
   /*!
    * \brief create matrix content from dense matrix
    * \param data pointer to the data space
@@ -92,7 +94,8 @@ extern "C" {
    * \param array pointer to float vector
    * \param len length of array
    */
-  XGB_DLL void XGDMatrixSetFloatInfo(void *handle, const char *field, const float *array, bst_ulong len);
+  XGB_DLL void XGDMatrixSetFloatInfo(void *handle, const char *field,
+                                     const float *array, bst_ulong len);
   /*!
    * \brief set uint32 vector to a content in info
    * \param handle a instance of data matrix
@@ -100,7 +103,8 @@ extern "C" {
    * \param array pointer to float vector
    * \param len length of array
    */
-  XGB_DLL void XGDMatrixSetUIntInfo(void *handle, const char *field, const unsigned *array, bst_ulong len);
+  XGB_DLL void XGDMatrixSetUIntInfo(void *handle, const char *field,
+                                    const unsigned *array, bst_ulong len);
   /*!
    * \brief set label of the training matrix
    * \param handle a instance of data matrix
@@ -115,7 +119,8 @@ extern "C" {
    * \param out_len used to set result length
    * \return pointer to the result
    */
-  XGB_DLL const float* XGDMatrixGetFloatInfo(const void *handle, const char *field, bst_ulong* out_len);
+  XGB_DLL const float* XGDMatrixGetFloatInfo(const void *handle,
+                                             const char *field, bst_ulong* out_len);
   /*!
    * \brief get uint32 info vector from matrix
    * \param handle a instance of data matrix
@@ -123,31 +128,32 @@ extern "C" {
    * \param out_len used to set result length
    * \return pointer to the result
    */
-  XGB_DLL const unsigned* XGDMatrixGetUIntInfo(const void *handle, const char *field, bst_ulong* out_len);
+  XGB_DLL const unsigned* XGDMatrixGetUIntInfo(const void *handle,
+                                               const char *field, bst_ulong* out_len);
   /*!
    * \brief return number of rows
    */
   XGB_DLL bst_ulong XGDMatrixNumRow(const void *handle);
   // --- start XGBoost class
-  /*! 
-   * \brief create xgboost learner 
+  /*!
+   * \brief create xgboost learner
    * \param dmats matrices that are set to be cached
    * \param len length of dmats
    */
   XGB_DLL void *XGBoosterCreate(void* dmats[], bst_ulong len);
-  /*! 
-   * \brief free obj in handle 
+  /*!
+   * \brief free obj in handle
    * \param handle handle to be freed
    */
   XGB_DLL void XGBoosterFree(void* handle);
-  /*! 
-   * \brief set parameters 
+  /*!
+   * \brief set parameters
    * \param handle handle
    * \param name  parameter name
    * \param val value of parameter
-   */    
+   */
   XGB_DLL void XGBoosterSetParam(void *handle, const char *name, const char *value);
-  /*! 
+  /*!
    * \brief update the model in one round using dtrain
    * \param handle handle
    * \param iter current iteration rounds
@@ -188,8 +194,8 @@ extern "C" {
    *    when the parameter is set to 0, we will use all the trees
    * \param len used to store length of returning result
    */
-  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat, 
-                                        int option_mask, 
+  XGB_DLL const float *XGBoosterPredict(void *handle, void *dmat,
+                                        int option_mask,
                                         unsigned ntree_limit,
                                         bst_ulong *len);
   /*!
