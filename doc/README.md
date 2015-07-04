@@ -29,3 +29,7 @@ This section is about blogposts, presentation and videos discussing how to use x
 Contribution
 ====
 Contribution of documents and use-cases are welcomed!
+* This package use Google C++ style
+* Check tool of codestyle
+  - clone https://github.com/dmlc/dmlc-core into root directory
+  - type ```make lint``` and fix possible errors.
