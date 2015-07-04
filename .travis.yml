@@ -20,6 +20,7 @@ addons:
       - libcurl4-openssl-dev
       - unzip
       - python-numpy
+      - python-scipy
       - python-nose
 
 before_install:
