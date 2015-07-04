@@ -5,8 +5,8 @@ env:
   matrix:
     - TASK=lint LINT_LANG=cpp
     - TASK=lint LINT_LANG=python
-    - TASK="R-package"
-    - TASK="python-package"
+    - TASK=R-package
+    - TASK=python-package
     - TASK=build CXX=g++
     - TASK=build-with-dmlc CXX=g++
 
