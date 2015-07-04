@@ -147,7 +147,7 @@ Run the command again, we can find the log file becomes
 ```
 The rule is eval[name-printed-in-log] = filename, then the file will be added to monitoring process, and evaluated each round.
 
-xgboost also support monitoring multiple metrics, suppose we also want to monitor average log-likelihood of each prediction during training, simply add ```eval_metric=logloss``` to configure. Run again, we can find the log file becomes
+xgboost also supports monitoring multiple metrics, suppose we also want to monitor average log-likelihood of each prediction during training, simply add ```eval_metric=logloss``` to configure. Run again, we can find the log file becomes
 ```
 [0]     test-error:0.016139     test-negllik:0.029795   trainname-error:0.014433        trainname-negllik:0.027023
 [1]     test-error:0.000000     test-negllik:0.000000   trainname-error:0.001228        trainname-negllik:0.002457
@@ -166,7 +166,7 @@ When you are working with a large dataset, you may want to take advantage of par
 
 #### Additional Notes
 * What are ```agaricus.txt.test.buffer``` and ```agaricus.txt.train.buffer``` generated during runexp.sh? 
-  - By default xgboost will automatically generate a binary format buffer of input data, with suffix ```buffer```. When next time you run xgboost, it detects i
-Demonstrating how to use XGBoost accomplish binary classification tasks  on UCI mushroom dataset  http://archive.ics.uci.edu/ml/datasets/Mushroom
+  - By default xgboost will automatically generate a binary format buffer of input data, with suffix ```buffer```. Next time when you run xgboost, it will detects these binary files.
+
 
 
