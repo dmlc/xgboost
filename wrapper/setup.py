@@ -1,9 +1,12 @@
+# pylint: disable=invalid-name
+"""Setup xgboost package."""
 import os
 import platform
 from setuptools import setup
 
 
 class XGBoostLibraryNotFound(Exception):
+    """Exception to raise when xgboost library cannot be found."""
     pass
 
 
@@ -15,7 +18,7 @@ if os.name == 'nt':
         dll_path.append(os.path.join(curr_dir, '../windows/x64/Release/'))
     else:
         dll_path.append(os.path.join(curr_dir, '../windows/Release/'))
-        
+
 
 if os.name == 'nt':
     dll_path = [os.path.join(p, 'xgboost_wrapper.dll') for p in dll_path]
