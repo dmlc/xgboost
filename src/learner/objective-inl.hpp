@@ -1,10 +1,12 @@
-#ifndef XGBOOST_LEARNER_OBJECTIVE_INL_HPP_
-#define XGBOOST_LEARNER_OBJECTIVE_INL_HPP_
 /*!
+ * Copyright 2014 by Contributors
  * \file objective-inl.hpp
  * \brief objective function implementations
  * \author Tianqi Chen, Kailong Chen
  */
+#ifndef XGBOOST_LEARNER_OBJECTIVE_INL_HPP_
+#define XGBOOST_LEARNER_OBJECTIVE_INL_HPP_
+
 #include <vector>
 #include <algorithm>
 #include <utility>
@@ -176,14 +178,14 @@ class RegLossObj : public IObjFunction {
 // poisson regression for count
 class PoissonRegression : public IObjFunction {
  public:
-  explicit PoissonRegression(void) {
+  PoissonRegression(void) {
     max_delta_step = 0.0f;
   }
   virtual ~PoissonRegression(void) {}
-  
+
   virtual void SetParam(const char *name, const char *val) {
     using namespace std;
-    if (!strcmp( "max_delta_step", name )) {
+    if (!strcmp("max_delta_step", name)) {
       max_delta_step = static_cast<float>(atof(val));
     }
   }
@@ -201,9 +203,9 @@ class PoissonRegression : public IObjFunction {
     // check if label in range
     bool label_correct = true;
     // start calculating gradient
-    const long ndata = static_cast<bst_omp_uint>(preds.size());
+    const long ndata = static_cast<bst_omp_uint>(preds.size()); // NOLINT(*)
     #pragma omp parallel for schedule(static)
-    for (long i = 0; i < ndata; ++i) {
+    for (long i = 0; i < ndata; ++i) { // NOLINT(*)
       float p = preds[i];
       float w = info.GetWeight(i);
       float y = info.labels[i];
@@ -219,9 +221,9 @@ class PoissonRegression : public IObjFunction {
   }
   virtual void PredTransform(std::vector<float> *io_preds) {
     std::vector<float> &preds = *io_preds;
-    const long ndata = static_cast<long>(preds.size());
+    const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
     #pragma omp parallel for schedule(static)
-    for (long j = 0; j < ndata; ++j) {
+    for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     }
   }
@@ -234,7 +236,7 @@ class PoissonRegression : public IObjFunction {
   virtual const char* DefaultEvalMetric(void) const {
     return "poisson-nloglik";
   }
-  
+
  private:
   float max_delta_step;
 };
@@ -467,7 +469,7 @@ class LambdaRankObj : public IObjFunction {
         : pos_index(pos_index), neg_index(neg_index), weight(1.0f) {}
   };
   /*!
-   * \brief get lambda weight for existing pairs 
+   * \brief get lambda weight for existing pairs
    * \param list a list that is sorted by pred score
    * \param io_pairs record of pairs, containing the pairs to fill in weights
    */
@@ -555,10 +557,10 @@ class LambdaRankObjMAP : public LambdaRankObj {
     float ap_acc;
     /*!
      * \brief the accumulated precision,
-     *   assuming a positive instance is missing 
+     *   assuming a positive instance is missing
      */
     float ap_acc_miss;
-    /*! 
+    /*!
      * \brief the accumulated precision,
      * assuming that one more positive instance is inserted ahead
      */
