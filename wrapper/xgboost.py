@@ -6,7 +6,7 @@ Version: 0.40
 Authors: Tianqi Chen, Bing Xu
 Early stopping by Zygmunt Zając
 """
-# pylint: disable=too-many-arguments, too-many-locals, too-many-lines
+# pylint: disable=too-many-arguments, too-many-locals, too-many-lines, invalid-name
 from __future__ import absolute_import
 
 import os
