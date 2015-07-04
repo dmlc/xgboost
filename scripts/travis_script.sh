@@ -7,7 +7,7 @@ fi
 
 if [ ${TASK} == "doc" ]; then
     make doc 2>log.txt
-    (cat log.txt|grep warning) && exit -1
+    (cat log.txt| grep -v ENABLE_PREPROCESSING |grep -v "unsupported tag" |grep warning) && exit -1
 fi
 
 if [ ${TASK} == "build" ]; then
