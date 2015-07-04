@@ -1,10 +1,12 @@
-#ifndef XGBOOST_UTILS_FMAP_H_
-#define XGBOOST_UTILS_FMAP_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file fmap.h
  * \brief helper class that holds the feature names and interpretations
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_UTILS_FMAP_H_
+#define XGBOOST_UTILS_FMAP_H_
+
 #include <vector>
 #include <string>
 #include <cstring>
@@ -78,4 +80,4 @@ class FeatMap {
 
 }  // namespace utils
 }  // namespace xgboost
-#endif  // XGBOOST_FMAP_H_
+#endif  // XGBOOST_UTILS_FMAP_H_
