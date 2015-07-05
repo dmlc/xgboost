@@ -44,7 +44,6 @@ else:
     # pylint: disable=invalid-name
     STRING_TYPES = basestring,
 
-
 def load_xglib():
     """Load the xgboost library."""
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
@@ -63,29 +62,26 @@ def load_xglib():
         raise XGBoostLibraryNotFound(
             'cannot find find the files in the candicate path ' + str(dll_path))
     lib = ctypes.cdll.LoadLibrary(lib_path[0])
-
-    # DMatrix functions
-    lib.XGDMatrixCreateFromFile.restype = ctypes.c_void_p
-    lib.XGDMatrixCreateFromCSR.restype = ctypes.c_void_p
-    lib.XGDMatrixCreateFromCSC.restype = ctypes.c_void_p
-    lib.XGDMatrixCreateFromMat.restype = ctypes.c_void_p
-    lib.XGDMatrixSliceDMatrix.restype = ctypes.c_void_p
-    lib.XGDMatrixGetFloatInfo.restype = ctypes.POINTER(ctypes.c_float)
-    lib.XGDMatrixGetUIntInfo.restype = ctypes.POINTER(ctypes.c_uint)
-    lib.XGDMatrixNumRow.restype = ctypes.c_ulong
-
-    # Booster functions
-    lib.XGBoosterCreate.restype = ctypes.c_void_p
-    lib.XGBoosterPredict.restype = ctypes.POINTER(ctypes.c_float)
-    lib.XGBoosterEvalOneIter.restype = ctypes.c_char_p
-    lib.XGBoosterDumpModel.restype = ctypes.POINTER(ctypes.c_char_p)
-    lib.XGBoosterGetModelRaw.restype = ctypes.POINTER(ctypes.c_char)
-    lib.XGBoosterLoadModelFromBuffer.restype = ctypes.c_void_p
+    lib.XGBGetLastError.restype = ctypes.c_char_p
 
     return lib
 
 # load the XGBoost library globally
 _LIB = load_xglib()
+
+def _check_call(ret):
+    """Check the return value of C API call
+
+    This function will raise exception when error occurs.
+    Wrap every API call with this function
+
+    Parameters
+    ----------
+    ret : int
+        return value from API calls
+    """
+    if ret != 0:
+        raise XGBoostError(_LIB.XGBGetLastError())
 
 
 def ctypes2numpy(cptr, length, dtype):
@@ -145,7 +141,10 @@ class DMatrix(object):
             self.handle = None
             return
         if isinstance(data, STRING_TYPES):
-            self.handle = ctypes.c_void_p(_LIB.XGDMatrixCreateFromFile(c_str(data), int(silent)))
+            self.handle = ctypes.c_void_p()
+            _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
+                                                     int(silent),
+                                                     ctypes.byref(self.handle)))
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
@@ -169,11 +168,12 @@ class DMatrix(object):
         """
         if len(csr.indices) != len(csr.data):
             raise ValueError('length mismatch: {} vs {}'.format(len(csr.indices), len(csr.data)))
-        self.handle = ctypes.c_void_p(_LIB.XGDMatrixCreateFromCSR(
-            c_array(ctypes.c_ulong, csr.indptr),
-            c_array(ctypes.c_uint, csr.indices),
-            c_array(ctypes.c_float, csr.data),
-            len(csr.indptr), len(csr.data)))
+        self.handle = ctypes.c_void_p()
+        _check_call(_LIB.XGDMatrixCreateFromCSR(c_array(ctypes.c_ulong, csr.indptr),
+                                                c_array(ctypes.c_uint, csr.indices),
+                                                c_array(ctypes.c_float, csr.data),
+                                                len(csr.indptr), len(csr.data),
+                                                ctypes.byref(self.handle)))
 
     def _init_from_csc(self, csc):
         """
@@ -181,23 +181,26 @@ class DMatrix(object):
         """
         if len(csc.indices) != len(csc.data):
             raise ValueError('length mismatch: {} vs {}'.format(len(csc.indices), len(csc.data)))
-        self.handle = ctypes.c_void_p(_LIB.XGDMatrixCreateFromCSC(
-            c_array(ctypes.c_ulong, csc.indptr),
-            c_array(ctypes.c_uint, csc.indices),
-            c_array(ctypes.c_float, csc.data),
-            len(csc.indptr), len(csc.data)))
+        self.handle = ctypes.c_void_p()
+        _check_call(_LIB.XGDMatrixCreateFromCSC(c_array(ctypes.c_ulong, csc.indptr),
+                                                c_array(ctypes.c_uint, csc.indices),
+                                                c_array(ctypes.c_float, csc.data),
+                                                len(csc.indptr), len(csc.data),
+                                                ctypes.byref(self.handle)))
 
     def _init_from_npy2d(self, mat, missing):
         """
         Initialize data from a 2-D numpy matrix.
         """
         data = np.array(mat.reshape(mat.size), dtype=np.float32)
-        self.handle = ctypes.c_void_p(_LIB.XGDMatrixCreateFromMat(
-            data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-            mat.shape[0], mat.shape[1], ctypes.c_float(missing)))
+        self.handle = ctypes.c_void_p()
+        _check_call(_LIB.XGDMatrixCreateFromMat(data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+                                                mat.shape[0], mat.shape[1],
+                                                ctypes.c_float(missing),
+                                                ctypes.byref(self.handle)))
 
     def __del__(self):
-        _LIB.XGDMatrixFree(self.handle)
+        _check_call(_LIB.XGDMatrixFree(self.handle))
 
     def get_float_info(self, field):
         """Get float property from the DMatrix.
@@ -213,7 +216,11 @@ class DMatrix(object):
             a numpy array of float information of the data
         """
         length = ctypes.c_ulong()
-        ret = _LIB.XGDMatrixGetFloatInfo(self.handle, c_str(field), ctypes.byref(length))
+        ret = ctypes.POINTER(ctypes.c_float)()
+        _check_call(_LIB.XGDMatrixGetFloatInfo(self.handle,
+                                               c_str(field),
+                                               ctypes.byref(length),
+                                               ctypes.byref(ret)))
         return ctypes2numpy(ret, length.value, np.float32)
 
     def get_uint_info(self, field):
@@ -230,7 +237,11 @@ class DMatrix(object):
             a numpy array of float information of the data
         """
         length = ctypes.c_ulong()
-        ret = _LIB.XGDMatrixGetUIntInfo(self.handle, c_str(field), ctypes.byref(length))
+        ret = ctypes.POINTER(ctypes.c_uint)()
+        _check_call(_LIB.XGDMatrixGetUIntInfo(self.handle,
+                                              c_str(field),
+                                              ctypes.byref(length),
+                                              ctypes.byref(ret)))
         return ctypes2numpy(ret, length.value, np.uint32)
 
     def set_float_info(self, field, data):
@@ -244,8 +255,10 @@ class DMatrix(object):
         data: numpy array
             The array ofdata to be set
         """
-        _LIB.XGDMatrixSetFloatInfo(self.handle, c_str(field),
-                                   c_array(ctypes.c_float, data), len(data))
+        _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
+                                               c_str(field),
+                                               c_array(ctypes.c_float, data),
+                                               len(data)))
 
     def set_uint_info(self, field, data):
         """Set uint type property into the DMatrix.
@@ -258,8 +271,10 @@ class DMatrix(object):
         data: numpy array
             The array ofdata to be set
         """
-        _LIB.XGDMatrixSetUIntInfo(self.handle, c_str(field),
-                                  c_array(ctypes.c_uint, data), len(data))
+        _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
+                                              c_str(field),
+                                              c_array(ctypes.c_uint, data),
+                                              len(data)))
 
     def save_binary(self, fname, silent=True):
         """Save DMatrix to an XGBoost buffer.
@@ -271,7 +286,9 @@ class DMatrix(object):
         silent : bool (optional; default: True)
             If set, the output is suppressed.
         """
-        _LIB.XGDMatrixSaveBinary(self.handle, c_str(fname), int(silent))
+        _check_call(_LIB.XGDMatrixSaveBinary(self.handle,
+                                             c_str(fname),
+                                             int(silent)))
 
     def set_label(self, label):
         """Set label of dmatrix
@@ -317,7 +334,9 @@ class DMatrix(object):
         group : array like
             Group size of each group
         """
-        _LIB.XGDMatrixSetGroup(self.handle, c_array(ctypes.c_uint, group), len(group))
+        _check_call(_LIB.XGDMatrixSetGroup(self.handle,
+                                           c_array(ctypes.c_uint, group),
+                                           len(group)))
 
     def get_label(self):
         """Get the label of the DMatrix.
@@ -353,7 +372,10 @@ class DMatrix(object):
         -------
         number of rows : int
         """
-        return _LIB.XGDMatrixNumRow(self.handle)
+        ret = ctypes.c_ulong()
+        _check_call(_LIB.XGDMatrixNumRow(self.handle,
+                                         ctypes.byref(ret)))
+        return ret.value
 
     def slice(self, rindex):
         """Slice the DMatrix and return a new DMatrix that only contains `rindex`.
@@ -369,8 +391,11 @@ class DMatrix(object):
             A new DMatrix containing only selected indices.
         """
         res = DMatrix(None)
-        res.handle = ctypes.c_void_p(_LIB.XGDMatrixSliceDMatrix(
-            self.handle, c_array(ctypes.c_int, rindex), len(rindex)))
+        res.handle = ctypes.c_void_p()
+        _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
+                                               c_array(ctypes.c_int, rindex),
+                                               len(rindex),
+                                               ctypes.byref(res.handle)))
         return res
 
 
@@ -394,7 +419,8 @@ class Booster(object):
             if not isinstance(d, DMatrix):
                 raise TypeError('invalid cache item: {}'.format(type(d).__name__))
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
-        self.handle = ctypes.c_void_p(_LIB.XGBoosterCreate(dmats, len(cache)))
+        self.handle = ctypes.c_void_p()
+        _check_call(_LIB.XGBoosterCreate(dmats, len(cache), ctypes.byref(self.handle)))
         self.set_param({'seed': 0})
         self.set_param(params or {})
         if model_file is not None:
@@ -419,10 +445,11 @@ class Booster(object):
         if handle is not None:
             buf = handle
             dmats = c_array(ctypes.c_void_p, [])
-            handle = ctypes.c_void_p(_LIB.XGBoosterCreate(dmats, 0))
+            handle = ctypes.c_void_p()
+            _check_call(_LIB.XGBoosterCreate(dmats, 0, ctypes.byref(handle)))
             length = ctypes.c_ulong(len(buf))
             ptr = (ctypes.c_char * len(buf)).from_buffer(buf)
-            _LIB.XGBoosterLoadModelFromBuffer(handle, ptr, length)
+            _check_call(_LIB.XGBoosterLoadModelFromBuffer(handle, ptr, length))
             state['handle'] = handle
         self.__dict__.update(state)
         self.set_param({'seed': 0})
@@ -449,7 +476,7 @@ class Booster(object):
         elif isinstance(params, STRING_TYPES) and value is not None:
             params = [(params, value)]
         for key, val in params:
-            _LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val)))
+            _check_call(_LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val))))
 
     def update(self, dtrain, iteration, fobj=None):
         """
@@ -467,7 +494,7 @@ class Booster(object):
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
         if fobj is None:
-            _LIB.XGBoosterUpdateOneIter(self.handle, iteration, dtrain.handle)
+            _check_call(_LIB.XGBoosterUpdateOneIter(self.handle, iteration, dtrain.handle))
         else:
             pred = self.predict(dtrain)
             grad, hess = fobj(pred, dtrain)
@@ -490,10 +517,10 @@ class Booster(object):
             raise ValueError('grad / hess length mismatch: {} / {}'.format(len(grad), len(hess)))
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
-        _LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
-                                   c_array(ctypes.c_float, grad),
-                                   c_array(ctypes.c_float, hess),
-                                   len(grad))
+        _check_call(_LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
+                                               c_array(ctypes.c_float, grad),
+                                               c_array(ctypes.c_float, hess),
+                                               len(grad)))
 
     def eval_set(self, evals, iteration=0, feval=None):
         # pylint: disable=invalid-name
@@ -520,7 +547,11 @@ class Booster(object):
                     raise TypeError('expected string, got {}'.format(type(d[1]).__name__))
             dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
             evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
-            return _LIB.XGBoosterEvalOneIter(self.handle, iteration, dmats, evnames, len(evals))
+            msg = ctypes.c_char_p()
+            _check_call(_LIB.XGBoosterEvalOneIter(self.handle, iteration,
+                                                  dmats, evnames, len(evals),
+                                                  ctypes.byref(msg)))
+            return msg.value
         else:
             res = '[%d]' % iteration
             for dmat, evname in evals:
@@ -582,8 +613,11 @@ class Booster(object):
         if pred_leaf:
             option_mask |= 0x02
         length = ctypes.c_ulong()
-        preds = _LIB.XGBoosterPredict(self.handle, data.handle,
-                                      option_mask, ntree_limit, ctypes.byref(length))
+        preds = ctypes.POINTER(ctypes.c_float)()
+        _check_call(_LIB.XGBoosterPredict(self.handle, data.handle,
+                                          option_mask, ntree_limit,
+                                          ctypes.byref(length),
+                                          ctypes.byref(preds)))
         preds = ctypes2numpy(preds, length.value, np.float32)
         if pred_leaf:
             preds = preds.astype(np.int32)
@@ -602,7 +636,7 @@ class Booster(object):
             Output file name
         """
         if isinstance(fname, STRING_TYPES):  # assume file name
-            _LIB.XGBoosterSaveModel(self.handle, c_str(fname))
+            _check_call(_LIB.XGBoosterSaveModel(self.handle, c_str(fname)))
         else:
             raise TypeError("fname must be a string")
 
@@ -615,8 +649,10 @@ class Booster(object):
         a in memory buffer represetation of the model
         """
         length = ctypes.c_ulong()
-        cptr = _LIB.XGBoosterGetModelRaw(self.handle,
-                                         ctypes.byref(length))
+        cptr = ctypes.POINTER(ctypes.c_char)()
+        _check_call(_LIB.XGBoosterGetModelRaw(self.handle,
+                                              ctypes.byref(length),
+                                              ctypes.byref(cptr)))
         return ctypes2buffer(cptr, length.value)
 
     def load_model(self, fname):
@@ -634,7 +670,7 @@ class Booster(object):
             buf = fname
             length = ctypes.c_ulong(len(buf))
             ptr = (ctypes.c_char * len(buf)).from_buffer(buf)
-            _LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length)
+            _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
 
     def dump_model(self, fout, fmap='', with_stats=False):
         """
@@ -666,8 +702,12 @@ class Booster(object):
         Returns the dump the model as a list of strings.
         """
         length = ctypes.c_ulong()
-        sarr = _LIB.XGBoosterDumpModel(self.handle, c_str(fmap),
-                                       int(with_stats), ctypes.byref(length))
+        sarr = ctypes.POINTER(ctypes.c_char_p)()
+        _check_call(_LIB.XGBoosterDumpModel(self.handle,
+                                            c_str(fmap),
+                                            int(with_stats),
+                                            ctypes.byref(length),
+                                            ctypes.byref(sarr)))
         res = []
         for i in range(length.value):
             res.append(str(sarr[i].decode('ascii')))

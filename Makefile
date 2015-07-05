@@ -69,6 +69,10 @@ else
 	TARGET = $(BIN)
 endif
 
+ifndef LINT_LANG
+	LINT_LANG= "all"
+endif
+
 .PHONY: clean all mpi python Rpack lint
 
 all: $(TARGET)
