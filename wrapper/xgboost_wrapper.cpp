@@ -98,6 +98,31 @@ class Booster: public learner::BoostLearner {
  private:
   bool init_model;
 };
+
+// helper to support threadlocal
+struct ThreadLocalStore {
+  std::vector<std::string*> data;
+  // allocate a string
+  inline std::string *Alloc() {
+    mutex.Lock();
+    data.push_back(new std::string());
+    std::string *ret = data.back();
+    mutex.Unlock();
+    return ret;
+  }
+  ThreadLocalStore() {
+    mutex.Init();
+  }
+  ~ThreadLocalStore() {
+    for (size_t i = 0; i < data.size(); ++i) {
+      delete data[i];
+    }
+    mutex.Destroy();
+  }
+  utils::Mutex mutex;
+};
+
+static ThreadLocalStore thread_local_store;
 }  // namespace wrapper
 }  // namespace xgboost
 
@@ -137,11 +162,14 @@ using namespace xgboost::wrapper;
  */
 const char *XGBSetGetLastError_(const char *str_set) {
   // use last_error to record last error
-  static XGB_TREAD_LOCAL std::string last_error;
-  if (str_set != NULL) {
-    last_error = str_set;
+  static XGB_TREAD_LOCAL std::string *last_error = NULL;
+  if (last_error == NULL) {
+    last_error = thread_local_store.Alloc();
   }
-  return last_error.c_str();
+  if (str_set != NULL) {
+    *last_error = str_set;
+  }
+  return last_error->c_str();
 }
 
 /*! \brief return str message of the last error */
