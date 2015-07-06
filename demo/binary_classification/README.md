@@ -162,7 +162,11 @@ If you want to continue boosting from existing model, say 0002.model, use
 ```
 xgboost will load from 0002.model continue boosting for 2 rounds, and save output to continue.model. However, beware that the training and evaluation data specified in mushroom.conf should not change when you use this function.
 #### Use Multi-Threading
-When you are working with a large dataset, you may want to take advantage of parallelism. If your compiler supports OpenMP, xgboost is naturally multi-threaded, to set number of parallel running threads to 10, add ```nthread=10``` to your configuration.
+When you are working with a large dataset, you may want to take advantage of parallelism. If your compiler supports OpenMP, xgboost is naturally multi-threaded, to set number of parallel running add ```nthread``` parameter to you configuration. 
+Eg. ```nthread=10```
+
+Set nthread to be the number of your real cpu (On Unix, this can be found using ```lscpu```)
+Some systems will have ```Thread(s) per core = 2```, for example, a 4 core cpu with 8 threads, in such case set ```nthread=4``` and not 8.
 
 #### Additional Notes
 * What are ```agaricus.txt.test.buffer``` and ```agaricus.txt.train.buffer``` generated during runexp.sh? 
