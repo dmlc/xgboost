@@ -17,32 +17,34 @@ package org.dmlc.xgboost4j.wrapper;
 
 /**
  * xgboost jni wrapper functions for xgboost_wrapper.h
+ * change 2015-7-6: *use a long[] (length=1) as container of handle to get the output DMatrix or Booster
  * @author hzx
  */
 public class XgboostJNI {
-  public final static native long XGDMatrixCreateFromFile(String fname, int silent);
-  public final static native long XGDMatrixCreateFromCSR(long[] indptr, int[] indices, float[] data);
-  public final static native long XGDMatrixCreateFromCSC(long[] colptr, int[] indices, float[] data);
-  public final static native long XGDMatrixCreateFromMat(float[] data, int nrow, int ncol, float missing);
-  public final static native long XGDMatrixSliceDMatrix(long handle, int[] idxset);
-  public final static native void XGDMatrixFree(long handle);
-  public final static native void XGDMatrixSaveBinary(long handle, String fname, int silent);
-  public final static native void XGDMatrixSetFloatInfo(long handle, String field, float[] array);
-  public final static native void XGDMatrixSetUIntInfo(long handle, String field, int[] array);
-  public final static native void XGDMatrixSetGroup(long handle, int[] group);
-  public final static native float[] XGDMatrixGetFloatInfo(long handle, String field);
-  public final static native int[] XGDMatrixGetUIntInfo(long handle, String filed);
-  public final static native long XGDMatrixNumRow(long handle);
-  public final static native long XGBoosterCreate(long[] handles);
-  public final static native void XGBoosterFree(long handle);
-  public final static native void XGBoosterSetParam(long handle, String name, String value);
-  public final static native void XGBoosterUpdateOneIter(long handle, int iter, long dtrain);
-  public final static native void XGBoosterBoostOneIter(long handle, long dtrain, float[] grad, float[] hess);
-  public final static native String XGBoosterEvalOneIter(long handle, int iter, long[] dmats, String[] evnames);
-  public final static native float[] XGBoosterPredict(long handle, long dmat, int option_mask, long ntree_limit);
-  public final static native void XGBoosterLoadModel(long handle, String fname);
-  public final static native void XGBoosterSaveModel(long handle, String fname);
-  public final static native void XGBoosterLoadModelFromBuffer(long handle, long buf, long len);
-  public final static native String XGBoosterGetModelRaw(long handle);
-  public final static native String[] XGBoosterDumpModel(long handle, String fmap, int with_stats);
+  public final static native String XGBGetLastError();
+  public final static native int XGDMatrixCreateFromFile(String fname, int silent, long[] out);
+  public final static native int XGDMatrixCreateFromCSR(long[] indptr, int[] indices, float[] data, long[] out);
+  public final static native int XGDMatrixCreateFromCSC(long[] colptr, int[] indices, float[] data, long[] out);
+  public final static native int XGDMatrixCreateFromMat(float[] data, int nrow, int ncol, float missing, long[] out);
+  public final static native int XGDMatrixSliceDMatrix(long handle, int[] idxset, long[] out);
+  public final static native int XGDMatrixFree(long handle);
+  public final static native int XGDMatrixSaveBinary(long handle, String fname, int silent);
+  public final static native int XGDMatrixSetFloatInfo(long handle, String field, float[] array);
+  public final static native int XGDMatrixSetUIntInfo(long handle, String field, int[] array);
+  public final static native int XGDMatrixSetGroup(long handle, int[] group);
+  public final static native int XGDMatrixGetFloatInfo(long handle, String field, float[][] info);
+  public final static native int XGDMatrixGetUIntInfo(long handle, String filed, int[][] info);
+  public final static native int XGDMatrixNumRow(long handle, long[] row);
+  public final static native int XGBoosterCreate(long[] handles, long[] out);
+  public final static native int XGBoosterFree(long handle);
+  public final static native int XGBoosterSetParam(long handle, String name, String value);
+  public final static native int XGBoosterUpdateOneIter(long handle, int iter, long dtrain);
+  public final static native int XGBoosterBoostOneIter(long handle, long dtrain, float[] grad, float[] hess);
+  public final static native int XGBoosterEvalOneIter(long handle, int iter, long[] dmats, String[] evnames, String[] eval_info);
+  public final static native int XGBoosterPredict(long handle, long dmat, int option_mask, long ntree_limit, float[][] predicts);
+  public final static native int XGBoosterLoadModel(long handle, String fname);
+  public final static native int XGBoosterSaveModel(long handle, String fname);
+  public final static native int XGBoosterLoadModelFromBuffer(long handle, long buf, long len);
+  public final static native int XGBoosterGetModelRaw(long handle, String[] out_string);
+  public final static native int XGBoosterDumpModel(long handle, String fmap, int with_stats, String[][] out_strings);
 }

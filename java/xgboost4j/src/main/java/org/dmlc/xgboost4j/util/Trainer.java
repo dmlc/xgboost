@@ -47,7 +47,7 @@ public class Trainer {
      * @return trained booster
      */
     public static Booster train(Iterable<Entry<String, Object>> params, DMatrix dtrain, int round, 
-            Iterable<Entry<String, DMatrix>> watchs, IObjective obj, IEvaluation eval) {
+            Iterable<Entry<String, DMatrix>> watchs, IObjective obj, IEvaluation eval) throws XgboostError {
         
         //collect eval matrixs
         String[] evalNames;
@@ -112,7 +112,7 @@ public class Trainer {
      * @param eval customized evaluation (set to null if not used)
      * @return evaluation history
      */
-    public static String[] crossValiation(Iterable<Entry<String, Object>> params, DMatrix data, int round, int nfold, String[] metrics, IObjective obj, IEvaluation eval) {
+    public static String[] crossValiation(Iterable<Entry<String, Object>> params, DMatrix data, int round, int nfold, String[] metrics, IObjective obj, IEvaluation eval) throws XgboostError {
         CVPack[] cvPacks = makeNFold(data, nfold, params, metrics);
         String[] evalHist = new String[round];
         String[] results = new String[cvPacks.length];
@@ -149,7 +149,7 @@ public class Trainer {
      * @param evalMetrics Evaluation metrics
      * @return CV package array
      */
-    public static CVPack[] makeNFold(DMatrix data, int nfold, Iterable<Entry<String, Object>> params, String[] evalMetrics) {
+    public static CVPack[] makeNFold(DMatrix data, int nfold, Iterable<Entry<String, Object>> params, String[] evalMetrics) throws XgboostError {
         List<Integer> samples = genRandPermutationNums(0, (int) data.rowNum());
         int step = samples.size()/nfold;
         int[] testSlice = new int[step];

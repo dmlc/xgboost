@@ -19,12 +19,15 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.dmlc.xgboost4j.Booster;
 import org.dmlc.xgboost4j.IEvaluation;
 import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.IObjective;
 import org.dmlc.xgboost4j.demo.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
+import org.dmlc.xgboost4j.util.XgboostError;
 
 /**
  * an example user define objective and eval
@@ -40,6 +43,8 @@ public class CustomObjective {
      * loglikelihoode loss obj function
      */
     public static class LogRegObj implements IObjective {
+        private static final Log logger = LogFactory.getLog(LogRegObj.class);
+        
         /**
          * simple sigmoid func
          * @param input
@@ -66,7 +71,13 @@ public class CustomObjective {
         public List<float[]> getGradient(float[][] predicts, DMatrix dtrain) {
             int nrow = predicts.length;
             List<float[]> gradients = new ArrayList<>();
-            float[] labels = dtrain.getLabel();
+            float[] labels;
+            try {
+                labels = dtrain.getLabel();
+            } catch (XgboostError ex) {
+                logger.error(ex);
+                return null;
+            }
             float[] grad = new float[nrow];
             float[] hess = new float[nrow];
             
@@ -93,6 +104,8 @@ public class CustomObjective {
      * Take this in mind when you use the customization, and maybe you need write customized evaluation function
      */
     public static class EvalError implements IEvaluation {
+        private static final Log logger = LogFactory.getLog(EvalError.class);
+        
         String evalMetric = "custom_error";
         
         public EvalError() {
@@ -106,7 +119,13 @@ public class CustomObjective {
         @Override
         public float eval(float[][] predicts, DMatrix dmat) {
             float error = 0f;
-            float[] labels = dmat.getLabel();
+            float[] labels;
+            try {
+                labels = dmat.getLabel();
+            } catch (XgboostError ex) {
+                logger.error(ex);
+                return -1f;
+            }
             int nrow = predicts.length;
             for(int i=0; i<nrow; i++) {
                 if(labels[i]==0f && predicts[i][0]>0) {
@@ -121,7 +140,7 @@ public class CustomObjective {
         }
     }
     
-    public static void main(String[] args) {
+    public static void main(String[] args) throws XgboostError {
         //load train mat (svmlight format)
         DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
         //load valid mat (svmlight format)

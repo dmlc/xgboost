@@ -15,14 +15,18 @@
  */
 package org.dmlc.xgboost4j.demo.util;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.IEvaluation;
+import org.dmlc.xgboost4j.util.XgboostError;
 
 /**
  * a util evaluation class for examples
  * @author hzx
  */
 public class CustomEval implements IEvaluation {
+    private static final Log logger = LogFactory.getLog(CustomEval.class);
 
     String evalMetric = "custom_error";
         
@@ -34,7 +38,13 @@ public class CustomEval implements IEvaluation {
     @Override
     public float eval(float[][] predicts, DMatrix dmat) {
         float error = 0f;
-        float[] labels = dmat.getLabel();
+        float[] labels;
+        try {
+            labels = dmat.getLabel();
+        } catch (XgboostError ex) {
+            logger.error(ex);
+            return -1f;
+        }
         int nrow = predicts.length;
         for(int i=0; i<nrow; i++) {
             if(labels[i]==0f && predicts[i][0]>0.5) {

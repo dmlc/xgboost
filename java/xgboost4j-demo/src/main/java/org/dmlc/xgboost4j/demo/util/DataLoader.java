@@ -77,10 +77,8 @@ public class DataLoader {
         reader.close();
         in.close();
         
-        Float[] flabels = (Float[]) tlabels.toArray();
-        denseData.labels = ArrayUtils.toPrimitive(flabels);
-        Float[] fdata = (Float[]) tdata.toArray();
-        denseData.data = ArrayUtils.toPrimitive(fdata);
+        denseData.labels = ArrayUtils.toPrimitive(tlabels.toArray(new Float[tlabels.size()]));
+        denseData.data = ArrayUtils.toPrimitive(tdata.toArray(new Float[tdata.size()]));
         
         return denseData;
     }
