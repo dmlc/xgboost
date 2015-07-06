@@ -55,6 +55,9 @@ public class DMatrix {
      * @throws org.dmlc.xgboost4j.util.XgboostError 
      */
     public DMatrix(String dataPath) throws XgboostError {
+        if(dataPath == null) {
+            throw new NullPointerException("dataPath: null");
+        }
         long[] out = new long[1];
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixCreateFromFile(dataPath, 1, out));
         handle = out[0];
