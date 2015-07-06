@@ -1,3 +1,4 @@
+// Copyright 2014 by Contributors
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX

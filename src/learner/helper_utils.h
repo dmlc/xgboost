@@ -1,10 +1,12 @@
-#ifndef XGBOOST_LEARNER_HELPER_UTILS_H_
-#define XGBOOST_LEARNER_HELPER_UTILS_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file helper_utils.h
  * \brief useful helper functions
  * \author Tianqi Chen, Kailong Chen
  */
+#ifndef XGBOOST_LEARNER_HELPER_UTILS_H_
+#define XGBOOST_LEARNER_HELPER_UTILS_H_
+
 #include <utility>
 #include <vector>
 #include <cmath>
@@ -61,7 +63,7 @@ inline float LogSum(const float *rec, size_t size) {
   for (size_t i = 0; i < size; ++i) {
     sum += std::exp(rec[i] - mx);
   }
-  return mx + std::log(sum);  
+  return mx + std::log(sum);
 }
 
 inline static bool CmpFirst(const std::pair<float, unsigned> &a,

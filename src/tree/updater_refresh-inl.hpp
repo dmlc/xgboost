@@ -1,10 +1,12 @@
-#ifndef XGBOOST_TREE_UPDATER_REFRESH_INL_HPP_
-#define XGBOOST_TREE_UPDATER_REFRESH_INL_HPP_
 /*!
+ * Copyright 2014 by Contributors
  * \file updater_refresh-inl.hpp
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_TREE_UPDATER_REFRESH_INL_HPP_
+#define XGBOOST_TREE_UPDATER_REFRESH_INL_HPP_
+
 #include <vector>
 #include <limits>
 #include "../sync/sync.h"
@@ -27,7 +29,7 @@ class TreeRefresher: public IUpdater {
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       IFMatrix *p_fmat,
                       const BoosterInfo &info,
-                      const std::vector<RegTree*> &trees) {        
+                      const std::vector<RegTree*> &trees) {
     if (trees.size() == 0) return;
     // number of threads
     // thread temporal space
@@ -100,7 +102,7 @@ class TreeRefresher: public IUpdater {
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
     int offset = 0;
-    for (size_t i = 0; i < trees.size(); ++i) {      
+    for (size_t i = 0; i < trees.size(); ++i) {
       for (int rid = 0; rid < trees[i]->param.num_roots; ++rid) {
         this->Refresh(BeginPtr(stemp[0]) + offset, rid, trees[i]);
       }
@@ -147,7 +149,7 @@ class TreeRefresher: public IUpdater {
   // training parameter
   TrainParam param;
   // reducer
-  rabit::Reducer<TStats, TStats::Reduce> reducer;  
+  rabit::Reducer<TStats, TStats::Reduce> reducer;
 };
 
 }  // namespace tree

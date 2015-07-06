@@ -1,7 +1,7 @@
 export CC  = gcc
 export CXX = g++
 export MPICXX = mpicxx
-export LDFLAGS= -pthread -lm 
+export LDFLAGS= -pthread -lm
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops
 # java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I${JAVA_HOME}/include/linux -I./java
@@ -12,8 +12,8 @@ ifeq ($(OS), Windows_NT)
 endif
 
 ifeq ($(no_omp),1)
-	CFLAGS += -DDISABLE_OPENMP 
-else 
+	CFLAGS += -DDISABLE_OPENMP
+else
 	CFLAGS += -fopenmp
 endif
 
@@ -29,7 +29,7 @@ ifdef dmlc
 			config = $(dmlc)/config.mk
 		else
 			config = $(dmlc)/make/config.mk
-		endif	
+		endif
 	endif
 	include $(config)
 	include $(dmlc)/make/dmlc.mk
@@ -43,7 +43,7 @@ ifndef WITH_FPIC
 	WITH_FPIC = 1
 endif
 ifeq ($(WITH_FPIC), 1)
-	CFLAGS += -fPIC	
+	CFLAGS += -fPIC
 endif
 
 
@@ -69,7 +69,11 @@ else
 	TARGET = $(BIN)
 endif
 
-.PHONY: clean all mpi python Rpack
+ifndef LINT_LANG
+	LINT_LANG= "all"
+endif
+
+.PHONY: clean all mpi python Rpack lint
 
 all: $(TARGET)
 mpi: $(MPIBIN)
@@ -78,9 +82,9 @@ python: wrapper/libxgboostwrapper.so
 # now the wrapper takes in two files. io and wrapper part
 updater.o: src/tree/updater.cpp  src/tree/*.hpp src/*.h src/tree/*.h src/utils/*.h
 dmlc_simple.o: src/io/dmlc_simple.cpp src/utils/*.h
-gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h 
+gbm.o: src/gbm/gbm.cpp src/gbm/*.hpp src/gbm/*.h
 io.o: src/io/io.cpp src/io/*.hpp src/utils/*.h src/learner/dmatrix.h src/*.h
-main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h 
+main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h
 xgboost:  updater.o gbm.o io.o main.o $(LIBRABIT) $(LIBDMLC)
 wrapper/xgboost_wrapper.dll wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o $(LIBRABIT) $(LIBDMLC)
 
@@ -97,11 +101,11 @@ subtree/rabit/lib/librabit_mock.a: subtree/rabit/src/engine_mock.cc
 subtree/rabit/lib/librabit_mpi.a: subtree/rabit/src/engine_mpi.cc
 	+	cd subtree/rabit;make lib/librabit_mpi.a; cd ../..
 
-$(BIN) : 
-	$(CXX) $(CFLAGS) -fPIC -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
+$(BIN) :
+	$(CXX) $(CFLAGS) -fPIC -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS)
 
-$(MOCKBIN) : 
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS) 
+$(MOCKBIN) :
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS)
 
 $(SLIB) :
 	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS) $(DLLFLAGS)
@@ -109,13 +113,13 @@ $(SLIB) :
 $(JLIB) :
 	$(CXX) $(CFLAGS) -fPIC -shared -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS)  $(JAVAINCFLAGS)
 
-$(OBJ) : 
+$(OBJ) :
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
 
-$(MPIOBJ) : 
-	$(MPICXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) ) 
+$(MPIOBJ) :
+	$(MPICXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c, $^) )
 
-$(MPIBIN) : 
+$(MPIBIN) :
 	$(MPICXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc %.a, $^) $(LDFLAGS)
 
 install:
@@ -144,9 +148,22 @@ Rpack:
 	cat R-package/src/Makevars|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars
 	cp xgboost/src/Makevars xgboost/src/Makevars.win
 	# R CMD build --no-build-vignettes xgboost
+	# R CMD build xgboost
+	# rm -rf xgboost
+	# R CMD check --as-cran xgboost*.tar.gz
+
+Rbuild:
+	make Rpack
 	R CMD build xgboost
 	rm -rf xgboost
+
+Rcheck:
+	make Rbuild
 	R CMD check --as-cran xgboost*.tar.gz
+
+# lint requires dmlc to be in current folder
+lint:
+	dmlc-core/scripts/lint.py xgboost $(LINT_LANG) src wrapper R-package
 
 clean:
 	$(RM) -rf $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~

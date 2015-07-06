@@ -1,10 +1,12 @@
-#ifndef XGBOOST_LEARNER_EVALUATION_H_
-#define XGBOOST_LEARNER_EVALUATION_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file evaluation.h
  * \brief interface of evaluation function supported in xgboost
  * \author Tianqi Chen, Kailong Chen
  */
+#ifndef XGBOOST_LEARNER_EVALUATION_H_
+#define XGBOOST_LEARNER_EVALUATION_H_
+
 #include <string>
 #include <vector>
 #include <cstdio>
@@ -19,7 +21,7 @@ struct IEvaluator{
    * \brief evaluate a specific metric
    * \param preds prediction
    * \param info information, including label etc.
-   * \param distributed whether a call to Allreduce is needed to gather 
+   * \param distributed whether a call to Allreduce is needed to gather
    *        the average statistics across all the node,
    *        this is only supported by some metrics
    */

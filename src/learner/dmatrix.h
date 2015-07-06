@@ -1,11 +1,13 @@
-#ifndef XGBOOST_LEARNER_DMATRIX_H_
-#define XGBOOST_LEARNER_DMATRIX_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file dmatrix.h
- * \brief meta data and template data structure 
+ * \brief meta data and template data structure
  *        used for regression/classification/ranking
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_LEARNER_DMATRIX_H_
+#define XGBOOST_LEARNER_DMATRIX_H_
+
 #include <vector>
 #include <cstring>
 #include "../data.h"
@@ -16,8 +18,8 @@ namespace learner {
  * \brief meta information needed in training, including label, weight
  */
 struct MetaInfo {
-  /*! 
-   * \brief information needed by booster 
+  /*!
+   * \brief information needed by booster
    * BoosterInfo does not implement save and load,
    * all serialization is done in MetaInfo
    */
@@ -31,7 +33,7 @@ struct MetaInfo {
   std::vector<bst_uint> group_ptr;
   /*! \brief weights of each instance, optional */
   std::vector<float> weights;
-  /*! 
+  /*!
    * \brief initialized margins,
    * if specified, xgboost will start from this init margin
    * can be used to specify initial prediction to boost from
@@ -66,7 +68,7 @@ struct MetaInfo {
       return 1.0f;
     }
   }
-  inline void SaveBinary(utils::IStream &fo) const {
+  inline void SaveBinary(utils::IStream &fo) const { // NOLINT(*)
     int version = kVersion;
     fo.Write(&version, sizeof(version));
     fo.Write(&info.num_row, sizeof(info.num_row));
@@ -77,7 +79,7 @@ struct MetaInfo {
     fo.Write(info.root_index);
     fo.Write(base_margin);
   }
-  inline void LoadBinary(utils::IStream &fi) {
+  inline void LoadBinary(utils::IStream &fi) { // NOLINT(*)
     int version;
     utils::Check(fi.Read(&version, sizeof(version)) != 0, "MetaInfo: invalid format");
     utils::Check(fi.Read(&info.num_row, sizeof(info.num_row)) != 0, "MetaInfo: invalid format");
@@ -114,7 +116,7 @@ struct MetaInfo {
     return labels;
   }
   inline const std::vector<float>& GetFloatInfo(const char *field) const {
-    return ((MetaInfo*)this)->GetFloatInfo(field);
+    return ((MetaInfo*)this)->GetFloatInfo(field); // NOLINT(*)
   }
   inline std::vector<unsigned> &GetUIntInfo(const char *field) {
     using namespace std;
@@ -124,7 +126,7 @@ struct MetaInfo {
     return info.root_index;
   }
   inline const std::vector<unsigned> &GetUIntInfo(const char *field) const {
-    return ((MetaInfo*)this)->GetUIntInfo(field);
+    return ((MetaInfo*)this)->GetUIntInfo(field);  // NOLINT(*)
   }
   // try to load weight information from file, if exists
   inline bool TryLoadFloatInfo(const char *field, const char* fname, bool silent = false) {
@@ -149,14 +151,14 @@ struct MetaInfo {
  * \tparam FMatrix type of feature data source
  */
 struct DMatrix {
-  /*! 
-   * \brief magic number associated with this object 
+  /*!
+   * \brief magic number associated with this object
    *    used to check if it is specific instance
    */
   const int magic;
   /*! \brief meta information about the dataset */
   MetaInfo info;
-  /*! 
+  /*!
    * \brief cache pointer to verify if the data structure is cached in some learner
    *  used to verify if DMatrix is cached
    */

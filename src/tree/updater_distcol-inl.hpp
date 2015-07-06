@@ -1,11 +1,15 @@
-#ifndef XGBOOST_TREE_UPDATER_DISTCOL_INL_HPP_
-#define XGBOOST_TREE_UPDATER_DISTCOL_INL_HPP_
 /*!
+ * Copyright 2014 by Contributors
  * \file updater_distcol-inl.hpp
- * \brief beta distributed version that takes a sub-column 
+ * \brief beta distributed version that takes a sub-column
  *        and construct a tree
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_TREE_UPDATER_DISTCOL_INL_HPP_
+#define XGBOOST_TREE_UPDATER_DISTCOL_INL_HPP_
+
+#include <vector>
+#include <algorithm>
 #include "../sync/sync.h"
 #include "../utils/bitmap.h"
 #include "../utils/io.h"
@@ -27,7 +31,7 @@ class DistColMaker : public ColMaker<TStats> {
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       IFMatrix *p_fmat,
                       const BoosterInfo &info,
-                      const std::vector<RegTree*> &trees) {    
+                      const std::vector<RegTree*> &trees) {
     TStats::CheckInfo(info);
     utils::Check(trees.size() == 1, "DistColMaker: only support one tree at a time");
     // build the tree
@@ -39,11 +43,12 @@ class DistColMaker : public ColMaker<TStats> {
   }
   virtual const int* GetLeafPosition(void) const {
     return builder.GetLeafPosition();
-  }  
+  }
+
  private:
   struct Builder : public ColMaker<TStats>::Builder {
    public:
-    Builder(const TrainParam &param) 
+    explicit Builder(const TrainParam &param)
         : ColMaker<TStats>::Builder(param) {
     }
     inline void UpdatePosition(IFMatrix *p_fmat, const RegTree &tree) {
@@ -63,7 +68,8 @@ class DistColMaker : public ColMaker<TStats> {
     virtual const int* GetLeafPosition(void) const {
       return BeginPtr(this->position);
     }
-   protected:    
+
+   protected:
     virtual void SetNonDefaultPosition(const std::vector<int> &qexpand,
                                        IFMatrix *p_fmat, const RegTree &tree) {
       // step 2, classify the non-default data into right places
@@ -87,7 +93,7 @@ class DistColMaker : public ColMaker<TStats> {
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint j = 0; j < ndata; ++j) {
             boolmap[j] = 0;
-        }        
+        }
       }
       utils::IIterator<ColBatch> *iter = p_fmat->ColIterator(fsplits);
       while (iter->Next()) {
@@ -111,7 +117,7 @@ class DistColMaker : public ColMaker<TStats> {
           }
         }
       }
-      
+
       bitmap.InitFromBool(boolmap);
       // communicate bitmap
       rabit::Allreduce<rabit::op::BitOR>(BeginPtr(bitmap.data), bitmap.data.size());
@@ -142,7 +148,7 @@ class DistColMaker : public ColMaker<TStats> {
         }
         vec.push_back(this->snode[nid].best);
       }
-      // TODO, lazy version
+      // TODO(tqchen) lazy version
       // communicate best solution
       reducer.Allreduce(BeginPtr(vec), vec.size());
       // assign solution back
@@ -151,7 +157,7 @@ class DistColMaker : public ColMaker<TStats> {
         this->snode[nid].best = vec[i];
       }
     }
-    
+
    private:
     utils::BitMap bitmap;
     std::vector<int> boolmap;
@@ -162,8 +168,8 @@ class DistColMaker : public ColMaker<TStats> {
   // training parameter
   TrainParam param;
   // pointer to the builder
-  Builder builder; 
+  Builder builder;
 };
 }  // namespace tree
 }  // namespace xgboost
-#endif
+#endif  // XGBOOST_TREE_UPDATER_DISTCOL_INL_HPP_

@@ -1,16 +1,19 @@
-#ifndef XGBOOST_UTILS_IO_H
-#define XGBOOST_UTILS_IO_H
+/*!
+ * Copyright 2014 by Contributors
+ * \file io.h
+ * \brief general stream interface for serialization, I/O
+ * \author Tianqi Chen
+ */
+
+#ifndef XGBOOST_UTILS_IO_H_
+#define XGBOOST_UTILS_IO_H_
 #include <cstdio>
 #include <vector>
 #include <string>
 #include <cstring>
 #include "./utils.h"
 #include "../sync/sync.h"
-/*!
- * \file io.h
- * \brief general stream interface for serialization, I/O
- * \author Tianqi Chen
- */
+
 namespace xgboost {
 namespace utils {
 // reuse the definitions of streams
@@ -23,7 +26,7 @@ typedef rabit::utils::MemoryBufferStream MemoryBufferStream;
 class FileStream : public ISeekStream {
  public:
   explicit FileStream(std::FILE *fp) : fp(fp) {}
-  explicit FileStream(void) {
+  FileStream(void) {
     this->fp = NULL;
   }
   virtual size_t Read(void *ptr, size_t size) {
@@ -33,7 +36,7 @@ class FileStream : public ISeekStream {
     std::fwrite(ptr, size, 1, fp);
   }
   virtual void Seek(size_t pos) {
-    std::fseek(fp, static_cast<long>(pos), SEEK_SET);
+    std::fseek(fp, static_cast<long>(pos), SEEK_SET); // NOLINT(*)
   }
   virtual size_t Tell(void) {
     return std::ftell(fp);
@@ -42,7 +45,7 @@ class FileStream : public ISeekStream {
     return std::feof(fp) != 0;
   }
   inline void Close(void) {
-    if (fp != NULL){
+    if (fp != NULL) {
       std::fclose(fp); fp = NULL;
     }
   }
@@ -52,6 +55,5 @@ class FileStream : public ISeekStream {
 };
 }  // namespace utils
 }  // namespace xgboost
-
 #include "./base64-inl.h"
-#endif
+#endif  // XGBOOST_UTILS_IO_H_

@@ -1,10 +1,12 @@
-#ifndef XGBOOST_UTILS_CONFIG_H_
-#define XGBOOST_UTILS_CONFIG_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file config.h
  * \brief helper class to load in configures from file
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_UTILS_CONFIG_H_
+#define XGBOOST_UTILS_CONFIG_H_
+
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -14,26 +16,26 @@
 
 namespace xgboost {
 namespace utils {
-/*! 
+/*!
  * \brief base implementation of config reader
  */
 class ConfigReaderBase {
  public:
-  /*! 
+  /*!
    * \brief get current name, called after Next returns true
-   * \return current parameter name 
+   * \return current parameter name
    */
   inline const char *name(void) const {
     return s_name.c_str();
   }
-  /*! 
+  /*!
    * \brief get current value, called after Next returns true
-   * \return current parameter value 
+   * \return current parameter value
    */
   inline const char *val(void) const {
     return s_val.c_str();
   }
-  /*! 
+  /*!
    * \brief move iterator to next position
    * \return true if there is value in next position
    */
@@ -55,7 +57,7 @@ class ConfigReaderBase {
  protected:
   /*!
    * \brief to be implemented by subclass,
-   * get next token, return EOF if end of file 
+   * get next token, return EOF if end of file
    */
   virtual char GetChar(void) = 0;
   /*! \brief to be implemented by child, check if end of stream */
@@ -144,9 +146,9 @@ class ConfigReaderBase {
  */
 class ConfigStreamReader: public ConfigReaderBase {
  public:
-  /*! 
-   * \brief constructor 
-   * \param istream input stream 
+  /*!
+   * \brief constructor
+   * \param istream input stream
    */
   explicit ConfigStreamReader(std::istream &fin) : fin(fin) {}
 
@@ -163,13 +165,13 @@ class ConfigStreamReader: public ConfigReaderBase {
   std::istream &fin;
 };
 
-/*! 
+/*!
  * \brief an iterator that iterates over a configure file and gets the configures
  */
 class ConfigIterator: public ConfigStreamReader {
  public:
-  /*! 
-   * \brief constructor 
+  /*!
+   * \brief constructor
    * \param fname name of configure file
    */
   explicit ConfigIterator(const char *fname) : ConfigStreamReader(fi) {
