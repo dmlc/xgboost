@@ -337,6 +337,17 @@ err <- as.numeric(sum(as.integer(pred > 0.5) != label))/length(label)
 print(paste("test-error=", err))
 ```
 
+View feature importance/influence from the learnt model
+-------------------------------------------------------
+
+Feature importance is similar to R gbm package's relative influence (rel.inf). 
+
+```
+importance_matrix <- xgb.importance(model = bst)
+print(importance_matrix)
+xgb.plot.importance(importance_matrix)
+```
+
 View the trees from a model
 ---------------------------
 
@@ -344,6 +355,12 @@ You can dump the tree you learned using `xgb.dump` into a text file.
 
 ```{r dump, message=T, warning=F}
 xgb.dump(bst, with.stats = T)
+```
+
+You can plot the trees from your model using ```xgb.plot.tree``
+
+```
+xgb.plot.tree(model = bst)
 ```
 
 > if you provide a path to `fname` parameter you can save the trees to your hard drive.
