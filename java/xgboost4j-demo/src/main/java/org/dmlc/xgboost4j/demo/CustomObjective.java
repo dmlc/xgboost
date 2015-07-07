@@ -27,7 +27,7 @@ import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.IObjective;
 import org.dmlc.xgboost4j.demo.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
-import org.dmlc.xgboost4j.util.XgboostError;
+import org.dmlc.xgboost4j.util.XGBoostError;
 
 /**
  * an example user define objective and eval
@@ -74,7 +74,7 @@ public class CustomObjective {
             float[] labels;
             try {
                 labels = dtrain.getLabel();
-            } catch (XgboostError ex) {
+            } catch (XGBoostError ex) {
                 logger.error(ex);
                 return null;
             }
@@ -122,7 +122,7 @@ public class CustomObjective {
             float[] labels;
             try {
                 labels = dmat.getLabel();
-            } catch (XgboostError ex) {
+            } catch (XGBoostError ex) {
                 logger.error(ex);
                 return -1f;
             }
@@ -140,7 +140,7 @@ public class CustomObjective {
         }
     }
     
-    public static void main(String[] args) throws XgboostError {
+    public static void main(String[] args) throws XGBoostError {
         //load train mat (svmlight format)
         DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
         //load valid mat (svmlight format)

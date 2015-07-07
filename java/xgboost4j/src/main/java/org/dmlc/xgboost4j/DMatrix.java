@@ -19,7 +19,7 @@ import java.io.IOException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.dmlc.xgboost4j.util.ErrorHandle;
-import org.dmlc.xgboost4j.util.XgboostError;
+import org.dmlc.xgboost4j.util.XGBoostError;
 import org.dmlc.xgboost4j.util.Initializer;
 import org.dmlc.xgboost4j.wrapper.XgboostJNI;
 
@@ -52,9 +52,9 @@ public class DMatrix {
     /**
      *  init DMatrix from file (svmlight format)
      * @param dataPath 
-     * @throws org.dmlc.xgboost4j.util.XgboostError 
+     * @throws org.dmlc.xgboost4j.util.XGBoostError 
      */
-    public DMatrix(String dataPath) throws XgboostError {
+    public DMatrix(String dataPath) throws XGBoostError {
         long[] out = new long[1];
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixCreateFromFile(dataPath, 1, out));
         handle = out[0];
@@ -66,9 +66,9 @@ public class DMatrix {
      * @param indices Indices (colIndexs for CSR or rowIndexs for CSC)
      * @param data non zero values (sequence by row for CSR or by col for CSC)
      * @param st sparse matrix type (CSR or CSC)
-     * @throws org.dmlc.xgboost4j.util.XgboostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public DMatrix(long[] headers, int[] indices, float[] data, SparseType st) throws XgboostError {
+    public DMatrix(long[] headers, int[] indices, float[] data, SparseType st) throws XGBoostError {
         long[] out = new long[1];
         if(st == SparseType.CSR) {
             ErrorHandle.checkCall(XgboostJNI.XGDMatrixCreateFromCSR(headers, indices, data, out));
@@ -87,9 +87,9 @@ public class DMatrix {
      * @param data data values
      * @param nrow number of rows
      * @param ncol number of columns
-     * @throws org.dmlc.xgboost4j.util.XgboostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public DMatrix(float[] data, int nrow, int ncol) throws XgboostError {
+    public DMatrix(float[] data, int nrow, int ncol) throws XGBoostError {
         long[] out = new long[1];
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixCreateFromMat(data, nrow, ncol, 0.0f, out));
         handle = out[0];
@@ -109,16 +109,16 @@ public class DMatrix {
      * set label of dmatrix
      * @param labels 
      */
-    public void setLabel(float[] labels) throws XgboostError {
+    public void setLabel(float[] labels) throws XGBoostError {
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixSetFloatInfo(handle, "label", labels));
     }
     
     /**
      * set weight of each instance
      * @param weights 
-     * @throws org.dmlc.xgboost4j.util.XgboostError 
+     * @throws org.dmlc.xgboost4j.util.XGBoostError 
      */
-    public void setWeight(float[] weights) throws XgboostError {
+    public void setWeight(float[] weights) throws XGBoostError {
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixSetFloatInfo(handle, "weight", weights));
     }
     
@@ -126,9 +126,9 @@ public class DMatrix {
      * if specified, xgboost will start from this init margin
      * can be used to specify initial prediction to boost from
      * @param baseMargin 
-     * @throws org.dmlc.xgboost4j.util.XgboostError 
+     * @throws org.dmlc.xgboost4j.util.XGBoostError 
      */
-    public void setBaseMargin(float[] baseMargin) throws XgboostError {
+    public void setBaseMargin(float[] baseMargin) throws XGBoostError {
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixSetFloatInfo(handle, "base_margin", baseMargin));
     }
     
@@ -136,9 +136,9 @@ public class DMatrix {
      * if specified, xgboost will start from this init margin
      * can be used to specify initial prediction to boost from
      * @param baseMargin 
-     * @throws org.dmlc.xgboost4j.util.XgboostError 
+     * @throws org.dmlc.xgboost4j.util.XGBoostError 
      */
-    public void setBaseMargin(float[][] baseMargin) throws XgboostError {
+    public void setBaseMargin(float[][] baseMargin) throws XGBoostError {
         float[] flattenMargin = flatten(baseMargin);
         setBaseMargin(flattenMargin);
     }
@@ -146,19 +146,19 @@ public class DMatrix {
     /**
      * Set group sizes of DMatrix (used for ranking)
      * @param group 
-     * @throws org.dmlc.xgboost4j.util.XgboostError 
+     * @throws org.dmlc.xgboost4j.util.XGBoostError 
      */
-    public void setGroup(int[] group) throws XgboostError {
+    public void setGroup(int[] group) throws XGBoostError {
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixSetGroup(handle, group));
     }
     
-    private float[] getFloatInfo(String field) throws XgboostError {
+    private float[] getFloatInfo(String field) throws XGBoostError {
         float[][] infos = new float[1][];
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixGetFloatInfo(handle, field, infos));
         return infos[0];
     }
     
-    private int[] getIntInfo(String field) throws XgboostError {
+    private int[] getIntInfo(String field) throws XGBoostError {
         int[][] infos = new int[1][];
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixGetUIntInfo(handle, field, infos));
         return infos[0];
@@ -167,27 +167,27 @@ public class DMatrix {
     /**
      * get label values
      * @return label
-     * @throws org.dmlc.xgboost4j.util.XgboostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public float[] getLabel() throws XgboostError {
+    public float[] getLabel() throws XGBoostError {
         return getFloatInfo("label");
     }
     
     /**
      * get weight of the DMatrix
      * @return weights
-     * @throws org.dmlc.xgboost4j.util.XgboostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public float[] getWeight() throws XgboostError {
+    public float[] getWeight() throws XGBoostError {
         return getFloatInfo("weight");
     }
     
     /**
      * get base margin of the DMatrix
      * @return base margin
-     * @throws org.dmlc.xgboost4j.util.XgboostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public float[] getBaseMargin() throws XgboostError {
+    public float[] getBaseMargin() throws XGBoostError {
         return getFloatInfo("base_margin");
     }
     
@@ -195,9 +195,9 @@ public class DMatrix {
      * Slice the DMatrix and return a new DMatrix that only contains `rowIndex`.
      * @param rowIndex
      * @return sliced new DMatrix
-     * @throws org.dmlc.xgboost4j.util.XgboostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public DMatrix slice(int[] rowIndex) throws XgboostError {
+    public DMatrix slice(int[] rowIndex) throws XGBoostError {
         long[] out = new long[1];
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixSliceDMatrix(handle, rowIndex, out));
         long sHandle = out[0];
@@ -208,9 +208,9 @@ public class DMatrix {
     /**
      * get the row number of DMatrix
      * @return number of rows
-     * @throws org.dmlc.xgboost4j.util.XgboostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public long rowNum() throws XgboostError {
+    public long rowNum() throws XGBoostError {
         long[] rowNum = new long[1];
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixNumRow(handle,rowNum));
         return rowNum[0];

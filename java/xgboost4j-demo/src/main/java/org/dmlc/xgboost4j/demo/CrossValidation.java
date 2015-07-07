@@ -19,14 +19,14 @@ import java.io.IOException;
 import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.util.Trainer;
 import org.dmlc.xgboost4j.demo.util.Params;
-import org.dmlc.xgboost4j.util.XgboostError;
+import org.dmlc.xgboost4j.util.XGBoostError;
 
 /**
  * an example of cross validation
  * @author hzx
  */
 public class CrossValidation {
-    public static void main(String[] args) throws IOException, XgboostError {
+    public static void main(String[] args) throws IOException, XGBoostError {
          //load train mat
         DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
         

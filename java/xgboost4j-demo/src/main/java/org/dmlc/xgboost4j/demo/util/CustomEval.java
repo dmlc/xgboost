@@ -19,7 +19,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.IEvaluation;
-import org.dmlc.xgboost4j.util.XgboostError;
+import org.dmlc.xgboost4j.util.XGBoostError;
 
 /**
  * a util evaluation class for examples
@@ -41,7 +41,7 @@ public class CustomEval implements IEvaluation {
         float[] labels;
         try {
             labels = dmat.getLabel();
-        } catch (XgboostError ex) {
+        } catch (XGBoostError ex) {
             logger.error(ex);
             return -1f;
         }

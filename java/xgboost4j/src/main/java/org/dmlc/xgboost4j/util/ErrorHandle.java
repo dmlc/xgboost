@@ -40,11 +40,11 @@ public class ErrorHandle {
     /**
      * check the return value of C API
      * @param ret return valud of xgboostJNI C API call
-     * @throws org.dmlc.xgboost4j.util.XgboostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public static void checkCall(int ret) throws XgboostError {
+    public static void checkCall(int ret) throws XGBoostError {
         if(ret != 0) {
-            throw new XgboostError(XgboostJNI.XGBGetLastError());
+            throw new XGBoostError(XgboostJNI.XGBGetLastError());
         }
     }
 }

@@ -19,8 +19,8 @@ package org.dmlc.xgboost4j.util;
  * custom error class for xgboost
  * @author hzx
  */
-public class XgboostError extends Exception{
-    public XgboostError(String message) {
+public class XGBoostError extends Exception{
+    public XGBoostError(String message) {
         super(message);
     }
 }
