@@ -35,8 +35,8 @@ Contributing to XGBoost
 =========
 XGBoost has been developed and used by a group of active community. Everyone is more than welcomed to is a great way to make the project better and more accessible to more users.
 * Checkout [Feature Wish List](https://github.com/dmlc/xgboost/labels/Wish-List) to see what can be improved, or open an issue if you want something.
-* Contribute to the [documents and examples](https://github.com/dmlc/xgboost/blob/master/doc/) to share your experience to other users.
-* 
+* Contribute to the [documents and examples](https://github.com/dmlc/xgboost/blob/master/doc/) to share your experience with other users.
+
 Features
 ========
 * Easily accessible in python, R, Julia, CLI
