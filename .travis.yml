@@ -7,6 +7,7 @@ env:
     - TASK=lint LINT_LANG=python
     - TASK=R-package CXX=g++
     - TASK=python-package CXX=g++
+    - TASK=java-package CXX=g++
     - TASK=build CXX=g++
     - TASK=build-with-dmlc CXX=g++
 

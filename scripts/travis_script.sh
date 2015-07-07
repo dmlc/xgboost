@@ -26,3 +26,8 @@ if [ ${TASK} == "python-package" ]; then
     make all CXX=${CXX} || exit -1
     nosetests tests/python || exit -1
 fi
+
+if [ ${TASK} == "java-package" ]; then
+    make java CXX=${CXX} || exit -1
+    scripts/travis_java_script.sh || exit -1
+fi
