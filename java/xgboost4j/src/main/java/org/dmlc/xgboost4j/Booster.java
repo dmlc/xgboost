@@ -76,14 +76,16 @@ public final class Booster {
      * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
     public Booster(Iterable<Entry<String, Object>> params, String modelPath) throws XGBoostError {
-        long[] out = new long[1];
         init(null);
+        if(modelPath == null) {
+            throw new NullPointerException("modelPath : null");
+        }
         loadModel(modelPath);
         setParam("seed","0");
         setParams(params);
     }
     
-  
+ 
     
     
     private void init(DMatrix[] dMatrixs) throws XGBoostError {
