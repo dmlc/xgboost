@@ -37,8 +37,9 @@ public class CVPack {
      * @param dtrain train data
      * @param dtest test data
      * @param params parameters
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public CVPack(DMatrix dtrain, DMatrix dtest, Iterable<Map.Entry<String, Object>> params) {
+    public CVPack(DMatrix dtrain, DMatrix dtest, Iterable<Map.Entry<String, Object>> params) throws XGBoostError {
         dmats = new DMatrix[] {dtrain, dtest};
         booster = new Booster(params, dmats);
         names = new String[] {"train", "test"};
@@ -49,8 +50,9 @@ public class CVPack {
     /**
      * update one iteration
      * @param iter iteration num
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public void update(int iter) {
+    public void update(int iter) throws XGBoostError {
         booster.update(dtrain, iter);
     }
     
@@ -58,8 +60,9 @@ public class CVPack {
      * update one iteration
      * @param iter iteration num
      * @param obj customized objective
+     * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public void update(int iter, IObjective obj) {
+    public void update(int iter, IObjective obj) throws XGBoostError {
         booster.update(dtrain, iter, obj);
     }
     
@@ -67,8 +70,9 @@ public class CVPack {
      * evaluation 
      * @param iter iteration num
      * @return 
+     * @throws org.dmlc.xgboost4j.util.XGBoostError 
      */
-    public String eval(int iter) {
+    public String eval(int iter) throws XGBoostError {
         return booster.evalSet(dmats, names, iter);
     }
     
@@ -77,8 +81,9 @@ public class CVPack {
      * @param iter iteration num
      * @param eval customized eval
      * @return 
+     * @throws org.dmlc.xgboost4j.util.XGBoostError 
      */
-    public String eval(int iter, IEvaluation eval) {
+    public String eval(int iter, IEvaluation eval) throws XGBoostError {
         return booster.evalSet(dmats, names, iter, eval);
     }
 }

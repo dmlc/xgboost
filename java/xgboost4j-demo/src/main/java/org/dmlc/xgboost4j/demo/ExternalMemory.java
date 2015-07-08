@@ -23,13 +23,14 @@ import org.dmlc.xgboost4j.Booster;
 import org.dmlc.xgboost4j.DMatrix;
 import org.dmlc.xgboost4j.demo.util.Params;
 import org.dmlc.xgboost4j.util.Trainer;
+import org.dmlc.xgboost4j.util.XGBoostError;
 
 /**
  * simple example for using external memory version
  * @author hzx
  */
 public class ExternalMemory {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws XGBoostError {
         //this is the only difference, add a # followed by a cache prefix name
         //several cache file with the prefix will be generated
         //currently only support convert from libsvm file
