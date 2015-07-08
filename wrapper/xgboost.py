@@ -6,7 +6,7 @@ Version: 0.40
 Authors: Tianqi Chen, Bing Xu
 Early stopping by Zygmunt Zając
 """
-# pylint: disable=too-many-arguments, too-many-locals, too-many-lines, invalid-name
+# pylint: disable=too-many-arguments, too-many-locals, too-many-lines, invalid-name, fixme
 from __future__ import absolute_import
 
 import os
@@ -784,7 +784,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         else:
             evals_name = [d[1] for d in evals]
             evals_result.clear()
-            evals_result.update({key:[] for key in evals_name})
+            evals_result.update({key: [] for key in evals_name})
 
     if not early_stopping_rounds:
         for i in range(num_boost_round):
@@ -1094,7 +1094,7 @@ class XGBModel(XGBModelBase):
 
     def fit(self, X, y, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable=missing-docstring,invalid-name
+        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
 
@@ -1131,8 +1131,8 @@ class XGBModel(XGBModelBase):
         eval_results = {}
         if eval_set is not None:
             evals = list(DMatrix(x[0], label=x[1]) for x in eval_set)
-            evals = list(zip(evals,
-                             ["validation_{}" for i in range(len(evals))]))
+            evals = list(zip(evals, ["validation_{}".format(i) for i in
+                                     range(len(evals))]))
         else:
             evals = ()
 
