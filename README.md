@@ -1,4 +1,4 @@
-DMLC/XGBoost: eXtreme Gradient Boosting
+DMLC/XGBoost
 ==================================
 
 [![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost)
