@@ -1,4 +1,4 @@
-XGBoost: eXtreme Gradient Boosting
+DMLC/XGBoost: eXtreme Gradient Boosting
 ==================================
 
 [![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost)
@@ -8,7 +8,7 @@ It implements machine learning algorithms under the [Gradient Boosting](https://
 
 Contributors: https://github.com/dmlc/xgboost/graphs/contributors
 
-Documentations: [Documentation of xgboost](doc/README.md)
+Documentations: [Documentation of dmlc/xgboost](doc/README.md)
 
 Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
