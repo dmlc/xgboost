@@ -43,7 +43,7 @@ Here is the complete solution to use OpenMp-enabled compilers to install XGBoost
   export CXX = clang-omp++
   ```
 
-  Remember to change `header` if using clang-omp. 
+  Remember to change `header` (mentioned in step 2) if using clang-omp. 
   
   Then `cd xgboost` then `bash build.sh` to compile XGBoost. And go to `wrapper` sub-folder to install python version.
 
