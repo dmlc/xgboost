@@ -26,8 +26,10 @@ XGBoost is part of [Distributed Machine Learning Common](http://dmlc.github.io/)
 
 What's New
 ==========
+* XGBoost helps Chenglong Chen to win [Kaggle CrowdFlower Competition](https://www.kaggle.com/c/crowdflower-search-relevance)
+  - Checkout the winning solution at [Highlight links](doc/README.md#highlight-links)
 * XGBoost-0.4 release, see [CHANGES.md](CHANGES.md#xgboost-04)
-* XGBoost wins [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
+* XGBoost helps three champion teams to win [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
   - Checkout the winning solution at [Highlight links](doc/README.md#highlight-links)
 * [External Memory Version](doc/external_memory.md)
 
