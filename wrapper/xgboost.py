@@ -777,7 +777,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
 
     if evals_result is not None:
-        if isinstance(evals_result, dict):
+        if not isinstance(evals_result, dict):
             raise TypeError('evals_result has to be a dictionary')
         else:
             evals_name = [d[1] for d in evals]
