@@ -1,13 +1,16 @@
-#ifndef XGBOOST_UTILS_BASE64_INL_H_
-#define XGBOOST_UTILS_BASE64_INL_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file base64.h
  * \brief data stream support to input and output from/to base64 stream
  * base64 is easier to store and pass as text format in mapreduce
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_UTILS_BASE64_INL_H_
+#define XGBOOST_UTILS_BASE64_INL_H_
+
 #include <cctype>
 #include <cstdio>
+#include <string>
 #include "./io.h"
 
 namespace xgboost {
@@ -15,7 +18,7 @@ namespace utils {
 /*! \brief buffer reader of the stream that allows you to get */
 class StreamBufferReader {
  public:
-  StreamBufferReader(size_t buffer_size)
+  explicit StreamBufferReader(size_t buffer_size)
       :stream_(NULL),
        read_len_(1), read_ptr_(1) {
     buffer_.resize(buffer_size);
@@ -45,7 +48,7 @@ class StreamBufferReader {
   inline bool AtEnd(void) const {
     return read_len_ == 0;
   }
-  
+
  private:
   /*! \brief the underlying stream */
   IStream *stream_;
@@ -75,7 +78,7 @@ const char DecodeTable[] = {
 };
 static const char EncodeTable[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-} // namespace base64
+}  // namespace base64
 /*! \brief the stream that reads from base64, note we take from file pointers */
 class Base64InStream: public IStream {
  public:
@@ -83,8 +86,8 @@ class Base64InStream: public IStream {
     reader_.set_stream(fs);
     num_prev = 0; tmp_ch = 0;
   }
-  /*! 
-   * \brief initialize the stream position to beginning of next base64 stream 
+  /*!
+   * \brief initialize the stream position to beginning of next base64 stream
    * call this function before actually start read
    */
   inline void InitPosition(void) {
@@ -132,19 +135,19 @@ class Base64InStream: public IStream {
       {
         // second byte
         utils::Check((tmp_ch = reader_.GetChar(), tmp_ch != EOF && !isspace(tmp_ch)),
-              "invalid base64 format");
+                     "invalid base64 format");
         nvalue |= DecodeTable[tmp_ch] << 12;
         *cptr++ = (nvalue >> 16) & 0xFF; --tlen;
       }
       {
         // third byte
         utils::Check((tmp_ch = reader_.GetChar(), tmp_ch != EOF && !isspace(tmp_ch)),
-              "invalid base64 format");
+                     "invalid base64 format");
         // handle termination
         if (tmp_ch == '=') {
           utils::Check((tmp_ch = reader_.GetChar(), tmp_ch == '='), "invalid base64 format");
           utils::Check((tmp_ch = reader_.GetChar(), tmp_ch == EOF || isspace(tmp_ch)),
-                "invalid base64 format");
+                       "invalid base64 format");
           break;
         }
         nvalue |= DecodeTable[tmp_ch] << 6;
@@ -157,10 +160,10 @@ class Base64InStream: public IStream {
       {
         // fourth byte
         utils::Check((tmp_ch = reader_.GetChar(), tmp_ch != EOF && !isspace(tmp_ch)),
-              "invalid base64 format");
+                     "invalid base64 format");
         if (tmp_ch == '=') {
           utils::Check((tmp_ch = reader_.GetChar(), tmp_ch == EOF || isspace(tmp_ch)),
-                "invalid base64 format");
+                       "invalid base64 format");
           break;
         }
         nvalue |= DecodeTable[tmp_ch];
@@ -240,13 +243,13 @@ class Base64OutStream: public IStream {
     if (endch != EOF) PutChar(endch);
     this->Flush();
   }
-    
- private:  
+
+ private:
   IStream *fp;
   int buf_top;
   unsigned char buf[4];
   std::string out_buf;
-  const static size_t kBufferSize = 256;
+  static const size_t kBufferSize = 256;
 
   inline void PutChar(char ch) {
     out_buf += ch;
@@ -260,5 +263,5 @@ class Base64OutStream: public IStream {
   }
 };
 }  // namespace utils
-}  // namespace rabit
-#endif  // RABIT_LEARN_UTILS_BASE64_INL_H_
+}  // namespace xgboost
+#endif  // XGBOOST_UTILS_BASE64_INL_H_

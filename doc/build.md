@@ -17,13 +17,15 @@ Here is the complete solution to use OpenMp-enabled compilers to install XGBoost
 
 1. Obtain gcc with openmp support by `brew install gcc --without-multilib` **or** clang with openmp by `brew install clang-omp`. The clang one is recommended because the first method requires us compiling gcc inside the machine (more than an hour in mine)! (BTW, `brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.)
 
-2. **if plaing to use clang-omp** in step 3 and/or 4, change line 9 in `xgboost/src/utils/omp.h` to 
+2. **if you are planing to use clang-omp** - in step 3 and/or 4, change line 9 in `xgboost/src/utils/omp.h` to 
 
   ```C++
   #include <libiomp/omp.h> /* instead of #include <omp.h> */` 
   ```
 
-  to make it work, otherwise the following steps would show `src/tree/../utils/omp.h:9:10: error: 'omp.h' file not found...`
+  to make it work, otherwise you might get this error 
+  
+  `src/tree/../utils/omp.h:9:10: error: 'omp.h' file not found...`
 
 
 
@@ -41,13 +43,13 @@ Here is the complete solution to use OpenMp-enabled compilers to install XGBoost
   export CXX = clang-omp++
   ```
 
-  Remember to change `header` if using clang-omp. 
+  Remember to change `header` (mentioned in step 2) if using clang-omp. 
   
   Then `cd xgboost` then `bash build.sh` to compile XGBoost. And go to `wrapper` sub-folder to install python version.
 
 4. Set the `Makevars` file in highest piority for R. 
 
-  The point is, there are three `Makevars` inside the machine: `~/.R/Makevars`, `xgboost/R-package/src/Makevars`, and `/usr/local/Cellar/r/3.2.0/R.framework/Resources/etc/Makeconf` (the last one obtained by runing `file.path(R.home("etc"), "Makeconf")` in R), and `SHLIB_OPENMP_CXXFLAGS` is not set by default!! After trying, it seems that the first one has highest piority (surprise!).
+  The point is, there are three `Makevars` : `~/.R/Makevars`, `xgboost/R-package/src/Makevars`, and `/usr/local/Cellar/r/3.2.0/R.framework/Resources/etc/Makeconf` (the last one obtained by running `file.path(R.home("etc"), "Makeconf")` in R), and `SHLIB_OPENMP_CXXFLAGS` is not set by default!! After trying, it seems that the first one has highest piority (surprise!).
 
   So, **add** or **change** `~/.R/Makevars` to the following lines:
 

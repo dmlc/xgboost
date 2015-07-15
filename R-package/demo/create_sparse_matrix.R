@@ -1,8 +1,10 @@
 require(xgboost)
 require(Matrix)
 require(data.table)
-if (!require(vcd)) install.packages('vcd') #Available in Cran. Used for its dataset with categorical values.
-
+if (!require(vcd)) {
+  install.packages('vcd') #Available in Cran. Used for its dataset with categorical values.
+  require(vcd)
+}
 # According to its documentation, Xgboost works only on numbers.
 # Sometimes the dataset we have to work on have categorical data. 
 # A categorical variable is one which have a fixed number of values. By exemple, if for each observation a variable called "Colour" can have only "red", "blue" or "green" as value, it is a categorical variable.

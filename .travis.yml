@@ -1,0 +1,47 @@
+sudo: true
+
+# Use Build Matrix to do lint and build seperately
+env:
+  matrix:
+    - TASK=lint LINT_LANG=cpp
+    - TASK=lint LINT_LANG=python
+    - TASK=R-package CXX=g++
+    - TASK=python-package CXX=g++
+    - TASK=java-package CXX=g++
+    - TASK=build CXX=g++
+    - TASK=build-with-dmlc CXX=g++
+
+# dependent apt packages
+addons:
+  apt:
+    packages:
+      - doxygen
+      - libopenmpi-dev
+      - wget
+      - libcurl4-openssl-dev
+      - unzip
+      - python-numpy
+      - python-scipy
+      - python-nose
+
+before_install:
+  - git clone https://github.com/dmlc/dmlc-core
+  - export TRAVIS=dmlc-core/scripts/travis/
+  - export PYTHONPATH=${PYTHONPATH}:${PWD}/wrapper
+  - source ${TRAVIS}/travis_setup_env.sh
+
+install:
+  - pip install cpplint pylint --user `whoami`
+
+script: scripts/travis_script.sh
+
+
+after_failure:
+  - scripts/travis_after_failure.sh
+
+
+notifications:
+  email:
+    on_success: change
+    on_failure: always
+

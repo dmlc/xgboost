@@ -1,10 +1,12 @@
-#ifndef XGBOOST_UTILS_THREAD_BUFFER_H_
-#define XGBOOST_UTILS_THREAD_BUFFER_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file thread_buffer.h
  * \brief  multi-thread buffer, iterator, can be used to create parallel pipeline
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_UTILS_THREAD_BUFFER_H_
+#define XGBOOST_UTILS_THREAD_BUFFER_H_
+
 #include <vector>
 #include <cstring>
 #include <cstdlib>
@@ -27,7 +29,7 @@ class ThreadBuffer {
     this->buf_size = 30;
   }
   ~ThreadBuffer(void) {
-    if(init_end) this->Destroy();
+    if (init_end) this->Destroy();
   }
   /*!\brief set parameter, will also pass the parameter to factory */
   inline void SetParam(const char *name, const char *val) {
@@ -38,7 +40,7 @@ class ThreadBuffer {
   /*!
    * \brief initalize the buffered iterator
    * \param param a initialize parameter that will pass to factory, ignore it if not necessary
-   * \return false if the initlization can't be done, e.g. buffer file hasn't been created 
+   * \return false if the initlization can't be done, e.g. buffer file hasn't been created
    */
   inline bool Init(void) {
     if (!factory.Init()) return false;
@@ -49,7 +51,7 @@ class ThreadBuffer {
     this->init_end = true;
     this->StartLoader();
     return true;
-  }  
+  }
   /*!\brief place the iterator before first value */
   inline void BeforeFirst(void) {
     // wait till last loader end
@@ -70,7 +72,7 @@ class ThreadBuffer {
     loading_need.Post();
     // set buffer value
     buf_index = 0;
-  }  
+  }
   /*! \brief destroy the buffer iterator, will deallocate the buffer */
   inline void Destroy(void) {
     // wait until the signal is consumed
@@ -78,7 +80,7 @@ class ThreadBuffer {
     loading_need.Post();
     loader_thread.Join();
     loading_need.Destroy();
-    loading_end.Destroy();    
+    loading_end.Destroy();
     for (size_t i = 0; i < bufA.size(); ++i) {
       factory.FreeSpace(bufA[i]);
     }
@@ -88,37 +90,38 @@ class ThreadBuffer {
     bufA.clear(); bufB.clear();
     factory.Destroy();
     this->init_end = false;
-  }  
+  }
   /*!
    * \brief get the next element needed in buffer
    * \param elem element to store into
    * \return whether reaches end of data
    */
-  inline bool Next(Elem &elem) {
+  inline bool Next(Elem &elem) { // NOLINT(*)
     // end of buffer try to switch
     if (buf_index == buf_size) {
       this->SwitchBuffer();
       buf_index = 0;
     }
-    if (buf_index >= (current_buf ? endA : endB)) { 
+    if (buf_index >= (current_buf ? endA : endB)) {
       return false;
     }
     std::vector<Elem> &buf = current_buf ? bufA : bufB;
     elem = buf[buf_index];
     ++buf_index;
     return true;
-  }      
+  }
   /*!
    * \brief get the factory object
    */
   inline ElemFactory &get_factory(void) {
     return factory;
   }
-  inline const ElemFactory &get_factory(void) const{
+  inline const ElemFactory &get_factory(void) const {
     return factory;
   }
   // size of buffer
   int  buf_size;
+
  private:
   // factory object used to load configures
   ElemFactory factory;
@@ -147,15 +150,15 @@ class ThreadBuffer {
    * this implementation is like producer-consumer style
    */
   inline void RunLoader(void) {
-    while(!destroy_signal) {
+    while (!destroy_signal) {
       // sleep until loading is needed
-      loading_need.Wait();      
+      loading_need.Wait();
       std::vector<Elem> &buf = current_buf ? bufB : bufA;
       int i;
       for (i = 0; i < buf_size ; ++i) {
         if (!factory.LoadNext(buf[i])) {
           int &end = current_buf ? endB : endA;
-          end = i; // marks the termination
+          end = i;  // marks the termination
           break;
         }
       }
@@ -166,14 +169,14 @@ class ThreadBuffer {
   }
   /*!\brief entry point of loader thread */
   inline static XGBOOST_THREAD_PREFIX LoaderEntry(void *pthread) {
-    static_cast< ThreadBuffer<Elem,ElemFactory>* >(pthread)->RunLoader();
+    static_cast< ThreadBuffer<Elem, ElemFactory>* >(pthread)->RunLoader();
     return NULL;
   }
   /*!\brief start loader thread */
   inline void StartLoader(void) {
     destroy_signal = false;
     // set param
-    current_buf = 1;    
+    current_buf = 1;
     loading_need.Init(1);
     loading_end .Init(0);
     // reset terminate limit
@@ -185,8 +188,8 @@ class ThreadBuffer {
     current_buf = 0;
     // wake loader for next part
     data_loaded = false;
-    loading_need.Post();    
-    buf_index = 0; 
+    loading_need.Post();
+    buf_index = 0;
   }
   /*!\brief switch double buffer */
   inline void SwitchBuffer(void) {
@@ -198,7 +201,6 @@ class ThreadBuffer {
     loading_need.Post();
   }
 };
-
 }  // namespace utils
 }  // namespace xgboost
-#endif
+#endif  // XGBOOST_UTILS_THREAD_BUFFER_H_

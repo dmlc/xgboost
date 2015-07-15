@@ -45,7 +45,7 @@ dim(train)
 train[1:6,1:5, with =F]
 
 # Test dataset dimensions
-dim(train)
+dim(test)
 
 # Test content
 test[1:6,1:5, with =F]

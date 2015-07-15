@@ -1,11 +1,13 @@
-#ifndef XGBOOST_UTILS_BITMAP_H_
-#define XGBOOST_UTILS_BITMAP_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file bitmap.h
  * \brief a simple implement of bitmap
  *  NOTE: bitmap is only threadsafe per word access, remember this when using bitmap
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_UTILS_BITMAP_H_
+#define XGBOOST_UTILS_BITMAP_H_
+
 #include <vector>
 #include "./utils.h"
 #include "./omp.h"
@@ -16,22 +18,22 @@ namespace utils {
 struct BitMap {
   /*! \brief internal data structure */
   std::vector<uint32_t> data;
-  /*! 
-   * \brief resize the bitmap to be certain size 
+  /*!
+   * \brief resize the bitmap to be certain size
    * \param size the size of bitmap
    */
   inline void Resize(size_t size) {
     data.resize((size + 31U) >> 5, 0);
   }
-  /*! 
-   * \brief query the i-th position of bitmap 
-   * \param i the position in 
+  /*!
+   * \brief query the i-th position of bitmap
+   * \param i the position in
    */
   inline bool Get(size_t i) const {
     return (data[i >> 5] >> (i & 31U)) & 1U;
   }
-  /*! 
-   * \brief set i-th position to true 
+  /*!
+   * \brief set i-th position to true
    * \param i position index
    */
   inline void SetTrue(size_t i) {
@@ -63,4 +65,4 @@ struct BitMap {
 };
 }  // namespace utils
 }  // namespace xgboost
-#endif
+#endif  // XGBOOST_UTILS_BITMAP_H_

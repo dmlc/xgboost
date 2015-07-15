@@ -147,7 +147,7 @@ Run the command again, we can find the log file becomes
 ```
 The rule is eval[name-printed-in-log] = filename, then the file will be added to monitoring process, and evaluated each round.
 
-xgboost also support monitoring multiple metrics, suppose we also want to monitor average log-likelihood of each prediction during training, simply add ```eval_metric=logloss``` to configure. Run again, we can find the log file becomes
+xgboost also supports monitoring multiple metrics, suppose we also want to monitor average log-likelihood of each prediction during training, simply add ```eval_metric=logloss``` to configure. Run again, we can find the log file becomes
 ```
 [0]     test-error:0.016139     test-negllik:0.029795   trainname-error:0.014433        trainname-negllik:0.027023
 [1]     test-error:0.000000     test-negllik:0.000000   trainname-error:0.001228        trainname-negllik:0.002457
@@ -162,11 +162,15 @@ If you want to continue boosting from existing model, say 0002.model, use
 ```
 xgboost will load from 0002.model continue boosting for 2 rounds, and save output to continue.model. However, beware that the training and evaluation data specified in mushroom.conf should not change when you use this function.
 #### Use Multi-Threading
-When you are working with a large dataset, you may want to take advantage of parallelism. If your compiler supports OpenMP, xgboost is naturally multi-threaded, to set number of parallel running threads to 10, add ```nthread=10``` to your configuration.
+When you are working with a large dataset, you may want to take advantage of parallelism. If your compiler supports OpenMP, xgboost is naturally multi-threaded, to set number of parallel running add ```nthread``` parameter to you configuration. 
+Eg. ```nthread=10```
+
+Set nthread to be the number of your real cpu (On Unix, this can be found using ```lscpu```)
+Some systems will have ```Thread(s) per core = 2```, for example, a 4 core cpu with 8 threads, in such case set ```nthread=4``` and not 8.
 
 #### Additional Notes
 * What are ```agaricus.txt.test.buffer``` and ```agaricus.txt.train.buffer``` generated during runexp.sh? 
-  - By default xgboost will automatically generate a binary format buffer of input data, with suffix ```buffer```. When next time you run xgboost, it detects i
-Demonstrating how to use XGBoost accomplish binary classification tasks  on UCI mushroom dataset  http://archive.ics.uci.edu/ml/datasets/Mushroom
+  - By default xgboost will automatically generate a binary format buffer of input data, with suffix ```buffer```. Next time when you run xgboost, it will detects these binary files.
+
 
 

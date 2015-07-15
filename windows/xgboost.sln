@@ -10,6 +10,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xgboost_wrapper", "xgboost_
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rabit", "..\subtree\rabit\windows\rabit\rabit.vcxproj", "{D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xgboostjavawrapper", "xgboostjavawrapper\xgboostjavawrapper.vcxproj", "{20A0E4D7-20C7-4EC1-BDF6-0D469CE239AA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -41,6 +43,14 @@ Global
 		{D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F}.Release|Win32.Build.0 = Release|Win32
 		{D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F}.Release|x64.ActiveCfg = Release|x64
 		{D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F}.Release|x64.Build.0 = Release|x64
+		{20A0E4D7-20C7-4EC1-BDF6-0D469CE239AA}.Debug|Win32.ActiveCfg = Debug|Win32
+		{20A0E4D7-20C7-4EC1-BDF6-0D469CE239AA}.Debug|Win32.Build.0 = Debug|Win32
+		{20A0E4D7-20C7-4EC1-BDF6-0D469CE239AA}.Debug|x64.ActiveCfg = Debug|x64
+		{20A0E4D7-20C7-4EC1-BDF6-0D469CE239AA}.Debug|x64.Build.0 = Debug|x64
+		{20A0E4D7-20C7-4EC1-BDF6-0D469CE239AA}.Release|Win32.ActiveCfg = Release|Win32
+		{20A0E4D7-20C7-4EC1-BDF6-0D469CE239AA}.Release|Win32.Build.0 = Release|Win32
+		{20A0E4D7-20C7-4EC1-BDF6-0D469CE239AA}.Release|x64.ActiveCfg = Release|x64
+		{20A0E4D7-20C7-4EC1-BDF6-0D469CE239AA}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

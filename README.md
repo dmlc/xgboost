@@ -1,12 +1,14 @@
-XGBoost: eXtreme Gradient Boosting 
+DMLC/XGBoost
 ==================================
 
+[![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost)
+
 An optimized general purpose gradient boosting library. The library is parallelized, and also provides an optimized distributed version.
-It implements machine learning algorithm under gradient boosting framework, including generalized linear model and gradient boosted regression tree (GBDT). XGBoost can also be distributed and scale to Terascale data
+It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework, including [Generalized Linear Model](https://en.wikipedia.org/wiki/Generalized_linear_model) (GLM) and [Gradient Boosted Decision Trees](https://en.wikipedia.org/wiki/Gradient_boosting#Gradient_tree_boosting) (GBDT). XGBoost can also be [distributed](#features) and scale to Terascale data
 
 Contributors: https://github.com/dmlc/xgboost/graphs/contributors
 
-Documentations: [Documentation of xgboost](doc/README.md)
+Documentations: [Documentation of dmlc/xgboost](doc/README.md)
 
 Issues Tracker: [https://github.com/dmlc/xgboost/issues](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Aquestion)
 
@@ -24,10 +26,18 @@ XGBoost is part of [Distributed Machine Learning Common](http://dmlc.github.io/)
 
 What's New
 ==========
+* XGBoost helps Chenglong Chen to win [Kaggle CrowdFlower Competition](https://www.kaggle.com/c/crowdflower-search-relevance)
+  - Checkout the winning solution at [Highlight links](doc/README.md#highlight-links)
 * XGBoost-0.4 release, see [CHANGES.md](CHANGES.md#xgboost-04)
-* XGBoost wins [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
+* XGBoost helps three champion teams to win [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
   - Checkout the winning solution at [Highlight links](doc/README.md#highlight-links)
 * [External Memory Version](doc/external_memory.md)
+
+Contributing to XGBoost
+=========
+XGBoost has been developed and used by a group of active community. Everyone is more than welcomed to is a great way to make the project better and more accessible to more users.
+* Checkout [Feature Wish List](https://github.com/dmlc/xgboost/labels/Wish-List) to see what can be improved, or open an issue if you want something.
+* Contribute to the [documents and examples](https://github.com/dmlc/xgboost/blob/master/doc/) to share your experience with other users.
 
 Features
 ========
