@@ -1,0 +1,3 @@
+[submodule "subtree"]
+	path = subtree
+	url = https://github.com/dmlc/rabit.git
