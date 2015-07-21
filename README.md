@@ -6,7 +6,7 @@ DMLC/XGBoost
 An optimized general purpose gradient boosting library. The library is parallelized, and also provides an optimized distributed version.
 It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework, including [Generalized Linear Model](https://en.wikipedia.org/wiki/Generalized_linear_model) (GLM) and [Gradient Boosted Decision Trees](https://en.wikipedia.org/wiki/Gradient_boosting#Gradient_tree_boosting) (GBDT). XGBoost can also be [distributed](#features) and scale to Terascale data
 
-Contributors: https://github.com/dmlc/xgboost/graphs/contributors
+Checkout the [Comitters and Contributors](https://github.com/dmlc/xgboost/CONTRIBUTORS.md)
 
 Documentations: [Documentation of dmlc/xgboost](doc/README.md)
 
@@ -38,6 +38,7 @@ Contributing to XGBoost
 XGBoost has been developed and used by a group of active community. Everyone is more than welcomed to is a great way to make the project better and more accessible to more users.
 * Checkout [Feature Wish List](https://github.com/dmlc/xgboost/labels/Wish-List) to see what can be improved, or open an issue if you want something.
 * Contribute to the [documents and examples](https://github.com/dmlc/xgboost/blob/master/doc/) to share your experience with other users.
+* Please add your name to [CONTRIBUTORS.md](CONTRIBUTORS.md) after your patch has been merged.
 
 Features
 ========
