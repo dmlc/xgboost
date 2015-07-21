@@ -9,6 +9,8 @@ Committers are group of people who have made substantial contribution to the pro
   - Tianqi is a PhD working on large-scale machine learning, he is the creator of the project.
 * [Tong He](https://github.com/hetong007), Simon Fraser University
   - Tong is a master student working on data mining, he is the maintainer of xgboost R package.
+* [Bing Xu](https://github.com/antinucleon)
+  - Bing is the original creator of xgboost python package and currently the maintainer of [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl).
 * [Michael Benesty](https://github.com/pommedeterresautee)
   - Micheal is a lawyer, data scientist in France, he is the creator of xgboost interactive analysis module in R.
 
