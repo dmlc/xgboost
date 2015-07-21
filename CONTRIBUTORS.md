@@ -4,7 +4,7 @@ XGBoost has been developed and used by a group of active community. Everyone is 
 
 Comitters
 =======
-Committers are group of people who have made substantial contribution to the project and granted write access to the project.
+Committers are people who have made substantial contribution to the project and granted write access to the project.
 * [Tianqi Chen](https://github.com/tqchen), University of Washington
   - Tianqi is a PhD working on large-scale machine learning, he is the creator of the project.
 * [Tong He](https://github.com/hetong007), Simon Fraser University
