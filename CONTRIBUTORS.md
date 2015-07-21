@@ -18,4 +18,11 @@ List of Contributors
 =======
 * [Full List of Contributors](https://github.com/dmlc/xgboost/graphs/contributors)
   - To contributors: please add your name to the list when you submit a patch to the project:)
-* Kailong Chen Microsoft
+* [Kailong Chen](https://github.com/kalenhaha)
+* [Skipper Seabold](https://github.com/jseabold)
+* [Zygmunt Zając](https://github.com/zygmuntz)
+* [Ajinkya Kale](https://github.com/ajkl)
+* [Boliang Chen](https://github.com/cblsjtu)
+* [Vadim Khotilovich](https://github.com/khotilov)
+* [Yangqing Men](https://github.com/yanqingmen)
+* [Engpeng Yao](https://github.com/yepyao)
