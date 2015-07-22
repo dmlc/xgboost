@@ -26,3 +26,6 @@ List of Contributors
 * [Vadim Khotilovich](https://github.com/khotilov)
 * [Yangqing Men](https://github.com/yanqingmen)
 * [Engpeng Yao](https://github.com/yepyao)
+* [Giulio](https://github.com/giuliohome)
+* [Jamie Hall](https://github.com/nerdcha)
+* [Yen-Ying Lee](https://github.com/white1033)
