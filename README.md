@@ -6,7 +6,7 @@ DMLC/XGBoost
 An optimized general purpose gradient boosting library. The library is parallelized, and also provides an optimized distributed version.
 It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework, including [Generalized Linear Model](https://en.wikipedia.org/wiki/Generalized_linear_model) (GLM) and [Gradient Boosted Decision Trees](https://en.wikipedia.org/wiki/Gradient_boosting#Gradient_tree_boosting) (GBDT). XGBoost can also be [distributed](#features) and scale to Terascale data
 
-Checkout our [Committers and Contributors](CONTRIBUTORS.md) who help make xgboost better.
+Check out our [Committers and Contributors](CONTRIBUTORS.md) who help make xgboost better.
 
 Documentation: [Documentation of dmlc/xgboost](doc/README.md)
 
@@ -27,7 +27,7 @@ XGBoost is part of [Distributed Machine Learning Common](http://dmlc.github.io/)
 What's New
 ==========
 * XGBoost helps Chenglong Chen to win [Kaggle CrowdFlower Competition](https://www.kaggle.com/c/crowdflower-search-relevance)
-  - Checkout the winning solution at [Highlight links](doc/README.md#highlight-links)
+  - Check out the winning solution at [Highlight links](doc/README.md#highlight-links)
 * XGBoost-0.4 release, see [CHANGES.md](CHANGES.md#xgboost-04)
 * XGBoost helps three champion teams to win [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
   - Check out the winning solution at [Highlight links](doc/README.md#highlight-links)
