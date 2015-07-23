@@ -64,6 +64,10 @@ Version
   - Change log in [CHANGES.md](CHANGES.md)
   - This version is compatible with 0.3x versions
 
+License
+=======
+© Contributors, 2015. Licensed under an [Apache-2](https://github.com/dmlc/xgboost/blob/master/LICENSE) license.
+
 XGBoost in Graphlab Create
 ==========================
 * XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to do data manipulation, graph processing, hyper-parameter search, and visualization of TeraBytes scale data in one framework. Try the Graphlab Create in http://graphlab.com/products/create/quick-start-guide.html
