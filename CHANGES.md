@@ -34,3 +34,10 @@ xgboost-0.4
   - xgboost python model is now pickable
 * sklearn wrapper is supported in python module
 * Experimental External memory version
+
+on going version
+=====
+* Python module now throw exception instead of crash terminal when a parameter error happens.
+* Java api is ready for use
+* Added more test cases and continuous integration to make each build more robust
+* Improvements in sklearn compatible module
