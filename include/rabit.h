@@ -138,7 +138,7 @@ inline void Broadcast(std::string *sendrecv_data, int root);
  */
 template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
-                      void (*prepare_fun)(void *arg) = NULL,
+                      void (*prepare_fun)(void *) = NULL,
                       void *prepare_arg = NULL);
 // C++11 support for lambda prepare function
 #if DMLC_USE_CXX11
@@ -262,7 +262,7 @@ class Reducer {
    * \param prepare_arg argument used to pass into the lazy preprocessing function
    */
   inline void Allreduce(DType *sendrecvbuf, size_t count,
-                        void (*prepare_fun)(void *arg) = NULL,
+                        void (*prepare_fun)(void *) = NULL,
                         void *prepare_arg = NULL);
 #if DMLC_USE_CXX11
   /*!
@@ -306,7 +306,7 @@ class SerializeReducer {
    */
   inline void Allreduce(DType *sendrecvobj,
                         size_t max_nbyte, size_t count,
-                        void (*prepare_fun)(void *arg) = NULL,
+                        void (*prepare_fun)(void *) = NULL,
                         void *prepare_arg = NULL);
 // C++11 support for lambda prepare function
 #if DMLC_USE_CXX11
