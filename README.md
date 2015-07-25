@@ -28,17 +28,17 @@ What's New
 ----------
 
 * XGBoost helps Chenglong Chen to win [Kaggle CrowdFlower Competition](https://www.kaggle.com/c/crowdflower-search-relevance)
-  - Check out the winning solution at [Highlight links](doc/README.md#highlight-links)
+  Check out the [winning solution](doc/README.md#highlight-links)
 * XGBoost-0.4 release, see [CHANGES.md](CHANGES.md#xgboost-04)
 * XGBoost helps three champion teams to win [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
-  - Check out the winning solution at [Highlight links](doc/README.md#highlight-links)
+  Check out the [winning solution](doc/README.md#highlight-links)
 * [External Memory Version](doc/external_memory.md)
 
 Version
 -------
 
-* Current version xgboost-0.4, a lot improvment has been made since 0.3
-  - Change log in [CHANGES.md](CHANGES.md)
+* Current version xgboost-0.4
+  - [Change log](CHANGES.md)
   - This version is compatible with 0.3x versions
 
 Features
@@ -48,8 +48,7 @@ Features
 * Fast and memory efficient
   - Can be more than 10 times faster than GBM in sklearn and R. [benchm-ml numbers](https://github.com/szilard/benchm-ml)
   - Handles sparse matrices, support external memory
-* Accurate prediction, and used extensively by data scientists and kagglers
-  - See [highlight links](https://github.com/dmlc/xgboost/blob/master/doc/README.md#highlight-links)
+* Accurate prediction, and used extensively by data scientists and kagglers - [highlight links](https://github.com/dmlc/xgboost/blob/master/doc/README.md#highlight-links)
 * Distributed and Portable
   - The distributed version runs on Hadoop (YARN), MPI, SGE etc.
   - Scales to billions of examples and beyond
@@ -75,5 +74,5 @@ License
 
 XGBoost in Graphlab Create
 --------------------------
-* XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to do data manipulation, graph processing, hyper-parameter search, and visualization of TeraBytes scale data in one framework. Try the Graphlab Create in http://graphlab.com/products/create/quick-start-guide.html
+* XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to do data manipulation, graph processing, hyper-parameter search, and visualization of TeraBytes scale data in one framework. Try the [Graphlab Create](http://graphlab.com/products/create/quick-start-guide.html)
 * Nice blogpost by Jay Gu about using GLC boosted tree to solve kaggle bike sharing challenge: http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand
