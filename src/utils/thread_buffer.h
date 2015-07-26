@@ -219,7 +219,7 @@ class ThreadBuffer {
       factory_.Destroy();
     }
   }
-  inline void SetParam(const char *name, const char *val) {    
+  inline void SetParam(const char *name, const char *val) {
   }
   inline bool Init(void) {
     if (!factory_.Init()) return false;
@@ -242,7 +242,7 @@ class ThreadBuffer {
   inline const ElemFactory &get_factory() const {
     return factory_;
   }
-  
+
  private:
   // initialized
   bool init_end_;
