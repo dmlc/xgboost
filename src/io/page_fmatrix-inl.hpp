@@ -319,7 +319,7 @@ class FMatrixPage : public IFMatrix {
       bytes_write += spage;
       double tnow = rabit::utils::GetTime();
       double tdiff = tnow - tstart;
-      utils::Printf("Writting to %s in %g MB/s, %lu MB written current speed:%g MB/s\n",
+      utils::Printf("Writting to %s in %g MB/s, %lu MB written\n",
                     col_data_name_.c_str(),
                     (bytes_write >> 20UL) / tdiff,
                     (bytes_write >> 20UL));
