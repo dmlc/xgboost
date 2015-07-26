@@ -11,9 +11,14 @@
 #include <cstring>
 #include <cstdlib>
 #include "./utils.h"
+// threading util could not run on solaris
+#ifndef XGBOOST_STRICT_CXX98_
 #include "./thread.h"
+#endif
+
 namespace xgboost {
 namespace utils {
+#if !defined(XGBOOST_STRICT_CXX98_)
 /*!
  * \brief buffered loading iterator that uses multithread
  * this template method will assume the following paramters
@@ -201,6 +206,52 @@ class ThreadBuffer {
     loading_need.Post();
   }
 };
+#else
+// a dummy single threaded ThreadBuffer
+// use this to resolve R's solaris compatibility for now
+template<typename Elem, typename ElemFactory>
+class ThreadBuffer {
+ public:
+  ThreadBuffer() : init_end_(false) {}
+  ~ThreadBuffer() {
+    if (init_end_) {
+      factory_.FreeSpace(data_);
+      factory_.Destroy();
+    }
+  }
+  inline void SetParam(const char *name, const char *val) {    
+  }
+  inline bool Init(void) {
+    if (!factory_.Init()) return false;
+    data_ = factory_.Create();
+    return (init_end_ = true);
+  }
+  inline void BeforeFirst(void) {
+    factory_.BeforeFirst();
+  }
+  inline bool Next(Elem &elem) { // NOLINT(*)
+    if (factory_.LoadNext(data_)) {
+      elem = data_; return true;
+    } else {
+      return false;
+    }
+  }
+  inline ElemFactory &get_factory() {
+    return factory_;
+  }
+  inline const ElemFactory &get_factory() const {
+    return factory_;
+  }
+  
+ private:
+  // initialized
+  bool init_end_;
+  // current data
+  Elem data_;
+  // factory object used to load configures
+  ElemFactory factory_;
+};
+#endif  // !defined(XGBOOST_STRICT_CXX98_)
 }  // namespace utils
 }  // namespace xgboost
 #endif  // XGBOOST_UTILS_THREAD_BUFFER_H_
