@@ -30,7 +30,10 @@ sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+libpath=os.path.join(curr_path, '../wrapper/')
 sys.path.insert(0, os.path.join(curr_path, '../wrapper/'))
+
+sys.stderr.write(str(os.listdir(libpath))+'\n')
 
 # -- General configuration ------------------------------------------------
 
