@@ -12,8 +12,8 @@ API Documents
    :maxdepth: 2
 
    python_api.rst
-   parameters.rst
    cpp_api.rst
+   parameters.rst
 
 Indices and tables
 ==================
