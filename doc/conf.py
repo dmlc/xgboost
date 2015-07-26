@@ -33,8 +33,6 @@ curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 libpath=os.path.join(curr_path, '../wrapper/')
 sys.path.insert(0, os.path.join(curr_path, '../wrapper/'))
 
-sys.stderr.write(str(os.listdir(libpath))+'\n')
-
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
@@ -51,7 +49,7 @@ release = rabit.__version__
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones
 extensions = [
     'sphinx.ext.autodoc',
-    'numpydoc',
+    'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
     'breathe',
 ]
@@ -66,7 +64,7 @@ templates_path = ['_templates']
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 # source_suffix = ['.rst', '.md']
-source_suffix = ['.rst']
+source_suffix = '.rst'
 
 # The encoding of source files.
 #source_encoding = 'utf-8-sig'
