@@ -123,10 +123,13 @@ inline void Broadcast(std::string *sendrecv_data, int root);
  *        this function is NOT thread-safe
  *
  * Example Usage: the following code does an Allreduce and outputs the sum as the result
- *     vector<int> data(10);
- *     ...
- *     Allreduce<op::Sum>(&data[0], data.size());
- *     ...
+ * \code{.cpp}
+ * vector<int> data(10);
+ * ...
+ * Allreduce<op::Sum>(&data[0], data.size());
+ * ...
+ * \endcode
+ *
  * \param sendrecvbuf buffer for both sending and receiving data
  * \param count number of elements to be reduced
  * \param prepare_fun Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
@@ -146,15 +149,18 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
  * \brief performs in-place Allreduce, on sendrecvbuf
  *        with a prepare function specified by a lambda function
  *
- * Example Usage: the following code does an Allreduce and outputs the sum as the result
- *     vector<int> data(10);
+ * Example Usage:
+ * \code{.cpp}
+ * // the following code does an Allreduce and outputs the sum as the result
+ * vector<int> data(10);
+ * ...
+ * Allreduce<op::Sum>(&data[0], data.size(), [&]() {
+ *                     for (int i = 0; i < 10; ++i) {
+ *                       data[i] = i;
+ *                     }
+ *                    });
  *     ...
- *     Allreduce<op::Sum>(&data[0], data.size(), [&]() {
- *                          for (int i = 0; i < 10; ++i) {
- *                            data[i] = i;
- *                          }
- *                        });
- *     ...
+ * \endcode
  * \param sendrecvbuf buffer for both sending and receiving data
  * \param count number of elements to be reduced
  * \param prepare_fun  Lazy lambda preprocessing function, prepare_fun() will be invoked
@@ -179,14 +185,15 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
  *     if returned version == 0, this means no model has been CheckPointed
  *     the p_model is not touched, users should do the necessary initialization by themselves
  *
- *   Common usage example:
- *      int iter = rabit::LoadCheckPoint(&model);
- *      if (iter == 0) model.InitParameters();
- *      for (i = iter; i < max_iter; ++i) {
- *        do many things, include allreduce
- *        rabit::CheckPoint(model);
- *      }
- *
+ * \code{.cpp}
+ * // Example usage code of LoadCheckPoint
+ * int iter = rabit::LoadCheckPoint(&model);
+ * if (iter == 0) model.InitParameters();
+ * for (i = iter; i < max_iter; ++i) {
+ *   // do many things, include allreduce
+ *   rabit::CheckPoint(model);
+ * }
+ * \endcode
  * \sa CheckPoint, VersionNumber
  */
 inline int LoadCheckPoint(Serializable *global_model,
