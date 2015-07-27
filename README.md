@@ -44,8 +44,8 @@ Version
 Features
 --------
 
-* Easily accessible through CLI, [python](guide-python/basic_walkthrough.py), 
-  [R](../R-package/demo/basic_walkthrough.R), 
+* Easily accessible through CLI, [python](https://github.com/dmlc/xgboost/blob/master/demo/guide-python/basic_walkthrough.py), 
+  [R](https://github.com/dmlc/xgboost/blob/master/R-package/demo/basic_walkthrough.R), 
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/basic_walkthrough.jl)
 * Its fast! Benchmark numbers comparing xgboost, H20, Spark, R - [benchm-ml numbers](https://github.com/szilard/benchm-ml)
 * Memory efficient - Handles sparse matrices, supports external memory
