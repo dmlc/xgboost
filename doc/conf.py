@@ -20,7 +20,7 @@ import shlex
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-libpath=os.path.join(curr_path, '../wrapper/')
+libpath = os.path.join(curr_path, '../wrapper/')
 sys.path.insert(0, os.path.join(curr_path, '../wrapper/'))
 
 # -- General configuration ------------------------------------------------
@@ -123,7 +123,7 @@ todo_include_todos = False
 html_static_path = ['_static']
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'rabitdoc'
+htmlhelp_basename = project + 'doc'
 
 # -- Options for LaTeX output ---------------------------------------------
 latex_elements = {
@@ -133,8 +133,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'rabit.tex', u'rabit Documentation',
-   u'tqchen', 'manual'),
+  (master_doc, 'rabit.tex', project,
+   author, 'manual'),
 ]
 
 # hook for doxygen
