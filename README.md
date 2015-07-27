@@ -75,4 +75,4 @@ License
 XGBoost in Graphlab Create
 --------------------------
 * XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to do data manipulation, graph processing, hyper-parameter search, and visualization of TeraBytes scale data in one framework. Try the [Graphlab Create](http://graphlab.com/products/create/quick-start-guide.html)
-* Nice blogpost by Jay Gu about using GLC boosted tree to solve kaggle bike sharing challenge: http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand
+* Nice [blogpost](http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand) by Jay Gu about using GLC boosted tree to solve kaggle bike sharing challenge: 
