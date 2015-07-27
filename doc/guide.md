@@ -267,7 +267,7 @@ Because the different nature of the two types of models, different strategy will
 nodes (selected using a ring replication strategy). The checkpoint is only saved in the memory without touching the disk which makes rabit programs more efficient.
 User is encouraged to use ```global_model``` only when is sufficient for better efficiency.
 
-To enable a model class to be checked pointed, user can implement a [serialization interface](../include/rabit_serialization.h). The serialization interface already
+To enable a model class to be checked pointed, user can implement a [serialization interface](https://github.com/dmlc/rabit/blob/master/include/rabit_serialization.h). The serialization interface already
 provide serialization functions of STL vector and string. For python API, user can checkpoint any python object that can be pickled.
 
 There is a special Checkpoint function called [LazyCheckpoint](http://homes.cs.washington.edu/~tqchen/rabit/doc/namespacerabit.html#a99f74c357afa5fba2c80cc0363e4e459),
@@ -288,10 +288,10 @@ improve the efficiency of the program.
 Compile Programs with Rabit
 ---------------------------
 Rabit is a portable library, to use it, you only need to include the rabit header file.
-* You will need to add the path to [../include](../include) to the header search path of the compiler
+* You will need to add the path to [../include](https://github.com/dmlc/rabit/blob/master/include) to the header search path of the compiler
   - Solution 1: add ```-I/path/to/rabit/include``` to the compiler flag in gcc or clang
   - Solution 2: add the path to the environment variable CPLUS_INCLUDE_PATH
-* You will need to add the path to [../lib](../lib) to the library search path of the compiler
+* You will need to add the path to [../lib](https://github.com/dmlc/rabit/blob/master/lib) to the library search path of the compiler
   - Solution 1: add ```-L/path/to/rabit/lib``` to the linker flag
   - Solution 2: add the path to environment variable LIBRARY_PATH AND LD_LIBRARY_PATH
 * Link against lib/rabit.a
