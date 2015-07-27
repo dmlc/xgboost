@@ -1,3 +1,4 @@
-numpy==1.8.1
+numpy
 breathe
-
+commonmark
+recommonmark

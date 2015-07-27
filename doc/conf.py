@@ -15,16 +15,6 @@
 import sys
 import os, subprocess
 import shlex
-from mock import Mock as MagicMock
-
-# mock out some of the modules to make docomentation easier
-class Mock(MagicMock):
-    @classmethod
-    def __getattr__(cls, name):
-        return Mock()
-
-MOCK_MODULES = ['pygtk', 'gtk', 'gobject', 'argparse', 'numpy', 'pandas']
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -54,6 +44,11 @@ extensions = [
     'breathe',
 ]
 
+# add markdown parser
+source_parsers = {
+    '.md': 'recommonmark.parser.CommonMarkParser',
+}
+
 # Use breathe to include doxygen documents
 breathe_projects = {'rabit' : 'doxygen/xml/'}
 breathe_default_project = 'rabit'
@@ -64,7 +59,7 @@ templates_path = ['_templates']
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 # source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ['.rst', '.md']
 
 # The encoding of source files.
 #source_encoding = 'utf-8-sig'
@@ -120,7 +115,7 @@ todo_include_todos = False
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-#html_theme = 'alabaster'
+# html_theme = 'alabaster'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -128,7 +123,7 @@ todo_include_todos = False
 html_static_path = ['_static']
 
 # Output file base name for HTML help builder.
-#htmlhelp_basename = 'rabitdoc'
+htmlhelp_basename = 'rabitdoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 latex_elements = {
