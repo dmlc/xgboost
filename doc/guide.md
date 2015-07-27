@@ -19,7 +19,7 @@ To run the examples locally, you will need to build them with ```make```.
 * [Fault Tolerance](#fault-tolerance)
 
 What is Allreduce
-=================
+-----------------
 The main methods provided by rabit are Allreduce and Broadcast. Allreduce performs reduction across different computation nodes,
 and returns the result to every node. To understand the behavior of the function, consider the following example in [basic.cc](https://github.com/dmlc/rabit/blob/master/guide/basic.cc) (there is a python example right after this if you are more familiar with python).
 ```c++
@@ -131,7 +131,7 @@ rabit.finalize()
 ```
 
 Common Use Case
-=====
+---------------
 Many distributed machine learning algorithms involve splitting the data into different nodes,
 computing statistics locally, and finally aggregating them. Such workflow is usually done repetitively through many iterations before the algorithm converges. Allreduce naturally meets the structure of such programs,
 common use cases include:
@@ -143,7 +143,7 @@ common use cases include:
 Rabit is a reliable and portable library for distributed machine learning programs, that allow programs to run reliably on different platforms.
 
 Use Rabit API
-====
+-------------
 This section introduces topics about how to use rabit API.
 You can always refer to [API Documentation](http://homes.cs.washington.edu/~tqchen/rabit/doc) for definition of each functions.
 This section trys to gives examples of different aspectes of rabit API.
@@ -286,7 +286,7 @@ improve the efficiency of the program.
 
 
 Compile Programs with Rabit
-====
+---------------------------
 Rabit is a portable library, to use it, you only need to include the rabit header file.
 * You will need to add the path to [../include](../include) to the header search path of the compiler
   - Solution 1: add ```-I/path/to/rabit/include``` to the compiler flag in gcc or clang
@@ -332,7 +332,7 @@ For example, consider the following script in the test case
   - Note that ndeath = 1 means this will happen only if node 1 died once, which is our case
 
 Running Rabit Jobs
-====
+------------------
 Rabit is a portable library that can run on multiple platforms.
 
 #### Running Rabit Locally
@@ -375,7 +375,7 @@ Note that the current rabit tracker does not restart a worker when it dies, the 
   - rabit-yarn provides such functionality in YARN
 
 Fault Tolerance
-=====
+---------------
 This section introduces how fault tolerance works in rabit.
 The following figure shows how rabit deals with failures.
 
