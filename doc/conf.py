@@ -156,7 +156,7 @@ def setup_path(app):
     read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
     if read_the_docs_build:
         subprocess.call('cd ..; git clone https://github.com/tqchen/recommonmark recommonmark-customized;' +
-                        'mv recomonmark-customized/recommonmark recom', shell=True)
+                        'ln -s recommonmark-customized/recommonmark recom', shell=True)
     sys.path.insert(0, os.path.abspath('..'))
     from recom import parser
     global source_parsers
