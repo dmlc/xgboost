@@ -11,11 +11,10 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
-
 import sys
 import os, subprocess
 import shlex
-
+import recommonmark
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -156,8 +155,9 @@ source_parsers = {
 def setup_path(app):
     read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
     if read_the_docs_build:
-        subprocess.call("cd ..; git clone https://github.com/tqchen/recommonmark recommonmark-tqchen", shell=True)
-    sys.path.insert(0, os.path.abspath('../recommonmark-tqchen'))
+        subprocess.call("cd ..; git clone https://github.com/tqchen/recommonmark recom", shell=True)
+    sys.path.insert(0, os.path.abspath('../recom'))
+    reload(recommonmark)
     from recommonmark import parser
     global source_parsers
     source_parsers['.md'] = parser.CommonMarkParser
