@@ -157,8 +157,8 @@ def generate_doxygen_xml(app):
 def setup_path(app):
     read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
     if read_the_docs_build:
-        subprocess.call("cd ..; git clone https://github.com/tqchen/recommonmark", shell=True)
-    sys.path.insert(0, os.path.abspath('../recommonmark'))
+        subprocess.call("cd ..; git clone https://github.com/tqchen/recommonmark recommonmark-tqchen", shell=True)
+    sys.path.insert(0, os.path.abspath('../recommonmark-tqchen'))
 
 def setup(app):
     # Add hook for building doxygen xml when needed
