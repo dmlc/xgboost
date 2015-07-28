@@ -156,8 +156,8 @@ source_parsers = {
 def setup_path(app):
     read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
     if read_the_docs_build:
-        subprocess.call("cd ..; rm -rf recommonmark; git clone https://github.com/tqchen/recommonmark", shell=True)
-    sys.path.insert(0, os.path.abspath('../recommonmark'))
+        subprocess.call("cd ..; git clone https://github.com/tqchen/recommonmark recommonmark-tqchen", shell=True)
+    sys.path.insert(0, os.path.abspath('../recommonmark-tqchen'))
     from recommonmark import parser
     global source_parsers
     source_parsers['.md'] = parser.CommonMarkParser
