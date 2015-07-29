@@ -21,7 +21,7 @@ To run the examples locally, you will need to build them with ```make```.
 What is Allreduce
 -----------------
 The main methods provided by rabit are Allreduce and Broadcast. Allreduce performs reduction across different computation nodes,
-and returns the result to every node. To understand the behavior of the function, consider the following example in [basic.cc](https://github.com/dmlc/rabit/blob/master/guide/basic.cc) (there is a python example right after this if you are more familiar with python).
+and returns the result to every node. To understand the behavior of the function, consider the following example in [basic.cc](../guide/basic.cc) (there is a python example right after this if you are more familiar with python).
 ```c++
 #include <rabit.h>
 using namespace rabit;
@@ -88,7 +88,7 @@ You can run the program using the following command
 ```
 
 Broadcast is another method provided by rabit besides Allreduce. This function allows one node to broadcast its
-local data to all other nodes. The following code in [broadcast.cc](https://github.com/dmlc/rabit/blob/master/guide/broadcast.cc) broadcasts a string from
+local data to all other nodes. The following code in [broadcast.cc](../guide/broadcast.cc) broadcasts a string from
 node 0 to all other nodes.
 ```c++
 #include <rabit.h>
@@ -114,7 +114,7 @@ The following command starts the program with three worker processes.
 ```
 Besides strings, rabit also allows to broadcast constant size array and vectors.
 
-The counterpart in python can be found in [broadcast.py](https://github.com/dmlc/rabit/blob/master/guide/broadcast.py). Here is a snippet so that you can get a better sense of how simple is to use the python library:
+The counterpart in python can be found in [broadcast.py](../guide/broadcast.py). Here is a snippet so that you can get a better sense of how simple is to use the python library:
 
 ```python
 import rabit
@@ -201,8 +201,8 @@ into the data buffer, pass the data to Allreduce function, and get the reduced r
 from failure, we can directly recover the result from other nodes(see also [Fault Tolerance](#fault-tolerance)) and
 the data preparation procedure no longer necessary. Rabit Allreduce add an optional parameter preparation function
 to support such scenario. User can pass in a function that corresponds to the data preparation procedure to Allreduce
-calls, and the data preparation function will only be called when necessary. We use [lazy_allreduce.cc](https://github.com/dmlc/rabit/blob/master/guide/lazy_allreduce.cc)
-as an example to demonstrate this feature. It is modified from [basic.cc](https://github.com/dmlc/rabit/blob/master/guide/basic.cc), and you can compare the two codes.
+calls, and the data preparation function will only be called when necessary. We use [lazy_allreduce.cc](../guide/lazy_allreduce.cc)
+as an example to demonstrate this feature. It is modified from [basic.cc](../guide/basic.cc), and you can compare the two codes.
 ```c++
 #include <rabit.h>
 using namespace rabit;
@@ -241,7 +241,7 @@ the effect when a process goes down. You can run the program using the following
 The additional arguments ```mock=0,0,1,0``` will cause node 0 to kill itself before second call of Allreduce (see also [mock test](#link-against-mock-test-rabit-library)).
 You will find that the prepare function's print is only executed once and node 0 will no longer execute the preparation function when it restarts from failure.
 
-You can also find python version of the example in [lazy_allreduce.py](https://github.com/dmlc/rabit/blob/master/guide/lazy_allreduce.py), and run it using the followin command
+You can also find python version of the example in [lazy_allreduce.py](../guide/lazy_allreduce.py), and run it using the followin command
 ```bash
 ../tracker/rabit_demo.py -n 2 lazy_allreduce.py mock=0,0,1,0
 
@@ -249,7 +249,7 @@ You can also find python version of the example in [lazy_allreduce.py](https://g
 
 Since lazy preparation function may not be called during execution. User should be careful when using this feature. For example, a possible mistake
 could be putting some memory allocation code in the lazy preparation function, and the computing memory was not allocated when lazy preparation function is not called.
-The example in [lazy_allreduce.cc](https://github.com/dmlc/rabit/blob/master/guide/lazy_allreduce.cc) provides a simple way to migrate normal prepration code([basic.cc](https://github.com/dmlc/rabit/blob/master/guide/basic.cc)) to lazy version: wrap the preparation
+The example in [lazy_allreduce.cc](../guide/lazy_allreduce.cc) provides a simple way to migrate normal prepration code([basic.cc](../guide/basic.cc)) to lazy version: wrap the preparation
 code with a lambda function, and pass it to allreduce.
 
 #### Checkpoint and LazyCheckpoint
@@ -267,7 +267,7 @@ Because the different nature of the two types of models, different strategy will
 nodes (selected using a ring replication strategy). The checkpoint is only saved in the memory without touching the disk which makes rabit programs more efficient.
 User is encouraged to use ```global_model``` only when is sufficient for better efficiency.
 
-To enable a model class to be checked pointed, user can implement a [serialization interface](https://github.com/dmlc/rabit/blob/master/include/rabit_serialization.h). The serialization interface already
+To enable a model class to be checked pointed, user can implement a [serialization interface](../include/rabit_serialization.h). The serialization interface already
 provide serialization functions of STL vector and string. For python API, user can checkpoint any python object that can be pickled.
 
 There is a special Checkpoint function called [LazyCheckpoint](http://homes.cs.washington.edu/~tqchen/rabit/doc/namespacerabit.html#a99f74c357afa5fba2c80cc0363e4e459),
@@ -288,10 +288,10 @@ improve the efficiency of the program.
 Compile Programs with Rabit
 ---------------------------
 Rabit is a portable library, to use it, you only need to include the rabit header file.
-* You will need to add the path to [../include](https://github.com/dmlc/rabit/blob/master/include) to the header search path of the compiler
+* You will need to add the path to [../include](../include) to the header search path of the compiler
   - Solution 1: add ```-I/path/to/rabit/include``` to the compiler flag in gcc or clang
   - Solution 2: add the path to the environment variable CPLUS_INCLUDE_PATH
-* You will need to add the path to [../lib](https://github.com/dmlc/rabit/blob/master/lib) to the library search path of the compiler
+* You will need to add the path to [../lib](../lib) to the library search path of the compiler
   - Solution 1: add ```-L/path/to/rabit/lib``` to the linker flag
   - Solution 2: add the path to environment variable LIBRARY_PATH AND LD_LIBRARY_PATH
 * Link against lib/rabit.a

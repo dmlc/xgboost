@@ -14,7 +14,7 @@
 import sys
 import os, subprocess
 import shlex
-import recommonmark
+from sphinx_util import MarkdownParser
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -28,7 +28,13 @@ sys.path.insert(0, os.path.join(curr_path, '../wrapper/'))
 project = u'rabit'
 copyright = u'2015, rabit developers'
 author = u'rabit developers'
+github_doc_root = 'https://github.com/dmlc/rabit/tree/master/doc/'
 
+# add markdown parser
+MarkdownParser.github_doc_root = github_doc_root
+source_parsers = {
+    '.md': MarkdownParser,
+}
 # Version information.
 import rabit
 version = rabit.__version__
@@ -147,23 +153,9 @@ def generate_doxygen_xml(app):
     if read_the_docs_build:
         run_doxygen('..')
 
-# add markdown parser
-source_parsers = {
-    '.md': None,
-}
-
-def setup_path(app):
-    read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
-    if read_the_docs_build:
-        subprocess.call('cd ..; git clone https://github.com/tqchen/recommonmark recommonmark-customized;' +
-                        'ln -s recommonmark-customized/recommonmark recom', shell=True)
-    sys.path.insert(0, os.path.abspath('..'))
-    from recom import parser
-    global source_parsers
-    source_parsers['.md'] = parser.CommonMarkParser
-
 def setup(app):
     # Add hook for building doxygen xml when needed
     app.connect("builder-inited", generate_doxygen_xml)
-    setup_path(app)
+
+
 
