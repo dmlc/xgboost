@@ -1,3 +1,7 @@
+environment:
+  global:
+   CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\python-appveyor-demo\\appveyor\\run_with_env.cmd"
+
 platform:
   - x64
   - x86
@@ -7,11 +11,17 @@ configuration:
 
 install:
   - cmd: git clone https://github.com/ogrisel/python-appveyor-demo
-  - ps: python-appveyor-demo\appveyor\install.ps1
+  - ECHO "Filesystem root:"
+  - ps: "ls \"C:/\""
+
+  - ECHO "Installed SDKs:"
+  - ps: "ls \"C:/Program Files/Microsoft SDKs/Windows\""
+
+  - ps: if (-not(Test-Path($env:PYTHON))) { & python-appveyor-demo\appveyor\install.ps1 }
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
   - "python --version"
   - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
-  - "pip instal nose numpy scipy"
+  - ""%CMD_IN_ENV% pip install numpy scipy nose"
 
 build:
   project: windows\xgboost.sln
