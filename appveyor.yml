@@ -1,6 +1,7 @@
 environment:
   global:
    CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\python-appveyor-demo\\appveyor\\run_with_env.cmd"
+   DISABLE_OPENMP: 1
 
   matrix:
     - PYTHON: "C:\\Python27-x64"
