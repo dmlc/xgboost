@@ -31,5 +31,4 @@ install:
   - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
 
 build:
-  project: windows\xgboost.sln
-
+  - cmd: msbuild windows\xgboost.sln /openmp-
