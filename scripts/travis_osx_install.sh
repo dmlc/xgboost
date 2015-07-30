@@ -8,5 +8,6 @@ brew update
 
 if [ ${TASK} == "python-package" ]; then
     brew install python git
-    easy_install pip scipy numpy
+    easy_install pip
+    pip install numpy scipy
 fi

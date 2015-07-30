@@ -7,7 +7,7 @@ if [ ${TASK} == "lint" ]; then
     fi
 fi
 
-if [ ${TRAVIS_OS_NAME} != "osx" ]; then
+if [ ${TRAVIS_OS_NAME} == "osx" ]; then
     export no_omp=1
 fi
 
@@ -37,7 +37,10 @@ if [ ${TASK} == "python-package" ]; then
     nosetests tests/python || exit -1
 fi
 
+# only test java under linux for now
 if [ ${TASK} == "java-package" ]; then
-    make java CXX=${CXX} || exit -1
-    scripts/travis_java_script.sh || exit -1
+    if [ ${TRAVIS_OS_NAME} != "osx" ]; then
+        make java CXX=${CXX} || exit -1
+        scripts/travis_java_script.sh || exit -1
+    fi
 fi
