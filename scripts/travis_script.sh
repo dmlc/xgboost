@@ -18,7 +18,11 @@ fi
 if [ ${TASK} == "build-with-dmlc" ]; then
     cd dmlc-core
     cp make/config.mk .
-    echo "USE_S3=1" >> config.mk
+    if [ ${TRAVIS_OS_NAME} != "osx" ]; then
+        echo "USE_S3=1" >> config.mk
+    else
+        echo "USE_S3=0" >> config.mk
+    fi
     make all CXX=${CXX}|| exit -1
     cd ..
     make dmlc=dmlc-core CXX=${CXX} || exit -1
