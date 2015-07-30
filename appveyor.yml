@@ -16,7 +16,7 @@ platform:
   - x64
 
 configuration:
-  - Release
+  - Debug
 
 install:
   - cmd: git clone https://github.com/ogrisel/python-appveyor-demo
@@ -30,6 +30,6 @@ install:
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
   - "python --version"
   - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
-  - cmd: msbuild windows\xgboost.sln /DDISABLE_OPENMP=1  /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
 
-build: off
+build:
+  project: windows\xgboost.sln
