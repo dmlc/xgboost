@@ -10,7 +10,7 @@
 #if defined(_OPENMP) && !defined(DISABLE_OPENMP)
 #include <omp.h>
 #else
-#if !defined(DISABLE_OPENMP)
+#if !defined(DISABLE_OPENMP) && !defined(_MSC_VER)
 // use pragma message instead of warning
 #pragma message("Warning: OpenMP is not available,"\
                 "xgboost will be compiled into single-thread code."\
