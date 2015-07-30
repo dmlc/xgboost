@@ -7,8 +7,9 @@ configuration:
 
 install:
   - cmd: git clone https://github.com/ogrisel/python-appveyor-demo
-  - cmd: copy python-appvegor-demo\appvegor\install.ps1 install.ps1
-  - ps: install.ps1
+  - cmd: mkdir appveyor
+  - cmd: copy python-appveyor-demo\appvegor\install.ps1 appveyor\install.ps1
+  - ps: appvegor\install.ps1
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
   - "python --version"
   - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
