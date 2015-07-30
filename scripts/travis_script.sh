@@ -7,6 +7,10 @@ if [ ${TASK} == "lint" ]; then
     fi
 fi
 
+if [ ${TRAVIS_OS_NAME} != "osx" ]; then
+    export no_omp=1
+fi
+
 if [ ${TASK} == "build" ]; then
     make all CXX=${CXX} || exit -1
 fi
