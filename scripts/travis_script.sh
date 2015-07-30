@@ -9,6 +9,7 @@ fi
 
 if [ ${TRAVIS_OS_NAME} == "osx" ]; then
     export no_omp=1
+    export NO_OPENMP=1
 fi
 
 if [ ${TASK} == "build" ]; then
