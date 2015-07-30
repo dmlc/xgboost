@@ -5,9 +5,6 @@ platform:
 configuration:
   - Release
 
-clone_folder: c:\dmlc\xgboost
-
-
 install:
   - cmd: git clone https://github.com/ogrisel/python-appveyor-demo
   - ps: if (-not(Test-Path($env:PYTHON))) { & python-appvegor-demo\appveyor\install.ps1 }
@@ -17,6 +14,6 @@ install:
   - "pip instal nose numpy scipy"
 
 build:
-  parallel: true
-  project: windows\xgboost.sln
+  - "msbuild windows\xgboost.sln"
+
 
