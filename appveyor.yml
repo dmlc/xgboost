@@ -2,9 +2,17 @@ environment:
   global:
    CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\python-appveyor-demo\\appveyor\\run_with_env.cmd"
 
+  matrix:
+    - PYTHON: "C:\\Python27-x64"
+      PYTHON_VERSION: "2.7.x" # currently 2.7.9
+      PYTHON_ARCH: "64"
+
+    - PYTHON: "C:\\Python33-x64"
+      PYTHON_VERSION: "3.3.x" # currently 3.3.5
+      PYTHON_ARCH: "64"
+
 platform:
   - x64
-  - x86
 
 configuration:
   - Release
