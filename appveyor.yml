@@ -29,10 +29,7 @@ install:
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
   - "python --version"
   - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
-  - "%CMD_IN_ENV% pip install numpy scipy nose"
 
 build:
   project: windows\xgboost.sln
 
-test_script:
-  - "%CMD_IN_ENV% nosetests test\\python"
