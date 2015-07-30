@@ -11,6 +11,10 @@ env:
     - TASK=build CXX=g++
     - TASK=build-with-dmlc CXX=g++
 
+os:
+  - linux
+  - osx
+
 # dependent apt packages
 addons:
   apt:
@@ -25,6 +29,7 @@ addons:
       - python-nose
 
 before_install:
+  - scripts/travis_osx_install.sh
   - git clone https://github.com/dmlc/dmlc-core
   - export TRAVIS=dmlc-core/scripts/travis/
   - export PYTHONPATH=${PYTHONPATH}:${PWD}/wrapper
@@ -32,6 +37,7 @@ before_install:
 
 install:
   - pip install cpplint pylint --user `whoami`
+
 
 script: scripts/travis_script.sh
 

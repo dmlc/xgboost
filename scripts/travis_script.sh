@@ -2,7 +2,9 @@
 
 # main script of travis
 if [ ${TASK} == "lint" ]; then
-    make lint  || exit -1
+    if [ ${TRAVIS_OS_NAME} != "osx" ]; then
+        make lint  || exit -1
+    fi
 fi
 
 if [ ${TASK} == "build" ]; then
