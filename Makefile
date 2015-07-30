@@ -11,6 +11,12 @@ ifeq ($(OS), Windows_NT)
 	export CC = gcc -m64
 endif
 
+UNAME= $(shell uname)
+
+ifeq ($(UNAME), Linux)
+	LDFLAGS += -lrt
+endif
+
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP
 else

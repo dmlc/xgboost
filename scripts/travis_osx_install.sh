@@ -5,7 +5,9 @@ if [ ${TRAVIS_OS_NAME} != "osx" ]; then
 fi
 
 brew update
-brew install unzip
-brew install python-numpy
-brew install python-scipy
-brew install python-nose
+
+if [ ${TASK} == "python-package" ]; then
+    brew install python git
+    easy_install pip
+    pip install numpy scipy nose
+fi
