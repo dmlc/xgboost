@@ -16,7 +16,7 @@ platform:
   - x64
 
 configuration:
-  - Release
+  - Debug
 
 install:
   - cmd: git clone https://github.com/ogrisel/python-appveyor-demo
