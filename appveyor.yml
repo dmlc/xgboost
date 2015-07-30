@@ -12,8 +12,8 @@ install:
   - "python --version"
   - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
   - "pip instal nose numpy scipy"
-  - "msbuild windows\xgboost.sln"
 
-build: false
+build:
+  project: windows\xgboost.sln
 
 
