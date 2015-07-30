@@ -17,7 +17,7 @@ install:
   - ECHO "Installed SDKs:"
   - ps: "ls \"C:/Program Files/Microsoft SDKs/Windows\""
 
-  - ps: if (-not(Test-Path($env:PYTHON))) { & python-appveyor-demo\appveyor\install.ps1 }
+  - ps: python-appveyor-demo\appveyor\install.ps1
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
   - "python --version"
   - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
