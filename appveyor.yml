@@ -7,7 +7,8 @@ configuration:
 
 install:
   - cmd: git clone https://github.com/ogrisel/python-appveyor-demo
-  - ps:  python-appvegor-demo\appveyor\install.ps1
+  - cmd: copy-item python-appvegor-demo\appvegor\install.ps1 install.ps1
+  - ps: .\\install.ps1
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
   - "python --version"
   - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
@@ -15,5 +16,3 @@ install:
 
 build:
   project: windows\xgboost.sln
-
-
