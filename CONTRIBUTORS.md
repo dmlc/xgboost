@@ -19,13 +19,19 @@ List of Contributors
 * [Full List of Contributors](https://github.com/dmlc/xgboost/graphs/contributors)
   - To contributors: please add your name to the list when you submit a patch to the project:)
 * [Kailong Chen](https://github.com/kalenhaha)
+  - Kailong is an early contributor of xgboost, he is creator of ranking objectives in xgboost.
 * [Skipper Seabold](https://github.com/jseabold)
+  - Skipper is the major contributor to the scikit-learn module of xgboost.
 * [Zygmunt Zając](https://github.com/zygmuntz)
+  - Zygmunt is the master behind the early stopping feature frequently used by kagglers.
 * [Ajinkya Kale](https://github.com/ajkl)
 * [Boliang Chen](https://github.com/cblsjtu)
 * [Vadim Khotilovich](https://github.com/khotilov)
 * [Yangqing Men](https://github.com/yanqingmen)
+  - Yangqing is the creator of xgboost java package.
 * [Engpeng Yao](https://github.com/yepyao)
 * [Giulio](https://github.com/giuliohome)
+  - Giulio is the creator of windows project of xgboost
 * [Jamie Hall](https://github.com/nerdcha)
+  - Jamie is the initial creator of xgboost sklearn modue.
 * [Yen-Ying Lee](https://github.com/white1033)
