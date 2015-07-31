@@ -169,7 +169,7 @@ Rcheck:
 
 # lint requires dmlc to be in current folder
 lint:
-	dmlc-core/scripts/lint.py xgboost $(LINT_LANG) src wrapper R-package
+	dmlc-core/scripts/lint.py xgboost $(LINT_LANG) src wrapper R-package python-package
 
 clean:
 	$(RM) -rf $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~

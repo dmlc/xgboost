@@ -14,7 +14,7 @@ A [walk through python example](https://github.com/tqchen/xgboost/blob/master/de
 =
 #### Install
 
-To install XGBoost, you need to run `make` in the root directory of the project and then in the `wrappers` directory run
+To install XGBoost, you need to run `make` in the root directory of the project and then in the `python-package` directory run
 
 ```shell
 python setup.py install

@@ -75,13 +75,3 @@ clf = xgb.XGBClassifier()
 clf.fit(X_train, y_train, early_stopping_rounds=10, eval_metric="auc",
         eval_set=[(X_test, y_test)])
 
-# Custom evaluation function
-from sklearn.metrics import log_loss
-
-
-def log_loss_eval(y_pred, y_true):
-    return "log-loss", log_loss(y_true.get_label(), y_pred)
-
-
-clf.fit(X_train, y_train, early_stopping_rounds=10, eval_metric=log_loss_eval,
-        eval_set=[(X_test, y_test)])
