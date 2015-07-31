@@ -5,8 +5,9 @@ import os
 import subprocess
 
 if os.environ.get('READTHEDOCS', None) == 'True':
-    subprocess.call('cd ..; git clone https://github.com/tqchen/recommonmark recommonmark-customized;' +
-                    'ln -s recommonmark-customized/recommonmark recom', shell=True)
+    subprocess.call('cd ..; rm -rf recommonmark recom;' +
+                    'git clone https://github.com/tqchen/recommonmark' +
+                    'mv recommonmark/recommonmark recom', shell=True)
 
 sys.path.insert(0, os.path.abspath('..'))
 from recom import parser
