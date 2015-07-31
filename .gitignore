@@ -48,10 +48,9 @@ Debug
 *.cpage.col
 *.cpage
 *.Rproj
-xgboost
-xgboost.mpi
-xgboost.mock
-train*
+./xgboost
+./xgboost.mpi
+./xgboost.mock
 rabit
 #.Rbuildignore
 R-package.Rproj
