@@ -14,13 +14,19 @@ from recom import parser
 
 class MarkdownParser(parser.CommonMarkParser):
     github_doc_root = None
+    doc_suffix = set(['md', 'rst'])
 
     @staticmethod
     def remap_url(url):
         if MarkdownParser.github_doc_root is None or url is None:
             return url
+        if url.startswith('#'):
+            return url
         arr = url.split('#', 1)
-        if arr[0].endswith('.md') and arr[0].find('://') == -1:
+        ssuffix = arr[0].rsplit('.', 1)
+
+        if len(ssuffix) == 2 and (ssuffix[-1] in MarkdownParser.doc_suffix
+                                  and arr[0].find('://') == -1):
             arr[0] = arr[0][:-3] + '.html'
             return '#'.join(arr)
         else:

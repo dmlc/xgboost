@@ -62,7 +62,7 @@ Rabit provides different reduction operators, for example,  if you change ```op:
 the reduction operation will be a summation, and the result will become ```a = {1, 3, 5}```.
 You can also run the example with different processes by setting -n to different values.
 
-If you are more familiar with python, you can also use rabit in python. The same example as before can be found in [basic.py](basic.py):
+If you are more familiar with python, you can also use rabit in python. The same example as before can be found in [basic.py](../guide/basic.py):
 
 ```python
 import numpy as np
