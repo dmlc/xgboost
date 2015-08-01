@@ -153,10 +153,10 @@ class XGBModel(XGBModelBase):
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         """
+        params = self.get_xgb_params()
         if self.early_stopping_rounds:
             # NOTE this is the biggest change I need to make in order for early stopping to work with gridsearch. 
             # This chooses some percentage of the dataset to use as validation for early stopping.
-            params = self.get_xgb_params()
 
             cutoff = int(len(y)*self.early_stopping_perc)
             train_dmatrix = DMatrix(X[cutoff:], label=y[cutoff:], missing=self.missing)
