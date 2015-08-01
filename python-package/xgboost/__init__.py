@@ -10,3 +10,7 @@ from .training import train, cv
 from .sklearn import XGBModel, XGBClassifier, XGBRegressor
 
 __version__ = '0.4'
+
+__all__ = ['DMatrix', 'Booster',
+           'train', 'cv',
+           'XGBModel', 'XGBClassifier', 'XGBRegressor']

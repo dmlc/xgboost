@@ -3,7 +3,7 @@ DMLC/XGBoost
 
 [![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost)  [![Gitter chat for developers at https://gitter.im/dmlc/xgboost](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/dmlc/xgboost?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-An optimized general purpose gradient boosting library. The library is parallelized, and also provides an optimized distributed version. 
+An optimized general purpose gradient boosting library. The library is parallelized, and also provides an optimized distributed version.
 
 It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework, including [Generalized Linear Model](https://en.wikipedia.org/wiki/Generalized_linear_model) (GLM) and [Gradient Boosted Decision Trees](https://en.wikipedia.org/wiki/Gradient_boosting#Gradient_tree_boosting) (GBDT). XGBoost can also be [distributed](#features) and scale to Terascale data
 
@@ -13,7 +13,7 @@ Contents
 --------
 * [What's New](#whats-new)
 * [Version](#version)
-* [Documentation](doc/README.md)
+* [Documentation](doc/index.md)
 * [Build Instruction](doc/build.md)
 * [Features](#features)
 * [Distributed XGBoost](multi-node)
@@ -43,15 +43,14 @@ Version
 
 Features
 --------
-
-* Easily accessible through CLI, [python](https://github.com/dmlc/xgboost/blob/master/demo/guide-python/basic_walkthrough.py), 
-  [R](https://github.com/dmlc/xgboost/blob/master/R-package/demo/basic_walkthrough.R), 
+* Easily accessible through CLI, [python](https://github.com/dmlc/xgboost/blob/master/demo/guide-python/basic_walkthrough.py),
+  [R](https://github.com/dmlc/xgboost/blob/master/R-package/demo/basic_walkthrough.R),
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/basic_walkthrough.jl)
 * Its fast! Benchmark numbers comparing xgboost, H20, Spark, R - [benchm-ml numbers](https://github.com/szilard/benchm-ml)
 * Memory efficient - Handles sparse matrices, supports external memory
 * Accurate prediction, and used extensively by data scientists and kagglers - [highlight links](https://github.com/dmlc/xgboost/blob/master/doc/README.md#highlight-links)
 * Distributed version runs on Hadoop (YARN), MPI, SGE etc., scales to billions of examples.
-  
+
 Bug Reporting
 -------------
 
@@ -74,4 +73,4 @@ License
 XGBoost in Graphlab Create
 --------------------------
 * XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to do data manipulation, graph processing, hyper-parameter search, and visualization of TeraBytes scale data in one framework. Try the [Graphlab Create](http://graphlab.com/products/create/quick-start-guide.html)
-* Nice [blogpost](http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand) by Jay Gu about using GLC boosted tree to solve kaggle bike sharing challenge: 
+* Nice [blogpost](http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand) by Jay Gu about using GLC boosted tree to solve kaggle bike sharing challenge:

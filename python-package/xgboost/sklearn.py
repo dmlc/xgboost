@@ -206,9 +206,9 @@ class XGBModel(XGBModelBase):
 
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
-    __doc__ = """
-    Implementation of the scikit-learn API for XGBoost classification
-    """ + "\n".join(XGBModel.__doc__.split('\n')[2:])
+    __doc__ = """Implementation of the scikit-learn API for XGBoost classification.
+
+    """ + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
     def __init__(self, max_depth=3, learning_rate=0.1,
                  n_estimators=100, silent=True,
@@ -335,7 +335,5 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
-    __doc__ = """
-    Implementation of the scikit-learn API for XGBoost regression
-    """ + "\n".join(XGBModel.__doc__.split('\n')[2:])
-
+    __doc__ = """Implementation of the scikit-learn API for XGBoost regression.
+    """ + '\n'.join(XGBModel.__doc__.split('\n')[2:])

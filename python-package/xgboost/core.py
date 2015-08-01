@@ -50,19 +50,23 @@ def find_lib_path():
     else:
         dll_path = [os.path.join(p, 'libxgboostwrapper.so') for p in dll_path]
     lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
-    if len(lib_path) == 0:
+    if len(lib_path) == 0 and not os.environ.get('XGBOOST_BUILD_DOC', False):
         raise XGBoostLibraryNotFound(
-            'Cannot find XGBoost Libarary in the candicate path %s,' +
-            'Did you run build.sh in root oath?' % str(dll_path))
+            'Cannot find XGBoost Libarary in the candicate path, ' +
+            'did you run build.sh in root path?\n'
+            'List of candidates:\n' + ('\n'.join(dll_path)))
     return lib_path
+
 
 def _load_lib():
     """Load xgboost Library."""
     lib_path = find_lib_path()
+    if len(lib_path) == 0:
+        return None
     lib = ctypes.cdll.LoadLibrary(lib_path[0])
     lib.XGBGetLastError.restype = ctypes.c_char_p
-
     return lib
+
 
 # load the XGBoost library globally
 _LIB = _load_lib()
@@ -119,6 +123,7 @@ class DMatrix(object):
 
     DMatrix is a internal data structure that used by XGBoost
     which is optimized for both memory efficiency and training speed.
+    You can construct DMatrix from numpy.arrays
     """
     def __init__(self, data, label=None, missing=0.0, weight=None, silent=False):
         """
@@ -127,15 +132,16 @@ class DMatrix(object):
         Parameters
         ----------
         data : string/numpy array/scipy.sparse
-            Data source, string type is the path of svmlight format txt file,
-            xgb buffer or path to cache_file
-        label : list or numpy 1-D array (optional)
+            Data source of DMatrix.
+            When data is string type, it represents the path libsvm format txt file,
+            or binary file that xgboost can read from.
+        label : list or numpy 1-D array, optional
             Label of the training data.
-        missing : float
+        missing : float, optional
             Value in the data which needs to be present as a missing value.
-        weight : list or numpy 1-D array (optional)
+        weight : list or numpy 1-D array , optional
             Weight for each instance.
-        silent: boolean
+        silent : boolean, optional
             Whether print messages during construction
         """
         # force into void_p, mac need to pass things in as void_p
@@ -469,13 +475,22 @@ class Booster(object):
         """Copy the booster object.
 
         Returns
-        --------
-        a copied booster model
+        -------
+        booster: `Booster`
+          a copied booster model
         """
         return self.__copy__()
 
     def set_param(self, params, value=None):
-        """Set parameters into the DMatrix."""
+        """Set parameters into the Booster.
+
+        Parameters
+        ----------
+        params: dict/list/str
+           list of key,value paris, dict of key to value or simply str key
+        value: optional
+           value of the specified parameter, when params is str key
+        """
         if isinstance(params, collections.Mapping):
             params = params.items()
         elif isinstance(params, STRING_TYPES) and value is not None:
@@ -485,7 +500,7 @@ class Booster(object):
 
     def update(self, dtrain, iteration, fobj=None):
         """
-        Update (one iteration).
+        Update for one iteration, with objective function calculated internally.
 
         Parameters
         ----------
@@ -507,7 +522,7 @@ class Booster(object):
 
     def boost(self, dtrain, grad, hess):
         """
-        Update.
+        Boost the booster for one iteration, with customized gradient statistics.
 
         Parameters
         ----------
@@ -542,7 +557,8 @@ class Booster(object):
 
         Returns
         -------
-        evaluation result
+        result: str
+            Evaluation result string.
         """
         if feval is None:
             for d in evals:
@@ -567,18 +583,21 @@ class Booster(object):
     def eval(self, data, name='eval', iteration=0):
         """Evaluate the model on mat.
 
-
         Parameters
-        ---------
+        ----------
         data : DMatrix
             The dmatrix storing the input.
 
-        name : str (default = 'eval')
-            The name of the dataset
+        name : str, optional
+            The name of the dataset.
 
+        iteration : int, optional
+            The current iteration number.
 
-        iteration : int (default = 0)
-            The current iteration number
+        Returns
+        -------
+        result: str
+            Evaluation result string.
         """
         return self.eval_set([(data, name)], iteration)
 

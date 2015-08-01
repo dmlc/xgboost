@@ -1,5 +1,5 @@
 Using XGBoost External Memory Version(beta)
-====
+===========================================
 There is no big difference between using external memory version and in-memory version.
 The only difference is the filename format.
 
@@ -19,13 +19,13 @@ You can find that there is additional ```#dtrain.cache``` following the libsvm f
 For CLI version, simply use ```"../data/agaricus.txt.train#dtrain.cache"``` in filename.
 
 Performance Note
-====
+----------------
 * the parameter ```nthread``` should be set to number of ***real*** cores
   - Most modern CPU offer hyperthreading, which means you can have a 4 core cpu with 8 threads
   - Set nthread to be 4 for maximum performance in such case
 
 Distributed Version
-====
+-------------------
 The external memory mode naturally works on distributed version, you can simply set path like
 ```
 data = "hdfs:///path-to-data/#dtrain.cache"
@@ -34,8 +34,8 @@ xgboost will cache the data to the local position. When you run on YARN, the cur
 so that you can directly use ```dtrain.cache``` to cache to current folder.
 
 
-Usage Note:
-====
+Usage Note
+----------
 * This is a experimental version
   - If you like to try and test it, report results to https://github.com/dmlc/xgboost/issues/244
 * Currently only importing from libsvm format is supported

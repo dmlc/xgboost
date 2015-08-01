@@ -1,5 +1,5 @@
 XGBoost Python Module
-====
+=====================
 
 This page will introduce XGBoost Python module, including:
 * [Building and Import](#building-and-import)
@@ -8,6 +8,7 @@ This page will introduce XGBoost Python module, including:
 * [Train Model](#training-model)
 * [Early Stopping](#early-stopping)
 * [Prediction](#prediction)
+* [API Reference](python_api.md)
 
 A [walk through python example](https://github.com/tqchen/xgboost/blob/master/demo/guide-python) for UCI Mushroom dataset is provided.
 
