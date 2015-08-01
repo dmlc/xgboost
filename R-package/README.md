@@ -24,10 +24,10 @@ If you face an issue installing the package using  ```devtools::install_github``
 ```
 devtools::install_github('dmlc/xgboost',subdir='R-package')
 Downloading github repo dmlc/xgboost@master
-Error in function (type, msg, asError = TRUE)  : 
+Error in function (type, msg, asError = TRUE)  :
   Peer certificate cannot be authenticated with given CA certificates
 ```
-To get around this you can build the package locally as mentioned [here](https://github.com/dmlc/xgboost/issues/347) - 
+To get around this you can build the package locally as mentioned [here](https://github.com/dmlc/xgboost/issues/347) -
 ```
 1. Clone the current repository and set your workspace to xgboost/R-package/
 2. Run R CMD INSTALL --build . in terminal to get the tarball.

@@ -32,7 +32,7 @@ extern "C" {
 bool CheckNAN(double v) {
   return ISNAN(v);
 }
-bool LogGamma(double v) {
+double LogGamma(double v) {
   return lgammafn(v);
 }
 }  // namespace utils
