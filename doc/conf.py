@@ -22,7 +22,13 @@ libpath = os.path.join(curr_path, '../python-package/')
 sys.path.insert(0, libpath)
 sys.path.insert(0, curr_path)
 
-from sphinx_util import MarkdownParser
+from sphinx_util import MarkdownParser, AutoStructify
+
+# -- mock out modules
+import mock
+MOCK_MODULES = ['numpy', 'scipy', 'scipy.sparse', 'sklearn', 'matplotlib']
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = mock.Mock()
 
 # -- General configuration ------------------------------------------------
 
@@ -155,4 +161,7 @@ def setup(app):
     # Add hook for building doxygen xml when needed
     # no c++ API for now
     # app.connect("builder-inited", generate_doxygen_xml)
-    pass
+    app.add_config_value('recommonmark_config', {
+            'url_resolver': lambda url: github_doc_root + url,
+            }, True)
+    app.add_transform(AutoStructify)

@@ -1,12 +1,12 @@
-XGBoost Examples
-====
+XGBoost Code Examples
+=====================
 This folder contains all the code examples using xgboost.
 
 * Contribution of examples, benchmarks is more than welcome!
 * If you like to share how you use xgboost to solve your problem, send a pull request:)
 
 Features Walkthrough
-====
+--------------------
 This is a list of short codes introducing different functionalities of xgboost packages.
 * Basic walkthrough of packages
   [python](guide-python/basic_walkthrough.py)
@@ -37,7 +37,7 @@ This is a list of short codes introducing different functionalities of xgboost p
   [R](../R-package/demo/predict_leaf_indices.R)
 
 Basic Examples by Tasks
-====
+-----------------------
 Most of examples in this section are based on CLI or python version.
 However, the parameter settings can be applied to all versions
 * [Binary classification](binary_classification)
@@ -46,7 +46,7 @@ However, the parameter settings can be applied to all versions
 * [Learning to Rank](rank)
 
 Benchmarks
-====
+----------
 * [Starter script for Kaggle Higgs Boson](kaggle-higgs)
 * [Kaggle Tradeshift winning solution by daxiongshu](https://github.com/daxiongshu/kaggle-tradeshift-winning-solution)
 

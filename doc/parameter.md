@@ -3,13 +3,15 @@ XGBoost Parameters
 Before running XGboost, we must set three types of parameters, general parameters, booster parameters and task parameters:
 - General parameters relates to which booster we are using to do boosting, commonly tree or linear model
 - Booster parameters depends on which booster you have chosen
-- Task parameters that decides on the learning scenario, for example, regression tasks may use different parameters with ranking tasks.
-- In addition to these parameters, there can be console parameters that relates to behavior of console version of xgboost(e.g. when to save model)
+- Learning Task parameters that decides on the learning scenario, for example, regression tasks may use different parameters with ranking tasks.
+- Command line parameters that relates to behavior of CLI version of xgboost.
 
-### Parameters in R Package
+Parameters in R Package
+-----------------------
 In R-package, you can use .(dot) to replace under score in the parameters, for example, you can use max.depth as max_depth. The underscore parameters are also valid in R.
 
-### General Parameters
+General Parameters
+------------------
 * booster [default=gbtree]
   - which booster to use, can be gbtree or gblinear. gbtree uses tree based model while gblinear uses linear function.
 * silent [default=0]
@@ -21,10 +23,8 @@ In R-package, you can use .(dot) to replace under score in the parameters, for e
 * num_feature [set automatically by xgboost, no need to be set by user]
   - feature dimension used in boosting, set to maximum dimension of the feature
 
-### Booster Parameters
-From xgboost-unity, the ```bst:``` prefix is no longer needed for booster parameters. Parameter with or without bst: prefix will be equivalent(i.e. both bst:eta and eta will be valid parameter setting) .
-
-#### Parameter for Tree Booster
+Parameters for Tree Booster
+---------------------------
 * eta [default=0.3]
   - step size shrinkage used in update to prevents overfitting. After each boosting step, we can directly get the weights of new features. and eta actually shrinks the feature weights to make the boosting process more conservative.
   - range: [0,1]
@@ -47,7 +47,8 @@ From xgboost-unity, the ```bst:``` prefix is no longer needed for booster parame
   - subsample ratio of columns when constructing each tree.
   - range: (0,1]
 
-#### Parameter for Linear Booster
+Parameters for Linear Booster
+-----------------------------
 * lambda [default=0]
   - L2 regularization term on weights
 * alpha [default=0]
@@ -55,7 +56,8 @@ From xgboost-unity, the ```bst:``` prefix is no longer needed for booster parame
 * lambda_bias
   - L2 regularization term on bias, default 0(no L1 reg on bias because it is not important)
 
-### Task Parameters
+Learning Task Parameters
+------------------------
 * objective [ default=reg:linear ]
  - specify the learning task and the corresponding learning objective, and the objective options are below:
  - "reg:linear" --linear regression
@@ -87,7 +89,8 @@ training repeatively
 * seed [ default=0 ]
  - random number seed.
 
-### Console Parameters
+Command Line Parameters
+-----------------------
 The following parameters are only used in the console version of xgboost
 * use_buffer [ default=1 ]
  -  whether create binary buffer for text input, this normally will speedup loading when do
