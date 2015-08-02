@@ -22,7 +22,7 @@ class MarkdownParser(docutils.parsers.Parser):
 
     def parse(self, inputstring, document):
         self.parser.parse(inputstring, document)
-        transform.AutoStructify.url_resolver = [resolve_url]
+        transform.AutoStructify.setup_url_resolver(resolve_url)
         for trans in self.get_transforms():
             transform.AutoStructify(document).apply()
 
