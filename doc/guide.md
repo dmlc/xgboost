@@ -352,7 +352,7 @@ Rabit is a portable library that can run on multiple platforms.
 
 #### Customize Tracker Script
 You can also modify the tracker script to allow rabit to run on other platforms. To do so, refer to existing
-tracker scripts, such as [../tracker/rabit_hadoop.py](../tracker/rabit_hadoop.py) and [../tracker/rabit_mpi.py](https://github.com/dmlc/rabit/blob/master/tracker/rabit_mpi.py) to get a sense of how it is done.
+tracker scripts, such as [../tracker/rabit_yarn.py](../tracker/rabit_yarn.py) and [../tracker/rabit_mpi.py](https://github.com/dmlc/rabit/blob/master/tracker/rabit_mpi.py) to get a sense of how it is done.
 
 You will need to implement a platform dependent submission function with the following definition
 ```python
