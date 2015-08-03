@@ -58,4 +58,4 @@ xgboost support missing value by default
 Slightly different result between runs
 --------------------------------------
 This could happen, due to non-determinism in floating point summation order and multi-threading.
-Though the general accurac will usually remain the same.
+Though the general accuracy will usually remain the same.
