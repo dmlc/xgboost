@@ -62,12 +62,19 @@ class XGBModel(XGBModelBase):
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
+    early_stopping_rounds : int, optional 
+        Number of rounds xgboost will train without the validation score
+        increasing
+    early_stopping_perc : float, optional 
+        percentage of training set to use for early stopping. Uses data
+        starting from the top of the array. 
+
     """
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="reg:linear",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1,
-                 base_score=0.5, seed=0, missing=None):
+                 base_score=0.5, seed=0, missing=None, early_stopping_rounds=None,early_stopping_perc=None):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
@@ -86,6 +93,8 @@ class XGBModel(XGBModelBase):
         self.base_score = base_score
         self.seed = seed
         self.missing = missing if missing is not None else np.nan
+        self.early_stopping_rounds = early_stopping_rounds
+        self.early_stopping_perc = early_stopping_perc        
         self._Booster = None
 
     def __setstate__(self, state):
@@ -129,8 +138,7 @@ class XGBModel(XGBModelBase):
             xgb_params.pop('nthread', None)
         return xgb_params
 
-    def fit(self, X, y, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+    def fit(self, X, y, verbose=False):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
@@ -141,62 +149,31 @@ class XGBModel(XGBModelBase):
             Feature matrix
         y : array_like
             Labels
-        eval_set : list, optional
-            A list of (X, y) tuple pairs to use as a validation set for
-            early-stopping
-        eval_metric : str, callable, optional
-            If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.md. If callable, a custom evaluation metric. The call
-            signature is func(y_predicted, y_true) where y_true will be a
-            DMatrix object such that you may need to call the get_label
-            method. It must return a str, value pair where the str is a name
-            for the evaluation and value is the value of the evaluation
-            function. This objective is always minimized.
-        early_stopping_rounds : int
-            Activates early stopping. Validation error needs to decrease at
-            least every <early_stopping_rounds> round(s) to continue training.
-            Requires at least one item in evals.  If there's more than one,
-            will use the last. Returns the model from the last iteration
-            (not the best one). If early stopping occurs, the model will
-            have two additional fields: bst.best_score and bst.best_iteration.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         """
-        trainDmatrix = DMatrix(X, label=y, missing=self.missing)
-
-        eval_results = {}
-        if eval_set is not None:
-            evals = list(DMatrix(x[0], label=x[1]) for x in eval_set)
-            evals = list(zip(evals, ["validation_{}".format(i) for i in
-                                     range(len(evals))]))
-        else:
-            evals = ()
-
         params = self.get_xgb_params()
+        if self.early_stopping_rounds:
+            # NOTE this is the biggest change I need to make in order for early stopping to work with gridsearch. 
+            # This chooses some percentage of the dataset to use as validation for early stopping.
 
-        feval = eval_metric if callable(eval_metric) else None
-        if eval_metric is not None:
-            if callable(eval_metric):
-                eval_metric = None
-            else:
-                params.update({'eval_metric': eval_metric})
+            cutoff = int(len(y)*self.early_stopping_perc)
+            train_dmatrix = DMatrix(X[cutoff:], label=y[cutoff:], missing=self.missing)
+            early_stop_dmatrix = DMatrix(X[:cutoff], label=y[:cutoff], missing=self.missing)
 
-        self._Booster = train(params, trainDmatrix,
-                              self.n_estimators, evals=evals,
-                              early_stopping_rounds=early_stopping_rounds,
-                              evals_result=eval_results, feval=feval,
-                              verbose_eval=verbose)
-        if eval_results:
-            eval_results = {k: np.array(v, dtype=float)
-                            for k, v in eval_results.items()}
-            eval_results = {k: np.array(v) for k, v in eval_results.items()}
-            self.eval_results = eval_results
-
-        if early_stopping_rounds is not None:
+            watchlist = [(train_dmatrix, 'train'),(early_stop_dmatrix, 'early_stop_validation')]
+            self._Booster = train(params, train_dmatrix, self.n_estimators, evals=watchlist,
+                                  early_stopping_rounds=self.early_stopping_rounds,
+                                  verbose_eval=verbose)
             self.best_score = self._Booster.best_score
-            self.best_iteration = self._Booster.best_iteration
-        return self
+            self.best_iteration = self._Booster.best_iteration            
+        else:
+            train_dmatrix = DMatrix(X, label=y, missing=self.missing)
+            self._Booster = train(params, train_dmatrix, self.n_estimators,
+                                  early_stopping_rounds=self.early_stopping_rounds,
+                                  verbose_eval=verbose)
+        return self        
 
     def predict(self, data):
         # pylint: disable=missing-docstring,invalid-name
@@ -215,16 +192,15 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                  objective="binary:logistic",
                  nthread=-1, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=1, colsample_bytree=1,
-                 base_score=0.5, seed=0, missing=None):
+                 base_score=0.5, seed=0, missing=None, early_stopping_rounds=None,early_stopping_perc=None):
         super(XGBClassifier, self).__init__(max_depth, learning_rate,
                                             n_estimators, silent, objective,
                                             nthread, gamma, min_child_weight,
                                             max_delta_step, subsample,
                                             colsample_bytree,
-                                            base_score, seed, missing)
+                                            base_score, seed, missing, early_stopping_rounds,early_stopping_perc)
 
-    def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+    def fit(self, X, y, sample_weight=None, verbose=False):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -237,17 +213,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             Labels
         sample_weight : array_like
             Weight for each instance
-        eval_set : list, optional
-            A list of (X, y) pairs to use as a validation set for
-            early-stopping
-        eval_metric : str, callable, optional
-            If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.md. If callable, a custom evaluation metric. The call
-            signature is func(y_predicted, y_true) where y_true will be a
-            DMatrix object such that you may need to call the get_label
-            method. It must return a str, value pair where the str is a name
-            for the evaluation and value is the value of the evaluation
-            function. This objective is always minimized.
         early_stopping_rounds : int, optional
             Activates early stopping. Validation error needs to decrease at
             least every <early_stopping_rounds> round(s) to continue training.
@@ -290,27 +255,39 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         training_labels = self._le.transform(y)
 
         if sample_weight is not None:
-            train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
-                                    missing=self.missing)
+            if self.early_stopping_rounds:
+                cutoff = int(len(y)*self.early_stopping_perc)
+
+                train_dmatrix = DMatrix(X[cutoff:], label=y[cutoff:],weight=sample_weight[cutoff:], missing=self.missing)
+                early_stop_dmatrix = DMatrix(X[:cutoff], label=y[:cutoff],weight=sample_weight[:cutoff], missing=self.missing)
+
+                watchlist = [(train_dmatrix, 'train'),(early_stop_dmatrix, 'early_stop_validation')]
+                self._Booster = train(xgb_options, train_dmatrix, self.n_estimators, evals=watchlist,
+                                      early_stopping_rounds=self.early_stopping_rounds)
+
+            else:   
+                train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,missing=self.missing)
+                self._Booster = train(xgb_options, train_dmatrix, self.n_estimators)
+
         else:
-            train_dmatrix = DMatrix(X, label=training_labels,
-                                    missing=self.missing)
+            if self.early_stopping_rounds:
 
-        self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
-                              evals=evals,
-                              early_stopping_rounds=early_stopping_rounds,
-                              evals_result=eval_results, feval=feval,
-                              verbose_eval=verbose)
+                cutoff = int(len(y)*self.early_stopping_perc)
 
-        if eval_results:
-            eval_results = {k: np.array(v, dtype=float)
-                            for k, v in eval_results.items()}
-            self.eval_results = eval_results
+                train_dmatrix = DMatrix(X[cutoff:], label=y[cutoff:], missing=self.missing)
+                early_stop_dmatrix = DMatrix(X[:cutoff], label=y[:cutoff], missing=self.missing)
 
-        if early_stopping_rounds is not None:
-            self.best_score = self._Booster.best_score
-            self.best_iteration = self._Booster.best_iteration
+                watchlist = [(train_dmatrix, 'train'),(early_stop_dmatrix, 'early_stop_validation')]
+                self._Booster = train(xgb_options, train_dmatrix, self.n_estimators, evals=watchlist,
+                                      early_stopping_rounds=self.early_stopping_rounds)
+                self.best_score = self._Booster.best_score
+                self.best_iteration = self._Booster.best_iteration
 
+            else:
+                train_dmatrix = DMatrix(X, label=training_labels,
+                                        missing=self.missing)
+
+                self._Booster = train(xgb_options, train_dmatrix, self.n_estimators)
         return self
 
     def predict(self, data):
