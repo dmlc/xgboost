@@ -21,7 +21,7 @@ curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 libpath = os.path.join(curr_path, '../wrapper/')
 sys.path.insert(0, os.path.join(curr_path, '../wrapper/'))
 sys.path.insert(0, curr_path)
-from sphinx_util import MarkdownParser
+from sphinx_util import MarkdownParser, AutoStructify
 
 # -- General configuration ------------------------------------------------
 
@@ -157,6 +157,7 @@ def generate_doxygen_xml(app):
 def setup(app):
     # Add hook for building doxygen xml when needed
     app.connect("builder-inited", generate_doxygen_xml)
-
-
-
+    app.add_config_value('recommonmark_config', {
+            'url_resolver': lambda url: github_doc_root + url,
+            }, True)
+    app.add_transform(AutoStructify)
