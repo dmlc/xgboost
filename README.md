@@ -1,4 +1,5 @@
-<img src=https://raw.githubusercontent.com/dmlc/dmlc.github.io/master/img/logo-m/xgboost.png width=138/> - eXtreme Gradient Boosting
+<img src=https://raw.githubusercontent.com/dmlc/dmlc.github.io/master/img/logo-m/xgboost.png width=138/>  
+eXtreme Gradient Boosting
 ===========
 [![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost)
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org)
@@ -9,7 +10,7 @@ An optimized general purpose gradient boosting library. The library is paralleli
 
 It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework, including [Generalized Linear Model](https://en.wikipedia.org/wiki/Generalized_linear_model) (GLM) and [Gradient Boosted Decision Trees](https://en.wikipedia.org/wiki/Gradient_boosting#Gradient_tree_boosting) (GBDT). XGBoost can also be [distributed](#features) and scale to Terascale data
 
-XGBoost is part of [Distributed Machine Learning Common](http://dmlc.github.io/) projects
+<img src=https://avatars2.githubusercontent.com/u/11508361?v=3&s=20> XGBoost is part of [Distributed Machine Learning Common](http://dmlc.github.io/) projects
 
 Contents
 --------
