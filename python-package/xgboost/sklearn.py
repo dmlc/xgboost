@@ -198,10 +198,10 @@ class XGBModel(XGBModelBase):
             self.best_iteration = self._Booster.best_iteration
         return self
 
-    def predict(self, data):
+    def predict(self, data, output_margin=False, ntree_limit=0):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing)
-        return self.booster().predict(test_dmatrix)
+        return self.booster().predict(test_dmatrix, output_margin=output_margin, ntree_limit=ntree_limit)
 
 
 class XGBClassifier(XGBModel, XGBClassifierBase):
@@ -313,9 +313,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         return self
 
-    def predict(self, data):
+    def predict(self, data, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing)
-        class_probs = self.booster().predict(test_dmatrix)
+        class_probs = self.booster().predict(test_dmatrix, output_margin=output_margin, ntree_limit=ntree_limit)
         if len(class_probs.shape) > 1:
             column_indexes = np.argmax(class_probs, axis=1)
         else:
@@ -323,9 +323,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             column_indexes[class_probs > 0.5] = 1
         return self._le.inverse_transform(column_indexes)
 
-    def predict_proba(self, data):
+    def predict_proba(self, data, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing)
-        class_probs = self.booster().predict(test_dmatrix)
+        class_probs = self.booster().predict(test_dmatrix, output_margin=output_margin, ntree_limit=ntree_limit)
         if self.objective == "multi:softprob":
             return class_probs
         else:
