@@ -1,0 +1,5 @@
+The document of xgboost is generated with recommonmark and sphinx.
+
+You can build it locally by typing "make html" in this folder.
+- You will need to rerun the recommonmark script for readthedocs in sphinx_util.
+- This was a hack to get the customized parser into readthedocs, hopefully to be removed in future.

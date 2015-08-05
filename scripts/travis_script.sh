@@ -2,7 +2,14 @@
 
 # main script of travis
 if [ ${TASK} == "lint" ]; then
-    make lint  || exit -1
+    if [ ${TRAVIS_OS_NAME} != "osx" ]; then
+        make lint  || exit -1
+    fi
+fi
+
+if [ ${TRAVIS_OS_NAME} == "osx" ]; then
+    export no_omp=1
+    export NO_OPENMP=1
 fi
 
 if [ ${TASK} == "build" ]; then
@@ -12,7 +19,11 @@ fi
 if [ ${TASK} == "build-with-dmlc" ]; then
     cd dmlc-core
     cp make/config.mk .
-    echo "USE_S3=1" >> config.mk
+    if [ ${TRAVIS_OS_NAME} != "osx" ]; then
+        echo "USE_S3=1" >> config.mk
+    else
+        echo "USE_S3=0" >> config.mk
+    fi
     make all CXX=${CXX}|| exit -1
     cd ..
     make dmlc=dmlc-core CXX=${CXX} || exit -1
@@ -27,7 +38,10 @@ if [ ${TASK} == "python-package" ]; then
     nosetests tests/python || exit -1
 fi
 
+# only test java under linux for now
 if [ ${TASK} == "java-package" ]; then
-    make java CXX=${CXX} || exit -1
-    scripts/travis_java_script.sh || exit -1
+    if [ ${TRAVIS_OS_NAME} != "osx" ]; then
+        make java CXX=${CXX} || exit -1
+        scripts/travis_java_script.sh || exit -1
+    fi
 fi

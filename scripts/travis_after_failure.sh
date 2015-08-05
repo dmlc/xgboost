@@ -1,5 +1,5 @@
 #!/bin/bash
 
 if [ ${TASK} == "R-package" ]; then
-    cat R-package/xgboost.Rcheck/*.log
+    cat xgboost/xgboost.Rcheck/*.log
 fi

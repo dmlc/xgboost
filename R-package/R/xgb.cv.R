@@ -240,7 +240,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     else colnames <- colnamesMean
     
     type <- rep(x = "numeric", times = length(colnames))
-    dt <- read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
+    dt <- utils::read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
     split <- str_split(string = history, pattern = "\t")
     
     for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.numeric %>% as.list %>% {rbindlist(list(dt, .), use.names = F, fill = F)}

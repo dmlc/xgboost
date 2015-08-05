@@ -1,10 +1,19 @@
 R package for xgboost
 =====================
 
+[![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](http://cran.r-project.org/web/packages/xgboost)
+[![CRAN Downloads](http://cranlogs.r-pkg.org/badges/xgboost)](http://cran.rstudio.com/web/packages/xgboost/index.html)
+
 Installation
 ------------
 
-For up-to-date version (which is recommended), please install from github. Windows user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
+We are [on CRAN](https://cran.r-project.org/web/packages/xgboost/index.html) now. For stable/pre-compiled(for Windows and OS X) version, please install from CRAN:
+
+```r
+install.packages('xgboost')
+```
+
+For up-to-date version, please install from github. Windows user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
 
 ```r
 devtools::install_github('dmlc/xgboost',subdir='R-package')
@@ -24,10 +33,10 @@ If you face an issue installing the package using  ```devtools::install_github``
 ```
 devtools::install_github('dmlc/xgboost',subdir='R-package')
 Downloading github repo dmlc/xgboost@master
-Error in function (type, msg, asError = TRUE)  : 
+Error in function (type, msg, asError = TRUE)  :
   Peer certificate cannot be authenticated with given CA certificates
 ```
-To get around this you can build the package locally as mentioned [here](https://github.com/dmlc/xgboost/issues/347) - 
+To get around this you can build the package locally as mentioned [here](https://github.com/dmlc/xgboost/issues/347) -
 ```
 1. Clone the current repository and set your workspace to xgboost/R-package/
 2. Run R CMD INSTALL --build . in terminal to get the tarball.

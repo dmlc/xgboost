@@ -32,14 +32,14 @@ extern "C" {
 bool CheckNAN(double v) {
   return ISNAN(v);
 }
-bool LogGamma(double v) {
+double LogGamma(double v) {
   return lgammafn(v);
 }
 }  // namespace utils
 
 namespace random {
 void Seed(unsigned seed) {
-  warning("parameter seed is ignored, please set random seed using set.seed");
+  //  warning("parameter seed is ignored, please set random seed using set.seed");
 }
 double Uniform(void) {
   return unif_rand();

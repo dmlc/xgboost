@@ -11,6 +11,12 @@ ifeq ($(OS), Windows_NT)
 	export CC = gcc -m64
 endif
 
+UNAME= $(shell uname)
+
+ifeq ($(UNAME), Linux)
+	LDFLAGS += -lrt
+endif
+
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP
 else
@@ -163,7 +169,7 @@ Rcheck:
 
 # lint requires dmlc to be in current folder
 lint:
-	dmlc-core/scripts/lint.py xgboost $(LINT_LANG) src wrapper R-package
+	dmlc-core/scripts/lint.py xgboost $(LINT_LANG) src wrapper R-package python-package
 
 clean:
 	$(RM) -rf $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~

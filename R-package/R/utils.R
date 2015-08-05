@@ -288,7 +288,7 @@ xgb.cv.aggcv <- function(res, showsd = TRUE) {
     }
     ret <- paste(ret, sprintf("%f", mean(stats)), sep="")
     if (showsd) {
-      ret <- paste(ret, sprintf("+%f", sd(stats)), sep="")
+      ret <- paste(ret, sprintf("+%f", stats::sd(stats)), sep="")
     }
   }
   return (ret)
@@ -313,7 +313,7 @@ xgb.createFolds <- function(y, k = 10)
     if(cuts < 2) cuts <- 2
     if(cuts > 5) cuts <- 5
     y <- cut(y,
-             unique(quantile(y, probs = seq(0, 1, length = cuts))),
+             unique(stats::quantile(y, probs = seq(0, 1, length = cuts))),
              include.lowest = TRUE)
   }
 

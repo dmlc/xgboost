@@ -1,12 +1,13 @@
-Input Format
-====
+Text Input Format of DMatrix
+============================
+
 ## Basic Input Format
 As we have mentioned, XGBoost takes LibSVM format. For training or predicting, XGBoost takes an instance file with the format as below:
 
 train.txt
 ```
 1 101:1.2 102:0.03
-0 1:2.1 10001:300 10002:400 
+0 1:2.1 10001:300 10002:400
 0 0:1.3 1:0.3
 1 0:0.01 1:0.3
 0 0:0.2 1:0.3
@@ -37,7 +38,7 @@ train.txt.weight
 0.5
 ```
 It means that XGBoost will emphasize more on the first and fourth instance， that is to say positive instances while training.
-The configuration is similar to configuring the group information. If the instance file name is "xxx", XGBoost will check whether there is a file named "xxx.weight" in the same directory and if there is, will use the weights while training models. Weights will be included into an "xxx.buffer" file that is created by XGBoost automatically. If you want to update the weights, you need to delete the "xxx.buffer" file prior to launching XGBoost. 
+The configuration is similar to configuring the group information. If the instance file name is "xxx", XGBoost will check whether there is a file named "xxx.weight" in the same directory and if there is, will use the weights while training models. Weights will be included into an "xxx.buffer" file that is created by XGBoost automatically. If you want to update the weights, you need to delete the "xxx.buffer" file prior to launching XGBoost.
 
 ## Initial Margin file
 XGBoost supports providing each instance an initial margin prediction. For example, if we have a initial prediction using logistic regression for "train.txt" file, we can create the following file:
