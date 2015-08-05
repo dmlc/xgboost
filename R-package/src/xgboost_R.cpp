@@ -39,7 +39,7 @@ double LogGamma(double v) {
 
 namespace random {
 void Seed(unsigned seed) {
-  warning("parameter seed is ignored, please set random seed using set.seed");
+  //warning("parameter seed is ignored, please set random seed using set.seed");
 }
 double Uniform(void) {
   return unif_rand();
