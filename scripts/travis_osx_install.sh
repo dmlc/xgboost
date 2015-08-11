@@ -7,7 +7,7 @@ fi
 brew update
 
 if [ ${TASK} == "python-package" ]; then
-    brew install python git
+    brew install python git graphviz
     easy_install pip
     pip install numpy scipy nose
 fi

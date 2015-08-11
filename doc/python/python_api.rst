@@ -35,3 +35,13 @@ Scikit-Learn API
 .. autoclass:: xgboost.XGBClassifier
     :members:
     :show-inheritance:
+
+Plotting API
+------------
+.. automodule:: xgboost.plotting
+
+.. autofunction:: xgboost.plot_importance
+
+.. autofunction:: xgboost.plot_tree
+
+.. autofunction:: xgboost.to_graphviz
