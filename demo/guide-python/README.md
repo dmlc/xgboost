@@ -7,5 +7,6 @@ XGBoost Python Feature Walkthrough
 * [Generalized Linear Model](generalized_linear_model.py)
 * [Cross validation](cross_validation.py)
 * [Predicting leaf indices](predict_leaf_indices.py)
-* [Sklearn Wrapper](sklearn_example.py)
+* [Sklearn Wrapper](sklearn_examples.py)
+* [Sklearn Parallel](sklearn_parallel.py)
 * [External Memory](external_memory.py)
