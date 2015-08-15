@@ -34,6 +34,8 @@ if [ ${TASK} == "R-package" ]; then
 fi
 
 if [ ${TASK} == "python-package" ]; then
+    sudo apt-get install graphviz
+    sudo pip install matplotlib graphviz
     make all CXX=${CXX} || exit -1
     nosetests tests/python || exit -1
 fi
