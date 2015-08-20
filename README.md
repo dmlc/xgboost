@@ -30,7 +30,7 @@ What's New
 ----------
 
 * XGBoost helps Chenglong Chen to win [Kaggle CrowdFlower Competition](https://www.kaggle.com/c/crowdflower-search-relevance)
-  Check out the [winning solution](doc/README.md#highlight-links)
+  Check out the [winning solution](https://github.com/ChenglongChen/Kaggle_CrowdFlower)
 * XGBoost-0.4 release, see [CHANGES.md](CHANGES.md#xgboost-04)
 * XGBoost helps three champion teams to win [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
   Check out the [winning solution](doc/README.md#highlight-links)
