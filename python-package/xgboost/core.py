@@ -39,7 +39,8 @@ def find_lib_path():
        List of all found library path to xgboost
     """
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    dll_path = [curr_path, os.path.join(curr_path, '../../wrapper/')]
+    #make pythonpack hack: copy this directory one level upper for setup.py
+    dll_path = [curr_path, os.path.join(curr_path, '../../wrapper/'),os.path.join(curr_path, './wrapper/')]
     if os.name == 'nt':
         if platform.architecture()[0] == '64bit':
             dll_path.append(os.path.join(curr_path, '../../windows/x64/Release/'))

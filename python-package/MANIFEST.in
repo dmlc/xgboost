@@ -1,0 +1,7 @@
+include *.sh *.md
+recursive-include xgboost *
+recursive-include xgboost/wrapper *
+recursive-include xgboost/windows *
+recursive-include xgboost/subtree *
+recursive-include xgboost/src *
+recursive-include xgboost/multi-node *
