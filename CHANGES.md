@@ -44,3 +44,4 @@ on going at master
 * Java api is ready for use
 * Added more test cases and continuous integration to make each build more robust
 * Improvements in sklearn compatible module
+* Added pip installation functionality for python module

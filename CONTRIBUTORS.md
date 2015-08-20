@@ -46,3 +46,5 @@ List of Contributors
 * [Yen-Ying Lee](https://github.com/white1033)
 * [Masaaki Horikoshi](https://github.com/sinhrks)
   - Masaaki is the initial creator of xgboost python plotting module.
+* [Hongliang Liu](https://github.com/phunterlau)
+  - Hongliang is the maintainer of xgboost python PyPI package for pip installation.
