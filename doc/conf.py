@@ -167,7 +167,7 @@ def generate_doxygen_xml(app):
         run_doxygen('..')
         sys.stderr.write('Check if shared lib exists\n')
         run_build_lib('..')
-        sys.stderr.write('The wrapper path: %s\n' % str(os.listdir('../wrapper'))
+    sys.stderr.write('The wrapper path: %s\n' % str(os.listdir('../wrapper')))
     rabit._loadlib()
 
 
