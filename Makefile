@@ -3,7 +3,7 @@ export CXX = g++
 endif
 export MPICXX = mpicxx
 export LDFLAGS= -Llib -lrt
-export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas
+export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -std=c++0x
 export CFLAGS = -O3 -msse2 $(WARNFLAGS)
 
 ifndef WITH_FPIC
@@ -72,5 +72,5 @@ doc doxygen:
 	cd include; doxygen ../doc/Doxyfile; cd -
 
 clean:
-	$(RM) $(OBJ) $(MPIOBJ) $(ALIB) $(MPIALIB) *~ src/*~ include/*~ include/*/*~ wrapper/*~
+	$(RM) $(OBJ) $(MPIOBJ) $(ALIB) $(MPIALIB) $(SLIB) *~ src/*~ include/*~ include/*/*~ wrapper/*~
 

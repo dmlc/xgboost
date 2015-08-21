@@ -38,6 +38,7 @@ source_parsers = {
 }
 # Version information.
 import rabit
+
 version = rabit.__version__
 release = rabit.__version__
 
@@ -148,11 +149,24 @@ def run_doxygen(folder):
     except OSError as e:
         sys.stderr.write("doxygen execution failed: %s" % e)
 
+
+def run_build_lib(folder):
+    """Run the doxygen make command in the designated folder."""
+    try:
+        retcode = subprocess.call("cd %s; make" % folder, shell=True)
+        if retcode < 0:
+            sys.stderr.write("build terminated by signal %s" % (-retcode))
+    except OSError as e:
+        sys.stderr.write("build execution failed: %s" % e)
+
+
 def generate_doxygen_xml(app):
     """Run the doxygen make commands if we're on the ReadTheDocs server"""
     read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
     if read_the_docs_build:
         run_doxygen('..')
+        run_build_lib('..')
+    rabit._loadlib()
 
 def setup(app):
     # Add hook for building doxygen xml when needed
