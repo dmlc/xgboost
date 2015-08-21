@@ -165,8 +165,11 @@ def generate_doxygen_xml(app):
     read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
     if read_the_docs_build:
         run_doxygen('..')
+        sys.stderr.write('Check if shared lib exists\n')
         run_build_lib('..')
+        sys.stderr.write('The wrapper path: %s\n' % str(os.listdir('../wrapper'))
     rabit._loadlib()
+
 
 def setup(app):
     # Add hook for building doxygen xml when needed
