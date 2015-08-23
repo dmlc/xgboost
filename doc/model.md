@@ -74,11 +74,11 @@ obj(\Theta) = \sum_i^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \Omega(f_k)
 It is not easy to train all the trees at once. Instead, we use the strategy to train them in a sequence so that everytime we train one CART and add it to the model. We note the prediction value at step `t` by ``$ \hat{y}_i^{(t)}$``, so we have 
 
 ```math
-\hat{y}_i^{(0)} = 0\\
-\hat{y}_i^{(1)} = f_1(x_i) = \hat{y}_i^{(0)} + f_1(x_i)\\
-\hat{y}_i^{(2)} = f_1(x_i) + f_2(x_i)= \hat{y}_i^{(1)} + f_2(x_i)\\
-\dots\\
-\hat{y}_i^{(t)} = \sum_{k=1}^t f_k(x_i)= \hat{y}_i^{(t-1)} + f_t(x_i)
+\hat{y}_i^{(0)} &= 0\\
+\hat{y}_i^{(1)} &= f_1(x_i) = \hat{y}_i^{(0)} + f_1(x_i)\\
+\hat{y}_i^{(2)} &= f_1(x_i) + f_2(x_i)= \hat{y}_i^{(1)} + f_2(x_i)\\
+\dots &\\
+\hat{y}_i^{(t)} &= \sum_{k=1}^t f_k(x_i)= \hat{y}_i^{(t-1)} + f_t(x_i)
 ```
 
 Which CART do we want at each step? Of course we want to add the one that minimize our objective.
@@ -121,7 +121,7 @@ One of the benifit of this definition is as long as the loss function has the fi
 We have introduced the details in the loss function, next we talk about the regularization term. We want to control the complexity of a tree, thus we need to define it first. We define a tree ``$ f(x) $`` as
 
 ```math
-f_t(x) = w_{q(x)}, w\inR^T, q:R^d\rightarrow \{1,2,\cdots,T\}
+f_t(x) = w_{q(x)}, w\in R^T, q:R^d\rightarrow \{1,2,\cdots,T\}
 ```
 
 where ``$ w $`` is the vector of scores on leaves, ``$ q $`` is a function assigning each data point to the corresponding leaf and ``$ T $`` is the number of leaves. In XGBoost, we define the complexity as 
@@ -132,7 +132,7 @@ where ``$ w $`` is the vector of scores on leaves, ``$ q $`` is a function assig
 
 It is possible to define other form of regularization terms, but this one works well in practice.
 
-### Get the best score on leaf
+### The best score on leaf
 
 Now we have the objective value with the ``$ t $``-th tree added:
 
@@ -150,13 +150,13 @@ Obj^{(t)} = \sum^T_{j=1} [G_jw_j + \frac{1}{2} (H_j+\lambda) w_j^2] +\gamma T
 In this equation ``$ w_j $`` are independent to each other, the form ``$ G_jw_j+\frac{1}{2}(H_j+\lambda)w_j^2 $`` is quadratic and the best ``$ w_j $`` to minimize it can be solved deterministically:
 
 ```math
-w_j^\ast = -\frac{G_j}{H_j+\lambda}\\
-Obj = -\frac{1}{2} \sum_{j=1}^T \frac{G_j^2}{H_j+\lambda} + \gamma T
+w_j^\ast &= -\frac{G_j}{H_j+\lambda}\\
+Obj &= -\frac{1}{2} \sum_{j=1}^T \frac{G_j^2}{H_j+\lambda} + \gamma T
 ```
 
 **Therefore, given the parameters, the gradients and the structure of the tree, we know how to set the score on each leaf.**
 
-### Learn the tree structure
+### Learning the tree structure
 
 Our algorithm aims at optimizing the objective, so it also guides us to a good tree structure. We score the structure by ``$ Obj^{(t)} $`` which is mentioned just above. Since we can evaluate the tree, ideally we can enumerate all possible trees and pick the best one. In practice it is impossible, so we enumerate all the trees no deeper than a certain depth greedily.
 
