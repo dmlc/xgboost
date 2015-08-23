@@ -8,11 +8,7 @@ import re
 import numpy as np
 from .core import Booster
 
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
-
+from io import BytesIO
 
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, title='Feature importance',
@@ -217,7 +213,7 @@ def plot_tree(booster, num_trees=0, rankdir='UT', ax=None, **kwargs):
 
     g = to_graphviz(booster, num_trees=num_trees, rankdir=rankdir, **kwargs)
 
-    s = StringIO()
+    s = BytesIO()
     s.write(g.pipe(format='png'))
     s.seek(0)
     img = image.imread(s)
