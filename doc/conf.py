@@ -154,6 +154,8 @@ def run_build_lib(folder):
     """Run the doxygen make command in the designated folder."""
     try:
         retcode = subprocess.call("cd %s; make" % folder, shell=True)
+        retcode = subprocess.call("rm -rf _buid/html/doxygen", shell=True)
+        retcode = subprocess.call("cp -rf doxygen/html _buid/html/doxygen", shell=True)
         if retcode < 0:
             sys.stderr.write("build terminated by signal %s" % (-retcode))
     except OSError as e:
