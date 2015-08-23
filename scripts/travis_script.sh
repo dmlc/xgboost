@@ -35,9 +35,28 @@ fi
 
 if [ ${TASK} == "python-package" ]; then
     sudo apt-get install graphviz
-    sudo pip install matplotlib graphviz
+    sudo apt-get install python-numpy python-scipy python-matplotlib python-nose
+    sudo python -m pip install graphviz
     make all CXX=${CXX} || exit -1
     nosetests tests/python || exit -1
+fi
+
+if [ ${TASK} == "python-package3" ]; then
+    sudo apt-get install graphviz
+    # python3-matplotlib is unavailale on Ubuntu 12.04
+    sudo apt-get install python3-dev
+    sudo apt-get install python3-numpy python3-scipy python3-nose python3-setuptools
+
+    make all CXX=${CXX} || exit -1
+
+    if [ ${TRAVIS_OS_NAME} != "osx" ]; then
+        sudo easy_install3 pip
+        sudo easy_install3 -U distribute
+        sudo pip install graphviz matplotlib
+        nosetests3 tests/python || exit -1
+    else
+        nosetests tests/python || exit -1
+    fi
 fi
 
 # only test java under linux for now
