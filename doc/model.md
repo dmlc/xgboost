@@ -47,7 +47,7 @@ where ``$ L $`` is the loss function, and ``$ \Omega $`` is the regularization t
 
 The boosting trees model is a set of classification and regression trees. Here's a simple example of such a model:
 
-![CART]()
+![CART](img/cart.png)
 
 We classify the members in thie family into different leaves, and assign them the score on corresponding leaf.
 
@@ -55,7 +55,7 @@ We classify the members in thie family into different leaves, and assign them th
 
 However a single CART model is not so strong in practice. How about predict with more trees?
 
-![TwoCART]()
+![TwoCART](img/twocart.png)
 
 Now we are predicting with two trees, by predict on each tree individually and then sum the scores up. Mathematically, we can write our model into the form
 
