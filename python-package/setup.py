@@ -10,7 +10,7 @@ sys.path.insert(0, '.')
 build_sh = subprocess.Popen(['sh', 'xgboost/build-python.sh'])
 build_sh.wait()
 output = build_sh.communicate()
-print output
+print (output)
 
 import xgboost
 
