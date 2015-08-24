@@ -52,6 +52,7 @@ User Guide
 ----------
 * [Frequently Asked Questions](faq.md)
 * [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
+* [Introduction to the Model of XGBoost](model.md)
 * [Using XGBoost in Python](python/python_intro.md)
 * [Using XGBoost in R](../R-package/vignettes/xgboostPresentation.Rmd)
 * [Learning to use XGBoost by Example](../demo)
