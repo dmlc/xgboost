@@ -45,8 +45,12 @@ def find_lib_path():
     if os.name == 'nt':
         if platform.architecture()[0] == '64bit':
             dll_path.append(os.path.join(curr_path, '../../windows/x64/Release/'))
+            #hack for pip installation when copy all parent source directory here
+            dll_path.append(os.path.join(curr_path, './windows/x64/Release/'))
         else:
             dll_path.append(os.path.join(curr_path, '../../windows/Release/'))
+            #hack for pip installation when copy all parent source directory here
+            dll_path.append(os.path.join(curr_path, './windows/Release/'))
     if os.name == 'nt':
         dll_path = [os.path.join(p, 'xgboost_wrapper.dll') for p in dll_path]
     else:
