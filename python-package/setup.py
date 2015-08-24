@@ -27,8 +27,8 @@ LIB_PATH = xgboost.core.find_lib_path()
 #python setup.py register sdist upload
 #and be sure to test it firstly using "python setup.py register sdist upload -r pypitest"
 setup(name='xgboost',
-      #version=xgboost.__version__,
-      version='0.4a13',
+      version=xgboost.__version__,
+      #version='0.4a13',
       description=xgboost.__doc__,
       install_requires=[
           'numpy',
