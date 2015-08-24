@@ -113,11 +113,11 @@ Instead, we use an additive strategy: fix what we have learned, add a new tree a
 We note the prediction value at step `t` by ``$ \hat{y}_i^{(t)}$``, so we have
 
 ```math
-\hat{y}_i^{(0)} = 0\\
-\hat{y}_i^{(1)} = f_1(x_i) = \hat{y}_i^{(0)} + f_1(x_i)\\
-\hat{y}_i^{(2)} = f_1(x_i) + f_2(x_i)= \hat{y}_i^{(1)} + f_2(x_i)\\
-\dots\\
-\hat{y}_i^{(t)} = \sum_{k=1}^t f_k(x_i)= \hat{y}_i^{(t-1)} + f_t(x_i)
+\hat{y}_i^{(0)} &= 0\\
+\hat{y}_i^{(1)} &= f_1(x_i) = \hat{y}_i^{(0)} + f_1(x_i)\\
+\hat{y}_i^{(2)} &= f_1(x_i) + f_2(x_i)= \hat{y}_i^{(1)} + f_2(x_i)\\
+&\dots\\
+\hat{y}_i^{(t)} &= \sum_{k=1}^t f_k(x_i)= \hat{y}_i^{(t-1)} + f_t(x_i)
 ```
 
 It remains to ask Which tree do we want at each step?  A natural thing is to add the one that optimizes our objective.
