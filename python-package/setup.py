@@ -5,12 +5,17 @@ import sys
 from setuptools import setup, find_packages
 import subprocess
 sys.path.insert(0, '.')
-#build on the fly
 
-build_sh = subprocess.Popen(['sh', 'xgboost/build-python.sh'])
-build_sh.wait()
-output = build_sh.communicate()
-print output
+import os
+#build on the fly if install in pip
+#otherwise, use build.sh in the parent directory
+
+if 'pip' in __file__:
+    if not os.name == 'nt': #if not windows
+        build_sh = subprocess.Popen(['sh', 'xgboost/build-python.sh'])
+        build_sh.wait()
+        output = build_sh.communicate()
+        print output
 
 import xgboost
 
@@ -23,7 +28,7 @@ LIB_PATH = xgboost.core.find_lib_path()
 #and be sure to test it firstly using "python setup.py register sdist upload -r pypitest"
 setup(name='xgboost',
       version=xgboost.__version__,
-      #version='0.4a12',
+      #version='0.4a13',
       description=xgboost.__doc__,
       install_requires=[
           'numpy',
