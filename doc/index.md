@@ -52,7 +52,7 @@ This section is about blogposts, presentation and videos discussing how to use x
 User Guide
 ----------
 * [Frequently Asked Questions](faq.md)
-* [Introduction to the model behind XGBoost](model.md)
+* [Introduction to Boosted Trees](model.md)
 * [Using XGBoost in Python](python/python_intro.md)
 * [Using XGBoost in R](../R-package/vignettes/xgboostPresentation.Rmd)
 * [Learning to use XGBoost by Example](../demo)
