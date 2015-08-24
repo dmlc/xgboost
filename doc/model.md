@@ -85,12 +85,11 @@ Mathematically, we can write our model into the form
 \hat{y}_i = \sum_{k=1}^K f_k(x_i), f_k \in F
 ```
 
-where ``$ f $`` is a function in the functional space ``$ F $``, and ``$ F $`` is the set of all possible CARTs. Therefore our objective to optimize can be written as
+where ``$ K $`` is the number of trees, ``$ f $`` is a function in the functional space ``$ F $``, and ``$ F $`` is the set of all possible CARTs. Therefore our objective to optimize can be written as
 
 ```math
 obj(\Theta) = \sum_i^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \Omega(f_k)
 ```
-
 Now here comes the question, what is the *model* of random forest? It is exactly tree ensembles! So random forest and boosted trees are not different in terms of model,
 the difference is how we train them. This means if you write a predictive service of tree ensembles, you only need to write one of them and they should directly work
 for both random forest and boosted trees. One example of elements of supervised learning rocks.
@@ -150,6 +149,7 @@ h_i &= \partial_{\hat{y}_i^{(t)}}^2 l(y_i, \hat{y}_i^{(t-1)})
 ```
 
 After we remove all the constants, the specific objective at t step becomes
+
 ```math
 \sum_{i=1}^n [g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i)] + \Omega(f_t)
 ```
@@ -176,7 +176,6 @@ In XGBoost, we define the complexity as
 Of course there is more than one way to define the complexity, but this specific one works well in practice. The regularization is one part most tree packages takes
 less carefully, or simply ignore. This was due to the traditional treatment tree learning only emphasize improving impurity, while the complexity control part
 are more lies as part of heuristics. By defining it formally, we can get a better idea of what we are learning, and yes it works well in practice.
-
 
 ### The Structure Score
 
