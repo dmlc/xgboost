@@ -82,10 +82,10 @@ If you look at the example, an important fact is that the two trees tries to *co
 Mathematically, we can write our model into the form
 
 ```math
-\hat{y}_i = \sum_{k=1}^K f_k(x_i), f_k \in F
+\hat{y}_i = \sum_{k=1}^K f_k(x_i), f_k \in \mathcal{F}
 ```
 
-where ``$ K $`` is the number of trees, ``$ f $`` is a function in the functional space ``$ F $``, and ``$ F $`` is the set of all possible CARTs. Therefore our objective to optimize can be written as
+where ``$ K $`` is the number of trees, ``$ f $`` is a function in the functional space ``$ \mathcal{F} $``, and ``$ \mathcal{F} $`` is the set of all possible CARTs. Therefore our objective to optimize can be written as
 
 ```math
 obj(\Theta) = \sum_i^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \Omega(f_k)
@@ -110,7 +110,7 @@ First thing we want to ask is what are ***parameters*** of trees. You can find w
 of the tree, and the leaf score. This is much harder than traditional optimization problem where you can take the gradient and go.
 It is not easy to train all the trees at once.
 Instead, we use an additive strategy: fix what we have learned, add a new tree at a time.
-We note the prediction value at step `t` by ``$ \hat{y}_i^{(t)}$``, so we have
+We note the prediction value at step ``$t$`` by ``$ \hat{y}_i^{(t)}$``, so we have
 
 ```math
 \hat{y}_i^{(0)} &= 0\\
@@ -179,7 +179,7 @@ are more lies as part of heuristics. By defining it formally, we can get a bette
 
 ### The Structure Score
 
-Here is the magical part of the derivation. After reformalizing the tree model, we can write the objective value with the ``$ t $``-th tree as:
+Here is the magical part of the derivation. After reformalizing the tree model, we can write the objective value with the ``$ t$``-th tree as:
 
 ```math
 Obj^{(t)} &\approx \sum_{i=1}^n [g_i w_q(x_i) + \frac{1}{2} h_i w_{q(x_i)}^2] + \gamma T + \frac{1}{2}\lambda \sum_{j=1}^T w_j^2\\
@@ -216,7 +216,7 @@ Specifically we try to split a leaf into two leaves, and the score it gains is
 Gain = \frac{1}{2} \left[\frac{G_L^2}{H_L+\lambda}+\frac{G_R^2}{H_R+\lambda}-\frac{(G_L+G_R)^2}{H_L+H_R+\lambda}\right] - \gamma
 ```
 This formula can be decomposited as 1) the score on the new left leaf 2) the score on the new right leaf 3) The score on the original leaf 4) regularization on the additional leaf.
-We can find an important fact here: if the gain is smaller than ``$gamma$``, we would better not to add that branch. This is exactly the ***prunning*** techniques in tree based
+We can find an important fact here: if the gain is smaller than ``$\gamma$``, we would better not to add that branch. This is exactly the ***prunning*** techniques in tree based
 models! By using the principles of supervised learning, we can naturally comes up with the reason these techniques :)
 
 For real valued data, we usually want to search for an optimal split. To efficiently doing so, we place all the instances in a sorted way, like the following picture.
