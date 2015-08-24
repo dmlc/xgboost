@@ -33,6 +33,9 @@ def test_plotting():
     bst2 = xgb.Booster(model_file='xgb.model')
     # plotting
 
+    import matplotlib
+    matplotlib.use('Agg')
+
     from matplotlib.axes import Axes
     from graphviz import Digraph
 

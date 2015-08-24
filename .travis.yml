@@ -12,6 +12,7 @@ env:
     - TASK=lint LINT_LANG=python
     - TASK=R-package CXX=g++
     - TASK=python-package CXX=g++
+    - TASK=python-package3 CXX=g++
     - TASK=java-package CXX=g++
     - TASK=build CXX=g++
     - TASK=build-with-dmlc CXX=g++
@@ -29,9 +30,6 @@ addons:
       - wget
       - libcurl4-openssl-dev
       - unzip
-      - python-numpy
-      - python-scipy
-      - python-nose
 
 before_install:
   - scripts/travis_osx_install.sh
