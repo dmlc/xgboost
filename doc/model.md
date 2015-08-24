@@ -63,7 +63,7 @@ Now we are predicting with two trees, by predict on each tree individually and t
 \hat{y}_i = \sum_{k=1}^K f_k(x_i), f_k \in F
 ```
 
-where ``$ f $`` is a function in the functional space ``$ F $``, and ``$ F $`` is the set of all possible CARTs. Therefore our objective to optimize can be written as
+where ``$ K $`` is the number of trees, ``$ f $`` is a function in the functional space ``$ F $``, and ``$ F $`` is the set of all possible CARTs. Therefore our objective to optimize can be written as
 
 ```math
 obj(\Theta) = \sum_i^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \Omega(f_k)
@@ -137,7 +137,7 @@ It is possible to define other form of regularization terms, but this one works 
 Now we have the objective value with the ``$ t $``-th tree added:
 
 ```math
-Obj^{(t)} &\approx \sum_{i=1}^n [g_i w_q(x_i) + \frac{1}{2} h_i w_{q(x_i)}^2] + \gamma T + \frac{1}{2}\lambda \sum_{j=1}^T w_j^2\\
+Obj^{(t)} &\approx \sum_{i=1}^n [g_i w_{q(x_i)} + \frac{1}{2} h_i w_{q(x_i)}^2] + \gamma T + \frac{1}{2}\lambda \sum_{j=1}^T w_j^2\\
 &= \sum^T_{j=1} [(\sum_{i\in I_j} g_i) w_j + \frac{1}{2} (\sum_{i\in I_j} h_i + \lambda) w_j^2 ] + \gamma T
 ```
 
