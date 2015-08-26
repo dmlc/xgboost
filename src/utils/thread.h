@@ -11,7 +11,7 @@
 #ifdef _MSC_VER
 #include <windows.h>
 #include <process.h>
-#include "../xgboost/utils.h"
+#include "./utils.h"
 namespace xgboost {
 namespace utils {
 /*! \brief simple semaphore used for synchronization */

@@ -1,4 +1,5 @@
 export CC  = gcc
+#build on the fly
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm
@@ -9,6 +10,12 @@ export JAVAINCFLAGS = -I${JAVA_HOME}/include -I${JAVA_HOME}/include/linux -I./ja
 ifeq ($(OS), Windows_NT)
 	export CXX = g++ -m64
 	export CC = gcc -m64
+endif
+
+UNAME= $(shell uname)
+
+ifeq ($(UNAME), Linux)
+	LDFLAGS += -lrt
 endif
 
 ifeq ($(no_omp),1)
@@ -161,9 +168,33 @@ Rcheck:
 	make Rbuild
 	R CMD check --as-cran xgboost*.tar.gz
 
+pythonpack:
+	#make clean
+	cd subtree/rabit;make clean;cd ..
+	rm -rf xgboost-deploy xgboost*.tar.gz
+	cp -r python-package xgboost-deploy
+	cp *.md xgboost-deploy/
+	cp LICENSE xgboost-deploy/
+	cp Makefile xgboost-deploy/xgboost
+	cp -r wrapper xgboost-deploy/xgboost
+	cp -r subtree xgboost-deploy/xgboost
+	cp -r multi-node xgboost-deploy/xgboost
+	cp -r windows xgboost-deploy/xgboost
+	cp -r src xgboost-deploy/xgboost
+
+	#make python
+
+pythonbuild:
+	make pythonpack
+	python setup.py install
+
+pythoncheck:
+	make pythonbuild
+	python -c 'import xgboost;print xgboost.core.find_lib_path()'
+
 # lint requires dmlc to be in current folder
 lint:
-	dmlc-core/scripts/lint.py xgboost $(LINT_LANG) src wrapper R-package
+	dmlc-core/scripts/lint.py xgboost $(LINT_LANG) src wrapper R-package python-package
 
 clean:
 	$(RM) -rf $(OBJ) $(BIN) $(MPIBIN) $(MPIOBJ) $(SLIB) *.o  */*.o */*/*.o *~ */*~ */*/*~

@@ -1,31 +1,27 @@
-XGBoost Python Module
-====
+Python Package Introduction
+===========================
+This document gives a basic walkthrough of xgboost python package.
 
-This page will introduce XGBoost Python module, including:
-* [Building and Import](#building-and-import)
-* [Data Interface](#data-interface)
-* [Setting Parameters](#setting-parameters)
-* [Train Model](#training-model)
-* [Early Stopping](#early-stopping)
-* [Prediction](#prediction)
+***List of other Helpful Links***
+* [Python walkthrough code collections](https://github.com/tqchen/xgboost/blob/master/demo/guide-python)
+* [Python API Reference](python_api.rst)
 
-A [walk through python example](https://github.com/tqchen/xgboost/blob/master/demo/guide-python) for UCI Mushroom dataset is provided.
+Install XGBoost
+---------------
+To install XGBoost, do the following steps.
 
-=
-#### Install
-
-To install XGBoost, you need to run `make` in the root directory of the project and then in the `wrappers` directory run
-
+* You need to run `make` in the root directory of the project
+* In the  `python-package` directory run
 ```shell
 python setup.py install
 ```
-Then import the module in Python as usual
+
 ```python
 import xgboost as xgb
 ```
 
-=
-#### Data Interface
+Data Interface
+--------------
 XGBoost python module is able to loading from libsvm txt format file, Numpy 2D array and xgboost binary buffer file. The data will be store in ```DMatrix``` object.
 
 * To load libsvm text format file and XGBoost binary file into ```DMatrix```, the usage is like
@@ -41,8 +37,8 @@ dtrain = xgb.DMatrix( data, label=label)
 ```
 * Build ```DMatrix``` from ```scipy.sparse```
 ```python
-csr = scipy.sparse.csr_matrix( (dat, (row,col)) )
-dtrain = xgb.DMatrix( csr )
+csr = scipy.sparse.csr_matrix((dat, (row, col)))
+dtrain = xgb.DMatrix(csr)
 ```
 * Saving ```DMatrix``` into XGBoost binary file will make loading faster in next time. The usage is like:
 ```python
@@ -51,18 +47,17 @@ dtrain.save_binary("train.buffer")
 ```
 * To handle missing value in ```DMatrix```, you can initialize the ```DMatrix``` like:
 ```python
-dtrain = xgb.DMatrix( data, label=label, missing = -999.0)
+dtrain = xgb.DMatrix(data, label=label, missing = -999.0)
 ```
 * Weight can be set when needed, like
 ```python
-w = np.random.rand(5,1)
-dtrain = xgb.DMatrix( data, label=label, missing = -999.0, weight=w)
+w = np.random.rand(5, 1)
+dtrain = xgb.DMatrix(data, label=label, missing = -999.0, weight=w)
 ```
 
-
-=
-#### Setting Parameters
-XGBoost use list of pair to save [parameters](parameter.md). Eg
+Setting Parameters
+------------------
+XGBoost use list of pair to save [parameters](../parameter.md). Eg
 * Booster parameters
 ```python
 param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
@@ -76,8 +71,9 @@ plst += [('eval_metric', 'ams@0')]
 evallist  = [(dtest,'eval'), (dtrain,'train')]
 ```
 
-=
-#### Training Model
+Training
+--------
+
 With parameter list and data, you are able to train a model.
 * Training
 ```python
@@ -103,10 +99,11 @@ After you save your model, you can load model file at anytime by using
 bst = xgb.Booster({'nthread':4}) #init model
 bst.load_model("model.bin") # load data
 ```
-=
-#### Early stopping
 
-If you have a validation set, you can use early stopping to find the optimal number of boosting rounds. Early stopping requires at least one set in `evals`. If there's more than one, it will use the last.
+Early Stopping
+--------------
+If you have a validation set, you can use early stopping to find the optimal number of boosting rounds.
+Early stopping requires at least one set in `evals`. If there's more than one, it will use the last.
 
 `train(..., evals=evals, early_stopping_rounds=10)`
 
@@ -116,16 +113,41 @@ If early stopping occurs, the model will have two additional fields: `bst.best_s
 
 This works with both metrics to minimize (RMSE, log loss, etc.) and to maximize (MAP, NDCG, AUC).
 
-=
-#### Prediction
+Prediction
+----------
 After you training/loading a model and preparing the data, you can start to do prediction.
 ```python
-data = np.random.rand(7,10) # 7 entities, each contains 10 features
-dtest = xgb.DMatrix( data, missing = -999.0 )
-ypred = bst.predict( xgmat )
+# 7 entities, each contains 10 features
+data = np.random.rand(7, 10)
+dtest = xgb.DMatrix(data)
+ypred = bst.predict(xgmat)
 ```
 
 If early stopping is enabled during training, you can predict with the best iteration.
 ```python
 ypred = bst.predict(xgmat,ntree_limit=bst.best_iteration)
+```
+
+Plotting
+--------
+
+You can use plotting module to plot importance and output tree.
+
+To plot importance, use ``plot_importance``. This function requires ``matplotlib`` to be installed.
+
+```python
+xgb.plot_importance(bst)
+```
+
+To output tree via ``matplotlib``, use ``plot_tree`` specifying ordinal number of the target tree.
+This function requires ``graphviz`` and ``matplotlib``.
+
+```python
+xgb.plot_tree(bst, num_trees=2)
+```
+
+When you use ``IPython``, you can use ``to_graphviz`` function which converts the target tree to ``graphviz`` instance. ``graphviz`` instance is automatically rendered on ``IPython``.
+
+```python
+xgb.to_graphviz(bst, num_trees=2)
 ```

@@ -133,34 +133,33 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     allTrees <- rbindlist(list(allTrees, dt), use.names = T, fill = F)
   }
   
-  yes <- allTrees[!is.na(Yes),Yes]
-                                                                                      
-  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+  yes <- allTrees[!is.na(Yes), Yes]
+  
+  set(allTrees, i = which(allTrees[, Feature] != "Leaf"), 
       j = "Yes.Feature", 
-      value = allTrees[ID == yes,Feature])
-
-  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+      value = allTrees[ID %in% yes, Feature])
+  
+  set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
       j = "Yes.Cover", 
-      value = allTrees[ID == yes,Cover])
-
-  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
-    j = "Yes.Quality", 
-    value = allTrees[ID == yes,Quality])
+      value = allTrees[ID %in% yes, Cover])
   
-  no <- allTrees[!is.na(No),No]
+  set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
+      j = "Yes.Quality", 
+      value = allTrees[ID %in% yes, Quality])
+  no <- allTrees[!is.na(No), No]
   
-  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+  set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
       j = "No.Feature", 
-      value = allTrees[ID == no,Feature])
+      value = allTrees[ID %in% no, Feature])
   
-  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+  set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
       j = "No.Cover", 
-      value = allTrees[ID == no,Cover])
+      value = allTrees[ID %in% no, Cover])
   
-  set(allTrees, i = which(allTrees[,Feature]!= "Leaf"), 
+  set(allTrees, i = which(allTrees[, Feature] != "Leaf"), 
       j = "No.Quality", 
-      value = allTrees[ID == no,Quality])
-        
+      value = allTrees[ID %in% no, Quality])
+  
   allTrees
 }
 

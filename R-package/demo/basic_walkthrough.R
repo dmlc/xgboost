@@ -1,7 +1,7 @@
 require(xgboost)
 require(methods)
 # we load in the agaricus dataset
-# In this example, we are aiming to predict whether a mushroom can be eated
+# In this example, we are aiming to predict whether a mushroom can be eaten
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 train <- agaricus.train
@@ -12,8 +12,8 @@ class(train$data)
 
 #-------------Basic Training using XGBoost-----------------
 # this is the basic usage of xgboost you can put matrix in data field
-# note: we are puting in sparse matrix here, xgboost naturally handles sparse input
-# use sparse matrix when your feature is sparse(e.g. when you using one-hot encoding vector)
+# note: we are putting in sparse matrix here, xgboost naturally handles sparse input
+# use sparse matrix when your feature is sparse(e.g. when you are using one-hot encoding vector)
 print("training xgboost with sparseMatrix")
 bst <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nround = 2,
                nthread = 2, objective = "binary:logistic")
@@ -22,7 +22,7 @@ print("training xgboost with Matrix")
 bst <- xgboost(data = as.matrix(train$data), label = train$label, max.depth = 2, eta = 1, nround = 2,
                nthread = 2, objective = "binary:logistic")
 
-# you can also put in xgb.DMatrix object, stores label, data and other meta datas needed for advanced features
+# you can also put in xgb.DMatrix object, which stores label, data and other meta datas needed for advanced features
 print("training xgboost with xgb.DMatrix")
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
 bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nround = 2, nthread = 2, 
@@ -72,7 +72,7 @@ print(paste("sum(abs(pred3-pred))=", sum(abs(pred2-pred))))
 dtrain <- xgb.DMatrix(data = train$data, label=train$label)
 dtest <- xgb.DMatrix(data = test$data, label=test$label)
 #---------------Using watchlist----------------
-# watchlist is a list of xgb.DMatrix, each of them tagged with name
+# watchlist is a list of xgb.DMatrix, each of them is tagged with name
 watchlist <- list(train=dtrain, test=dtest)
 # to train with watchlist, use xgb.train, which contains more advanced features
 # watchlist allows us to monitor the evaluation result on all data in the list 
