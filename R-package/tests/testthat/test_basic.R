@@ -2,18 +2,17 @@ require(xgboost)
 
 context("basic functions")
 
-test_that("data loading", {
-  data(agaricus.train, package='xgboost')
-  data(agaricus.test, package='xgboost')
-})
+data(agaricus.train, package='xgboost')
+data(agaricus.test, package='xgboost')
+train = agaricus.train
+test = agaricus.test
 
-test_that("train and prediction",{
-  train = agaricus.train
-  test = agaricus.test
+test_that("train and predict", {
   bst = xgboost(data = train$data, label = train$label, max.depth = 2,
                 eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
   pred = predict(bst, test$data)
 })
+
 
 test_that("early stopping", {
   res = xgb.cv(data = train$data, label = train$label, max.depth = 2, nfold = 5,
