@@ -10,7 +10,7 @@ Description: Extreme Gradient Boosting, which is an
     This package is its R interface. The package includes efficient 
     linear model solver and tree learning algorithms. The package can automatically 
     do parallel computation on a single machine which could be more than 10 times faster
-    than existing gradient boosting packages. It supports various
+    than existing gradient boosting packages. It supports various 
     objective functions, including regression, classification and ranking. The
     package is made to be extensible, so that users are also allowed to define
     their own objectives easily.
@@ -24,6 +24,7 @@ Suggests:
     DiagrammeR (>= 0.6),
     Ckmeans.1d.dp (>= 3.3.1),
     vcd (>= 1.3)
+    testthat (>= 0.9.1)
 Depends:
     R (>= 2.10)
 Imports:
