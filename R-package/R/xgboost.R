@@ -36,6 +36,8 @@
 #'     keeps getting worse consecutively for \code{k} rounds.
 #' @param maximize If \code{feval} and \code{early.stop.round} are set, then \code{maximize} must be set as well.
 #'     \code{maximize=TRUE} means the larger the evaluation score the better.
+#' @param save_period save the model to the disk in every \code{save_period} rounds, 0 means no such action.
+#' @param save_name the name or path for periodically saved model file.
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 
@@ -58,7 +60,7 @@
 #' 
 xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), nrounds, 
                     verbose = 1, print.every.n = 1L, early.stop.round = NULL,
-                    maximize = NULL, ...) {
+                    maximize = NULL, save_period = 0, save_name = "xgboost.model", ...) {
   if (is.null(missing)) {
     dtrain <- xgb.get.DMatrix(data, label)
   } else {
@@ -74,7 +76,8 @@ xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), 
   }
   
   bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, print.every.n=print.every.n,
-                   early.stop.round = early.stop.round)
+                   early.stop.round = early.stop.round, maximize = maximize,
+                   save_period = save_period, save_name = save_name)
   
   return(bst)
 } 
