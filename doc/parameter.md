@@ -105,7 +105,7 @@ The following parameters are only used in the console version of xgboost
 * task [default=train] options: train, pred, eval, dump
   - train: training using data
   - pred: making prediction for test:data
-  - eval: for evaluating statistics specified by eval[name]=filenam
+  - eval: for evaluating statistics specified by eval[name]=filename
   - dump: for dump the learned model into text format(preliminary)
 * model_in [default=NULL]
   - path to input model, needed for test, eval, dump, if it is specified in training, xgboost will continue training from the input model
