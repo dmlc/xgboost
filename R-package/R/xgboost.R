@@ -31,6 +31,7 @@
 #' @param print.every.n Print every N progress messages when \code{verbose>0}. Default is 1 which means all messages are printed.
 #' @param missing Missing is only used when input is dense matrix, pick a float 
 #'     value that represents missing value. Sometimes a data use 0 or other extreme value to represents missing values.
+#' @param weight a vector indicating the weight for each row of the input.
 #' @param early.stop.round If \code{NULL}, the early stopping function is not triggered. 
 #'     If set to an integer \code{k}, training with a validation set will stop if the performance 
 #'     keeps getting worse consecutively for \code{k} rounds.
@@ -58,14 +59,11 @@
 #' 
 #' @export
 #' 
-xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), nrounds, 
+xgboost <- function(data = NULL, label = NULL, missing = NULL, weight = NULL, 
+                    params = list(), nrounds, 
                     verbose = 1, print.every.n = 1L, early.stop.round = NULL,
                     maximize = NULL, save_period = 0, save_name = "xgboost.model", ...) {
-  if (is.null(missing)) {
-    dtrain <- xgb.get.DMatrix(data, label)
-  } else {
-    dtrain <- xgb.get.DMatrix(data, label, missing)
-  }
+  dtrain <- xgb.get.DMatrix(data, label, missing, weight)
     
   params <- append(params, list(...))
   

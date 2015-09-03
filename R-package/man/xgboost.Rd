@@ -4,9 +4,10 @@
 \alias{xgboost}
 \title{eXtreme Gradient Boosting (Tree) library}
 \usage{
-xgboost(data = NULL, label = NULL, missing = NULL, params = list(),
-  nrounds, verbose = 1, print.every.n = 1L, early.stop.round = NULL,
-  maximize = NULL, save_period = 0, save_name = "xgboost.model", ...)
+xgboost(data = NULL, label = NULL, missing = NULL, weight = NULL,
+  params = list(), nrounds, verbose = 1, print.every.n = 1L,
+  early.stop.round = NULL, maximize = NULL, save_period = 0,
+  save_name = "xgboost.model", ...)
 }
 \arguments{
 \item{data}{takes \code{matrix}, \code{dgCMatrix}, local data file or
@@ -17,6 +18,8 @@ if data is local data file or  \code{xgb.DMatrix}.}
 
 \item{missing}{Missing is only used when input is dense matrix, pick a float
 value that represents missing value. Sometimes a data use 0 or other extreme value to represents missing values.}
+
+\item{weight}{a vector indicating the weight for each row of the input.}
 
 \item{params}{the list of parameters.
 
