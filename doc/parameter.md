@@ -48,7 +48,7 @@ Parameters for Tree Booster
   - range: (0,1]
 * lambda [default=0]
   - L2 regularization term on weights
-* alpha [default=0]
+* alpha [default=1]
   - L1 regularization term on weights
 
 Parameters for Linear Booster
