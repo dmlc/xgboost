@@ -108,13 +108,16 @@ class IGradBooster {
    *        this is only valid in gbtree predictor
    * \param p_fmat feature matrix
    * \param info extra side information that may be needed for prediction
-   * \param out_preds output vector to hold the predictions
+   * \param out_leaf_indices output vector to hold the predicted leaf indices
+   * \param out_leaf_scores output vector to hold the predicted leaf scores,
+   *    when it's NULL, it's ignored.
    * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
    *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
    */
   virtual void PredictLeaf(IFMatrix *p_fmat,
                            const BoosterInfo &info,
-                           std::vector<float> *out_preds,
+                           std::vector<float> *out_leaf_indices,
+                           std::vector<float> *out_leaf_scores = NULL,
                            unsigned ntree_limit = 0) = 0;
   /*!
    * \brief dump the model in text format

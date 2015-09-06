@@ -349,13 +349,27 @@ class BoostLearner : public rabit::Serializable {
                       unsigned ntree_limit = 0,
                       bool pred_leaf = false) const {
     if (pred_leaf) {
-      gbm_->PredictLeaf(data.fmat(), data.info.info, out_preds, ntree_limit);
+      gbm_->PredictLeaf(data.fmat(), data.info.info, out_preds, NULL/*leaf_scores*/, ntree_limit);
     } else {
       this->PredictRaw(data, out_preds, ntree_limit);
       if (!output_margin) {
         obj_->PredTransform(out_preds);
       }
     }
+  }
+  /*!
+   * \brief get predicted leaf indices and scores.
+   * \param data input data
+   * \param out_leaf_indices output vector to hold the predicted leaf indices
+   * \param out_leaf_scores output vector to hold the predicted leaf scores
+   * \param ntree_limit limit number of trees used for boosted tree
+   *   predictor, when it equals 0, this means we are using all the trees
+   */
+  inline void PredictLeaf(const DMatrix &data,
+                          std::vector<float> *out_leaf_indices,
+                          std::vector<float> *out_leaf_scores,
+                          unsigned ntree_limit = 0) const {
+    gbm_->PredictLeaf(data.fmat(), data.info.info, out_leaf_indices, out_leaf_scores, ntree_limit);
   }
   /*!
    * \brief online prediction funciton, predict score for one instance at a time
