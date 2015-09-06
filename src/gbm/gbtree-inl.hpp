@@ -187,7 +187,8 @@ class GBTree : public IGradBooster {
   }
   virtual void PredictLeaf(IFMatrix *p_fmat,
                            const BoosterInfo &info,
-                           std::vector<float> *out_preds,
+                           std::vector<float> *out_leaf_indices,
+                           std::vector<float> *out_leaf_scores,
                            unsigned ntree_limit) {
     int nthread;
     #pragma omp parallel
@@ -198,7 +199,7 @@ class GBTree : public IGradBooster {
     for (int i = 0; i < nthread; ++i) {
       thread_temp[i].Init(mparam.num_feature);
     }
-    this->PredPath(p_fmat, info, out_preds, ntree_limit);
+    this->PredPath(p_fmat, info, out_leaf_indices, out_leaf_scores, ntree_limit);
   }
   virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
     std::vector<std::string> dump;
@@ -362,14 +363,18 @@ class GBTree : public IGradBooster {
   // predict independent leaf index
   inline void PredPath(IFMatrix *p_fmat,
                        const BoosterInfo &info,
-                       std::vector<float> *out_preds,
+                       std::vector<float> *out_leaf_indices,
+                       std::vector<float> *out_leaf_scores,
                        unsigned ntree_limit) {
     // number of valid trees
     if (ntree_limit == 0 || ntree_limit > trees.size()) {
       ntree_limit = static_cast<unsigned>(trees.size());
     }
-    std::vector<float> &preds = *out_preds;
-    preds.resize(info.num_row * ntree_limit);
+    std::vector<float> &leaf_indices = *out_leaf_indices;
+    leaf_indices.resize(info.num_row * ntree_limit);
+    if (out_leaf_scores) {
+      out_leaf_scores->resize(info.num_row * ntree_limit);
+    }
     // start collecting the prediction
     utils::IIterator<RowBatch> *iter = p_fmat->RowIterator();
     iter->BeforeFirst();
@@ -385,7 +390,10 @@ class GBTree : public IGradBooster {
         feats.Fill(batch[i]);
         for (unsigned j = 0; j < ntree_limit; ++j) {
           int tid = trees[j]->GetLeafIndex(feats, info.GetRoot(ridx));
-          preds[ridx * ntree_limit + j] = static_cast<float>(tid);
+          leaf_indices[ridx * ntree_limit + j] = static_cast<float>(tid);
+          if (out_leaf_scores) {
+            (*out_leaf_scores)[ridx * ntree_limit + j] = (*trees[j])[tid].leaf_value();
+          }
         }
         feats.Drop(batch[i]);
       }

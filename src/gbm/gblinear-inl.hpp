@@ -150,7 +150,8 @@ class GBLinear : public IGradBooster {
   }
   virtual void PredictLeaf(IFMatrix *p_fmat,
                            const BoosterInfo &info,
-                           std::vector<float> *out_preds,
+                           std::vector<float> *out_leaf_indices,
+                           std::vector<float> *out_leaf_scores = NULL,
                            unsigned ntree_limit = 0) {
     utils::Error("gblinear does not support predict leaf index");
   }
