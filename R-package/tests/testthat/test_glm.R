@@ -13,7 +13,7 @@ test_that("glm works", {
                 nthread = 2, alpha = 0.0001, lambda = 1)
   watchlist <- list(eval = dtest, train = dtrain)
   num_round <- 2
-  expect_that(bst <- xgb.train(param, dtrain, num_round, watchlist), not(throws_error()))
-  expect_that(ypred <- predict(bst, dtest), not(throws_error()))
+  bst <- xgb.train(param, dtrain, num_round, watchlist)
+  ypred <- predict(bst, dtest)
   expect_equal(length(getinfo(dtest, 'label')), 1611)
 })
