@@ -25,3 +25,7 @@ test_that("xgb.importance works", {
   xgb.dump(bst, 'xgb.model.dump', with.stats = T)
   importance <- xgb.importance(sparse_matrix@Dimnames[[2]], 'xgb.model.dump')
 })
+
+test_that("xgb.plot.tree works", {
+  xgb.plot.tree(agaricus.train$data@Dimnames[[2]], model = bst)
+})
