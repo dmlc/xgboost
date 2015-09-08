@@ -24,6 +24,7 @@ test_that("xgb.dump works", {
 test_that("xgb.importance works", {
   xgb.dump(bst, 'xgb.model.dump', with.stats = T)
   importance <- xgb.importance(sparse_matrix@Dimnames[[2]], 'xgb.model.dump')
+  expect_equal(dim(importance), c(7, 4))
 })
 
 test_that("xgb.plot.tree works", {
