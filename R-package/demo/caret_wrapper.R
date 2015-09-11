@@ -22,11 +22,14 @@ df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))]
 df[,ID:=NULL]
 
 #-------------Basic Training using XGBoost in caret Library-----------------
-# set up control parameters for caret::train
-# here we use 10-fold cross-validation, repeating twice
-fitControl <- trainControl(method = "cv", number = 10, repeats = 2)
+# Set up control parameters for caret::train
+# Here we use 10-fold cross-validation, repeating twice, and using random search for tuning hyper-parameters.
+fitControl <- trainControl(method = "cv", number = 10, repeats = 2, search = "random")
 # train a xgbTree model using caret::train
 model <- train(factor(Improved)~., data = df, method = "xgbTree", trControl = fitControl)
+
+# Instead of tree for our boosters, you can also fit a linear regression or logistic regression model using xgbLinear
+# model <- train(factor(Improved)~., data = df, method = "xgbLinear", trControl = fitControl)
 
 # See model results
 print(model)
