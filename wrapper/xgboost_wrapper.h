@@ -331,4 +331,24 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
                                int with_stats,
                                bst_ulong *out_len,
                                const char ***out_dump_array);
+
+/*!
+ * \brief dump model, return array of strings representing model dump
+ * \param handle handle
+ * \param fnum number of features
+ * \param fnum names of features
+ * \param fnum types of features
+ * \param with_stats whether to dump with statistics
+ * \param out_len length of output array
+ * \param out_dump_array pointer to hold representing dump of each model
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
+                                           int fnum,
+                                           const char **fname,
+                                           const char **ftype,
+                                           int with_stats,
+                                           bst_ulong *len,
+                                           const char ***out_models);
+
 #endif  // XGBOOST_WRAPPER_H_

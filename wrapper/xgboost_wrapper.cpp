@@ -445,9 +445,9 @@ int XGDMatrixNumRow(const DMatrixHandle handle,
 
 int XGDMatrixNumCol(const DMatrixHandle handle,
                     bst_ulong *out) {
-    API_BEGIN();
-    *out = static_cast<size_t>(static_cast<const DataMatrix*>(handle)->info.num_col());
-    API_END();
+  API_BEGIN();
+  *out = static_cast<size_t>(static_cast<const DataMatrix*>(handle)->info.num_col());
+  API_END();
 }
 
 // xgboost implementation
@@ -575,6 +575,23 @@ int XGBoosterDumpModel(BoosterHandle handle,
   utils::FeatMap featmap;
   if (strlen(fmap) != 0) {
     featmap.LoadText(fmap);
+  }
+  *out_models = static_cast<Booster*>(handle)->GetModelDump(
+      featmap, with_stats != 0, len);
+  API_END();
+}
+
+int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
+                                   int fnum,
+                                   const char **fname,
+                                   const char **ftype,
+                                   int with_stats,
+                                   bst_ulong *len,
+                                   const char ***out_models) {
+  API_BEGIN();
+  utils::FeatMap featmap;
+  for (int i = 0; i < fnum; ++i) {
+      featmap.PushBack(i, fname[i], ftype[i]);
   }
   *out_models = static_cast<Booster*>(handle)->GetModelDump(
       featmap, with_stats != 0, len);
