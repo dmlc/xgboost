@@ -19,7 +19,7 @@ Contents
 * [Build Instruction](doc/build.md)
 * [Features](#features)
 * [Distributed XGBoost](multi-node)
-* [Usecases](doc/README.md#highlight-links)
+* [Usecases](doc/index.md#highlight-links)
 * [Bug Reporting](#bug-reporting)
 * [Contributing to XGBoost](#contributing-to-xgboost)
 * [Committers and Contributors](CONTRIBUTORS.md)
