@@ -435,11 +435,19 @@ int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
   *out_dptr = BeginPtr(vec);
   API_END();
 }
+
 int XGDMatrixNumRow(const DMatrixHandle handle,
                     bst_ulong *out) {
   API_BEGIN();
   *out = static_cast<bst_ulong>(static_cast<const DataMatrix*>(handle)->info.num_row());
   API_END();
+}
+
+int XGDMatrixNumCol(const DMatrixHandle handle,
+                    bst_ulong *out) {
+    API_BEGIN();
+    *out = static_cast<size_t>(static_cast<const DataMatrix*>(handle)->info.num_col());
+    API_END();
 }
 
 // xgboost implementation

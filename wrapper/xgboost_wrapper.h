@@ -184,6 +184,13 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
  */
 XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
                             bst_ulong *out);
+/*!
+ * \brief get number of columns
+ * \param handle the handle to the DMatrix
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
+                            bst_ulong *out);
 // --- start XGBoost class
 /*!
  * \brief create xgboost learner
