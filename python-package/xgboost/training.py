@@ -72,7 +72,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 if verbose_eval:
                     sys.stderr.write(msg + '\n')
                 if evals_result is not None:
-                    res = re.findall(":-?([0-9.]+)", msg)
+                    res = re.findall(":-?([0-9.]+).", msg)
                     for key, val in zip(evals_name, res):
                         evals_result[key].append(val)
         return bst
@@ -120,7 +120,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 sys.stderr.write(msg + '\n')
 
             if evals_result is not None:
-                res = re.findall(":-([0-9.]+)", msg)
+                res = re.findall(":-?([0-9.]+).", msg)
                 for key, val in zip(evals_name, res):
                     evals_result[key].append(val)
 
