@@ -19,7 +19,7 @@ The best way to get started to learn xgboost is by the examples. There are three
 
 After you gets familiar with the interface, checkout the following additional resources
 * [Frequently Asked Questions](faq.md)
-* [Learning what is in Behind: Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
+* [Learning what is in Behind: Introduction to Boosted Trees](model.md)
 * [User Guide](#user-guide) contains comprehensive list of documents of xgboost.
 * [Developer Guide](dev-guide/contribute.md)
 
@@ -38,6 +38,7 @@ are great resources to learn xgboost by real examples. If you think you have som
 * [Understanding XGBoost Model on Otto Dataset](../demo/kaggle-otto/understandingXGBoostModel.Rmd) (R package)
   - This tutorial teaches you how to use xgboost to compete kaggle otto challenge.
 
+
 Highlight Solutions
 -------------------
 This section is about blogposts, presentation and videos discussing how to use xgboost to solve your interesting problem. If you think something belongs to here, send a pull request.
@@ -51,8 +52,7 @@ This section is about blogposts, presentation and videos discussing how to use x
 User Guide
 ----------
 * [Frequently Asked Questions](faq.md)
-* [Introduction to Boosted Trees](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf)
-* [Introduction to the Model of XGBoost](model.md)
+* [Introduction to Boosted Trees](model.md)
 * [Using XGBoost in Python](python/python_intro.md)
 * [Using XGBoost in R](../R-package/vignettes/xgboostPresentation.Rmd)
 * [Learning to use XGBoost by Example](../demo)
@@ -62,7 +62,6 @@ User Guide
 * [Parameters](parameter.md)
 * [Notes on Parameter Tunning](param_tuning.md)
 
-
 Developer Guide
 ---------------
 * [Developer Guide](dev-guide/contribute.md)
@@ -70,4 +69,3 @@ Developer Guide
 API Reference
 -------------
 * [Python API Reference](python/python_api.rst)
-

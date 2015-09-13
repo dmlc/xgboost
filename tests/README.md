@@ -1,1 +1,1 @@
-This folder contains tetstcases for xgboost.
+This folder contains testcases for xgboost.

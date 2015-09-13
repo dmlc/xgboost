@@ -5,7 +5,7 @@ Everyone is more than welcomed to is a great way to make the project better.
 The project is maintained by a committee of [committers](../../CONTRIBUTORS.md#comitters) who will review and merge pull requests from contributors.
 
 Contributing Code
-=================
+-----------------
 * The C++ code follows Google C++ style
 * We follow numpy style to document our python module
 * Tools to precheck codestyle
