@@ -8,8 +8,8 @@
 
 #for building static OpenMP lib in MAC for easier installation in MAC
 #doesn't work with XCode clang/LLVM since Apple doesn't support, 
-#needs brew install gcc 4.9+ with OpenMP
-static_omp=1
+#needs brew install gcc 4.9+ with OpenMP. By default the static link is OFF
+static_omp=0
 if ((${static_omp}==1)); then
     rm libgomp.a
     ln -s `g++ -print-file-name=libgomp.a`
