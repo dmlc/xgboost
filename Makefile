@@ -21,8 +21,16 @@ endif
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP
 else
-	CFLAGS += -fopenmp
+	#CFLAGS += -fopenmp
+	ifeq ($(omp_mac_static),1)
+		#CFLAGS += -fopenmp -Bstatic
+		CFLAGS += -static-libgcc -static-libstdc++ -L. -fopenmp
+		#LDFLAGS += -Wl,--whole-archive -lpthread -Wl --no-whole-archive
+	else
+		CFLAGS += -fopenmp
+	endif
 endif
+
 
 # by default use c++11
 ifeq ($(cxx11),1)
