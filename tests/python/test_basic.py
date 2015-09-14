@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 import xgboost as xgb
 
@@ -33,21 +34,25 @@ def test_feature_names():
     data = np.random.randn(100, 5)
     target = np.array([0, 1] * 50)
 
-    features = ['Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5']
-    dm = xgb.DMatrix(data, label=target,
-                     feature_names=features)
-    assert dm.feature_names == features
-    assert dm.num_row() == 100
-    assert dm.num_col() == 5
+    cases = [['Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5'],
+             [u'要因1', u'要因2', u'要因3', u'要因4', u'要因5']]
 
-    params={'objective': 'multi:softprob',
-            'eval_metric': 'mlogloss',
-            'eta': 0.3,
-            'num_class': 3}
+    for features in cases:
+        dm = xgb.DMatrix(data, label=target,
+                         feature_names=features)
+        assert dm.feature_names == features
+        assert dm.num_row() == 100
+        assert dm.num_col() == 5
 
-    bst = xgb.train(params, dm, num_boost_round=10)
-    scores = bst.get_fscore()
-    assert list(sorted(k for k in scores)) == features
+        params={'objective': 'multi:softprob',
+                'eval_metric': 'mlogloss',
+                'eta': 0.3,
+                'num_class': 3}
+
+        bst = xgb.train(params, dm, num_boost_round=10)
+        scores = bst.get_fscore()
+        assert list(sorted(k for k in scores)) == features
+
 
 def test_plotting():
     bst2 = xgb.Booster(model_file='xgb.model')
