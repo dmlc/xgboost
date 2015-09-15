@@ -10,7 +10,7 @@ import numpy as np
 from .core import Booster, STRING_TYPES
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
-          early_stopping_rounds=None, evals_result=None, verbose_eval=True, xgb_model=None):
+          early_stopping_rounds=None, evals_result=None, verbose_eval=True):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -49,8 +49,6 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     """
     evals = list(evals)
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
-    if xgb_model is not None:
-        bst.load_model(xgb_model)
 
     if evals_result is not None:
         if not isinstance(evals_result, dict):
@@ -121,7 +119,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 sys.stderr.write(msg + '\n')
 
             if evals_result is not None:
-                res = re.findall(":-?([0-9.]+).", msg)
+                res = re.findall(":-([0-9.]+).", msg)
                 for key, val in zip(evals_name, res):
                     evals_result[key].append(val)
 
