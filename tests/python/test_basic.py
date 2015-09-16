@@ -1,8 +1,19 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import xgboost as xgb
+import unittest
+
 
 dpath = 'demo/data/'
+
+
+class TestBasic(unittest.TestCase):
+
+    def test_load_file_invalid(self):
+
+        self.assertRaises(ValueError, xgb.Booster,
+                          model_file='incorrect_path')
+
 
 def test_basic():
     dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
