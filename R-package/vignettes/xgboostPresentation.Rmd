@@ -160,7 +160,7 @@ bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth
 
 #### xgb.DMatrix
 
-**XGBoost** offers a way to group them in a `xgb.DMatrix`. You can even add other meta data in it. It will be usefull for the most advanced features we will discover later.
+**XGBoost** offers a way to group them in a `xgb.DMatrix`. You can even add other meta data in it. It will be useful for the most advanced features we will discover later.
 
 ```{r trainingDmatrix, message=F, warning=F}
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
@@ -169,7 +169,7 @@ bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround
 
 #### Verbose option
 
-**XGBoost** has severa features to help you to view how the learning progress internally. The purpose is to help you to set the best parameters, which is the key of your model quality.
+**XGBoost** has several features to help you to view how the learning progress internally. The purpose is to help you to set the best parameters, which is the key of your model quality.
 
 One of the simplest way to see the training progress is to set the `verbose` option (see below for more advanced technics).
 
@@ -194,7 +194,7 @@ Basic prediction using XGBoost
 Perform the prediction
 ----------------------
 
-The pupose of the model we have built is to classify new data. As explained before, we will use the `test` dataset for this step.
+The purpose of the model we have built is to classify new data. As explained before, we will use the `test` dataset for this step.
 
 ```{r predicting, message=F, warning=F}
 pred <- predict(bst, test$data)
@@ -267,7 +267,7 @@ Measure learning progress with xgb.train
 
 Both `xgboost` (simple) and `xgb.train` (advanced) functions train models.
 
-One of the special feature of `xgb.train` is the capacity to follow the progress of the learning after each round. Because of the way boosting works, there is a time when having too many rounds lead to an overfitting. You can see this feature as a cousin of cross-validation method. The following technics will help you to avoid overfitting or optimizing the learning time in stopping it as soon as possible.
+One of the special feature of `xgb.train` is the capacity to follow the progress of the learning after each round. Because of the way boosting works, there is a time when having too many rounds lead to an overfitting. You can see this feature as a cousin of cross-validation method. The following techniques will help you to avoid overfitting or optimizing the learning time in stopping it as soon as possible.
 
 One way to measure progress in learning of a model is to provide to **XGBoost** a second dataset already classified. Therefore it can learn on the first dataset and test its model on the second one. Some metrics are measured after each round during the learning.
 
@@ -285,7 +285,7 @@ bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nround=2, watchli
 
 Both training and test error related metrics are very similar, and in some way, it makes sense: what we have learned from the training dataset matches the observations from the test dataset.
 
-If with your own dataset you have not such results, you should think about how you did to divide your dataset in training and test. May be there is something to fix. Again, `caret` package may [help](http://topepo.github.io/caret/splitting.html).
+If with your own dataset you have not such results, you should think about how you divided your dataset in training and test. May be there is something to fix. Again, `caret` package may [help](http://topepo.github.io/caret/splitting.html).
 
 For a better understanding of the learning progression, you may want to have some specific metric or even use multiple evaluation metrics.
 
@@ -306,7 +306,7 @@ bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nthread = 2, nr
 
 In this specific case, *linear boosting* gets sligtly better performance metrics than decision trees based algorithm.
 
-In simple cases, it will happem because there is nothing better than a linear algorithm to catch a linear link. However, decision trees are much better to catch a non linear link between predictors and outcome. Because there is no silver bullet, we advise you to check both algorithms with your own datasets to have an idea of what to use.
+In simple cases, it will happen because there is nothing better than a linear algorithm to catch a linear link. However, decision trees are much better to catch a non linear link between predictors and outcome. Because there is no silver bullet, we advise you to check both algorithms with your own datasets to have an idea of what to use.
 
 Manipulating xgb.DMatrix
 ------------------------
@@ -368,7 +368,7 @@ xgb.plot.tree(model = bst)
 Save and load models
 --------------------
 
-May be your dataset is big, and it takes time to train a model on it? May be you are not a big fan of loosing time in redoing the same task again and again? In these very rare cases, you will want to save your model and load it when required.
+Maybe your dataset is big, and it takes time to train a model on it? May be you are not a big fan of losing time in redoing the same task again and again? In these very rare cases, you will want to save your model and load it when required.
 
 Hopefully for you, **XGBoost** implements such functions.
 
@@ -379,7 +379,7 @@ xgb.save(bst, "xgboost.model")
 
 > `xgb.save` function should return `r TRUE` if everything goes well and crashes otherwise.
 
-An interesting test to see how identic is our saved model with the original one would be to compare the two predictions.
+An interesting test to see how identical our saved model is to the original one would be to compare the two predictions.
 
 ```{r loadModel, message=F, warning=F}
 # load binary model to R
