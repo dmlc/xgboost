@@ -2,29 +2,29 @@ Introduction to Boosted Trees
 =============================
 XGBoost is short for "Extreme Gradient Boosting", where the term "Gradient Boosting" is proposed in the paper _Greedy Function Approximation: A Gradient Boosting Machine_, Friedman. Based on this original model. This is a tutorial on boosted trees, most of content are based on this [slide](http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf) by the author of xgboost.
 
-The GBM(boosted trees) has been around for really a while, and there are a lot of materials on the topic. This tutorial tries to explain boosted trees in a self-contained and principled way of supervised learning. We think this explaination is cleaner, more formal, and motivates the variant used in xgboost.
+The GBM(boosted trees) has been around for really a while, and there are a lot of materials on the topic. This tutorial tries to explain boosted trees in a self-contained and principled way of supervised learning. We think this explanation is cleaner, more formal, and motivates the variant used in xgboost.
 
 Elements of Supervised Learning
 -------------------------------
 XGBoost is used for supervised learning problems, where we use the training data ``$ x_i $`` to predict a target variable ``$ y_i $``.
-Before we get dived into trees, let us start from reviwing the basic elements in supervised learning.
+Before we dive into trees, let us start by reviewing the basic elements in supervised learning.
 
 ### Model and Parameters
 The ***model*** in supervised learning usually refers to the mathematical structure on how to given the prediction ``$ y_i $`` given ``$ x_i $``.
 For example, a common model is *linear model*, where the prediction is given by ``$ \hat{y}_i = \sum_j w_j x_{ij} $``, a linear combination of weighted input features.
 The prediction value can have different interpretations, depending on the task.
-For example, it can be logistic transformed to get the probability of postitive class in logistic regression, it can also be used as ranking score when we want to rank the outputs.
+For example, it can be logistic transformed to get the probability of positive class in logistic regression, and it can also be used as ranking score when we want to rank the outputs.
 
 The ***parameters*** are the undermined part that we need to learn from data. In linear regression problem, the parameters are the co-efficients ``$ w $``.
 Usually we will use ``$ \Theta $`` to denote the parameters.
 
-### Object Function : Training Loss + Regularization
+### Objective Function : Training Loss + Regularization
 
 Based on different understanding or assumption of ``$ y_i $``, we can have different problems as regression, classification, ordering, etc.
 We need to find a way to find the best parameters given the training data. In order to do so, we need to define a so called ***objective function***,
 to measure the performance of the model under certain set of parameters.
 
-A very important about objective functions, is they ***must always*** contains two parts: training loss and regularization.
+A very important fact about objective functions, is they ***must always*** contains two parts: training loss and regularization.
 
 ```math
 Obj(\Theta) = L(\Theta) + \Omega(\Theta)
@@ -42,8 +42,8 @@ Another commonly used loss function is logistic loss for logistic regression
 L(\theta) = \sum_i[ y_i\ln (1+e^{-\hat{y}_i}) + (1-y_i)\ln (1+e^{\hat{y}_i})]
 ```
 
-The ***regularization term*** is usually people forget to add. The regularization term controls the complexity of the model, this helps us to avoid overfitting.
-This sounds a bit abstract, let us consider the following problem in the following picture. You are asked to *fit* visually a step function given the input data points
+The ***regularization term*** is what people usually forget to add. The regularization term controls the complexity of the model, which helps us to avoid overfitting.
+This sounds a bit abstract, so let us consider the following problem in the following picture. You are asked to *fit* visually a step function given the input data points
 on the upper left corner of the image, which solution among the tree you think is the best fit?
 
 ![Step function](img/step_fit.png)
@@ -55,12 +55,12 @@ The tradeoff between the two is also referred as bias-variance tradeoff in machi
 ### Why introduce the general principle
 The elements introduced in above forms the basic elements of supervised learning, and they are naturally the building blocks of machine learning toolkits.
 For example, you should be able to answer what is the difference and common parts between boosted trees and random forest.
-Understanding the process in a formalized way also helps us to understand the objective what we are learning and getting the reason behind the heurestics such as
+Understanding the process in a formalized way also helps us to understand the objective that we are learning and the reason behind the heurestics such as
 pruning and smoothing.
 
 Tree Ensemble
 -------------
-Now we have introduce the elements of supervised learning, let us getting started with real trees.
+Now that we have introduced the elements of supervised learning, let us get started with real trees.
 To begin with, let us first learn what is the ***model*** of xgboost: tree ensembles.
 The tree ensemble model is a set of classification and regression trees (CART). Here's a simple example of a CART
 that classifies is someone will like computer games.
@@ -69,17 +69,17 @@ that classifies is someone will like computer games.
 
 We classify the members in thie family into different leaves, and assign them the score on corresponding leaf.
 A CART is a bit different from decision trees, where the leaf only contain decision values. In CART, a real score
-is associated with each of the leaves, this allows gives us richer interpretations that go beyond classification.
+is associated with each of the leaves, which gives us richer interpretations that go beyond classification.
 This also makes the unified optimization step easier, as we will see in later part of this tutorial.
 
 Usually, a single tree is not so strong enough to be used in practice. What is actually used is the so called
-tree ensemble model, that sumes the prediction of multiple trees together.
+tree ensemble model, that sums the prediction of multiple trees together.
 
 ![TwoCART](img/twocart.png)
 
 Here is an example of tree ensemble of two trees. The prediction scores of each individual tree are summed up to get the final score.
-If you look at the example, an important fact is that the two trees tries to *complement* each other.
-Mathematically, we can write our model into the form
+If you look at the example, an important fact is that the two trees try to *complement* each other.
+Mathematically, we can write our model in the form
 
 ```math
 \hat{y}_i = \sum_{k=1}^K f_k(x_i), f_k \in \mathcal{F}
@@ -219,7 +219,7 @@ This formula can be decomposited as 1) the score on the new left leaf 2) the sco
 We can find an important fact here: if the gain is smaller than ``$\gamma$``, we would better not to add that branch. This is exactly the ***prunning*** techniques in tree based
 models! By using the principles of supervised learning, we can naturally comes up with the reason these techniques :)
 
-For real valued data, we usually want to search for an optimal split. To efficiently doing so, we place all the instances in a sorted way, like the following picture.
+For real valued data, we usually want to search for an optimal split. To efficiently do so, we place all the instances in a sorted way, like the following picture.
 ![Best split](img/split_find.png)
 Then a left to right scan is sufficient to calculate the structure score of all possible split solutions, and we can find the best split efficiently.
 
