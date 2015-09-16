@@ -53,6 +53,13 @@ typedef __int64 int64_t;
 #include <inttypes.h>
 #endif
 
+#define XGBOOST_JOIN(x_, y_) _XGBOOST_JOIN_IMPL(x_, y_)
+#define _XGBOOST_JOIN_IMPL(x_, y_) _XGBOOST_JOIN_IMPL2(x_, y_)
+#define _XGBOOST_JOIN_IMPL2(x_, y_) x_##y_
+
+#define XGBOOST_STATIC_ASSERT(expr_) \
+    typedef char XGBOOST_JOIN(xgboost_static_assert_, __LINE__)[(expr_) ? 1 : -1];
+
 namespace xgboost {
 /*! \brief namespace for helper utils of the project */
 namespace utils {

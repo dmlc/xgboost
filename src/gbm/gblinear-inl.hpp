@@ -267,6 +267,7 @@ class GBLinear : public IGradBooster {
     }
     // load model from file
     inline void LoadModel(utils::IStream &fi) { // NOLINT(*)
+      XGBOOST_STATIC_ASSERT(sizeof(Param) % sizeof(uint64_t) == 0)
       utils::Assert(fi.Read(&param, sizeof(Param)) != 0, "Load LinearBooster");
       fi.Read(&weight);
     }

@@ -44,6 +44,7 @@ class GBTree : public IGradBooster {
   }
   virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) { // NOLINT(*)
     this->Clear();
+    XGBOOST_STATIC_ASSERT(sizeof(ModelParam) % sizeof(uint64_t) == 0)
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "GBTree: invalid model file");
     trees.resize(mparam.num_trees);
@@ -440,10 +441,10 @@ class GBTree : public IGradBooster {
     int num_trees;
     /*! \brief number of root: default 0, means single tree */
     int num_roots;
-    /*! \brief number of features to be used by trees */
-    int num_feature;
     /*! \brief size of predicton buffer allocated used for buffering */
     int64_t num_pbuffer;
+    /*! \brief number of features to be used by trees */
+    int num_feature;
     /*!
      * \brief how many output group a single instance can produce
      *  this affects the behavior of number of output we have:
