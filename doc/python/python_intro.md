@@ -127,3 +127,27 @@ If early stopping is enabled during training, you can predict with the best iter
 ```python
 ypred = bst.predict(xgmat,ntree_limit=bst.best_iteration)
 ```
+
+Plotting
+--------
+
+You can use plotting module to plot importance and output tree.
+
+To plot importance, use ``plot_importance``. This function requires ``matplotlib`` to be installed.
+
+```python
+xgb.plot_importance(bst)
+```
+
+To output tree via ``matplotlib``, use ``plot_tree`` specifying ordinal number of the target tree.
+This function requires ``graphviz`` and ``matplotlib``.
+
+```python
+xgb.plot_tree(bst, num_trees=2)
+```
+
+When you use ``IPython``, you can use ``to_graphviz`` function which converts the target tree to ``graphviz`` instance. ``graphviz`` instance is automatically rendered on ``IPython``.
+
+```python
+xgb.to_graphviz(bst, num_trees=2)
+```

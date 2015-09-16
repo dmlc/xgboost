@@ -6,6 +6,10 @@ How to tune parameters
 ----------------------
 See [Parameter Tunning Guide](param_tuning.md)
 
+Description on the model
+------------------------
+See [Introduction to Boosted Trees](model.md)
+
 
 I have a big dataset
 --------------------

@@ -19,7 +19,7 @@ Contents
 * [Build Instruction](doc/build.md)
 * [Features](#features)
 * [Distributed XGBoost](multi-node)
-* [Usecases](doc/README.md#highlight-links)
+* [Usecases](doc/index.md#highlight-links)
 * [Bug Reporting](#bug-reporting)
 * [Contributing to XGBoost](#contributing-to-xgboost)
 * [Committers and Contributors](CONTRIBUTORS.md)
@@ -29,8 +29,9 @@ Contents
 What's New
 ----------
 
+* XGBoost helps Owen Zhang to win the [Avito Context Ad Click competition](https://www.kaggle.com/c/avito-context-ad-clicks). Check out the [interview from Kaggle](http://blog.kaggle.com/2015/08/26/avito-winners-interview-1st-place-owen-zhang/).
 * XGBoost helps Chenglong Chen to win [Kaggle CrowdFlower Competition](https://www.kaggle.com/c/crowdflower-search-relevance)
-  Check out the [winning solution](doc/README.md#highlight-links)
+  Check out the [winning solution](https://github.com/ChenglongChen/Kaggle_CrowdFlower)
 * XGBoost-0.4 release, see [CHANGES.md](CHANGES.md#xgboost-04)
 * XGBoost helps three champion teams to win [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
   Check out the [winning solution](doc/README.md#highlight-links)

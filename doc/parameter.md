@@ -46,6 +46,10 @@ Parameters for Tree Booster
 * colsample_bytree [default=1]
   - subsample ratio of columns when constructing each tree.
   - range: (0,1]
+* lambda [default=1]
+  - L2 regularization term on weights
+* alpha [default=0]
+  - L1 regularization term on weights
 
 Parameters for Linear Booster
 -----------------------------
@@ -105,7 +109,7 @@ The following parameters are only used in the console version of xgboost
 * task [default=train] options: train, pred, eval, dump
   - train: training using data
   - pred: making prediction for test:data
-  - eval: for evaluating statistics specified by eval[name]=filenam
+  - eval: for evaluating statistics specified by eval[name]=filename
   - dump: for dump the learned model into text format(preliminary)
 * model_in [default=NULL]
   - path to input model, needed for test, eval, dump, if it is specified in training, xgboost will continue training from the input model

@@ -1,4 +1,5 @@
 export CC  = gcc
+#build on the fly
 export CXX = g++
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm
@@ -20,8 +21,16 @@ endif
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP
 else
-	CFLAGS += -fopenmp
+	#CFLAGS += -fopenmp
+	ifeq ($(omp_mac_static),1)
+		#CFLAGS += -fopenmp -Bstatic
+		CFLAGS += -static-libgcc -static-libstdc++ -L. -fopenmp
+		#LDFLAGS += -Wl,--whole-archive -lpthread -Wl --no-whole-archive
+	else
+		CFLAGS += -fopenmp
+	endif
 endif
+
 
 # by default use c++11
 ifeq ($(cxx11),1)
@@ -166,6 +175,30 @@ Rbuild:
 Rcheck:
 	make Rbuild
 	R CMD check --as-cran xgboost*.tar.gz
+
+pythonpack:
+	#make clean
+	cd subtree/rabit;make clean;cd ..
+	rm -rf xgboost-deploy xgboost*.tar.gz
+	cp -r python-package xgboost-deploy
+	cp *.md xgboost-deploy/
+	cp LICENSE xgboost-deploy/
+	cp Makefile xgboost-deploy/xgboost
+	cp -r wrapper xgboost-deploy/xgboost
+	cp -r subtree xgboost-deploy/xgboost
+	cp -r multi-node xgboost-deploy/xgboost
+	cp -r windows xgboost-deploy/xgboost
+	cp -r src xgboost-deploy/xgboost
+
+	#make python
+
+pythonbuild:
+	make pythonpack
+	python setup.py install
+
+pythoncheck:
+	make pythonbuild
+	python -c 'import xgboost;print xgboost.core.find_lib_path()'
 
 # lint requires dmlc to be in current folder
 lint:

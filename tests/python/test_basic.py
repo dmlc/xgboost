@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 import xgboost as xgb
 
@@ -29,3 +30,71 @@ def test_basic():
     # assert they are the same
     assert np.sum(np.abs(preds2-preds)) == 0
 
+def test_feature_names():
+    data = np.random.randn(100, 5)
+    target = np.array([0, 1] * 50)
+
+    cases = [['Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5'],
+             [u'要因1', u'要因2', u'要因3', u'要因4', u'要因5']]
+
+    for features in cases:
+        dm = xgb.DMatrix(data, label=target,
+                         feature_names=features)
+        assert dm.feature_names == features
+        assert dm.num_row() == 100
+        assert dm.num_col() == 5
+
+        params={'objective': 'multi:softprob',
+                'eval_metric': 'mlogloss',
+                'eta': 0.3,
+                'num_class': 3}
+
+        bst = xgb.train(params, dm, num_boost_round=10)
+        scores = bst.get_fscore()
+        assert list(sorted(k for k in scores)) == features
+
+
+def test_plotting():
+    bst2 = xgb.Booster(model_file='xgb.model')
+    # plotting
+
+    import matplotlib
+    matplotlib.use('Agg')
+
+    from matplotlib.axes import Axes
+    from graphviz import Digraph
+
+    ax = xgb.plot_importance(bst2)
+    assert isinstance(ax, Axes)
+    assert ax.get_title() == 'Feature importance'
+    assert ax.get_xlabel() == 'F score'
+    assert ax.get_ylabel() == 'Features'
+    assert len(ax.patches) == 4
+
+    ax = xgb.plot_importance(bst2, color='r',
+                             title='t', xlabel='x', ylabel='y')
+    assert isinstance(ax, Axes)
+    assert ax.get_title() == 't'
+    assert ax.get_xlabel() == 'x'
+    assert ax.get_ylabel() == 'y'
+    assert len(ax.patches) == 4
+    for p in ax.patches:
+        assert p.get_facecolor() == (1.0, 0, 0, 1.0) # red
+
+
+    ax = xgb.plot_importance(bst2, color=['r', 'r', 'b', 'b'],
+                             title=None, xlabel=None, ylabel=None)
+    assert isinstance(ax, Axes)
+    assert ax.get_title() == ''
+    assert ax.get_xlabel() == ''
+    assert ax.get_ylabel() == ''
+    assert len(ax.patches) == 4
+    assert ax.patches[0].get_facecolor() == (1.0, 0, 0, 1.0) # red
+    assert ax.patches[1].get_facecolor() == (1.0, 0, 0, 1.0) # red
+    assert ax.patches[2].get_facecolor() == (0, 0, 1.0, 1.0) # blue
+    assert ax.patches[3].get_facecolor() == (0, 0, 1.0, 1.0) # blue
+
+    g = xgb.to_graphviz(bst2, num_trees=0)
+    assert isinstance(g, Digraph)
+    ax = xgb.plot_tree(bst2, num_trees=0)
+    assert isinstance(ax, Axes)
