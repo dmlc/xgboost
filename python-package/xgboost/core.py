@@ -743,7 +743,10 @@ class Booster(object):
             Input file name or memory buffer(see also save_raw)
         """
         if isinstance(fname, str):  # assume file name
-            _LIB.XGBoosterLoadModel(self.handle, c_str(fname))
+            if os.path.exists(fname):
+                _LIB.XGBoosterLoadModel(self.handle, c_str(fname))
+            else:
+                raise ValueError("No such file: {0}")
         else:
             buf = fname
             length = ctypes.c_ulong(len(buf))
