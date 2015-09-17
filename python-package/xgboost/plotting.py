@@ -92,7 +92,7 @@ def plot_importance(booster, ax=None, height=0.2,
 _NODEPAT = re.compile(r'(\d+):\[(.+)\]')
 _LEAFPAT = re.compile(r'(\d+):(leaf=.+)')
 _EDGEPAT = re.compile(r'yes=(\d+),no=(\d+),missing=(\d+)')
-
+_EDGEPAT2 = re.compile(r'yes=(\d+),no=(\d+)')
 
 def _parse_node(graph, text):
     """parse dumped node"""
@@ -111,15 +111,24 @@ def _parse_node(graph, text):
 
 def _parse_edge(graph, node, text, yes_color='#0000FF', no_color='#FF0000'):
     """parse dumped edge"""
-    match = _EDGEPAT.match(text)
+    try:
+        match = _EDGEPAT.match(text)
+        if match is not None:
+            yes, no, missing = match.groups()
+            if yes == missing:
+                graph.edge(node, yes, label='yes, missing', color=yes_color)
+                graph.edge(node, no, label='no', color=no_color)
+            else:
+                graph.edge(node, yes, label='yes', color=yes_color)
+                graph.edge(node, no, label='no, missing', color=no_color)
+            return
+    except ValueError:
+        pass
+    match = _EDGEPAT2.match(text)
     if match is not None:
-        yes, no, missing = match.groups()
-        if yes == missing:
-            graph.edge(node, yes, label='yes, missing', color=yes_color)
-            graph.edge(node, no, label='no', color=no_color)
-        else:
-            graph.edge(node, yes, label='yes', color=yes_color)
-            graph.edge(node, no, label='no, missing', color=no_color)
+        yes, no = match.groups()
+        graph.edge(node, yes, label='yes', color=yes_color)
+        graph.edge(node, no, label='no', color=no_color)
         return
     raise ValueError('Unable to parse edge: {0}'.format(text))
 
