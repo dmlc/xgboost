@@ -6,16 +6,13 @@ from __future__ import absolute_import
 import os
 import sys
 import ctypes
-import platform
 import collections
 
 import numpy as np
 import scipy.sparse
 
+from .libpath import find_lib_path
 
-class XGBoostLibraryNotFound(Exception):
-    """Error throwed by when xgboost is not found"""
-    pass
 
 class XGBoostError(Exception):
     """Error throwed by xgboost trainer."""
@@ -79,40 +76,6 @@ def from_cstr_to_pystr(data, length):
             except UnicodeDecodeError:
                 res.append(unicode(data[i].decode('utf-8')))
     return res
-
-
-def find_lib_path():
-    """Load find the path to xgboost dynamic library files.
-
-    Returns
-    -------
-    lib_path: list(string)
-       List of all found library path to xgboost
-    """
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    #make pythonpack hack: copy this directory one level upper for setup.py
-    dll_path = [curr_path, os.path.join(curr_path, '../../wrapper/')
-                , os.path.join(curr_path, './wrapper/')]
-    if os.name == 'nt':
-        if platform.architecture()[0] == '64bit':
-            dll_path.append(os.path.join(curr_path, '../../windows/x64/Release/'))
-            #hack for pip installation when copy all parent source directory here
-            dll_path.append(os.path.join(curr_path, './windows/x64/Release/'))
-        else:
-            dll_path.append(os.path.join(curr_path, '../../windows/Release/'))
-            #hack for pip installation when copy all parent source directory here
-            dll_path.append(os.path.join(curr_path, './windows/Release/'))
-    if os.name == 'nt':
-        dll_path = [os.path.join(p, 'xgboost_wrapper.dll') for p in dll_path]
-    else:
-        dll_path = [os.path.join(p, 'libxgboostwrapper.so') for p in dll_path]
-    lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
-    if len(lib_path) == 0 and not os.environ.get('XGBOOST_BUILD_DOC', False):
-        raise XGBoostLibraryNotFound(
-            'Cannot find XGBoost Libarary in the candicate path, ' +
-            'did you run build.sh in root path?\n'
-            'List of candidates:\n' + ('\n'.join(dll_path)))
-    return lib_path
 
 
 def _load_lib():
