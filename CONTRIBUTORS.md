@@ -49,3 +49,4 @@ List of Contributors
   - Masaaki is the initial creator of xgboost python plotting module.
 * [Hongliang Liu](https://github.com/phunterlau)
   - Hongliang is the maintainer of xgboost python PyPI package for pip installation.
+* [Huayi Zhang](https://github.com/irachex)
