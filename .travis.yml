@@ -30,6 +30,8 @@ addons:
       - wget
       - libcurl4-openssl-dev
       - unzip
+      - python-numpy
+      - python-scipy
 
 before_install:
   - scripts/travis_osx_install.sh
