@@ -22,10 +22,10 @@ CURRENT_DIR = os.path.dirname(__file__)
 
 # We can not import `xgboost.libpath` in setup.py directly since xgboost/__init__.py
 # import `xgboost.core` and finally will import `numpy` and `scipy` which are setup
-# `install_requires`. That's why using `execfile` here.
+# `install_requires`. That's why we're using `exec` here.
 libpath_py = os.path.join(CURRENT_DIR, 'xgboost/libpath.py')
 libpath = {'__file__': libpath_py}
-execfile(libpath_py, libpath, libpath)
+exec(compile(open(libpath_py, "rb").read(), libpath_py, 'exec'), libpath, libpath)
 
 LIB_PATH = libpath['find_lib_path']()
 #print LIB_PATH
