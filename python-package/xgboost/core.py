@@ -146,8 +146,8 @@ class DMatrix(object):
     You can construct DMatrix from numpy.arrays
     """
 
-    feature_names = None  # for previous version's pickle
-    feature_types = None
+    _feature_names = None  # for previous version's pickle
+    _feature_types = None
 
     def __init__(self, data, label=None, missing=0.0,
                  weight=None, silent=False,
@@ -200,8 +200,8 @@ class DMatrix(object):
         if weight is not None:
             self.set_weight(weight)
 
-        self.set_feature_names(feature_names)
-        self.set_feature_types(feature_types)
+        self.feature_names = feature_names
+        self.feature_types = feature_types
 
     def _init_from_csr(self, csr):
         """
@@ -381,66 +381,6 @@ class DMatrix(object):
                                            c_array(ctypes.c_uint, group),
                                            len(group)))
 
-    def set_feature_names(self, feature_names):
-        """Set feature names (column labels).
-
-        Parameters
-        ----------
-        feature_names : list or None
-            Labels for features. None will reset existing feature names
-        """
-        if not feature_names is None:
-            # validate feature name
-            if not isinstance(feature_names, list):
-                feature_names = list(feature_names)
-            if len(feature_names) != len(set(feature_names)):
-                raise ValueError('feature_names must be unique')
-            if len(feature_names) != self.num_col():
-                msg = 'feature_names must have the same length as data'
-                raise ValueError(msg)
-            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
-            if not all(isinstance(f, STRING_TYPES) and f.isalnum()
-                       for f in feature_names):
-                raise ValueError('all feature_names must be alphanumerics')
-        else:
-            # reset feature_types also
-            self.set_feature_types(None)
-        self.feature_names = feature_names
-
-    def set_feature_types(self, feature_types):
-        """Set feature types (column types).
-
-        This is for displaying the results and unrelated
-        to the learning process.
-
-        Parameters
-        ----------
-        feature_types : list or None
-            Labels for features. None will reset existing feature names
-        """
-        if not feature_types is None:
-
-            if self.feature_names is None:
-                msg = 'Unable to set feature types before setting names'
-                raise ValueError(msg)
-
-            if isinstance(feature_types, STRING_TYPES):
-                # single string will be applied to all columns
-                feature_types = [feature_types] * self.num_col()
-
-            if not isinstance(feature_types, list):
-                feature_types = list(feature_types)
-            if len(feature_types) != self.num_col():
-                msg = 'feature_types must have the same length as data'
-                raise ValueError(msg)
-            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
-
-            valid = ('q', 'i', 'int', 'float')
-            if not all(isinstance(f, STRING_TYPES) and f in valid
-                       for f in feature_types):
-                raise ValueError('all feature_names must be {i, q, int, float}')
-        self.feature_types = feature_types
-
     def get_label(self):
         """Get the label of the DMatrix.
 
@@ -467,24 +407,6 @@ class DMatrix(object):
         base_margin : float
         """
         return self.get_float_info('base_margin')
-
-    def get_feature_names(self):
-        """Get feature names (column labels).
-
-        Returns
-        -------
-        feature_names : list or None
-        """
-        return self.feature_names
-
-    def get_feature_types(self):
-        """Get feature types (column types).
-
-        Returns
-        -------
-        feature_types : list or None
-        """
-        return self.feature_types
 
     def num_row(self):
         """Get the number of rows in the DMatrix.
@@ -530,6 +452,88 @@ class DMatrix(object):
                                                len(rindex),
                                                ctypes.byref(res.handle)))
         return res
+
+    @property
+    def feature_names(self):
+        """Get feature names (column labels).
+
+        Returns
+        -------
+        feature_names : list or None
+        """
+        return self._feature_names
+
+    @property
+    def feature_types(self):
+        """Get feature types (column types).
+
+        Returns
+        -------
+        feature_types : list or None
+        """
+        return self._feature_types
+
+    @feature_names.setter
+    def feature_names(self, feature_names):
+        """Set feature names (column labels).
+
+        Parameters
+        ----------
+        feature_names : list or None
+            Labels for features. None will reset existing feature names
+        """
+        if not feature_names is None:
+            # validate feature name
+            if not isinstance(feature_names, list):
+                feature_names = list(feature_names)
+            if len(feature_names) != len(set(feature_names)):
+                raise ValueError('feature_names must be unique')
+            if len(feature_names) != self.num_col():
+                msg = 'feature_names must have the same length as data'
+                raise ValueError(msg)
+            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
+            if not all(isinstance(f, STRING_TYPES) and f.isalnum()
+                       for f in feature_names):
+                raise ValueError('all feature_names must be alphanumerics')
+        else:
+            # reset feature_types also
+            self.feature_types = None
+        self._feature_names = feature_names
+
+    @feature_types.setter
+    def feature_types(self, feature_types):
+        """Set feature types (column types).
+
+        This is for displaying the results and unrelated
+        to the learning process.
+
+        Parameters
+        ----------
+        feature_types : list or None
+            Labels for features. None will reset existing feature names
+        """
+        if not feature_types is None:
+
+            if self.feature_names is None:
+                msg = 'Unable to set feature types before setting names'
+                raise ValueError(msg)
+
+            if isinstance(feature_types, STRING_TYPES):
+                # single string will be applied to all columns
+                feature_types = [feature_types] * self.num_col()
+
+            if not isinstance(feature_types, list):
+                feature_types = list(feature_types)
+            if len(feature_types) != self.num_col():
+                msg = 'feature_types must have the same length as data'
+                raise ValueError(msg)
+            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
+
+            valid = ('q', 'i', 'int', 'float')
+            if not all(isinstance(f, STRING_TYPES) and f in valid
+                       for f in feature_types):
+                raise ValueError('all feature_names must be {i, q, int, float}')
+        self._feature_types = feature_types
 
 
 class Booster(object):
