@@ -146,10 +146,12 @@ class DMatrix(object):
     You can construct DMatrix from numpy.arrays
     """
 
-    feature_names = None  # for previous version's pickle
+    _feature_names = None  # for previous version's pickle
+    _feature_types = None
 
     def __init__(self, data, label=None, missing=0.0,
-                 weight=None, silent=False, feature_names=None):
+                 weight=None, silent=False,
+                 feature_names=None, feature_types=None):
         """
         Data matrix used in XGBoost.
 
@@ -168,6 +170,8 @@ class DMatrix(object):
         silent : boolean, optional
             Whether print messages during construction
         feature_names : list, optional
+            Labels for features.
+        feature_types : list, optional
             Labels for features.
         """
         # force into void_p, mac need to pass things in as void_p
@@ -196,20 +200,8 @@ class DMatrix(object):
         if weight is not None:
             self.set_weight(weight)
 
-        # validate feature name
-        if not feature_names is None:
-            if not isinstance(feature_names, list):
-                feature_names = list(feature_names)
-            if len(feature_names) != len(set(feature_names)):
-                raise ValueError('feature_names must be unique')
-            if len(feature_names) != self.num_col():
-                msg = 'feature_names must have the same length as data'
-                raise ValueError(msg)
-            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
-            if not all(isinstance(f, STRING_TYPES) and f.isalnum()
-                       for f in feature_names):
-                raise ValueError('all feature_names must be alphanumerics')
         self.feature_names = feature_names
+        self.feature_types = feature_types
 
     def _init_from_csr(self, csr):
         """
@@ -461,6 +453,88 @@ class DMatrix(object):
                                                ctypes.byref(res.handle)))
         return res
 
+    @property
+    def feature_names(self):
+        """Get feature names (column labels).
+
+        Returns
+        -------
+        feature_names : list or None
+        """
+        return self._feature_names
+
+    @property
+    def feature_types(self):
+        """Get feature types (column types).
+
+        Returns
+        -------
+        feature_types : list or None
+        """
+        return self._feature_types
+
+    @feature_names.setter
+    def feature_names(self, feature_names):
+        """Set feature names (column labels).
+
+        Parameters
+        ----------
+        feature_names : list or None
+            Labels for features. None will reset existing feature names
+        """
+        if not feature_names is None:
+            # validate feature name
+            if not isinstance(feature_names, list):
+                feature_names = list(feature_names)
+            if len(feature_names) != len(set(feature_names)):
+                raise ValueError('feature_names must be unique')
+            if len(feature_names) != self.num_col():
+                msg = 'feature_names must have the same length as data'
+                raise ValueError(msg)
+            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
+            if not all(isinstance(f, STRING_TYPES) and f.isalnum()
+                       for f in feature_names):
+                raise ValueError('all feature_names must be alphanumerics')
+        else:
+            # reset feature_types also
+            self.feature_types = None
+        self._feature_names = feature_names
+
+    @feature_types.setter
+    def feature_types(self, feature_types):
+        """Set feature types (column types).
+
+        This is for displaying the results and unrelated
+        to the learning process.
+
+        Parameters
+        ----------
+        feature_types : list or None
+            Labels for features. None will reset existing feature names
+        """
+        if not feature_types is None:
+
+            if self.feature_names is None:
+                msg = 'Unable to set feature types before setting names'
+                raise ValueError(msg)
+
+            if isinstance(feature_types, STRING_TYPES):
+                # single string will be applied to all columns
+                feature_types = [feature_types] * self.num_col()
+
+            if not isinstance(feature_types, list):
+                feature_types = list(feature_types)
+            if len(feature_types) != self.num_col():
+                msg = 'feature_types must have the same length as data'
+                raise ValueError(msg)
+            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
+
+            valid = ('q', 'i', 'int', 'float')
+            if not all(isinstance(f, STRING_TYPES) and f in valid
+                       for f in feature_types):
+                raise ValueError('all feature_names must be {i, q, int, float}')
+        self._feature_types = feature_types
+
 
 class Booster(object):
     """"A Booster of of XGBoost.
@@ -487,7 +561,8 @@ class Booster(object):
         for d in cache:
             if not isinstance(d, DMatrix):
                 raise TypeError('invalid cache item: {}'.format(type(d).__name__))
-            self._validate_feature_names(d)
+            self._validate_features(d)
+
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGBoosterCreate(dmats, len(cache), ctypes.byref(self.handle)))
@@ -572,7 +647,7 @@ class Booster(object):
         """
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
-        self._validate_feature_names(dtrain)
+        self._validate_features(dtrain)
 
         if fobj is None:
             _check_call(_LIB.XGBoosterUpdateOneIter(self.handle, iteration, dtrain.handle))
@@ -598,7 +673,7 @@ class Booster(object):
             raise ValueError('grad / hess length mismatch: {} / {}'.format(len(grad), len(hess)))
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
-        self._validate_feature_names(dtrain)
+        self._validate_features(dtrain)
 
         _check_call(_LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
                                                c_array(ctypes.c_float, grad),
@@ -629,7 +704,7 @@ class Booster(object):
                     raise TypeError('expected DMatrix, got {}'.format(type(d[0]).__name__))
                 if not isinstance(d[1], STRING_TYPES):
                     raise TypeError('expected string, got {}'.format(type(d[1]).__name__))
-                self._validate_feature_names(d[0])
+                self._validate_features(d[0])
 
             dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
             evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
@@ -664,7 +739,7 @@ class Booster(object):
         result: str
             Evaluation result string.
         """
-        self._validate_feature_names(data)
+        self._validate_features(data)
         return self.eval_set([(data, name)], iteration)
 
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False):
@@ -703,7 +778,7 @@ class Booster(object):
         if pred_leaf:
             option_mask |= 0x02
 
-        self._validate_feature_names(data)
+        self._validate_features(data)
 
         length = ctypes.c_ulong()
         preds = ctypes.POINTER(ctypes.c_float)()
@@ -805,9 +880,12 @@ class Booster(object):
 
             fname = from_pystr_to_cstr(self.feature_names)
 
-            # supports quantitative type only
-            # {'q': quantitative, 'i': indicator}
-            ftype = from_pystr_to_cstr(['q'] * flen)
+            if self.feature_types is None:
+                # use quantitative as default
+                # {'q': quantitative, 'i': indicator}
+                ftype = from_pystr_to_cstr(['q'] * flen)
+            else:
+                ftype = from_pystr_to_cstr(self.feature_types)
             _check_call(_LIB.XGBoosterDumpModelWithFeatures(self.handle,
                                                             flen,
                                                             fname,
@@ -849,12 +927,14 @@ class Booster(object):
                     fmap[fid] += 1
         return fmap
 
-    def _validate_feature_names(self, data):
+    def _validate_features(self, data):
         """
-        Validate Booster and data's feature_names are identical
+        Validate Booster and data's feature_names are identical.
+        Set feature_names and feature_types from DMatrix
         """
         if self.feature_names is None:
             self.feature_names = data.feature_names
+            self.feature_types = data.feature_types
         else:
             # Booster can't accept data with different feature names
             if self.feature_names != data.feature_names:

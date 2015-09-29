@@ -47,6 +47,25 @@ class TestBasic(unittest.TestCase):
         self.assertRaises(ValueError, xgb.DMatrix, data,
                           feature_names=['a', 'b', 'c', 'd', 'e=1'])
 
+        dm = xgb.DMatrix(data)
+        dm.feature_names = list('abcde')
+        assert dm.feature_names == list('abcde')
+
+        dm.feature_types = 'q'
+        assert dm.feature_types == list('qqqqq')
+
+        dm.feature_types = list('qiqiq')
+        assert dm.feature_types == list('qiqiq')
+
+        def incorrect_type_set():
+            dm.feature_types = list('abcde')
+        self.assertRaises(ValueError, incorrect_type_set)
+
+        # reset
+        dm.feature_names = None
+        assert dm.feature_names is None
+        assert dm.feature_types is None
+
     def test_feature_names(self):
         data = np.random.randn(100, 5)
         target = np.array([0, 1] * 50)
