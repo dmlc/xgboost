@@ -127,6 +127,36 @@ class TestBasic(unittest.TestCase):
         data = np.array([['a', 'b'], ['c', 'd']])
         self.assertRaises(ValueError, xgb.DMatrix, data)
 
+    def test_cv(self):
+        dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        params = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic' }
+
+        import pandas as pd
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10)
+        assert isinstance(cv, pd.DataFrame)
+        exp = pd.Index([u'test-error-mean', u'test-error-std',
+                        u'train-error-mean', u'train-error-std'])
+        assert cv.columns.equals(exp)
+
+        # show progress log (result is the same as above)
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
+                    show_progress=True)
+        assert isinstance(cv, pd.DataFrame)
+        exp = pd.Index([u'test-error-mean', u'test-error-std',
+                        u'train-error-mean', u'train-error-std'])
+        assert cv.columns.equals(exp)
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
+                    show_progress=True, show_stdv=False)
+        assert isinstance(cv, pd.DataFrame)
+        exp = pd.Index([u'test-error-mean', u'test-error-std',
+                        u'train-error-mean', u'train-error-std'])
+        assert cv.columns.equals(exp)
+
+        # return np.ndarray
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=False)
+        assert isinstance(cv, np.ndarray)
+        assert cv.shape == (10, 4)
+
     def test_plotting(self):
         bst2 = xgb.Booster(model_file='xgb.model')
         # plotting
