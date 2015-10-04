@@ -153,7 +153,7 @@ def _maybe_from_pandas(data, feature_names, feature_types):
         raise ValueError('DataFrame.dtypes must be int, float or bool')
 
     if feature_names is None:
-        feature_names = data.columns.tolist()
+        feature_names = data.columns.format()
     if feature_types is None:
         mapper = {'int64': 'int', 'float64': 'q', 'bool': 'i'}
         feature_types = [mapper[dtype.name] for dtype in dtypes]
