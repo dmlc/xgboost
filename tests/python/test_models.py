@@ -59,8 +59,6 @@ def test_show_stdv():
 	xgb.cv(param, dtrain, num_round, nfold=5,
        metrics={'error'}, seed = 0, show_stdv = False)
 
-test_custom_objective()
-
 
 
 
