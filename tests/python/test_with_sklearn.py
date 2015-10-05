@@ -16,9 +16,10 @@ def test_binary_classification():
 	kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
 	for train_index, test_index in kf:
 	    xgb_model = xgb.XGBClassifier().fit(X[train_index],y[train_index])
-	    predictions = xgb_model.predict(X[test_index])
-	    actuals = y[test_index]
-	    print(confusion_matrix(actuals, predictions))
+	    preds = xgb_model.predict(X[test_index])
+	    labels = y[test_index]
+	    err = sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) / float(len(preds))
+	assert err < 0.1
 
 def test_multiclass_classification():
 	iris = load_iris()
@@ -27,10 +28,10 @@ def test_multiclass_classification():
 	kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
 	for train_index, test_index in kf:
 	    xgb_model = xgb.XGBClassifier().fit(X[train_index],y[train_index])
-	    predictions = xgb_model.predict(X[test_index])
-	    actuals = y[test_index]
-	    print(confusion_matrix(actuals, predictions))
-
+	    preds = xgb_model.predict(X[test_index])
+	    labels = y[test_index]
+	    err = sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) / float(len(preds))
+	assert err < 0.3
 
 
 
