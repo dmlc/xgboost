@@ -32,6 +32,7 @@ addons:
       - unzip
       - python-numpy
       - python-scipy
+      - python-sklearn
 
 before_install:
   - scripts/travis_osx_install.sh
