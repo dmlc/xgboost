@@ -46,3 +46,26 @@ def test_fpreproc():
 		return (dtrain, dtest, param)
 	xgb.cv(param, dtrain, num_round, nfold=5,
        metrics={'auc'}, seed = 0, fpreproc = fpreproc)
+
+def test_show_stdv():
+	param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic'}
+	num_round = 2
+	xgb.cv(param, dtrain, num_round, nfold=5,
+       metrics={'error'}, seed = 0, show_stdv = False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
