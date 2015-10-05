@@ -33,7 +33,16 @@ def test_multiclass_classification():
 	    err = sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) / float(len(preds))
 	assert err < 0.3
 
+def test_boston_housing_regression():
+	boston = load_boston()
+	y = boston['target']
+	X = boston['data']
+	kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
+	for train_index, test_index in kf:
+	    xgb_model = xgb.XGBRegressor().fit(X[train_index],y[train_index])
+	    preds = xgb_model.predict(X[test_index])
+	    labels = y[test_index]
+	assert mean_squared_error(preds, labels) < 9
 
 
-
-
+test_boston_housing_regression()
