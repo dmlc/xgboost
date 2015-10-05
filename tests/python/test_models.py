@@ -58,18 +58,3 @@ def test_show_stdv():
 	num_round = 2
 	xgb.cv(param, dtrain, num_round, nfold=5,
        metrics={'error'}, seed = 0, show_stdv = False)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
