@@ -1,9 +1,7 @@
-import pickle
 import xgboost as xgb
-
 import numpy as np
 from sklearn.cross_validation import KFold, train_test_split
-from sklearn.metrics import confusion_matrix, mean_squared_error
+from sklearn.metrics import mean_squared_error
 from sklearn.grid_search import GridSearchCV
 from sklearn.datasets import load_iris, load_digits, load_boston
 
@@ -45,4 +43,4 @@ def test_boston_housing_regression():
 	assert mean_squared_error(preds, labels) < 9
 
 
-test_boston_housing_regression()
+
