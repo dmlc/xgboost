@@ -240,7 +240,7 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True):
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
        obj=None, feval=None, fpreproc=None, as_pandas=True,
-       show_progress=None, show_stdv=True, seed=0):
+       show_progress=None, show_stdv=True, seed=0, print_every_n=None):
     # pylint: disable = invalid-name
     """Cross-validation with given paramaters.
 
@@ -274,6 +274,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         Results are not affected, and always contains std.
     seed : int
         Seed used to generate the folds (passed to numpy.random.seed).
+    print_every_n : int
+        How often progress should be displayed 
 
     Returns
     -------
@@ -282,6 +284,11 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
     results = []
     cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc)
     for i in range(num_boost_round):
+        if print_every_n:
+            if i == 0 or i % print_every_n == 0:
+                show_progress = True
+            else:
+                show_progress = False
         for fold in cvfolds:
             fold.update(i, obj)
         res = aggcv([f.eval(i, feval) for f in cvfolds],
