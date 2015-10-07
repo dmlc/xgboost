@@ -91,7 +91,7 @@
 #' print(history)
 #' @export
 #'
-xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NULL, 
+xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NA, 
                    prediction = FALSE, showsd = TRUE, metrics=list(), 
                    obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, verbose = T, print.every.n=1L,
                    early.stop.round = NULL, maximize = NULL, ...) {
@@ -107,11 +107,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     if (nfold <= 1) {
         stop("nfold must be bigger than 1")
     }
-    if (is.null(missing)) {
-        dtrain <- xgb.get.DMatrix(data, label)
-    } else {
-        dtrain <- xgb.get.DMatrix(data, label, missing)
-    }
+    dtrain <- xgb.get.DMatrix(data, label, missing)
     dot.params = list(...)
     nms.params = names(params)
     nms.dot.params = names(dot.params)

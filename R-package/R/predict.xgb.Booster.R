@@ -31,7 +31,7 @@ setClass("xgb.Booster",
 #' @export
 #' 
 setMethod("predict", signature = "xgb.Booster", 
-          definition = function(object, newdata, missing = NULL, 
+          definition = function(object, newdata, missing = NA, 
                                 outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE) {
   if (class(object) != "xgb.Booster"){
     stop("predict: model in prediction must be of class xgb.Booster")
@@ -39,11 +39,7 @@ setMethod("predict", signature = "xgb.Booster",
     object <- xgb.Booster.check(object, saveraw = FALSE)
   }
   if (class(newdata) != "xgb.DMatrix") {
-    if (is.null(missing)) {
-      newdata <- xgb.DMatrix(newdata)
-    } else {
-      newdata <- xgb.DMatrix(newdata, missing = missing)
-    }
+    newdata <- xgb.DMatrix(newdata, missing = missing)
   }
   if (is.null(ntreelimit)) {
     ntreelimit <- 0
