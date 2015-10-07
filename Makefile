@@ -1,6 +1,6 @@
-export CC  = gcc
-#build on the fly
-export CXX = g++
+export CC  = $(if $(shell which gcc-5),gcc-5,gcc)
+export CXX = $(if $(shell which g++-5),g++-5,g++)
+
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops
@@ -21,8 +21,16 @@ endif
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP
 else
-	CFLAGS += -fopenmp
+	#CFLAGS += -fopenmp
+	ifeq ($(omp_mac_static),1)
+		#CFLAGS += -fopenmp -Bstatic
+		CFLAGS += -static-libgcc -static-libstdc++ -L. -fopenmp
+		#LDFLAGS += -Wl,--whole-archive -lpthread -Wl --no-whole-archive
+	else
+		CFLAGS += -fopenmp
+	endif
 endif
+
 
 # by default use c++11
 ifeq ($(cxx11),1)

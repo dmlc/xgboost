@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, exec-used
 """Setup xgboost package."""
 from __future__ import absolute_import
 import sys
@@ -17,9 +17,17 @@ if 'pip' in __file__:
         output = build_sh.communicate()
         print(output)
 
-import xgboost
 
-LIB_PATH = xgboost.core.find_lib_path()
+CURRENT_DIR = os.path.dirname(__file__)
+
+# We can not import `xgboost.libpath` in setup.py directly since xgboost/__init__.py
+# import `xgboost.core` and finally will import `numpy` and `scipy` which are setup
+# `install_requires`. That's why we're using `exec` here.
+libpath_py = os.path.join(CURRENT_DIR, 'xgboost/libpath.py')
+libpath = {'__file__': libpath_py}
+exec(compile(open(libpath_py, "rb").read(), libpath_py, 'exec'), libpath, libpath)
+
+LIB_PATH = libpath['find_lib_path']()
 #print LIB_PATH
 
 #to deploy to pip, please use
@@ -27,9 +35,9 @@ LIB_PATH = xgboost.core.find_lib_path()
 #python setup.py register sdist upload
 #and be sure to test it firstly using "python setup.py register sdist upload -r pypitest"
 setup(name='xgboost',
-      version=xgboost.__version__,
+      version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
       #version='0.4a13',
-      description=xgboost.__doc__,
+      description=open(os.path.join(CURRENT_DIR, 'README.md')).read(),
       install_requires=[
           'numpy',
           'scipy',

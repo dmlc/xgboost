@@ -1,67 +1,81 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments, too-many-branches
 """Core XGBoost Library."""
 from __future__ import absolute_import
 
 import os
 import sys
 import ctypes
-import platform
 import collections
 
 import numpy as np
 import scipy.sparse
 
+from .libpath import find_lib_path
 
-class XGBoostLibraryNotFound(Exception):
-    """Error throwed by when xgboost is not found"""
-    pass
 
 class XGBoostError(Exception):
     """Error throwed by xgboost trainer."""
     pass
 
+PY3 = (sys.version_info[0] == 3)
 
-if sys.version_info[0] == 3:
-    # pylint: disable=invalid-name
+if PY3:
+    # pylint: disable=invalid-name, redefined-builtin
     STRING_TYPES = str,
 else:
     # pylint: disable=invalid-name
     STRING_TYPES = basestring,
 
 
-def find_lib_path():
-    """Load find the path to xgboost dynamic library files.
+def from_pystr_to_cstr(data):
+    """Convert a list of Python str to C pointer
 
-    Returns
-    -------
-    lib_path: list(string)
-       List of all found library path to xgboost
+    Parameters
+    ----------
+    data : list
+        list of str
     """
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    #make pythonpack hack: copy this directory one level upper for setup.py
-    dll_path = [curr_path, os.path.join(curr_path, '../../wrapper/')
-                , os.path.join(curr_path, './wrapper/')]
-    if os.name == 'nt':
-        if platform.architecture()[0] == '64bit':
-            dll_path.append(os.path.join(curr_path, '../../windows/x64/Release/'))
-            #hack for pip installation when copy all parent source directory here
-            dll_path.append(os.path.join(curr_path, './windows/x64/Release/'))
+
+    if isinstance(data, list):
+        pointers = (ctypes.c_char_p * len(data))()
+        if PY3:
+            data = [bytes(d, 'utf-8') for d in data]
         else:
-            dll_path.append(os.path.join(curr_path, '../../windows/Release/'))
-            #hack for pip installation when copy all parent source directory here
-            dll_path.append(os.path.join(curr_path, './windows/Release/'))
-    if os.name == 'nt':
-        dll_path = [os.path.join(p, 'xgboost_wrapper.dll') for p in dll_path]
+            data = [d.encode('utf-8') if isinstance(d, unicode) else d
+                    for d in data]
+        pointers[:] = data
+        return pointers
     else:
-        dll_path = [os.path.join(p, 'libxgboostwrapper.so') for p in dll_path]
-    lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
-    if len(lib_path) == 0 and not os.environ.get('XGBOOST_BUILD_DOC', False):
-        raise XGBoostLibraryNotFound(
-            'Cannot find XGBoost Libarary in the candicate path, ' +
-            'did you run build.sh in root path?\n'
-            'List of candidates:\n' + ('\n'.join(dll_path)))
-    return lib_path
+        # copy from above when we actually use it
+        raise NotImplementedError
+
+
+def from_cstr_to_pystr(data, length):
+    """Revert C pointer to Python str
+
+    Parameters
+    ----------
+    data : ctypes pointer
+        pointer to data
+    length : ctypes pointer
+        pointer to length of data
+    """
+    if PY3:
+        res = []
+        for i in range(length.value):
+            try:
+                res.append(str(data[i].decode('ascii')))
+            except UnicodeDecodeError:
+                res.append(str(data[i].decode('utf-8')))
+    else:
+        res = []
+        for i in range(length.value):
+            try:
+                res.append(str(data[i].decode('ascii')))
+            except UnicodeDecodeError:
+                res.append(unicode(data[i].decode('utf-8')))
+    return res
 
 
 def _load_lib():
@@ -124,6 +138,28 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
+def _maybe_from_pandas(data, feature_names, feature_types):
+    """ Extract internal data from pd.DataFrame """
+    try:
+        import pandas as pd
+    except ImportError:
+        return data, feature_names, feature_types
+
+    if not isinstance(data, pd.DataFrame):
+        return data, feature_names, feature_types
+
+    dtypes = data.dtypes
+    if not all(dtype.name in ('int64', 'float64', 'bool') for dtype in dtypes):
+        raise ValueError('DataFrame.dtypes must be int, float or bool')
+
+    if feature_names is None:
+        feature_names = data.columns.format()
+    if feature_types is None:
+        mapper = {'int64': 'int', 'float64': 'q', 'bool': 'i'}
+        feature_types = [mapper[dtype.name] for dtype in dtypes]
+    data = data.values.astype('float')
+    return data, feature_names, feature_types
+
 class DMatrix(object):
     """Data Matrix used in XGBoost.
 
@@ -131,13 +167,19 @@ class DMatrix(object):
     which is optimized for both memory efficiency and training speed.
     You can construct DMatrix from numpy.arrays
     """
-    def __init__(self, data, label=None, missing=0.0, weight=None, silent=False):
+
+    _feature_names = None  # for previous version's pickle
+    _feature_types = None
+
+    def __init__(self, data, label=None, missing=0.0,
+                 weight=None, silent=False,
+                 feature_names=None, feature_types=None):
         """
         Data matrix used in XGBoost.
 
         Parameters
         ----------
-        data : string/numpy array/scipy.sparse
+        data : string/numpy array/scipy.sparse/pd.DataFrame
             Data source of DMatrix.
             When data is string type, it represents the path libsvm format txt file,
             or binary file that xgboost can read from.
@@ -149,11 +191,22 @@ class DMatrix(object):
             Weight for each instance.
         silent : boolean, optional
             Whether print messages during construction
+        feature_names : list, optional
+            Labels for features.
+        feature_types : list, optional
+            Labels for features.
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
             self.handle = None
             return
+
+        klass = getattr(getattr(data, '__class__', None), '__name__', None)
+        if klass == 'DataFrame':
+            # once check class name to avoid unnecessary pandas import
+            data, feature_names, feature_types = _maybe_from_pandas(data, feature_names,
+                                                                    feature_types)
+
         if isinstance(data, STRING_TYPES):
             self.handle = ctypes.c_void_p()
             _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
@@ -163,7 +216,7 @@ class DMatrix(object):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
             self._init_from_csc(data)
-        elif isinstance(data, np.ndarray) and len(data.shape) == 2:
+        elif isinstance(data, np.ndarray):
             self._init_from_npy2d(data, missing)
         else:
             try:
@@ -175,6 +228,9 @@ class DMatrix(object):
             self.set_label(label)
         if weight is not None:
             self.set_weight(weight)
+
+        self.feature_names = feature_names
+        self.feature_types = feature_types
 
     def _init_from_csr(self, csr):
         """
@@ -206,6 +262,8 @@ class DMatrix(object):
         """
         Initialize data from a 2-D numpy matrix.
         """
+        if len(mat.shape) != 2:
+            raise ValueError('Input numpy.ndarray must be 2 dimensional')
         data = np.array(mat.reshape(mat.size), dtype=np.float32)
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromMat(data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
@@ -391,6 +449,18 @@ class DMatrix(object):
                                          ctypes.byref(ret)))
         return ret.value
 
+    def num_col(self):
+        """Get the number of columns (features) in the DMatrix.
+
+        Returns
+        -------
+        number of columns : int
+        """
+        ret = ctypes.c_uint()
+        _check_call(_LIB.XGDMatrixNumCol(self.handle,
+                                         ctypes.byref(ret)))
+        return ret.value
+
     def slice(self, rindex):
         """Slice the DMatrix and return a new DMatrix that only contains `rindex`.
 
@@ -404,13 +474,95 @@ class DMatrix(object):
         res : DMatrix
             A new DMatrix containing only selected indices.
         """
-        res = DMatrix(None)
+        res = DMatrix(None, feature_names=self.feature_names)
         res.handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
                                                c_array(ctypes.c_int, rindex),
                                                len(rindex),
                                                ctypes.byref(res.handle)))
         return res
+
+    @property
+    def feature_names(self):
+        """Get feature names (column labels).
+
+        Returns
+        -------
+        feature_names : list or None
+        """
+        return self._feature_names
+
+    @property
+    def feature_types(self):
+        """Get feature types (column types).
+
+        Returns
+        -------
+        feature_types : list or None
+        """
+        return self._feature_types
+
+    @feature_names.setter
+    def feature_names(self, feature_names):
+        """Set feature names (column labels).
+
+        Parameters
+        ----------
+        feature_names : list or None
+            Labels for features. None will reset existing feature names
+        """
+        if not feature_names is None:
+            # validate feature name
+            if not isinstance(feature_names, list):
+                feature_names = list(feature_names)
+            if len(feature_names) != len(set(feature_names)):
+                raise ValueError('feature_names must be unique')
+            if len(feature_names) != self.num_col():
+                msg = 'feature_names must have the same length as data'
+                raise ValueError(msg)
+            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
+            if not all(isinstance(f, STRING_TYPES) and f.isalnum()
+                       for f in feature_names):
+                raise ValueError('all feature_names must be alphanumerics')
+        else:
+            # reset feature_types also
+            self.feature_types = None
+        self._feature_names = feature_names
+
+    @feature_types.setter
+    def feature_types(self, feature_types):
+        """Set feature types (column types).
+
+        This is for displaying the results and unrelated
+        to the learning process.
+
+        Parameters
+        ----------
+        feature_types : list or None
+            Labels for features. None will reset existing feature names
+        """
+        if not feature_types is None:
+
+            if self.feature_names is None:
+                msg = 'Unable to set feature types before setting names'
+                raise ValueError(msg)
+
+            if isinstance(feature_types, STRING_TYPES):
+                # single string will be applied to all columns
+                feature_types = [feature_types] * self.num_col()
+
+            if not isinstance(feature_types, list):
+                feature_types = list(feature_types)
+            if len(feature_types) != self.num_col():
+                msg = 'feature_types must have the same length as data'
+                raise ValueError(msg)
+            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
+
+            valid = ('q', 'i', 'int', 'float')
+            if not all(isinstance(f, STRING_TYPES) and f in valid
+                       for f in feature_types):
+                raise ValueError('all feature_names must be {i, q, int, float}')
+        self._feature_types = feature_types
 
 
 class Booster(object):
@@ -419,6 +571,9 @@ class Booster(object):
     Booster is the model of xgboost, that contains low level routines for
     training, prediction and evaluation.
     """
+
+    feature_names = None
+
     def __init__(self, params=None, cache=(), model_file=None):
         # pylint: disable=invalid-name
         """Initialize the Booster.
@@ -435,6 +590,8 @@ class Booster(object):
         for d in cache:
             if not isinstance(d, DMatrix):
                 raise TypeError('invalid cache item: {}'.format(type(d).__name__))
+            self._validate_features(d)
+
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGBoosterCreate(dmats, len(cache), ctypes.byref(self.handle)))
@@ -519,6 +676,8 @@ class Booster(object):
         """
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
+        self._validate_features(dtrain)
+
         if fobj is None:
             _check_call(_LIB.XGBoosterUpdateOneIter(self.handle, iteration, dtrain.handle))
         else:
@@ -543,6 +702,8 @@ class Booster(object):
             raise ValueError('grad / hess length mismatch: {} / {}'.format(len(grad), len(hess)))
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
+        self._validate_features(dtrain)
+
         _check_call(_LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
                                                c_array(ctypes.c_float, grad),
                                                c_array(ctypes.c_float, hess),
@@ -572,6 +733,8 @@ class Booster(object):
                     raise TypeError('expected DMatrix, got {}'.format(type(d[0]).__name__))
                 if not isinstance(d[1], STRING_TYPES):
                     raise TypeError('expected string, got {}'.format(type(d[1]).__name__))
+                self._validate_features(d[0])
+
             dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
             evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
             msg = ctypes.c_char_p()
@@ -605,6 +768,7 @@ class Booster(object):
         result: str
             Evaluation result string.
         """
+        self._validate_features(data)
         return self.eval_set([(data, name)], iteration)
 
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False):
@@ -642,6 +806,9 @@ class Booster(object):
             option_mask |= 0x01
         if pred_leaf:
             option_mask |= 0x02
+
+        self._validate_features(data)
+
         length = ctypes.c_ulong()
         preds = ctypes.POINTER(ctypes.c_float)()
         _check_call(_LIB.XGBoosterPredict(self.handle, data.handle,
@@ -694,8 +861,11 @@ class Booster(object):
         fname : string or a memory buffer
             Input file name or memory buffer(see also save_raw)
         """
-        if isinstance(fname, str):  # assume file name
-            _LIB.XGBoosterLoadModel(self.handle, c_str(fname))
+        if isinstance(fname, STRING_TYPES):  # assume file name
+            if os.path.exists(fname):
+                _LIB.XGBoosterLoadModel(self.handle, c_str(fname))
+            else:
+                raise ValueError("No such file: {0}".format(fname))
         else:
             buf = fname
             length = ctypes.c_ulong(len(buf))
@@ -731,16 +901,36 @@ class Booster(object):
         """
         Returns the dump the model as a list of strings.
         """
+
         length = ctypes.c_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
-        _check_call(_LIB.XGBoosterDumpModel(self.handle,
-                                            c_str(fmap),
-                                            int(with_stats),
-                                            ctypes.byref(length),
-                                            ctypes.byref(sarr)))
-        res = []
-        for i in range(length.value):
-            res.append(str(sarr[i].decode('ascii')))
+        if self.feature_names is not None and fmap == '':
+            flen = int(len(self.feature_names))
+
+            fname = from_pystr_to_cstr(self.feature_names)
+
+            if self.feature_types is None:
+                # use quantitative as default
+                # {'q': quantitative, 'i': indicator}
+                ftype = from_pystr_to_cstr(['q'] * flen)
+            else:
+                ftype = from_pystr_to_cstr(self.feature_types)
+            _check_call(_LIB.XGBoosterDumpModelWithFeatures(self.handle,
+                                                            flen,
+                                                            fname,
+                                                            ftype,
+                                                            int(with_stats),
+                                                            ctypes.byref(length),
+                                                            ctypes.byref(sarr)))
+        else:
+            if fmap != '' and not os.path.exists(fmap):
+                raise ValueError("No such file: {0}".format(fmap))
+            _check_call(_LIB.XGBoosterDumpModel(self.handle,
+                                                c_str(fmap),
+                                                int(with_stats),
+                                                ctypes.byref(length),
+                                                ctypes.byref(sarr)))
+        res = from_cstr_to_pystr(sarr, length)
         return res
 
     def get_fscore(self, fmap=''):
@@ -765,3 +955,19 @@ class Booster(object):
                 else:
                     fmap[fid] += 1
         return fmap
+
+    def _validate_features(self, data):
+        """
+        Validate Booster and data's feature_names are identical.
+        Set feature_names and feature_types from DMatrix
+        """
+        if self.feature_names is None:
+            self.feature_names = data.feature_names
+            self.feature_types = data.feature_types
+        else:
+            # Booster can't accept data with different feature names
+            if self.feature_names != data.feature_names:
+                msg = 'feature_names mismatch: {0} {1}'
+                raise ValueError(msg.format(self.feature_names,
+                                            data.feature_names))
+

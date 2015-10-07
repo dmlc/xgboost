@@ -319,7 +319,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if len(class_probs.shape) > 1:
             column_indexes = np.argmax(class_probs, axis=1)
         else:
-            column_indexes = np.repeat(0, data.shape[0])
+            column_indexes = np.repeat(0, class_probs.shape[0])
             column_indexes[class_probs > 0.5] = 1
         return self._le.inverse_transform(column_indexes)
 

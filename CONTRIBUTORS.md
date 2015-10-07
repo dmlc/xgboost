@@ -34,6 +34,7 @@ List of Contributors
 * [Zygmunt Zając](https://github.com/zygmuntz)
   - Zygmunt is the master behind the early stopping feature frequently used by kagglers.
 * [Ajinkya Kale](https://github.com/ajkl)
+* [Yuan Tang](https://github.com/terrytangyuan)
 * [Boliang Chen](https://github.com/cblsjtu)
 * [Vadim Khotilovich](https://github.com/khotilov)
 * [Yangqing Men](https://github.com/yanqingmen)
@@ -48,3 +49,4 @@ List of Contributors
   - Masaaki is the initial creator of xgboost python plotting module.
 * [Hongliang Liu](https://github.com/phunterlau)
   - Hongliang is the maintainer of xgboost python PyPI package for pip installation.
+* [Huayi Zhang](https://github.com/irachex)
