@@ -45,3 +45,4 @@ on going at master
 * Added more test cases and continuous integration to make each build more robust
 * Improvements in sklearn compatible module
 * Added pip installation functionality for python module
+* Switch from 0 to NA for missing values in R

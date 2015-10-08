@@ -18,7 +18,7 @@
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' @export
 #' 
-xgb.DMatrix <- function(data, info = list(), missing = 0, ...) {
+xgb.DMatrix <- function(data, info = list(), missing = NA, ...) {
   if (typeof(data) == "character") {
     handle <- .Call("XGDMatrixCreateFromFile_R", data, as.integer(FALSE), 
                     PACKAGE = "xgboost")
