@@ -190,8 +190,7 @@ class XGBModel(XGBModelBase):
 
         if eval_results:
             for val in eval_results.items():
-                for k, v in val[1].items():
-                    eval_results[val[0]] = np.array(v, dtype=float)
+                eval_results[val[0]] = [np.array(v[1], dtype=float) for v in val[1].items()]
             self.eval_results = eval_results
 
         if early_stopping_rounds is not None:
@@ -305,8 +304,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         if eval_results:
             for val in eval_results.items():
-                for k, v in val[1].items():
-                    eval_results[val[0]] = np.array(v, dtype=float)
+                eval_results[val[0]] = [np.array(v[1], dtype=float) for v in val[1].items()]
             self.eval_results = eval_results
 
         if early_stopping_rounds is not None:
