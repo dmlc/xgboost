@@ -73,12 +73,12 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 if evals_result is not None:
                     res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
                     for key in evals_name:
-                        evals_idx =  evals_name.index(key)
+                        evals_idx = evals_name.index(key)
                         res_per_eval = len(res) / len(evals_name)
                         for r in range(res_per_eval):
                             res_item = res[(evals_idx*res_per_eval) + r]
                             res_key = res_item[0]
-                            res_val = res_item[1]                           
+                            res_val = res_item[1]
                             if res_key in evals_result[key]:
                                 evals_result[key][res_key].append(res_val)
                             else:
@@ -130,12 +130,12 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             if evals_result is not None:
                 res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
                 for key in evals_name:
-                    evals_idx =  evals_name.index(key)
+                    evals_idx = evals_name.index(key)
                     res_per_eval = len(res) / len(evals_name)
                     for r in range(res_per_eval):
                         res_item = res[(evals_idx*res_per_eval) + r]
                         res_key = res_item[0]
-                        res_val = res_item[1]                           
+                        res_val = res_item[1]
                         if res_key in evals_result[key]:
                             evals_result[key][res_key].append(res_val)
                         else:
