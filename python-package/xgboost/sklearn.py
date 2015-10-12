@@ -188,9 +188,10 @@ class XGBModel(XGBModelBase):
                               evals_result=eval_results, feval=feval,
                               verbose_eval=verbose)
         if eval_results:
-            eval_results = {k: np.array(v, dtype=float)
-                            for k, v in eval_results.items()}
-            eval_results = {k: np.array(v) for k, v in eval_results.items()}
+            eval_results = dict([(k, np.array(v, dtype=float))
+                                 for k, v in eval_results.items()])
+            eval_results = dict([(k, np.array(v))
+                                 for k, v in eval_results.items()])
             self.eval_results = eval_results
 
         if early_stopping_rounds is not None:
@@ -303,8 +304,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               verbose_eval=verbose)
 
         if eval_results:
-            eval_results = {k: np.array(v, dtype=float)
-                            for k, v in eval_results.items()}
+            eval_results = dict([(k, np.array(v, dtype=float))
+                                 for k, v in eval_results.items()])
             self.eval_results = eval_results
 
         if early_stopping_rounds is not None:
