@@ -1,7 +1,8 @@
-import xgboost as xgb
 ##
 #  This script demonstrate how to access the eval metrics in xgboost
 ##
+
+import xgboost as xgb
 dtrain = xgb.DMatrix('../data/agaricus.txt.train', silent=True)
 dtest = xgb.DMatrix('../data/agaricus.txt.test', silent=True)
 
