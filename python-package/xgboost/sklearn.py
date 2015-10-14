@@ -165,7 +165,7 @@ class XGBModel(XGBModelBase):
         """
         trainDmatrix = DMatrix(X, label=y, missing=self.missing)
 
-        eval_results = {}
+        evals_result = {}
         if eval_set is not None:
             evals = list(DMatrix(x[0], label=x[1]) for x in eval_set)
             evals = list(zip(evals, ["validation_{}".format(i) for i in
@@ -185,13 +185,14 @@ class XGBModel(XGBModelBase):
         self._Booster = train(params, trainDmatrix,
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
-                              evals_result=eval_results, feval=feval,
+                              evals_result=evals_result, feval=feval,
                               verbose_eval=verbose)
 
-        if eval_results:
-            for val in eval_results.items():
-                eval_results[val[0]] = [np.array(v[1], dtype=float) for v in val[1].items()]
-            self.eval_results = eval_results
+        if evals_result:
+            for val in evals_result.items():
+                evals_result_key = val[1].keys()[0]
+                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
+            self.evals_result_ = evals_result
 
         if early_stopping_rounds is not None:
             self.best_score = self._Booster.best_score
@@ -202,6 +203,41 @@ class XGBModel(XGBModelBase):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing)
         return self.booster().predict(test_dmatrix)
+    
+    def evals_result(self):
+        """Return the evaluation results.
+
+        If eval_set is passed to the `fit` function, you can call evals_result() to 
+        get evaluation results for all passed eval_sets. When eval_metric is also
+        passed to the `fit` function, the evals_result will contain the eval_metrics
+        passed to the `fit` function
+
+        Returns
+        -------
+        evals_result : dictionary
+        
+        Example
+        -------
+        param_dist = {'objective':'binary:logistic', 'n_estimators':2}
+        
+        clf = xgb.XGBModel(**param_dist)
+
+        clf.fit(X_train, y_train,
+                eval_set=[(X_train, y_train), (X_test, y_test)], 
+                eval_metric='logloss',
+                verbose=True)
+        
+        evals_result = clf.evals_result()
+        
+        The variable evals_result will contain: 
+        {'validation_0': {'logloss': ['0.604835', '0.531479']}, 'validation_1': {'logloss': ['0.41965', '0.17686']}}
+        """
+        if self.evals_result_:
+            evals_result = self.evals_result_
+        else:
+            raise Error('No results.')
+        
+        return evals_result
 
 
 class XGBClassifier(XGBModel, XGBClassifierBase):
@@ -259,7 +295,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         """
-        eval_results = {}
+        evals_result = {}
         self.classes_ = list(np.unique(y))
         self.n_classes_ = len(self.classes_)
         if self.n_classes_ > 2:
@@ -299,13 +335,14 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
-                              evals_result=eval_results, feval=feval,
+                              evals_result=evals_result, feval=feval,
                               verbose_eval=verbose)
 
-        if eval_results:
-            for val in eval_results.items():
-                eval_results[val[0]] = [np.array(v[1], dtype=float) for v in val[1].items()]
-            self.eval_results = eval_results
+        if evals_result:
+            for val in evals_result.items():
+                evals_result_key = val[1].keys()[0]
+                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
+            self.evals_result_ = evals_result
 
         if early_stopping_rounds is not None:
             self.best_score = self._Booster.best_score
@@ -332,6 +369,41 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             classone_probs = class_probs
             classzero_probs = 1.0 - classone_probs
             return np.vstack((classzero_probs, classone_probs)).transpose()
+    
+    def evals_result(self):
+        """Return the evaluation results.
+
+        If eval_set is passed to the `fit` function, you can call evals_result() to 
+        get evaluation results for all passed eval_sets. When eval_metric is also
+        passed to the `fit` function, the evals_result will contain the eval_metrics
+        passed to the `fit` function
+
+        Returns
+        -------
+        evals_result : dictionary
+        
+        Example
+        -------
+        param_dist = {'objective':'binary:logistic', 'n_estimators':2}
+        
+        clf = xgb.XGBClassifier(**param_dist)
+
+        clf.fit(X_train, y_train,
+                eval_set=[(X_train, y_train), (X_test, y_test)], 
+                eval_metric='logloss',
+                verbose=True)
+        
+        evals_result = clf.evals_result()
+        
+        The variable evals_result will contain: 
+        {'validation_0': {'logloss': ['0.604835', '0.531479']}, 'validation_1': {'logloss': ['0.41965', '0.17686']}}
+        """
+        if self.evals_result_:
+            evals_result = self.evals_result_
+        else:
+            raise Error('No results.')
+        
+        return evals_result
 
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
