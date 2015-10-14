@@ -237,7 +237,7 @@ class XGBModel(XGBModelBase):
             evals_result = self.evals_result_
         else:
             raise XGBoostError('No results.')
-        
+
         return evals_result
 
 
@@ -370,7 +370,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             classone_probs = class_probs
             classzero_probs = 1.0 - classone_probs
             return np.vstack((classzero_probs, classone_probs)).transpose()
-    
+
     def evals_result(self):
         """Return the evaluation results.
 
@@ -404,7 +404,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             evals_result = self.evals_result_
         else:
             raise XGBoostError('No results.')
-        
+
         return evals_result
 
 class XGBRegressor(XGBModel, XGBRegressorBase):
