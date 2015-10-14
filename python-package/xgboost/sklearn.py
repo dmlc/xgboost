@@ -203,11 +203,11 @@ class XGBModel(XGBModelBase):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing)
         return self.booster().predict(test_dmatrix)
-    
+
     def evals_result(self):
         """Return the evaluation results.
 
-        If eval_set is passed to the `fit` function, you can call evals_result() to 
+        If eval_set is passed to the `fit` function, you can call evals_result() to
         get evaluation results for all passed eval_sets. When eval_metric is also
         passed to the `fit` function, the evals_result will contain the eval_metrics
         passed to the `fit` function
@@ -215,27 +215,28 @@ class XGBModel(XGBModelBase):
         Returns
         -------
         evals_result : dictionary
-        
+
         Example
         -------
         param_dist = {'objective':'binary:logistic', 'n_estimators':2}
-        
+
         clf = xgb.XGBModel(**param_dist)
 
         clf.fit(X_train, y_train,
-                eval_set=[(X_train, y_train), (X_test, y_test)], 
+                eval_set=[(X_train, y_train), (X_test, y_test)],
                 eval_metric='logloss',
                 verbose=True)
-        
+
         evals_result = clf.evals_result()
-        
-        The variable evals_result will contain: 
-        {'validation_0': {'logloss': ['0.604835', '0.531479']}, 'validation_1': {'logloss': ['0.41965', '0.17686']}}
+
+        The variable evals_result will contain:
+        {'validation_0': {'logloss': ['0.604835', '0.531479']},
+         'validation_1': {'logloss': ['0.41965', '0.17686']}}
         """
         if self.evals_result_:
             evals_result = self.evals_result_
         else:
-            raise Error('No results.')
+            raise XGBoostError('No results.')
         
         return evals_result
 
@@ -373,7 +374,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def evals_result(self):
         """Return the evaluation results.
 
-        If eval_set is passed to the `fit` function, you can call evals_result() to 
+        If eval_set is passed to the `fit` function, you can call evals_result() to
         get evaluation results for all passed eval_sets. When eval_metric is also
         passed to the `fit` function, the evals_result will contain the eval_metrics
         passed to the `fit` function
@@ -381,27 +382,28 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         Returns
         -------
         evals_result : dictionary
-        
+
         Example
         -------
         param_dist = {'objective':'binary:logistic', 'n_estimators':2}
-        
+
         clf = xgb.XGBClassifier(**param_dist)
 
         clf.fit(X_train, y_train,
-                eval_set=[(X_train, y_train), (X_test, y_test)], 
+                eval_set=[(X_train, y_train), (X_test, y_test)],
                 eval_metric='logloss',
                 verbose=True)
-        
+
         evals_result = clf.evals_result()
-        
-        The variable evals_result will contain: 
-        {'validation_0': {'logloss': ['0.604835', '0.531479']}, 'validation_1': {'logloss': ['0.41965', '0.17686']}}
+
+        The variable evals_result will contain:
+        {'validation_0': {'logloss': ['0.604835', '0.531479']},
+         'validation_1': {'logloss': ['0.41965', '0.17686']}}
         """
         if self.evals_result_:
             evals_result = self.evals_result_
         else:
-            raise Error('No results.')
+            raise XGBoostError('No results.')
         
         return evals_result
 
