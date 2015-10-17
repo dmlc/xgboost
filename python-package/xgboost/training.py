@@ -38,7 +38,11 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         If early stopping occurs, the model will have two additional fields:
         bst.best_score and bst.best_iteration.
     evals_result: dict
-        This dictionary stores the evaluation results of all the items in watchlist
+        This dictionary stores the evaluation results of all the items in watchlist.
+        Example: with a watchlist containing [(dtest,'eval'), (dtrain,'train')] and
+        and a paramater containing ('eval_metric', 'logloss')
+        Returns: {'train': {'logloss': ['0.48253', '0.35953']},
+                  'eval': {'logloss': ['0.480385', '0.357756']}}
     verbose_eval : bool
         If `verbose_eval` then the evaluation metric on the validation set, if
         given, is printed at each boosting stage.
@@ -317,4 +321,3 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         results = np.array(results)
 
     return results
-

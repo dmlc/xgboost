@@ -50,3 +50,4 @@ List of Contributors
 * [Hongliang Liu](https://github.com/phunterlau)
   - Hongliang is the maintainer of xgboost python PyPI package for pip installation.
 * [Huayi Zhang](https://github.com/irachex)
+* [Johan Manders](https://github.com/johanmanders)
