@@ -176,7 +176,7 @@ def _maybe_from_pandas(data, label, feature_names, feature_types):
         mapper = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': 'int',
                   'uint8': 'int', 'uint16': 'int', 'uint32': 'int', 'uint64': 'int',
                   'float16': 'float', 'float32': 'float', 'float64': 'float',
-                  'bool': 'int'}
+                  'bool': 'i'}
         feature_types = [mapper[dtype.name] for dtype in data_dtypes]
 
     data = data.values.astype('float')
@@ -215,7 +215,7 @@ class DMatrix(object):
         silent : boolean, optional
             Whether print messages during construction
         feature_names : list, optional
-            Set names for features. 
+            Set names for features.
             When data is a Pandas DataFrame, feature_names will be ignored.
         feature_types : list, optional
             Set types for features.
@@ -583,10 +583,10 @@ class DMatrix(object):
                 msg = 'feature_types must have the same length as data'
                 raise ValueError(msg)
 
-            valid = ('int', 'float')
+            valid = ('int', 'float', 'i', 'q')
             if not all(isinstance(f, STRING_TYPES) and f in valid
                        for f in feature_types):
-                raise ValueError('All feature_names must be {int, float}')
+                raise ValueError('All feature_names must be {int, float, i, q}')
         self._feature_types = feature_types
 
 
