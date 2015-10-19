@@ -388,7 +388,7 @@ class GBTree : public IGradBooster {
   // init thread buffers
   inline void InitThreadTemp(int nthread) {
     int prev_thread_temp_size = thread_temp.size();
-    if(prev_thread_temp_size < nthread) {
+    if (prev_thread_temp_size < nthread) {
       thread_temp.resize(nthread, tree::RegTree::FVec());
       for (int i = prev_thread_temp_size; i < nthread; ++i) {
         thread_temp[i].Init(mparam.num_feature);
