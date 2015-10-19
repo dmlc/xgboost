@@ -138,9 +138,12 @@ class GBTree : public IGradBooster {
     {
       nthread = omp_get_num_threads();
     }
-    thread_temp.resize(nthread, tree::RegTree::FVec());
-    for (int i = 0; i < nthread; ++i) {
-      thread_temp[i].Init(mparam.num_feature);
+    int prev_thread_temp_size = thread_temp.size();
+    if(prev_thread_temp_size < nthread) {
+      thread_temp.resize(nthread, tree::RegTree::FVec());
+      for (int i = prev_thread_temp_size; i < nthread; ++i) {
+        thread_temp[i].Init(mparam.num_feature);
+      }
     }
     std::vector<float> &preds = *out_preds;
     const size_t stride = info.num_row * mparam.num_output_group;
@@ -194,9 +197,12 @@ class GBTree : public IGradBooster {
     {
       nthread = omp_get_num_threads();
     }
-    thread_temp.resize(nthread, tree::RegTree::FVec());
-    for (int i = 0; i < nthread; ++i) {
-      thread_temp[i].Init(mparam.num_feature);
+    int prev_thread_temp_size = thread_temp.size();
+    if(prev_thread_temp_size < nthread) {
+      thread_temp.resize(nthread, tree::RegTree::FVec());
+      for (int i = prev_thread_temp_size; i < nthread; ++i) {
+        thread_temp[i].Init(mparam.num_feature);
+      }
     }
     this->PredPath(p_fmat, info, out_preds, ntree_limit);
   }
