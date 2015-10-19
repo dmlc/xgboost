@@ -138,13 +138,7 @@ class GBTree : public IGradBooster {
     {
       nthread = omp_get_num_threads();
     }
-    int prev_thread_temp_size = thread_temp.size();
-    if(prev_thread_temp_size < nthread) {
-      thread_temp.resize(nthread, tree::RegTree::FVec());
-      for (int i = prev_thread_temp_size; i < nthread; ++i) {
-        thread_temp[i].Init(mparam.num_feature);
-      }
-    }
+    InitThreadTemp(nthread);
     std::vector<float> &preds = *out_preds;
     const size_t stride = info.num_row * mparam.num_output_group;
     preds.resize(stride * (mparam.size_leaf_vector+1));
@@ -197,13 +191,7 @@ class GBTree : public IGradBooster {
     {
       nthread = omp_get_num_threads();
     }
-    int prev_thread_temp_size = thread_temp.size();
-    if(prev_thread_temp_size < nthread) {
-      thread_temp.resize(nthread, tree::RegTree::FVec());
-      for (int i = prev_thread_temp_size; i < nthread; ++i) {
-        thread_temp[i].Init(mparam.num_feature);
-      }
-    }
+    InitThreadTemp(nthread);
     this->PredPath(p_fmat, info, out_preds, ntree_limit);
   }
   virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
@@ -394,6 +382,16 @@ class GBTree : public IGradBooster {
           preds[ridx * ntree_limit + j] = static_cast<float>(tid);
         }
         feats.Drop(batch[i]);
+      }
+    }
+  }
+  // init thread buffers
+  inline void InitThreadTemp(int nthread) {
+    int prev_thread_temp_size = thread_temp.size();
+    if(prev_thread_temp_size < nthread) {
+      thread_temp.resize(nthread, tree::RegTree::FVec());
+      for (int i = prev_thread_temp_size; i < nthread; ++i) {
+        thread_temp[i].Init(mparam.num_feature);
       }
     }
   }
