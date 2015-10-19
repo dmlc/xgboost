@@ -4,10 +4,9 @@ from __future__ import absolute_import
 import sys
 import os
 from setuptools import setup, find_packages
-import subprocess
+#import subprocess
 sys.path.insert(0, '.')
 
-import os
 #build on the fly if install in pip
 #otherwise, use build.sh in the parent directory
 
@@ -55,7 +54,7 @@ setup(name='xgboost',
       #this will use MANIFEST.in during install where we specify additional files,
       #this is the golden line
       include_package_data=True,
-      #!!! don't use data_files, otherwise install_data process will copy it to 
+      #!!! don't use data_files, otherwise install_data process will copy it to
       #root directory for some machines, and cause confusions on building
       #data_files=[('xgboost', LIB_PATH)],
       url='https://github.com/dmlc/xgboost')
