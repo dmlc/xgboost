@@ -72,7 +72,8 @@ struct TrainParam{
     opt_dense_col = 1.0f;
     nthread = 0;
     size_leaf_vector = 0;
-    parallel_option = 2;
+    // enforce parallel option to 0 for now, investigate the other strategy
+    parallel_option = 0;
     sketch_eps = 0.1f;
     sketch_ratio = 2.0f;
     cache_opt = 1;
