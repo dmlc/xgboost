@@ -1,9 +1,8 @@
 Tutorial
-=====
+========
 This is rabit's tutorial, a ***Reliable Allreduce and Broadcast Interface***.
+All the example codes are in the [guide](https://github.com/dmlc/rabit/blob/master/guide/) folder of the project.
 To run the examples locally, you will need to build them with ```make```.
-
-Please also refer to the [API Documentation](http://homes.cs.washington.edu/~tqchen/rabit/doc) for further details.
 
 **List of Topics**
 * [What is Allreduce](#what-is-allreduce)
@@ -20,9 +19,9 @@ Please also refer to the [API Documentation](http://homes.cs.washington.edu/~tqc
 * [Fault Tolerance](#fault-tolerance)
 
 What is Allreduce
-=====
+-----------------
 The main methods provided by rabit are Allreduce and Broadcast. Allreduce performs reduction across different computation nodes,
-and returns the result to every node. To understand the behavior of the function, consider the following example in [basic.cc](basic.cc) (there is a python example right after this if you are more familiar with python).
+and returns the result to every node. To understand the behavior of the function, consider the following example in [basic.cc](../guide/basic.cc) (there is a python example right after this if you are more familiar with python).
 ```c++
 #include <rabit.h>
 using namespace rabit;
@@ -32,7 +31,7 @@ int main(int argc, char *argv[]) {
   rabit::Init(argc, argv);
   for (int i = 0; i < N; ++i) {
     a[i] = rabit::GetRank() + i;
-  } 
+  }
   printf("@node[%d] before-allreduce: a={%d, %d, %d}\n",
          rabit::GetRank(), a[0], a[1], a[2]);
   // allreduce take max of each elements in all processes
@@ -42,7 +41,7 @@ int main(int argc, char *argv[]) {
   // second allreduce that sums everything up
   Allreduce<op::Sum>(&a[0], N);
   printf("@node[%d] after-allreduce-sum: a={%d, %d, %d}\n",
-         rabit::GetRank(), a[0], a[1], a[2]);  
+         rabit::GetRank(), a[0], a[1], a[2]);
   rabit::Finalize();
   return 0;
 }
@@ -55,7 +54,7 @@ starts the rabit program with two worker processes.
 This will start two processes, one process with rank 0 and the other with rank 1, both processes run the same code.
 The ```rabit::GetRank()``` function returns the rank of current process.
 
-Before the call to Allreduce, process 0 contains the array ```a = {0, 1, 2}```, while process 1 has the array 
+Before the call to Allreduce, process 0 contains the array ```a = {0, 1, 2}```, while process 1 has the array
 ```a = {1, 2, 3}```. After the call to Allreduce, the array contents in all processes are replaced by the
 reduction result (in this case, the maximum value in each position across all the processes). So, after the
 Allreduce call, the result will become ```a = {1, 2, 3}```.
@@ -63,7 +62,7 @@ Rabit provides different reduction operators, for example,  if you change ```op:
 the reduction operation will be a summation, and the result will become ```a = {1, 3, 5}```.
 You can also run the example with different processes by setting -n to different values.
 
-If you are more familiar with python, you can also use rabit in python. The same example as before can be found in [basic.py](basic.py):
+If you are more familiar with python, you can also use rabit in python. The same example as before can be found in [basic.py](../guide/basic.py):
 
 ```python
 import numpy as np
@@ -75,7 +74,7 @@ rank = rabit.get_rank()
 a = np.zeros(n)
 for i in xrange(n):
     a[i] = rank + i
-    
+
 print '@node[%d] before-allreduce: a=%s' % (rank, str(a))
 a = rabit.allreduce(a, rabit.MAX)
 print '@node[%d] after-allreduce-max: a=%s' % (rank, str(a))
@@ -89,7 +88,7 @@ You can run the program using the following command
 ```
 
 Broadcast is another method provided by rabit besides Allreduce. This function allows one node to broadcast its
-local data to all other nodes. The following code in [broadcast.cc](broadcast.cc) broadcasts a string from
+local data to all other nodes. The following code in [broadcast.cc](../guide/broadcast.cc) broadcasts a string from
 node 0 to all other nodes.
 ```c++
 #include <rabit.h>
@@ -115,7 +114,7 @@ The following command starts the program with three worker processes.
 ```
 Besides strings, rabit also allows to broadcast constant size array and vectors.
 
-The counterpart in python can be found in [broadcast.py](broadcast.py). Here is a snippet so that you can get a better sense of how simple is to use the python library:
+The counterpart in python can be found in [broadcast.py](../guide/broadcast.py). Here is a snippet so that you can get a better sense of how simple is to use the python library:
 
 ```python
 import rabit
@@ -132,7 +131,7 @@ rabit.finalize()
 ```
 
 Common Use Case
-=====
+---------------
 Many distributed machine learning algorithms involve splitting the data into different nodes,
 computing statistics locally, and finally aggregating them. Such workflow is usually done repetitively through many iterations before the algorithm converges. Allreduce naturally meets the structure of such programs,
 common use cases include:
@@ -144,7 +143,7 @@ common use cases include:
 Rabit is a reliable and portable library for distributed machine learning programs, that allow programs to run reliably on different platforms.
 
 Use Rabit API
-====
+-------------
 This section introduces topics about how to use rabit API.
 You can always refer to [API Documentation](http://homes.cs.washington.edu/~tqchen/rabit/doc) for definition of each functions.
 This section trys to gives examples of different aspectes of rabit API.
@@ -178,16 +177,16 @@ int main(int argc, char *argv[]) {
 ```
 
 Besides the common Allreduce and Broadcast functions, there are two additional functions: ```LoadCheckPoint```
-and ```CheckPoint```. These two functions are used for fault-tolerance purposes. 
+and ```CheckPoint```. These two functions are used for fault-tolerance purposes.
 As mentioned before, traditional machine learning programs involve several iterations. In each iteration, we start with a model, make some calls
 to Allreduce or Broadcast and update the model. The calling sequence in each iteration does not need to be the same.
 
 * When the nodes start from the beginning (i.e. iteration 0), ```LoadCheckPoint``` returns 0, so we can initialize the model.
 * ```CheckPoint``` saves the model after each iteration.
   - Efficiency Note: the model is only kept in local memory and no save to disk is performed when calling Checkpoint
-* When a node goes down and restarts, ```LoadCheckPoint``` will recover the latest saved model, and 
-* When a node goes down, the rest of the nodes will block in the call of Allreduce/Broadcast and wait for 
-  the recovery of the failed node until it catches up. 
+* When a node goes down and restarts, ```LoadCheckPoint``` will recover the latest saved model, and
+* When a node goes down, the rest of the nodes will block in the call of Allreduce/Broadcast and wait for
+  the recovery of the failed node until it catches up.
 
 Please see the [Fault Tolerance](#fault-tolerance) section to understand the recovery procedure executed by rabit.
 
@@ -202,8 +201,8 @@ into the data buffer, pass the data to Allreduce function, and get the reduced r
 from failure, we can directly recover the result from other nodes(see also [Fault Tolerance](#fault-tolerance)) and
 the data preparation procedure no longer necessary. Rabit Allreduce add an optional parameter preparation function
 to support such scenario. User can pass in a function that corresponds to the data preparation procedure to Allreduce
-calls, and the data preparation function will only be called when necessary. We use [lazy_allreduce.cc](lazy_allreduce.cc)
-as an example to demonstrate this feature. It is modified from [basic.cc](basic.cc), and you can compare the two codes.
+calls, and the data preparation function will only be called when necessary. We use [lazy_allreduce.cc](../guide/lazy_allreduce.cc)
+as an example to demonstrate this feature. It is modified from [basic.cc](../guide/basic.cc), and you can compare the two codes.
 ```c++
 #include <rabit.h>
 using namespace rabit;
@@ -216,18 +215,18 @@ int main(int argc, char *argv[]) {
     printf("@node[%d] run prepare function\n", rabit::GetRank());
     for (int i = 0; i < N; ++i) {
       a[i] = rabit::GetRank() + i;
-    } 
+    }
   };
   printf("@node[%d] before-allreduce: a={%d, %d, %d}\n",
          rabit::GetRank(), a[0], a[1], a[2]);
   // allreduce take max of each elements in all processes
-  Allreduce<op::Max>(&a[0], N, prepare);  
+  Allreduce<op::Max>(&a[0], N, prepare);
   printf("@node[%d] after-allreduce-sum: a={%d, %d, %d}\n",
-         rabit::GetRank(), a[0], a[1], a[2]);  
+         rabit::GetRank(), a[0], a[1], a[2]);
   // rum second allreduce
   Allreduce<op::Sum>(&a[0], N);
   printf("@node[%d] after-allreduce-max: a={%d, %d, %d}\n",
-         rabit::GetRank(), a[0], a[1], a[2]);  
+         rabit::GetRank(), a[0], a[1], a[2]);
   rabit::Finalize();
   return 0;
 }
@@ -242,7 +241,7 @@ the effect when a process goes down. You can run the program using the following
 The additional arguments ```mock=0,0,1,0``` will cause node 0 to kill itself before second call of Allreduce (see also [mock test](#link-against-mock-test-rabit-library)).
 You will find that the prepare function's print is only executed once and node 0 will no longer execute the preparation function when it restarts from failure.
 
-You can also find python version of the example in [lazy_allreduce.py](lazy_allreduce.py), and run it using the followin command
+You can also find python version of the example in [lazy_allreduce.py](../guide/lazy_allreduce.py), and run it using the followin command
 ```bash
 ../tracker/rabit_demo.py -n 2 lazy_allreduce.py mock=0,0,1,0
 
@@ -250,8 +249,8 @@ You can also find python version of the example in [lazy_allreduce.py](lazy_allr
 
 Since lazy preparation function may not be called during execution. User should be careful when using this feature. For example, a possible mistake
 could be putting some memory allocation code in the lazy preparation function, and the computing memory was not allocated when lazy preparation function is not called.
-The example in [lazy_allreduce.cc](lazy_allreduce.cc) provides a simple way to migrate normal prepration code([basic.cc](basic.cc)) to lazy version: wrap the preparation
-code with a lambda function, and pass it to allreduce. 
+The example in [lazy_allreduce.cc](../guide/lazy_allreduce.cc) provides a simple way to migrate normal prepration code([basic.cc](../guide/basic.cc)) to lazy version: wrap the preparation
+code with a lambda function, and pass it to allreduce.
 
 #### Checkpoint and LazyCheckpoint
 Common machine learning algorithms usually involves iterative computation. As mentioned in the section ([Structure of a Rabit Program](#structure-of-a-rabit-program)),
@@ -263,9 +262,9 @@ There are two model arguments you can pass to Checkpoint and LoadCheckpoint: ```
 * ```local_model``` refers to the model that is specifically tied to the current node
   - For example, in topic modeling, the topic assignments of subset of documents in current node is local model
 
-Because the different nature of the two types of models, different strategy will be used for them. 
+Because the different nature of the two types of models, different strategy will be used for them.
 ```global_model``` is simply saved in local memory of each node, while ```local_model``` will replicated to some other
-nodes (selected using a ring replication strategy). The checkpoint is only saved in the memory without touching the disk which makes rabit programs more efficient. 
+nodes (selected using a ring replication strategy). The checkpoint is only saved in the memory without touching the disk which makes rabit programs more efficient.
 User is encouraged to use ```global_model``` only when is sufficient for better efficiency.
 
 To enable a model class to be checked pointed, user can implement a [serialization interface](../include/rabit_serialization.h). The serialization interface already
@@ -287,7 +286,7 @@ improve the efficiency of the program.
 
 
 Compile Programs with Rabit
-====
+---------------------------
 Rabit is a portable library, to use it, you only need to include the rabit header file.
 * You will need to add the path to [../include](../include) to the header search path of the compiler
   - Solution 1: add ```-I/path/to/rabit/include``` to the compiler flag in gcc or clang
@@ -333,27 +332,27 @@ For example, consider the following script in the test case
   - Note that ndeath = 1 means this will happen only if node 1 died once, which is our case
 
 Running Rabit Jobs
-====
-Rabit is a portable library that can run on multiple platforms. 
+------------------
+Rabit is a portable library that can run on multiple platforms.
 
 #### Running Rabit Locally
-* You can use [../tracker/rabit_demo.py](../tracker/rabit_demo.py) to start n processes locally
+* You can use [../tracker/rabit_demo.py](https://github.com/dmlc/rabit/blob/master/tracker/rabit_demo.py) to start n processes locally
 * This script will restart the program when it exits with -2, so it can be used for [mock test](#link-against-mock-test-library)
 
 #### Running Rabit on Hadoop
-* You can use [../tracker/rabit_yarn.py](../tracker/rabit_yarn.py) to run rabit programs as Yarn application
+* You can use [../tracker/rabit_yarn.py](https://github.com/dmlc/rabit/blob/master/tracker/rabit_yarn.py) to run rabit programs as Yarn application
 * This will start rabit programs as yarn applications
   - This allows multi-threading programs in each node, which can be more efficient
   - An easy multi-threading solution could be to use OpenMP with rabit code
 * It is also possible to run rabit program via hadoop streaming, however, YARN is highly recommended.
 
 #### Running Rabit using MPI
-* You can submit rabit programs to an MPI cluster using [../tracker/rabit_mpi.py](../tracker/rabit_mpi.py).
+* You can submit rabit programs to an MPI cluster using [../tracker/rabit_mpi.py](https://github.com/dmlc/rabit/blob/master/tracker/rabit_mpi.py).
 * If you linked your code against librabit_mpi.a, then you can directly use mpirun to submit the job
 
 #### Customize Tracker Script
 You can also modify the tracker script to allow rabit to run on other platforms. To do so, refer to existing
-tracker scripts, such as [../tracker/rabit_hadoop.py](../tracker/rabit_hadoop.py) and [../tracker/rabit_mpi.py](../tracker/rabit_mpi.py) to get a sense of how it is done.
+tracker scripts, such as [../tracker/rabit_yarn.py](../tracker/rabit_yarn.py) and [../tracker/rabit_mpi.py](https://github.com/dmlc/rabit/blob/master/tracker/rabit_mpi.py) to get a sense of how it is done.
 
 You will need to implement a platform dependent submission function with the following definition
 ```python
@@ -376,7 +375,7 @@ Note that the current rabit tracker does not restart a worker when it dies, the 
   - rabit-yarn provides such functionality in YARN
 
 Fault Tolerance
-=====
+---------------
 This section introduces how fault tolerance works in rabit.
 The following figure shows how rabit deals with failures.
 

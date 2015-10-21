@@ -3,7 +3,7 @@
  * \file engine.cc
  * \brief this file governs which implementation of engine we are actually using
  *  provides an singleton of engine interface
- *   
+ *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #define _CRT_SECURE_NO_WARNINGS
@@ -60,7 +60,7 @@ void Allreduce_(void *sendrecvbuf,
 }
 
 // code for reduce handle
-ReduceHandle::ReduceHandle(void) 
+ReduceHandle::ReduceHandle(void)
   : handle_(NULL), redfunc_(NULL), htype_(NULL) {
 }
 ReduceHandle::~ReduceHandle(void) {}

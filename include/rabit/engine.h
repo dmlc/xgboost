@@ -183,7 +183,9 @@ enum DataType {
   kLong = 4,
   kULong = 5,
   kFloat = 6,
-  kDouble = 7
+  kDouble = 7,
+  kLongLong = 8,
+  kULongLong = 9
 };
 }  // namespace mpi
 /*!
