@@ -24,6 +24,7 @@ AllreduceBase::AllreduceBase(void) {
   nport_trial = 1000;
   rank = 0;
   world_size = -1;
+  connect_retry = 5;
   hadoop_mode = 0;
   version_number = 0;
   // 32 K items
@@ -46,6 +47,7 @@ AllreduceBase::AllreduceBase(void) {
   env_vars.push_back("DMLC_NUM_ATTEMPT");
   env_vars.push_back("DMLC_TRACKER_URI");
   env_vars.push_back("DMLC_TRACKER_PORT");
+  env_vars.push_back("DMLC_WORKER_CONNECT_RETRY");
 }
 
 // initialization function
@@ -175,6 +177,9 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "rabit_reduce_buffer")) {
     reduce_buffer_size = (ParseUnit(name, val) + 7) >> 3;
   }
+  if (!strcmp(name, "DMLC_WORKER_CONNECT_RETRY")) {
+    connect_retry = atoi(val);
+  }
 }
 /*!
  * \brief initialize connection to the tracker
@@ -185,9 +190,23 @@ utils::TCPSocket AllreduceBase::ConnectTracker(void) const {
   // get information from tracker
   utils::TCPSocket tracker;
   tracker.Create();
-  if (!tracker.Connect(utils::SockAddr(tracker_uri.c_str(), tracker_port))) {
-    utils::Socket::Error("Connect");
-  }
+
+  int retry = 0;
+  do {
+    fprintf(stderr, "connect to ip: [%s]\n", tracker_uri.c_str());
+    if (!tracker.Connect(utils::SockAddr(tracker_uri.c_str(), tracker_port))) {
+      if (++retry >= connect_retry) {
+        fprintf(stderr, "connect to (failed): [%s]\n", tracker_uri.c_str());
+        utils::Socket::Error("Connect");
+      } else {
+        fprintf(stderr, "retry connect to ip(retry time %d): [%s]\n", retry, tracker_uri.c_str());
+        sleep(1);
+        continue;
+      }
+    }
+    break;
+  } while (1);
+
   using utils::Assert;
   Assert(tracker.SendAll(&magic, sizeof(magic)) == sizeof(magic),
          "ReConnectLink failure 1");
