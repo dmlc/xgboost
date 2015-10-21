@@ -51,7 +51,7 @@ struct SockAddr {
     utils::Check(gethostname(&buf[0], 256) != -1, "fail to get host name");
     return std::string(buf.c_str());
   }
-  /*! 
+  /*!
    * \brief set the address
    * \param url the url of the address
    * \param port the port of address
@@ -83,7 +83,7 @@ struct SockAddr {
   }
 };
 
-/*! 
+/*!
  * \brief base class containing common operations of TCP and UDP sockets
  */
 class Socket {
@@ -110,15 +110,15 @@ class Socket {
     }
 #endif
   }
-  /*! 
+  /*!
    * \brief shutdown the socket module after use, all sockets need to be closed
-   */  
+   */
   inline static void Finalize(void) {
 #ifdef _WIN32
     WSACleanup();
 #endif
   }
-  /*! 
+  /*!
    * \brief set this socket to use non-blocking mode
    * \param non_block whether set it to be non-block, if it is false
    *        it will set it back to block mode
@@ -144,8 +144,8 @@ class Socket {
     }
 #endif
   }
-  /*! 
-   * \brief bind the socket to an address 
+  /*!
+   * \brief bind the socket to an address
    * \param addr
    */
   inline void Bind(const SockAddr &addr) {
@@ -154,7 +154,7 @@ class Socket {
       Socket::Error("Bind");
     }
   }
-  /*! 
+  /*!
    * \brief try bind the socket to host, from start_port to end_port
    * \param start_port starting port number to try
    * \param end_port ending port number to try
@@ -170,7 +170,7 @@ class Socket {
       }
 #if defined(_WIN32)
 	  if (WSAGetLastError() != WSAEADDRINUSE) {
-        Socket::Error("TryBindHost");	  
+        Socket::Error("TryBindHost");
 	  }
 #else
 	  if (errno != EADDRINUSE) {
@@ -225,7 +225,7 @@ class Socket {
   }
 };
 
-/*! 
+/*!
  * \brief a wrapper of TCP socket that hopefully be cross platform
  */
 class TCPSocket : public Socket{
@@ -238,7 +238,7 @@ class TCPSocket : public Socket{
   /*!
    * \brief enable/disable TCP keepalive
    * \param keepalive whether to set the keep alive option on
-   */  
+   */
   inline void SetKeepAlive(bool keepalive) {
     int opt = static_cast<int>(keepalive);
     if (setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, reinterpret_cast<char*>(&opt), sizeof(opt)) < 0) {
@@ -259,7 +259,7 @@ class TCPSocket : public Socket{
    * \brief perform listen of the socket
    * \param backlog backlog parameter
    */
-  inline void Listen(int backlog = 16) {
+  inline void Listen(int backlog = 128) {
     listen(sockfd, backlog);
   }
   /*! \brief get a new connection */
@@ -271,7 +271,7 @@ class TCPSocket : public Socket{
     return TCPSocket(newfd);
   }
   /*!
-   * \brief decide whether the socket is at OOB mark 
+   * \brief decide whether the socket is at OOB mark
    * \return 1 if at mark, 0 if not, -1 if an error occured
    */
   inline int AtMark(void) const {
@@ -284,8 +284,8 @@ class TCPSocket : public Socket{
 #endif
     return static_cast<int>(atmark);
   }
-  /*! 
-   * \brief connect to an address 
+  /*!
+   * \brief connect to an address
    * \param addr the address to connect to
    * \return whether connect is successful
    */
@@ -305,8 +305,8 @@ class TCPSocket : public Socket{
     const char *buf = reinterpret_cast<const char*>(buf_);
     return send(sockfd, buf, static_cast<sock_size_t>(len), flag);
   }
-  /*! 
-   * \brief receive data using the socket 
+  /*!
+   * \brief receive data using the socket
    * \param buf_ the pointer to the buffer
    * \param len the size of the buffer
    * \param flags extra flags
@@ -362,7 +362,7 @@ class TCPSocket : public Socket{
     return ndone;
   }
   /*!
-   * \brief send a string over network 
+   * \brief send a string over network
    * \param str the string to be sent
    */
   inline void SendStr(const std::string &str) {
@@ -400,7 +400,7 @@ struct SelectHelper {
     maxfd = 0;
   }
   /*!
-   * \brief add file descriptor to watch for read 
+   * \brief add file descriptor to watch for read
    * \param fd file descriptor to be watched
    */
   inline void WatchRead(SOCKET fd) {
@@ -463,7 +463,7 @@ struct SelectHelper {
    * \param select_write whether to watch for write event
    * \param select_except whether to watch for exception event
    * \param timeout specify timeout in micro-seconds(ms) if equals 0, means select will always block
-   * \return number of active descriptors selected, 
+   * \return number of active descriptors selected,
    *         return -1 if error occurs
    */
   inline int Select(long timeout = 0) {
