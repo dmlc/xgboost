@@ -4,8 +4,8 @@
  * \brief utilities with different serializable implementations
  * \author Tianqi Chen
  */
-#ifndef RABIT_UTILS_IO_H_
-#define RABIT_UTILS_IO_H_
+#ifndef RABIT_IO_H_
+#define RABIT_IO_H_
 #include <cstdio>
 #include <vector>
 #include <cstring>
@@ -51,6 +51,7 @@ struct MemoryFixSizeBuffer : public SeekStream {
   virtual bool AtEnd(void) const {
     return curr_ptr_ == buffer_size_;
   }
+
  private:
   /*! \brief in memory buffer */
   char *p_buffer_;
@@ -93,6 +94,7 @@ struct MemoryBufferStream : public SeekStream {
   virtual bool AtEnd(void) const {
     return curr_ptr_ == p_buffer_->length();
   }
+
  private:
   /*! \brief in memory buffer */
   std::string *p_buffer_;
@@ -101,4 +103,4 @@ struct MemoryBufferStream : public SeekStream {
 };  // class MemoryBufferStream
 }  // namespace utils
 }  // namespace rabit
-#endif  // RABIT_UTILS_IO_H_
+#endif  // RABIT_IO_H_

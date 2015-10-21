@@ -5,11 +5,17 @@
  *
  * \author Tianqi Chen
  */
+#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_DEPRECATE
+#include <vector>
 #include <rabit.h>
 using namespace rabit;
-const int N = 3;
 int main(int argc, char *argv[]) {
-  int a[N];
+  int N = 3;
+  if (argc > 1) {
+    N = atoi(argv[1]);
+  }
+  std::vector<int> a(N);
   rabit::Init(argc, argv);
   for (int i = 0; i < N; ++i) {
     a[i] = rabit::GetRank() + i;

@@ -5,7 +5,7 @@
  *   using TCP non-block socket and tree-shape reduction.
  *
  *   This implementation considers the failure of nodes
- *   
+ *
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #ifndef RABIT_ALLREDUCE_ROBUST_H_
@@ -28,13 +28,13 @@ class AllreduceRobust : public AllreduceBase {
   /*! \brief shutdown the engine */
   virtual void Shutdown(void);
   /*!
-   * \brief set parameters to the engine 
+   * \brief set parameters to the engine
    * \param name parameter name
    * \param val parameter value
    */
   virtual void SetParam(const char *name, const char *val);
   /*!
-   * \brief perform in-place allreduce, on sendrecvbuf 
+   * \brief perform in-place allreduce, on sendrecvbuf
    *        this function is NOT thread-safe
    * \param sendrecvbuf_ buffer for both sending and recving data
    * \param type_nbytes the unit number of bytes the type have
@@ -69,14 +69,14 @@ class AllreduceRobust : public AllreduceBase {
    * \return the version number of check point loaded
    *     if returned version == 0, this means no model has been CheckPointed
    *     the p_model is not touched, user should do necessary initialization by themselves
-   *   
+   *
    *   Common usage example:
    *      int iter = rabit::LoadCheckPoint(&model);
    *      if (iter == 0) model.InitParameters();
    *      for (i = iter; i < max_iter; ++i) {
    *        do many things, include allreduce
    *        rabit::CheckPoint(model);
-   *      } 
+   *      }
    *
    * \sa CheckPoint, VersionNumber
    */
@@ -85,7 +85,7 @@ class AllreduceRobust : public AllreduceBase {
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
    *  every time we call check point, there is a version number which will increase by one
-   * 
+   *
    * \param global_model pointer to the globally shared model/state
    *   when calling this function, the caller need to gauranttees that global_model
    *   is the same in all nodes
@@ -105,16 +105,16 @@ class AllreduceRobust : public AllreduceBase {
   /*!
    * \brief This function can be used to replace CheckPoint for global_model only,
    *   when certain condition is met(see detailed expplaination).
-   * 
+   *
    *   This is a "lazy" checkpoint such that only the pointer to global_model is
    *   remembered and no memory copy is taken. To use this function, the user MUST ensure that:
    *   The global_model must remain unchanged util last call of Allreduce/Broadcast in current version finishs.
-   *   In another words, global_model model can be changed only between last call of 
+   *   In another words, global_model model can be changed only between last call of
    *   Allreduce/Broadcast and LazyCheckPoint in current version
-   *   
+   *
    *   For example, suppose the calling sequence is:
    *   LazyCheckPoint, code1, Allreduce, code2, Broadcast, code3, LazyCheckPoint
-   *   
+   *
    *   If user can only changes global_model in code3, then LazyCheckPoint can be used to
    *   improve efficiency of the program.
    * \param global_model pointer to the globally shared model/state
@@ -287,6 +287,7 @@ class AllreduceRobust : public AllreduceBase {
       if (seqno_.size() == 0) return -1;
       return seqno_.back();
     }
+
    private:
     // sequence number of each
     std::vector<int> seqno_;
@@ -301,14 +302,14 @@ class AllreduceRobust : public AllreduceBase {
    * \brief internal consistency check function,
    *  use check to ensure user always call CheckPoint/LoadCheckPoint
    *  with or without local but not both, this function will set the approperiate settings
-   *  in the first call of LoadCheckPoint/CheckPoint 
+   *  in the first call of LoadCheckPoint/CheckPoint
    *
    * \param with_local whether the user calls CheckPoint with local model
    */
   void LocalModelCheck(bool with_local);
   /*!
    * \brief internal implementation of checkpoint, support both lazy and normal way
-   * 
+   *
    * \param global_model pointer to the globally shared model/state
    *   when calling this function, the caller need to gauranttees that global_model
    *   is the same in all nodes
@@ -326,10 +327,10 @@ class AllreduceRobust : public AllreduceBase {
    *  after this function finishes, all the messages received and sent
    *  before in all live links are discarded,
    *  This allows us to get a fresh start after error has happened
-   *    
+   *
    *  TODO(tqchen): this function is not yet functioning was not used by engine,
    *   simple resetlink and reconnect strategy is used
-   * 
+   *
    * \return this function can return kSuccess or kSockError
    *         when kSockError is returned, it simply means there are bad sockets in the links,
    *         and some link recovery proceduer is needed
@@ -340,7 +341,7 @@ class AllreduceRobust : public AllreduceBase {
    *         recover links according to the error type reported
    *        if there is no error, return true
    * \param err_type the type of error happening in the system
-   * \return true if err_type is kSuccess, false otherwise 
+   * \return true if err_type is kSuccess, false otherwise
    */
   bool CheckAndRecover(ReturnType err_type);
   /*!
@@ -355,7 +356,7 @@ class AllreduceRobust : public AllreduceBase {
    * \param seqno sequence number of the action, if it is special action with flag set,
    *        seqno needs to be set to ActionSummary::kSpecialOp
    *
-   * \return if this function can return true or false 
+   * \return if this function can return true or false
    *    - true means buf already set to the
    *           result by recovering procedure, the action is complete, no further action is needed
    *    - false means this is the lastest action that has not yet been executed, need to execute the action
@@ -364,7 +365,7 @@ class AllreduceRobust : public AllreduceBase {
                    int seqno = ActionSummary::kSpecialOp);
   /*!
    * \brief try to load check point
-   *        
+   *
    *        This is a collaborative function called by all nodes
    *        only the nodes with requester set to true really needs to load the check point
    *        other nodes acts as collaborative roles to complete this request
@@ -395,7 +396,7 @@ class AllreduceRobust : public AllreduceBase {
    * \param p_size used to store the size of the message, for node in state kHaveData,
    *               this size must be set correctly before calling the function
    *               for others, this surves as output parameter
-   
+
    * \param p_recvlink used to store the link current node should recv data from, if necessary
    *          this can be -1, which means current node have the data
    * \param p_req_in used to store the resulting vector, indicating which link we should send the data to
@@ -432,7 +433,7 @@ class AllreduceRobust : public AllreduceBase {
    *        plus replication of states in previous num_local_replica hops in the ring
    *
    * The input parameters must contain the valid local states available in current nodes,
-   * This function try ist best to "complete" the missing parts of local_rptr and local_chkpt 
+   * This function try ist best to "complete" the missing parts of local_rptr and local_chkpt
    * If there is sufficient information in the ring, when the function returns, local_chkpt will
    * contain num_local_replica + 1 checkpoints (including the chkpt of this node)
    * If there is no sufficient information in the ring, this function the number of checkpoints
@@ -487,7 +488,7 @@ o   *  the input state must exactly one saved state(local state of current node)
                          LinkRecord *read_link,
                          LinkRecord *write_link);
   /*!
-   * \brief run message passing algorithm on the allreduce tree 
+   * \brief run message passing algorithm on the allreduce tree
    *        the result is edge message stored in p_edge_in and p_edge_out
    * \param node_value the value associated with current node
    * \param p_edge_in used to store input message from each of the edge
@@ -509,7 +510,7 @@ o   *  the input state must exactly one saved state(local state of current node)
   inline ReturnType MsgPassing(const NodeType &node_value,
                                std::vector<EdgeType> *p_edge_in,
                                std::vector<EdgeType> *p_edge_out,
-                               EdgeType (*func)
+                               EdgeType(*func)
                                (const NodeType &node_value,
                                 const std::vector<EdgeType> &edge_in,
                                 size_t out_index));
