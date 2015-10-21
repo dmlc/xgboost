@@ -16,7 +16,7 @@ if False:
     if not os.name == 'nt': #if not windows
         os.system('sh ./xgboost/build-python.sh')
     else:
-        print 'Windows users please use github installation.'
+        print('Windows users please use github installation.')
         sys.exit()
 
 
