@@ -519,6 +519,8 @@ class AllreduceBase : public IEngine {
   int rank;
   // world size
   int world_size;
+  // connect retry time
+  int connect_retry;
 };
 }  // namespace engine
 }  // namespace rabit
