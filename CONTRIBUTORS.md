@@ -54,3 +54,4 @@ List of Contributors
   - daiyl0320 contributed patch to xgboost distributed version more robust, and scales stably on TB scale datasets.
 * [Huayi Zhang](https://github.com/irachex)
 * [Johan Manders](https://github.com/johanmanders)
+* [yoori](https://github.com/yoori)
