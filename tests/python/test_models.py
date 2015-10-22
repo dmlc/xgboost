@@ -5,6 +5,8 @@ dpath = 'demo/data/'
 dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
 dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 
+rng = np.random.RandomState(1994)
+
 def test_glm():
 	param = {'silent':1, 'objective':'binary:logistic', 'booster':'gblinear', 'alpha': 0.0001, 'lambda': 1 }
 	watchlist  = [(dtest,'eval'), (dtrain,'train')]
@@ -29,6 +31,8 @@ def test_custom_objective():
 	def evalerror(preds, dtrain):
 		labels = dtrain.get_label()
 		return 'error', float(sum(labels != (preds > 0.0))) / len(labels)
+	
+	# test custom_objective in training
 	bst = xgb.train(param, dtrain, num_round, watchlist, logregobj, evalerror)
 	assert isinstance(bst, xgb.core.Booster)
 	preds = bst.predict(dtest)
@@ -36,4 +40,23 @@ def test_custom_objective():
 	err = sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) / float(len(preds))
 	assert err < 0.1
 
+	# test custom_objective in cross-validation
+	xgb.cv(param, dtrain, num_round, nfold = 5, seed = 0,
+       obj = logregobj, feval=evalerror)
 
+def test_fpreproc():
+	param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic'}
+	num_round = 2
+	def fpreproc(dtrain, dtest, param):
+		label = dtrain.get_label()
+		ratio = float(np.sum(label == 0)) / np.sum(label==1)
+		param['scale_pos_weight'] = ratio
+		return (dtrain, dtest, param)
+	xgb.cv(param, dtrain, num_round, nfold=5,
+       metrics={'auc'}, seed = 0, fpreproc = fpreproc)
+
+def test_show_stdv():
+	param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic'}
+	num_round = 2
+	xgb.cv(param, dtrain, num_round, nfold=5,
+       metrics={'error'}, seed = 0, show_stdv = False)

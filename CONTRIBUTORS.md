@@ -33,8 +33,9 @@ List of Contributors
   - Skipper is the major contributor to the scikit-learn module of xgboost.
 * [Zygmunt Zając](https://github.com/zygmuntz)
   - Zygmunt is the master behind the early stopping feature frequently used by kagglers.
-* [Ajinkya Kale](https://github.com/ajkl)
 * [Yuan Tang](https://github.com/terrytangyuan)
+  - Yuan is the major contributor to unit tests in R and Python. 
+* [Ajinkya Kale](https://github.com/ajkl)
 * [Boliang Chen](https://github.com/cblsjtu)
 * [Vadim Khotilovich](https://github.com/khotilov)
 * [Yangqing Men](https://github.com/yanqingmen)
