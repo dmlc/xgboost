@@ -32,10 +32,10 @@ addons:
       - unzip
       - python-numpy
       - python-scipy
-      - python-sklearn
 
 before_install:
   - scripts/travis_osx_install.sh
+  - scripts/travis_script.sh
   - git clone https://github.com/dmlc/dmlc-core
   - export TRAVIS=dmlc-core/scripts/travis/
   - export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package
