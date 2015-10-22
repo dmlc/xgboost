@@ -190,7 +190,7 @@ class XGBModel(XGBModelBase):
 
         if evals_result:
             for val in evals_result.items():
-                evals_result_key = val[1].keys()[0]
+                evals_result_key = list(val[1].keys())[0]
                 evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
             self.evals_result_ = evals_result
 
@@ -341,7 +341,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         if evals_result:
             for val in evals_result.items():
-                evals_result_key = val[1].keys()[0]
+                evals_result_key = list(val[1].keys())[0]
                 evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
             self.evals_result_ = evals_result
 
