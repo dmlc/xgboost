@@ -11,4 +11,4 @@ def test_early_stopping_nonparallel():
 	clf.fit(X_train, y_train, early_stopping_rounds=10, eval_metric="auc",
 	        eval_set=[(X_test, y_test)])
 
-# todo: parallel test for early stopping
+# TODO: parallel test for early stopping

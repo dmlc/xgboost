@@ -29,7 +29,7 @@ def test_multiclass_classification():
 	    preds = xgb_model.predict(X[test_index])
 	    labels = y[test_index]
 	    err = sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) / float(len(preds))
-	assert err < 0.3
+	assert err < 0.4
 
 def test_boston_housing_regression():
 	boston = load_boston()
@@ -40,7 +40,7 @@ def test_boston_housing_regression():
 	    xgb_model = xgb.XGBRegressor().fit(X[train_index],y[train_index])
 	    preds = xgb_model.predict(X[test_index])
 	    labels = y[test_index]
-	assert mean_squared_error(preds, labels) < 9
+	assert mean_squared_error(preds, labels) < 15
 
 def test_parameter_tuning():
 	boston = load_boston()
