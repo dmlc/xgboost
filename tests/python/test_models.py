@@ -5,6 +5,8 @@ dpath = 'demo/data/'
 dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
 dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 
+rng = np.random.RandomState(1994)
+
 def test_glm():
 	param = {'silent':1, 'objective':'binary:logistic', 'booster':'gblinear', 'alpha': 0.0001, 'lambda': 1 }
 	watchlist  = [(dtest,'eval'), (dtrain,'train')]

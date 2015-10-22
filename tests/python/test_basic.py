@@ -5,6 +5,7 @@ import unittest
 
 
 dpath = 'demo/data/'
+rng = np.random.RandomState(1994)
 
 class TestBasic(unittest.TestCase):
 
