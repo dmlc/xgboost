@@ -78,7 +78,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                     res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
                     for key in evals_name:
                         evals_idx = evals_name.index(key)
-                        res_per_eval = len(res) / len(evals_name)
+                        res_per_eval = len(res) // len(evals_name)
                         for r in range(res_per_eval):
                             res_item = res[(evals_idx*res_per_eval) + r]
                             res_key = res_item[0]
@@ -135,7 +135,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
                 for key in evals_name:
                     evals_idx = evals_name.index(key)
-                    res_per_eval = len(res) / len(evals_name)
+                    res_per_eval = len(res) // len(evals_name)
                     for r in range(res_per_eval):
                         res_item = res[(evals_idx*res_per_eval) + r]
                         res_key = res_item[0]
