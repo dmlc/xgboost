@@ -12,7 +12,7 @@ from .sklearn import XGBModel
 from io import BytesIO
 
 def plot_importance(booster, ax=None, height=0.2,
-                    xlim=None, title='Feature importance',
+                    xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features',
                     grid=True, **kwargs):
 
@@ -28,6 +28,8 @@ def plot_importance(booster, ax=None, height=0.2,
         Bar height, passed to ax.barh()
     xlim : tuple, default None
         Tuple passed to axes.xlim()
+    ylim : tuple, default None
+        Tuple passed to axes.ylim()
     title : str, default "Feature importance"
         Axes title. To disable, pass None.
     xlabel : str, default "F score"
@@ -76,11 +78,18 @@ def plot_importance(booster, ax=None, height=0.2,
     ax.set_yticklabels(labels)
 
     if xlim is not None:
-        if not isinstance(xlim, tuple) or len(xlim, 2):
+        if not isinstance(xlim, tuple) or len(xlim) != 2:
             raise ValueError('xlim must be a tuple of 2 elements')
     else:
         xlim = (0, max(values) * 1.1)
     ax.set_xlim(xlim)
+
+    if ylim is not None:
+        if not isinstance(ylim, tuple) or len(ylim) != 2:
+            raise ValueError('ylim must be a tuple of 2 elements')
+    else:
+        ylim = (-1, len(importance))
+    ax.set_ylim(ylim)
 
     if title is not None:
         ax.set_title(title)
