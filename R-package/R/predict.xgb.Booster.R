@@ -30,8 +30,8 @@ setClass("xgb.Booster",
 #' pred <- predict(bst, test$data)
 #' @export
 #' 
-setMethod("predict", signature = "xgb.Booster", 
-          definition = function(object, newdata, missing = NA, 
+setMethod("predict", signature = "xgb.Booster",
+          definition = function(object, newdata, missing = NA,
                                 outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE) {
   if (class(object) != "xgb.Booster"){
     stop("predict: model in prediction must be of class xgb.Booster")
@@ -55,7 +55,7 @@ setMethod("predict", signature = "xgb.Booster",
   if (predleaf) {
     option <- option + 2
   }
-  ret <- .Call("XGBoosterPredict_R", object$handle, newdata, as.integer(option), 
+  ret <- .Call("XGBoosterPredict_R", object$handle, newdata, as.integer(option),
                as.integer(ntreelimit), PACKAGE = "xgboost")
   if (predleaf){
       len <- getinfo(newdata, "nrow")
@@ -68,4 +68,3 @@ setMethod("predict", signature = "xgb.Booster",
   }
   return(ret)
 })
-

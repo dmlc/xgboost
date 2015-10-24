@@ -17,28 +17,28 @@ xgb.setinfo <- function(dmat, name, info) {
   if (name == "label") {
     if (length(info)!=xgb.numrow(dmat))
       stop("The length of labels must equal to the number of rows in the input data")
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info), 
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info),
           PACKAGE = "xgboost")
     return(TRUE)
   }
   if (name == "weight") {
     if (length(info)!=xgb.numrow(dmat))
       stop("The length of weights must equal to the number of rows in the input data")
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info), 
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info),
           PACKAGE = "xgboost")
     return(TRUE)
   }
   if (name == "base_margin") {
     # if (length(info)!=xgb.numrow(dmat))
     #   stop("The length of base margin must equal to the number of rows in the input data")
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info), 
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info),
           PACKAGE = "xgboost")
     return(TRUE)
   }
   if (name == "group") {
     if (sum(info)!=xgb.numrow(dmat))
       stop("The sum of groups must equal to the number of rows in the input data")
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.integer(info), 
+    .Call("XGDMatrixSetInfo_R", dmat, name, as.integer(info),
           PACKAGE = "xgboost")
     return(TRUE)
   }
@@ -68,7 +68,7 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
     if (typeof(modelfile) == "character") {
       .Call("XGBoosterLoadModel_R", handle, modelfile, PACKAGE = "xgboost")
     } else if (typeof(modelfile) == "raw") {
-      .Call("XGBoosterLoadModelFromRaw_R", handle, modelfile, PACKAGE = "xgboost")      
+      .Call("XGBoosterLoadModelFromRaw_R", handle, modelfile, PACKAGE = "xgboost")    
     } else {
       stop("xgb.Booster: modelfile must be character or raw vector")
     }
@@ -142,8 +142,7 @@ xgb.iter.boost <- function(booster, dtrain, gpair) {
   if (class(dtrain) != "xgb.DMatrix") {
     stop("xgb.iter.update: second argument must be type xgb.DMatrix")
   }
-  .Call("XGBoosterBoostOneIter_R", booster, dtrain, gpair$grad, gpair$hess, 
-        PACKAGE = "xgboost")
+  .Call("XGBoosterBoostOneIter_R", booster, dtrain, gpair$grad, gpair$hess, PACKAGE = "xgboost")
   return(TRUE)
 }
 
@@ -159,7 +158,7 @@ xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
   if (is.null(obj)) {
     .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain, 
           PACKAGE = "xgboost")
-  } else {
+    } else {
     pred <- predict(booster, dtrain)
     gpair <- obj(pred, dtrain)
     succ <- xgb.iter.boost(booster, dtrain, gpair)
@@ -192,7 +191,7 @@ xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL, prediction = F
       }
       msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist, 
                    evnames, PACKAGE = "xgboost")
-    } else {
+      } else {
       msg <- paste("[", iter, "]", sep="")
       for (j in 1:length(watchlist)) {
         w <- watchlist[j]
@@ -253,10 +252,10 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
       kstep <- length(randidx) %/% nfold
       folds <- list()
       for (i in 1:(nfold-1)) {
-        folds[[i]] = randidx[1:kstep]
-        randidx = setdiff(randidx, folds[[i]])
+        folds[[i]] <- randidx[1:kstep]
+        randidx <- setdiff(randidx, folds[[i]])
       }
-      folds[[nfold]] = randidx
+      folds[[nfold]] <- randidx
     }
   }
   ret <- list()
@@ -270,7 +269,7 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
     }
     dtrain <- slice(dall, didx)
     bst <- xgb.Booster(param, list(dtrain, dtest))
-    watchlist = list(train=dtrain, test=dtest)
+    watchlist <- list(train=dtrain, test=dtest)
     ret[[k]] <- list(dtrain=dtrain, booster=bst, watchlist=watchlist, index=folds[[k]])
   }
   return (ret)

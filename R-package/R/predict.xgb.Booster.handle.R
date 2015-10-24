@@ -13,7 +13,6 @@ setMethod("predict", signature = "xgb.Booster.handle",
 
   bst <- xgb.handleToBooster(object)
 
-  ret = predict(bst, ...)
+  ret <- predict(bst, ...)
   return(ret)
 })
-

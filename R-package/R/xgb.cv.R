@@ -91,15 +91,15 @@
 #' print(history)
 #' @export
 #'
-xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NA, 
-                   prediction = FALSE, showsd = TRUE, metrics=list(), 
+xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NA,
+                   prediction = FALSE, showsd = TRUE, metrics=list(),
                    obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, verbose = T, print.every.n=1L,
                    early.stop.round = NULL, maximize = NULL, ...) {
     if (typeof(params) != "list") {
         stop("xgb.cv: first argument params must be list")
     }
     if(!is.null(folds)) {
-        if(class(folds)!="list" | length(folds) < 2) {
+        if(class(folds) != "list" | length(folds) < 2) {
             stop("folds must be a list with 2 or more elements that are vectors of indices for each CV-fold")
         }
         nfold <- length(folds)
@@ -108,22 +108,22 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         stop("nfold must be bigger than 1")
     }
     dtrain <- xgb.get.DMatrix(data, label, missing)
-    dot.params = list(...)
-    nms.params = names(params)
-    nms.dot.params = names(dot.params)
-    if (length(intersect(nms.params,nms.dot.params))>0)
+    dot.params <- list(...)
+    nms.params <- names(params)
+    nms.dot.params <- names(dot.params)
+    if (length(intersect(nms.params,nms.dot.params)) > 0)
         stop("Duplicated defined term in parameters. Please check your list of params.")
     params <- append(params, dot.params)
     params <- append(params, list(silent=1))
     for (mc in metrics) {
         params <- append(params, list("eval_metric"=mc))
     }
-    
+  
     # customized objective and evaluation metric interface
     if (!is.null(params$objective) && !is.null(obj))
         stop("xgb.cv: cannot assign two different objectives")
     if (!is.null(params$objective))
-        if (class(params$objective)=='function') {
+        if (class(params$objective) == 'function') {
             obj = params$objective
             params[['objective']] = NULL
         }
