@@ -151,21 +151,21 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         }
         
         if (maximize) {
-            bestScore = 0
+            bestScore <- 0
         } else {
-            bestScore = Inf
+            bestScore <- Inf
         }
-        bestInd = 0
-        earlyStopflag = FALSE
+        bestInd <- 0
+        earlyStopflag <- FALSE
         
         if (length(metrics)>1)
             warning('Only the first metric is used for early stopping process.')
     }
-    
+  
     xgb_folds <- xgb.cv.mknfold(dtrain, nfold, params, stratified, folds)
-    obj_type = params[['objective']]
-    mat_pred = FALSE
-    if (!is.null(obj_type) && obj_type=='multi:softprob')
+    obj_type <- params[['objective']]
+    mat_pred <- FALSE
+    if (!is.null(obj_type) && obj_type == 'multi:softprob')
     {
         num_class = params[['num_class']]
         if (is.null(num_class))
@@ -187,20 +187,20 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         ret <- xgb.cv.aggcv(msg, showsd)
         history <- c(history, ret)
         if(verbose)
-            if (0==(i-1L)%%print.every.n)
+            if (0 == (i-1L)%%print.every.n)
                 cat(ret, "\n", sep="")
         
         # early_Stopping
         if (!is.null(early.stop.round)){
-            score = strsplit(ret,'\\s+')[[1]][1+length(metrics)+2]
-            score = strsplit(score,'\\+|:')[[1]][[2]]
-            score = as.numeric(score)
-            if ((maximize && score>bestScore) || (!maximize && score<bestScore)) {
-                bestScore = score
-                bestInd = i
+            score <- strsplit(ret,'\\s+')[[1]][1+length(metrics)+2]
+            score <- strsplit(score,'\\+|:')[[1]][[2]]
+            score <- as.numeric(score)
+            if ((maximize && score > bestScore) || (!maximize && score < bestScore)) {
+                bestScore <- score
+                bestInd <- i
             } else {
-                if (i-bestInd>=early.stop.round) {
-                    earlyStopflag = TRUE
+                if (i-bestInd >= early.stop.round) {
+                    earlyStopflag <- TRUE
                     cat('Stopping. Best iteration:',bestInd)
                     break
                 }
@@ -211,36 +211,36 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     
     if (prediction) {
         for (k in 1:nfold) {
-            fd = xgb_folds[[k]]
+            fd <- xgb_folds[[k]]
             if (!is.null(early.stop.round) && earlyStopflag) {
-              res = xgb.iter.eval(fd$booster, fd$watchlist, bestInd - 1, feval, prediction)
+              res <- xgb.iter.eval(fd$booster, fd$watchlist, bestInd - 1, feval, prediction)
             } else {
-              res = xgb.iter.eval(fd$booster, fd$watchlist, nrounds - 1, feval, prediction)
+              res <- xgb.iter.eval(fd$booster, fd$watchlist, nrounds - 1, feval, prediction)
             }
             if (mat_pred) {
-                pred_mat = matrix(res[[2]],num_class,length(fd$index))
-                predictValues[fd$index,] = t(pred_mat)
+                pred_mat <- matrix(res[[2]],num_class,length(fd$index))
+                predictValues[fd$index,] <- t(pred_mat)
             } else {
-                predictValues[fd$index] = res[[2]]
+                predictValues[fd$index] <- res[[2]]
             }
         }
     }
-    
-    
+  
+  
     colnames <- str_split(string = history[1], pattern = "\t")[[1]] %>% .[2:length(.)] %>% str_extract(".*:") %>% str_replace(":","") %>% str_replace("-", ".")
     colnamesMean <- paste(colnames, "mean")
     if(showsd) colnamesStd <- paste(colnames, "std")
-    
+  
     colnames <- c()
     if(showsd) for(i in 1:length(colnamesMean)) colnames <- c(colnames, colnamesMean[i], colnamesStd[i])
     else colnames <- colnamesMean
-    
+  
     type <- rep(x = "numeric", times = length(colnames))
     dt <- utils::read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
     split <- str_split(string = history, pattern = "\t")
-    
+  
     for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.numeric %>% as.list %>% {rbindlist(list(dt, .), use.names = F, fill = F)}
-    
+  
     if (prediction) {
         return(list(dt = dt,pred = predictValues))
     }
