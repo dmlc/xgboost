@@ -131,7 +131,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 if isinstance(learning_rates, list):
                     bst.set_param({'eta': learning_rates[i]})
                 else:
-                    bst.set_param({'eta': learning_rates(i,num_boost_round)})
+                    bst.set_param({'eta': learning_rates(i, num_boost_round)})
             bst.update(dtrain, i, obj)
             bst_eval_set = bst.eval_set(evals, i, feval)
 
