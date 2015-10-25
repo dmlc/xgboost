@@ -54,6 +54,10 @@ class XGBModel(XGBModelBase):
         Subsample ratio of the training instance.
     colsample_bytree : float
         Subsample ratio of columns when constructing each tree.
+    reg_alpha : float (xgb's alpha)
+        L2 regularization term on weights
+    reg_lambda : float (xgb's lambda)
+        L1 regularization term on weights
 
     base_score:
         The initial prediction score of all instances, global bias.
@@ -66,7 +70,7 @@ class XGBModel(XGBModelBase):
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="reg:linear",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
-                 subsample=1, colsample_bytree=1,
+                 subsample=1, colsample_bytree=1, reg_alpha=1, reg_lambda=0,
                  base_score=0.5, seed=0, missing=None):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
@@ -82,6 +86,8 @@ class XGBModel(XGBModelBase):
         self.max_delta_step = max_delta_step
         self.subsample = subsample
         self.colsample_bytree = colsample_bytree
+        self.reg_alpha = reg_alpha
+        self.reg_lambda = reg_lambda
 
         self.base_score = base_score
         self.seed = seed
@@ -251,13 +257,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                  n_estimators=100, silent=True,
                  objective="binary:logistic",
                  nthread=-1, gamma=0, min_child_weight=1,
-                 max_delta_step=0, subsample=1, colsample_bytree=1,
+                 max_delta_step=0, subsample=1, colsample_bytree=1, reg_alpha=0, reg_lambda=1,
                  base_score=0.5, seed=0, missing=None):
         super(XGBClassifier, self).__init__(max_depth, learning_rate,
                                             n_estimators, silent, objective,
                                             nthread, gamma, min_child_weight,
                                             max_delta_step, subsample,
-                                            colsample_bytree,
+                                            colsample_bytree, reg_alpha, reg_lambda,
                                             base_score, seed, missing)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
