@@ -2,20 +2,22 @@
 """Setup xgboost package."""
 from __future__ import absolute_import
 import sys
+import os
 from setuptools import setup, find_packages
-import subprocess
+#import subprocess
 sys.path.insert(0, '.')
 
-import os
 #build on the fly if install in pip
 #otherwise, use build.sh in the parent directory
 
-if 'pip' in __file__:
+#ugly solution since pip version transition and the old pip detection method not
+#working. Manually turn on when packing up for pip installation
+if False:
     if not os.name == 'nt': #if not windows
-        build_sh = subprocess.Popen(['sh', 'xgboost/build-python.sh'])
-        build_sh.wait()
-        output = build_sh.communicate()
-        print(output)
+        os.system('sh ./xgboost/build-python.sh')
+    else:
+        print('Windows users please use github installation.')
+        sys.exit()
 
 
 CURRENT_DIR = os.path.dirname(__file__)
@@ -28,7 +30,6 @@ libpath = {'__file__': libpath_py}
 exec(compile(open(libpath_py, "rb").read(), libpath_py, 'exec'), libpath, libpath)
 
 LIB_PATH = libpath['find_lib_path']()
-#print LIB_PATH
 
 #to deploy to pip, please use
 #make pythonpack
@@ -36,7 +37,7 @@ LIB_PATH = libpath['find_lib_path']()
 #and be sure to test it firstly using "python setup.py register sdist upload -r pypitest"
 setup(name='xgboost',
       version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
-      #version='0.4a13',
+      #version='0.4a23',
       description=open(os.path.join(CURRENT_DIR, 'README.md')).read(),
       install_requires=[
           'numpy',
@@ -53,5 +54,7 @@ setup(name='xgboost',
       #this will use MANIFEST.in during install where we specify additional files,
       #this is the golden line
       include_package_data=True,
-      data_files=[('xgboost', LIB_PATH)],
+      #!!! don't use data_files, otherwise install_data process will copy it to
+      #root directory for some machines, and cause confusions on building
+      #data_files=[('xgboost', LIB_PATH)],
       url='https://github.com/dmlc/xgboost')
