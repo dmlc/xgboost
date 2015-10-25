@@ -75,7 +75,7 @@ class XGBModel(XGBModelBase):
                  silent=True, objective="reg:linear",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
-                 reg_alpha=1, reg_lambda=0, scale_pos_weight=1,
+                 reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, seed=0, missing=None):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
@@ -265,7 +265,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                  objective="binary:logistic",
                  nthread=-1, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
-                 reg_alpha=1, reg_lambda=0, scale_pos_weight=1,
+                 reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, seed=0, missing=None):
         super(XGBClassifier, self).__init__(max_depth, learning_rate,
                                             n_estimators, silent, objective,
