@@ -32,7 +32,7 @@ setinfo <- function(object, ...){
 #' @param ... other parameters
 #' @rdname setinfo
 #' @method setinfo xgb.DMatrix
-setMethod("setinfo", signature = "xgb.DMatrix", 
+setMethod("setinfo", signature = "xgb.DMatrix",
           definition = function(object, name, info) {
             xgb.setinfo(object, name, info)
           })

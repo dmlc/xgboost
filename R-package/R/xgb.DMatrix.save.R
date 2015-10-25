@@ -18,10 +18,10 @@ xgb.DMatrix.save <- function(DMatrix, fname) {
     stop("xgb.save: fname must be character")
   }
   if (class(DMatrix) == "xgb.DMatrix") {
-    .Call("XGDMatrixSaveBinary_R", DMatrix, fname, as.integer(FALSE), 
+    .Call("XGDMatrixSaveBinary_R", DMatrix, fname, as.integer(FALSE),
           PACKAGE = "xgboost")
     return(TRUE)
   }
   stop("xgb.DMatrix.save: the input must be xgb.DMatrix")
   return(FALSE)
-} 
+}
