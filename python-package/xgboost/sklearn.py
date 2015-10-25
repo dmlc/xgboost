@@ -74,7 +74,8 @@ class XGBModel(XGBModelBase):
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="reg:linear",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
-                 subsample=1, colsample_bytree=1, colsample_bylevel=1, reg_alpha=1, reg_lambda=0, scale_pos_weight=1,
+                 subsample=1, colsample_bytree=1, colsample_bylevel=1,
+                 reg_alpha=1, reg_lambda=0, scale_pos_weight=1,
                  base_score=0.5, seed=0, missing=None):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
@@ -270,7 +271,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             n_estimators, silent, objective,
                                             nthread, gamma, min_child_weight,
                                             max_delta_step, subsample,
-                                            colsample_bytree, colsample_bylevel, reg_alpha, reg_lambda,
+                                            colsample_bytree, colsample_bylevel,
+                                            reg_alpha, reg_lambda,
                                             scale_pos_weight, base_score, seed, missing)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
