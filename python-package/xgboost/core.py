@@ -521,7 +521,7 @@ class DMatrix(object):
                 msg = 'feature_names must have the same length as data'
                 raise ValueError(msg)
             # prohibit to use symbols may affect to parse. e.g. ``[]=.``
-            if not all(isinstance(f, STRING_TYPES) and f.replace('_','').isalnum()
+            if not all(isinstance(f, STRING_TYPES) and f.replace('_', '').isalnum()
                        for f in feature_names):
                 raise ValueError('all feature_names must be alphanumerics')
         else:
