@@ -138,27 +138,51 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-def _maybe_from_pandas(data, feature_names, feature_types):
-    """ Extract internal data from pd.DataFrame """
+def _maybe_from_pandas(data, label, feature_names, feature_types):
+    """ Extract internal data from pd.DataFrame
+
+    If data is Pandas DataFrame, feature_names passed through will be ignored and
+    overwritten by the column names of the Pandas DataFrame.
+    """
     try:
         import pandas as pd
     except ImportError:
-        return data, feature_names, feature_types
+        return data, label, feature_names, feature_types
 
     if not isinstance(data, pd.DataFrame):
-        return data, feature_names, feature_types
+        return data, label, feature_names, feature_types
 
-    dtypes = data.dtypes
-    if not all(dtype.name in ('int64', 'float64', 'bool') for dtype in dtypes):
-        raise ValueError('DataFrame.dtypes must be int, float or bool')
+    data_dtypes = data.dtypes
+    if not all(dtype.name in ('int8', 'int16', 'int32', 'int64',
+                              'uint8', 'uint16', 'uint32', 'uint64',
+                              'float16', 'float32', 'float64',
+                              'bool') for dtype in data_dtypes):
+        raise ValueError('DataFrame.dtypes for data must be int, float or bool')
+
+    if label is not None:
+        if isinstance(label, pd.DataFrame):
+            label_dtypes = label.dtypes
+            if not all(dtype.name in ('int8', 'int16', 'int32', 'int64',
+                                      'uint8', 'uint16', 'uint32', 'uint64',
+                                      'float16', 'float32', 'float64',
+                                      'bool') for dtype in label_dtypes):
+                raise ValueError('DataFrame.dtypes for label must be int, float or bool')
+            else:
+                label = label.values.astype('float')
 
     if feature_names is None:
         feature_names = data.columns.format()
+
     if feature_types is None:
-        mapper = {'int64': 'int', 'float64': 'q', 'bool': 'i'}
-        feature_types = [mapper[dtype.name] for dtype in dtypes]
+        mapper = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': 'int',
+                  'uint8': 'int', 'uint16': 'int', 'uint32': 'int', 'uint64': 'int',
+                  'float16': 'float', 'float32': 'float', 'float64': 'float',
+                  'bool': 'i'}
+        feature_types = [mapper[dtype.name] for dtype in data_dtypes]
+
     data = data.values.astype('float')
-    return data, feature_names, feature_types
+
+    return data, label, feature_names, feature_types
 
 class DMatrix(object):
     """Data Matrix used in XGBoost.
@@ -192,9 +216,10 @@ class DMatrix(object):
         silent : boolean, optional
             Whether print messages during construction
         feature_names : list, optional
-            Labels for features.
+            Set names for features.
+            When data is a Pandas DataFrame, feature_names will be ignored.
         feature_types : list, optional
-            Labels for features.
+            Set types for features.
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
@@ -204,8 +229,10 @@ class DMatrix(object):
         klass = getattr(getattr(data, '__class__', None), '__name__', None)
         if klass == 'DataFrame':
             # once check class name to avoid unnecessary pandas import
-            data, feature_names, feature_types = _maybe_from_pandas(data, feature_names,
-                                                                    feature_types)
+            data, label, feature_names, feature_types = _maybe_from_pandas(data,
+                                                                           label,
+                                                                           feature_names,
+                                                                           feature_types)
 
         if isinstance(data, STRING_TYPES):
             self.handle = ctypes.c_void_p()
@@ -520,10 +547,10 @@ class DMatrix(object):
             if len(feature_names) != self.num_col():
                 msg = 'feature_names must have the same length as data'
                 raise ValueError(msg)
-            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
-            if not all(isinstance(f, STRING_TYPES) and f.isalnum()
+            # prohibit to use symbols may affect to parse. e.g. []<
+            if not all(isinstance(f, STRING_TYPES) and not any(x in f for x in {'[', ']', '<'})
                        for f in feature_names):
-                raise ValueError('all feature_names must be alphanumerics')
+                raise ValueError('feature_names may not contain [, ] or <')
         else:
             # reset feature_types also
             self.feature_types = None
@@ -556,12 +583,11 @@ class DMatrix(object):
             if len(feature_types) != self.num_col():
                 msg = 'feature_types must have the same length as data'
                 raise ValueError(msg)
-            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
 
-            valid = ('q', 'i', 'int', 'float')
+            valid = ('int', 'float', 'i', 'q')
             if not all(isinstance(f, STRING_TYPES) and f in valid
                        for f in feature_types):
-                raise ValueError('all feature_names must be {i, q, int, float}')
+                raise ValueError('All feature_names must be {int, float, i, q}')
         self._feature_types = feature_types
 
 
