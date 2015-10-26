@@ -170,7 +170,8 @@ def _maybe_from_pandas(data, label, feature_names, feature_types):
             else:
                 label = label.values.astype('float')
 
-    feature_names = data.columns.format()
+    if feature_names is None:
+        feature_names = data.columns.format()
 
     if feature_types is None:
         mapper = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': 'int',
