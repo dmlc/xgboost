@@ -138,7 +138,7 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-def _maybe_from_pandas(data, feature_names, feature_types):
+def _maybe_from_pandas(data, label, feature_names, feature_types):
     """ Extract internal data from pd.DataFrame """
     try:
         import pandas as pd
