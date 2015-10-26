@@ -138,12 +138,8 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-def _maybe_from_pandas(data, label, feature_names, feature_types):
-    """ Extract internal data from pd.DataFrame
-
-    If data is Pandas DataFrame, feature_names passed through will be ignored and
-    overwritten by the column names of the Pandas DataFrame.
-    """
+def _maybe_from_pandas(data, feature_names, feature_types):
+-    """ Extract internal data from pd.DataFrame """
     try:
         import pandas as pd
     except ImportError:
