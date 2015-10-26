@@ -139,7 +139,7 @@ def c_array(ctype, values):
 
 
 def _maybe_from_pandas(data, feature_names, feature_types):
--    """ Extract internal data from pd.DataFrame """
+    """ Extract internal data from pd.DataFrame """
     try:
         import pandas as pd
     except ImportError:
