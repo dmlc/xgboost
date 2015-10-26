@@ -118,23 +118,23 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     for (mc in metrics) {
         params <- append(params, list("eval_metric"=mc))
     }
-  
+
     # customized objective and evaluation metric interface
     if (!is.null(params$objective) && !is.null(obj))
         stop("xgb.cv: cannot assign two different objectives")
     if (!is.null(params$objective))
         if (class(params$objective) == 'function') {
-            obj = params$objective
-            params[['objective']] = NULL
+            obj <- params$objective
+            params[['objective']] <- NULL
         }
     # if (!is.null(params$eval_metric) && !is.null(feval))
     #  stop("xgb.cv: cannot assign two different evaluation metrics")
     if (!is.null(params$eval_metric))
-        if (class(params$eval_metric)=='function') {
-            feval = params$eval_metric
-            params[['eval_metric']] = NULL
+        if (class(params$eval_metric) == 'function') {
+            feval <- params$eval_metric
+            params[['eval_metric']] <- NULL
         }
-    
+
     # Early Stopping
     if (!is.null(early.stop.round)){
         if (!is.null(feval) && is.null(maximize))
@@ -144,12 +144,12 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         if (is.null(maximize))
         {
             if (params$eval_metric %in% c('rmse','logloss','error','merror','mlogloss')) {
-                maximize = FALSE
+                maximize <- FALSE
             } else {
-                maximize = TRUE
+                maximize <- TRUE
             }
         }
-        
+
         if (maximize) {
             bestScore <- 0
         } else {
@@ -157,26 +157,26 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         }
         bestInd <- 0
         earlyStopflag <- FALSE
-        
-        if (length(metrics)>1)
+
+        if (length(metrics) > 1)
             warning('Only the first metric is used for early stopping process.')
     }
-  
+
     xgb_folds <- xgb.cv.mknfold(dtrain, nfold, params, stratified, folds)
     obj_type <- params[['objective']]
     mat_pred <- FALSE
     if (!is.null(obj_type) && obj_type == 'multi:softprob')
     {
-        num_class = params[['num_class']]
+        num_class <- params[['num_class']]
         if (is.null(num_class))
             stop('must set num_class to use softmax')
         predictValues <- matrix(0,xgb.numrow(dtrain),num_class)
-        mat_pred = TRUE
+        mat_pred <- TRUE
     }
     else
         predictValues <- rep(0,xgb.numrow(dtrain))
     history <- c()
-    print.every.n = max(as.integer(print.every.n), 1L)
+    print.every.n <- max(as.integer(print.every.n), 1L)
     for (i in 1:nrounds) {
         msg <- list()
         for (k in 1:nfold) {
@@ -187,28 +187,27 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         ret <- xgb.cv.aggcv(msg, showsd)
         history <- c(history, ret)
         if(verbose)
-            if (0 == (i-1L)%%print.every.n)
+            if (0 == (i - 1L) %% print.every.n)
                 cat(ret, "\n", sep="")
-        
+
         # early_Stopping
         if (!is.null(early.stop.round)){
-            score <- strsplit(ret,'\\s+')[[1]][1+length(metrics)+2]
+            score <- strsplit(ret,'\\s+')[[1]][1 + length(metrics) + 2]
             score <- strsplit(score,'\\+|:')[[1]][[2]]
             score <- as.numeric(score)
-            if ((maximize && score > bestScore) || (!maximize && score < bestScore)) {
+            if ( (maximize && score > bestScore) || (!maximize && score < bestScore)) {
                 bestScore <- score
                 bestInd <- i
             } else {
-                if (i-bestInd >= early.stop.round) {
+                if (i - bestInd >= early.stop.round) {
                     earlyStopflag <- TRUE
                     cat('Stopping. Best iteration:',bestInd)
                     break
                 }
             }
         }
-        
     }
-    
+
     if (prediction) {
         for (k in 1:nfold) {
             fd <- xgb_folds[[k]]
@@ -225,24 +224,23 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
             }
         }
     }
-  
-  
+
     colnames <- str_split(string = history[1], pattern = "\t")[[1]] %>% .[2:length(.)] %>% str_extract(".*:") %>% str_replace(":","") %>% str_replace("-", ".")
     colnamesMean <- paste(colnames, "mean")
     if(showsd) colnamesStd <- paste(colnames, "std")
-  
+
     colnames <- c()
     if(showsd) for(i in 1:length(colnamesMean)) colnames <- c(colnames, colnamesMean[i], colnamesStd[i])
     else colnames <- colnamesMean
-  
+
     type <- rep(x = "numeric", times = length(colnames))
     dt <- utils::read.table(text = "", colClasses = type, col.names = colnames) %>% as.data.table
     split <- str_split(string = history, pattern = "\t")
-  
-    for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.numeric %>% as.list %>% {rbindlist(list(dt, .), use.names = F, fill = F)}
-  
+
+    for(line in split) dt <- line[2:length(line)] %>% str_extract_all(pattern = "\\d*\\.+\\d*") %>% unlist %>% as.numeric %>% as.list %>% {rbindlist( list( dt, .), use.names = F, fill = F)}
+
     if (prediction) {
-        return(list(dt = dt,pred = predictValues))
+        return( list( dt = dt,pred = predictValues))
     }
     return(dt)
 }

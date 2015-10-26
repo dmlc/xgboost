@@ -53,22 +53,22 @@ The tradeoff between the two is also referred as bias-variance tradeoff in machi
 
 
 ### Why introduce the general principle
-The elements introduced in above forms the basic elements of supervised learning, and they are naturally the building blocks of machine learning toolkits.
-For example, you should be able to answer what is the difference and common parts between boosted trees and random forest.
+The elements introduced above form the basic elements of supervised learning, and they are naturally the building blocks of machine learning toolkits.
+For example, you should be able to describe the differences and commonalities between boosted trees and random forests.
 Understanding the process in a formalized way also helps us to understand the objective that we are learning and the reason behind the heurestics such as
 pruning and smoothing.
 
 Tree Ensemble
 -------------
 Now that we have introduced the elements of supervised learning, let us get started with real trees.
-To begin with, let us first learn what is the ***model*** of xgboost: tree ensembles.
+To begin with, let us first learn about the ***model*** of xgboost: tree ensembles.
 The tree ensemble model is a set of classification and regression trees (CART). Here's a simple example of a CART
-that classifies is someone will like computer games.
+that classifies whether someone will like computer games.
 
 ![CART](img/cart.png)
 
-We classify the members in thie family into different leaves, and assign them the score on corresponding leaf.
-A CART is a bit different from decision trees, where the leaf only contain decision values. In CART, a real score
+We classify the members of a family into different leaves, and assign them the score on corresponding leaf.
+A CART is a bit different from decision trees, where the leaf only contains decision values. In CART, a real score
 is associated with each of the leaves, which gives us richer interpretations that go beyond classification.
 This also makes the unified optimization step easier, as we will see in later part of this tutorial.
 

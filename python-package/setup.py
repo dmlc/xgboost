@@ -56,5 +56,5 @@ setup(name='xgboost',
       include_package_data=True,
       #!!! don't use data_files, otherwise install_data process will copy it to
       #root directory for some machines, and cause confusions on building
-      #data_files=[('xgboost', LIB_PATH)],
+      data_files=[('xgboost', LIB_PATH)],
       url='https://github.com/dmlc/xgboost')
