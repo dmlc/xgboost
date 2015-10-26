@@ -213,7 +213,6 @@ class DMatrix(object):
             Whether print messages during construction
         feature_names : list, optional
             Set names for features.
-            When data is a Pandas DataFrame, feature_names will be ignored.
         feature_types : list, optional
             Set types for features.
         """
