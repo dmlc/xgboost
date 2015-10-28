@@ -24,32 +24,32 @@ Data Interface
 --------------
 XGBoost python module is able to loading from libsvm txt format file, Numpy 2D array and xgboost binary buffer file. The data will be store in ```DMatrix``` object.
 
-* To load libsvm text format file and XGBoost binary file into ```DMatrix```, the usage is like
+* To load a libsvm text file or a XGBoost binary file into ```DMatrix```, the command is:
 ```python
 dtrain = xgb.DMatrix('train.svm.txt')
 dtest = xgb.DMatrix('test.svm.buffer')
 ```
-* To load numpy array into ```DMatrix```, the usage is like
+* To load a numpy array into ```DMatrix```, the command is:
 ```python
 data = np.random.rand(5,10) # 5 entities, each contains 10 features
 label = np.random.randint(2, size=5) # binary target
 dtrain = xgb.DMatrix( data, label=label)
 ```
-* Build ```DMatrix``` from ```scipy.sparse```
+* To load a scpiy.sparse array into ```DMatrix```, the command is:
 ```python
 csr = scipy.sparse.csr_matrix((dat, (row, col)))
 dtrain = xgb.DMatrix(csr)
 ```
-* Saving ```DMatrix``` into XGBoost binary file will make loading faster in next time. The usage is like:
+* Saving ```DMatrix``` into XGBoost binary file will make loading faster in next time:
 ```python
 dtrain = xgb.DMatrix('train.svm.txt')
 dtrain.save_binary("train.buffer")
 ```
-* To handle missing value in ```DMatrix```, you can initialize the ```DMatrix``` like:
+* To handle missing value in ```DMatrix```, you can initialize the ```DMatrix``` by specifying missing values:
 ```python
 dtrain = xgb.DMatrix(data, label=label, missing = -999.0)
 ```
-* Weight can be set when needed, like
+* Weight can be set when needed:
 ```python
 w = np.random.rand(5, 1)
 dtrain = xgb.DMatrix(data, label=label, missing = -999.0, weight=w)
