@@ -223,7 +223,7 @@ class DMatrix(object):
                 csr = scipy.sparse.csr_matrix(data)
                 self._init_from_csr(csr)
             except:
-                raise TypeError('can not intialize DMatrix from {}'.format(type(data).__name__))
+                raise TypeError('can not initialize DMatrix from {}'.format(type(data).__name__))
         if label is not None:
             self.set_label(label)
         if weight is not None:
