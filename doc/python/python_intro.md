@@ -8,7 +8,7 @@ This document gives a basic walkthrough of xgboost python package.
 
 Install XGBoost
 ---------------
-To install XGBoost, do the following steps.
+To install XGBoost, do the following steps:
 
 * You need to run `make` in the root directory of the project
 * In the  `python-package` directory run
@@ -22,7 +22,12 @@ import xgboost as xgb
 
 Data Interface
 --------------
-XGBoost python module is able to loading from libsvm txt format file, Numpy 2D array and xgboost binary buffer file. The data will be store in ```DMatrix``` object.
+The XGBoost python module is able to load data from:
+- libsvm txt format file
+- Numpy 2D array, and 
+- xgboost binary buffer file. 
+
+The data will be store in a ```DMatrix``` object.
 
 * To load libsvm text format file and XGBoost binary file into ```DMatrix```, the usage is like
 ```python
