@@ -186,6 +186,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
       bestScore <- Inf
     }
     bestInd <- 0
+    earlyStopflag = FALSE
 
     if (length(watchlist) > 1)
       warning('Only the first data set in watchlist is used for early stopping process.')
@@ -195,6 +196,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   bst <- xgb.handleToBooster(handle)
   print.every.n <- max( as.integer(print.every.n), 1L)
   for (i in 1:nrounds) {
+    succ <- xgb.iter.update(bst$handle, dtrain, i - 1, obj)
     if (length(watchlist) != 0) {
       msg <- xgb.iter.eval(bst$handle, watchlist, i - 1, feval)
       if (0 == ( (i - 1) %% print.every.n))
@@ -207,6 +209,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
           bestScore <- score
           bestInd <- i
         } else {
+          earlyStopflag = TRUE
           if (i - bestInd >= early.stop.round) {
             cat('Stopping. Best iteration:',bestInd)
             break

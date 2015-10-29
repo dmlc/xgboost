@@ -125,7 +125,7 @@ treeDump <- function(feature_names, text, keepDetail){
 }
 
 linearDump <- function(feature_names, text){
-  which(text == "weight:") %>% {a <- . + 1; text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
+  which(text == "weight:") %>% {a =. + 1; text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
 }
 
 # Avoid error messages during CRAN check.

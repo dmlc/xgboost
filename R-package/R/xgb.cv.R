@@ -181,6 +181,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         msg <- list()
         for (k in 1:nfold) {
             fd <- xgb_folds[[k]]
+            succ <- xgb.iter.update(fd$booster, fd$dtrain, i - 1, obj)
             msg[[k]] <- xgb.iter.eval(fd$booster, fd$watchlist, i - 1, feval) %>% str_split("\t") %>% .[[1]]
         }
         ret <- xgb.cv.aggcv(msg, showsd)

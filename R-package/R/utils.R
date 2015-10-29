@@ -1,4 +1,4 @@
-#' @importClassesFrom Matrix dgCMatrix dgeMatrix
+  #' @importClassesFrom Matrix dgCMatrix dgeMatrix
 #' @import methods
 
 # depends on matrix
@@ -160,6 +160,8 @@ xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
           PACKAGE = "xgboost")
     } else {
     pred <- predict(booster, dtrain)
+    gpair <- obj(pred, dtrain)
+    succ <- xgb.iter.boost(booster, dtrain, gpair)
   }
   return(TRUE)
 }

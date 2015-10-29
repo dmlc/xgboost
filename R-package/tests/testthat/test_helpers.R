@@ -11,7 +11,7 @@ df <- data.table(Arthritis, keep.rownames = F)
 df[,AgeDiscret := as.factor(round(Age / 10,0))]
 df[,AgeCat := as.factor(ifelse(Age > 30, "Old", "Young"))]
 df[,ID := NULL]
-sparse_matrix <- sparse.model.matrix(Improved ~ . -1, data = df)
+sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df)
 output_vector <- df[,Y := 0][Improved == "Marked",Y := 1][,Y]
 bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 9,
                eta = 1, nthread = 2, nround = 10,objective = "binary:logistic")
