@@ -140,27 +140,27 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     warning('watchlist is provided but verbose=0, no evaluation information will be printed')
   }
   
-  dot.params = list(...)
-  nms.params = names(params)
-  nms.dot.params = names(dot.params)
+  dot.params <- list(...)
+  nms.params <- names(params)
+  nms.dot.params <- names(dot.params)
   if (length(intersect(nms.params,nms.dot.params))>0)
     stop("Duplicated term in parameters. Please check your list of params.")
-  params = append(params, dot.params)
+  params <- append(params, dot.params)
   
   # customized objective and evaluation metric interface
   if (!is.null(params$objective) && !is.null(obj))
     stop("xgb.train: cannot assign two different objectives")
   if (!is.null(params$objective))
     if (class(params$objective)=='function') {
-      obj = params$objective
-      params$objective = NULL
+      obj <- params$objective
+      params$objective <- NULL
     }
   if (!is.null(params$eval_metric) && !is.null(feval))
     stop("xgb.train: cannot assign two different evaluation metrics")
   if (!is.null(params$eval_metric))
     if (class(params$eval_metric)=='function') {
-      feval = params$eval_metric
-      params$eval_metric = NULL
+      feval <- params$eval_metric
+      params$eval_metric <- NULL
     }
     
   # Early stopping
@@ -174,19 +174,19 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     if (is.null(maximize))
     {
       if (params$eval_metric %in% c('rmse','logloss','error','merror','mlogloss')) {
-        maximize = FALSE
+        maximize <- FALSE
       } else {
-        maximize = TRUE
+        maximize <- TRUE
       }
     }
     
     if (maximize) {
-      bestScore = 0
+      bestScore <- 0
     } else {
-      bestScore = Inf
+      bestScore <- Inf
     }
-    bestInd = 0
-    earlyStopflag = FALSE
+    bestInd <- 0
+    earlyStopflag <- FALSE
     
     if (length(watchlist)>1)
       warning('Only the first data set in watchlist is used for early stopping process.')
@@ -195,7 +195,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   
   handle <- xgb.Booster(params, append(watchlist, dtrain))
   bst <- xgb.handleToBooster(handle)
-  print.every.n=max( as.integer(print.every.n), 1L)
+  print.every.n <- max( as.integer(print.every.n), 1L)
   for (i in 1:nrounds) {
     succ <- xgb.iter.update(bst$handle, dtrain, i - 1, obj)
     if (length(watchlist) != 0) {
@@ -204,14 +204,14 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
 	    cat(paste(msg, "\n", sep=""))
       if (!is.null(early.stop.round))
       {
-        score = strsplit(msg,':|\\s+')[[1]][3]
-        score = as.numeric(score)
+        score <- strsplit(msg,':|\\s+')[[1]][3]
+        score <- as.numeric(score)
         if ((maximize && score>bestScore) || (!maximize && score<bestScore)) {
-          bestScore = score
-          bestInd = i
+          bestScore <- score
+          bestInd <- i
         } else {
           if (i-bestInd>=early.stop.round) {
-            earlyStopflag = TRUE
+            earlyStopflag <- TRUE
             cat('Stopping. Best iteration:',bestInd)
             break
           }
@@ -226,8 +226,8 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   }
   bst <- xgb.Booster.check(bst)
   if (!is.null(early.stop.round)) {
-    bst$bestScore = bestScore
-    bst$bestInd = bestInd
+    bst$bestScore <- bestScore
+    bst$bestInd <- bestInd
   }
   return(bst)
 } 

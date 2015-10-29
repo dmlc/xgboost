@@ -124,15 +124,15 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         stop("xgb.cv: cannot assign two different objectives")
     if (!is.null(params$objective))
         if (class(params$objective) == 'function') {
-            obj = params$objective
-            params[['objective']] = NULL
+            obj <- params$objective
+            params[['objective']] <- NULL
         }
     # if (!is.null(params$eval_metric) && !is.null(feval))
     #  stop("xgb.cv: cannot assign two different evaluation metrics")
     if (!is.null(params$eval_metric))
         if (class(params$eval_metric)=='function') {
-            feval = params$eval_metric
-            params[['eval_metric']] = NULL
+            feval <- params$eval_metric
+            params[['eval_metric']] <- NULL
         }
     
     # Early Stopping
@@ -144,9 +144,9 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         if (is.null(maximize))
         {
             if (params$eval_metric %in% c('rmse','logloss','error','merror','mlogloss')) {
-                maximize = FALSE
+                maximize <- FALSE
             } else {
-                maximize = TRUE
+                maximize <- TRUE
             }
         }
         
@@ -167,16 +167,16 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     mat_pred <- FALSE
     if (!is.null(obj_type) && obj_type == 'multi:softprob')
     {
-        num_class = params[['num_class']]
+        num_class <- params[['num_class']]
         if (is.null(num_class))
             stop('must set num_class to use softmax')
         predictValues <- matrix(0,xgb.numrow(dtrain),num_class)
-        mat_pred = TRUE
+        mat_pred <- TRUE
     }
     else
         predictValues <- rep(0,xgb.numrow(dtrain))
     history <- c()
-    print.every.n = max(as.integer(print.every.n), 1L)
+    print.every.n <- max(as.integer(print.every.n), 1L)
     for (i in 1:nrounds) {
         msg <- list()
         for (k in 1:nfold) {

@@ -81,7 +81,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
   }
 
   if(!is.null(model)){
-    text = xgb.dump(model = model, with.stats = T)
+    text <- xgb.dump(model = model, with.stats = T)
   } else if(!is.null(filename_dump)){
     text <- readLines(filename_dump) %>% str_trim(side = "both")
   }

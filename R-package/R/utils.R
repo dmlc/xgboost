@@ -261,7 +261,7 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
   ret <- list()
   for (k in 1:nfold) {
     dtest <- slice(dall, folds[[k]])
-    didx = c()
+    didx <- c()
     for (i in 1:nfold) {
       if (i != k) {
         didx <- append(didx, folds[[i]])
