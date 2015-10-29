@@ -54,40 +54,39 @@
 #' 
 #' @export
 #' 
-xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, model = NULL, n_first_tree = NULL, CSSstyle = NULL, width = NULL, height = NULL){  
-  
+xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, model = NULL, n_first_tree = NULL, CSSstyle = NULL, width = NULL, height = NULL){
+
   if (!(class(CSSstyle) %in% c("character", "NULL") && length(CSSstyle) <= 1)) {
     stop("style: Has to be a character vector of size 1.")
   }
-  
+
   if (!class(model) %in% c("xgb.Booster", "NULL")) {
     stop("model: Has to be an object of class xgb.Booster model generaged by the xgb.train function.")
   }
-  
+
   if (!requireNamespace("DiagrammeR", quietly = TRUE)) {
     stop("DiagrammeR package is required for xgb.plot.tree", call. = FALSE)
   }
-  
+
   if(is.null(model)){
-    allTrees <- xgb.model.dt.tree(feature_names = feature_names, filename_dump = filename_dump, n_first_tree = n_first_tree)  
+    allTrees <- xgb.model.dt.tree(feature_names = feature_names, filename_dump = filename_dump, n_first_tree = n_first_tree)
   } else {
-    allTrees <- xgb.model.dt.tree(feature_names = feature_names, model = model, n_first_tree = n_first_tree)  
+    allTrees <- xgb.model.dt.tree(feature_names = feature_names, model = model, n_first_tree = n_first_tree)
   }
-  
-  allTrees[Feature!="Leaf" ,yesPath:= paste(ID,"(", Feature, "<br/>Cover: ", Cover, "<br/>Gain: ", Quality, ")-->|< ", Split, "|", Yes, ">", Yes.Feature, "]", sep = "")]
-  
-  allTrees[Feature!="Leaf" ,noPath:= paste(ID,"(", Feature, ")-->|>= ", Split, "|", No, ">", No.Feature, "]", sep = "")]
-  
-  
+
+  allTrees[Feature != "Leaf" ,yesPath := paste(ID,"(", Feature, "<br/>Cover: ", Cover, "<br/>Gain: ", Quality, ")-->|< ", Split, "|", Yes, ">", Yes.Feature, "]", sep = "")]
+
+  allTrees[Feature != "Leaf" ,noPath := paste(ID,"(", Feature, ")-->|>= ", Split, "|", No, ">", No.Feature, "]", sep = "")]
+
   if(is.null(CSSstyle)){
-    CSSstyle <- "classDef greenNode fill:#A2EB86, stroke:#04C4AB, stroke-width:2px;classDef redNode fill:#FFA070, stroke:#FF5E5E, stroke-width:2px"  
-  }  
-  
-  yes <- allTrees[Feature!="Leaf", c(Yes)] %>% paste(collapse = ",") %>% paste("class ", ., " greenNode", sep = "")
-  
-  no <- allTrees[Feature!="Leaf", c(No)] %>% paste(collapse = ",") %>% paste("class ", ., " redNode", sep = "")
-  
-  path <- allTrees[Feature!="Leaf", c(yesPath, noPath)] %>% .[order(.)] %>% paste(sep = "", collapse = ";") %>% paste("graph LR", .,collapse = "", sep = ";") %>% paste(CSSstyle, yes, no, sep = ";")
+    CSSstyle <- "classDef greenNode fill:#A2EB86, stroke:#04C4AB, stroke-width:2px;classDef redNode fill:#FFA070, stroke:#FF5E5E, stroke-width:2px"
+  }
+
+  yes <- allTrees[Feature != "Leaf", c(Yes)] %>% paste(collapse = ",") %>% paste("class ", ., " greenNode", sep = "")
+
+  no <- allTrees[Feature != "Leaf", c(No)] %>% paste(collapse = ",") %>% paste("class ", ., " redNode", sep = "")
+
+  path <- allTrees[Feature != "Leaf", c(yesPath, noPath)] %>% .[order(.)] %>% paste(sep = "", collapse = ";") %>% paste("graph LR", .,collapse = "", sep = ";") %>% paste(CSSstyle, yes, no, sep = ";")
   DiagrammeR::mermaid(path, width, height)
 }
 

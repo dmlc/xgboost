@@ -68,7 +68,7 @@ xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
     if (typeof(modelfile) == "character") {
       .Call("XGBoosterLoadModel_R", handle, modelfile, PACKAGE = "xgboost")
     } else if (typeof(modelfile) == "raw") {
-      .Call("XGBoosterLoadModelFromRaw_R", handle, modelfile, PACKAGE = "xgboost")    
+      .Call("XGBoosterLoadModelFromRaw_R", handle, modelfile, PACKAGE = "xgboost")
     } else {
       stop("xgb.Booster: modelfile must be character or raw vector")
     }
@@ -122,7 +122,7 @@ xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
     } else if (inClass == "xgb.DMatrix") {
       dtrain <- data
     } else if (inClass == "data.frame") {
-      stop("xgboost only support numerical matrix input, 
+      stop("xgboost only support numerical matrix input,
            use 'data.frame' to transform the data.")
     } else {
       stop("xgboost: Invalid input of data")
@@ -156,12 +156,10 @@ xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
   }
 
   if (is.null(obj)) {
-    .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain, 
+    .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain,
           PACKAGE = "xgboost")
     } else {
     pred <- predict(booster, dtrain)
-    gpair <- obj(pred, dtrain)
-    succ <- xgb.iter.boost(booster, dtrain, gpair)
   }
   return(TRUE)
 }
@@ -189,9 +187,9 @@ xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL, prediction = F
         }
         evnames <- append(evnames, names(w))
       }
-      msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist, 
+      msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist,
                    evnames, PACKAGE = "xgboost")
-      } else {
+    } else {
       msg <- paste("[", iter, "]", sep="")
       for (j in 1:length(watchlist)) {
         w <- watchlist[j]
@@ -247,7 +245,7 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
         if (length(unique(y)) <= 5) y <- factor(y)
       }
       folds <- xgb.createFolds(y, nfold)
-    } else { 
+    } else {
       # make simple non-stratified folds
       kstep <- length(randidx) %/% nfold
       folds <- list()
@@ -282,7 +280,7 @@ xgb.cv.aggcv <- function(res, showsd = TRUE) {
     kv <- strsplit(header[i], ":")[[1]]
     ret <- paste(ret, "\t", kv[1], ":", sep="")
     stats <- c()
-    stats[1] <- as.numeric(kv[2])    
+    stats[1] <- as.numeric(kv[2])
     for (j in 2:length(res)) {
       tkv <- strsplit(res[[j]][i], ":")[[1]]
       stats[j] <- as.numeric(tkv[2])
@@ -311,8 +309,8 @@ xgb.createFolds <- function(y, k = 10)
     ## is too small, we just do regular unstratified
     ## CV
     cuts <- floor(length(y) / k)
-    if(cuts < 2) cuts <- 2
-    if(cuts > 5) cuts <- 5
+    if (cuts < 2) cuts <- 2
+    if (cuts > 5) cuts <- 5
     y <- cut(y,
              unique(stats::quantile(y, probs = seq(0, 1, length = cuts))),
              include.lowest = TRUE)
@@ -324,7 +322,7 @@ xgb.createFolds <- function(y, k = 10)
     y <- factor(as.character(y))
     numInClass <- table(y)
     foldVector <- vector(mode = "integer", length(y))
-    
+
     ## For each class, balance the fold allocation as far
     ## as possible, then resample the remainder.
     ## The final assignment of folds is also randomized.

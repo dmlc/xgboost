@@ -57,7 +57,7 @@
 #' @export
 xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model = NULL, text = NULL, n_first_tree = NULL){
 
-  if (!class(feature_names) %in% c("character", "NULL")) {   
+  if (!class(feature_names) %in% c("character", "NULL")) {
     stop("feature_names: Has to be a vector of character or NULL if the model dump already contains feature name. Look at this function documentation to see where to get feature names.")
   }
   if (!(class(filename_dump) %in% c("character", "NULL") && length(filename_dump) <= 1)) {
@@ -97,15 +97,15 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
   allTrees <- data.table()
 
   anynumber_regex <- "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
-  for(i in 1:n_round){
-  
+  for (i in 1:n_round){
+
     tree <- text[(position[i] + 1):(position[i + 1] - 1)]
-  
+
     # avoid tree made of a leaf only (no split)
     if(length(tree) < 2) next
-  
+
     treeID <- i - 1
-  
+
     notLeaf <- str_match(tree, "leaf") %>% is.na
     leaf <- notLeaf %>% not %>% tree[.]
     branch <- notLeaf %>% tree[.]
@@ -129,37 +129,37 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     coverBranch <- extract(branch, "cover=\\d*\\.*\\d*")
     coverLeaf <- extract(leaf, "cover=\\d*\\.*\\d*")
     dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree := treeID]
-  
+
     allTrees <- rbindlist(list(allTrees, dt), use.names = T, fill = F)
   }
 
   yes <- allTrees[!is.na(Yes), Yes]
-  
-  set(allTrees, i = which(allTrees[, Feature] != "Leaf"), 
-      j = "Yes.Feature", 
+
+  set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
+      j = "Yes.Feature",
       value = allTrees[ID %in% yes, Feature])
-  
+
   set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
-      j = "Yes.Cover", 
+      j = "Yes.Cover",
       value = allTrees[ID %in% yes, Cover])
-  
+
   set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
-      j = "Yes.Quality", 
+      j = "Yes.Quality",
       value = allTrees[ID %in% yes, Quality])
   no <- allTrees[!is.na(No), No]
-  
+
   set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
-      j = "No.Feature", 
+      j = "No.Feature",
       value = allTrees[ID %in% no, Feature])
-  
+
   set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
-      j = "No.Cover", 
+      j = "No.Cover",
       value = allTrees[ID %in% no, Cover])
-  
-  set(allTrees, i = which(allTrees[, Feature] != "Leaf"), 
-      j = "No.Quality", 
+
+  set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
+      j = "No.Quality",
       value = allTrees[ID %in% no, Quality])
-  
+
   allTrees
 }
 

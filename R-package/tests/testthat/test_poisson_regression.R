@@ -9,5 +9,5 @@ test_that("poisson regression works", {
   expect_equal(class(bst), "xgb.Booster")
   pred <- predict(bst,as.matrix(mtcars[, -11]))
   expect_equal(length(pred), 32)
-  sqrt(mean((pred - mtcars[,11]) ^ 2))
+  sqrt(mean( (pred - mtcars[,11]) ^ 2))
 })

@@ -66,8 +66,8 @@
 #' xgb.importance(train$data@@Dimnames[[2]], model = bst, data = train$data, label = train$label)
 #' 
 #' @export
-xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = NULL, data = NULL, label = NULL, target = function(x) ((x + label) == 2)){ 
-  if (!class(feature_names) %in% c("character", "NULL")) {   
+xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = NULL, data = NULL, label = NULL, target = function(x) ( (x + label) == 2)){
+  if (!class(feature_names) %in% c("character", "NULL")) {
     stop("feature_names: Has to be a vector of character or NULL if the model dump already contains feature name. Look at this function documentation to see where to get feature names.")
   }
 
@@ -98,7 +98,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
     if(!is.null(data) | !is.null(label)) warning("data/label: these parameters should only be provided with decision tree based models.")
   }  else {
     result <- treeDump(feature_names, text = text, keepDetail = !is.null(data))
-  
+
     # Co-occurence computation
     if(!is.null(data) & !is.null(label) & nrow(result) > 0) {
       # Take care of missing column
@@ -109,9 +109,9 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
       # Apply split
       d <- data[, result[,Feature], drop=FALSE] < as.numeric(result[,Split])
       apply(c & d, 2, . %>% target %>% sum) -> vec
-          
+
       result <- result[, "RealCover" := as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)][,MissingNo := NULL]
-    }   
+    }
   }
   result
 }
