@@ -18,7 +18,7 @@ test_that("early stopping", {
   res <- xgb.cv(data = train$data, label = train$label, max.depth = 2, nfold = 5,
                eta = 0.3, nthread = 2, nround = 20, objective = "binary:logistic",
                early.stop.round = 3, maximize = FALSE)
-  expect_true(nrow(res)<20)
+  expect_true(nrow(res) < 20)
   bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
                 eta = 0.3, nthread = 2, nround = 20, objective = "binary:logistic",
                 early.stop.round = 3, maximize = FALSE)

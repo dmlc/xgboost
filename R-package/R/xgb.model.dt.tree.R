@@ -86,7 +86,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     text <- readLines(filename_dump) %>% str_trim(side = "both")
   }
 
-  position <- str_match(text, "booster") %>% is.na %>% not %>% which %>% c(length(text)+1)
+  position <- str_match(text, "booster") %>% is.na %>% not %>% which %>% c(length(text) + 1)
 
   extract <- function(x, pattern)  str_extract(x, pattern) %>% str_split("=") %>% lapply(function(x) x[2] %>% as.numeric) %>% unlist
 
@@ -96,15 +96,15 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
 
   allTrees <- data.table()
 
-  anynumber_regex<-"[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
+  anynumber_regex <- "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
   for(i in 1:n_round){
   
-    tree <- text[(position[i]+1):(position[i+1]-1)]
+    tree <- text[(position[i] + 1):(position[i + 1] - 1)]
   
     # avoid tree made of a leaf only (no split)
-    if(length(tree) <2) next
+    if(length(tree) < 2) next
   
-    treeID <- i-1
+    treeID <- i - 1
   
     notLeaf <- str_match(tree, "leaf") %>% is.na
     leaf <- notLeaf %>% not %>% tree[.]
@@ -128,7 +128,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     qualityLeaf <- extract(leaf, paste0("leaf=",anynumber_regex))
     coverBranch <- extract(branch, "cover=\\d*\\.*\\d*")
     coverLeaf <- extract(leaf, "cover=\\d*\\.*\\d*")
-    dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=treeID]
+    dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree := treeID]
   
     allTrees <- rbindlist(list(allTrees, dt), use.names = T, fill = F)
   }

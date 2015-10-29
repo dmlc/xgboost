@@ -151,14 +151,14 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   if (!is.null(params$objective) && !is.null(obj))
     stop("xgb.train: cannot assign two different objectives")
   if (!is.null(params$objective))
-    if (class(params$objective)=='function') {
+    if (class(params$objective) == 'function') {
       obj <- params$objective
       params$objective <- NULL
     }
   if (!is.null(params$eval_metric) && !is.null(feval))
     stop("xgb.train: cannot assign two different evaluation metrics")
   if (!is.null(params$eval_metric))
-    if (class(params$eval_metric)=='function') {
+    if (class(params$eval_metric) == 'function') {
       feval <- params$eval_metric
       params$eval_metric <- NULL
     }
@@ -188,7 +188,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     bestInd <- 0
     earlyStopflag <- FALSE
     
-    if (length(watchlist)>1)
+    if (length(watchlist) > 1)
       warning('Only the first data set in watchlist is used for early stopping process.')
   }
   
@@ -200,17 +200,17 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     succ <- xgb.iter.update(bst$handle, dtrain, i - 1, obj)
     if (length(watchlist) != 0) {
       msg <- xgb.iter.eval(bst$handle, watchlist, i - 1, feval)
-      if (0== ( (i-1) %% print.every.n))
-	    cat(paste(msg, "\n", sep=""))
+      if (0 == ( (i - 1) %% print.every.n))
+	    cat(paste(msg, "\n", sep = ""))
       if (!is.null(early.stop.round))
       {
         score <- strsplit(msg,':|\\s+')[[1]][3]
         score <- as.numeric(score)
-        if ((maximize && score>bestScore) || (!maximize && score<bestScore)) {
+        if ((maximize && score > bestScore) || (!maximize && score < bestScore)) {
           bestScore <- score
           bestInd <- i
         } else {
-          if (i-bestInd>=early.stop.round) {
+          if (i - bestInd >= early.stop.round) {
             earlyStopflag <- TRUE
             cat('Stopping. Best iteration:',bestInd)
             break

@@ -130,7 +130,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     # if (!is.null(params$eval_metric) && !is.null(feval))
     #  stop("xgb.cv: cannot assign two different evaluation metrics")
     if (!is.null(params$eval_metric))
-        if (class(params$eval_metric)=='function') {
+        if (class(params$eval_metric) == 'function') {
             feval <- params$eval_metric
             params[['eval_metric']] <- NULL
         }
@@ -158,7 +158,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         bestInd <- 0
         earlyStopflag <- FALSE
         
-        if (length(metrics)>1)
+        if (length(metrics) > 1)
             warning('Only the first metric is used for early stopping process.')
     }
   
@@ -187,19 +187,19 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         ret <- xgb.cv.aggcv(msg, showsd)
         history <- c(history, ret)
         if(verbose)
-            if (0 == (i-1L)%%print.every.n)
+            if (0 == (i - 1L) %% print.every.n)
                 cat(ret, "\n", sep="")
         
         # early_Stopping
         if (!is.null(early.stop.round)){
-            score <- strsplit(ret,'\\s+')[[1]][1+length(metrics)+2]
+            score <- strsplit(ret,'\\s+')[[1]][1 + length(metrics) + 2]
             score <- strsplit(score,'\\+|:')[[1]][[2]]
             score <- as.numeric(score)
             if ((maximize && score > bestScore) || (!maximize && score < bestScore)) {
                 bestScore <- score
                 bestInd <- i
             } else {
-                if (i-bestInd >= early.stop.round) {
+                if (i - bestInd >= early.stop.round) {
                     earlyStopflag <- TRUE
                     cat('Stopping. Best iteration:',bestInd)
                     break

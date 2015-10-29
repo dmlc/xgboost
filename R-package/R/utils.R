@@ -15,14 +15,14 @@ xgb.setinfo <- function(dmat, name, info) {
     stop("xgb.setinfo: first argument dtrain must be xgb.DMatrix")
   }
   if (name == "label") {
-    if (length(info)!=xgb.numrow(dmat))
+    if (length(info) != xgb.numrow(dmat))
       stop("The length of labels must equal to the number of rows in the input data")
     .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info),
           PACKAGE = "xgboost")
     return(TRUE)
   }
   if (name == "weight") {
-    if (length(info)!=xgb.numrow(dmat))
+    if (length(info) != xgb.numrow(dmat))
       stop("The length of weights must equal to the number of rows in the input data")
     .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info),
           PACKAGE = "xgboost")
@@ -36,7 +36,7 @@ xgb.setinfo <- function(dmat, name, info) {
     return(TRUE)
   }
   if (name == "group") {
-    if (sum(info)!=xgb.numrow(dmat))
+    if (sum(info) != xgb.numrow(dmat))
       stop("The sum of groups must equal to the number of rows in the input data")
     .Call("XGDMatrixSetInfo_R", dmat, name, as.integer(info),
           PACKAGE = "xgboost")
@@ -251,7 +251,7 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
       # make simple non-stratified folds
       kstep <- length(randidx) %/% nfold
       folds <- list()
-      for (i in 1:(nfold-1)) {
+      for (i in 1:(nfold - 1)) {
         folds[[i]] <- randidx[1:kstep]
         randidx <- setdiff(randidx, folds[[i]])
       }
@@ -310,7 +310,7 @@ xgb.createFolds <- function(y, k = 10)
     ## At most, we will use quantiles. If the sample
     ## is too small, we just do regular unstratified
     ## CV
-    cuts <- floor(length(y)/k)
+    cuts <- floor(length(y) / k)
     if(cuts < 2) cuts <- 2
     if(cuts > 5) cuts <- 5
     y <- cut(y,

@@ -79,7 +79,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
     stop("model: Has to be an object of class xgb.Booster model generaged by the xgb.train function.")
   }
 
-  if((is.null(data) & !is.null(label)) |(!is.null(data) & is.null(label))) {
+  if((is.null(data) & !is.null(label)) | (!is.null(data) & is.null(label))) {
     stop("data/label: Provide the two arguments if you want co-occurence computation or none of them if you are not interested but not one of them only.")
   }
 
@@ -110,7 +110,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
       d <- data[, result[,Feature], drop=FALSE] < as.numeric(result[,Split])
       apply(c & d, 2, . %>% target %>% sum) -> vec
           
-      result <- result[, "RealCover":= as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)][,MissingNo:=NULL]
+      result <- result[, "RealCover" := as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)][,MissingNo := NULL]
     }   
   }
   result
@@ -119,13 +119,13 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
 treeDump <- function(feature_names, text, keepDetail){
   if(keepDetail) groupBy <- c("Feature", "Split", "MissingNo") else groupBy <- "Feature"
 
-  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[,"MissingNo":= Missing == No ][Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = groupBy, with = T][,`:=`(Gain = Gain/sum(Gain), Cover = Cover/sum(Cover), Frequence = Frequence/sum(Frequence))][order(Gain, decreasing = T)]
+  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[,"MissingNo" := Missing == No ][Feature != "Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = groupBy, with = T][,`:=`(Gain = Gain / sum(Gain), Cover = Cover / sum(Cover), Frequence = Frequence / sum(Frequence))][order(Gain, decreasing = T)]
 
   result
 }
 
 linearDump <- function(feature_names, text){
-  which(text == "weight:") %>% {a <- .+1; text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
+  which(text == "weight:") %>% {a <- . + 1; text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
 }
 
 # Avoid error messages during CRAN check.
