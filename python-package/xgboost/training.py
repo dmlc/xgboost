@@ -10,8 +10,8 @@ import numpy as np
 from .core import Booster, STRING_TYPES
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
-          early_stopping_rounds=None, evals_result=None, 
-		  verbose_eval=True, learning_rates=None, xgb_model=None):
+          early_stopping_rounds=None, evals_result=None,
+          verbose_eval=True, learning_rates=None, xgb_model=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
