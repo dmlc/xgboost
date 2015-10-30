@@ -10,7 +10,8 @@ import numpy as np
 from .core import Booster, STRING_TYPES
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
-          early_stopping_rounds=None, evals_result=None, verbose_eval=True, xgb_model=None):
+          early_stopping_rounds=None, evals_result=None, 
+		  verbose_eval=True, learning_rates=None, xgb_model=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -48,6 +49,10 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         given, is printed at each boosting stage.
     xgb_model : file name of stored xgb model or 'Booster' instance
         Xgb model to be loaded before training (allows training continuation).
+    learning_rates: list or function
+        Learning rate for each boosting round (yields learning rate decay).
+        - list l: eta = l[boosting round]
+        - function f: eta = f(boosting round, num_boost_round)
 
     Returns
     -------
@@ -123,7 +128,15 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         best_msg = ''
         best_score_i = 0
 
+        if isinstance(learning_rates, list) and len(learning_rates) < num_boost_round:
+            raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
+
         for i in range(num_boost_round):
+            if learning_rates is not None:
+                if isinstance(learning_rates, list):
+                    bst.set_param({'eta': learning_rates[i]})
+                else:
+                    bst.set_param({'eta': learning_rates(i, num_boost_round)})
             bst.update(dtrain, i, obj)
             bst_eval_set = bst.eval_set(evals, i, feval)
 

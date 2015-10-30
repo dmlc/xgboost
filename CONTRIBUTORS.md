@@ -13,6 +13,8 @@ Committers are people who have made substantial contribution to the project and 
   - Bing is the original creator of xgboost python package and currently the maintainer of [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl).
 * [Michael Benesty](https://github.com/pommedeterresautee)
   - Micheal is a lawyer, data scientist in France, he is the creator of xgboost interactive analysis module in R.
+* [Yuan Tang](https://github.com/terrytangyuan)
+  - Yuan is a data scientist in Chicago, US. He contributed mostly in R and Python packages. 
 
 Become a Comitter
 -----------------
@@ -33,8 +35,6 @@ List of Contributors
   - Skipper is the major contributor to the scikit-learn module of xgboost.
 * [Zygmunt Zając](https://github.com/zygmuntz)
   - Zygmunt is the master behind the early stopping feature frequently used by kagglers.
-* [Yuan Tang](https://github.com/terrytangyuan)
-  - Yuan is the major contributor to unit tests in R and Python. 
 * [Ajinkya Kale](https://github.com/ajkl)
 * [Boliang Chen](https://github.com/cblsjtu)
 * [Vadim Khotilovich](https://github.com/khotilov)
