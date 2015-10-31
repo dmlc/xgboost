@@ -48,7 +48,7 @@ setMethod("predict", signature = "xgb.Booster",
       stop("predict: ntreelimit must be equal to or greater than 1")
     }
   }
-  option = 0
+  option <- 0
   if (outputmargin) {
     option <- option + 1
   }

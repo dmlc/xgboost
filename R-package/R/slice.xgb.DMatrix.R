@@ -30,12 +30,12 @@ setMethod("slice", signature = "xgb.DMatrix",
               }
               ret <- .Call("XGDMatrixSliceDMatrix_R", object, idxset,
                            PACKAGE = "xgboost")
-            
+
               attr_list <- attributes(object)
               nr <- xgb.numrow(object)
               len <- sapply(attr_list,length)
-              ind <- which(len==nr)
-              if (length(ind)>0) {
+              ind <- which(len == nr)
+              if (length(ind) > 0) {
                   nms <- names(attr_list)[ind]
                   for (i in 1:length(ind)) {
                     attr(ret,nms[i]) <- attr(object,nms[i])[idxset]

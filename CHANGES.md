@@ -41,6 +41,7 @@ on going at master
   - Fixed possible problem of poisson regression for R.
 * Python module now throw exception instead of crash terminal when a parameter error happens.
 * Python module now has importance plot and tree plot functions.
+* Python module now accepts different learning rates for each boosting round.
 * Java api is ready for use
 * Added more test cases and continuous integration to make each build more robust
 * Improvements in sklearn compatible module
