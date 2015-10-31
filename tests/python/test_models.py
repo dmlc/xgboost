@@ -28,9 +28,6 @@ class TestModels(unittest.TestCase):
 		# learning_rates as a list
 		bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0.4, 0.3])
 		assert isinstance(bst, xgb.core.Booster)
-		# different length
-		num_round = 4
-		self.assertRaises(ValueError, xgb.train, param, dtrain, num_round, watchlist, learning_rates=[0.4, 0.3, 0.2])
 
 		# learning_rates as a customized decay function
 		def eta_decay(ithround, num_boost_round):

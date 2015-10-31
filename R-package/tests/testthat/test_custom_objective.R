@@ -46,13 +46,3 @@ test_that("custom objective works", {
   expect_equal(class(bst), "xgb.Booster")
   expect_equal(length(bst$raw), 1064)
 })
-
-test_that("different eta for each boosting round works", {
-  num_round <- 2
-  watchlist <- list(eval = dtest, train = dtrain)
-  param <- list(max.depth=2, eta=1, nthread = 2, silent=1)
-  
-  bst <- xgb.train(param, dtrain, num_round, watchlist, learning_rates = c(0.2, 0.3))
-})
-
-

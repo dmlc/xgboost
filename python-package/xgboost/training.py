@@ -123,7 +123,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         best_msg = ''
         best_score_i = 0
 
-        if isinstance(learning_rates, list) and len(learning_rates) < num_boost_round:
+        if isinstance(learning_rates, list) and len(learning_rates) != num_boost_round:
             raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
 
         for i in range(num_boost_round):
