@@ -59,13 +59,15 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     booster : a trained booster model
     """
     evals = list(evals)
-    if xgb_model is not None and not isinstance(xgb_model, STRING_TYPES):
-        xgb_model = xgb_model.save_raw()
-    bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
-    try:
+    ntrees = 0
+    if xgb_model is not None:
+        if xgb_model is not isinstance(xgb_model, STRING_TYPES):
+            xgb_model = xgb_model.save_raw()
+        bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
         ntrees = len(bst.get_dump())
-    except OSError:
-        ntrees = 0
+    else:
+        bst = Booster(params, [dtrain] + [d[0] for d in evals])
+
 
     if evals_result is not None:
         if not isinstance(evals_result, dict):
