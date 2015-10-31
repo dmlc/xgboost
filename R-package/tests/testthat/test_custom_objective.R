@@ -2,11 +2,12 @@ context('Test models with custom objective')
 
 require(xgboost)
 
+data(agaricus.train, package='xgboost')
+data(agaricus.test, package='xgboost')
+dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
+dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
+
 test_that("custom objective works", {
-  data(agaricus.train, package='xgboost')
-  data(agaricus.test, package='xgboost')
-  dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
-  dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 
   watchlist <- list(eval = dtest, train = dtrain)
   num_round <- 2
