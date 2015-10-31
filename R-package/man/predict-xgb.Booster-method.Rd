@@ -5,7 +5,7 @@
 \alias{predict,xgb.Booster-method}
 \title{Predict method for eXtreme Gradient Boosting model}
 \usage{
-\S4method{predict}{xgb.Booster}(object, newdata, missing = NULL,
+\S4method{predict}{xgb.Booster}(object, newdata, missing = NA,
   outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE)
 }
 \arguments{
