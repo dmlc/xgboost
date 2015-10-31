@@ -111,7 +111,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         if len(evals) < 1:
             raise ValueError('For early stopping you need at least one set in evals.')
 
-        sys.stderr.write("Will train until {} error hasn't decreased in {} rounds.\n".format(\
+        if verbose_eval:
+            sys.stderr.write("Will train until {} error hasn't decreased in {} rounds.\n".format(\
                 evals[-1][1], early_stopping_rounds))
 
         # is params a list of tuples? are we using multiple eval metrics?
@@ -136,7 +137,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         best_msg = ''
         best_score_i = ntrees
 
-        if isinstance(learning_rates, list) and len(learning_rates) < num_boost_round:
+        if isinstance(learning_rates, list) and len(learning_rates) != num_boost_round:
             raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
 
         for i in range(num_boost_round):

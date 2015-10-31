@@ -4,7 +4,7 @@
 \alias{xgb.DMatrix}
 \title{Contruct xgb.DMatrix object}
 \usage{
-xgb.DMatrix(data, info = list(), missing = 0, ...)
+xgb.DMatrix(data, info = list(), missing = NA, ...)
 }
 \arguments{
 \item{data}{a \code{matrix} object, a \code{dgCMatrix} object or a character

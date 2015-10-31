@@ -4,11 +4,10 @@
 \alias{xgb.cv}
 \title{Cross Validation}
 \usage{
-xgb.cv(params = list(), data, nrounds, nfold, label = NULL,
-  missing = NULL, prediction = FALSE, showsd = TRUE, metrics = list(),
-  obj = NULL, feval = NULL, stratified = TRUE, folds = NULL,
-  verbose = T, print.every.n = 1L, early.stop.round = NULL,
-  maximize = NULL, ...)
+xgb.cv(params = list(), data, nrounds, nfold, label = NULL, missing = NA,
+  prediction = FALSE, showsd = TRUE, metrics = list(), obj = NULL,
+  feval = NULL, stratified = TRUE, folds = NULL, verbose = T,
+  print.every.n = 1L, early.stop.round = NULL, maximize = NULL, ...)
 }
 \arguments{
 \item{params}{the list of parameters. Commonly used ones are:

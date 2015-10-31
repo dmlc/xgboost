@@ -4,7 +4,7 @@
 \alias{xgboost}
 \title{eXtreme Gradient Boosting (Tree) library}
 \usage{
-xgboost(data = NULL, label = NULL, missing = NULL, weight = NULL,
+xgboost(data = NULL, label = NULL, missing = NA, weight = NULL,
   params = list(), nrounds, verbose = 1, print.every.n = 1L,
   early.stop.round = NULL, maximize = NULL, save_period = 0,
   save_name = "xgboost.model", ...)
