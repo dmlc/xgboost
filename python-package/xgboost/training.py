@@ -64,7 +64,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
     try:
         ntrees = len(bst.get_dump())
-    except WindowsError:
+    except OSError:
         ntrees = 0
 
     if evals_result is not None:
