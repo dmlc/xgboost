@@ -55,3 +55,4 @@ List of Contributors
 * [Huayi Zhang](https://github.com/irachex)
 * [Johan Manders](https://github.com/johanmanders)
 * [yoori](https://github.com/yoori)
+* [Mathias Müller](https://github.com/far0n)
