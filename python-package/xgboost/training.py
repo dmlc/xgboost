@@ -61,6 +61,17 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     booster : a trained booster model
     """
     evals = list(evals)
+    if isinstance(params, dict) \
+            and 'eval_metric' in params \
+            and isinstance(params['eval_metric'], list):
+        params = dict((k, v) for k, v in params.items())
+        eval_metrics = params['eval_metric']
+        params.pop("eval_metric", None)
+        params = list(params.items())
+        for eval_metric in eval_metrics:
+            params += [('eval_metric', eval_metric)]
+
+    bst = Booster(params, [dtrain] + [d[0] for d in evals])
     ntrees = 0
     if xgb_model is not None:
         if not isinstance(xgb_model, STRING_TYPES):
@@ -69,7 +80,6 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         ntrees = len(bst.get_dump())
     else:
         bst = Booster(params, [dtrain] + [d[0] for d in evals])
-
 
     if evals_result is not None:
         if not isinstance(evals_result, dict):
@@ -120,9 +130,11 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         # is params a list of tuples? are we using multiple eval metrics?
         if isinstance(params, list):
             if len(params) != len(dict(params).items()):
-                raise ValueError('Check your params.'\
-                                     'Early stopping works with single eval metric only.')
-            params = dict(params)
+                params = dict(params)
+                sys.stderr.write("Multiple eval metrics has been passed: " \
+                "'{0}' will be used for early stopping.\n\n".format(params['eval_metric']))
+            else:
+                params = dict(params)
 
         # either minimize loss or maximize AUC/MAP/NDCG
         maximize_score = False
