@@ -27,6 +27,10 @@ def test_multiclass_classification():
 	for train_index, test_index in kf:
 	    xgb_model = xgb.XGBClassifier().fit(X[train_index],y[train_index])
 	    preds = xgb_model.predict(X[test_index])
+		# test other params in XGBClassifier().fit
+	    preds2 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=3)
+	    preds3 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=0)
+	    preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
 	    labels = y[test_index]
 	    err = sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) / float(len(preds))
 	assert err < 0.4
@@ -39,8 +43,12 @@ def test_boston_housing_regression():
 	for train_index, test_index in kf:
 	    xgb_model = xgb.XGBRegressor().fit(X[train_index],y[train_index])
 	    preds = xgb_model.predict(X[test_index])
+	    # test other params in XGBRegressor().fit
+	    preds2 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=3)
+	    preds3 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=0)
+	    preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
 	    labels = y[test_index]
-	assert mean_squared_error(preds, labels) < 15
+	assert mean_squared_error(preds, labels) < 25
 
 def test_parameter_tuning():
 	boston = load_boston()
@@ -53,5 +61,4 @@ def test_parameter_tuning():
 	clf.fit(X,y)
 	assert clf.best_score_ < 0.7
 	assert clf.best_params_ == {'n_estimators': 100, 'max_depth': 4}
-
 
