@@ -745,8 +745,13 @@ class Booster(object):
         else:
             res = '[%d]' % iteration
             for dmat, evname in evals:
-                name, val = feval(self.predict(dmat), dmat)
-                res += '\t%s-%s:%f' % (evname, name, val)
+                feval_ret = feval(self.predict(dmat), dmat)
+                if isinstance(feval_ret, list):
+                    for name, val in  feval_ret:
+                        res += '\t%s-%s:%f' % (evname, name, val)
+                else:
+                    name, val = feval_ret
+                    res += '\t%s-%s:%f' % (evname, name, val)
             return res
 
     def eval(self, data, name='eval', iteration=0):
