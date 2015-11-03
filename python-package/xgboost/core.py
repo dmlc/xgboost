@@ -139,11 +139,7 @@ def c_array(ctype, values):
 
 
 def _maybe_from_pandas(data, label, feature_names, feature_types):
-    """ Extract internal data from pd.DataFrame
-
-    If data is Pandas DataFrame, feature_names passed through will be ignored and
-    overwritten by the column names of the Pandas DataFrame.
-    """
+    """ Extract internal data from pd.DataFrame """
     try:
         import pandas as pd
     except ImportError:
@@ -170,7 +166,8 @@ def _maybe_from_pandas(data, label, feature_names, feature_types):
             else:
                 label = label.values.astype('float')
 
-    feature_names = data.columns.format()
+    if feature_names is None:
+        feature_names = data.columns.format()
 
     if feature_types is None:
         mapper = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': 'int',
@@ -216,7 +213,6 @@ class DMatrix(object):
             Whether print messages during construction
         feature_names : list, optional
             Set names for features.
-            When data is a Pandas DataFrame, feature_names will be ignored.
         feature_types : list, optional
             Set types for features.
         """
