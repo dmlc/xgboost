@@ -105,8 +105,9 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         # is params a list of tuples? are we using multiple eval metrics?
         if isinstance(params, list):
             if len(params) != len(dict(params).items()):
-                raise ValueError('Check your params.'\
-                                     'Early stopping works with single eval metric only.')
+                pass
+                # raise ValueError('Check your params.'\
+                #                     'Early stopping works with single eval metric only.')
             params = dict(params)
 
         # either minimize loss or maximize AUC/MAP/NDCG
