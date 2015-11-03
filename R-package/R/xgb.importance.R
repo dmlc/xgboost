@@ -66,42 +66,42 @@
 #' xgb.importance(train$data@@Dimnames[[2]], model = bst, data = train$data, label = train$label)
 #' 
 #' @export
-xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = NULL, data = NULL, label = NULL, target = function(x) ((x + label) == 2)){  
-  if (!class(feature_names) %in% c("character", "NULL")) {	   
+xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = NULL, data = NULL, label = NULL, target = function(x) ( (x + label) == 2)){
+  if (!class(feature_names) %in% c("character", "NULL")) {
     stop("feature_names: Has to be a vector of character or NULL if the model dump already contains feature name. Look at this function documentation to see where to get feature names.")
   }
-  
+
   if (!(class(filename_dump) %in% c("character", "NULL") && length(filename_dump) <= 1)) {
     stop("filename_dump: Has to be a path to the model dump file.")
   }
-  
+
   if (!class(model) %in% c("xgb.Booster", "NULL")) {
     stop("model: Has to be an object of class xgb.Booster model generaged by the xgb.train function.")
   }
-  
-  if((is.null(data) & !is.null(label)) |(!is.null(data) & is.null(label))) {
+
+  if((is.null(data) & !is.null(label)) | (!is.null(data) & is.null(label))) {
     stop("data/label: Provide the two arguments if you want co-occurence computation or none of them if you are not interested but not one of them only.")
   }
-  
+
   if(class(label) == "numeric"){
     if(sum(label == 0) / length(label) > 0.5) label <- as(label, "sparseVector")
   }
-  
+
   if(is.null(model)){
-    text <- readLines(filename_dump)  
+    text <- readLines(filename_dump)
   } else {
     text <- xgb.dump(model = model, with.stats = T)
-  } 
-  
+  }
+
   if(text[2] == "bias:"){
     result <- readLines(filename_dump) %>% linearDump(feature_names, .)
     if(!is.null(data) | !is.null(label)) warning("data/label: these parameters should only be provided with decision tree based models.")
   }  else {
     result <- treeDump(feature_names, text = text, keepDetail = !is.null(data))
-    
+
     # Co-occurence computation
     if(!is.null(data) & !is.null(label) & nrow(result) > 0) {
-      # Take care of missing column 
+      # Take care of missing column
       a <- data[, result[MissingNo == T,Feature], drop=FALSE] != 0
       # Bind the two Matrix and reorder columns
       c <- data[, result[MissingNo == F,Feature], drop=FALSE] %>% cBind(a,.) %>% .[,result[,Feature]]
@@ -109,23 +109,23 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
       # Apply split
       d <- data[, result[,Feature], drop=FALSE] < as.numeric(result[,Split])
       apply(c & d, 2, . %>% target %>% sum) -> vec
-            
-      result <- result[, "RealCover":= as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)][,MissingNo:=NULL]
-    }    
+
+      result <- result[, "RealCover" := as.numeric(vec), with = F][, "RealCover %" := RealCover / sum(label)][,MissingNo := NULL]
+    }
   }
   result
 }
 
 treeDump <- function(feature_names, text, keepDetail){
   if(keepDetail) groupBy <- c("Feature", "Split", "MissingNo") else groupBy <- "Feature"
-  
-  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[,"MissingNo":= Missing == No ][Feature!="Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = groupBy, with = T][,`:=`(Gain = Gain/sum(Gain), Cover = Cover/sum(Cover), Frequence = Frequence/sum(Frequence))][order(Gain, decreasing = T)]
-  
-  result  
+
+  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[,"MissingNo" := Missing == No ][Feature != "Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = groupBy, with = T][,`:=`(Gain = Gain / sum(Gain), Cover = Cover / sum(Cover), Frequence = Frequence / sum(Frequence))][order(Gain, decreasing = T)]
+
+  result
 }
 
 linearDump <- function(feature_names, text){
-  which(text == "weight:") %>% {a=.+1;text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
+  which(text == "weight:") %>% {a =. + 1; text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
 }
 
 # Avoid error messages during CRAN check.

@@ -59,28 +59,26 @@
 #' 
 #' @export
 #' 
-xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL, 
-                    params = list(), nrounds, 
+xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
+                    params = list(), nrounds,
                     verbose = 1, print.every.n = 1L, early.stop.round = NULL,
                     maximize = NULL, save_period = 0, save_name = "xgboost.model", ...) {
   dtrain <- xgb.get.DMatrix(data, label, missing, weight)
-    
+
   params <- append(params, list(...))
-  
+
   if (verbose > 0) {
     watchlist <- list(train = dtrain)
   } else {
     watchlist <- list()
   }
-  
+
   bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, print.every.n=print.every.n,
                    early.stop.round = early.stop.round, maximize = maximize,
                    save_period = save_period, save_name = save_name)
-  
+
   return(bst)
-} 
-
-
+}
 #' Training part from Mushroom Data Set
 #' 
 #' This data set is originally from the Mushroom data set,

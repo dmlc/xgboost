@@ -54,6 +54,14 @@ class XGBModel(XGBModelBase):
         Subsample ratio of the training instance.
     colsample_bytree : float
         Subsample ratio of columns when constructing each tree.
+    colsample_bylevel : float
+        Subsample ratio of columns for each split, in each level.
+    reg_alpha : float (xgb's alpha)
+        L2 regularization term on weights
+    reg_lambda : float (xgb's lambda)
+        L1 regularization term on weights
+    scale_pos_weight : float
+        Balancing of positive and negative weights.
 
     base_score:
         The initial prediction score of all instances, global bias.
@@ -66,7 +74,8 @@ class XGBModel(XGBModelBase):
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="reg:linear",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
-                 subsample=1, colsample_bytree=1,
+                 subsample=1, colsample_bytree=1, colsample_bylevel=1,
+                 reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, seed=0, missing=None):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
@@ -82,6 +91,10 @@ class XGBModel(XGBModelBase):
         self.max_delta_step = max_delta_step
         self.subsample = subsample
         self.colsample_bytree = colsample_bytree
+        self.colsample_bylevel = colsample_bylevel
+        self.reg_alpha = reg_alpha
+        self.reg_lambda = reg_lambda
+        self.scale_pos_weight = scale_pos_weight
 
         self.base_score = base_score
         self.seed = seed
@@ -190,7 +203,7 @@ class XGBModel(XGBModelBase):
 
         if evals_result:
             for val in evals_result.items():
-                evals_result_key = val[1].keys()[0]
+                evals_result_key = list(val[1].keys())[0]
                 evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
             self.evals_result_ = evals_result
 
@@ -199,10 +212,12 @@ class XGBModel(XGBModelBase):
             self.best_iteration = self._Booster.best_iteration
         return self
 
-    def predict(self, data):
+    def predict(self, data, output_margin=False, ntree_limit=0):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing)
-        return self.booster().predict(test_dmatrix)
+        return self.booster().predict(test_dmatrix,
+                                      output_margin=output_margin,
+                                      ntree_limit=ntree_limit)
 
     def evals_result(self):
         """Return the evaluation results.
@@ -251,14 +266,16 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                  n_estimators=100, silent=True,
                  objective="binary:logistic",
                  nthread=-1, gamma=0, min_child_weight=1,
-                 max_delta_step=0, subsample=1, colsample_bytree=1,
+                 max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
+                 reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, seed=0, missing=None):
         super(XGBClassifier, self).__init__(max_depth, learning_rate,
                                             n_estimators, silent, objective,
                                             nthread, gamma, min_child_weight,
                                             max_delta_step, subsample,
-                                            colsample_bytree,
-                                            base_score, seed, missing)
+                                            colsample_bytree, colsample_bylevel,
+                                            reg_alpha, reg_lambda,
+                                            scale_pos_weight, base_score, seed, missing)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
@@ -341,7 +358,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         if evals_result:
             for val in evals_result.items():
-                evals_result_key = val[1].keys()[0]
+                evals_result_key = list(val[1].keys())[0]
                 evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
             self.evals_result_ = evals_result
 
@@ -351,9 +368,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         return self
 
-    def predict(self, data):
+    def predict(self, data, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing)
-        class_probs = self.booster().predict(test_dmatrix)
+        class_probs = self.booster().predict(test_dmatrix,
+                                             output_margin=output_margin,
+                                             ntree_limit=ntree_limit)
         if len(class_probs.shape) > 1:
             column_indexes = np.argmax(class_probs, axis=1)
         else:
@@ -361,9 +380,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             column_indexes[class_probs > 0.5] = 1
         return self._le.inverse_transform(column_indexes)
 
-    def predict_proba(self, data):
+    def predict_proba(self, data, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing)
-        class_probs = self.booster().predict(test_dmatrix)
+        class_probs = self.booster().predict(test_dmatrix,
+                                             output_margin=output_margin,
+                                             ntree_limit=ntree_limit)
         if self.objective == "multi:softprob":
             return class_probs
         else:

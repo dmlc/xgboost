@@ -11,6 +11,8 @@
 
 
 pushd xgboost
+#remove the pre-compiled .so and trigger the system's on-the-fly compiling
+make clean
 if make python; then
     echo "Successfully build multi-thread xgboost"
 else

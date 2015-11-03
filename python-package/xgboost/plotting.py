@@ -7,11 +7,12 @@ from __future__ import absolute_import
 import re
 import numpy as np
 from .core import Booster
+from .sklearn import XGBModel
 
 from io import BytesIO
 
 def plot_importance(booster, ax=None, height=0.2,
-                    xlim=None, title='Feature importance',
+                    xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features',
                     grid=True, **kwargs):
 
@@ -19,14 +20,16 @@ def plot_importance(booster, ax=None, height=0.2,
 
     Parameters
     ----------
-    booster : Booster or dict
-        Booster instance, or dict taken by Booster.get_fscore()
+    booster : Booster, XGBModel or dict
+        Booster or XGBModel instance, or dict taken by Booster.get_fscore()
     ax : matplotlib Axes, default None
         Target axes instance. If None, new figure and axes will be created.
     height : float, default 0.2
         Bar height, passed to ax.barh()
     xlim : tuple, default None
         Tuple passed to axes.xlim()
+    ylim : tuple, default None
+        Tuple passed to axes.ylim()
     title : str, default "Feature importance"
         Axes title. To disable, pass None.
     xlabel : str, default "F score"
@@ -46,12 +49,14 @@ def plot_importance(booster, ax=None, height=0.2,
     except ImportError:
         raise ImportError('You must install matplotlib to plot importance')
 
-    if isinstance(booster, Booster):
+    if isinstance(booster, XGBModel):
+        importance = booster.booster().get_fscore()
+    elif isinstance(booster, Booster):
         importance = booster.get_fscore()
     elif isinstance(booster, dict):
         importance = booster
     else:
-        raise ValueError('tree must be Booster or dict instance')
+        raise ValueError('tree must be Booster, XGBModel or dict instance')
 
     if len(importance) == 0:
         raise ValueError('Booster.get_fscore() results in empty')
@@ -73,11 +78,18 @@ def plot_importance(booster, ax=None, height=0.2,
     ax.set_yticklabels(labels)
 
     if xlim is not None:
-        if not isinstance(xlim, tuple) or len(xlim, 2):
+        if not isinstance(xlim, tuple) or len(xlim) != 2:
             raise ValueError('xlim must be a tuple of 2 elements')
     else:
         xlim = (0, max(values) * 1.1)
     ax.set_xlim(xlim)
+
+    if ylim is not None:
+        if not isinstance(ylim, tuple) or len(ylim) != 2:
+            raise ValueError('ylim must be a tuple of 2 elements')
+    else:
+        ylim = (-1, len(importance))
+    ax.set_ylim(ylim)
 
     if title is not None:
         ax.set_title(title)
@@ -142,8 +154,8 @@ def to_graphviz(booster, num_trees=0, rankdir='UT',
 
     Parameters
     ----------
-    booster : Booster
-        Booster instance
+    booster : Booster, XGBModel
+        Booster or XGBModel instance
     num_trees : int, default 0
         Specify the ordinal number of target tree
     rankdir : str, default "UT"
@@ -165,8 +177,11 @@ def to_graphviz(booster, num_trees=0, rankdir='UT',
     except ImportError:
         raise ImportError('You must install graphviz to plot tree')
 
-    if not isinstance(booster, Booster):
-        raise ValueError('booster must be Booster instance')
+    if not isinstance(booster, (Booster, XGBModel)):
+        raise ValueError('booster must be Booster or XGBModel instance')
+
+    if isinstance(booster, XGBModel):
+        booster = booster.booster()
 
     tree = booster.get_dump()[num_trees]
     tree = tree.split()
@@ -193,8 +208,8 @@ def plot_tree(booster, num_trees=0, rankdir='UT', ax=None, **kwargs):
 
     Parameters
     ----------
-    booster : Booster
-        Booster instance
+    booster : Booster, XGBModel
+        Booster or XGBModel instance
     num_trees : int, default 0
         Specify the ordinal number of target tree
     rankdir : str, default "UT"
@@ -215,7 +230,6 @@ def plot_tree(booster, num_trees=0, rankdir='UT', ax=None, **kwargs):
         import matplotlib.image as image
     except ImportError:
         raise ImportError('You must install matplotlib to plot tree')
-
 
     if ax is None:
         _, ax = plt.subplots(1, 1)

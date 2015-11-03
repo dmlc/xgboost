@@ -1,8 +1,9 @@
 /*!
+ * Copyright by Contributors
  * \file allreduce_mock.h
  * \brief Mock test module of AllReduce engine,
  * insert failures in certain call point, to test if the engine is robust to failure
- * 
+ *
  * \author Ignacio Cano, Tianqi Chen
  */
 #ifndef RABIT_ALLREDUCE_MOCK_H_
@@ -68,7 +69,7 @@ class AllreduceMock : public AllreduceRobust {
       DummySerializer dum;
       ComboSerializer com(global_model, local_model);
       return AllreduceRobust::LoadCheckPoint(&dum, &com);
-    }    
+    }
   }
   virtual void CheckPoint(const Serializable *global_model,
                           const Serializable *local_model) {
@@ -100,6 +101,7 @@ class AllreduceMock : public AllreduceRobust {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial), "LazyCheckPoint");
     AllreduceRobust::LazyCheckPoint(global_model);
   }
+
  protected:
   // force checkpoint to local
   int force_local;
@@ -108,7 +110,7 @@ class AllreduceMock : public AllreduceRobust {
   // sum of allreduce
   double tsum_allreduce;
   double time_checkpoint;
-  
+
  private:
   struct DummySerializer : public Serializable {
     virtual void Load(Stream *fi) {
@@ -126,7 +128,7 @@ class AllreduceMock : public AllreduceRobust {
     }
     ComboSerializer(const Serializable *lhs, const Serializable *rhs)
         : lhs(NULL), rhs(NULL), c_lhs(lhs), c_rhs(rhs) {
-    }    
+    }
     virtual void Load(Stream *fi) {
       if (lhs != NULL) lhs->Load(fi);
       if (rhs != NULL) rhs->Load(fi);
@@ -143,10 +145,10 @@ class AllreduceMock : public AllreduceRobust {
     int seqno;
     int ntrial;
     MockKey(void) {}
-    MockKey(int rank, int version, int seqno, int ntrial) 
+    MockKey(int rank, int version, int seqno, int ntrial)
         : rank(rank), version(version), seqno(seqno), ntrial(ntrial) {}
     inline bool operator==(const MockKey &b) const {
-      return rank == b.rank && 
+      return rank == b.rank &&
           version == b.version &&
           seqno == b.seqno &&
           ntrial == b.ntrial;
@@ -173,4 +175,4 @@ class AllreduceMock : public AllreduceRobust {
 };
 }  // namespace engine
 }  // namespace rabit
-#endif // RABIT_ALLREDUCE_MOCK_H_
+#endif  // RABIT_ALLREDUCE_MOCK_H_

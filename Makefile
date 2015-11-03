@@ -189,7 +189,6 @@ pythonpack:
 	cp -r multi-node xgboost-deploy/xgboost
 	cp -r windows xgboost-deploy/xgboost
 	cp -r src xgboost-deploy/xgboost
-
 	#make python
 
 pythonbuild:

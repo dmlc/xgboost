@@ -56,8 +56,8 @@
 #' 
 #' @export
 xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model = NULL, text = NULL, n_first_tree = NULL){
-  
-  if (!class(feature_names) %in% c("character", "NULL")) {     
+
+  if (!class(feature_names) %in% c("character", "NULL")) {
     stop("feature_names: Has to be a vector of character or NULL if the model dump already contains feature name. Look at this function documentation to see where to get feature names.")
   }
   if (!(class(filename_dump) %in% c("character", "NULL") && length(filename_dump) <= 1)) {
@@ -67,59 +67,59 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
   } else if(is.null(filename_dump) && is.null(model) && is.null(text)){
     stop("filename_dump & model & text: no path to dump model, no model, no text dump, have been provided.")
   }
-  
+
   if (!class(model) %in% c("xgb.Booster", "NULL")) {
     stop("model: Has to be an object of class xgb.Booster model generaged by the xgb.train function.")
   }
-  
-  if (!class(text) %in% c("character", "NULL")) { 
+
+  if (!class(text) %in% c("character", "NULL")) {
     stop("text: Has to be a vector of character or NULL if a path to the model dump has already been provided.")
   }
-  
+
   if (!class(n_first_tree) %in% c("numeric", "NULL") | length(n_first_tree) > 1) {
     stop("n_first_tree: Has to be a numeric vector of size 1.")
   }
-  
+
   if(!is.null(model)){
-    text = xgb.dump(model = model, with.stats = T)
+    text <- xgb.dump(model = model, with.stats = T)
   } else if(!is.null(filename_dump)){
-    text <- readLines(filename_dump) %>% str_trim(side = "both")  
+    text <- readLines(filename_dump) %>% str_trim(side = "both")
   }
-  
-  position <- str_match(text, "booster") %>% is.na %>% not %>% which %>% c(length(text)+1)
-  
+
+  position <- str_match(text, "booster") %>% is.na %>% not %>% which %>% c(length(text) + 1)
+
   extract <- function(x, pattern)  str_extract(x, pattern) %>% str_split("=") %>% lapply(function(x) x[2] %>% as.numeric) %>% unlist
-  
+
   n_round <- min(length(position) - 1, n_first_tree)
-  
+
   addTreeId <- function(x, i) paste(i,x,sep = "-")
-  
+
   allTrees <- data.table()
- 
-  anynumber_regex<-"[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?" 
-  for(i in 1:n_round){
-    
-    tree <- text[(position[i]+1):(position[i+1]-1)]
-    
+
+  anynumber_regex <- "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
+  for (i in 1:n_round){
+
+    tree <- text[(position[i] + 1):(position[i + 1] - 1)]
+
     # avoid tree made of a leaf only (no split)
-    if(length(tree) <2) next
-    
-    treeID <- i-1
-    
+    if(length(tree) < 2) next
+
+    treeID <- i - 1
+
     notLeaf <- str_match(tree, "leaf") %>% is.na
     leaf <- notLeaf %>% not %>% tree[.]
     branch <- notLeaf %>% tree[.]
     idBranch <- str_extract(branch, "\\d*:") %>% str_replace(":", "") %>% addTreeId(treeID)
     idLeaf <- str_extract(leaf, "\\d*:") %>% str_replace(":", "") %>% addTreeId(treeID)
-    featureBranch <- str_extract(branch, "f\\d*<") %>% str_replace("<", "") %>% str_replace("f", "") %>% as.numeric 
+    featureBranch <- str_extract(branch, "f\\d*<") %>% str_replace("<", "") %>% str_replace("f", "") %>% as.numeric
     if(!is.null(feature_names)){
       featureBranch <- feature_names[featureBranch + 1]
     }
     featureLeaf <- rep("Leaf", length(leaf))
-    splitBranch <- str_extract(branch, paste0("<",anynumber_regex,"\\]")) %>% str_replace("<", "") %>% str_replace("\\]", "") 
-    splitLeaf <- rep(NA, length(leaf)) 
+    splitBranch <- str_extract(branch, paste0("<",anynumber_regex,"\\]")) %>% str_replace("<", "") %>% str_replace("\\]", "")
+    splitLeaf <- rep(NA, length(leaf))
     yesBranch <- extract(branch, "yes=\\d*") %>% addTreeId(treeID)
-    yesLeaf <- rep(NA, length(leaf)) 
+    yesLeaf <- rep(NA, length(leaf))
     noBranch <- extract(branch, "no=\\d*") %>% addTreeId(treeID)
     noLeaf <- rep(NA, length(leaf))
     missingBranch <- extract(branch, "missing=\\d+") %>% addTreeId(treeID)
@@ -128,38 +128,38 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
     qualityLeaf <- extract(leaf, paste0("leaf=",anynumber_regex))
     coverBranch <- extract(branch, "cover=\\d*\\.*\\d*")
     coverLeaf <- extract(leaf, "cover=\\d*\\.*\\d*")
-    dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree:=treeID]
-    
+    dt <- data.table(ID = c(idBranch, idLeaf), Feature = c(featureBranch, featureLeaf), Split = c(splitBranch, splitLeaf), Yes = c(yesBranch, yesLeaf), No = c(noBranch, noLeaf), Missing = c(missingBranch, missingLeaf), Quality = c(qualityBranch, qualityLeaf), Cover = c(coverBranch, coverLeaf))[order(ID)][,Tree := treeID]
+
     allTrees <- rbindlist(list(allTrees, dt), use.names = T, fill = F)
   }
-  
+
   yes <- allTrees[!is.na(Yes), Yes]
-  
-  set(allTrees, i = which(allTrees[, Feature] != "Leaf"), 
-      j = "Yes.Feature", 
+
+  set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
+      j = "Yes.Feature",
       value = allTrees[ID %in% yes, Feature])
-  
+
   set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
-      j = "Yes.Cover", 
+      j = "Yes.Cover",
       value = allTrees[ID %in% yes, Cover])
-  
+
   set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
-      j = "Yes.Quality", 
+      j = "Yes.Quality",
       value = allTrees[ID %in% yes, Quality])
   no <- allTrees[!is.na(No), No]
-  
+
   set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
-      j = "No.Feature", 
+      j = "No.Feature",
       value = allTrees[ID %in% no, Feature])
-  
+
   set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
-      j = "No.Cover", 
+      j = "No.Cover",
       value = allTrees[ID %in% no, Cover])
-  
-  set(allTrees, i = which(allTrees[, Feature] != "Leaf"), 
-      j = "No.Quality", 
+
+  set(allTrees, i = which(allTrees[, Feature] != "Leaf"),
+      j = "No.Quality",
       value = allTrees[ID %in% no, Quality])
-  
+
   allTrees
 }
 

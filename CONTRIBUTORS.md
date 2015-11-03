@@ -13,6 +13,8 @@ Committers are people who have made substantial contribution to the project and 
   - Bing is the original creator of xgboost python package and currently the maintainer of [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl).
 * [Michael Benesty](https://github.com/pommedeterresautee)
   - Micheal is a lawyer, data scientist in France, he is the creator of xgboost interactive analysis module in R.
+* [Yuan Tang](https://github.com/terrytangyuan)
+  - Yuan is a data scientist in Chicago, US. He contributed mostly in R and Python packages. 
 
 Become a Comitter
 -----------------
@@ -34,7 +36,6 @@ List of Contributors
 * [Zygmunt Zając](https://github.com/zygmuntz)
   - Zygmunt is the master behind the early stopping feature frequently used by kagglers.
 * [Ajinkya Kale](https://github.com/ajkl)
-* [Yuan Tang](https://github.com/terrytangyuan)
 * [Boliang Chen](https://github.com/cblsjtu)
 * [Vadim Khotilovich](https://github.com/khotilov)
 * [Yangqing Men](https://github.com/yanqingmen)
@@ -49,5 +50,9 @@ List of Contributors
   - Masaaki is the initial creator of xgboost python plotting module.
 * [Hongliang Liu](https://github.com/phunterlau)
   - Hongliang is the maintainer of xgboost python PyPI package for pip installation.
+* [daiyl0320](https://github.com/daiyl0320)
+  - daiyl0320 contributed patch to xgboost distributed version more robust, and scales stably on TB scale datasets.
 * [Huayi Zhang](https://github.com/irachex)
 * [Johan Manders](https://github.com/johanmanders)
+* [yoori](https://github.com/yoori)
+* [Mathias Müller](https://github.com/far0n)

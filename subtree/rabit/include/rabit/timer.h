@@ -1,4 +1,5 @@
 /*!
+ * Copyright by Contributors
  * \file timer.h
  * \brief This file defines the utils for timing
  * \author Tianqi Chen, Nacho, Tianyi
@@ -18,7 +19,6 @@ namespace utils {
  * \brief return time in seconds, not cross platform, avoid to use this in most places
  */
 inline double GetTime(void) {
-  // TODO: use c++11 chrono when c++11 was available
   #ifdef __MACH__
   clock_serv_t cclock;
   mach_timespec_t mts;
@@ -32,7 +32,6 @@ inline double GetTime(void) {
   utils::Check(clock_gettime(CLOCK_REALTIME, &ts) == 0, "failed to get time");
   return static_cast<double>(ts.tv_sec) + static_cast<double>(ts.tv_nsec) * 1e-9;
   #else
-  // TODO: add MSVC macro, and MSVC timer
   return static_cast<double>(time(NULL));
   #endif
   #endif
