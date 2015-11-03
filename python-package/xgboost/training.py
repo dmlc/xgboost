@@ -10,7 +10,8 @@ import numpy as np
 from .core import Booster, STRING_TYPES
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
-          early_stopping_rounds=None, evals_result=None, verbose_eval=True, learning_rates=None):
+          maximize=False, early_stopping_rounds=None, evals_result=None,
+          verbose_eval=True, learning_rates=None, xgb_model=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -29,6 +30,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         Customized objective function.
     feval : function
         Customized evaluation function.
+    maximize : bool
+        Whether to maximize feval.
     early_stopping_rounds: int
         Activates early stopping. Validation error needs to decrease at least
         every <early_stopping_rounds> round(s) to continue training.
@@ -50,13 +53,23 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         Learning rate for each boosting round (yields learning rate decay).
         - list l: eta = l[boosting round]
         - function f: eta = f(boosting round, num_boost_round)
+    xgb_model : file name of stored xgb model or 'Booster' instance
+        Xgb model to be loaded before training (allows training continuation).
 
     Returns
     -------
     booster : a trained booster model
     """
     evals = list(evals)
-    bst = Booster(params, [dtrain] + [d[0] for d in evals])
+    ntrees = 0
+    if xgb_model is not None:
+        if not isinstance(xgb_model, STRING_TYPES):
+            xgb_model = xgb_model.save_raw()
+        bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
+        ntrees = len(bst.get_dump())
+    else:
+        bst = Booster(params, [dtrain] + [d[0] for d in evals])
+
 
     if evals_result is not None:
         if not isinstance(evals_result, dict):
@@ -69,6 +82,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     if not early_stopping_rounds:
         for i in range(num_boost_round):
             bst.update(dtrain, i, obj)
+            ntrees += 1
             if len(evals) != 0:
                 bst_eval_set = bst.eval_set(evals, i, feval)
                 if isinstance(bst_eval_set, STRING_TYPES):
@@ -91,6 +105,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                                 evals_result[key][res_key].append(res_val)
                             else:
                                 evals_result[key][res_key] = [res_val]
+        bst.best_iteration = (ntrees - 1)
         return bst
 
     else:
@@ -115,6 +130,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             maximize_metrics = ('auc', 'map', 'ndcg')
             if any(params['eval_metric'].startswith(x) for x in maximize_metrics):
                 maximize_score = True
+        if feval is not None:
+            maximize_score = maximize
 
         if maximize_score:
             best_score = 0.0
@@ -122,7 +139,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             best_score = float('inf')
 
         best_msg = ''
-        best_score_i = 0
+        best_score_i = ntrees
 
         if isinstance(learning_rates, list) and len(learning_rates) != num_boost_round:
             raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
@@ -134,6 +151,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 else:
                     bst.set_param({'eta': learning_rates(i, num_boost_round)})
             bst.update(dtrain, i, obj)
+            ntrees += 1
             bst_eval_set = bst.eval_set(evals, i, feval)
 
             if isinstance(bst_eval_set, STRING_TYPES):
@@ -162,7 +180,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             if (maximize_score and score > best_score) or \
                     (not maximize_score and score < best_score):
                 best_score = score
-                best_score_i = i
+                best_score_i = (ntrees - 1)
                 best_msg = msg
             elif i - best_score_i >= early_stopping_rounds:
                 sys.stderr.write("Stopping. Best iteration:\n{}\n\n".format(best_msg))
