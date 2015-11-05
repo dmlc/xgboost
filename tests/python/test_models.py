@@ -62,6 +62,15 @@ class TestModels(unittest.TestCase):
 		xgb.cv(param, dtrain, num_round, nfold = 5, seed = 0,
 	       obj = logregobj, feval=evalerror)
 
+		# test maximize parameter
+		def neg_evalerror(preds, dtrain):
+			labels = dtrain.get_label()
+			return 'error', float(sum(labels == (preds > 0.0))) / len(labels)
+		bst2 = xgb.train(param, dtrain, num_round, watchlist, logregobj, neg_evalerror, maximize=True)
+		preds2 = bst2.predict(dtest)
+		err2 = sum(1 for i in range(len(preds2)) if int(preds2[i]>0.5)!=labels[i]) / float(len(preds2))
+		assert err == err2
+
 	def test_fpreproc(self):
 		param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic'}
 		num_round = 2
