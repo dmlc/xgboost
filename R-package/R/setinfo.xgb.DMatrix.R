@@ -21,7 +21,6 @@
 #' stopifnot(all(labels2 == 1-labels))
 #' @rdname setinfo
 #' @export
-#' 
 setinfo <- function(object, ...){
   UseMethod("setinfo")
 }

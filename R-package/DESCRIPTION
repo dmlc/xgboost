@@ -3,16 +3,16 @@ Type: Package
 Title: Extreme Gradient Boosting
 Version: 0.4-2
 Date: 2015-08-01
-Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>, Michael Benesty <michael@benesty.fr>
+Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>,
+    Michael Benesty <michael@benesty.fr>
 Maintainer: Tong He <hetong007@gmail.com>
-Description: Extreme Gradient Boosting, which is an 
-    efficient implementation of gradient boosting framework. 
-    This package is its R interface. The package includes efficient 
-    linear model solver and tree learning algorithms. The package can automatically 
-    do parallel computation on a single machine which could be more than 10 times faster
-    than existing gradient boosting packages. It supports various
-    objective functions, including regression, classification and ranking. The
-    package is made to be extensible, so that users are also allowed to define
+Description: Extreme Gradient Boosting, which is an efficient implementation
+    of gradient boosting framework. This package is its R interface. The package
+    includes efficient linear model solver and tree learning algorithms. The package
+    can automatically do parallel computation on a single machine which could be
+    more than 10 times faster than existing gradient boosting packages. It supports
+    various objective functions, including regression, classification and ranking.
+    The package is made to be extensible, so that users are also allowed to define
     their own objectives easily.
 License: Apache License (== 2.0) | file LICENSE
 URL: https://github.com/dmlc/xgboost
@@ -21,7 +21,7 @@ VignetteBuilder: knitr
 Suggests:
     knitr,
     ggplot2 (>= 1.0.0),
-    DiagrammeR (>= 0.6),
+    DiagrammeR (>= 0.8.1),
     Ckmeans.1d.dp (>= 3.3.1),
     vcd (>= 1.3),
     testthat
@@ -30,6 +30,7 @@ Depends:
 Imports:
     Matrix (>= 1.1-0),
     methods,
-    data.table (>= 1.9.4),
+    data.table (>= 1.9.6),
     magrittr (>= 1.5),
     stringr (>= 0.6.2)
+RoxygenNote: 5.0.0

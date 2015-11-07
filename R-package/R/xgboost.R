@@ -58,7 +58,6 @@
 #' pred <- predict(bst, test$data)
 #' 
 #' @export
-#' 
 xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                     params = list(), nrounds,
                     verbose = 1, print.every.n = 1L, early.stop.round = NULL,

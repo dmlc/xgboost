@@ -90,7 +90,6 @@
 #'                   max.depth =3, eta = 1, objective = "binary:logistic")
 #' print(history)
 #' @export
-#'
 xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NA,
                    prediction = FALSE, showsd = TRUE, metrics=list(),
                    obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, verbose = T, print.every.n=1L,

@@ -15,7 +15,6 @@
 #' bst <- xgb.load('xgb.model')
 #' pred <- predict(bst, test$data)
 #' @export
-#' 
 xgb.load <- function(modelfile) {
   if (is.null(modelfile))
     stop("xgb.load: modelfile cannot be NULL")

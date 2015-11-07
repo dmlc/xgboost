@@ -12,7 +12,6 @@
 #' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' @export
-#' 
 xgb.DMatrix.save <- function(DMatrix, fname) {
   if (typeof(fname) != "character") {
     stop("xgb.save: fname must be character")

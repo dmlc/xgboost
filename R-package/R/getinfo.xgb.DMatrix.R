@@ -23,7 +23,6 @@ setClass('xgb.DMatrix')
 #' stopifnot(all(labels2 == 1-labels))
 #' @rdname getinfo
 #' @export
-#' 
 getinfo <- function(object, ...){
     UseMethod("getinfo")
 }

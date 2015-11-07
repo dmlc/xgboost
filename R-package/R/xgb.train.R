@@ -120,7 +120,6 @@
 #' param <- list(max.depth = 2, eta = 1, silent = 1, objective=logregobj,eval_metric=evalerror)
 #' bst <- xgb.train(param, dtrain, nthread = 2, nround = 2, watchlist)
 #' @export
-#' 
 xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
                       obj = NULL, feval = NULL, verbose = 1, print.every.n=1L,
                       early.stop.round = NULL, maximize = NULL,

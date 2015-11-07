@@ -16,7 +16,6 @@
 #' bst <- xgb.load('xgb.model')
 #' pred <- predict(bst, test$data)
 #' @export
-#' 
 xgb.save <- function(model, fname) {
   if (typeof(fname) != "character") {
     stop("xgb.save: fname must be character")
