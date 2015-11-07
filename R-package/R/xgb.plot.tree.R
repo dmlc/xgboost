@@ -70,7 +70,7 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, model = NU
   allTrees[, shape:= "rectangle"][Feature == "Leaf", shape:= "oval"]
   allTrees[, filledcolor:= "Beige"][Feature == "Leaf", filledcolor:= "Khaki"]
   
-  nodes <- create_nodes(nodes = allTrees[,ID],
+  nodes <- DiagrammeR::create_nodes(nodes = allTrees[,ID],
                  label = allTrees[,label],
                  #type = c("lower", "lower", "upper", "upper"),
                  style = "filled",
@@ -81,7 +81,7 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, model = NU
                  fontname = "Helvetica"
                  )
   
-  edges <- create_edges(from = allTrees[Feature != "Leaf", c(ID)] %>% rep(2),
+  edges <- DiagrammeR::create_edges(from = allTrees[Feature != "Leaf", c(ID)] %>% rep(2),
                         to = allTrees[Feature != "Leaf", c(Yes, No)],
                         label = allTrees[Feature != "Leaf", paste("<",Split)] %>% c(rep("",nrow(allTrees[Feature != "Leaf"]))),
                         color = "DimGray", 
@@ -90,11 +90,11 @@ xgb.plot.tree <- function(feature_names = NULL, filename_dump = NULL, model = NU
                         fontname = "Helvetica",
                         rel = "leading_to")
 
-  graph <- create_graph(nodes_df = nodes,
+  graph <- DiagrammeR::create_graph(nodes_df = nodes,
                         edges_df = edges,
                         graph_attrs = "rankdir = LR")
   
-  render_graph(graph, width = width, height = height)
+  DiagrammeR::render_graph(graph, width = width, height = height)
 }
 
 # Avoid error messages during CRAN check.
