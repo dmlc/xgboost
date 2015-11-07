@@ -42,7 +42,8 @@ on going at master
 * Python module now throw exception instead of crash terminal when a parameter error happens.
 * Python module now has importance plot and tree plot functions.
 * Python module now accepts different learning rates for each boosting round.
-* Python now allows model training continuation from previously saved model.
+* Python module now allows model training continuation from previously saved model.
+* Python module now allows early stopping in CV.
 * Additional parameters added for sklearn wrapper
 * Java api is ready for use
 * Added more test cases and continuous integration to make each build more robust
