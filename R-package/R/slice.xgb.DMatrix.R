@@ -13,7 +13,6 @@ setClass('xgb.DMatrix')
 #' dsub <- slice(dtrain, 1:3)
 #' @rdname slice
 #' @export
-#' 
 slice <- function(object, ...){
     UseMethod("slice")
 }

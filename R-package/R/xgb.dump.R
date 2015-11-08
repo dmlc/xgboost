@@ -36,7 +36,6 @@
 #' # print the model without saving it to a file
 #' print(xgb.dump(bst))
 #' @export
-#' 
 xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   if (class(model) != "xgb.Booster") {
     stop("model: argument must be type xgb.Booster")

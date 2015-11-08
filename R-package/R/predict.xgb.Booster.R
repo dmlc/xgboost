@@ -29,7 +29,6 @@ setClass("xgb.Booster",
 #'                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
 #' pred <- predict(bst, test$data)
 #' @export
-#' 
 setMethod("predict", signature = "xgb.Booster",
           definition = function(object, newdata, missing = NA,
                                 outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE) {

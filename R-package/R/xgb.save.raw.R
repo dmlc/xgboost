@@ -16,7 +16,6 @@
 #' bst <- xgb.load(raw)
 #' pred <- predict(bst, test$data)
 #' @export
-#' 
 xgb.save.raw <- function(model) {
   if (class(model) == "xgb.Booster"){
     model <- model$handle
