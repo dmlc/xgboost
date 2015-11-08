@@ -1,6 +1,6 @@
 XGBoost Parameters
 ==================
-Before running XGboost, we must set three types of parameters, general parameters, booster parameters and task parameters:
+Before running XGboost, we must set three types of parameters: general parameters, booster parameters and task parameters.
 - General parameters relates to which booster we are using to do boosting, commonly tree or linear model
 - Booster parameters depends on which booster you have chosen
 - Learning Task parameters that decides on the learning scenario, for example, regression tasks may use different parameters with ranking tasks.
