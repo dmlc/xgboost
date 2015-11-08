@@ -131,7 +131,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         if isinstance(params, list):
             if len(params) != len(dict(params).items()):
                 params = dict(params)
-                sys.stderr.write("Multiple eval metrics has been passed: " \
+                sys.stderr.write("Multiple eval metrics have been passed: " \
                 "'{0}' will be used for early stopping.\n\n".format(params['eval_metric']))
             else:
                 params = dict(params)
