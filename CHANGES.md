@@ -46,6 +46,8 @@ on going at master
   - accepts different learning rates for each boosting round.
   - allows model training continuation from previously saved model.
   - allows early stopping in CV.
+  - allows feval to return a list of tuples.
+  - allows eval_metric to handle additional format.
   - improved compatibility in sklearn module.
   - additional parameters added for sklearn wrapper.
   - added pip installation functionality.
