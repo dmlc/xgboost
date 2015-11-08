@@ -22,7 +22,7 @@ This is a list of short codes introducing different functionalities of xgboost p
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/boost_from_prediction.jl)
 * Predicting using first n trees
   [python](guide-python/predict_first_ntree.py)
-  [R](../R-package/demo/boost_from_prediction.R)
+  [R](../R-package/demo/predict_first_ntree.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/boost_from_prediction.jl)
 * Generalized Linear Model
   [python](guide-python/generalized_linear_model.py)
@@ -49,4 +49,3 @@ Benchmarks
 ----------
 * [Starter script for Kaggle Higgs Boson](kaggle-higgs)
 * [Kaggle Tradeshift winning solution by daxiongshu](https://github.com/daxiongshu/kaggle-tradeshift-winning-solution)
-
