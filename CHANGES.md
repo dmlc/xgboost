@@ -37,16 +37,17 @@ xgboost-0.4
 
 on going at master
 ==================
-* Fix List
-  - Fixed possible problem of poisson regression for R.
-* Python module now throw exception instead of crash terminal when a parameter error happens.
-* Python module now has importance plot and tree plot functions.
-* Python module now accepts different learning rates for each boosting round.
-* Python module now allows model training continuation from previously saved model.
-* Python module now allows early stopping in CV.
-* Additional parameters added for sklearn wrapper
+* Changes in R library
+  - fixed possible problem of poisson regression.
+  - switched from 0 to NA for missing values.
+* Changes in Python library
+  - throws exception instead of crash terminal when a parameter error happens.
+  - has importance plot and tree plot functions.
+  - accepts different learning rates for each boosting round.
+  - allows model training continuation from previously saved model.
+  - allows early stopping in CV.
+  - improved compatibility in sklearn module.
+  - additional parameters added for sklearn wrapper.
+  - added pip installation functionality.
 * Java api is ready for use
-* Added more test cases and continuous integration to make each build more robust
-* Improvements in sklearn compatible module
-* Added pip installation functionality for python module
-* Switch from 0 to NA for missing values in R
+* Added more test cases and continuous integration to make each build more robust.
