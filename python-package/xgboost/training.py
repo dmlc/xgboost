@@ -89,7 +89,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         else:
             evals_name = [d[1] for d in evals]
             evals_result.clear()
-            evals_result.update({key: {} for key in evals_name})
+            evals_result.update(dict([(key, {}) for key in evals_name]))
 
     if not early_stopping_rounds:
         for i in range(num_boost_round):
