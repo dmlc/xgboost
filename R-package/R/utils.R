@@ -123,7 +123,7 @@ xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
       dtrain <- data
     } else if (inClass == "data.frame") {
       stop("xgboost only support numerical matrix input,
-           use 'data.frame' to transform the data.")
+           use 'data.matrix' to transform the data.")
     } else {
       stop("xgboost: Invalid input of data")
     }
