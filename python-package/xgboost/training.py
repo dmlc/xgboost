@@ -50,9 +50,10 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         If `verbose_eval` then the evaluation metric on the validation set, if
         given, is printed at each boosting stage.
     learning_rates: list or function
-        List of learning rate for each boosting round 
-        or a customized function that calculates eta in terms of 
-        current number of round and the total number of boosting round (e.g. yields learning rate decay)
+        List of learning rate for each boosting round
+        or a customized function that calculates eta in terms of
+        current number of round and the total number of boosting round (e.g. yields
+        learning rate decay)
         - list l: eta = l[boosting round]
         - function f: eta = f(boosting round, num_boost_round)
     xgb_model : file name of stored xgb model or 'Booster' instance
@@ -89,7 +90,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         else:
             evals_name = [d[1] for d in evals]
             evals_result.clear()
-            evals_result.update({key: {} for key in evals_name})
+            evals_result.update(dict([(key, {}) for key in evals_name]))
 
     if not early_stopping_rounds:
         for i in range(num_boost_round):

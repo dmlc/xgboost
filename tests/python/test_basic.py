@@ -48,7 +48,7 @@ class TestBasic(unittest.TestCase):
                           feature_names=['a', 'b', 'c', 'd', 'd'])
         # contains symbol
         self.assertRaises(ValueError, xgb.DMatrix, data,
-                          feature_names=['a', 'b', 'c', 'd', 'e=1'])
+                          feature_names=['a', 'b', 'c', 'd', 'e<1'])
 
         dm = xgb.DMatrix(data)
         dm.feature_names = list('abcde')
@@ -105,7 +105,7 @@ class TestBasic(unittest.TestCase):
         df = pd.DataFrame([[1, 2., True], [2, 3., False]], columns=['a', 'b', 'c'])
         dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
         assert dm.feature_names == ['a', 'b', 'c']
-        assert dm.feature_types == ['int', 'q', 'i']
+        assert dm.feature_types == ['int', 'float', 'i']
         assert dm.num_row() == 2
         assert dm.num_col() == 3
 
@@ -125,14 +125,14 @@ class TestBasic(unittest.TestCase):
         df = pd.DataFrame([[1, 2., True], [2, 3., False]])
         dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
         assert dm.feature_names == ['0', '1', '2']
-        assert dm.feature_types == ['int', 'q', 'i']
+        assert dm.feature_types == ['int', 'float', 'i']
         assert dm.num_row() == 2
         assert dm.num_col() == 3
 
         df = pd.DataFrame([[1, 2., 1], [2, 3., 1]], columns=[4, 5, 6])
         dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
         assert dm.feature_names == ['4', '5', '6']
-        assert dm.feature_types == ['int', 'q', 'int']
+        assert dm.feature_types == ['int', 'float', 'int']
         assert dm.num_row() == 2
         assert dm.num_col() == 3
 
