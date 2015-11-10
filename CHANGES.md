@@ -51,5 +51,6 @@ on going at master
   - improved compatibility in sklearn module.
   - additional parameters added for sklearn wrapper.
   - added pip installation functionality.
+  - supports more Pandas DataFrame dtypes. 
 * Java api is ready for use
 * Added more test cases and continuous integration to make each build more robust.
