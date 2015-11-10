@@ -15,6 +15,9 @@
 #endif
 
 namespace xgboost {
+std::mt19937 rng(0);
+std::uniform_int_distribution<> rdist(0,RAND_MAX);
+
 namespace tree {
 IUpdater* CreateUpdater(const char *name) {
   using namespace std;

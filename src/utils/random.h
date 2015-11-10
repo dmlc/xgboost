@@ -14,22 +14,30 @@
 #include <vector>
 #include <algorithm>
 #include "./utils.h"
+#include <random>
 
 /*! namespace of PRNG */
 namespace xgboost {
+extern std::mt19937 rng;
+extern std::uniform_int_distribution<> rdist;
+
 namespace random {
+
 #ifndef XGBOOST_CUSTOMIZE_PRNG_
 /*! \brief seed the PRNG */
 inline void Seed(unsigned seed) {
   srand(seed);
+  rng.seed(seed);
+  rdist.reset();
 }
+
 /*! \brief basic function, uniform */
 inline double Uniform(void) {
-  return static_cast<double>(rand()) / (static_cast<double>(RAND_MAX)+1.0); // NOLINT(*)
+  return static_cast<double>(rdist(rng)) / (static_cast<double>(RAND_MAX)+1.0); // NOLINT(*)
 }
 /*! \brief return a real numer uniform in (0,1) */
 inline double NextDouble2(void) {
-  return (static_cast<double>(rand()) + 1.0) / (static_cast<double>(RAND_MAX)+2.0); // NOLINT(*)
+  return (static_cast<double>(rdist(rng)) + 1.0) / (static_cast<double>(RAND_MAX)+2.0); // NOLINT(*)
 }
 /*! \brief return  x~N(0,1) */
 inline double Normal(void) {
