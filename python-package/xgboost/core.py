@@ -538,7 +538,8 @@ class DMatrix(object):
                 msg = 'feature_names must have the same length as data'
                 raise ValueError(msg)
             # prohibit to use symbols may affect to parse. e.g. []<
-            if not all(isinstance(f, STRING_TYPES) and not any(x in f for x in {'[', ']', '<'})
+            if not all(isinstance(f, STRING_TYPES) and
+                       not any(x in f for x in set(('[', ']', '<')))
                        for f in feature_names):
                 raise ValueError('feature_names may not contain [, ] or <')
         else:
