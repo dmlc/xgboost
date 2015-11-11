@@ -1,5 +1,8 @@
 XGBoost Python Package
 ======================
+[![PyPI version](https://badge.fury.io/py/xgboost.svg)](http://badge.fury.io/py/xgboost)
+[![PyPI downloads](https://img.shields.io/pypi/dm/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
+
 Installation
 ------------
 We are on [PyPI](https://pypi.python.org/pypi/xgboost) now. For stable version, please install using pip:
@@ -25,3 +28,4 @@ Note
 
 * If you want to build xgboost on Mac OS X with multiprocessing support where clang in XCode by default doesn't support, please install gcc 4.9 or higher using [homebrew](http://brew.sh/) ```brew tap homebrew/versions; brew install gcc49```
 * If you want to run XGBoost process in parallel using the fork backend for joblib/multiprocessing, you must build XGBoost without support for OpenMP by `make no_omp=1`. Otherwise, use the forkserver (in Python 3.4) or spawn backend. See the [sklearn_parallel.py](../demo/guide-python/sklearn_parallel.py) demo.
+
