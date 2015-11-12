@@ -20,6 +20,7 @@ Linux platform (also Mac OS X in general)
 
 * installed C++ compilers, for example `g++` and `gcc` (Linux) or `clang LLVM` (Mac OS X). Recommended compilers are `g++-5` or newer (Linux and Mac), or `clang` comes with Xcode in Mac OS X. For installting compilers, please refer to your system package management commands, e.g. `apt-get` `yum` or `brew`(Mac).
 * compilers in your `$PATH`. Try typing `gcc` and see if your have it in your path.
+* Do you use other shells than `bash` and install from `pip`? In some old version of pip installation, the shell script used `pushd` for changing directory and triggering the build process, which may failed some shells without `pushd` command. Please update to the latest version by removing the old installation and redo `pip install xgboost`
 
 **Trouble 1**: I see the same error message in **Trouble 0** when install from `pip install xgboost`.
 

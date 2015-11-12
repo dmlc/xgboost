@@ -1,4 +1,4 @@
-include *.sh *.md
+include *.sh *.md *.rst
 recursive-include xgboost *
 recursive-include xgboost/wrapper *
 recursive-include xgboost/windows *
