@@ -48,9 +48,15 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         and a paramater containing ('eval_metric', 'logloss')
         Returns: {'train': {'logloss': ['0.48253', '0.35953']},
                   'eval': {'logloss': ['0.480385', '0.357756']}}
-    verbose_eval : bool
-        If `verbose_eval` then the evaluation metric on the validation set, if
-        given, is printed at each boosting stage.
+    verbose_eval : bool or int
+        Requires at least one item in evals.
+        If `verbose_eval` is True then the evaluation metric on the validation set is
+        printed at each boosting stage.
+        If `verbose_eval` is an integer then the evaluation metric on the validation set
+        is printed at every given `verbose_eval` boosting stage. The last boosting stage
+        / the boosting stage found by using `early_stopping_rounds` is also printed.
+        Example: with verbose_eval=4 and at least one item in evals, an evaluation metric
+        is printed every 4 boosting stages, instead of every boosting stage.
     learning_rates: list or function
         List of learning rate for each boosting round
         or a customized function that calculates eta in terms of
@@ -79,6 +85,13 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
     nboost = 0
     num_parallel_tree = 1
+
+    if isinstance(verbose_eval, bool):
+        verbose_eval_every_line = False
+    else:
+        if isinstance(verbose_eval, int):
+            verbose_eval_every_line = verbose_eval
+            verbose_eval = True
 
     if xgb_model is not None:
         if not isinstance(xgb_model, STRING_TYPES):
@@ -115,7 +128,12 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                     msg = bst_eval_set.decode()
 
                 if verbose_eval:
-                    sys.stderr.write(msg + '\n')
+                    if verbose_eval_every_line:
+                        if i % verbose_eval_every_line == 0 or i == num_boost_round - 1:
+                            sys.stderr.write(msg + '\n')
+                    else:
+                        sys.stderr.write(msg + '\n')
+
                 if evals_result is not None:
                     res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
                     for key in evals_name:
@@ -187,7 +205,11 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 msg = bst_eval_set.decode()
 
             if verbose_eval:
-                sys.stderr.write(msg + '\n')
+                if verbose_eval_every_line:
+                    if i % verbose_eval_every_line == 0:
+                        sys.stderr.write(msg + '\n')
+                else:
+                    sys.stderr.write(msg + '\n')
 
             if evals_result is not None:
                 res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
@@ -210,7 +232,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 best_score_i = (nboost - 1)
                 best_msg = msg
             elif i - best_score_i >= early_stopping_rounds:
-                sys.stderr.write("Stopping. Best iteration:\n{}\n\n".format(best_msg))
+                if verbose_eval:
+                    sys.stderr.write("Stopping. Best iteration:\n{}\n\n".format(best_msg))
                 bst.best_score = best_score
                 bst.best_iteration = best_score_i
                 break
