@@ -12,7 +12,7 @@ We are on [PyPI](https://pypi.python.org/pypi/xgboost) now. For stable version, 
 
 For up-to-date version, please install from github.
 
-* To make the python module, type ```./build.sh``` in the root directory of project
+* To make the python module, type ```./build-python.sh``` in the root directory of project
 * Make sure you have [setuptools](https://pypi.python.org/pypi/setuptools)
 * Install with `python setup.py install` from this directory.
 * For windows users, please use the Visual Studio project file under [windows folder](../windows/). See also the [installation tutorial](https://www.kaggle.com/c/otto-group-product-classification-challenge/forums/t/13043/run-xgboost-from-windows-and-python) from Kaggle Otto Forum.
