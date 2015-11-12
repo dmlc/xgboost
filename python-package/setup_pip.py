@@ -34,8 +34,8 @@ LIB_PATH = libpath['find_lib_path']()
 #and be sure to test it firstly using "python setup.py register sdist upload -r pypitest"
 setup(name='xgboost',
       #version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
-      version='0.4a24',
-      description=open(os.path.join(CURRENT_DIR, 'README.md')).read(),
+      version='0.4a28',
+      description=open(os.path.join(CURRENT_DIR, 'README.rst')).read(),
       install_requires=[
           'numpy',
           'scipy',
