@@ -39,7 +39,9 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         If there's more than one, will use the last.
         Returns the model from the last iteration (not the best one).
         If early stopping occurs, the model will have three additional fields:
-        bst.best_score, bst.best_iteration and bst.best_ntree_limit.
+        bst.best_score, bst.best_iteration and bst.best_ntree_limit. 
+        (Use bst.best_ntree_limit to get the correct value if num_parallel_tree 
+        and/or num_class appears in the parameters)
     evals_result: dict
         This dictionary stores the evaluation results of all the items in watchlist.
         Example: with a watchlist containing [(dtest,'eval'), (dtrain,'train')] and
