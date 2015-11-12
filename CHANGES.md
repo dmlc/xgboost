@@ -52,5 +52,6 @@ on going at master
   - additional parameters added for sklearn wrapper.
   - added pip installation functionality.
   - supports more Pandas DataFrame dtypes. 
+  - added best_ntree_limit attribute, in addition to best_score and best_iteration.
 * Java api is ready for use
 * Added more test cases and continuous integration to make each build more robust.
