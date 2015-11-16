@@ -49,3 +49,7 @@ Benchmarks
 ----------
 * [Starter script for Kaggle Higgs Boson](kaggle-higgs)
 * [Kaggle Tradeshift winning solution by daxiongshu](https://github.com/daxiongshu/kaggle-tradeshift-winning-solution)
+
+Test
+---------
+* study step by step
