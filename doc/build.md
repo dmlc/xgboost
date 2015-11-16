@@ -15,56 +15,16 @@ Build XGBoost in OS X with OpenMP
 ---------------------------------
 Here is the complete solution to use OpenMp-enabled compilers to install XGBoost.
 
-1. Obtain gcc with openmp support by `brew install gcc --without-multilib` **or** clang with openmp by `brew install clang-omp`. The clang one is recommended because the first method requires us compiling gcc inside the machine (more than an hour in mine)! (BTW, `brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.)
+1. Obtain gcc-5.x.x with openmp support by `brew install gcc --without-multilib`. (`brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.)
 
-2. **if you are planing to use clang-omp**:
+2. `cd xgboost` then `bash build.sh` to compile XGBoost.
 
-  2.1 Change line 9 in `xgboost/src/utils/omp.h` to
+3. Install xgboost package for Python and R
 
-  ```C++
-  #include <libiomp/omp.h> /* instead of #include <omp.h> */`
-  ```
-
-  to make it work, otherwise you might get this error
-
-  `src/tree/../utils/omp.h:9:10: error: 'omp.h' file not found...`
-
-  2.2 Set the `Makefile` correctly for compiling cpp version xgboost then python version xgboost.
-
-  ```Makefile
-  export CC = clang-omp
-  export CXX = clang-omp++
-  ```
-
-  Then `cd xgboost` then `bash build.sh` to compile XGBoost. And go to `python-package` sub-folder to install python version with `python setup.py install`.
-
-3. Set the `Makevars` file in highest piority for R.
+- For Python: go to `python-package` sub-folder to install python version with `python setup.py install` (or `sudo python setup.py install`).
+- For R: Set the `Makevars` file in highest piority for R.
 
   The point is, there are three `Makevars` : `~/.R/Makevars`, `xgboost/R-package/src/Makevars`, and `/usr/local/Cellar/r/3.2.0/R.framework/Resources/etc/Makeconf` (the last one obtained by running `file.path(R.home("etc"), "Makeconf")` in R), and `SHLIB_OPENMP_CXXFLAGS` is not set by default!! After trying, it seems that the first one has highest piority (surprise!).
-
-  So, **add** or **change** `~/.R/Makevars` to the following lines:
-
-  ```Makefile
-  CC=gcc-4.9
-  CXX=g++-4.9
-  SHLIB_OPENMP_CFLAGS = -fopenmp
-  SHLIB_OPENMP_CXXFLAGS = -fopenmp
-  SHLIB_OPENMP_FCFLAGS = -fopenmp
-  SHLIB_OPENMP_FFLAGS = -fopenmp
-  ```
-
-  Or
-
-  ```Makefile
-  CC=clang-omp
-  CXX=clang-omp++
-  SHLIB_OPENMP_CFLAGS = -fopenmp
-  SHLIB_OPENMP_CXXFLAGS = -fopenmp
-  SHLIB_OPENMP_FCFLAGS = -fopenmp
-  SHLIB_OPENMP_FFLAGS = -fopenmp
-  ```
-
-  Again, remember to change `header` if using clang-omp.
 
   Then inside R, run
 
