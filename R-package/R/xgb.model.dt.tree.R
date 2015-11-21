@@ -166,4 +166,4 @@ xgb.model.dt.tree <- function(feature_names = NULL, filename_dump = NULL, model 
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
 # They are mainly column names inferred by Data.table...
-globalVariables(c("ID", "Tree", "Yes", ".", ".N", "Feature", "Cover", "Quality", "No", "Gain", "Frequence"))
+globalVariables(c("ID", "Tree", "Yes", ".", ".N", "Feature", "Cover", "Quality", "No", "Gain", "Frequency"))

@@ -119,7 +119,7 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
 treeDump <- function(feature_names, text, keepDetail){
   if(keepDetail) groupBy <- c("Feature", "Split", "MissingNo") else groupBy <- "Feature"
 
-  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[,"MissingNo" := Missing == No ][Feature != "Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequence = .N), by = groupBy, with = T][,`:=`(Gain = Gain / sum(Gain), Cover = Cover / sum(Cover), Frequence = Frequence / sum(Frequence))][order(Gain, decreasing = T)]
+  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[,"MissingNo" := Missing == No ][Feature != "Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequency = .N), by = groupBy, with = T][,`:=`(Gain = Gain / sum(Gain), Cover = Cover / sum(Cover), Frequency = Frequency / sum(Frequency))][order(Gain, decreasing = T)]
 
   result
 }

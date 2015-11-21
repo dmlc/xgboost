@@ -202,7 +202,7 @@ head(importance)
 
 `Cover` measures the relative quantity of observations concerned by a feature.
 
-`Frequence` is a simpler way to measure the `Gain`. It just counts the number of times a feature is used in all generated trees. You should not use it (unless you know why you want to use it).
+`Frequency` is a simpler way to measure the `Gain`. It just counts the number of times a feature is used in all generated trees. You should not use it (unless you know why you want to use it).
 
 ### Improvement in the interpretability of feature importance data.table
 
@@ -216,7 +216,7 @@ For that purpose we will execute the same function as above but using two more p
 importanceRaw <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst, data = sparse_matrix, label = output_vector)
 
 # Cleaning for better display
-importanceClean <- importanceRaw[,`:=`(Cover=NULL, Frequence=NULL)]
+importanceClean <- importanceRaw[,`:=`(Cover=NULL, Frequency=NULL)]
 
 head(importanceClean)
 ```
