@@ -33,4 +33,4 @@ Imports:
     data.table (>= 1.9.6),
     magrittr (>= 1.5),
     stringr (>= 0.6.2)
-RoxygenNote: 5.0.0
+RoxygenNote: 5.0.1
