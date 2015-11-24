@@ -11,7 +11,7 @@ An optimized general purpose gradient boosting library. The library is paralleli
 
 It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework, including [Generalized Linear Model](https://en.wikipedia.org/wiki/Generalized_linear_model) (GLM) and [Gradient Boosted Decision Trees](https://en.wikipedia.org/wiki/Gradient_boosting#Gradient_tree_boosting) (GBDT). XGBoost can also be [distributed](#features) and scale to Terascale data
 
-XGBoost is part of [Distributed Machine Learning Common](http://dmlc.github.io/) <img src=https://avatars2.githubusercontent.com/u/11508361?v=3&s=20> projects
+XGBoost is part of [Distributed Machine Learning Common](http://dmlc.github.io/) projects
 
 Contents
 --------
@@ -68,7 +68,6 @@ Bug Reporting
 
 Contributing to XGBoost
 -----------------------
-
 XGBoost has been developed and used by a group of active community members. Everyone is more than welcome to contribute. It is a way to make the project better and more accessible to more users.
 * Check out [Feature Wish List](https://github.com/dmlc/xgboost/labels/Wish-List) to see what can be improved, or open an issue if you want something.
 * Contribute to the [documents and examples](https://github.com/dmlc/xgboost/blob/master/doc/) to share your experience with other users.
@@ -78,7 +77,3 @@ License
 -------
 © Contributors, 2015. Licensed under an [Apache-2](https://github.com/dmlc/xgboost/blob/master/LICENSE) license.
 
-XGBoost in Graphlab Create
---------------------------
-* XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to do data manipulation, graph processing, hyper-parameter search, and visualization of TeraBytes scale data in one framework. Try the [Graphlab Create](http://graphlab.com/products/create/quick-start-guide.html)
-* Nice [blogpost](http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand) by Jay Gu about using GLC boosted tree to solve kaggle bike sharing challenge:

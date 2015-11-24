@@ -1,12 +1,11 @@
 /*!
- * Copyright (c) 2014 by Contributors
- * \file xgboost_wrapper.h
+ * Copyright (c) 2015 by Contributors
+ * \file c_api.h
  * \author Tianqi Chen
- * \brief a C style wrapper of xgboost
- *  can be used to create wrapper of other languages
+ * \brief C Style API of XGBoost, used to interfacing with other languages.
  */
-#ifndef XGBOOST_WRAPPER_H_
-#define XGBOOST_WRAPPER_H_
+#ifndef XGBOOST_C_API_H_
+#define XGBOOST_C_API_H_
 
 #ifdef __cplusplus
 #define XGB_EXTERN_C extern "C"
@@ -351,4 +350,4 @@ XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
                                            bst_ulong *len,
                                            const char ***out_models);
 
-#endif  // XGBOOST_WRAPPER_H_
+#endif  // XGBOOST_C_API_H_
