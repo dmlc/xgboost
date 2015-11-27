@@ -12,7 +12,6 @@
 #' @importFrom magrittr add
 #' @importFrom stringr str_extract
 #' @importFrom stringr str_split
-#' @importFrom stringr str_extract
 #' @importFrom stringr str_trim
 #' @param feature_names names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.
 #' @param filename_dump the path to the text file storing the model. Model dump must include the gain per feature and per tree (parameter \code{with.stats = T} in function \code{xgb.dump}).
