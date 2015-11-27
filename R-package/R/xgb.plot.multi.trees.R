@@ -1,6 +1,6 @@
 #' Project all trees on one tree and plot it
 #' 
-#' visualization to view the ensemble of trees as a single collective unit.
+#' Visualization of the ensemble of trees as a single collective unit.
 #'
 #' @importFrom data.table data.table
 #' @importFrom data.table rbindlist
@@ -18,16 +18,20 @@
 #' 
 #' @details
 #' 
-#' This function tries to capture the complexity of gradient boosted tree ensembles in a cohesive way. 
+#' This function tries to capture the complexity of gradient boosted tree ensembles 
+#' in a cohesive way. 
 #' The goal is to improve the interpretability of the model generally seen as black box.
 #' The function is dedicated to boosting applied to decision trees only.
 #' 
 #' The purpose is to move from an ensemble of trees to a single tree only.
-#' It takes advantage of the fact that the shape of a binary tree is only defined by its deepness.
+#' It takes advantage of the fact that the shape of a binary tree is only defined by 
+#' its deepness.
 #' Therefore in a boosting model, all trees have the same shape. 
 #' Moreover, the trees tend to reuse the same features.
 #' 
-#' The function will project each trees on one tree, and keep the \code{features.keep} first feature for each position.
+#' The function will project each trees on one, and keep for each position the 
+#' \code{features.keep} first features (based on Gain per feature).
+#' 
 #' This function is inspired from this blog post:
 #' \url{https://wellecks.wordpress.com/2015/02/21/peering-into-the-black-box-visualizing-lambdamart/}
 #'
@@ -99,3 +103,9 @@ xgb.plot.multi.trees <- function(model, names, features.keep = 5, plot.width = N
   
   DiagrammeR::render_graph(graph, width = plot.width, height = plot.height)  
 }
+
+globalVariables(
+  c(
+    "Feature", "no.nodes.abs.pos", "ID", "Yes", "No", "Tree", "yes.nodes.abs.pos", "abs.node.position"
+  )
+)
