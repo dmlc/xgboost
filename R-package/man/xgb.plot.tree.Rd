@@ -5,7 +5,7 @@
 \title{Plot a boosted tree model}
 \usage{
 xgb.plot.tree(feature_names = NULL, filename_dump = NULL, model = NULL,
-  n_first_tree = NULL, width = NULL, height = NULL)
+  n_first_tree = NULL, plot.width = NULL, plot.height = NULL)
 }
 \arguments{
 \item{feature_names}{names of each feature as a character vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.}
@@ -16,9 +16,9 @@ xgb.plot.tree(feature_names = NULL, filename_dump = NULL, model = NULL,
 
 \item{n_first_tree}{limit the plot to the n first trees. If \code{NULL}, all trees of the model are plotted. Performance can be low for huge models.}
 
-\item{width}{the width of the diagram in pixels.}
+\item{plot.width}{the width of the diagram in pixels.}
 
-\item{height}{the height of the diagram in pixels.}
+\item{plot.height}{the height of the diagram in pixels.}
 }
 \value{
 A \code{DiagrammeR} of the model.
