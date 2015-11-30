@@ -66,16 +66,12 @@
 #' xgb.importance(train$data@@Dimnames[[2]], model = bst, data = train$data, label = train$label)
 #' 
 #' @export
-xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = NULL, data = NULL, label = NULL, target = function(x) ( (x + label) == 2)){
+xgb.importance <- function(feature_names = NULL, model = NULL, data = NULL, label = NULL, target = function(x) ( (x + label) == 2)){
   if (!class(feature_names) %in% c("character", "NULL")) {
-    stop("feature_names: Has to be a vector of character or NULL if the model dump already contains feature name. Look at this function documentation to see where to get feature names.")
+    stop("feature_names: Has to be a vector of character or NULL if the model already contains feature name. Look at this function documentation to see where to get feature names.")
   }
 
-  if (!(class(filename_dump) %in% c("character", "NULL") && length(filename_dump) <= 1)) {
-    stop("filename_dump: Has to be a path to the model dump file.")
-  }
-
-  if (!class(model) %in% c("xgb.Booster", "NULL")) {
+  if (class(model) != "xgb.Booster") {
     stop("model: Has to be an object of class xgb.Booster model generaged by the xgb.train function.")
   }
 
@@ -87,12 +83,8 @@ xgb.importance <- function(feature_names = NULL, filename_dump = NULL, model = N
     if(sum(label == 0) / length(label) > 0.5) label <- as(label, "sparseVector")
   }
 
-  if(is.null(model)){
-    text <- readLines(filename_dump)
-  } else {
-    text <- xgb.dump(model = model, with.stats = T)
-  }
-
+  text <- xgb.dump(model = model, with.stats = T)
+  
   if(text[2] == "bias:"){
     result <- readLines(filename_dump) %>% linearDump(feature_names, .)
     if(!is.null(data) | !is.null(label)) warning("data/label: these parameters should only be provided with decision tree based models.")
