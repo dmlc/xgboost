@@ -23,13 +23,13 @@ test_that("xgb.dump works", {
 })
 
 test_that("xgb.importance works", {
-  importance <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst)
+  importance <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = bst)
   expect_equal(dim(importance), c(7, 4))
   expect_equal(colnames(importance), c("Feature", "Gain", "Cover", "Frequency"))
 })
 
 test_that("xgb.plot.tree works", {
-  xgb.plot.tree(names = agaricus.train$data@Dimnames[[2]], model = bst)
+  xgb.plot.tree(feature_names = agaricus.train$data@Dimnames[[2]], model = bst)
 })
 
 test_that("xgb.plot.deepness works", {
@@ -37,5 +37,5 @@ test_that("xgb.plot.deepness works", {
 })
 
 test_that("xgb.plot.multi.trees works", {
-  xgb.plot.multi.trees(model = bst, names = agaricus.train$data@Dimnames[[2]], 3)
+  xgb.plot.multi.trees(model = bst, feature_names = agaricus.train$data@Dimnames[[2]], 3)
 })

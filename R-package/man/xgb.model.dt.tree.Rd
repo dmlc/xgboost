@@ -52,7 +52,7 @@ bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
 
 #agaricus.test$data@Dimnames[[2]] represents the column names of the sparse matrix.
-xgb.model.dt.tree(agaricus.train$data@Dimnames[[2]], model = bst)
+xgb.model.dt.tree(feature_names = agaricus.train$data@Dimnames[[2]], model = bst)
 
 }
 
