@@ -50,7 +50,7 @@
 #'                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
 #' 
 #' #agaricus.test$data@@Dimnames[[2]] represents the column names of the sparse matrix.
-#' xgb.model.dt.tree(agaricus.train$data@@Dimnames[[2]], model = bst)
+#' xgb.model.dt.tree(feature_names = agaricus.train$data@@Dimnames[[2]], model = bst)
 #' 
 #' @export
 xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL, n_first_tree = NULL){

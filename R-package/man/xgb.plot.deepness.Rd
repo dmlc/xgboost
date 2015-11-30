@@ -35,7 +35,7 @@ This function is inspired by this blog post \url{http://aysent.github.io/2015/11
 \examples{
 data(agaricus.train, package='xgboost')
 
-bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.depth = 15,
+bst <- xgboost(data = agaricus.train$data, max.depth = 15,
                  eta = 1, nthread = 2, nround = 30, objective = "binary:logistic",
                  min_child_weight = 50)
 
