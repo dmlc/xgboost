@@ -23,7 +23,7 @@ test_that("xgb.dump works", {
 
 test_that("xgb.importance works", {
   expect_true(xgb.dump(bst, 'xgb.model.dump', with.stats = T))
-  importance <- xgb.importance(sparse_matrix@Dimnames[[2]], 'xgb.model.dump')
+  importance <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst)
   expect_equal(dim(importance), c(7, 4))
   expect_equal(colnames(importance), c("Feature", "Gain", "Cover", "Frequency"))
 })
