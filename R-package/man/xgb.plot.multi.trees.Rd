@@ -49,7 +49,7 @@ bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.dep
                  eta = 1, nthread = 2, nround = 30, objective = "binary:logistic",
                  min_child_weight = 50)
 
-p <- xgb.plot.multi.trees(bst, agaricus.train$data@Dimnames[[2]], 3)
+p <- xgb.plot.multi.trees(model = bst, names = agaricus.train$data@Dimnames[[2]], 3)
 print(p)
 
 }

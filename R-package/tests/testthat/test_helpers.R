@@ -19,15 +19,23 @@ bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 9,
 
 test_that("xgb.dump works", {
   capture.output(print(xgb.dump(bst)))
+  expect_true(xgb.dump(bst, 'xgb.model.dump', with.stats = T))
 })
 
 test_that("xgb.importance works", {
-  expect_true(xgb.dump(bst, 'xgb.model.dump', with.stats = T))
   importance <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst)
   expect_equal(dim(importance), c(7, 4))
   expect_equal(colnames(importance), c("Feature", "Gain", "Cover", "Frequency"))
 })
 
 test_that("xgb.plot.tree works", {
-  xgb.plot.tree(agaricus.train$data@Dimnames[[2]], model = bst)
+  xgb.plot.tree(names = agaricus.train$data@Dimnames[[2]], model = bst)
+})
+
+test_that("xgb.plot.deepness works", {
+  xgb.plot.deepness(model = bst)
+})
+
+test_that("xgb.plot.multi.trees works", {
+  xgb.plot.multi.trees(model = bst, names = agaricus.train$data@Dimnames[[2]], 3)
 })

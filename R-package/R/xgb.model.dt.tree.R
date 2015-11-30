@@ -59,19 +59,19 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL, n
     stop("feature_names: Has to be a vector of character or NULL if the model dump already contains feature name. Look at this function documentation to see where to get feature names.")
   }
 
-  if (class(model) != "xgb.Booster") {
-    stop("model: Has to be an object of class xgb.Booster model generaged by the xgb.train function.")
-  }
-
-  if (!class(text) %in% c("character", "NULL")) {
-    stop("text: Has to be a vector of character or NULL if a path to the model dump has already been provided.")
+  if (class(model) != "xgb.Booster" & class(text) != "character") {
+    "model: Has to be an object of class xgb.Booster model generaged by the xgb.train function.\n" %>%
+      paste0("text: Has to be a vector of character or NULL if a path to the model dump has already been provided.") %>%
+      stop()
   }
 
   if (!class(n_first_tree) %in% c("numeric", "NULL") | length(n_first_tree) > 1) {
     stop("n_first_tree: Has to be a numeric vector of size 1.")
   }
 
-  text <- xgb.dump(model = model, with.stats = T)
+  if(is.null(text)){		
+    text <- xgb.dump(model = model, with.stats = T)
+  }
   
   position <- str_match(text, "booster") %>% is.na %>% not %>% which %>% c(length(text) + 1)
 
