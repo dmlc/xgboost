@@ -17,8 +17,6 @@ xgb.importance(feature_names = NULL, model = NULL, data = NULL,
 \item{label}{the label vetor used for the training step. Will be used with \code{data} parameter for co-occurence computation. More information in \code{Detail} part. This parameter is optional.}
 
 \item{target}{a function which returns \code{TRUE} or \code{1} when an observation should be count as a co-occurence and \code{FALSE} or \code{0} otherwise. Default function is provided for computing co-occurences in a binary classification. The \code{target} function should have only one parameter. This parameter will be used to provide each important feature vector after having applied the split condition, therefore these vector will be only made of 0 and 1 only, whatever was the information before. More information in \code{Detail} part. This parameter is optional.}
-
-\item{filename_dump}{the path to the text file storing the model. Model dump must include the gain per feature and per tree (\code{with.stats = T} in function \code{xgb.dump}).}
 }
 \value{
 A \code{data.table} of the features used in the model with their average gain (and their weight for boosted tree model) in the model.
