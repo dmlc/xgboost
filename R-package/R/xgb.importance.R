@@ -76,14 +76,23 @@ xgb.importance <- function(feature_names = NULL, model = NULL, data = NULL, labe
   if(class(label) == "numeric"){
     if(sum(label == 0) / length(label) > 0.5) label <- as(label, "sparseVector")
   }
-
-  text <- xgb.dump(model = model, with.stats = T)
   
-  if(text[2] == "bias:"){
-    result <- readLines(filename_dump) %>% linearDump(feature_names, .)
+  treeDump <- function(feature_names, text, keepDetail){
+    if(keepDetail) groupBy <- c("Feature", "Split", "MissingNo") else groupBy <- "Feature"
+    xgb.model.dt.tree(feature_names = feature_names, text = text)[,"MissingNo" := Missing == No ][Feature != "Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequency = .N), by = groupBy, with = T][,`:=`(Gain = Gain / sum(Gain), Cover = Cover / sum(Cover), Frequency = Frequency / sum(Frequency))][order(Gain, decreasing = T)]
+  }
+  
+  linearDump <- function(feature_names, text){
+    which(text == "weight:") %>% {a =. + 1; text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
+  }
+
+  model.text.dump <- xgb.dump(model = model, with.stats = T)
+  
+  if(model.text.dump[2] == "bias:"){
+    result <- model.text.dump %>% linearDump(feature_names, .)
     if(!is.null(data) | !is.null(label)) warning("data/label: these parameters should only be provided with decision tree based models.")
   }  else {
-    result <- treeDump(feature_names, text = text, keepDetail = !is.null(data))
+    result <- treeDump(feature_names, text = model.text.dump, keepDetail = !is.null(data))
 
     # Co-occurence computation
     if(!is.null(data) & !is.null(label) & nrow(result) > 0) {
@@ -102,17 +111,7 @@ xgb.importance <- function(feature_names = NULL, model = NULL, data = NULL, labe
   result
 }
 
-treeDump <- function(feature_names, text, keepDetail){
-  if(keepDetail) groupBy <- c("Feature", "Split", "MissingNo") else groupBy <- "Feature"
 
-  result <- xgb.model.dt.tree(feature_names = feature_names, text = text)[,"MissingNo" := Missing == No ][Feature != "Leaf",.(Gain = sum(Quality), Cover = sum(Cover), Frequency = .N), by = groupBy, with = T][,`:=`(Gain = Gain / sum(Gain), Cover = Cover / sum(Cover), Frequency = Frequency / sum(Frequency))][order(Gain, decreasing = T)]
-
-  result
-}
-
-linearDump <- function(feature_names, text){
-  which(text == "weight:") %>% {a =. + 1; text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
-}
 
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
