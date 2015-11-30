@@ -58,11 +58,11 @@ data(agaricus.train, package='xgboost')
 bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.depth = 2, 
                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
 
-# train$data@Dimnames[[2]] represents the column names of the sparse matrix.
-xgb.importance(train$data@Dimnames[[2]], model = bst)
+# agaricus.train$data@Dimnames[[2]] represents the column names of the sparse matrix.
+xgb.importance(agaricus.train$data@Dimnames[[2]], model = bst)
 
 # Same thing with co-occurence computation this time
-xgb.importance(train$data@Dimnames[[2]], model = bst, data = train$data, label = train$label)
+xgb.importance(agaricus.train$data@Dimnames[[2]], model = bst, data = agaricus.train$data, label = agaricus.train$label)
 
 }
 
