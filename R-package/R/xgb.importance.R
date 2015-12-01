@@ -82,7 +82,9 @@ xgb.importance <- function(feature_names = NULL, model = NULL, data = NULL, labe
   }
   
   linearDump <- function(feature_names, text){
-    which(text == "weight:") %>% {a =. + 1; text[a:length(text)]} %>% as.numeric %>% data.table(Feature = feature_names, Weight = .)
+    weights <- which(text == "weight:") %>% {a =. + 1; text[a:length(text)]} %>% as.numeric
+    if(is.null(feature_names)) feature_names <- seq(to = length(weights))
+    data.table(Feature = feature_names, Weight = weights)
   }
 
   model.text.dump <- xgb.dump(model = model, with.stats = T)
