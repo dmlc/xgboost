@@ -91,7 +91,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     else:
         if isinstance(verbose_eval, int):
             verbose_eval_every_line = verbose_eval
-            verbose_eval = True
+            verbose_eval = True if verbose_eval_every_line > 0 else False
 
     if xgb_model is not None:
         if not isinstance(xgb_model, STRING_TYPES):
@@ -206,7 +206,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
 
             if verbose_eval:
                 if verbose_eval_every_line:
-                    if i % verbose_eval_every_line == 0:
+                    if i % verbose_eval_every_line == 0 or i == num_boost_round - 1:
                         sys.stderr.write(msg + '\n')
                 else:
                     sys.stderr.write(msg + '\n')
