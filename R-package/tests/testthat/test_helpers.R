@@ -15,7 +15,7 @@ df[,ID := NULL]
 sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df)
 output_vector <- df[,Y := 0][Improved == "Marked",Y := 1][,Y]
 bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 9,
-               eta = 1, nthread = 2, nround = 10,objective = "binary:logistic")
+               eta = 1, nthread = 2, nround = 10, objective = "binary:logistic")
 
 feature.names <- agaricus.train$data@Dimnames[[2]]
 
@@ -38,6 +38,15 @@ test_that("xgb.importance works with and without feature names", {
   expect_equal(dim(importance), c(7, 4))
   expect_equal(colnames(importance), c("Feature", "Gain", "Cover", "Frequency"))
   xgb.importance(model = bst)
+})
+
+test_that("xgb.importance works with GLM model", {
+  bst.GLM <- xgboost(data = sparse_matrix, label = output_vector,
+                 eta = 1, nthread = 2, nround = 10, objective = "binary:logistic", booster = "gblinear")
+  importance.GLM <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = bst.GLM)
+  expect_equal(dim(importance.GLM), c(10, 2))
+  expect_equal(colnames(importance.GLM), c("Feature", "Weight"))
+  xgb.importance(model = bst.GLM)
 })
 
 test_that("xgb.plot.tree works with and without feature names", {
