@@ -25,13 +25,16 @@
 #' Results are returned for both linear and tree models.
 #' 
 #' \code{data.table} is returned by the function. 
-#' There are 3 columns :
+#' The columns are :
 #' \itemize{
-#'   \item \code{Features} name of the features as provided in \code{feature_names} or already present in the model dump.
-#'   \item \code{Gain} contribution of each feature to the model. For boosted tree model, each gain of each feature of each tree is taken into account, then average per feature to give a vision of the entire model. Highest percentage means important feature to predict the \code{label} used for the training ;
-#'   \item \code{Cover} metric of the number of observation related to this feature (only available for tree models) ;
-#'   \item \code{Weight} percentage representing the relative number of times a feature have been taken into trees. \code{Gain} should be prefered to search the most important feature. For boosted linear model, this column has no meaning.
+#'   \item \code{Features} name of the features as provided in \code{feature_names} or already present in the model dump;
+#'   \item \code{Gain} contribution of each feature to the model. For boosted tree model, each gain of each feature of each tree is taken into account, then average per feature to give a vision of the entire model. Highest percentage means important feature to predict the \code{label} used for the training (only available for tree models);
+#'   \item \code{Cover} metric of the number of observation related to this feature (only available for tree models);
+#'   \item \code{Weight} percentage representing the relative number of times a feature have been taken into trees.
 #' }
+#' 
+#' If you don't provide name, index of the features are used.
+#' They are extracted from the boost dump (made on the C++ side), the index starts at 0 (usual in C++) instead of 1 (usual in R).
 #' 
 #' Co-occurence count
 #' ------------------
