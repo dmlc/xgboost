@@ -1,10 +1,12 @@
-#ifndef XGBOOST_LEARNER_EVALUATION_H_
-#define XGBOOST_LEARNER_EVALUATION_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file evaluation.h
  * \brief interface of evaluation function supported in xgboost
  * \author Tianqi Chen, Kailong Chen
  */
+#ifndef XGBOOST_LEARNER_EVALUATION_H_
+#define XGBOOST_LEARNER_EVALUATION_H_
+
 #include <string>
 #include <vector>
 #include <cstdio>
@@ -19,7 +21,7 @@ struct IEvaluator{
    * \brief evaluate a specific metric
    * \param preds prediction
    * \param info information, including label etc.
-   * \param distributed whether a call to Allreduce is needed to gather 
+   * \param distributed whether a call to Allreduce is needed to gather
    *        the average statistics across all the node,
    *        this is only supported by some metrics
    */
@@ -45,6 +47,8 @@ inline IEvaluator* CreateEvaluator(const char *name) {
   if (!strcmp(name, "error")) return new EvalError();
   if (!strcmp(name, "merror")) return new EvalMatchError();
   if (!strcmp(name, "logloss")) return new EvalLogLoss();
+  if (!strcmp(name, "mlogloss")) return new EvalMultiLogLoss();
+  if (!strcmp(name, "poisson-nloglik")) return new EvalPoissionNegLogLik();
   if (!strcmp(name, "auc")) return new EvalAuc();
   if (!strncmp(name, "ams@", 4)) return new EvalAMS(name);
   if (!strncmp(name, "pre@", 4)) return new EvalPrecision(name);

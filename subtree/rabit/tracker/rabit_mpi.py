@@ -1,7 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 """
-This is the demo submission script of rabit, it is created to
-submit rabit jobs using hadoop streaming
+Submission script to submit rabit jobs using MPI
 """
 import argparse
 import sys
@@ -22,7 +21,7 @@ args = parser.parse_args()
 #
 # submission script using MPI
 #
-def mpi_submit(nslave, worker_args):
+def mpi_submit(nslave, worker_args, worker_envs):
     """
       customized submit script, that submit nslave jobs, each must contain args as parameter
       note this can be a lambda function containing additional parameters in input
@@ -31,6 +30,7 @@ def mpi_submit(nslave, worker_args):
          args arguments to launch each job
               this usually includes the parameters of master_uri and parameters passed into submit
     """
+    worker_args += ['%s=%s' % (k, str(v)) for k, v in worker_envs.items()]
     sargs = ' '.join(args.command + worker_args)
     if args.hostfile is None:
         cmd = ' '.join(['mpirun -n %d' % (nslave)] + args.command + worker_args) 

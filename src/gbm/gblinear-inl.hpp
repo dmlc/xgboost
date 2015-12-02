@@ -1,11 +1,13 @@
-#ifndef XGBOOST_GBM_GBLINEAR_INL_HPP_
-#define XGBOOST_GBM_GBLINEAR_INL_HPP_
 /*!
+ * Copyright by Contributors
  * \file gblinear-inl.hpp
  * \brief Implementation of Linear booster, with L1/L2 regularization: Elastic Net
  *        the update rule is parallel coordinate descent (shotgun)
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_GBM_GBLINEAR_INL_HPP_
+#define XGBOOST_GBM_GBLINEAR_INL_HPP_
+
 #include <vector>
 #include <string>
 #include <sstream>
@@ -33,10 +35,10 @@ class GBLinear : public IGradBooster {
       model.param.SetParam(name, val);
     }
   }
-  virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) {
+  virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) { // NOLINT(*)
     model.LoadModel(fi);
   }
-  virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const {
+  virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const { // NOLINT(*)
     model.SaveModel(fo);
   }
   virtual void InitModel(void) {
@@ -92,7 +94,8 @@ class GBLinear : public IGradBooster {
             sum_hess += p.hess * v * v;
           }
           float &w = model[fid][gid];
-          bst_float dw = static_cast<bst_float>(param.learning_rate * param.CalcDelta(sum_grad, sum_hess, w));
+          bst_float dw = static_cast<bst_float>(param.learning_rate *
+                                                param.CalcDelta(sum_grad, sum_hess, w));
           w += dw;
           // update grad value
           for (bst_uint j = 0; j < col.length; ++j) {
@@ -258,12 +261,12 @@ class GBLinear : public IGradBooster {
       std::fill(weight.begin(), weight.end(), 0.0f);
     }
     // save the model to file
-    inline void SaveModel(utils::IStream &fo) const {
+    inline void SaveModel(utils::IStream &fo) const { // NOLINT(*)
       fo.Write(&param, sizeof(Param));
       fo.Write(weight);
     }
     // load model from file
-    inline void LoadModel(utils::IStream &fi) {
+    inline void LoadModel(utils::IStream &fi) { // NOLINT(*)
       utils::Assert(fi.Read(&param, sizeof(Param)) != 0, "Load LinearBooster");
       fi.Read(&weight);
     }

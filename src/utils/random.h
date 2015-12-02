@@ -1,12 +1,14 @@
-#ifndef XGBOOST_UTILS_RANDOM_H_
-#define XGBOOST_UTILS_RANDOM_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file xgboost_random.h
  * \brief PRNG to support random number generation
  * \author Tianqi Chen: tianqi.tchen@gmail.com
  *
  * Use standard PRNG from stdlib
  */
+#ifndef XGBOOST_UTILS_RANDOM_H_
+#define XGBOOST_UTILS_RANDOM_H_
+
 #include <cmath>
 #include <cstdlib>
 #include <vector>
@@ -23,11 +25,11 @@ inline void Seed(unsigned seed) {
 }
 /*! \brief basic function, uniform */
 inline double Uniform(void) {
-  return static_cast<double>(rand()) / (static_cast<double>(RAND_MAX)+1.0);
+  return static_cast<double>(rand()) / (static_cast<double>(RAND_MAX)+1.0); // NOLINT(*)
 }
 /*! \brief return a real numer uniform in (0,1) */
 inline double NextDouble2(void) {
-  return (static_cast<double>(rand()) + 1.0) / (static_cast<double>(RAND_MAX)+2.0);
+  return (static_cast<double>(rand()) + 1.0) / (static_cast<double>(RAND_MAX)+2.0); // NOLINT(*)
 }
 /*! \brief return  x~N(0,1) */
 inline double Normal(void) {
@@ -73,7 +75,7 @@ inline void Shuffle(T *data, size_t sz) {
 }
 // random shuffle the data inside, require PRNG
 template<typename T>
-inline void Shuffle(std::vector<T> &data) {
+inline void Shuffle(std::vector<T> &data) { // NOLINT(*)
   Shuffle(&data[0], data.size());
 }
 
@@ -81,17 +83,18 @@ inline void Shuffle(std::vector<T> &data) {
 struct Random{
   /*! \brief set random number seed */
   inline void Seed(unsigned sd) {
-	 this->rseed = sd;
-#if defined(_MSC_VER)||defined(_WIN32)
-     ::xgboost::random::Seed(sd);
+    this->rseed = sd;
+#if defined(_MSC_VER) || defined(_WIN32)
+    ::xgboost::random::Seed(sd);
 #endif
   }
   /*! \brief return a real number uniform in [0,1) */
   inline double RandDouble(void) {
-	// use rand instead of rand_r in windows, for MSVC it is fine since rand is threadsafe
-	// For cygwin and mingw, this can slows down parallelism, but rand_r is only used in objective-inl.hpp, won't affect speed in general
-	// todo, replace with another PRNG
-#if defined(_MSC_VER)||defined(_WIN32)||defined(XGBOOST_STRICT_CXX98_)
+    // use rand instead of rand_r in windows, for MSVC it is fine since rand is threadsafe
+    // For cygwin and mingw, this can slows down parallelism,
+    // but rand_r is only used in objective-inl.hpp, won't affect speed in general
+    // todo, replace with another PRNG
+#if defined(_MSC_VER) || defined(_WIN32) || defined(XGBOOST_STRICT_CXX98_)
     return Uniform();
 #else
     return static_cast<double>(rand_r(&rseed)) / (static_cast<double>(RAND_MAX) + 1.0);

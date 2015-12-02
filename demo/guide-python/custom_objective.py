@@ -1,11 +1,9 @@
 #!/usr/bin/python
-import sys
 import numpy as np
-sys.path.append('../../wrapper')
 import xgboost as xgb
 ###
 # advanced: cutomsized loss function
-# 
+#
 print ('start running example to used cutomized objective function')
 
 dtrain = xgb.DMatrix('../data/agaricus.txt.train')

@@ -1,10 +1,12 @@
-#ifndef XGBOOST_LEARNER_OBJECTIVE_INL_HPP_
-#define XGBOOST_LEARNER_OBJECTIVE_INL_HPP_
 /*!
+ * Copyright 2014 by Contributors
  * \file objective-inl.hpp
  * \brief objective function implementations
  * \author Tianqi Chen, Kailong Chen
  */
+#ifndef XGBOOST_LEARNER_OBJECTIVE_INL_HPP_
+#define XGBOOST_LEARNER_OBJECTIVE_INL_HPP_
+
 #include <vector>
 #include <algorithm>
 #include <utility>
@@ -82,11 +84,13 @@ struct LossType {
    * \return second order gradient
    */
   inline float SecondOrderGradient(float predt, float label) const {
+    // cap second order gradient to postive value
+    const float eps = 1e-16f;
     switch (loss_type) {
       case kLinearSquare: return 1.0f;
       case kLogisticRaw: predt = 1.0f / (1.0f + std::exp(-predt));
       case kLogisticClassify:
-      case kLogisticNeglik: return predt * (1 - predt);
+      case kLogisticNeglik: return std::max(predt * (1.0f - predt), eps);
       default: utils::Error("unknown loss_type"); return 0.0f;
     }
   }
@@ -112,7 +116,7 @@ struct LossType {
 };
 
 /*! \brief objective function that only need to */
-class RegLossObj : public IObjFunction{
+class RegLossObj : public IObjFunction {
  public:
   explicit RegLossObj(int loss_type) {
     loss.loss_type = loss_type;
@@ -171,6 +175,72 @@ class RegLossObj : public IObjFunction{
   LossType loss;
 };
 
+// poisson regression for count
+class PoissonRegression : public IObjFunction {
+ public:
+  PoissonRegression(void) {
+    max_delta_step = 0.0f;
+  }
+  virtual ~PoissonRegression(void) {}
+
+  virtual void SetParam(const char *name, const char *val) {
+    using namespace std;
+    if (!strcmp("max_delta_step", name)) {
+      max_delta_step = static_cast<float>(atof(val));
+    }
+  }
+  virtual void GetGradient(const std::vector<float> &preds,
+                           const MetaInfo &info,
+                           int iter,
+                           std::vector<bst_gpair> *out_gpair) {
+    utils::Check(max_delta_step != 0.0f,
+                 "PoissonRegression: need to set max_delta_step");
+    utils::Check(info.labels.size() != 0, "label set cannot be empty");
+    utils::Check(preds.size() == info.labels.size(),
+                 "labels are not correctly provided");
+    std::vector<bst_gpair> &gpair = *out_gpair;
+    gpair.resize(preds.size());
+    // check if label in range
+    bool label_correct = true;
+    // start calculating gradient
+    const long ndata = static_cast<bst_omp_uint>(preds.size()); // NOLINT(*)
+    #pragma omp parallel for schedule(static)
+    for (long i = 0; i < ndata; ++i) { // NOLINT(*)
+      float p = preds[i];
+      float w = info.GetWeight(i);
+      float y = info.labels[i];
+      if (y >= 0.0f) {
+        gpair[i] = bst_gpair((std::exp(p) - y) * w,
+                             std::exp(p + max_delta_step) * w);
+      } else {
+        label_correct = false;
+      }
+    }
+    utils::Check(label_correct,
+                 "PoissonRegression: label must be nonnegative");
+  }
+  virtual void PredTransform(std::vector<float> *io_preds) {
+    std::vector<float> &preds = *io_preds;
+    const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
+    #pragma omp parallel for schedule(static)
+    for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
+      preds[j] = std::exp(preds[j]);
+    }
+  }
+  virtual void EvalTransform(std::vector<float> *io_preds) {
+    PredTransform(io_preds);
+  }
+  virtual float ProbToMargin(float base_score) const {
+    return std::log(base_score);
+  }
+  virtual const char* DefaultEvalMetric(void) const {
+    return "poisson-nloglik";
+  }
+
+ private:
+  float max_delta_step;
+};
+
 // softmax multi-class classification
 class SoftmaxMultiClassObj : public IObjFunction {
  public:
@@ -195,6 +265,7 @@ class SoftmaxMultiClassObj : public IObjFunction {
     gpair.resize(preds.size());
     const unsigned nstep = static_cast<unsigned>(info.labels.size() * nclass);
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size() / nclass);
+    int label_error = 0;
     #pragma omp parallel
     {
       std::vector<float> rec(nclass);
@@ -206,8 +277,9 @@ class SoftmaxMultiClassObj : public IObjFunction {
         Softmax(&rec);
         const unsigned j = i % nstep;
         int label = static_cast<int>(info.labels[j]);
-        utils::Check(label >= 0 && label < nclass,
-                     "SoftmaxMultiClassObj: label must be in [0, num_class)");
+        if (label < 0 || label >= nclass)  {
+          label_error = label; label = 0;
+        }
         const float wt = info.GetWeight(j);
         for (int k = 0; k < nclass; ++k) {
           float p = rec[k];
@@ -220,12 +292,15 @@ class SoftmaxMultiClassObj : public IObjFunction {
         }
       }
     }
+    utils::Check(label_error >= 0 && label_error < nclass,
+                 "SoftmaxMultiClassObj: label must be in [0, num_class),"\
+                 " num_class=%d but found %d in label", nclass, label_error);
   }
   virtual void PredTransform(std::vector<float> *io_preds) {
     this->Transform(io_preds, output_prob);
   }
   virtual void EvalTransform(std::vector<float> *io_preds) {
-    this->Transform(io_preds, 0);
+    this->Transform(io_preds, 1);
   }
   virtual const char* DefaultEvalMetric(void) const {
     return "merror";
@@ -394,7 +469,7 @@ class LambdaRankObj : public IObjFunction {
         : pos_index(pos_index), neg_index(neg_index), weight(1.0f) {}
   };
   /*!
-   * \brief get lambda weight for existing pairs 
+   * \brief get lambda weight for existing pairs
    * \param list a list that is sorted by pred score
    * \param io_pairs record of pairs, containing the pairs to fill in weights
    */
@@ -482,10 +557,10 @@ class LambdaRankObjMAP : public LambdaRankObj {
     float ap_acc;
     /*!
      * \brief the accumulated precision,
-     *   assuming a positive instance is missing 
+     *   assuming a positive instance is missing
      */
     float ap_acc_miss;
-    /*! 
+    /*!
      * \brief the accumulated precision,
      * assuming that one more positive instance is inserted ahead
      */

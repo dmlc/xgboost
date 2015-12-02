@@ -9,17 +9,17 @@
 using namespace rabit;
 
 // dummy model
-class Model : public rabit::ISerializable {
+class Model : public rabit::Serializable {
  public:
   // iterations
   std::vector<float> data;
   // load from stream
-  virtual void Load(rabit::IStream &fi) {
-    fi.Read(&data);
+  virtual void Load(rabit::Stream *fi) {
+    fi->Read(&data);
   }
   /*! \brief save the model to the stream */
-  virtual void Save(rabit::IStream &fo) const {
-    fo.Write(data);
+  virtual void Save(rabit::Stream *fo) const {
+    fo->Write(data);
   }
   virtual void InitModel(size_t n, float v) {
     data.clear();

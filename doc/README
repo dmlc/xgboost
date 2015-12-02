@@ -1,0 +1,7 @@
+The document of xgboost is generated with recommonmark and sphinx.
+
+You can build it locally by typing "make html" in this folder.
+- clone https://github.com/tqchen/recommonmark to root
+- type make html
+
+Checkout https://recommonmark.readthedocs.org for guide on how to write markdown with extensions used in this doc, such as math formulas and table of content.

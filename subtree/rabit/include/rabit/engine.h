@@ -94,8 +94,8 @@ class IEngine {
    *
    * \sa CheckPoint, VersionNumber
    */
-  virtual int LoadCheckPoint(ISerializable *global_model,
-                             ISerializable *local_model = NULL) = 0;
+  virtual int LoadCheckPoint(Serializable *global_model,
+                             Serializable *local_model = NULL) = 0;
   /*!
    * \brief checkpoints the model, meaning a stage of execution was finished
    *  every time we call check point, a version number increases by ones
@@ -112,8 +112,8 @@ class IEngine {
    *
    * \sa LoadCheckPoint, VersionNumber
    */
-  virtual void CheckPoint(const ISerializable *global_model,
-                          const ISerializable *local_model = NULL) = 0;
+  virtual void CheckPoint(const Serializable *global_model,
+                          const Serializable *local_model = NULL) = 0;
   /*!
    * \brief This function can be used to replace CheckPoint for global_model only,
    *   when certain condition is met (see detailed explanation).
@@ -134,7 +134,7 @@ class IEngine {
    *   is the same in every node
    * \sa LoadCheckPoint, CheckPoint, VersionNumber
    */
-  virtual void LazyCheckPoint(const ISerializable *global_model) = 0;
+  virtual void LazyCheckPoint(const Serializable *global_model) = 0;
   /*!
    * \return version number of the current stored model,
    *         which means how many calls to CheckPoint we made so far
@@ -145,6 +145,8 @@ class IEngine {
   virtual int GetRank(void) const = 0;
   /*! \brief gets total number of nodes */
   virtual int GetWorldSize(void) const = 0;
+  /*! \brief whether we run in distribted mode */
+  virtual bool IsDistributed(void) const = 0;
   /*! \brief gets the host name of the current node */
   virtual std::string GetHost(void) const = 0;
   /*!
@@ -181,7 +183,9 @@ enum DataType {
   kLong = 4,
   kULong = 5,
   kFloat = 6,
-  kDouble = 7
+  kDouble = 7,
+  kLongLong = 8,
+  kULongLong = 9
 };
 }  // namespace mpi
 /*!

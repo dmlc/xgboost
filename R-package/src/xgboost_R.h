@@ -1,18 +1,27 @@
-#ifndef XGBOOST_WRAPPER_R_H_
-#define XGBOOST_WRAPPER_R_H_
 /*!
+ * Copyright 2014 (c) by Contributors
  * \file xgboost_wrapper_R.h
  * \author Tianqi Chen
  * \brief R wrapper of xgboost
  */
+#ifndef XGBOOST_WRAPPER_R_H_ // NOLINT(*)
+#define XGBOOST_WRAPPER_R_H_ // NOLINT(*)
+
 extern "C" {
 #include <Rinternals.h>
 #include <R_ext/Random.h>
+#include <Rmath.h>
 }
 
 extern "C" {
   /*!
-   * \brief load a data matrix 
+   * \brief check whether a handle is NULL
+   * \param handle
+   * \return whether it is null ptr
+   */
+  SEXP XGCheckNullPtr_R(SEXP handle);
+  /*!
+   * \brief load a data matrix
    * \param fname name of the content
    * \param silent whether print messages
    * \return a loaded data matrix
@@ -25,9 +34,9 @@ extern "C" {
    * \param missing which value to represent missing value
    * \return created dmatrix
    */
-  SEXP XGDMatrixCreateFromMat_R(SEXP mat, 
+  SEXP XGDMatrixCreateFromMat_R(SEXP mat,
                                 SEXP missing);
-  /*! 
+  /*!
    * \brief create a matrix content from CSC format
    * \param indptr pointer to column headers
    * \param indices row indices
@@ -63,26 +72,26 @@ extern "C" {
    * \param handle a instance of data matrix
    * \param field field name
    * \return info vector
-   */  
+   */
   SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field);
   /*!
    * \brief return number of rows
    * \param handle a instance of data matrix
    */
   SEXP XGDMatrixNumRow_R(SEXP handle);
-  /*! 
-   * \brief create xgboost learner 
+  /*!
+   * \brief create xgboost learner
    * \param dmats a list of dmatrix handles that will be cached
-   */  
+   */
   SEXP XGBoosterCreate_R(SEXP dmats);
-  /*! 
-   * \brief set parameters 
+  /*!
+   * \brief set parameters
    * \param handle handle
    * \param name  parameter name
    * \param val value of parameter
    */
   void XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val);
-  /*! 
+  /*!
    * \brief update the model in one round using dtrain
    * \param handle handle
    * \param iter current iteration rounds
@@ -125,12 +134,12 @@ extern "C" {
    * \brief save model into existing file
    * \param handle handle
    * \param fname file name
-   */    
+   */
   void XGBoosterSaveModel_R(SEXP handle, SEXP fname);
   /*!
    * \brief load model from raw array
    * \param handle handle
-   */    
+   */
   void XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw);
   /*!
    * \brief save model into R's raw array
@@ -146,4 +155,4 @@ extern "C" {
    */
   SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats);
 }
-#endif  // XGBOOST_WRAPPER_R_H_
+#endif  // XGBOOST_WRAPPER_R_H_ // NOLINT(*)

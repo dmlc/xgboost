@@ -4,6 +4,15 @@ setClass('xgb.DMatrix')
 #' 
 #' Get information of an xgb.DMatrix object
 #' 
+#' The information can be one of the following:
+#' 
+#' \itemize{
+#'     \item \code{label}: label Xgboost learn from ;
+#'     \item \code{weight}: to do a weight rescale ;
+#'     \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
+#'     \item \code{nrow}: number of rows of the \code{xgb.DMatrix}.
+#' }
+#' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' train <- agaricus.train
@@ -14,17 +23,18 @@ setClass('xgb.DMatrix')
 #' stopifnot(all(labels2 == 1-labels))
 #' @rdname getinfo
 #' @export
-#' 
 getinfo <- function(object, ...){
     UseMethod("getinfo")
 }
 
-#' @param object Object of class "xgb.DMatrix"
+
+
+#' @param object Object of class \code{xgb.DMatrix}
 #' @param name the name of the field to get
 #' @param ... other parameters
 #' @rdname getinfo
 #' @method getinfo xgb.DMatrix
-setMethod("getinfo", signature = "xgb.DMatrix", 
+setMethod("getinfo", signature = "xgb.DMatrix",
           definition = function(object, name) {
               if (typeof(name) != "character") {
                   stop("xgb.getinfo: name must be character")
@@ -32,7 +42,7 @@ setMethod("getinfo", signature = "xgb.DMatrix",
               if (class(object) != "xgb.DMatrix") {
                   stop("xgb.setinfo: first argument dtrain must be xgb.DMatrix")
               }
-              if (name != "label" && name != "weight" && 
+              if (name != "label" && name != "weight" &&
                       name != "base_margin" && name != "nrow") {
                   stop(paste("xgb.getinfo: unknown info name", name))
               }
@@ -43,4 +53,3 @@ setMethod("getinfo", signature = "xgb.DMatrix",
               }
               return(ret)
           })
-

@@ -1,22 +1,27 @@
-#ifndef XGBOOST_IO_SIMPLE_DMATRIX_INL_HPP_
-#define XGBOOST_IO_SIMPLE_DMATRIX_INL_HPP_
 /*!
+ * Copyright 2014 by Contributors
  * \file simple_dmatrix-inl.hpp
- * \brief simple implementation of DMatrixS that can be used 
+ * \brief simple implementation of DMatrixS that can be used
  *  the data format of xgboost is templatized, which means it can accept
  *  any data structure that implements the function defined by FMatrix
  *  this file is a specific implementation of input data structure that can be used by BoostLearner
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_IO_SIMPLE_DMATRIX_INL_HPP_
+#define XGBOOST_IO_SIMPLE_DMATRIX_INL_HPP_
+
 #include <string>
 #include <cstring>
 #include <vector>
+#include <sstream>
 #include <algorithm>
 #include "../data.h"
 #include "../utils/utils.h"
 #include "../learner/dmatrix.h"
 #include "./io.h"
 #include "./simple_fmatrix-inl.hpp"
+#include "../sync/sync.h"
+#include "./libsvm_parser.h"
 
 namespace xgboost {
 namespace io {
@@ -25,7 +30,7 @@ class DMatrixSimple : public DataMatrix {
  public:
   // constructor
   DMatrixSimple(void) : DataMatrix(kMagic) {
-    fmat_ = new FMatrixS(new OneBatchIter(this));
+    fmat_ = new FMatrixS(new OneBatchIter(this), this->info);
     this->Clear();
   }
   // virtual destructor
@@ -70,70 +75,76 @@ class DMatrixSimple : public DataMatrix {
   inline size_t AddRow(const std::vector<RowBatch::Entry> &feats) {
     for (size_t i = 0; i < feats.size(); ++i) {
       row_data_.push_back(feats[i]);
-      info.info.num_col = std::max(info.info.num_col, static_cast<size_t>(feats[i].index+1));
+      info.info.num_col = std::max(info.info.num_col,
+                                   static_cast<size_t>(feats[i].index+1));
     }
     row_ptr_.push_back(row_ptr_.back() + feats.size());
     info.info.num_row += 1;
     return row_ptr_.size() - 2;
   }
   /*!
-   * \brief load from text file
-   * \param fname name of text data
+   * \brief load split of input, used in distributed mode
+   * \param uri the uri of input
+   * \param loadsplit whether loadsplit of data or all the data
    * \param silent whether print information or not
    */
-  inline void LoadText(const char* fname, bool silent = false) {
-    using namespace std;
-    this->Clear();
-    FILE* file;
-    if (!strcmp(fname, "stdin")) {
-      file = stdin;
-    } else {
-      file = utils::FopenCheck(fname, "r");      
+  inline void LoadText(const char *uri, bool silent = false, bool loadsplit = false) {
+    int rank = 0, npart = 1;
+    if (loadsplit) {
+      rank = rabit::GetRank();
+      npart = rabit::GetWorldSize();
     }
-    float label; bool init = true;
-    char tmp[1024];
-    std::vector<RowBatch::Entry> feats;
-    while (fscanf(file, "%s", tmp) == 1) {
-      RowBatch::Entry e;
-      if (sscanf(tmp, "%u:%f", &e.index, &e.fvalue) == 2) {
-        feats.push_back(e);
-      } else {
-        if (!init) {
-          info.labels.push_back(label);
-          this->AddRow(feats);
-        }
-        feats.clear();
-        utils::Check(sscanf(tmp, "%f", &label) == 1, "invalid LibSVM format");
-        init = false;
+    LibSVMParser parser(
+        dmlc::InputSplit::Create(uri, rank, npart, "text"), 16);
+    this->Clear();
+    while (parser.Next()) {
+      const LibSVMPage &batch = parser.Value();
+      size_t nlabel = info.labels.size();
+      info.labels.resize(nlabel + batch.label.size());
+      if (batch.label.size() != 0) {
+        std::memcpy(BeginPtr(info.labels) + nlabel,
+                    BeginPtr(batch.label),
+                    batch.label.size() * sizeof(float));
+      }
+      size_t ndata = row_data_.size();
+      row_data_.resize(ndata + batch.data.size());
+      if (batch.data.size() != 0) {
+        std::memcpy(BeginPtr(row_data_) + ndata,
+                    BeginPtr(batch.data),
+                    batch.data.size() * sizeof(RowBatch::Entry));
+      }
+      row_ptr_.resize(row_ptr_.size() + batch.label.size());
+      for (size_t i = 0; i < batch.label.size(); ++i) {
+        row_ptr_[nlabel + i + 1] = row_ptr_[nlabel] + batch.offset[i + 1];
+      }
+      info.info.num_row += batch.Size();
+      for (size_t i = 0; i < batch.data.size(); ++i) {
+        info.info.num_col = std::max(info.info.num_col,
+                                     static_cast<size_t>(batch.data[i].index+1));
       }
     }
-
-    info.labels.push_back(label);
-    this->AddRow(feats);
-
     if (!silent) {
       utils::Printf("%lux%lu matrix with %lu entries is loaded from %s\n",
-                    static_cast<unsigned long>(info.num_row()),
-                    static_cast<unsigned long>(info.num_col()),
-                    static_cast<unsigned long>(row_data_.size()), fname);
-    }
-    if (file != stdin) {
-      fclose(file);
+                    static_cast<unsigned long>(info.num_row()),  // NOLINT(*)
+                    static_cast<unsigned long>(info.num_col()),  // NOLINT(*)
+                    static_cast<unsigned long>(row_data_.size()), uri);  // NOLINT(*)
     }
     // try to load in additional file
-    std::string name = fname;
-    std::string gname = name + ".group";
-    if (info.TryLoadGroup(gname.c_str(), silent)) {
-      utils::Check(info.group_ptr.back() == info.num_row(),
-                   "DMatrix: group data does not match the number of rows in features");
-    }
-    std::string wname = name + ".weight";
-    if (info.TryLoadFloatInfo("weight", wname.c_str(), silent)) {
-      utils::Check(info.weights.size() == info.num_row(),
-                   "DMatrix: weight data does not match the number of rows in features");
-    }
-    std::string mname = name + ".base_margin";
-    if (info.TryLoadFloatInfo("base_margin", mname.c_str(), silent)) {      
+    if (!loadsplit) {
+      std::string name = uri;
+      std::string gname = name + ".group";
+      if (info.TryLoadGroup(gname.c_str(), silent)) {
+        utils::Check(info.group_ptr.back() == info.num_row(),
+                     "DMatrix: group data does not match the number of rows in features");
+      }
+      std::string wname = name + ".weight";
+      if (info.TryLoadFloatInfo("weight", wname.c_str(), silent)) {
+        utils::Check(info.weights.size() == info.num_row(),
+                     "DMatrix: weight data does not match the number of rows in features");
+      }
+      std::string mname = name + ".base_margin";
+      if (info.TryLoadFloatInfo("base_margin", mname.c_str(), silent)) {
+      }
     }
   }
   /*!
@@ -156,20 +167,21 @@ class DMatrixSimple : public DataMatrix {
    * \param silent whether print information during loading
    * \param fname file name, used to print message
    */
-  inline void LoadBinary(utils::IStream &fs, bool silent = false, const char *fname = NULL) {
+  inline void LoadBinary(utils::IStream &fs, bool silent = false, const char *fname = NULL) {  // NOLINT(*)
     int tmagic;
     utils::Check(fs.Read(&tmagic, sizeof(tmagic)) != 0, "invalid input file format");
-    utils::Check(tmagic == kMagic, "\"%s\" invalid format, magic number mismatch", fname == NULL ? "" : fname);
+    utils::Check(tmagic == kMagic, "\"%s\" invalid format, magic number mismatch",
+                 fname == NULL ? "" : fname);
 
     info.LoadBinary(fs);
-    FMatrixS::LoadBinary(fs, &row_ptr_, &row_data_);
+    LoadBinary(fs, &row_ptr_, &row_data_);
     fmat_->LoadColAccess(fs);
 
     if (!silent) {
       utils::Printf("%lux%lu matrix with %lu entries is loaded",
-                    static_cast<unsigned long>(info.num_row()),
-                    static_cast<unsigned long>(info.num_col()),
-                    static_cast<unsigned long>(row_data_.size()));
+                    static_cast<unsigned long>(info.num_row()),  // NOLINT(*)
+                    static_cast<unsigned long>(info.num_col()),  // NOLINT(*)
+                    static_cast<unsigned long>(row_data_.size()));  // NOLINT(*)
       if (fname != NULL) {
         utils::Printf(" from %s\n", fname);
       } else {
@@ -189,17 +201,16 @@ class DMatrixSimple : public DataMatrix {
     utils::FileStream fs(utils::FopenCheck(fname, "wb"));
     int tmagic = kMagic;
     fs.Write(&tmagic, sizeof(tmagic));
-
     info.SaveBinary(fs);
-    FMatrixS::SaveBinary(fs, row_ptr_, row_data_);
+    SaveBinary(fs, row_ptr_, row_data_);
     fmat_->SaveColAccess(fs);
     fs.Close();
 
     if (!silent) {
       utils::Printf("%lux%lu matrix with %lu entries is saved to %s\n",
-                    static_cast<unsigned long>(info.num_row()),
-                    static_cast<unsigned long>(info.num_col()),
-                    static_cast<unsigned long>(row_data_.size()), fname);
+                    static_cast<unsigned long>(info.num_row()),  // NOLINT(*)
+                    static_cast<unsigned long>(info.num_col()),  // NOLINT(*)
+                    static_cast<unsigned long>(row_data_.size()), fname);  // NOLINT(*)
       if (info.group_ptr.size() != 0) {
         utils::Printf("data contains %u groups\n",
                       static_cast<unsigned>(info.group_ptr.size()-1));
@@ -242,6 +253,42 @@ class DMatrixSimple : public DataMatrix {
   static const int kMagic = 0xffffab01;
 
  protected:
+  /*!
+   * \brief save data to binary stream
+   * \param fo output stream
+   * \param ptr pointer data
+   * \param data data content
+   */
+  inline static void SaveBinary(utils::IStream &fo,  // NOLINT(*)
+                                const std::vector<size_t> &ptr,
+                                const std::vector<RowBatch::Entry> &data) {
+    size_t nrow = ptr.size() - 1;
+    fo.Write(&nrow, sizeof(size_t));
+    fo.Write(BeginPtr(ptr), ptr.size() * sizeof(size_t));
+    if (data.size() != 0) {
+      fo.Write(BeginPtr(data), data.size() * sizeof(RowBatch::Entry));
+    }
+  }
+  /*!
+   * \brief load data from binary stream
+   * \param fi input stream
+   * \param out_ptr pointer data
+   * \param out_data data content
+   */
+  inline static void LoadBinary(utils::IStream &fi,  // NOLINT(*)
+                                std::vector<size_t> *out_ptr,
+                                std::vector<RowBatch::Entry> *out_data) {
+    size_t nrow;
+    utils::Check(fi.Read(&nrow, sizeof(size_t)) != 0, "invalid input file format");
+    out_ptr->resize(nrow + 1);
+    utils::Check(fi.Read(BeginPtr(*out_ptr), out_ptr->size() * sizeof(size_t)) != 0,
+                  "invalid input file format");
+    out_data->resize(out_ptr->back());
+    if (out_data->size() != 0) {
+      utils::Assert(fi.Read(BeginPtr(*out_data), out_data->size() * sizeof(RowBatch::Entry)) != 0,
+                    "invalid input file format");
+    }
+  }
   // one batch iterator that return content in the matrix
   struct OneBatchIter: utils::IIterator<RowBatch> {
     explicit OneBatchIter(DMatrixSimple *parent)
@@ -270,7 +317,7 @@ class DMatrixSimple : public DataMatrix {
     DMatrixSimple *parent_;
     // temporal space for batch
     RowBatch batch_;
-  }; 
+  };
 };
 }  // namespace io
 }  // namespace xgboost

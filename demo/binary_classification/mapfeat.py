@@ -1,17 +1,16 @@
 #!/usr/bin/python
-import sys
 
 def loadfmap( fname ):
     fmap = {}
     nmap = {}
-    
+
     for l in open( fname ):
         arr = l.split()
-        if arr[0].find('.') != -1:            
+        if arr[0].find('.') != -1:
             idx = int( arr[0].strip('.') )
-            assert idx not in fmap        
+            assert idx not in fmap
             fmap[ idx ] = {}
-            ftype = arr[1].strip(':')        
+            ftype = arr[1].strip(':')
             content = arr[2]
         else:
             content = arr[0]
@@ -23,7 +22,7 @@ def loadfmap( fname ):
             nmap[ len(nmap) ] = ftype+'='+k
     return fmap, nmap
 
-def write_nmap( fo, nmap ):    
+def write_nmap( fo, nmap ):
     for i in range( len(nmap) ):
         fo.write('%d\t%s\ti\n' % (i, nmap[i]) )
 
@@ -33,7 +32,7 @@ fo = open( 'featmap.txt', 'w' )
 write_nmap( fo, nmap )
 fo.close()
 
-fo = open( 'agaricus.txt', 'w' ) 
+fo = open( 'agaricus.txt', 'w' )
 for l in open( 'agaricus-lepiota.data' ):
     arr = l.split(',')
     if arr[0] == 'p':
@@ -47,4 +46,4 @@ for l in open( 'agaricus-lepiota.data' ):
 
 fo.close()
 
- 
+

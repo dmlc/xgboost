@@ -1,0 +1,36 @@
+environment:
+  global:
+   CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\python-appveyor-demo\\appveyor\\run_with_env.cmd"
+   DISABLE_OPENMP: 1
+   VisualStudioVersion: 12.0
+   
+  matrix:
+    - PYTHON: "C:\\Python27-x64"
+      PYTHON_VERSION: "2.7.x" # currently 2.7.9
+      PYTHON_ARCH: "64"
+
+    - PYTHON: "C:\\Python33-x64"
+      PYTHON_VERSION: "3.3.x" # currently 3.3.5
+      PYTHON_ARCH: "64"
+
+platform:
+  - x64
+
+configuration:
+  - Release
+
+install:
+  - cmd: git clone https://github.com/ogrisel/python-appveyor-demo
+  - ECHO "Filesystem root:"
+  - ps: "ls \"C:/\""
+
+  - ECHO "Installed SDKs:"
+  - ps: "ls \"C:/Program Files/Microsoft SDKs/Windows\""
+
+  - ps: python-appveyor-demo\appveyor\install.ps1
+  - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
+  - "python --version"
+  - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
+
+build: off
+  #project: windows\xgboost.sln
