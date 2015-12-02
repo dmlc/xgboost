@@ -190,7 +190,7 @@ Measure feature importance
 In the code below, `sparse_matrix@Dimnames[[2]]` represents the column names of the sparse matrix. These names are the original values of the features (remember, each binary column == one value of one *categorical* feature).
 
 ```{r}
-importance <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst)
+importance <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = bst)
 head(importance)
 ```
 
@@ -213,7 +213,7 @@ One simple solution is to count the co-occurrences of a feature and a class of t
 For that purpose we will execute the same function as above but using two more parameters, `data` and `label`.
 
 ```{r}
-importanceRaw <- xgb.importance(sparse_matrix@Dimnames[[2]], model = bst, data = sparse_matrix, label = output_vector)
+importanceRaw <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = bst, data = sparse_matrix, label = output_vector)
 
 # Cleaning for better display
 importanceClean <- importanceRaw[,`:=`(Cover=NULL, Frequency=NULL)]
