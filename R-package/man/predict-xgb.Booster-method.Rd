@@ -31,6 +31,16 @@ than 0. It will use all trees by default.}
 \description{
 Predicted values based on xgboost model object.
 }
+\details{
+The option \code{ntreelimit} purpose is to let the user train a model with lots 
+of trees but use only the first trees for prediction to avoid overfitting 
+(without having to train a new model with less trees).
+
+The option \code{predleaf} purpose is inspired from §3.1 of the paper 
+\code{Practical Lessons from Predicting Clicks on Ads at Facebook}.
+The idea is to use the model as a generator of new features which capture non linear link 
+from original features.
+}
 \examples{
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
