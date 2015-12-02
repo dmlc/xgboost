@@ -1,6 +1,6 @@
 #' Plot feature importance bar graph
 #'
-#' Read a data.table containing feature importance details and plot it.
+#' Read a data.table containing feature importance details and plot it (for both GLM and Trees).
 #'
 #' @importFrom magrittr %>%
 #' @param importance_matrix a \code{data.table} returned by the \code{xgb.importance} function.
@@ -10,7 +10,7 @@
 #'
 #' @details
 #' The purpose of this function is to easily represent the importance of each feature of a model.
-#' The function return a ggplot graph, therefore each of its characteristic can be overriden (to customize it).
+#' The function returns a ggplot graph, therefore each of its characteristic can be overriden (to customize it).
 #' In particular you may want to override the title of the graph. To do so, add \code{+ ggtitle("A GRAPH NAME")} next to the value returned by this function.
 #'
 #' @examples
@@ -40,21 +40,29 @@ xgb.plot.importance <-
       stop("Ckmeans.1d.dp package is required for plotting the importance", call. = FALSE)
     }
     
+    if(isTRUE(all.equal(colnames(importance_matrix), c("Feature", "Gain", "Cover", "Frequency")))){
+      y.axe.name <- "Gain"
+    } else if(isTRUE(all.equal(colnames(importance_matrix), c("Feature", "Weight")))){
+      y.axe.name <- "Weight"
+    } else {
+      stop("Importance matrix is not correct (column names issue)")
+    }
+    
     # To avoid issues in clustering when co-occurences are used
     importance_matrix <-
-      importance_matrix[, .(Gain = sum(Gain)), by = Feature]
+      importance_matrix[, .(Gain.or.Weight = sum(get(y.axe.name))), by = Feature]
     
     clusters <-
-      suppressWarnings(Ckmeans.1d.dp::Ckmeans.1d.dp(importance_matrix[,Gain], numberOfClusters))
+      suppressWarnings(Ckmeans.1d.dp::Ckmeans.1d.dp(importance_matrix[,Gain.or.Weight], numberOfClusters))
     importance_matrix[,"Cluster":= clusters$cluster %>% as.character]
     
     plot <-
       ggplot2::ggplot(
         importance_matrix, ggplot2::aes(
-          x = stats::reorder(Feature, Gain), y = Gain, width = 0.05
+          x = stats::reorder(Feature, Gain.or.Weight), y = Gain.or.Weight, width = 0.05
         ), environment = environment()
       ) + ggplot2::geom_bar(ggplot2::aes(fill = Cluster), stat = "identity", position =
-                              "identity") + ggplot2::coord_flip() + ggplot2::xlab("Features") + ggplot2::ylab("Gain") + ggplot2::ggtitle("Feature importance") + ggplot2::theme(
+                              "identity") + ggplot2::coord_flip() + ggplot2::xlab("Features") + ggplot2::ylab(y.axe.name) + ggplot2::ggtitle("Feature importance") + ggplot2::theme(
                                 plot.title = ggplot2::element_text(lineheight = .9, face = "bold"), panel.grid.major.y = ggplot2::element_blank()
                               )
     
@@ -66,6 +74,6 @@ xgb.plot.importance <-
 # They are mainly column names inferred by Data.table...
 globalVariables(
   c(
-    "Feature", "Gain", "Cluster", "ggplot", "aes", "geom_bar", "coord_flip", "xlab", "ylab", "ggtitle", "theme", "element_blank", "element_text"
+    "Feature", "Gain.or.Weight", "Cluster", "ggplot", "aes", "geom_bar", "coord_flip", "xlab", "ylab", "ggtitle", "theme", "element_blank", "element_text", "Gain.or.Weight"
   )
 )
