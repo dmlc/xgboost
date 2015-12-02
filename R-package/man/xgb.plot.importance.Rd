@@ -15,11 +15,11 @@ xgb.plot.importance(importance_matrix = NULL, numberOfClusters = c(1:10))
 A \code{ggplot2} bar graph representing each feature by a horizontal bar. Longer is the bar, more important is the feature. Features are classified by importance and clustered by importance. The group is represented through the color of the bar.
 }
 \description{
-Read a data.table containing feature importance details and plot it.
+Read a data.table containing feature importance details and plot it (for both GLM and Trees).
 }
 \details{
 The purpose of this function is to easily represent the importance of each feature of a model.
-The function return a ggplot graph, therefore each of its characteristic can be overriden (to customize it).
+The function returns a ggplot graph, therefore each of its characteristic can be overriden (to customize it).
 In particular you may want to override the title of the graph. To do so, add \code{+ ggtitle("A GRAPH NAME")} next to the value returned by this function.
 }
 \examples{
