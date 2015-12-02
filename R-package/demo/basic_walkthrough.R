@@ -102,9 +102,9 @@ xgb.dump(bst, "dump.raw.txt", with.stats = T)
 
 # Finally, you can check which features are the most important.
 print("Most important features (look at column Gain):")
-imp_matrix <- xgb.importance(feature_names = train$data@Dimnames[[2]], filename_dump = "dump.raw.txt")
+imp_matrix <- xgb.importance(feature_names = train$data@Dimnames[[2]], model = bst)
 print(imp_matrix)
 
 # Feature importance bar plot by gain
 print("Feature importance Plot : ")
-print(xgb.plot.importance(imp_matrix))
+print(xgb.plot.importance(importance_matrix = imp_matrix))
