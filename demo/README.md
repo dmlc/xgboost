@@ -23,7 +23,7 @@ This is a list of short codes introducing different functionalities of xgboost p
 * Predicting using first n trees
   [python](guide-python/predict_first_ntree.py)
   [R](../R-package/demo/predict_first_ntree.R)
-  [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/boost_from_prediction.jl)
+  [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/predict_first_ntree.jl)
 * Generalized Linear Model
   [python](guide-python/generalized_linear_model.py)
   [R](../R-package/demo/generalized_linear_model.R)
