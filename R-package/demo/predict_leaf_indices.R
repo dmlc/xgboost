@@ -29,10 +29,10 @@ create.new.tree.features <- function(model, original.features){
   cols <- list()
   for(i in 1:length(trees)){
     # max is not the real max but it s not important for the purpose of adding features
-    max <- max(pred_with_leaf[,i])
-    cols[[i]] <- factor(x = pred_with_leaf[,i], level = seq(to = max))
+    leaf.id <- sort(unique(pred_with_leaf[,i]))
+    cols[[i]] <- factor(x = pred_with_leaf[,i], level = leaf.id)
   }
-  cBind(original.features, sparse.model.matrix( ~ ., as.data.frame(cols)))
+  cBind(original.features, sparse.model.matrix( ~ . -1, as.data.frame(cols)))
 }
 
 # Convert previous features to one hot encoding
