@@ -11,7 +11,7 @@ This document is hosted at http://xgboost.readthedocs.org/. You can also browse 
 How to Get Started
 ------------------
 The best way to get started to learn xgboost is by the examples. There are three types of examples you can find in xgboost.
-* [Tutorials](#tutorials) are self-conatained tutorials on a complete data science tasks.
+* [Tutorials](#tutorials) are self-contained tutorials on complete data science tasks.
 * [XGBoost Code Examples](../demo/) are collections of code and benchmarks of xgboost.
   - There is a walkthrough section in this to walk you through specific API features.
 * [Highlight Solutions](#highlight-solutions) are presentations using xgboost to solve real world problems.
