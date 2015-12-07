@@ -1,7 +1,6 @@
 #' Show importance of features in a model
 #' 
-#' Read a xgboost model text dump. 
-#' Can be tree or linear model (text dump of linear model are only supported in dev version of \code{Xgboost} for now).
+#' Create a \code{data.table} of the most important features of a model. 
 #' 
 #' @importFrom data.table data.table
 #' @importFrom data.table setnames

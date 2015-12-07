@@ -25,7 +25,7 @@ pred_with_leaf = predict(bst, dtest, predleaf = TRUE)
 head(pred_with_leaf)
 
 create.new.tree.features <- function(model, original.features){
-  pred_with_leaf = predict(model, original.features, predleaf = TRUE)
+  pred_with_leaf <- predict(model, original.features, predleaf = TRUE)
   cols <- list()
   for(i in 1:length(trees)){
     # max is not the real max but it s not important for the purpose of adding features
@@ -49,4 +49,4 @@ bst <- xgb.train(params = param, data = new.dtrain, nrounds = nround, nthread = 
 accuracy.after <- sum((predict(bst, new.dtest) >= 0.5) == agaricus.test$label) / length(agaricus.test$label)
 
 # Here the accuracy was already good and is now perfect.
-print(paste("The accuracy was", accuracy.before, "before adding leaf features and it is now", accuracy.after, "!"))
+cat(paste("The accuracy was", accuracy.before, "before adding leaf features and it is now", accuracy.after, "!\n"))
