@@ -23,7 +23,7 @@ LIB_PATH = libpath['find_lib_path']()
 setup(name='xgboost',
       version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
       #version='0.4a23',
-      description=open(os.path.join(CURRENT_DIR, 'README.md')).read(),
+      description=open(os.path.join(CURRENT_DIR, 'README.rst')).read(),
       install_requires=[
           'numpy',
           'scipy',
