@@ -22,8 +22,7 @@ xgb.importance(feature_names = NULL, model = NULL, data = NULL,
 A \code{data.table} of the features used in the model with their average gain (and their weight for boosted tree model) in the model.
 }
 \description{
-Read a xgboost model text dump. 
-Can be tree or linear model (text dump of linear model are only supported in dev version of \code{Xgboost} for now).
+Create a \code{data.table} of the most important features of a model.
 }
 \details{
 This is the function to understand the model trained (and through your model, your data).
