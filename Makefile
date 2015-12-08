@@ -177,11 +177,9 @@ Rcheck:
 	R CMD check --as-cran xgboost*.tar.gz
 
 pythonpack:
-	#make clean
+	#for pip maintainer only
 	cd subtree/rabit;make clean;cd ..
 	rm -rf xgboost-deploy xgboost*.tar.gz
-	#pip install pypandoc and also brew/apt-get install pandoc
-	python python-package/conv_rst.py
 	cp -r python-package xgboost-deploy
 	#cp *.md xgboost-deploy/
 	cp LICENSE xgboost-deploy/
