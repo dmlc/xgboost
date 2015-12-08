@@ -10,8 +10,11 @@ import os
 
 from .core import DMatrix, Booster
 from .training import train, cv
-from .sklearn import XGBModel, XGBClassifier, XGBRegressor
-from .plotting import plot_importance, plot_tree, to_graphviz
+try:
+    from .sklearn import XGBModel, XGBClassifier, XGBRegressor
+    from .plotting import plot_importance, plot_tree, to_graphviz
+except ImportError:
+    print('Error when loading sklearn/plotting. Please install scikit-learn')
 
 VERSION_FILE = os.path.join(os.path.dirname(__file__), 'VERSION')
 __version__ = open(VERSION_FILE).read().strip()
