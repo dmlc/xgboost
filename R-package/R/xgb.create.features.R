@@ -14,7 +14,7 @@
 #' @details 
 #' This is the function inspired from the paragraph 3.1 of the paper:
 #' 
-#' \strong{"Practical Lessons from Predicting Clicks on Ads at Facebook"}
+#' \strong{Practical Lessons from Predicting Clicks on Ads at Facebook}
 #' 
 #' \emph{(Xinran He, Junfeng Pan, Ou Jin, Tianbing Xu, Bo Liu, Tao Xu, Yan, xin Shi, Antoine Atallah, Ralf Herbrich, Stuart Bowers, 
 #' Joaquin Quiñonero Candela)}

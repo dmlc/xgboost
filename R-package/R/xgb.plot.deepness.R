@@ -76,6 +76,7 @@ get.paths.to.leaf <- function(dt.tree) {
 #' @details
 #' Display both the number of \code{leaf} and the distribution of \code{weighted observations}
 #' by tree deepness level.
+#' 
 #' The purpose of this function is to help the user to find the best trade-off to set
 #' the \code{max.depth} and \code{min_child_weight} parameters according to the bias / variance trade-off.
 #' 
@@ -88,7 +89,7 @@ get.paths.to.leaf <- function(dt.tree) {
 #'  \item Weighted cover: noramlized weighted cover per Leaf (weighted number of instances).
 #' }
 #'
-#' This function is inspired by this blog post \url{http://aysent.github.io/2015/11/08/random-forest-leaf-visualization.html}
+#' This function is inspired by the blog post \url{http://aysent.github.io/2015/11/08/random-forest-leaf-visualization.html}
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
