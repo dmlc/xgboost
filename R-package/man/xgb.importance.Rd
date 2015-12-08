@@ -27,7 +27,7 @@ Create a \code{data.table} of the most important features of a model.
 \details{
 This is the function to understand the model trained (and through your model, your data).
 
-Results are returned for both linear and tree models.
+This function is for both linear and tree models.
 
 \code{data.table} is returned by the function. 
 The columns are :
@@ -38,8 +38,9 @@ The columns are :
   \item \code{Weight} percentage representing the relative number of times a feature have been taken into trees.
 }
 
-If you don't provide name, index of the features are used.
-They are extracted from the boost dump (made on the C++ side), the index starts at 0 (usual in C++) instead of 1 (usual in R).
+If you don't provide \code{feature_names}, index of the features will be used instead.
+
+Because the index is extracted from the model dump (made on the C++ side), it starts at 0 (usual in C++) instead of 1 (usual in R).
 
 Co-occurence count
 ------------------
@@ -52,10 +53,6 @@ If you need to remember one thing only: until you want to leave us early, don't 
 }
 \examples{
 data(agaricus.train, package='xgboost')
-
-# Both dataset are list with two items, a sparse matrix and labels 
-# (labels = outcome column which will be learned). 
-# Each column of the sparse Matrix is a feature in one hot encoding format.
 
 bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.depth = 2, 
                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
