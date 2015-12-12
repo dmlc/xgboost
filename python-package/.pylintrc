@@ -2,7 +2,7 @@
 
 ignore=tests
 
-unexpected-special-method-signature,too-many-nested-blocks,consider-using-enumerate
+unexpected-special-method-signature,too-many-nested-blocks
 
 dummy-variables-rgx=(unused|)_.*
 

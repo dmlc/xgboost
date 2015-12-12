@@ -890,6 +890,7 @@ class Booster(object):
             _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
 
     def dump_model(self, fout, fmap='', with_stats=False):
+        # pylint: disable=consider-using-enumerate
         """
         Dump model into a text file.
 

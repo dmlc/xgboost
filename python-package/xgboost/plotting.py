@@ -5,11 +5,10 @@
 from __future__ import absolute_import
 
 import re
+from io import BytesIO
 import numpy as np
 from .core import Booster
 from .sklearn import XGBModel
-
-from io import BytesIO
 
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
