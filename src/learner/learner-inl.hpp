@@ -165,6 +165,7 @@ class BoostLearner : public rabit::Serializable {
    */
   inline void LoadModel(utils::IStream &fi,  // NOLINT(*)
                         bool calc_num_feature = true) {
+    XGBOOST_STATIC_ASSERT(sizeof(ModelParam) % sizeof(uint64_t) == 0)
     utils::Check(fi.Read(&mparam, sizeof(ModelParam)) != 0,
                  "BoostLearner: wrong model format");
     {

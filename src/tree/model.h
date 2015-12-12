@@ -50,7 +50,7 @@ class TreeModel {
      */
     int size_leaf_vector;
     /*! \brief reserved part */
-    int reserved[31];
+    int reserved[32];
     /*! \brief constructor */
     Param(void) {
       max_depth = 0;
@@ -175,6 +175,8 @@ class TreeModel {
     unsigned sindex_;
     // extra info
     Info info_;
+    // reserved field
+    int reserved;
     // set parent
     inline void set_parent(int pidx, bool is_left_child = true) {
       if (is_left_child) pidx |= (1U << 31);
@@ -295,12 +297,15 @@ class TreeModel {
    * \param fi input stream
    */
   inline void LoadModel(utils::IStream &fi) { // NOLINT(*)
+    XGBOOST_STATIC_ASSERT(sizeof(Param) % sizeof(uint64_t) == 0)
     utils::Check(fi.Read(&param, sizeof(Param)) > 0,
                  "TreeModel: wrong format");
     nodes.resize(param.num_nodes); stats.resize(param.num_nodes);
     utils::Assert(param.num_nodes != 0, "invalid model");
+    XGBOOST_STATIC_ASSERT(sizeof(Node) % sizeof(uint64_t) == 0)
     utils::Check(fi.Read(BeginPtr(nodes), sizeof(Node) * nodes.size()) > 0,
                  "TreeModel: wrong format");
+    XGBOOST_STATIC_ASSERT(sizeof(NodeStat) % sizeof(uint64_t) == 0)
     utils::Check(fi.Read(BeginPtr(stats), sizeof(NodeStat) * stats.size()) > 0,
                  "TreeModel: wrong format");
     if (param.size_leaf_vector != 0) {
