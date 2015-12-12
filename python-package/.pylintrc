@@ -2,7 +2,7 @@
 
 ignore=tests
 
-disable=invalid-name,wildcard-import,too-many-arguments,attribute-defined-outside-init,no-member,too-many-instance-attributes,too-few-public-methods,import-error,super-on-old-class,fixme,too-many-nested-blocks
+unexpected-special-method-signature,too-many-nested-blocks,consider-using-enumerate
 
 dummy-variables-rgx=(unused|)_.*
 
