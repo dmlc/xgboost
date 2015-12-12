@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=unused-import, invalid-name
+# pylint: disable=unused-import, invalid-name, wrong-import-position
 """For compatibility"""
 
 from __future__ import absolute_import

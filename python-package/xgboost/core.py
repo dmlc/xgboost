@@ -523,7 +523,7 @@ class DMatrix(object):
         feature_names : list or None
             Labels for features. None will reset existing feature names
         """
-        if not feature_names is None:
+        if feature_names is not None:
             # validate feature name
             if not isinstance(feature_names, list):
                 feature_names = list(feature_names)
@@ -554,7 +554,7 @@ class DMatrix(object):
         feature_types : list or None
             Labels for features. None will reset existing feature names
         """
-        if not feature_types is None:
+        if feature_types is not None:
 
             if self.feature_names is None:
                 msg = 'Unable to set feature types before setting names'
@@ -890,6 +890,7 @@ class Booster(object):
             _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
 
     def dump_model(self, fout, fmap='', with_stats=False):
+        # pylint: disable=consider-using-enumerate
         """
         Dump model into a text file.
 

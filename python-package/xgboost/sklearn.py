@@ -130,7 +130,7 @@ class XGBModel(XGBModelBase):
 
     def fit(self, X, y, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
+        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init, redefined-variable-type
         """
         Fit the gradient boosting model
 
@@ -265,7 +265,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable = attribute-defined-outside-init,arguments-differ
+        # pylint: disable = attribute-defined-outside-init,arguments-differ, redefined-variable-type
         """
         Fit gradient boosting classifier
 
