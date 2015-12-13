@@ -40,7 +40,7 @@ class FMatrixS : public IFMatrix {
   virtual bool HaveColAccess(void) const {
     return col_size_.size() != 0;
   }
-  /*! \brief get number of colmuns */
+  /*! \brief get number of columns */
   virtual size_t NumCol(void) const {
     utils::Check(this->HaveColAccess(), "NumCol:need column access");
     return col_size_.size();
@@ -83,7 +83,7 @@ class FMatrixS : public IFMatrix {
     return &col_iter_;
   }
   /*!
-   * \brief colmun based iterator
+   * \brief column based iterator
    */
   virtual utils::IIterator<ColBatch> *ColIterator(const std::vector<bst_uint> &fset) {
     size_t ncol = this->NumCol();
@@ -112,7 +112,7 @@ class FMatrixS : public IFMatrix {
 
  protected:
   /*!
-   * \brief intialize column data
+   * \brief initialize column data
    * \param enabled the list of enabled columns
    * \param pkeep probability to keep a row
    * \param max_row_perbatch maximum row per batch

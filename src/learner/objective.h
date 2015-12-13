@@ -68,7 +68,7 @@ class IObjFunction{
 // factory function
 namespace xgboost {
 namespace learner {
-/*! \brief factory funciton to create objective function by name */
+/*! \brief factory function to create objective function by name */
 inline IObjFunction* CreateObjFunction(const char *name) {
   using namespace std;
   if (!strcmp("reg:linear", name)) return new RegLossObj(LossType::kLinearSquare);

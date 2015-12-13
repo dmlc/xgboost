@@ -51,7 +51,7 @@ class DMatrixSimple : public DataMatrix {
   inline void CopyFrom(const DataMatrix &src) {
     this->Clear();
     this->info = src.info;
-    // clone data content in thos matrix
+    // clone data contents from src matrix
     utils::IIterator<RowBatch> *iter = src.fmat()->RowIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
@@ -313,7 +313,7 @@ class DMatrixSimple : public DataMatrix {
    private:
     // whether is at first
     bool at_first_;
-    // pointer to parient
+    // pointer to parent
     DMatrixSimple *parent_;
     // temporal space for batch
     RowBatch batch_;

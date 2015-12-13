@@ -23,7 +23,7 @@ class IIterator {
    * \param val value of parameter
    */
   virtual void SetParam(const char *name, const char *val) {}
-  /*! \brief initalize the iterator so that we can use the iterator */
+  /*! \brief initialize the iterator so that we can use the iterator */
   virtual void Init(void) {}
   /*! \brief set before first of the item */
   virtual void BeforeFirst(void) = 0;

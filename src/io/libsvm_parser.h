@@ -31,7 +31,7 @@ struct LibSVMPage : public SparsePage {
 /*!
  * \brief libsvm parser that parses the input lines
  * and returns rows in input data
- * factry that was used by threadbuffer template
+ * factory that was used by threadbuffer template
  */
 class LibSVMPageFactory  {
  public:

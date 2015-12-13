@@ -58,7 +58,7 @@ class IGradBooster {
     return false;
   }
   /*!
-   * \brief peform update to the model(boosting)
+   * \brief perform update to the model(boosting)
    * \param p_fmat feature matrix that provide access to features
    * \param buffer_offset buffer index offset of these instances, if equals -1
    *        this means we do not have buffer index allocated to the gbm
@@ -88,7 +88,7 @@ class IGradBooster {
                        std::vector<float> *out_preds,
                        unsigned ntree_limit = 0) = 0;
   /*!
-   * \brief online prediction funciton, predict score for one instance at a time
+   * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually
    *        more efficient than online prediction
    *        This function is NOT threadsafe, make sure you only call from one thread
@@ -119,7 +119,7 @@ class IGradBooster {
   /*!
    * \brief dump the model in text format
    * \param fmap feature map that may help give interpretations of feature
-   * \param option extra option of the dumo model
+   * \param option extra option of the dump model
    * \return a vector of dump for boosters
    */
   virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) = 0;

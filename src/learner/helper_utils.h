@@ -45,7 +45,7 @@ inline static int FindMaxIndex(const std::vector<float>& rec) {
   return FindMaxIndex(BeginPtr(rec), rec.size());
 }
 
-// perform numerical safe logsum
+// perform numerically safe logsum
 inline float LogSum(float x, float y) {
   if (x < y) {
     return y + std::log(std::exp(x - y) + 1.0f);
@@ -53,7 +53,7 @@ inline float LogSum(float x, float y) {
     return x + std::log(std::exp(y - x) + 1.0f);
   }
 }
-// numerical safe logsum
+// numerically safe logsum
 inline float LogSum(const float *rec, size_t size) {
   float mx = rec[0];
   for (size_t i = 1; i < size; ++i) {
@@ -66,11 +66,11 @@ inline float LogSum(const float *rec, size_t size) {
   return mx + std::log(sum);
 }
 
+// comparator functions for sorting pairs in descending order
 inline static bool CmpFirst(const std::pair<float, unsigned> &a,
                             const std::pair<float, unsigned> &b) {
   return a.first > b.first;
 }
-
 inline static bool CmpSecond(const std::pair<float, unsigned> &a,
                              const std::pair<float, unsigned> &b) {
   return a.second > b.second;

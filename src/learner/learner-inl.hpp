@@ -22,8 +22,8 @@ namespace xgboost {
 /*! \brief namespace for learning algorithm */
 namespace learner {
 /*!
- * \brief learner that takes do gradient boosting on specific objective functions
- *  and do training and prediction
+ * \brief learner that performs gradient boosting for a specific objective function.
+ *  It does training and prediction.
  */
 class BoostLearner : public rabit::Serializable {
  public:
@@ -258,7 +258,7 @@ class BoostLearner : public rabit::Serializable {
   }
   /*!
    * \brief check if data matrix is ready to be used by training,
-   *  if not intialize it
+   *  if not initialize it
    * \param p_train pointer to the matrix used by training
    */
   inline void CheckInit(DMatrix *p_train) {
@@ -283,7 +283,7 @@ class BoostLearner : public rabit::Serializable {
   /*!
    * \brief update the model for one iteration
    * \param iter current iteration number
-   * \param p_train pointer to the data matrix
+   * \param train reference to the data matrix
    */
   inline void UpdateOneIter(int iter, const DMatrix &train) {
     if (seed_per_iteration != 0 || rabit::IsDistributed()) {
@@ -342,6 +342,7 @@ class BoostLearner : public rabit::Serializable {
    * \param out_preds output vector that stores the prediction
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
+   * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
    */
   inline void Predict(const DMatrix &data,
                       bool output_margin,
@@ -358,7 +359,7 @@ class BoostLearner : public rabit::Serializable {
     }
   }
   /*!
-   * \brief online prediction funciton, predict score for one instance at a time
+   * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually
    *        more efficient than online prediction
    *        This function is NOT threadsafe, make sure you only call from one thread
@@ -367,7 +368,6 @@ class BoostLearner : public rabit::Serializable {
    * \param output_margin whether to only predict margin value instead of transformed prediction
    * \param out_preds output vector to hold the predictions
    * \param ntree_limit limit the number of trees used in prediction
-   * \param root_index the root index
    * \sa Predict
    */
   inline void Predict(const SparseBatch::Inst &inst,
@@ -452,7 +452,7 @@ class BoostLearner : public rabit::Serializable {
     float base_score;
     /* \brief number of features  */
     unsigned num_feature;
-    /* \brief number of class, if it is multi-class classification  */
+    /* \brief number of classes, if it is multi-class classification  */
     int num_class;
     /*! \brief whether the model itself is saved with pbuffer */
     int saved_with_pbuffer;
@@ -495,7 +495,7 @@ class BoostLearner : public rabit::Serializable {
   int updater_mode;
   // cached size of predict buffer
   size_t pred_buffer_size;
-  // maximum buffred row value
+  // maximum buffered row value
   float prob_buffer_row;
   // evaluation set
   EvalSet evaluator_;
@@ -505,13 +505,13 @@ class BoostLearner : public rabit::Serializable {
   gbm::IGradBooster *gbm_;
   // name of gbm model used for training
   std::string name_gbm_;
-  // objective fnction
+  // objective function
   IObjFunction *obj_;
   // name of objective function
   std::string name_obj_;
   // configurations
   std::vector< std::pair<std::string, std::string> > cfg_;
-  // temporal storages for prediciton
+  // temporal storages for prediction
   std::vector<float> preds_;
   // gradient pairs
   std::vector<bst_gpair> gpair_;
@@ -527,7 +527,7 @@ class BoostLearner : public rabit::Serializable {
     CacheEntry(const DMatrix *mat, size_t buffer_offset, size_t num_row)
         :mat_(mat), buffer_offset_(buffer_offset), num_row_(num_row) {}
   };
-  // find internal bufer offset for certain matrix, if not exist, return -1
+  // find internal buffer offset for certain matrix, if not exist, return -1
   inline int64_t FindBufferOffset(const DMatrix &mat) const {
     for (size_t i = 0; i < cache_.size(); ++i) {
       if (cache_[i].mat_ == &mat && mat.cache_learner_ptr_ == this) {

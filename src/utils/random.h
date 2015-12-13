@@ -27,7 +27,7 @@ inline void Seed(unsigned seed) {
 inline double Uniform(void) {
   return static_cast<double>(rand()) / (static_cast<double>(RAND_MAX)+1.0); // NOLINT(*)
 }
-/*! \brief return a real numer uniform in (0,1) */
+/*! \brief return a real number uniform in (0,1) */
 inline double NextDouble2(void) {
   return (static_cast<double>(rand()) + 1.0) / (static_cast<double>(RAND_MAX)+2.0); // NOLINT(*)
 }
