@@ -21,7 +21,7 @@
 namespace xgboost {
 namespace learner {
 /*!
- * \brief base class of elementwise evaluation
+ * \brief base class of element-wise evaluation
  * \tparam Derived the name of subclass
  */
 template<typename Derived>
@@ -57,7 +57,7 @@ struct EvalEWiseBase : public IEvaluator {
    */
   inline static float EvalRow(float label, float pred);
   /*!
-   * \brief to be overide by subclas, final trasnformation
+   * \brief to be overridden by subclass, final transformation
    * \param esum the sum statistics returned by EvalRow
    * \param wsum sum of weight
    */
@@ -109,7 +109,7 @@ struct EvalError : public EvalEWiseBase<EvalError> {
   }
 };
 
-/*! \brief loglikelihood of poission distribution */
+/*! \brief log-likelihood of Poission distribution */
 struct EvalPoissionNegLogLik : public EvalEWiseBase<EvalPoissionNegLogLik> {
   virtual const char *Name(void) const {
     return "poisson-nloglik";
@@ -174,7 +174,7 @@ struct EvalMClassBase : public IEvaluator {
                               const float *pred,
                               size_t nclass);
   /*!
-   * \brief to be overide by subclas, final trasnformation
+   * \brief to be overridden by subclass, final transformation
    * \param esum the sum statistics returned by EvalRow
    * \param wsum sum of weight
    */
@@ -367,7 +367,7 @@ struct EvalPrecisionRatio : public IEvaluator{
   std::string name_;
 };
 
-/*! \brief Area under curve, for both classification and rank */
+/*! \brief Area Under Curve, for both classification and rank */
 struct EvalAuc : public IEvaluator {
   virtual float Eval(const std::vector<float> &preds,
                      const MetaInfo &info,
@@ -382,7 +382,7 @@ struct EvalAuc : public IEvaluator {
     utils::Check(gptr.back() == info.labels.size(),
                  "EvalAuc: group structure must match number of prediction");
     const bst_omp_uint ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
-    // sum statictis
+    // sum statistics
     double sum_auc = 0.0f;
     #pragma omp parallel reduction(+:sum_auc)
     {
@@ -404,13 +404,16 @@ struct EvalAuc : public IEvaluator {
           // keep bucketing predictions in same bucket
           if (j != 0 && rec[j].first != rec[j - 1].first) {
             sum_pospair += buf_neg * (sum_npos + buf_pos *0.5);
-            sum_npos += buf_pos; sum_nneg += buf_neg;
+            sum_npos += buf_pos;
+            sum_nneg += buf_neg;
             buf_neg = buf_pos = 0.0f;
           }
-          buf_pos += ctr * wt; buf_neg += (1.0f - ctr) * wt;
+          buf_pos += ctr * wt;
+          buf_neg += (1.0f - ctr) * wt;
         }
         sum_pospair += buf_neg * (sum_npos + buf_pos *0.5);
-        sum_npos += buf_pos; sum_nneg += buf_neg;
+        sum_npos += buf_pos;
+        sum_nneg += buf_neg;
         // check weird conditions
         utils::Check(sum_npos > 0.0 && sum_nneg > 0.0,
                      "AUC: the dataset only contains pos or neg samples");
@@ -443,7 +446,8 @@ struct EvalRankList : public IEvaluator {
     utils::Check(preds.size() == info.labels.size(),
                   "label size predict size not match");
     // quick consistency when group is not available
-    std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(preds.size());
+    std::vector<unsigned> tgptr(2, 0);
+    tgptr[1] = static_cast<unsigned>(preds.size());
     const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
     utils::Assert(gptr.size() != 0, "must specify group when constructing rank file");
     utils::Assert(gptr.back() == preds.size(),
@@ -468,7 +472,7 @@ struct EvalRankList : public IEvaluator {
       float dat[2];
       dat[0] = static_cast<float>(sum_metric);
       dat[1] = static_cast<float>(ngroup);
-      // approximately estimate auc using mean
+      // approximately estimate the metric using mean
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
       return dat[0] / dat[1];
     } else {
@@ -500,14 +504,14 @@ struct EvalRankList : public IEvaluator {
   bool minus_;
 };
 
-/*! \brief Precison at N, for both classification and rank */
+/*! \brief Precision at N, for both classification and rank */
 struct EvalPrecision : public EvalRankList{
  public:
   explicit EvalPrecision(const char *name) : EvalRankList(name) {}
 
  protected:
   virtual float EvalMetric(std::vector< std::pair<float, unsigned> > &rec) const {
-    // calculate Preicsion
+    // calculate Precision
     std::sort(rec.begin(), rec.end(), CmpFirst);
     unsigned nhit = 0;
     for (size_t j = 0; j < rec.size() && j < this->topn_; ++j) {
@@ -517,7 +521,7 @@ struct EvalPrecision : public EvalRankList{
   }
 };
 
-/*! \brief NDCG */
+/*! \brief NDCG: Normalized Discounted Cumulative Gain at N */
 struct EvalNDCG : public EvalRankList{
  public:
   explicit EvalNDCG(const char *name) : EvalRankList(name) {}
@@ -549,7 +553,7 @@ struct EvalNDCG : public EvalRankList{
   }
 };
 
-/*! \brief Precison at N, for both classification and rank */
+/*! \brief Mean Average Precision at N, for both classification and rank */
 struct EvalMAP : public EvalRankList {
  public:
   explicit EvalMAP(const char *name) : EvalRankList(name) {}

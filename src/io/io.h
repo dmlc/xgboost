@@ -22,7 +22,7 @@ typedef learner::DMatrix DataMatrix;
  * \param silent whether print message during loading
  * \param savebuffer whether temporal buffer the file if the file is in text format
  * \param loadsplit whether we only load a split of input files
- *   such that each worker node get a split of the data
+ *        such that each worker node get a split of the data
  * \param cache_file name of cache_file, used by external memory version
  *        can be NULL, if cache_file is specified, this will be the temporal
  *        space that can be re-used to store intermediate data
@@ -38,7 +38,7 @@ DataMatrix* LoadDataMatrix(const char *fname,
  *  note: the saved dmatrix format may not be in exactly same as input
  *  SaveDMatrix will choose the best way to materialize the dmatrix.
  * \param dmat the dmatrix to be saved
- * \param fname file name to be savd
+ * \param fname file name to be saved
  * \param silent whether print message during saving
  */
 void SaveDataMatrix(const DataMatrix &dmat, const char *fname, bool silent = false);

@@ -200,7 +200,7 @@ class FMatrixPage : public IFMatrix {
   virtual bool HaveColAccess(void) const {
     return col_size_.size() != 0;
   }
-  /*! \brief get number of colmuns */
+  /*! \brief get number of columns */
   virtual size_t NumCol(void) const {
     utils::Check(this->HaveColAccess(), "NumCol:need column access");
     return col_size_.size();
@@ -246,7 +246,7 @@ class FMatrixPage : public IFMatrix {
     return &col_iter_;
   }
   /*!
-   * \brief colmun based iterator
+   * \brief column based iterator
    */
   virtual utils::IIterator<ColBatch> *ColIterator(const std::vector<bst_uint> &fset) {
     size_t ncol = this->NumCol();
@@ -290,8 +290,10 @@ class FMatrixPage : public IFMatrix {
     fo->Write(col_size_);
   }
   /*!
-   * \brief intialize column data
+   * \brief initialize column data
+   * \param enabled the list of enabled columns
    * \param pkeep probability to keep a row
+   * \param max_row_perbatch maximum row per batch
    */
   inline void InitColData(const std::vector<bool> &enabled,
                           float pkeep, size_t max_row_perbatch) {
@@ -319,7 +321,7 @@ class FMatrixPage : public IFMatrix {
       bytes_write += spage;
       double tnow = rabit::utils::GetTime();
       double tdiff = tnow - tstart;
-      utils::Printf("Writting to %s in %g MB/s, %lu MB written\n",
+      utils::Printf("Writing to %s in %g MB/s, %lu MB written\n",
                     col_data_name_.c_str(),
                     (bytes_write >> 20UL) / tdiff,
                     (bytes_write >> 20UL));

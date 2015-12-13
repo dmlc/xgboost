@@ -14,7 +14,7 @@
 
 namespace xgboost {
 namespace tree {
-/*! \brief pruner that prunes a tree after growing finishs */
+/*! \brief pruner that prunes a tree after growing finishes */
 class TreePruner: public IUpdater {
  public:
   virtual ~TreePruner(void) {}
@@ -56,7 +56,7 @@ class TreePruner: public IUpdater {
       return npruned;
     }
   }
-  /*! \brief do prunning of a tree */
+  /*! \brief do pruning of a tree */
   inline void DoPrune(RegTree &tree) { // NOLINT(*)
     int npruned = 0;
     // initialize auxiliary statistics
@@ -69,7 +69,7 @@ class TreePruner: public IUpdater {
       }
     }
     if (silent == 0) {
-      utils::Printf("tree prunning end, %d roots, %d extra nodes, %d pruned nodes ,max_depth=%d\n",
+      utils::Printf("tree pruning end, %d roots, %d extra nodes, %d pruned nodes ,max_depth=%d\n",
                     tree.param.num_roots, tree.num_extra_nodes(), npruned, tree.MaxDepth());
     }
   }

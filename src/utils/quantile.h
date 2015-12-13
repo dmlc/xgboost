@@ -214,7 +214,7 @@ struct WQSummary {
   /*!
    * \brief set current summary to be merged summary of sa and sb
    * \param sa first input summary to be merged
-   * \param sb second input summar to be merged
+   * \param sb second input summary to be merged
    */
   inline void SetCombine(const WQSummary &sa,
                          const WQSummary &sb) {
@@ -329,7 +329,7 @@ struct WQSummary {
   }
 };
 
-/*! \brief try to do efficient prunning */
+/*! \brief try to do efficient pruning */
 template<typename DType, typename RType>
 struct WXQSummary : public WQSummary<DType, RType> {
   // redefine entry type
@@ -364,7 +364,7 @@ struct WXQSummary : public WQSummary<DType, RType> {
     RType mrange = 0;
     {
       // first scan, grab all the big chunk
-      // moviing block index
+      // moving block index
       size_t bid = 0;
       for (size_t i = 1; i < src.size; ++i) {
         if (CheckLarge(src.data[i], chunk)) {
@@ -574,7 +574,7 @@ struct GKSummary {
 };
 
 /*!
- * \brief template for all quantle sketch algorithm
+ * \brief template for all quantile sketch algorithm
  *        that uses merge/prune scheme
  * \tparam DType type of data content
  * \tparam RType type of rank
@@ -605,7 +605,7 @@ class QuantileSketchTemplate {
     }
     /*!
      * \brief set the space to be merge of all Summary arrays
-     * \param begin begining position in th summary array
+     * \param begin beginning position in the summary array
      * \param end ending position in the Summary array
      */
     inline void SetMerge(const Summary *begin,
@@ -664,7 +664,7 @@ class QuantileSketchTemplate {
     }
   };
   /*!
-   * \brief intialize the quantile sketch, given the performance specification
+   * \brief initialize the quantile sketch, given the performance specification
    * \param maxn maximum number of data points can be feed into sketch
    * \param eps accuracy level of summary
    */
@@ -688,7 +688,7 @@ class QuantileSketchTemplate {
   }
   /*!
    * \brief add an element to a sketch
-   * \param x the elemented added to the sketch
+   * \param x the element added to the sketch
    */
   inline void Push(DType x, RType w = 1) {
     if (w == static_cast<RType>(0)) return;

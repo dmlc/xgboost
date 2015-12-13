@@ -33,8 +33,7 @@ class SparsePage {
     return offset.size() - 1;
   }
   /*!
-   * \brief load the by providing a list of interested segments
-   *        only the interested segments are loaded
+   * \brief load only the segments we are interested in
    * \param fi the input stream of the file
    * \param sorted_index_set sorted index of segments we are interested in
    * \return true of the loading as successful, false if end of file was reached
