@@ -228,5 +228,10 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     bst$bestScore <- bestScore
     bst$bestInd <- bestInd
   }
+
+  if ("feature_names" %in% names(attributes(dtrain))) {
+    attr(bst, "feature_names") <- attr(dtrain, "feature_names")
+  }
+
   return(bst)
 }

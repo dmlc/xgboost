@@ -33,6 +33,9 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, ...) {
   }
   dmat <- structure(handle, class = "xgb.DMatrix")
 
+  attr(dmat, "dimensions") <- dim(data)
+  attr(dmat, "feature_names") <- colnames(data)
+
   info <- append(info, list(...))
   if (length(info) == 0)
     return(dmat)
