@@ -83,11 +83,11 @@ struct QuantileStats {
   inline double CalculateLeafValue(double quantile)  {
     if (gradients.size() == 0) return 0;
     std::sort(gradients.begin(), gradients.end());
-    unsigned index = (unsigned) (quantile * gradients.size());
+    unsigned index = (unsigned) ((1.0-quantile) * gradients.size());
     if (index >= gradients.size()) {
       index = gradients.size()-1;
     }
-    return gradients[index];
+    return -gradients[index];
   }
 
 
@@ -169,6 +169,10 @@ struct QuantileStats {
 
 class QuantileScorer: public IUpdater {
  public:
+  explicit QuantileScorer(double quantile) {
+    utils::Check(quantile >= 0 && quantile <= 1, "invalid quantile value");
+    this->quantile = quantile;
+  }
   virtual ~QuantileScorer(void) {}
   // set training parameter
   virtual void SetParam(const char *name, const char *val) {

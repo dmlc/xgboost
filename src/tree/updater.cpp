@@ -22,9 +22,15 @@ IUpdater* CreateUpdater(const char *name) {
   if (!strcmp(name, "prune")) return new TreePruner();
   if (!strcmp(name, "refresh")) return new TreeRefresher<GradStats>();
   if (!strcmp(name, "grow_colmaker")) return new ColMaker<GradStats>();
-  if (!strcmp(name, "grow_quantile")) return new QuantileColMaker<GradStats>();
+  if (!strcmp(name, "grow_quantile")) {printf ("NEW QUANTILE COL MAKER");
+    return new QuantileColMaker<GradStats>();
+  }
   if (!strcmp(name, "prune_quantile")) return new QuantileTreePruner();
-  if (!strcmp(name, "score_quantile")) return new QuantileScorer();
+  if (!strncmp(name, "score_quantile@", 15)) {
+    float quantile;
+    utils::Check(std::sscanf(name, "score_quantile@%f", &quantile) == 1, "invalid quantile format");
+    return new QuantileScorer(quantile);
+  }
 #ifndef XGBOOST_STRICT_CXX98_
   if (!strcmp(name, "sync")) return new TreeSyncher();
   if (!strcmp(name, "grow_histmaker")) return new CQHistMaker<GradStats>();

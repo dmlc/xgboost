@@ -118,7 +118,13 @@ class BoostLearner : public rabit::Serializable {
       omp_set_num_threads(atoi(val));
     }
     if (gbm_ == NULL) {
-      if (!strcmp(name, "objective")) name_obj_ = val;
+      if (!strcmp(name, "objective")) {
+        name_obj_ = val;
+        if (!strncmp(val, "reg:quantile@", 13)) {
+          this->SetParam("updater",
+               createVarParam(val, "grow_quantile,prune_quantile,score_quantile"));
+        }
+      }
       if (!strcmp(name, "booster")) name_gbm_ = val;
       mparam.SetParam(name, val);
     }
@@ -395,6 +401,7 @@ class BoostLearner : public rabit::Serializable {
   inline void InitObjGBM(void) {
     if (obj_ != NULL) return;
     utils::Assert(gbm_ == NULL, "GBM and obj should be NULL");
+
     obj_ = CreateObjFunction(name_obj_.c_str());
     gbm_ = gbm::CreateGradBooster(name_gbm_.c_str());
     this->InitAdditionDefaultParam();
@@ -403,6 +410,7 @@ class BoostLearner : public rabit::Serializable {
       obj_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
       gbm_->SetParam(cfg_[i].first.c_str(), cfg_[i].second.c_str());
     }
+
     if (evaluator_.Size() == 0) {
       evaluator_.AddEval(obj_->DefaultEvalMetric());
     }
@@ -414,6 +422,10 @@ class BoostLearner : public rabit::Serializable {
     if (name_obj_ == "count:poisson") {
       obj_->SetParam("max_delta_step", "0.7");
       gbm_->SetParam("max_delta_step", "0.7");
+    }
+    if (strncmp(name_obj_.c_str(), "reg:quantile", 12) == 0 &&
+         strcmp(name_gbm_.c_str(), "gblinear") == 0 ) {
+      obj_->SetParam("booster", "gblinear");
     }
   }
   /*!

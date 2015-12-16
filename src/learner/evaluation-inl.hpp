@@ -121,6 +121,62 @@ struct EvalPoissionNegLogLik : public EvalEWiseBase<EvalPoissionNegLogLik> {
   }
 };
 
+
+/*! \brief quantile */
+struct EvalQuantileLoss : public IEvaluator {
+ private:
+  float quantile_;
+  const char * name_;
+
+ public:
+  explicit EvalQuantileLoss(const char *name) {
+    name_ = name;
+    utils::Check(std::sscanf(name, "qloss@%f", &quantile_) == 1, "invalid quantile format");
+    utils::Check(quantile_ <= 1 && quantile_ >= 0, "illegal quantile value");
+  }
+
+  virtual const char *Name(void) const {
+    return name_;
+  }
+
+  virtual float Eval(const std::vector<float> &preds,
+                     const MetaInfo &info,
+                     bool distributed) const {
+    utils::Check(info.labels.size() != 0, "label set cannot be empty");
+    utils::Check(preds.size() == info.labels.size(),
+                 "label and prediction size not match" \
+                 "hint: use merror or mlogloss for multi-class classification");
+
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
+
+    float sum = 0.0, wsum = 0.0;
+    #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
+    for (bst_omp_uint i = 0; i < ndata; ++i) {
+      const float wt = info.GetWeight(i);
+      if (preds[i] > info.labels[i]) {
+        sum +=  (1.0-quantile_) * (preds[i] - info.labels[i]);
+      } else {
+        sum +=  quantile_ * (info.labels[i]-preds[i]);
+      }
+      wsum += wt;
+    }
+    float dat[2]; dat[0] = sum, dat[1] = wsum;
+    if (distributed) {
+      rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    }
+    return GetFinal(dat[0], dat[1]);
+  }
+
+  /*!
+   * \brief to be overide by subclas, final trasnformation
+   * \param esum the sum statistics returned by EvalRow
+   * \param wsum sum of weight
+   */
+  inline static float GetFinal(float esum, float wsum) {
+    return esum / wsum;
+  }
+};
+
 /*!
  * \brief base class of multi-class evaluation
  * \tparam Derived the name of subclass

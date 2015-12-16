@@ -47,6 +47,7 @@ inline IEvaluator* CreateEvaluator(const char *name) {
   if (!strcmp(name, "error")) return new EvalError();
   if (!strcmp(name, "merror")) return new EvalMatchError();
   if (!strcmp(name, "logloss")) return new EvalLogLoss();
+  if (!strncmp(name, "qloss@", 6)) return new EvalQuantileLoss(name);
   if (!strcmp(name, "mlogloss")) return new EvalMultiLogLoss();
   if (!strcmp(name, "poisson-nloglik")) return new EvalPoissionNegLogLik();
   if (!strcmp(name, "auc")) return new EvalAuc();
