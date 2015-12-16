@@ -283,10 +283,14 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None):
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
-def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=None):
+def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
     # pylint: disable=invalid-name
     """
     Aggregate cross-validation results.
+    
+    If show_progress is true, progress is displayed in every call. If
+    show_progress is an integer, progress will only be displayed every
+    `show_progress` trees, tracked via trial.
     """
     cvmap = {}
     idx = rlist[0].split()[0]
@@ -319,8 +323,6 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=None)
 
         index.extend([k + '-mean', k + '-std'])
         results.extend([mean, std])
-
-
 
     if as_pandas:
         try:
@@ -376,9 +378,11 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
     as_pandas : bool, default True
         Return pd.DataFrame when pandas is installed.
         If False or pandas is not installed, return np.ndarray
-    show_progress : bool or None, default None
+    show_progress : bool, int, or None, default None
         Whether to display the progress. If None, progress will be displayed
-        when np.ndarray is returned.
+        when np.ndarray is returned. If True, progress will be displayed at 
+        boosting stage. If an integer is given, progress will be displayed 
+        is printed at every given `show_progress` boosting stage. 
     show_stdv : bool, default True
         Whether to display the standard deviation in progress.
         Results are not affected, and always contains std.
