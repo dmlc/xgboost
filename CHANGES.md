@@ -40,6 +40,7 @@ on going at master
 * Changes in R library
   - fixed possible problem of poisson regression.
   - switched from 0 to NA for missing values.
+  - exposed access to additional model parameters.
 * Changes in Python library
   - throws exception instead of crash terminal when a parameter error happens.
   - has importance plot and tree plot functions.
