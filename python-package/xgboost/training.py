@@ -283,8 +283,7 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None):
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
-
-def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True):
+def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=None):
     # pylint: disable=invalid-name
     """
     Aggregate cross-validation results.
@@ -336,8 +335,9 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True):
         if show_progress is None:
             show_progress = True
 
-    if show_progress:
+    if (isinstance(show_progress, int) and trial % show_progress == 0) or (isinstance(show_progress, bool) and show_progress):
         sys.stderr.write(msg + '\n')
+        sys.stderr.flush()
 
     return results
 
@@ -418,7 +418,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
             fold.update(i, obj)
         res = aggcv([f.eval(i, feval) for f in cvfolds],
                     show_stdv=show_stdv, show_progress=show_progress,
-                    as_pandas=as_pandas)
+                    as_pandas=as_pandas, trial=i)
         results.append(res)
 
         if early_stopping_rounds is not None:
