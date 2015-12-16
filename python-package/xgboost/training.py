@@ -382,7 +382,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         Whether to display the progress. If None, progress will be displayed
         when np.ndarray is returned. If True, progress will be displayed at 
         boosting stage. If an integer is given, progress will be displayed 
-        is printed at every given `show_progress` boosting stage. 
+        at every given `show_progress` boosting stage. 
     show_stdv : bool, default True
         Whether to display the standard deviation in progress.
         Results are not affected, and always contains std.
