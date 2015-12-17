@@ -121,7 +121,7 @@ class BoostLearner : public rabit::Serializable {
       if (!strcmp(name, "objective")) {
         name_obj_ = val;
         if (!strncmp(val, "reg:quantile@", 13)) {
-	  //specialized updaters for learning quantile regression trees
+          // specialized updaters for learning quantile regression trees
           this->SetParam("updater",
                copyVarParam(val, "grow_quantile,prune_quantile,score_quantile"));
         }
