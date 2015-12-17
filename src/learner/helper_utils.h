@@ -76,7 +76,7 @@ inline static bool CmpSecond(const std::pair<float, unsigned> &a,
   return a.second > b.second;
 }
 
-static char * createVarParam(const char * oldParam, const char * newParamBase) {
+static char * copyVarParam(const char * oldParam, const char * newParamBase) {
   const char * varParam = strchr(oldParam, '@');
   utils::Check(varParam != NULL, "ERROR no @ found in oldParam");
   int newLen = strlen(newParamBase) + strlen(varParam);

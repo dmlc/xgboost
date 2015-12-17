@@ -187,7 +187,7 @@ class QuantileRegression : public IObjFunction {
 
  public:
   explicit QuantileRegression(const char * name) {
-    defaultLoss_ = createVarParam(name, "qloss");
+    defaultLoss_ = copyVarParam(name, "qloss");
     utils::Check(std::sscanf(name, "reg:quantile@%f", &quantile_) == 1, "invalid quantile format");
     utils::Check(quantile_ <= 1 && quantile_ >= 0, "illegal quantile value");
     baseLoss_ = new RegLossObj(LossType::kLinearSquare);
