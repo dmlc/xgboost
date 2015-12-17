@@ -1,3 +1,4 @@
+// Copyright by Contributors
 // implementations in ctypes
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
@@ -28,7 +29,7 @@ struct FHelper<op::BitOR, DType> {
             void (*prepare_fun)(void *arg),
             void *prepare_arg) {
     utils::Error("DataType does not support bitwise or operation");
-  }  
+  }
 };
 template<typename OP>
 inline void Allreduce_(void *sendrecvbuf_,
@@ -60,12 +61,12 @@ inline void Allreduce_(void *sendrecvbuf_,
       return;
     case kLong:
       rabit::Allreduce<OP>
-          (static_cast<long*>(sendrecvbuf_),
+          (static_cast<long*>(sendrecvbuf_),  // NOLINT(*)
            count, prepare_fun, prepare_arg);
       return;
     case kULong:
       rabit::Allreduce<OP>
-          (static_cast<unsigned long*>(sendrecvbuf_),
+          (static_cast<unsigned long*>(sendrecvbuf_),  // NOLINT(*)
            count, prepare_fun, prepare_arg);
       return;
     case kFloat:
@@ -119,38 +120,38 @@ inline void Allreduce(void *sendrecvbuf,
 // temporal memory for global and local model
 std::string global_buffer, local_buffer;
 // wrapper for serialization
-struct ReadWrapper : public ISerializable {
+struct ReadWrapper : public Serializable {
   std::string *p_str;
   explicit ReadWrapper(std::string *p_str)
       : p_str(p_str) {}
-  virtual void Load(IStream &fi) {
+  virtual void Load(Stream *fi) {
     uint64_t sz;
-    utils::Assert(fi.Read(&sz, sizeof(sz)) != 0,
+    utils::Assert(fi->Read(&sz, sizeof(sz)) != 0,
                  "Read pickle string");
     p_str->resize(sz);
     if (sz != 0) {
-      utils::Assert(fi.Read(&(*p_str)[0], sizeof(char) * sz) != 0,
+      utils::Assert(fi->Read(&(*p_str)[0], sizeof(char) * sz) != 0,
                     "Read pickle string");
     }
   }
-  virtual void Save(IStream &fo) const {
+  virtual void Save(Stream *fo) const {
     utils::Error("not implemented");
-  }  
+  }
 };
-struct WriteWrapper : public ISerializable {
+struct WriteWrapper : public Serializable {
   const char *data;
   size_t length;
   explicit WriteWrapper(const char *data,
                         size_t length)
       : data(data), length(length) {
   }
-  virtual void Load(IStream &fi) {
+  virtual void Load(Stream *fi) {
     utils::Error("not implemented");
   }
-  virtual void Save(IStream &fo) const {
+  virtual void Save(Stream *fo) const {
     uint64_t sz = static_cast<uint16_t>(length);
-    fo.Write(&sz, sizeof(sz));
-    fo.Write(data, length * sizeof(char));
+    fo->Write(&sz, sizeof(sz));
+    fo->Write(data, length * sizeof(char));
   }
 };
 }  // namespace wrapper
@@ -179,7 +180,7 @@ extern "C" {
     if (s.length() > max_len) {
       s.resize(max_len - 1);
     }
-    strcpy(out_name, s.c_str());
+    strcpy(out_name, s.c_str()); // NOLINT(*)
     *out_len = static_cast<rbt_ulong>(s.length());
   }
   void RabitBroadcast(void *sendrecv_data,
@@ -218,7 +219,7 @@ extern "C" {
       *out_local_model = BeginPtr(local_buffer);
       *out_local_len = static_cast<rbt_ulong>(local_buffer.length());
     }
-    return version;    
+    return version;
   }
   void RabitCheckPoint(const char *global_model,
                        rbt_ulong global_len,

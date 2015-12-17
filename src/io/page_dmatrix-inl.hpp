@@ -1,111 +1,30 @@
-#ifndef XGBOOST_IO_PAGE_ROW_ITER_INL_HPP_
-#define XGBOOST_IO_PAGE_ROW_ITER_INL_HPP_
 /*!
- * \file page_row_iter-inl.hpp
- * row iterator based on sparse page
+ *  Copyright (c) 2014 by Contributors
+ * \file page_dmatrix-inl.hpp
+ *   row iterator based on sparse page
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_IO_PAGE_DMATRIX_INL_HPP_
+#define XGBOOST_IO_PAGE_DMATRIX_INL_HPP_
+
 #include <vector>
+#include <string>
+#include <algorithm>
 #include "../data.h"
 #include "../utils/iterator.h"
 #include "../utils/thread_buffer.h"
 #include "./simple_fmatrix-inl.hpp"
+#include "./sparse_batch_page.h"
+#include "./page_fmatrix-inl.hpp"
+#include "./libsvm_parser.h"
 
 namespace xgboost {
 namespace io {
-/*! \brief page structure that can be used to store a rowbatch */
-struct RowBatchPage {
- public:
-  explicit RowBatchPage(size_t page_size) : kPageSize(page_size) {
-    data_ = new int[kPageSize];
-    utils::Assert(data_ != NULL, "fail to allocate row batch page");
-    this->Clear();
-  }
-  ~RowBatchPage(void) {
-    if (data_ != NULL) delete [] data_;
-  }
-  /*! 
-   * \brief Push one row into page
-   *  \param row an instance row
-   *  \return false or true to push into
-   */  
-  inline bool PushRow(const RowBatch::Inst &row) {
-    const size_t dsize = row.length * sizeof(RowBatch::Entry);
-    if (FreeBytes() < dsize+ sizeof(int)) return false;
-    row_ptr(Size() + 1) = row_ptr(Size()) + row.length;
-    memcpy(data_ptr(row_ptr(Size())) , row.data, dsize);
-    ++data_[0];
-    return true;
-  }
-  /*!
-   * \brief get a row batch representation from the page
-   * \param p_rptr a temporal space that can be used to provide
-   *  ind_ptr storage for RowBatch
-   * \return a new RowBatch object
-   */
-  inline RowBatch GetRowBatch(std::vector<size_t> *p_rptr, size_t base_rowid) {
-    RowBatch batch;
-    batch.base_rowid = base_rowid;
-    batch.data_ptr = this->data_ptr(0);
-    batch.size = static_cast<size_t>(this->Size());
-    std::vector<size_t> &rptr = *p_rptr;
-    rptr.resize(this->Size() + 1);
-    for (size_t i = 0; i < rptr.size(); ++i) {
-      rptr[i] = static_cast<size_t>(this->row_ptr(static_cast<int>(i)));
-    }
-    batch.ind_ptr = &rptr[0];
-    return batch;
-  }
-  /*! \brief get i-th row from the batch */
-  inline RowBatch::Inst operator[](int i) {
-    return RowBatch::Inst(data_ptr(0) + row_ptr(i),
-                          static_cast<bst_uint>(row_ptr(i+1) - row_ptr(i)));
-  }
-  /*!
-   * \brief clear the page, cleanup the content
-   */
-  inline void Clear(void) {
-    memset(&data_[0], 0, sizeof(int) * kPageSize);
-  }
-  /*!
-   * \brief load one page form instream
-   * \return true if loading is successful
-   */
-  inline bool Load(utils::IStream &fi) {
-    return fi.Read(&data_[0], sizeof(int) * kPageSize) != 0;
-  }
-  /*! \brief save one page into outstream */
-  inline void Save(utils::IStream &fo) {
-    fo.Write(&data_[0], sizeof(int) * kPageSize);
-  }
-  /*! \return number of elements */
-  inline int Size(void) const {
-    return data_[0];
-  }
-
- protected:
-  /*! \return number of elements */
-  inline size_t FreeBytes(void) {
-    return (kPageSize - (Size() + 2)) * sizeof(int) -
-        row_ptr(Size()) * sizeof(RowBatch::Entry);
-  }
-  /*! \brief equivalent row pointer at i */
-  inline int& row_ptr(int i) {
-    return data_[kPageSize - i - 1];
-  }
-  inline RowBatch::Entry* data_ptr(int i) {
-    return (RowBatch::Entry*)(&data_[1]) + i;
-  }
-  // content of data
-  int *data_;
-  // page size
-  const size_t kPageSize;
-};
 /*! \brief thread buffer iterator */
 class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
  public:
   ThreadRowPageIterator(void) {
-    itr.SetParam("buffer_size", "2");
+    itr.SetParam("buffer_size", "4");
     page_ = NULL;
     base_rowid_ = 0;
   }
@@ -118,7 +37,7 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
   }
   virtual bool Next(void) {
     if (!itr.Next(page_)) return false;
-    out_ = page_->GetRowBatch(&tmp_ptr_, base_rowid_);
+    out_ = page_->GetRowBatch(base_rowid_);
     base_rowid_ += out_.size;
     return true;
   }
@@ -127,76 +46,18 @@ class ThreadRowPageIterator: public utils::IIterator<RowBatch> {
   }
   /*! \brief load and initialize the iterator with fi */
   inline void Load(const utils::FileStream &fi) {
-    itr.get_factory().SetFile(fi);
+    itr.get_factory().SetFile(fi, 0);
     itr.Init();
     this->BeforeFirst();
   }
-  /*!
-   * \brief save a row iterator to output stream, in row iterator format
-   */
-  inline static void Save(utils::IIterator<RowBatch> *iter,
-                          utils::IStream &fo) {
-    RowBatchPage page(kPageSize);
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      const RowBatch &batch = iter->Value();
-      for (size_t i = 0; i < batch.size; ++i) {
-        if (!page.PushRow(batch[i])) {
-          page.Save(fo);
-          page.Clear();
-          utils::Check(page.PushRow(batch[i]), "row is too big");
-        }
-      }
-    }
-    if (page.Size() != 0) page.Save(fo);
-  }
-  /*! \brief page size 64 MB */
-  static const size_t kPageSize = 64 << 18;
 
  private:
   // base row id
   size_t base_rowid_;
-  // temporal ptr
-  std::vector<size_t> tmp_ptr_;
   // output data
   RowBatch out_;
-  // page pointer type
-  typedef RowBatchPage* PagePtr;
-  // loader factory for page
-  struct Factory {
-   public:
-    size_t file_begin_;
-    utils::FileStream fi;
-    Factory(void) {}
-    inline void SetFile(const utils::FileStream &fi) {
-      this->fi = fi;
-      file_begin_ = this->fi.Tell();
-    }
-    inline bool Init(void) {
-      return true;
-    }
-    inline void SetParam(const char *name, const char *val) {}
-    inline bool LoadNext(PagePtr &val) {
-      return val->Load(fi);
-    }
-    inline PagePtr Create(void) {
-      PagePtr a = new RowBatchPage(kPageSize);
-      return a;
-    }
-    inline void FreeSpace(PagePtr &a) {
-      delete a;
-    }
-    inline void Destroy(void) {
-      fi.Close();
-    }
-    inline void BeforeFirst(void) {
-      fi.Seek(file_begin_);
-    }
-  };
-
- protected:
-  PagePtr page_;
-  utils::ThreadBuffer<PagePtr, Factory> itr;
+  SparsePage *page_;
+  utils::ThreadBuffer<SparsePage*, SparsePageFactory> itr;
 };
 
 /*! \brief data matrix using page */
@@ -211,24 +72,56 @@ class DMatrixPageBase : public DataMatrix {
     // do not delete row iterator, since it is owned by fmat
     // to be cleaned up in a more clear way
   }
+  /*! \brief save a DataMatrix as DMatrixPage */
+  inline static void Save(const char *fname_, const DataMatrix &mat, bool silent) {
+    std::string fname = fname_;
+    utils::FileStream fs(utils::FopenCheck(fname.c_str(), "wb"));
+    int magic = kMagic;
+    fs.Write(&magic, sizeof(magic));
+    mat.info.SaveBinary(fs);
+    fs.Close();
+    fname += ".row.blob";
+    utils::IIterator<RowBatch> *iter = mat.fmat()->RowIterator();
+    utils::FileStream fbin(utils::FopenCheck(fname.c_str(), "wb"));
+    SparsePage page;
+    iter->BeforeFirst();
+    while (iter->Next()) {
+      const RowBatch &batch = iter->Value();
+      for (size_t i = 0; i < batch.size; ++i) {
+        page.Push(batch[i]);
+        if (page.MemCostBytes() >= kPageSize) {
+          page.Save(&fbin); page.Clear();
+        }
+      }
+    }
+    if (page.data.size() != 0) page.Save(&fbin);
+    fbin.Close();
+    if (!silent) {
+      utils::Printf("DMatrixPage: %lux%lu is saved to %s\n",
+                    static_cast<unsigned long>(mat.info.num_row()), // NOLINT(*)
+                    static_cast<unsigned long>(mat.info.num_col()), fname_); // NOLINT(*)
+    }
+  }
   /*! \brief load and initialize the iterator with fi */
-  inline void Load(utils::FileStream &fi,
-                   bool silent = false,
-                   const char *fname = NULL,
-                   bool skip_magic_check = false) {
+  inline void LoadBinary(utils::FileStream &fi,  // NOLINT(*)
+                         bool silent,
+                         const char *fname_) {
+    this->set_cache_file(fname_);
+    std::string fname = fname_;
     int tmagic;
     utils::Check(fi.Read(&tmagic, sizeof(tmagic)) != 0, "invalid input file format");
-    if (!skip_magic_check) {
-      utils::Check(tmagic == magic, "invalid format,magic number mismatch");
-    }
+    this->CheckMagic(tmagic);
     this->info.LoadBinary(fi);
-    iter_->Load(fi);
+    // load in the row data file
+    fname += ".row.blob";
+    utils::FileStream fs(utils::FopenCheck(fname.c_str(), "rb"));
+    iter_->Load(fs);
     if (!silent) {
       utils::Printf("DMatrixPage: %lux%lu matrix is loaded",
-                    static_cast<unsigned long>(info.num_row()),
-                    static_cast<unsigned long>(info.num_col()));
-      if (fname != NULL) {
-        utils::Printf(" from %s\n", fname);
+                    static_cast<unsigned long>(info.num_row()),  // NOLINT(*)
+                    static_cast<unsigned long>(info.num_col()));  // NOLINT(*)
+      if (fname_ != NULL) {
+        utils::Printf(" from %s\n", fname_);
       } else {
         utils::Printf("\n");
       }
@@ -237,24 +130,81 @@ class DMatrixPageBase : public DataMatrix {
       }
     }
   }
-  /*! \brief save a DataMatrix as DMatrixPage*/
-  inline static void Save(const char* fname, const DataMatrix &mat, bool silent) {
-    utils::FileStream fs(utils::FopenCheck(fname, "wb"));
-    int magic = kMagic;
-    fs.Write(&magic, sizeof(magic));
-    mat.info.SaveBinary(fs);
-    ThreadRowPageIterator::Save(mat.fmat()->RowIterator(), fs);
+  /*! \brief save a LibSVM format file as DMatrixPage */
+  inline void LoadText(const char *uri,
+                       const char* cache_file,
+                       bool silent,
+                       bool loadsplit) {
+    if (!silent) {
+      utils::Printf("start generate text file from %s\n", uri);
+    }
+    int rank = 0, npart = 1;
+    if (loadsplit) {
+      rank = rabit::GetRank();
+      npart = rabit::GetWorldSize();
+    }
+    this->set_cache_file(cache_file);
+    std::string fname_row = std::string(cache_file) + ".row.blob";
+    utils::FileStream fo(utils::FopenCheck(fname_row.c_str(), "wb"));
+    SparsePage page;
+    size_t bytes_write = 0;
+    double tstart = rabit::utils::GetTime();
+    LibSVMParser parser(
+        dmlc::InputSplit::Create(uri, rank, npart, "text"), 16);
+    info.Clear();
+    while (parser.Next()) {
+      const LibSVMPage &batch = parser.Value();
+      size_t nlabel = info.labels.size();
+      info.labels.resize(nlabel + batch.label.size());
+      if (batch.label.size() != 0) {
+        std::memcpy(BeginPtr(info.labels) + nlabel,
+                    BeginPtr(batch.label),
+                    batch.label.size() * sizeof(float));
+      }
+      page.Push(batch);
+      for (size_t i = 0; i < batch.data.size(); ++i) {
+        info.info.num_col = std::max(info.info.num_col,
+                                     static_cast<size_t>(batch.data[i].index+1));
+      }
+      if (page.MemCostBytes() >= kPageSize) {
+        bytes_write += page.MemCostBytes();
+        page.Save(&fo);
+        page.Clear();
+        double tdiff = rabit::utils::GetTime() - tstart;
+        if (!silent) {
+          utils::Printf("Writting to %s in %g MB/s, %lu MB written\n",
+                        cache_file, (bytes_write >> 20UL) / tdiff,
+                        (bytes_write >> 20UL));
+        }
+      }
+      info.info.num_row += batch.label.size();
+    }
+    if (page.data.size() != 0) {
+      page.Save(&fo);
+    }
+    fo.Close();
+    iter_->Load(utils::FileStream(utils::FopenCheck(fname_row.c_str(), "rb")));
+    // save data matrix
+    utils::FileStream fs(utils::FopenCheck(cache_file, "wb"));
+    int tmagic = kMagic;
+    fs.Write(&tmagic, sizeof(tmagic));
+    this->info.SaveBinary(fs);
     fs.Close();
     if (!silent) {
-      utils::Printf("DMatrixPage: %lux%lu is saved to %s\n",
-                    static_cast<unsigned long>(mat.info.num_row()),
-                    static_cast<unsigned long>(mat.info.num_col()), fname);
+      utils::Printf("DMatrixPage: %lux%lu is parsed from %s\n",
+                    static_cast<unsigned long>(info.num_row()),  // NOLINT(*)
+                    static_cast<unsigned long>(info.num_col()),  // NOLINT(*)
+                    uri);
     }
   }
   /*! \brief magic number used to identify DMatrix */
   static const int kMagic = TKMagic;
+  /*! \brief page size 32 MB */
+  static const size_t kPageSize = 32UL << 20UL;
 
  protected:
+  virtual void set_cache_file(const std::string &cache_file)  = 0;
+  virtual void CheckMagic(int tmagic)  = 0;
   /*! \brief row iterator */
   ThreadRowPageIterator *iter_;
 };
@@ -262,13 +212,45 @@ class DMatrixPageBase : public DataMatrix {
 class DMatrixPage : public DMatrixPageBase<0xffffab02> {
  public:
   DMatrixPage(void) {
-    fmat_ = new FMatrixS(iter_);
+    fmat_ = new FMatrixPage(iter_, this->info);
   }
   virtual ~DMatrixPage(void) {
     delete fmat_;
   }
   virtual IFMatrix *fmat(void) const {
     return fmat_;
+  }
+  virtual void set_cache_file(const std::string &cache_file) {
+    fmat_->set_cache_file(cache_file);
+  }
+  virtual void CheckMagic(int tmagic) {
+    utils::Check(tmagic == DMatrixPageBase<0xffffab02>::kMagic ||
+                 tmagic == DMatrixPageBase<0xffffab03>::kMagic,
+                 "invalid format,magic number mismatch");
+  }
+  /*! \brief the real fmatrix */
+  FMatrixPage *fmat_;
+};
+
+// mix of FMatrix S and DMatrix
+// cost half of ram usually as DMatrixSimple
+class DMatrixHalfRAM : public DMatrixPageBase<0xffffab03> {
+ public:
+  DMatrixHalfRAM(void) {
+    fmat_ = new FMatrixS(iter_, this->info);
+  }
+  virtual ~DMatrixHalfRAM(void) {
+    delete fmat_;
+  }
+  virtual IFMatrix *fmat(void) const {
+    return fmat_;
+  }
+  virtual void set_cache_file(const std::string &cache_file) {
+  }
+  virtual void CheckMagic(int tmagic) {
+    utils::Check(tmagic == DMatrixPageBase<0xffffab02>::kMagic ||
+                 tmagic == DMatrixPageBase<0xffffab03>::kMagic,
+                 "invalid format,magic number mismatch");
   }
   /*! \brief the real fmatrix */
   IFMatrix *fmat_;

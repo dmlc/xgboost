@@ -42,7 +42,7 @@ class AllreduceBase : public IEngine {
   // shutdown the engine
   virtual void Shutdown(void);
   /*!
-   * \brief set parameters to the engine 
+   * \brief set parameters to the engine
    * \param name parameter name
    * \param val parameter value
    */
@@ -63,12 +63,16 @@ class AllreduceBase : public IEngine {
     if (world_size == -1) return 1;
     return world_size;
   }
+  /*! \brief whether is distributed or not */
+  virtual bool IsDistributed(void) const {
+    return tracker_uri != "NULL";
+  }
   /*! \brief get rank */
   virtual std::string GetHost(void) const {
     return host_uri;
   }
   /*!
-   * \brief perform in-place allreduce, on sendrecvbuf 
+   * \brief perform in-place allreduce, on sendrecvbuf
    *        this function is NOT thread-safe
    * \param sendrecvbuf_ buffer for both sending and recving data
    * \param type_nbytes the unit number of bytes the type have
@@ -78,7 +82,7 @@ class AllreduceBase : public IEngine {
    *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to passed into the lazy preprocessing function
-   */  
+   */
   virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
                          size_t count,
@@ -86,6 +90,7 @@ class AllreduceBase : public IEngine {
                          PreprocFunction prepare_fun = NULL,
                          void *prepare_arg = NULL) {
     if (prepare_fun != NULL) prepare_fun(prepare_arg);
+    if (world_size == 1) return;
     utils::Assert(TryAllreduce(sendrecvbuf_,
                                type_nbytes, count, reducer) == kSuccess,
                   "Allreduce failed");
@@ -97,6 +102,7 @@ class AllreduceBase : public IEngine {
    * \param root the root worker id to broadcast the data
    */
   virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
+    if (world_size == 1) return;
     utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) == kSuccess,
                   "Broadcast failed");
   }
@@ -111,25 +117,25 @@ class AllreduceBase : public IEngine {
    * \return the version number of check point loaded
    *     if returned version == 0, this means no model has been CheckPointed
    *     the p_model is not touched, user should do necessary initialization by themselves
-   *   
+   *
    *   Common usage example:
    *      int iter = rabit::LoadCheckPoint(&model);
    *      if (iter == 0) model.InitParameters();
    *      for (i = iter; i < max_iter; ++i) {
    *        do many things, include allreduce
    *        rabit::CheckPoint(model);
-   *      } 
+   *      }
    *
    * \sa CheckPoint, VersionNumber
    */
-  virtual int LoadCheckPoint(ISerializable *global_model,
-                             ISerializable *local_model = NULL) {
+  virtual int LoadCheckPoint(Serializable *global_model,
+                             Serializable *local_model = NULL) {
     return 0;
   }
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
    *  every time we call check point, there is a version number which will increase by one
-   * 
+   *
    * \param global_model pointer to the globally shared model/state
    *   when calling this function, the caller need to gauranttees that global_model
    *   is the same in all nodes
@@ -142,23 +148,23 @@ class AllreduceBase : public IEngine {
    *
    * \sa LoadCheckPoint, VersionNumber
    */
-  virtual void CheckPoint(const ISerializable *global_model,
-                          const ISerializable *local_model = NULL) {
+  virtual void CheckPoint(const Serializable *global_model,
+                          const Serializable *local_model = NULL) {
     version_number += 1;
   }
   /*!
    * \brief This function can be used to replace CheckPoint for global_model only,
    *   when certain condition is met(see detailed expplaination).
-   * 
+   *
    *   This is a "lazy" checkpoint such that only the pointer to global_model is
    *   remembered and no memory copy is taken. To use this function, the user MUST ensure that:
    *   The global_model must remain unchanged util last call of Allreduce/Broadcast in current version finishs.
-   *   In another words, global_model model can be changed only between last call of 
+   *   In another words, global_model model can be changed only between last call of
    *   Allreduce/Broadcast and LazyCheckPoint in current version
-   *   
+   *
    *   For example, suppose the calling sequence is:
    *   LazyCheckPoint, code1, Allreduce, code2, Broadcast, code3, LazyCheckPoint
-   *   
+   *
    *   If user can only changes global_model in code3, then LazyCheckPoint can be used to
    *   improve efficiency of the program.
    * \param global_model pointer to the globally shared model/state
@@ -166,7 +172,7 @@ class AllreduceBase : public IEngine {
    *   is the same in all nodes
    * \sa LoadCheckPoint, CheckPoint, VersionNumber
    */
-  virtual void LazyCheckPoint(const ISerializable *global_model) {
+  virtual void LazyCheckPoint(const Serializable *global_model) {
     version_number += 1;
   }
   /*!
@@ -185,8 +191,8 @@ class AllreduceBase : public IEngine {
   virtual void InitAfterException(void) {
     utils::Error("InitAfterException: not implemented");
   }
-  /*! 
-   * \brief report current status to the job tracker 
+  /*!
+   * \brief report current status to the job tracker
    * depending on the job tracker we are in
    */
   inline void ReportStatus(void) const {
@@ -207,7 +213,7 @@ class AllreduceBase : public IEngine {
     kRecvZeroLen,
     /*! \brief a neighbor node go down, the connection is dropped */
     kSockError,
-    /*! 
+    /*!
      * \brief another node which is not my neighbor go down,
      *   get Out-of-Band exception notification from my neighbor
      */
@@ -219,7 +225,7 @@ class AllreduceBase : public IEngine {
     ReturnTypeEnum value;
     // constructor
     ReturnType() {}
-    ReturnType(ReturnTypeEnum value) : value(value){}
+    ReturnType(ReturnTypeEnum value) : value(value) {}  // NOLINT(*)
     inline bool operator==(const ReturnTypeEnum &v) const {
       return value == v;
     }
@@ -228,8 +234,13 @@ class AllreduceBase : public IEngine {
     }
   };
   /*! \brief translate errno to return type */
-  inline static ReturnType Errno2Return(int errsv) {
-    if (errsv == EAGAIN || errsv == EWOULDBLOCK) return kSuccess;
+  inline static ReturnType Errno2Return() {
+    int errsv = utils::Socket::GetLastError();
+    if (errsv == EAGAIN || errsv == EWOULDBLOCK || errsv == 0) return kSuccess;
+#ifdef _WIN32
+    if (errsv == WSAEWOULDBLOCK) return kSuccess;
+    if (errsv == WSAECONNRESET) return kConnReset;
+#endif
     if (errsv == ECONNRESET) return kConnReset;
     return kSockError;
   }
@@ -249,7 +260,7 @@ class AllreduceBase : public IEngine {
     // buffer size, in bytes
     size_t buffer_size;
     // constructor
-    LinkRecord(void) 
+    LinkRecord(void)
         : buffer_head(NULL), buffer_size(0) {
     }
     // initialize buffer
@@ -274,22 +285,26 @@ class AllreduceBase : public IEngine {
      * \brief read data into ring-buffer, with care not to existing useful override data
      *  position after protect_start
      * \param protect_start all data start from protect_start is still needed in buffer
-     *                      read shall not override this 
+     *                      read shall not override this
+     * \param max_size_read maximum logical amount we can read, size_read cannot exceed this value
      * \return the type of reading
      */
-    inline ReturnType ReadToRingBuffer(size_t protect_start) {
+    inline ReturnType ReadToRingBuffer(size_t protect_start, size_t max_size_read) {
       utils::Assert(buffer_head != NULL, "ReadToRingBuffer: buffer not allocated");
+      utils::Assert(size_read <= max_size_read, "ReadToRingBuffer: max_size_read check");
       size_t ngap = size_read - protect_start;
       utils::Assert(ngap <= buffer_size, "Allreduce: boundary check");
       size_t offset = size_read % buffer_size;
-      size_t nmax = std::min(buffer_size - ngap, buffer_size - offset);
+      size_t nmax = max_size_read - size_read;
+      nmax = std::min(nmax, buffer_size - ngap);
+      nmax = std::min(nmax, buffer_size - offset);
       if (nmax == 0) return kSuccess;
       ssize_t len = sock.Recv(buffer_head + offset, nmax);
       // length equals 0, remote disconnected
       if (len == 0) {
         sock.Close(); return kRecvZeroLen;
       }
-      if (len == -1) return Errno2Return(errno);
+      if (len == -1) return Errno2Return();
       size_read += static_cast<size_t>(len);
       return kSuccess;
     }
@@ -308,7 +323,7 @@ class AllreduceBase : public IEngine {
       if (len == 0) {
         sock.Close(); return kRecvZeroLen;
       }
-      if (len == -1) return Errno2Return(errno);
+      if (len == -1) return Errno2Return();
       size_read += static_cast<size_t>(len);
       return kSuccess;
     }
@@ -321,7 +336,7 @@ class AllreduceBase : public IEngine {
     inline ReturnType WriteFromArray(const void *sendbuf_, size_t max_size) {
       const char *p = static_cast<const char*>(sendbuf_);
       ssize_t len = sock.Send(p + size_write, max_size - size_write);
-      if (len == -1) return Errno2Return(errno);
+      if (len == -1) return Errno2Return();
       size_write += static_cast<size_t>(len);
       return kSuccess;
     }
@@ -362,7 +377,7 @@ class AllreduceBase : public IEngine {
    *    The kSuccess TryAllreduce does NOT mean every node have successfully finishes TryAllreduce.
    *    It only means the current node get the correct result of Allreduce.
    *    However, it means every node finishes LAST call(instead of this one) of Allreduce/Bcast
-   * 
+   *
    * \param sendrecvbuf_ buffer for both sending and recving data
    * \param type_nbytes the unit number of bytes the type have
    * \param count number of elements to be reduced
@@ -376,7 +391,7 @@ class AllreduceBase : public IEngine {
                           ReduceFunction reducer);
   /*!
    * \brief broadcast data from root to all nodes, this function can fail,and will return the cause of failure
-   * \param sendrecvbuf_ buffer for both sending and recving data
+   * \param sendrecvbuf_ buffer for both sending and receiving data
    * \param size the size of the data to be broadcasted
    * \param root the root worker id to broadcast the data
    * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
@@ -384,7 +399,73 @@ class AllreduceBase : public IEngine {
    */
   ReturnType TryBroadcast(void *sendrecvbuf_, size_t size, int root);
   /*!
-   * \brief function used to report error when a link goes wrong 
+   * \brief perform in-place allreduce, on sendrecvbuf,
+   * this function implements tree-shape reduction
+   *
+   * \param sendrecvbuf_ buffer for both sending and recving data
+   * \param type_nbytes the unit number of bytes the type have
+   * \param count number of elements to be reduced
+   * \param reducer reduce function
+   * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
+   * \sa ReturnType
+   */
+  ReturnType TryAllreduceTree(void *sendrecvbuf_,
+                              size_t type_nbytes,
+                              size_t count,
+                              ReduceFunction reducer);
+  /*!
+   * \brief internal Allgather function, each node have a segment of data in the ring of sendrecvbuf,
+   *  the data provided by current node k is [slice_begin, slice_end),
+   *  the next node's segment must start with slice_end
+   *  after the call of Allgather, sendrecvbuf_ contains all the contents including all segments
+   *  use a ring based algorithm
+   *
+   * \param sendrecvbuf_ buffer for both sending and receiving data, it is a ring conceptually
+   * \param total_size total size of data to be gathered
+   * \param slice_begin beginning of the current slice
+   * \param slice_end end of the current slice
+   * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
+   * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
+   * \sa ReturnType
+   */
+  ReturnType TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
+                              size_t slice_begin, size_t slice_end,
+                              size_t size_prev_slice);
+  /*!
+   * \brief perform in-place allreduce, reduce on the sendrecvbuf,
+   *
+   *  after the function, node k get k-th segment of the reduction result
+   *  the k-th segment is defined by [k * step, min((k + 1) * step,count) )
+   *  where step = ceil(count / world_size)
+   *
+   * \param sendrecvbuf_ buffer for both sending and recving data
+   * \param type_nbytes the unit number of bytes the type have
+   * \param count number of elements to be reduced
+   * \param reducer reduce function
+   * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
+   * \sa ReturnType, TryAllreduce
+   */
+  ReturnType TryReduceScatterRing(void *sendrecvbuf_,
+                                  size_t type_nbytes,
+                                  size_t count,
+                                  ReduceFunction reducer);
+  /*!
+   * \brief perform in-place allreduce, on sendrecvbuf
+   *  use a ring based algorithm, reduce-scatter + allgather
+   *
+   * \param sendrecvbuf_ buffer for both sending and recving data
+   * \param type_nbytes the unit number of bytes the type have
+   * \param count number of elements to be reduced
+   * \param reducer reduce function
+   * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
+   * \sa ReturnType
+   */
+  ReturnType TryAllreduceRing(void *sendrecvbuf_,
+                              size_t type_nbytes,
+                              size_t count,
+                              ReduceFunction reducer);
+  /*!
+   * \brief function used to report error when a link goes wrong
    * \param link the pointer to the link who causes the error
    * \param err the error type
    */
@@ -413,6 +494,8 @@ class AllreduceBase : public IEngine {
   // pointer to links in the ring
   LinkRecord *ring_prev, *ring_next;
   //----- meta information-----
+  // list of enviroment variables that are of possible interest
+  std::vector<std::string> env_vars;
   // unique identifier of the possible job this process is doing
   // used to assign ranks, optional, default to NULL
   std::string task_id;
@@ -420,17 +503,25 @@ class AllreduceBase : public IEngine {
   std::string host_uri;
   // uri of tracker
   std::string tracker_uri;
+  // role in dmlc jobs
+  std::string dmlc_role;
   // port of tracker address
   int tracker_port;
   // port of slave process
   int slave_port, nport_trial;
   // reduce buffer size
   size_t reduce_buffer_size;
+  // reduction method
+  int reduce_method;
+  // mininum count of cells to use ring based method
+  size_t reduce_ring_mincount;
   // current rank
   int rank;
   // world size
   int world_size;
+  // connect retry time
+  int connect_retry;
 };
 }  // namespace engine
 }  // namespace rabit
-#endif  // RABIT_ALLREDUCE_BASE_H
+#endif  // RABIT_ALLREDUCE_BASE_H_

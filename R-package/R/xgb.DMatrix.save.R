@@ -12,16 +12,15 @@
 #' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' @export
-#' 
 xgb.DMatrix.save <- function(DMatrix, fname) {
   if (typeof(fname) != "character") {
     stop("xgb.save: fname must be character")
   }
   if (class(DMatrix) == "xgb.DMatrix") {
-    .Call("XGDMatrixSaveBinary_R", DMatrix, fname, as.integer(FALSE), 
+    .Call("XGDMatrixSaveBinary_R", DMatrix, fname, as.integer(FALSE),
           PACKAGE = "xgboost")
     return(TRUE)
   }
   stop("xgb.DMatrix.save: the input must be xgb.DMatrix")
   return(FALSE)
-} 
+}

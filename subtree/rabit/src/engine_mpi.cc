@@ -3,7 +3,7 @@
  * \file engine_mpi.cc
  * \brief this file gives an implementation of engine interface using MPI,
  *   this will allow rabit program to run with MPI, but do not comes with fault tolerant
- *   
+ *
  * \author Tianqi Chen
  */
 #define _CRT_SECURE_NO_WARNINGS
@@ -37,15 +37,15 @@ class MPIEngine : public IEngine {
   virtual void InitAfterException(void) {
     utils::Error("MPI is not fault tolerant");
   }
-  virtual int LoadCheckPoint(ISerializable *global_model,
-                             ISerializable *local_model = NULL) {
+  virtual int LoadCheckPoint(Serializable *global_model,
+                             Serializable *local_model = NULL) {
     return 0;
   }
-  virtual void CheckPoint(const ISerializable *global_model,
-                          const ISerializable *local_model = NULL) {
+  virtual void CheckPoint(const Serializable *global_model,
+                          const Serializable *local_model = NULL) {
     version_number += 1;
   }
-  virtual void LazyCheckPoint(const ISerializable *global_model) {
+  virtual void LazyCheckPoint(const Serializable *global_model) {
     version_number += 1;
   }
   virtual int VersionNumber(void) const {
@@ -58,6 +58,10 @@ class MPIEngine : public IEngine {
   /*! \brief get total number of */
   virtual int GetWorldSize(void) const {
     return MPI::COMM_WORLD.Get_size();
+  }
+  /*! \brief whether it is distributed */
+  virtual bool IsDistributed(void) const {
+    return true;
   }
   /*! \brief get the host name of current node */
   virtual std::string GetHost(void) const {
@@ -106,6 +110,8 @@ inline MPI::Datatype GetType(mpi::DataType dtype) {
     case kULong: return MPI::UNSIGNED_LONG;
     case kFloat: return MPI::FLOAT;
     case kDouble: return MPI::DOUBLE;
+    case kLongLong: return MPI::LONG_LONG;
+    case kULongLong: return MPI::UNSIGNED_LONG_LONG;
   }
   utils::Error("unknown mpi::DataType");
   return MPI::CHAR;
@@ -137,7 +143,7 @@ void Allreduce_(void *sendrecvbuf,
 }
 
 // code for reduce handle
-ReduceHandle::ReduceHandle(void) 
+ReduceHandle::ReduceHandle(void)
     : handle_(NULL), redfunc_(NULL), htype_(NULL) {
 }
 ReduceHandle::~ReduceHandle(void) {
@@ -160,7 +166,7 @@ void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
   if (type_nbytes != 0) {
     MPI::Datatype *dtype = new MPI::Datatype();
     if (type_nbytes % 8 == 0) {
-      *dtype = MPI::LONG.Create_contiguous(type_nbytes / sizeof(long));
+      *dtype = MPI::LONG.Create_contiguous(type_nbytes / sizeof(long));  // NOLINT(*)
     } else if (type_nbytes % 4 == 0) {
       *dtype = MPI::INT.Create_contiguous(type_nbytes / sizeof(int));
     } else {
@@ -189,7 +195,7 @@ void ReduceHandle::Allreduce(void *sendrecvbuf,
       dtype->Free();
     }
     if (type_nbytes % 8 == 0) {
-      *dtype = MPI::LONG.Create_contiguous(type_nbytes / sizeof(long));
+      *dtype = MPI::LONG.Create_contiguous(type_nbytes / sizeof(long));  // NOLINT(*)
     } else if (type_nbytes % 4 == 0) {
       *dtype = MPI::INT.Create_contiguous(type_nbytes / sizeof(int));
     } else {

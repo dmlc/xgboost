@@ -1,12 +1,14 @@
-#ifndef XGBOOST_TREE_UPDATER_BASEMAKER_INL_HPP_
-#define XGBOOST_TREE_UPDATER_BASEMAKER_INL_HPP_
 /*!
+ * Copyright 2014 by Contributors
  * \file updater_basemaker-inl.hpp
  * \brief implement a common tree constructor
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_TREE_UPDATER_BASEMAKER_INL_HPP_
+#define XGBOOST_TREE_UPDATER_BASEMAKER_INL_HPP_
 #include <vector>
 #include <algorithm>
+#include <string>
 #include <limits>
 #include "../sync/sync.h"
 #include "../utils/random.h"
@@ -14,7 +16,7 @@
 
 namespace xgboost {
 namespace tree {
-/*! 
+/*!
  * \brief base tree maker class that defines common operation
  *  needed in tree making
  */
@@ -26,7 +28,7 @@ class BaseMaker: public IUpdater {
   virtual void SetParam(const char *name, const char *val) {
     param.SetParam(name, val);
   }
-   
+
  protected:
   // helper to collect and query feature meta information
   struct FMetaHelper {
@@ -50,7 +52,7 @@ class BaseMaker: public IUpdater {
             fminmax[fid * 2 + 1] = std::max(c[c.length - 1].fvalue, fminmax[fid * 2 + 1]);
           }
         }
-      }      
+      }
       rabit::Allreduce<rabit::op::Max>(BeginPtr(fminmax), fminmax.size());
     }
     // get feature type, 0:empty 1:binary 2:real
@@ -60,8 +62,11 @@ class BaseMaker: public IUpdater {
       bst_float a = fminmax[fid * 2];
       bst_float b = fminmax[fid * 2 + 1];
       if (a == -std::numeric_limits<bst_float>::max()) return 0;
-      if (-a == b) return 1;
-      else return 2;
+      if (-a == b) {
+        return 1;
+      } else {
+        return 2;
+      }
     }
     inline bst_float MaxValue(bst_uint fid) const {
       return fminmax[fid *2 + 1];
@@ -70,7 +75,7 @@ class BaseMaker: public IUpdater {
       std::vector<bst_uint> &findex = *p_findex;
       findex.clear();
       for (size_t i = 0; i < fminmax.size(); i += 2) {
-		const bst_uint fid = static_cast<bst_uint>(i / 2);
+        const bst_uint fid = static_cast<bst_uint>(i / 2);
         if (this->Type(fid) != 0) findex.push_back(fid);
       }
       unsigned n = static_cast<unsigned>(p * findex.size());
@@ -86,7 +91,7 @@ class BaseMaker: public IUpdater {
       rabit::Broadcast(&s_cache, 0);
       fs.Read(&findex);
     }
-    
+
    private:
     std::vector<bst_float> fminmax;
   };
@@ -116,7 +121,7 @@ class BaseMaker: public IUpdater {
     }
     return nthread;
   }
-  // ------class member helpers---------
+  //  ------class member helpers---------
   /*! \brief initialize temp data structure */
   inline void InitData(const std::vector<bst_gpair> &gpair,
                        const IFMatrix &fmat,
@@ -124,7 +129,8 @@ class BaseMaker: public IUpdater {
                        const RegTree &tree) {
     utils::Assert(tree.param.num_nodes == tree.param.num_roots,
                   "TreeMaker: can only grow new tree");
-    {// setup position
+    {
+      // setup position
       position.resize(gpair.size());
       if (root_index.size() == 0) {
         std::fill(position.begin(), position.end(), 0);
@@ -147,7 +153,8 @@ class BaseMaker: public IUpdater {
         }
       }
     }
-    {// expand query
+    {
+      // expand query
       qexpand.reserve(256); qexpand.clear();
       for (int i = 0; i < tree.param.num_roots; ++i) {
         qexpand.push_back(i);
@@ -170,7 +177,7 @@ class BaseMaker: public IUpdater {
     this->UpdateNode2WorkIndex(tree);
   }
   // return decoded position
-  inline int DecodePosition(bst_uint ridx) const{
+  inline int DecodePosition(bst_uint ridx) const {
     const int pid = position[ridx];
     return pid < 0 ? ~pid : pid;
   }
@@ -182,23 +189,24 @@ class BaseMaker: public IUpdater {
       position[ridx] = nid;
     }
   }
-  /*! 
+  /*!
    * \brief this is helper function uses column based data structure,
    *        reset the positions to the lastest one
    * \param nodes the set of nodes that contains the split to be used
    * \param p_fmat feature matrix needed for tree construction
    * \param tree the regression tree structure
    */
-  inline void ResetPositionCol(const std::vector<int> &nodes, IFMatrix *p_fmat, const RegTree &tree) {
+  inline void ResetPositionCol(const std::vector<int> &nodes,
+                               IFMatrix *p_fmat, const RegTree &tree) {
     // set the positions in the nondefault
     this->SetNonDefaultPositionCol(nodes, p_fmat, tree);
     // set rest of instances to default position
     const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
     // set default direct nodes to default
-    // for leaf nodes that are not fresh, mark then to ~nid, 
+    // for leaf nodes that are not fresh, mark then to ~nid,
     // so that they are ignored in future statistics collection
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
-    
+
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       const bst_uint ridx = rowset[i];
@@ -237,7 +245,7 @@ class BaseMaker: public IUpdater {
     }
     std::sort(fsplits.begin(), fsplits.end());
     fsplits.resize(std::unique(fsplits.begin(), fsplits.end()) - fsplits.begin());
-    
+
     utils::IIterator<ColBatch> *iter = p_fmat->ColIterator(fsplits);
     while (iter->Next()) {
       const ColBatch &batch = iter->Value();
@@ -252,7 +260,7 @@ class BaseMaker: public IUpdater {
           const int nid = this->DecodePosition(ridx);
           // go back to parent, correct those who are not default
           if (!tree[nid].is_leaf() && tree[nid].split_index() == fid) {
-            if(fvalue < tree[nid].split_cond()) {
+            if (fvalue < tree[nid].split_cond()) {
               this->SetEncodePosition(ridx, tree[nid].cleft());
             } else {
               this->SetEncodePosition(ridx, tree[nid].cright());
@@ -304,16 +312,16 @@ class BaseMaker: public IUpdater {
       }
     }
   }
-  /*! \brief common helper data structure to build sketch*/
+  /*! \brief common helper data structure to build sketch */
   struct SketchEntry {
     /*! \brief total sum of amount to be met */
-    bst_float sum_total;
+    double sum_total;
     /*! \brief statistics used in the sketch */
-    bst_float rmin, wmin;
+    double rmin, wmin;
     /*! \brief last seen feature value */
     bst_float last_fvalue;
     /*! \brief current size of sketch */
-    bst_float next_goal;
+    double next_goal;
     // pointer to the sketch to put things in
     utils::WXQuantileSketch<bst_float, bst_float> *sketch;
     // initialize the space
@@ -324,7 +332,7 @@ class BaseMaker: public IUpdater {
       sketch->temp.size = 0;
     }
     /*!
-     * \brief push a new element to sketch 
+     * \brief push a new element to sketch
      * \param fvalue feature value, comes in sorted ascending order
      * \param w weight
      * \param max_size
@@ -337,13 +345,16 @@ class BaseMaker: public IUpdater {
         return;
       }
       if (last_fvalue != fvalue) {
-        bst_float rmax = rmin + wmin;
-        if (rmax >= next_goal) {
-          if (sketch->temp.size == 0 || last_fvalue > sketch->temp.data[sketch->temp.size-1].value) {
+        double rmax = rmin + wmin;
+        if (rmax >= next_goal && sketch->temp.size != max_size) {
+          if (sketch->temp.size == 0 ||
+              last_fvalue > sketch->temp.data[sketch->temp.size-1].value) {
             // push to sketch
             sketch->temp.data[sketch->temp.size] =
                 utils::WXQuantileSketch<bst_float, bst_float>::
-                Entry(rmin, rmax, wmin, last_fvalue);
+                Entry(static_cast<bst_float>(rmin),
+                      static_cast<bst_float>(rmax),
+                      static_cast<bst_float>(wmin), last_fvalue);
             utils::Assert(sketch->temp.size < max_size,
                           "invalid maximum size max_size=%u, stemp.size=%lu\n",
                           max_size, sketch->temp.size);
@@ -351,8 +362,13 @@ class BaseMaker: public IUpdater {
           }
           if (sketch->temp.size == max_size) {
             next_goal = sum_total * 2.0f + 1e-5f;
-          } else{
+          } else {
             next_goal = static_cast<bst_float>(sketch->temp.size * sum_total / max_size);
+          }
+        } else {
+          if (rmax >= next_goal) {
+            rabit::TrackerPrintf("INFO: rmax=%g, sum_total=%g, next_goal=%g, size=%lu\n",
+                                 rmax, sum_total, next_goal, sketch->temp.size);
           }
         }
         rmin = rmax;
@@ -364,15 +380,17 @@ class BaseMaker: public IUpdater {
     }
     /*! \brief push final unfinished value to the sketch */
     inline void Finalize(unsigned max_size) {
-      bst_float rmax = rmin + wmin;
+      double rmax = rmin + wmin;
       if (sketch->temp.size == 0 || last_fvalue > sketch->temp.data[sketch->temp.size-1].value) {
         utils::Assert(sketch->temp.size <= max_size,
                       "Finalize: invalid maximum size, max_size=%u, stemp.size=%lu",
-                      sketch->temp.size, max_size );
+                      sketch->temp.size, max_size);
         // push to sketch
         sketch->temp.data[sketch->temp.size] =
             utils::WXQuantileSketch<bst_float, bst_float>::
-            Entry(rmin, rmax, wmin, last_fvalue);
+            Entry(static_cast<bst_float>(rmin),
+                  static_cast<bst_float>(rmax),
+                  static_cast<bst_float>(wmin), last_fvalue);
         ++sketch->temp.size;
       }
       sketch->PushTemp();
@@ -406,4 +424,4 @@ class BaseMaker: public IUpdater {
 };
 }  // namespace tree
 }  // namespace xgboost
-#endif // XGBOOST_TREE_UPDATER_BASEMAKER_INL_HPP_
+#endif  // XGBOOST_TREE_UPDATER_BASEMAKER_INL_HPP_

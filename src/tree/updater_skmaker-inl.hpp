@@ -1,11 +1,13 @@
-#ifndef XGBOOST_TREE_UPDATER_SKMAKER_INL_HPP_
-#define XGBOOST_TREE_UPDATER_SKMAKER_INL_HPP_
 /*!
+ * Copyright 2014 by Contributors
  * \file updater_skmaker-inl.hpp
  * \brief use approximation sketch to construct a tree,
           a refresh is needed to make the statistics exactly correct
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_TREE_UPDATER_SKMAKER_INL_HPP_
+#define XGBOOST_TREE_UPDATER_SKMAKER_INL_HPP_
+
 #include <vector>
 #include <algorithm>
 #include "../sync/sync.h"
@@ -30,7 +32,7 @@ class SketchMaker: public BaseMaker {
     }
     param.learning_rate = lr;
   }
- 
+
  protected:
   inline void Update(const std::vector<bst_gpair> &gpair,
                       IFMatrix *p_fmat,
@@ -57,10 +59,10 @@ class SketchMaker: public BaseMaker {
     for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
       this->SetStats(nid, node_stats[nid], p_tree);
       if (!(*p_tree)[nid].is_leaf()) {
-        p_tree->stat(nid).loss_chg =
+        p_tree->stat(nid).loss_chg = static_cast<float>(
             node_stats[(*p_tree)[nid].cleft()].CalcGain(param) +
             node_stats[(*p_tree)[nid].cright()].CalcGain(param) -
-            node_stats[nid].CalcGain(param);
+            node_stats[nid].CalcGain(param));
       }
     }
     // set left leaves
@@ -79,9 +81,9 @@ class SketchMaker: public BaseMaker {
     double pos_grad;
     /*! \brief sum of all negative gradient */
     double neg_grad;
-    /*! \brief sum of hessian statistics */    
+    /*! \brief sum of hessian statistics */
     double sum_hess;
-    explicit SKStats(void) {}
+    SKStats(void) {}
     // constructor
     explicit SKStats(const TrainParam &param) {
       this->Clear();
@@ -123,7 +125,7 @@ class SketchMaker: public BaseMaker {
       sum_hess += b.sum_hess;
     }
     /*! \brief same as add, reduce is used in All Reduce */
-    inline static void Reduce(SKStats &a, const SKStats &b) {
+    inline static void Reduce(SKStats &a, const SKStats &b) { // NOLINT(*)
       a.Add(b);
     }
     /*! \brief set leaf vector value based on statistics */
@@ -139,7 +141,7 @@ class SketchMaker: public BaseMaker {
       sketchs[i].Init(info.num_row, this->param.sketch_eps);
     }
     thread_sketch.resize(this->get_nthread());
-    // number of rows in 
+    // number of rows in
     const size_t nrows = p_fmat->buffered_rowset().size();
     // start accumulating statistics
     utils::IIterator<ColBatch> *iter = p_fmat->ColIterator();
@@ -156,7 +158,7 @@ class SketchMaker: public BaseMaker {
                               batch[i].length == nrows,
                               &thread_sketch[omp_get_thread_num()]);
       }
-    }       
+    }
     // setup maximum size
     unsigned max_size = param.max_sketch_size();
     // synchronize sketch
@@ -167,8 +169,8 @@ class SketchMaker: public BaseMaker {
       summary_array[i].Reserve(max_size);
       summary_array[i].SetPrune(out, max_size);
     }
-    size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);    
-    sketch_reducer.Allreduce(BeginPtr(summary_array), nbytes, summary_array.size());    
+    size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
+    sketch_reducer.Allreduce(BeginPtr(summary_array), nbytes, summary_array.size());
   }
   // update sketch information in column fid
   inline void UpdateSketchCol(const std::vector<bst_gpair> &gpair,
@@ -207,9 +209,9 @@ class SketchMaker: public BaseMaker {
     } else {
       for (size_t i = 0; i < this->qexpand.size(); ++i) {
         const unsigned nid = this->qexpand[i];
-        sbuilder[3 * nid + 0].sum_total = nstats[nid].pos_grad;
-        sbuilder[3 * nid + 1].sum_total = nstats[nid].neg_grad;
-        sbuilder[3 * nid + 2].sum_total = nstats[nid].sum_hess;        
+        sbuilder[3 * nid + 0].sum_total = static_cast<bst_float>(nstats[nid].pos_grad);
+        sbuilder[3 * nid + 1].sum_total = static_cast<bst_float>(nstats[nid].neg_grad);
+        sbuilder[3 * nid + 2].sum_total = static_cast<bst_float>(nstats[nid].sum_hess);
       }
     }
     // if only one value, no need to do second pass
@@ -217,7 +219,9 @@ class SketchMaker: public BaseMaker {
       for (size_t i = 0; i < this->qexpand.size(); ++i) {
         const int nid = this->qexpand[i];
         for (int k = 0; k < 3; ++k) {
-          sbuilder[3 * nid + k].sketch->Push(c[0].fvalue, sbuilder[3 * nid + k].sum_total);
+          sbuilder[3 * nid + k].sketch->Push(c[0].fvalue,
+                                             static_cast<bst_float>(
+                                                 sbuilder[3 * nid + k].sum_total));
         }
       }
       return;
@@ -250,7 +254,7 @@ class SketchMaker: public BaseMaker {
         sbuilder[3 * nid + k].Finalize(max_size);
       }
     }
-  }  
+  }
   inline void SyncNodeStats(void) {
     utils::Assert(qexpand.size() != 0, "qexpand must not be empty");
     std::vector<SKStats> tmp(qexpand.size());
@@ -272,12 +276,12 @@ class SketchMaker: public BaseMaker {
     std::vector<SplitEntry> sol(qexpand.size());
     bst_omp_uint nexpand = static_cast<bst_omp_uint>(qexpand.size());
     #pragma omp parallel for schedule(dynamic, 1)
-    for (bst_omp_uint wid = 0; wid < nexpand; ++ wid) {
+    for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
       const int nid = qexpand[wid];
       utils::Assert(node2workindex[nid] == static_cast<int>(wid),
                     "node2workindex inconsistent");
       SplitEntry &best = sol[wid];
-      for (bst_uint fid = 0; fid < num_feature; ++ fid) {
+      for (bst_uint fid = 0; fid < num_feature; ++fid) {
         unsigned base = (wid * p_tree->param.num_feature + fid) * 3;
         EnumerateSplit(summary_array[base + 0],
                        summary_array[base + 1],
@@ -286,7 +290,7 @@ class SketchMaker: public BaseMaker {
       }
     }
     // get the best result, we can synchronize the solution
-    for (bst_omp_uint wid = 0; wid < nexpand; ++ wid) {
+    for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
       const int nid = qexpand[wid];
       const SplitEntry &best = sol[wid];
       // set up the values
@@ -307,7 +311,7 @@ class SketchMaker: public BaseMaker {
   }
   // set statistics on ptree
   inline void SetStats(int nid, const SKStats &node_sum, RegTree *p_tree) {
-    p_tree->stat(nid).base_weight = node_sum.CalcWeight(param);
+    p_tree->stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
     p_tree->stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
     node_sum.SetLeafVec(param, p_tree->leafvec(nid));
   }
@@ -337,7 +341,7 @@ class SketchMaker: public BaseMaker {
     feat_sum.neg_grad = neg_grad.data[neg_grad.size - 1].rmax;
     feat_sum.sum_hess = sum_hess.data[sum_hess.size - 1].rmax;
     size_t ipos = 0, ineg = 0, ihess = 0;
-    for (size_t i = 1; i < fsplits.size(); ++i) {      
+    for (size_t i = 1; i < fsplits.size(); ++i) {
       WXQSketch::Entry pos = pos_grad.Query(fsplits[i], ipos);
       WXQSketch::Entry neg = neg_grad.Query(fsplits[i], ineg);
       WXQSketch::Entry hess = sum_hess.Query(fsplits[i], ihess);
@@ -345,34 +349,35 @@ class SketchMaker: public BaseMaker {
       s.pos_grad = 0.5f * (pos.rmin + pos.rmax - pos.wmin);
       s.neg_grad = 0.5f * (neg.rmin + neg.rmax - neg.wmin);
       s.sum_hess = 0.5f * (hess.rmin + hess.rmax - hess.wmin);
-      c.SetSubstract(node_sum, s);      
+      c.SetSubstract(node_sum, s);
       // forward
       if (s.sum_hess >= param.min_child_weight &&
           c.sum_hess >= param.min_child_weight) {
-        double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;        
-        best->Update(loss_chg, fid, fsplits[i], false);
+        double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
+        best->Update(static_cast<bst_float>(loss_chg), fid, fsplits[i], false);
       }
       // backward
       c.SetSubstract(feat_sum, s);
       s.SetSubstract(node_sum, c);
       if (s.sum_hess >= param.min_child_weight &&
           c.sum_hess >= param.min_child_weight) {
-        double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;        
-        best->Update(loss_chg, fid, fsplits[i], true);
-      }      
+        double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
+        best->Update(static_cast<bst_float>(loss_chg), fid, fsplits[i], true);
+      }
     }
-    {// all including
+    {
+      // all including
       SKStats s = feat_sum, c;
       c.SetSubstract(node_sum, s);
       if (s.sum_hess >= param.min_child_weight &&
           c.sum_hess >= param.min_child_weight) {
         bst_float cpt = fsplits.back();
-        double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;        
-        best->Update(loss_chg, fid, cpt + fabsf(cpt) + 1.0f, false);
+        double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
+        best->Update(static_cast<bst_float>(loss_chg), fid, cpt + fabsf(cpt) + 1.0f, false);
       }
     }
   }
-   
+
   // thread temp data
   // used to hold temporal sketch
   std::vector< std::vector<SketchEntry> > thread_sketch;
@@ -389,6 +394,6 @@ class SketchMaker: public BaseMaker {
   // per node, per feature sketch
   std::vector< utils::WXQuantileSketch<bst_float, bst_float> > sketchs;
 };
-}  // tree
-}  // xgboost
-#endif
+}  // namespace tree
+}  // namespace xgboost
+#endif  // XGBOOST_TREE_UPDATER_SKMAKER_INL_HPP_

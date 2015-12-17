@@ -1,3 +1,10 @@
+/*!
+ * Copyright 2015 by Contributors
+ * \file updater_quantile-inl.h
+ * \brief updaters for quantile tree regression
+ * \author David Hsu
+ */
+
 #ifndef XGBOOST_TREE_UPDATER_QUANTILE_INL_HPP_
 #define XGBOOST_TREE_UPDATER_QUANTILE_INL_HPP_
 /*!
@@ -6,6 +13,7 @@
  */
 #include <vector>
 #include <algorithm>
+#include <limits>
 #include <iostream>
 #include "./param.h"
 #include "./updater.h"
@@ -16,13 +24,13 @@
 namespace xgboost {
 namespace tree {
 
-  void SetQuantileGPair(const std::vector<bst_gpair> & gpair,std::vector<bst_gpair> & quantile_gpair) {
-
+  void SetQuantileGPair(const std::vector<bst_gpair> & gpair,
+                        std::vector<bst_gpair> * quantile_gpair) {
     for (unsigned i = 0; i < gpair.size(); i++) {
       if (gpair[i].grad > 0) {
-	quantile_gpair[i] = bst_gpair(1.0,1.0);
+        (*quantile_gpair)[i] = bst_gpair(1.0, 1.0);
       } else {
-	quantile_gpair[i] = bst_gpair(-1.0,1.0);
+        (*quantile_gpair)[i] = bst_gpair(-1.0, 1.0);
       }
     }
 }
@@ -37,12 +45,11 @@ class QuantileColMaker: public ColMaker<TStats> {
                       IFMatrix *p_fmat,
                       const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) {
-    //create new set of gradient pairs for quantile regression
-    std::vector<bst_gpair> quantile_gpairs (gpair.size());
-    SetQuantileGPair(gpair,quantile_gpairs);
-    ColMaker<TStats>::Update(quantile_gpairs,p_fmat,info,trees);
+    // create new set of gradient pairs for quantile regression
+    std::vector<bst_gpair> quantile_gpairs(gpair.size());
+    SetQuantileGPair(gpair, &quantile_gpairs);
+    ColMaker<TStats>::Update(quantile_gpairs, p_fmat, info, trees);
   }
-
 };
 
 
@@ -56,11 +63,10 @@ class QuantileTreePruner: public TreePruner {
                       const BoosterInfo &info,
                       const std::vector<RegTree*> &trees) {
     // rescale learning rate according to size of trees
-    std::vector<bst_gpair> quantile_gpairs (gpair.size());
-    SetQuantileGPair(gpair,quantile_gpairs);
-    TreePruner::Update(quantile_gpairs,p_fmat,info,trees);
+    std::vector<bst_gpair> quantile_gpairs(gpair.size());
+    SetQuantileGPair(gpair, &quantile_gpairs);
+    TreePruner::Update(quantile_gpairs, p_fmat, info, trees);
   }
-
 };
 
 
@@ -76,12 +82,12 @@ struct QuantileStats {
 
   inline double CalculateLeafValue(double quantile)  {
     if (gradients.size() == 0) return 0;
-    std::sort(gradients.begin(),gradients.end());
-    unsigned index = (unsigned) (quantile * gradients.size());
+    std::sort(gradients.begin(), gradients.end());
+    unsigned index = (unsigned) ((1.0-quantile) * gradients.size());
     if (index >= gradients.size()) {
       index = gradients.size()-1;
     }
-    return gradients[index];
+    return -gradients[index];
   }
 
 
@@ -113,32 +119,32 @@ struct QuantileStats {
     }
   }
   /*! \brief same as add, reduce is used in All Reduce */
-  inline static void Reduce(QuantileStats &a, const QuantileStats &b) {
+  inline static void Reduce(QuantileStats &a, const QuantileStats &b) { // NOLINT(*)
     a.Add(b);
   }
   /*! \brief set current value to a - b */
   inline void SetSubstract(const QuantileStats &a, const QuantileStats &b) {
-    //BUGBUG make this more efficient later
+    // BUGBUG make this more efficient later
     std::vector<double> acopy = a.gradients;
     std::vector<double> bcopy = b.gradients;
-    std::sort(acopy.begin(),acopy.end());
-    std::sort(bcopy.begin(),bcopy.end());
+    std::sort(acopy.begin(), acopy.end());
+    std::sort(bcopy.begin(), bcopy.end());
     std::vector<double> new_gradients;
-    unsigned aindex=0;
-    unsigned bindex=0;
+    unsigned aindex = 0;
+    unsigned bindex = 0;
     while (aindex < acopy.size() && bindex < bcopy.size()) {
       if (acopy[aindex] == bcopy[bindex]) {
-	aindex++;
-	bindex++;
-	continue;
+        aindex++;
+        bindex++;
+        continue;
       }
       if (acopy[aindex] < bcopy[bindex]) {
-	new_gradients.push_back(acopy[aindex]);
-	aindex++;
-	continue;
+        new_gradients.push_back(acopy[aindex]);
+        aindex++;
+        continue;
       }
       if (acopy[aindex] > bcopy[bindex]) {
-	bindex++;
+        bindex++;
       }
     }
     while (aindex < acopy.size()) {
@@ -163,21 +169,26 @@ struct QuantileStats {
 
 class QuantileScorer: public IUpdater {
  public:
+  explicit QuantileScorer(double quantile) {
+    utils::Check(quantile >= 0 && quantile <= 1, "invalid quantile value");
+    this->quantile = quantile;
+  }
   virtual ~QuantileScorer(void) {}
   // set training parameter
   virtual void SetParam(const char *name, const char *val) {
     using namespace std;
-    // sync-names                                                                                                                                                                                  
-    if (!strcmp(name, "quantile")) quantile = static_cast<float>(atof(val));
-    else {
+    // sync-names
+    if (!strcmp(name, "quantile")) {
+      quantile = static_cast<float>(atof(val));
+    } else {
       param.SetParam(name, val);
-    }    
+    }
   }
   // update the tree, do pruning
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       IFMatrix *p_fmat,
                       const BoosterInfo &info,
-                      const std::vector<RegTree*> &trees) {        
+                      const std::vector<RegTree*> &trees) {
     if (trees.size() == 0) return;
     // number of threads
     // thread temporal space
@@ -250,7 +261,7 @@ class QuantileScorer: public IUpdater {
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
     int offset = 0;
-    for (size_t i = 0; i < trees.size(); ++i) {      
+    for (size_t i = 0; i < trees.size(); ++i) {
       for (int rid = 0; rid < trees[i]->param.num_roots; ++rid) {
         this->Refresh(BeginPtr(stemp[0]) + offset, rid, trees[i]);
       }
@@ -280,7 +291,7 @@ class QuantileScorer: public IUpdater {
                       int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
     if (tree[nid].is_leaf()) {
-	tree[nid].set_leaf(gstats[nid].CalculateLeafValue(quantile) * param.learning_rate);
+      tree[nid].set_leaf(gstats[nid].CalculateLeafValue(quantile) * param.learning_rate);
     } else {
       this->Refresh(gstats, tree[nid].cleft(), p_tree);
       this->Refresh(gstats, tree[nid].cright(), p_tree);
@@ -288,10 +299,10 @@ class QuantileScorer: public IUpdater {
   }
   // training parameter
   TrainParam param;
-  //quantile
+  // quantile
   float quantile;
   // reducer
-  rabit::Reducer<QuantileStats, QuantileStats::Reduce> reducer;  
+  rabit::Reducer<QuantileStats, QuantileStats::Reduce> reducer;
 };
 
 

@@ -1,10 +1,13 @@
-#ifndef XGBOOST_TREE_PARAM_H_
-#define XGBOOST_TREE_PARAM_H_
 /*!
+ * Copyright 2014 by Contributors
  * \file param.h
  * \brief training parameters, statistics used to support tree construction
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_TREE_PARAM_H_
+#define XGBOOST_TREE_PARAM_H_
+
+#include <vector>
 #include <cstring>
 #include "../data.h"
 
@@ -28,6 +31,10 @@ struct TrainParam{
   float reg_alpha;
   // default direction choice
   int default_direction;
+  // maximum delta update we can add in weight estimation
+  // this parameter can be used to stablize update
+  // default=0 means no constraint on weight delta
+  float max_delta_step;
   // whether we want to do subsample
   float subsample;
   // whether to subsample columns each split, in each level
@@ -41,16 +48,20 @@ struct TrainParam{
   // accuracy of sketch
   float sketch_ratio;
   // leaf vector size
-  int size_leaf_vector;  
+  int size_leaf_vector;
   // option for parallelization
   int parallel_option;
+  // option to open cacheline optimizaton
+  int cache_opt;
   // number of threads to be used for tree construction,
   // if OpenMP is enabled, if equals 0, use system default
   int nthread;
   /*! \brief constructor */
   TrainParam(void) {
     learning_rate = 0.3f;
+    min_split_loss = 0.0f;
     min_child_weight = 1.0f;
+    max_delta_step = 0.0f;
     max_depth = 6;
     reg_lambda = 1.0f;
     reg_alpha = 0.0f;
@@ -61,15 +72,17 @@ struct TrainParam{
     opt_dense_col = 1.0f;
     nthread = 0;
     size_leaf_vector = 0;
-    parallel_option = 2;
+    // enforce parallel option to 0 for now, investigate the other strategy
+    parallel_option = 0;
     sketch_eps = 0.1f;
     sketch_ratio = 2.0f;
+    cache_opt = 1;
   }
-  /*! 
-   * \brief set parameters from outside 
+  /*!
+   * \brief set parameters from outside
    * \param name name of the parameter
    * \param val  value of the parameter
-   */            
+   */
   inline void SetParam(const char *name, const char *val) {
     using namespace std;
     // sync-names
@@ -80,6 +93,7 @@ struct TrainParam{
     if (!strcmp(name, "learning_rate")) learning_rate = static_cast<float>(atof(val));
     if (!strcmp(name, "min_child_weight")) min_child_weight = static_cast<float>(atof(val));
     if (!strcmp(name, "min_split_loss")) min_split_loss = static_cast<float>(atof(val));
+    if (!strcmp(name, "max_delta_step")) max_delta_step = static_cast<float>(atof(val));
     if (!strcmp(name, "reg_lambda")) reg_lambda = static_cast<float>(atof(val));
     if (!strcmp(name, "reg_alpha")) reg_alpha = static_cast<float>(atof(val));
     if (!strcmp(name, "subsample")) subsample = static_cast<float>(atof(val));
@@ -89,6 +103,7 @@ struct TrainParam{
     if (!strcmp(name, "sketch_ratio")) sketch_ratio  = static_cast<float>(atof(val));
     if (!strcmp(name, "opt_dense_col")) opt_dense_col = static_cast<float>(atof(val));
     if (!strcmp(name, "size_leaf_vector")) size_leaf_vector = atoi(val);
+    if (!strcmp(name, "cache_opt")) cache_opt = atoi(val);
     if (!strcmp(name, "max_depth")) max_depth = atoi(val);
     if (!strcmp(name, "nthread")) nthread = atoi(val);
     if (!strcmp(name, "parallel_option")) parallel_option = atoi(val);
@@ -101,10 +116,20 @@ struct TrainParam{
   // calculate the cost of loss function
   inline double CalcGain(double sum_grad, double sum_hess) const {
     if (sum_hess < min_child_weight) return 0.0;
-    if (reg_alpha == 0.0f) {
-      return Sqr(sum_grad) / (sum_hess + reg_lambda);
+    if (max_delta_step == 0.0f) {
+      if (reg_alpha == 0.0f) {
+        return Sqr(sum_grad) / (sum_hess + reg_lambda);
+      } else {
+        return Sqr(ThresholdL1(sum_grad, reg_alpha)) / (sum_hess + reg_lambda);
+      }
     } else {
-      return Sqr(ThresholdL1(sum_grad, reg_alpha)) / (sum_hess + reg_lambda); 
+      double w = CalcWeight(sum_grad, sum_hess);
+      double ret = sum_grad * w + 0.5 * (sum_hess + reg_lambda) * Sqr(w);
+      if (reg_alpha == 0.0f) {
+        return - 2.0 * ret;
+      } else {
+        return - 2.0 * (ret + reg_alpha * std::abs(w));
+      }
     }
   }
   // calculate cost of loss function with four stati
@@ -121,19 +146,25 @@ struct TrainParam{
   // calculate weight given the statistics
   inline double CalcWeight(double sum_grad, double sum_hess) const {
     if (sum_hess < min_child_weight) return 0.0;
+    double dw;
     if (reg_alpha == 0.0f) {
-      return -sum_grad / (sum_hess + reg_lambda);
+      dw = -sum_grad / (sum_hess + reg_lambda);
     } else {
-      return -ThresholdL1(sum_grad, reg_alpha) / (sum_hess + reg_lambda);
+      dw = -ThresholdL1(sum_grad, reg_alpha) / (sum_hess + reg_lambda);
     }
+    if (max_delta_step != 0.0f) {
+      if (dw > max_delta_step) dw = max_delta_step;
+      if (dw < -max_delta_step) dw = -max_delta_step;
+    }
+    return dw;
   }
   /*! \brief whether need forward small to big search: default right */
-  inline bool need_forward_search(float col_density = 0.0f) const {
+  inline bool need_forward_search(float col_density, bool indicator) const {
     return this->default_direction == 2 ||
-        (default_direction == 0 && (col_density < opt_dense_col));
+        (default_direction == 0 && (col_density < opt_dense_col) && !indicator);
   }
   /*! \brief whether need backward big to small search: default left */
-  inline bool need_backward_search(float col_density = 0.0f) const {
+  inline bool need_backward_search(float col_density, bool indicator) const {
     return this->default_direction != 2;
   }
   /*! \brief given the loss change, whether we need to invode prunning */
@@ -169,6 +200,11 @@ struct GradStats {
   double sum_grad;
   /*! \brief sum hessian statistics */
   double sum_hess;
+  /*!
+   * \brief whether this is simply statistics and we only need to call
+   *   Add(gpair), instead of Add(gpair, info, ridx)
+   */
+  static const int kSimpleStats = 1;
   /*! \brief constructor, the object must be cleared during construction */
   explicit GradStats(const TrainParam &param) {
     this->Clear();
@@ -181,9 +217,16 @@ struct GradStats {
   inline static void CheckInfo(const BoosterInfo &info) {
   }
   /*!
-   * \brief accumulate statistics,
+   * \brief accumulate statistics
+   * \param p the gradient pair
+   */
+  inline void Add(bst_gpair p) {
+    this->Add(p.grad, p.hess);
+  }
+  /*!
+   * \brief accumulate statistics, more complicated version
    * \param gpair the vector storing the gradient statistics
-   * \param info the additional information 
+   * \param info the additional information
    * \param ridx instance index of this instance
    */
   inline void Add(const std::vector<bst_gpair> &gpair,
@@ -205,7 +248,7 @@ struct GradStats {
     this->Add(b.sum_grad, b.sum_hess);
   }
   /*! \brief same as add, reduce is used in All Reduce */
-  inline static void Reduce(GradStats &a, const GradStats &b) {
+  inline static void Reduce(GradStats &a, const GradStats &b) { // NOLINT(*)
     a.Add(b);
   }
   /*! \brief set current value to a - b */
@@ -218,8 +261,8 @@ struct GradStats {
     return sum_hess == 0.0;
   }
   /*! \brief set leaf vector value based on statistics */
-  inline void SetLeafVec(const TrainParam &param, bst_float *vec) const{
-  }  
+  inline void SetLeafVec(const TrainParam &param, bst_float *vec) const {
+  }
   // constructor to allow inheritance
   GradStats(void) {}
   /*! \brief add statistics to the data */
@@ -272,7 +315,7 @@ struct CVGradStats : public GradStats {
       ret += param.CalcGain(train[i].sum_grad,
                             train[i].sum_hess,
                             vsize * valid[i].sum_grad,
-                            vsize * valid[i].sum_hess);      
+                            vsize * valid[i].sum_hess);
     }
     return ret / vsize;
   }
@@ -285,7 +328,7 @@ struct CVGradStats : public GradStats {
     }
   }
   /*! \brief same as add, reduce is used in All Reduce */
-  inline static void Reduce(CVGradStats &a, const CVGradStats &b) {
+  inline static void Reduce(CVGradStats &a, const CVGradStats &b) { // NOLINT(*)
     a.Add(b);
   }
   /*! \brief set current value to a - b */
@@ -305,8 +348,8 @@ struct CVGradStats : public GradStats {
   }
 };
 
-/*! 
- * \brief statistics that is helpful to store 
+/*!
+ * \brief statistics that is helpful to store
  *   and represent a split solution for the tree
  */
 struct SplitEntry{
@@ -318,12 +361,12 @@ struct SplitEntry{
   float split_value;
   /*! \brief constructor */
   SplitEntry(void) : loss_chg(0.0f), sindex(0), split_value(0.0f) {}
-  /*! 
-   * \brief decides whether a we can replace current entry with the statistics given 
+  /*!
+   * \brief decides whether a we can replace current entry with the statistics given
    *   This function gives better priority to lower index when loss_chg equals
    *    not the best way, but helps to give consistent result during multi-thread execution
    * \param loss_chg the loss reduction get through the split
-   * \param split_index the feature index where the split is on 
+   * \param split_index the feature index where the split is on
    */
   inline bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
     if (this->split_index() <= split_index) {
@@ -332,7 +375,7 @@ struct SplitEntry{
       return !(this->loss_chg > new_loss_chg);
     }
   }
-  /*! 
+  /*!
    * \brief update the split entry, replace it if e is better
    * \param e candidate split solution
    * \return whether the proposed split is better and can replace current split
@@ -347,7 +390,7 @@ struct SplitEntry{
       return false;
     }
   }
-  /*! 
+  /*!
    * \brief update the split entry, replace it if e is better
    * \param loss_chg loss reduction of new candidate
    * \param split_index feature index to split on
@@ -368,7 +411,7 @@ struct SplitEntry{
     }
   }
   /*! \brief same as update, used by AllReduce*/
-  inline static void Reduce(SplitEntry &dst, const SplitEntry &src) {
+  inline static void Reduce(SplitEntry &dst, const SplitEntry &src) { // NOLINT(*)
     dst.Update(src);
   }
   /*!\return feature index to split on */

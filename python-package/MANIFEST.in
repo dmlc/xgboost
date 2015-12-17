@@ -1,0 +1,14 @@
+include *.sh *.md *.rst
+recursive-include xgboost *
+recursive-include xgboost/wrapper *
+recursive-include xgboost/windows *
+recursive-include xgboost/subtree *
+recursive-include xgboost/src *
+recursive-include xgboost/multi-node *
+#exclude pre-compiled .o file for less confusions
+#include the pre-compiled .so is needed as a placeholder
+#since it will be copy after compiling on the fly
+global-exclude xgboost/wrapper/*.so.gz
+global-exclude xgboost/*.o
+global-exclude *.pyo
+global-exclude *.pyc

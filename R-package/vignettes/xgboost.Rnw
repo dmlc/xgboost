@@ -49,7 +49,7 @@ xgboost.version = '0.3-0'
 This is an introductory document of using the \verb@xgboost@ package in R. 
 
 \verb@xgboost@ is short for eXtreme Gradient Boosting package. It is an efficient
- and scalable implementation of gradient boosting framework by \citep{friedman2001greedy}. 
+ and scalable implementation of gradient boosting framework by \citep{friedman2001greedy} \citep{friedman2000additive}. 
 The package includes efficient linear model solver and tree learning algorithm.
 It supports various objective functions, including regression, classification
 and ranking. The package is made to be extendible, so that users are also allowed to define their own objectives easily. It has several features:
@@ -214,3 +214,8 @@ competition.
 
 \end{document}
 
+<<Temp file cleaning, include=FALSE>>=
+file.remove("xgb.DMatrix")
+file.remove("model.dump")
+file.remove("model.save")
+@

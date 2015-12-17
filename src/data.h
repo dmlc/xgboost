@@ -1,10 +1,12 @@
-#ifndef XGBOOST_DATA_H
-#define XGBOOST_DATA_H
 /*!
+ * Copyright (c) 2014 by Contributors
  * \file data.h
  * \brief the input data structure for gradient boosting
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_DATA_H_
+#define XGBOOST_DATA_H_
+
 #include <cstdio>
 #include <vector>
 #include "utils/utils.h"
@@ -32,7 +34,7 @@ struct bst_gpair {
   bst_gpair(bst_float grad, bst_float hess) : grad(grad), hess(hess) {}
 };
 
-/*! 
+/*!
  * \brief extra information that might needed by gbm and tree module
  * these information are not necessarily presented, and can be empty
  */
@@ -102,7 +104,7 @@ struct RowBatch : public SparseBatch {
     return Inst(data_ptr + ind_ptr[i], static_cast<bst_uint>(ind_ptr[i+1] - ind_ptr[i]));
   }
 };
-/*! 
+/*!
  * \brief read-only column batch, used to access columns,
  * the columns are not required to be continuous
  */
@@ -111,7 +113,7 @@ struct ColBatch : public SparseBatch {
   const bst_uint *col_index;
   /*! \brief pointer to the column data */
   const Inst *col_data;
-  /*! \brief get i-th row from the batch */
+  /*! \brief get i-th column from the batch */
   inline Inst operator[](size_t i) const {
     return col_data[i];
   }
@@ -131,7 +133,7 @@ class IFMatrix {
   /*!\brief get column iterator */
   virtual utils::IIterator<ColBatch> *ColIterator(void) = 0;
   /*!
-   * \brief get the column iterator associated with FMatrix with subset of column features 
+   * \brief get the column iterator associated with FMatrix with subset of column features
    * \param fset is the list of column index set that must be contained in the returning Column iterator
    * \return the column iterator, initialized so that it reads the elements in fset
    */
@@ -140,8 +142,12 @@ class IFMatrix {
    * \brief check if column access is supported, if not, initialize column access
    * \param enabled whether certain feature should be included in column access
    * \param subsample subsample ratio when generating column access
+   * \param max_row_perbatch auxilary information, maximum row used in each column batch
+   *         this is a hint information that can be ignored by the implementation
    */
-  virtual void InitColAccess(const std::vector<bool> &enabled, float subsample) = 0;
+  virtual void InitColAccess(const std::vector<bool> &enabled,
+                             float subsample,
+                             size_t max_row_perbatch) = 0;
   // the following are column meta data, should be able to answer them fast
   /*! \return whether column access is enabled */
   virtual bool HaveColAccess(void) const = 0;
@@ -149,12 +155,12 @@ class IFMatrix {
   virtual size_t NumCol(void) const = 0;
   /*! \brief get number of non-missing entries in column */
   virtual size_t GetColSize(size_t cidx) const = 0;
-  /*! \brief get column density */  
-  virtual float GetColDensity(size_t cidx) const = 0;  
+  /*! \brief get column density */
+  virtual float GetColDensity(size_t cidx) const = 0;
   /*! \brief reference of buffered rowset */
   virtual const std::vector<bst_uint> &buffered_rowset(void) const = 0;
   // virtual destructor
   virtual ~IFMatrix(void){}
 };
 }  // namespace xgboost
-#endif  // XGBOOST_DATA_H
+#endif  // XGBOOST_DATA_H_

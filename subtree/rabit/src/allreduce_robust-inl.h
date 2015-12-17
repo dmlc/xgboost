@@ -2,17 +2,17 @@
  *  Copyright (c) 2014 by Contributors
  * \file allreduce_robust-inl.h
  * \brief implementation of inline template function in AllreduceRobust
- *   
+ *
  * \author Tianqi Chen
  */
-#ifndef RABIT_ENGINE_ROBUST_INL_H_
-#define RABIT_ENGINE_ROBUST_INL_H_
+#ifndef RABIT_ALLREDUCE_ROBUST_INL_H_
+#define RABIT_ALLREDUCE_ROBUST_INL_H_
 #include <vector>
 
 namespace rabit {
 namespace engine {
 /*!
- * \brief run message passing algorithm on the allreduce tree 
+ * \brief run message passing algorithm on the allreduce tree
  *        the result is edge message stored in p_edge_in and p_edge_out
  * \param node_value the value associated with current node
  * \param p_edge_in used to store input message from each of the edge
@@ -35,7 +35,7 @@ inline AllreduceRobust::ReturnType
 AllreduceRobust::MsgPassing(const NodeType &node_value,
                             std::vector<EdgeType> *p_edge_in,
                             std::vector<EdgeType> *p_edge_out,
-                            EdgeType (*func)
+                            EdgeType(*func)
                             (const NodeType &node_value,
                              const std::vector<EdgeType> &edge_in,
                              size_t out_index)) {
@@ -80,8 +80,16 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
             selecter.WatchRead(links[i].sock);
           }
           break;
-        case 1: if (i == parent_index) selecter.WatchWrite(links[i].sock); break;
-        case 2: if (i == parent_index) selecter.WatchRead(links[i].sock); break;
+        case 1:
+          if (i == parent_index) {
+            selecter.WatchWrite(links[i].sock);
+          }
+          break;
+        case 2:
+          if (i == parent_index) {
+            selecter.WatchRead(links[i].sock);
+          }
+          break;
         case 3:
           if (i != parent_index && links[i].size_write != sizeof(EdgeType)) {
             selecter.WatchWrite(links[i].sock);
@@ -158,4 +166,4 @@ AllreduceRobust::MsgPassing(const NodeType &node_value,
 }
 }  // namespace engine
 }  // namespace rabit
-#endif  // RABIT_ENGINE_ROBUST_INL_H_
+#endif  // RABIT_ALLREDUCE_ROBUST_INL_H_

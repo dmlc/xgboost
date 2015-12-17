@@ -1,11 +1,13 @@
-#ifndef XGBOOST_UTILS_ITERATOR_H
-#define XGBOOST_UTILS_ITERATOR_H
-#include <cstdio>
 /*!
+ * Copyright 2014 by Contributors
  * \file iterator.h
  * \brief itertator interface
  * \author Tianqi Chen
  */
+#ifndef XGBOOST_UTILS_ITERATOR_H_
+#define XGBOOST_UTILS_ITERATOR_H_
+#include <cstdio>
+
 namespace xgboost {
 namespace utils {
 /*!
@@ -16,7 +18,7 @@ template<typename DType>
 class IIterator {
  public:
   /*!
-   * \brief set the parameter 
+   * \brief set the parameter
    * \param name name of parameter
    * \param val value of parameter
    */
@@ -36,5 +38,5 @@ class IIterator {
 
 }  // namespace utils
 }  // namespace xgboost
-#endif
+#endif  // XGBOOST_UTILS_ITERATOR_H_
 

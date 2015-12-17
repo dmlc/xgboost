@@ -1,9 +1,6 @@
 #!/usr/bin/python
 # this is the example script to use xgboost to train
-import sys
 import numpy as np
-# add path of xgboost python module
-sys.path.append('../../wrapper/')
 import xgboost as xgb
 from sklearn.ensemble import GradientBoostingClassifier
 import time

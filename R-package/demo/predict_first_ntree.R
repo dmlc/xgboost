@@ -10,7 +10,7 @@ watchlist <- list(eval = dtest, train = dtrain)
 nround = 2
 
 # training the model for two rounds
-bst = xgb.train(param, dtrain, nround, watchlist)
+bst = xgb.train(param, dtrain, nround, nthread = 2, watchlist)
 cat('start testing prediction from first n trees\n')
 labels <- getinfo(dtest,'label')
 
