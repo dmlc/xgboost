@@ -10,7 +10,8 @@ import numpy as np
 from .core import Booster, STRING_TYPES
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
-          early_stopping_rounds=None, evals_result=None, verbose_eval=True):
+          maximize=False, early_stopping_rounds=None, evals_result=None,
+          verbose_eval=True, learning_rates=None, xgb_model=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -29,26 +30,83 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         Customized objective function.
     feval : function
         Customized evaluation function.
+    maximize : bool
+        Whether to maximize feval.
     early_stopping_rounds: int
         Activates early stopping. Validation error needs to decrease at least
         every <early_stopping_rounds> round(s) to continue training.
         Requires at least one item in evals.
         If there's more than one, will use the last.
         Returns the model from the last iteration (not the best one).
-        If early stopping occurs, the model will have two additional fields:
-        bst.best_score and bst.best_iteration.
+        If early stopping occurs, the model will have three additional fields:
+        bst.best_score, bst.best_iteration and bst.best_ntree_limit.
+        (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
+        and/or num_class appears in the parameters)
     evals_result: dict
-        This dictionary stores the evaluation results of all the items in watchlist
-    verbose_eval : bool
-        If `verbose_eval` then the evaluation metric on the validation set, if
-        given, is printed at each boosting stage.
+        This dictionary stores the evaluation results of all the items in watchlist.
+        Example: with a watchlist containing [(dtest,'eval'), (dtrain,'train')] and
+        and a paramater containing ('eval_metric', 'logloss')
+        Returns: {'train': {'logloss': ['0.48253', '0.35953']},
+                  'eval': {'logloss': ['0.480385', '0.357756']}}
+    verbose_eval : bool or int
+        Requires at least one item in evals.
+        If `verbose_eval` is True then the evaluation metric on the validation set is
+        printed at each boosting stage.
+        If `verbose_eval` is an integer then the evaluation metric on the validation set
+        is printed at every given `verbose_eval` boosting stage. The last boosting stage
+        / the boosting stage found by using `early_stopping_rounds` is also printed.
+        Example: with verbose_eval=4 and at least one item in evals, an evaluation metric
+        is printed every 4 boosting stages, instead of every boosting stage.
+    learning_rates: list or function
+        List of learning rate for each boosting round
+        or a customized function that calculates eta in terms of
+        current number of round and the total number of boosting round (e.g. yields
+        learning rate decay)
+        - list l: eta = l[boosting round]
+        - function f: eta = f(boosting round, num_boost_round)
+    xgb_model : file name of stored xgb model or 'Booster' instance
+        Xgb model to be loaded before training (allows training continuation).
 
     Returns
     -------
     booster : a trained booster model
     """
     evals = list(evals)
+    if isinstance(params, dict) \
+            and 'eval_metric' in params \
+            and isinstance(params['eval_metric'], list):
+        params = dict((k, v) for k, v in params.items())
+        eval_metrics = params['eval_metric']
+        params.pop("eval_metric", None)
+        params = list(params.items())
+        for eval_metric in eval_metrics:
+            params += [('eval_metric', eval_metric)]
+
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
+    nboost = 0
+    num_parallel_tree = 1
+
+    if isinstance(verbose_eval, bool):
+        verbose_eval_every_line = False
+    else:
+        if isinstance(verbose_eval, int):
+            verbose_eval_every_line = verbose_eval
+            verbose_eval = True if verbose_eval_every_line > 0 else False
+
+    if xgb_model is not None:
+        if not isinstance(xgb_model, STRING_TYPES):
+            xgb_model = xgb_model.save_raw()
+        bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
+        nboost = len(bst.get_dump())
+    else:
+        bst = Booster(params, [dtrain] + [d[0] for d in evals])
+
+    _params = dict(params) if isinstance(params, list) else params
+    if 'num_parallel_tree' in _params:
+        num_parallel_tree = _params['num_parallel_tree']
+        nboost //= num_parallel_tree
+    if 'num_class' in _params:
+        nboost //= _params['num_class']
 
     if evals_result is not None:
         if not isinstance(evals_result, dict):
@@ -56,11 +114,12 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         else:
             evals_name = [d[1] for d in evals]
             evals_result.clear()
-            evals_result.update({key: [] for key in evals_name})
+            evals_result.update(dict([(key, {}) for key in evals_name]))
 
     if not early_stopping_rounds:
         for i in range(num_boost_round):
             bst.update(dtrain, i, obj)
+            nboost += 1
             if len(evals) != 0:
                 bst_eval_set = bst.eval_set(evals, i, feval)
                 if isinstance(bst_eval_set, STRING_TYPES):
@@ -69,11 +128,27 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                     msg = bst_eval_set.decode()
 
                 if verbose_eval:
-                    sys.stderr.write(msg + '\n')
+                    if verbose_eval_every_line:
+                        if i % verbose_eval_every_line == 0 or i == num_boost_round - 1:
+                            sys.stderr.write(msg + '\n')
+                    else:
+                        sys.stderr.write(msg + '\n')
+
                 if evals_result is not None:
-                    res = re.findall(":-?([0-9.]+).", msg)
-                    for key, val in zip(evals_name, res):
-                        evals_result[key].append(val)
+                    res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
+                    for key in evals_name:
+                        evals_idx = evals_name.index(key)
+                        res_per_eval = len(res) // len(evals_name)
+                        for r in range(res_per_eval):
+                            res_item = res[(evals_idx*res_per_eval) + r]
+                            res_key = res_item[0]
+                            res_val = res_item[1]
+                            if res_key in evals_result[key]:
+                                evals_result[key][res_key].append(res_val)
+                            else:
+                                evals_result[key][res_key] = [res_val]
+        bst.best_iteration = (nboost - 1)
+        bst.best_ntree_limit = nboost * num_parallel_tree
         return bst
 
     else:
@@ -81,15 +156,18 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         if len(evals) < 1:
             raise ValueError('For early stopping you need at least one set in evals.')
 
-        sys.stderr.write("Will train until {} error hasn't decreased in {} rounds.\n".format(\
+        if verbose_eval:
+            sys.stderr.write("Will train until {} error hasn't decreased in {} rounds.\n".format(\
                 evals[-1][1], early_stopping_rounds))
 
         # is params a list of tuples? are we using multiple eval metrics?
         if isinstance(params, list):
             if len(params) != len(dict(params).items()):
-                raise ValueError('Check your params.'\
-                                     'Early stopping works with single eval metric only.')
-            params = dict(params)
+                params = dict(params)
+                sys.stderr.write("Multiple eval metrics have been passed: " \
+                "'{0}' will be used for early stopping.\n\n".format(params['eval_metric']))
+            else:
+                params = dict(params)
 
         # either minimize loss or maximize AUC/MAP/NDCG
         maximize_score = False
@@ -97,6 +175,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             maximize_metrics = ('auc', 'map', 'ndcg')
             if any(params['eval_metric'].startswith(x) for x in maximize_metrics):
                 maximize_score = True
+        if feval is not None:
+            maximize_score = maximize
 
         if maximize_score:
             best_score = 0.0
@@ -104,10 +184,19 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             best_score = float('inf')
 
         best_msg = ''
-        best_score_i = 0
+        best_score_i = (nboost - 1)
+
+        if isinstance(learning_rates, list) and len(learning_rates) != num_boost_round:
+            raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
 
         for i in range(num_boost_round):
+            if learning_rates is not None:
+                if isinstance(learning_rates, list):
+                    bst.set_param({'eta': learning_rates[i]})
+                else:
+                    bst.set_param({'eta': learning_rates(i, num_boost_round)})
             bst.update(dtrain, i, obj)
+            nboost += 1
             bst_eval_set = bst.eval_set(evals, i, feval)
 
             if isinstance(bst_eval_set, STRING_TYPES):
@@ -116,26 +205,41 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 msg = bst_eval_set.decode()
 
             if verbose_eval:
-                sys.stderr.write(msg + '\n')
+                if verbose_eval_every_line:
+                    if i % verbose_eval_every_line == 0 or i == num_boost_round - 1:
+                        sys.stderr.write(msg + '\n')
+                else:
+                    sys.stderr.write(msg + '\n')
 
             if evals_result is not None:
-                res = re.findall(":-?([0-9.]+).", msg)
-                for key, val in zip(evals_name, res):
-                    evals_result[key].append(val)
+                res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
+                for key in evals_name:
+                    evals_idx = evals_name.index(key)
+                    res_per_eval = len(res) // len(evals_name)
+                    for r in range(res_per_eval):
+                        res_item = res[(evals_idx*res_per_eval) + r]
+                        res_key = res_item[0]
+                        res_val = res_item[1]
+                        if res_key in evals_result[key]:
+                            evals_result[key][res_key].append(res_val)
+                        else:
+                            evals_result[key][res_key] = [res_val]
 
             score = float(msg.rsplit(':', 1)[1])
             if (maximize_score and score > best_score) or \
                     (not maximize_score and score < best_score):
                 best_score = score
-                best_score_i = i
+                best_score_i = (nboost - 1)
                 best_msg = msg
             elif i - best_score_i >= early_stopping_rounds:
-                sys.stderr.write("Stopping. Best iteration:\n{}\n\n".format(best_msg))
+                if verbose_eval:
+                    sys.stderr.write("Stopping. Best iteration:\n{}\n\n".format(best_msg))
                 bst.best_score = best_score
                 bst.best_iteration = best_score_i
                 break
         bst.best_score = best_score
         bst.best_iteration = best_score_i
+        bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
         return bst
 
 
@@ -179,11 +283,14 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None):
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
-
-def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True):
+def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
     # pylint: disable=invalid-name
     """
     Aggregate cross-validation results.
+    
+    If show_progress is true, progress is displayed in every call. If
+    show_progress is an integer, progress will only be displayed every
+    `show_progress` trees, tracked via trial.
     """
     cvmap = {}
     idx = rlist[0].split()[0]
@@ -217,8 +324,6 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True):
         index.extend([k + '-mean', k + '-std'])
         results.extend([mean, std])
 
-
-
     if as_pandas:
         try:
             import pandas as pd
@@ -232,15 +337,16 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True):
         if show_progress is None:
             show_progress = True
 
-    if show_progress:
+    if (isinstance(show_progress, int) and trial % show_progress == 0) or (isinstance(show_progress, bool) and show_progress):
         sys.stderr.write(msg + '\n')
+        sys.stderr.flush()
 
     return results
 
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
-       obj=None, feval=None, fpreproc=None, as_pandas=True,
-       show_progress=None, show_stdv=True, seed=0):
+       obj=None, feval=None, maximize=False, early_stopping_rounds=None,
+       fpreproc=None, as_pandas=True, show_progress=None, show_stdv=True, seed=0):
     # pylint: disable = invalid-name
     """Cross-validation with given paramaters.
 
@@ -260,15 +366,23 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         Custom objective function.
     feval : function
         Custom evaluation function.
+    maximize : bool
+        Whether to maximize feval.
+    early_stopping_rounds: int
+        Activates early stopping. CV error needs to decrease at least
+        every <early_stopping_rounds> round(s) to continue.
+        Last entry in evaluation history is the one from best iteration.
     fpreproc : function
         Preprocessing function that takes (dtrain, dtest, param) and returns
         transformed versions of those.
     as_pandas : bool, default True
         Return pd.DataFrame when pandas is installed.
         If False or pandas is not installed, return np.ndarray
-    show_progress : bool or None, default None
+    show_progress : bool, int, or None, default None
         Whether to display the progress. If None, progress will be displayed
-        when np.ndarray is returned.
+        when np.ndarray is returned. If True, progress will be displayed at 
+        boosting stage. If an integer is given, progress will be displayed 
+        at every given `show_progress` boosting stage. 
     show_stdv : bool, default True
         Whether to display the standard deviation in progress.
         Results are not affected, and always contains std.
@@ -279,6 +393,28 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
     -------
     evaluation history : list(string)
     """
+    if early_stopping_rounds is not None:
+        if len(metrics) > 1:
+            raise ValueError('Check your params.'\
+                                     'Early stopping works with single eval metric only.')
+
+        sys.stderr.write("Will train until cv error hasn't decreased in {} rounds.\n".format(\
+            early_stopping_rounds))
+
+        maximize_score = False
+        if len(metrics) == 1:
+            maximize_metrics = ('auc', 'map', 'ndcg')
+            if any(metrics[0].startswith(x) for x in maximize_metrics):
+                maximize_score = True
+        if feval is not None:
+            maximize_score = maximize
+
+        if maximize_score:
+            best_score = 0.0
+        else:
+            best_score = float('inf')
+
+    best_score_i = 0
     results = []
     cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc)
     for i in range(num_boost_round):
@@ -286,8 +422,19 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
             fold.update(i, obj)
         res = aggcv([f.eval(i, feval) for f in cvfolds],
                     show_stdv=show_stdv, show_progress=show_progress,
-                    as_pandas=as_pandas)
+                    as_pandas=as_pandas, trial=i)
         results.append(res)
+
+        if early_stopping_rounds is not None:
+            score = res[0]
+            if (maximize_score and score > best_score) or \
+                    (not maximize_score and score < best_score):
+                best_score = score
+                best_score_i = i
+            elif i - best_score_i >= early_stopping_rounds:
+                sys.stderr.write("Stopping. Best iteration: {}\n".format(best_score_i))
+                results = results[:best_score_i+1]
+                break
 
     if as_pandas:
         try:
@@ -299,4 +446,3 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         results = np.array(results)
 
     return results
-

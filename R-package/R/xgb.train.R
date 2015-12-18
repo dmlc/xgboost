@@ -19,7 +19,7 @@
 #'   \item \code{eta} control the learning rate: scale the contribution of each tree by a factor of \code{0 < eta < 1} when it is added to the current approximation. Used to prevent overfitting by making the boosting process more conservative. Lower value for \code{eta} implies larger value for \code{nrounds}: low \code{eta} value means model more robust to overfitting but slower to compute. Default: 0.3
 #'   \item \code{gamma} minimum loss reduction required to make a further partition on a leaf node of the tree. the larger, the more conservative the algorithm will be. 
 #'   \item \code{max_depth} maximum depth of a tree. Default: 6
-#'   \item \code{min_child_weight} minimum sum of instance weight(hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be. Default: 1
+#'   \item \code{min_child_weight} minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be. Default: 1
 #'   \item \code{subsample} subsample ratio of the training instance. Setting it to 0.5 means that xgboost randomly collected half of the data instances to grow trees and this will prevent overfitting. It makes computation shorter (because less data to analyse). It is advised to use this parameter with \code{eta} and increase \code{nround}. Default: 1 
 #'   \item \code{colsample_bytree} subsample ratio of columns when constructing each tree. Default: 1
 #'   \item \code{num_parallel_tree} Experimental parameter. number of trees to grow per round. Useful to test Random Forest through Xgboost (set \code{colsample_bytree < 1}, \code{subsample  < 1}  and \code{round = 1}) accordingly. Default: 1
@@ -43,7 +43,7 @@
 #'     \item \code{binary:logistic} logistic regression for binary classification. Output probability.
 #'     \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
 #'     \item \code{num_class} set the number of classes. To use only with multiclass objectives.
-#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is represented by a number and should be from 0 to \code{tonum_class}.
+#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is represented by a number and should be from 0 to \code{num_class}.
 #'     \item \code{multi:softprob} same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging to each class.
 #'     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
 #'   }
@@ -89,6 +89,7 @@
 #'   \itemize{
 #'      \item \code{rmse} root mean square error. \url{http://en.wikipedia.org/wiki/Root_mean_square_error}
 #'      \item \code{logloss} negative log-likelihood. \url{http://en.wikipedia.org/wiki/Log-likelihood}
+#'      \item \code{mlogloss} multiclass logloss. \url{https://www.kaggle.com/wiki/MultiClassLogLoss}
 #'      \item \code{error} Binary classification error rate. It is calculated as \code{(wrong cases) / (all cases)}. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
 #'      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(wrong cases) / (all cases)}.
 #'      \item \code{auc} Area under the curve. \url{http://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
@@ -119,10 +120,9 @@
 #' param <- list(max.depth = 2, eta = 1, silent = 1, objective=logregobj,eval_metric=evalerror)
 #' bst <- xgb.train(param, dtrain, nthread = 2, nround = 2, watchlist)
 #' @export
-#' 
-xgb.train <- function(params=list(), data, nrounds, watchlist = list(), 
+xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
                       obj = NULL, feval = NULL, verbose = 1, print.every.n=1L,
-                      early.stop.round = NULL, maximize = NULL, 
+                      early.stop.round = NULL, maximize = NULL,
                       save_period = 0, save_name = "xgboost.model", ...) {
   dtrain <- data
   if (typeof(params) != "list") {
@@ -139,30 +139,31 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   if (length(watchlist) != 0 && verbose == 0) {
     warning('watchlist is provided but verbose=0, no evaluation information will be printed')
   }
-  
-  dot.params = list(...)
-  nms.params = names(params)
-  nms.dot.params = names(dot.params)
-  if (length(intersect(nms.params,nms.dot.params))>0)
+
+  fit.call <- match.call()
+  dot.params <- list(...)
+  nms.params <- names(params)
+  nms.dot.params <- names(dot.params)
+  if (length(intersect(nms.params,nms.dot.params)) > 0)
     stop("Duplicated term in parameters. Please check your list of params.")
-  params = append(params, dot.params)
-  
+  params <- append(params, dot.params)
+
   # customized objective and evaluation metric interface
   if (!is.null(params$objective) && !is.null(obj))
     stop("xgb.train: cannot assign two different objectives")
   if (!is.null(params$objective))
-    if (class(params$objective)=='function') {
-      obj = params$objective
-      params$objective = NULL
+    if (class(params$objective) == 'function') {
+      obj <- params$objective
+      params$objective <- NULL
     }
   if (!is.null(params$eval_metric) && !is.null(feval))
     stop("xgb.train: cannot assign two different evaluation metrics")
   if (!is.null(params$eval_metric))
-    if (class(params$eval_metric)=='function') {
-      feval = params$eval_metric
-      params$eval_metric = NULL
+    if (class(params$eval_metric) == 'function') {
+      feval <- params$eval_metric
+      params$eval_metric <- NULL
     }
-    
+
   # Early stopping
   if (!is.null(early.stop.round)){
     if (!is.null(feval) && is.null(maximize))
@@ -174,44 +175,43 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     if (is.null(maximize))
     {
       if (params$eval_metric %in% c('rmse','logloss','error','merror','mlogloss')) {
-        maximize = FALSE
+        maximize <- FALSE
       } else {
-        maximize = TRUE
+        maximize <- TRUE
       }
     }
-    
+
     if (maximize) {
-      bestScore = 0
+      bestScore <- 0
     } else {
-      bestScore = Inf
+      bestScore <- Inf
     }
-    bestInd = 0
+    bestInd <- 0
     earlyStopflag = FALSE
-    
-    if (length(watchlist)>1)
+
+    if (length(watchlist) > 1)
       warning('Only the first data set in watchlist is used for early stopping process.')
   }
-  
-  
+
   handle <- xgb.Booster(params, append(watchlist, dtrain))
   bst <- xgb.handleToBooster(handle)
-  print.every.n=max( as.integer(print.every.n), 1L)
+  print.every.n <- max( as.integer(print.every.n), 1L)
   for (i in 1:nrounds) {
     succ <- xgb.iter.update(bst$handle, dtrain, i - 1, obj)
     if (length(watchlist) != 0) {
       msg <- xgb.iter.eval(bst$handle, watchlist, i - 1, feval)
-      if (0== ( (i-1) %% print.every.n))
-	    cat(paste(msg, "\n", sep=""))
+      if (0 == ( (i - 1) %% print.every.n))
+	    cat(paste(msg, "\n", sep = ""))
       if (!is.null(early.stop.round))
       {
-        score = strsplit(msg,':|\\s+')[[1]][3]
-        score = as.numeric(score)
-        if ((maximize && score>bestScore) || (!maximize && score<bestScore)) {
-          bestScore = score
-          bestInd = i
+        score <- strsplit(msg,':|\\s+')[[1]][3]
+        score <- as.numeric(score)
+        if ( (maximize && score > bestScore) || (!maximize && score < bestScore)) {
+          bestScore <- score
+          bestInd <- i
         } else {
-          if (i-bestInd>=early.stop.round) {
-            earlyStopflag = TRUE
+          earlyStopflag = TRUE
+          if (i - bestInd >= early.stop.round) {
             cat('Stopping. Best iteration:',bestInd)
             break
           }
@@ -225,9 +225,13 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     }
   }
   bst <- xgb.Booster.check(bst)
+
   if (!is.null(early.stop.round)) {
-    bst$bestScore = bestScore
-    bst$bestInd = bestInd
+    bst$bestScore <- bestScore
+    bst$bestInd <- bestInd
   }
+
+  attr(bst, "call") <- fit.call
+  attr(bst, "params") <- params
   return(bst)
-} 
+}

@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import os
-import sys
 import ctypes
 import collections
 
@@ -13,19 +12,11 @@ import scipy.sparse
 
 from .libpath import find_lib_path
 
+from .compat import STRING_TYPES, PY3, DataFrame
 
 class XGBoostError(Exception):
     """Error throwed by xgboost trainer."""
     pass
-
-PY3 = (sys.version_info[0] == 3)
-
-if PY3:
-    # pylint: disable=invalid-name, redefined-builtin
-    STRING_TYPES = str,
-else:
-    # pylint: disable=invalid-name
-    STRING_TYPES = basestring,
 
 
 def from_pystr_to_cstr(data):
@@ -138,27 +129,49 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-def _maybe_from_pandas(data, feature_names, feature_types):
-    """ Extract internal data from pd.DataFrame """
-    try:
-        import pandas as pd
-    except ImportError:
+
+PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': 'int',
+                       'uint8': 'int', 'uint16': 'int', 'uint32': 'int', 'uint64': 'int',
+                       'float16': 'float', 'float32': 'float', 'float64': 'float',
+                       'bool': 'i'}
+
+
+def _maybe_pandas_data(data, feature_names, feature_types):
+    """ Extract internal data from pd.DataFrame for DMatrix data """
+
+    if not isinstance(data, DataFrame):
         return data, feature_names, feature_types
 
-    if not isinstance(data, pd.DataFrame):
-        return data, feature_names, feature_types
-
-    dtypes = data.dtypes
-    if not all(dtype.name in ('int64', 'float64', 'bool') for dtype in dtypes):
-        raise ValueError('DataFrame.dtypes must be int, float or bool')
+    data_dtypes = data.dtypes
+    if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
+        raise ValueError('DataFrame.dtypes for data must be int, float or bool')
 
     if feature_names is None:
         feature_names = data.columns.format()
+
     if feature_types is None:
-        mapper = {'int64': 'int', 'float64': 'q', 'bool': 'i'}
-        feature_types = [mapper[dtype.name] for dtype in dtypes]
+        feature_types = [PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes]
+
     data = data.values.astype('float')
+
     return data, feature_names, feature_types
+
+
+def _maybe_pandas_label(label):
+    """ Extract internal data from pd.DataFrame for DMatrix label """
+
+    if isinstance(label, DataFrame):
+        if len(label.columns) > 1:
+            raise ValueError('DataFrame for label cannot have multiple columns')
+
+        label_dtypes = label.dtypes
+        if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in label_dtypes):
+            raise ValueError('DataFrame.dtypes for label must be int, float or bool')
+        else:
+            label = label.values.astype('float')
+    # pd.Series can be passed to xgb as it is
+
+    return label
 
 class DMatrix(object):
     """Data Matrix used in XGBoost.
@@ -192,20 +205,19 @@ class DMatrix(object):
         silent : boolean, optional
             Whether print messages during construction
         feature_names : list, optional
-            Labels for features.
+            Set names for features.
         feature_types : list, optional
-            Labels for features.
+            Set types for features.
         """
         # force into void_p, mac need to pass things in as void_p
         if data is None:
             self.handle = None
             return
 
-        klass = getattr(getattr(data, '__class__', None), '__name__', None)
-        if klass == 'DataFrame':
-            # once check class name to avoid unnecessary pandas import
-            data, feature_names, feature_types = _maybe_from_pandas(data, feature_names,
-                                                                    feature_types)
+        data, feature_names, feature_types = _maybe_pandas_data(data,
+                                                                feature_names,
+                                                                feature_types)
+        label = _maybe_pandas_label(label)
 
         if isinstance(data, STRING_TYPES):
             self.handle = ctypes.c_void_p()
@@ -223,7 +235,7 @@ class DMatrix(object):
                 csr = scipy.sparse.csr_matrix(data)
                 self._init_from_csr(csr)
             except:
-                raise TypeError('can not intialize DMatrix from {}'.format(type(data).__name__))
+                raise TypeError('can not initialize DMatrix from {}'.format(type(data).__name__))
         if label is not None:
             self.set_label(label)
         if weight is not None:
@@ -511,7 +523,7 @@ class DMatrix(object):
         feature_names : list or None
             Labels for features. None will reset existing feature names
         """
-        if not feature_names is None:
+        if feature_names is not None:
             # validate feature name
             if not isinstance(feature_names, list):
                 feature_names = list(feature_names)
@@ -520,10 +532,11 @@ class DMatrix(object):
             if len(feature_names) != self.num_col():
                 msg = 'feature_names must have the same length as data'
                 raise ValueError(msg)
-            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
-            if not all(isinstance(f, STRING_TYPES) and f.isalnum()
+            # prohibit to use symbols may affect to parse. e.g. []<
+            if not all(isinstance(f, STRING_TYPES) and
+                       not any(x in f for x in set(('[', ']', '<')))
                        for f in feature_names):
-                raise ValueError('all feature_names must be alphanumerics')
+                raise ValueError('feature_names may not contain [, ] or <')
         else:
             # reset feature_types also
             self.feature_types = None
@@ -541,7 +554,7 @@ class DMatrix(object):
         feature_types : list or None
             Labels for features. None will reset existing feature names
         """
-        if not feature_types is None:
+        if feature_types is not None:
 
             if self.feature_names is None:
                 msg = 'Unable to set feature types before setting names'
@@ -556,12 +569,11 @@ class DMatrix(object):
             if len(feature_types) != self.num_col():
                 msg = 'feature_types must have the same length as data'
                 raise ValueError(msg)
-            # prohibit to use symbols may affect to parse. e.g. ``[]=.``
 
-            valid = ('q', 'i', 'int', 'float')
+            valid = ('int', 'float', 'i', 'q')
             if not all(isinstance(f, STRING_TYPES) and f in valid
                        for f in feature_types):
-                raise ValueError('all feature_names must be {i, q, int, float}')
+                raise ValueError('All feature_names must be {int, float, i, q}')
         self._feature_types = feature_types
 
 
@@ -745,8 +757,13 @@ class Booster(object):
         else:
             res = '[%d]' % iteration
             for dmat, evname in evals:
-                name, val = feval(self.predict(dmat), dmat)
-                res += '\t%s-%s:%f' % (evname, name, val)
+                feval_ret = feval(self.predict(dmat), dmat)
+                if isinstance(feval_ret, list):
+                    for name, val in feval_ret:
+                        res += '\t%s-%s:%f' % (evname, name, val)
+                else:
+                    name, val = feval_ret
+                    res += '\t%s-%s:%f' % (evname, name, val)
             return res
 
     def eval(self, data, name='eval', iteration=0):
@@ -873,6 +890,7 @@ class Booster(object):
             _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
 
     def dump_model(self, fout, fmap='', with_stats=False):
+        # pylint: disable=consider-using-enumerate
         """
         Dump model into a text file.
 

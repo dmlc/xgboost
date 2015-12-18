@@ -345,7 +345,7 @@ Feature importance is similar to R gbm package's relative influence (rel.inf).
 ```
 importance_matrix <- xgb.importance(model = bst)
 print(importance_matrix)
-xgb.plot.importance(importance_matrix)
+xgb.plot.importance(importance_matrix = importance_matrix)
 ```
 
 View the trees from a model

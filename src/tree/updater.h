@@ -26,11 +26,11 @@ class IUpdater {
    */
   virtual void SetParam(const char *name, const char *val) = 0;
   /*!
-   * \brief peform update to the tree models
+   * \brief perform update to the tree models
    * \param gpair the gradient pair statistics of the data
    * \param p_fmat feature matrix that provide access to features
    * \param info extra side information that may be need, such as root index
-   * \param trees pointer to the trees to be updated, upater will change the content of the tree
+   * \param trees references the trees to be updated, updater will change the content of trees
    *   note: all the trees in the vector are updated, with the same statistics,
    *         but maybe different random seeds, usually one tree is passed in at a time,
    *         there can be multiple trees when we train random forest style model
@@ -53,7 +53,7 @@ class IUpdater {
   virtual ~IUpdater(void) {}
 };
 /*!
- * \brief create a updater based on name
+ * \brief create an updater based on name
  * \param name name of updater
  * \return return the updater instance
  */

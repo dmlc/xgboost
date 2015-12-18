@@ -9,4 +9,6 @@ XGBoost Python Feature Walkthrough
 * [Predicting leaf indices](predict_leaf_indices.py)
 * [Sklearn Wrapper](sklearn_examples.py)
 * [Sklearn Parallel](sklearn_parallel.py)
+* [Sklearn access evals result](sklearn_evals_result.py)
+* [Access evals result](evals_result.py)
 * [External Memory](external_memory.py)

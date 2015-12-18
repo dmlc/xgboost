@@ -64,7 +64,7 @@ if [ ${TASK} == "python-package" -o ${TASK} == "python-package3" ]; then
         conda create -n myenv python=2.7
     fi
     source activate myenv
-    conda install numpy scipy pandas matplotlib nose
+    conda install numpy scipy pandas matplotlib nose scikit-learn
     python -m pip install graphviz
 
     make all CXX=${CXX} || exit -1

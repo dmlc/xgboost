@@ -91,7 +91,7 @@ class Base64InStream: public IStream {
    * call this function before actually start read
    */
   inline void InitPosition(void) {
-    // get a charater
+    // get a character
     do {
       tmp_ch = reader_.GetChar();
     } while (isspace(tmp_ch));
@@ -223,7 +223,7 @@ class Base64OutStream: public IStream {
   }
   /*!
    * \brief finish writing of all current base64 stream, do some post processing
-   * \param endch charater to put to end of stream, if it is EOF, then nothing will be done
+   * \param endch character to put to end of stream, if it is EOF, then nothing will be done
    */
   inline void Finish(char endch = EOF) {
     using base64::EncodeTable;

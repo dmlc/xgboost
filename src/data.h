@@ -14,7 +14,7 @@
 
 namespace xgboost {
 /*!
- * \brief unsigned interger type used in boost,
+ * \brief unsigned integer type used in boost,
  *        used for feature index and row index
  */
 typedef unsigned bst_uint;
@@ -35,8 +35,8 @@ struct bst_gpair {
 };
 
 /*!
- * \brief extra information that might needed by gbm and tree module
- * these information are not necessarily presented, and can be empty
+ * \brief extra information that might be needed by gbm and tree module
+ * this information is not necessarily present, and can be empty
  */
 struct BoosterInfo {
   /*! \brief number of rows in the data */
@@ -53,7 +53,7 @@ struct BoosterInfo {
   /*! \brief number of rows, number of columns */
   BoosterInfo(void) : num_row(0), num_col(0) {
   }
-  /*! \brief get root of ith instance */
+  /*! \brief get root of i-th instance */
   inline unsigned GetRoot(size_t i) const {
     return root_index.size() == 0 ? 0 : root_index[i];
   }
@@ -120,13 +120,13 @@ struct ColBatch : public SparseBatch {
 };
 /**
  * \brief interface of feature matrix, needed for tree construction
- *  this interface defines two way to access features,
- *  row access is defined by iterator of RowBatch
- *  col access is optional, checked by HaveColAccess, and defined by iterator of ColBatch
+ *  this interface defines two ways to access features:
+ *   row access is defined by iterator of RowBatch
+ *   col access is optional, checked by HaveColAccess, and defined by iterator of ColBatch
  */
 class IFMatrix {
  public:
-  // the interface only need to ganrantee row iter
+  // the interface only need to guarantee row iter
   // column iter is active, when ColIterator is called, row_iter can be disabled
   /*! \brief get the row iterator associated with FMatrix */
   virtual utils::IIterator<RowBatch> *RowIterator(void) = 0;
@@ -142,7 +142,7 @@ class IFMatrix {
    * \brief check if column access is supported, if not, initialize column access
    * \param enabled whether certain feature should be included in column access
    * \param subsample subsample ratio when generating column access
-   * \param max_row_perbatch auxilary information, maximum row used in each column batch
+   * \param max_row_perbatch auxiliary information, maximum row used in each column batch
    *         this is a hint information that can be ignored by the implementation
    */
   virtual void InitColAccess(const std::vector<bool> &enabled,

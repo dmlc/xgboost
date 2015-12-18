@@ -23,4 +23,4 @@ setinfo(dtrain, "base_margin", ptrain)
 setinfo(dtest, "base_margin", ptest)
 
 print('this is result of boost from initial prediction')
-bst <- xgb.train( param, dtrain, 1, watchlist )
+bst <- xgb.train(params = param, data = dtrain, nrounds = 1, watchlist = watchlist)

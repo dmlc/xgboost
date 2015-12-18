@@ -1,7 +1,7 @@
 # this is a makefile used to show testcases of rabit
 .PHONY: all
 
-all:
+all: model_recover_10_10k  model_recover_10_10k_die_same
 
 # this experiment test recovery with actually process exit, use keepalive to keep program alive
 model_recover_10_10k:

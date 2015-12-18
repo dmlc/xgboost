@@ -16,7 +16,6 @@
 #' bst <- xgb.load('xgb.model')
 #' pred <- predict(bst, test$data)
 #' @export
-#' 
 xgb.save <- function(model, fname) {
   if (typeof(fname) != "character") {
     stop("xgb.save: fname must be character")
@@ -29,4 +28,4 @@ xgb.save <- function(model, fname) {
   stop("xgb.save: the input must be xgb.Booster. Use xgb.DMatrix.save to save
        xgb.DMatrix object.")
   return(FALSE)
-} 
+}

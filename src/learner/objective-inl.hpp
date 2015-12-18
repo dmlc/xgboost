@@ -84,7 +84,7 @@ struct LossType {
    * \return second order gradient
    */
   inline float SecondOrderGradient(float predt, float label) const {
-    // cap second order gradient to postive value
+    // cap second order gradient to positive value
     const float eps = 1e-16f;
     switch (loss_type) {
       case kLinearSquare: return 1.0f;

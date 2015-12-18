@@ -21,8 +21,8 @@ namespace utils {
 #if !defined(XGBOOST_STRICT_CXX98_)
 /*!
  * \brief buffered loading iterator that uses multithread
- * this template method will assume the following paramters
- * \tparam Elem elememt type to be buffered
+ * this template method will assume the following parameters
+ * \tparam Elem element type to be buffered
  * \tparam ElemFactory factory type to implement in order to use thread buffer
  */
 template<typename Elem, typename ElemFactory>
@@ -45,7 +45,7 @@ class ThreadBuffer {
   /*!
    * \brief initalize the buffered iterator
    * \param param a initialize parameter that will pass to factory, ignore it if not necessary
-   * \return false if the initlization can't be done, e.g. buffer file hasn't been created
+   * \return false if the initialization can't be done, e.g. buffer file hasn't been created
    */
   inline bool Init(void) {
     if (!factory.Init()) return false;
@@ -61,7 +61,7 @@ class ThreadBuffer {
   inline void BeforeFirst(void) {
     // wait till last loader end
     loading_end.Wait();
-    // critcal zone
+    // critical zone
     current_buf = 1;
     factory.BeforeFirst();
     // reset terminate limit

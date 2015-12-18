@@ -177,11 +177,11 @@ Rcheck:
 	R CMD check --as-cran xgboost*.tar.gz
 
 pythonpack:
-	#make clean
+	#for pip maintainer only
 	cd subtree/rabit;make clean;cd ..
 	rm -rf xgboost-deploy xgboost*.tar.gz
 	cp -r python-package xgboost-deploy
-	cp *.md xgboost-deploy/
+	#cp *.md xgboost-deploy/
 	cp LICENSE xgboost-deploy/
 	cp Makefile xgboost-deploy/xgboost
 	cp -r wrapper xgboost-deploy/xgboost
@@ -189,7 +189,7 @@ pythonpack:
 	cp -r multi-node xgboost-deploy/xgboost
 	cp -r windows xgboost-deploy/xgboost
 	cp -r src xgboost-deploy/xgboost
-
+	cp python-package/setup_pip.py xgboost-deploy/setup.py
 	#make python
 
 pythonbuild:

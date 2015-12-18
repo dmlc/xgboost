@@ -35,7 +35,7 @@ struct MetaInfo {
   std::vector<float> weights;
   /*!
    * \brief initialized margins,
-   * if specified, xgboost will start from this init margin
+   * if specified, xgboost will start from this initial margin
    * can be used to specify initial prediction to boost from
    */
   std::vector<float> base_margin;

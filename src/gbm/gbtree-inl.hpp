@@ -31,7 +31,7 @@ class GBTree : public IGradBooster {
     using namespace std;
     if (!strncmp(name, "bst:", 4)) {
       cfg.push_back(std::make_pair(std::string(name+4), std::string(val)));
-      // set into updaters, if already intialized
+      // set into updaters, if already initialized
       for (size_t i = 0; i < updaters.size(); ++i) {
         updaters[i]->SetParam(name+4, val);
       }
@@ -85,7 +85,7 @@ class GBTree : public IGradBooster {
       fo.Write(BeginPtr(pred_counter), pred_counter.size() * sizeof(unsigned));
     }
   }
-  // initialize the predic buffer
+  // initialize the predict buffer
   virtual void InitModel(void) {
     pred_buffer.clear(); pred_counter.clear();
     pred_buffer.resize(mparam.PredBufferSize(), 0.0f);
@@ -138,10 +138,7 @@ class GBTree : public IGradBooster {
     {
       nthread = omp_get_num_threads();
     }
-    thread_temp.resize(nthread, tree::RegTree::FVec());
-    for (int i = 0; i < nthread; ++i) {
-      thread_temp[i].Init(mparam.num_feature);
-    }
+    InitThreadTemp(nthread);
     std::vector<float> &preds = *out_preds;
     const size_t stride = info.num_row * mparam.num_output_group;
     preds.resize(stride * (mparam.size_leaf_vector+1));
@@ -194,10 +191,7 @@ class GBTree : public IGradBooster {
     {
       nthread = omp_get_num_threads();
     }
-    thread_temp.resize(nthread, tree::RegTree::FVec());
-    for (int i = 0; i < nthread; ++i) {
-      thread_temp[i].Init(mparam.num_feature);
-    }
+    InitThreadTemp(nthread);
     this->PredPath(p_fmat, info, out_preds, ntree_limit);
   }
   virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) {
@@ -391,6 +385,16 @@ class GBTree : public IGradBooster {
       }
     }
   }
+  // init thread buffers
+  inline void InitThreadTemp(int nthread) {
+    int prev_thread_temp_size = thread_temp.size();
+    if (prev_thread_temp_size < nthread) {
+      thread_temp.resize(nthread, tree::RegTree::FVec());
+      for (int i = prev_thread_temp_size; i < nthread; ++i) {
+        thread_temp[i].Init(mparam.num_feature);
+      }
+    }
+  }
 
   // --- data structure ---
   /*! \brief training parameters */
@@ -442,7 +446,7 @@ class GBTree : public IGradBooster {
     int num_roots;
     /*! \brief number of features to be used by trees */
     int num_feature;
-    /*! \brief size of predicton buffer allocated used for buffering */
+    /*! \brief size of prediction buffer allocated used for buffering */
     int64_t num_pbuffer;
     /*!
      * \brief how many output group a single instance can produce

@@ -1,18 +1,11 @@
-Rabit Documentation
-====
-* [Tutorial](../guide)
-* [API Documentation](http://homes.cs.washington.edu/~tqchen/rabit/doc)
-  - You can also run ```./mkdoc.sh``` to make the document locally
-* [Parameters](#parameters)
-
 Parameters
-====
+==========
 This section list all the parameters that can be passed to rabit::Init function as argv.
-All the parameters are passed in as string in format of ```parameter-name=parameter-value```.
+All the parameters are passed in as string in format of ``parameter-name=parameter-value``.
 In most setting these parameters have default value or will be automatically detected,
 and do not need to be manually configured.
 
-* rabit_tracker_uri [passed in automatically by tracker] 
+* rabit_tracker_uri [passed in automatically by tracker]
   - The uri/ip of rabit tracker
 * rabit_tracker_port [passed in automatically by tracker]
   - The port of rabit tracker

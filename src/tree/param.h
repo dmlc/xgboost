@@ -32,7 +32,7 @@ struct TrainParam{
   // default direction choice
   int default_direction;
   // maximum delta update we can add in weight estimation
-  // this parameter can be used to stablize update
+  // this parameter can be used to stabilize update
   // default=0 means no constraint on weight delta
   float max_delta_step;
   // whether we want to do subsample
@@ -51,7 +51,7 @@ struct TrainParam{
   int size_leaf_vector;
   // option for parallelization
   int parallel_option;
-  // option to open cacheline optimizaton
+  // option to open cacheline optimization
   int cache_opt;
   // number of threads to be used for tree construction,
   // if OpenMP is enabled, if equals 0, use system default
@@ -72,7 +72,8 @@ struct TrainParam{
     opt_dense_col = 1.0f;
     nthread = 0;
     size_leaf_vector = 0;
-    parallel_option = 2;
+    // enforce parallel option to 0 for now, investigate the other strategy
+    parallel_option = 0;
     sketch_eps = 0.1f;
     sketch_ratio = 2.0f;
     cache_opt = 1;
@@ -131,7 +132,7 @@ struct TrainParam{
       }
     }
   }
-  // calculate cost of loss function with four stati
+  // calculate cost of loss function with four statistics
   inline double CalcGain(double sum_grad, double sum_hess,
                          double test_grad, double test_hess) const {
     double w = CalcWeight(sum_grad, sum_hess);
@@ -166,7 +167,7 @@ struct TrainParam{
   inline bool need_backward_search(float col_density, bool indicator) const {
     return this->default_direction != 2;
   }
-  /*! \brief given the loss change, whether we need to invode prunning */
+  /*! \brief given the loss change, whether we need to invoke pruning */
   inline bool need_prune(double loss_chg, int depth) const {
     return loss_chg < this->min_split_loss;
   }
@@ -234,7 +235,7 @@ struct GradStats {
     const bst_gpair &b = gpair[ridx];
     this->Add(b.grad, b.hess);
   }
-  /*! \brief caculate leaf weight */
+  /*! \brief calculate leaf weight */
   inline double CalcWeight(const TrainParam &param) const {
     return param.CalcWeight(sum_grad, sum_hess);
   }
@@ -361,10 +362,10 @@ struct SplitEntry{
   /*! \brief constructor */
   SplitEntry(void) : loss_chg(0.0f), sindex(0), split_value(0.0f) {}
   /*!
-   * \brief decides whether a we can replace current entry with the statistics given
-   *   This function gives better priority to lower index when loss_chg equals
-   *    not the best way, but helps to give consistent result during multi-thread execution
-   * \param loss_chg the loss reduction get through the split
+   * \brief decides whether we can replace current entry with the given statistics
+   *   This function gives better priority to lower index when loss_chg == new_loss_chg.
+   *   Not the best way, but helps to give consistent result during multi-thread execution.
+   * \param new_loss_chg the loss reduction get through the split
    * \param split_index the feature index where the split is on
    */
   inline bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
@@ -391,9 +392,9 @@ struct SplitEntry{
   }
   /*!
    * \brief update the split entry, replace it if e is better
-   * \param loss_chg loss reduction of new candidate
+   * \param new_loss_chg loss reduction of new candidate
    * \param split_index feature index to split on
-   * \param split_value the split point
+   * \param new_split_value the split point
    * \param default_left whether the missing value goes to left
    * \return whether the proposed split is better and can replace current split
    */

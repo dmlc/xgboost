@@ -20,6 +20,17 @@ setClass("xgb.Booster",
 #'  only valid for gbtree, but not for gblinear. set it to be value bigger 
 #'  than 0. It will use all trees by default.
 #' @param predleaf whether predict leaf index instead. If set to TRUE, the output will be a matrix object.
+#' 
+#' @details  
+#' The option \code{ntreelimit} purpose is to let the user train a model with lots 
+#' of trees but use only the first trees for prediction to avoid overfitting 
+#' (without having to train a new model with less trees).
+#' 
+#' The option \code{predleaf} purpose is inspired from §3.1 of the paper 
+#' \code{Practical Lessons from Predicting Clicks on Ads at Facebook}.
+#' The idea is to use the model as a generator of new features which capture non linear link 
+#' from original features.
+#' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')
@@ -29,9 +40,8 @@ setClass("xgb.Booster",
 #'                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
 #' pred <- predict(bst, test$data)
 #' @export
-#' 
-setMethod("predict", signature = "xgb.Booster", 
-          definition = function(object, newdata, missing = NULL, 
+setMethod("predict", signature = "xgb.Booster",
+          definition = function(object, newdata, missing = NA,
                                 outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE) {
   if (class(object) != "xgb.Booster"){
     stop("predict: model in prediction must be of class xgb.Booster")
@@ -39,11 +49,7 @@ setMethod("predict", signature = "xgb.Booster",
     object <- xgb.Booster.check(object, saveraw = FALSE)
   }
   if (class(newdata) != "xgb.DMatrix") {
-    if (is.null(missing)) {
-      newdata <- xgb.DMatrix(newdata)
-    } else {
-      newdata <- xgb.DMatrix(newdata, missing = missing)
-    }
+    newdata <- xgb.DMatrix(newdata, missing = missing)
   }
   if (is.null(ntreelimit)) {
     ntreelimit <- 0
@@ -52,14 +58,14 @@ setMethod("predict", signature = "xgb.Booster",
       stop("predict: ntreelimit must be equal to or greater than 1")
     }
   }
-  option = 0
+  option <- 0
   if (outputmargin) {
     option <- option + 1
   }
   if (predleaf) {
     option <- option + 2
   }
-  ret <- .Call("XGBoosterPredict_R", object$handle, newdata, as.integer(option), 
+  ret <- .Call("XGBoosterPredict_R", object$handle, newdata, as.integer(option),
                as.integer(ntreelimit), PACKAGE = "xgboost")
   if (predleaf){
       len <- getinfo(newdata, "nrow")
@@ -72,4 +78,3 @@ setMethod("predict", signature = "xgb.Booster",
   }
   return(ret)
 })
-

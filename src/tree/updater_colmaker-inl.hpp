@@ -17,7 +17,7 @@
 
 namespace xgboost {
 namespace tree {
-/*! \brief colunwise update to construct a tree */
+/*! \brief column-wise update to construct a tree */
 template<typename TStats>
 class ColMaker: public IUpdater {
  public:
