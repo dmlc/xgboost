@@ -1,4 +1,10 @@
+#!/bin/env sh
+
 echo "build java wrapper"
+
+# cd to script's directory
+pushd `dirname $0` > /dev/null
+
 cd ..
 make java
 cd java
@@ -12,4 +18,5 @@ fi
 rm -f xgboost4j/src/main/resources/lib/libxgboostjavawrapper.so
 mv libxgboostjavawrapper.so xgboost4j/src/main/resources/lib/
 
+popd > /dev/null
 echo "complete"
