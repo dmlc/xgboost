@@ -117,7 +117,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             evals_result.update(dict([(key, {}) for key in evals_name]))
 
     if not early_stopping_rounds:
-        for i in range(num_boost_round):
+        for i in range(nboost, nboost + num_boost_round):
             bst.update(dtrain, i, obj)
             nboost += 1
             if len(evals) != 0:
@@ -189,7 +189,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         if isinstance(learning_rates, list) and len(learning_rates) != num_boost_round:
             raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
 
-        for i in range(num_boost_round):
+        for i in range(nboost, nboost + num_boost_round):
             if learning_rates is not None:
                 if isinstance(learning_rates, list):
                     bst.set_param({'eta': learning_rates[i]})
