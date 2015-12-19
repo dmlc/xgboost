@@ -233,7 +233,7 @@ public final class Booster {
      * @param predLeaf
      * @return predict results
      */
-    private synchronized float[][] pred(DMatrix data, boolean outPutMargin, long treeLimit, boolean predLeaf) throws XGBoostError {
+    private synchronized float[][] pred(DMatrix data, boolean outPutMargin, int treeLimit, boolean predLeaf) throws XGBoostError {
         int optionMask = 0;
         if(outPutMargin) {
             optionMask = 1;
@@ -284,7 +284,7 @@ public final class Booster {
      * @return predict result
      * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public float[][] predict(DMatrix data, boolean outPutMargin, long treeLimit) throws XGBoostError {
+    public float[][] predict(DMatrix data, boolean outPutMargin, int treeLimit) throws XGBoostError {
         return pred(data, outPutMargin, treeLimit, false);
     }
     
@@ -299,7 +299,7 @@ public final class Booster {
      * @return predict result
      * @throws org.dmlc.xgboost4j.util.XGBoostError
      */
-    public float[][] predict(DMatrix data , long treeLimit, boolean predLeaf) throws XGBoostError {
+    public float[][] predict(DMatrix data , int treeLimit, boolean predLeaf) throws XGBoostError {
         return pred(data, false, treeLimit, predLeaf);
     }
     

@@ -31,7 +31,7 @@ public class Initializer {
     static boolean initialized = false;
     public static final String nativePath = "./lib";
     public static final String nativeResourcePath = "/lib/";
-    public static final String[] libNames = new String[] {"xgboostjavawrapper"};
+    public static final String[] libNames = new String[] {"xgboost4j"};
     
     public static synchronized void InitXgboost() throws IOException {
         if(initialized == false) {

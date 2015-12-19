@@ -5,7 +5,7 @@ export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm
 export CFLAGS = -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops
 # java include path
-export JAVAINCFLAGS = -I${JAVA_HOME}/include -I${JAVA_HOME}/include/linux -I./java
+export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
 
 ifeq ($(OS), Windows_NT)
 	export CXX = g++ -m64
@@ -16,6 +16,7 @@ UNAME= $(shell uname)
 
 ifeq ($(UNAME), Linux)
 	LDFLAGS += -lrt
+	JAVAINCFLAGS += -I${JAVA_HOME}/include/linux
 endif
 
 ifeq ($(no_omp),1)
@@ -71,7 +72,7 @@ else
 endif
 
 # java lib
-JLIB = java/libxgboostjavawrapper.so
+JLIB = java/libxgboost4j.so
 
 # specify tensor path
 BIN = xgboost
@@ -103,8 +104,8 @@ main.o: src/xgboost_main.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner
 xgboost:  updater.o gbm.o io.o main.o $(LIBRABIT) $(LIBDMLC)
 wrapper/xgboost_wrapper.dll wrapper/libxgboostwrapper.so: wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o $(LIBRABIT) $(LIBDMLC)
 
-java: java/libxgboostjavawrapper.so
-java/libxgboostjavawrapper.so: java/xgboost4j_wrapper.cpp wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o $(LIBRABIT) $(LIBDMLC)
+java: java/libxgboost4j.so
+java/libxgboost4j.so: java/xgboost4j_wrapper.cpp wrapper/xgboost_wrapper.cpp src/utils/*.h src/*.h src/learner/*.hpp src/learner/*.h  updater.o gbm.o io.o $(LIBRABIT) $(LIBDMLC)
 
 # dependency on rabit
 subtree/rabit/lib/librabit.a: subtree/rabit/src/engine.cc

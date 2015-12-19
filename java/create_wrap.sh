@@ -9,7 +9,7 @@ if [ ! -d "$libPath" ]; then
   mkdir -p "$libPath"
 fi
 
-rm -f xgboost4j/src/main/resources/lib/libxgboostjavawrapper.so
-mv libxgboostjavawrapper.so xgboost4j/src/main/resources/lib/
+rm -f xgboost4j/src/main/resources/lib/libxgboost4j.so
+mv libxgboost4j.so xgboost4j/src/main/resources/lib/
 
 echo "complete"

@@ -173,7 +173,7 @@ JNIEXPORT jint JNICALL Java_org_dmlc_xgboost4j_wrapper_XgboostJNI_XGBoosterEvalO
  * Signature: (JJIJ[[F)I
  */
 JNIEXPORT jint JNICALL Java_org_dmlc_xgboost4j_wrapper_XgboostJNI_XGBoosterPredict
-  (JNIEnv *, jclass, jlong, jlong, jint, jlong, jobjectArray);
+  (JNIEnv *, jclass, jlong, jlong, jint, jint, jobjectArray);
 
 /*
  * Class:     org_dmlc_xgboost4j_wrapper_XgboostJNI
