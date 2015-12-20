@@ -19,6 +19,10 @@ ifeq ($(UNAME), Linux)
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/linux
 endif
 
+ifeq ($(UNAME), Darwin)
+	JAVAINCFLAGS += -I${JAVA_HOME}/include/darwin
+endif
+
 ifeq ($(no_omp),1)
 	CFLAGS += -DDISABLE_OPENMP
 else
