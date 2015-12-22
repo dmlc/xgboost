@@ -17,14 +17,14 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.immutable.HashMap
-import scala.collection.JavaConverters._
 
 import com.typesafe.config.Config
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
-import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
+
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
+import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 
 object XGBoost {
 
@@ -36,6 +36,7 @@ object XGBoost {
 
   def train(config: Config, trainingData: RDD[LabeledPoint], obj: ObjectiveTrait = null,
       eval: EvalTrait = null): XGBoostModel = {
+    import DataUtils._
     val sc = trainingData.sparkContext
     val dataUtilsBroadcast = sc.broadcast(DataUtils)
     val filePath = config.getString("inputPath") // configuration entry name to be fixed
@@ -45,8 +46,7 @@ object XGBoost {
     val xgBoostConfigMap = new HashMap[String, AnyRef]()
     val boosters = trainingData.repartition(numWorkers).mapPartitions {
       trainingSamples =>
-        val dataBatches = dataUtilsBroadcast.value.fromLabeledPointsToSparseMatrix(trainingSamples)
-        val dMatrix = new DMatrix(new JDMatrix(dataBatches, null))
+        val dMatrix = new DMatrix(new JDMatrix(trainingSamples, null))
         Iterator(SXGBoost.train(xgBoostConfigMap, dMatrix, round, watches = null, obj, eval))
     }.cache()
     // force the job

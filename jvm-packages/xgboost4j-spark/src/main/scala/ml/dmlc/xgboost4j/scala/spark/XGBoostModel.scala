@@ -16,21 +16,20 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import scala.collection.JavaConverters._
+import org.apache.spark.mllib.regression.{LabeledPoint => SparkLabeledPoint}
+import org.apache.spark.rdd.RDD
 
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, Booster}
-import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.rdd.RDD
 
 class XGBoostModel(booster: Booster) extends Serializable {
 
-  def predict(testSet: RDD[LabeledPoint]): RDD[Array[Array[Float]]] = {
+  def predict(testSet: RDD[SparkLabeledPoint]): RDD[Array[Array[Float]]] = {
+    import DataUtils._
     val broadcastBooster = testSet.sparkContext.broadcast(booster)
     val dataUtils = testSet.sparkContext.broadcast(DataUtils)
     testSet.mapPartitions { testSamples =>
-      val dataBatches = dataUtils.value.fromLabeledPointsToSparseMatrix(testSamples)
-      val dMatrix = new DMatrix(new JDMatrix(dataBatches, null))
+      val dMatrix = new DMatrix(new JDMatrix(testSamples, null))
       Iterator(broadcastBooster.value.predict(dMatrix))
     }
   }
