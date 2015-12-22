@@ -8,9 +8,7 @@
         <artifactId>xgboostjvm</artifactId>
         <version>0.1</version>
     </parent>
-    <artifactId>xgboost4j-demo</artifactId>
-    <version>0.1</version>
-    <packaging>jar</packaging>
+    <artifactId>xgboost4jspark</artifactId>
     <dependencies>
         <dependency>
             <groupId>ml.dmlc</groupId>
@@ -18,9 +16,9 @@
             <version>0.1</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>3.4</version>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-core_2.10</artifactId>
+            <version>1.6.0</version>
         </dependency>
     </dependencies>
 </project>

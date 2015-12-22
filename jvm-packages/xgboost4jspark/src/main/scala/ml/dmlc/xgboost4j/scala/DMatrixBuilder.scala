@@ -13,23 +13,20 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j;
 
-import java.io.Serializable;
-import java.util.List;
+package ml.dmlc.xgboost4j.scala
 
-/**
- * interface for customize Object function
- *
- * @author hzx
- */
-public interface IObjective extends Serializable {
-  /**
-   * user define objective function, return gradient and second order gradient
-   *
-   * @param predicts untransformed margin predicts
-   * @param dtrain   training data
-   * @return List with two float array, correspond to first order grad and second order grad
-   */
-  List<float[]> getGradient(float[][] predicts, DMatrix dtrain);
+import java.io.DataInputStream
+
+private[xgboost4j] object DMatrixBuilder extends Serializable {
+
+  def buildDMatrixfromBinaryData(inStream: DataInputStream): DMatrix = {
+    // TODO: currently it is random statement for making compiler happy
+    new DMatrix(new Array[Float](1), 1, 1)
+  }
+
+  def buildDMatrixfromBinaryData(binaryArray: Array[Byte]): DMatrix = {
+    // TODO: currently it is random statement for making compiler happy
+    new DMatrix(new Array[Float](1), 1, 1)
+  }
 }

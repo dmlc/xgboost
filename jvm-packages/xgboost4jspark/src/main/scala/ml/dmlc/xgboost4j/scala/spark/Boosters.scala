@@ -13,23 +13,35 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j;
 
-import java.io.Serializable;
-import java.util.List;
+package ml.dmlc.xgboost4j.scala.spark
 
-/**
- * interface for customize Object function
- *
- * @author hzx
- */
-public interface IObjective extends Serializable {
-  /**
-   * user define objective function, return gradient and second order gradient
-   *
-   * @param predicts untransformed margin predicts
-   * @param dtrain   training data
-   * @return List with two float array, correspond to first order grad and second order grad
-   */
-  List<float[]> getGradient(float[][] predicts, DMatrix dtrain);
+import ml.dmlc.xgboost4j.scala.Booster
+import org.apache.spark.rdd.RDD
+
+class Boosters(boosters: RDD[Booster]) {
+
+  def save(path: String): Unit = {
+
+  }
+
+  def chooseBestBooster(boosters: RDD[Booster]): Booster = {
+    // TODO:
+    null
+  }
+
 }
+
+object Boosters {
+
+  implicit def boosterRDDToBoosters(boosterRDD: RDD[Booster]): Boosters = {
+    new Boosters(boosterRDD)
+  }
+
+  // load booster from path
+  def apply(path: String): RDD[Booster] = {
+    // TODO
+    null
+  }
+}
+

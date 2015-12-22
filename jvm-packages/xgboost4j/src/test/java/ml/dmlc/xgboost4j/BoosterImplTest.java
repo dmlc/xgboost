@@ -130,6 +130,6 @@ public class BoosterImplTest {
     //do 5-fold cross validation
     int round = 2;
     int nfold = 5;
-    String[] evalHist = XGBoost.crossValiation(param, trainMat, round, nfold, null, null, null);
+    String[] evalHist = XGBoost.crossValidation(param, trainMat, round, nfold, null, null, null);
   }
 }

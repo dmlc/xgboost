@@ -143,7 +143,7 @@ public class XGBoost {
    * @return evaluation history
    * @throws XGBoostError native error
    */
-  public static String[] crossValiation(
+  public static String[] crossValidation(
       Map<String, Object> params,
       DMatrix data,
       int round,

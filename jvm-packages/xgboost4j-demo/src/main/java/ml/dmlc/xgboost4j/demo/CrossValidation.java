@@ -49,6 +49,7 @@ public class CrossValidation {
     //set additional eval_metrics
     String[] metrics = null;
 
-    String[] evalHist = XGBoost.crossValiation(params, trainMat, round, nfold, metrics, null, null);
+    String[] evalHist = XGBoost.crossValidation(params, trainMat, round, nfold, metrics, null,
+            null);
   }
 }
