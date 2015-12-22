@@ -73,8 +73,8 @@ fi
 
 if [ ${TASK} == "java_test" ]; then
     set -e
-    make java
-    cd java
+    make jvm-packages
+    cd jvm-packages
     ./create_wrap.sh
     cd xgboost4j
     mvn clean install -DskipTests=true
