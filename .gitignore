@@ -66,3 +66,10 @@ java/xgboost4j-demo/tmp/
 java/xgboost4j-demo/model/
 nb-configuration*
 dmlc-core
+.idea
+
+recommonmark/
+
+tags
+
+xgboost
