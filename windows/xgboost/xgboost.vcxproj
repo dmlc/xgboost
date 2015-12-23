@@ -25,6 +25,11 @@
     <ClCompile Include="..\..\src\tree\updater.cpp" />
     <ClCompile Include="..\..\src\xgboost_main.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\subtree\rabit\windows\rabit\rabit.vcxproj">
+      <Project>{d7b77d06-4f5f-4bd7-b81e-7cc8ebbe684f}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{19766C3F-7508-49D0-BAAC-0988FCC9970C}</ProjectGuid>
     <RootNamespace>xgboost</RootNamespace>
