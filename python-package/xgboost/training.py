@@ -337,7 +337,8 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
         if show_progress is None:
             show_progress = True
 
-    if (isinstance(show_progress, int) and trial % show_progress == 0) or (isinstance(show_progress, bool) and show_progress):
+    if (isinstance(show_progress, int) and show_progress > 0 and trial % show_progress == 0) or \
+            (isinstance(show_progress, bool) and show_progress):
         sys.stderr.write(msg + '\n')
         sys.stderr.flush()
 
@@ -432,10 +433,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
                 best_score = score
                 best_score_i = i
             elif i - best_score_i >= early_stopping_rounds:
-                sys.stderr.write("Stopping. Best iteration: {}\n".format(best_score_i))
                 results = results[:best_score_i+1]
+                sys.stderr.write("Stopping. Best iteration: {} (mean: {}, std: {})\n".
+                                 format(best_score_i, results[-1][0], results[-1][1]))
                 break
-
     if as_pandas:
         try:
             import pandas as pd
