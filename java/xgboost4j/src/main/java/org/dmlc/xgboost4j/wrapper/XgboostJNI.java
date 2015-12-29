@@ -41,10 +41,10 @@ public class XgboostJNI {
   public final static native int XGBoosterUpdateOneIter(long handle, int iter, long dtrain);
   public final static native int XGBoosterBoostOneIter(long handle, long dtrain, float[] grad, float[] hess);
   public final static native int XGBoosterEvalOneIter(long handle, int iter, long[] dmats, String[] evnames, String[] eval_info);
-  public final static native int XGBoosterPredict(long handle, long dmat, int option_mask, long ntree_limit, float[][] predicts);
+  public final static native int XGBoosterPredict(long handle, long dmat, int option_mask, int ntree_limit, float[][] predicts);
   public final static native int XGBoosterLoadModel(long handle, String fname);
   public final static native int XGBoosterSaveModel(long handle, String fname);
   public final static native int XGBoosterLoadModelFromBuffer(long handle, long buf, long len);
   public final static native int XGBoosterGetModelRaw(long handle, String[] out_string);
   public final static native int XGBoosterDumpModel(long handle, String fmap, int with_stats, String[][] out_strings);
-}
+}                                                                             

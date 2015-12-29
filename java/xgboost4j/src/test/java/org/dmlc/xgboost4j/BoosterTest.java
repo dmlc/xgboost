@@ -104,5 +104,39 @@ public class BoosterTest {
         IEvaluation eval = new EvalError();
         //error must be less than 0.1
         TestCase.assertTrue(eval.eval(predicts, testMat)<0.1f);
+        
+        //test dump model
+        
     }
+    
+    /**
+     * test cross valiation
+     * @throws XGBoostError 
+     */
+    @Test
+    public void testCV() throws XGBoostError {
+         //load train mat
+        DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+        
+        //set params
+        Map<String, Object> param= new HashMap<String, Object>() {
+            {
+                put("eta", 1.0);
+                put("max_depth", 3);
+                put("silent", 1);
+                put("nthread", 6);
+                put("objective", "binary:logistic");
+                put("gamma", 1.0);
+                put("eval_metric", "error");
+            }
+        };
+        
+        //do 5-fold cross validation
+        int round = 2;
+        int nfold = 5;
+        //set additional eval_metrics
+        String[] metrics = null;
+        
+        String[] evalHist = Trainer.crossValiation(param.entrySet(), trainMat, round, nfold, metrics, null, null);
+     }
 }

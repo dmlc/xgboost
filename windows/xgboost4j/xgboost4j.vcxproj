@@ -30,6 +30,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{20A0E4D7-20C7-4EC1-BDF6-0D469CE239AA}</ProjectGuid>
     <RootNamespace>xgboost_wrapper</RootNamespace>
+    <ProjectName>xgboost4j</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
