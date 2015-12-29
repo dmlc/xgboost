@@ -1,5 +1,5 @@
-export CC  = $(if $(shell which gcc-5),gcc-5,gcc)
-export CXX = $(if $(shell which g++-5),g++-5,g++)
+export CC  = $(if $(shell which gcc-5 2>/dev/null),gcc-5,gcc)
+export CXX = $(if $(shell which g++-5 2>/dev/null),g++-5,g++)
 
 export MPICXX = mpicxx
 export LDFLAGS= -pthread -lm
