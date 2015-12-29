@@ -4,25 +4,26 @@ import xgboost as xgb
 import unittest
 
 import matplotlib
+
 matplotlib.use('Agg')
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
-class TestBasic(unittest.TestCase):
 
+class TestBasic(unittest.TestCase):
     def test_basic(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic' }
+        param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
         # specify validations set to watch performance
-        watchlist  = [(dtest,'eval'), (dtrain,'train')]
+        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
         bst = xgb.train(param, dtrain, num_round, watchlist)
         # this is prediction
         preds = bst.predict(dtest)
         labels = dtest.get_label()
-        err = sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) / float(len(preds))
+        err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
         # error must be smaller than 10%
         assert err < 0.1
 
@@ -35,7 +36,7 @@ class TestBasic(unittest.TestCase):
         dtest2 = xgb.DMatrix('dtest.buffer')
         preds2 = bst2.predict(dtest2)
         # assert they are the same
-        assert np.sum(np.abs(preds2-preds)) == 0
+        assert np.sum(np.abs(preds2 - preds)) == 0
 
     def test_dmatrix_init(self):
         data = np.random.randn(5, 5)
@@ -62,6 +63,7 @@ class TestBasic(unittest.TestCase):
 
         def incorrect_type_set():
             dm.feature_types = list('abcde')
+
         self.assertRaises(ValueError, incorrect_type_set)
 
         # reset
@@ -83,10 +85,10 @@ class TestBasic(unittest.TestCase):
             assert dm.num_row() == 100
             assert dm.num_col() == 5
 
-            params={'objective': 'multi:softprob',
-                    'eval_metric': 'mlogloss',
-                    'eta': 0.3,
-                    'num_class': 3}
+            params = {'objective': 'multi:softprob',
+                      'eval_metric': 'mlogloss',
+                      'eta': 0.3,
+                      'num_class': 3}
 
             bst = xgb.train(params, dm, num_boost_round=10)
             scores = bst.get_fscore()
@@ -143,9 +145,9 @@ class TestBasic(unittest.TestCase):
         # 1  2    0    1    0
         # 2  3    0    0    1
         result, _, _ = xgb.core._maybe_pandas_data(dummies, None, None)
-        exp = np.array([[ 1.,  1.,  0.,  0.],
-                        [ 2.,  0.,  1.,  0.],
-                        [ 3.,  0.,  0.,  1.]])
+        exp = np.array([[1., 1., 0., 0.],
+                        [2., 0., 1., 0.],
+                        [3., 0., 0., 1.]])
         np.testing.assert_array_equal(result, exp)
 
         dm = xgb.DMatrix(dummies)
@@ -180,7 +182,6 @@ class TestBasic(unittest.TestCase):
         assert dm.num_row() == 3
         assert dm.num_col() == 2
 
-
     def test_load_file_invalid(self):
 
         self.assertRaises(ValueError, xgb.Booster,
@@ -213,7 +214,7 @@ class TestBasic(unittest.TestCase):
 
     def test_cv(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic' }
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
 
         import pandas as pd
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10)
@@ -241,6 +242,47 @@ class TestBasic(unittest.TestCase):
         assert isinstance(cv, np.ndarray)
         assert cv.shape == (10, 4)
 
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic', 'eval_metric': 'auc'}
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True)
+        assert 'eval_metric' in params
+        assert 'auc' in cv.columns[0]
+
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic', 'eval_metric': ['auc']}
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True)
+        assert 'eval_metric' in params
+        assert 'auc' in cv.columns[0]
+
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic', 'eval_metric': ['auc']}
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, early_stopping_rounds=1)
+        assert 'eval_metric' in params
+        assert 'auc' in cv.columns[0]
+        assert cv.shape[0] < 10
+
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics='auc')
+        assert 'auc' in cv.columns[0]
+
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=['auc'])
+        assert 'auc' in cv.columns[0]
+
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic', 'eval_metric': ['auc']}
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics='error')
+        assert 'eval_metric' in params
+        assert 'auc' not in cv.columns[0]
+        assert 'error' in cv.columns[0]
+
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=['error'])
+        assert 'eval_metric' in params
+        assert 'auc' not in cv.columns[0]
+        assert 'error' in cv.columns[0]
+
+        params = list(params.items())
+        cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=True, metrics=['error'])
+        assert isinstance(params, list)
+        assert 'auc' not in cv.columns[0]
+        assert 'error' in cv.columns[0]
+
     def test_plotting(self):
         bst2 = xgb.Booster(model_file='xgb.model')
         # plotting
@@ -263,7 +305,7 @@ class TestBasic(unittest.TestCase):
         assert ax.get_ylabel() == 'y'
         assert len(ax.patches) == 4
         for p in ax.patches:
-            assert p.get_facecolor() == (1.0, 0, 0, 1.0) # red
+            assert p.get_facecolor() == (1.0, 0, 0, 1.0)  # red
 
         ax = xgb.plot_importance(bst2, color=['r', 'r', 'b', 'b'],
                                  title=None, xlabel=None, ylabel=None)
@@ -272,10 +314,10 @@ class TestBasic(unittest.TestCase):
         assert ax.get_xlabel() == ''
         assert ax.get_ylabel() == ''
         assert len(ax.patches) == 4
-        assert ax.patches[0].get_facecolor() == (1.0, 0, 0, 1.0) # red
-        assert ax.patches[1].get_facecolor() == (1.0, 0, 0, 1.0) # red
-        assert ax.patches[2].get_facecolor() == (0, 0, 1.0, 1.0) # blue
-        assert ax.patches[3].get_facecolor() == (0, 0, 1.0, 1.0) # blue
+        assert ax.patches[0].get_facecolor() == (1.0, 0, 0, 1.0)  # red
+        assert ax.patches[1].get_facecolor() == (1.0, 0, 0, 1.0)  # red
+        assert ax.patches[2].get_facecolor() == (0, 0, 1.0, 1.0)  # blue
+        assert ax.patches[3].get_facecolor() == (0, 0, 1.0, 1.0)  # blue
 
         g = xgb.to_graphviz(bst2, num_trees=0)
         assert isinstance(g, Digraph)
@@ -285,7 +327,7 @@ class TestBasic(unittest.TestCase):
 
     def test_importance_plot_lim(self):
         np.random.seed(1)
-        dm = xgb.DMatrix(np.random.randn(100, 100), label=[0, 1]*50)
+        dm = xgb.DMatrix(np.random.randn(100, 100), label=[0, 1] * 50)
         bst = xgb.train({}, dm)
         assert len(bst.get_fscore()) == 71
         ax = xgb.plot_importance(bst)
