@@ -33,7 +33,7 @@ class FileStream : public ISeekStream {
     return std::fread(ptr, size, 1, fp);
   }
   virtual void Write(const void *ptr, size_t size) {
-    std::fwrite(ptr, size, 1, fp);
+    Check(std::fwrite(ptr, size, 1, fp) == 1, "FileStream::Write: fwrite error!");
   }
   virtual void Seek(size_t pos) {
     std::fseek(fp, static_cast<long>(pos), SEEK_SET); // NOLINT(*)

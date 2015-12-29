@@ -117,7 +117,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             evals_result.update(dict([(key, {}) for key in evals_name]))
 
     if not early_stopping_rounds:
-        for i in range(num_boost_round):
+        for i in range(nboost, nboost + num_boost_round):
             bst.update(dtrain, i, obj)
             nboost += 1
             if len(evals) != 0:
@@ -189,7 +189,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         if isinstance(learning_rates, list) and len(learning_rates) != num_boost_round:
             raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
 
-        for i in range(num_boost_round):
+        for i in range(nboost, nboost + num_boost_round):
             if learning_rates is not None:
                 if isinstance(learning_rates, list):
                     bst.set_param({'eta': learning_rates[i]})
@@ -337,7 +337,8 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
         if show_progress is None:
             show_progress = True
 
-    if (isinstance(show_progress, int) and trial % show_progress == 0) or (isinstance(show_progress, bool) and show_progress):
+    if (isinstance(show_progress, int) and show_progress > 0 and trial % show_progress == 0) or \
+            (isinstance(show_progress, bool) and show_progress):
         sys.stderr.write(msg + '\n')
         sys.stderr.flush()
 
@@ -432,10 +433,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
                 best_score = score
                 best_score_i = i
             elif i - best_score_i >= early_stopping_rounds:
-                sys.stderr.write("Stopping. Best iteration: {}\n".format(best_score_i))
                 results = results[:best_score_i+1]
+                sys.stderr.write("Stopping. Best iteration: {} (mean: {}, std: {})\n".
+                                 format(best_score_i, results[-1][0], results[-1][1]))
                 break
-
     if as_pandas:
         try:
             import pandas as pd
