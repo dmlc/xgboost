@@ -1,13 +1,14 @@
 echo "build java wrapper"
 dylib="so"
-omp="0"
+dis_omp=0
 if [ $(uname) == "Darwin" ]; then
   export JAVA_HOME=$(/usr/libexec/java_home)
   dylib="dylib"
-  omp="1"
+  #change this to 0 if your compiler support openmp
+  dis_omp=1
 fi
 cd ..
-make java no_omp=${omp}
+make java no_omp=${dis_omp}
 cd java
 echo "move native lib"
 
