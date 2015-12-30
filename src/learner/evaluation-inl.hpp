@@ -391,7 +391,7 @@ struct EvalAuc : public IEvaluator {
       #pragma omp for schedule(static)
       for (bst_omp_uint k = 0; k < ngroup; ++k) {
         rec.clear();
-        // add a dummy positive record and a dummy negative record, 
+        // add a dummy positive record and a dummy negative record,
         // in case that the dataset only contains pos or neg samples
         rec.push_back(std::make_pair(0.0, UINT_MAX));
         rec.push_back(std::make_pair(1.0, UINT_MAX));
@@ -408,7 +408,7 @@ struct EvalAuc : public IEvaluator {
             // for dummy samples
             wt = 1.0;
             ctr = rec[j].first;
-          } else { 
+          } else {
             // for real samples
             wt = info.GetWeight(rec[j].second);
             ctr = info.labels[rec[j].second];
