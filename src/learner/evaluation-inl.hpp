@@ -391,6 +391,10 @@ struct EvalAuc : public IEvaluator {
       #pragma omp for schedule(static)
       for (bst_omp_uint k = 0; k < ngroup; ++k) {
         rec.clear();
+        // add a dummy positive record and a dummy negative record, 
+        // in case that the dataset only contains pos or neg samples
+        rec.push_back(std::make_pair(0.0, UINT_MAX));
+        rec.push_back(std::make_pair(1.0, UINT_MAX));
         for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
           rec.push_back(std::make_pair(preds[j], j));
         }
@@ -399,8 +403,16 @@ struct EvalAuc : public IEvaluator {
         double sum_pospair = 0.0;
         double sum_npos = 0.0, sum_nneg = 0.0, buf_pos = 0.0, buf_neg = 0.0;
         for (size_t j = 0; j < rec.size(); ++j) {
-          const float wt = info.GetWeight(rec[j].second);
-          const float ctr = info.labels[rec[j].second];
+          float wt, ctr;
+          if (rec[j].second == UINT_MAX) {
+            // for dummy samples
+            wt = 1.0;
+            ctr = rec[j].first;
+          } else { 
+            // for real samples
+            wt = info.GetWeight(rec[j].second);
+            ctr = info.labels[rec[j].second];
+          }
           // keep bucketing predictions in same bucket
           if (j != 0 && rec[j].first != rec[j - 1].first) {
             sum_pospair += buf_neg * (sum_npos + buf_pos *0.5);
@@ -414,9 +426,6 @@ struct EvalAuc : public IEvaluator {
         sum_pospair += buf_neg * (sum_npos + buf_pos *0.5);
         sum_npos += buf_pos;
         sum_nneg += buf_neg;
-        // check weird conditions
-        utils::Check(sum_npos > 0.0 && sum_nneg > 0.0,
-                     "AUC: the dataset only contains pos or neg samples");
         // this is the AUC
         sum_auc += sum_pospair / (sum_npos*sum_nneg);
       }
