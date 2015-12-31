@@ -10,6 +10,7 @@
 #include <dmlc/base.h>
 #include <dmlc/data.h>
 #include <memory>
+#include <vector>
 #include "./base.h"
 
 namespace xgboost {
@@ -261,7 +262,7 @@ class DMatrix {
    * \return a Created DMatrix.
    */
   static DMatrix* Create(std::unique_ptr<DataSource>&& source,
-                         const char* cache_prefix=nullptr);
+                         const char* cache_prefix = nullptr);
   /*!
    * \brief Create a DMatrix by loaidng data from parser.
    *  Parser can later be deleted after the DMatrix i created.
@@ -275,7 +276,7 @@ class DMatrix {
    * \return A created DMatrix.
    */
   static DMatrix* Create(dmlc::Parser<uint32_t>* parser,
-                         const char* cache_prefix=nullptr);
+                         const char* cache_prefix = nullptr);
 };
 
 }  // namespace xgboost

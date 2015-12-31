@@ -7,6 +7,7 @@
 #define XGBOOST_BASE_H_
 
 #include <dmlc/base.h>
+#include <dmlc/omp.h>
 
 namespace xgboost {
 /*!
@@ -17,9 +18,22 @@ typedef uint32_t bst_uint;
 /*! \brief float type, used for storing statistics */
 typedef float bst_float;
 
+/*! \brief gradient statistics pair usually needed in gradient boosting */
+struct bst_gpair {
+  /*! \brief gradient statistics */
+  bst_float grad;
+  /*! \brief second order gradient statistics */
+  bst_float hess;
+  bst_gpair() {}
+  bst_gpair(bst_float grad, bst_float hess) : grad(grad), hess(hess) {}
+};
+
 const float rt_eps = 1e-5f;
 // min gap between feature values to allow a split happen
 const float rt_2eps = rt_eps * 2.0f;
+
+typedef dmlc::omp_ulong omp_ulong;
+typedef dmlc::omp_uint bst_omp_uint;
 
 /*!
  * \brief define compatible keywords in g++
