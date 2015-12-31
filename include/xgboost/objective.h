@@ -70,7 +70,7 @@ class ObjFunction {
 };
 
 /*!
- * \brief Registry entry for DataIterator factory functions.
+ * \brief Registry entry for objective factory functions.
  */
 struct ObjFunctionReg
     : public dmlc::FunctionRegEntryBase<ObjFunctionReg,
@@ -78,7 +78,7 @@ struct ObjFunctionReg
 };
 
 /*!
- * \brief Macro to register objective
+ * \brief Macro to register objective function.
  *
  * \code
  * // example of registering a objective
