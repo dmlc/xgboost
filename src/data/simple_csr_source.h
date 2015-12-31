@@ -5,13 +5,14 @@
  *  This is an in-memory data structure that holds the data in row oriented format.
  * \author Tianqi Chen
  */
-#ifndef XGBOOST_DATA_SIMPLE_CSR_ROW_ITER_H_
-#define XGBOOST_DATA_SIMPLE_CSR_ROW_ITER_H_
+#ifndef XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
+#define XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
 
-#include <vector>
-#include <algorithm>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
+#include <vector>
+#include <algorithm>
+
 
 namespace xgboost {
 /*! \brief namespace of internal data structures*/
@@ -78,4 +79,4 @@ class SimpleCSRSource : public DataSource {
 };
 }  // namespace data
 }  // namespace xgboost
-#endif  // XGBOOST_DATA_SIMPLE_CSR_ROW_ITER_H_
+#endif  // XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_

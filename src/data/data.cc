@@ -2,8 +2,8 @@
  * Copyright 2015 by Contributors
  * \file data.cc
  */
-#include <cstring>
 #include <xgboost/data.h>
+#include <cstring>
 
 namespace xgboost {
 // implementation of inline functions
@@ -35,7 +35,8 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   CHECK_EQ(version, kVersion) << "MetaInfo: invalid format";
   CHECK(fi->Read(&num_row, sizeof(num_row)) == sizeof(num_row)) << "MetaInfo: invalid format";
   CHECK(fi->Read(&num_col, sizeof(num_col)) == sizeof(num_col)) << "MetaInfo: invalid format";
-  CHECK(fi->Read(&num_nonzero, sizeof(num_nonzero)) == sizeof(num_nonzero)) << "MetaInfo: invalid format";
+  CHECK(fi->Read(&num_nonzero, sizeof(num_nonzero)) == sizeof(num_nonzero))
+      << "MetaInfo: invalid format";
   CHECK(fi->Read(&labels)) <<  "MetaInfo: invalid format";
   CHECK(fi->Read(&group_ptr)) << "MetaInfo: invalid format";
   CHECK(fi->Read(&weights)) << "MetaInfo: invalid format";
@@ -45,19 +46,19 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
 
 // macro to dispatch according to specified pointer types
 #define DISPATCH_CONST_PTR(dtype, old_ptr, cast_ptr, proc)              \
-  switch(dtype) {                                                       \
-  case kFloat32: {                                                      \
-  const float* cast_ptr = reinterpret_cast<const float*>(old_ptr); proc; break; \
-  }                                                                     \
-  case kDouble: {                                                       \
-    const double* cast_ptr = reinterpret_cast<const double*>(old_ptr); proc; break; \
-  }                                                                     \
-  case kUInt32: {                                                       \
-    const uint32_t* cast_ptr = reinterpret_cast<const uint32_t*>(old_ptr); proc; break; \
-  }                                                                     \
-  case kUInt64: {                                                       \
-    const uint64_t* cast_ptr = reinterpret_cast<const uint64_t*>(old_ptr); proc; break; \
-  }                                                                     \
+  switch (dtype) {                                                      \
+    case kFloat32: {                                                    \
+      const float* cast_ptr = reinterpret_cast<const float*>(old_ptr); proc; break; \
+    }                                                                   \
+    case kDouble: {                                                     \
+      const double* cast_ptr = reinterpret_cast<const double*>(old_ptr); proc; break; \
+    }                                                                   \
+    case kUInt32: {                                                     \
+      const uint32_t* cast_ptr = reinterpret_cast<const uint32_t*>(old_ptr); proc; break; \
+    }                                                                   \
+    case kUInt64: {                                                     \
+      const uint64_t* cast_ptr = reinterpret_cast<const uint64_t*>(old_ptr); proc; break; \
+    }                                                                   \
     default: LOG(FATAL) << "Unknown data type" << dtype;                \
   }                                                                     \
 
