@@ -26,7 +26,6 @@ struct LambdaRankParam : public dmlc::Parameter<LambdaRankParam> {
     DMLC_DECLARE_FIELD(fix_list_weight).set_lower_bound(0.0f).set_default(0.0f)
         .describe("Normalize the weight of each list by this value,"
                   " if equals 0, no effect will happen");
-
   }
 };
 
@@ -40,9 +39,8 @@ class LambdaRankObj : public ObjFunction {
                    const MetaInfo& info,
                    int iter,
                    std::vector<bst_gpair>* out_gpair) override {
-    CHECK_EQ(preds.size(),info.labels.size()) << "label size predict size not match";
+    CHECK_EQ(preds.size(), info.labels.size()) << "label size predict size not match";
     std::vector<bst_gpair>& gpair = *out_gpair;
-
     gpair.resize(preds.size());
     // quick consistency when group is not available
     std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels.size());
