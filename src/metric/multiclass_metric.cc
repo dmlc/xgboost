@@ -5,8 +5,8 @@
  * \author Kailong Chen, Tianqi Chen
  */
 #include <xgboost/metric.h>
-#include <xgboost/sync.h>
 #include <cmath>
+#include "../common/sync.h"
 #include "../common/math.h"
 
 namespace xgboost {
