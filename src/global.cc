@@ -5,11 +5,12 @@
  */
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
-#include <xgboost/tree_model.h>
+#include <xgboost/tree_updater.h>
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
 DMLC_REGISTRY_ENABLE(::xgboost::MetricReg);
+DMLC_REGISTRY_ENABLE(::xgboost::TreeUpdaterReg);
 }  // namespace dmlc
 
 namespace xgboost {
@@ -42,8 +43,14 @@ Metric* Metric::Create(const char* name) {
   }
 }
 
-void test() {
-  RegTree tree;
+// implement factory functions
+TreeUpdater* TreeUpdater::Create(const char* name) {
+  auto *e = ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->Find(name);
+  if (e == nullptr) {
+    LOG(FATAL) << "Unknown tree updater " << name;
+  }
+  return (e->body)();
 }
+
 }  // namespace xgboost
 

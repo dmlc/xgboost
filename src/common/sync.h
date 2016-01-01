@@ -5,8 +5,8 @@
  *        redirects to rabit header
  * \author Tianqi Chen
  */
-#ifndef XGBOOST_SYNC_H_
-#define XGBOOST_SYNC_H_
+#ifndef XGBOOST_COMMON_SYNC_H_
+#define XGBOOST_COMMON_SYNC_H_
 
 #include <rabit.h>
 
