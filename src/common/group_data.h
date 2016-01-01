@@ -11,13 +11,13 @@
  * The major algorithm is a two pass linear scan algorithm that requires two pass scan over the data
  * \author Tianqi Chen
  */
-#ifndef XGBOOST_UTILS_GROUP_DATA_H_
-#define XGBOOST_UTILS_GROUP_DATA_H_
+#ifndef XGBOOST_COMMON_GROUP_DATA_H_
+#define XGBOOST_COMMON_GROUP_DATA_H_
 
 #include <vector>
 
 namespace xgboost {
-namespace utils {
+namespace common {
 /*!
  * \brief multi-thread version of group builder
  * \tparam ValueType type of entries in the sparse matrix
@@ -105,10 +105,10 @@ struct ParallelGroupBuilder {
   /*! \brief index of nonzero entries in each row */
   std::vector<ValueType> &data;
   /*! \brief thread local data structure */
-  std::vector< std::vector<SizeType> > &thread_rptr;
+  std::vector<std::vector<SizeType> > &thread_rptr;
   /*! \brief local temp thread ptr, use this if not specified by the constructor */
-  std::vector< std::vector<SizeType> > tmp_thread_rptr;
+  std::vector<std::vector<SizeType> > tmp_thread_rptr;
 };
-}  // namespace utils
+}  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_UTILS_GROUP_DATA_H_
