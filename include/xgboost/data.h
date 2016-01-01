@@ -201,6 +201,8 @@ class DMatrix {
  public:
   /*! \brief meta information of the dataset */
   virtual MetaInfo& info() = 0;
+  /*! \brief meta information of the dataset */
+  virtual const MetaInfo& info() const = 0;
   /*!
    * \brief get the row iterator, reset to beginning position
    * \note Only either RowIterator or  column Iterator can be active.

@@ -47,4 +47,3 @@ XGBOOST_REGISTER_TREE_UPDATER(TreeSyncher, "sync")
   });
 }  // namespace tree
 }  // namespace xgboost
-

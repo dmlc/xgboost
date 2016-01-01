@@ -6,6 +6,7 @@
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
 #include <xgboost/tree_updater.h>
+#include "./common/random.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
@@ -52,5 +53,11 @@ TreeUpdater* TreeUpdater::Create(const char* name) {
   return (e->body)();
 }
 
+namespace common {
+RandomEngine& GlobalRandom() {
+  static RandomEngine inst;
+  return inst;
+}
+}
 }  // namespace xgboost
 
