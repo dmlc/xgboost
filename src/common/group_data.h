@@ -111,4 +111,4 @@ struct ParallelGroupBuilder {
 };
 }  // namespace common
 }  // namespace xgboost
-#endif  // XGBOOST_UTILS_GROUP_DATA_H_
+#endif  // XGBOOST_COMMON_GROUP_DATA_H_
