@@ -5,6 +5,7 @@
  */
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
+#include <xgboost/tree_model.h>
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
@@ -39,6 +40,10 @@ Metric* Metric::Create(const char* name) {
     }
     return (e->body)(buf.substr(pos + 1, buf.length()).c_str());
   }
+}
+
+void test() {
+  RegTree tree;
 }
 }  // namespace xgboost
 
