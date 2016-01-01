@@ -5,11 +5,15 @@
  */
 #include <xgboost/tree_model.h>
 #include <sstream>
+#include "./param.h"
 
 namespace xgboost {
 // register tree parameter
 DMLC_REGISTER_PARAMETER(TreeParam);
 
+namespace tree {
+DMLC_REGISTER_PARAMETER(TrainParam);
+}
 // internal function to dump regression tree to text
 void DumpRegTree2Text(std::stringstream& fo,  // NOLINT(*)
                       const RegTree& tree,

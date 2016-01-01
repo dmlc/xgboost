@@ -5,15 +5,14 @@
  *  NOTE: bitmap is only threadsafe per word access, remember this when using bitmap
  * \author Tianqi Chen
  */
-#ifndef XGBOOST_UTILS_BITMAP_H_
-#define XGBOOST_UTILS_BITMAP_H_
+#ifndef XGBOOST_COMMON_BITMAP_H_
+#define XGBOOST_COMMON_BITMAP_H_
 
 #include <vector>
-#include "./utils.h"
-#include "./omp.h"
+#include <dmlc/omp.h>
 
 namespace xgboost {
-namespace utils {
+namespace common {
 /*! \brief bit map that contains set of bit indicators */
 struct BitMap {
   /*! \brief internal data structure */
@@ -40,7 +39,7 @@ struct BitMap {
     data[i >> 5] |= (1 << (i & 31U));
   }
   /*! \brief initialize the value of bit map from vector of bool*/
-  inline void InitFromBool(const std::vector<int> &vec) {
+  inline void InitFromBool(const std::vector<int>& vec) {
     this->Resize(vec.size());
     // parallel over the full cases
     bst_omp_uint nsize = static_cast<bst_omp_uint>(vec.size() / 32);
@@ -59,10 +58,10 @@ struct BitMap {
     }
   }
   /*! \brief clear the bitmap, set all places to false */
-  inline void Clear(void) {
+  inline void Clear() {
     std::fill(data.begin(), data.end(), 0U);
   }
 };
-}  // namespace utils
+}  // namespace common
 }  // namespace xgboost
-#endif  // XGBOOST_UTILS_BITMAP_H_
+#endif  // XGBOOST_COMMON_BITMAP_H_

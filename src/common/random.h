@@ -19,7 +19,7 @@ typedef std::mt19937 RandomEngine;
  * \brief global singleton of a random engine.
  *  Only use this engine when necessary, not thread-safe.
  */
-static RandomEngine* GlobalRandom();
+RandomEngine& GlobalRandom(); // NOLINT(*)
 
 }  // namespace common
 }  // namespace xgboost
