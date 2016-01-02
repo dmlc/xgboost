@@ -10,4 +10,4 @@
 
 #include <rabit.h>
 
-#endif  // XGBOOST_SYNC_H_
+#endif  // XGBOOST_COMMON_SYNC_H_

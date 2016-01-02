@@ -55,7 +55,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   // number of threads to be used for tree construction,
   // if OpenMP is enabled, if equals 0, use system default
   int nthread;
-
+  // whether to not print info during training.
+  bool silent;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(eta).set_lower_bound(0.0f).set_default(0.3f)
@@ -98,6 +99,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe("EXP Param: Cache aware optimization.");
     DMLC_DECLARE_FIELD(nthread).set_default(0)
         .describe("Number of threads used for training.");
+    DMLC_DECLARE_FIELD(silent).set_default(false)
+        .describe("Not print information during trainig.");
   }
 
   // calculate the cost of loss function

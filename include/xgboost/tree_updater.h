@@ -11,6 +11,7 @@
 #include <dmlc/registry.h>
 #include <vector>
 #include <utility>
+#include <string>
 #include "./base.h"
 #include "./data.h"
 #include "./tree_model.h"
