@@ -23,13 +23,13 @@ class HistMaker: public BaseMaker {
               const std::vector<RegTree*> &trees) override {
     TStats::CheckInfo(p_fmat->info());
     // rescale learning rate according to size of trees
-    float lr = param.eta;
-    param.eta = lr / trees.size();
+    float lr = param.learning_rate;
+    param.learning_rate = lr / trees.size();
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
       this->Update(gpair, p_fmat, trees[i]);
     }
-    param.eta = lr;
+    param.learning_rate = lr;
   }
 
  protected:
@@ -139,7 +139,7 @@ class HistMaker: public BaseMaker {
     }
     for (size_t i = 0; i < qexpand.size(); ++i) {
       const int nid = qexpand[i];
-      (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.eta);
+      (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
     }
   }
   // this function does two jobs
@@ -246,7 +246,7 @@ class HistMaker: public BaseMaker {
         this->SetStats(p_tree, (*p_tree)[nid].cleft(), left_sum[wid]);
         this->SetStats(p_tree, (*p_tree)[nid].cright(), right_sum);
       } else {
-        (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.eta);
+        (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
       }
     }
   }

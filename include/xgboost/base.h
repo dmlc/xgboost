@@ -9,6 +9,14 @@
 #include <dmlc/base.h>
 #include <dmlc/omp.h>
 
+/*!
+ * \brief string flag for R library, to leave hooks when needed.
+ */
+#ifndef XGBOOST_STRICT_R_MODE
+#define XGBOOST_STRICT_R_MODE 0
+#endif
+
+/*! \brief namespace of xgboo st*/
 namespace xgboost {
 /*!
  * \brief unsigned interger type used in boost,
@@ -28,11 +36,14 @@ struct bst_gpair {
   bst_gpair(bst_float grad, bst_float hess) : grad(grad), hess(hess) {}
 };
 
+/*! \brief small eps gap for minimum split decision. */
 const float rt_eps = 1e-5f;
-// min gap between feature values to allow a split happen
+/*! \brief min gap between feature values to allow a split happen */
 const float rt_2eps = rt_eps * 2.0f;
 
+/*! \brief define unsigned long for openmp loop */
 typedef dmlc::omp_ulong omp_ulong;
+/*! \brief define unsigned int for openmp loop */
 typedef dmlc::omp_uint bst_omp_uint;
 
 /*!

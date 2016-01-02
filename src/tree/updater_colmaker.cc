@@ -20,7 +20,7 @@ template<typename TStats>
 class ColMaker: public TreeUpdater {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param.Init(args);
+    param.InitAllowUnknown(args);
   }
 
   void Update(const std::vector<bst_gpair> &gpair,
@@ -28,14 +28,14 @@ class ColMaker: public TreeUpdater {
               const std::vector<RegTree*> &trees) override {
     TStats::CheckInfo(dmat->info());
     // rescale learning rate according to size of trees
-    float lr = param.eta;
-    param.eta = lr / trees.size();
+    float lr = param.learning_rate;
+    param.learning_rate = lr / trees.size();
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
       Builder builder(param);
       builder.Update(gpair, dmat, trees[i]);
     }
-    param.eta = lr;
+    param.learning_rate = lr;
   }
 
  protected:
@@ -95,7 +95,7 @@ class ColMaker: public TreeUpdater {
       // set all the rest expanding nodes to leaf
       for (size_t i = 0; i < qexpand_.size(); ++i) {
         const int nid = qexpand_[i];
-        (*p_tree)[nid].set_leaf(snode[nid].weight * param.eta);
+        (*p_tree)[nid].set_leaf(snode[nid].weight * param.learning_rate);
       }
       // remember auxiliary statistics in the tree node
       for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
@@ -606,7 +606,7 @@ class ColMaker: public TreeUpdater {
           (*p_tree)[(*p_tree)[nid].cleft()].set_leaf(0.0f, 0);
           (*p_tree)[(*p_tree)[nid].cright()].set_leaf(0.0f, 0);
         } else {
-          (*p_tree)[nid].set_leaf(e.weight * param.eta);
+          (*p_tree)[nid].set_leaf(e.weight * param.learning_rate);
         }
       }
     }
@@ -732,7 +732,7 @@ class DistColMaker : public ColMaker<TStats> {
     pruner.reset(TreeUpdater::Create("prune"));
   }
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param.Init(args);
+    param.InitAllowUnknown(args);
     pruner->Init(args);
   }
   void Update(const std::vector<bst_gpair> &gpair,

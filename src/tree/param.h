@@ -16,9 +16,9 @@ namespace tree {
 /*! \brief training parameters for regression tree */
 struct TrainParam : public dmlc::Parameter<TrainParam> {
   // learning step size for a time
-  float eta;
+  float learning_rate;
   // minimum loss change required for a split
-  float gamma;
+  float min_split_loss;
   // maximum depth of a tree
   int max_depth;
   //----- the rest parameters are less important ----
@@ -59,9 +59,9 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool silent;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
-    DMLC_DECLARE_FIELD(eta).set_lower_bound(0.0f).set_default(0.3f)
+    DMLC_DECLARE_FIELD(learning_rate).set_lower_bound(0.0f).set_default(0.3f)
         .describe("Learning rate(step size) of update.");
-    DMLC_DECLARE_FIELD(gamma).set_lower_bound(0.0f).set_default(0.0f)
+    DMLC_DECLARE_FIELD(min_split_loss).set_lower_bound(0.0f).set_default(0.0f)
         .describe("Minimum loss reduction required to make a further partition.");
     DMLC_DECLARE_FIELD(max_depth).set_lower_bound(0).set_default(6)
         .describe("Maximum depth of the tree.");
@@ -101,6 +101,11 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe("Number of threads used for training.");
     DMLC_DECLARE_FIELD(silent).set_default(false)
         .describe("Not print information during trainig.");
+    // add alias of parameters
+    DMLC_DECLARE_ALIAS(reg_lambda, lambda);
+    DMLC_DECLARE_ALIAS(reg_alpha, alpha);
+    DMLC_DECLARE_ALIAS(min_split_loss, gamma);
+    DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
 
   // calculate the cost of loss function
@@ -159,7 +164,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   }
   /*! \brief given the loss change, whether we need to invoke pruning */
   inline bool need_prune(double loss_chg, int depth) const {
-    return loss_chg < this->gamma;
+    return loss_chg < this->min_split_loss;
   }
   /*! \brief whether we can split with current hessian */
   inline bool cannot_split(double sum_hess, int depth) const {

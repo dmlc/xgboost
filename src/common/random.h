@@ -12,7 +12,7 @@
 namespace xgboost {
 namespace common {
 /*!
- * \brief Random Engine
+ * \brief Define mt19937 as default type Random Engine.
  */
 typedef std::mt19937 RandomEngine;
 /*!

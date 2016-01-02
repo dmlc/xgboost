@@ -70,7 +70,7 @@ struct TreeUpdaterReg
  *
  * \code
  * // example of registering a objective ndcg@k
- * XGBOOST_REGISTER_METRIC(ColMaker, "colmaker")
+ * XGBOOST_REGISTER_TREE_UPDATER(ColMaker, "colmaker")
  * .describe("Column based tree maker.")
  * .set_body([]() {
  *     return new ColMaker<TStats>();
@@ -78,7 +78,8 @@ struct TreeUpdaterReg
  * \endcode
  */
 #define XGBOOST_REGISTER_TREE_UPDATER(UniqueId, Name)                   \
-  static ::xgboost::TreeUpdaterReg & __make_ ## TreeUpdaterReg ## _ ## UniqueId ## __ = \
+  static ::xgboost::TreeUpdaterReg& __make_ ## TreeUpdaterReg ## _ ## UniqueId ## __ = \
       ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->__REGISTER__(#Name)
+
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_UPDATER_H_

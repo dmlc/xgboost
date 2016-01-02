@@ -1,52 +1,58 @@
 /*!
  * Copyright by Contributors
  * \file gbm.h
- * \brief interface of gradient booster, that learns through gradient statistics
+ * \brief Interface of gradient booster,
+ *  that learns through gradient statistics.
  * \author Tianqi Chen
  */
-#ifndef XGBOOST_GBM_GBM_H_
-#define XGBOOST_GBM_GBM_H_
+#ifndef XGBOOST_GBM_H_
+#define XGBOOST_GBM_H_
 
+#include <dmlc/registry.h>
 #include <vector>
+#include <utility>
 #include <string>
-#include "../data.h"
-#include "../utils/io.h"
-#include "../utils/fmap.h"
+#include <functional>
+#include "./base.h"
+#include "./data.h"
+#include "./feature_map.h"
 
 namespace xgboost {
-/*! \brief namespace for gradient booster */
-namespace gbm {
 /*!
- * \brief interface of gradient boosting model
+ * \brief interface of gradient boosting model.
  */
-class IGradBooster {
+class GradientBooster {
  public:
+  /*! \brief virtual destructor */
+  virtual ~GradientBooster() {}
   /*!
-   * \brief set parameters from outside
-   * \param name name of the parameter
-   * \param val  value of the parameter
+   * \brief Set the configuration of gradient boosting.
+   *
+   *  User must call configure before trainig.
+   *
+   * \param cfg configurations on both training and model parameters.
    */
-  virtual void SetParam(const char *name, const char *val) = 0;
+  virtual void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) = 0;
+  /*!
+   * \brief Initialize the model.
+   *  User need to call Configure before calling InitModel.
+   */
+  virtual void InitModel() = 0;
   /*!
    * \brief load model from stream
-   * \param fi input stream
-   * \param with_pbuffer whether the incoming data contains pbuffer
+   * \param fi input stream.
    */
-  virtual void LoadModel(utils::IStream &fi, bool with_pbuffer) = 0; // NOLINT(*)
+  virtual void LoadModel(dmlc::Stream* fi) = 0;
   /*!
-   * \brief save model to stream
+   * \brief save model to stream.
    * \param fo output stream
-   * \param with_pbuffer whether save out pbuffer
    */
-  virtual void SaveModel(utils::IStream &fo, bool with_pbuffer) const = 0; // NOLINT(*)
+  virtual void SaveModel(dmlc::Stream* fo) const = 0;
   /*!
-   * \brief initialize the model
-   */
-  virtual void InitModel(void) = 0;
-  /*!
-   * \brief reset the predict buffer
-   * this will invalidate all the previous cached results
-   * and recalculate from scratch
+   * \brief reset the predict buffer size.
+   *  This will invalidate all the previous cached results
+   *  and recalculate from scratch
+   * \param num_pbuffer The size of predict buffer.
    */
   virtual void ResetPredBuffer(size_t num_pbuffer) {}
   /*!
@@ -54,7 +60,7 @@ class IGradBooster {
    * return true if model is only updated in DoBoost
    * after all Allreduce calls
    */
-  virtual bool AllowLazyCheckPoint(void) const {
+  virtual bool AllowLazyCheckPoint() const {
     return false;
   }
   /*!
@@ -66,26 +72,24 @@ class IGradBooster {
    * \param in_gpair address of the gradient pair statistics of the data
    * the booster may change content of gpair
    */
-  virtual void DoBoost(IFMatrix *p_fmat,
+  virtual void DoBoost(DMatrix* p_fmat,
                        int64_t buffer_offset,
-                       const BoosterInfo &info,
-                       std::vector<bst_gpair> *in_gpair) = 0;
+                       std::vector<bst_gpair>* in_gpair) = 0;
   /*!
    * \brief generate predictions for given feature matrix
    * \param p_fmat feature matrix
    * \param buffer_offset buffer index offset of these instances, if equals -1
    *        this means we do not have buffer index allocated to the gbm
    *  a buffer index is assigned to each instance that requires repeative prediction
-   *  the size of buffer is set by convention using IGradBooster.SetParam("num_pbuffer","size")
+   *  the size of buffer is set by convention using GradientBooster.ResetPredBuffer(size);
    * \param info extra side information that may be needed for prediction
    * \param out_preds output vector to hold the predictions
    * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
    *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
    */
-  virtual void Predict(IFMatrix *p_fmat,
+  virtual void Predict(DMatrix* dmat,
                        int64_t buffer_offset,
-                       const BoosterInfo &info,
-                       std::vector<float> *out_preds,
+                       std::vector<float>* out_preds,
                        unsigned ntree_limit = 0) = 0;
   /*!
    * \brief online prediction function, predict score for one instance at a time
@@ -99,38 +103,58 @@ class IGradBooster {
    * \param root_index the root index
    * \sa Predict
    */
-  virtual void Predict(const SparseBatch::Inst &inst,
-                       std::vector<float> *out_preds,
+  virtual void Predict(const SparseBatch::Inst& inst,
+                       std::vector<float>* out_preds,
                        unsigned ntree_limit = 0,
-                       unsigned root_index = 0)  = 0;
+                       unsigned root_index = 0) = 0;
   /*!
    * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
    *        this is only valid in gbtree predictor
-   * \param p_fmat feature matrix
-   * \param info extra side information that may be needed for prediction
+   * \param dmat feature matrix
    * \param out_preds output vector to hold the predictions
    * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
    *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
    */
-  virtual void PredictLeaf(IFMatrix *p_fmat,
-                           const BoosterInfo &info,
-                           std::vector<float> *out_preds,
+  virtual void PredictLeaf(DMatrix* dmat,
+                           std::vector<float>* out_preds,
                            unsigned ntree_limit = 0) = 0;
   /*!
    * \brief dump the model in text format
    * \param fmap feature map that may help give interpretations of feature
    * \param option extra option of the dump model
-   * \return a vector of dump for boosters
+   * \return a vector of dump for boosters.
    */
-  virtual std::vector<std::string> DumpModel(const utils::FeatMap& fmap, int option) = 0;
-  // destrcutor
-  virtual ~IGradBooster(void){}
+  virtual std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) = 0;
+  /*!
+   * \breif create a gradient booster from given name
+   * \param name name of gradient booster
+   */
+  static GradientBooster* Create(const char *name);
 };
+
 /*!
- * \breif create a gradient booster from given name
- * \param name name of gradient booster
+ * \brief Registry entry for tree updater.
  */
-IGradBooster* CreateGradBooster(const char *name);
-}  // namespace gbm
+struct GradientBoosterReg
+    : public dmlc::FunctionRegEntryBase<GradientBoosterReg,
+                                        std::function<GradientBooster* ()> > {
+};
+
+/*!
+ * \brief Macro to register gradient booster.
+ *
+ * \code
+ * // example of registering a objective ndcg@k
+ * XGBOOST_REGISTER_GBM(GBTree, "gbtree")
+ * .describe("Boosting tree ensembles.")
+ * .set_body([]() {
+ *     return new GradientBooster<TStats>();
+ *   });
+ * \endcode
+ */
+#define XGBOOST_REGISTER_GBM(UniqueId, Name)                            \
+  static ::xgboost::GradientBoosterReg & __make_ ## GradientBoosterReg ## _ ## UniqueId ## __ = \
+      ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->__REGISTER__(#Name)
+
 }  // namespace xgboost
-#endif  // XGBOOST_GBM_GBM_H_
+#endif  // XGBOOST_GBM_H_
