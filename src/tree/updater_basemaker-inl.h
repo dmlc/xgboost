@@ -29,7 +29,7 @@ namespace tree {
 class BaseMaker: public TreeUpdater {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param.Init(args);
+    param.InitAllowUnknown(args);
   }
 
  protected:

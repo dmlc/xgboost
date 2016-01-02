@@ -6,6 +6,7 @@
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
 #include <xgboost/tree_updater.h>
+#include <xgboost/gbm.h>
 #include "./common/random.h"
 #include "./common/base64.h"
 
@@ -13,6 +14,7 @@ namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
 DMLC_REGISTRY_ENABLE(::xgboost::MetricReg);
 DMLC_REGISTRY_ENABLE(::xgboost::TreeUpdaterReg);
+DMLC_REGISTRY_ENABLE(::xgboost::GradientBoosterReg);
 }  // namespace dmlc
 
 namespace xgboost {
@@ -45,11 +47,18 @@ Metric* Metric::Create(const char* name) {
   }
 }
 
-// implement factory functions
 TreeUpdater* TreeUpdater::Create(const char* name) {
   auto *e = ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown tree updater " << name;
+  }
+  return (e->body)();
+}
+
+GradientBooster* GradientBooster::Create(const char* name) {
+  auto *e = ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->Find(name);
+  if (e == nullptr) {
+    LOG(FATAL) << "Unknown gbm type " << name;
   }
   return (e->body)();
 }
@@ -61,4 +70,3 @@ RandomEngine& GlobalRandom() {
 }
 }
 }  // namespace xgboost
-

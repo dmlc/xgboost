@@ -19,7 +19,7 @@ template<typename TStats>
 class TreeRefresher: public TreeUpdater {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param.Init(args);
+    param.InitAllowUnknown(args);
   }
   // update the tree, do pruning
   void Update(const std::vector<bst_gpair> &gpair,
@@ -94,8 +94,8 @@ class TreeRefresher: public TreeUpdater {
     reducer.Allreduce(dmlc::BeginPtr(stemp[0]), stemp[0].size());
 #endif
     // rescale learning rate according to size of trees
-    float lr = param.eta;
-    param.eta = lr / trees.size();
+    float lr = param.learning_rate;
+    param.learning_rate = lr / trees.size();
     int offset = 0;
     for (size_t i = 0; i < trees.size(); ++i) {
       for (int rid = 0; rid < trees[i]->param.num_roots; ++rid) {
@@ -104,7 +104,7 @@ class TreeRefresher: public TreeUpdater {
       offset += trees[i]->param.num_nodes;
     }
     // set learning rate back
-    param.eta = lr;
+    param.learning_rate = lr;
   }
 
  private:
@@ -131,7 +131,7 @@ class TreeRefresher: public TreeUpdater {
     tree.stat(nid).sum_hess = static_cast<float>(gstats[nid].sum_hess);
     gstats[nid].SetLeafVec(param, tree.leafvec(nid));
     if (tree[nid].is_leaf()) {
-      tree[nid].set_leaf(tree.stat(nid).base_weight * param.eta);
+      tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
     } else {
       tree.stat(nid).loss_chg = static_cast<float>(
           gstats[tree[nid].cleft()].CalcGain(param) +

@@ -22,7 +22,7 @@ class TreePruner: public TreeUpdater {
   }
   // set training parameter
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param.Init(args);
+    param.InitAllowUnknown(args);
     syncher->Init(args);
   }
   // update the tree, do pruning
@@ -30,12 +30,12 @@ class TreePruner: public TreeUpdater {
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
     // rescale learning rate according to size of trees
-    float lr = param.eta;
-    param.eta = lr / trees.size();
+    float lr = param.learning_rate;
+    param.learning_rate = lr / trees.size();
     for (size_t i = 0; i < trees.size(); ++i) {
       this->DoPrune(*trees[i]);
     }
-    param.eta = lr;
+    param.learning_rate = lr;
     syncher->Update(gpair, p_fmat, trees);
   }
 
@@ -48,7 +48,7 @@ class TreePruner: public TreeUpdater {
     ++s.leaf_child_cnt;
     if (s.leaf_child_cnt >= 2 && param.need_prune(s.loss_chg, depth - 1)) {
       // need to be pruned
-      tree.ChangeToLeaf(pid, param.eta * s.base_weight);
+      tree.ChangeToLeaf(pid, param.learning_rate * s.base_weight);
       // tail recursion
       return this->TryPruneLeaf(tree, pid, depth - 1, npruned + 2);
     } else {

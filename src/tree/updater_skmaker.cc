@@ -24,13 +24,13 @@ class SketchMaker: public BaseMaker {
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
     // rescale learning rate according to size of trees
-    float lr = param.eta;
-    param.eta = lr / trees.size();
+    float lr = param.learning_rate;
+    param.learning_rate = lr / trees.size();
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
       this->Update(gpair, p_fmat, trees[i]);
     }
-    param.eta = lr;
+    param.learning_rate = lr;
   }
 
  protected:
@@ -67,7 +67,7 @@ class SketchMaker: public BaseMaker {
     // set left leaves
     for (size_t i = 0; i < qexpand.size(); ++i) {
       const int nid = qexpand[i];
-      (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.eta);
+      (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
     }
   }
   // define the sketch we want to use
@@ -302,7 +302,7 @@ class SketchMaker: public BaseMaker {
         (*p_tree)[(*p_tree)[nid].cleft()].set_leaf(0.0f, 0);
         (*p_tree)[(*p_tree)[nid].cright()].set_leaf(0.0f, 0);
       } else {
-        (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.eta);
+        (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
       }
     }
   }
