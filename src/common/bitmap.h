@@ -8,8 +8,8 @@
 #ifndef XGBOOST_COMMON_BITMAP_H_
 #define XGBOOST_COMMON_BITMAP_H_
 
-#include <vector>
 #include <dmlc/omp.h>
+#include <vector>
 
 namespace xgboost {
 namespace common {

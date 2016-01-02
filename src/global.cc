@@ -7,6 +7,7 @@
 #include <xgboost/metric.h>
 #include <xgboost/tree_updater.h>
 #include "./common/random.h"
+#include "./common/base64.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);

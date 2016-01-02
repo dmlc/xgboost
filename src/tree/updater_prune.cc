@@ -1,43 +1,42 @@
 /*!
  * Copyright 2014 by Contributors
- * \file updater_prune-inl.hpp
+ * \file updater_prune.cc
  * \brief prune a tree given the statistics
  * \author Tianqi Chen
  */
-#ifndef XGBOOST_TREE_UPDATER_PRUNE_INL_HPP_
-#define XGBOOST_TREE_UPDATER_PRUNE_INL_HPP_
 
-#include <vector>
+#include <xgboost/tree_updater.h>
+#include <string>
+#include <memory>
 #include "./param.h"
-#include "./updater.h"
-#include "./updater_sync-inl.hpp"
+#include "../common/sync.h"
+#include "../common/io.h"
 
 namespace xgboost {
 namespace tree {
 /*! \brief pruner that prunes a tree after growing finishes */
-class TreePruner: public IUpdater {
+class TreePruner: public TreeUpdater {
  public:
-  virtual ~TreePruner(void) {}
+  TreePruner() {
+    syncher.reset(TreeUpdater::Create("sync"));
+  }
   // set training parameter
-  virtual void SetParam(const char *name, const char *val) {
-    using namespace std;
-    param.SetParam(name, val);
-    syncher.SetParam(name, val);
-    if (!strcmp(name, "silent")) silent = atoi(val);
+  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+    param.Init(args);
+    syncher->Init(args);
   }
   // update the tree, do pruning
-  virtual void Update(const std::vector<bst_gpair> &gpair,
-                      IFMatrix *p_fmat,
-                      const BoosterInfo &info,
-                      const std::vector<RegTree*> &trees) {
+  void Update(const std::vector<bst_gpair> &gpair,
+              DMatrix *p_fmat,
+              const std::vector<RegTree*> &trees) override {
     // rescale learning rate according to size of trees
-    float lr = param.learning_rate;
-    param.learning_rate = lr / trees.size();
+    float lr = param.eta;
+    param.eta = lr / trees.size();
     for (size_t i = 0; i < trees.size(); ++i) {
       this->DoPrune(*trees[i]);
     }
-    param.learning_rate = lr;
-    syncher.Update(gpair, p_fmat, info, trees);
+    param.eta = lr;
+    syncher->Update(gpair, p_fmat, trees);
   }
 
  private:
@@ -49,9 +48,9 @@ class TreePruner: public IUpdater {
     ++s.leaf_child_cnt;
     if (s.leaf_child_cnt >= 2 && param.need_prune(s.loss_chg, depth - 1)) {
       // need to be pruned
-      tree.ChangeToLeaf(pid, param.learning_rate * s.base_weight);
+      tree.ChangeToLeaf(pid, param.eta * s.base_weight);
       // tail recursion
-      return this->TryPruneLeaf(tree, pid, depth - 1, npruned+2);
+      return this->TryPruneLeaf(tree, pid, depth - 1, npruned + 2);
     } else {
       return npruned;
     }
@@ -68,20 +67,24 @@ class TreePruner: public IUpdater {
         npruned = this->TryPruneLeaf(tree, nid, tree.GetDepth(nid), npruned);
       }
     }
-    if (silent == 0) {
-      utils::Printf("tree pruning end, %d roots, %d extra nodes, %d pruned nodes, max_depth=%d\n",
-                    tree.param.num_roots, tree.num_extra_nodes(), npruned, tree.MaxDepth());
+    if (!param.silent) {
+      LOG(INFO) << "tree pruning end, " << tree.param.num_roots << " roots, "
+                << tree.num_extra_nodes() << " extra nodes, " << npruned
+                << " pruned nodes, max_depth=" << tree.MaxDepth();
     }
   }
 
  private:
   // synchronizer
-  TreeSyncher syncher;
-  // shutup
-  int silent;
+  std::unique_ptr<TreeUpdater> syncher;
   // training parameter
   TrainParam param;
 };
+
+XGBOOST_REGISTER_TREE_UPDATER(TreePruner, "prune")
+.describe("Pruner that prune the tree according to statistics.")
+.set_body([]() {
+    return new TreePruner();
+  });
 }  // namespace tree
 }  // namespace xgboost
-#endif  // XGBOOST_TREE_UPDATER_PRUNE_INL_HPP_

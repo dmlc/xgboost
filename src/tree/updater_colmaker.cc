@@ -747,7 +747,7 @@ class DistColMaker : public ColMaker<TStats> {
     // update position after the tree is pruned
     builder.UpdatePosition(dmat, *trees[0]);
   }
-  virtual const int* GetLeafPosition() const {
+  const int* GetLeafPosition() const override {
     return builder.GetLeafPosition();
   }
 
@@ -771,7 +771,7 @@ class DistColMaker : public ColMaker<TStats> {
         this->position[ridx] = nid;
       }
     }
-    const int* GetLeafPosition() const override {
+    inline const int* GetLeafPosition() const {
       return dmlc::BeginPtr(this->position);
     }
 
