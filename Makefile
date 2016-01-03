@@ -89,7 +89,7 @@ lint:
 clean:
 	$(RM) -r build lib bin *~ */*~ */*/*~ */*/*/*~
 
-clean: clean_all
+clean_all: clean
 	cd $(DMLC_CORE); make clean; cd -
 	cd $(RABIT); make clean; cd -
 

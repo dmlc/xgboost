@@ -21,6 +21,16 @@
 namespace xgboost {
 /*! \brief namespace for learning algorithm */
 namespace learner {
+
+inline bool Learner::AllowLazyCheckPoint() const {
+  return gbm_->AllowLazyCheckPoint();
+}
+
+inline std::vector<std::string>
+Learner::Dump2Text(const FeatureMap& fmap, int option) const {
+  return gbm_->Dump2Text(fmap, option);
+}
+
 /*!
  * \brief learner that performs gradient boosting for a specific objective function.
  *  It does training and prediction.

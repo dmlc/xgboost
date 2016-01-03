@@ -206,7 +206,7 @@ class GBLinear : public GradientBooster {
     LOG(FATAL) << "gblinear does not support predict leaf index";
   }
 
-  std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) override {
+  std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) const override {
     std::stringstream fo("");
     fo << "bias:\n";
     for (int i = 0; i < model.param.num_output_group; ++i) {
@@ -258,11 +258,17 @@ class GBLinear : public GradientBooster {
       fi->Read(&weight);
     }
     // model bias
-    inline float* bias(void) {
+    inline float* bias() {
+      return &weight[param.num_feature * param.num_output_group];
+    }
+    inline const float* bias() const {
       return &weight[param.num_feature * param.num_output_group];
     }
     // get i-th weight
     inline float* operator[](size_t i) {
+      return &weight[i * param.num_output_group];
+    }
+    inline const float* operator[](size_t i) const {
       return &weight[i * param.num_output_group];
     }
   };
