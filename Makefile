@@ -1,38 +1,10 @@
-ifndef CC
-export CC  = $(if $(shell which gcc-5),gcc-5,gcc)
-endif
-ifndef CXX
-export CXX = $(if $(shell which g++-5),g++-5,g++)
-endif
-
-export LDFLAGS= -pthread -lm
-export CFLAGS= -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -fPIC -Iinclude
-
-ifndef LINT_LANG
-	LINT_LANG= "all"
-endif
-
-ifeq ($(OS), Windows_NT)
-	export CXX = g++ -m64
-	export CC = gcc -m64
-endif
-
-UNAME= $(shell uname)
-
-ifeq ($(UNAME), Linux)
-	LDFLAGS += -lrt
-endif
-
-ifeq ($(no_omp),1)
-	CFLAGS += -DDISABLE_OPENMP
+ifndef config
+ifneq ("$(wildcard ./config.mk)","")
+	config = config.mk
 else
-	ifeq ($(omp_mac_static),1)
-		CFLAGS += -static-libgcc -static-libstdc++ -L. -fopenmp
-	else
-		CFLAGS += -fopenmp
-	endif
+	config = make/config.mk
 endif
-
+endif
 
 ifndef DMLC_CORE
 	DMLC_CORE = dmlc-core
@@ -42,21 +14,60 @@ ifndef RABIT
 	RABIT = rabit
 endif
 
+ROOTDIR = $(CURDIR)
+UNAME= $(shell uname)
+
+include $(config)
+ifeq ($(USE_OPENMP), 0)
+	export NO_OPENMP = 1
+endif
+include $(DMLC_CORE)/make/dmlc.mk
+
+# use customized config file
+ifndef CC
+export CC  = $(if $(shell which gcc-5),gcc-5,gcc)
+endif
+ifndef CXX
+export CXX = $(if $(shell which g++-5),g++-5,g++)
+endif
+
+ifeq ($(OS), Windows_NT)
+	export CXX = g++ -m64
+	export CC = gcc -m64
+endif
+
+export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS)
+export CFLAGS= -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -fPIC -Iinclude $(ADD_CFLAGS)
+CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
+
+ifndef LINT_LANG
+	LINT_LANG= "all"
+endif
+
+ifeq ($(UNAME), Linux)
+	LDFLAGS += -lrt
+endif
+
+ifeq ($(USE_OPENMP), 1)
+	CFLAGS += -fopenmp
+else
+	CFLAGS += -DDISABLE_OPENMP
+endif
+
 # specify tensor path
-.PHONY: clean all lint
+.PHONY: clean all lint clean_all
 
 all: lib/libxgboost.a lib/libxgboost.so
 
 $(DMLC_CORE)/libdmlc.a:
-	+ cd $(DMLC_CORE); make libdmlc.a; cd $(ROOTDIR)
+	+ cd $(DMLC_CORE); make libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
-$(RABIT)/lib/librabit.a:
-	+ cd $(RABIT); make lib/librabit.a; cd $(ROOTDIR)
+$(RABIT)/lib/$(LIB_RABIT):
+	+ cd $(RABIT); make lib/$(LIB_RABIT); cd $(ROOTDIR)
 
-CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
 SRC = $(wildcard src/*.cc src/*/*.cc)
 OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
-LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/librabit.a
+LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
 ALL_DEP = $(OBJ) $(LIB_DEP)
 
 build/%.o: src/%.cc
@@ -78,7 +89,7 @@ lint:
 clean:
 	$(RM) -r build lib bin *~ */*~ */*/*~ */*/*/*~
 
-clean_all: clean
+clean: clean_all
 	cd $(DMLC_CORE); make clean; cd -
 	cd $(RABIT); make clean; cd -
 
