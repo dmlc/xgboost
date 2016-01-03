@@ -304,7 +304,7 @@ class TreeModel {
    * \brief load model from stream
    * \param fi input stream
    */
-  inline void LoadModel(dmlc::Stream* fi) {
+  inline void Load(dmlc::Stream* fi) {
     CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
     nodes.resize(param.num_nodes);
     stats.resize(param.num_nodes);
@@ -327,7 +327,7 @@ class TreeModel {
    * \brief save model to stream
    * \param fo output stream
    */
-  inline void SaveModel(dmlc::Stream* fo) const {
+  inline void Save(dmlc::Stream* fo) const {
     CHECK_EQ(param.num_nodes, static_cast<int>(nodes.size()));
     CHECK_EQ(param.num_nodes, static_cast<int>(stats.size()));
     fo->Write(&param, sizeof(TreeParam));

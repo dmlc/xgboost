@@ -33,20 +33,15 @@ class GradientBooster {
    */
   virtual void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) = 0;
   /*!
-   * \brief Initialize the model.
-   *  User need to call Configure before calling InitModel.
-   */
-  virtual void InitModel() = 0;
-  /*!
    * \brief load model from stream
    * \param fi input stream.
    */
-  virtual void LoadModel(dmlc::Stream* fi) = 0;
+  virtual void Load(dmlc::Stream* fi) = 0;
   /*!
    * \brief save model to stream.
    * \param fo output stream
    */
-  virtual void SaveModel(dmlc::Stream* fo) const = 0;
+  virtual void Save(dmlc::Stream* fo) const = 0;
   /*!
    * \brief reset the predict buffer size.
    *  This will invalidate all the previous cached results

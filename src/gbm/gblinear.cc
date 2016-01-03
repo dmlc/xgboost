@@ -90,18 +90,20 @@ class GBLinear : public GradientBooster {
     }
     param.InitAllowUnknown(cfg);
   }
-  void LoadModel(dmlc::Stream* fi) override {
-    model.LoadModel(fi);
+  void Load(dmlc::Stream* fi) override {
+    model.Load(fi);
   }
-  void SaveModel(dmlc::Stream* fo) const override {
-    model.SaveModel(fo);
-  }
-  void InitModel() override {
-    model.InitModel();
+  void Save(dmlc::Stream* fo) const override {
+    model.Save(fo);
   }
   virtual void DoBoost(DMatrix *p_fmat,
                        int64_t buffer_offset,
                        std::vector<bst_gpair> *in_gpair) {
+    // lazily initialize the model when not ready.
+    if (model.weight.size() == 0) {
+      model.InitModel();
+    }
+
     std::vector<bst_gpair> &gpair = *in_gpair;
     const int ngroup = model.param.num_output_group;
     const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
@@ -248,12 +250,12 @@ class GBLinear : public GradientBooster {
       std::fill(weight.begin(), weight.end(), 0.0f);
     }
     // save the model to file
-    inline void SaveModel(dmlc::Stream* fo) const {
+    inline void Save(dmlc::Stream* fo) const {
       fo->Write(&param, sizeof(param));
       fo->Write(weight);
     }
     // load model from file
-    inline void LoadModel(dmlc::Stream* fi) {
+    inline void Load(dmlc::Stream* fi) {
       CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param));
       fi->Read(&weight);
     }
