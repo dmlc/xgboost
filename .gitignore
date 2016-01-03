@@ -69,4 +69,4 @@ nb-configuration*
 .pydevproject
 .settings/
 build
-
+config.mk
