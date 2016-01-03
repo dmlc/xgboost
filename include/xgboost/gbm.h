@@ -27,8 +27,7 @@ class GradientBooster {
   virtual ~GradientBooster() {}
   /*!
    * \brief Set the configuration of gradient boosting.
-   *
-   *  User must call configure before trainig.
+   *  User must call configure once before InitModel and Training.
    *
    * \param cfg configurations on both training and model parameters.
    */

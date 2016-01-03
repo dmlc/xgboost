@@ -2,7 +2,7 @@
  * Copyright (c) 2015 by Contributors
  * \file c_api.h
  * \author Tianqi Chen
- * \brief C Style API of XGBoost, used to interfacing with other languages.
+ * \brief C API of XGBoost, used to interfacing with other languages.
  */
 #ifndef XGBOOST_C_API_H_
 #define XGBOOST_C_API_H_
