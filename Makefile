@@ -54,11 +54,9 @@ $(RABIT)/lib/librabit.a:
 	+ cd $(RABIT); make lib/librabit.a; cd $(ROOTDIR)
 
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
-Lib_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/librabit.a
-
 SRC = $(wildcard src/*.cc src/*/*.cc)
 OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
-LIB_DEP += $(DMLC_CORE)/libdmlc.a
+LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/librabit.a
 ALL_DEP = $(OBJ) $(LIB_DEP)
 
 build/%.o: src/%.cc
@@ -82,7 +80,7 @@ clean:
 
 clean_all: clean
 	cd $(DMLC_CORE); make clean; cd -
-	cd $(PS_PATH); make clean; cd -
+	cd $(RABIT); make clean; cd -
 
 -include build/*.d
 -include build/*/*.d
