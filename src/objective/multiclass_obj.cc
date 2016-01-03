@@ -6,6 +6,7 @@
  */
 #include <dmlc/logging.h>
 #include <dmlc/omp.h>
+#include <dmlc/parameter.h>
 #include <xgboost/objective.h>
 #include <vector>
 #include <algorithm>
