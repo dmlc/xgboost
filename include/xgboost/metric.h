@@ -9,6 +9,7 @@
 
 #include <dmlc/registry.h>
 #include <vector>
+#include <string>
 #include <functional>
 #include "./data.h"
 #include "./base.h"
@@ -42,7 +43,7 @@ class Metric {
    *  and the name will be matched in the registry.
    * \return the created metric.
    */
-  static Metric* Create(const char *name);
+  static Metric* Create(const std::string& name);
 };
 
 /*!

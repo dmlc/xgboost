@@ -30,7 +30,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
   explicit SoftmaxMultiClassObj(bool output_prob)
       : output_prob_(output_prob) {
   }
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
   }
   void GetGradient(const std::vector<float>& preds,

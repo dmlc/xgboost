@@ -54,7 +54,7 @@ class TreeUpdater {
    * \brief Create a tree updater given name
    * \param name Name of the tree updater.
    */
-  static TreeUpdater* Create(const char* name);
+  static TreeUpdater* Create(const std::string& name);
 };
 
 /*!

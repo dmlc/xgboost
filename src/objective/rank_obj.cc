@@ -32,7 +32,7 @@ struct LambdaRankParam : public dmlc::Parameter<LambdaRankParam> {
 // objective for lambda rank
 class LambdaRankObj : public ObjFunction {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
   }
   void GetGradient(const std::vector<float>& preds,

@@ -26,6 +26,14 @@ class GradientBooster {
   /*! \brief virtual destructor */
   virtual ~GradientBooster() {}
   /*!
+   * \brief set configuration from pair iterators.
+   * \param begin The beginning iterator.
+   * \param end The end iterator.
+   * \tparam PairIter iterator<std::pair<std::string, std::string> >
+   */
+  template<typename PairIter>
+  inline void Configure(PairIter begin, PairIter end);
+  /*!
    * \brief Set the configuration of gradient boosting.
    *  User must call configure once before InitModel and Training.
    *
@@ -123,8 +131,15 @@ class GradientBooster {
    * \breif create a gradient booster from given name
    * \param name name of gradient booster
    */
-  static GradientBooster* Create(const char *name);
+  static GradientBooster* Create(const std::string& name);
 };
+
+// implementing configure.
+template<typename PairIter>
+inline void GradientBooster::Configure(PairIter begin, PairIter end) {
+  std::vector<std::pair<std::string, std::string> > vec(begin, end);
+  this->Configure(vec);
+}
 
 /*!
  * \brief Registry entry for tree updater.

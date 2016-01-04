@@ -76,7 +76,7 @@ struct RegLossParam : public dmlc::Parameter<RegLossParam> {
 template<typename Loss>
 class RegLossObj : public ObjFunction {
  public:
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
   }
   void GetGradient(const std::vector<float> &preds,
@@ -155,7 +155,7 @@ struct PoissonRegressionParam : public dmlc::Parameter<PoissonRegressionParam> {
 class PoissonRegression : public ObjFunction {
  public:
   // declare functions
-  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
   }
 

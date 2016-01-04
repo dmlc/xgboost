@@ -19,7 +19,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::GradientBoosterReg);
 
 namespace xgboost {
 // implement factory functions
-ObjFunction* ObjFunction::Create(const char* name) {
+ObjFunction* ObjFunction::Create(const std::string& name) {
   auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown objective function " << name;
@@ -27,7 +27,7 @@ ObjFunction* ObjFunction::Create(const char* name) {
   return (e->body)();
 }
 
-Metric* Metric::Create(const char* name) {
+Metric* Metric::Create(const std::string& name) {
   std::string buf = name;
   std::string prefix = name;
   auto pos = buf.find('@');
@@ -47,7 +47,7 @@ Metric* Metric::Create(const char* name) {
   }
 }
 
-TreeUpdater* TreeUpdater::Create(const char* name) {
+TreeUpdater* TreeUpdater::Create(const std::string& name) {
   auto *e = ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown tree updater " << name;
@@ -55,7 +55,7 @@ TreeUpdater* TreeUpdater::Create(const char* name) {
   return (e->body)();
 }
 
-GradientBooster* GradientBooster::Create(const char* name) {
+GradientBooster* GradientBooster::Create(const std::string& name) {
   auto *e = ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown gbm type " << name;
