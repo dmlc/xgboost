@@ -39,6 +39,8 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
                   " This option is used to support boosted random forest");
     DMLC_DECLARE_FIELD(updater_seq).set_default("grow_colmaker,prune")
         .describe("Tree updater sequence.");
+    // add alias
+    DMLC_DECLARE_ALIAS(updater_seq, updater);
   }
 };
 

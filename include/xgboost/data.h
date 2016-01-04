@@ -14,6 +14,9 @@
 #include "./base.h"
 
 namespace xgboost {
+// forward declare learner.
+class LearnerImpl;
+
 /*! \brief data type accepted by xgboost interface */
 enum DataType {
   kFloat32 = 1,
@@ -199,6 +202,8 @@ class DataSource : public dmlc::DataIter<RowBatch> {
  */
 class DMatrix {
  public:
+  /*! \brief default constructor */
+  DMatrix() : cache_learner_ptr_(nullptr) {}
   /*! \brief meta information of the dataset */
   virtual MetaInfo& info() = 0;
   /*! \brief meta information of the dataset */
@@ -222,6 +227,7 @@ class DMatrix {
    * \param subsample subsample ratio when generating column access.
    * \param max_row_perbatch auxilary information, maximum row used in each column batch.
    *         this is a hint information that can be ignored by the implementation.
+   * \return Number of column blocks in the column access.
    */
   virtual void InitColAccess(const std::vector<bool>& enabled,
                              float subsample,
@@ -229,6 +235,8 @@ class DMatrix {
   // the following are column meta data, should be able to answer them fast.
   /*! \return whether column access is enabled */
   virtual bool HaveColAccess() const = 0;
+  /*! \return Whether the data columns single column block. */
+  virtual bool SingleColBlock() const = 0;
   /*! \brief get number of non-missing entries in column */
   virtual size_t GetColSize(size_t cidx) const = 0;
   /*! \brief get column density */
@@ -279,6 +287,12 @@ class DMatrix {
    */
   static DMatrix* Create(dmlc::Parser<uint32_t>* parser,
                          const char* cache_prefix = nullptr);
+
+ private:
+  // allow learner class to access this field.
+  friend class LearnerImpl;
+  /*! \brief public field to back ref cached matrix. */
+  LearnerImpl* cache_learner_ptr_;
 };
 
 }  // namespace xgboost

@@ -22,10 +22,18 @@ class ObjFunction {
   /*! \brief virtual destructor */
   virtual ~ObjFunction() {}
   /*!
-   * \brief Initialize the objective with the specified parameters.
+   * \brief set configuration from pair iterators.
+   * \param begin The beginning iterator.
+   * \param end The end iterator.
+   * \tparam PairIter iterator<std::pair<std::string, std::string> >
+   */
+  template<typename PairIter>
+  inline void Configure(PairIter begin, PairIter end);
+  /*!
+   * \brief Configure the objective with the specified parameters.
    * \param args arguments to the objective function.
    */
-  virtual void Init(const std::vector<std::pair<std::string, std::string> >& args) = 0;
+  virtual void Configure(const std::vector<std::pair<std::string, std::string> >& args) = 0;
   /*!
    * \brief Get gradient over each of predictions, given existing information.
    * \param preds prediction of current round
@@ -66,8 +74,15 @@ class ObjFunction {
    * \brief Create an objective function according to name.
    * \param name Name of the objective.
    */
-  static ObjFunction* Create(const char* name);
+  static ObjFunction* Create(const std::string& name);
 };
+
+// implementing configure.
+template<typename PairIter>
+inline void ObjFunction::Configure(PairIter begin, PairIter end) {
+  std::vector<std::pair<std::string, std::string> > vec(begin, end);
+  this->Configure(vec);
+}
 
 /*!
  * \brief Registry entry for objective factory functions.
