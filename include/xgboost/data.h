@@ -59,7 +59,7 @@ struct MetaInfo {
   /*! \brief version flag, used to check version of this info */
   static const int kVersion = 1;
   /*! \brief default constructor */
-  MetaInfo() : num_row(0), num_col(0) {}
+  MetaInfo() : num_row(0), num_col(0), num_nonzero(0) {}
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -96,14 +96,6 @@ struct MetaInfo {
    * \param num Number of elements in the source array.
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
-  /*!
-   * \brief Get information from meta info.
-   * \param key The key of the information.
-   * \param dptr The output data pointer of the source array.
-   * \param dtype The output data type of the information array.
-   * \param num Number of elements in the array.
-   */
-  void GetInfo(const char* key, const void** dptr, DataType* dtype, size_t* num) const;
 };
 
 /*! \brief read-only sparse instance batch in CSR format */
@@ -259,11 +251,14 @@ class DMatrix {
    * \param uri The URI of input.
    * \param silent Whether print information during loading.
    * \param load_row_split Flag to read in part of rows, divided among the workers in distributed mode.
+   * \param file_format The format type of the file, used for dmlc::Parser::Create.
+   *   By default "auto" will be able to load in both local binary file.
    * \return The created DMatrix.
    */
   static DMatrix* Load(const std::string& uri,
                        bool silent,
-                       bool load_row_split);
+                       bool load_row_split,
+                       const std::string& file_format = "auto");
   /*!
    * \brief create a new DMatrix, by wrapping a row_iterator, and meta info.
    * \param source The source iterator of the data, the create function takes ownership of the source.
@@ -273,7 +268,7 @@ class DMatrix {
    * \return a Created DMatrix.
    */
   static DMatrix* Create(std::unique_ptr<DataSource>&& source,
-                         const char* cache_prefix = nullptr);
+                         const std::string& cache_prefix = "");
   /*!
    * \brief Create a DMatrix by loaidng data from parser.
    *  Parser can later be deleted after the DMatrix i created.
@@ -287,7 +282,7 @@ class DMatrix {
    * \return A created DMatrix.
    */
   static DMatrix* Create(dmlc::Parser<uint32_t>* parser,
-                         const char* cache_prefix = nullptr);
+                         const std::string& cache_prefix = "");
 
  private:
   // allow learner class to access this field.

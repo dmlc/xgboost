@@ -11,8 +11,9 @@
 
 #include <xgboost/learner.h>
 #include <xgboost/data.h>
-#include <dmlc/logging.h>
+#include <xgboost/logging.h>
 #include <dmlc/timer.h>
+#include <iomanip>
 #include <ctime>
 #include <string>
 #include <cstdio>
@@ -107,6 +108,8 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
         .describe("Data split mode.");
     DMLC_DECLARE_FIELD(ntree_limit).set_default(0).set_lower_bound(0)
         .describe("Number of trees used for prediction, 0 means use all trees.");
+    DMLC_DECLARE_FIELD(pred_margin).set_default(false)
+        .describe("Whether to predict margin value instead of probability.");
     DMLC_DECLARE_FIELD(dump_stats).set_default(false)
         .describe("Whether dump the model statistics.");
     DMLC_DECLARE_FIELD(name_fmap).set_default("NULL")
@@ -115,7 +118,8 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
         .describe("Name of the output dump text file.");
     // alias
     DMLC_DECLARE_ALIAS(train_path, data);
-    DMLC_DECLARE_ALIAS(test_path, "test:data");
+    DMLC_DECLARE_ALIAS(test_path, test:data);
+    DMLC_DECLARE_ALIAS(name_fmap, fmap);
   }
   // customized configure function of CLIParam
   inline void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) {
@@ -149,7 +153,7 @@ DMLC_REGISTER_PARAMETER(CLIParam);
 void CLITrain(const CLIParam& param) {
   if (rabit::IsDistributed()) {
     std::string pname = rabit::GetProcessorName();
-    LOG(INFO) << "start " << pname << ":" << rabit::GetRank();
+    LOG(CONSOLE) << "start " << pname << ":" << rabit::GetRank();
   }
   // load in data.
   std::unique_ptr<DMatrix> dtrain(
@@ -178,6 +182,8 @@ void CLITrain(const CLIParam& param) {
       std::unique_ptr<dmlc::Stream> fi(
           dmlc::Stream::Create(param.model_in.c_str(), "r"));
       learner->Load(fi.get());
+    } else {
+      learner->InitModel();
     }
   }
   // start training.
@@ -186,7 +192,7 @@ void CLITrain(const CLIParam& param) {
     double elapsed = dmlc::GetTime() - start;
     if (version % 2 == 0) {
       if (param.silent == 0) {
-        LOG(INFO) << "boosting round " << i << ", " << elapsed << " sec elapsed";
+        LOG(CONSOLE) << "boosting round " << i << ", " << elapsed << " sec elapsed";
       }
       learner->UpdateOneIter(i, dtrain.get());
       if (learner->AllowLazyCheckPoint()) {
@@ -200,16 +206,18 @@ void CLITrain(const CLIParam& param) {
     std::string res = learner->EvalOneIter(i, eval_datasets, eval_data_names);
     if (rabit::IsDistributed()) {
       if (rabit::GetRank() == 0) {
-        rabit::TrackerPrint(res + "\n");
+        LOG(TRACKER) << res;
       }
     } else {
       if (param.silent < 2) {
-        LOG(INFO) << res;
+        LOG(CONSOLE) << res;
       }
     }
     if (param.save_period != 0 && (i + 1) % param.save_period == 0) {
       std::ostringstream os;
-      os << param.model_dir << '/' << i + 1 << ".model";
+      os << param.model_dir << '/'
+         << std::setfill('0') << std::setw(4)
+         << i + 1 << ".model";
       std::unique_ptr<dmlc::Stream> fo(
           dmlc::Stream::Create(os.str().c_str(), "w"));
       learner->Save(fo.get());
@@ -228,7 +236,9 @@ void CLITrain(const CLIParam& param) {
       param.model_out != "NONE") {
     std::ostringstream os;
     if (param.model_out == "NULL") {
-      os << param.model_dir << '/' << param.num_round << ".model";
+      os << param.model_dir << '/'
+         << std::setfill('0') << std::setw(4)
+         << param.num_round << ".model";
     } else {
       os << param.model_out;
     }
@@ -239,7 +249,7 @@ void CLITrain(const CLIParam& param) {
 
   if (param.silent == 0) {
     double elapsed = dmlc::GetTime() - start;
-    LOG(INFO) << "update end, " << elapsed << " sec in all";
+    LOG(CONSOLE) << "update end, " << elapsed << " sec in all";
   }
 }
 
@@ -272,6 +282,8 @@ void CLIDump2Text(const CLIParam& param) {
 }
 
 void CLIPredict(const CLIParam& param) {
+  CHECK_NE(param.test_path, "NULL")
+      << "Test dataset parameter test:data must be specified.";
   // load data
   std::unique_ptr<DMatrix> dtest(
       DMatrix::Load(param.test_path, param.silent != 0, param.dsplit == 2));
@@ -284,12 +296,12 @@ void CLIPredict(const CLIParam& param) {
   learner->Load(fi.get());
 
   if (param.silent == 0) {
-    LOG(INFO) << "start prediction...";
+    LOG(CONSOLE) << "start prediction...";
   }
   std::vector<float> preds;
   learner->Predict(dtest.get(), param.pred_margin, &preds, param.ntree_limit);
   if (param.silent == 0) {
-    LOG(INFO) << "writing prediction to " << param.name_pred;
+    LOG(CONSOLE) << "writing prediction to " << param.name_pred;
   }
   std::unique_ptr<dmlc::Stream> fo(
       dmlc::Stream::Create(param.name_pred.c_str(), "w"));

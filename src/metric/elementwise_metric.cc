@@ -5,12 +5,16 @@
  * \author Kailong Chen, Tianqi Chen
  */
 #include <xgboost/metric.h>
+#include <dmlc/registry.h>
 #include <cmath>
 #include "../common/math.h"
 #include "../common/sync.h"
 
 namespace xgboost {
 namespace metric {
+// tag the this file, used by force static link later.
+DMLC_REGISTRY_FILE_TAG(elementwise_metric);
+
 /*!
  * \brief base class of element-wise evaluation
  * \tparam Derived the name of subclass
@@ -124,4 +128,3 @@ XGBOOST_REGISTER_METRIC(PossionNegLoglik, "poisson-nloglik")
 
 }  // namespace metric
 }  // namespace xgboost
-

@@ -5,10 +5,10 @@
  *        the update rule is parallel coordinate descent (shotgun)
  * \author Tianqi Chen
  */
-#include <dmlc/logging.h>
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
 #include <xgboost/gbm.h>
+#include <xgboost/logging.h>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -17,6 +17,9 @@
 
 namespace xgboost {
 namespace gbm {
+
+DMLC_REGISTRY_FILE_TAG(gblinear);
+
 // model parameter
 struct GBLinearModelParam :public dmlc::Parameter<GBLinearModelParam> {
   // number of feature dimension
@@ -168,6 +171,9 @@ class GBLinear : public GradientBooster {
                int64_t buffer_offset,
                std::vector<float> *out_preds,
                unsigned ntree_limit) override {
+    if (model.weight.size() == 0) {
+      model.InitModel();
+    }
     CHECK_EQ(ntree_limit, 0)
         << "GBLinear::Predict ntrees is only valid for gbtree predictor";
     std::vector<float> &preds = *out_preds;
@@ -293,4 +299,3 @@ XGBOOST_REGISTER_GBM(GBLinear, "gblinear")
   });
 }  // namespace gbm
 }  // namespace xgboost
-

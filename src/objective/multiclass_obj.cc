@@ -4,9 +4,9 @@
  * \brief Definition of multi-class classification objectives.
  * \author Tianqi Chen
  */
-#include <dmlc/logging.h>
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
+#include <xgboost/logging.h>
 #include <xgboost/objective.h>
 #include <vector>
 #include <algorithm>
@@ -15,6 +15,8 @@
 
 namespace xgboost {
 namespace obj {
+
+DMLC_REGISTRY_FILE_TAG(multiclass_obj);
 
 struct SoftmaxMultiClassParam : public dmlc::Parameter<SoftmaxMultiClassParam> {
   int num_class;

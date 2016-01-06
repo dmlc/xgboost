@@ -71,7 +71,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe("L2 regularization on leaf weight");
     DMLC_DECLARE_FIELD(reg_alpha).set_lower_bound(0.0f).set_default(0.0f)
         .describe("L1 regularization on leaf weight");
-    DMLC_DECLARE_FIELD(default_direction)
+    DMLC_DECLARE_FIELD(default_direction).set_default(0)
         .add_enum("learn", 0)
         .add_enum("left", 1)
         .add_enum("right", 2)

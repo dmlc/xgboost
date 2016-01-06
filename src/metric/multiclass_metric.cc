@@ -11,6 +11,9 @@
 
 namespace xgboost {
 namespace metric {
+// tag the this file, used by force static link later.
+DMLC_REGISTRY_FILE_TAG(multiclass_metric);
+
 /*!
  * \brief base class of multi-class evaluation
  * \tparam Derived the name of subclass
@@ -114,4 +117,3 @@ XGBOOST_REGISTER_METRIC(MultiLogLoss, "mlogloss")
 .set_body([](const char* param) { return new EvalMultiLogLoss(); });
 }  // namespace metric
 }  // namespace xgboost
-

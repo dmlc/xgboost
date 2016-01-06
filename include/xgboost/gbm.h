@@ -163,7 +163,7 @@ struct GradientBoosterReg
  */
 #define XGBOOST_REGISTER_GBM(UniqueId, Name)                            \
   static ::xgboost::GradientBoosterReg & __make_ ## GradientBoosterReg ## _ ## UniqueId ## __ = \
-      ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->__REGISTER__(#Name)
+      ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->__REGISTER__(Name)
 
 }  // namespace xgboost
 #endif  // XGBOOST_GBM_H_

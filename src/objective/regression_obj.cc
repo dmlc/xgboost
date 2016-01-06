@@ -4,8 +4,8 @@
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
  */
-#include <dmlc/logging.h>
 #include <dmlc/omp.h>
+#include <xgboost/logging.h>
 #include <xgboost/objective.h>
 #include <vector>
 #include <algorithm>
@@ -14,6 +14,9 @@
 
 namespace xgboost {
 namespace obj {
+
+DMLC_REGISTRY_FILE_TAG(regression_obj);
+
 // common regressions
 // linear regression
 struct LinearSquareLoss {
@@ -84,7 +87,9 @@ class RegLossObj : public ObjFunction {
                    int iter,
                    std::vector<bst_gpair> *out_gpair) override {
     CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
-    CHECK_EQ(preds.size(), info.labels.size()) << "labels are not correctly provided";
+    CHECK_EQ(preds.size(), info.labels.size())
+        << "labels are not correctly provided"
+        << "preds.size=" << preds.size() << ", label.size=" << info.labels.size();
     out_gpair->resize(preds.size());
     // check if label in range
     bool label_correct = true;
@@ -95,7 +100,7 @@ class RegLossObj : public ObjFunction {
       float p = Loss::PredTransform(preds[i]);
       float w = info.GetWeight(i);
       if (info.labels[i] == 1.0f) w *= param_.scale_pos_weight;
-      if (Loss::CheckLabel(info.labels[i])) label_correct = false;
+      if (!Loss::CheckLabel(info.labels[i])) label_correct = false;
       out_gpair->at(i) = bst_gpair(Loss::FirstOrderGradient(p, info.labels[i]) * w,
                                    Loss::SecondOrderGradient(p, info.labels[i]) * w);
     }

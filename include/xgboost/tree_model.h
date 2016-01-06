@@ -8,7 +8,6 @@
 #define XGBOOST_TREE_MODEL_H_
 
 #include <dmlc/io.h>
-#include <dmlc/logging.h>
 #include <dmlc/parameter.h>
 #include <limits>
 #include <vector>
@@ -17,6 +16,7 @@
 #include <algorithm>
 #include "./base.h"
 #include "./data.h"
+#include "./logging.h"
 #include "./feature_map.h"
 
 namespace xgboost {

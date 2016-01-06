@@ -37,7 +37,7 @@ ifeq ($(OS), Windows_NT)
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS)
-export CFLAGS= -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -fPIC -Iinclude $(ADD_CFLAGS)
+export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -fPIC -Iinclude $(ADD_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
 
 ifndef LINT_LANG
@@ -65,16 +65,27 @@ $(DMLC_CORE)/libdmlc.a:
 $(RABIT)/lib/$(LIB_RABIT):
 	+ cd $(RABIT); make lib/$(LIB_RABIT); cd $(ROOTDIR)
 
+
 SRC = $(wildcard src/*.cc src/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
+AMALGA_OBJ = amalgamation/xgboost-all0.o
 LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
 ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
 CLI_OBJ = build/cli_main.o
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
-	$(CXX) -std=c++0x $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
-	$(CXX) -std=c++0x -c $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
+	$(CXX) -c $(CFLAGS) -c $< -o $@
+
+# The should be equivalent to $(ALL_OBJ)  except for build/cli_main.o
+amalgamation/xgboost-all0.o: amalgamation/xgboost-all0.cc
+	$(CXX) -c $(CFLAGS) -c $< -o $@
+
+# Equivalent to lib/libxgboost_all.so
+lib/libxgboost_all.so: $(AMALGA_OBJ) $(LIB_DEP)
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 lib/libxgboost.a: $(ALL_DEP)
 	@mkdir -p $(@D)
@@ -84,14 +95,14 @@ lib/libxgboost.so: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-xgboost: lib/libxgboost.a $(CLI_OBJ) $(LIB_DEP)
-	$(CXX) $(CFLAGS) -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+xgboost: $(CLI_OBJ) lib/libxgboost.a $(LIB_DEP)
+	$(CXX) $(CFLAGS) -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
 
 lint:
 	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src
 
 clean:
-	$(RM) -r build lib bin *~ */*~ */*/*~ */*/*/*~
+	$(RM) -r build lib bin *~ */*~ */*/*~ */*/*/*~ $(AMALGA_OBJ)
 
 clean_all: clean
 	cd $(DMLC_CORE); make clean; cd -

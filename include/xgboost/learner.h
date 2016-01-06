@@ -36,6 +36,8 @@ namespace xgboost {
  */
 class Learner : public rabit::Serializable {
  public:
+  /*! \brief virtual destructor */
+  virtual ~Learner() {}
   /*!
    * \brief set configuration from pair iterators.
    * \param begin The beginning iterator.
@@ -51,6 +53,11 @@ class Learner : public rabit::Serializable {
    * \param cfg configurations on both training and model parameters.
    */
   virtual void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) = 0;
+  /*!
+   * \brief Initialize the model using the specified configurations via Configure.
+   *  An model have to be either Loaded or initialized before Update/Predict/Save can be called.
+   */
+  virtual void InitModel() = 0;
   /*!
    * \brief load model from stream
    * \param fi input stream.
