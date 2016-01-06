@@ -79,7 +79,7 @@ struct TreeUpdaterReg
  */
 #define XGBOOST_REGISTER_TREE_UPDATER(UniqueId, Name)                   \
   static ::xgboost::TreeUpdaterReg& __make_ ## TreeUpdaterReg ## _ ## UniqueId ## __ = \
-      ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->__REGISTER__(#Name)
+      ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->__REGISTER__(Name)
 
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_UPDATER_H_

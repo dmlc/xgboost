@@ -11,6 +11,7 @@
 #include <string>
 #include <sstream>
 #include <limits>
+#include <iomanip>
 #include "./common/io.h"
 #include "./common/random.h"
 
@@ -94,6 +95,9 @@ struct LearnerTrainParam
   }
 };
 
+DMLC_REGISTER_PARAMETER(LearnerModelParam);
+DMLC_REGISTER_PARAMETER(LearnerTrainParam);
+
 /*!
  * \brief learner that performs gradient boosting for a specific objective function.
  *  It does training and prediction.
@@ -144,6 +148,9 @@ class LearnerImpl : public Learner {
 
     if (cfg_.count("num_class") != 0) {
       cfg_["num_output_group"] = cfg_["num_class"];
+      if (atoi(cfg_["num_class"].c_str()) > 1 && cfg_.count("objective") == 0) {
+        cfg_["objective"] = "multi:softmax";
+      }
     }
 
     if (cfg_.count("max_delta_step") == 0 &&
@@ -187,6 +194,10 @@ class LearnerImpl : public Learner {
     }
   }
 
+  void InitModel() override {
+    this->LazyInitModel();
+  }
+
   void Load(dmlc::Stream* fi) override {
     // TODO(tqchen) mark deprecation of old format.
     common::PeekableInStream fp(fi);
@@ -202,7 +213,6 @@ class LearnerImpl : public Learner {
     }
     // use the peekable reader.
     fi = &fp;
-    std::string name_gbm, name_obj;
     // read parameter
     CHECK_EQ(fi->Read(&mparam, sizeof(mparam)), sizeof(mparam))
         << "BoostLearner: wrong model format";
@@ -218,7 +228,7 @@ class LearnerImpl : public Learner {
         len = len >> static_cast<uint64_t>(32UL);
       }
       if (len != 0) {
-        name_obj.resize(len);
+        name_obj_.resize(len);
         CHECK_EQ(fi->Read(&name_obj_[0], len), len)
             <<"BoostLearner: wrong model format";
       }
@@ -226,8 +236,10 @@ class LearnerImpl : public Learner {
     CHECK(fi->Read(&name_gbm_))
         << "BoostLearner: wrong model format";
     // duplicated code with LazyInitModel
-    obj_.reset(ObjFunction::Create(cfg_.at(name_obj_)));
-    gbm_.reset(GradientBooster::Create(cfg_.at(name_gbm_)));
+    obj_.reset(ObjFunction::Create(name_obj_));
+    gbm_.reset(GradientBooster::Create(name_gbm_));
+    gbm_->Load(fi);
+
     if (metrics_.size() == 0) {
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric()));
     }
@@ -246,11 +258,12 @@ class LearnerImpl : public Learner {
   }
 
   void UpdateOneIter(int iter, DMatrix* train) override {
+    CHECK(ModelInitialized())
+        << "Always call InitModel or LoadModel before update";
     if (tparam.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam.seed * kRandSeedMagic + iter);
     }
     this->LazyInitDMatrix(train);
-    this->LazyInitModel();
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train->info(), iter, &gpair_);
     gbm_->DoBoost(train, this->FindBufferOffset(train), &gpair_);
@@ -262,6 +275,7 @@ class LearnerImpl : public Learner {
     if (tparam.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam.seed * kRandSeedMagic + iter);
     }
+    this->LazyInitDMatrix(train);
     gbm_->DoBoost(train, this->FindBufferOffset(train), in_gpair);
   }
 
@@ -269,7 +283,8 @@ class LearnerImpl : public Learner {
                           const std::vector<DMatrix*>& data_sets,
                           const std::vector<std::string>& data_names) override {
     std::ostringstream os;
-    os << '[' << iter << ']';
+    os << '[' << iter << ']'
+       << std::setiosflags(std::ios::fixed);
     for (size_t i = 0; i < data_sets.size(); ++i) {
       this->PredictRaw(data_sets[i], &preds_);
       obj_->EvalTransform(&preds_);
@@ -347,8 +362,6 @@ class LearnerImpl : public Learner {
     if (num_feature > mparam.num_feature) {
       mparam.num_feature = num_feature;
     }
-    // reset the base score
-    mparam.base_score = obj_->ProbToMargin(mparam.base_score);
 
     // setup
     cfg_["num_feature"] = ToString(mparam.num_feature);
@@ -357,9 +370,13 @@ class LearnerImpl : public Learner {
     gbm_.reset(GradientBooster::Create(name_gbm_));
     gbm_->Configure(cfg_.begin(), cfg_.end());
     obj_->Configure(cfg_.begin(), cfg_.end());
+
+    // reset the base score
+    mparam.base_score = obj_->ProbToMargin(mparam.base_score);
     if (metrics_.size() == 0) {
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric()));
     }
+
     this->base_score_ = mparam.base_score;
     gbm_->ResetPredBuffer(pred_buffer_size_);
   }
@@ -373,6 +390,8 @@ class LearnerImpl : public Learner {
   inline void PredictRaw(DMatrix* data,
                          std::vector<float>* out_preds,
                          unsigned ntree_limit = 0) const {
+    CHECK(gbm_.get() != nullptr)
+        << "Predict must happen after Load or InitModel";
     gbm_->Predict(data,
                   this->FindBufferOffset(data),
                   out_preds,

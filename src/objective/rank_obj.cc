@@ -4,8 +4,8 @@
  * \brief Definition of rank loss.
  * \author Tianqi Chen, Kailong Chen
  */
-#include <dmlc/logging.h>
 #include <dmlc/omp.h>
+#include <xgboost/logging.h>
 #include <xgboost/objective.h>
 #include <vector>
 #include <algorithm>
@@ -15,6 +15,8 @@
 
 namespace xgboost {
 namespace obj {
+
+DMLC_REGISTRY_FILE_TAG(rank_obj);
 
 struct LambdaRankParam : public dmlc::Parameter<LambdaRankParam> {
   int num_pairsample;
@@ -324,4 +326,3 @@ XGBOOST_REGISTER_OBJECTIVE(LambdaRankObjMAP, "rank:map")
 
 }  // namespace obj
 }  // namespace xgboost
-

@@ -3,7 +3,7 @@
  * \file simple_csr_source.cc
  */
 #include <dmlc/base.h>
-#include <dmlc/logging.h>
+#include <xgboost/logging.h>
 #include "./simple_csr_source.h"
 
 namespace xgboost {
@@ -80,7 +80,7 @@ void SimpleCSRSource::SaveBinary(dmlc::Stream* fo) const {
 }
 
 void SimpleCSRSource::BeforeFirst() {
-  at_first_ = false;
+  at_first_ = true;
 }
 
 bool SimpleCSRSource::Next() {

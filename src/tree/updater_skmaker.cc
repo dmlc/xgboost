@@ -18,6 +18,8 @@
 namespace xgboost {
 namespace tree {
 
+DMLC_REGISTRY_FILE_TAG(updater_skmaker);
+
 class SketchMaker: public BaseMaker {
  public:
   void Update(const std::vector<bst_gpair> &gpair,
@@ -399,4 +401,3 @@ XGBOOST_REGISTER_TREE_UPDATER(SketchMaker, "grow_skmaker")
   });
 }  // namespace tree
 }  // namespace xgboost
-

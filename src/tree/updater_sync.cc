@@ -12,6 +12,9 @@
 
 namespace xgboost {
 namespace tree {
+
+DMLC_REGISTRY_FILE_TAG(updater_sync);
+
 /*!
  * \brief syncher that synchronize the tree in all distributed nodes
  * can implement various strategies, so far it is always set to node 0's tree

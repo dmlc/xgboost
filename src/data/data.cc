@@ -3,7 +3,12 @@
  * \file data.cc
  */
 #include <xgboost/data.h>
+#include <xgboost/logging.h>
 #include <cstring>
+#include "./sparse_batch_page.h"
+#include "./simple_dmatrix.h"
+#include "./simple_csr_source.h"
+#include "../common/io.h"
 
 namespace xgboost {
 // implementation of inline functions
@@ -83,4 +88,83 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
+
+DMatrix* DMatrix::Load(const std::string& uri,
+                       bool silent,
+                       bool load_row_split,
+                       const std::string& file_format) {
+  std::string fname, cache_file;
+  size_t dlm_pos = uri.find('#');
+  if (dlm_pos != std::string::npos) {
+    cache_file = uri.substr(dlm_pos + 1, uri.length());
+    fname = uri.substr(0, dlm_pos);
+    CHECK_EQ(cache_file.find('#'), std::string::npos)
+        << "Only one `#` is allowed in file path for cache file specification.";
+    if (load_row_split) {
+      std::ostringstream os;
+      os << cache_file << ".r" << rabit::GetRank();
+      cache_file = os.str();
+    }
+  } else {
+    fname = uri;
+  }
+  int partid = 0, npart = 1;
+  if (load_row_split) {
+    partid = rabit::GetRank();
+    npart = rabit::GetWorldSize();
+  }
+
+  // legacy handling of binary data loading
+  if (file_format == "auto" && !load_row_split) {
+    int magic;
+    std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
+    common::PeekableInStream is(fi.get());
+     if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
+         magic == data::SimpleCSRSource::kMagic) {
+       std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+       source->LoadBinary(&is);
+       DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
+       if (!silent) {
+         LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
+                      << dmat->info().num_nonzero << " entries loaded from " << uri;
+       }
+       return dmat;
+     }
+  }
+
+  std::string ftype = file_format;
+  if (file_format == "auto") ftype = "libsvm";
+  std::unique_ptr<dmlc::Parser<uint32_t> > parser(
+      dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, ftype.c_str()));
+  DMatrix* dmat = DMatrix::Create(parser.get(), cache_file);
+  if (!silent) {
+    LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
+                 << dmat->info().num_nonzero << " entries loaded from " << uri;
+  }
+  return dmat;
+}
+
+DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
+                         const std::string& cache_prefix) {
+  if (cache_prefix.length() == 0) {
+    std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+    source->CopyFrom(parser);
+    return DMatrix::Create(std::move(source), cache_prefix);
+  } else {
+    LOG(FATAL) << "external memory not yet implemented";
+    return nullptr;
+  }
+}
+
+void DMatrix::SaveToLocalFile(const std::string& fname) {
+  data::SimpleCSRSource source;
+  source.CopyFrom(this);
+  std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
+  source.SaveBinary(fo.get());
+}
+
+DMatrix* DMatrix::Create(std::unique_ptr<DataSource>&& source,
+                         const std::string& cache_prefix) {
+  return new data::SimpleDMatrix(std::move(source));
+}
 }  // namespace xgboost

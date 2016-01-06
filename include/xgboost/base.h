@@ -16,6 +16,15 @@
 #define XGBOOST_STRICT_R_MODE 0
 #endif
 
+/*!
+ * \brief Whether always log console message with time.
+ *  It will display like, with timestamp appended to head of the message.
+ *  "[21:47:50] 6513x126 matrix with 143286 entries loaded from ../data/agaricus.txt.train"
+ */
+#ifndef XGBOOST_LOG_WITH_TIME
+#define XGBOOST_LOG_WITH_TIME 0
+#endif
+
 /*! \brief namespace of xgboo st*/
 namespace xgboost {
 /*!
@@ -23,6 +32,8 @@ namespace xgboost {
  *  used for feature index and row index.
  */
 typedef uint32_t bst_uint;
+/*! \brief long integers */
+typedef unsigned long bst_ulong;  // NOLINT(*)
 /*! \brief float type, used for storing statistics */
 typedef float bst_float;
 

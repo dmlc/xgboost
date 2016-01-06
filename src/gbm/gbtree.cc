@@ -4,9 +4,9 @@
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
  */
-#include <dmlc/logging.h>
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
+#include <xgboost/logging.h>
 #include <xgboost/gbm.h>
 #include <xgboost/tree_updater.h>
 
@@ -18,6 +18,8 @@
 
 namespace xgboost {
 namespace gbm {
+
+DMLC_REGISTRY_FILE_TAG(gbtree);
 
 /*! \brief training parameters */
 struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
@@ -482,4 +484,3 @@ XGBOOST_REGISTER_GBM(GBTree, "gbtree")
   });
 }  // namespace gbm
 }  // namespace xgboost
-

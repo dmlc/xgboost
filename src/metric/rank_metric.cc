@@ -5,12 +5,16 @@
  * \author Kailong Chen, Tianqi Chen
  */
 #include <xgboost/metric.h>
+#include <dmlc/registry.h>
 #include <cmath>
 #include "../common/sync.h"
 #include "../common/math.h"
 
 namespace xgboost {
 namespace metric {
+// tag the this file, used by force static link later.
+DMLC_REGISTRY_FILE_TAG(rank_metric);
+
 /*! \brief AMS: also records best threshold */
 struct EvalAMS : public Metric {
  public:

@@ -14,6 +14,9 @@
 
 namespace xgboost {
 namespace tree {
+
+DMLC_REGISTRY_FILE_TAG(updater_refresh);
+
 /*! \brief pruner that prunes a tree after growing finishs */
 template<typename TStats>
 class TreeRefresher: public TreeUpdater {

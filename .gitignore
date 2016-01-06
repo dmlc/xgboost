@@ -70,3 +70,5 @@ nb-configuration*
 .settings/
 build
 config.mk
+xgboost
+*.data

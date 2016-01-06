@@ -70,7 +70,7 @@ struct MetricReg
  * \endcode
  */
 #define XGBOOST_REGISTER_METRIC(UniqueId, Name)                         \
-  static ::xgboost::MetricReg & __make_ ## MetricReg ## _ ## UniqueId ## __ = \
-      ::dmlc::Registry< ::xgboost::MetricReg>::Get()->__REGISTER__(#Name)
+  ::xgboost::MetricReg&  __make_ ## MetricReg ## _ ## UniqueId ## __ =  \
+      ::dmlc::Registry< ::xgboost::MetricReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost
 #endif  // XGBOOST_METRIC_H_

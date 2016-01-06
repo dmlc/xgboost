@@ -15,6 +15,9 @@
 
 namespace xgboost {
 namespace tree {
+
+DMLC_REGISTRY_FILE_TAG(updater_colmaker);
+
 /*! \brief column-wise update to construct a tree */
 template<typename TStats>
 class ColMaker: public TreeUpdater {
@@ -891,4 +894,3 @@ XGBOOST_REGISTER_TREE_UPDATER(DistColMaker, "distcol")
   });
 }  // namespace tree
 }  // namespace xgboost
-

@@ -8,7 +8,7 @@
 #define XGBOOST_COMMON_QUANTILE_H_
 
 #include <dmlc/base.h>
-#include <dmlc/logging.h>
+#include <xgboost/logging.h>
 #include <cmath>
 #include <vector>
 #include <cstring>

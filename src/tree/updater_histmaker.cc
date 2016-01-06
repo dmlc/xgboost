@@ -15,6 +15,9 @@
 
 namespace xgboost {
 namespace tree {
+
+DMLC_REGISTRY_FILE_TAG(updater_histmaker);
+
 template<typename TStats>
 class HistMaker: public BaseMaker {
  public:
