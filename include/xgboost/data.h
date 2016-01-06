@@ -9,6 +9,7 @@
 
 #include <dmlc/base.h>
 #include <dmlc/data.h>
+#include <string>
 #include <memory>
 #include <vector>
 #include "./base.h"
@@ -252,7 +253,7 @@ class DMatrix {
    * \param fname The file name to be saved.
    * \return The created DMatrix.
    */
-  virtual void SaveToLocalFile(const char* fname);
+  virtual void SaveToLocalFile(const std::string& fname);
   /*!
    * \brief Load DMatrix from URI.
    * \param uri The URI of input.
@@ -260,7 +261,7 @@ class DMatrix {
    * \param load_row_split Flag to read in part of rows, divided among the workers in distributed mode.
    * \return The created DMatrix.
    */
-  static DMatrix* Load(const char* uri,
+  static DMatrix* Load(const std::string& uri,
                        bool silent,
                        bool load_row_split);
   /*!
