@@ -57,7 +57,7 @@ endif
 # specify tensor path
 .PHONY: clean all lint clean_all
 
-all: lib/libxgboost.a lib/libxgboost.so
+all: lib/libxgboost.a lib/libxgboost.so xgboost
 
 $(DMLC_CORE)/libdmlc.a:
 	+ cd $(DMLC_CORE); make libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
@@ -66,9 +66,10 @@ $(RABIT)/lib/$(LIB_RABIT):
 	+ cd $(RABIT); make lib/$(LIB_RABIT); cd $(ROOTDIR)
 
 SRC = $(wildcard src/*.cc src/*/*.cc)
-OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
+ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
 LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
-ALL_DEP = $(OBJ) $(LIB_DEP)
+ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
+CLI_OBJ = build/cli_main.o
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
@@ -82,6 +83,9 @@ lib/libxgboost.a: $(ALL_DEP)
 lib/libxgboost.so: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+
+xgboost: lib/libxgboost.a $(CLI_OBJ) $(LIB_DEP)
+	$(CXX) $(CFLAGS) -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
 lint:
 	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src
