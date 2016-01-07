@@ -319,7 +319,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         if eval_set is not None:
             # TODO: use sample_weight if given?
-            evals = list(DMatrix(x[0], label=x[1]) for x in eval_set)
+            evals = list(DMatrix(x[0], label=x[1], missing=self.missing) for x in eval_set)
             nevals = len(evals)
             eval_names = ["validation_{}".format(i) for i in range(nevals)]
             evals = list(zip(evals, eval_names))
