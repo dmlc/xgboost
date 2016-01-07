@@ -162,7 +162,7 @@ After we remove all the constants, the specific objective at step ``$t$`` become
 
 This becomes our optimization goal for the new tree. One important advantage of this definition is that
 it only depends on ``$g_i$`` and ``$h_i$``. This is how xgboost can support custom loss functions.
-We can optimize every loss function, including logistic regression, weighted logistic regression, using the exactly
+We can optimize every loss function, including logistic regression, weighted logistic regression, using exactly
 the same solver that takes ``$g_i$`` and ``$h_i$`` as input!
 
 ### Model Complexity
