@@ -40,7 +40,7 @@ public class ErrorHandle {
     /**
      * check the return value of C API
      * @param ret return valud of xgboostJNI C API call
-     * @throws org.dmlc.xgboost4j.util.XGBoostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError Native error
      */
     public static void checkCall(int ret) throws XGBoostError {
         if(ret != 0) {
