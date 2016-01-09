@@ -90,7 +90,7 @@ public class DMatrix {
      * @param data data values
      * @param nrow number of rows
      * @param ncol number of columns
-     * @throws org.dmlc.xgboost4j.util.XGBoostError Native error
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public DMatrix(float[] data, int nrow, int ncol) throws XGBoostError {
         long[] out = new long[1];
@@ -111,6 +111,7 @@ public class DMatrix {
     /**
      * set label of dmatrix
      * @param labels labels
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public void setLabel(float[] labels) throws XGBoostError {
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixSetFloatInfo(handle, "label", labels));
@@ -119,7 +120,7 @@ public class DMatrix {
     /**
      * set weight of each instance
      * @param weights weights
-     * @throws org.dmlc.xgboost4j.util.XGBoostError Native error
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public void setWeight(float[] weights) throws XGBoostError {
         ErrorHandle.checkCall(XgboostJNI.XGDMatrixSetFloatInfo(handle, "weight", weights));
@@ -196,7 +197,7 @@ public class DMatrix {
     
     /**
      * Slice the DMatrix and return a new DMatrix that only contains `rowIndex`.
-     * @param rowIndex
+     * @param rowIndex row index
      * @return sliced new DMatrix
      * @throws org.dmlc.xgboost4j.util.XGBoostError Native error
      */
@@ -221,12 +222,16 @@ public class DMatrix {
     
     /**
      * save DMatrix to filePath
-     * @param filePath 
+     * @param filePath file path
      */
     public void saveBinary(String filePath) {
         XgboostJNI.XGDMatrixSaveBinary(handle, filePath, 1);
     }
     
+    /**
+     * Get the handle
+     * @return native handler id
+     */
     public long getHandle() {
         return handle;
     }
