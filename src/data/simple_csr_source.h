@@ -15,7 +15,6 @@
 
 
 namespace xgboost {
-/*! \brief namespace of internal data structures*/
 namespace data {
 /*!
  * \brief The simplest form of data holder, can be used to create DMatrix.

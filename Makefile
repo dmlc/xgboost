@@ -102,7 +102,7 @@ lint:
 	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src
 
 clean:
-	$(RM) -r build lib bin *~ */*~ */*/*~ */*/*/*~ $(AMALGA_OBJ)
+	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ $(AMALGA_OBJ) xgboost
 
 clean_all: clean
 	cd $(DMLC_CORE); make clean; cd -
