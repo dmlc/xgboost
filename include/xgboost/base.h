@@ -22,7 +22,7 @@
  *  "[21:47:50] 6513x126 matrix with 143286 entries loaded from ../data/agaricus.txt.train"
  */
 #ifndef XGBOOST_LOG_WITH_TIME
-#define XGBOOST_LOG_WITH_TIME 0
+#define XGBOOST_LOG_WITH_TIME 1
 #endif
 
 /*! \brief namespace of xgboo st*/

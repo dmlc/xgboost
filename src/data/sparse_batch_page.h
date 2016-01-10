@@ -13,6 +13,7 @@
 #include <dmlc/io.h>
 #include <vector>
 #include <algorithm>
+#include <cstring>
 
 namespace xgboost {
 namespace data {
@@ -162,6 +163,24 @@ class SparsePage {
     for (size_t i = 0; i < batch.size; ++i) {
       offset[i + begin] = top + batch.ind_ptr[i + 1] - batch.ind_ptr[0];
     }
+  }
+  /*!
+   * \brief Push row block into the page.
+   * \param batch the row batch.
+   */
+  inline void Push(const dmlc::RowBlock<uint32_t>& batch) {
+    data.reserve(data.size() + batch.offset[batch.size] - batch.offset[0]);
+    offset.reserve(offset.size() + batch.size);
+    CHECK(batch.index != nullptr);
+    for (size_t i = 0; i < batch.size; ++i) {
+      offset.push_back(offset.back() + batch.offset[i + 1] - batch.offset[i]);
+    }
+    for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
+      uint32_t index = batch.index[i];
+      bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
+      data.push_back(SparseBatch::Entry(index, fvalue));
+    }
+    CHECK_EQ(offset.back(), data.size());
   }
   /*!
    * \brief Push a sparse page
