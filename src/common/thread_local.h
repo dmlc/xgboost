@@ -6,7 +6,10 @@
 #ifndef XGBOOST_COMMON_THREAD_LOCAL_H_
 #define XGBOOST_COMMON_THREAD_LOCAL_H_
 
+#if DMLC_ENABLE_STD_THREAD
 #include <mutex>
+#endif
+
 #include <memory>
 #include <vector>
 
@@ -63,12 +66,19 @@ class ThreadLocalStore {
    * \param str the string pointer
    */
   void RegisterDelete(T *str) {
+#if DMLC_ENABLE_STD_THREAD
     std::unique_lock<std::mutex> lock(mutex_);
     data_.push_back(str);
     lock.unlock();
+#else
+    data_.push_back(str);
+#endif
   }
+
+#if DMLC_ENABLE_STD_THREAD
   /*! \brief internal mutex */
   std::mutex mutex_;
+#endif
   /*!\brief internal data */
   std::vector<T*> data_;
 };

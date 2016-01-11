@@ -8,9 +8,12 @@
 #include "./sparse_batch_page.h"
 #include "./simple_dmatrix.h"
 #include "./simple_csr_source.h"
+#include "../common/io.h"
+
+#if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
 #include "./sparse_page_dmatrix.h"
-#include "../common/io.h"
+#endif
 
 namespace xgboost {
 // implementation of inline functions
@@ -194,11 +197,16 @@ DMatrix* DMatrix::Create(dmlc::Parser<uint32_t>* parser,
     source->CopyFrom(parser);
     return DMatrix::Create(std::move(source), cache_prefix);
   } else {
+#if DMLC_ENABLE_STD_THREAD
     if (!data::SparsePageSource::CacheExist(cache_prefix)) {
       data::SparsePageSource::Create(parser, cache_prefix);
     }
     std::unique_ptr<data::SparsePageSource> source(new data::SparsePageSource(cache_prefix));
     return DMatrix::Create(std::move(source), cache_prefix);
+#else
+    LOG(FATAL) << "External memory is not enabled in mingw";
+    return nullptr;
+#endif
   }
 }
 
@@ -214,7 +222,12 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource>&& source,
   if (cache_prefix.length() == 0) {
     return new data::SimpleDMatrix(std::move(source));
   } else {
+#if DMLC_ENABLE_STD_THREAD
     return new data::SparsePageDMatrix(std::move(source), cache_prefix);
+#else
+    LOG(FATAL) << "External memory is not enabled in mingw";
+    return nullptr;
+#endif
   }
 }
 }  // namespace xgboost

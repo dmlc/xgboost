@@ -103,7 +103,7 @@ inline static bool CmpSecond(const std::pair<float, unsigned> &a,
   return a.second > b.second;
 }
 
-#ifdef XGBOOST_STRICT_R_MODE_
+#if XGBOOST_STRICT_R_MODE
 // check nan
 bool CheckNAN(double v);
 double LogGamma(double v);
