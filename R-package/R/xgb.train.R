@@ -220,7 +220,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     }
     if (save_period > 0) {
       if (i %% save_period == 0) {
-        xgb.save(bst, save_name)
+        xgb.save(bst, paste(save_name,i,sep=""))
       }
     }
   }
