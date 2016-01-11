@@ -74,6 +74,7 @@
 #'     \code{maximize=TRUE} means the larger the evaluation score the better.
 #' @param save_period save the model to the disk in every \code{save_period} rounds, 0 means no such action.
 #' @param save_name the name or path for periodically saved model file.
+#' @param max_to_keep number of distinct models to keep in the save_name path.
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 
@@ -144,6 +145,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   dot.params <- list(...)
   nms.params <- names(params)
   nms.dot.params <- names(dot.params)
+  models_kept<-0
   if (length(intersect(nms.params,nms.dot.params)) > 0)
     stop("Duplicated term in parameters. Please check your list of params.")
   params <- append(params, dot.params)
@@ -220,7 +222,10 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     }
     if (save_period > 0) {
       if (i %% save_period == 0) {
-        xgb.save(bst, paste(save_name,i,sep=""))
+        if (models_kept < max_to_keep) {
+          xgb.save(bst, paste(save_name,i,sep=""))
+          models_kept <- models_kept + 1 
+        }
       }
     }
   }
