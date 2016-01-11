@@ -124,7 +124,7 @@
 xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
                       obj = NULL, feval = NULL, verbose = 1, print.every.n=1L,
                       early.stop.round = NULL, maximize = NULL,
-                      save_period = 0, save_name = "xgboost.model", max_to_keep = 0...) {
+                      save_period = 0, save_name = "xgboost.model", max_to_keep = 0,...) {
   dtrain <- data
   if (typeof(params) != "list") {
     stop("xgb.train: first argument params must be list")
