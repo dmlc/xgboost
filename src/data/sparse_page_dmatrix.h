@@ -4,15 +4,15 @@
  * \brief In-memory version of DMatrix.
  * \author Tianqi Chen
  */
-#ifndef XGBOOST_SPARSE_PAGE_DMATRIX_H_
-#define XGBOOST_SPARSE_PAGE_DMATRIX_H_
+#ifndef XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
+#define XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <dmlc/threadediter.h>
 #include <vector>
 #include <algorithm>
-#include <cstring>
+#include <string>
 #include "./sparse_batch_page.h"
 
 namespace xgboost {
@@ -125,4 +125,4 @@ class SparsePageDMatrix : public DMatrix {
 };
 }  // namespace data
 }  // namespace xgboost
-#endif  // XGBOOST_SPARSE_PAGE_DMATRIX_H_
+#endif  // XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_

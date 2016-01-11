@@ -51,7 +51,7 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       bst_float fvalue = batch.value == nullptr ? 1.0f : batch.value[i];
       row_data_.push_back(SparseBatch::Entry(index, fvalue));
       this->info.num_col = std::max(this->info.num_col,
-                                    static_cast<size_t>(index + 1));
+                                    static_cast<uint64_t>(index + 1));
     }
     size_t top = row_ptr_.size();
     row_ptr_.resize(top + batch.size);

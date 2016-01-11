@@ -30,8 +30,11 @@
 #include "../src/data/data.cc"
 #include "../src/data/simple_csr_source.cc"
 #include "../src/data/simple_dmatrix.cc"
+
+#if DMLC_ENABLE_STD_THREAD
 #include "../src/data/sparse_page_source.cc"
 #include "../src/data/sparse_page_dmatrix.cc"
+#endif
 
 // tress
 #include "../src/tree/tree_model.cc"

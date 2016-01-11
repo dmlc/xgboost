@@ -107,7 +107,7 @@ int XGDMatrixCreateFromCSR(const bst_ulong* indptr,
   for (bst_ulong i = 0; i < nelem; ++i) {
     mat.row_data_[i] = RowBatch::Entry(indices[i], data[i]);
     mat.info.num_col = std::max(mat.info.num_col,
-                                static_cast<size_t>(indices[i] + 1));
+                                static_cast<uint64_t>(indices[i] + 1));
   }
   mat.info.num_row = nindptr - 1;
   mat.info.num_nonzero = static_cast<uint64_t>(nelem);

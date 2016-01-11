@@ -55,7 +55,7 @@ else
 endif
 
 # specify tensor path
-.PHONY: clean all lint clean_all
+.PHONY: clean all lint clean_all rcpplint Rpack Rbuild Rcheck
 
 all: lib/libxgboost.a lib/libxgboost.so xgboost
 
@@ -98,15 +98,50 @@ lib/libxgboost.so: $(ALL_DEP)
 xgboost: $(CLI_OBJ) lib/libxgboost.a $(LIB_DEP)
 	$(CXX) $(CFLAGS) -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
 
-lint:
+rcpplint:
+	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
+
+lint: rcpplint
 	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src
 
 clean:
-	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ $(AMALGA_OBJ) xgboost
+	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ amalgamation/*.o xgboost
 
 clean_all: clean
 	cd $(DMLC_CORE); make clean; cd -
 	cd $(RABIT); make clean; cd -
+
+# Script to make a clean installable R package.
+Rpack:
+	make clean_all
+	rm -rf xgboost xgboost*.tar.gz
+	cp -r R-package xgboost
+	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
+	rm -rf xgboost/src/*/*.o
+	rm -rf xgboost/demo/*.model xgboost/demo/*.buffer xgboost/demo/*.txt
+	rm -rf xgboost/demo/runall.R
+	cp -r src xgboost/src/src
+	cp -r include xgboost/src/include
+	cp -r amalgamation xgboost/src/amalgamation
+	mkdir -p xgboost/src/rabit
+	cp -r rabit/include xgboost/src/rabit/include
+	cp -r rabit/src xgboost/src/rabit/src
+	rm -rf xgboost/src/rabit/src/*.o
+	mkdir -p xgboost/src/dmlc-core
+	cp -r dmlc-core/include xgboost/src/dmlc-core/include
+	cp -r dmlc-core/src xgboost/src/dmlc-core/src
+	cp ./LICENSE xgboost
+	cat R-package/src/Makevars|sed '2s/.*/PKGROOT=./' | sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars
+	cp xgboost/src/Makevars xgboost/src/Makevars.win
+
+Rbuild:
+	make Rpack
+	R CMD build --no-build-vignettes xgboost
+	rm -rf xgboost
+
+Rcheck:
+	make Rbuild
+	R CMD check  xgboost*.tar.gz
 
 -include build/*.d
 -include build/*/*.d
