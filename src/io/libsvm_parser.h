@@ -118,6 +118,10 @@ class LibSVMPageFactory  {
     while (p != end) {
       while (isspace(*p) && p != end) ++p;
       if (p == end) break;
+      if (*p == '#') {
+        while (*p != '\n' && p != end) ++p;
+        continue;
+      }
       char *head = p;
       while (isdigit(*p) && p != end) ++p;
       if (*p == ':') {
@@ -129,7 +133,7 @@ class LibSVMPageFactory  {
         }
         out->label.push_back(static_cast<float>(atof(head)));
       }
-      while (!isspace(*p) && p != end) ++p;
+      while (!isspace(*p) && *p != '#' && p != end) ++p;
     }
     if (out->label.size() != 0) {
       out->offset.push_back(out->data.size());
