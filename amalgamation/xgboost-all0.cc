@@ -30,6 +30,8 @@
 #include "../src/data/data.cc"
 #include "../src/data/simple_csr_source.cc"
 #include "../src/data/simple_dmatrix.cc"
+#include "../src/data/sparse_page_source.cc"
+#include "../src/data/sparse_page_dmatrix.cc"
 
 // tress
 #include "../src/tree/tree_model.cc"

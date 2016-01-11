@@ -51,6 +51,35 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   CHECK(fi->Read(&base_margin)) << "MetaInfo: invalid format";
 }
 
+// try to load group information from file, if exists
+inline bool MetaTryLoadGroup(const std::string& fname,
+                             std::vector<unsigned>* group) {
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
+  if (fi.get() == nullptr) return false;
+  dmlc::istream is(fi.get());
+  group->clear();
+  group->push_back(0);
+  unsigned nline;
+  while (is >> nline) {
+    group->push_back(group->back() + nline);
+  }
+  return true;
+}
+
+// try to load weight information from file, if exists
+inline bool MetaTryLoadFloatInfo(const std::string& fname,
+                                 std::vector<float>* data) {
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
+  if (fi.get() == nullptr) return false;
+  dmlc::istream is(fi.get());
+  data->clear();
+  float value;
+  while (is >> value) {
+    data->push_back(value);
+  }
+  return true;
+}
+
 // macro to dispatch according to specified pointer types
 #define DISPATCH_CONST_PTR(dtype, old_ptr, cast_ptr, proc)              \
   switch (dtype) {                                                      \
@@ -142,6 +171,18 @@ DMatrix* DMatrix::Load(const std::string& uri,
   if (!silent) {
     LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
                  << dmat->info().num_nonzero << " entries loaded from " << uri;
+  }
+  // backward compatiblity code.
+  if (!load_row_split) {
+    MetaInfo& info = dmat->info();
+    if (MetaTryLoadGroup(fname + ".group", &info.group_ptr) && !silent) {
+      LOG(CONSOLE) << info.group_ptr.size() - 1
+                   << " groups are loaded from " << fname << ".group";
+    }
+    if (MetaTryLoadFloatInfo(fname + ".base_margin", &info.base_margin) && !silent) {
+      LOG(CONSOLE) << info.base_margin.size()
+                   << " base_margin are loaded from " << fname << ".base_margin";
+    }
   }
   return dmat;
 }
