@@ -71,7 +71,7 @@ class SparsePageDMatrix : public DMatrix {
   /*! \brief page size 256 MB */
   static const size_t kPageSize = 256UL << 20UL;
   /*! \brief Maximum number of rows per batch. */
-  static const size_t kMaxRowPerBatch = 32UL << 10UL;
+  static const size_t kMaxRowPerBatch = 64UL << 10UL;
 
  private:
   // declare the column batch iter.

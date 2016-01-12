@@ -1,3 +1,8 @@
+# flags by plugin
+PLUGIN_OBJS=
+PLUGIN_LDFLAGS=
+PLUGIN_CFLAGS=
+
 ifndef config
 ifneq ("$(wildcard ./config.mk)","")
 	config = config.mk
@@ -36,8 +41,8 @@ ifeq ($(OS), Windows_NT)
 	export CC = gcc -m64
 endif
 
-export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS)
-export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -fPIC -Iinclude $(ADD_CFLAGS)
+export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
+export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -fPIC -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
@@ -76,7 +81,7 @@ $(RABIT)/lib/$(LIB_RABIT):
 java: java/libxgboost4j.so
 
 SRC = $(wildcard src/*.cc src/*/*.cc)
-ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
+ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC)) $(PLUGIN_OBJS)
 AMALGA_OBJ = amalgamation/xgboost-all0.o
 LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
 ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
@@ -85,6 +90,11 @@ CLI_OBJ = build/cli_main.o
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
+	$(CXX) -c $(CFLAGS) -c $< -o $@
+
+build_plugin/%.o: plugin/%.cc
+	@mkdir -p $(@D)
+	$(CXX) $(CFLAGS) -MM -MT build_plugin/$*.o $< >build_plugin/$*.d
 	$(CXX) -c $(CFLAGS) -c $< -o $@
 
 # The should be equivalent to $(ALL_OBJ)  except for build/cli_main.o
@@ -104,20 +114,20 @@ lib/libxgboost.so: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
-java/libxgboost4j.so: java/xgboost4j_wrapper.cpp lib/libxgboost.a $(LIB_DEP)
+java/libxgboost4j.so: java/xgboost4j_wrapper.cpp $(ALL_DEP)
 	$(CXX) $(CFLAGS) $(JAVAINCFLAGS) -shared -o $@ $(filter %.cpp %.o %.a, $^) $(LDFLAGS)
 
-xgboost: $(CLI_OBJ) lib/libxgboost.a $(LIB_DEP)
+xgboost: $(CLI_OBJ) $(ALL_DEP)
 	$(CXX) $(CFLAGS) -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
 
 rcpplint:
 	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
 
 lint: rcpplint
-	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src
+	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src plugin
 
 clean:
-	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ amalgamation/*.o xgboost
+	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ amalgamation/*.o xgboost
 
 clean_all: clean
 	cd $(DMLC_CORE); make clean; cd -
@@ -157,3 +167,4 @@ Rcheck:
 
 -include build/*.d
 -include build/*/*.d
+-include build_plugin/*/*.d

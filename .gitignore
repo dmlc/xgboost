@@ -72,3 +72,4 @@ build
 config.mk
 xgboost
 *.data
+build_plugin

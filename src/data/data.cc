@@ -255,5 +255,8 @@ std::string SparsePage::Format::DecideFormat(const std::string& cache_prefix) {
     return "raw";
   }
 }
+
+// List of files that will be force linked in static links.
+DMLC_REGISTRY_LINK_TAG(sparse_page_raw_format);
 }  // namespace data
 }  // namespace xgboost
