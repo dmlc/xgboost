@@ -14,6 +14,7 @@
 #include <vector>
 #include <algorithm>
 #include <cstring>
+#include <string>
 
 namespace xgboost {
 namespace data {
@@ -22,6 +23,9 @@ namespace data {
  */
 class SparsePage {
  public:
+  /*! \brief Format of the sparse page. */
+  class Format;
+
   /*! \brief offset of the segments */
   std::vector<size_t> offset;
   /*! \brief the data of the segments */
@@ -35,87 +39,6 @@ class SparsePage {
   inline size_t Size() const {
     return offset.size() - 1;
   }
-  /*!
-   * \brief load only the segments we are interested in
-   * \param fi the input stream of the file
-   * \param sorted_index_set sorted index of segments we are interested in
-   * \return true of the loading as successful, false if end of file was reached
-   */
-  inline bool Load(dmlc::SeekStream *fi,
-                   const std::vector<bst_uint> &sorted_index_set) {
-    if (!fi->Read(&disk_offset_)) return false;
-    // setup the offset
-    offset.clear(); offset.push_back(0);
-    for (size_t i = 0; i < sorted_index_set.size(); ++i) {
-      bst_uint fid = sorted_index_set[i];
-      CHECK_LT(fid + 1, disk_offset_.size());
-      size_t size = disk_offset_[fid + 1] - disk_offset_[fid];
-      offset.push_back(offset.back() + size);
-    }
-    data.resize(offset.back());
-    // read in the data
-    size_t begin = fi->Tell();
-    size_t curr_offset = 0;
-    for (size_t i = 0; i < sorted_index_set.size();) {
-      bst_uint fid = sorted_index_set[i];
-      if (disk_offset_[fid] != curr_offset) {
-        CHECK_GT(disk_offset_[fid], curr_offset);
-        fi->Seek(begin + disk_offset_[fid] * sizeof(SparseBatch::Entry));
-        curr_offset = disk_offset_[fid];
-      }
-      size_t j, size_to_read = 0;
-      for (j = i; j < sorted_index_set.size(); ++j) {
-        if (disk_offset_[sorted_index_set[j]] == disk_offset_[fid] + size_to_read) {
-          size_to_read += offset[j + 1] - offset[j];
-        } else {
-          break;
-        }
-      }
-
-      if (size_to_read != 0) {
-        CHECK_EQ(fi->Read(dmlc::BeginPtr(data) + offset[i],
-                          size_to_read * sizeof(SparseBatch::Entry)),
-                 size_to_read * sizeof(SparseBatch::Entry))
-            << "Invalid SparsePage file";
-        curr_offset += size_to_read;
-      }
-      i = j;
-    }
-    // seek to end of record
-    if (curr_offset != disk_offset_.back()) {
-      fi->Seek(begin + disk_offset_.back() * sizeof(SparseBatch::Entry));
-    }
-    return true;
-  }
-  /*!
-   * \brief load all the segments
-   * \param fi the input stream of the file
-   * \return true of the loading as successful, false if end of file was reached
-   */
-  inline bool Load(dmlc::Stream *fi) {
-    if (!fi->Read(&offset)) return false;
-    CHECK_NE(offset.size(), 0) << "Invalid SparsePage file";
-    data.resize(offset.back());
-    if (data.size() != 0) {
-      CHECK_EQ(fi->Read(dmlc::BeginPtr(data), data.size() * sizeof(SparseBatch::Entry)),
-               data.size() * sizeof(SparseBatch::Entry))
-          << "Invalid SparsePage file";
-    }
-    return true;
-  }
-  /*!
-   * \brief save the data to fo, when a page was written
-   *    to disk it must contain all the elements in the
-   * \param fo output stream
-   */
-  inline void Save(dmlc::Stream *fo) const {
-    CHECK(offset.size() != 0 && offset[0] == 0);
-    CHECK_EQ(offset.back(), data.size());
-    fo->Write(offset);
-    if (data.size() != 0) {
-      fo->Write(dmlc::BeginPtr(data), data.size() * sizeof(SparseBatch::Entry));
-    }
-  }
   /*! \return estimation of memory cost of this page */
   inline size_t MemCostBytes(void) const {
     return offset.size() * sizeof(size_t) + data.size() * sizeof(SparseBatch::Entry);
@@ -126,28 +49,7 @@ class SparsePage {
     offset.push_back(0);
     data.clear();
   }
-  /*!
-   * \brief load all the segments and add it to existing batch
-   * \param fi the input stream of the file
-   * \return true of the loading as successful, false if end of file was reached
-   */
-  inline bool PushLoad(dmlc::Stream *fi) {
-    if (!fi->Read(&disk_offset_)) return false;
-    data.resize(offset.back() + disk_offset_.back());
-    if (disk_offset_.back() != 0) {
-      CHECK_EQ(fi->Read(dmlc::BeginPtr(data) + offset.back(),
-                        disk_offset_.back() * sizeof(SparseBatch::Entry)),
-               disk_offset_.back() * sizeof(SparseBatch::Entry))
-          << "Invalid SparsePage file";
-    }
-    size_t top = offset.back();
-    size_t begin = offset.size();
-    offset.resize(offset.size() + disk_offset_.size());
-    for (size_t i = 0; i < disk_offset_.size(); ++i) {
-      offset[i + begin] = top + disk_offset_[i];
-    }
-    return true;
-  }
+
   /*!
    * \brief Push row batch into the page
    * \param batch the row batch
@@ -223,11 +125,72 @@ class SparsePage {
     out.size = offset.size() - 1;
     return out;
   }
-
- private:
-  /*! \brief external memory column offset */
-  std::vector<size_t> disk_offset_;
 };
+
+/*!
+ * \brief Format specification of SparsePage.
+ */
+class SparsePage::Format {
+ public:
+  /*! \brief virtual destructor */
+  virtual ~Format() {}
+  /*!
+   * \brief Load all the segments into page, advance fi to end of the block.
+   * \param page The data to read page into.
+   * \param fi the input stream of the file
+   * \return true of the loading as successful, false if end of file was reached
+   */
+  virtual bool Read(SparsePage* page, dmlc::SeekStream* fi) = 0;
+  /*!
+   * \brief read only the segments we are interested in, advance fi to end of the block.
+   * \param page The page to load the data into.
+   * \param fi the input stream of the file
+   * \param sorted_index_set sorted index of segments we are interested in
+   * \return true of the loading as successful, false if end of file was reached
+   */
+  virtual bool Read(SparsePage* page,
+                    dmlc::SeekStream* fi,
+                    const std::vector<bst_uint>& sorted_index_set) = 0;
+  /*!
+   * \brief save the data to fo, when a page was written.
+   * \param fo output stream
+   */
+  virtual void Write(const SparsePage& page, dmlc::Stream* fo) const = 0;
+  /*!
+   * \brief Create sparse page of format.
+   * \return The created format functors.
+   */
+  static Format* Create(const std::string& name);
+  /*!
+   * \brief decide the format from cache prefix.
+   * \return format type of the cache prefix.
+   */
+  static std::string DecideFormat(const std::string& cache_prefix);
+};
+
+/*!
+ * \brief Registry entry for sparse page format.
+ */
+struct SparsePageFormatReg
+    : public dmlc::FunctionRegEntryBase<SparsePageFormatReg,
+                                        std::function<SparsePage::Format* ()> > {
+};
+
+/*!
+ * \brief Macro to register sparse page format.
+ *
+ * \code
+ * // example of registering a objective
+ * XGBOOST_REGISTER_SPARSE_PAGE_FORMAT(raw)
+ * .describe("Raw binary data format.")
+ * .set_body([]() {
+ *     return new RawFormat();
+ *   });
+ * \endcode
+ */
+#define XGBOOST_REGISTER_SPARSE_PAGE_FORMAT(Name)                       \
+  DMLC_REGISTRY_REGISTER(::xgboost::data::SparsePageFormatReg, SparsePageFormat, Name)
+
 }  // namespace data
 }  // namespace xgboost
 #endif  // XGBOOST_DATA_SPARSE_BATCH_PAGE_H_
