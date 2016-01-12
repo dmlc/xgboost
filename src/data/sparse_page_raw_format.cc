@@ -4,10 +4,13 @@
  *  Raw binary format of sparse page.
  */
 #include <xgboost/data.h>
+#include <dmlc/registry.h>
 #include "./sparse_batch_page.h"
 
 namespace xgboost {
 namespace data {
+
+DMLC_REGISTRY_FILE_TAG(sparse_page_raw_format);
 
 class SparsePageRawFormat : public SparsePage::Format {
  public:
@@ -73,7 +76,7 @@ class SparsePageRawFormat : public SparsePage::Format {
     return true;
   }
 
-  void Write(const SparsePage& page, dmlc::Stream* fo) const override {
+  void Write(const SparsePage& page, dmlc::Stream* fo) override {
     CHECK(page.offset.size() != 0 && page.offset[0] == 0);
     CHECK_EQ(page.offset.back(), page.data.size());
     fo->Write(page.offset);

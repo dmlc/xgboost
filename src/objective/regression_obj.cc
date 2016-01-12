@@ -108,10 +108,10 @@ class RegLossObj : public ObjFunction {
       LOG(FATAL) << Loss::LabelErrorMsg();
     }
   }
-  virtual const char* DefaultEvalMetric() const {
+  const char* DefaultEvalMetric() const override {
     return Loss::DefaultEvalMetric();
   }
-  virtual void PredTransform(std::vector<float> *io_preds) {
+  void PredTransform(std::vector<float> *io_preds) override {
     std::vector<float> &preds = *io_preds;
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
     #pragma omp parallel for schedule(static)
@@ -119,7 +119,7 @@ class RegLossObj : public ObjFunction {
       preds[j] = Loss::PredTransform(preds[j]);
     }
   }
-  virtual float ProbToMargin(float base_score) const {
+  float ProbToMargin(float base_score) const override {
     return Loss::ProbToMargin(base_score);
   }
 

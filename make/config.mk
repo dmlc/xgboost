@@ -46,3 +46,9 @@ LIB_RABIT = librabit.a
 
 # path to libjvm.so
 LIBJVM=$(JAVA_HOME)/jre/lib/amd64/server
+
+# List of additional plugins, checkout plugin folder.
+# uncomment the following lines to include these plugins
+# you can also add your own plugin like this
+
+# include plugin/example/plugin.mk

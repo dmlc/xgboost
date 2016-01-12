@@ -155,7 +155,7 @@ class SparsePage::Format {
    * \brief save the data to fo, when a page was written.
    * \param fo output stream
    */
-  virtual void Write(const SparsePage& page, dmlc::Stream* fo) const = 0;
+  virtual void Write(const SparsePage& page, dmlc::Stream* fo) = 0;
   /*!
    * \brief Create sparse page of format.
    * \return The created format functors.
