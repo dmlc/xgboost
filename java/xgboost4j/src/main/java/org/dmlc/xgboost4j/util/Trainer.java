@@ -45,6 +45,7 @@ public class Trainer {
      * @param obj customized objective (set to null if not used)
      * @param eval customized evaluation (set to null if not used)
      * @return trained booster
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public static Booster train(Iterable<Entry<String, Object>> params, DMatrix dtrain, int round, 
             Iterable<Entry<String, DMatrix>> watchs, IObjective obj, IEvaluation eval) throws XGBoostError {
@@ -111,6 +112,7 @@ public class Trainer {
      * @param obj customized objective (set to null if not used)
      * @param eval customized evaluation (set to null if not used)
      * @return evaluation history
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public static String[] crossValiation(Iterable<Entry<String, Object>> params, DMatrix data, int round, int nfold, String[] metrics, IObjective obj, IEvaluation eval) throws XGBoostError {
         CVPack[] cvPacks = makeNFold(data, nfold, params, metrics);
@@ -148,6 +150,7 @@ public class Trainer {
      * @param params booster parameters
      * @param evalMetrics Evaluation metrics
      * @return CV package array
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public static CVPack[] makeNFold(DMatrix data, int nfold, Iterable<Entry<String, Object>> params, String[] evalMetrics) throws XGBoostError {
         List<Integer> samples = genRandPermutationNums(0, (int) data.rowNum());

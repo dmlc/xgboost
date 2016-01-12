@@ -16,21 +16,26 @@
 package org.dmlc.xgboost4j;
 
 /**
- *  interface for customized evaluation
+ * interface for customized evaluation
+ * 
  * @author hzx
  */
-public interface IEvaluation {    
-    /**
-     * get evaluate metric
-     * @return evalMetric
-     */
-    public abstract String getMetric();
-    
-    /**
-     * evaluate with predicts and data
-     * @param predicts
-     * @param dmat
-     * @return 
-     */
-    public abstract float eval(float[][] predicts, DMatrix dmat);
+public interface IEvaluation {
+	/**
+	 * get evaluate metric
+	 * 
+	 * @return evalMetric
+	 */
+	public abstract String getMetric();
+
+	/**
+	 * evaluate with predicts and data
+	 * 
+	 * @param predicts
+	 *            predictions as array
+	 * @param dmat
+	 *            data matrix to evaluate
+	 * @return result of the metric
+	 */
+	public abstract float eval(float[][] predicts, DMatrix dmat);
 }

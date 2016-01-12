@@ -37,7 +37,7 @@ public class CVPack {
      * @param dtrain train data
      * @param dtest test data
      * @param params parameters
-     * @throws org.dmlc.xgboost4j.util.XGBoostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public CVPack(DMatrix dtrain, DMatrix dtest, Iterable<Map.Entry<String, Object>> params) throws XGBoostError {
         dmats = new DMatrix[] {dtrain, dtest};
@@ -50,7 +50,7 @@ public class CVPack {
     /**
      * update one iteration
      * @param iter iteration num
-     * @throws org.dmlc.xgboost4j.util.XGBoostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public void update(int iter) throws XGBoostError {
         booster.update(dtrain, iter);
@@ -60,7 +60,7 @@ public class CVPack {
      * update one iteration
      * @param iter iteration num
      * @param obj customized objective
-     * @throws org.dmlc.xgboost4j.util.XGBoostError
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public void update(int iter, IObjective obj) throws XGBoostError {
         booster.update(dtrain, iter, obj);
@@ -69,8 +69,8 @@ public class CVPack {
     /**
      * evaluation 
      * @param iter iteration num
-     * @return 
-     * @throws org.dmlc.xgboost4j.util.XGBoostError 
+     * @return evaluation
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public String eval(int iter) throws XGBoostError {
         return booster.evalSet(dmats, names, iter);
@@ -80,8 +80,8 @@ public class CVPack {
      * evaluation 
      * @param iter iteration num
      * @param eval customized eval
-     * @return 
-     * @throws org.dmlc.xgboost4j.util.XGBoostError 
+     * @return evaluation
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public String eval(int iter, IEvaluation eval) throws XGBoostError {
         return booster.evalSet(dmats, names, iter, eval);
