@@ -29,6 +29,7 @@ struct LossType {
   static const int kLogisticNeglik = 1;
   static const int kLogisticClassify = 2;
   static const int kLogisticRaw = 3;
+
   /*!
    * \brief transform the linear sum to prediction
    * \param x linear sum of boosting ensemble
@@ -173,6 +174,73 @@ class RegLossObj : public IObjFunction {
  protected:
   float scale_pos_weight;
   LossType loss;
+};
+
+  // quantile regression
+class QuantileRegression : public IObjFunction {
+ private:
+  char * defaultLoss_;
+  RegLossObj * baseLoss_;
+  bool gbLinear_;
+  float quantile_;
+  float baseUpdate_;
+
+ public:
+  explicit QuantileRegression(const char * name) {
+    defaultLoss_ = copyVarParam(name, "qloss");
+    utils::Check(std::sscanf(name, "reg:quantile@%f", &quantile_) == 1, "invalid quantile format");
+    utils::Check(quantile_ <= 1 && quantile_ >= 0, "illegal quantile value");
+    baseLoss_ = new RegLossObj(LossType::kLinearSquare);
+    gbLinear_ = false;
+    baseUpdate_ = 1.0;
+  }
+
+  ~QuantileRegression() {
+    delete baseLoss_;
+    delete defaultLoss_;
+  }
+  virtual void SetParam(const char *name, const char *val) {
+    baseLoss_->SetParam(name, val);
+    if (strcmp(name, "booster") == 0 && strcmp(val, "gblinear") == 0) {
+      gbLinear_ = true;
+    }
+    if (strcmp(name, "quantile:base_update") == 0) {
+      utils::Check(std::sscanf(val, "%f", &baseUpdate_) == 1, "invalid quantile format");
+    }
+  }
+  virtual void GetGradient(const std::vector<float> &preds,
+                           const MetaInfo &info,
+                           int iter,
+                           std::vector<bst_gpair> *out_gpair) {
+    baseLoss_->GetGradient(preds, info, iter, out_gpair);
+    if (gbLinear_) {
+      for (unsigned i = 0; i < out_gpair->size(); i++) {
+        if ((*out_gpair)[i].grad > 0) {
+          if ((*out_gpair)[i].grad > baseUpdate_) {
+            (*out_gpair)[i].grad = baseUpdate_ * (1.0-quantile_);
+          } else {
+            (*out_gpair)[i].grad = (1.0-quantile_) *  (*out_gpair)[i].grad;
+          }
+        } else {
+          if ((*out_gpair)[i].grad < -baseUpdate_) {
+            (*out_gpair)[i].grad = -quantile_ * baseUpdate_;
+          } else {
+            (*out_gpair)[i].grad = quantile_ *  (*out_gpair)[i].grad;
+          }
+        }
+      }
+    }
+  }
+
+  virtual const char* DefaultEvalMetric(void) const {
+    return defaultLoss_;
+  }
+  virtual void PredTransform(std::vector<float> *io_preds) {
+    baseLoss_->PredTransform(io_preds);
+  }
+  virtual float ProbToMargin(float base_score) const {
+    return baseLoss_->ProbToMargin(base_score);
+  }
 };
 
 // poisson regression for count

@@ -75,6 +75,15 @@ inline static bool CmpSecond(const std::pair<float, unsigned> &a,
                              const std::pair<float, unsigned> &b) {
   return a.second > b.second;
 }
+
+static char * copyVarParam(const char * oldParam, const char * newParamBase) {
+  const char * varParam = strchr(oldParam, '@');
+  utils::Check(varParam != NULL, "ERROR no @ found in oldParam");
+  int newLen = strlen(newParamBase) + strlen(varParam);
+  char * newBuf = new char[newLen + 1];
+  snprintf(newBuf, strlen(newParamBase) + strlen(varParam), "%s%s", newParamBase, varParam);
+  return newBuf;
+}
 }  // namespace learner
 }  // namespace xgboost
 #endif  // XGBOOST_LEARNER_HELPER_UTILS_H_
