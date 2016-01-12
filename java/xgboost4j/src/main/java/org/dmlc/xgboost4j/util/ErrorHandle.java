@@ -21,8 +21,7 @@ import org.apache.commons.logging.LogFactory;
 import org.dmlc.xgboost4j.wrapper.XgboostJNI;
 
 /**
- * error handle for Xgboost
- * @author hzx
+ * Error handle for Xgboost.
  */
 public class ErrorHandle {
     private static final Log logger = LogFactory.getLog(ErrorHandle.class);
@@ -38,9 +37,9 @@ public class ErrorHandle {
     }
     
     /**
-     * check the return value of C API
+     * Check the return value of C API.
      * @param ret return valud of xgboostJNI C API call
-     * @throws org.dmlc.xgboost4j.util.XGBoostError Native error
+     * @throws org.dmlc.xgboost4j.util.XGBoostError native error
      */
     public static void checkCall(int ret) throws XGBoostError {
         if(ret != 0) {
