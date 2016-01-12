@@ -9,5 +9,4 @@ Contributing Code
 * The C++ code follows Google C++ style
 * We follow numpy style to document our python module
 * Tools to precheck codestyle
-  - clone https://github.com/dmlc/dmlc-core into root directory
   - type ```make lint``` and fix possible errors.
