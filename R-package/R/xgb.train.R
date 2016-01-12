@@ -224,7 +224,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
       if (i %% save_period == 0) {
         if (models_kept < max_to_keep) {
           xgb.save(bst, paste(save_name,i,sep=""))
-          models_kept <- models_kept + 1 
+          models_kept <- models_kept + 1  
         }
       }
     }
