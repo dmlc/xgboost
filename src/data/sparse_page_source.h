@@ -75,6 +75,8 @@ class SparsePageSource : public DataSource {
   std::string cache_prefix_;
   /*! \brief file pointer to the row blob file. */
   std::unique_ptr<dmlc::SeekStream> fi_;
+  /*! \brief Sparse page format file. */
+  std::unique_ptr<SparsePage::Format> format_;
   /*! \brief internal prefetcher. */
   dmlc::ThreadedIter<SparsePage> prefetcher_;
 };

@@ -92,6 +92,10 @@ class SparsePageDMatrix : public DMatrix {
    private:
     // data file pointer.
     std::unique_ptr<dmlc::SeekStream> fi_;
+    // the temp page.
+    SparsePage* page_;
+    // page format.
+    std::unique_ptr<SparsePage::Format> format_;
     // The index set to be loaded.
     std::vector<bst_uint> index_set_;
     // The index set by the outsiders
@@ -100,8 +104,6 @@ class SparsePageDMatrix : public DMatrix {
     bool set_load_all_, load_all_;
     // data prefetcher.
     dmlc::ThreadedIter<SparsePage> prefetcher_;
-    // the temp page.
-    SparsePage* page_;
     // temporal space for batch
     ColBatch out_;
     // the pointer data.
