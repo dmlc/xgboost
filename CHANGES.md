@@ -35,6 +35,7 @@ xgboost-0.4
 * sklearn wrapper is supported in python module
 * Experimental External memory version
 
+
 xgboost-0.47
 ------------
 * Changes in R library
@@ -52,10 +53,28 @@ xgboost-0.47
   - improved compatibility in sklearn module.
   - additional parameters added for sklearn wrapper.
   - added pip installation functionality.
-  - supports more Pandas DataFrame dtypes. 
+  - supports more Pandas DataFrame dtypes.
   - added best_ntree_limit attribute, in addition to best_score and best_iteration.
 * Java api is ready for use
 * Added more test cases and continuous integration to make each build more robust.
 
-on going at master
-------------------
+xgboost brick: next release candidate
+-------------------------------------
+* Major refactor of core library.
+  - Goal: more flexible and modular code as a portable library.
+  - Switch to use of c++11 standard code.
+  - Random number generator defaults to ```std::mt19937```.
+  - Share the data loading pipeline and logging module from dmlc-core.
+  - Enable registry pattern to allow optionally plugin of objective, metric, tree constructor, data loader.
+    - Future plugin modules can be put into xgboost/plugin and register back to the library.
+  - Remove most of the raw pointers to smart ptrs, for RAII safety.
+* Change library name to libxgboost.so
+* Backward compatiblity
+  - The binary buffer file is not backward compatible with previous version.
+  - The model file is backward compatible on 64 bit platforms.
+* The model file is compatible between 64/32 bit platforms(not yet tested).
+* External memory version and other advanced features will be exposed to R library as well on linux.
+  - Previously some of the features are blocked due to C++11 and threading limits.
+  - The windows version is still blocked due to Rtools do not support ```std::thread```.
+* rabit and dmlc-core are maintained through git submodule
+  - Anyone can open PR to update these dependencies now.
