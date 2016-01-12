@@ -2,17 +2,17 @@ Change Log
 ==========
 
 xgboost-0.1
-===========
+-----------
 * Initial release
 
 xgboost-0.2x
-============
+------------
 * Python module
 * Weighted samples instances
 * Initial version of pairwise rank
 
 xgboost-0.3
-===========
+-----------
 * Faster tree construction module
   - Allows subsample columns during tree construction via ```bst:col_samplebytree=ratio```
 * Support for boosting from initial predictions
@@ -22,7 +22,7 @@ xgboost-0.3
 * Add R module
 
 xgboost-0.4
-===========
+-----------
 * Distributed version of xgboost that runs on YARN, scales to billions of examples
 * Direct save/load data and model from/to S3 and HDFS
 * Feature importance visualization in R module, by Michael Benesty
@@ -35,8 +35,8 @@ xgboost-0.4
 * sklearn wrapper is supported in python module
 * Experimental External memory version
 
-on going at master
-==================
+staged xgboost (master)
+-----------------------
 * Changes in R library
   - fixed possible problem of poisson regression.
   - switched from 0 to NA for missing values.
@@ -52,7 +52,28 @@ on going at master
   - improved compatibility in sklearn module.
   - additional parameters added for sklearn wrapper.
   - added pip installation functionality.
-  - supports more Pandas DataFrame dtypes. 
+  - supports more Pandas DataFrame dtypes.
   - added best_ntree_limit attribute, in addition to best_score and best_iteration.
 * Java api is ready for use
 * Added more test cases and continuous integration to make each build more robust.
+
+xgboost brick: next release candidate
+-------------------------------------
+* Major refactor of core library.
+  - Goal: more flexible and modular code as a portable library.
+  - Switch to use of c++11 standard code.
+  - Random number generator defaults to ```std::mt19937```.
+  - Share the data loading pipeline and logging module from dmlc-core.
+  - Enable registry pattern to allow optionally plugin of objective, metric, tree constructor, data loader.
+    - Future plugin modules can be put into xgboost/plugin and register back to the library.
+  - Remove most of the raw pointers to smart ptrs, for RAII safety.
+* Change library name to libxgboost.so
+* Backward compatiblity
+  - The binary buffer file is not backward compatible with previous version.
+  - The model file is backward compatible on 64 bit platforms.
+* The model file is compatible between 64/32 bit platforms(not yet tested).
+* External memory version and other advanced features will be exposed to R library as well on linux.
+  - Previously some of the features are blocked due to C++11 and threading limits.
+  - The windows version is still blocked due to Rtools do not support ```std::thread```.
+* rabit and dmlc-core are maintained through git submodule
+  - Anyone can open PR to update these dependencies now.

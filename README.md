@@ -7,47 +7,31 @@
 [![PyPI version](https://badge.fury.io/py/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
 [![Gitter chat for developers at https://gitter.im/dmlc/xgboost](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/dmlc/xgboost?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-An optimized general purpose gradient boosting library. The library is parallelized, and also provides an optimized distributed version.
-
-It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework, including [Generalized Linear Model](https://en.wikipedia.org/wiki/Generalized_linear_model) (GLM) and [Gradient Boosted Decision Trees](https://en.wikipedia.org/wiki/Gradient_boosting#Gradient_tree_boosting) (GBDT). XGBoost can also be [distributed](#features) and scale to Terascale data
-
-XGBoost is part of [Distributed Machine Learning Common](http://dmlc.github.io/) projects
+XGBoost is an optimized distributed gradient boosting library designed to be highly *efficient*, *flexible* and *portable*.
+It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework.
+XGBoost provides a parallel tree boosting(also known as GBDT, GBM) that solve many data science problems in a fast and accurate way.
+The same code runs on major distributed environment(Hadoop, SGE, MPI) and can solve problems beyond billions of examples.
+XGBoost is part of [DMLC](http://dmlc.github.io/) projects.
 
 Contents
 --------
-* [What's New](#whats-new)
-* [Version](#version)
-* [Documentation](doc/index.md)
-* [Build Instruction](doc/build.md)
-* [Features](#features)
-* [Distributed XGBoost](multi-node)
+* [Documentation](https://xgboost.readthedocs.org)
 * [Usecases](doc/index.md#highlight-links)
-* [Bug Reporting](#bug-reporting)
-* [Contributing to XGBoost](#contributing-to-xgboost)
+* [Code Examples](demo)
+* [Build Instruction](doc/build.md)
 * [Committers and Contributors](CONTRIBUTORS.md)
-* [License](#license)
-* [XGBoost in Graphlab Create](#xgboost-in-graphlab-create)
 
 What's New
 ----------
-
+* XGBoost [brick](CHANGES.md)
 * XGBoost helps Vlad Mironov, Alexander Guschin to win the [CERN LHCb experiment Flavour of Physics competition](https://www.kaggle.com/c/flavours-of-physics). Check out the [interview from Kaggle](http://blog.kaggle.com/2015/11/30/flavour-of-physics-technical-write-up-1st-place-go-polar-bears/).
 * XGBoost helps Mario Filho, Josef Feigl, Lucas, Gilberto to win the [Caterpillar Tube Pricing competition](https://www.kaggle.com/c/caterpillar-tube-pricing). Check out the [interview from Kaggle](http://blog.kaggle.com/2015/09/22/caterpillar-winners-interview-1st-place-gilberto-josef-leustagos-mario/).
 * XGBoost helps Halla Yang to win the [Recruit Coupon Purchase Prediction Challenge](https://www.kaggle.com/c/coupon-purchase-prediction). Check out the [interview from Kaggle](http://blog.kaggle.com/2015/10/21/recruit-coupon-purchase-winners-interview-2nd-place-halla-yang/).
-* XGBoost helps Owen Zhang to win the [Avito Context Ad Click competition](https://www.kaggle.com/c/avito-context-ad-clicks). Check out the [interview from Kaggle](http://blog.kaggle.com/2015/08/26/avito-winners-interview-1st-place-owen-zhang/).
-* XGBoost helps Chenglong Chen to win [Kaggle CrowdFlower Competition](https://www.kaggle.com/c/crowdflower-search-relevance)
-  Check out the [winning solution](https://github.com/ChenglongChen/Kaggle_CrowdFlower)
-* XGBoost-0.4 release, see [CHANGES.md](CHANGES.md#xgboost-04)
-* XGBoost helps three champion teams to win [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
-  Check out the [winning solution](doc/README.md#highlight-links)
-* [External Memory Version](doc/external_memory.md)
 
 Version
 -------
-
-* Current version xgboost-0.4
-  - [Change log](CHANGES.md)
-  - This version is compatible with 0.3x versions
+* Current version xgboost-0.6 (brick)
+  - See [Change log](CHANGES.md) for details
 
 Features
 --------
@@ -76,4 +60,3 @@ XGBoost has been developed and used by a group of active community members. Ever
 License
 -------
 © Contributors, 2015. Licensed under an [Apache-2](https://github.com/dmlc/xgboost/blob/master/LICENSE) license.
-
