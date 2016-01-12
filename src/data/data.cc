@@ -4,6 +4,7 @@
  */
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
+#include <dmlc/registry.h>
 #include <cstring>
 #include "./sparse_batch_page.h"
 #include "./simple_dmatrix.h"
@@ -14,6 +15,10 @@
 #include "./sparse_page_source.h"
 #include "./sparse_page_dmatrix.h"
 #endif
+
+namespace dmlc {
+DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg);
+}  // namespace dmlc
 
 namespace xgboost {
 // implementation of inline functions
@@ -230,4 +235,25 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource>&& source,
 #endif
   }
 }
+}  // namespace xgboost
+
+namespace xgboost {
+namespace data {
+SparsePage::Format* SparsePage::Format::Create(const std::string& name) {
+  auto *e = ::dmlc::Registry< ::xgboost::data::SparsePageFormatReg>::Get()->Find(name);
+  if (e == nullptr) {
+    LOG(FATAL) << "Unknown format type " << name;
+  }
+  return (e->body)();
+}
+
+std::string SparsePage::Format::DecideFormat(const std::string& cache_prefix) {
+  size_t pos = cache_prefix.rfind(".fmt-");
+  if (pos != std::string::npos) {
+    return cache_prefix.substr(pos + 5, cache_prefix.length());
+  } else {
+    return "raw";
+  }
+}
+}  // namespace data
 }  // namespace xgboost

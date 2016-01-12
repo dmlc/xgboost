@@ -24,12 +24,18 @@ SparsePageSource::SparsePageSource(const std::string& cache_prefix)
   // read in the cache files.
   std::string name_row = cache_prefix + ".row.page";
   fi_.reset(dmlc::SeekStream::CreateForRead(name_row.c_str()));
+
+  std::string format;
+  CHECK(fi_->Read(&format)) << "Invalid page format";
+  format_.reset(SparsePage::Format::Create(format));
+  size_t fbegin = fi_->Tell();
+
   prefetcher_.Init([this] (SparsePage** dptr) {
       if (*dptr == nullptr) {
         *dptr = new SparsePage();
       }
-      return (*dptr)->Load(fi_.get());
-    }, [this] () { fi_->Seek(0); });
+      return format_->Read(*dptr, fi_.get());
+    }, [this, fbegin] () { fi_->Seek(fbegin); });
 }
 
 SparsePageSource::~SparsePageSource() {
@@ -72,6 +78,10 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
   std::string name_info = cache_prefix;
   std::string name_row = cache_prefix + ".row.page";
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(name_row.c_str(), "w"));
+  std::string name_format = SparsePage::Format::DecideFormat(cache_prefix);
+  fo->Write(name_format);
+  std::unique_ptr<SparsePage::Format> format(SparsePage::Format::Create(name_format));
+
   MetaInfo info;
   SparsePage page;
   size_t bytes_write = 0;
@@ -95,7 +105,7 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
     page.Push(batch);
     if (page.MemCostBytes() >= kPageSize) {
       bytes_write += page.MemCostBytes();
-      page.Save(fo.get());
+      format->Write(page, fo.get());
       page.Clear();
       double tdiff = dmlc::GetTime() - tstart;
       LOG(CONSOLE) << "Writing to " << name_row << " in "
@@ -105,7 +115,7 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
   }
 
   if (page.data.size() != 0) {
-    page.Save(fo.get());
+    format->Write(page, fo.get());
   }
 
   fo.reset(dmlc::Stream::Create(name_info.c_str(), "w"));
@@ -122,6 +132,10 @@ void SparsePageSource::Create(DMatrix* src,
   std::string name_info = cache_prefix;
   std::string name_row = cache_prefix + ".row.page";
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(name_row.c_str(), "w"));
+  // find format.
+  std::string name_format = SparsePage::Format::DecideFormat(cache_prefix);
+  fo->Write(name_format);
+  std::unique_ptr<SparsePage::Format> format(SparsePage::Format::Create(name_format));
 
   SparsePage page;
   size_t bytes_write = 0;
@@ -132,7 +146,7 @@ void SparsePageSource::Create(DMatrix* src,
     page.Push(iter->Value());
     if (page.MemCostBytes() >= kPageSize) {
       bytes_write += page.MemCostBytes();
-      page.Save(fo.get());
+      format->Write(page, fo.get());
       page.Clear();
       double tdiff = dmlc::GetTime() - tstart;
       LOG(CONSOLE) << "Writing to " << name_row << " in "
@@ -142,7 +156,7 @@ void SparsePageSource::Create(DMatrix* src,
   }
 
   if (page.data.size() != 0) {
-    page.Save(fo.get());
+    format->Write(page, fo.get());
   }
 
   fo.reset(dmlc::Stream::Create(name_info.c_str(), "w"));

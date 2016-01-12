@@ -17,20 +17,24 @@ namespace data {
 
 SparsePageDMatrix::ColPageIter::ColPageIter(std::unique_ptr<dmlc::SeekStream>&& fi)
     : fi_(std::move(fi)), page_(nullptr) {
-
-
   load_all_ = false;
+
+  std::string format;
+  CHECK(fi_->Read(&format)) << "Invalid page format";
+  format_.reset(SparsePage::Format::Create(format));
+  size_t fbegin = fi_->Tell();
+
   prefetcher_.Init([this](SparsePage** dptr) {
       if (*dptr == nullptr) {
         *dptr = new SparsePage();
       }
       if (load_all_) {
-        return (*dptr)->Load(fi_.get());
+        return format_->Read(*dptr, fi_.get());
       } else {
-        return (*dptr)->Load(fi_.get(), index_set_);
+        return format_->Read(*dptr, fi_.get(), index_set_);
       }
-    }, [this] () {
-      fi_->Seek(0);
+    }, [this, fbegin] () {
+      fi_->Seek(fbegin);
       index_set_ = set_index_set_;
       load_all_ = set_load_all_;
     });
@@ -222,6 +226,11 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
 
   std::string col_data_name = cache_prefix_ + ".col.page";
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(col_data_name.c_str(), "w"));
+  // find format.
+  std::string name_format = SparsePage::Format::DecideFormat(cache_prefix_);
+  fo->Write(name_format);
+  std::unique_ptr<SparsePage::Format> format(SparsePage::Format::Create(name_format));
+
   double tstart = dmlc::GetTime();
   size_t bytes_write = 0;
   SparsePage* pcol = nullptr;
@@ -230,7 +239,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     for (size_t i = 0; i < pcol->Size(); ++i) {
       col_size_[i] += pcol->offset[i + 1] - pcol->offset[i];
     }
-    pcol->Save(fo.get());
+    format->Write(*pcol, fo.get());
     size_t spage = pcol->MemCostBytes();
     bytes_write += spage;
     double tdiff = dmlc::GetTime() - tstart;
