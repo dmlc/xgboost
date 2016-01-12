@@ -39,6 +39,8 @@ endif
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS)
 export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -fPIC -Iinclude $(ADD_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
+#java include path
+export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
 
 ifndef LINT_LANG
 	LINT_LANG= "all"
@@ -46,6 +48,11 @@ endif
 
 ifeq ($(UNAME), Linux)
 	LDFLAGS += -lrt
+	JAVAINCFLAGS += -I${JAVA_HOME}/include/linux
+endif
+
+ifeq ($(UNAME), Darwin)
+	JAVAINCFLAGS += -I${JAVA_HOME}/include/darwin
 endif
 
 ifeq ($(USE_OPENMP), 1)
@@ -53,6 +60,7 @@ ifeq ($(USE_OPENMP), 1)
 else
 	CFLAGS += -DDISABLE_OPENMP
 endif
+
 
 # specify tensor path
 .PHONY: clean all lint clean_all rcpplint Rpack Rbuild Rcheck
@@ -65,6 +73,7 @@ $(DMLC_CORE)/libdmlc.a:
 $(RABIT)/lib/$(LIB_RABIT):
 	+ cd $(RABIT); make lib/$(LIB_RABIT); cd $(ROOTDIR)
 
+java: java/libxgboost4j.so
 
 SRC = $(wildcard src/*.cc src/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
@@ -94,6 +103,9 @@ lib/libxgboost.a: $(ALL_DEP)
 lib/libxgboost.so: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+
+java/libxgboost4j.so: java/xgboost4j_wrapper.cpp lib/libxgboost.a $(LIB_DEP)
+	$(CXX) $(CFLAGS) $(JAVAINCFLAGS) -shared -o $@ $(filter %.cpp %.o %.a, $^) $(LDFLAGS)
 
 xgboost: $(CLI_OBJ) lib/libxgboost.a $(LIB_DEP)
 	$(CXX) $(CFLAGS) -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
