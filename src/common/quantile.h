@@ -658,7 +658,8 @@ class QuantileSketchTemplate {
       CHECK_EQ(fi.Read(&this->size, sizeof(this->size)), sizeof(this->size));
       this->Reserve(this->size);
       if (this->size != 0) {
-        CHECK_EQ(fi.Read(this->data, this->size * sizeof(Entry)), sizeof(this->size));
+        CHECK_EQ(fi.Read(this->data, this->size * sizeof(Entry)),
+                 this->size * sizeof(Entry));
       }
     }
   };

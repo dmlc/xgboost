@@ -1,8 +1,3 @@
-# flags by plugin
-PLUGIN_OBJS=
-PLUGIN_LDFLAGS=
-PLUGIN_CFLAGS=
-
 ifndef config
 ifneq ("$(wildcard ./config.mk)","")
 	config = config.mk
@@ -27,6 +22,9 @@ ifeq ($(USE_OPENMP), 0)
 	export NO_OPENMP = 1
 endif
 include $(DMLC_CORE)/make/dmlc.mk
+
+# include the plugins
+include $(XGB_PLUGINS)
 
 # use customized config file
 ifndef CC

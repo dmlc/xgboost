@@ -12,7 +12,7 @@ There are three steps you need to to do to add plugin to xgboost
 To add this plugin, add the following line to ```config.mk```(template in make/config.mk).
 ```makefile
 # Add plugin by include the plugin in config
-include plugin/example/plugin.mk
+XGB_PLUGINS += plugin/plugin_a/plugin.mk
 ```
 
 Then you can test this plugin by using ```objective=mylogistic``` parameter.

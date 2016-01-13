@@ -104,7 +104,8 @@ inline void CompressArray<DType>::InitCompressChunks(size_t chunk_size, size_t m
   chunk_size = std::max(min_chunk_size, chunk_size);
   size_t nstep = data.size() / chunk_size;
   for (size_t i = 0; i < nstep; ++i) {
-    raw_chunks_.push_back(raw_chunks_.back() + chunk_size * i);
+    raw_chunks_.push_back(raw_chunks_.back() + chunk_size);
+    CHECK_LE(raw_chunks_.back(), data.size());
   }
   if (nstep == 0) raw_chunks_.push_back(0);
   raw_chunks_.back() = data.size();
