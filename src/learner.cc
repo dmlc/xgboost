@@ -76,6 +76,8 @@ struct LearnerTrainParam
   std::string test_flag;
   // maximum buffered row value
   float prob_buffer_row;
+  // maximum row per batch.
+  size_t max_row_perbatch;
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
     DMLC_DECLARE_FIELD(seed).set_default(0)
@@ -92,6 +94,8 @@ struct LearnerTrainParam
         .describe("Internal test flag");
     DMLC_DECLARE_FIELD(prob_buffer_row).set_default(1.0f).set_range(0.0f, 1.0f)
         .describe("Maximum buffered row portion");
+    DMLC_DECLARE_FIELD(max_row_perbatch).set_default(std::numeric_limits<size_t>::max())
+        .describe("maximum row per batch.");
   }
 };
 
@@ -328,9 +332,9 @@ class LearnerImpl : public Learner {
     std::vector<bool> enabled(ncol, true);
     // set max row per batch to limited value
     // in distributed mode, use safe choice otherwise
-    size_t max_row_perbatch = std::numeric_limits<size_t>::max();
+    size_t max_row_perbatch = tparam.max_row_perbatch;
     if (tparam.test_flag == "block" || tparam.dsplit == 2) {
-      max_row_perbatch = 32UL << 10UL;
+      max_row_perbatch = std::min(32UL << 10UL, max_row_perbatch);
     }
     // initialize column access
     p_train->InitColAccess(enabled,
