@@ -8,7 +8,7 @@ To include a certain plugin, say ```plugin_a```, you only need to add the follow
 
 ```makefile
 # Add plugin by include the plugin in config
-include plugin/plugin_a/plugin.mk
+XGB_PLUGINS += plugin/plugin_a/plugin.mk
 ```
 
 Then rebuild libxgboost by typing make, you can get a new library with the plugin enabled.
