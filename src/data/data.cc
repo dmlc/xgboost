@@ -247,12 +247,21 @@ SparsePage::Format* SparsePage::Format::Create(const std::string& name) {
   return (e->body)();
 }
 
-std::string SparsePage::Format::DecideFormat(const std::string& cache_prefix) {
+std::pair<std::string, std::string>
+SparsePage::Format::DecideFormat(const std::string& cache_prefix) {
   size_t pos = cache_prefix.rfind(".fmt-");
+
   if (pos != std::string::npos) {
-    return cache_prefix.substr(pos + 5, cache_prefix.length());
+    std::string fmt = cache_prefix.substr(pos + 5, cache_prefix.length());
+    size_t cpos = fmt.rfind('-');
+    if (cpos != std::string::npos) {
+      return std::make_pair(fmt.substr(0, cpos), fmt.substr(cpos + 1, fmt.length()));
+    } else {
+      return std::make_pair(fmt, fmt);
+    }
   } else {
-    return "raw";
+    std::string raw = "raw";
+    return std::make_pair(raw, raw);
   }
 }
 
