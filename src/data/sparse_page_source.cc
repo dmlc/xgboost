@@ -78,7 +78,7 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
   std::string name_info = cache_prefix;
   std::string name_row = cache_prefix + ".row.page";
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(name_row.c_str(), "w"));
-  std::string name_format = SparsePage::Format::DecideFormat(cache_prefix);
+  std::string name_format = SparsePage::Format::DecideFormat(cache_prefix).first;
   fo->Write(name_format);
   std::unique_ptr<SparsePage::Format> format(SparsePage::Format::Create(name_format));
 
@@ -86,6 +86,9 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
   SparsePage page;
   size_t bytes_write = 0;
   double tstart = dmlc::GetTime();
+  // print every 4 sec.
+  const double kStep = 4.0;
+  size_t tick_expected = kStep;
 
   while (src->Next()) {
     const dmlc::RowBlock<uint32_t>& batch = src->Value();
@@ -108,9 +111,12 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
       format->Write(page, fo.get());
       page.Clear();
       double tdiff = dmlc::GetTime() - tstart;
-      LOG(CONSOLE) << "Writing to " << name_row << " in "
-                   << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
-                   << (bytes_write >> 20UL) << " written";
+      if (tdiff >= tick_expected) {
+        LOG(CONSOLE) << "Writing to " << name_row << " in "
+                     << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
+                     << (bytes_write >> 20UL) << " written";
+        tick_expected += kStep;
+      }
     }
   }
 
@@ -133,7 +139,7 @@ void SparsePageSource::Create(DMatrix* src,
   std::string name_row = cache_prefix + ".row.page";
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(name_row.c_str(), "w"));
   // find format.
-  std::string name_format = SparsePage::Format::DecideFormat(cache_prefix);
+  std::string name_format = SparsePage::Format::DecideFormat(cache_prefix).first;
   fo->Write(name_format);
   std::unique_ptr<SparsePage::Format> format(SparsePage::Format::Create(name_format));
 

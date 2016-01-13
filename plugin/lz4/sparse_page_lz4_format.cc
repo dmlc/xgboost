@@ -22,9 +22,6 @@ class CompressArray {
  public:
   // the data content.
   std::vector<DType> data;
-  CompressArray() {
-    use_deep_compress_ = dmlc::GetEnv("XGBOOST_LZ4_COMPRESS_DEEP", true);
-  }
   // Decompression helper
   // number of chunks
   inline int num_chunk() const {
@@ -49,8 +46,8 @@ class CompressArray {
   inline void InitCompressChunks(const std::vector<bst_uint>& chunk_ptr);
   // initialize the compression chunks
   inline void InitCompressChunks(size_t chunk_size, size_t max_nchunk);
-  // run decode on chunk_id
-  inline void Compress(int chunk_id);
+  // run decode on chunk_id, level = -1 means default.
+  inline void Compress(int chunk_id, bool use_hc);
   // save the output buffer into file.
   inline void Write(dmlc::Stream* fo);
 
@@ -63,8 +60,6 @@ class CompressArray {
   std::vector<std::string> out_buffer_;
   // input buffer of data.
   std::string in_buffer_;
-  // use deep compression.
-  bool use_deep_compress_;
 };
 
 template<typename DType>
@@ -123,7 +118,7 @@ inline void CompressArray<DType>::InitCompressChunks(size_t chunk_size, size_t m
 }
 
 template<typename DType>
-inline void CompressArray<DType>::Compress(int chunk_id) {
+inline void CompressArray<DType>::Compress(int chunk_id, bool use_hc) {
   CHECK_LT(static_cast<size_t>(chunk_id + 1), raw_chunks_.size());
   std::string& buf = out_buffer_[chunk_id];
   size_t raw_chunk_size = (raw_chunks_[chunk_id + 1] - raw_chunks_[chunk_id]) * sizeof(DType);
@@ -131,11 +126,11 @@ inline void CompressArray<DType>::Compress(int chunk_id) {
   CHECK_NE(bound, 0);
   buf.resize(bound);
   int encoded_size;
-  if (use_deep_compress_) {
+  if (use_hc) {
     encoded_size = LZ4_compress_HC(
         reinterpret_cast<char*>(dmlc::BeginPtr(data) + raw_chunks_[chunk_id]),
-        dmlc::BeginPtr(buf), raw_chunk_size, buf.length(), 0);
-  } else{
+        dmlc::BeginPtr(buf), raw_chunk_size, buf.length(), 9);
+  } else {
     encoded_size = LZ4_compress_default(
         reinterpret_cast<char*>(dmlc::BeginPtr(data) + raw_chunks_[chunk_id]),
         dmlc::BeginPtr(buf), raw_chunk_size, buf.length());
@@ -159,23 +154,25 @@ inline void CompressArray<DType>::Write(dmlc::Stream* fo) {
   }
 }
 
+template<typename StorageIndex>
 class SparsePageLZ4Format : public SparsePage::Format {
  public:
-  SparsePageLZ4Format() {
+  explicit SparsePageLZ4Format(bool use_lz4_hc)
+      : use_lz4_hc_(use_lz4_hc) {
     raw_bytes_ = raw_bytes_value_ = raw_bytes_index_ = 0;
     encoded_bytes_value_ = encoded_bytes_index_ = 0;
-    nthread_ = 4;
+    nthread_ = dmlc::GetEnv("XGBOOST_LZ4_DECODE_NTHREAD", 4);
     nthread_write_ = dmlc::GetEnv("XGBOOST_LZ4_COMPRESS_NTHREAD", 12);
   }
-  ~SparsePageLZ4Format() {
+  virtual ~SparsePageLZ4Format() {
     size_t encoded_bytes = raw_bytes_ +  encoded_bytes_value_ + encoded_bytes_index_;
     raw_bytes_ += raw_bytes_value_ + raw_bytes_index_;
     if (raw_bytes_ != 0) {
       LOG(CONSOLE) << "raw_bytes=" << raw_bytes_
                    << ", encoded_bytes=" << encoded_bytes
                    << ", ratio=" << double(encoded_bytes) / raw_bytes_
-                   << ",ratio-index=" << double(encoded_bytes_index_) /raw_bytes_index_
-                   << ",ratio-value=" << double(encoded_bytes_value_) /raw_bytes_value_;
+                   << ", ratio-index=" << double(encoded_bytes_index_) /raw_bytes_index_
+                   << ", ratio-value=" << double(encoded_bytes_value_) /raw_bytes_value_;
     }
   }
 
@@ -188,7 +185,7 @@ class SparsePageLZ4Format : public SparsePage::Format {
     CHECK_EQ(index_.data.size(), value_.data.size());
     CHECK_EQ(index_.data.size(), page->data.size());
     for (size_t i = 0; i < page->data.size(); ++i) {
-      page->data[i] = SparseBatch::Entry(index_.data[i], value_.data[i]);
+      page->data[i] = SparseBatch::Entry(index_.data[i] + min_index_, value_.data[i]);
     }
     return true;
   }
@@ -216,7 +213,7 @@ class SparsePageLZ4Format : public SparsePage::Format {
       size_t num = disk_offset_[cid + 1] - disk_offset_[cid];
       for (size_t j = 0; j < num; ++j) {
         page->data[dst_begin + j] = SparseBatch::Entry(
-            index_.data[src_begin + j], value_.data[src_begin + j]);
+            index_.data[src_begin + j] + min_index_, value_.data[src_begin + j]);
       }
     }
     return true;
@@ -226,11 +223,18 @@ class SparsePageLZ4Format : public SparsePage::Format {
     CHECK(page.offset.size() != 0 && page.offset[0] == 0);
     CHECK_EQ(page.offset.back(), page.data.size());
     fo->Write(page.offset);
+    min_index_ = page.min_index;
+    fo->Write(&min_index_, sizeof(min_index_));
     index_.data.resize(page.data.size());
     value_.data.resize(page.data.size());
 
     for (size_t i = 0; i < page.data.size(); ++i) {
-      index_.data[i] = page.data[i].index;
+      bst_uint idx = page.data[i].index - min_index_;
+      CHECK_LE(idx, static_cast<bst_uint>(std::numeric_limits<StorageIndex>::max()))
+          << "The storage index is chosen to limited to smaller equal than "
+          << std::numeric_limits<StorageIndex>::max()
+          << "min_index=" << min_index_;
+      index_.data[i] = static_cast<StorageIndex>(idx);
       value_.data[i] = page.data[i].fvalue;
     }
 
@@ -243,15 +247,15 @@ class SparsePageLZ4Format : public SparsePage::Format {
     #pragma omp parallel for schedule(dynamic, 1)  num_threads(nthread_write_)
     for (int i = 0; i < ntotal; ++i) {
       if (i < nindex) {
-        index_.Compress(i);
+        index_.Compress(i, use_lz4_hc_);
       } else {
-        value_.Compress(i - nindex);
+        value_.Compress(i - nindex, use_lz4_hc_);
       }
     }
     index_.Write(fo);
     value_.Write(fo);
     // statistics
-    raw_bytes_index_ += index_.RawBytes();
+    raw_bytes_index_ += index_.RawBytes() * sizeof(bst_uint) / sizeof(StorageIndex);
     raw_bytes_value_ += value_.RawBytes();
     encoded_bytes_index_ += index_.EncodedBytes();
     encoded_bytes_value_ += value_.EncodedBytes();
@@ -259,6 +263,7 @@ class SparsePageLZ4Format : public SparsePage::Format {
   }
 
   inline void LoadIndexValue(dmlc::SeekStream* fi) {
+    fi->Read(&min_index_, sizeof(min_index_));
     index_.Read(fi);
     value_.Read(fi);
 
@@ -280,6 +285,8 @@ class SparsePageLZ4Format : public SparsePage::Format {
   static const size_t kChunkSize = 64 << 10UL;
   // maximum chunk size.
   static const size_t kMaxChunk = 128;
+  // bool whether use hc
+  bool use_lz4_hc_;
   // number of threads
   int nthread_;
   // number of writing threads
@@ -288,10 +295,12 @@ class SparsePageLZ4Format : public SparsePage::Format {
   size_t raw_bytes_, raw_bytes_index_, raw_bytes_value_;
   // encoded bytes
   size_t encoded_bytes_index_, encoded_bytes_value_;
+  /*! \brief minimum index value */
+  uint32_t min_index_;
   /*! \brief external memory column offset */
   std::vector<size_t> disk_offset_;
   // internal index
-  CompressArray<bst_uint> index_;
+  CompressArray<StorageIndex> index_;
   // value set.
   CompressArray<bst_float> value_;
 };
@@ -299,7 +308,20 @@ class SparsePageLZ4Format : public SparsePage::Format {
 XGBOOST_REGISTER_SPARSE_PAGE_FORMAT(lz4)
 .describe("Apply LZ4 binary data compression for ext memory.")
 .set_body([]() {
-    return new SparsePageLZ4Format();
+    return new SparsePageLZ4Format<bst_uint>(false);
   });
+
+XGBOOST_REGISTER_SPARSE_PAGE_FORMAT(lz4hc)
+.describe("Apply LZ4 binary data compression(high compression ratio) for ext memory.")
+.set_body([]() {
+    return new SparsePageLZ4Format<bst_uint>(true);
+  });
+
+XGBOOST_REGISTER_SPARSE_PAGE_FORMAT(lz4i16hc)
+.describe("Apply LZ4 binary data compression(16 bit index mode) for ext memory.")
+.set_body([]() {
+    return new SparsePageLZ4Format<uint16_t>(true);
+  });
+
 }  // namespace data
 }  // namespace xgboost

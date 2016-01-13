@@ -136,6 +136,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
   // make the sparse page.
   dmlc::ThreadedIter<SparsePage> cmaker;
   SparsePage tmp;
+  size_t batch_ptr = 0, batch_top = 0;
   dmlc::DataIter<RowBatch>* iter = this->RowIterator();
   std::bernoulli_distribution coin_flip(pkeep);
 
@@ -151,13 +152,13 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     }
     SparsePage* pcol = *dptr;
     pcol->Clear();
+    pcol->min_index = ridx[0];
     int nthread;
     #pragma omp parallel
     {
       nthread = omp_get_num_threads();
       nthread = std::max(nthread, std::max(omp_get_num_procs() / 2 - 1, 1));
     }
-    pcol->Clear();
     common::ParallelGroupBuilder<SparseBatch::Entry>
     builder(&pcol->offset, &pcol->data);
     builder.InitBudget(info.num_col, nthread);
@@ -199,21 +200,32 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
   auto make_next_col = [&] (SparsePage** dptr) {
     tmp.Clear();
     size_t btop = buffered_rowset_.size();
-    while (iter->Next()) {
-      const RowBatch& batch = iter->Value();
-      for (size_t i = 0; i < batch.size; ++i) {
-        bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
-        if (pkeep == 1.0f || coin_flip(rnd)) {
-          buffered_rowset_.push_back(ridx);
-          tmp.Push(batch[i]);
+
+    while (true) {
+      if (batch_ptr != batch_top) {
+        const RowBatch& batch = iter->Value();
+        CHECK_EQ(batch_top, batch.size);
+        for (size_t i = batch_ptr; i < batch_top; ++i) {
+          bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+          if (pkeep == 1.0f || coin_flip(rnd)) {
+            buffered_rowset_.push_back(ridx);
+            tmp.Push(batch[i]);
+          }
+
+          if (tmp.Size() >= max_row_perbatch ||
+              tmp.MemCostBytes() >= kPageSize) {
+            make_col_batch(tmp, dmlc::BeginPtr(buffered_rowset_) + btop, dptr);
+            batch_ptr = i + 1;
+            return true;
+          }
         }
+        batch_ptr = batch_top;
       }
-      if (tmp.MemCostBytes() >= kPageSize ||
-          tmp.Size() >= max_row_perbatch) {
-        make_col_batch(tmp, dmlc::BeginPtr(buffered_rowset_) + btop, dptr);
-        return true;
-      }
+      if (!iter->Next()) break;
+      batch_ptr = 0;
+      batch_top = iter->Value().size;
     }
+
     if (tmp.Size() != 0) {
       make_col_batch(tmp, dmlc::BeginPtr(buffered_rowset_) + btop, dptr);
       return true;
@@ -227,12 +239,15 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
   std::string col_data_name = cache_prefix_ + ".col.page";
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(col_data_name.c_str(), "w"));
   // find format.
-  std::string name_format = SparsePage::Format::DecideFormat(cache_prefix_);
+  std::string name_format = SparsePage::Format::DecideFormat(cache_prefix_).second;
   fo->Write(name_format);
   std::unique_ptr<SparsePage::Format> format(SparsePage::Format::Create(name_format));
 
   double tstart = dmlc::GetTime();
   size_t bytes_write = 0;
+  // print every 4 sec.
+  const double kStep = 4.0;
+  size_t tick_expected = kStep;
   SparsePage* pcol = nullptr;
 
   while (cmaker.Next(&pcol)) {
@@ -243,9 +258,12 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     size_t spage = pcol->MemCostBytes();
     bytes_write += spage;
     double tdiff = dmlc::GetTime() - tstart;
-    LOG(CONSOLE) << "Writing to " << col_data_name
-                 << " in " << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
-                 << (bytes_write >> 20UL) << " MB writen";
+    if (tdiff >= tick_expected) {
+      LOG(CONSOLE) << "Writing to " << col_data_name
+                   << " in " << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
+                   << (bytes_write >> 20UL) << " MB writen";
+      tick_expected += kStep;
+    }
     cmaker.Recycle(&pcol);
   }
   // save meta data

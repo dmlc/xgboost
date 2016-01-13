@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <utility>
 
 namespace xgboost {
 namespace data {
@@ -25,7 +26,8 @@ class SparsePage {
  public:
   /*! \brief Format of the sparse page. */
   class Format;
-
+  /*! \brief minimum index of all index, used as hint for compression. */
+  bst_uint min_index;
   /*! \brief offset of the segments */
   std::vector<size_t> offset;
   /*! \brief the data of the segments */
@@ -45,6 +47,7 @@ class SparsePage {
   }
   /*! \brief clear the page */
   inline void Clear(void) {
+    min_index = 0;
     offset.clear();
     offset.push_back(0);
     data.clear();
@@ -163,9 +166,9 @@ class SparsePage::Format {
   static Format* Create(const std::string& name);
   /*!
    * \brief decide the format from cache prefix.
-   * \return format type of the cache prefix.
+   * \return pair of row format, column format type of the cache prefix.
    */
-  static std::string DecideFormat(const std::string& cache_prefix);
+  static std::pair<std::string, std::string> DecideFormat(const std::string& cache_prefix);
 };
 
 /*!
