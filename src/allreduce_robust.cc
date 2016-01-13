@@ -79,7 +79,7 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
                                 PreprocFunction prepare_fun,
                                 void *prepare_arg) {
   // skip action in single node
-  if (world_size == 1) {
+  if (world_size == 1 || world_size == -1) {
     if (prepare_fun != NULL) prepare_fun(prepare_arg);
     return;
   }
