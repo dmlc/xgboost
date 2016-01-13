@@ -151,6 +151,12 @@ DMatrix* DMatrix::Load(const std::string& uri,
   if (load_row_split) {
     partid = rabit::GetRank();
     npart = rabit::GetWorldSize();
+  } else {
+    // test option to load in part
+    npart = dmlc::GetEnv("XGBOOST_TEST_NPART", 1);
+    if (npart != 1) {
+      LOG(CONSOLE) << "Partial load option on npart=" << npart;
+    }
   }
 
   // legacy handling of binary data loading
