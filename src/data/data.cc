@@ -158,23 +158,24 @@ DMatrix* DMatrix::Load(const std::string& uri,
       LOG(CONSOLE) << "Partial load option on npart=" << npart;
     }
   }
-
   // legacy handling of binary data loading
   if (file_format == "auto" && !load_row_split) {
     int magic;
-    std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
-    common::PeekableInStream is(fi.get());
-     if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
-         magic == data::SimpleCSRSource::kMagic) {
-       std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-       source->LoadBinary(&is);
-       DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
-       if (!silent) {
-         LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
-                      << dmat->info().num_nonzero << " entries loaded from " << uri;
-       }
-       return dmat;
-     }
+    std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
+    if (fi.get() != nullptr) {
+      common::PeekableInStream is(fi.get());
+      if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
+	  magic == data::SimpleCSRSource::kMagic) {
+	std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+	source->LoadBinary(&is);
+	DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
+	if (!silent) {
+	  LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
+		       << dmat->info().num_nonzero << " entries loaded from " << uri;
+	}
+	return dmat;
+      }
+    }
   }
 
   std::string ftype = file_format;

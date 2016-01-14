@@ -28,15 +28,15 @@ struct EvalEWiseBase : public Metric {
     CHECK_EQ(preds.size(), info.labels.size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
-    const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
-    float sum = 0.0, wsum = 0.0;
+    const omp_ulong ndata = static_cast<omp_ulong>(info.labels.size());
+    double sum = 0.0, wsum = 0.0;
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
-    for (bst_omp_uint i = 0; i < ndata; ++i) {
+    for (omp_ulong i = 0; i < ndata; ++i) {
       const float wt = info.GetWeight(i);
       sum += Derived::EvalRow(info.labels[i], preds[i]) * wt;
       wsum += wt;
     }
-    float dat[2]; dat[0] = sum, dat[1] = wsum;
+    double dat[2]; dat[0] = sum, dat[1] = wsum;
     if (distributed) {
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
     }
