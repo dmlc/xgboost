@@ -631,7 +631,7 @@ class QuantileSketchTemplate {
      * \brief do elementwise combination of summary array
      *        this[i] = combine(this[i], src[i]) for each i
      * \param src the source summary
-     * \param max_nbyte, maximum number of byte allowed in here
+     * \param max_nbyte maximum number of byte allowed in here
      */
     inline void Reduce(const Summary &src, size_t max_nbyte) {
       this->Reserve((max_nbyte - sizeof(this->size)) / sizeof(Entry));
@@ -688,7 +688,8 @@ class QuantileSketchTemplate {
   }
   /*!
    * \brief add an element to a sketch
-   * \param x the element added to the sketch
+   * \param x The element added to the sketch
+   * \param w The weight of the element.
    */
   inline void Push(DType x, RType w = 1) {
     if (w == static_cast<RType>(0)) return;

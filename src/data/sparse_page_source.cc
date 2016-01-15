@@ -103,7 +103,7 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
     for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
       uint32_t index = batch.index[i];
       info.num_col = std::max(info.num_col,
-                              static_cast<size_t>(index + 1));
+                              static_cast<uint64_t>(index + 1));
     }
     page.Push(batch);
     if (page.MemCostBytes() >= kPageSize) {

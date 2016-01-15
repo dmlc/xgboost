@@ -70,7 +70,6 @@ class GradientBooster {
    * \param p_fmat feature matrix that provide access to features
    * \param buffer_offset buffer index offset of these instances, if equals -1
    *        this means we do not have buffer index allocated to the gbm
-   * \param info meta information about training
    * \param in_gpair address of the gradient pair statistics of the data
    * the booster may change content of gpair
    */
@@ -79,12 +78,11 @@ class GradientBooster {
                        std::vector<bst_gpair>* in_gpair) = 0;
   /*!
    * \brief generate predictions for given feature matrix
-   * \param p_fmat feature matrix
+   * \param dmat feature matrix
    * \param buffer_offset buffer index offset of these instances, if equals -1
    *        this means we do not have buffer index allocated to the gbm
    *  a buffer index is assigned to each instance that requires repeative prediction
    *  the size of buffer is set by convention using GradientBooster.ResetPredBuffer(size);
-   * \param info extra side information that may be needed for prediction
    * \param out_preds output vector to hold the predictions
    * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
    *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
@@ -128,8 +126,9 @@ class GradientBooster {
    */
   virtual std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) const = 0;
   /*!
-   * \breif create a gradient booster from given name
+   * \brief create a gradient booster from given name
    * \param name name of gradient booster
+   * \return The created booster.
    */
   static GradientBooster* Create(const std::string& name);
 };

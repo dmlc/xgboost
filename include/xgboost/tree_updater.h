@@ -32,7 +32,7 @@ class TreeUpdater {
   /*!
    * \brief perform update to the tree models
    * \param gpair the gradient pair statistics of the data
-   * \param dmat The data matrix passed to the updater.
+   * \param data The data matrix passed to the updater.
    * \param trees references the trees to be updated, updater will change the content of trees
    *   note: all the trees in the vector are updated, with the same statistics,
    *         but maybe different random seeds, usually one tree is passed in at a time,
