@@ -262,7 +262,6 @@ class DMatrix {
   /*!
    * \brief create a new DMatrix, by wrapping a row_iterator, and meta info.
    * \param source The source iterator of the data, the create function takes ownership of the source.
-   * \param info The meta information in the DMatrix, need to move ownership to DMatrix.
    * \param cache_prefix The path to prefix of temporary cache file of the DMatrix when used in external memory mode.
    *     This can be nullptr for common cases, and in-memory mode will be used.
    * \return a Created DMatrix.

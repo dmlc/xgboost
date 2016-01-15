@@ -66,7 +66,7 @@ endif
 
 
 # specify tensor path
-.PHONY: clean all lint clean_all rcpplint Rpack Rbuild Rcheck
+.PHONY: clean all lint clean_all doxygen rcpplint Rpack Rbuild Rcheck java
 
 all: lib/libxgboost.a lib/libxgboost.so xgboost
 
@@ -130,6 +130,9 @@ clean:
 clean_all: clean
 	cd $(DMLC_CORE); make clean; cd -
 	cd $(RABIT); make clean; cd -
+
+doxygen:
+	doxygen doc/Doxyfile
 
 # Script to make a clean installable R package.
 Rpack:

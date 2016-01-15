@@ -147,7 +147,7 @@ class ConfigStreamReader: public ConfigReaderBase {
  public:
   /*!
    * \brief constructor
-   * \param istream input stream
+   * \param fin istream input stream
    */
   explicit ConfigStreamReader(std::istream &fin) : fin(fin) {}
 

@@ -91,7 +91,8 @@ struct ParallelGroupBuilder {
    * \brief step 4: add data to the allocated space,
    *   the calls to this function should be exactly match previous call to AddBudget
    *
-   * \param key the key of
+   * \param key the key of group.
+   * \param value The value to be pushed to the group.
    * \param threadid the id of thread that calls this function
    */
   inline void Push(size_t key, ValueType value, int threadid) {

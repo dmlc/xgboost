@@ -105,11 +105,11 @@ class TreeModel {
     inline bool is_leaf() const {
       return cleft_ == -1;
     }
-    /*! \brief get leaf value of leaf node */
+    /*! \return get leaf value of leaf node */
     inline float leaf_value() const {
       return (this->info_).leaf_value;
     }
-    /*! \brief get split condition of the node */
+    /*! \return get split condition of the node */
     inline TSplitCond split_cond() const {
       return (this->info_).split_cond;
     }
@@ -131,7 +131,7 @@ class TreeModel {
     }
     /*!
      * \brief set the right child
-     * \param nide node id to right child
+     * \param nid node id to right child
      */
     inline void set_right_child(int nid) {
       this->cright_ = nid;
@@ -228,7 +228,7 @@ class TreeModel {
   /*!
    * \brief change a non leaf node to a leaf node, delete its children
    * \param rid node id of the node
-   * \param new leaf value
+   * \param value new leaf value
    */
   inline void ChangeToLeaf(int rid, float value) {
     CHECK(nodes[nodes[rid].cleft() ].is_leaf());
@@ -240,7 +240,7 @@ class TreeModel {
   /*!
    * \brief collapse a non leaf node to a leaf node, delete its children
    * \param rid node id of the node
-   * \param new leaf value
+   * \param value new leaf value
    */
   inline void CollapseToLeaf(int rid, float value) {
     if (nodes[rid].is_leaf()) return;
@@ -350,7 +350,7 @@ class TreeModel {
   }
   /*!
    * \brief only add a right child to a leaf node
-   * \param node id to add right child
+   * \param nid node id to add right child
    */
   inline void AddRightChild(int nid) {
     int pright = this->AllocNode();
@@ -467,7 +467,7 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
   inline int GetLeafIndex(const FVec& feat, unsigned root_id = 0) const;
   /*!
    * \brief get the prediction of regression tree, only accepts dense feature vector
-   * \param feats dense feature vector, if the feature is missing the field is set to NaN
+   * \param feat dense feature vector, if the feature is missing the field is set to NaN
    * \param root_id starting root index of the instance
    * \return the leaf index of the given feature
    */

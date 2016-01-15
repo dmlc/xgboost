@@ -35,7 +35,6 @@ ipch
 *log
 Debug
 *suo
-*test*
 .Rhistory
 *.dll
 *i386

@@ -165,15 +165,15 @@ DMatrix* DMatrix::Load(const std::string& uri,
     if (fi.get() != nullptr) {
       common::PeekableInStream is(fi.get());
       if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
-	  magic == data::SimpleCSRSource::kMagic) {
-	std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-	source->LoadBinary(&is);
-	DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
-	if (!silent) {
-	  LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
-		       << dmat->info().num_nonzero << " entries loaded from " << uri;
-	}
-	return dmat;
+          magic == data::SimpleCSRSource::kMagic) {
+        std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+        source->LoadBinary(&is);
+        DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
+        if (!silent) {
+          LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
+                       << dmat->info().num_nonzero << " entries loaded from " << uri;
+        }
+        return dmat;
       }
     }
   }

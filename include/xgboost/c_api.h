@@ -169,7 +169,8 @@ XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
  * \brief get uint32 info vector from matrix
  * \param handle a instance of data matrix
  * \param field field name
- * \param out_ptr pointer to the result
+ * \param out_len The length of the field.
+ * \param out_dptr pointer to the result
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
@@ -177,8 +178,9 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
                                  bst_ulong* out_len,
                                  const unsigned **out_dptr);
 /*!
- * \brief get number of rows
+ * \brief get number of rows.
  * \param handle the handle to the DMatrix
+ * \param out The address to hold number of rows.
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
@@ -186,6 +188,7 @@ XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
 /*!
  * \brief get number of columns
  * \param handle the handle to the DMatrix
+ * \param out The output of number of columns
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
@@ -212,7 +215,7 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle);
  * \brief set parameters
  * \param handle handle
  * \param name  parameter name
- * \param val value of parameter
+ * \param value value of parameter
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
@@ -335,11 +338,11 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
  * \brief dump model, return array of strings representing model dump
  * \param handle handle
  * \param fnum number of features
- * \param fnum names of features
- * \param fnum types of features
+ * \param fname names of features
+ * \param ftype types of features
  * \param with_stats whether to dump with statistics
  * \param out_len length of output array
- * \param out_dump_array pointer to hold representing dump of each model
+ * \param out_models pointer to hold representing dump of each model
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
@@ -347,7 +350,7 @@ XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
                                            const char **fname,
                                            const char **ftype,
                                            int with_stats,
-                                           bst_ulong *len,
+                                           bst_ulong *out_len,
                                            const char ***out_models);
 
 #endif  // XGBOOST_C_API_H_

@@ -39,7 +39,7 @@ class Metric {
   /*!
    * \brief create a metric according to name.
    * \param name name of the metric.
-   *  name can be in form metric@param
+   *  name can be in form metric[@]param
    *  and the name will be matched in the registry.
    * \return the created metric.
    */

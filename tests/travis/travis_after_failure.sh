@@ -1,5 +1,5 @@
 #!/bin/bash
 
-if [ ${TASK} == "R-package" ]; then
+if [ ${TASK} == "r_test" ]; then
     cat xgboost/xgboost.Rcheck/*.log
 fi
