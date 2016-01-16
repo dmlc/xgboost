@@ -15,7 +15,12 @@ ifndef RABIT
 endif
 
 ROOTDIR = $(CURDIR)
-UNAME= $(shell uname)
+
+ifeq ($(OS), Windows_NT)
+	UNAME="Windows"
+else
+	UNAME=$(shell uname)
+endif
 
 include $(config)
 ifeq ($(USE_OPENMP), 0)
@@ -34,19 +39,21 @@ ifndef CXX
 export CXX = $(if $(shell which g++-5),g++-5,g++)
 endif
 
-ifeq ($(OS), Windows_NT)
-	export CXX = g++ -m64
-	export CC = gcc -m64
-endif
-
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
-export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -fPIC -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
+export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
 
 ifndef LINT_LANG
 	LINT_LANG= "all"
+endif
+
+ifneq ($(UNAME), Windows)
+	CFLAGS += -fPIC
+	XGBOOST_DYLIB = lib/libxgboost.so
+else
+	XGBOOST_DYLIB = lib/libxgboost.dll
 endif
 
 ifeq ($(UNAME), Linux)
@@ -68,7 +75,8 @@ endif
 # specify tensor path
 .PHONY: clean all lint clean_all doxygen rcpplint Rpack Rbuild Rcheck java
 
-all: lib/libxgboost.a lib/libxgboost.so xgboost
+
+all: lib/libxgboost.a $(XGBOOST_DYLIB) xgboost
 
 $(DMLC_CORE)/libdmlc.a:
 	+ cd $(DMLC_CORE); make libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
@@ -108,7 +116,7 @@ lib/libxgboost.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-lib/libxgboost.so: $(ALL_DEP)
+lib/libxgboost.dll lib/libxgboost.so: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
 
@@ -125,11 +133,11 @@ lint: rcpplint
 	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src plugin
 
 clean:
-	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ amalgamation/*.o xgboost
+	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
 
 clean_all: clean
-	cd $(DMLC_CORE); make clean; cd -
-	cd $(RABIT); make clean; cd -
+	cd $(DMLC_CORE); make clean; cd $(ROODIR)
+	cd $(RABIT); make clean; cd $(ROODIR)
 
 doxygen:
 	doxygen doc/Doxyfile

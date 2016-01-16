@@ -16,7 +16,7 @@ install.packages('xgboost')
 For up-to-date version, please install from github. Windows user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
 
 ```r
-devtools::install_github('dmlc/xgboost',subdir='R-package')
+devtools::install_git('git://github.com/dmlc/xgboost',subdir='R-package')
 ```
 
 Examples

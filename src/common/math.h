@@ -113,7 +113,7 @@ inline bool CheckNAN(T v) {
 #ifdef _MSC_VER
   return (_isnan(v) != 0);
 #else
-  return isnan(v);
+  return std::isnan(v);
 #endif
 }
 template<typename T>

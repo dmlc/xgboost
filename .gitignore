@@ -52,8 +52,6 @@ Debug
 #.Rbuildignore
 R-package.Rproj
 *.cache*
-R-package/inst
-R-package/src
 #java
 java/xgboost4j/target
 java/xgboost4j/tmp

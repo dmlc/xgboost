@@ -7,8 +7,8 @@
 
 namespace xgboost {
 namespace common {
-RandomEngine& GlobalRandom() {
-  static RandomEngine inst;
+GlobalRandomEngine& GlobalRandom() {
+  static GlobalRandomEngine inst;
   return inst;
 }
 }

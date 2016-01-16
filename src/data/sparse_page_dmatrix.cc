@@ -8,6 +8,8 @@
 #include <dmlc/timer.h>
 #include <xgboost/logging.h>
 #include <memory>
+
+#if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_dmatrix.h"
 #include "../common/random.h"
 #include "../common/group_data.h"
@@ -278,3 +280,4 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
 
 }  // namespace data
 }  // namespace xgboost
+#endif

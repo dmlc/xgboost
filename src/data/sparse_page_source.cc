@@ -6,6 +6,8 @@
 #include <dmlc/timer.h>
 #include <xgboost/logging.h>
 #include <memory>
+
+#if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
 
 namespace xgboost {
@@ -175,3 +177,4 @@ void SparsePageSource::Create(DMatrix* src,
 
 }  // namespace data
 }  // namespace xgboost
+#endif

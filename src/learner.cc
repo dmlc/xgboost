@@ -334,7 +334,8 @@ class LearnerImpl : public Learner {
     // in distributed mode, use safe choice otherwise
     size_t max_row_perbatch = tparam.max_row_perbatch;
     if (tparam.test_flag == "block" || tparam.dsplit == 2) {
-      max_row_perbatch = std::min(32UL << 10UL, max_row_perbatch);
+      max_row_perbatch = std::min(
+        static_cast<size_t>(32UL << 10UL), max_row_perbatch);
     }
     // initialize column access
     p_train->InitColAccess(enabled,
