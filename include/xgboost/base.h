@@ -25,6 +25,20 @@
 #define XGBOOST_LOG_WITH_TIME 1
 #endif
 
+/*!
+ * \brief Whether customize the logger outputs.
+ */
+#ifndef XGBOOST_CUSTOMIZE_LOGGER
+#define XGBOOST_CUSTOMIZE_LOGGER XGBOOST_STRICT_R_MODE
+#endif
+
+/*!
+ * \brief Whether to customize global PRNG.
+ */
+#ifndef XGBOOST_CUSTOMIZE_GLOBAL_PRNG
+#define XGBOOST_CUSTOMIZE_GLOBAL_PRNG  XGBOOST_STRICT_R_MODE
+#endif
+
 /*! \brief namespace of xgboo st*/
 namespace xgboost {
 /*!

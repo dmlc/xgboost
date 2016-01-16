@@ -374,8 +374,10 @@ class BaseMaker: public TreeUpdater {
           }
         } else {
           if (rmax >= next_goal) {
-            rabit::TrackerPrintf("INFO: rmax=%g, sum_total=%g, next_goal=%g, size=%lu\n",
-                                 rmax, sum_total, next_goal, sketch->temp.size);
+            LOG(TRACKER) << "INFO: rmax=" << rmax
+                         << ", sum_total=" << sum_total
+                         << ", naxt_goal=" << next_goal
+                         << ", size=" << sketch->temp.size;
           }
         }
         rmin = rmax;
