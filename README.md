@@ -17,8 +17,8 @@ Contents
 --------
 * [Documentation and Tutorials](https://xgboost.readthedocs.org)
 * [Code Examples](demo)
-* [Build Instruction](doc/build.md)
-* [Committers and Contributors](CONTRIBUTORS.md)
+* [Installation](doc/build.md)
+* [Contribute to XGBoost](http://xgboost.readthedocs.org/en/latest/dev-guide/contribute.html)
 
 What's New
 ----------
