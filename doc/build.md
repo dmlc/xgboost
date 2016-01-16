@@ -22,7 +22,6 @@ even better to send pull request if you can fix the problem.
   - [Customized Building](#customized-building)
 - [Python Package Installation](#python-package-installation)
 - [R Package Installation](#r-package-installation)
-- [Docker Images](#docker-images)
 - [Frequently asked questions](#frequently-asked-questions)
 
 ## Build the Shared Library
@@ -155,7 +154,7 @@ First follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compi
   devtools::install_local('xgboost/', subdir = 'R-package') # you may use devtools
   ```
 
-## Frequent Asked Questions
+## Frequently Asked Questions
 
 1. **Compile failed after `git pull`**
 
