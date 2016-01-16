@@ -15,23 +15,14 @@ XGBoost is part of [DMLC](http://dmlc.github.io/) projects.
 
 Contents
 --------
-* [Documentation](https://xgboost.readthedocs.org)
-* [Usecases](doc/index.md#highlight-links)
+* [Documentation and Tutorials](https://xgboost.readthedocs.org)
 * [Code Examples](demo)
-* [Build Instruction](doc/build.md)
-* [Committers and Contributors](CONTRIBUTORS.md)
+* [Installation](doc/build.md)
+* [Contribute to XGBoost](http://xgboost.readthedocs.org/en/latest/dev-guide/contribute.html)
 
 What's New
 ----------
-* XGBoost [brick](CHANGES.md)
-* XGBoost helps Vlad Mironov, Alexander Guschin to win the [CERN LHCb experiment Flavour of Physics competition](https://www.kaggle.com/c/flavours-of-physics). Check out the [interview from Kaggle](http://blog.kaggle.com/2015/11/30/flavour-of-physics-technical-write-up-1st-place-go-polar-bears/).
-* XGBoost helps Mario Filho, Josef Feigl, Lucas, Gilberto to win the [Caterpillar Tube Pricing competition](https://www.kaggle.com/c/caterpillar-tube-pricing). Check out the [interview from Kaggle](http://blog.kaggle.com/2015/09/22/caterpillar-winners-interview-1st-place-gilberto-josef-leustagos-mario/).
-* XGBoost helps Halla Yang to win the [Recruit Coupon Purchase Prediction Challenge](https://www.kaggle.com/c/coupon-purchase-prediction). Check out the [interview from Kaggle](http://blog.kaggle.com/2015/10/21/recruit-coupon-purchase-winners-interview-2nd-place-halla-yang/).
-
-Version
--------
-* Current version xgboost-0.6 (brick)
-  - See [Change log](CHANGES.md) for details
+* [XGBoost brick](NEWS.md) Release
 
 Features
 --------
@@ -45,17 +36,16 @@ Features
 
 Bug Reporting
 -------------
-
 * For reporting bugs please use the [xgboost/issues](https://github.com/dmlc/xgboost/issues) page.
 * For generic questions or to share your experience using xgboost please use the [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/)
-
 
 Contributing to XGBoost
 -----------------------
 XGBoost has been developed and used by a group of active community members. Everyone is more than welcome to contribute. It is a way to make the project better and more accessible to more users.
 * Check out [Feature Wish List](https://github.com/dmlc/xgboost/labels/Wish-List) to see what can be improved, or open an issue if you want something.
 * Contribute to the [documents and examples](https://github.com/dmlc/xgboost/blob/master/doc/) to share your experience with other users.
-* Please add your name to [CONTRIBUTORS.md](CONTRIBUTORS.md) after your patch has been merged.
+* Please add your name to [CONTRIBUTORS.md](CONTRIBUTORS.md) and after your patch has been merged.
+  - Please also update [NEWS.md](NEWS.md) on changes and improvements in API and docs.
 
 License
 -------

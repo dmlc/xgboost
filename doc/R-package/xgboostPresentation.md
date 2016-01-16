@@ -51,7 +51,8 @@ It has several features:
 
 For up-to-date version (highly recommended), install from *Github*:
 
-```{r installGithub, eval=FALSE}
+
+```r
 devtools::install_git('git://github.com/dmlc/xgboost', subdir='R-package')
 ```
 
@@ -69,7 +70,8 @@ Formerly available versions can be obtained from the CRAN [archive](http://cran.
 
 For the purpose of this tutorial we will load **XGBoost** package.
 
-```{r libLoading, results='hold', message=F, warning=F}
+
+```r
 require(xgboost)
 ```
 
@@ -94,7 +96,8 @@ Why *split* the dataset in two parts?
 
 In the first part we will build our model. In the second part we will want to test it and assess its quality. Without dividing the dataset we would test the model on the data which the algorithm have already seen.
 
-```{r datasetLoading, results='hold', message=F, warning=F}
+
+```r
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 train <- agaricus.train
@@ -105,26 +108,60 @@ test <- agaricus.test
 
 Each variable is a `list` containing two things, `label` and `data`:
 
-```{r dataList, message=F, warning=F}
+
+```r
 str(train)
+```
+
+```
+## List of 2
+##  $ data :
+```
+
+```
+## Error in str.default(obj, ...): could not find function "is"
 ```
 
 `label` is the outcome of our dataset meaning it is the binary *classification* we will try to predict.
 
 Let's discover the dimensionality of our datasets.
 
-```{r dataSize, message=F, warning=F}
+
+```r
 dim(train$data)
+```
+
+```
+## [1] 6513  126
+```
+
+```r
 dim(test$data)
+```
+
+```
+## [1] 1611  126
 ```
 
 This dataset is very small to not make the **R** package too heavy, however **XGBoost** is built to manage huge dataset very efficiently.
 
 As seen below, the `data` are stored in a `dgCMatrix` which is a *sparse* matrix and `label` vector is a `numeric` vector (`{0,1}`):
 
-```{r dataClass, message=F, warning=F}
+
+```r
 class(train$data)[1]
+```
+
+```
+## [1] "dgCMatrix"
+```
+
+```r
 class(train$label)
+```
+
+```
+## [1] "numeric"
 ```
 
 ### Basic Training using XGBoost
@@ -145,8 +182,14 @@ We will train decision tree model using the following parameters:
 * `nthread = 2`: the number of cpu threads we are going to use;
 * `nround = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
 
-```{r trainingSparse, message=F, warning=F}
+
+```r
 bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+```
+
+```
+## [0]	train-error:0.046522
+## [1]	train-error:0.022263
 ```
 
 > More complex the relationship between your features and your `label` is, more passes you need.
@@ -157,17 +200,28 @@ bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta 
 
 Alternatively, you can put your dataset in a *dense* matrix, i.e. a basic **R** matrix.
 
-```{r trainingDense, message=F, warning=F}
+
+```r
 bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+```
+
+```
+## Error in as.vector(data): no method for coercing this S4 class to a vector
 ```
 
 ##### xgb.DMatrix
 
 **XGBoost** offers a way to group them in a `xgb.DMatrix`. You can even add other meta data in it. It will be useful for the most advanced features we will discover later.
 
-```{r trainingDmatrix, message=F, warning=F}
+
+```r
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
 bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+```
+
+```
+## [0]	train-error:0.046522
+## [1]	train-error:0.022263
 ```
 
 ##### Verbose option
@@ -176,19 +230,34 @@ bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround
 
 One of the simplest way to see the training progress is to set the `verbose` option (see below for more advanced technics).
 
-```{r trainingVerbose0, message=T, warning=F}
+
+```r
 # verbose = 0, no message
 bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic", verbose = 0)
 ```
 
-```{r trainingVerbose1, message=T, warning=F}
+
+```r
 # verbose = 1, print evaluation metric
 bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic", verbose = 1)
 ```
 
-```{r trainingVerbose2, message=T, warning=F}
+```
+## [0]	train-error:0.046522
+## [1]	train-error:0.022263
+```
+
+
+```r
 # verbose = 2, also print information about tree
 bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic", verbose = 2)
+```
+
+```
+## [11:43:20] ../..//amalgamation/../src/tree/updater_prune.cc:74: tree pruning end, 1 roots, 6 extra nodes, 0 pruned nodes, max_depth=2
+## [0]	train-error:0.046522
+## [11:43:20] ../..//amalgamation/../src/tree/updater_prune.cc:74: tree pruning end, 1 roots, 4 extra nodes, 0 pruned nodes, max_depth=2
+## [1]	train-error:0.022263
 ```
 
 ## Basic prediction using XGBoost
@@ -199,14 +268,25 @@ bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, o
 
 The purpose of the model we have built is to classify new data. As explained before, we will use the `test` dataset for this step.
 
-```{r predicting, message=F, warning=F}
+
+```r
 pred <- predict(bst, test$data)
 
 # size of the prediction vector
 print(length(pred))
+```
 
+```
+## [1] 1611
+```
+
+```r
 # limit display of predictions to the first 10
 print(head(pred))
+```
+
+```
+## [1] 0.28583017 0.92392391 0.28583017 0.28583017 0.05169873 0.92392391
 ```
 
 These numbers doesn't look like *binary classification* `{0,1}`. We need to perform a simple transformation before being able to use these results.
@@ -220,9 +300,14 @@ How can we use a *regression* model to perform a binary classification?
 
 If we think about the meaning of a regression applied to our data, the numbers we get are probabilities that a datum will be classified as `1`. Therefore, we will set the rule that if this probability for a specific datum is `> 0.5` then the observation is classified as `1` (or `0` otherwise).
 
-```{r predictingTest, message=F, warning=F}
+
+```r
 prediction <- as.numeric(pred > 0.5)
 print(head(prediction))
+```
+
+```
+## [1] 0 1 0 0 0 1
 ```
 
 ## Measuring model performance
@@ -230,9 +315,14 @@ print(head(prediction))
 
 To measure the model performance, we will compute a simple metric, the *average error*.
 
-```{r predictingAverageError, message=F, warning=F}
+
+```r
 err <- mean(as.numeric(pred > 0.5) != test$label)
 print(paste("test-error=", err))
+```
+
+```
+## [1] "test-error= 0.0217256362507759"
 ```
 
 > Note that the algorithm has not seen the `test` data during the model construction.
@@ -247,7 +337,7 @@ The most important thing to remember is that **to do a classification, you just 
 
 *Multiclass* classification works in a similar way.
 
-This metric is **`r round(err, 2)`** and is pretty low: our yummly mushroom model works well!
+This metric is **0.02** and is pretty low: our yummly mushroom model works well!
 
 ## Advanced features
 
@@ -260,7 +350,8 @@ Most of the features below have been implemented to help you to improve your mod
 
 For the following advanced features, we need to put data in `xgb.DMatrix` as explained above.
 
-```{r DMatrix, message=F, warning=F}
+
+```r
 dtrain <- xgb.DMatrix(data = train$data, label=train$label)
 dtest <- xgb.DMatrix(data = test$data, label=test$label)
 ```
@@ -278,10 +369,16 @@ One way to measure progress in learning of a model is to provide to **XGBoost** 
 
 For the purpose of this example, we use `watchlist` parameter. It is a list of `xgb.DMatrix`, each of them tagged with a name.
 
-```{r watchlist, message=F, warning=F}
+
+```r
 watchlist <- list(train=dtrain, test=dtest)
 
 bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nround=2, watchlist=watchlist, objective = "binary:logistic")
+```
+
+```
+## [0]	train-error:0.046522	test-error:0.042831
+## [1]	train-error:0.022263	test-error:0.021726
 ```
 
 **XGBoost** has computed at each round the same average error metric than seen above (we set `nround` to 2, that is why we have two lines). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset.
@@ -292,8 +389,14 @@ If with your own dataset you have not such results, you should think about how y
 
 For a better understanding of the learning progression, you may want to have some specific metric or even use multiple evaluation metrics.
 
-```{r watchlist2, message=F, warning=F}
+
+```r
 bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
+```
+
+```
+## [0]	train-error:0.046522	train-logloss:0.233376	test-error:0.042831	test-logloss:0.226686
+## [1]	train-error:0.022263	train-logloss:0.136658	test-error:0.021726	test-logloss:0.137874
 ```
 
 > `eval.metric` allows us to monitor two new metrics for each round, `logloss` and `error`.
@@ -303,8 +406,14 @@ bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nround=2, watchli
 
 Until now, all the learnings we have performed were based on boosting trees. **XGBoost** implements a second algorithm, based on linear boosting. The only difference with previous command is `booster = "gblinear"` parameter (and removing `eta` parameter).
 
-```{r linearBoosting, message=F, warning=F}
+
+```r
 bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nthread = 2, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
+```
+
+```
+## [0]	train-error:0.019499	train-logloss:0.176561	test-error:0.018001	test-logloss:0.173835
+## [1]	train-error:0.004760	train-logloss:0.068214	test-error:0.003104	test-logloss:0.065493
 ```
 
 In this specific case, *linear boosting* gets sligtly better performance metrics than decision trees based algorithm.
@@ -318,26 +427,49 @@ In simple cases, it will happen because there is nothing better than a linear al
 
 Like saving models, `xgb.DMatrix` object (which groups both dataset and outcome) can also be saved using `xgb.DMatrix.save` function.
 
-```{r DMatrixSave, message=F, warning=F}
+
+```r
 xgb.DMatrix.save(dtrain, "dtrain.buffer")
+```
+
+```
+## [1] TRUE
+```
+
+```r
 # to load it in, simply call xgb.DMatrix
 dtrain2 <- xgb.DMatrix("dtrain.buffer")
+```
+
+```
+## [11:43:20] 6513x126 matrix with 143286 entries loaded from dtrain.buffer
+```
+
+```r
 bst <- xgb.train(data=dtrain2, max.depth=2, eta=1, nthread = 2, nround=2, watchlist=watchlist, objective = "binary:logistic")
 ```
 
-```{r DMatrixDel, include=FALSE}
-file.remove("dtrain.buffer")
 ```
+## [0]	train-error:0.046522	test-error:0.042831
+## [1]	train-error:0.022263	test-error:0.021726
+```
+
+
 
 #### Information extraction
 
 Information can be extracted from `xgb.DMatrix` using `getinfo` function. Hereafter we will extract `label` data.
 
-```{r getinfo, message=F, warning=F}
+
+```r
 label = getinfo(dtest, "label")
 pred <- predict(bst, dtest)
 err <- as.numeric(sum(as.integer(pred > 0.5) != label))/length(label)
 print(paste("test-error=", err))
+```
+
+```
+## [1] "test-error= 0.0217256362507759"
 ```
 
 ### View feature importance/influence from the learnt model
@@ -356,8 +488,26 @@ xgb.plot.importance(importance_matrix = importance_matrix)
 
 You can dump the tree you learned using `xgb.dump` into a text file.
 
-```{r dump, message=T, warning=F}
+
+```r
 xgb.dump(bst, with.stats = T)
+```
+
+```
+##  [1] "booster[0]"                                                          
+##  [2] "0:[f28<-1.00136e-05] yes=1,no=2,missing=1,gain=4000.53,cover=1628.25"
+##  [3] "1:[f55<-1.00136e-05] yes=3,no=4,missing=3,gain=1158.21,cover=924.5"  
+##  [4] "3:leaf=1.71218,cover=812"                                            
+##  [5] "4:leaf=-1.70044,cover=112.5"                                         
+##  [6] "2:[f108<-1.00136e-05] yes=5,no=6,missing=5,gain=198.174,cover=703.75"
+##  [7] "5:leaf=-1.94071,cover=690.5"                                         
+##  [8] "6:leaf=1.85965,cover=13.25"                                          
+##  [9] "booster[1]"                                                          
+## [10] "0:[f59<-1.00136e-05] yes=1,no=2,missing=1,gain=832.545,cover=788.852"
+## [11] "1:[f28<-1.00136e-05] yes=3,no=4,missing=3,gain=569.725,cover=768.39" 
+## [12] "3:leaf=0.784718,cover=458.937"                                       
+## [13] "4:leaf=-0.96853,cover=309.453"                                       
+## [14] "2:leaf=-6.23624,cover=20.4624"
 ```
 
 You can plot the trees from your model using ```xgb.plot.tree``
@@ -375,16 +525,22 @@ Maybe your dataset is big, and it takes time to train a model on it? May be you 
 
 Hopefully for you, **XGBoost** implements such functions.
 
-```{r saveModel, message=F, warning=F}
+
+```r
 # save model to binary local file
 xgb.save(bst, "xgboost.model")
 ```
 
-> `xgb.save` function should return `r TRUE` if everything goes well and crashes otherwise.
+```
+## [1] TRUE
+```
+
+> `xgb.save` function should return TRUE if everything goes well and crashes otherwise.
 
 An interesting test to see how identical our saved model is to the original one would be to compare the two predictions.
 
-```{r loadModel, message=F, warning=F}
+
+```r
 # load binary model to R
 bst2 <- xgb.load("xgboost.model")
 pred2 <- predict(bst2, test$data)
@@ -393,28 +549,40 @@ pred2 <- predict(bst2, test$data)
 print(paste("sum(abs(pred2-pred))=", sum(abs(pred2-pred))))
 ```
 
-```{r clean, include=FALSE}
-# delete the created model
-file.remove("./xgboost.model")
 ```
+## [1] "sum(abs(pred2-pred))= 0"
+```
+
+
 
 > result is `0`? We are good!
 
 In some very specific cases, like when you want to pilot **XGBoost** from `caret` package, you will want to save the model as a *R* binary vector. See below how to do it.
 
-```{r saveLoadRBinVectorModel, message=F, warning=F}
+
+```r
 # save model to R's raw vector
 rawVec <- xgb.save.raw(bst)
 
 # print class
 print(class(rawVec))
+```
 
+```
+## [1] "raw"
+```
+
+```r
 # load binary model to R
 bst3 <- xgb.load(rawVec)
 pred3 <- predict(bst3, test$data)
 
 # pred2 should be identical to pred
 print(paste("sum(abs(pred3-pred))=", sum(abs(pred2-pred))))
+```
+
+```
+## [1] "sum(abs(pred3-pred))= 0"
 ```
 
 > Again `0`? It seems that `XGBoost` works pretty well!
