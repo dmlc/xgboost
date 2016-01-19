@@ -12,7 +12,7 @@
  limitations under the License.
  */
 
-#include "../wrapper/xgboost_wrapper.h"
+#include "xgboost/c_api.h"
 #include "xgboost4j_wrapper.h"
 #include <cstring>
 
