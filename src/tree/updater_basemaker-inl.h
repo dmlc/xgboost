@@ -206,6 +206,16 @@ class BaseMaker: public TreeUpdater {
                                const RegTree &tree) {
     // set the positions in the nondefault
     this->SetNonDefaultPositionCol(nodes, p_fmat, tree);
+    this->SetDefaultPostion(p_fmat, tree);
+  }
+  /*!
+   * \brief helper function to set the non-leaf positions to default direction.
+   *  This function can be applied multiple times and will get the same result.
+   * \param p_fmat feature matrix needed for tree construction
+   * \param tree the regression tree structure
+   */
+  inline void SetDefaultPostion(DMatrix *p_fmat,
+                                const RegTree &tree) {
     // set rest of instances to default position
     const RowSet &rowset = p_fmat->buffered_rowset();
     // set default direct nodes to default
@@ -222,7 +232,7 @@ class BaseMaker: public TreeUpdater {
         if (tree[nid].cright() == -1) {
           position[ridx] = ~nid;
         }
-        } else {
+      } else {
         // push to default branch
         if (tree[nid].default_left()) {
           this->SetEncodePosition(ridx, tree[nid].cleft());
@@ -234,16 +244,16 @@ class BaseMaker: public TreeUpdater {
   }
   /*!
    * \brief this is helper function uses column based data structure,
-   *        update all positions into nondefault branch, if any, ignore the default branch
    * \param nodes the set of nodes that contains the split to be used
-   * \param p_fmat feature matrix needed for tree construction
    * \param tree the regression tree structure
+   * \param out_split_set The split index set
    */
-  virtual void SetNonDefaultPositionCol(const std::vector<int> &nodes,
-                                        DMatrix *p_fmat,
-                                        const RegTree &tree) {
+  inline void GetSplitSet(const std::vector<int> &nodes,
+                          const RegTree &tree,
+                          std::vector<unsigned>* out_split_set) {
+    std::vector<unsigned>& fsplits = *out_split_set;
+    fsplits.clear();
     // step 1, classify the non-default data into right places
-    std::vector<unsigned> fsplits;
     for (size_t i = 0; i < nodes.size(); ++i) {
       const int nid = nodes[i];
       if (!tree[nid].is_leaf()) {
@@ -252,7 +262,19 @@ class BaseMaker: public TreeUpdater {
     }
     std::sort(fsplits.begin(), fsplits.end());
     fsplits.resize(std::unique(fsplits.begin(), fsplits.end()) - fsplits.begin());
-
+  }
+  /*!
+   * \brief this is helper function uses column based data structure,
+   *        update all positions into nondefault branch, if any, ignore the default branch
+   * \param nodes the set of nodes that contains the split to be used
+   * \param p_fmat feature matrix needed for tree construction
+   * \param tree the regression tree structure
+   */
+  virtual void SetNonDefaultPositionCol(const std::vector<int> &nodes,
+                                        DMatrix *p_fmat,
+                                        const RegTree &tree) {
+    std::vector<unsigned> fsplits;
+    this->GetSplitSet(nodes, tree, &fsplits);
     dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(fsplits);
     while (iter->Next()) {
       const ColBatch &batch = iter->Value();
