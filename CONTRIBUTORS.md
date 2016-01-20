@@ -57,3 +57,5 @@ List of Contributors
 * [yoori](https://github.com/yoori)
 * [Mathias Müller](https://github.com/far0n)
 * [Sam Thomson](https://github.com/sammthomson)
+* [ganesh-krishnan](https://github.com/ganesh-krishnan)
+* [Damien Carol](https://github.com/damiencarol)

@@ -191,7 +191,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
 
         # early_Stopping
         if (!is.null(early.stop.round)){
-            score <- strsplit(ret,'\\s+')[[1]][1 + length(metrics) + 2]
+            score <- strsplit(ret,'\\s+')[[1]][2 + length(metrics)]
             score <- strsplit(score,'\\+|:')[[1]][[2]]
             score <- as.numeric(score)
             if ( (maximize && score > bestScore) || (!maximize && score < bestScore)) {
@@ -200,7 +200,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
             } else {
                 if (i - bestInd >= early.stop.round) {
                     earlyStopflag <- TRUE
-                    cat('Stopping. Best iteration:',bestInd)
+                    cat('Stopping. Best iteration:', bestInd, '\n')
                     break
                 }
             }

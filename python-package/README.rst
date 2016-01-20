@@ -21,7 +21,7 @@ For up-to-date version, please install from github.
    of project
 -  Make sure you have
    `setuptools <https://pypi.python.org/pypi/setuptools>`__
--  Install with ``python setup.py install`` from this directory.
+-  Install with ``cd python-package; python setup.py install`` from this directory.
 -  For windows users, please use the Visual Studio project file under
    `windows folder <../windows/>`__. See also the `installation
    tutorial <https://www.kaggle.com/c/otto-group-product-classification-challenge/forums/t/13043/run-xgboost-from-windows-and-python>`__

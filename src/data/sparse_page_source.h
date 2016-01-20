@@ -1,0 +1,85 @@
+/*!
+ *  Copyright (c) 2014 by Contributors
+ * \file page_csr_source.h
+ *  External memory data source, saved with sparse_batch_page binary format.
+ * \author Tianqi Chen
+ */
+#ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
+#define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
+
+#include <xgboost/base.h>
+#include <xgboost/data.h>
+#include <dmlc/threadediter.h>
+#include <vector>
+#include <algorithm>
+#include <string>
+#include "./sparse_batch_page.h"
+
+namespace xgboost {
+namespace data {
+/*!
+ * \brief External memory data source.
+ * \code
+ * std::unique_ptr<DataSource> source(new SimpleCSRSource(cache_prefix));
+ * // add data to source
+ * DMatrix* dmat = DMatrix::Create(std::move(source));
+ * \encode
+ */
+class SparsePageSource : public DataSource {
+ public:
+  /*!
+   * \brief Create source from cache files the cache_prefix.
+   * \param cache_prefix The prefix of cache we want to solve.
+   */
+  explicit SparsePageSource(const std::string& cache_prefix) noexcept(false);
+  /*! \brief destructor */
+  virtual ~SparsePageSource();
+  // implement Next
+  bool Next() override;
+  // implement BeforeFirst
+  void BeforeFirst() override;
+  // implement Value
+  const RowBatch& Value() const override;
+  /*!
+   * \brief Create source by taking data from parser.
+   * \param src source parser.
+   * \param cache_prefix The cache_prefix of cache file location.
+   */
+  static void Create(dmlc::Parser<uint32_t>* src,
+                     const std::string& cache_prefix);
+  /*!
+   * \brief Create source cache by copy content from DMatrix.
+   * \param cache_prefix The cache_prefix of cache file location.
+   */
+  static void Create(DMatrix* src,
+                     const std::string& cache_prefix);
+  /*!
+   * \brief Check if the cache file already exists.
+   * \param cache_prefix The cache prefix of files.
+   * \return Whether cache file already exists.
+   */
+  static bool CacheExist(const std::string& cache_prefix);
+  /*! \brief page size 32 MB */
+  static const size_t kPageSize = 32UL << 20UL;
+  /*! \brief magic number used to identify Page */
+  static const int kMagic = 0xffffab02;
+
+ private:
+  /*! \brief number of rows */
+  size_t base_rowid_;
+  /*! \brief temp data. */
+  RowBatch batch_;
+  /*! \brief page currently on hold. */
+  SparsePage *page_;
+  /*! \brief The cache predix of the dataset. */
+  std::string cache_prefix_;
+  /*! \brief file pointer to the row blob file. */
+  std::unique_ptr<dmlc::SeekStream> fi_;
+  /*! \brief Sparse page format file. */
+  std::unique_ptr<SparsePage::Format> format_;
+  /*! \brief internal prefetcher. */
+  dmlc::ThreadedIter<SparsePage> prefetcher_;
+};
+}  // namespace data
+}  // namespace xgboost
+#endif  // XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_

@@ -31,7 +31,7 @@ public class Initializer {
     static boolean initialized = false;
     public static final String nativePath = "./lib";
     public static final String nativeResourcePath = "/lib/";
-    public static final String[] libNames = new String[] {"xgboostjavawrapper"};
+    public static final String[] libNames = new String[] {"xgboost4j"};
     
     public static synchronized void InitXgboost() throws IOException {
         if(initialized == false) {
@@ -44,8 +44,8 @@ public class Initializer {
     
     /**
      * load native library, this method will first try to load library from java.library.path, then try to load library in jar package.
-     * @param libName
-     * @throws IOException 
+     * @param libName library path
+     * @throws IOException exception 
      */
     private static void smartLoad(String libName) throws IOException {
         addNativeDir(nativePath);
@@ -63,9 +63,9 @@ public class Initializer {
     }
     
     /**
-     * add libPath to java.library.path, then native library in libPath would be load properly
-     * @param libPath
-     * @throws IOException 
+     * Add libPath to java.library.path, then native library in libPath would be load properly
+     * @param libPath library path
+     * @throws IOException exception
      */
     public static void addNativeDir(String libPath) throws IOException {
         try {

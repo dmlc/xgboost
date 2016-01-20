@@ -140,6 +140,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     warning('watchlist is provided but verbose=0, no evaluation information will be printed')
   }
 
+  fit.call <- match.call()
   dot.params <- list(...)
   nms.params <- names(params)
   nms.dot.params <- names(dot.params)
@@ -211,7 +212,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
         } else {
           earlyStopflag = TRUE
           if (i - bestInd >= early.stop.round) {
-            cat('Stopping. Best iteration:',bestInd)
+            cat('Stopping. Best iteration:', bestInd, '\n')
             break
           }
         }
@@ -224,9 +225,13 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     }
   }
   bst <- xgb.Booster.check(bst)
+
   if (!is.null(early.stop.round)) {
     bst$bestScore <- bestScore
     bst$bestInd <- bestInd
   }
+
+  attr(bst, "call") <- fit.call
+  attr(bst, "params") <- params
   return(bst)
 }

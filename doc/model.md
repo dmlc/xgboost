@@ -150,8 +150,8 @@ Obj^{(t)} = \sum_{i=1}^n [l(y_i, \hat{y}_i^{(t-1)}) + g_i f_t(x_i) + \frac{1}{2}
 where the ``$g_i$`` and ``$h_i$`` are defined as
 
 ```math
-g_i &= \partial_{\hat{y}_i^{(t)}} l(y_i, \hat{y}_i^{(t-1)})\\
-h_i &= \partial_{\hat{y}_i^{(t)}}^2 l(y_i, \hat{y}_i^{(t-1)})
+g_i &= \partial_{\hat{y}_i^{(t-1)}} l(y_i, \hat{y}_i^{(t-1)})\\
+h_i &= \partial_{\hat{y}_i^{(t-1)}}^2 l(y_i, \hat{y}_i^{(t-1)})
 ```
 
 After we remove all the constants, the specific objective at step ``$t$`` becomes
@@ -162,7 +162,7 @@ After we remove all the constants, the specific objective at step ``$t$`` become
 
 This becomes our optimization goal for the new tree. One important advantage of this definition is that
 it only depends on ``$g_i$`` and ``$h_i$``. This is how xgboost can support custom loss functions.
-We can optimize every loss function, including logistic regression, weighted logistic regression, using the exactly
+We can optimize every loss function, including logistic regression, weighted logistic regression, using exactly
 the same solver that takes ``$g_i$`` and ``$h_i$`` as input!
 
 ### Model Complexity
@@ -188,7 +188,7 @@ By defining it formally, we can get a better idea of what we are learning, and y
 Here is the magical part of the derivation. After reformalizing the tree model, we can write the objective value with the ``$ t$``-th tree as:
 
 ```math
-Obj^{(t)} &\approx \sum_{i=1}^n [g_i w_q(x_i) + \frac{1}{2} h_i w_{q(x_i)}^2] + \gamma T + \frac{1}{2}\lambda \sum_{j=1}^T w_j^2\\
+Obj^{(t)} &\approx \sum_{i=1}^n [g_i w_{q(x_i)} + \frac{1}{2} h_i w_{q(x_i)}^2] + \gamma T + \frac{1}{2}\lambda \sum_{j=1}^T w_j^2\\
 &= \sum^T_{j=1} [(\sum_{i\in I_j} g_i) w_j + \frac{1}{2} (\sum_{i\in I_j} h_i + \lambda) w_j^2 ] + \gamma T
 ```
 

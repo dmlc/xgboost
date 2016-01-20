@@ -11,7 +11,7 @@ sys.path.insert(0, '.')
 #it builds xgboost code on the fly and packs for pip
 #please don't use this file for installing from github
 
-if not os.name == 'nt': #if not windows, compile and install
+if os.name != 'nt': #if not windows, compile and install
     os.system('sh ./xgboost/build-python.sh')
 else:
     print('Windows users please use github installation.')

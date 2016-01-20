@@ -117,7 +117,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             evals_result.update(dict([(key, {}) for key in evals_name]))
 
     if not early_stopping_rounds:
-        for i in range(num_boost_round):
+        for i in range(nboost, nboost + num_boost_round):
             bst.update(dtrain, i, obj)
             nboost += 1
             if len(evals) != 0:
@@ -189,7 +189,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         if isinstance(learning_rates, list) and len(learning_rates) != num_boost_round:
             raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
 
-        for i in range(num_boost_round):
+        for i in range(nboost, nboost + num_boost_round):
             if learning_rates is not None:
                 if isinstance(learning_rates, list):
                     bst.set_param({'eta': learning_rates[i]})
@@ -283,11 +283,14 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None):
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
-
-def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True):
+def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
     # pylint: disable=invalid-name
     """
     Aggregate cross-validation results.
+    
+    If show_progress is true, progress is displayed in every call. If
+    show_progress is an integer, progress will only be displayed every
+    `show_progress` trees, tracked via trial.
     """
     cvmap = {}
     idx = rlist[0].split()[0]
@@ -321,8 +324,6 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True):
         index.extend([k + '-mean', k + '-std'])
         results.extend([mean, std])
 
-
-
     if as_pandas:
         try:
             import pandas as pd
@@ -336,8 +337,10 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True):
         if show_progress is None:
             show_progress = True
 
-    if show_progress:
+    if (isinstance(show_progress, int) and show_progress > 0 and trial % show_progress == 0) or \
+            (isinstance(show_progress, bool) and show_progress):
         sys.stderr.write(msg + '\n')
+        sys.stderr.flush()
 
     return results
 
@@ -358,7 +361,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         Number of boosting iterations.
     nfold : int
         Number of folds in CV.
-    metrics : list of strings
+    metrics : string or list of strings
         Evaluation metrics to be watched in CV.
     obj : function
         Custom objective function.
@@ -376,9 +379,11 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
     as_pandas : bool, default True
         Return pd.DataFrame when pandas is installed.
         If False or pandas is not installed, return np.ndarray
-    show_progress : bool or None, default None
+    show_progress : bool, int, or None, default None
         Whether to display the progress. If None, progress will be displayed
-        when np.ndarray is returned.
+        when np.ndarray is returned. If True, progress will be displayed at 
+        boosting stage. If an integer is given, progress will be displayed 
+        at every given `show_progress` boosting stage. 
     show_stdv : bool, default True
         Whether to display the standard deviation in progress.
         Results are not affected, and always contains std.
@@ -389,9 +394,28 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
     -------
     evaluation history : list(string)
     """
+    if isinstance(metrics, str):
+        metrics = [metrics]
+
+    if isinstance(params, list):
+        _metrics = [x[1] for x in params if x[0] == 'eval_metric']
+        params = dict(params)
+        if 'eval_metric' in params:
+            params['eval_metric'] = _metrics
+    else:
+        params= dict((k, v) for k, v in params.items())
+
+    if len(metrics) == 0 and 'eval_metric' in params:
+        if isinstance(params['eval_metric'], list):
+            metrics = params['eval_metric']
+        else:
+            metrics = [params['eval_metric']]
+
+    params.pop("eval_metric", None)
+
     if early_stopping_rounds is not None:
         if len(metrics) > 1:
-            raise ValueError('Check your params.'\
+            raise ValueError('Check your params. '\
                                      'Early stopping works with single eval metric only.')
 
         sys.stderr.write("Will train until cv error hasn't decreased in {} rounds.\n".format(\
@@ -418,7 +442,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
             fold.update(i, obj)
         res = aggcv([f.eval(i, feval) for f in cvfolds],
                     show_stdv=show_stdv, show_progress=show_progress,
-                    as_pandas=as_pandas)
+                    as_pandas=as_pandas, trial=i)
         results.append(res)
 
         if early_stopping_rounds is not None:
@@ -428,10 +452,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
                 best_score = score
                 best_score_i = i
             elif i - best_score_i >= early_stopping_rounds:
-                sys.stderr.write("Stopping. Best iteration: {}\n".format(best_score_i))
                 results = results[:best_score_i+1]
+                sys.stderr.write("Stopping. Best iteration:\n[{}] cv-mean:{}\tcv-std:{}\n".
+                                 format(best_score_i, results[-1][0], results[-1][1]))
                 break
-
     if as_pandas:
         try:
             import pandas as pd

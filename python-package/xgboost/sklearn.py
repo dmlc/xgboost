@@ -130,7 +130,7 @@ class XGBModel(XGBModelBase):
 
     def fit(self, X, y, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
+        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init, redefined-variable-type
         """
         Fit the gradient boosting model
 
@@ -265,7 +265,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable = attribute-defined-outside-init,arguments-differ
+        # pylint: disable = attribute-defined-outside-init,arguments-differ, redefined-variable-type
         """
         Fit gradient boosting classifier
 
@@ -319,7 +319,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         if eval_set is not None:
             # TODO: use sample_weight if given?
-            evals = list(DMatrix(x[0], label=x[1]) for x in eval_set)
+            evals = list(DMatrix(x[0], label=x[1], missing=self.missing) for x in eval_set)
             nevals = len(evals)
             eval_names = ["validation_{}".format(i) for i in range(nevals)]
             evals = list(zip(evals, eval_names))
