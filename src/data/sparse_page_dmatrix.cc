@@ -165,10 +165,10 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
   // function to create the page.
   auto make_col_batch = [&] (
       const SparsePage& prow,
-      const bst_uint* ridx,
+      size_t begin,
       SparsePage *pcol) {
     pcol->Clear();
-    pcol->min_index = ridx[0];
+    pcol->min_index = buffered_rowset_[begin];
     int nthread;
     #pragma omp parallel
     {
@@ -196,7 +196,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
       for (size_t j = prow.offset[i]; j < prow.offset[i+1]; ++j) {
         const SparseBatch::Entry &e = prow.data[j];
         builder.Push(e.index,
-                     SparseBatch::Entry(ridx[i], e.fvalue),
+                     SparseBatch::Entry(buffered_rowset_[i + begin], e.fvalue),
                      tid);
       }
     }
@@ -230,7 +230,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
 
           if (tmp.Size() >= max_row_perbatch ||
               tmp.MemCostBytes() >= kPageSize) {
-            make_col_batch(tmp, dmlc::BeginPtr(buffered_rowset_) + btop, dptr);
+            make_col_batch(tmp, btop, dptr);
             batch_ptr = i + 1;
             return true;
           }
@@ -243,7 +243,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     }
 
     if (tmp.Size() != 0) {
-      make_col_batch(tmp, dmlc::BeginPtr(buffered_rowset_) + btop, dptr);
+      make_col_batch(tmp, btop, dptr);
       return true;
     } else {
       return false;

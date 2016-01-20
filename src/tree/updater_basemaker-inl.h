@@ -207,7 +207,7 @@ class BaseMaker: public TreeUpdater {
     // set the positions in the nondefault
     this->SetNonDefaultPositionCol(nodes, p_fmat, tree);
     // set rest of instances to default position
-    const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
+    const RowSet &rowset = p_fmat->buffered_rowset();
     // set default direct nodes to default
     // for leaf nodes that are not fresh, mark then to ~nid,
     // so that they are ignored in future statistics collection
@@ -297,7 +297,7 @@ class BaseMaker: public TreeUpdater {
         thread_temp[tid][nid].Clear();
       }
     }
-    const std::vector<bst_uint> &rowset = fmat.buffered_rowset();
+    const RowSet &rowset = fmat.buffered_rowset();
     // setup position
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
     #pragma omp parallel for schedule(static)

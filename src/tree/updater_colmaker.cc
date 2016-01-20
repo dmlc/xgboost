@@ -117,7 +117,7 @@ class ColMaker: public TreeUpdater {
       CHECK_EQ(tree.param.num_nodes, tree.param.num_roots)
           << "ColMaker: can only grow new tree";
       const std::vector<unsigned>& root_index = fmat.info().root_index;
-      const std::vector<bst_uint>& rowset = fmat.buffered_rowset();
+      const RowSet& rowset = fmat.buffered_rowset();
       {
         // setup position
         position.resize(gpair.size());
@@ -200,7 +200,7 @@ class ColMaker: public TreeUpdater {
         }
         snode.resize(tree.param.num_nodes, NodeEntry(param));
       }
-      const std::vector<bst_uint> &rowset = fmat.buffered_rowset();
+      const RowSet &rowset = fmat.buffered_rowset();
       const MetaInfo& info = fmat.info();
       // setup position
       const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
@@ -620,7 +620,7 @@ class ColMaker: public TreeUpdater {
       // set the positions in the nondefault
       this->SetNonDefaultPosition(qexpand, p_fmat, tree);
       // set rest of instances to default position
-      const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
+      const RowSet &rowset = p_fmat->buffered_rowset();
       // set default direct nodes to default
       // for leaf nodes that are not fresh, mark then to ~nid,
       // so that they are ignored in future statistics collection
@@ -761,7 +761,7 @@ class DistColMaker : public ColMaker<TStats> {
         : ColMaker<TStats>::Builder(param) {
     }
     inline void UpdatePosition(DMatrix* p_fmat, const RegTree &tree) {
-      const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
+      const RowSet &rowset = p_fmat->buffered_rowset();
       const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
@@ -831,7 +831,7 @@ class DistColMaker : public ColMaker<TStats> {
       bitmap.InitFromBool(boolmap);
       // communicate bitmap
       rabit::Allreduce<rabit::op::BitOR>(dmlc::BeginPtr(bitmap.data), bitmap.data.size());
-      const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
+      const RowSet &rowset = p_fmat->buffered_rowset();
       // get the new position
       const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
       #pragma omp parallel for schedule(static)

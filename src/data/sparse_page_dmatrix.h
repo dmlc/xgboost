@@ -44,7 +44,7 @@ class SparsePageDMatrix : public DMatrix {
     return col_iter_.get() != nullptr;
   }
 
-  const std::vector<bst_uint>& buffered_rowset() const override {
+  const RowSet& buffered_rowset() const override {
     return buffered_rowset_;
   }
 
@@ -120,7 +120,7 @@ class SparsePageDMatrix : public DMatrix {
   // the cache prefix
   std::string cache_info_;
   /*! \brief list of row index that are buffered */
-  std::vector<bst_uint> buffered_rowset_;
+  RowSet buffered_rowset_;
   // count for column data
   std::vector<size_t> col_size_;
   // internal column iter.
