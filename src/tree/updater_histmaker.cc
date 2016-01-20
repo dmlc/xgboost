@@ -355,8 +355,9 @@ class CQHistMaker: public HistMaker<TStats> {
 #endif
   }
   void ResetPositionAfterSplit(DMatrix *p_fmat,
-                                       const RegTree &tree) override {
+                               const RegTree &tree) override {
     this->ResetPositionCol(this->qexpand, p_fmat, tree);
+    this->GetSplitSet(this->qexpand, tree, &fsplit_set);
   }
   void ResetPosAndPropose(const std::vector<bst_gpair> &gpair,
                           DMatrix *p_fmat,
@@ -388,14 +389,10 @@ class CQHistMaker: public HistMaker<TStats> {
     for (size_t i = 0; i < sketchs.size(); ++i) {
       summary_array[i].Reserve(max_size);
     }
-    // if it is C++11, use lazy evaluation for Allreduce
-#if __cplusplus >= 201103L
-    auto lazy_get_summary = [&]()
-#endif
-        {
+    {
       // get smmary
       thread_sketch.resize(this->get_nthread());
-      // number of rows in
+      // number of rows in data
       const size_t nrows = p_fmat->buffered_rowset().size();
       // start accumulating statistics
       dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(freal_set);
@@ -422,15 +419,10 @@ class CQHistMaker: public HistMaker<TStats> {
         summary_array[i].SetPrune(out, max_size);
       }
       CHECK_EQ(summary_array.size(), sketchs.size());
-    };
+      }
     if (summary_array.size() != 0) {
       size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
-#if __cplusplus >= 201103L
-      sreducer.Allreduce(dmlc::BeginPtr(summary_array),
-                         nbytes, summary_array.size(), lazy_get_summary);
-#else
       sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
-#endif
     }
     // now we get the final result of sketch, setup the cut
     this->wspace.cut.clear();
@@ -617,6 +609,8 @@ class CQHistMaker: public HistMaker<TStats> {
   std::vector<int> feat2workindex;
   // set of index from fset that are real
   std::vector<bst_uint> freal_set;
+  // set of index from that are split candidates.
+  std::vector<bst_uint> fsplit_set;
   // thread temp data
   std::vector<std::vector<BaseMaker::SketchEntry> > thread_sketch;
   // used to hold statistics
@@ -632,6 +626,7 @@ class CQHistMaker: public HistMaker<TStats> {
   // per node, per feature sketch
   std::vector<common::WXQuantileSketch<bst_float, bst_float> > sketchs;
 };
+
 
 template<typename TStats>
 class QuantileHistMaker: public HistMaker<TStats> {
