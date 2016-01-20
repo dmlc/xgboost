@@ -184,9 +184,7 @@ void SimpleDMatrix::MakeManyBatch(const std::vector<bool>& enabled,
       }
       if (tmp.Size() >= max_row_perbatch) {
         std::unique_ptr<SparsePage> page(new SparsePage());
-        this->MakeColPage(tmp.GetRowBatch(0),
-                          dmlc::BeginPtr(buffered_rowset_) + btop,
-                          enabled, page.get());
+        this->MakeColPage(tmp.GetRowBatch(0), btop, enabled, page.get());
         col_iter_.cpages_.push_back(std::move(page));
         btop = buffered_rowset_.size();
         tmp.Clear();
@@ -196,16 +194,14 @@ void SimpleDMatrix::MakeManyBatch(const std::vector<bool>& enabled,
 
   if (tmp.Size() != 0) {
     std::unique_ptr<SparsePage> page(new SparsePage());
-    this->MakeColPage(tmp.GetRowBatch(0),
-                      dmlc::BeginPtr(buffered_rowset_) + btop,
-                      enabled, page.get());
+    this->MakeColPage(tmp.GetRowBatch(0), btop, enabled, page.get());
     col_iter_.cpages_.push_back(std::move(page));
   }
 }
 
 // make column page from subset of rowbatchs
 void SimpleDMatrix::MakeColPage(const RowBatch& batch,
-                                const bst_uint* ridx,
+                                size_t buffer_begin,
                                 const std::vector<bool>& enabled,
                                 SparsePage* pcol) {
   int nthread;
@@ -240,9 +236,10 @@ void SimpleDMatrix::MakeColPage(const RowBatch& batch,
     RowBatch::Inst inst = batch[i];
     for (bst_uint j = 0; j < inst.length; ++j) {
       const SparseBatch::Entry &e = inst[j];
-      builder.Push(e.index,
-                   SparseBatch::Entry(ridx[i], e.fvalue),
-                   tid);
+      builder.Push(
+          e.index,
+          SparseBatch::Entry(buffered_rowset_[i + buffer_begin], e.fvalue),
+          tid);
     }
   }
   CHECK_EQ(pcol->Size(), info().num_col);
