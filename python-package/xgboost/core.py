@@ -641,7 +641,7 @@ class Booster(object):
         self.set_param({'seed': 0})
 
     def __copy__(self):
-        return self.__deepcopy__()
+        return self.__deepcopy__(None)
 
     def __deepcopy__(self, memo):
         return Booster(model_file=self.save_raw())
