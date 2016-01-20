@@ -244,6 +244,45 @@ class BaseMaker: public TreeUpdater {
   }
   /*!
    * \brief this is helper function uses column based data structure,
+   *  to CORRECT the positions of non-default directions that WAS set to default
+   *  before calling this function.
+   * \param batch The column batch
+   * \param sorted_split_set The set of index that contains split solutions.
+   * \param tree the regression tree structure
+   */
+  inline void CorrectNonDefaultPositionByBatch(
+      const ColBatch& batch,
+      const std::vector<bst_uint> &sorted_split_set,
+      const RegTree &tree) {
+    for (size_t i = 0; i < batch.size; ++i) {
+      ColBatch::Inst col = batch[i];
+      const bst_uint fid = batch.col_index[i];
+      auto it = std::lower_bound(sorted_split_set.begin(), sorted_split_set.end(), fid);
+
+      if (it != sorted_split_set.end() && *it == fid) {
+        const bst_omp_uint ndata = static_cast<bst_omp_uint>(col.length);
+        #pragma omp parallel for schedule(static)
+        for (bst_omp_uint j = 0; j < ndata; ++j) {
+          const bst_uint ridx = col[j].index;
+          const float fvalue = col[j].fvalue;
+          const int nid = this->DecodePosition(ridx);
+          CHECK(tree[nid].is_leaf());
+          int pid = tree[nid].parent();
+
+          // go back to parent, correct those who are not default
+          if (!tree[nid].is_root() && tree[pid].split_index() == fid) {
+            if (fvalue < tree[pid].split_cond()) {
+              this->SetEncodePosition(ridx, tree[pid].cleft());
+            } else {
+              this->SetEncodePosition(ridx, tree[pid].cright());
+            }
+          }
+        }
+      }
+    }
+  }
+  /*!
+   * \brief this is helper function uses column based data structure,
    * \param nodes the set of nodes that contains the split to be used
    * \param tree the regression tree structure
    * \param out_split_set The split index set
