@@ -97,7 +97,7 @@ There are several ways to install the package:
 1. Install system-widely, which requires root permission
 
    ```bash
-   cd python; sudo python setup.py install
+   cd python; sudo python-package setup.py install
    ```
 
    You will however need Python `distutils` module for this to
