@@ -8,21 +8,30 @@ scratch on various systems. It consists of two steps:
    - Exception: for R-package installation please directly refer to the R package section.
 2. Then install the language packages (e.g. Python Package).
 
-Please refer to [Installation FAQ](#frequently-asked-questions) first if you had any problem
+***Important*** the newest version of xgboost uses submodule to maintain packages. So when you clone the repo, remember to use the recursive option as follows.
+```bash
+git clone --recursive https://github.com/dmlc/xgboost
+```
+For windows users who uses github tools, you can open the git shell, and type the following command.
+```bash
+git submodule init
+git submodule update
+```
+
+Please refer to [Trouble Shooting Section](#trouble-shooting) first if you had any problem
 during installation. If the instructions do not work for you, please feel free
 to ask questions at [xgboost/issues](https://github.com/dmlc/xgboost/issues), or
 even better to send pull request if you can fix the problem.
 
 ## Contents
 - [Build the Shared Library](#build-the-shared-library)
-  - [Prerequisites](#prerequisites)
   - [Building on Ubuntu/Debian](#building-on-ubuntu-debian)
   - [Building on OSX](#building-on-osx)
   - [Building on Windows](#building-on-windows)
   - [Customized Building](#customized-building)
 - [Python Package Installation](#python-package-installation)
 - [R Package Installation](#r-package-installation)
-- [Frequently asked questions](#frequently-asked-questions)
+- [Trouble Shooting](#trouble-shooting)
 
 ## Build the Shared Library
 
@@ -69,6 +78,12 @@ cd xgboost; cp make/config.mk ./config.mk; make -j4
 ```
 
 ### Building on Windows
+You need to first clone the xgboost repo with recursive option clone the submodules.
+If you are using github tools, you can open the git-shell, and type the following command.
+```bash
+git submodule init
+git submodule update
+```
 
 XGBoost support both build by MSVC or MinGW. Here is how you can build xgboost library using MinGW.
 
@@ -154,7 +169,7 @@ First follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compi
   devtools::install_local('xgboost/', subdir = 'R-package') # you may use devtools
   ```
 
-## Frequently Asked Questions
+## Trouble Shooting
 
 1. **Compile failed after `git pull`**
 
@@ -170,3 +185,17 @@ First follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compi
     ```bash
     make clean_all && make -j4
     ```
+
+
+3. **Makefile: dmlc-core/make/dmlc.mk: No such file or directory**
+   We need to recusrively clone the submodule, you can do:
+
+    ```bash
+    git submodule init
+    git submodule update
+    ```
+    Alternatively, do another clone
+    ```bash
+    git clone https://github.com/dmlc/xgboost --recursive
+    ```
+    
