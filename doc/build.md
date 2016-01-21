@@ -112,7 +112,7 @@ There are several ways to install the package:
 1. Install system-widely, which requires root permission
 
    ```bash
-   cd python; sudo python-package setup.py install
+   cd python-package; sudo python setup.py install
    ```
 
    You will however need Python `distutils` module for this to
@@ -138,7 +138,7 @@ There are several ways to install the package:
 3. Install only for the current user.
 
     ```bash
-    cd python; python setup.py develop --user
+    cd python-package; python setup.py develop --user
     ```
 
 ## R Package Installation
