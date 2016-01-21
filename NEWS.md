@@ -1,7 +1,7 @@
 XGBoost Change Log
 ==================
 
-This file records the chanegs in xgboost library in reverse chronological order.
+This file records the changes in xgboost library in reverse chronological order.
 
 ## brick: next release candidate
 * Major refactor of core library.
