@@ -50,10 +50,12 @@ We can edit `make/config.mk` to change the compile options, and then build by
 
 On Ubuntu, one build xgboost by
 
-Then build xgboost
 ```bash
 git clone --recursive https://github.com/dmlc/xgboost
-cd xgboost; make -j4
+cd xgboost
+git clone https://github.com/dmlc/dmlc-core
+git clone https://github.com/dmlc/rabit
+make -j4
 ```
 
 ### Building on OSX
@@ -142,6 +144,12 @@ There are several ways to install the package:
     ```
 
 ## R Package Installation
+
+To install from source compiled outside R
+
+```
+install.packages("/path/to/xgboost/R-package",repos=NULL)
+```
 
 You can install R package using devtools
 
