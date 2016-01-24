@@ -49,18 +49,24 @@ It has several features:
 ### Github version
 
 
-For up-to-date version (highly recommended), install from *Github*:
+For weekly updated version (highly recommended), install from *Github*:
 
 ```{r installGithub, eval=FALSE}
-devtools::install_git('git://github.com/dmlc/xgboost', subdir='R-package')
+install.packages("drat", repos="https://cran.rstudio.com")
+drat:::addRepo("dmlc")
+install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
 ```
 
-> *Windows* user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
+> *Windows* user will need to install [Rtools](http://cran.r-project.org/bin/windows/Rtools/) first.
 
-Cran version
-------------
+### CRAN version
 
-As of 2015-03-13, ‘xgboost’ was removed from the CRAN repository.
+
+The version 0.4-2 is on CRAN, and you can install it by:
+
+```{r, eval=FALSE}
+install.packages("xgboost")
+```
 
 Formerly available versions can be obtained from the CRAN [archive](http://cran.r-project.org/src/contrib/Archive/xgboost)
 

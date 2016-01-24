@@ -143,10 +143,12 @@ There are several ways to install the package:
 
 ## R Package Installation
 
-You can install R package using devtools
+You can install R package from cran just like other packages, or you can install from our weekly updated drat repo:
 
 ```r
-devtools::install_git('git://github.com/dmlc/xgboost',subdir='R-package')
+install.packages("drat", repos="https://cran.rstudio.com")
+drat:::addRepo("dmlc")
+install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
 
 ```
 
@@ -160,13 +162,9 @@ First follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compi
   Then inside R, run
 
   ```R
-  install.packages('xgboost/R-package/', repos=NULL, type='source')
-  ```
-
-  Or
-
-  ```R
-  devtools::install_local('xgboost/', subdir = 'R-package') # you may use devtools
+  install.packages("drat", repos="https://cran.rstudio.com")
+  drat:::addRepo("dmlc")
+  install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
   ```
 
 ## Trouble Shooting
@@ -198,4 +196,3 @@ First follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compi
     ```bash
     git clone https://github.com/dmlc/xgboost --recursive
     ```
-    
