@@ -25,6 +25,15 @@ For up-to-date version, please install from github. Windows user will need to in
 devtools::install_git('git://github.com/dmlc/xgboost',subdir='R-package')
 ```
 
+You can also install from our weekly updated drat repo:
+```r
+install.packages("drat", repos="https://cran.rstudio.com")
+drat:::addRepo("dmlc")
+install.packages("xgboost", repos="http://dmlc.ml/drat/", type="source")
+```
+
+For more detailed installation instructions, please see [here](http://xgboost.readthedocs.org/en/latest/build.html#r-package-installation).
+
 Examples
 --------
 
