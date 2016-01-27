@@ -318,6 +318,7 @@ int CLIRunTask(int argc, char *argv[]) {
     printf("Usage: <config>\n");
     return 0;
   }
+  rabit::Init(argc, argv);
 
   std::vector<std::pair<std::string, std::string> > cfg;
   cfg.push_back(std::make_pair("seed", "0"));
@@ -336,7 +337,6 @@ int CLIRunTask(int argc, char *argv[]) {
   CLIParam param;
   param.Configure(cfg);
 
-  rabit::Init(argc, argv);
   switch (param.task) {
     case kTrain: CLITrain(param); break;
     case kDump2Text: CLIDump2Text(param); break;
