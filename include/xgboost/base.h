@@ -62,9 +62,7 @@ struct bst_gpair {
 };
 
 /*! \brief small eps gap for minimum split decision. */
-const float rt_eps = 1e-5f;
-/*! \brief min gap between feature values to allow a split happen */
-const float rt_2eps = rt_eps * 2.0f;
+const float rt_eps = 1e-6f;
 
 /*! \brief define unsigned long for openmp loop */
 typedef dmlc::omp_ulong omp_ulong;

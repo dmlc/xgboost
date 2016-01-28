@@ -291,7 +291,7 @@ class ColMaker: public TreeUpdater {
           ThreadEntry &e = stemp[tid][nid];
           float fsplit;
           if (tid != 0) {
-            if (std::abs(stemp[tid - 1][nid].last_fvalue - e.first_fvalue) > rt_2eps) {
+            if (stemp[tid - 1][nid].last_fvalue != e.first_fvalue) {
               fsplit = (stemp[tid - 1][nid].last_fvalue - e.first_fvalue) * 0.5f;
             } else {
               continue;
@@ -352,7 +352,7 @@ class ColMaker: public TreeUpdater {
             e.first_fvalue = fvalue;
           } else {
             // forward default right
-            if (std::abs(fvalue - e.first_fvalue) > rt_2eps) {
+            if (fvalue != e.first_fvalue) {
               if (need_forward) {
                 c.SetSubstract(snode[nid].stats, e.stats);
                 if (c.sum_hess >= param.min_child_weight &&
@@ -393,7 +393,7 @@ class ColMaker: public TreeUpdater {
         e.last_fvalue = fvalue;
       } else {
         // try to find a split
-        if (std::abs(fvalue - e.last_fvalue) > rt_2eps &&
+        if (fvalue != e.last_fvalue &&
             e.stats.sum_hess >= param.min_child_weight) {
           c.SetSubstract(snode[nid].stats, e.stats);
           if (c.sum_hess >= param.min_child_weight) {
@@ -511,7 +511,7 @@ class ColMaker: public TreeUpdater {
           e.last_fvalue = fvalue;
         } else {
           // try to find a split
-          if (std::abs(fvalue - e.last_fvalue) > rt_2eps &&
+          if (fvalue != e.last_fvalue &&
               e.stats.sum_hess >= param.min_child_weight) {
             c.SetSubstract(snode[nid].stats, e.stats);
             if (c.sum_hess >= param.min_child_weight) {
