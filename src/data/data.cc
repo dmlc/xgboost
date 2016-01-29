@@ -138,23 +138,23 @@ DMatrix* DMatrix::Load(const std::string& uri,
     cache_file = uri.substr(dlm_pos + 1, uri.length());
     fname = uri.substr(0, dlm_pos);
     CHECK_EQ(cache_file.find('#'), std::string::npos)
-        << "Only one `#` is allowed in file path for cache file specification.";    
+        << "Only one `#` is allowed in file path for cache file specification.";
     if (load_row_split) {
       std::ostringstream os;
       std::vector<std::string> cache_shards = common::Split(cache_file, ':');
       for (size_t i = 0; i < cache_shards.size(); ++i) {
-	size_t pos = cache_shards[i].rfind('.');
-	if (pos == std::string::npos) {
-	  os << cache_shards[i]
-	     << ".r" << rabit::GetRank()
-	     << "-" <<  rabit::GetWorldSize();
-	} else {
-	  os << cache_shards[i].substr(0, pos)
-	     << ".r" << rabit::GetRank()
-	     << "-" <<  rabit::GetWorldSize()
-	     << cache_shards[i].substr(pos, cache_shards[i].length());
-	}
-	if (i + 1 != cache_shards.size()) os << ':'; 
+        size_t pos = cache_shards[i].rfind('.');
+        if (pos == std::string::npos) {
+          os << cache_shards[i]
+             << ".r" << rabit::GetRank()
+             << "-" <<  rabit::GetWorldSize();
+        } else {
+          os << cache_shards[i].substr(0, pos)
+             << ".r" << rabit::GetRank()
+             << "-" <<  rabit::GetWorldSize()
+             << cache_shards[i].substr(pos, cache_shards[i].length());
+        }
+        if (i + 1 != cache_shards.size()) os << ':';
       }
       cache_file = os.str();
     }
@@ -172,7 +172,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   if (npart != 1) {
     LOG(CONSOLE) << "Load part of data " << partid
-		 << " of " << npart << " parts";
+                 << " of " << npart << " parts";
   }
   // legacy handling of binary data loading
   if (file_format == "auto" && !load_row_split) {
