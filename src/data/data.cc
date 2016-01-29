@@ -172,7 +172,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   if (npart != 1) {
     LOG(CONSOLE) << "Load part of data " << partid
-		 << " of " << npart << " parts";
+                 << " of " << npart << " parts";
   }
   // legacy handling of binary data loading
   if (file_format == "auto" && !load_row_split) {
