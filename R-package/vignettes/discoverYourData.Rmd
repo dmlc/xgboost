@@ -1,6 +1,6 @@
 ---
 title: "Understand your dataset with Xgboost"
-output: 
+output:
   rmarkdown::html_vignette:
     css: vignette.css
     number_sections: yes
@@ -12,8 +12,11 @@ vignette: >
   \usepackage[utf8]{inputenc}
 ---
 
+Understand your dataset with XGBoost
+====================================
+
 Introduction
-============
+------------
 
 The purpose of this Vignette is to show you how to use **Xgboost** to discover and understand your own dataset better.
 
@@ -25,16 +28,16 @@ Pacakge loading:
 require(xgboost)
 require(Matrix)
 require(data.table)
-if (!require('vcd')) install.packages('vcd') 
+if (!require('vcd')) install.packages('vcd')
 ```
 
 > **VCD** package is used for one of its embedded dataset only.
 
 Preparation of the dataset
-==========================
+--------------------------
 
-Numeric VS categorical variables
---------------------------------
+### Numeric VS categorical variables
+
 
 **Xgboost** manages only `numeric` vectors.
 
@@ -48,10 +51,9 @@ A *categorical* variable has a fixed number of different values. For instance, i
 
 To answer the question above we will convert *categorical* variables to `numeric` one.
 
-Conversion from categorical to numeric variables
-------------------------------------------------
+### Conversion from categorical to numeric variables
 
-### Looking at the raw data
+#### Looking at the raw data
 
 In this Vignette we will see how to transform a *dense* `data.frame` (*dense* = few zeroes in the matrix) with *categorical* variables to a very *sparse* matrix (*sparse* = lots of zero in the matrix) of `numeric` features.
 
@@ -85,11 +87,11 @@ str(df)
 > * can take a limited number of values (like `factor`) ;
 > * these values are ordered (unlike `factor`). Here these ordered values are: `Marked > Some > None`
 
-### Creation of new features based on old ones
+#### Creation of new features based on old ones
 
 We will add some new *categorical* features to see if it helps.
 
-#### Grouping per 10 years
+##### Grouping per 10 years
 
 For the first feature we create groups of age by rounding the real age.
 
@@ -101,7 +103,7 @@ Therefore, 20 is not closer to 30 than 60. To make it short, the distance betwee
 head(df[,AgeDiscret := as.factor(round(Age/10,0))])
 ```
 
-#### Random split in two groups
+##### Random split in two groups
 
 Following is an even stronger simplification of the real age with an arbitrary split at 30 years old. I choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (you may already have an idea of how well it will work...).
 
@@ -109,15 +111,15 @@ Following is an even stronger simplification of the real age with an arbitrary s
 head(df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))])
 ```
 
-#### Risks in adding correlated features
+##### Risks in adding correlated features
 
-These new features are highly correlated to the `Age` feature because they are simple transformations of this feature. 
+These new features are highly correlated to the `Age` feature because they are simple transformations of this feature.
 
 For many machine learning algorithms, using correlated features is not a good idea. It may sometimes make prediction less accurate, and most of the time make interpretation of the model almost impossible. GLM, for instance, assumes that the features are uncorrelated.
 
 Fortunately, decision tree algorithms (including boosted trees) are very robust to these features. Therefore we have nothing to do to manage this situation.
 
-#### Cleaning data
+##### Cleaning data
 
 We remove ID as there is nothing to learn from this feature (it would just add some noise).
 
@@ -132,7 +134,7 @@ levels(df[,Treatment])
 ```
 
 
-### One-hot encoding
+#### One-hot encoding
 
 Next step, we will transform the categorical data to dummy variables.
 This is the [one-hot encoding](http://en.wikipedia.org/wiki/One-hot) step.
@@ -156,12 +158,12 @@ Create the output `numeric` vector (not as a sparse `Matrix`):
 output_vector = df[,Improved] == "Marked"
 ```
 
-1. set `Y` vector to `0`; 
-2. set `Y` to `1` for rows where `Improved == Marked` is `TRUE` ; 
+1. set `Y` vector to `0`;
+2. set `Y` to `1` for rows where `Improved == Marked` is `TRUE` ;
 3. return `Y` vector.
 
 Build the model
-===============
+---------------
 
 The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
 
@@ -173,17 +175,17 @@ bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 4,
 
 You can see some `train-error: 0.XXXXX` lines followed by a number. It decreases. Each line shows how well the model explains your data. Lower is better.
 
-A model which fits too well may [overfit](http://en.wikipedia.org/wiki/Overfitting) (meaning it copy/paste too much the past, and won't be that good to predict the future). 
+A model which fits too well may [overfit](http://en.wikipedia.org/wiki/Overfitting) (meaning it copy/paste too much the past, and won't be that good to predict the future).
 
-> Here you can see the numbers decrease until line 7 and then increase. 
+> Here you can see the numbers decrease until line 7 and then increase.
 >
 > It probably means we are overfitting. To fix that I should reduce the number of rounds to `nround = 4`. I will let things like that because I don't really care for the purpose of this example :-)
 
 Feature importance
-==================
+------------------
 
-Measure feature importance
---------------------------
+## Measure feature importance
+
 
 ### Build the feature importance data.table
 
@@ -204,7 +206,7 @@ head(importance)
 
 `Frequency` is a simpler way to measure the `Gain`. It just counts the number of times a feature is used in all generated trees. You should not use it (unless you know why you want to use it).
 
-### Improvement in the interpretability of feature importance data.table
+#### Improvement in the interpretability of feature importance data.table
 
 We can go deeper in the analysis of the model. In the `data.table` above, we have discovered which features counts to predict if the illness will go or not. But we don't yet know the role of these features. For instance, one of the question we may want to answer would be: does receiving a placebo treatment helps to recover from the illness?
 
@@ -233,8 +235,8 @@ Therefore, according to our findings, getting a placebo doesn't seem to help but
 
 > You may wonder how to interpret the `< 1.00001` on the first line. Basically, in a sparse `Matrix`, there is no `0`, therefore, looking for one hot-encoded categorical observations validating the rule `< 1.00001` is like just looking for `1` for this feature.
 
-Plotting the feature importance
--------------------------------
+### Plotting the feature importance
+
 
 All these things are nice, but it would be even better to plot the results.
 
@@ -250,11 +252,11 @@ According to the plot above, the most important features in this dataset to pred
 
 * the Age ;
 * having received a placebo or not ;
-* the sex is third but already included in the not interesting features group ; 
+* the sex is third but already included in the not interesting features group ;
 * then we see our generated features (AgeDiscret). We can see that their contribution is very low.
 
-Do these results make sense?
-------------------------------
+### Do these results make sense?
+
 
 Let's check some **Chi2** between each of these features and the label.
 
@@ -279,18 +281,18 @@ c2 <- chisq.test(df$AgeCat, output_vector)
 print(c2)
 ```
 
-The perfectly random split I did between young and old at 30 years old have a low correlation of **`r round(c2$statistic, 2)`**. It's a result we may expect as may be in my mind > 30 years is being old (I am 32 and starting feeling old, this may explain that), but for the illness we are studying, the age to be vulnerable is not the same. 
+The perfectly random split I did between young and old at 30 years old have a low correlation of **`r round(c2$statistic, 2)`**. It's a result we may expect as may be in my mind > 30 years is being old (I am 32 and starting feeling old, this may explain that), but for the illness we are studying, the age to be vulnerable is not the same.
 
-Morality: don't let your *gut* lower the quality of your model. 
+Morality: don't let your *gut* lower the quality of your model.
 
 In *data science* expression, there is the word *science* :-)
 
 Conclusion
-==========
+----------
 
-As you can see, in general *destroying information by simplifying it won't improve your model*. **Chi2** just demonstrates that. 
+As you can see, in general *destroying information by simplifying it won't improve your model*. **Chi2** just demonstrates that.
 
-But in more complex cases, creating a new feature based on existing one which makes link with the outcome more obvious may help the algorithm and improve the model. 
+But in more complex cases, creating a new feature based on existing one which makes link with the outcome more obvious may help the algorithm and improve the model.
 
 The case studied here is not enough complex to show that. Check [Kaggle website](http://www.kaggle.com/) for some challenging datasets. However it's almost always worse when you add some arbitrary rules.
 
@@ -299,7 +301,7 @@ Moreover, you can notice that even if we have added some not useful new features
 Linear model may not be that smart in this scenario.
 
 Special Note: What about Random Forests™?
-==========================================
+-----------------------------------------
 
 As you may know, [Random Forests™](http://en.wikipedia.org/wiki/Random_forest) algorithm is cousin with boosting and both are part of the [ensemble learning](http://en.wikipedia.org/wiki/Ensemble_learning) family.
 
@@ -313,7 +315,7 @@ However, in Random Forests™ this random choice will be done for each tree, bec
 
 In boosting, when a specific link between feature and outcome have been learned by the algorithm, it will try to not refocus on it (in theory it is what happens, reality is not always that simple). Therefore, all the importance will be on feature `A` or on feature `B` (but not both). You will know that one feature have an important role in the link between the observations and the label. It is still up to you to search for the correlated features to the one detected as important if you need to know all of them.
 
-If you want to try Random Forests™ algorithm, you can tweak Xgboost parameters! 
+If you want to try Random Forests™ algorithm, you can tweak Xgboost parameters!
 
 **Warning**: this is still an experimental parameter.
 

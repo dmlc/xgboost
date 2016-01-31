@@ -184,7 +184,7 @@ class DMatrix(object):
     _feature_names = None  # for previous version's pickle
     _feature_types = None
 
-    def __init__(self, data, label=None, missing=0.0,
+    def __init__(self, data, label=None, missing=None,
                  weight=None, silent=False,
                  feature_names=None, feature_types=None):
         """
@@ -199,7 +199,8 @@ class DMatrix(object):
         label : list or numpy 1-D array, optional
             Label of the training data.
         missing : float, optional
-            Value in the data which needs to be present as a missing value.
+            Value in the data which needs to be present as a missing value. If
+            None, defaults to np.nan.
         weight : list or numpy 1-D array , optional
             Weight for each instance.
         silent : boolean, optional
@@ -278,6 +279,7 @@ class DMatrix(object):
             raise ValueError('Input numpy.ndarray must be 2 dimensional')
         data = np.array(mat.reshape(mat.size), dtype=np.float32)
         self.handle = ctypes.c_void_p()
+        missing = missing if missing is not None else np.nan
         _check_call(_LIB.XGDMatrixCreateFromMat(data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
                                                 mat.shape[0], mat.shape[1],
                                                 ctypes.c_float(missing),
@@ -641,9 +643,9 @@ class Booster(object):
         self.set_param({'seed': 0})
 
     def __copy__(self):
-        return self.__deepcopy__()
+        return self.__deepcopy__(None)
 
-    def __deepcopy__(self):
+    def __deepcopy__(self, memo):
         return Booster(model_file=self.save_raw())
 
     def copy(self):
@@ -988,4 +990,3 @@ class Booster(object):
                 msg = 'feature_names mismatch: {0} {1}'
                 raise ValueError(msg.format(self.feature_names,
                                             data.feature_names))
-
