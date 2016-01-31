@@ -58,4 +58,3 @@ List of Contributors
 * [Mathias Müller](https://github.com/far0n)
 * [Sam Thomson](https://github.com/sammthomson)
 * [ganesh-krishnan](https://github.com/ganesh-krishnan)
-* [Gianluca](https://github.com/glr72)
