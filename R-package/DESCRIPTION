@@ -1,6 +1,6 @@
 Package: xgboost
 Type: Package
-Title: Extreme Gradient Boosting
+Title: Extreme Gradient Boosting 64bits
 Version: 0.4-2
 Date: 2015-08-01
 Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>,
