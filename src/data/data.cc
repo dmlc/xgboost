@@ -138,10 +138,24 @@ DMatrix* DMatrix::Load(const std::string& uri,
     cache_file = uri.substr(dlm_pos + 1, uri.length());
     fname = uri.substr(0, dlm_pos);
     CHECK_EQ(cache_file.find('#'), std::string::npos)
-        << "Only one `#` is allowed in file path for cache file specification.";
+        << "Only one `#` is allowed in file path for cache file specification.";    
     if (load_row_split) {
       std::ostringstream os;
-      os << cache_file << ".r" << rabit::GetRank();
+      std::vector<std::string> cache_shards = common::Split(cache_file, ':');
+      for (size_t i = 0; i < cache_shards.size(); ++i) {
+	size_t pos = cache_shards[i].rfind('.');
+	if (pos == std::string::npos) {
+	  os << cache_shards[i]
+	     << ".r" << rabit::GetRank()
+	     << "-" <<  rabit::GetWorldSize();
+	} else {
+	  os << cache_shards[i].substr(0, pos)
+	     << ".r" << rabit::GetRank()
+	     << "-" <<  rabit::GetWorldSize()
+	     << cache_shards[i].substr(pos, cache_shards[i].length());
+	}
+	if (i + 1 != cache_shards.size()) os << ':'; 
+      }
       cache_file = os.str();
     }
   } else {
@@ -154,9 +168,11 @@ DMatrix* DMatrix::Load(const std::string& uri,
   } else {
     // test option to load in part
     npart = dmlc::GetEnv("XGBOOST_TEST_NPART", 1);
-    if (npart != 1) {
-      LOG(CONSOLE) << "Partial load option on npart=" << npart;
-    }
+  }
+
+  if (npart != 1) {
+    LOG(CONSOLE) << "Load part of data " << partid
+                 << " of " << npart << " parts";
   }
   // legacy handling of binary data loading
   if (file_format == "auto" && !load_row_split) {
@@ -181,7 +197,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
   std::string ftype = file_format;
   if (file_format == "auto") ftype = "libsvm";
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
-      dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, ftype.c_str()));
+      dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
   DMatrix* dmat = DMatrix::Create(parser.get(), cache_file);
   if (!silent) {
     LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
