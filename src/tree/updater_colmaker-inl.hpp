@@ -281,7 +281,7 @@ class ColMaker: public IUpdater {
           float fsplit;
           if (tid != 0) {
             if(std::abs(stemp[tid - 1][nid].last_fvalue - e.first_fvalue) > rt_2eps) {
-              fsplit = (stemp[tid - 1][nid].last_fvalue - e.first_fvalue) * 0.5f;
+              fsplit = (stemp[tid - 1][nid].last_fvalue + e.first_fvalue) * 0.5f;
             } else {
               continue;
             }
