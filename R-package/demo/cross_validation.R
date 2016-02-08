@@ -40,12 +40,12 @@ evalerror <- function(preds, dtrain) {
   return(list(metric = "error", value = err))
 }
 
-param <- list(max.depth=2,eta=1,silent=1)
+param <- list(max.depth=2,eta=1,silent=1,
+              objective = logregobj, eval_metric = evalerror)
 # train with customized objective
-xgb.cv(param, dtrain, nround, nfold = 5,
-       obj = logregobj, feval=evalerror)
+xgb.cv(params = param, data = dtrain, nrounds = nround, nfold = 5)
 
 # do cross validation with prediction values for each fold
-res <- xgb.cv(param, dtrain, nround, nfold=5, prediction = TRUE)
+res <- xgb.cv(params = param, data = dtrain, nrounds = nround, nfold = 5, prediction = TRUE)
 res$dt
 length(res$pred)

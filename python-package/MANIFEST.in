@@ -1,0 +1,11 @@
+include *.md *.rst
+recursive-include xgboost *
+recursive-include xgboost/include *
+recursive-include xgboost/src *
+#exclude pre-compiled .o file for less confusions
+#include the pre-compiled .so is needed as a placeholder
+#since it will be copy after compiling on the fly
+global-exclude xgboost/build/*
+global-exclude xgboost/*.o
+global-exclude *.pyo
+global-exclude *.pyc

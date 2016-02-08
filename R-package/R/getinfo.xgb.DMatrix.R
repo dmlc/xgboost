@@ -23,7 +23,6 @@ setClass('xgb.DMatrix')
 #' stopifnot(all(labels2 == 1-labels))
 #' @rdname getinfo
 #' @export
-#' 
 getinfo <- function(object, ...){
     UseMethod("getinfo")
 }
@@ -35,7 +34,7 @@ getinfo <- function(object, ...){
 #' @param ... other parameters
 #' @rdname getinfo
 #' @method getinfo xgb.DMatrix
-setMethod("getinfo", signature = "xgb.DMatrix", 
+setMethod("getinfo", signature = "xgb.DMatrix",
           definition = function(object, name) {
               if (typeof(name) != "character") {
                   stop("xgb.getinfo: name must be character")
@@ -43,7 +42,7 @@ setMethod("getinfo", signature = "xgb.DMatrix",
               if (class(object) != "xgb.DMatrix") {
                   stop("xgb.setinfo: first argument dtrain must be xgb.DMatrix")
               }
-              if (name != "label" && name != "weight" && 
+              if (name != "label" && name != "weight" &&
                       name != "base_margin" && name != "nrow") {
                   stop(paste("xgb.getinfo: unknown info name", name))
               }
@@ -54,4 +53,3 @@ setMethod("getinfo", signature = "xgb.DMatrix",
               }
               return(ret)
           })
-

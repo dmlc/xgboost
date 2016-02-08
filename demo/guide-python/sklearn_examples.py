@@ -1,19 +1,19 @@
+#!/usr/bin/python
 '''
 Created on 1 Apr 2015
 
 @author: Jamie Hall
 '''
-
+import pickle
 import xgboost as xgb
 
 import numpy as np
-from sklearn.cross_validation import KFold
-from sklearn.grid_search import GridSearchCV
+from sklearn.cross_validation import KFold, train_test_split
 from sklearn.metrics import confusion_matrix, mean_squared_error
+from sklearn.grid_search import GridSearchCV
 from sklearn.datasets import load_iris, load_digits, load_boston
 
 rng = np.random.RandomState(31337)
-
 
 print("Zeros and Ones from the Digits dataset: binary classification")
 digits = load_digits(2)
@@ -59,4 +59,19 @@ clf.fit(X,y)
 print(clf.best_score_)
 print(clf.best_params_)
 
+# The sklearn API models are picklable
+print("Pickling sklearn API models")
+# must open in binary format to pickle
+pickle.dump(clf, open("best_boston.pkl", "wb"))
+clf2 = pickle.load(open("best_boston.pkl", "rb"))
+print(np.allclose(clf.predict(X), clf2.predict(X)))
+
+# Early-stopping
+
+X = digits['data']
+y = digits['target']
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+clf = xgb.XGBClassifier()
+clf.fit(X_train, y_train, early_stopping_rounds=10, eval_metric="auc",
+        eval_set=[(X_test, y_test)])
 

@@ -28,8 +28,17 @@
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
 #'   information of performance. If 2, xgboost will print information of both
 #'   performance and construction progress information
+#' @param print.every.n Print every N progress messages when \code{verbose>0}. Default is 1 which means all messages are printed.
 #' @param missing Missing is only used when input is dense matrix, pick a float 
 #'     value that represents missing value. Sometimes a data use 0 or other extreme value to represents missing values.
+#' @param weight a vector indicating the weight for each row of the input.
+#' @param early.stop.round If \code{NULL}, the early stopping function is not triggered. 
+#'     If set to an integer \code{k}, training with a validation set will stop if the performance 
+#'     keeps getting worse consecutively for \code{k} rounds.
+#' @param maximize If \code{feval} and \code{early.stop.round} are set, then \code{maximize} must be set as well.
+#'     \code{maximize=TRUE} means the larger the evaluation score the better.
+#' @param save_period save the model to the disk in every \code{save_period} rounds, 0 means no such action.
+#' @param save_name the name or path for periodically saved model file.
 #' @param ... other parameters to pass to \code{params}.
 #' 
 #' @details 
@@ -49,29 +58,26 @@
 #' pred <- predict(bst, test$data)
 #' 
 #' @export
-#' 
-xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), nrounds, 
-                    verbose = 1, ...) {
-  if (is.null(missing)) {
-    dtrain <- xgb.get.DMatrix(data, label)
-  } else {
-    dtrain <- xgb.get.DMatrix(data, label, missing)
-  }
-    
+xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
+                    params = list(), nrounds,
+                    verbose = 1, print.every.n = 1L, early.stop.round = NULL,
+                    maximize = NULL, save_period = 0, save_name = "xgboost.model", ...) {
+  dtrain <- xgb.get.DMatrix(data, label, missing, weight)
+
   params <- append(params, list(...))
-  
+
   if (verbose > 0) {
     watchlist <- list(train = dtrain)
   } else {
     watchlist <- list()
   }
-  
-  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose=verbose)
-  
+
+  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, print.every.n=print.every.n,
+                   early.stop.round = early.stop.round, maximize = maximize,
+                   save_period = save_period, save_name = save_name)
+
   return(bst)
-} 
-
-
+}
 #' Training part from Mushroom Data Set
 #' 
 #' This data set is originally from the Mushroom data set,

@@ -36,7 +36,6 @@
 #' # print the model without saving it to a file
 #' print(xgb.dump(bst))
 #' @export
-#' 
 xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   if (class(model) != "xgb.Booster") {
     stop("model: argument must be type xgb.Booster")
@@ -49,13 +48,13 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
   if (!(class(fmap) %in% c("character", "NULL") && length(fname) <= 1)) {
     stop("fmap: argument must be type character (when provided)")
   }
-  
+
   longString <- .Call("XGBoosterDumpModel_R", model$handle, fmap, as.integer(with.stats), PACKAGE = "xgboost")
-  
+
   dt <- fread(paste(longString, collapse = ""), sep = "\n", header = F)
 
   setnames(dt, "Lines")
-  
+
   if(is.null(fname)) {
     result <- dt[Lines != "0"][, Lines := str_replace(Lines, "^\t+", "")][Lines != ""][, paste(Lines)]
     return(result)

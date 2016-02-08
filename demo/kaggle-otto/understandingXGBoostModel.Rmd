@@ -1,0 +1,231 @@
+---
+title: "Understanding XGBoost Model on Otto Dataset"
+author: "Michaël Benesty"
+output:
+  rmarkdown::html_vignette:
+    css: ../../R-package/vignettes/vignette.css
+    number_sections: yes
+    toc: yes
+---
+
+Introduction
+============
+
+**XGBoost** is an implementation of the famous gradient boosting algorithm. This model is often described as a *blackbox*, meaning it works well but it is not trivial to understand how. Indeed, the model is made of hundreds (thousands?) of decision trees. You may wonder how possible a human would be able to have a general view of the model?
+
+While XGBoost is known for its fast speed and accurate predictive power, it also comes with various functions to help you understand the model.
+The purpose of this RMarkdown document is to demonstrate how easily we can leverage the functions already implemented in **XGBoost R** package. Of course, everything showed below can be applied to the dataset you may have to manipulate at work or wherever!
+
+First we will prepare the **Otto** dataset and train a model, then we will generate two vizualisations to get a clue of what is important to the model, finally, we will see how we can leverage these information.
+
+Preparation of the data
+=======================
+
+This part is based on the **R** tutorial example by [Tong He](https://github.com/dmlc/xgboost/blob/master/demo/kaggle-otto/otto_train_pred.R)
+
+First, let's load the packages and the dataset.
+
+```{r loading}
+require(xgboost)
+require(methods)
+require(data.table)
+require(magrittr)
+train <- fread('data/train.csv', header = T, stringsAsFactors = F)
+test <- fread('data/test.csv', header=TRUE, stringsAsFactors = F)
+```
+> `magrittr` and `data.table` are here to make the code cleaner and much more rapid.
+
+Let's explore the dataset.
+
+```{r explore}
+# Train dataset dimensions
+dim(train)
+
+# Training content
+train[1:6,1:5, with =F]
+
+# Test dataset dimensions
+dim(test)
+
+# Test content
+test[1:6,1:5, with =F]
+```
+> We only display the 6 first rows and 5 first columns for convenience
+
+Each *column* represents a feature measured by an `integer`. Each *row* is an **Otto** product.
+
+Obviously the first column (`ID`) doesn't contain any useful information.
+
+To let the algorithm focus on real stuff, we will delete it.
+
+```{r clean, results='hide'}
+# Delete ID column in training dataset
+train[, id := NULL]
+
+# Delete ID column in testing dataset
+test[, id := NULL]
+```
+
+According to its description, the **Otto** challenge is a multi class classification challenge. We need to extract the labels (here the name of the different classes) from the dataset. We only have two files (test and training), it seems logical that the training file contains the class we are looking for. Usually the labels is in the first or the last column. We already know what is in the first column, let's check the content of the last one.
+
+```{r searchLabel}
+# Check the content of the last column
+train[1:6, ncol(train), with  = F]
+# Save the name of the last column
+nameLastCol <- names(train)[ncol(train)]
+```
+
+The classes are provided as character string in the `r ncol(train)`th column called `r nameLastCol`. As you may know, **XGBoost** doesn't support anything else than numbers. So we will convert classes to `integer`. Moreover, according to the documentation, it should start at `0`.
+
+For that purpose, we will:
+
+* extract the target column
+* remove `Class_` from each class name
+* convert to `integer`
+* remove `1` to the new value
+
+```{r classToIntegers}
+# Convert from classes to numbers
+y <- train[, nameLastCol, with = F][[1]] %>% gsub('Class_','',.) %>% {as.integer(.) -1}
+
+# Display the first 5 levels
+y[1:5]
+```
+
+We remove label column from training dataset, otherwise **XGBoost** would use it to guess the labels!
+
+```{r deleteCols, results='hide'}
+train[, nameLastCol:=NULL, with = F]
+```
+
+`data.table` is an awesome implementation of data.frame, unfortunately it is not a format supported natively by **XGBoost**. We need to convert both datasets (training and test) in `numeric` Matrix format.
+
+```{r convertToNumericMatrix}
+trainMatrix <- train[,lapply(.SD,as.numeric)] %>% as.matrix
+testMatrix <- test[,lapply(.SD,as.numeric)] %>% as.matrix
+```
+
+Model training
+==============
+
+Before the learning we will use the cross validation to evaluate the our error rate.
+
+Basically **XGBoost** will divide the training data in `nfold` parts, then **XGBoost** will retain the first part to use it as the test data and perform a training. Then it will reintegrate the first part and retain the second part, do a training and so on...
+
+You can look at the function documentation for more information.
+
+```{r crossValidation}
+numberOfClasses <- max(y) + 1
+
+param <- list("objective" = "multi:softprob",
+              "eval_metric" = "mlogloss",
+              "num_class" = numberOfClasses)
+
+cv.nround <- 5
+cv.nfold <- 3
+
+bst.cv = xgb.cv(param=param, data = trainMatrix, label = y,
+                nfold = cv.nfold, nrounds = cv.nround)
+```
+> As we can see the error rate is low on the test dataset (for a 5mn trained model).
+
+Finally, we are ready to train the real model!!!
+
+```{r modelTraining}
+nround = 50
+bst = xgboost(param=param, data = trainMatrix, label = y, nrounds=nround)
+```
+
+Model understanding
+===================
+
+Feature importance
+------------------
+
+So far, we have built a model made of **`r nround`** trees.
+
+To build a tree, the dataset is divided recursively several times. At the end of the process, you get groups of observations (here, these observations are properties regarding **Otto** products).
+
+Each division operation is called a *split*.
+
+Each group at each division level is called a branch and the deepest level is called a *leaf*.
+
+In the final model, these *leafs* are supposed to be as pure as possible for each tree, meaning in our case that each *leaf* should be made of one class of **Otto** product only (of course it is not true, but that's what we try to achieve in a minimum of splits).
+
+**Not all *splits* are equally important**. Basically the first *split* of a tree will have more impact on the purity that, for instance, the deepest *split*. Intuitively, we understand that the first *split* makes most of the work, and the following *splits* focus on smaller parts of the dataset which have been missclassified by the first *tree*.
+
+In the same way, in Boosting we try to optimize the missclassification at each round (it is called the *loss*). So the first *tree* will do the big work and the following trees will focus on the remaining, on the parts not correctly learned by the previous *trees*.
+
+The improvement brought by each *split* can be measured, it is the *gain*.
+
+Each *split* is done on one feature only at one value.
+
+Let's see what the model looks like.
+
+```{r modelDump}
+model <- xgb.dump(bst, with.stats = T)
+model[1:10]
+```
+> For convenience, we are displaying the first 10 lines of the model only.
+
+Clearly, it is not easy to understand what it means.
+
+Basically each line represents a *branch*, there is the *tree* ID, the feature ID, the point where it *splits*, and information regarding the next *branches* (left, right, when the row for this feature is N/A).
+
+Hopefully, **XGBoost** offers a better representation: **feature importance**.
+
+Feature importance is about averaging the *gain* of each feature for all *split* and all *trees*.
+
+Then we can use the function `xgb.plot.importance`.
+
+```{r importanceFeature, fig.align='center', fig.height=5, fig.width=10}
+# Get the feature real names
+names <- dimnames(trainMatrix)[[2]]
+
+# Compute feature importance matrix
+importance_matrix <- xgb.importance(names, model = bst)
+
+# Nice graph
+xgb.plot.importance(importance_matrix[1:10,])
+```
+
+> To make it understandable we first extract the column names from the `Matrix`.
+
+Interpretation
+--------------
+
+In the feature importance above, we can see the first 10 most important features.
+
+This function gives a color to each bar. These colors represent groups of features. Basically a K-means clustering is  applied to group each feature by importance.
+
+From here you can take several actions. For instance you can remove the less important feature (feature selection process), or go deeper in the interaction between the most important features and labels.
+
+Or you can just reason about why these features are so importat (in **Otto** challenge we can't go this way because there is not enough information).
+
+Tree graph
+----------
+
+Feature importance gives you feature weight information but not interaction between features.
+
+**XGBoost R** package have another useful function for that.
+
+Please, scroll on the right to see the tree.
+
+```{r treeGraph, dpi=1500, fig.align='left'}
+xgb.plot.tree(feature_names = names, model = bst, n_first_tree = 2)
+```
+
+We are just displaying the first two trees here.
+
+On simple models the first two trees may be enough. Here, it might not be the case. We can see from the size of the trees that the intersaction between features is complicated.
+Besides, **XGBoost** generate `k` trees at each round for a `k`-classification problem. Therefore the two trees illustrated here are trying to classify data into different classes.
+
+Going deeper
+============
+
+There are 4 documents you may also be interested in:
+
+* [xgboostPresentation.Rmd](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd): general presentation
+* [discoverYourData.Rmd](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/discoverYourData.Rmd): explaining feature analysus
+* [Feature Importance Analysis with XGBoost in Tax audit](http://fr.slideshare.net/MichaelBENESTY/feature-importance-analysis-with-xgboost-in-tax-audit): use case
+* [The Elements of Statistical Learning](http://statweb.stanford.edu/~tibs/ElemStatLearn/): very good book to have a good understanding of the model
