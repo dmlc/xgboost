@@ -31,3 +31,4 @@ LIBJVM=$(JAVA_HOME)/jre/lib/amd64/server
 #
 XGB_PLUGINS += plugin/example/plugin.mk
 XGB_PLUGINS += plugin/lz4/plugin.mk
+XGB_PLUGINS += plugin/dense_parser/plugin.mk

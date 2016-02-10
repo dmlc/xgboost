@@ -31,7 +31,7 @@ struct EvalMClassBase : public Metric {
         << "mlogloss and merror are only used for multi-class classification,"
         << " use logloss for binary classification";
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
-    float sum = 0.0, wsum = 0.0;
+    double sum = 0.0, wsum = 0.0;
     int label_error = 0;
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
@@ -50,7 +50,7 @@ struct EvalMClassBase : public Metric {
         << "MultiClassEvaluation: label must be in [0, num_class),"
         << " num_class=" << nclass << " but found " << label_error << " in label";
 
-    float dat[2]; dat[0] = sum, dat[1] = wsum;
+    double dat[2]; dat[0] = sum, dat[1] = wsum;
     if (distributed) {
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
     }

@@ -325,7 +325,7 @@ class GBTree : public GradientBooster {
                                      int bst_group,
                                      const RegTree &new_tree,
                                      const int* leaf_position) {
-    const std::vector<bst_uint>& rowset = p_fmat->buffered_rowset();
+    const RowSet& rowset = p_fmat->buffered_rowset();
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {

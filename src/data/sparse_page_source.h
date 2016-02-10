@@ -71,14 +71,14 @@ class SparsePageSource : public DataSource {
   RowBatch batch_;
   /*! \brief page currently on hold. */
   SparsePage *page_;
-  /*! \brief The cache predix of the dataset. */
-  std::string cache_prefix_;
+  /*! \brief internal clock ptr */
+  size_t clock_ptr_;
   /*! \brief file pointer to the row blob file. */
-  std::unique_ptr<dmlc::SeekStream> fi_;
+  std::vector<std::unique_ptr<dmlc::SeekStream> > files_;
   /*! \brief Sparse page format file. */
-  std::unique_ptr<SparsePage::Format> format_;
+  std::vector<std::unique_ptr<SparsePage::Format> > formats_;
   /*! \brief internal prefetcher. */
-  dmlc::ThreadedIter<SparsePage> prefetcher_;
+  std::vector<std::unique_ptr<dmlc::ThreadedIter<SparsePage> > > prefetchers_;
 };
 }  // namespace data
 }  // namespace xgboost
