@@ -87,7 +87,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe("Subsample ratio of columns, resample on each tree construction.");
     DMLC_DECLARE_FIELD(opt_dense_col).set_range(0.0f, 1.0f).set_default(1.0f)
         .describe("EXP Param: speed optimization for dense column.");
-    DMLC_DECLARE_FIELD(sketch_eps).set_range(0.0f, 1.0f).set_default(0.1f)
+    DMLC_DECLARE_FIELD(sketch_eps).set_range(0.0f, 1.0f).set_default(0.03f)
         .describe("EXP Param: Sketch accuracy of approximate algorithm.");
     DMLC_DECLARE_FIELD(sketch_ratio).set_lower_bound(0.0f).set_default(2.0f)
         .describe("EXP Param: Sketch accuracy related parameter of approximate algorithm.");

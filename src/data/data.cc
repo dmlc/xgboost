@@ -124,6 +124,14 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     base_margin.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, base_margin.begin()));
+  } else if (!std::strcmp(key, "group")) {
+    group_ptr.resize(num + 1);
+    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                       std::copy(cast_dptr, cast_dptr + num, group_ptr.begin() + 1));
+    group_ptr[0] = 0;
+    for (size_t i = 1; i < group_ptr.size(); ++i) {
+      group_ptr[i] = group_ptr[i - 1] + group_ptr[i];
+    }
   }
 }
 

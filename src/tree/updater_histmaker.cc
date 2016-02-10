@@ -871,7 +871,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
   std::vector<common::WQuantileSketch<bst_float, bst_float> > sketchs;
 };
 
-XGBOOST_REGISTER_TREE_UPDATER(HistMaker, "grow_histmaker")
+XGBOOST_REGISTER_TREE_UPDATER(LocalHistMaker, "grow_local_histmaker")
 .describe("Tree constructor that uses approximate histogram construction.")
 .set_body([]() {
     return new CQHistMaker<GradStats>();
@@ -879,6 +879,12 @@ XGBOOST_REGISTER_TREE_UPDATER(HistMaker, "grow_histmaker")
 
 XGBOOST_REGISTER_TREE_UPDATER(GlobalHistMaker, "grow_global_histmaker")
 .describe("Tree constructor that uses approximate global proposal of histogram construction.")
+.set_body([]() {
+    return new GlobalProposalHistMaker<GradStats>();
+  });
+
+XGBOOST_REGISTER_TREE_UPDATER(HistMaker, "grow_histmaker")
+.describe("Tree constructor that uses approximate global of histogram construction.")
 .set_body([]() {
     return new GlobalProposalHistMaker<GradStats>();
   });
