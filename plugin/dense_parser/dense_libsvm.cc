@@ -4,6 +4,7 @@
  * \brief Plugin to load in libsvm, but fill all the missing entries with zeros.
  *  This plugin is mainly used for benchmark purposes and do not need to be included.
  */
+#include <xgboost/base.h>
 #include <dmlc/data.h>
 #include <memory>
 

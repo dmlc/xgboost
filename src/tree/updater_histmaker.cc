@@ -651,7 +651,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
                           DMatrix *p_fmat,
                           const std::vector<bst_uint> &fset,
                           const RegTree &tree) override {
-    if (this->qexpand.size() == 1 && !this->param.cache_global_proposal) {
+    if (this->qexpand.size() == 1) {
       cached_rptr_.clear();
       cached_cut_.clear();
     }
