@@ -109,7 +109,7 @@ class GBLinear : public GradientBooster {
 
     std::vector<bst_gpair> &gpair = *in_gpair;
     const int ngroup = model.param.num_output_group;
-    const std::vector<bst_uint> &rowset = p_fmat->buffered_rowset();
+    const RowSet &rowset = p_fmat->buffered_rowset();
     // for all the output group
     for (int gid = 0; gid < ngroup; ++gid) {
       double sum_grad = 0.0, sum_hess = 0.0;

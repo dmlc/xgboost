@@ -4,7 +4,7 @@ Installation Guide
 This page gives instructions of how to build and install the xgboost package from
 scratch on various systems. It consists of two steps:
 
-1. Fist build the shared library from the C++ codes (`libxgboost.so` for linux/osx and `libxgboost.dll` for windows).
+1. First build the shared library from the C++ codes (`libxgboost.so` for linux/osx and `libxgboost.dll` for windows).
    - Exception: for R-package installation please directly refer to the R package section.
 2. Then install the language packages (e.g. Python Package).
 
