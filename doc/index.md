@@ -50,6 +50,7 @@ This section is about blogposts, presentation and videos discussing how to use x
 * [Feature Importance Analysis with XGBoost in Tax audit](http://fr.slideshare.net/MichaelBENESTY/feature-importance-analysis-with-xgboost-in-tax-audit)
 * Video tutorial: [Better Optimization with Repeated Cross Validation and the XGBoost model](https://www.youtube.com/watch?v=Og7CGAfSr_Y)
 * [Winning solution of Kaggle Higgs competition: what a single model can do](http://no2147483647.wordpress.com/2014/09/17/winning-solution-of-kaggle-higgs-competition-what-a-single-model-can-do/)
+* [Top15 private leaderboard xgb-model for "Homesite Quote Conversion" utilizing training continuation for delayed feature addition](https://github.com/Far0n/kaggle-homesite)
 
 Indices and tables
 ------------------
