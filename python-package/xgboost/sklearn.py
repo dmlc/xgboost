@@ -11,6 +11,39 @@ from .compat import (SKLEARN_INSTALLED, XGBModelBase,
                      XGBClassifierBase, XGBRegressorBase, LabelEncoder)
 
 
+def _objective_decorator(func):
+    """Decorate an objective function
+
+    Converts an objective function using the typical sklearn metrics
+    signature so that it is usable with ``xgboost.training.train``
+
+    Parameters
+    ----------
+    func: callable
+        Expects a callable with signature ``func(y_true, y_pred)``:
+
+        y_true: array_like of shape [n_samples]
+            The target values
+        y_pred: array_like of shape [n_samples]
+            The predicted values
+
+    Returns
+    -------
+    new_func: callable
+        The new objective function as expected by ``xgboost.training.train``.
+        The signature is ``new_func(preds, dmatrix)``:
+
+        preds: array_like, shape [n_samples]
+            The predicted values
+        dmatrix: ``DMatrix``
+            The training set from which the labels will be extracted using
+            ``dmatrix.get_label()``
+    """
+    def inner(preds, dmatrix):
+        labels = dmatrix.get_label()
+        return func(labels, preds)
+    return inner
+
 class XGBModel(XGBModelBase):
     # pylint: disable=too-many-arguments, too-many-instance-attributes, invalid-name
     """Implementation of the Scikit-Learn API for XGBoost.
@@ -26,8 +59,8 @@ class XGBModel(XGBModelBase):
     silent : boolean
         Whether to print messages while running boosting.
     objective : string or callable
-        Specify the learning task and the corresponding learning objective.
-
+        Specify the learning task and the corresponding learning objective or
+        a custom objective function to be used (see note below).
     nthread : int
         Number of parallel threads used to run xgboost.
     gamma : float
@@ -56,6 +89,22 @@ class XGBModel(XGBModelBase):
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
+
+    Note
+    ----
+    A custom objective function can be provided for the ``objective``
+    parameter. In this case, it should have the signature
+    ``objective(y_true, y_pred) -> grad, hess``:
+
+    y_true: array_like of shape [n_samples]
+        The target values
+    y_pred: array_like of shape [n_samples]
+        The predicted values
+
+    grad: array_like of shape [n_samples]
+        The value of the gradient for each sample point.
+    hess: array_like of shape [n_samples]
+        The value of the second derivative for each sample point
     """
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="reg:linear",
@@ -175,7 +224,7 @@ class XGBModel(XGBModelBase):
         params = self.get_xgb_params()
 
         if callable(self.objective):
-            obj = self.objective
+            obj = _objective_decorator(self.objective)
             params["objective"] = "reg:linear"
         else:
             obj = None
@@ -313,7 +362,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         xgb_options = self.get_xgb_params()
 
         if callable(self.objective):
-            obj = self.objective
+            obj = _objective_decorator(self.objective)
+            # Use default value. Is it really not used ?
             xgb_options["objective"] = "binary:logistic"
         else:
             obj = None
