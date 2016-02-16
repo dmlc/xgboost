@@ -8,6 +8,7 @@ import sys
 import re
 import numpy as np
 from .core import Booster, STRING_TYPES
+from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold, XGBKFold)
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
@@ -261,15 +262,26 @@ class CVPack(object):
         return self.bst.eval_set(self.watchlist, iteration, feval)
 
 
-def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None):
+def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False, folds=None):
     """
     Make an n-fold list of CVPack from random indices.
     """
     evals = list(evals)
     np.random.seed(seed)
-    randidx = np.random.permutation(dall.num_row())
-    kstep = len(randidx) / nfold
-    idset = [randidx[(i * kstep): min(len(randidx), (i + 1) * kstep)] for i in range(nfold)]
+
+    if stratified is False and folds is None:
+        randidx = np.random.permutation(dall.num_row())
+        kstep = len(randidx) / nfold
+        idset = [randidx[(i * kstep): min(len(randidx), (i + 1) * kstep)] for i in range(nfold)]
+    elif folds is not None:
+        idset = [x[1] for x in folds]
+        nfold = len(idset)
+    else:
+        idset = [x[1] for x in XGBStratifiedKFold(dall.get_label(),
+                                                  n_folds=nfold,
+                                                  shuffle=True,
+                                                  random_state=seed)]
+
     ret = []
     for k in range(nfold):
         dtrain = dall.slice(np.concatenate([idset[i] for i in range(nfold) if k != i]))
@@ -345,8 +357,8 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
     return results
 
 
-def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
-       obj=None, feval=None, maximize=False, early_stopping_rounds=None,
+def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
+       metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
        fpreproc=None, as_pandas=True, show_progress=None, show_stdv=True, seed=0):
     # pylint: disable = invalid-name
     """Cross-validation with given paramaters.
@@ -361,6 +373,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         Number of boosting iterations.
     nfold : int
         Number of folds in CV.
+    stratified : bool
+        Perform stratified sampling.
+    folds : KFold or StratifiedKFold
+        Sklearn KFolds or StratifiedKFolds.
     metrics : string or list of strings
         Evaluation metrics to be watched in CV.
     obj : function
@@ -381,9 +397,9 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         If False or pandas is not installed, return np.ndarray
     show_progress : bool, int, or None, default None
         Whether to display the progress. If None, progress will be displayed
-        when np.ndarray is returned. If True, progress will be displayed at 
-        boosting stage. If an integer is given, progress will be displayed 
-        at every given `show_progress` boosting stage. 
+        when np.ndarray is returned. If True, progress will be displayed at
+        boosting stage. If an integer is given, progress will be displayed
+        at every given `show_progress` boosting stage.
     show_stdv : bool, default True
         Whether to display the standard deviation in progress.
         Results are not affected, and always contains std.
@@ -394,6 +410,9 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
     -------
     evaluation history : list(string)
     """
+    if stratified == True and not SKLEARN_INSTALLED:
+            raise XGBoostError('sklearn needs to be installed in order to use stratified cv')
+
     if isinstance(metrics, str):
         metrics = [metrics]
 
@@ -436,7 +455,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
 
     best_score_i = 0
     results = []
-    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc)
+    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc, stratified, folds)
     for i in range(num_boost_round):
         for fold in cvfolds:
             fold.update(i, obj)
@@ -466,3 +485,4 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         results = np.array(results)
 
     return results
+
