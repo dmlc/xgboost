@@ -7,11 +7,11 @@
 #ifndef XGBOOST_R_H_ // NOLINT(*)
 #define XGBOOST_R_H_ // NOLINT(*)
 
-extern "C" {
+
 #include <Rinternals.h>
 #include <R_ext/Random.h>
 #include <Rmath.h>
-}
+
 #include <xgboost/c_api.h>
 
 /*!
