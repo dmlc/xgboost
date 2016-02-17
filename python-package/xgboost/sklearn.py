@@ -389,6 +389,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         else:
             evals = ()
 
+        self._features_count = X.shape[1]
+
         self._le = LabelEncoder().fit(y)
         training_labels = self._le.transform(y)
 
@@ -476,6 +478,22 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             raise XGBoostError('No results.')
 
         return evals_result
+
+    @property
+    def feature_importances_(self):
+        """
+        Returns
+        -------
+        feature_importances_ : array of shape = [n_features]
+
+        """
+        fs = self.booster().get_fscore()
+        keys = [int(k.replace('f', '')) for k in fs.keys()]
+        fs_dict = dict(zip(keys, fs.values()))
+        all_features_dict = dict.fromkeys(range(0, self._features_count), 0)
+        all_features_dict.update(fs_dict)
+        return np.array(all_features_dict.values())
+
 
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
