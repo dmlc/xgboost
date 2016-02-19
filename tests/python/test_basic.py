@@ -225,13 +225,13 @@ class TestBasic(unittest.TestCase):
 
         # show progress log (result is the same as above)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    show_progress=True)
+                    verbose_eval=True)
         assert isinstance(cv, pd.DataFrame)
         exp = pd.Index([u'test-error-mean', u'test-error-std',
                         u'train-error-mean', u'train-error-std'])
         assert cv.columns.equals(exp)
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
-                    show_progress=True, show_stdv=False)
+                    verbose_eval=True, show_stdv=False)
         assert isinstance(cv, pd.DataFrame)
         exp = pd.Index([u'test-error-mean', u'test-error-std',
                         u'train-error-mean', u'train-error-std'])
