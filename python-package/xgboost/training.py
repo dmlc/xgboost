@@ -295,14 +295,14 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
-def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
+def aggcv(rlist, show_stdv=True, verbose_eval=None, as_pandas=True, trial=0):
     # pylint: disable=invalid-name
     """
     Aggregate cross-validation results.
     
-    If show_progress is true, progress is displayed in every call. If
-    show_progress is an integer, progress will only be displayed every
-    `show_progress` trees, tracked via trial.
+    If verbose_eval is true, progress is displayed in every call. If
+    verbose_eval is an integer, progress will only be displayed every
+    `verbose_eval` trees, tracked via trial.
     """
     cvmap = {}
     idx = rlist[0].split()[0]
@@ -341,16 +341,16 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
             import pandas as pd
             results = pd.Series(results, index=index)
         except ImportError:
-            if show_progress is None:
-                show_progress = True
+            if verbose_eval is None:
+                verbose_eval = True
     else:
-        # if show_progress is default (None),
+        # if verbose_eval is default (None),
         # result will be np.ndarray as it can't hold column name
-        if show_progress is None:
-            show_progress = True
+        if verbose_eval is None:
+            verbose_eval = True
 
-    if (isinstance(show_progress, int) and show_progress > 0 and trial % show_progress == 0) or \
-            (isinstance(show_progress, bool) and show_progress):
+    if (isinstance(verbose_eval, int) and verbose_eval > 0 and trial % verbose_eval == 0) or \
+            (isinstance(verbose_eval, bool) and verbose_eval):
         sys.stderr.write(msg + '\n')
         sys.stderr.flush()
 
@@ -359,7 +359,7 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, show_progress=None, show_stdv=True, seed=0):
+       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True, seed=0):
     # pylint: disable = invalid-name
     """Cross-validation with given paramaters.
 
@@ -395,11 +395,11 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     as_pandas : bool, default True
         Return pd.DataFrame when pandas is installed.
         If False or pandas is not installed, return np.ndarray
-    show_progress : bool, int, or None, default None
+    verbose_eval : bool, int, or None, default None
         Whether to display the progress. If None, progress will be displayed
         when np.ndarray is returned. If True, progress will be displayed at
         boosting stage. If an integer is given, progress will be displayed
-        at every given `show_progress` boosting stage.
+        at every given `verbose_eval` boosting stage.
     show_stdv : bool, default True
         Whether to display the standard deviation in progress.
         Results are not affected, and always contains std.
@@ -436,9 +436,9 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         if len(metrics) > 1:
             raise ValueError('Check your params. '\
                                      'Early stopping works with single eval metric only.')
-
-        sys.stderr.write("Will train until cv error hasn't decreased in {} rounds.\n".format(\
-            early_stopping_rounds))
+        if verbose_eval:
+            sys.stderr.write("Will train until cv error hasn't decreased in {} rounds.\n".format(\
+                early_stopping_rounds))
 
         maximize_score = False
         if len(metrics) == 1:
@@ -460,7 +460,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         for fold in cvfolds:
             fold.update(i, obj)
         res = aggcv([f.eval(i, feval) for f in cvfolds],
-                    show_stdv=show_stdv, show_progress=show_progress,
+                    show_stdv=show_stdv, verbose_eval=verbose_eval,
                     as_pandas=as_pandas, trial=i)
         results.append(res)
 
@@ -472,8 +472,9 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                 best_score_i = i
             elif i - best_score_i >= early_stopping_rounds:
                 results = results[:best_score_i+1]
-                sys.stderr.write("Stopping. Best iteration:\n[{}] cv-mean:{}\tcv-std:{}\n".
-                                 format(best_score_i, results[-1][0], results[-1][1]))
+                if verbose_eval:
+                    sys.stderr.write("Stopping. Best iteration:\n[{}] cv-mean:{}\tcv-std:{}\n".
+                                     format(best_score_i, results[-1][0], results[-1][1]))
                 break
     if as_pandas:
         try:
