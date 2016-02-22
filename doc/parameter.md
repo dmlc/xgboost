@@ -80,7 +80,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - User can add multiple evaluation metrics, for python user, remember to pass the metrics in as list of parameters pairs instead of map, so that latter 'eval_metric' won't override previous one
   - The choices are listed below:
   - "rmse": [root mean square error](http://en.wikipedia.org/wiki/Root_mean_square_error)
-  - "mae": [mean absolute error](https://en.wikipedia.org/wiki/Mean_absolute_difference)
+  - "mae": [mean absolute error](https://en.wikipedia.org/wiki/Mean_absolute_error)
   - "logloss": negative [log-likelihood](http://en.wikipedia.org/wiki/Log-likelihood)
   - "error": Binary classification error rate. It is calculated as #(wrong cases)/#(all cases). For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
   - "merror": Multiclass classification error rate. It is calculated as #(wrong cases)/#(all cases).
