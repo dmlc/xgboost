@@ -72,6 +72,15 @@ struct EvalRMSE : public EvalEWiseBase<EvalRMSE> {
   }
 };
 
+struct EvalMAE : public EvalEWiseBase<EvalMAE> {
+  const char *Name() const override {
+    return "mae";
+  }
+  inline static float EvalRow(float label, float pred) {
+    return common::Abs(diff * diff);
+  }
+};
+
 struct EvalLogLoss : public EvalEWiseBase<EvalLogLoss> {
   const char *Name() const override {
     return "logloss";

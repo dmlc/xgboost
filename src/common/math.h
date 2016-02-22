@@ -24,6 +24,15 @@ inline float Sigmoid(float x) {
 }
 
 /*!
+ * \brief calculate the absolute value of the input.
+ * \param x input parameter
+ * \return the transformed value.
+ */
+inline float Abs(float x) {
+  return x > 0 ? x : -x;
+}
+
+/*!
  * \brief do inplace softmax transformaton on p_rec
  * \param p_rec the input/output vector of the values.
  */
