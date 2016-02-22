@@ -77,7 +77,7 @@ struct EvalMAE : public EvalEWiseBase<EvalMAE> {
     return "mae";
   }
   inline static float EvalRow(float label, float pred) {
-    return common::Abs(diff * diff);
+    return common::Abs(label - pred);
   }
 };
 
