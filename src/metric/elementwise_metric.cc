@@ -123,6 +123,10 @@ XGBOOST_REGISTER_METRIC(RMSE, "rmse")
 .describe("Rooted mean square error.")
 .set_body([](const char* param) { return new EvalRMSE(); });
 
+XGBOOST_REGISTER_METRIC(MAE, "mae")
+.describe("Mean absolute error.")
+.set_body([](const char* param) { return new EvalMAE(); });
+
 XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
 .describe("Negative loglikelihood for logistic regression.")
 .set_body([](const char* param) { return new EvalLogLoss(); });
