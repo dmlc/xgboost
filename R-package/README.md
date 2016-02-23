@@ -19,17 +19,22 @@ We are [on CRAN](https://cran.r-project.org/web/packages/xgboost/index.html) now
 install.packages('xgboost')
 ```
 
-For up-to-date version, please install from github. Windows user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
-
-```r
-devtools::install_git('git://github.com/dmlc/xgboost',subdir='R-package')
-```
-
 You can also install from our weekly updated drat repo:
 ```r
 install.packages("drat", repos="https://cran.rstudio.com")
 drat:::addRepo("dmlc")
 install.packages("xgboost", repos="http://dmlc.ml/drat/", type="source")
+```
+
+***Important*** Due to the usage of submodule, `install_github` is no longer support to install the
+latest version of R package. 
+For up-to-date version, please install from github. Windows user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
+
+```bash
+git clone --recursive https://github.com/dmlc/xgboost
+cd xgboost
+make Rbuild
+R CMD INSTALL xgboost_0.4-3.tar.gz
 ```
 
 For more detailed installation instructions, please see [here](http://xgboost.readthedocs.org/en/latest/build.html#r-package-installation).
