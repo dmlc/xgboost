@@ -58,7 +58,7 @@ cd xgboost; make -j4
 
 ### Building on OSX
 
-On Ubuntu OSX, one build xgboost by
+On OSX, one build xgboost by
 
 ```bash
 git clone --recursive https://github.com/dmlc/xgboost
