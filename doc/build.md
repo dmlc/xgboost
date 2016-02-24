@@ -180,6 +180,16 @@ First follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compi
   install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
   ```
 
+Due to the usage of submodule, `install_github` is no longer support to install the
+latest version of R package. To install the latest version,
+
+```bash
+git clone --recursive https://github.com/dmlc/xgboost
+cd xgboost
+make Rbuild
+R CMD INSTALL xgboost_0.4-3.tar.gz
+```
+
 ## Trouble Shooting
 
 1. **Compile failed after `git pull`**
