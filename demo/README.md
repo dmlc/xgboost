@@ -14,8 +14,8 @@ Contents
   - [Benchmarks](#benchmarks)
 - [Machine Learning Challenge Winning Solutions](#machine-learning-challenge-winning-solutions)
 - [Tutorials](#tutorials)
+- [Usecases](#usecases)
 - [Tools using XGBoost](#tools-using-xgboost)
-- [Services Powered by XGBoost](#services-powered-by-xgboost)
 - [Awards](#awards)
 
 Code Examples
@@ -101,14 +101,19 @@ Please send pull requests if you find ones that are missing here.
 - [Notes on eXtreme Gradient Boosting](http://startup.ml/blog/xgboost) by ARSHAK NAVRUZYAN ([iPython Notebook](https://github.com/startupml/koan/blob/master/eXtreme%20Gradient%20Boosting.ipynb))
 
 
+## Usecases
+If you have particular usecase of xgboost that you would like to highlight.
+Send a PR to add a one sentence description:)
+
+- XGBoost is used in [Kaggle Script](https://www.kaggle.com/scripts) to solve data science challenges.
+- [Seldon predictive service powered by XGBoost](http://docs.seldon.io/iris-demo.html)
+- XGBoost Distributed is used in [ODPS Cloud Service by Alibaba](https://yq.aliyun.com/articles/6355) (in Chinese)
+- XGBoost is incoporated as part of [Graphlab Create](https://dato.com/products/create/) for scalable machine learning.
+
+
 ## Tools using XGBoost
 
 - [BayesBoost](https://github.com/mpearmain/BayesBoost) - Bayesian Optimization using xgboost and sklearn API
-
-## Services Powered by XGBoost
-
-- [Seldon predictive service powered by XGBoost](http://docs.seldon.io/iris-demo.html)
-- [ODPS by Alibaba](https://yq.aliyun.com/articles/6355) (in Chinese)
 
 ## Awards
 - [John Chambers Award](http://stat-computing.org/awards/jmc/winners.html) - 2016 Winner: XGBoost R Package, by Tong He (Simon Fraser University) and Tianqi Chen (University of Washington)
