@@ -7,18 +7,14 @@
 [![PyPI version](https://badge.fury.io/py/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
 [![Gitter chat for developers at https://gitter.im/dmlc/xgboost](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/dmlc/xgboost?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
+|[Documentation](https://xgboost.readthedocs.org)| [Resources](demo/README.md) | [Installation](https://xgboost.readthedocs.org/en/latest/build.html)|
+[Release Notes](NEWS.md)|
+
 XGBoost is an optimized distributed gradient boosting library designed to be highly *efficient*, *flexible* and *portable*.
 It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework.
 XGBoost provides a parallel tree boosting(also known as GBDT, GBM) that solve many data science problems in a fast and accurate way.
 The same code runs on major distributed environment(Hadoop, SGE, MPI) and can solve problems beyond billions of examples.
 XGBoost is part of [DMLC](http://dmlc.github.io/) projects.
-
-Contents
---------
-* [Documentation and Tutorials](https://xgboost.readthedocs.org)
-* [Code Examples](demo)
-* [Installation](doc/build.md)
-* [Contribute to XGBoost](http://xgboost.readthedocs.org/en/latest/dev-guide/contribute.html)
 
 What's New
 ----------
