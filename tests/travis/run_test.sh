@@ -26,10 +26,14 @@ if [ ${TASK} == "python_test" ]; then
     echo "-------------------------------"
     source activate python3
     python --version
+    conda install numpy scipy pandas matplotlib nose scikit-learn
+    python -m pip install graphviz
     python -m nose tests/python || exit -1
     source activate python2
     echo "-------------------------------"
     python --version
+    conda install numpy scipy pandas matplotlib nose scikit-learn
+    python -m pip install graphviz
     python -m nose tests/python || exit -1
     exit 0
 fi
