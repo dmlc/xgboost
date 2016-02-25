@@ -26,10 +26,4 @@ if [ ${TASK} == "python_test" ]; then
     conda info -a
     conda create -n python3 python=3.5
     conda create -n python2 python=2.7
-    source activate python3
-    conda install numpy scipy pandas matplotlib nose scikit-learn
-    python -m pip install graphviz
-    source activate python2
-    conda install numpy scipy pandas matplotlib nose scikit-learn
-    python -m pip install graphviz
 fi
