@@ -206,7 +206,10 @@ class XGBModel(XGBModelBase):
             Requires at least one item in evals.  If there's more than one,
             will use the last. Returns the model from the last iteration
             (not the best one). If early stopping occurs, the model will
-            have two additional fields: bst.best_score and bst.best_iteration.
+            have three additional fields: bst.best_score, bst.best_iteration
+            and bst.best_ntree_limit.
+            (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
+            and/or num_class appears in the parameters)
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -251,6 +254,7 @@ class XGBModel(XGBModelBase):
         if early_stopping_rounds is not None:
             self.best_score = self._Booster.best_score
             self.best_iteration = self._Booster.best_iteration
+            self.best_ntree_limit = self._Booster.best_ntree_limit
         return self
 
     def predict(self, data, output_margin=False, ntree_limit=0):
@@ -349,7 +353,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             Requires at least one item in evals.  If there's more than one,
             will use the last. Returns the model from the last iteration
             (not the best one). If early stopping occurs, the model will
-            have two additional fields: bst.best_score and bst.best_iteration.
+            have three additional fields: bst.best_score, bst.best_iteration
+            and bst.best_ntree_limit.
+            (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
+            and/or num_class appears in the parameters)
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -416,6 +423,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if early_stopping_rounds is not None:
             self.best_score = self._Booster.best_score
             self.best_iteration = self._Booster.best_iteration
+            self.best_ntree_limit = self._Booster.best_ntree_limit
 
         return self
 
