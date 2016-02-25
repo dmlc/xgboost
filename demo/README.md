@@ -1,8 +1,7 @@
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+Awesome XGBoost 
+======
+Welcome to the wonderland of XGBoost. This page contains a curated list of awesome XGBoost examples, tutorials and blogs. It is inspired by [awesome-MXNet](https://github.com/dmlc/mxnet/blob/master/example/README.md), [awesome-php](https://github.com/ziadoz/awesome-php) and [awesome-machine-learning](https://github.com/josephmisiti/awesome-machine-learning).
 
-- [Awesome XGBoost](#awesome-xgboost)
   - [Contributing](#contributing)
   - [Examples](#examples)
     - [Features Walkthrough](#features-walkthrough)
@@ -13,12 +12,6 @@
   - [Tools with XGBoost](#tools-with-xgboost)
   - [Services Powered by XGBoost](#services-powered-by-xgboost)
   - [Awards](#awards)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-Awesome XGBoost 
-======
-Welcome to the wonderland of XGBoost. This page contains a curated list of awesome XGBoost examples, tutorials and blogs. It is inspired by [awesome-MXNet](https://github.com/dmlc/mxnet/blob/master/example/README.md), [awesome-php](https://github.com/ziadoz/awesome-php) and [awesome-machine-learning](https://github.com/josephmisiti/awesome-machine-learning).
 
 Contributing
 ----
