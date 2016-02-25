@@ -213,7 +213,9 @@ void CLITrain(const CLIParam& param) {
         LOG(CONSOLE) << res;
       }
     }
-    if (param.save_period != 0 && (i + 1) % param.save_period == 0) {
+    if (param.save_period != 0 &&
+        (i + 1) % param.save_period == 0 &&
+        rabit::GetRank() == 0) {
       std::ostringstream os;
       os << param.model_dir << '/'
          << std::setfill('0') << std::setw(4)
@@ -233,7 +235,8 @@ void CLITrain(const CLIParam& param) {
   }
   // always save final round
   if ((param.save_period == 0 || param.num_round % param.save_period != 0) &&
-      param.model_out != "NONE") {
+      param.model_out != "NONE" &&
+      rabit::GetRank() == 0) {
     std::ostringstream os;
     if (param.model_out == "NULL") {
       os << param.model_dir << '/'
