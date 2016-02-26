@@ -23,7 +23,7 @@ This section contains users guides that are general across languages.
 
 * [Installation Guide](build.md)
 * [Introduction to Boosted Trees](model.md)
-* [Distributed Training](../demo/distributed-training)
+* [Distributed Training Tutorial](tutorial/aws_yarn.md)
 * [Frequently Asked Questions](faq.md)
 * [External Memory Version](external_memory.md)
 * [Learning to use XGBoost by Example](../demo)
