@@ -11,7 +11,6 @@ This document is hosted at http://xgboost.readthedocs.org/. You can also browse 
 Package Documents
 -----------------
 This section contains language specific package guide.
-
 * [XGBoost Command Line Usage Walkthrough](../demo/binary_classification/README.md)
 * [Python Package Document](python/index.md)
 * [R Package Document](R-package/index.md)
@@ -20,7 +19,6 @@ This section contains language specific package guide.
 User Guides
 -----------
 This section contains users guides that are general across languages.
-
 * [Installation Guide](build.md)
 * [Introduction to Boosted Trees](model.md)
 * [Distributed Training Tutorial](tutorial/aws_yarn.md)
@@ -36,7 +34,6 @@ Tutorials
 ---------
 This section contains official tutorials of XGBoost package.
 See [Awesome XGBoost](https://github.com/dmlc/xgboost/tree/master/demo) for links to mores resources.
-
 * [Introduction to XGBoost in R](R-package/xgboostPresentation.md) (R package)
   - This is a general presentation about xgboost in R.
 * [Discover your data with XGBoost in R](R-package/discoverYourData.md) (R package)
