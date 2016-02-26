@@ -48,3 +48,5 @@ except ImportError:
     XGBModelBase = object
     XGBClassifierBase = object
     XGBRegressorBase = object
+    XGBKFold = None
+    XGBStratifiedKFold = None
