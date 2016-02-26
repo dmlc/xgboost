@@ -42,7 +42,7 @@ assert np.sum(np.abs(preds2-preds)) == 0
 pks = pickle.dumps(bst2)
 # load model and data in
 bst3 = pickle.loads(pks)
-preds3 = bst2.predict(dtest2)
+preds3 = bst3.predict(dtest2)
 # assert they are the same
 assert np.sum(np.abs(preds3-preds)) == 0
 
