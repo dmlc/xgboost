@@ -20,6 +20,7 @@ The same code runs on major distributed environment(Hadoop, SGE, MPI) and can so
 
 What's New
 ----------
+* [Distributed XGBoost on AWS with YARN](https://xgboost.readthedocs.org/en/latest/tutorial/aws_yarn.html)
 * [XGBoost brick](NEWS.md) Release
 
 
