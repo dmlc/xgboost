@@ -13,9 +13,6 @@ To run the examples locally, you will need to build them with ```make```.
   - [Checkpoint and LazyCheckpoint](#checkpoint-and-lazycheckpoint)
 * [Compile Programs with Rabit](#compile-programs-with-rabit)
 * [Running Rabit Jobs](#running-rabit-jobs)
-  - [Running Rabit on Hadoop](#running-rabit-on-hadoop)
-  - [Running Rabit using MPI](#running-rabit-using-mpi)
-  - [Customize Tracker Script](#customize-tracker-script)
 * [Fault Tolerance](#fault-tolerance)
 
 What is Allreduce
@@ -334,45 +331,7 @@ For example, consider the following script in the test case
 Running Rabit Jobs
 ------------------
 Rabit is a portable library that can run on multiple platforms.
-
-#### Running Rabit Locally
-* You can use [../tracker/rabit_demo.py](https://github.com/dmlc/rabit/blob/master/tracker/rabit_demo.py) to start n processes locally
-* This script will restart the program when it exits with -2, so it can be used for [mock test](#link-against-mock-test-library)
-
-#### Running Rabit on Hadoop
-* You can use [../tracker/rabit_yarn.py](https://github.com/dmlc/rabit/blob/master/tracker/rabit_yarn.py) to run rabit programs as Yarn application
-* This will start rabit programs as yarn applications
-  - This allows multi-threading programs in each node, which can be more efficient
-  - An easy multi-threading solution could be to use OpenMP with rabit code
-* It is also possible to run rabit program via hadoop streaming, however, YARN is highly recommended.
-
-#### Running Rabit using MPI
-* You can submit rabit programs to an MPI cluster using [../tracker/rabit_mpi.py](https://github.com/dmlc/rabit/blob/master/tracker/rabit_mpi.py).
-* If you linked your code against librabit_mpi.a, then you can directly use mpirun to submit the job
-
-#### Customize Tracker Script
-You can also modify the tracker script to allow rabit to run on other platforms. To do so, refer to existing
-tracker scripts, such as [../tracker/rabit_yarn.py](../tracker/rabit_yarn.py) and [../tracker/rabit_mpi.py](https://github.com/dmlc/rabit/blob/master/tracker/rabit_mpi.py) to get a sense of how it is done.
-
-You will need to implement a platform dependent submission function with the following definition
-```python
-def fun_submit(nworkers, worker_args, worker_envs):
-    """
-      customized submit script, that submits nslave jobs,
-      each must contain args as parameter
-      note this can be a lambda closure
-      Parameters
-         nworkers number of worker processes to start
-         worker_args addtiional arguments that needs to be passed to worker
-         worker_envs enviroment variables that need to be set to the worker
-    """
-```
-The submission function should start nworkers processes in the platform, and append worker_args to the end of the other arguments.
-Then you can simply call ```tracker.submit``` with fun_submit to submit jobs to the target platform
-
-Note that the current rabit tracker does not restart a worker when it dies, the restart of a node is done by the platform, otherwise we should write the fail-restart logic in the custom script.
-* Fail-restart is usually provided by most platforms.
-  - rabit-yarn provides such functionality in YARN
+All the rabit jobs can be submitted using [dmlc-tracker](https://github.com/dmlc/dmlc-core/tree/master/tracker)
 
 Fault Tolerance
 ---------------
