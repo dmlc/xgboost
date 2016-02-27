@@ -5,10 +5,11 @@
 
 #include <cstring>
 #include <string>
-#include "../include/rabit.h"
-#include "./rabit_wrapper.h"
+#include "../include/rabit/rabit.h"
+#include "../include/rabit/c_api.h"
+
 namespace rabit {
-namespace wrapper {
+namespace c_api {
 // helper use to avoid BitOR operator
 template<typename OP, typename DType>
 struct FHelper {
@@ -21,6 +22,7 @@ struct FHelper {
                          prepare_fun, prepare_arg);
   }
 };
+
 template<typename DType>
 struct FHelper<op::BitOR, DType> {
   inline static void
@@ -31,6 +33,7 @@ struct FHelper<op::BitOR, DType> {
     utils::Error("DataType does not support bitwise or operation");
   }
 };
+
 template<typename OP>
 inline void Allreduce_(void *sendrecvbuf_,
                        size_t count,
@@ -117,8 +120,9 @@ inline void Allreduce(void *sendrecvbuf,
     default: utils::Error("unknown enum_op");
   }
 }
-// temporal memory for global and local model
-std::string global_buffer, local_buffer;
+
+
+
 // wrapper for serialization
 struct ReadWrapper : public Serializable {
   std::string *p_str;
@@ -138,6 +142,7 @@ struct ReadWrapper : public Serializable {
     utils::Error("not implemented");
   }
 };
+
 struct WriteWrapper : public Serializable {
   const char *data;
   size_t length;
@@ -154,87 +159,101 @@ struct WriteWrapper : public Serializable {
     fo->Write(data, length * sizeof(char));
   }
 };
-}  // namespace wrapper
+}  // namespace c_api
 }  // namespace rabit
-extern "C" {
-  void RabitInit(int argc, char *argv[]) {
-    rabit::Init(argc, argv);
+
+void RabitInit(int argc, char *argv[]) {
+  rabit::Init(argc, argv);
+}
+
+void RabitFinalize() {
+  rabit::Finalize();
+}
+
+int RabitGetRank() {
+  return rabit::GetRank();
+}
+
+int RabitGetWorldSize() {
+  return rabit::GetWorldSize();
+}
+
+void RabitTrackerPrint(const char *msg) {
+  std::string m(msg);
+  rabit::TrackerPrint(m);
+}
+
+void RabitGetProcessorName(char *out_name,
+                           rbt_ulong *out_len,
+                           rbt_ulong max_len) {
+  std::string s = rabit::GetProcessorName();
+  if (s.length() > max_len) {
+    s.resize(max_len - 1);
   }
-  void RabitFinalize(void) {
-    rabit::Finalize();
-  }
-  int RabitGetRank(void) {
-    return rabit::GetRank();
-  }
-  int RabitGetWorldSize(void) {
-    return rabit::GetWorldSize();
-  }
-  void RabitTrackerPrint(const char *msg) {
-    std::string m(msg);
-    rabit::TrackerPrint(m);
-  }
-  void RabitGetProcessorName(char *out_name,
-                             rbt_ulong *out_len,
-                             rbt_ulong max_len) {
-    std::string s = rabit::GetProcessorName();
-    if (s.length() > max_len) {
-      s.resize(max_len - 1);
-    }
-    strcpy(out_name, s.c_str()); // NOLINT(*)
-    *out_len = static_cast<rbt_ulong>(s.length());
-  }
-  void RabitBroadcast(void *sendrecv_data,
-                      rbt_ulong size, int root) {
-    rabit::Broadcast(sendrecv_data, size, root);
-  }
-  void RabitAllreduce(void *sendrecvbuf,
+  strcpy(out_name, s.c_str()); // NOLINT(*)
+  *out_len = static_cast<rbt_ulong>(s.length());
+}
+
+void RabitBroadcast(void *sendrecv_data,
+                    rbt_ulong size, int root) {
+  rabit::Broadcast(sendrecv_data, size, root);
+}
+
+void RabitAllreduce(void *sendrecvbuf,
                       size_t count,
-                      int enum_dtype,
-                      int enum_op,
-                      void (*prepare_fun)(void *arg),
-                      void *prepare_arg) {
-    rabit::wrapper::Allreduce
-        (sendrecvbuf, count,
-         static_cast<rabit::engine::mpi::DataType>(enum_dtype),
-         static_cast<rabit::engine::mpi::OpType>(enum_op),
-         prepare_fun, prepare_arg);
+                    int enum_dtype,
+                    int enum_op,
+                    void (*prepare_fun)(void *arg),
+                    void *prepare_arg) {
+  rabit::c_api::Allreduce
+      (sendrecvbuf, count,
+       static_cast<rabit::engine::mpi::DataType>(enum_dtype),
+       static_cast<rabit::engine::mpi::OpType>(enum_op),
+       prepare_fun, prepare_arg);
+}
+
+int RabitLoadCheckPoint(char **out_global_model,
+                        rbt_ulong *out_global_len,
+                        char **out_local_model,
+                        rbt_ulong *out_local_len) {
+  // NOTE: this function is not thread-safe
+  using rabit::BeginPtr;
+  using namespace rabit::c_api; // NOLINT(*)
+  static std::string global_buffer;
+  static std::string local_buffer;
+
+  ReadWrapper sg(&global_buffer);
+  ReadWrapper sl(&local_buffer);
+  int version;
+
+  if (out_local_model == NULL) {
+    version = rabit::LoadCheckPoint(&sg, NULL);
+    *out_global_model = BeginPtr(global_buffer);
+    *out_global_len = static_cast<rbt_ulong>(global_buffer.length());
+  } else {
+    version = rabit::LoadCheckPoint(&sg, &sl);
+    *out_global_model = BeginPtr(global_buffer);
+    *out_global_len = static_cast<rbt_ulong>(global_buffer.length());
+    *out_local_model = BeginPtr(local_buffer);
+    *out_local_len = static_cast<rbt_ulong>(local_buffer.length());
   }
-  int RabitLoadCheckPoint(char **out_global_model,
-                          rbt_ulong *out_global_len,
-                          char **out_local_model,
-                          rbt_ulong *out_local_len) {
-    using rabit::BeginPtr;
-    using namespace rabit::wrapper;
-    ReadWrapper sg(&global_buffer);
-    ReadWrapper sl(&local_buffer);
-    int version;
-    if (out_local_model == NULL) {
-      version = rabit::LoadCheckPoint(&sg, NULL);
-      *out_global_model = BeginPtr(global_buffer);
-      *out_global_len = static_cast<rbt_ulong>(global_buffer.length());
-    } else {
-      version = rabit::LoadCheckPoint(&sg, &sl);
-      *out_global_model = BeginPtr(global_buffer);
-      *out_global_len = static_cast<rbt_ulong>(global_buffer.length());
-      *out_local_model = BeginPtr(local_buffer);
-      *out_local_len = static_cast<rbt_ulong>(local_buffer.length());
-    }
-    return version;
+  return version;
+}
+
+void RabitCheckPoint(const char *global_model,
+                     rbt_ulong global_len,
+                     const char *local_model,
+                     rbt_ulong local_len) {
+  using namespace rabit::c_api; // NOLINT(*)
+  WriteWrapper sg(global_model, global_len);
+  WriteWrapper sl(local_model, local_len);
+  if (local_model == NULL) {
+    rabit::CheckPoint(&sg, NULL);
+  } else {
+    rabit::CheckPoint(&sg, &sl);
   }
-  void RabitCheckPoint(const char *global_model,
-                       rbt_ulong global_len,
-                       const char *local_model,
-                       rbt_ulong local_len) {
-    using namespace rabit::wrapper;
-    WriteWrapper sg(global_model, global_len);
-    WriteWrapper sl(local_model, local_len);
-    if (local_model == NULL) {
-      rabit::CheckPoint(&sg, NULL);
-    } else {
-      rabit::CheckPoint(&sg, &sl);
-    }
-  }
-  int RabitVersionNumber(void) {
-    return rabit::VersionNumber();
-  }
+}
+
+int RabitVersionNumber() {
+  return rabit::VersionNumber();
 }

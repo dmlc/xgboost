@@ -14,29 +14,58 @@ import numpy as np
 # version information about the doc
 __version__ = '1.0'
 
-if os.name == 'nt':
-    WRAPPER_PATH = os.path.dirname(__file__) + '\\..\\windows\\x64\\Release\\rabit_wrapper%s.dll'
-else:
-    WRAPPER_PATH = os.path.dirname(__file__) + '/librabit_wrapper%s.so'
-
 _LIB = None
 
+def _find_lib_path(dll_name):
+    """Find the rabit dynamic library files.
+
+    Returns
+    -------
+    lib_path: list(string)
+       List of all found library path to rabit
+    """
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    # make pythonpack hack: copy this directory one level upper for setup.py
+    dll_path = [curr_path,
+                os.path.join(curr_path, '../lib/'),
+                os.path.join(curr_path, './lib/')]
+    if os.name == 'nt':
+        dll_path = [os.path.join(p, dll_name) for p in dll_path]
+    else:
+        dll_path = [os.path.join(p, dll_name) for p in dll_path]
+    lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
+    #From github issues, most of installation errors come from machines w/o compilers
+    if len(lib_path) == 0 and not os.environ.get('XGBOOST_BUILD_DOC', False):
+        raise RuntimeError(
+            'Cannot find Rabit Libarary in the candicate path, ' +
+            'did you install compilers and run build.sh in root path?\n'
+            'List of candidates:\n' + ('\n'.join(dll_path)))
+    return lib_path
+
 # load in xgboost library
-def _loadlib(lib='standard'):
+def _loadlib(lib='standard', lib_dll=None):
     """Load rabit library."""
     global _LIB
-    if _LIB != None:
+    if _LIB is not None:
         warnings.warn('rabit.int call was ignored because it has'\
                           ' already been initialized', level=2)
         return
+
+    if lib_dll is not None:
+        _LIB = lib_dll
+        return
+
     if lib == 'standard':
-        _LIB = ctypes.cdll.LoadLibrary(WRAPPER_PATH % '')
-    elif lib == 'mock':
-        _LIB = ctypes.cdll.LoadLibrary(WRAPPER_PATH % '_mock')
-    elif lib == 'mpi':
-        _LIB = ctypes.cdll.LoadLibrary(WRAPPER_PATH % '_mpi')
+        dll_name = 'librabit'
     else:
-        raise Exception('unknown rabit lib %s, can be standard, mock, mpi' % lib)
+        dll_name = 'librabit_' + lib
+
+    if os.name == 'nt':
+        dll_name += '.dll'
+    else:
+        dll_name += '.so'
+
+    _LIB = ctypes.cdll.LoadLibrary(_find_lib_path(dll_name)[0])
     _LIB.RabitGetRank.restype = ctypes.c_int
     _LIB.RabitGetWorldSize.restype = ctypes.c_int
     _LIB.RabitVersionNumber.restype = ctypes.c_int
@@ -53,7 +82,7 @@ MIN = 1
 SUM = 2
 BITOR = 3
 
-def init(args=None, lib='standard'):
+def init(args=None, lib='standard', lib_dll=None):
     """Intialize the rabit module, call this once before using anything.
 
     Parameters
@@ -62,12 +91,16 @@ def init(args=None, lib='standard'):
         The list of arguments used to initialized the rabit
         usually you need to pass in sys.argv.
         Defaults to sys.argv when it is None.
-    lib: {'standard', 'mock', 'mpi'}
+    lib: {'standard', 'mock', 'mpi'}, optional
         Type of library we want to load
+        When cdll is specified
+    lib_dll: ctypes.DLL, optional
+        The DLL object used as lib.
+        When this is presented argument lib will be ignored.
     """
     if args is None:
         args = sys.argv
-    _loadlib(lib)
+    _loadlib(lib, lib_dll)
     arr = (ctypes.c_char_p * len(args))()
     arr[:] = args
     _LIB.RabitInit(len(args), arr)

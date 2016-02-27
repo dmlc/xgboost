@@ -4,8 +4,8 @@
  * \brief This file defines the utils for timing
  * \author Tianqi Chen, Nacho, Tianyi
  */
-#ifndef RABIT_TIMER_H_
-#define RABIT_TIMER_H_
+#ifndef RABIT_INTERNAL_TIMER_H_
+#define RABIT_INTERNAL_TIMER_H_
 #include <time.h>
 #ifdef __MACH__
 #include <mach/clock.h>
@@ -38,4 +38,4 @@ inline double GetTime(void) {
 }
 }  // namespace utils
 }  // namespace rabit
-#endif  // RABIT_TIMER_H_
+#endif  // RABIT_INTERNAL_TIMER_H_

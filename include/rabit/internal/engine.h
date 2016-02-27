@@ -4,10 +4,10 @@
  * \brief This file defines the core interface of rabit library
  * \author Tianqi Chen, Nacho, Tianyi
  */
-#ifndef RABIT_ENGINE_H_
-#define RABIT_ENGINE_H_
+#ifndef RABIT_INTERNAL_ENGINE_H_
+#define RABIT_INTERNAL_ENGINE_H_
 #include <string>
-#include "../rabit_serializable.h"
+#include "../serializable.h"
 
 namespace MPI {
 /*! \brief MPI data type just to be compatible with MPI reduce function*/
@@ -241,7 +241,8 @@ class ReduceHandle {
    * \param prepare_arg argument used to pass into the lazy preprocessing function
    */
   void Allreduce(void *sendrecvbuf,
-                 size_t type_nbytes, size_t count,
+                 size_t type_nbytes,
+                 size_t count,
                  IEngine::PreprocFunction prepare_fun = NULL,
                  void *prepare_arg = NULL);
   /*! \return the number of bytes occupied by the type */
@@ -259,4 +260,4 @@ class ReduceHandle {
 };
 }  // namespace engine
 }  // namespace rabit
-#endif  // RABIT_ENGINE_H_
+#endif  // RABIT_INTERNAL_ENGINE_H_

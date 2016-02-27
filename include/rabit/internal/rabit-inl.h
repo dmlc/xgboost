@@ -5,8 +5,8 @@
  *
  * \author Tianqi Chen
  */
-#ifndef RABIT_RABIT_INL_H_
-#define RABIT_RABIT_INL_H_
+#ifndef RABIT_INTERNAL_RABIT_INL_H_
+#define RABIT_INTERNAL_RABIT_INL_H_
 // use engine for implementation
 #include <vector>
 #include <string>
@@ -325,4 +325,4 @@ inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
 }
 #endif
 }  // namespace rabit
-#endif  // RABIT_RABIT_INL_H_
+#endif  // RABIT_INTERNAL_RABIT_INL_H_

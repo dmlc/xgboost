@@ -4,8 +4,8 @@
  * \brief simple utils to support the code
  * \author Tianqi Chen
  */
-#ifndef RABIT_UTILS_H_
-#define RABIT_UTILS_H_
+#ifndef RABIT_INTERNAL_UTILS_H_
+#define RABIT_INTERNAL_UTILS_H_
 #define _CRT_SECURE_NO_WARNINGS
 #include <cstdio>
 #include <string>
@@ -188,4 +188,4 @@ inline const char* BeginPtr(const std::string &str) {
   return &str[0];
 }
 }  // namespace rabit
-#endif  // RABIT_UTILS_H_
+#endif  // RABIT_INTERNAL_UTILS_H_

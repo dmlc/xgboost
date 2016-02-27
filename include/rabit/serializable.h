@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2014 by Contributors
- * \file rabit_serializable.h
+ * \file serializable.h
  * \brief defines serializable interface of rabit
  * \author Tianqi Chen
  */
@@ -8,8 +8,8 @@
 #define RABIT_SERIALIZABLE_H_
 #include <vector>
 #include <string>
-#include "./rabit/utils.h"
-#include "./dmlc/io.h"
+#include "./internal/utils.h"
+#include "../dmlc/io.h"
 
 namespace rabit {
 /*!

@@ -1,9 +1,0 @@
-*.suo
-*.exp
-*sdf
-*.exe
-ipch
-x64
-*.filters
-Release
-*.user

@@ -15,8 +15,8 @@
 #include <vector>
 #include <string>
 #include <algorithm>
-#include "../include/rabit/utils.h"
-#include "../include/rabit/engine.h"
+#include "../include/rabit/internal/utils.h"
+#include "../include/rabit/internal/engine.h"
 #include "./socket.h"
 
 namespace MPI {

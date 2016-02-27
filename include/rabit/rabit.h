@@ -22,15 +22,24 @@
 #if DMLC_USE_CXX11
 #include <functional>
 #endif  // C++11
-// contains definition of Serializable
-#include "./rabit_serializable.h"
 // engine definition of rabit, defines internal implementation
 // to use rabit interface, there is no need to read engine.h
 // rabit.h and serializable.h are enough to use the interface
-#include "./rabit/engine.h"
+#include "./internal/engine.h"
 
 /*! \brief rabit namespace */
 namespace rabit {
+/*!
+ * \brief defines stream used in rabit
+ * see definition of Stream in dmlc/io.h
+ */
+typedef dmlc::Stream Stream;
+/*!
+ * \brief defines serializable objects used in rabit
+ * see definition of Serializable in dmlc/io.h
+ */
+typedef dmlc::Serializable Serializable;
+
 /*!
  * \brief reduction operators namespace
  */
@@ -65,16 +74,16 @@ inline void Init(int argc, char *argv[]);
 /*!
  * \brief finalizes the rabit engine, call this function after you finished with all the jobs
  */
-inline void Finalize(void);
+inline void Finalize();
 /*! \brief gets rank of the current process */
-inline int GetRank(void);
+inline int GetRank();
 /*! \brief gets total number of processes */
-inline int GetWorldSize(void);
+inline int GetWorldSize();
 /*! \brief whether rabit env is in distributed mode */
-inline bool IsDistributed(void);
+inline bool IsDistributed();
 
 /*! \brief gets processor's name */
-inline std::string GetProcessorName(void);
+inline std::string GetProcessorName();
 /*!
  * \brief prints the msg to the tracker,
  *    this function can be used to communicate progress information to
@@ -241,7 +250,7 @@ inline void LazyCheckPoint(const Serializable *global_model);
  *         which means how many calls to CheckPoint we made so far
  * \sa LoadCheckPoint, CheckPoint
  */
-inline int VersionNumber(void);
+inline int VersionNumber();
 // ----- extensions that allow customized reducer ------
 // helper class to do customized reduce, user do not need to know the type
 namespace engine {
@@ -258,7 +267,7 @@ class ReduceHandle;
 template<typename DType, void (*freduce)(DType &dst, const DType &src)>  // NOLINT(*)
 class Reducer {
  public:
-  Reducer(void);
+  Reducer();
   /*!
    * \brief customized in-place all reduce operation
    * \param sendrecvbuf the in place send-recv buffer
@@ -299,7 +308,7 @@ class Reducer {
 template<typename DType>
 class SerializeReducer {
  public:
-  SerializeReducer(void);
+  SerializeReducer();
   /*!
    * \brief customized in-place all reduce operation
    * \param sendrecvobj pointer to the array of objects to be reduced
@@ -338,5 +347,6 @@ class SerializeReducer {
 };
 }  // namespace rabit
 // implementation of template functions
-#include "./rabit/rabit-inl.h"
+#include "./internal/
+rabit-inl.h"
 #endif  // RABIT_RABIT_H_ // NOLINT(*)

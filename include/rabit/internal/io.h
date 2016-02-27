@@ -4,15 +4,15 @@
  * \brief utilities with different serializable implementations
  * \author Tianqi Chen
  */
-#ifndef RABIT_IO_H_
-#define RABIT_IO_H_
+#ifndef RABIT_INTERNAL_IO_H_
+#define RABIT_INTERNAL_IO_H_
 #include <cstdio>
 #include <vector>
 #include <cstring>
 #include <string>
 #include <algorithm>
 #include "./utils.h"
-#include "../rabit_serializable.h"
+#include "../serializable.h"
 
 namespace rabit {
 namespace utils {
@@ -103,4 +103,4 @@ struct MemoryBufferStream : public SeekStream {
 };  // class MemoryBufferStream
 }  // namespace utils
 }  // namespace rabit
-#endif  // RABIT_IO_H_
+#endif  // RABIT_INTERNAL_IO_H_

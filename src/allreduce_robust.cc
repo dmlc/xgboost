@@ -10,10 +10,10 @@
 #define NOMINMAX
 #include <limits>
 #include <utility>
-#include "../include/rabit/io.h"
-#include "../include/rabit/utils.h"
-#include "../include/rabit/engine.h"
-#include "../include/rabit/rabit-inl.h"
+#include "../include/rabit/internal/io.h"
+#include "../include/rabit/internal/utils.h"
+#include "../include/rabit/internal/engine.h"
+#include "../include/rabit/internal/rabit-inl.h"
 #include "./allreduce_robust.h"
 
 namespace rabit {
@@ -1180,4 +1180,3 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
 }
 }  // namespace engine
 }  // namespace rabit
-

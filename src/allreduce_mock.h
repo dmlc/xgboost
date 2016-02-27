@@ -11,8 +11,8 @@
 #include <vector>
 #include <map>
 #include <sstream>
-#include "../include/rabit/engine.h"
-#include "../include/rabit/timer.h"
+#include "../include/rabit/internal/engine.h"
+#include "../include/rabit/internal/timer.h"
 #include "./allreduce_robust.h"
 
 namespace rabit {
