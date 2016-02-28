@@ -9,6 +9,9 @@
 
 #ifdef __cplusplus
 #define RABIT_EXTERN_C extern "C"
+#include <cstdio>
+#else
+#include <stdio.h>
 #endif
 
 #if defined(_MSC_VER) || defined(_WIN32)
