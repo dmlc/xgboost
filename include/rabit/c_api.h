@@ -132,4 +132,15 @@ RABIT_DLL void RabitCheckPoint(const char *global_model,
  */
 RABIT_DLL int RabitVersionNumber();
 
+
+/*!
+ * \brief a Dummy function,
+ *  used to cause force link of C API  into the  DLL.
+ * \code
+ * // force link rabit C API library.
+ * static int must_link_rabit_ = RabitLinkTag();
+ * \endcode
+ */
+RABIT_DLL int RabitLinkTag();
+
 #endif  // RABIT_C_API_H_

@@ -257,3 +257,7 @@ void RabitCheckPoint(const char *global_model,
 int RabitVersionNumber() {
   return rabit::VersionNumber();
 }
+
+int RabitLinkTag() {
+  return 0;
+}
