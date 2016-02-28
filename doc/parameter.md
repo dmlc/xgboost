@@ -84,7 +84,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - "logloss": negative [log-likelihood](http://en.wikipedia.org/wiki/Log-likelihood)
   - "error": Binary classification error rate. It is calculated as #(wrong cases)/#(all cases). For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
   - "merror": Multiclass classification error rate. It is calculated as #(wrong cases)/#(all cases).
-  - "mlogloss":  Multiclass logloss
+  - "mlogloss": [Multiclass logloss](https://www.kaggle.com/wiki/MultiClassLogLoss)
   - "auc": [Area under the curve](http://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_curve) for ranking evaluation.
   - "ndcg":[Normalized Discounted Cumulative Gain](http://en.wikipedia.org/wiki/NDCG)
   - "map":[Mean average precision](http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision)
