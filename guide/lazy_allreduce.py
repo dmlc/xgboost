@@ -18,14 +18,14 @@ rank = rabit.get_rank()
 a = np.zeros(n)
 
 def prepare(a):
-    print '@node[%d] run prepare function' % rank
+    print('@node[%d] run prepare function' % rank)
     # must take in reference and modify the reference
     for i in xrange(n):
-        a[i] = rank + i    
-    
-print '@node[%d] before-allreduce: a=%s' % (rank, str(a))
+        a[i] = rank + i
+
+print('@node[%d] before-allreduce: a=%s' % (rank, str(a)))
 a = rabit.allreduce(a, rabit.MAX, prepare_fun = prepare)
-print '@node[%d] after-allreduce-max: a=%s' % (rank, str(a))
+print('@node[%d] after-allreduce-max: a=%s' % (rank, str(a)))
 a = rabit.allreduce(a, rabit.SUM)
-print '@node[%d] after-allreduce-sum: a=%s' % (rank, str(a))
+print('@node[%d] after-allreduce-sum: a=%s' % (rank, str(a)))
 rabit.finalize()

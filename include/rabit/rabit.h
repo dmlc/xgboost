@@ -347,6 +347,5 @@ class SerializeReducer {
 };
 }  // namespace rabit
 // implementation of template functions
-#include "./internal/
-rabit-inl.h"
+#include "./internal/rabit-inl.h"
 #endif  // RABIT_RABIT_H_ // NOLINT(*)
