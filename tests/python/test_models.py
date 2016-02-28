@@ -31,7 +31,7 @@ class TestModels(unittest.TestCase):
 
 		# learning_rates as a customized decay function
 		def eta_decay(ithround, num_boost_round):
-			return num_boost_round / ithround
+			return num_boost_round / (ithround + 1)
 		bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=eta_decay)
 		assert isinstance(bst, xgb.core.Booster)
 
@@ -49,7 +49,7 @@ class TestModels(unittest.TestCase):
 		def evalerror(preds, dtrain):
 			labels = dtrain.get_label()
 			return 'error', float(sum(labels != (preds > 0.0))) / len(labels)
-		
+
 		# test custom_objective in training
 		bst = xgb.train(param, dtrain, num_round, watchlist, logregobj, evalerror)
 		assert isinstance(bst, xgb.core.Booster)

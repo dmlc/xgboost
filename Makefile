@@ -118,7 +118,7 @@ lib/libxgboost.a: $(ALL_DEP)
 
 lib/libxgboost.dll lib/libxgboost.so: $(ALL_DEP)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %a,  $^) $(LDFLAGS)
 
 java/libxgboost4j.so: java/xgboost4j_wrapper.cpp $(ALL_DEP)
 	$(CXX) $(CFLAGS) $(JAVAINCFLAGS) -shared -o $@ $(filter %.cpp %.o %.a, $^) $(LDFLAGS)
