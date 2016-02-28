@@ -29,7 +29,7 @@ local_recover: local_recover.o  $(RABIT_OBJ)
 lazy_recover: lazy_recover.o  $(RABIT_OBJ)
 
 $(BIN) :
-	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^) -lrabit_mock $(LDFLAGS)
+	$(CXX) $(CFLAGS) -o $@ $(filter %.cpp %.o %.c %.cc, $^) ../lib/librabit_mock.a $(LDFLAGS)
 
 $(OBJ) :
 	$(CXX) -c $(CFLAGS) -o $@ $(firstword $(filter %.cpp %.c %.cc, $^) )
