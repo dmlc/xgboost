@@ -11,6 +11,9 @@
 #define XGB_EXTERN_C extern "C"
 #endif
 
+// XGBoost C API will include APIs in Rabit C API
+#include <rabit/c_api.h>
+
 #if defined(_MSC_VER) || defined(_WIN32)
 #define XGB_DLL XGB_EXTERN_C __declspec(dllexport)
 #else
@@ -221,6 +224,7 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle);
 XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
                               const char *name,
                               const char *value);
+
 /*!
  * \brief update the model in one round using dtrain
  * \param handle handle
@@ -282,6 +286,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              unsigned ntree_limit,
                              bst_ulong *out_len,
                              const float **out_result);
+
 /*!
  * \brief load model from existing file
  * \param handle handle
@@ -352,5 +357,25 @@ XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
                                            int with_stats,
                                            bst_ulong *out_len,
                                            const char ***out_models);
+
+// --- Distributed training API----
+// NOTE: functions in rabit/c_api.h will be also available in libxgboost.so
+/*!
+ * \brief Initialize the booster from rabit checkpoint.
+ *  This is used in distributed training API.
+ * \param handle handle
+ * \param version The output version of the model.
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterLoadRabitCheckpoint(
+    BoosterHandle handle,
+    int* version);
+
+/*!
+ * \brief Save the current checkpoint to rabit.
+ * \param handle handle
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterSaveRabitCheckPoint(BoosterHandle handle);
 
 #endif  // XGBOOST_C_API_H_
