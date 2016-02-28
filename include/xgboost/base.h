@@ -47,7 +47,7 @@ namespace xgboost {
  */
 typedef uint32_t bst_uint;
 /*! \brief long integers */
-typedef unsigned long bst_ulong;  // NOLINT(*)
+//typedef unsigned long bst_ulong;  // NOLINT(*)
 /*! \brief float type, used for storing statistics */
 typedef float bst_float;
 

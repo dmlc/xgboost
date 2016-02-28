@@ -7,7 +7,7 @@
 #include <xgboost/metric.h>
 #include <cmath>
 #include "../common/sync.h"
-#include "../common/math.h"
+#include "../common/xgboost_math.h"
 
 namespace xgboost {
 namespace metric {

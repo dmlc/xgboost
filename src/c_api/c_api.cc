@@ -12,7 +12,7 @@
 #include "./c_api_error.h"
 #include "../data/simple_csr_source.h"
 #include "../common/thread_local.h"
-#include "../common/math.h"
+#include "../common/xgboost_math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
 
