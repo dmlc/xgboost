@@ -26,4 +26,4 @@ lazy_recover_10_10k_die_same:
 	../dmlc-core/tracker/dmlc-submit --cluster local --num-workers=10 lazy_recover 10000 mock=0,0,1,0 mock=1,1,1,0 mock=0,1,1,0 mock=4,1,1,0 mock=9,1,1,0
 
 ringallreduce_10_10k:
-	../dmlc-core/tracker/dmlc-submit --cluster local -num-workers=10 model_recover 100 rabit_reduce_ring_mincount=10
+	../dmlc-core/tracker/dmlc-submit --cluster local --num-workers=10 model_recover 100 rabit_reduce_ring_mincount=10

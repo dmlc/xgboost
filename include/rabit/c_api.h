@@ -140,6 +140,7 @@ RABIT_DLL int RabitVersionNumber();
  * // force link rabit C API library.
  * static int must_link_rabit_ = RabitLinkTag();
  * \endcode
+ * \return a dummy integer.
  */
 RABIT_DLL int RabitLinkTag();
 
