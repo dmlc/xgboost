@@ -12,7 +12,7 @@ from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold, XGBKFold)
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
-          verbose_eval=True, learning_rates=None, xgb_model=None):
+          verbose_eval=True, learning_rates=None, xgb_model=None, eta_mod=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -67,7 +67,14 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         - function f: eta = f(boosting round, num_boost_round)
     xgb_model : file name of stored xgb model or 'Booster' instance
         Xgb model to be loaded before training (allows training continuation).
-
+    eta_mod : list of floats
+        Requires early_stopping_rounds and requires early_stopping_rounds. eta_mod and
+        early_stopping_rounds are required to be of length 2.  The first parameter of 
+        early_stopping_rounds will indicate after how many rounds to reduce the learning_rate
+        by the fraction specified in eta_mod[0].  early_stopping_rounds[1] is standard. 
+        eta_mod[1] lets xgboost know that when the learning paramater < eta_mod[1], that 
+        early_stopping_rounds[1] will be used to terminate training. When this is specified,
+        learning_rates will be overriden.
     Returns
     -------
     booster : a trained booster model
@@ -189,13 +196,37 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
 
         if isinstance(learning_rates, list) and len(learning_rates) != num_boost_round:
             raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
+        
+        if eta_mod is not None:
+            if isinstance(eta_mod, list) and len(eta_mod) != 2:
+                raise ValueError("Length of list 'eta_mod' has to equal two.")
+            elif isinstance(eta_mod, list) == False:
+                raise ValueError("'eta_mod' must be a list of length two.")
+            
+            if isinstance(early_stopping_rounds, list) and len(early_stopping_rounds) != 2:
+                raise ValueError("Length of list 'early_stopping_rounds' has to equal two when used with 'eta_mod'.")
+            elif isinstance(early_stopping_rounds, list) == False:
+                raise ValueError("'early_stopping_rounds' must be a list of length two when used with 'eta_mod'.")
+                
+            eta = params['eta']
+        else:
+            early_stopping_rounds = [0,early_stopping_rounds]
 
         for i in range(nboost, nboost + num_boost_round):
-            if learning_rates is not None:
-                if isinstance(learning_rates, list):
-                    bst.set_param({'eta': learning_rates[i]})
-                else:
-                    bst.set_param({'eta': learning_rates(i, num_boost_round)})
+            
+            if eta_mod is not None:
+                if (i - best_score_i >= early_stopping_rounds[0] and eta > eta_mod[1]):
+                    eta = eta*eta_mod[0]
+                    bst.set_param({'eta': eta})
+                    best_score = score
+                    best_score_i = (nboost - 1)
+            else:
+                if learning_rates is not None:
+                    if isinstance(learning_rates, list):
+                        bst.set_param({'eta': learning_rates[i]})
+                    else:
+                        bst.set_param({'eta': learning_rates(i, num_boost_round)})
+                        
             bst.update(dtrain, i, obj)
             nboost += 1
             bst_eval_set = bst.eval_set(evals, i, feval)
@@ -232,7 +263,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 best_score = score
                 best_score_i = (nboost - 1)
                 best_msg = msg
-            elif i - best_score_i >= early_stopping_rounds:
+            elif i - best_score_i >= early_stopping_rounds[1]:
                 if verbose_eval:
                     sys.stderr.write("Stopping. Best iteration:\n{}\n\n".format(best_msg))
                 bst.best_score = best_score
