@@ -1,6 +1,6 @@
 /*!
  * Copyright by Contributors
- * \file rabit_c_api.h
+ * \file c_api.h
  * \author Tianqi Chen
  * \brief a C style API of rabit.
  */
@@ -17,7 +17,7 @@
 #define RABIT_DLL RABIT_EXTERN_C
 #endif
 
-// manually define unsign long
+/*! \brief rabit unsigned long type */
 typedef unsigned long rbt_ulong;  // NOLINT(*)
 
 /*!
