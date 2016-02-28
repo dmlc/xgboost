@@ -11,6 +11,7 @@
 
 #include <xgboost/data.h>
 #include <dmlc/io.h>
+#include <functional>
 #include <vector>
 #include <algorithm>
 #include <cstring>

@@ -10,7 +10,7 @@
 #include <vector>
 #include <algorithm>
 #include <utility>
-#include "../common/math.h"
+#include "../common/xgboost_math.h"
 #include "../common/random.h"
 
 namespace xgboost {

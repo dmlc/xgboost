@@ -11,7 +11,7 @@
 #include <vector>
 #include <algorithm>
 #include <utility>
-#include "../common/math.h"
+#include "../common/xgboost_math.h"
 
 namespace xgboost {
 namespace obj {
