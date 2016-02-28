@@ -183,11 +183,10 @@ class TestBasic(unittest.TestCase):
         assert dm.num_col() == 2
 
     def test_load_file_invalid(self):
-
-        self.assertRaises(xgb.XGBoostError, xgb.Booster,
+        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
                           model_file='incorrect_path')
 
-        self.assertRaises(xgb.XGBoostError, xgb.Booster,
+        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
                           model_file=u'不正なパス')
 
     def test_dmatrix_numpy_init(self):
