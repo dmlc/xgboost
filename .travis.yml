@@ -15,6 +15,7 @@ env:
     - TASK=r_test
     # python package test
     - TASK=python_test
+    - TASK=python_lightweight_test
     # java package test
     - TASK=java_test
 

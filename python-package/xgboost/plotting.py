@@ -42,7 +42,7 @@ def plot_importance(booster, ax=None, height=0.2,
     -------
     ax : matplotlib Axes
     """
-
+    # TODO: move this to compat.py
     try:
         import matplotlib.pyplot as plt
     except ImportError:
