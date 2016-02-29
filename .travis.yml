@@ -31,6 +31,8 @@ matrix:
       env: TASK=r_test
     - os: osx
       env: TASK=java_test
+    - os: osx
+      env: TASK=python_lightweight_test
 
 # dependent apt packages
 addons:
