@@ -57,29 +57,31 @@ class Stream {  // NOLINT(*)
                         bool allow_null = false);
   // helper functions to write/read different data structures
   /*!
-   * \brief writes a vector
-   * \param vec vector to be written/serialized
+   * \brief writes a data to stream
+   *
+   * dmlc::Stream support Write/Read of most STL
+   * composites and base types.
+   * If the data type is not supported, a compile time error will
+   * be issued.
+   *
+   * \param data data to be written
+   * \tparam T the data type to be written
    */
   template<typename T>
-  inline void Write(const std::vector<T> &vec);
+  inline void Write(const T &data);
   /*!
-   * \brief loads a vector
-   * \param out_vec vector to be loaded/deserialized
+   * \brief loads a data from stream.
+   *
+   * dmlc::Stream support Write/Read of most STL
+   * composites and base types.
+   * If the data type is not supported, a compile time error will
+   * be issued.
+   *
+   * \param out_data place holder of data to be deserialized
    * \return whether the load was successful
    */
   template<typename T>
-  inline bool Read(std::vector<T> *out_vec);
-  /*!
-   * \brief writes a string
-   * \param str the string to be written/serialized
-   */
-  inline void Write(const std::string &str);
-  /*!
-   * \brief loads a string
-   * \param out_str string to be loaded/deserialized
-   * \return whether the load/deserialization was successful
-   */
-  inline bool Read(std::string *out_str);
+  inline bool Read(T *out_data);
 };
 
 /*! \brief interface of i/o stream that support seek */
@@ -108,7 +110,7 @@ class SeekStream: public Stream {
 /*! \brief interface for serializable objects */
 class Serializable {
  public:
-  /*! \brief destructor */
+  /*! \brief virtual destructor */
   virtual ~Serializable() {}
   /*!
   * \brief load the model from a stream
@@ -186,6 +188,14 @@ class InputSplit {
   /*! \brief destructor*/
   virtual ~InputSplit(void) {}
   /*!
+   * \brief reset the Input split to a certain part id,
+   *  The InputSplit will be pointed to the head of the new specified segment.
+   *  This feature may not be supported by every implementation of InputSplit.
+   * \param part_index The part id of the new input.
+   * \param num_parts The total number of parts.
+   */
+  virtual void ResetPartition(unsigned part_index, unsigned num_parts) = 0;
+  /*!
    * \brief factory function:
    *  create input split given a uri
    * \param uri the uri of the input, can contain hdfs prefix
@@ -245,22 +255,30 @@ class ostream : public std::basic_ostream<char> {
     this->rdbuf(&buf_);
   }
 
+  /*! \return how many bytes we written so far */
+  inline size_t bytes_written(void) const {
+    return buf_.bytes_out();
+  }
+
  private:
   // internal streambuf
   class OutBuf : public std::streambuf {
    public:
     explicit OutBuf(size_t buffer_size)
-        : stream_(NULL), buffer_(buffer_size) {
+        : stream_(NULL), buffer_(buffer_size), bytes_out_(0) {
       if (buffer_size == 0) buffer_.resize(2);
     }
     // set stream to the buffer
     inline void set_stream(Stream *stream);
 
+    inline size_t bytes_out() const { return bytes_out_; }
    private:
     /*! \brief internal stream by StreamBuf */
     Stream *stream_;
     /*! \brief internal buffer */
     std::vector<char> buffer_;
+    /*! \brief number of bytes written so far */
+    size_t bytes_out_;
     // override sync
     inline int_type sync(void);
     // override overflow
@@ -337,45 +355,19 @@ class istream : public std::basic_istream<char> {
   /*! \brief input buffer */
   InBuf buf_;
 };
+}  // namespace dmlc
 
+#include "./serializer.h"
+
+namespace dmlc {
 // implementations of inline functions
 template<typename T>
-inline void Stream::Write(const std::vector<T> &vec) {
-  uint64_t sz = static_cast<uint64_t>(vec.size());
-  this->Write(&sz, sizeof(sz));
-  if (sz != 0) {
-    this->Write(&vec[0], sizeof(T) * vec.size());
-  }
+inline void Stream::Write(const T &data) {
+  serializer::Handler<T>::Write(this, data);
 }
 template<typename T>
-inline bool Stream::Read(std::vector<T> *out_vec) {
-  uint64_t sz;
-  if (this->Read(&sz, sizeof(sz)) == 0) return false;
-  size_t size = static_cast<size_t>(sz);
-  out_vec->resize(size);
-  if (sz != 0) {
-    if (this->Read(&(*out_vec)[0], sizeof(T) * size) == 0) return false;
-  }
-  return true;
-}
-inline void Stream::Write(const std::string &str) {
-  uint64_t sz = static_cast<uint64_t>(str.length());
-  this->Write(&sz, sizeof(sz));
-  if (sz != 0) {
-    this->Write(&str[0], sizeof(char) * str.length());
-  }
-}
-inline bool Stream::Read(std::string *out_str) {
-  uint64_t sz;
-  if (this->Read(&sz, sizeof(sz)) == 0) return false;
-  size_t size = static_cast<size_t>(sz);
-  out_str->resize(size);
-  if (sz != 0) {
-    if (this->Read(&(*out_str)[0], sizeof(char) * size) == 0) {
-      return false;
-    }
-  }
-  return true;
+inline bool Stream::Read(T *out_data) {
+  return serializer::Handler<T>::Read(this, out_data);
 }
 
 // implementations for ostream
@@ -389,6 +381,7 @@ inline int ostream::OutBuf::sync(void) {
   std::ptrdiff_t n = pptr() - pbase();
   stream_->Write(pbase(), n);
   this->pbump(-static_cast<int>(n));
+  bytes_out_ += n;
   return 0;
 }
 inline int ostream::OutBuf::overflow(int c) {
@@ -397,8 +390,10 @@ inline int ostream::OutBuf::overflow(int c) {
   this->pbump(-static_cast<int>(n));
   if (c == EOF) {
     stream_->Write(pbase(), n);
+    bytes_out_ += n;
   } else {
     stream_->Write(pbase(), n + 1);
+    bytes_out_ += n + 1;
   }
   return c;
 }
