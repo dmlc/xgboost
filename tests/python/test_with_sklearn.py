@@ -4,6 +4,7 @@ from sklearn.cross_validation import KFold
 from sklearn.metrics import mean_squared_error
 from sklearn.grid_search import GridSearchCV
 from sklearn.datasets import load_iris, load_digits, load_boston
+from sklearn.cross_validation import KFold, StratifiedKFold, train_test_split
 
 rng = np.random.RandomState(1994)
 
@@ -130,3 +131,65 @@ def test_classification_with_custom_objective():
         X, y
     )
 
+def test_sklearn_api():
+    iris = load_iris()
+    tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target, train_size=120)
+
+    classifier = xgb.XGBClassifier()
+    classifier.fit(tr_d, tr_l)
+
+    preds = classifier.predict(te_d)
+    labels = te_l
+    err = sum([1 for p, l in zip(preds, labels) if p != l]) / len(te_l)
+    assert err < 0.2
+
+def test_sklearn_plotting():
+    iris = load_iris()
+
+    classifier = xgb.XGBClassifier()
+    classifier.fit(iris.data, iris.target)
+
+    import matplotlib
+    matplotlib.use('Agg')
+
+    from matplotlib.axes import Axes
+    from graphviz import Digraph
+
+    ax = xgb.plot_importance(classifier)
+    assert isinstance(ax, Axes)
+    assert ax.get_title() == 'Feature importance'
+    assert ax.get_xlabel() == 'F score'
+    assert ax.get_ylabel() == 'Features'
+    assert len(ax.patches) == 4
+
+    g = xgb.to_graphviz(classifier, num_trees=0)
+    assert isinstance(g, Digraph)
+
+    ax = xgb.plot_tree(classifier, num_trees=0)
+    assert isinstance(ax, Axes)
+
+def test_sklearn_nfolds_cv():
+    digits = load_digits(3)
+    X = digits['data']
+    y = digits['target']
+    dm = xgb.DMatrix(X, label=y)
+    
+    params = {
+        'max_depth': 2,
+        'eta': 1,
+        'silent': 1,
+        'objective':
+        'multi:softprob',
+        'num_class': 3
+    }
+
+    seed = 2016
+    nfolds = 5
+    skf = StratifiedKFold(y, n_folds=nfolds, shuffle=True, random_state=seed)
+
+    import pandas as pd
+    cv1 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds, seed=seed)
+    cv2 = xgb.cv(params, dm, num_boost_round=10, folds=skf, seed=seed)
+    cv3 = xgb.cv(params, dm, num_boost_round=10, nfold=nfolds, stratified=True, seed=seed)
+    assert cv1.shape[0] == cv2.shape[0] and cv2.shape[0] == cv3.shape[0]
+    assert cv2.iloc[-1,0] == cv3.iloc[-1,0]

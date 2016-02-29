@@ -38,6 +38,23 @@ if [ ${TASK} == "python_test" ]; then
     exit 0
 fi
 
+if [ ${TASK} == "python_lightweight_test" ]; then
+    make all || exit -1
+    echo "-------------------------------"
+    source activate python3
+    python --version
+    conda install numpy scipy nose
+    python -m pip install graphviz
+    python -m nose tests/python/test_basic*.py || exit -1
+    source activate python2
+    echo "-------------------------------"
+    python --version
+    conda install numpy scipy nose
+    python -m pip install graphviz
+    python -m nose tests/python/test_basic*.py || exit -1
+    exit 0
+fi
+
 if [ ${TASK} == "r_test" ]; then
     set -e
     export _R_CHECK_TIMINGS_=0

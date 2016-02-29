@@ -29,9 +29,6 @@ class TestEarlyStopping(unittest.TestCase):
                  eval_set=[(X_test, y_test)])
         assert clf3.best_score == 1
 
-        # TODO: parallel test for early stopping
-        # TODO: comment out for now. Will re-visit later
-
     def evalerror(self, preds, dtrain):
         labels = dtrain.get_label()
         return 'rmse', mean_squared_error(labels, preds)
