@@ -42,6 +42,10 @@ struct Error : public std::runtime_error {
 #include <glog/logging.h>
 
 namespace dmlc {
+/*!
+ * \brief optionally redirect to google's init log
+ * \param argv0 The arguments.
+ */
 inline void InitLogging(const char* argv0) {
   google::InitGoogleLogging(argv0);
 }
