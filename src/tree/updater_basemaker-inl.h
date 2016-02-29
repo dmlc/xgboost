@@ -56,6 +56,9 @@ class BaseMaker: public TreeUpdater {
           }
         }
       }
+    }
+    /*! \brief synchronize the information */
+    inline void SyncInfo() {
       rabit::Allreduce<rabit::op::Max>(dmlc::BeginPtr(fminmax), fminmax.size());
     }
     // get feature type, 0:empty 1:binary 2:real

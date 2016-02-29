@@ -358,6 +358,30 @@ XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
                                            bst_ulong *out_len,
                                            const char ***out_models);
 
+/*!
+ * \brief Get string attribute from Booster.
+ * \param handle handle
+ * \param key The key of the attribute.
+ * \param out The result attribute, can be NULL if the attribute do not exist.
+ * \param success Whether the result is contained in out.
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
+                             const char* key,
+                             const char** out,
+                             int *success);
+/*!
+ * \brief Set string attribute.
+ *
+ * \param handle handle
+ * \param key The key of the symbol.
+ * \param value The value to be saved.
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterSetAttr(BoosterHandle handle,
+                             const char* key,
+                             const char* value);
+
 // --- Distributed training API----
 // NOTE: functions in rabit/c_api.h will be also available in libxgboost.so
 /*!
@@ -376,6 +400,6 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(
  * \param handle handle
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterSaveRabitCheckPoint(BoosterHandle handle);
+XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
 
 #endif  // XGBOOST_C_API_H_

@@ -6,9 +6,11 @@ from __future__ import absolute_import
 
 import sys
 import re
+import os
 import numpy as np
 from .core import Booster, STRING_TYPES
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold, XGBKFold)
+from . import rabit
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
@@ -94,6 +96,9 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             verbose_eval_every_line = verbose_eval
             verbose_eval = True if verbose_eval_every_line > 0 else False
 
+    if rabit.get_rank() != 0:
+        verbose_eval = False;
+
     if xgb_model is not None:
         if not isinstance(xgb_model, STRING_TYPES):
             xgb_model = xgb_model.save_raw()
@@ -123,15 +128,15 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             raise ValueError('For early stopping you need at least one set in evals.')
 
         if verbose_eval:
-            sys.stderr.write("Will train until {} error hasn't decreased in {} rounds.\n".format(
+            rabit.tracker_print("Will train until {} error hasn't decreased in {} rounds.\n".format(
                 evals[-1][1], early_stopping_rounds))
 
         # is params a list of tuples? are we using multiple eval metrics?
         if isinstance(params, list):
             if len(params) != len(dict(params).items()):
                 params = dict(params)
-                sys.stderr.write("Multiple eval metrics have been passed: " \
-                                 "'{0}' will be used for early stopping.\n\n".format(params['eval_metric']))
+                rabit.tracker_print("Multiple eval metrics have been passed: " \
+                                    "'{0}' will be used for early stopping.\n\n".format(params['eval_metric']))
             else:
                 params = dict(params)
 
@@ -145,23 +150,35 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             maximize_score = maximize
 
         if maximize_score:
-            best_score = 0.0
+            bst.set_attr(best_score='0.0')
         else:
-            best_score = float('inf')
-
-    best_msg = ''
-    best_score_i = (nboost - 1)
+            bst.set_attr(best_score='inf')
+        bst.set_attr(best_iteration='0')
 
     if isinstance(learning_rates, list) and len(learning_rates) != num_boost_round:
         raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
 
-    for i in range(nboost, nboost + num_boost_round):
+    # Distributed code: Load the checkpoint from rabit.
+    version = bst.load_rabit_checkpoint()
+    assert(rabit.get_world_size() != 1 or version == 0)
+    start_iteration = int(version / 2)
+    nboost += start_iteration
+
+    for i in range(start_iteration, num_boost_round):
         if learning_rates is not None:
             if isinstance(learning_rates, list):
                 bst.set_param({'eta': learning_rates[i]})
             else:
                 bst.set_param({'eta': learning_rates(i, num_boost_round)})
-        bst.update(dtrain, i, obj)
+
+        # Distributed code: need to resume to this point.
+        # Skip the first update if it is a recovery step.
+        if version % 2  == 0:
+            bst.update(dtrain, i, obj)
+            bst.save_rabit_checkpoint()
+            version += 1
+
+        assert(rabit.get_world_size() == 1 or version == rabit.version_number())
 
         nboost += 1
         # check evaluation result.
@@ -176,9 +193,9 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             if verbose_eval:
                 if verbose_eval_every_line:
                     if i % verbose_eval_every_line == 0 or i == num_boost_round - 1:
-                        sys.stderr.write(msg + '\n')
+                        rabit.tracker_print(msg + '\n')
                 else:
-                    sys.stderr.write(msg + '\n')
+                    rabit.tracker_print(msg + '\n')
 
             if evals_result is not None:
                 res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
@@ -196,22 +213,26 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
 
             if early_stopping_rounds:
                 score = float(msg.rsplit(':', 1)[1])
+                best_score = float(bst.attr('best_score'))
+                best_iteration = int(bst.attr('best_iteration'))
                 if (maximize_score and score > best_score) or \
                    (not maximize_score and score < best_score):
-                    best_score = score
-                    best_score_i = (nboost - 1)
-                    best_msg = msg
-                elif i - best_score_i >= early_stopping_rounds:
+                    # save the property to attributes, so they will occur in checkpoint.
+                    bst.set_attr(best_score=str(score),
+                                 best_iteration=str(nboost - 1),
+                                 best_msg=msg)
+                elif i - best_iteration >= early_stopping_rounds:
+                    best_msg = bst.attr('best_msg')
                     if verbose_eval:
-                        sys.stderr.write("Stopping. Best iteration:\n{}\n\n".format(best_msg))
-                    # best iteration will be assigned in the end.
-                    bst.best_score = best_score
-                    bst.best_iteration = best_score_i
+                        rabit.tracker_print("Stopping. Best iteration:\n{}\n\n".format(best_msg))
                     break
+        # do checkpoint after evaluation, in case evaluation also updates booster.
+        bst.save_rabit_checkpoint()
+        version += 1
 
     if early_stopping_rounds:
-        best_score = best_score
-        bst.best_iteration = best_score_i
+        bst.best_score = float(bst.attr('best_score'))
+        bst.best_iteration = int(bst.attr('best_iteration'))
     else:
         bst.best_iteration = nboost - 1
     bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree

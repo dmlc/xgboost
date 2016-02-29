@@ -313,6 +313,7 @@ class CQHistMaker: public HistMaker<TStats> {
       feat_helper.InitByCol(p_fmat, tree);
       cache_dmatrix_ = p_fmat;
     }
+    feat_helper.SyncInfo();
     feat_helper.SampleCol(this->param.colsample_bytree, p_fset);
   }
   // code to create histogram
