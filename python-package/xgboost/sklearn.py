@@ -44,6 +44,7 @@ def _objective_decorator(func):
         return func(labels, preds)
     return inner
 
+
 class XGBModel(XGBModelBase):
     # pylint: disable=too-many-arguments, too-many-instance-attributes, invalid-name
     """Implementation of the Scikit-Learn API for XGBoost.
@@ -500,7 +501,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         fs_dict = dict(zip(keys, fs.values()))
         all_features_dict = dict.fromkeys(range(0, self._features_count), 0)
         all_features_dict.update(fs_dict)
-        return np.array(all_features_dict.values())
+        all_features = np.fromiter(all_features_dict.values(), np.float32)
+        return all_features / all_features.sum()
 
 
 class XGBRegressor(XGBModel, XGBRegressorBase):
