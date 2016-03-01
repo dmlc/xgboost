@@ -193,7 +193,6 @@ utils::TCPSocket AllreduceBase::ConnectTracker(void) const {
 
   int retry = 0;
   do {
-    fprintf(stderr, "connect to ip: [%s]\n", tracker_uri.c_str());
     if (!tracker.Connect(utils::SockAddr(tracker_uri.c_str(), tracker_port))) {
       if (++retry >= connect_retry) {
         fprintf(stderr, "connect to (failed): [%s]\n", tracker_uri.c_str());
