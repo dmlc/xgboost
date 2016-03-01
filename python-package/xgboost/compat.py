@@ -12,9 +12,11 @@ PY3 = (sys.version_info[0] == 3)
 if PY3:
     # pylint: disable=invalid-name, redefined-builtin
     STRING_TYPES = str,
+    py_str = lambda x: x.decode('utf-8')
 else:
     # pylint: disable=invalid-name
     STRING_TYPES = basestring,
+    py_str = lambda x: x
 
 # pandas
 try:
