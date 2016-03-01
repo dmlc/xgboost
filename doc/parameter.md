@@ -46,6 +46,9 @@ Parameters for Tree Booster
 * colsample_bytree [default=1]
   - subsample ratio of columns when constructing each tree.
   - range: (0,1]
+* colsample_bylevel [default=1]
+  - subsample ratio of columns for each split, in each level.
+  - range: (0,1]
 * lambda [default=1]
   - L2 regularization term on weights
 * alpha [default=0]
