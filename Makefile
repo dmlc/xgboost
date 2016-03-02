@@ -84,7 +84,7 @@ $(DMLC_CORE)/libdmlc.a:
 $(RABIT)/lib/$(LIB_RABIT):
 	+ cd $(RABIT); make lib/$(LIB_RABIT); cd $(ROOTDIR)
 
-jvm-packages: jvm-packages/lib/libxgboost4j.so
+jvm: jvm-packages/lib/libxgboost4j.so
 
 SRC = $(wildcard src/*.cc src/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC)) $(PLUGIN_OBJS)
