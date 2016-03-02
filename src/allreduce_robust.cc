@@ -31,8 +31,8 @@ AllreduceRobust::AllreduceRobust(void) {
   env_vars.push_back("rabit_global_replica");
   env_vars.push_back("rabit_local_replica");
 }
-void AllreduceRobust::Init(void) {
-  AllreduceBase::Init();
+void AllreduceRobust::Init(int argc, char* argv[]) {
+  AllreduceBase::Init(argc, argv);
   result_buffer_round = std::max(world_size / num_global_replica, 1);
 }
 /*! \brief shutdown the engine */

@@ -24,7 +24,7 @@ class AllreduceRobust : public AllreduceBase {
   AllreduceRobust(void);
   virtual ~AllreduceRobust(void) {}
   // initialize the manager
-  virtual void Init(void);
+  virtual void Init(int argc, char* argv[]);
   /*! \brief shutdown the engine */
   virtual void Shutdown(void);
   /*!

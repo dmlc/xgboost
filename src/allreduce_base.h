@@ -38,7 +38,7 @@ class AllreduceBase : public IEngine {
   AllreduceBase(void);
   virtual ~AllreduceBase(void) {}
   // initialize the manager
-  virtual void Init(void);
+  virtual void Init(int argc, char* argv[]);
   // shutdown the engine
   virtual void Shutdown(void);
   /*!

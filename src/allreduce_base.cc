@@ -51,7 +51,7 @@ AllreduceBase::AllreduceBase(void) {
 }
 
 // initialization function
-void AllreduceBase::Init(void) {
+void AllreduceBase::Init(int argc, char* argv[]) {
   // setup from enviroment variables
   // handler to get variables from env
   for (size_t i = 0; i < env_vars.size(); ++i) {
@@ -60,6 +60,14 @@ void AllreduceBase::Init(void) {
       this->SetParam(env_vars[i].c_str(), value);
     }
   }
+  // pass in arguments override env variable.
+  for (int i = 0; i < argc; ++i) {
+    char name[256], val[256];
+    if (sscanf(argv[i], "%[^=]=%s", name, val) == 2) {
+      this->SetParam(name, val);
+    }
+  }
+
   {
     // handling for hadoop
     const char *task_id = getenv("mapred_tip_id");

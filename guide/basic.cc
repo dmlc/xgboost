@@ -8,7 +8,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #include <vector>
-#include <rabit.h>
+#include <rabit/rabit.h>
 using namespace rabit;
 int main(int argc, char *argv[]) {
   int N = 3;
@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
   rabit::Init(argc, argv);
   for (int i = 0; i < N; ++i) {
     a[i] = rabit::GetRank() + i;
-  } 
+  }
   printf("@node[%d] before-allreduce: a={%d, %d, %d}\n",
          rabit::GetRank(), a[0], a[1], a[2]);
   // allreduce take max of each elements in all processes
@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
   // second allreduce that sums everything up
   Allreduce<op::Sum>(&a[0], N);
   printf("@node[%d] after-allreduce-sum: a={%d, %d, %d}\n",
-         rabit::GetRank(), a[0], a[1], a[2]);  
+         rabit::GetRank(), a[0], a[1], a[2]);
   rabit::Finalize();
   return 0;
 }

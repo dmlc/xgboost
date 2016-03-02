@@ -1,4 +1,4 @@
-#include <rabit.h>
+#include <rabit/rabit.h>
 using namespace rabit;
 const int N = 3;
 int main(int argc, char *argv[]) {
