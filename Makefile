@@ -73,7 +73,7 @@ endif
 
 
 # specify tensor path
-.PHONY: clean all lint clean_all doxygen rcpplint Rpack Rbuild Rcheck java
+.PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck java
 
 
 all: lib/libxgboost.a $(XGBOOST_DYLIB) xgboost
@@ -142,6 +142,11 @@ clean_all: clean
 
 doxygen:
 	doxygen doc/Doxyfile
+
+# create standalone python tar file.
+pypack: ${XGBOOST_DYLIB}
+	cp ${XGBOOST_DYLIB} python-package/xgboost
+	cd python-package; tar cf xgboost.tar xgboost; cd ..
 
 # Script to make a clean installable R package.
 Rpack:

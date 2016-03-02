@@ -4,6 +4,9 @@ import scipy.sparse
 import pickle
 import xgboost as xgb
 
+# always call this before using distributed module
+xgb.rabit.init()
+
 # Load file, file will be automatically sharded in distributed mode.
 dtrain = xgb.DMatrix('../../demo/data/agaricus.txt.train')
 dtest = xgb.DMatrix('../../demo/data/agaricus.txt.test')
