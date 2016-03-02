@@ -1,10 +1,10 @@
 /*
- Copyright (c) 2014 by Contributors 
+ Copyright (c) 2014 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
-    
+
  http://www.apache.org/licenses/LICENSE-2.0
 
  Unless required by applicable law or agreed to in writing, software
@@ -38,7 +38,7 @@ class JavaBoosterImpl implements Booster {
   //load native library
   static {
     try {
-      NativeLibLoader.InitXgboost();
+      NativeLibLoader.initXgBoost();
     } catch (IOException ex) {
       logger.error("load native library failed.");
       logger.error(ex);
@@ -80,7 +80,7 @@ class JavaBoosterImpl implements Booster {
   private void init(DMatrix[] dMatrixs) throws XGBoostError {
     long[] handles = null;
     if (dMatrixs != null) {
-      handles = dMatrixs2handles(dMatrixs);
+      handles = dmatrixsToHandles(dMatrixs);
     }
     long[] out = new long[1];
     JNIErrorHandle.checkCall(XgboostJNI.XGBoosterCreate(handles, out));
@@ -151,7 +151,8 @@ class JavaBoosterImpl implements Booster {
       throw new AssertionError(String.format("grad/hess length mismatch %s / %s", grad.length,
               hess.length));
     }
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterBoostOneIter(handle, dtrain.getHandle(), grad, hess));
+    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterBoostOneIter(handle, dtrain.getHandle(), grad,
+            hess));
   }
 
   /**
@@ -164,9 +165,10 @@ class JavaBoosterImpl implements Booster {
    * @throws XGBoostError native error
    */
   public String evalSet(DMatrix[] evalMatrixs, String[] evalNames, int iter) throws XGBoostError {
-    long[] handles = dMatrixs2handles(evalMatrixs);
+    long[] handles = dmatrixsToHandles(evalMatrixs);
     String[] evalInfo = new String[1];
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterEvalOneIter(handle, iter, handles, evalNames, evalInfo));
+    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterEvalOneIter(handle, iter, handles, evalNames,
+            evalInfo));
     return evalInfo[0];
   }
 
@@ -322,7 +324,8 @@ class JavaBoosterImpl implements Booster {
       statsFlag = 1;
     }
     String[][] modelInfos = new String[1][];
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterDumpModel(handle, featureMap, statsFlag, modelInfos));
+    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterDumpModel(handle, featureMap, statsFlag,
+            modelInfos));
     return modelInfos[0];
   }
 
@@ -444,7 +447,7 @@ class JavaBoosterImpl implements Booster {
    * @param dmatrixs
    * @return handle array for input dmatrixs
    */
-  private static long[] dMatrixs2handles(DMatrix[] dmatrixs) {
+  private static long[] dmatrixsToHandles(DMatrix[] dmatrixs) {
     long[] handles = new long[dmatrixs.length];
     for (int i = 0; i < dmatrixs.length; i++) {
       handles[i] = dmatrixs[i].getHandle();

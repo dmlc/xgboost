@@ -13,27 +13,18 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package org.dmlc.xgboost4j;
 
-/**
- * interface for customized evaluation
- *
- * @author hzx
- */
-public interface IEvaluation {
-  /**
-   * get evaluate metric
-   *
-   * @return evalMetric
-   */
-  String getMetric();
+package org.dmlc.xgboost4j.scala
 
+import org.dmlc.xgboost4j.IObjective
+
+trait ObjectiveTrait extends IObjective {
   /**
-   * evaluate with predicts and data
+   * user define objective function, return gradient and second order gradient
    *
-   * @param predicts predictions as array
-   * @param dmat     data matrix to evaluate
-   * @return result of the metric
+   * @param predicts untransformed margin predicts
+   * @param dtrain   training data
+   * @return List with two float array, correspond to first order grad and second order grad
    */
-  float eval(float[][] predicts, DMatrix dmat);
+  def getGradient(predicts: Array[Array[Float]], dtrain: DMatrix): java.util.List[Array[Float]]
 }

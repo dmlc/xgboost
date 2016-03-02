@@ -99,10 +99,10 @@ public interface Booster {
    * Predict with data
    * @param data dmatrix storing the input
    * @param treeLimit Limit number of trees in the prediction; defaults to 0 (use all trees).
-   * @param predLeaf When this option is on, the output will be a matrix of (nsample, ntrees), nsample = data.numRow
-  with each record indicating the predicted leaf index of each sample in each tree.
-  Note that the leaf index of a tree is unique per tree, so you may find leaf 1
-  in both tree 1 and tree 0.
+   * @param predLeaf When this option is on, the output will be a matrix of (nsample, ntrees),
+   *                 nsample = data.numRow with each record indicating the predicted leaf index of
+   *                 each sample in each tree. Note that the leaf index of a tree is unique per
+   *                 tree, so you may find leaf 1 in both tree 1 and tree 0.
    * @return predict result
    * @throws XGBoostError native error
    */
@@ -131,7 +131,8 @@ public interface Booster {
    * @param withStats  bool
    *                   Controls whether the split statistics are output.
    */
-  void dumpModel(String modelPath, String featureMap, boolean withStats) throws IOException, XGBoostError;
+  void dumpModel(String modelPath, String featureMap, boolean withStats)
+          throws IOException, XGBoostError;
 
   /**
    * get importance of each feature

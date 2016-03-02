@@ -1,10 +1,10 @@
 /*
- Copyright (c) 2014 by Contributors 
+ Copyright (c) 2014 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
-    
+
  http://www.apache.org/licenses/LICENSE-2.0
 
  Unless required by applicable law or agreed to in writing, software
@@ -32,7 +32,7 @@ public class DMatrix {
   //load native library
   static {
     try {
-      NativeLibLoader.InitXgboost();
+      NativeLibLoader.initXgBoost();
     } catch (IOException ex) {
       logger.error("load native library failed.");
       logger.error(ex);
@@ -84,8 +84,6 @@ public class DMatrix {
 
   /**
    * used for DMatrix slice
-   *
-   * @param handle
    */
   protected DMatrix(long handle) {
     this.handle = handle;
@@ -216,8 +214,6 @@ public class DMatrix {
 
   /**
    * save DMatrix to filePath
-   *
-   * @param filePath file path
    */
   public void saveBinary(String filePath) {
     XgboostJNI.XGDMatrixSaveBinary(handle, filePath, 1);
@@ -225,8 +221,6 @@ public class DMatrix {
 
   /**
    * Get the handle
-   *
-   * @return native handler id
    */
   public long getHandle() {
     return handle;
@@ -234,9 +228,6 @@ public class DMatrix {
 
   /**
    * flatten a mat to array
-   *
-   * @param mat
-   * @return
    */
   private static float[] flatten(float[][] mat) {
     int size = 0;

@@ -13,20 +13,19 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package org.dmlc.xgboost4j;
 
-/**
- * interface for customized evaluation
- *
- * @author hzx
- */
-public interface IEvaluation {
+package org.dmlc.xgboost4j.scala
+
+import org.dmlc.xgboost4j.IEvaluation
+
+trait EvalTrait extends IEvaluation {
+
   /**
    * get evaluate metric
    *
    * @return evalMetric
    */
-  String getMetric();
+  def getMetric: String
 
   /**
    * evaluate with predicts and data
@@ -35,5 +34,5 @@ public interface IEvaluation {
    * @param dmat     data matrix to evaluate
    * @return result of the metric
    */
-  float eval(float[][] predicts, DMatrix dmat);
+  def eval(predicts: Array[Array[Float]], dmat: DMatrix): Float
 }

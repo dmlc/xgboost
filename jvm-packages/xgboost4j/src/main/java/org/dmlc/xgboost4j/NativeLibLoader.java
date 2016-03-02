@@ -1,10 +1,10 @@
 /*
- Copyright (c) 2014 by Contributors 
+ Copyright (c) 2014 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
-    
+
  http://www.apache.org/licenses/LICENSE-2.0
 
  Unless required by applicable law or agreed to in writing, software
@@ -34,7 +34,7 @@ class NativeLibLoader {
   private static final String nativeResourcePath = "/lib/";
   private static final String[] libNames = new String[]{"xgboost4j"};
 
-  public static synchronized void InitXgboost() throws IOException {
+  public static synchronized void initXgBoost() throws IOException {
     if (!initialized) {
       for (String libName : libNames) {
         smartLoad(libName);
@@ -50,14 +50,17 @@ class NativeLibLoader {
    * The temporary file is deleted after exiting.
    * Method uses String as filename because the pathname is "abstract", not system-dependent.
    * <p/>
-   * The restrictions of {@link File#createTempFile(java.lang.String, java.lang.String)} apply to {@code path}.
+   * The restrictions of {@link File#createTempFile(java.lang.String, java.lang.String)} apply to
+   * {@code path}.
    *
-   * @param path The filename inside JAR as absolute path (beginning with '/'), e.g. /package/File.ext
+   * @param path The filename inside JAR as absolute path (beginning with '/'),
+   *             e.g. /package/File.ext
    * @throws IOException              If temporary file creation or read/write operation fails
    * @throws IllegalArgumentException If source file (param path) does not exist
-   * @throws IllegalArgumentException If the path is not absolute or if the filename is shorter than three characters
+   * @throws IllegalArgumentException If the path is not absolute or if the filename is shorter than
+   * three characters
    */
-  private static void loadLibraryFromJar(String path) throws IOException {
+  private static void loadLibraryFromJar(String path) throws IOException, IllegalArgumentException{
 
     if (!path.startsWith("/")) {
       throw new IllegalArgumentException("The path has to be absolute (start with '/').");
@@ -126,7 +129,6 @@ class NativeLibLoader {
     addNativeDir(nativePath);
     try {
       System.loadLibrary(libName);
-      System.out.println("======load " + libName + " successfully");
     } catch (UnsatisfiedLinkError e) {
       try {
         String libraryFromJar = nativeResourcePath + System.mapLibraryName(libName);
