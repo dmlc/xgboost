@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala
 
 import ml.dmlc.xgboost4j.{DMatrix => JDMatrix, XGBoostError}
 
-class DMatrix private(private[scala] val jDMatrix: JDMatrix) {
+class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
 
   /**
    * init DMatrix from file (svmlight format)

@@ -80,7 +80,7 @@ public class BoosterImplTest {
     };
 
     //set watchList
-    HashMap<String, DMatrix> watches = new HashMap<>();
+    HashMap<String, DMatrix> watches = new HashMap<String, DMatrix>();
 
     watches.put("train", trainMat);
     watches.put("test", testMat);
@@ -129,10 +129,6 @@ public class BoosterImplTest {
     //do 5-fold cross validation
     int round = 2;
     int nfold = 5;
-    //set additional eval_metrics
-    String[] metrics = null;
-
-    String[] evalHist = XGBoost.crossValiation(param, trainMat, round, nfold, metrics,
-            null, null);
+    String[] evalHist = XGBoost.crossValiation(param, trainMat, round, nfold, null, null, null);
   }
 }

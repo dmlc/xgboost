@@ -57,7 +57,6 @@ public class DMatrixTest {
     long[] rowHeaders = new long[]{0, 3, 7, 11};
     DMatrix dmat1 = new DMatrix(rowHeaders, colIndex, data, DMatrix.SparseType.CSR);
     //check row num
-    System.out.println(dmat1.rowNum());
     TestCase.assertTrue(dmat1.rowNum() == 3);
     //test set label
     float[] label1 = new float[]{1, 0, 1};
