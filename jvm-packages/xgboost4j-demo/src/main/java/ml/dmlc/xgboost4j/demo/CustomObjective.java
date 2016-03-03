@@ -19,9 +19,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import ml.dmlc.xgboost4j.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
+import ml.dmlc.xgboost4j.*;
 
 /**
  * an example user define objective and eval

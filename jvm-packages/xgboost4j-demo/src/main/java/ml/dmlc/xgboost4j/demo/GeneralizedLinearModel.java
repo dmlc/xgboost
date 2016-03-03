@@ -15,13 +15,13 @@
  */
 package ml.dmlc.xgboost4j.demo;
 
+import java.util.HashMap;
+
 import ml.dmlc.xgboost4j.Booster;
 import ml.dmlc.xgboost4j.DMatrix;
 import ml.dmlc.xgboost4j.XGBoost;
 import ml.dmlc.xgboost4j.XGBoostError;
 import ml.dmlc.xgboost4j.demo.util.CustomEval;
-
-import java.util.HashMap;
 
 /**
  * this is an example of fit generalized linear model in xgboost
