@@ -61,7 +61,8 @@ typedef RandomEngine GlobalRandomEngine;
 
 /*!
  * \brief global singleton of a random engine.
- *  Only use this engine when necessary, not thread-safe.
+ *  This random engine is thread-local and
+ *  only visible to current thread.
  */
 GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
 

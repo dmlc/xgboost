@@ -27,6 +27,8 @@ fi
 
 rm -f xgboost4j/src/main/resources/lib/libxgboost4j.${dl}
 mv lib/libxgboost4j.so xgboost4j/src/main/resources/lib/libxgboost4j.${dl}
+# copy python to native resources
+cp ../dmlc-core/tracker/dmlc_tracker/tracker.py xgboost4j/src/main/resources/tracker.py
 
 popd > /dev/null
 echo "complete"

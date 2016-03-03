@@ -4,12 +4,20 @@
  * \brief Enable all kinds of global variables in common.
  */
 #include "./random.h"
+#include "./thread_local.h"
 
 namespace xgboost {
 namespace common {
+/*! \brief thread local entry for random. */
+struct RandomThreadLocalEntry {
+  /*! \brief the random engine instance. */
+  GlobalRandomEngine engine;
+};
+
+typedef ThreadLocalStore<RandomThreadLocalEntry> RandomThreadLocalStore;
+
 GlobalRandomEngine& GlobalRandom() {
-  static GlobalRandomEngine inst;
-  return inst;
+  return RandomThreadLocalStore::Get()->engine;
 }
 }
 }  // namespace xgboost

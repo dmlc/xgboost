@@ -74,9 +74,9 @@ class XgboostJNI {
 
   public final static native int XGBoosterSaveModel(long handle, String fname);
 
-  public final static native int XGBoosterLoadModelFromBuffer(long handle, long buf, long len);
+  public final static native int XGBoosterLoadModelFromBuffer(long handle, byte[] bytes);
 
-  public final static native int XGBoosterGetModelRaw(long handle, String[] out_string);
+  public final static native int XGBoosterGetModelRaw(long handle, byte[][] out_bytes);
 
   public final static native int XGBoosterDumpModel(long handle, String fmap, int with_stats,
                                                     String[][] out_strings);

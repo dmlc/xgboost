@@ -22,6 +22,11 @@ This file records the changes in xgboost library in reverse chronological order.
   - The windows version is still blocked due to Rtools do not support ```std::thread```.
 * rabit and dmlc-core are maintained through git submodule
   - Anyone can open PR to update these dependencies now.
+* Improvements
+  - Rabit and xgboost libs are not thread-safe and use thread local PRNGs
+  - This could fix some of the previous problem which runs xgboost on multiple threads.
+* JVM Package
+  - Enable xgboost4j for java and scala
 
 ## v0.47 (2016.01.14)
 
