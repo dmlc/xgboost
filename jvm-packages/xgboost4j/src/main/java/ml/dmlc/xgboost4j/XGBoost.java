@@ -46,6 +46,21 @@ public class XGBoost {
                                    Map<String, DMatrix> watches, IObjective obj,
                                    IEvaluation eval) throws XGBoostError {
 
+    Object runningModel = params.get("model");
+    boolean inDistributedModel = runningModel != null && runningModel.equals("distributed");
+
+    if (inDistributedModel) {
+      // build the configuration entries for rabit
+      HashMap<String, String> rabitConfMap = new HashMap<String, String>();
+      for (Map.Entry<String, Object> entry: params.entrySet()) {
+        String value = entry.getValue().toString();
+        if (value.startsWith("rabit.")) {
+          rabitConfMap.put(entry.getKey(), value);
+        }
+      }
+      Rabit.init(rabitConfMap);
+    }
+
     //collect eval matrixs
     String[] evalNames;
     DMatrix[] evalMats;
@@ -102,6 +117,9 @@ public class XGBoost {
       }
       booster.saveRabitCheckpoint();
       version += 1;
+    }
+    if (inDistributedModel) {
+      Rabit.shutdown();
     }
     return booster;
   }
