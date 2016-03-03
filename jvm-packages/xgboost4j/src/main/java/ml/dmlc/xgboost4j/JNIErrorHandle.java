@@ -48,4 +48,5 @@ class JNIErrorHandle {
       throw new XGBoostError(XgboostJNI.XGBGetLastError());
     }
   }
+
 }

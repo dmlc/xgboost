@@ -21,7 +21,7 @@ import org.apache.commons.logging.LogFactory;
 import java.io.IOException;
 
 /**
- * DMatrix for xgboost, similar to the python wrapper xgboost.py
+ * DMatrix for xgboost.
  *
  * @author hzx
  */

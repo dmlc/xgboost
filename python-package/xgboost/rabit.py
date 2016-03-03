@@ -8,11 +8,18 @@ import numpy as np
 from .core import _LIB, c_str, STRING_TYPES
 
 def _init_rabit():
-    """Initialize the rabit library."""
+    """internal libary initializer."""
     _LIB.RabitGetRank.restype = ctypes.c_int
     _LIB.RabitGetWorldSize.restype = ctypes.c_int
     _LIB.RabitVersionNumber.restype = ctypes.c_int
-    _LIB.RabitInit(0, None)
+
+def init(args=None):
+    """Initialize the rabit libary with arguments"""
+    if args is None:
+        args = []
+    arr = (ctypes.c_char_p * len(args))()
+    arr[:] = args
+    _LIB.RabitInit(len(arr), arr)
 
 
 def finalize():

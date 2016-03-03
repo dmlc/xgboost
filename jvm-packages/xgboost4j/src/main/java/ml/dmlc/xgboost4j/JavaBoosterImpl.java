@@ -442,6 +442,27 @@ class JavaBoosterImpl implements Booster {
   }
 
   /**
+   * Load the booster model from thread-local rabit checkpoint.
+   * This is only used in distributed training.
+   * @return the stored version number of the checkpoint.
+   * @throws XGBoostError
+   */
+  int loadRabitCheckpoint() throws XGBoostError {
+    int[] out = new int[1];
+    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterLoadRabitCheckpoint(this.handle, out));
+    return out[0];
+  }
+
+  /**
+   * Save the booster model into thread-local rabit checkpoint.
+   * This is only used in distributed training.
+   * @throws XGBoostError
+   */
+  void saveRabitCheckpoint() throws XGBoostError {
+    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterSaveRabitCheckpoint(this.handle));
+  }
+
+  /**
    * transfer DMatrix array to handle array (used for native functions)
    *
    * @param dmatrixs

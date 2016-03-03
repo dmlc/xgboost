@@ -20,8 +20,9 @@
 *buffer
 *model
 *pyc
-*train
-*test
+*.train
+*.test
+*.tar
 *group
 *rar
 *vali
