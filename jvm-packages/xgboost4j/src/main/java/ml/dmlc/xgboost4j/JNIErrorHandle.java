@@ -15,10 +15,10 @@
  */
 package ml.dmlc.xgboost4j;
 
+import java.io.IOException;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
-import java.io.IOException;
 
 /**
  * Error handle for Xgboost.

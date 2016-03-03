@@ -1,9 +1,10 @@
 package ml.dmlc.xgboost4j;
 
+import java.io.IOException;
+import java.util.Map;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import java.util.Map;
-import java.io.IOException;
 
 /**
  * Rabit global class for synchronization.

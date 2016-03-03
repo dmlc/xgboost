@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
-import ml.dmlc.xgboost4j.{Booster => JBooster, IEvaluation, IObjective}
+import ml.dmlc.xgboost4j.{Booster => JBooster}
 
 private[scala] class ScalaBoosterImpl private[xgboost4j](booster: JBooster) extends Booster {
 

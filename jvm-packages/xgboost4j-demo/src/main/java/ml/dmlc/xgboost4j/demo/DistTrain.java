@@ -1,15 +1,9 @@
 package ml.dmlc.xgboost4j.demo;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 
-import ml.dmlc.xgboost4j.Rabit;
-import ml.dmlc.xgboost4j.Booster;
-import ml.dmlc.xgboost4j.DMatrix;
-import ml.dmlc.xgboost4j.XGBoost;
-import ml.dmlc.xgboost4j.XGBoostError;
+import ml.dmlc.xgboost4j.*;
 
 /**
  * Distributed training example, used to quick test distributed training.
