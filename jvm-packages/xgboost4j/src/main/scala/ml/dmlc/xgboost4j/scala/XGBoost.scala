@@ -21,8 +21,13 @@ import ml.dmlc.xgboost4j.{XGBoost => JXGBoost}
 
 object XGBoost {
 
-  def train(params: Map[String, AnyRef], dtrain: DMatrix, round: Int,
-            watches: Map[String, DMatrix], obj: ObjectiveTrait, eval: EvalTrait): Booster = {
+  def train(
+      params: Map[String, AnyRef],
+      dtrain: DMatrix,
+      round: Int,
+      watches: Map[String, DMatrix] = Map[String, DMatrix](),
+      obj: ObjectiveTrait = null,
+      eval: EvalTrait = null): Booster = {
     val jWatches = watches.map{case (name, matrix) => (name, matrix.jDMatrix)}
     val xgboostInJava = JXGBoost.train(params.asJava, dtrain.jDMatrix, round, jWatches.asJava,
       obj, eval)
@@ -33,10 +38,10 @@ object XGBoost {
       params: Map[String, AnyRef],
       data: DMatrix,
       round: Int,
-      nfold: Int,
-      metrics: Array[String],
-      obj: ObjectiveTrait,
-      eval: EvalTrait): Array[String] = {
+      nfold: Int = 5,
+      metrics: Array[String] = null,
+      obj: ObjectiveTrait = null,
+      eval: EvalTrait = null): Array[String] = {
     JXGBoost.crossValiation(params.asJava, data.jDMatrix, round, nfold, metrics, obj, eval)
   }
 
