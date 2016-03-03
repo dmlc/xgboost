@@ -96,7 +96,9 @@ public class XGBoost {
         } else {
           evalInfo = booster.evalSet(evalMats, evalNames, iter);
         }
-        logger.info(evalInfo);
+        if (Rabit.getRank() == 0) {
+          Rabit.trackerPrint(evalInfo + '\n');
+        }
       }
       booster.saveRabitCheckpoint();
       version += 1;
