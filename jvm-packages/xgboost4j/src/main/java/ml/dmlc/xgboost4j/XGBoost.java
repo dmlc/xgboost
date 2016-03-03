@@ -72,14 +72,20 @@ public class XGBoost {
     }
 
     //initialize booster
-    Booster booster = new JavaBoosterImpl(params, allMats);
+    JavaBoosterImpl booster = new JavaBoosterImpl(params, allMats);
+
+    int version = booster.loadRabitCheckpoint();
 
     //begin to train
-    for (int iter = 0; iter < round; iter++) {
-      if (obj != null) {
-        booster.update(dtrain, obj);
-      } else {
-        booster.update(dtrain, iter);
+    for (int iter = version / 2; iter < round; iter++) {
+      if (version % 2 == 0) {
+        if (obj != null) {
+          booster.update(dtrain, obj);
+        } else {
+          booster.update(dtrain, iter);
+        }
+        booster.saveRabitCheckpoint();
+        version += 1;
       }
 
       //evaluation
@@ -92,6 +98,8 @@ public class XGBoost {
         }
         logger.info(evalInfo);
       }
+      booster.saveRabitCheckpoint();
+      version += 1;
     }
     return booster;
   }
