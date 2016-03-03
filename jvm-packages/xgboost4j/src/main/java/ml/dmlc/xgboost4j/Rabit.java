@@ -1,14 +1,15 @@
 package ml.dmlc.xgboost4j;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import java.util.Map;
 import java.io.IOException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 /**
  * Rabit global class for synchronization.
  */
-public class Rabit {
+class Rabit {
   private static final Log logger = LogFactory.getLog(DMatrix.class);
   //load native library
   static {
