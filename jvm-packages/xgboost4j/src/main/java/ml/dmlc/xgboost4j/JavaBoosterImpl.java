@@ -57,7 +57,6 @@ class JavaBoosterImpl implements Booster {
     setParams(params);
   }
 
-
   /**
    * load model from modelPath
    *
@@ -441,6 +440,22 @@ class JavaBoosterImpl implements Booster {
   }
 
   /**
+   * Save the model as byte array representation.
+   * Write these bytes to a file will give compatible format with other xgboost bindings.
+   *
+   * If java natively support HDFS file API, use toByteArray and write the ByteArray,
+   *
+   * @return the saved byte array.
+   * @throws XGBoostError
+   */
+  public byte[] toByteArray() throws XGBoostError {
+    byte[][] bytes = new byte[1][];
+    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterGetModelRaw(this.handle, bytes));
+    return bytes[0];
+  }
+
+
+  /**
    * Load the booster model from thread-local rabit checkpoint.
    * This is only used in distributed training.
    * @return the stored version number of the checkpoint.
@@ -473,6 +488,27 @@ class JavaBoosterImpl implements Booster {
       handles[i] = dmatrixs[i].getHandle();
     }
     return handles;
+  }
+
+  // making Booster serializable
+  private void writeObject(java.io.ObjectOutputStream out)
+          throws IOException {
+    try {
+      out.writeObject(this.toByteArray());
+    } catch (XGBoostError ex) {
+      throw new IOException(ex.toString());
+    }
+  }
+
+  private void readObject(java.io.ObjectInputStream in)
+          throws IOException, ClassNotFoundException {
+    try {
+      this.init(null);
+      byte[] bytes = (byte[])in.readObject();
+      JNIErrorHandle.checkCall(XgboostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
+    } catch (XGBoostError ex) {
+      throw new IOException(ex.toString());
+    }
   }
 
   @Override

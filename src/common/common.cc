@@ -19,5 +19,5 @@ typedef ThreadLocalStore<RandomThreadLocalEntry> RandomThreadLocalStore;
 GlobalRandomEngine& GlobalRandom() {
   return RandomThreadLocalStore::Get()->engine;
 }
-}
+}  // namespace common
 }  // namespace xgboost
