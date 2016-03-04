@@ -24,6 +24,15 @@ public class RabitTracker {
   private int num_workers;
   private AtomicReference<Process> trackerProcess = new AtomicReference<Process>();
 
+  static {
+    try {
+      initTrackerPy();
+    } catch (IOException ex) {
+      logger.error("load tracker library failed.");
+      logger.error(ex);
+    }
+  }
+
   /**
    * Tracker logger that logs output from tracker.
    */
@@ -44,7 +53,7 @@ public class RabitTracker {
     }
   }
 
-  private void initTrackerPy() throws IOException {
+  private static void initTrackerPy() throws IOException {
     try {
       tracker_py = NativeLibLoader.createTempFileFromResource("/tracker.py");
     } catch (IOException ioe) {
@@ -90,7 +99,6 @@ public class RabitTracker {
 
   private boolean startTrackerProcess() {
     try {
-      initTrackerPy();
       trackerProcess.set(Runtime.getRuntime().exec("python " + tracker_py +
               " --num-workers=" + String.valueOf(num_workers)));
       loadEnvs(trackerProcess.get().getInputStream());
