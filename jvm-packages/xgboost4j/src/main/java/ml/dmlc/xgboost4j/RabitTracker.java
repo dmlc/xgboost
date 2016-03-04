@@ -5,6 +5,7 @@ package ml.dmlc.xgboost4j;
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -16,17 +17,13 @@ public class RabitTracker {
   // Maybe per tracker logger?
   private static final Log logger = LogFactory.getLog(RabitTracker.class);
   // tracker python file.
-  private static File tracker_py = null;
+  private static String tracker_py = null;
   // environment variable to be pased.
   private Map<String, String> envs = new HashMap<String, String>();
   // number of workers to be submitted.
   private int num_workers;
-  // child process
-  private  Process process = null;
-  // logger thread
-  private Thread logger_thread = null;
+  private AtomicReference<Process> trackerProcess = new AtomicReference<Process>();
 
-  //load native library
   static {
     try {
       initTrackerPy();
@@ -39,22 +36,30 @@ public class RabitTracker {
   /**
    * Tracker logger that logs output from tracker.
    */
-  private class TrackerLogger implements Runnable {
+  private class TrackerProcessLogger implements Runnable {
     public void run() {
-      BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+
+      Log trackerProcessLogger = LogFactory.getLog(TrackerProcessLogger.class);
+      BufferedReader reader = new BufferedReader(new InputStreamReader(
+              trackerProcess.get().getErrorStream()));
       String line;
       try {
         while ((line = reader.readLine()) != null) {
-          logger.info(line);
+          trackerProcessLogger.info(line);
         }
       } catch (IOException ex) {
-        logger.error(ex.toString());
+        trackerProcessLogger.error(ex.toString());
       }
     }
   }
 
-  private static synchronized void initTrackerPy() throws IOException {
-    tracker_py = FileUtil.createTempFileFromResource("/tracker.py");
+  private static void initTrackerPy() throws IOException {
+    try {
+      tracker_py = NativeLibLoader.createTempFileFromResource("/tracker.py");
+    } catch (IOException ioe) {
+      logger.trace("cannot access tracker python script");
+      throw ioe;
+    }
   }
 
 
@@ -70,29 +75,70 @@ public class RabitTracker {
     return envs;
   }
 
-  public void start() throws IOException {
-    process = Runtime.getRuntime().exec("python " + tracker_py.getAbsolutePath() +
-            " --num-workers=" + new Integer(num_workers).toString());
-    BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-    assert reader.readLine().trim().equals("DMLC_TRACKER_ENV_START");
-    String line;
-    while ((line = reader.readLine()) != null) {
-      if (line.trim().equals("DMLC_TRACKER_ENV_END")) {
-        break;
+  private void loadEnvs(InputStream ins) throws IOException {
+    try {
+      BufferedReader reader = new BufferedReader(new InputStreamReader(ins));
+      assert reader.readLine().trim().equals("DMLC_TRACKER_ENV_START");
+      String line;
+      while ((line = reader.readLine()) != null) {
+        if (line.trim().equals("DMLC_TRACKER_ENV_END")) {
+          break;
+        }
+        String[] sep = line.split("=");
+        if (sep.length == 2) {
+          envs.put(sep[0], sep[1]);
+        }
       }
-      String []sep = line.split("=");
-      if (sep.length == 2) {
-        envs.put(sep[0], sep[1]);
-      }
+      reader.close();
+    } catch (IOException ioe){
+      logger.error("cannot get runtime configuration from tracker process");
+      ioe.printStackTrace();
+      throw ioe;
     }
-    logger.debug("Tracker started, with env=" + envs.toString());
-    // also start a tracker logger
-    logger_thread = new Thread(new TrackerLogger());
-    logger_thread.setDaemon(true);
-    logger_thread.start();
   }
 
-  public void waitFor() throws InterruptedException {
-    process.waitFor();
+  private boolean startTrackerProcess() {
+    try {
+      trackerProcess.set(Runtime.getRuntime().exec("python " + tracker_py +
+              " --num-workers=" + String.valueOf(num_workers)));
+      loadEnvs(trackerProcess.get().getInputStream());
+      return true;
+    } catch (IOException ioe) {
+      ioe.printStackTrace();
+      return false;
+    }
+  }
+
+  private void stop() {
+    if (trackerProcess.get() != null) {
+      trackerProcess.get().destroy();
+    }
+  }
+
+  public boolean start() {
+    if (startTrackerProcess()) {
+      logger.debug("Tracker started, with env=" + envs.toString());
+      // also start a tracker logger
+      Thread logger_thread = new Thread(new TrackerProcessLogger());
+      logger_thread.setDaemon(true);
+      logger_thread.start();
+      return true;
+    } else {
+      logger.error("FAULT: failed to start tracker process");
+      stop();
+      return false;
+    }
+  }
+
+  public void waitFor() {
+    try {
+      trackerProcess.get().waitFor();
+      logger.info("Tracker Process ends with exit code " + trackerProcess.get().exitValue());
+      stop();
+    } catch (InterruptedException e) {
+      // we should not get here as RabitTracker is accessed in the main thread
+      e.printStackTrace();
+      logger.error("the RabitTracker thread is terminated unexpectedly");
+    }
   }
 }
