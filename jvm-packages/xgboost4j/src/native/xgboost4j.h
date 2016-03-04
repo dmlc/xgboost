@@ -194,15 +194,15 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_XGBoosterSaveModel
 /*
  * Class:     ml_dmlc_xgboost4j_XgboostJNI
  * Method:    XGBoosterLoadModelFromBuffer
- * Signature: (JJJ)I
+ * Signature: (J[B)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_XGBoosterLoadModelFromBuffer
-  (JNIEnv *, jclass, jlong, jlong, jlong);
+  (JNIEnv *, jclass, jlong, jbyteArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_XgboostJNI
  * Method:    XGBoosterGetModelRaw
- * Signature: (J[Ljava/lang/String;)I
+ * Signature: (J[[B)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_XgboostJNI_XGBoosterGetModelRaw
   (JNIEnv *, jclass, jlong, jobjectArray);

@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+
 /**
  * class to load native library
  *
@@ -61,12 +62,32 @@ class NativeLibLoader {
    * three characters
    */
   private static void loadLibraryFromJar(String path) throws IOException, IllegalArgumentException{
+    String temp = createTempFileFromResource(path);
+    // Finally, load the library
+    System.load(temp);
+  }
 
+  /**
+   * Create a temp file that copies the resource from current JAR archive
+   * <p/>
+   * The file from JAR is copied into system temp file.
+   * The temporary file is deleted after exiting.
+   * Method uses String as filename because the pathname is "abstract", not system-dependent.
+   * <p/>
+   * The restrictions of {@link File#createTempFile(java.lang.String, java.lang.String)} apply to
+   * {@code path}.
+   * @param path Path to the resources in the jar
+   * @return The created temp file.
+   * @throws IOException
+   * @throws IllegalArgumentException
+   */
+  static String createTempFileFromResource(String path) throws
+          IOException, IllegalArgumentException {
+    // Obtain filename from path
     if (!path.startsWith("/")) {
       throw new IllegalArgumentException("The path has to be absolute (start with '/').");
     }
 
-    // Obtain filename from path
     String[] parts = path.split("/");
     String filename = (parts.length > 1) ? parts[parts.length - 1] : null;
 
@@ -83,7 +104,6 @@ class NativeLibLoader {
     if (filename == null || prefix.length() < 3) {
       throw new IllegalArgumentException("The filename has to be at least 3 characters long.");
     }
-
     // Prepare temporary file
     File temp = File.createTempFile(prefix, suffix);
     temp.deleteOnExit();
@@ -113,9 +133,7 @@ class NativeLibLoader {
       os.close();
       is.close();
     }
-
-    // Finally, load the library
-    System.load(temp.getAbsolutePath());
+    return temp.getAbsolutePath();
   }
 
   /**
@@ -133,8 +151,9 @@ class NativeLibLoader {
       try {
         String libraryFromJar = nativeResourcePath + System.mapLibraryName(libName);
         loadLibraryFromJar(libraryFromJar);
-      } catch (IOException e1) {
-        throw e1;
+      } catch (IOException ioe) {
+        logger.error("failed to load library from both native path and jar");
+        throw ioe;
       }
     }
   }

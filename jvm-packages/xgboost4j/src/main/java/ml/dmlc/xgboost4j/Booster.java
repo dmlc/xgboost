@@ -1,9 +1,10 @@
 package ml.dmlc.xgboost4j;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Map;
 
-public interface Booster {
+public interface Booster extends Serializable {
 
   /**
    * set parameter
@@ -109,11 +110,24 @@ public interface Booster {
   float[][] predict(DMatrix data, int treeLimit, boolean predLeaf) throws XGBoostError;
 
   /**
-   * save model to modelPath
-   *
+   * save model to modelPath, the model path support depends on the path support
+   * in libxgboost. For example, if we want to save to hdfs, libxgboost need to be
+   * compiled with HDFS support.
+   * See also toByteArray
    * @param modelPath model path
    */
   void saveModel(String modelPath) throws XGBoostError;
+
+  /**
+   * Save the model as byte array representation.
+   * Write these bytes to a file will give compatible format with other xgboost bindings.
+   *
+   * If java natively support HDFS file API, use toByteArray and write the ByteArray,
+   *
+   * @return the saved byte array.
+   * @throws XGBoostError
+   */
+  byte[] toByteArray() throws XGBoostError;
 
   /**
    * Dump model into a text file.

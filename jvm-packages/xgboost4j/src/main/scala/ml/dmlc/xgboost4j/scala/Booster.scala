@@ -23,7 +23,7 @@ import scala.collection.mutable
 import ml.dmlc.xgboost4j.XGBoostError
 
 
-trait Booster {
+trait Booster extends Serializable {
 
 
   /**
