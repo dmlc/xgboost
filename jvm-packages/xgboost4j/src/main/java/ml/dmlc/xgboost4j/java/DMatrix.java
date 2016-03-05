@@ -21,6 +21,8 @@ import java.util.Iterator;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import ml.dmlc.xgboost4j.LabeledPoint;
+
 /**
  * DMatrix for xgboost.
  *
@@ -52,20 +54,18 @@ public class DMatrix {
    * Create DMatrix from iterator.
    *
    * @param iter The data iterator of mini batch to provide the data.
-   * @param cache_info Cache path information, used for external memory setting, can be null.
+   * @param cacheInfo Cache path information, used for external memory setting, can be null.
    * @throws XGBoostError
    */
-  public DMatrix(Iterator<DataBatch> iter, String cache_info) throws XGBoostError {
+  public DMatrix(Iterator<LabeledPoint> iter, String cacheInfo) throws XGBoostError {
     if (iter == null) {
       throw new NullPointerException("iter: null");
     }
-    try {
-      logger.info(iter.getClass().getMethod("next").toString());
-    } catch(NoSuchMethodException e) {
-      logger.info(e.toString());
-    }
+    // 32k as batch size
+    int batchSize = 32 << 10;
+    Iterator<DataBatch> batchIter = new DataBatch.BatchIterator(iter, batchSize);
     long[] out = new long[1];
-    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(iter, cache_info, out));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(batchIter, cacheInfo, out));
     handle = out[0];
   }
 
