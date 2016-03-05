@@ -16,10 +16,10 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import ml.dmlc.xgboost4j.{DMatrix => JDMatrix, XGBoostError}
+import ml.dmlc.xgboost4j.java
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, XGBoostError}
 
 class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
-
   /**
    * init DMatrix from file (svmlight format)
    *

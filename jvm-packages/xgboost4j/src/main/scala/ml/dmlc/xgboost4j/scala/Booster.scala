@@ -18,10 +18,8 @@ package ml.dmlc.xgboost4j.scala
 
 import java.io.IOException
 
+import ml.dmlc.xgboost4j.java.XGBoostError
 import scala.collection.mutable
-
-import ml.dmlc.xgboost4j.XGBoostError
-
 
 trait Booster extends Serializable {
 

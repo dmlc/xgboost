@@ -16,12 +16,11 @@
 
 package ml.dmlc.xgboost4j.scala
 
+import ml.dmlc.xgboost4j.java
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
-import ml.dmlc.xgboost4j.{Booster => JBooster}
-
-private[scala] class ScalaBoosterImpl private[xgboost4j](booster: JBooster) extends Booster {
+private[scala] class ScalaBoosterImpl private[xgboost4j](booster: java.Booster) extends Booster {
 
   override def setParam(key: String, value: String): Unit = {
     booster.setParam(key, value)

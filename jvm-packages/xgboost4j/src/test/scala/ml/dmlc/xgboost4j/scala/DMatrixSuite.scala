@@ -18,10 +18,9 @@ package ml.dmlc.xgboost4j.scala
 
 import java.util.Arrays
 
-import scala.util.Random
-
-import ml.dmlc.xgboost4j.{DMatrix => JDMatrix}
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import org.scalatest.FunSuite
+import scala.util.Random
 
 class DMatrixSuite extends FunSuite {
   test("create DMatrix from File") {
