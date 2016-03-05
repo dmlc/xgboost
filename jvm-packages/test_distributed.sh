@@ -1,5 +1,5 @@
 #!/bin/bash
 # Simple script to test distributed version, to be deleted later.
-cd xgboost4j-demo
-java  -XX:OnError="gdb - %p" -cp target/xgboost4j-demo-0.1-jar-with-dependencies.jar ml.dmlc.xgboost4j.demo.DistTrain 4
+cd xgboost4j-flink
+flink run -c ml.dmlc.xgboost4j.flink.Test -p 4  target/xgboost4j-flink-0.1-jar-with-dependencies.jar
 cd ..

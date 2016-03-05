@@ -21,7 +21,7 @@ public class RabitTracker {
   // environment variable to be pased.
   private Map<String, String> envs = new HashMap<String, String>();
   // number of workers to be submitted.
-  private int num_workers;
+  private int numWorkers;
   private AtomicReference<Process> trackerProcess = new AtomicReference<Process>();
 
   static {
@@ -63,8 +63,12 @@ public class RabitTracker {
   }
 
 
-  public RabitTracker(int num_workers) {
-    this.num_workers = num_workers;
+  public RabitTracker(int numWorkers)
+    throws XGBoostError {
+    if (numWorkers < 1) {
+      throw new XGBoostError("numWorkers must be greater equal to one");
+    }
+    this.numWorkers = numWorkers;
   }
 
   /**
@@ -100,7 +104,7 @@ public class RabitTracker {
   private boolean startTrackerProcess() {
     try {
       trackerProcess.set(Runtime.getRuntime().exec("python " + tracker_py +
-              " --num-workers=" + String.valueOf(num_workers)));
+              " --log-level=DEBUG --num-workers=" + String.valueOf(numWorkers)));
       loadEnvs(trackerProcess.get().getInputStream());
       return true;
     } catch (IOException ioe) {
