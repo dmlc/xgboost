@@ -12,6 +12,9 @@
 #endif
 
 // XGBoost C API will include APIs in Rabit C API
+XGB_EXTERN_C {
+#include <stdio.h>
+}
 #include <rabit/c_api.h>
 
 #if defined(_MSC_VER) || defined(_WIN32)
@@ -26,6 +29,51 @@ typedef unsigned long bst_ulong;  // NOLINT(*)
 typedef void *DMatrixHandle;
 /*! \brief handle to Booster */
 typedef void *BoosterHandle;
+/*! \brief handle to a data iterator */
+typedef void *DataIterHandle;
+/*! \brief handle to a internal data holder. */
+typedef void *DataHolderHandle;
+
+/*! \brief Mini batch used in XGBoost Data Iteration */
+typedef struct {
+  /*! \brief number of rows in the minibatch */
+  size_t size;
+  /*! \brief row pointer to the rows in the data */
+  long* offset;  // NOLINT(*)
+  /*! \brief labels of each instance */
+  float* label;
+  /*! \brief weight of each instance, can be NULL */
+  float* weight;
+  /*! \brief feature index */
+  int* index;
+  /*! \brief feature values */
+  float* value;
+} XGBoostBatchCSR;
+
+
+/*!
+ * \brief Callback to set the data to handle,
+ * \param handle The handle to the callback.
+ * \param batch The data content to be setted.
+ */
+XGB_EXTERN_C typedef int XGBCallbackSetData(
+    DataHolderHandle handle, XGBoostBatchCSR batch);
+
+/*!
+ * \brief The data reading callback function.
+ *  The iterator will be able to give subset of batch in the data.
+ *
+ *  If there is data, the function will call set_function to set the data.
+ *
+ * \param data_handle The handle to the callback.
+ * \param set_function The batch returned by the iterator
+ * \param set_function_handle The handle to be passed to set function.
+ * \return 0 if we are reaching the end and batch is not returned.
+ */
+XGB_EXTERN_C typedef int XGBCallbackDataIterNext(
+    DataIterHandle data_handle,
+    XGBCallbackSetData* set_function,
+    DataHolderHandle set_function_handle);
 
 /*!
  * \brief get string message of the last error
@@ -49,6 +97,20 @@ XGB_DLL const char *XGBGetLastError();
 XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
                                     int silent,
                                     DMatrixHandle *out);
+
+/*!
+ * \brief Create a DMatrix from a data iterator.
+ * \param data_handle The handle to the data.
+ * \param callback The callback to get the data.
+ * \param cache_info Additional information about cache file, can be null.
+ * \param out The created DMatrix
+ * \return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGDMatrixCreateFromDataIter(
+    DataIterHandle data_handle,
+    XGBCallbackDataIterNext* callback,
+    const char* cache_info,
+    DMatrixHandle *out);
 
 /*!
  * \brief create a matrix content from csr format

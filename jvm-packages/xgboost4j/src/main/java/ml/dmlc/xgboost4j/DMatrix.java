@@ -16,6 +16,7 @@
 package ml.dmlc.xgboost4j;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -47,6 +48,33 @@ public class DMatrix {
     CSC;
   }
 
+  /**
+   * Create DMatrix from iterator.
+   *
+   * @param iter The data iterator of mini batch to provide the data.
+   * @param cache_info Cache path information, used for external memory setting, can be null.
+   * @throws XGBoostError
+   */
+  public DMatrix(Iterator<DataBatch> iter, String cache_info) throws XGBoostError {
+    if (iter == null) {
+      throw new NullPointerException("iter: null");
+    }
+    try {
+      logger.info(iter.getClass().getMethod("next").toString());
+    } catch(NoSuchMethodException e) {
+      logger.info(e.toString());
+    }
+    long[] out = new long[1];
+    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixCreateFromDataIter(iter, cache_info, out));
+    handle = out[0];
+  }
+
+  /**
+   * Create DMatrix by loading libsvm file from dataPath
+   *
+   * @param dataPath The path to the data.
+   * @throws XGBoostError
+   */
   public DMatrix(String dataPath) throws XGBoostError {
     if (dataPath == null) {
       throw new NullPointerException("dataPath: null");
@@ -56,6 +84,14 @@ public class DMatrix {
     handle = out[0];
   }
 
+  /**
+   * Create DMatrix from Sparse matrix in CSR/CSC format.
+   * @param headers The row index of the matrix.
+   * @param indices The indices of presenting entries.
+   * @param data The data content.
+   * @param st  Type of sparsity.
+   * @throws XGBoostError
+   */
   public DMatrix(long[] headers, int[] indices, float[] data, SparseType st) throws XGBoostError {
     long[] out = new long[1];
     if (st == SparseType.CSR) {

@@ -15,6 +15,7 @@
  */
 package ml.dmlc.xgboost4j;
 
+
 /**
  * xgboost JNI functions
  * change 2015-7-6: *use a long[] (length=1) as container of handle to get the output DMatrix or Booster
@@ -25,6 +26,8 @@ class XgboostJNI {
   public final static native String XGBGetLastError();
 
   public final static native int XGDMatrixCreateFromFile(String fname, int silent, long[] out);
+
+  public final static native int XGDMatrixCreateFromDataIter(java.util.Iterator<DataBatch> iter,  String cache_info, long[] out);
 
   public final static native int XGDMatrixCreateFromCSR(long[] indptr, int[] indices, float[] data,
                                                         long[] out);
