@@ -101,6 +101,7 @@
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
+                    <skipAssembly>true</skipAssembly>
                 </configuration>
                 <executions>
                     <execution>
