@@ -22,7 +22,7 @@ package ml.dmlc.xgboost4j.java;
  *
  * @author hzx
  */
-class XgboostJNI {
+class XGBoostJNI {
   public final static native String XGBGetLastError();
 
   public final static native int XGDMatrixCreateFromFile(String fname, int silent, long[] out);

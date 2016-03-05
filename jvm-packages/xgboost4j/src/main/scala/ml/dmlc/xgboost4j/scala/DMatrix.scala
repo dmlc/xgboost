@@ -21,7 +21,6 @@ import _root_.scala.collection.JavaConverters._
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, DataBatch, XGBoostError}
 
 class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
-
   /**
    * init DMatrix from file (svmlight format)
    *

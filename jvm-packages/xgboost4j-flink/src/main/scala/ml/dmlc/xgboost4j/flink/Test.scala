@@ -16,7 +16,8 @@
 
 package ml.dmlc.xgboost4j.flink
 
-import ml.dmlc.xgboost4j.java.{RabitTracker, Rabit}
+import ml.dmlc.xgboost4j.java.{Rabit,RabitTracker}
+
 import ml.dmlc.xgboost4j.scala.Booster
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.XGBoost
@@ -34,7 +35,7 @@ class ScalaMapFunction(workerEnvs: java.util.Map[String, String])
   extends RichMapPartitionFunction[LabeledVector, Booster] {
   val log = LogFactory.getLog(this.getClass)
   def mapPartition(it : java.lang.Iterable[LabeledVector], collector: Collector[Booster]): Unit = {
-    workerEnvs.put("DMLC_TASK_ID", this.getRuntimeContext.getTaskName)
+    workerEnvs.put("DMLC_TASK_ID", String.valueOf(this.getRuntimeContext.getIndexOfThisSubtask))
     log.info("start with env" + workerEnvs.toString)
     Rabit.init(workerEnvs)
 

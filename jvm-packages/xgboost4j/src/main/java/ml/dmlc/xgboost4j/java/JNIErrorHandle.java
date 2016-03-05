@@ -45,7 +45,7 @@ class JNIErrorHandle {
    */
   static void checkCall(int ret) throws XGBoostError {
     if (ret != 0) {
-      throw new XGBoostError(XgboostJNI.XGBGetLastError());
+      throw new XGBoostError(XGBoostJNI.XGBGetLastError());
     }
   }
 

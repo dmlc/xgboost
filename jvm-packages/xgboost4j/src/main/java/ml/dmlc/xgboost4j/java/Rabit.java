@@ -23,7 +23,7 @@ public class Rabit {
 
   private static void checkCall(int ret) throws XGBoostError {
     if (ret != 0) {
-      throw new XGBoostError(XgboostJNI.XGBGetLastError());
+      throw new XGBoostError(XGBoostJNI.XGBGetLastError());
     }
   }
 
@@ -38,7 +38,7 @@ public class Rabit {
     for (java.util.Map.Entry<String, String> e : envs.entrySet()) {
       args[idx++] = e.getKey() + '=' + e.getValue();
     }
-    checkCall(XgboostJNI.RabitInit(args));
+    checkCall(XGBoostJNI.RabitInit(args));
   }
 
   /**
@@ -46,7 +46,7 @@ public class Rabit {
    * @throws XGBoostError
    */
   public static void shutdown() throws XGBoostError {
-    checkCall(XgboostJNI.RabitFinalize());
+    checkCall(XGBoostJNI.RabitFinalize());
   }
 
   /**
@@ -55,7 +55,7 @@ public class Rabit {
    * @throws XGBoostError
    */
   public static void trackerPrint(String msg) throws XGBoostError {
-    checkCall(XgboostJNI.RabitTrackerPrint(msg));
+    checkCall(XGBoostJNI.RabitTrackerPrint(msg));
   }
 
   /**
@@ -66,7 +66,7 @@ public class Rabit {
    */
   public static int versionNumber() throws XGBoostError {
     int[] out = new int[1];
-    checkCall(XgboostJNI.RabitVersionNumber(out));
+    checkCall(XGBoostJNI.RabitVersionNumber(out));
     return out[0];
   }
 
@@ -77,7 +77,7 @@ public class Rabit {
    */
   public static int getRank() throws XGBoostError {
     int[] out = new int[1];
-    checkCall(XgboostJNI.RabitGetRank(out));
+    checkCall(XGBoostJNI.RabitGetRank(out));
     return out[0];
   }
 
@@ -88,7 +88,7 @@ public class Rabit {
    */
   public static int getWorldSize() throws XGBoostError {
     int[] out = new int[1];
-    checkCall(XgboostJNI.RabitGetWorldSize(out));
+    checkCall(XGBoostJNI.RabitGetWorldSize(out));
     return out[0];
   }
 }

@@ -65,7 +65,7 @@ public class DMatrix {
       logger.info(e.toString());
     }
     long[] out = new long[1];
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixCreateFromDataIter(iter, cache_info, out));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(iter, cache_info, out));
     handle = out[0];
   }
 
@@ -80,7 +80,7 @@ public class DMatrix {
       throw new NullPointerException("dataPath: null");
     }
     long[] out = new long[1];
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixCreateFromFile(dataPath, 1, out));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixCreateFromFile(dataPath, 1, out));
     handle = out[0];
   }
 
@@ -95,9 +95,9 @@ public class DMatrix {
   public DMatrix(long[] headers, int[] indices, float[] data, SparseType st) throws XGBoostError {
     long[] out = new long[1];
     if (st == SparseType.CSR) {
-      JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixCreateFromCSR(headers, indices, data, out));
+      JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixCreateFromCSR(headers, indices, data, out));
     } else if (st == SparseType.CSC) {
-      JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixCreateFromCSC(headers, indices, data, out));
+      JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixCreateFromCSC(headers, indices, data, out));
     } else {
       throw new UnknownError("unknow sparsetype");
     }
@@ -114,7 +114,7 @@ public class DMatrix {
    */
   public DMatrix(float[] data, int nrow, int ncol) throws XGBoostError {
     long[] out = new long[1];
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixCreateFromMat(data, nrow, ncol, 0.0f, out));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixCreateFromMat(data, nrow, ncol, 0.0f, out));
     handle = out[0];
   }
 
@@ -133,7 +133,7 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public void setLabel(float[] labels) throws XGBoostError {
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixSetFloatInfo(handle, "label", labels));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "label", labels));
   }
 
   /**
@@ -143,7 +143,7 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public void setWeight(float[] weights) throws XGBoostError {
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixSetFloatInfo(handle, "weight", weights));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "weight", weights));
   }
 
   /**
@@ -154,7 +154,7 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public void setBaseMargin(float[] baseMargin) throws XGBoostError {
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixSetFloatInfo(handle, "base_margin", baseMargin));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "base_margin", baseMargin));
   }
 
   /**
@@ -176,18 +176,18 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public void setGroup(int[] group) throws XGBoostError {
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixSetGroup(handle, group));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixSetGroup(handle, group));
   }
 
   private float[] getFloatInfo(String field) throws XGBoostError {
     float[][] infos = new float[1][];
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixGetFloatInfo(handle, field, infos));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixGetFloatInfo(handle, field, infos));
     return infos[0];
   }
 
   private int[] getIntInfo(String field) throws XGBoostError {
     int[][] infos = new int[1][];
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixGetUIntInfo(handle, field, infos));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixGetUIntInfo(handle, field, infos));
     return infos[0];
   }
 
@@ -230,7 +230,7 @@ public class DMatrix {
    */
   public DMatrix slice(int[] rowIndex) throws XGBoostError {
     long[] out = new long[1];
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixSliceDMatrix(handle, rowIndex, out));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixSliceDMatrix(handle, rowIndex, out));
     long sHandle = out[0];
     DMatrix sMatrix = new DMatrix(sHandle);
     return sMatrix;
@@ -244,7 +244,7 @@ public class DMatrix {
    */
   public long rowNum() throws XGBoostError {
     long[] rowNum = new long[1];
-    JNIErrorHandle.checkCall(XgboostJNI.XGDMatrixNumRow(handle, rowNum));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixNumRow(handle, rowNum));
     return rowNum[0];
   }
 
@@ -252,7 +252,7 @@ public class DMatrix {
    * save DMatrix to filePath
    */
   public void saveBinary(String filePath) {
-    XgboostJNI.XGDMatrixSaveBinary(handle, filePath, 1);
+    XGBoostJNI.XGDMatrixSaveBinary(handle, filePath, 1);
   }
 
   /**
@@ -285,7 +285,7 @@ public class DMatrix {
 
   public synchronized void dispose() {
     if (handle != 0) {
-      XgboostJNI.XGDMatrixFree(handle);
+      XGBoostJNI.XGDMatrixFree(handle);
       handle = 0;
     }
   }
