@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.dmlc</groupId>
+    <groupId>ml.dmlc</groupId>
     <artifactId>xgboostjvm</artifactId>
     <version>0.1</version>
     <packaging>pom</packaging>
@@ -14,12 +14,13 @@
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
         <maven.version>3.3.9</maven.version>
-        <scala.version>2.11.7</scala.version>
-        <scala.binary.version>2.11</scala.binary.version>
+        <scala.version>2.10.5</scala.version>
+        <scala.binary.version>2.10</scala.binary.version>
     </properties>
     <modules>
         <module>xgboost4j</module>
         <module>xgboost4j-demo</module>
+        <module>xgboost4j-spark</module>
     </modules>
     <build>
         <plugins>
@@ -100,6 +101,7 @@
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
+                    <skipAssembly>true</skipAssembly>
                 </configuration>
                 <executions>
                     <execution>

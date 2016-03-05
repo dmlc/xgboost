@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import ml.dmlc.xgboost4j.XGBoostError
+import ml.dmlc.xgboost4j.java.XGBoostError
 import org.apache.commons.logging.LogFactory
 import org.scalatest.FunSuite
 
@@ -85,6 +85,6 @@ class ScalaBoosterImplSuite extends FunSuite {
       "objective" -> "binary:logistic", "gamma" -> "1.0", "eval_metric" -> "error").toMap
     val round = 2
     val nfold = 5
-    XGBoost.crossValiation(params, trainMat, round, nfold, null, null, null)
+    XGBoost.crossValidation(params, trainMat, round, nfold, null, null, null)
   }
 }

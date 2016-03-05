@@ -16,10 +16,11 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import ml.dmlc.xgboost4j.{DMatrix => JDMatrix, XGBoostError}
+import _root_.scala.collection.JavaConverters._
+
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, DataBatch, XGBoostError}
 
 class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
-
   /**
    * init DMatrix from file (svmlight format)
    *
@@ -41,6 +42,10 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   @throws(classOf[XGBoostError])
   def this(headers: Array[Long], indices: Array[Int], data: Array[Float], st: JDMatrix.SparseType) {
     this(new JDMatrix(headers, indices, data, st))
+  }
+
+  private[xgboost4j] def this(dataBatches: Iterator[DataBatch]) {
+    this(new JDMatrix(dataBatches.asJava, null))
   }
 
   /**

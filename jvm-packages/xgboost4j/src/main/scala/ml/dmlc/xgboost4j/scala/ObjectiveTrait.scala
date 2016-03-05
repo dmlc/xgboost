@@ -18,7 +18,8 @@ package ml.dmlc.xgboost4j.scala
 
 import scala.collection.JavaConverters._
 
-import ml.dmlc.xgboost4j.{DMatrix => JDMatrix, IObjective}
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
+import ml.dmlc.xgboost4j.java.IObjective
 
 trait ObjectiveTrait extends IObjective {
   /**

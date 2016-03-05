@@ -16,9 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala
 
+import ml.dmlc.xgboost4j.java.{XGBoost => JXGBoost}
 import scala.collection.JavaConverters._
-
-import ml.dmlc.xgboost4j.{XGBoost => JXGBoost}
 
 object XGBoost {
 
@@ -35,7 +34,7 @@ object XGBoost {
     new ScalaBoosterImpl(xgboostInJava)
   }
 
-  def crossValiation(
+  def crossValidation(
       params: Map[String, AnyRef],
       data: DMatrix,
       round: Int,
@@ -43,7 +42,7 @@ object XGBoost {
       metrics: Array[String] = null,
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null): Array[String] = {
-    JXGBoost.crossValiation(params.asJava, data.jDMatrix, round, nfold, metrics, obj, eval)
+    JXGBoost.crossValidation(params.asJava, data.jDMatrix, round, nfold, metrics, obj, eval)
   }
 
   def initBoostModel(params: Map[String, AnyRef], dMatrixs: Array[DMatrix]): Booster = {
