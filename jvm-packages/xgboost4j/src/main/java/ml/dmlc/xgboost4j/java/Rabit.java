@@ -1,4 +1,4 @@
-package ml.dmlc.xgboost4j;
+package ml.dmlc.xgboost4j.java;
 
 import java.io.IOException;
 import java.util.Map;

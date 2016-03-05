@@ -1,13 +1,12 @@
-package ml.dmlc.xgboost4j.demo;
+package ml.dmlc.xgboost4j.java.demo;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import ml.dmlc.xgboost4j.java.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
-import ml.dmlc.xgboost4j.*;
 
 
 /**

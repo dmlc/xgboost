@@ -20,7 +20,6 @@ import java.util.Arrays
 
 import scala.util.Random
 
-import ml.dmlc.xgboost4j.{DMatrix => JDMatrix}
 import org.scalatest.FunSuite
 
 class DMatrixSuite extends FunSuite {

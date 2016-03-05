@@ -16,7 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import ml.dmlc.xgboost4j.{DMatrix => JDMatrix, IEvaluation}
+import ml.dmlc.xgboost4j.java
+import ml.dmlc.xgboost4j.java.IEvaluation
 
 trait EvalTrait extends IEvaluation {
 
@@ -36,7 +37,7 @@ trait EvalTrait extends IEvaluation {
    */
   def eval(predicts: Array[Array[Float]], dmat: DMatrix): Float
 
-  private[scala] def eval(predicts: Array[Array[Float]], jdmat: JDMatrix): Float = {
+  private[scala] def eval(predicts: Array[Array[Float]], jdmat: java.DMatrix): Float = {
     eval(predicts, new DMatrix(jdmat))
   }
 }

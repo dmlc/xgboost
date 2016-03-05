@@ -1,4 +1,4 @@
-package ml.dmlc.xgboost4j;
+package ml.dmlc.xgboost4j.java;
 
 /**
  * A mini-batch of data that can be converted to DMatrix.

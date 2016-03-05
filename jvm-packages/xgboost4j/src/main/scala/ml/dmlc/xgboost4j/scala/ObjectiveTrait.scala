@@ -16,9 +16,9 @@
 
 package ml.dmlc.xgboost4j.scala
 
+import ml.dmlc.xgboost4j.java
+import ml.dmlc.xgboost4j.java.IObjective
 import scala.collection.JavaConverters._
-
-import ml.dmlc.xgboost4j.{DMatrix => JDMatrix, IObjective}
 
 trait ObjectiveTrait extends IObjective {
   /**
@@ -30,7 +30,7 @@ trait ObjectiveTrait extends IObjective {
    */
   def getGradient(predicts: Array[Array[Float]], dtrain: DMatrix): List[Array[Float]]
 
-  private[scala] def getGradient(predicts: Array[Array[Float]], dtrain: JDMatrix):
+  private[scala] def getGradient(predicts: Array[Array[Float]], dtrain: java.DMatrix):
     java.util.List[Array[Float]] = {
     getGradient(predicts, new DMatrix(dtrain)).asJava
   }

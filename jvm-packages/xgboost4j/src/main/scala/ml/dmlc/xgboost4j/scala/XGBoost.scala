@@ -18,8 +18,6 @@ package ml.dmlc.xgboost4j.scala
 
 import scala.collection.JavaConverters._
 
-import ml.dmlc.xgboost4j.{XGBoost => JXGBoost}
-
 object XGBoost {
 
   def train(

@@ -13,16 +13,15 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j.demo;
+package ml.dmlc.xgboost4j.java.demo;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import ml.dmlc.xgboost4j.java.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
-import ml.dmlc.xgboost4j.*;
 
 /**
  * an example user define objective and eval

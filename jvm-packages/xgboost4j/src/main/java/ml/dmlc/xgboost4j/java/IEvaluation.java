@@ -13,23 +13,27 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j;
-
-import java.io.Serializable;
-import java.util.List;
+package ml.dmlc.xgboost4j.java;
 
 /**
- * interface for customize Object function
+ * interface for customized evaluation
  *
  * @author hzx
  */
-public interface IObjective extends Serializable {
+public interface IEvaluation {
   /**
-   * user define objective function, return gradient and second order gradient
+   * get evaluate metric
    *
-   * @param predicts untransformed margin predicts
-   * @param dtrain   training data
-   * @return List with two float array, correspond to first order grad and second order grad
+   * @return evalMetric
    */
-  List<float[]> getGradient(float[][] predicts, DMatrix dtrain);
+  String getMetric();
+
+  /**
+   * evaluate with predicts and data
+   *
+   * @param predicts predictions as array
+   * @param dmat     data matrix to evaluate
+   * @return result of the metric
+   */
+  float eval(float[][] predicts, DMatrix dmat);
 }

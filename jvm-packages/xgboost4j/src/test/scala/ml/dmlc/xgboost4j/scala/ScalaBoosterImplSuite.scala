@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import ml.dmlc.xgboost4j.XGBoostError
+import ml.dmlc.xgboost4j.java.XGBoostError
 import org.apache.commons.logging.LogFactory
 import org.scalatest.FunSuite
 
