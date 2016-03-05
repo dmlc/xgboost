@@ -21,7 +21,7 @@ import java.util.{Iterator => JIterator}
 import scala.collection.mutable.ListBuffer
 import scala.collection.JavaConverters._
 
-import ml.dmlc.xgboost4j.DataBatch
+import ml.dmlc.xgboost4j.java.DataBatch
 import org.apache.spark.mllib.linalg.{SparseVector, DenseVector, Vector}
 import org.apache.spark.mllib.regression.LabeledPoint
 

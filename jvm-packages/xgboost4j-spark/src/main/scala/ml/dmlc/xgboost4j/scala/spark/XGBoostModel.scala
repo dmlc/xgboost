@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.JavaConverters._
 
-import ml.dmlc.xgboost4j.{DMatrix => JDMatrix}
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, Booster}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD

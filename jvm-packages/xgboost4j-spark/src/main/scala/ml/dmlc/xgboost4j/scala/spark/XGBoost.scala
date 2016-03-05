@@ -20,7 +20,7 @@ import scala.collection.immutable.HashMap
 import scala.collection.JavaConverters._
 
 import com.typesafe.config.Config
-import ml.dmlc.xgboost4j.{DMatrix => JDMatrix}
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.regression.LabeledPoint
@@ -48,7 +48,9 @@ object XGBoost {
         val dataBatches = dataUtilsBroadcast.value.fromLabeledPointsToSparseMatrix(trainingSamples)
         val dMatrix = new DMatrix(new JDMatrix(dataBatches, null))
         Iterator(SXGBoost.train(xgBoostConfigMap, dMatrix, round, watches = null, obj, eval))
-    }
+    }.cache()
+    // force the job
+    sc.runJob(boosters, (boosters: Iterator[Booster]) => boosters)
     // TODO: how to choose best model
     boosters.first()
   }
