@@ -8,7 +8,7 @@
         <artifactId>xgboostjvm</artifactId>
         <version>0.1</version>
     </parent>
-    <artifactId>xgboost4jspark</artifactId>
+    <artifactId>xgboost4j-spark</artifactId>
     <build>
         <plugins>
             <plugin>
