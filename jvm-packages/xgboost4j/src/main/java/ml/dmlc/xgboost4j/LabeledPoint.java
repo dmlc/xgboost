@@ -6,13 +6,13 @@ package ml.dmlc.xgboost4j;
  */
 public class LabeledPoint {
   /** Label of the point */
-  float label;
+  public float label;
   /** Weight of this data point */
-  float weight = 1.0f;
+  public float weight = 1.0f;
   /** Feature indices, used for sparse input */
-  int[] indices = null;
+  public int[] indices = null;
   /** Feature values */
-  float[] values;
+  public float[] values;
 
   private LabeledPoint() {}
 
@@ -27,6 +27,7 @@ public class LabeledPoint {
     ret.label = label;
     ret.indices = indices;
     ret.values = values;
+    assert indices.length == values.length;
     return ret;
   }
 
