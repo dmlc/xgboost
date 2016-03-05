@@ -196,9 +196,9 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
             score <- as.numeric(score)
             if ( (maximize && score > bestScore) || (!maximize && score < bestScore)) {
                 bestScore <- score
-                bestInd <- i
+                bestInd <- i - 1
             } else {
-                if (i - bestInd >= early.stop.round) {
+                if (i - bestInd > early.stop.round) {
                     earlyStopflag <- TRUE
                     cat('Stopping. Best iteration:', bestInd, '\n')
                     break
@@ -211,7 +211,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         for (k in 1:nfold) {
             fd <- xgb_folds[[k]]
             if (!is.null(early.stop.round) && earlyStopflag) {
-              res <- xgb.iter.eval(fd$booster, fd$watchlist, bestInd - 1, feval, prediction)
+              res <- xgb.iter.eval(fd$booster, fd$watchlist, bestInd, feval, prediction)
             } else {
               res <- xgb.iter.eval(fd$booster, fd$watchlist, nrounds - 1, feval, prediction)
             }

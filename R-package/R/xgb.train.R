@@ -208,10 +208,10 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
         score <- as.numeric(score)
         if ( (maximize && score > bestScore) || (!maximize && score < bestScore)) {
           bestScore <- score
-          bestInd <- i
+          bestInd <- i - 1
         } else {
           earlyStopflag = TRUE
-          if (i - bestInd >= early.stop.round) {
+          if (i - bestInd > early.stop.round) {
             cat('Stopping. Best iteration:', bestInd, '\n')
             break
           }
@@ -229,6 +229,11 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
   if (!is.null(early.stop.round)) {
     bst$bestScore <- bestScore
     bst$bestInd <- bestInd
+    if (!is.null(params$num_parallel_tree)) {
+      bst$best_ntreelimit <- (bst$bestInd + 1) * params$num_parallel_tree
+    } else {
+      bst$best_ntreelimit <- bst$bestInd + 1    
+    }
   }
 
   attr(bst, "call") <- fit.call
