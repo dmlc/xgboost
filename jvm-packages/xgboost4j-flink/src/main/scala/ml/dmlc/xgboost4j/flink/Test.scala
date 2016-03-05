@@ -16,8 +16,7 @@
 
 package ml.dmlc.xgboost4j.flink
 
-import ml.dmlc.xgboost4j.java.{Rabit,RabitTracker}
-
+import ml.dmlc.xgboost4j.java.{Rabit, RabitTracker}
 import ml.dmlc.xgboost4j.scala.Booster
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.XGBoost
