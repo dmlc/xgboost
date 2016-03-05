@@ -13,7 +13,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j;
+package ml.dmlc.xgboost4j.java;
 
 import java.io.IOException;
 
@@ -45,7 +45,7 @@ class JNIErrorHandle {
    */
   static void checkCall(int ret) throws XGBoostError {
     if (ret != 0) {
-      throw new XGBoostError(XgboostJNI.XGBGetLastError());
+      throw new XGBoostError(XGBoostJNI.XGBGetLastError());
     }
   }
 

@@ -1,4 +1,10 @@
-package ml.dmlc.xgboost4j;
+package ml.dmlc.xgboost4j.java;
+
+import java.util.Iterator;
+
+import ml.dmlc.xgboost4j.LabeledPoint;
+
+
 
 /**
  * A mini-batch of data that can be converted to DMatrix.

@@ -13,7 +13,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j.demo;
+package ml.dmlc.xgboost4j.java.demo;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,8 +22,8 @@ import java.util.List;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import ml.dmlc.xgboost4j.*;
 
+import ml.dmlc.xgboost4j.java.*;
 /**
  * an example user define objective and eval
  * NOTE: when you do customized loss function, the default prediction value is margin

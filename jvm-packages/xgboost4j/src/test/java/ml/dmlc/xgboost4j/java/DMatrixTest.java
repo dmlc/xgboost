@@ -13,12 +13,15 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j;
+package ml.dmlc.xgboost4j.java;
 
 import java.util.Arrays;
 import java.util.Random;
 
 import junit.framework.TestCase;
+import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.DataBatch;
+import ml.dmlc.xgboost4j.java.XGBoostError;
 import org.junit.Test;
 
 /**

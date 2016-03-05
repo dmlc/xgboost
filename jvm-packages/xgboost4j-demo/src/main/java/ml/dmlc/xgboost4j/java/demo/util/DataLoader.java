@@ -13,7 +13,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j.demo.util;
+package ml.dmlc.xgboost4j.java.demo.util;
 
 import java.io.*;
 import java.util.ArrayList;

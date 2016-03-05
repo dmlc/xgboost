@@ -13,14 +13,14 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j.demo.util;
+package ml.dmlc.xgboost4j.java.demo.util;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import ml.dmlc.xgboost4j.DMatrix;
-import ml.dmlc.xgboost4j.IEvaluation;
-import ml.dmlc.xgboost4j.XGBoostError;
+import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.IEvaluation;
+import ml.dmlc.xgboost4j.java.XGBoostError;
 
 /**
  * a util evaluation class for examples

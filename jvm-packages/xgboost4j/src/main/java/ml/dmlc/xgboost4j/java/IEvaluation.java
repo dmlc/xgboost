@@ -13,15 +13,27 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j;
+package ml.dmlc.xgboost4j.java;
 
 /**
- * custom error class for xgboost
+ * interface for customized evaluation
  *
  * @author hzx
  */
-public class XGBoostError extends Exception {
-  public XGBoostError(String message) {
-    super(message);
-  }
+public interface IEvaluation {
+  /**
+   * get evaluate metric
+   *
+   * @return evalMetric
+   */
+  String getMetric();
+
+  /**
+   * evaluate with predicts and data
+   *
+   * @param predicts predictions as array
+   * @param dmat     data matrix to evaluate
+   * @return result of the metric
+   */
+  float eval(float[][] predicts, DMatrix dmat);
 }

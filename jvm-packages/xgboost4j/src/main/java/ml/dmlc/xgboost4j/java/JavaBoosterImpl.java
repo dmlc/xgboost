@@ -13,7 +13,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j;
+package ml.dmlc.xgboost4j.java;
 
 import java.io.*;
 import java.util.HashMap;
@@ -81,7 +81,7 @@ class JavaBoosterImpl implements Booster {
       handles = dmatrixsToHandles(dMatrixs);
     }
     long[] out = new long[1];
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterCreate(handles, out));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterCreate(handles, out));
 
     handle = out[0];
   }
@@ -94,7 +94,7 @@ class JavaBoosterImpl implements Booster {
    * @throws XGBoostError native error
    */
   public final void setParam(String key, String value) throws XGBoostError {
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterSetParam(handle, key, value));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterSetParam(handle, key, value));
   }
 
   /**
@@ -120,7 +120,7 @@ class JavaBoosterImpl implements Booster {
    * @throws XGBoostError native error
    */
   public void update(DMatrix dtrain, int iter) throws XGBoostError {
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterUpdateOneIter(handle, iter, dtrain.getHandle()));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterUpdateOneIter(handle, iter, dtrain.getHandle()));
   }
 
   /**
@@ -149,7 +149,7 @@ class JavaBoosterImpl implements Booster {
       throw new AssertionError(String.format("grad/hess length mismatch %s / %s", grad.length,
               hess.length));
     }
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterBoostOneIter(handle, dtrain.getHandle(), grad,
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterBoostOneIter(handle, dtrain.getHandle(), grad,
             hess));
   }
 
@@ -165,7 +165,7 @@ class JavaBoosterImpl implements Booster {
   public String evalSet(DMatrix[] evalMatrixs, String[] evalNames, int iter) throws XGBoostError {
     long[] handles = dmatrixsToHandles(evalMatrixs);
     String[] evalInfo = new String[1];
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterEvalOneIter(handle, iter, handles, evalNames,
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterEvalOneIter(handle, iter, handles, evalNames,
             evalInfo));
     return evalInfo[0];
   }
@@ -211,7 +211,7 @@ class JavaBoosterImpl implements Booster {
       optionMask = 2;
     }
     float[][] rawPredicts = new float[1][];
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterPredict(handle, data.getHandle(), optionMask,
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterPredict(handle, data.getHandle(), optionMask,
             treeLimit, rawPredicts));
     int row = (int) data.rowNum();
     int col = rawPredicts[0].length / row;
@@ -284,11 +284,11 @@ class JavaBoosterImpl implements Booster {
    * @param modelPath model path
    */
   public void saveModel(String modelPath) throws XGBoostError{
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterSaveModel(handle, modelPath));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterSaveModel(handle, modelPath));
   }
 
   private void loadModel(String modelPath) {
-    XgboostJNI.XGBoosterLoadModel(handle, modelPath);
+    XGBoostJNI.XGBoosterLoadModel(handle, modelPath);
   }
 
   /**
@@ -304,7 +304,7 @@ class JavaBoosterImpl implements Booster {
       statsFlag = 1;
     }
     String[][] modelInfos = new String[1][];
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterDumpModel(handle, "", statsFlag, modelInfos));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterDumpModel(handle, "", statsFlag, modelInfos));
     return modelInfos[0];
   }
 
@@ -322,7 +322,7 @@ class JavaBoosterImpl implements Booster {
       statsFlag = 1;
     }
     String[][] modelInfos = new String[1][];
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterDumpModel(handle, featureMap, statsFlag,
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterDumpModel(handle, featureMap, statsFlag,
             modelInfos));
     return modelInfos[0];
   }
@@ -450,7 +450,7 @@ class JavaBoosterImpl implements Booster {
    */
   public byte[] toByteArray() throws XGBoostError {
     byte[][] bytes = new byte[1][];
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterGetModelRaw(this.handle, bytes));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterGetModelRaw(this.handle, bytes));
     return bytes[0];
   }
 
@@ -463,7 +463,7 @@ class JavaBoosterImpl implements Booster {
    */
   int loadRabitCheckpoint() throws XGBoostError {
     int[] out = new int[1];
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterLoadRabitCheckpoint(this.handle, out));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterLoadRabitCheckpoint(this.handle, out));
     return out[0];
   }
 
@@ -473,7 +473,7 @@ class JavaBoosterImpl implements Booster {
    * @throws XGBoostError
    */
   void saveRabitCheckpoint() throws XGBoostError {
-    JNIErrorHandle.checkCall(XgboostJNI.XGBoosterSaveRabitCheckpoint(this.handle));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterSaveRabitCheckpoint(this.handle));
   }
 
   /**
@@ -505,7 +505,7 @@ class JavaBoosterImpl implements Booster {
     try {
       this.init(null);
       byte[] bytes = (byte[])in.readObject();
-      JNIErrorHandle.checkCall(XgboostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
+      JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
     } catch (XGBoostError ex) {
       throw new IOException(ex.toString());
     }
@@ -519,7 +519,7 @@ class JavaBoosterImpl implements Booster {
 
   public synchronized void dispose() {
     if (handle != 0L) {
-      XgboostJNI.XGBoosterFree(handle);
+      XGBoostJNI.XGBoosterFree(handle);
       handle = 0;
     }
   }

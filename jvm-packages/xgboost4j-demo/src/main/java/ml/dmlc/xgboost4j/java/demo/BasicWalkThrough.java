@@ -13,18 +13,18 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j.demo;
+package ml.dmlc.xgboost4j.java.demo;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 
-import ml.dmlc.xgboost4j.Booster;
-import ml.dmlc.xgboost4j.DMatrix;
-import ml.dmlc.xgboost4j.XGBoost;
-import ml.dmlc.xgboost4j.XGBoostError;
-import ml.dmlc.xgboost4j.demo.util.DataLoader;
+import ml.dmlc.xgboost4j.java.Booster;
+import ml.dmlc.xgboost4j.java.DMatrix;
+import ml.dmlc.xgboost4j.java.XGBoost;
+import ml.dmlc.xgboost4j.java.XGBoostError;
+import ml.dmlc.xgboost4j.java.demo.util.DataLoader;
 
 /**
  * a simple example of java wrapper for xgboost
