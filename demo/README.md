@@ -99,6 +99,7 @@ Please send pull requests if you find ones that are missing here.
 - [West Nile Virus Competition Benchmarks & Tutorials](http://blog.kaggle.com/2015/07/21/west-nile-virus-competition-benchmarks-tutorials/) by [Anna Montoya](http://blog.kaggle.com/author/annamontoya/)
 - [Ensemble Decision Tree with XGBoost](https://www.kaggle.com/binghsu/predict-west-nile-virus/xgboost-starter-code-python-0-69) by [Bing Xu](https://www.kaggle.com/binghsu)
 - [Notes on eXtreme Gradient Boosting](http://startup.ml/blog/xgboost) by ARSHAK NAVRUZYAN ([iPython Notebook](https://github.com/startupml/koan/blob/master/eXtreme%20Gradient%20Boosting.ipynb))
+- [Complete Guide to Parameter Tuning in XGBoost](http://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/) by Aarshay Jain
 
 
 ## Usecases
