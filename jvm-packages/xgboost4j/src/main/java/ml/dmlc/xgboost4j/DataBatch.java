@@ -4,8 +4,6 @@ package ml.dmlc.xgboost4j;
  * A mini-batch of data that can be converted to DMatrix.
  * The data is in sparse matrix CSR format.
  *
- * Usually this object is not needed.
- *
  * This class is used to support advanced creation of DMatrix from Iterator of DataBatch,
  */
 public class DataBatch {
@@ -19,6 +17,19 @@ public class DataBatch {
   int[] featureIndex = null;
   /** value of each non-missing entry in the sparse matrix */
   float[] featureValue = null;
+
+  public DataBatch() {}
+
+  public DataBatch(long[] rowOffset, float[] weight, float[] label, int[] featureIndex,
+                   float[] featureValue) {
+    this.rowOffset = rowOffset;
+    this.weight = weight;
+    this.label = label;
+    this.featureIndex = featureIndex;
+    this.featureValue = featureValue;
+  }
+
+
   /**
    * Get number of rows in the data batch.
    * @return Number of rows in the data batch.

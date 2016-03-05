@@ -491,8 +491,7 @@ class JavaBoosterImpl implements Booster {
   }
 
   // making Booster serializable
-  private void writeObject(java.io.ObjectOutputStream out)
-          throws IOException {
+  private void writeObject(java.io.ObjectOutputStream out) throws IOException {
     try {
       out.writeObject(this.toByteArray());
     } catch (XGBoostError ex) {

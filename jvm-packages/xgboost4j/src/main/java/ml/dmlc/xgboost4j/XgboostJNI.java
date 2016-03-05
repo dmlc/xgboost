@@ -27,7 +27,8 @@ class XgboostJNI {
 
   public final static native int XGDMatrixCreateFromFile(String fname, int silent, long[] out);
 
-  public final static native int XGDMatrixCreateFromDataIter(java.util.Iterator<DataBatch> iter,  String cache_info, long[] out);
+  final static native int XGDMatrixCreateFromDataIter(java.util.Iterator<DataBatch> iter,
+                                                             String cache_info, long[] out);
 
   public final static native int XGDMatrixCreateFromCSR(long[] indptr, int[] indices, float[] data,
                                                         long[] out);

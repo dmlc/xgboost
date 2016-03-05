@@ -20,7 +20,7 @@
     <modules>
         <module>xgboost4j</module>
         <module>xgboost4j-demo</module>
-        <module>xgboost4jspark</module>
+        <module>xgboost4j-spark</module>
     </modules>
     <build>
         <plugins>

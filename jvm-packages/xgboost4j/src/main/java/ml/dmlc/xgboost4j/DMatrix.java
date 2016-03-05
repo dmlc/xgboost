@@ -28,7 +28,7 @@ import org.apache.commons.logging.LogFactory;
  */
 public class DMatrix {
   private static final Log logger = LogFactory.getLog(DMatrix.class);
-  private long handle = 0;
+  protected long handle = 0;
 
   //load native library
   static {
