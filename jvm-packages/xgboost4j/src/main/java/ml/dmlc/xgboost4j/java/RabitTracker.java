@@ -47,8 +47,15 @@ public class RabitTracker {
         while ((line = reader.readLine()) != null) {
           trackerProcessLogger.info(line);
         }
+        trackerProcess.get().waitFor();
+        trackerProcessLogger.info("Tracker Process ends with exit code " +
+                trackerProcess.get().exitValue());
       } catch (IOException ex) {
         trackerProcessLogger.error(ex.toString());
+      } catch (InterruptedException ie) {
+        // we should not get here as RabitTracker is accessed in the main thread
+        ie.printStackTrace();
+        logger.error("the RabitTracker thread is terminated unexpectedly");
       }
     }
   }
