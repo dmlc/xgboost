@@ -1,6 +1,7 @@
 package ml.dmlc.xgboost4j.java;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Map;
 
 import org.apache.commons.logging.Log;

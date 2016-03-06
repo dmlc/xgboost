@@ -1,5 +1,6 @@
 package ml.dmlc.xgboost4j.java;
 
+import java.io.Serializable;
 import java.util.Iterator;
 
 import ml.dmlc.xgboost4j.LabeledPoint;

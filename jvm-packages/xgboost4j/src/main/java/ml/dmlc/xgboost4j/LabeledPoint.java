@@ -1,10 +1,12 @@
 package ml.dmlc.xgboost4j;
 
+import java.io.Serializable;
+
 /**
  * Labeled data point for training examples.
  * Represent a sparse training instance.
  */
-public class LabeledPoint {
+public class LabeledPoint implements Serializable {
   /** Label of the point */
   public float label;
   /** Weight of this data point */

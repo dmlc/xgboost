@@ -16,10 +16,11 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import scala.collection.immutable.HashMap
+import scala.collection.mutable
+import scala.collection.JavaConverters._
 
-import com.typesafe.config.Config
-import org.apache.spark.{TaskContext, SparkContext}
+import org.apache.commons.logging.LogFactory
+import org.apache.spark.TaskContext
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 
@@ -28,6 +29,9 @@ import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 
 object XGBoost extends Serializable {
 
+  var boosters: RDD[Booster] = null
+  private val logger = LogFactory.getLog("XGBoostSpark")
+
   implicit def convertBoosterToXGBoostModel(booster: Booster): XGBoostModel = {
     new XGBoostModel(booster)
   }
@@ -35,45 +39,51 @@ object XGBoost extends Serializable {
   private[spark] def buildDistributedBoosters(
       trainingData: RDD[LabeledPoint],
       xgBoostConfMap: Map[String, AnyRef],
+      rabitEnv: mutable.Map[String, String],
       numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait): RDD[Booster] = {
     import DataUtils._
-    val sc = trainingData.sparkContext
-    val tracker = new RabitTracker(numWorkers)
-    if (tracker.start()) {
-      trainingData.repartition(numWorkers).mapPartitions {
-        trainingSamples =>
-          Rabit.init(new java.util.HashMap[String, String]() {
-            put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
-          })
-          val dMatrix = new DMatrix(new JDMatrix(trainingSamples, null))
-          val booster = SXGBoost.train(xgBoostConfMap, dMatrix, round,
-            watches = new HashMap[String, DMatrix], obj, eval)
-          Rabit.shutdown()
-          Iterator(booster)
-      }.cache()
-    } else {
-      null
-    }
+    trainingData.repartition(numWorkers).mapPartitions {
+      trainingSamples =>
+        rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
+        Rabit.init(rabitEnv.asJava)
+        val dMatrix = new DMatrix(new JDMatrix(trainingSamples, null))
+        val booster = SXGBoost.train(xgBoostConfMap, dMatrix, round,
+          watches = new mutable.HashMap[String, DMatrix]{put("train", dMatrix)}.toMap, obj, eval)
+        Rabit.shutdown()
+        Iterator(booster)
+    }.cache()
   }
 
-  def train(config: Config, trainingData: RDD[LabeledPoint], obj: ObjectiveTrait = null,
-      eval: EvalTrait = null): Option[XGBoostModel] = {
-    import DataUtils._
-    val numWorkers = config.getInt("numWorkers")
-    val round = config.getInt("round")
+  def train(trainingData: RDD[LabeledPoint], configMap: Map[String, AnyRef], round: Int,
+       obj: ObjectiveTrait = null, eval: EvalTrait = null): Option[XGBoostModel] = {
+    val numWorkers = trainingData.partitions.length
     val sc = trainingData.sparkContext
     val tracker = new RabitTracker(numWorkers)
-    if (tracker.start()) {
-      // TODO: build configuration map from config
-      val xgBoostConfigMap = new HashMap[String, AnyRef]()
-      val boosters = buildDistributedBoosters(trainingData, xgBoostConfigMap, numWorkers, round,
-        obj, eval)
-      // force the job
-      sc.runJob(boosters, (boosters: Iterator[Booster]) => boosters)
-      tracker.waitFor()
-      // TODO: how to choose best model
-      Some(boosters.first())
+    require(tracker.start(), "FAULT: Failed to start tracker")
+    boosters = buildDistributedBoosters(trainingData, configMap,
+      tracker.getWorkerEnvs.asScala, numWorkers, round, obj, eval)
+    @volatile var booster: Booster = null
+    val sparkJobThread = new Thread() {
+      override def run() {
+        // force the job
+        boosters.foreachPartition(_ => ())
+      }
+    }
+    sparkJobThread.start()
+    val returnVal = tracker.waitFor()
+    logger.info(s"Rabit returns with exit code $returnVal")
+    if (returnVal == 0) {
+      booster = boosters.first()
+      Some(booster)
     } else {
+      try {
+        if (sparkJobThread.isAlive) {
+          sparkJobThread.interrupt()
+        }
+      } catch {
+        case ie: InterruptedException =>
+          logger.info("spark job thread is interrupted")
+      }
       None
     }
   }

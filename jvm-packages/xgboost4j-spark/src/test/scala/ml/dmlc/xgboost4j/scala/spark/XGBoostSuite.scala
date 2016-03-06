@@ -130,6 +130,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfterAll {
       trainingRDD,
       List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
         "objective" -> "binary:logistic").toMap,
+      new scala.collection.mutable.HashMap[String, String],
       numWorker, 2, null, null)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === numWorker)

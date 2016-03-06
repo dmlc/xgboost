@@ -24,7 +24,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 /**
- * Booster for xgboost, this is a model API that support interactive build of a XGBOost Model
+ * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model
  */
 public class Booster implements  Serializable {
   private static final Log logger = LogFactory.getLog(Booster.class);
@@ -353,10 +353,26 @@ public class Booster implements  Serializable {
    * Save the model as byte array representation.
    * Write these bytes to a file will give compatible format with other xgboost bindings.
    *
-   * If java natively support HDFS file API, use toByteArray and write the ByteArray,
+   * If java natively support HDFS file API, use toByteArray and write the ByteArray
+   *
+   * @param withStats Controls whether the split statistics are output.
+   * @return dumped model information
+   * @throws XGBoostError native error
+   */
+  private String[] getDumpInfo(boolean withStats) throws XGBoostError {
+    int statsFlag = 0;
+    if (withStats) {
+      statsFlag = 1;
+    }
+    String[][] modelInfos = new String[1][];
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterDumpModel(handle, "", statsFlag, modelInfos));
+    return modelInfos[0];
+  }
+
+  /**
    *
    * @return the saved byte array.
-   * @throws XGBoostError
+   * @throws XGBoostError native error
    */
   public byte[] toByteArray() throws XGBoostError {
     byte[][] bytes = new byte[1][];
