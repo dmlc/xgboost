@@ -1,6 +1,7 @@
 package ml.dmlc.xgboost4j.java;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Map;
 
 import org.apache.commons.logging.Log;
@@ -9,7 +10,7 @@ import org.apache.commons.logging.LogFactory;
 /**
  * Rabit global class for synchronization.
  */
-public class Rabit {
+public class Rabit implements Serializable {
   private static final Log logger = LogFactory.getLog(DMatrix.class);
   //load native library
   static {

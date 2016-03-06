@@ -71,7 +71,7 @@ public class XGBoost {
     }
 
     //initialize booster
-    JavaBoosterImpl booster = new JavaBoosterImpl(params, allMats);
+    Booster booster = new Booster(params, allMats);
 
     int version = booster.loadRabitCheckpoint();
 
@@ -115,7 +115,7 @@ public class XGBoost {
   public static Booster initBoostingModel(
       Map<String, Object> params,
       DMatrix[] dMatrixs) throws XGBoostError {
-    return new JavaBoosterImpl(params, dMatrixs);
+    return new Booster(params, dMatrixs);
   }
 
   /**
@@ -127,7 +127,7 @@ public class XGBoost {
    */
   public static Booster loadBoostModel(Map<String, Object> params, String modelPath)
       throws XGBoostError {
-    return new JavaBoosterImpl(params, modelPath);
+    return new Booster(params, modelPath);
   }
 
   /**

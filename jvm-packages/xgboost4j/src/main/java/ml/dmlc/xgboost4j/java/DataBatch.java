@@ -1,5 +1,6 @@
 package ml.dmlc.xgboost4j.java;
 
+import java.io.Serializable;
 import java.util.Iterator;
 
 import ml.dmlc.xgboost4j.LabeledPoint;
@@ -56,7 +57,7 @@ class DataBatch {
     return b;
   }
 
-  static class BatchIterator implements Iterator<DataBatch> {
+  static class BatchIterator implements Iterator<DataBatch>, Serializable {
     private Iterator<LabeledPoint> base;
     private int batchSize;
 

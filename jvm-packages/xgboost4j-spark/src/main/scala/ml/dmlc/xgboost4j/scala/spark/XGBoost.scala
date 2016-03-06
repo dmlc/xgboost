@@ -61,7 +61,8 @@ object XGBoost extends Serializable {
     require(tracker.start(), "FAULT: Failed to start tracker")
     boosters = buildDistributedBoosters(trainingData, configMap, numWorkers, round, obj, eval)
     // force the job
-    sc.runJob(boosters, (boosters: Iterator[Booster]) => boosters)
+    boosters.foreachPartition(_ => ())
+    println("=====finished training=====")
     val booster = boosters.first()
     val returnVal = tracker.waitFor()
     logger.info(s"Rabit returns with exit code $returnVal")

@@ -16,8 +16,9 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import ml.dmlc.xgboost4j.java.{XGBoost => JXGBoost}
 import scala.collection.JavaConverters._
+
+import ml.dmlc.xgboost4j.java.{XGBoost => JXGBoost}
 
 object XGBoost {
 
@@ -31,7 +32,7 @@ object XGBoost {
     val jWatches = watches.map{case (name, matrix) => (name, matrix.jDMatrix)}
     val xgboostInJava = JXGBoost.train(params.asJava, dtrain.jDMatrix, round, jWatches.asJava,
       obj, eval)
-    new ScalaBoosterImpl(xgboostInJava)
+    new Booster(xgboostInJava)
   }
 
   def crossValidation(
@@ -47,11 +48,11 @@ object XGBoost {
 
   def initBoostModel(params: Map[String, AnyRef], dMatrixs: Array[DMatrix]): Booster = {
     val xgboostInJava = JXGBoost.initBoostingModel(params.asJava, dMatrixs.map(_.jDMatrix))
-    new ScalaBoosterImpl(xgboostInJava)
+    new Booster(xgboostInJava)
   }
 
   def loadBoostModel(params: Map[String, AnyRef], modelPath: String): Booster = {
     val xgboostInJava = JXGBoost.loadBoostModel(params.asJava, modelPath)
-    new ScalaBoosterImpl(xgboostInJava)
+    new Booster(xgboostInJava)
   }
 }
