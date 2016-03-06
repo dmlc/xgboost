@@ -35,7 +35,7 @@ class NativeLibLoader {
   private static final String nativeResourcePath = "/lib/";
   private static final String[] libNames = new String[]{"xgboost4j"};
 
-  public static synchronized void initXgBoost() throws IOException {
+  public static synchronized void initXGBoost() throws IOException {
     if (!initialized) {
       for (String libName : libNames) {
         smartLoad(libName);

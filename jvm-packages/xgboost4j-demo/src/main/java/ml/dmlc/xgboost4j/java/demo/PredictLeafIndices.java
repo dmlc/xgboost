@@ -52,13 +52,13 @@ public class PredictLeafIndices {
     Booster booster = XGBoost.train(params, trainMat, round, watches, null, null);
 
     //predict using first 2 tree
-    float[][] leafindex = booster.predict(testMat, 2, true);
+    float[][] leafindex = booster.predictLeaf(testMat, 2);
     for (float[] leafs : leafindex) {
       System.out.println(Arrays.toString(leafs));
     }
 
     //predict all trees
-    leafindex = booster.predict(testMat, 0, true);
+    leafindex = booster.predictLeaf(testMat, 0);
     for (float[] leafs : leafindex) {
       System.out.println(Arrays.toString(leafs));
     }
