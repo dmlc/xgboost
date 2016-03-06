@@ -161,10 +161,5 @@
             <version>2.2.6</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>com.typesafe</groupId>
-            <artifactId>config</artifactId>
-            <version>1.2.1</version>
-        </dependency>
     </dependencies>
 </project>

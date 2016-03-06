@@ -134,15 +134,18 @@ public class RabitTracker {
     }
   }
 
-  public void waitFor() {
+  public int waitFor() {
     try {
       trackerProcess.get().waitFor();
-      logger.info("Tracker Process ends with exit code " + trackerProcess.get().exitValue());
+      int returnVal = trackerProcess.get().exitValue();
+      logger.info("Tracker Process ends with exit code " + returnVal);
       stop();
+      return returnVal;
     } catch (InterruptedException e) {
       // we should not get here as RabitTracker is accessed in the main thread
       e.printStackTrace();
       logger.error("the RabitTracker thread is terminated unexpectedly");
+      return 1;
     }
   }
 }
