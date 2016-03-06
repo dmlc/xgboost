@@ -10,6 +10,17 @@
     </parent>
     <artifactId>xgboost4j-flink</artifactId>
     <version>0.1</version>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <skipAssembly>false</skipAssembly>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
     <packaging>jar</packaging>
     <dependencies>
         <dependency>
