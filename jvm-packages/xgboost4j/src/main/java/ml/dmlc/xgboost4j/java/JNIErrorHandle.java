@@ -30,7 +30,7 @@ class JNIErrorHandle {
   //load native library
   static {
     try {
-      NativeLibLoader.initXgBoost();
+      NativeLibLoader.initXGBoost();
     } catch (IOException ex) {
       logger.error("load native library failed.");
       logger.error(ex);

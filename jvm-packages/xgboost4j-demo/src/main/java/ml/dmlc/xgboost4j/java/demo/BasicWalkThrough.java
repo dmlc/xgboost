@@ -82,16 +82,16 @@ public class BasicWalkThrough {
     booster.saveModel(modelPath);
 
     //dump model
-    booster.dumpModel("./model/dump.raw.txt", false);
+    booster.getModelDump("./model/dump.raw.txt", false);
 
     //dump model with feature map
-    booster.dumpModel("./model/dump.nice.txt", "../../demo/data/featmap.txt", false);
+    booster.getModelDump("../../demo/data/featmap.txt", false);
 
     //save dmatrix into binary buffer
     testMat.saveBinary("./model/dtest.buffer");
 
     //reload model and data
-    Booster booster2 = XGBoost.loadBoostModel(params, "./model/xgb.model");
+    Booster booster2 = XGBoost.loadModel("./model/xgb.model");
     DMatrix testMat2 = new DMatrix("./model/dtest.buffer");
     float[][] predicts2 = booster2.predict(testMat2);
 
