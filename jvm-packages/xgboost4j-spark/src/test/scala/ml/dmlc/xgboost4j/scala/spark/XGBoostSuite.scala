@@ -20,7 +20,11 @@ import java.io.File
 
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
+import scala.tools.reflect.Eval
 
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, XGBoostError}
+import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
+import org.apache.commons.logging.LogFactory
 import org.apache.spark.mllib.linalg.DenseVector
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
@@ -31,6 +35,48 @@ class XGBoostSuite extends FunSuite with BeforeAndAfterAll {
 
   private var sc: SparkContext = null
   private val numWorker = 4
+
+  private class EvalError extends EvalTrait {
+
+    val logger = LogFactory.getLog(classOf[EvalError])
+
+    private[xgboost4j] var evalMetric: String = "custom_error"
+
+    /**
+     * get evaluate metric
+     *
+     * @return evalMetric
+     */
+    override def getMetric: String = evalMetric
+
+    /**
+     * evaluate with predicts and data
+     *
+     * @param predicts predictions as array
+     * @param dmat     data matrix to evaluate
+     * @return result of the metric
+     */
+    override def eval(predicts: Array[Array[Float]], dmat: DMatrix): Float = {
+      var error: Float = 0f
+      var labels: Array[Float] = null
+      try {
+        labels = dmat.getLabel
+      } catch {
+        case ex: XGBoostError =>
+          logger.error(ex)
+          return -1f
+      }
+      val nrow: Int = predicts.length
+      for (i <- 0 until nrow) {
+        if (labels(i) == 0.0 && predicts(i)(0) > 0) {
+          error += 1
+        } else if (labels(i) == 1.0 && predicts(i)(0) <= 0) {
+          error += 1
+        }
+      }
+      error / labels.length
+    }
+  }
 
   override def beforeAll(): Unit = {
     // build SparkContext
@@ -56,28 +102,41 @@ class XGBoostSuite extends FunSuite with BeforeAndAfterAll {
     LabeledPoint(label, new DenseVector(denseFeature))
   }
 
-  private def buildRDD(filePath: String): RDD[LabeledPoint] = {
+  private def readFile(filePath: String): List[LabeledPoint] = {
     val file = Source.fromFile(new File(filePath))
     val sampleList = new ListBuffer[LabeledPoint]
     for (sample <- file.getLines()) {
       sampleList += fromSVMStringToLabeledPoint(sample)
     }
+    sampleList.toList
+  }
+
+  private def buildRDD(filePath: String): RDD[LabeledPoint] = {
+    val sampleList = readFile(filePath)
     sc.parallelize(sampleList, numWorker)
   }
 
-  private def buildTrainingAndTestRDD(): (RDD[LabeledPoint], RDD[LabeledPoint]) = {
+  private def buildTrainingRDD(): RDD[LabeledPoint] = {
     val trainRDD = buildRDD(getClass.getResource("/agaricus.txt.train").getFile)
-    val testRDD = buildRDD(getClass.getResource("/agaricus.txt.test").getFile)
-    (trainRDD, testRDD)
+    trainRDD
   }
 
   test("build RDD containing boosters") {
-    val (trainingRDD, testRDD) = buildTrainingAndTestRDD()
+    val trainingRDD = buildTrainingRDD()
+    val testSet = readFile(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val boosterRDD = XGBoost.buildDistributedBoosters(
       trainingRDD,
-      Map[String, AnyRef](),
-      numWorker, 4, null, null)
+      List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
+        "objective" -> "binary:logistic").toMap,
+      numWorker, 2, null, null)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === numWorker)
+    val boosters = boosterRDD.collect()
+    for (booster <- boosters) {
+      val predicts = booster.predict(testSetDMatrix, true)
+      assert(new EvalError().eval(predicts, testSetDMatrix) < 0.1)
+    }
   }
 }

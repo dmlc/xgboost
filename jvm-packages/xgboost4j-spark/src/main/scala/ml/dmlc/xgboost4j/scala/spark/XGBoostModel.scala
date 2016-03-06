@@ -33,4 +33,8 @@ class XGBoostModel(booster: Booster) extends Serializable {
       Iterator(broadcastBooster.value.predict(dMatrix))
     }
   }
+
+  def predict(testSet: DMatrix): Array[Array[Float]] = {
+    booster.predict(testSet)
+  }
 }
