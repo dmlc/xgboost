@@ -10,7 +10,7 @@ import org.apache.commons.logging.LogFactory;
 /**
  * Rabit global class for synchronization.
  */
-public class Rabit implements Serializable {
+public class Rabit {
   private static final Log logger = LogFactory.getLog(DMatrix.class);
   //load native library
   static {

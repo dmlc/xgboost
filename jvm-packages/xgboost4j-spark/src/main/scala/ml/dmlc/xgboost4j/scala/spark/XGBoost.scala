@@ -64,7 +64,6 @@ object XGBoost extends Serializable {
       tracker.getWorkerEnvs.asScala, numWorkers, round, obj, eval)
     // force the job
     boosters.foreachPartition(_ => ())
-    println("=====finished training=====")
     val booster = boosters.first()
     val returnVal = tracker.waitFor()
     logger.info(s"Rabit returns with exit code $returnVal")

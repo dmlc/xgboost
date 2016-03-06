@@ -57,7 +57,7 @@ class DataBatch {
     return b;
   }
 
-  static class BatchIterator implements Iterator<DataBatch>, Serializable {
+  static class BatchIterator implements Iterator<DataBatch> {
     private Iterator<LabeledPoint> base;
     private int batchSize;
 

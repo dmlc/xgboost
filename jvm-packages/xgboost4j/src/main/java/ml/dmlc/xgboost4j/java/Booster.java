@@ -350,7 +350,10 @@ public class Booster implements  Serializable {
   }
 
   /**
-   * get the dump of the model as a string array
+   * Save the model as byte array representation.
+   * Write these bytes to a file will give compatible format with other xgboost bindings.
+   *
+   * If java natively support HDFS file API, use toByteArray and write the ByteArray
    *
    * @param withStats Controls whether the split statistics are output.
    * @return dumped model information
@@ -367,9 +370,8 @@ public class Booster implements  Serializable {
   }
 
   /**
-   * get the dump of the model as a byte array
    *
-   * @return dumped model information
+   * @return the saved byte array.
    * @throws XGBoostError native error
    */
   public byte[] toByteArray() throws XGBoostError {
