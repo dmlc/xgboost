@@ -25,6 +25,9 @@ import org.apache.flink.api.scala.DataSet
 import org.apache.flink.api.scala._
 import org.apache.flink.ml.common.LabeledVector
 import org.apache.flink.util.Collector
+import org.apache.hadoop.fs.FileSystem
+import org.apache.hadoop.fs.Path
+import org.apache.hadoop.conf.Configuration
 
 object XGBoost {
   /**
@@ -59,6 +62,20 @@ object XGBoost {
   }
 
   val logger = LogFactory.getLog(this.getClass)
+
+  /**
+    * Load XGBoost model from path, using Hadoop Filesystem API.
+    *
+    * @param modelPath The path that is accessible by hadoop filesystem API.
+    * @return The loaded model
+    */
+  def loadModel(modelPath: String) : XGBoostModel = {
+    new XGBoostModel(
+      XGBoostScala.loadModel(
+        FileSystem
+          .get(new Configuration)
+          .open(new Path(modelPath))))
+  }
 
   /**
     * Train a xgboost model with link.

@@ -16,12 +16,28 @@
 
 package ml.dmlc.xgboost4j.scala
 
+import java.io.InputStream
+
+import ml.dmlc.xgboost4j.java.{XGBoost => JXGBoost, XGBoostError}
 import scala.collection.JavaConverters._
 
-import ml.dmlc.xgboost4j.java.{XGBoost => JXGBoost}
-
+/**
+  * XGBoost Scala Training function.
+  */
 object XGBoost {
-
+  /**
+    * Train a booster given parameters.
+    *
+    * @param params  Parameters.
+    * @param dtrain  Data to be trained.
+    * @param round   Number of boosting iterations.
+    * @param watches a group of items to be evaluated during training, this allows user to watch
+    *                performance on the validation set.
+    * @param obj     customized objective
+    * @param eval    customized evaluation
+    * @return The trained booster.
+    */
+  @throws(classOf[XGBoostError])
   def train(
       params: Map[String, AnyRef],
       dtrain: DMatrix,
@@ -35,6 +51,19 @@ object XGBoost {
     new Booster(xgboostInJava)
   }
 
+  /**
+    * Cross-validation with given parameters.
+    *
+    * @param params  Booster params.
+    * @param data    Data to be trained.
+    * @param round   Number of boosting iterations.
+    * @param nfold   Number of folds in CV.
+    * @param metrics Evaluation metrics to be watched in CV.
+    * @param obj     customized objective
+    * @param eval    customized evaluation
+    * @return evaluation history
+    */
+  @throws(classOf[XGBoostError])
   def crossValidation(
       params: Map[String, AnyRef],
       data: DMatrix,
@@ -46,13 +75,28 @@ object XGBoost {
     JXGBoost.crossValidation(params.asJava, data.jDMatrix, round, nfold, metrics, obj, eval)
   }
 
-  def initBoostModel(params: Map[String, AnyRef], dMatrixs: Array[DMatrix]): Booster = {
-    val xgboostInJava = JXGBoost.initBoostingModel(params.asJava, dMatrixs.map(_.jDMatrix))
+  /**
+    * load model from modelPath
+    *
+    * @param modelPath booster modelPath
+    */
+  @throws(classOf[XGBoostError])
+  def loadModel(modelPath: String): Booster = {
+    val xgboostInJava = JXGBoost.loadModel(modelPath)
     new Booster(xgboostInJava)
   }
 
-  def loadBoostModel(params: Map[String, AnyRef], modelPath: String): Booster = {
-    val xgboostInJava = JXGBoost.loadBoostModel(params.asJava, modelPath)
+  /**
+    * Load a new Booster model from a file opened as input stream.
+    * The assumption is the input stream only contains one XGBoost Model.
+    * This can be used to load existing booster models saved by other XGBoost bindings.
+    *
+    * @param in The input stream of the file.
+    * @return The create booster
+    */
+  @throws(classOf[XGBoostError])
+  def loadModel(in: InputStream): Booster = {
+    val xgboostInJava = JXGBoost.loadModel(in)
     new Booster(xgboostInJava)
   }
 }

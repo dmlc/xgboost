@@ -37,6 +37,8 @@ object Test {
       "objective" -> "binary:logistic").toMap
     val round = 2
     val model = XGBoost.train(paramMap, data, round)
+
+
     log.info(model)
   }
 }
