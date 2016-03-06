@@ -1,0 +1,83 @@
+/*
+ Copyright (c) 2014 by Contributors
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ */
+
+package ml.dmlc.xgboost4j.flink
+import scala.collection.JavaConverters.asScalaIteratorConverter;
+import ml.dmlc.xgboost4j.LabeledPoint
+import ml.dmlc.xgboost4j.java.{RabitTracker, Rabit}
+import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => XGBoostScala}
+import org.apache.commons.logging.LogFactory
+import org.apache.flink.api.common.functions.RichMapPartitionFunction
+import org.apache.flink.api.scala.DataSet
+import org.apache.flink.api.scala._
+import org.apache.flink.ml.common.LabeledVector
+import org.apache.flink.util.Collector
+
+object XGBoost {
+  /**
+    * Helper map function to start the job.
+    *
+    * @param workerEnvs
+    */
+  private class MapFunction(paramMap: Map[String, AnyRef],
+                            round: Int,
+                            workerEnvs: java.util.Map[String, String])
+    extends RichMapPartitionFunction[LabeledVector, XGBoostModel] {
+    val logger = LogFactory.getLog(this.getClass)
+
+    def mapPartition(it: java.lang.Iterable[LabeledVector],
+                     collector: Collector[XGBoostModel]): Unit = {
+      workerEnvs.put("DMLC_TASK_ID", String.valueOf(this.getRuntimeContext.getIndexOfThisSubtask))
+      logger.info("start with env" + workerEnvs.toString)
+      Rabit.init(workerEnvs)
+      val mapper = (x: LabeledVector) => {
+        val (index, value) = x.vector.toSeq.unzip
+        LabeledPoint.fromSparseVector(x.label.toFloat,
+          index.toArray, value.map(z => z.toFloat).toArray)
+      }
+      val dataIter = for (x <- it.iterator().asScala) yield mapper(x)
+      val trainMat = new DMatrix(dataIter, null)
+      val watches = List("train" -> trainMat).toMap
+      val round = 2
+      val booster = XGBoostScala.train(paramMap, trainMat, round, watches, null, null)
+      Rabit.shutdown()
+      collector.collect(new XGBoostModel(booster))
+    }
+  }
+
+  val logger = LogFactory.getLog(this.getClass)
+
+  /**
+    * Train a xgboost model with link.
+    *
+    * @param params The parameters to XGBoost.
+    * @param dtrain The training data.
+    * @param round Number of rounds to train.
+    */
+  def train(params: Map[String, AnyRef],
+            dtrain: DataSet[LabeledVector],
+            round: Int): XGBoostModel = {
+    val tracker = new RabitTracker(dtrain.getExecutionEnvironment.getParallelism)
+    if (tracker.start()) {
+      dtrain
+        .mapPartition(new MapFunction(params, round, tracker.getWorkerEnvs))
+        .reduce((x, y) => x).collect().head
+    } else {
+      throw new Error("Tracker cannot be started")
+      null
+    }
+  }
+}
