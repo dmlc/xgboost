@@ -16,15 +16,20 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import org.apache.spark.mllib.regression.{LabeledPoint => SparkLabeledPoint}
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{Path, FileSystem}
+import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.rdd.RDD
-
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, Booster}
 
 class XGBoostModel(booster: Booster) extends Serializable {
-
-  def predict(testSet: RDD[SparkLabeledPoint]): RDD[Array[Array[Float]]] = {
+  /**
+    * Predict result given testRDD
+    * @param testSet the testSet of Data vectors
+    * @return The predicted RDD
+    */
+  def predict(testSet: RDD[Vector]): RDD[Array[Array[Float]]] = {
     import DataUtils._
     val broadcastBooster = testSet.sparkContext.broadcast(booster)
     val dataUtils = testSet.sparkContext.broadcast(DataUtils)
@@ -36,5 +41,16 @@ class XGBoostModel(booster: Booster) extends Serializable {
 
   def predict(testSet: DMatrix): Array[Array[Float]] = {
     booster.predict(testSet)
+  }
+
+  /**
+    * Save the model as a Hadoop filesystem file.
+    *
+    * @param modelPath The model path as in Hadoop path.
+    */
+  def saveModelToHadoop(modelPath: String): Unit = {
+    booster.saveModel(FileSystem
+      .get(new Configuration)
+      .create(new Path(modelPath)))
   }
 }
