@@ -14,6 +14,7 @@ This section contains language specific package guide.
 * [XGBoost Command Line Usage Walkthrough](../demo/binary_classification/README.md)
 * [Python Package Document](python/index.md)
 * [R Package Document](R-package/index.md)
+* [Java/Scala Package Document](jvm/index.md)
 * [XGBoost.jl Julia Package](https://github.com/dmlc/XGBoost.jl)
 
 User Guides
