@@ -1,33 +1,73 @@
-# xgboost4j
-this is a java wrapper for xgboost 
+# XGBoost4J: Distributed XGBoost for Scala/Java
+[![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost)
+[![GitHub license](http://dmlc.github.io/img/apache2.svg)](../LICENSE)
 
-the structure of this wrapper is almost the same as the official python wrapper.
+[Documentation](https://xgboost.readthedocs.org/en/latest/jvm/index.html) |
+[Resources](../demo/README.md) |
+[Release Notes](../NEWS.md)
 
-core of this wrapper is two classes:
+XGBoost4J is the JVM package of xgboost. It brings all the optimizations
+and power xgboost into JVM ecosystem.
 
-* DMatrix: for handling data
+- Train XGBoost models on scala and java with easy customizations.
+- Run distributed xgboost natively on jvm frameworks such as Flink and Spark.
 
-* Booster: for train and predict
+You can find more about XGBoost on [Documentation](https://xgboost.readthedocs.org/en/latest/jvm/index.html) and [Resource Page](../demo/README.md).
 
-## usage:
-  please refer to [xgboost4j.md](doc/xgboost4j.md) for more information.
+## Hello World
+### XGBoost Scala
+```scala
+import ml.dmlc.xgboost4j.scala.DMatrix
+import ml.dmlc.xgboost4j.scala.XGBoost
 
-  besides, simple examples could be found in [xgboost4j-demo](xgboost4j-demo/README.md)
- 
+object XGBoostScalaExample {
+  def main(args: Array[String]) {
+    // read trainining data, available at xgboost/demo/data
+    val trainData =
+      new DMatrix("/path/to/agaricus.txt.train")
+    // define parameters
+    val paramMap = List(
+      "eta" -> 0.1,
+      "max_depth" -> 2,
+      "objective" -> "binary:logistic").toMap
+    // number of iterations
+    val round = 2
+    // train the model
+    val model = XGBoost.train(paramMap, trainData, round)
+    // run prediction
+    val predTrain = model.predict(trainData)
+    // save model to the file.
+    model.saveModel("/local/path/to/model")
+  }
+}
+```
 
-## build native library
+### XGBoost Flink
+```scala
+import ml.dmlc.xgboost4j.scala.flink.XGBoost
+import org.apache.flink.api.scala._
+import org.apache.flink.api.scala.ExecutionEnvironment
+import org.apache.flink.ml.MLUtils
 
-for windows: open the xgboost.sln in "../windows" folder, you will found the xgboost4j project, you should do the following steps to build wrapper library:
- * Select x64/win32 and Release in build
- * (if you have setted `JAVA_HOME` properly in windows environment variables, escape this step) right click on xgboost4j project -> choose "Properties" -> click on "C/C++" in the window -> change the "Additional Include Directories" to fit your jdk install path.
- * rebuild all
- * double click "create_wrap.bat" to set library to proper place
+object DistTrainWithFlink {
+  def main(args: Array[String]) {
+    val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
+    // read trainining data
+    val trainData =
+      MLUtils.readLibSVM(env, "/path/to/data/agaricus.txt.train")
+    // define parameters
+    val paramMap = List(
+      "eta" -> 0.1,
+      "max_depth" -> 2,
+      "objective" -> "binary:logistic").toMap
+    // number of iterations
+    val round = 2
+    // train the model
+    val model = XGBoost.train(paramMap, trainData, round)
+    val predTrain = model.predict(trainData.map{x => x.vector})
+    model.saveModelToHadoop("file:///path/to/xgboost.model")
+  }
+}
+```
 
-for linux: 
- * make sure you have installed jdk and `JAVA_HOME` has been setted properly
- * run "create_wrap.sh"
-
-for osx:
- * make sure you have installed jdk
- * for single thread xgboost, simply run "create_wrap.sh"
- * for build with openMP, please refer to [build.md](../doc/build.md) to get openmp supported compiler first, and change the line "dis_omp=1" to "dis_omp=0" in "create_wrap.sh", then run "create_wrap.sh"
+### XGBoost Spark

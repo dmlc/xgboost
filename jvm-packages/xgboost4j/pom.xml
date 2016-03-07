@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>ml.dmlc</groupId>
-        <artifactId>xgboostjvm</artifactId>
-        <version>0.1</version>
+        <artifactId>xgboost-jvm</artifactId>
+        <version>0.5</version>
     </parent>
     <artifactId>xgboost4j</artifactId>
-    <version>0.1</version>
+    <version>0.5</version>
     <packaging>jar</packaging>
     <build>
         <plugins>

@@ -27,6 +27,8 @@ This file records the changes in xgboost library in reverse chronological order.
   - This could fix some of the previous problem which runs xgboost on multiple threads.
 * JVM Package
   - Enable xgboost4j for java and scala
+  - XGBoost distributed now runs on Flink and Spark.
+
 
 ## v0.47 (2016.01.14)
 
