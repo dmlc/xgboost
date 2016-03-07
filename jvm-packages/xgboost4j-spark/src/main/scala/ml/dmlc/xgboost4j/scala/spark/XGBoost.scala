@@ -19,6 +19,10 @@ package ml.dmlc.xgboost4j.scala.spark
 import scala.collection.mutable
 import scala.collection.JavaConverters._
 
+
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{Path, FileSystem}
+
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.TaskContext
 import org.apache.spark.mllib.regression.LabeledPoint
@@ -28,7 +32,6 @@ import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, Rabit, RabitTracker}
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 
 object XGBoost extends Serializable {
-
   var boosters: RDD[Booster] = null
   private val logger = LogFactory.getLog("XGBoostSpark")
 
@@ -38,7 +41,7 @@ object XGBoost extends Serializable {
 
   private[spark] def buildDistributedBoosters(
       trainingData: RDD[LabeledPoint],
-      xgBoostConfMap: Map[String, AnyRef],
+      xgBoostConfMap: Map[String, Any],
       rabitEnv: mutable.Map[String, String],
       numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait): RDD[Booster] = {
     import DataUtils._
@@ -54,13 +57,13 @@ object XGBoost extends Serializable {
     }.cache()
   }
 
-  def train(trainingData: RDD[LabeledPoint], configMap: Map[String, AnyRef], round: Int,
-       obj: ObjectiveTrait = null, eval: EvalTrait = null): Option[XGBoostModel] = {
+  def train(trainingData: RDD[LabeledPoint], configMap: Map[String, Any], round: Int,
+       obj: ObjectiveTrait = null, eval: EvalTrait = null): XGBoostModel = {
     val numWorkers = trainingData.partitions.length
     val sc = trainingData.sparkContext
     val tracker = new RabitTracker(numWorkers)
     require(tracker.start(), "FAULT: Failed to start tracker")
-    boosters = buildDistributedBoosters(trainingData, configMap,
+    val boosters = buildDistributedBoosters(trainingData, configMap,
       tracker.getWorkerEnvs.asScala, numWorkers, round, obj, eval)
     @volatile var booster: Booster = null
     val sparkJobThread = new Thread() {
@@ -74,7 +77,7 @@ object XGBoost extends Serializable {
     logger.info(s"Rabit returns with exit code $returnVal")
     if (returnVal == 0) {
       booster = boosters.first()
-      Some(booster)
+      Some(booster).get
     } else {
       try {
         if (sparkJobThread.isAlive) {
@@ -84,7 +87,21 @@ object XGBoost extends Serializable {
         case ie: InterruptedException =>
           logger.info("spark job thread is interrupted")
       }
-      None
+      null
     }
+  }
+
+  /**
+    * Load XGBoost model from path, using Hadoop Filesystem API.
+    *
+    * @param modelPath The path that is accessible by hadoop filesystem API.
+    * @return The loaded model
+    */
+  def loadModelFromHadoop(modelPath: String) : XGBoostModel = {
+    new XGBoostModel(
+      SXGBoost.loadModel(
+        FileSystem
+          .get(new Configuration)
+          .open(new Path(modelPath))))
   }
 }

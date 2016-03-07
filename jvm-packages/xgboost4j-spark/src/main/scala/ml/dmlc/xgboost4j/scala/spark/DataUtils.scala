@@ -24,13 +24,12 @@ import org.apache.spark.mllib.regression.{LabeledPoint => SparkLabeledPoint}
 import ml.dmlc.xgboost4j.LabeledPoint
 
 object DataUtils extends Serializable {
-
-  implicit def fromSparkToXGBoostLabeledPointsAsJava(
-      sps: Iterator[SparkLabeledPoint]): java.util.Iterator[LabeledPoint] = {
-    fromSparkToXGBoostLabeledPoints(sps).asJava
+  implicit def fromSparkPointsToXGBoostPointsJava(sps: Iterator[SparkLabeledPoint])
+    : java.util.Iterator[LabeledPoint] = {
+    fromSparkPointsToXGBoostPoints(sps).asJava
   }
 
-  implicit def fromSparkToXGBoostLabeledPoints(sps: Iterator[SparkLabeledPoint]):
+  implicit def fromSparkPointsToXGBoostPoints(sps: Iterator[SparkLabeledPoint]):
       Iterator[LabeledPoint] = {
     for (p <- sps) yield {
       p.features match {
@@ -38,6 +37,23 @@ object DataUtils extends Serializable {
           LabeledPoint.fromDenseVector(p.label.toFloat, denseFeature.values.map(_.toFloat))
         case sparseFeature: SparseVector =>
           LabeledPoint.fromSparseVector(p.label.toFloat, sparseFeature.indices,
+            sparseFeature.values.map(_.toFloat))
+      }
+    }
+  }
+
+  implicit def fromSparkVectorToXGBoostPointsJava(sps: Iterator[Vector])
+    : java.util.Iterator[LabeledPoint] = {
+    fromSparkVectorToXGBoostPoints(sps).asJava
+  }
+  implicit def fromSparkVectorToXGBoostPoints(sps: Iterator[Vector])
+    : Iterator[LabeledPoint] = {
+    for (p <- sps) yield {
+      p match {
+        case denseFeature: DenseVector =>
+          LabeledPoint.fromDenseVector(0.0f, denseFeature.values.map(_.toFloat))
+        case sparseFeature: SparseVector =>
+          LabeledPoint.fromSparseVector(0.0f, sparseFeature.indices,
             sparseFeature.values.map(_.toFloat))
       }
     }

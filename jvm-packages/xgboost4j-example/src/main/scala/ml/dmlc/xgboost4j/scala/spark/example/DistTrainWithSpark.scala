@@ -16,59 +16,30 @@
 
 package ml.dmlc.xgboost4j.scala.spark.example
 
-import java.io.File
-
-import scala.collection.mutable.ListBuffer
-import scala.io.Source
-
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.DenseVector
-import org.apache.spark.mllib.regression.LabeledPoint
-
-import ml.dmlc.xgboost4j.scala.DMatrix
+import org.apache.spark.mllib.util.MLUtils
 import ml.dmlc.xgboost4j.scala.spark.XGBoost
 
-
 object DistTrainWithSpark {
-
-  private def readFile(filePath: String): List[LabeledPoint] = {
-    val file = Source.fromFile(new File(filePath))
-    val sampleList = new ListBuffer[LabeledPoint]
-    for (sample <- file.getLines()) {
-      sampleList += fromSVMStringToLabeledPoint(sample)
-    }
-    sampleList.toList
-  }
-
-  private def fromSVMStringToLabeledPoint(line: String): LabeledPoint = {
-    val labelAndFeatures = line.split(" ")
-    val label = labelAndFeatures(0).toInt
-    val features = labelAndFeatures.tail
-    val denseFeature = new Array[Double](129)
-    for (feature <- features) {
-      val idAndValue = feature.split(":")
-      denseFeature(idAndValue(0).toInt) = idAndValue(1).toDouble
-    }
-    LabeledPoint(label, new DenseVector(denseFeature))
-  }
-
   def main(args: Array[String]): Unit = {
-    import ml.dmlc.xgboost4j.scala.spark.DataUtils._
-    if (args.length != 4) {
+    if (args.length != 3) {
       println(
-        "usage: program number_of_trainingset_partitions num_of_rounds training_path test_path")
+        "usage: program  num_of_rounds training_path model_path")
       sys.exit(1)
     }
     val sc = new SparkContext()
-    val inputTrainPath = args(2)
-    val inputTestPath = args(3)
-    val trainingLabeledPoints = readFile(inputTrainPath)
-    val trainRDD = sc.parallelize(trainingLabeledPoints, args(0).toInt)
-    val testLabeledPoints = readFile(inputTestPath).iterator
-    val testMatrix = new DMatrix(testLabeledPoints, null)
-    val booster = XGBoost.train(trainRDD,
-      List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
-        "objective" -> "binary:logistic").toMap, args(1).toInt, null, null)
-    booster.map(boosterInstance => boosterInstance.predict(testMatrix))
+    val inputTrainPath = args(1)
+    val outputModelPath = args(2)
+    // number of iterations
+    val numRound = args(0).toInt
+    val trainRDD = MLUtils.loadLibSVMFile(sc, inputTrainPath)
+    // training parameters
+    val paramMap = List(
+      "eta" -> 0.1f,
+      "max_depth" -> 2,
+      "objective" -> "binary:logistic").toMap
+    val model = XGBoost.train(trainRDD, paramMap, numRound)
+    // save model to HDFS path
+    model.saveModelToHadoop(outputModelPath)
   }
 }
