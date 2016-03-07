@@ -1,5 +1,5 @@
 # XGBoost4J: Distributed XGBoost for Scala/Java
-[![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost)
+[![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost) |
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org/en/latest/jvm/index.html) |
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](../LICENSE)
 
