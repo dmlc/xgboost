@@ -9,9 +9,10 @@ from .core import _LIB, c_str, STRING_TYPES
 
 def _init_rabit():
     """internal libary initializer."""
-    _LIB.RabitGetRank.restype = ctypes.c_int
-    _LIB.RabitGetWorldSize.restype = ctypes.c_int
-    _LIB.RabitVersionNumber.restype = ctypes.c_int
+    if _LIB is not None:
+        _LIB.RabitGetRank.restype = ctypes.c_int
+        _LIB.RabitGetWorldSize.restype = ctypes.c_int
+        _LIB.RabitVersionNumber.restype = ctypes.c_int
 
 def init(args=None):
     """Initialize the rabit libary with arguments"""
