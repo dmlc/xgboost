@@ -5,8 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboostjvm</artifactId>
-    <version>0.1</version>
+    <artifactId>xgboost-jvm</artifactId>
+    <version>0.5</version>
     <packaging>pom</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -19,7 +19,7 @@
     </properties>
     <modules>
         <module>xgboost4j</module>
-        <module>xgboost4j-demo</module>
+        <module>xgboost4j-example</module>
         <module>xgboost4j-spark</module>
         <module>xgboost4j-flink</module>
     </modules>

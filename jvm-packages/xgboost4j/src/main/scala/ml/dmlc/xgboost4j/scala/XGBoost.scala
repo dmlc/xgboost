@@ -39,14 +39,20 @@ object XGBoost {
     */
   @throws(classOf[XGBoostError])
   def train(
-      params: Map[String, AnyRef],
+      params: Map[String, Any],
       dtrain: DMatrix,
       round: Int,
       watches: Map[String, DMatrix] = Map[String, DMatrix](),
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null): Booster = {
+
+
     val jWatches = watches.map{case (name, matrix) => (name, matrix.jDMatrix)}
-    val xgboostInJava = JXGBoost.train(params.asJava, dtrain.jDMatrix, round, jWatches.asJava,
+    val xgboostInJava = JXGBoost.train(
+      params.map{
+        case (key: String, value) => (key, value.toString)
+      }.toMap[String, AnyRef].asJava,
+      dtrain.jDMatrix, round, jWatches.asJava,
       obj, eval)
     new Booster(xgboostInJava)
   }
@@ -65,14 +71,17 @@ object XGBoost {
     */
   @throws(classOf[XGBoostError])
   def crossValidation(
-      params: Map[String, AnyRef],
+      params: Map[String, Any],
       data: DMatrix,
       round: Int,
       nfold: Int = 5,
       metrics: Array[String] = null,
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null): Array[String] = {
-    JXGBoost.crossValidation(params.asJava, data.jDMatrix, round, nfold, metrics, obj, eval)
+    JXGBoost.crossValidation(params.map{
+      case (key: String, value) => (key, value.toString)
+    }.toMap[String, AnyRef].asJava,
+      data.jDMatrix, round, nfold, metrics, obj, eval)
   }
 
   /**

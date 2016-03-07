@@ -8,7 +8,9 @@
         <artifactId>xgboost-jvm</artifactId>
         <version>0.5</version>
     </parent>
-    <artifactId>xgboost4j-spark</artifactId>
+    <artifactId>xgboost4j-example</artifactId>
+    <version>0.5</version>
+    <packaging>jar</packaging>
     <build>
         <plugins>
             <plugin>
@@ -23,13 +25,18 @@
     <dependencies>
         <dependency>
             <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j</artifactId>
+            <artifactId>xgboost4j-spark</artifactId>
             <version>0.5</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.spark</groupId>
-            <artifactId>spark-mllib_2.10</artifactId>
-            <version>1.6.0</version>
+            <groupId>ml.dmlc</groupId>
+            <artifactId>xgboost4j-flink</artifactId>
+            <version>0.5</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.4</version>
         </dependency>
     </dependencies>
 </project>
