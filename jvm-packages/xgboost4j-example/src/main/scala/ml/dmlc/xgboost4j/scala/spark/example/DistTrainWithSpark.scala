@@ -38,8 +38,8 @@ object DistTrainWithSpark {
       "eta" -> 0.1f,
       "max_depth" -> 2,
       "objective" -> "binary:logistic").toMap
-    val model = XGBoost.train(trainRDD, paramMap, numRound)
+    val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound)
     // save model to HDFS path
-    model.saveModelToHadoop(outputModelPath)
+    xgboostModel.saveModelToHadoop(outputModelPath)
   }
 }

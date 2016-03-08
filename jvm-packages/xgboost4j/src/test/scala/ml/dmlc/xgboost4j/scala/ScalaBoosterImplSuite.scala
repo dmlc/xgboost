@@ -16,9 +16,13 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import ml.dmlc.xgboost4j.java.XGBoostError
+import java.io.{FileOutputStream, FileInputStream, File}
+
+import junit.framework.TestCase
 import org.apache.commons.logging.LogFactory
 import org.scalatest.FunSuite
+
+import ml.dmlc.xgboost4j.java.XGBoostError
 
 class ScalaBoosterImplSuite extends FunSuite {
 
@@ -64,19 +68,56 @@ class ScalaBoosterImplSuite extends FunSuite {
     }
   }
 
-  test("basic operation of booster") {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
-
+  private def trainBooster(trainMat: DMatrix, testMat: DMatrix): Booster = {
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
     val watches = List("train" -> trainMat, "test" -> testMat).toMap
 
     val round = 2
-    val booster = XGBoost.train(paramMap, trainMat, round, watches, null, null)
+    XGBoost.train(paramMap, trainMat, round, watches, null, null)
+  }
+
+  test("basic operation of booster") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+
+    val booster = trainBooster(trainMat, testMat)
     val predicts = booster.predict(testMat, true)
     val eval = new EvalError
     assert(eval.eval(predicts, testMat) < 0.1)
+  }
+
+  test("save/load model with path") {
+
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val eval = new EvalError
+    val booster = trainBooster(trainMat, testMat)
+    // save and load
+    val temp: File = File.createTempFile("temp", "model")
+    temp.deleteOnExit()
+    booster.saveModel(temp.getAbsolutePath)
+
+    val bst2: Booster = XGBoost.loadModel(temp.getAbsolutePath)
+    assert(java.util.Arrays.equals(bst2.toByteArray, booster.toByteArray))
+    val predicts2: Array[Array[Float]] = bst2.predict(testMat, true, 0)
+    TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f)
+  }
+
+  test("save/load model with stream") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val eval = new EvalError
+    val booster = trainBooster(trainMat, testMat)
+    // save and load
+    val temp: File = File.createTempFile("temp", "model")
+    temp.deleteOnExit()
+    booster.saveModel(new FileOutputStream(temp.getAbsolutePath))
+
+    val bst2: Booster = XGBoost.loadModel(new FileInputStream(temp.getAbsolutePath))
+    assert(java.util.Arrays.equals(bst2.toByteArray, booster.toByteArray))
+    val predicts2: Array[Array[Float]] = bst2.predict(testMat, true, 0)
+    TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f)
   }
 
   test("cross validation") {
