@@ -11,6 +11,17 @@ XGBoost4J Code Examples
 * [Predicting leaf indices](src/main/java/ml/dmlc/xgboost4j/java/example/PredictLeafIndices.java)
 * [External Memory](src/main/java/ml/dmlc/xgboost4j/java/example/ExternalMemory.java)
 
+## Scala API
+
+* [Basic walkthrough of wrappers](src/main/java/ml/dmlc/xgboost4j/scala/example/BasicWalkThrough.scala)
+* [Cutomize loss function, and evaluation metric](src/main/java/ml/dmlc/xgboost4j/scala/example/CustomObjective.scala)
+* [Boosting from existing prediction](src/main/java/ml/dmlc/xgboost4j/scala/example/BoostFromPrediction.scala)
+* [Predicting using first n trees](src/main/java/ml/dmlc/xgboost4j/scala/example/PredictFirstNtree.scala)
+* [Generalized Linear Model](src/main/java/ml/dmlc/xgboost4j/scala/example/GeneralizedLinearModel.scala)
+* [Cross validation](src/main/java/ml/dmlc/xgboost4j/java/example/CrossValidation.scala)
+* [Predicting leaf indices](src/main/java/ml/dmlc/xgboost4j/scala/example/PredictLeafIndices.scala)
+* [External Memory](src/main/java/ml/dmlc/xgboost4j/scala/example/ExternalMemory.scala)
+
 ## Spark API
 * [Distributed Training with Spark](src/main/scala/ml/dmlc/xgboost4j/scala/spark/example/DistTrainWithSpark.scala)
 

@@ -14,11 +14,11 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.spark.example
+package ml.dmlc.xgboost4j.scala.example.spark
 
+import ml.dmlc.xgboost4j.scala.spark.XGBoost
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.util.MLUtils
-import ml.dmlc.xgboost4j.scala.spark.XGBoost
 
 object DistTrainWithSpark {
   def main(args: Array[String]): Unit = {
