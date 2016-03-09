@@ -17,7 +17,10 @@ package ml.dmlc.xgboost4j.java;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -70,11 +73,7 @@ public class BoosterImplTest {
     }
   }
 
-  @Test
-  public void testBoosterBasic() throws XGBoostError, IOException {
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
-
+  private Booster trainBooster(DMatrix trainMat, DMatrix testMat) throws XGBoostError {
     //set params
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
@@ -92,10 +91,19 @@ public class BoosterImplTest {
     watches.put("test", testMat);
 
     //set round
-    int round = 2;
+    int round = 5;
 
     //train a boost model
-    Booster booster = XGBoost.train(paramMap, trainMat, round, watches, null, null);
+    return XGBoost.train(paramMap, trainMat, round, watches, null, null);
+  }
+
+  @Test
+  public void testBoosterBasic() throws XGBoostError, IOException {
+
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
 
     //predict raw output
     float[][] predicts = booster.predict(testMat, true, 0);
@@ -104,14 +112,43 @@ public class BoosterImplTest {
     IEvaluation eval = new EvalError();
     //error must be less than 0.1
     TestCase.assertTrue(eval.eval(predicts, testMat) < 0.1f);
+  }
 
+  @Test
+  public void saveLoadModelWithPath() throws XGBoostError, IOException {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+    IEvaluation eval = new EvalError();
+
+    Booster booster = trainBooster(trainMat, testMat);
     // save and load
     File temp = File.createTempFile("temp", "model");
     temp.deleteOnExit();
     booster.saveModel(temp.getAbsolutePath());
 
-    Booster bst2 = XGBoost.loadModel(new FileInputStream(temp.getAbsolutePath()));
+    Booster bst2 = XGBoost.loadModel(temp.getAbsolutePath());
     assert (Arrays.equals(bst2.toByteArray(), booster.toByteArray()));
+    float[][] predicts2 = bst2.predict(testMat, true, 0);
+    TestCase.assertTrue(eval.eval(predicts2, testMat) < 0.1f);
+  }
+
+  @Test
+  public void saveLoadModelWithStream() throws XGBoostError, IOException {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+
+    Path tempDir = Files.createTempDirectory("boosterTest-");
+    File tempFile = Files.createTempFile("", "").toFile();
+    booster.saveModel(new FileOutputStream(tempFile));
+    IEvaluation eval = new EvalError();
+    Booster loadedBooster = XGBoost.loadModel(new FileInputStream(tempFile));
+    float originalPredictError = eval.eval(booster.predict(testMat, true), testMat);
+    TestCase.assertTrue("originalPredictErr:" + originalPredictError,
+            originalPredictError < 0.1f);
+    float loadedPredictError = eval.eval(loadedBooster.predict(testMat, true), testMat);
+    TestCase.assertTrue("loadedPredictErr:" + loadedPredictError, loadedPredictError < 0.1f);
   }
 
   /**

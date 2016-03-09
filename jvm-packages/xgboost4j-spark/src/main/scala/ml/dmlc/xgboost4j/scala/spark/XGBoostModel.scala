@@ -16,18 +16,17 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, FileSystem}
+import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.rdd.RDD
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, Booster}
 
-class XGBoostModel(booster: Booster) extends Serializable {
+class XGBoostModel(booster: Booster)(implicit val sc: SparkContext) extends Serializable {
+
   /**
-    * Predict result given testRDD
-    * @param testSet the testSet of Data vectors
-    * @return The predicted RDD
+    * Predict result with the given testset (represented as RDD)
     */
   def predict(testSet: RDD[Vector]): RDD[Array[Array[Float]]] = {
     import DataUtils._
@@ -39,18 +38,21 @@ class XGBoostModel(booster: Booster) extends Serializable {
     }
   }
 
+  /**
+   * predict result given the test data (represented as DMatrix)
+   */
   def predict(testSet: DMatrix): Array[Array[Float]] = {
-    booster.predict(testSet)
+    booster.predict(testSet, true, 0)
   }
 
   /**
-    * Save the model as a Hadoop filesystem file.
-    *
+    * Save the model as to HDFS-compatible file system.
+ *
     * @param modelPath The model path as in Hadoop path.
     */
   def saveModelToHadoop(modelPath: String): Unit = {
-    booster.saveModel(FileSystem
-      .get(new Configuration)
-      .create(new Path(modelPath)))
+    val outputStream = FileSystem.get(sc.hadoopConfiguration).create(new Path(modelPath))
+    booster.saveModel(outputStream)
+    outputStream.close()
   }
 }

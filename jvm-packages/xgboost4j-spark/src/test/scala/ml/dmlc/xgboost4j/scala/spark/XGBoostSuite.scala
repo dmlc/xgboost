@@ -17,13 +17,11 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
+import java.nio.file.Files
 
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
-import scala.tools.reflect.Eval
 
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, XGBoostError}
-import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.mllib.linalg.DenseVector
 import org.apache.spark.mllib.regression.LabeledPoint
@@ -31,10 +29,13 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, XGBoostError}
+import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
+
 class XGBoostSuite extends FunSuite with BeforeAndAfterAll {
 
-  private var sc: SparkContext = null
-  private val numWorker = 4
+  private implicit var sc: SparkContext = null
+  private val numWorker = 2
 
   private class EvalError extends EvalTrait {
 
@@ -111,14 +112,9 @@ class XGBoostSuite extends FunSuite with BeforeAndAfterAll {
     sampleList.toList
   }
 
-  private def buildRDD(filePath: String): RDD[LabeledPoint] = {
-    val sampleList = readFile(filePath)
-    sc.parallelize(sampleList, numWorker)
-  }
-
   private def buildTrainingRDD(): RDD[LabeledPoint] = {
-    val trainRDD = buildRDD(getClass.getResource("/agaricus.txt.train").getFile)
-    trainRDD
+    val sampleList = readFile(getClass.getResource("/agaricus.txt.train").getFile)
+    sc.parallelize(sampleList, numWorker)
   }
 
   test("build RDD containing boosters") {
@@ -139,5 +135,24 @@ class XGBoostSuite extends FunSuite with BeforeAndAfterAll {
       val predicts = booster.predict(testSetDMatrix, true)
       assert(new EvalError().eval(predicts, testSetDMatrix) < 0.1)
     }
+  }
+
+
+  test("save and load model") {
+    val eval = new EvalError()
+    val trainingRDD = buildTrainingRDD()
+    val testSet = readFile(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val tempDir = Files.createTempDirectory("xgboosttest-")
+    val tempFile = Files.createTempFile(tempDir, "", "")
+    val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
+      "objective" -> "binary:logistic").toMap
+    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5)
+    assert(eval.eval(xgBoostModel.predict(testSetDMatrix), testSetDMatrix) < 0.1)
+    xgBoostModel.saveModelToHadoop(tempFile.toFile.getAbsolutePath)
+    val loadedXGBooostModel = XGBoost.loadModelFromHadoop(tempFile.toFile.getAbsolutePath)
+    val predicts = loadedXGBooostModel.predict(testSetDMatrix)
+    assert(eval.eval(predicts, testSetDMatrix) < 0.1)
   }
 }

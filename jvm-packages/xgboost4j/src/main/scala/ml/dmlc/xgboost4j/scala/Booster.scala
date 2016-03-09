@@ -119,7 +119,7 @@ class Booster private[xgboost4j](booster: JBooster) extends Serializable {
    */
   @throws(classOf[XGBoostError])
   def predict(data: DMatrix, outPutMargin: Boolean = false, treeLimit: Int = 0)
-    : Array[Array[Float]] = {
+      : Array[Array[Float]] = {
     booster.predict(data.jDMatrix, outPutMargin, treeLimit)
   }
 
@@ -176,6 +176,10 @@ class Booster private[xgboost4j](booster: JBooster) extends Serializable {
   @throws(classOf[XGBoostError])
   def getFeatureScore(featureMap: String = null): mutable.Map[String, Integer] = {
     booster.getFeatureScore(featureMap).asScala
+  }
+
+  def toByteArray: Array[Byte] = {
+    booster.toByteArray
   }
 
   /**
