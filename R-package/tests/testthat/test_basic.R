@@ -20,11 +20,18 @@ test_that("early stopping", {
                eta = 0.3, nthread = 2, nround = 20, objective = "binary:logistic",
                early.stop.round = 3, maximize = FALSE)
   expect_true(nrow(res) < 20)
+  res <- xgb.cv(data = train$data, label = train$label, max.depth = 2, nfold = 5,
+                eta = 0.3, nthread = 2, nround = 20, objective = "binary:logistic",
+                early.stop.round = 3, early.stop.tolerance = 0.01, maximize = FALSE)
+  expect_true(nrow(res) < 10)
   bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
                 eta = 0.3, nthread = 2, nround = 20, objective = "binary:logistic",
                 early.stop.round = 3, maximize = FALSE)
-  pred <- predict(bst, test$data)
-  expect_equal(length(pred), 1611)
+  expect_equal(bst$bestInd, 7)
+  bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
+                 eta = 0.3, nthread = 2, nround = 20, objective = "binary:logistic",
+                 early.stop.round = 3, early.stop.tolerance = 0.01, maximize = FALSE)
+  expect_equal(bst$bestInd, 3)
 })
 
 test_that("save_period", {
