@@ -78,10 +78,10 @@ endif
 
 all: lib/libxgboost.a $(XGBOOST_DYLIB) xgboost
 
-$(DMLC_CORE)/libdmlc.a:
+$(DMLC_CORE)/libdmlc.a: $(wildcard $(DMLC_CORE)/src/*.cc $(DMLC_CORE)/src/*/*.cc)
 	+ cd $(DMLC_CORE); make libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
-$(RABIT)/lib/$(LIB_RABIT):
+$(RABIT)/lib/$(LIB_RABIT): $(wildcard $(RABIT)/src/*.cc)
 	+ cd $(RABIT); make lib/$(LIB_RABIT); cd $(ROOTDIR)
 
 jvm: jvm-packages/lib/libxgboost4j.so
