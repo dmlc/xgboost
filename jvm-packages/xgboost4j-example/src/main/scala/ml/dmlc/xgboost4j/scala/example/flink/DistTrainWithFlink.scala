@@ -13,11 +13,10 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j.scala.flink.example
+package ml.dmlc.xgboost4j.scala.example.flink
 
 import ml.dmlc.xgboost4j.scala.flink.XGBoost
-import org.apache.flink.api.scala._
-import org.apache.flink.api.scala.ExecutionEnvironment
+import org.apache.flink.api.scala.{ExecutionEnvironment, _}
 import org.apache.flink.ml.MLUtils
 
 object DistTrainWithFlink {
