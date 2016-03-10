@@ -20,9 +20,9 @@ The same code runs on major distributed environment(Hadoop, SGE, MPI) and can so
 
 What's New
 ----------
+* [Story and Lessons Behind the Evolution of XGBoost](http://homes.cs.washington.edu/~tqchen/2016/03/10/story-and-lessons-behind-the-evolution-of-xgboost.html)
 * [Tutorial: Distributed XGBoost on AWS with YARN](https://xgboost.readthedocs.org/en/latest/tutorial/aws_yarn.html)
 * [XGBoost brick](NEWS.md) Release
-
 
 Ask a Question
 --------------
@@ -41,3 +41,13 @@ XGBoost has been developed and used by a group of active community members. Your
 License
 -------
 © Contributors, 2015. Licensed under an [Apache-2](https://github.com/dmlc/xgboost/blob/master/LICENSE) license.
+
+
+Reference
+---------
+- Tianqi Chen and Carlos Guestrin. [XGBoost: A Scalable Tree Boosting System](data/pdf/XGBoostArxiv.pdf). Arxiv.1603.02754
+- XGBoost originates from research project at University of Washington, see also the [Project Page at UW](http://dmlc.cs.washington.edu/xgboost.html).
+
+Acknowledgements
+----------------
+- This work was supported in part by ONR (PECASE) N000141010672, NSF IIS 1258741 and the TerraSwarm Research Center sponsored by MARCO and DARPA.
