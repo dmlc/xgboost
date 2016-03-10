@@ -45,7 +45,7 @@ License
 
 Reference
 ---------
-- Tianqi Chen and Carlos Guestrin. [XGBoost: A Scalable Tree Boosting System](data/pdf/XGBoostArxiv.pdf). Arxiv.1603.02754
+- Tianqi Chen and Carlos Guestrin. [XGBoost: A Scalable Tree Boosting System](http://arxiv.org/abs/1603.02754). Arxiv.1603.02754
 - XGBoost originates from research project at University of Washington, see also the [Project Page at UW](http://dmlc.cs.washington.edu/xgboost.html).
 
 Acknowledgements
