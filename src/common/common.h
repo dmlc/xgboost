@@ -26,6 +26,15 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
   }
   return ret;
 }
+
+// simple routine to convert any data to string
+template<typename T>
+inline std::string ToString(const T& data) {
+  std::ostringstream os;
+  os << data;
+  return os.str();
+}
+
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COMMON_H_
