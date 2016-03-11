@@ -35,10 +35,10 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
     *  init DMatrix from Iterator of LabeledPoint
     *
     * @param dataIter An iterator of LabeledPoint
-    * @param cacheInfo  Cache path information, used for external memory setting, can be null.
+    * @param cacheInfo  Cache path information, used for external memory setting, null by default.
     * @throws XGBoostError native error
     */
-  def this(dataIter: Iterator[LabeledPoint], cacheInfo: String) {
+  def this(dataIter: Iterator[LabeledPoint], cacheInfo: String = null) {
     this(new JDMatrix(dataIter.asJava, cacheInfo))
   }
 

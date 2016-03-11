@@ -43,7 +43,7 @@ class BasicWalkThrough {
 
     val round = 2
     // train a model
-    val booster = XGBoost.train(params.toMap, trainMax, round, watches.toMap)
+    val booster = XGBoost.train(trainMax, params.toMap, round, watches.toMap)
     // predict
     val predicts = booster.predict(testMax)
     // save model to model path
@@ -78,7 +78,7 @@ class BasicWalkThrough {
     val watches2 = new mutable.HashMap[String, DMatrix]
     watches2 += "train" -> trainMax2
     watches2 += "test" -> testMax2
-    val booster3 = XGBoost.train(params.toMap, trainMax2, round, watches2.toMap, null, null)
+    val booster3 = XGBoost.train(trainMax2, params.toMap, round, watches2.toMap, null, null)
     val predicts3 = booster3.predict(testMax2)
     println(checkPredicts(predicts, predicts3))
   }

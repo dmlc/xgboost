@@ -38,13 +38,22 @@ class XGBoostModel (booster: Booster) extends Serializable {
   }
 
   /**
+   * predict with the given DMatrix
+   * @param testSet the local test set represented as DMatrix
+   * @return prediction result
+   */
+  def predict(testSet: DMatrix): Array[Array[Float]] = {
+    booster.predict(testSet, true, 0)
+  }
+
+  /**
     * Predict given vector dataset.
     *
     * @param data The dataset to be predicted.
     * @return The prediction result.
     */
   def predict(data: DataSet[Vector]) : DataSet[Array[Float]] = {
-    val predictMap: Iterator[Vector] => TraversableOnce[Array[Float]] =
+    val predictMap: Iterator[Vector] => Traversable[Array[Float]] =
       (it: Iterator[Vector]) => {
         val mapper = (x: Vector) => {
           val (index, value) = x.toSeq.unzip

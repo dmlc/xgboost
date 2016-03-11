@@ -60,8 +60,8 @@ public class XGBoost {
   /**
    * Train a booster with given parameters.
    *
-   * @param params Booster params.
    * @param dtrain Data to be trained.
+   * @param params Booster params.
    * @param round  Number of boosting iterations.
    * @param watches a group of items to be evaluated during training, this allows user to watch
    *               performance on the validation set.
@@ -70,11 +70,13 @@ public class XGBoost {
    * @return trained booster
    * @throws XGBoostError native error
    */
-  public static Booster train(Map<String, Object> params,
-                              DMatrix dtrain, int round,
-                              Map<String, DMatrix> watches,
-                              IObjective obj,
-                              IEvaluation eval) throws XGBoostError {
+  public static Booster train(
+      DMatrix dtrain,
+      Map<String, Object> params,
+      int round,
+      Map<String, DMatrix> watches,
+      IObjective obj,
+      IEvaluation eval) throws XGBoostError {
 
     //collect eval matrixs
     String[] evalNames;
@@ -139,8 +141,8 @@ public class XGBoost {
   /**
    * Cross-validation with given parameters.
    *
-   * @param params  Booster params.
    * @param data    Data to be trained.
+   * @param params  Booster params.
    * @param round   Number of boosting iterations.
    * @param nfold   Number of folds in CV.
    * @param metrics Evaluation metrics to be watched in CV.
@@ -150,8 +152,8 @@ public class XGBoost {
    * @throws XGBoostError native error
    */
   public static String[] crossValidation(
-      Map<String, Object> params,
       DMatrix data,
+      Map<String, Object> params,
       int round,
       int nfold,
       String[] metrics,

@@ -56,7 +56,7 @@ object XGBoost {
       val trainMat = new DMatrix(dataIter, null)
       val watches = List("train" -> trainMat).toMap
       val round = 2
-      val booster = XGBoostScala.train(paramMap, trainMat, round, watches, null, null)
+      val booster = XGBoostScala.train(trainMat, paramMap, round, watches, null, null)
       Rabit.shutdown()
       collector.collect(new XGBoostModel(booster))
     }
@@ -81,13 +81,14 @@ object XGBoost {
   /**
     * Train a xgboost model with link.
     *
-    * @param params The parameters to XGBoost.
     * @param dtrain The training data.
+    * @param params The parameters to XGBoost.
     * @param round Number of rounds to train.
     */
-  def train(params: Map[String, Any],
-            dtrain: DataSet[LabeledVector],
-            round: Int): XGBoostModel = {
+  def train(
+      dtrain: DataSet[LabeledVector],
+      params: Map[String, Any],
+      round: Int): XGBoostModel = {
     val tracker = new RabitTracker(dtrain.getExecutionEnvironment.getParallelism)
     if (tracker.start()) {
       dtrain

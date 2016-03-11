@@ -38,7 +38,7 @@ class PredictFirstNTree {
 
     val round = 3
     // train a model
-    val booster = XGBoost.train(params.toMap, trainMat, round, watches.toMap)
+    val booster = XGBoost.train(trainMat, params.toMap, round, watches.toMap)
 
     // predict use 1 tree
     val predicts1 = booster.predict(testMat, false, 1)

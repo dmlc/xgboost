@@ -67,7 +67,7 @@ public class BasicWalkThrough {
     int round = 2;
 
     //train a boost model
-    Booster booster = XGBoost.train(params, trainMat, round, watches, null, null);
+    Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
     //predict
     float[][] predicts = booster.predict(testMat);
@@ -111,7 +111,7 @@ public class BasicWalkThrough {
     HashMap<String, DMatrix> watches2 = new HashMap<String, DMatrix>();
     watches2.put("train", trainMat2);
     watches2.put("test", testMat2);
-    Booster booster3 = XGBoost.train(params, trainMat2, round, watches2, null, null);
+    Booster booster3 = XGBoost.train(trainMat2, params, round, watches2, null, null);
     float[][] predicts3 = booster3.predict(testMat2);
 
     //check predicts

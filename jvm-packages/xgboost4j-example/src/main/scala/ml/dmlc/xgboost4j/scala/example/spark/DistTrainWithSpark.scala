@@ -16,29 +16,34 @@
 
 package ml.dmlc.xgboost4j.scala.example.spark
 
-import ml.dmlc.xgboost4j.scala.spark.XGBoost
+import ml.dmlc.xgboost4j.scala.DMatrix
+import ml.dmlc.xgboost4j.scala.spark.{DataUtils, XGBoost}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.util.MLUtils
 
 object DistTrainWithSpark {
   def main(args: Array[String]): Unit = {
-    if (args.length != 4) {
+    if (args.length != 5) {
       println(
-        "usage: program num_of_rounds num_workers training_path model_path")
+        "usage: program num_of_rounds num_workers training_path test_path model_path")
       sys.exit(1)
     }
     val sc = new SparkContext()
     val inputTrainPath = args(2)
-    val outputModelPath = args(3)
+    val inputTestPath = args(3)
+    val outputModelPath = args(4)
     // number of iterations
     val numRound = args(0).toInt
-    val trainRDD = MLUtils.loadLibSVMFile(sc, inputTrainPath).repartition(args(1).toInt)
+    import DataUtils._
+    val trainRDD = MLUtils.loadLibSVMFile(sc, inputTrainPath)
+    val testSet = MLUtils.loadLibSVMFile(sc, inputTestPath).collect().iterator
     // training parameters
     val paramMap = List(
       "eta" -> 0.1f,
       "max_depth" -> 2,
       "objective" -> "binary:logistic").toMap
-    val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound)
+    val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound, nWorkers = args(1).toInt)
+    xgboostModel.predict(new DMatrix(testSet))
     // save model to HDFS path
     xgboostModel.saveModelAsHadoopFile(outputModelPath)
   }
