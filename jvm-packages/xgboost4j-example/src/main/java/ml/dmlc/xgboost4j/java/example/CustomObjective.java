@@ -163,6 +163,6 @@ public class CustomObjective {
 
     //train a booster
     System.out.println("begin to train the booster model");
-    Booster booster = XGBoost.train(params, trainMat, round, watches, obj, eval);
+    Booster booster = XGBoost.train(trainMat, params, round, watches, obj, eval);
   }
 }

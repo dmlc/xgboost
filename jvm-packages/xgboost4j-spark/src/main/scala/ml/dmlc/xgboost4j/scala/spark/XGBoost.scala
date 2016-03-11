@@ -56,9 +56,10 @@ object XGBoost extends Serializable {
       trainingSamples =>
         rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
         Rabit.init(rabitEnv.asJava)
-        val dMatrix = new DMatrix(new JDMatrix(trainingSamples, null))
-        val booster = SXGBoost.train(xgBoostConfMap, dMatrix, round,
-          watches = new mutable.HashMap[String, DMatrix]{put("train", dMatrix)}.toMap, obj, eval)
+        val trainingSet = new DMatrix(new JDMatrix(trainingSamples, null))
+        val booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
+          watches = new mutable.HashMap[String, DMatrix]{put("train", trainingSet)}.toMap,
+            obj, eval)
         Rabit.shutdown()
         Iterator(booster)
     }.cache()

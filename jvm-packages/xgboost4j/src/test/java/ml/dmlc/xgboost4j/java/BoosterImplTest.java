@@ -94,7 +94,7 @@ public class BoosterImplTest {
     int round = 5;
 
     //train a boost model
-    return XGBoost.train(paramMap, trainMat, round, watches, null, null);
+    return XGBoost.train(trainMat, paramMap, round, watches, null, null);
   }
 
   @Test
@@ -177,6 +177,6 @@ public class BoosterImplTest {
     //do 5-fold cross validation
     int round = 2;
     int nfold = 5;
-    String[] evalHist = XGBoost.crossValidation(param, trainMat, round, nfold, null, null, null);
+    String[] evalHist = XGBoost.crossValidation(trainMat, param, round, nfold, null, null, null);
   }
 }

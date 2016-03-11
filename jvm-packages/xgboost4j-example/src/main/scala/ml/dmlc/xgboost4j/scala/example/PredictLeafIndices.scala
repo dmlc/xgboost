@@ -39,7 +39,7 @@ class PredictLeafIndices {
     watches += "test" -> testMat
 
     val round = 3
-    val booster = XGBoost.train(params.toMap, trainMat, round, watches.toMap)
+    val booster = XGBoost.train(trainMat, params.toMap, round, watches.toMap)
 
     // predict using first 2 tree
     val leafIndex = booster.predictLeaf(testMat, 2)

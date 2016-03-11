@@ -45,7 +45,7 @@ class ExternalMemory {
 
     val round = 2
     // train a model
-    val booster = XGBoost.train(params.toMap, trainMat, round, watches.toMap)
+    val booster = XGBoost.train(trainMat, params.toMap, round, watches.toMap)
 
     val trainPred = booster.predict(trainMat, true)
     val testPred = booster.predict(testMat, true)
@@ -54,6 +54,6 @@ class ExternalMemory {
     testMat.setBaseMargin(testPred)
 
     System.out.println("result of running from initial prediction")
-    val booster2 = XGBoost.train(params.toMap, trainMat, 1, watches.toMap, null, null)
+    val booster2 = XGBoost.train(trainMat, params.toMap, 1, watches.toMap, null, null)
   }
 }

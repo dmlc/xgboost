@@ -60,7 +60,7 @@ public class GeneralizedLinearModel {
 
     //train a booster
     int round = 4;
-    Booster booster = XGBoost.train(params, trainMat, round, watches, null, null);
+    Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
     float[][] predicts = booster.predict(testMat);
 

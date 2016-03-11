@@ -51,7 +51,7 @@ public class PredictFirstNtree {
 
     //train a booster
     int round = 3;
-    Booster booster = XGBoost.train(params, trainMat, round, watches, null, null);
+    Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
     //predict use 1 tree
     float[][] predicts1 = booster.predict(testMat, false, 1);
