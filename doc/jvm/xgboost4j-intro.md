@@ -38,7 +38,7 @@ XGBoost **does its best in one thing -- tree boosting** and is **being designed 
 We strongly believe that machine learning solution should not be restricted to certain language or certain platform.
 
 Specifically, users will be able to use distributed XGBoost in both Flink and Spark.
-We have made the API in a portable way so it is also straight-forward to other Dataflow platforms provided by the Cloud.
+We have made the API in a portable way so it **can be easily ported to other Dataflow frameworks provided by the Cloud**.
 XGBoost4J shares its core with other XGBoost libraries, which means data scientists can use R/python
 read and visualize the model trained distributedly.
 It also means that user can start with single machine version for exploration,
@@ -47,7 +47,6 @@ which already can handle hundreds of million examples.
 ## System Overview
 
 In the following Figure, we describe the overall architecture of XGBoost4J. XGBoost4J provides the Java/Scala API calling the core functionality of XGBoost library. Most importantly, it not only supports the single-machine model training, but also provides an abstraction layer which masks the difference of the underlying data processing engines (they can be Spark, Flink, or just distributed servers across the cluster)
-
 
 ![XGBoost4J Architecture](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/xgboost4j.png)
 
@@ -121,7 +120,6 @@ val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound)
 
 The next step is to evaluate the model, you can either predict in local side or in a distributed fashion
 
-In Spark
 
 ```scala
 // testSet is an RDD containing testset data represented as
