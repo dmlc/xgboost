@@ -25,6 +25,7 @@ object DistTrainWithFlink {
     // read trainining data
     val trainData =
       MLUtils.readLibSVM(env, "/path/to/data/agaricus.txt.train")
+    val testData = MLUtils.readLibSVM(env, "/path/to/data/agaricus.txt.test")
     // define parameters
     val paramMap = List(
       "eta" -> 0.1,
@@ -34,7 +35,7 @@ object DistTrainWithFlink {
     val round = 2
     // train the model
     val model = XGBoost.train(paramMap, trainData, round)
-    val predTrain = model.predict(trainData.map{x => x.vector})
-    model.saveModelToHadoop("file:///path/to/xgboost.model")
+    val predTest = model.predict(testData.map{x => x.vector})
+    model.saveModelAsHadoopFile("file:///path/to/xgboost.model")
   }
 }

@@ -31,7 +31,7 @@ class XGBoostModel (booster: Booster) extends Serializable {
     *
     * @param modelPath The model path as in Hadoop path.
     */
-  def saveModelToHadoop(modelPath: String): Unit = {
+  def saveModelAsHadoopFile(modelPath: String): Unit = {
     booster.saveModel(FileSystem
       .get(new Configuration)
       .create(new Path(modelPath)))

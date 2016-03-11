@@ -150,8 +150,8 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5)
     assert(eval.eval(xgBoostModel.predict(testSetDMatrix), testSetDMatrix) < 0.1)
-    xgBoostModel.saveModelToHadoop(tempFile.toFile.getAbsolutePath)
-    val loadedXGBooostModel = XGBoost.loadModelFromHadoop(tempFile.toFile.getAbsolutePath)
+    xgBoostModel.saveModelAsHadoopFile(tempFile.toFile.getAbsolutePath)
+    val loadedXGBooostModel = XGBoost.loadModelFromHadoopFile(tempFile.toFile.getAbsolutePath)
     val predicts = loadedXGBooostModel.predict(testSetDMatrix)
     assert(eval.eval(predicts, testSetDMatrix) < 0.1)
   }
