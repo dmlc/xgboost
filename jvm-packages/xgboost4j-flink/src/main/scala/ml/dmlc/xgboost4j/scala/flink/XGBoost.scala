@@ -70,7 +70,7 @@ object XGBoost {
     * @param modelPath The path that is accessible by hadoop filesystem API.
     * @return The loaded model
     */
-  def loadModelFromHadoop(modelPath: String) : XGBoostModel = {
+  def loadModelFromHadoopFile(modelPath: String) : XGBoostModel = {
     new XGBoostModel(
       XGBoostScala.loadModel(
         FileSystem
