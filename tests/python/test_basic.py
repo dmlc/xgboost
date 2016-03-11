@@ -34,6 +34,33 @@ class TestBasic(unittest.TestCase):
         # assert they are the same
         assert np.sum(np.abs(preds2 - preds)) == 0
 
+    def test_multiclass(self):
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'num_class' : 2}
+        # specify validations set to watch performance
+        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        num_round = 2
+        bst = xgb.train(param, dtrain, num_round, watchlist)
+        # this is prediction
+        preds = bst.predict(dtest)
+        labels = dtest.get_label()
+        err = sum(1 for i in range(len(preds)) if preds[i] != labels[i]) / float(len(preds))
+        # error must be smaller than 10%
+        assert err < 0.1
+
+        # save dmatrix into binary buffer
+        dtest.save_binary('dtest.buffer')
+        # save model
+        bst.save_model('xgb.model')
+        # load model and data in
+        bst2 = xgb.Booster(model_file='xgb.model')
+        dtest2 = xgb.DMatrix('dtest.buffer')
+        preds2 = bst2.predict(dtest2)
+        # assert they are the same
+        assert np.sum(np.abs(preds2 - preds)) == 0
+
+
     def test_dmatrix_init(self):
         data = np.random.randn(5, 5)
 
@@ -135,4 +162,3 @@ class TestBasic(unittest.TestCase):
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=False)
         assert isinstance(cv, np.ndarray)
         assert cv.shape == (10, 4)
-
