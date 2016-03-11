@@ -174,7 +174,6 @@ void CLITrain(const CLIParam& param) {
   }
   // initialize the learner.
   std::unique_ptr<Learner> learner(Learner::Create(cache_mats));
-  learner->Configure(param.cfg);
   int version = rabit::LoadCheckPoint(learner.get());
   if (version == 0) {
     // initializ the model if needed.
@@ -182,7 +181,9 @@ void CLITrain(const CLIParam& param) {
       std::unique_ptr<dmlc::Stream> fi(
           dmlc::Stream::Create(param.model_in.c_str(), "r"));
       learner->Load(fi.get());
+      learner->Configure(param.cfg);
     } else {
+      learner->Configure(param.cfg);
       learner->InitModel();
     }
   }
