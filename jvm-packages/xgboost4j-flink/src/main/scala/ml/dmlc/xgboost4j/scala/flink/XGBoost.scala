@@ -81,13 +81,14 @@ object XGBoost {
   /**
     * Train a xgboost model with link.
     *
-    * @param params The parameters to XGBoost.
     * @param dtrain The training data.
+    * @param params The parameters to XGBoost.
     * @param round Number of rounds to train.
     */
-  def train(params: Map[String, Any],
-            dtrain: DataSet[LabeledVector],
-            round: Int): XGBoostModel = {
+  def train(
+      dtrain: DataSet[LabeledVector],
+      params: Map[String, Any],
+      round: Int): XGBoostModel = {
     val tracker = new RabitTracker(dtrain.getExecutionEnvironment.getParallelism)
     if (tracker.start()) {
       dtrain
