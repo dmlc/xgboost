@@ -74,7 +74,7 @@ class ScalaBoosterImplSuite extends FunSuite {
     val watches = List("train" -> trainMat, "test" -> testMat).toMap
 
     val round = 2
-    XGBoost.train(paramMap, trainMat, round, watches, null, null)
+    XGBoost.train(trainMat, paramMap, round, watches, null, null)
   }
 
   test("basic operation of booster") {
@@ -126,6 +126,6 @@ class ScalaBoosterImplSuite extends FunSuite {
       "objective" -> "binary:logistic", "gamma" -> "1.0", "eval_metric" -> "error").toMap
     val round = 2
     val nfold = 5
-    XGBoost.crossValidation(params, trainMat, round, nfold, null, null, null)
+    XGBoost.crossValidation(trainMat, params, round, nfold, null, null, null)
   }
 }

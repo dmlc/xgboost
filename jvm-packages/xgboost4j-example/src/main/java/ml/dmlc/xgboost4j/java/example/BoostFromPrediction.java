@@ -48,7 +48,7 @@ public class BoostFromPrediction {
     watches.put("test", testMat);
 
     //train xgboost for 1 round
-    Booster booster = XGBoost.train(params, trainMat, 1, watches, null, null);
+    Booster booster = XGBoost.train(trainMat, params, 1, watches, null, null);
 
     float[][] trainPred = booster.predict(trainMat, true);
     float[][] testPred = booster.predict(testMat, true);
@@ -57,6 +57,6 @@ public class BoostFromPrediction {
     testMat.setBaseMargin(testPred);
 
     System.out.println("result of running from initial prediction");
-    Booster booster2 = XGBoost.train(params, trainMat, 1, watches, null, null);
+    Booster booster2 = XGBoost.train(trainMat, params, 1, watches, null, null);
   }
 }

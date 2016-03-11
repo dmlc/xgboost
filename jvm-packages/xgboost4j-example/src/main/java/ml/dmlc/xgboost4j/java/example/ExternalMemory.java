@@ -56,6 +56,6 @@ public class ExternalMemory {
     int round = 2;
 
     //train a boost model
-    Booster booster = XGBoost.train(params, trainMat, round, watches, null, null);
+    Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
   }
 }

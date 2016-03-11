@@ -24,7 +24,7 @@ Many of these machine learning libraries(e.g. [XGBoost](https://github.com/dmlc/
 requires new computation abstraction and native support(e.g. C++ for GPU computing).
 They are also often [much more efficient](http://arxiv.org/abs/1603.02754).
 
-The gap between the implementation fundamentals of the general data processing frameworks and the more specific machine learning libraries/systems prohibits the smooth connection between these two types of systems, thus brings unnecessary inconvenience to the end user. The common workflow to the user is to utilize the systems like Flink/Spark to preprocess/clean data, pass the results to machine learning systems like [XGBoost](https://github.com/dmlc/xgboost)/[MxNet](https://github.com/dmlc/mxnet))  via the file system and then conduct the following machine learning phase. While such process won't hurt performance as much in data processing case(because machine learning takes a lot of time compared to data loading), it create a bit inconvenience for the users.
+The gap between the implementation fundamentals of the general data processing frameworks and the more specific machine learning libraries/systems prohibits the smooth connection between these two types of systems, thus brings unnecessary inconvenience to the end user. The common workflow to the user is to utilize the systems like Flink/Spark to preprocess/clean data, pass the results to machine learning systems like [XGBoost](https://github.com/dmlc/xgboost)/[MxNet](https://github.com/dmlc/mxnet))  via the file system and then conduct the following machine learning phase. While such process won't hurt performance as much in data processing case(because machine learning takes a lot of time compared to data loading), it creates a bit inconvenience for the users.
 
 We want best of both worlds, so we can use the data processing frameworks like Flink and Spark toghether with
 the best distributed machine learning solutions.
@@ -37,7 +37,7 @@ XGBoost and XGBoost4J adopts Unix Philosophy.
 XGBoost **does its best in one thing -- tree boosting** and is **being designed to work with other systems**.
 We strongly believe that machine learning solution should not be restricted to certain language or certain platform.
 
-Specifically, users will be able to use distributed XGBoost in both Flink and Spark.
+Specifically, users will be able to use distributed XGBoost in both Flink and Spark, and possibly more frameworks in Future.
 We have made the API in a portable way so it **can be easily ported to other Dataflow frameworks provided by the Cloud**.
 XGBoost4J shares its core with other XGBoost libraries, which means data scientists can use R/python
 read and visualize the model trained distributedly.
@@ -85,10 +85,10 @@ watches += "test" -> testMax
 
 val round = 2
 // train a model
-val booster = XGBoost.train(params.toMap, trainMax, round, watches.toMap)
+val booster = XGBoost.train(trainMax, params.toMap, round, watches.toMap)
 ```
 
-In Scala:
+We then evaluate our model:
 
 ```scala
 val predicts = booster.predict(testMax)
@@ -111,7 +111,7 @@ In Spark, the dataset is represented as the [Resilient Distributed Dataset (RDD)
 val trainRDD = MLUtils.loadLibSVMFile(sc, inputTrainPath).repartition(args(1).toInt)
 ```
 
-We move forward to train the models, in Spark:
+We move forward to train the models:
 
 ```scala
 val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound)
@@ -168,6 +168,8 @@ xgboostModel.predict(testData.map{x => x.vector})
 ## Road Map
 
 It is the first release of XGBoost4J package, we are actively move forward for more charming features in the next release. You can watch our progress in [XGBoost4J Road Map](https://github.com/dmlc/xgboost/issues/935).
+
+While we are trying our best to keep the minimum changes to the APIs, it is still subject to the incompatible changes.
 
 ## Further Readings
 
