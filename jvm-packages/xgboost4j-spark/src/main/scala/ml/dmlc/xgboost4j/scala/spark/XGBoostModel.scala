@@ -50,7 +50,8 @@ class XGBoostModel(booster: Booster)(implicit val sc: SparkContext) extends Seri
    * @param modelPath The model path as in Hadoop path.
    */
   def saveModelToHadoop(modelPath: String): Unit = {
-    val outputStream = FileSystem.get(sc.hadoopConfiguration).create(new Path(modelPath))
+    val path = new Path(modelPath)
+    val outputStream = path.getFileSystem(sc.hadoopConfiguration).create(path)
     booster.saveModel(outputStream)
     outputStream.close()
   }

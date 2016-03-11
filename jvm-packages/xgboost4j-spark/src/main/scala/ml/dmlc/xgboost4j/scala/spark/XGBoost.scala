@@ -129,7 +129,8 @@ object XGBoost extends Serializable {
    * @return The loaded model
    */
   def loadModelFromHadoop(modelPath: String)(implicit sparkContext: SparkContext): XGBoostModel = {
-    val dataInStream = FileSystem.get(sparkContext.hadoopConfiguration).open(new Path(modelPath))
+    val path = new Path(modelPath)
+    val dataInStream = path.getFileSystem(sparkContext.hadoopConfiguration).open(path)
     val xgBoostModel = new XGBoostModel(SXGBoost.loadModel(dataInStream))
     xgBoostModel
   }
