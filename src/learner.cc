@@ -14,6 +14,7 @@
 #include <limits>
 #include <iomanip>
 #include "./common/io.h"
+#include "./common/common.h"
 #include "./common/random.h"
 
 namespace xgboost {
@@ -27,13 +28,6 @@ Learner::Dump2Text(const FeatureMap& fmap, int option) const {
   return gbm_->Dump2Text(fmap, option);
 }
 
-// simple routine to convert any data to string
-template<typename T>
-inline std::string ToString(const T& data) {
-  std::ostringstream os;
-  os << data;
-  return os.str();
-}
 
 /*! \brief training parameter for regression */
 struct LearnerModelParam
@@ -192,7 +186,7 @@ class LearnerImpl : public Learner {
     common::GlobalRandom().seed(tparam.seed);
 
     // set number of features correctly.
-    cfg_["num_feature"] = ToString(mparam.num_feature);
+    cfg_["num_feature"] = common::ToString(mparam.num_feature);
     if (gbm_.get() != nullptr) {
       gbm_->Configure(cfg_.begin(), cfg_.end());
     }
@@ -252,13 +246,13 @@ class LearnerImpl : public Learner {
       attributes_ = std::map<std::string, std::string>(
           attr.begin(), attr.end());
     }
-
     if (metrics_.size() == 0) {
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric()));
     }
     this->base_score_ = mparam.base_score;
     gbm_->ResetPredBuffer(pred_buffer_size_);
-    cfg_["num_class"] = ToString(mparam.num_class);
+    cfg_["num_class"] = common::ToString(mparam.num_class);
+    cfg_["num_feature"] = common::ToString(mparam.num_feature);
     obj_->Configure(cfg_.begin(), cfg_.end());
   }
 
@@ -395,7 +389,7 @@ class LearnerImpl : public Learner {
     }
 
     // setup
-    cfg_["num_feature"] = ToString(mparam.num_feature);
+    cfg_["num_feature"] = common::ToString(mparam.num_feature);
     CHECK(obj_.get() == nullptr && gbm_.get() == nullptr);
     obj_.reset(ObjFunction::Create(name_obj_));
     gbm_.reset(GradientBooster::Create(name_gbm_));

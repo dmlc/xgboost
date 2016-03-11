@@ -126,6 +126,9 @@ class GBTree : public GradientBooster {
       CHECK_EQ(fi->Read(dmlc::BeginPtr(tree_info), sizeof(int) * mparam.num_trees),
                sizeof(int) * mparam.num_trees);
     }
+    this->cfg.clear();
+    this->cfg.push_back(std::make_pair(std::string("num_feature"),
+                                       common::ToString(mparam.num_feature)));
     // clear the predict buffer.
     this->ResetPredBuffer(num_pbuffer);
   }
