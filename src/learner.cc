@@ -125,8 +125,8 @@ class LearnerImpl : public Learner {
   }
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    tparam.InitAllowUnknown(args);
     // add to configurations
+    tparam.InitAllowUnknown(args);
     cfg_.clear();
     for (const auto& kv : args) {
       if (kv.first == "eval_metric") {
@@ -187,6 +187,8 @@ class LearnerImpl : public Learner {
 
     // set number of features correctly.
     cfg_["num_feature"] = common::ToString(mparam.num_feature);
+    cfg_["num_class"] = common::ToString(mparam.num_class);
+
     if (gbm_.get() != nullptr) {
       gbm_->Configure(cfg_.begin(), cfg_.end());
     }
