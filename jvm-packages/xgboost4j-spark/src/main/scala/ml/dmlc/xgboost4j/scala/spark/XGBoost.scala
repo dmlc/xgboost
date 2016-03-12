@@ -45,8 +45,10 @@ object XGBoost extends Serializable {
     import DataUtils._
     val partitionedData = {
       if (numWorkers > trainingData.partitions.length) {
+        logger.info(s"repartitioning training set to $numWorkers partitions")
         trainingData.repartition(numWorkers)
       } else if (numWorkers < trainingData.partitions.length) {
+        logger.info(s"repartitioning training set to $numWorkers partitions")
         trainingData.coalesce(numWorkers)
       } else {
         trainingData
@@ -79,7 +81,9 @@ object XGBoost extends Serializable {
    */
   @throws(classOf[XGBoostError])
   def train(trainingData: RDD[LabeledPoint], configMap: Map[String, Any], round: Int,
-      nWorkers: Int = 0, obj: ObjectiveTrait = null, eval: EvalTrait = null): XGBoostModel = {
+      nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null): XGBoostModel = {
+    require(nWorkers > 0, "you must specify more than 0 workers")
+    val tracker = new RabitTracker(nWorkers)
     implicit val sc = trainingData.sparkContext
     var overridedConfMap = configMap
     if (overridedConfMap.contains("nthread")) {
@@ -91,17 +95,9 @@ object XGBoost extends Serializable {
     } else {
       overridedConfMap = configMap + ("nthread" -> sc.getConf.get("spark.task.cpus", "1").toInt)
     }
-    val numWorkers = {
-      if (nWorkers > 0) {
-        nWorkers
-      } else {
-        trainingData.partitions.length
-      }
-    }
-    val tracker = new RabitTracker(numWorkers)
     require(tracker.start(), "FAULT: Failed to start tracker")
     val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
-      tracker.getWorkerEnvs.asScala, numWorkers, round, obj, eval)
+      tracker.getWorkerEnvs.asScala, nWorkers, round, obj, eval)
     val sparkJobThread = new Thread() {
       override def run() {
         // force the job
