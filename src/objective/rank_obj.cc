@@ -4,9 +4,9 @@
  * \brief Definition of rank loss.
  * \author Tianqi Chen, Kailong Chen
  */
-#include <dmlc/omp.h>
-#include <xgboost/logging.h>
-#include <xgboost/objective.h>
+#include "dmlc/omp.h"
+#include "xgboost/logging.h"
+#include "xgboost/objective.h"
 #include <vector>
 #include <algorithm>
 #include <utility>

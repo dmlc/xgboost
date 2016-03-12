@@ -8,7 +8,7 @@
 #ifndef XGBOOST_TREE_UPDATER_H_
 #define XGBOOST_TREE_UPDATER_H_
 
-#include <dmlc/registry.h>
+#include "dmlc/registry.h"
 #include <vector>
 #include <utility>
 #include <string>

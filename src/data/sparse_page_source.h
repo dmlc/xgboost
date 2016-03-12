@@ -7,9 +7,9 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 
-#include <xgboost/base.h>
-#include <xgboost/data.h>
-#include <dmlc/threadediter.h>
+#include "xgboost/base.h"
+#include "xgboost/data.h"
+#include "dmlc/threadediter.h"
 #include <vector>
 #include <algorithm>
 #include <string>

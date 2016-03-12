@@ -8,8 +8,8 @@
 #ifndef XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
 #define XGBOOST_DATA_SIMPLE_CSR_SOURCE_H_
 
-#include <xgboost/base.h>
-#include <xgboost/data.h>
+#include "xgboost/base.h"
+#include "xgboost/data.h"
 #include <vector>
 #include <algorithm>
 

@@ -9,10 +9,10 @@
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
 
-#include <xgboost/learner.h>
-#include <xgboost/data.h>
-#include <xgboost/logging.h>
-#include <dmlc/timer.h>
+#include "xgboost/learner.h"
+#include "xgboost/data.h"
+#include "xgboost/logging.h"
+#include "dmlc/timer.h"
 #include <iomanip>
 #include <ctime>
 #include <string>

@@ -1,10 +1,10 @@
 // Copyright (c) 2014 by Contributors
 
-#include <xgboost/data.h>
-#include <xgboost/learner.h>
-#include <xgboost/c_api.h>
-#include <xgboost/logging.h>
-#include <rabit/rabit.h>
+#include "xgboost/data.h"
+#include "xgboost/learner.h"
+#include "xgboost/c_api.h"
+#include "xgboost/logging.h"
+#include "rabit/rabit.h"
 #include <cstdio>
 #include <vector>
 #include <string>
@@ -463,7 +463,7 @@ int XGDMatrixNumCol(const DMatrixHandle handle,
 }
 
 // xgboost implementation
-int XGBoosterCreate(DMatrixHandle dmats[],
+int XGBoosterCreate(const DMatrixHandle dmats[],
                     bst_ulong len,
                     BoosterHandle *out) {
   API_BEGIN();

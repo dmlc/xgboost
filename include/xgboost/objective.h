@@ -7,7 +7,7 @@
 #ifndef XGBOOST_OBJECTIVE_H_
 #define XGBOOST_OBJECTIVE_H_
 
-#include <dmlc/registry.h>
+#include "dmlc/registry.h"
 #include <vector>
 #include <utility>
 #include <string>

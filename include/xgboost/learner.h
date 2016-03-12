@@ -8,7 +8,7 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
-#include <rabit/rabit.h>
+#include "rabit/rabit.h"
 #include <utility>
 #include <string>
 #include <vector>

@@ -2,8 +2,8 @@
  * Copyright 2015 by Contributors
  * \file simple_csr_source.cc
  */
-#include <dmlc/base.h>
-#include <xgboost/logging.h>
+#include "dmlc/base.h"
+#include "xgboost/logging.h"
 #include "./simple_csr_source.h"
 
 namespace xgboost {

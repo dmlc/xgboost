@@ -4,7 +4,7 @@
  * \brief Implementation of loggers.
  * \author Tianqi Chen
  */
-#include <xgboost/logging.h>
+#include "xgboost/logging.h"
 #include <iostream>
 #include "./common/sync.h"
 

@@ -7,8 +7,8 @@
 #ifndef XGBOOST_TREE_MODEL_H_
 #define XGBOOST_TREE_MODEL_H_
 
-#include <dmlc/io.h>
-#include <dmlc/parameter.h>
+#include "dmlc/io.h"
+#include "dmlc/parameter.h"
 #include <limits>
 #include <vector>
 #include <string>

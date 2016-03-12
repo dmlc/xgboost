@@ -2,9 +2,9 @@
  * Copyright 2015 by Contributors
  * \file data.cc
  */
-#include <xgboost/data.h>
-#include <xgboost/logging.h>
-#include <dmlc/registry.h>
+#include "xgboost/data.h"
+#include "xgboost/logging.h"
+#include "dmlc/registry.h"
 #include <cstring>
 #include "./sparse_batch_page.h"
 #include "./simple_dmatrix.h"

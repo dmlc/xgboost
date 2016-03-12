@@ -8,7 +8,7 @@
 #ifndef XGBOOST_COMMON_BITMAP_H_
 #define XGBOOST_COMMON_BITMAP_H_
 
-#include <dmlc/omp.h>
+#include "dmlc/omp.h"
 #include <vector>
 
 namespace xgboost {

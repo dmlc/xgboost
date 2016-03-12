@@ -8,7 +8,7 @@
 #ifndef XGBOOST_COMMON_IO_H_
 #define XGBOOST_COMMON_IO_H_
 
-#include <dmlc/io.h>
+#include "dmlc/io.h"
 #include <string>
 #include <cstring>
 #include "./sync.h"

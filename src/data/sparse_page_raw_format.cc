@@ -3,8 +3,8 @@
  * \file sparse_page_raw_format.cc
  *  Raw binary format of sparse page.
  */
-#include <xgboost/data.h>
-#include <dmlc/registry.h>
+#include "xgboost/data.h"
+#include "dmlc/registry.h"
 #include "./sparse_batch_page.h"
 
 namespace xgboost {

@@ -4,7 +4,7 @@
  * \brief the input data structure for gradient boosting
  * \author Tianqi Chen
  */
-#include <xgboost/data.h>
+#include "xgboost/data.h"
 #include <limits>
 #include <algorithm>
 #include <vector>

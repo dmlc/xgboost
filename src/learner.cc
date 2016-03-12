@@ -4,8 +4,8 @@
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
  */
-#include <xgboost/learner.h>
-#include <dmlc/io.h>
+#include "xgboost/learner.h"
+#include "dmlc/io.h"
 #include <algorithm>
 #include <vector>
 #include <utility>

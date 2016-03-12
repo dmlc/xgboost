@@ -3,8 +3,8 @@
  * \file objective.cc
  * \brief Registry of all objective functions.
  */
-#include <xgboost/objective.h>
-#include <dmlc/registry.h>
+#include "xgboost/objective.h"
+#include "dmlc/registry.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);

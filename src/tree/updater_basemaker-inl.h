@@ -7,8 +7,8 @@
 #ifndef XGBOOST_TREE_UPDATER_BASEMAKER_INL_H_
 #define XGBOOST_TREE_UPDATER_BASEMAKER_INL_H_
 
-#include <xgboost/base.h>
-#include <xgboost/tree_updater.h>
+#include "xgboost/base.h"
+#include "xgboost/tree_updater.h"
 #include <vector>
 #include <algorithm>
 #include <string>
