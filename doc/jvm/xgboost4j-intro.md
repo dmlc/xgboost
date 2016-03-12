@@ -114,7 +114,7 @@ val trainRDD = MLUtils.loadLibSVMFile(sc, inputTrainPath).repartition(args(1).to
 We move forward to train the models:
 
 ```scala
-val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound)
+val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound, numWorkers)
 
 ```
 
@@ -147,7 +147,7 @@ val trainData = MLUtils.readLibSVM(env, "/path/to/data/agaricus.txt.train")
 Model Training can be done as follows
 
 ```scala
-val xgboostModel = XGBoost.train(trainData, paramMap, round)
+val xgboostModel = XGBoost.train(trainData, paramMap, round, nWorkers)
 
 ```
 

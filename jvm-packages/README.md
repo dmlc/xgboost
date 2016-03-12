@@ -67,7 +67,8 @@ object DistTrainWithSpark {
       "eta" -> 0.1f,
       "max_depth" -> 2,
       "objective" -> "binary:logistic").toMap
-    val model = XGBoost.train(trainRDD, paramMap, numRound)
+    // use 5 distributed workers to train the model 
+    val model = XGBoost.train(trainRDD, paramMap, numRound, nWorkers = 5)
     // save model to HDFS path
     model.saveModelToHadoop(outputModelPath)
   }
@@ -94,8 +95,9 @@ object DistTrainWithFlink {
       "objective" -> "binary:logistic").toMap
     // number of iterations
     val round = 2
+    val nWorkers = 5
     // train the model
-    val model = XGBoost.train(trainData, paramMap, round)
+    val model = XGBoost.train(trainData, paramMap, round, nWorkers)
     val predTrain = model.predict(trainData.map{x => x.vector})
     model.saveModelToHadoop("file:///path/to/xgboost.model")
   }

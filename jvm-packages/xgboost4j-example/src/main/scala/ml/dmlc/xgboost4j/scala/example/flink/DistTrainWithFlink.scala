@@ -33,8 +33,9 @@ object DistTrainWithFlink {
       "objective" -> "binary:logistic").toMap
     // number of iterations
     val round = 2
+    val nWorkers = 5
     // train the model
-    val model = XGBoost.train(trainData, paramMap, round)
+    val model = XGBoost.train(trainData, paramMap, round, 5)
     val predTest = model.predict(testData.map{x => x.vector})
     model.saveModelAsHadoopFile("file:///path/to/xgboost.model")
   }
