@@ -3,8 +3,8 @@
  * \file sparse_batch_writer.cc
  * \param Writer class sparse page.
  */
-#include <xgboost/base.h>
-#include <xgboost/logging.h>
+#include "xgboost/base.h"
+#include "xgboost/logging.h"
 #include "./sparse_batch_page.h"
 
 #if DMLC_ENABLE_STD_THREAD

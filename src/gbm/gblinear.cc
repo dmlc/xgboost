@@ -5,10 +5,10 @@
  *        the update rule is parallel coordinate descent (shotgun)
  * \author Tianqi Chen
  */
-#include <dmlc/omp.h>
-#include <dmlc/parameter.h>
-#include <xgboost/gbm.h>
-#include <xgboost/logging.h>
+#include "dmlc/omp.h"
+#include "dmlc/parameter.h"
+#include "xgboost/gbm.h"
+#include "xgboost/logging.h"
 #include <vector>
 #include <string>
 #include <sstream>

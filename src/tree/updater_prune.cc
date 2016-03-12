@@ -5,7 +5,7 @@
  * \author Tianqi Chen
  */
 
-#include <xgboost/tree_updater.h>
+#include "xgboost/tree_updater.h"
 #include <string>
 #include <memory>
 #include "./param.h"

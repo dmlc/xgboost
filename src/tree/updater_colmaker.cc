@@ -4,7 +4,7 @@
  * \brief use columnwise update to construct a tree
  * \author Tianqi Chen
  */
-#include <xgboost/tree_updater.h>
+#include "xgboost/tree_updater.h"
 #include <vector>
 #include <cmath>
 #include <algorithm>

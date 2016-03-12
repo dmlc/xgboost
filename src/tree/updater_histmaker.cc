@@ -4,8 +4,8 @@
  * \brief use histogram counting to construct a tree
  * \author Tianqi Chen
  */
-#include <xgboost/base.h>
-#include <xgboost/tree_updater.h>
+#include "xgboost/base.h"
+#include "xgboost/tree_updater.h"
 #include <vector>
 #include <algorithm>
 #include "../common/sync.h"

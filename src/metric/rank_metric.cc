@@ -4,8 +4,8 @@
  * \brief prediction rank based metrics.
  * \author Kailong Chen, Tianqi Chen
  */
-#include <xgboost/metric.h>
-#include <dmlc/registry.h>
+#include "xgboost/metric.h"
+#include "dmlc/registry.h"
 #include <cmath>
 #include "../common/sync.h"
 #include "../common/math.h"

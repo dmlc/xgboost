@@ -3,8 +3,8 @@
  * \file tree_updater.cc
  * \brief Registry of tree updaters.
  */
-#include <xgboost/tree_updater.h>
-#include <dmlc/registry.h>
+#include "xgboost/tree_updater.h"
+#include "dmlc/registry.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::TreeUpdaterReg);

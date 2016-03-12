@@ -3,8 +3,8 @@
  * \file metric_registry.cc
  * \brief Registry of objective functions.
  */
-#include <xgboost/metric.h>
-#include <dmlc/registry.h>
+#include "xgboost/metric.h"
+#include "dmlc/registry.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::MetricReg);

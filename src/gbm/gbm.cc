@@ -3,8 +3,8 @@
  * \file gbm.cc
  * \brief Registry of gradient boosters.
  */
-#include <xgboost/gbm.h>
-#include <dmlc/registry.h>
+#include "xgboost/gbm.h"
+#include "dmlc/registry.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::GradientBoosterReg);

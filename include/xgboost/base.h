@@ -6,8 +6,8 @@
 #ifndef XGBOOST_BASE_H_
 #define XGBOOST_BASE_H_
 
-#include <dmlc/base.h>
-#include <dmlc/omp.h>
+#include "dmlc/base.h"
+#include "dmlc/omp.h"
 
 /*!
  * \brief string flag for R library, to leave hooks when needed.

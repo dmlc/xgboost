@@ -9,8 +9,8 @@
 #ifndef XGBOOST_DATA_SPARSE_BATCH_PAGE_H_
 #define XGBOOST_DATA_SPARSE_BATCH_PAGE_H_
 
-#include <xgboost/data.h>
-#include <dmlc/io.h>
+#include "xgboost/data.h"
+#include "dmlc/io.h"
 #include <vector>
 #include <algorithm>
 #include <cstring>
@@ -19,7 +19,7 @@
 #include <memory>
 
 #if DMLC_ENABLE_STD_THREAD
-#include <dmlc/concurrency.h>
+#include "dmlc/concurrency.h"
 #include <thread>
 #endif
 

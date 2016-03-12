@@ -2,9 +2,9 @@
  * Copyright 2015 by Contributors
  * \file sparse_page_source.cc
  */
-#include <dmlc/base.h>
-#include <dmlc/timer.h>
-#include <xgboost/logging.h>
+#include "dmlc/base.h"
+#include "dmlc/timer.h"
+#include "xgboost/logging.h"
 #include <memory>
 
 #if DMLC_ENABLE_STD_THREAD

@@ -3,7 +3,7 @@
  * \file tree_model.cc
  * \brief model structure for tree
  */
-#include <xgboost/tree_model.h>
+#include "xgboost/tree_model.h"
 #include <sstream>
 #include "./param.h"
 

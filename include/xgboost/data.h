@@ -7,8 +7,8 @@
 #ifndef XGBOOST_DATA_H_
 #define XGBOOST_DATA_H_
 
-#include <dmlc/base.h>
-#include <dmlc/data.h>
+#include "dmlc/base.h"
+#include "dmlc/data.h"
 #include <string>
 #include <memory>
 #include <vector>

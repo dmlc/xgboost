@@ -8,7 +8,7 @@
 #ifndef XGBOOST_LOGGING_H_
 #define XGBOOST_LOGGING_H_
 
-#include <dmlc/logging.h>
+#include "dmlc/logging.h"
 #include <sstream>
 #include "./base.h"
 

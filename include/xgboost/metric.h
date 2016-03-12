@@ -7,7 +7,7 @@
 #ifndef XGBOOST_METRIC_H_
 #define XGBOOST_METRIC_H_
 
-#include <dmlc/registry.h>
+#include "dmlc/registry.h"
 #include <vector>
 #include <string>
 #include <functional>

@@ -8,7 +8,7 @@
 #ifndef XGBOOST_GBM_H_
 #define XGBOOST_GBM_H_
 
-#include <dmlc/registry.h>
+#include "dmlc/registry.h"
 #include <vector>
 #include <utility>
 #include <string>
