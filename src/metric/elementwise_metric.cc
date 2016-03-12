@@ -89,11 +89,11 @@ struct EvalLogLoss : public EvalEWiseBase<EvalLogLoss> {
     const float eps = 1e-16f;
     const float pneg = 1.0f - py;
     if (py < eps) {
-      return -y * std::log(eps) - (1.0f - y)  * std::log(1.0f - eps);
+      return -y * dmlc::log(eps) - (1.0f - y)  * dmlc::log(1.0f - eps);
     } else if (pneg < eps) {
-      return -y * std::log(1.0f - eps) - (1.0f - y)  * std::log(eps);
+      return -y * dmlc::log(1.0f - eps) - (1.0f - y)  * dmlc::log(eps);
     } else {
-      return -y * std::log(py) - (1.0f - y) * std::log(pneg);
+      return -y * dmlc::log(py) - (1.0f - y) * dmlc::log(pneg);
     }
   }
 };
@@ -115,7 +115,7 @@ struct EvalPoissionNegLogLik : public EvalEWiseBase<EvalPoissionNegLogLik> {
   inline static float EvalRow(float y, float py) {
     const float eps = 1e-16f;
     if (py < eps) py = eps;
-    return common::LogGamma(y + 1.0f) + py - std::log(py) * y;
+    return common::LogGamma(y + 1.0f) + py - dmlc::log(py) * y;
   }
 };
 

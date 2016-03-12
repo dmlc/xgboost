@@ -7,6 +7,8 @@
 #ifndef XGBOOST_COMMON_MATH_H_
 #define XGBOOST_COMMON_MATH_H_
 
+#include "xgboost/math_proxy.hpp"
+
 #include <utility>
 #include <vector>
 #include <cmath>
@@ -20,7 +22,7 @@ namespace common {
  * \return the transformed value.
  */
 inline float Sigmoid(float x) {
-  return 1.0f / (1.0f + std::exp(-x));
+  return 1.0f / (1.0f + dmlc::exp(-x));
 }
 
 /*!
@@ -35,7 +37,7 @@ inline void Softmax(std::vector<float>* p_rec) {
   }
   double wsum = 0.0f;
   for (size_t i = 0; i < rec.size(); ++i) {
-    rec[i] = std::exp(rec[i] - wmax);
+    rec[i] = dmlc::exp(rec[i] - wmax);
     wsum += rec[i];
   }
   for (size_t i = 0; i < rec.size(); ++i) {
@@ -67,9 +69,9 @@ inline Iterator FindMaxIndex(Iterator begin, Iterator end) {
  */
 inline float LogSum(float x, float y) {
   if (x < y) {
-    return y + std::log(std::exp(x - y) + 1.0f);
+    return y + dmlc::log(dmlc::exp(x - y) + 1.0f);
   } else {
-    return x + std::log(std::exp(y - x) + 1.0f);
+    return x + dmlc::log(dmlc::exp(y - x) + 1.0f);
   }
 }
 
@@ -88,9 +90,9 @@ inline float LogSum(Iterator begin, Iterator end) {
   }
   float sum = 0.0f;
   for (Iterator it = begin; it != end; ++it) {
-    sum += std::exp(*it - mx);
+    sum += dmlc::exp(*it - mx);
   }
-  return mx + std::log(sum);
+  return mx + dmlc::log(sum);
 }
 
 // comparator functions for sorting pairs in descending order

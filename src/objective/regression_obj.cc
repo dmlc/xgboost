@@ -40,7 +40,7 @@ struct LogisticRegression {
   static float ProbToMargin(float base_score) {
     CHECK(base_score > 0.0f && base_score < 1.0f)
         << "base_score must be in (0,1) for logistic loss";
-    return -std::log(1.0f / base_score - 1.0f);
+    return -dmlc::log(1.0f / base_score - 1.0f);
   }
   static const char* LabelErrorMsg() {
     return "label must be in [0,1] for logistic regression";
@@ -181,8 +181,8 @@ class PoissonRegression : public ObjFunction {
       float w = info.GetWeight(i);
       float y = info.labels[i];
       if (y >= 0.0f) {
-        out_gpair->at(i) = bst_gpair((std::exp(p) - y) * w,
-                                     std::exp(p + param_.max_delta_step) * w);
+        out_gpair->at(i) = bst_gpair((dmlc::exp(p) - y) * w,
+                                     dmlc::exp(p + param_.max_delta_step) * w);
       } else {
         label_correct = false;
       }
@@ -194,14 +194,14 @@ class PoissonRegression : public ObjFunction {
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
     #pragma omp parallel for schedule(static)
     for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
-      preds[j] = std::exp(preds[j]);
+      preds[j] = dmlc::exp(preds[j]);
     }
   }
   void EvalTransform(std::vector<float> *io_preds) override {
     PredTransform(io_preds);
   }
   float ProbToMargin(float base_score) const override {
-    return std::log(base_score);
+    return dmlc::log(base_score);
   }
   const char* DefaultEvalMetric(void) const override {
     return "poisson-nloglik";
