@@ -20,13 +20,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoSerializable;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 /**
  * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model
  */
-public class Booster implements  Serializable {
+public class Booster implements Serializable, KryoSerializable {
   private static final Log logger = LogFactory.getLog(Booster.class);
   // handle to the booster.
   private long handle = 0;
@@ -436,7 +440,8 @@ public class Booster implements  Serializable {
     try {
       out.writeObject(this.toByteArray());
     } catch (XGBoostError ex) {
-      throw new IOException(ex.toString());
+      ex.printStackTrace();
+      logger.error(ex.getMessage());
     }
   }
 
@@ -447,7 +452,8 @@ public class Booster implements  Serializable {
       byte[] bytes = (byte[])in.readObject();
       JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
     } catch (XGBoostError ex) {
-      throw new IOException(ex.toString());
+      ex.printStackTrace();
+      logger.error(ex.getMessage());
     }
   }
 
@@ -461,6 +467,35 @@ public class Booster implements  Serializable {
     if (handle != 0L) {
       XGBoostJNI.XGBoosterFree(handle);
       handle = 0;
+    }
+  }
+
+  @Override
+  public void write(Kryo kryo, Output output) {
+    try {
+      byte[] serObj = this.toByteArray();
+      int serObjSize = serObj.length;
+      System.out.println("==== serialized obj size " + serObjSize);
+      output.writeInt(serObjSize);
+      output.write(serObj);
+    } catch (XGBoostError ex) {
+      ex.printStackTrace();
+      logger.error(ex.getMessage());
+    }
+  }
+
+  @Override
+  public void read(Kryo kryo, Input input) {
+    try {
+      this.init(null);
+      int serObjSize = input.readInt();
+      System.out.println("==== the size of the object: " + serObjSize);
+      byte[] bytes = new byte[serObjSize];
+      input.readBytes(bytes);
+      JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
+    } catch (XGBoostError ex) {
+      ex.printStackTrace();
+      logger.error(ex.getMessage());
     }
   }
 }
