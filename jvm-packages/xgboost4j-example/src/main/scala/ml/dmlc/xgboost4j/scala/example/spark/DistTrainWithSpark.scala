@@ -16,9 +16,9 @@
 
 package ml.dmlc.xgboost4j.scala.example.spark
 
-import ml.dmlc.xgboost4j.scala.DMatrix
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 import ml.dmlc.xgboost4j.scala.spark.{DataUtils, XGBoost}
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.util.MLUtils
 
 object DistTrainWithSpark {
@@ -28,7 +28,10 @@ object DistTrainWithSpark {
         "usage: program num_of_rounds num_workers training_path test_path model_path")
       sys.exit(1)
     }
-    val sc = new SparkContext()
+    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoost-spark-example")
+      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    sparkConf.registerKryoClasses(Array(classOf[Booster]))
+    val sc = new SparkContext(sparkConf)
     val inputTrainPath = args(2)
     val inputTestPath = args(3)
     val outputModelPath = args(4)
