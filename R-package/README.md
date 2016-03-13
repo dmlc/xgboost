@@ -1,5 +1,5 @@
-R package for xgboost
-=====================
+XGBoost R Package for Scalable GBM
+==================================
 
 [![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](http://cran.r-project.org/web/packages/xgboost)
 [![CRAN Downloads](http://cranlogs.r-pkg.org/badges/xgboost)](http://cran.rstudio.com/web/packages/xgboost/index.html)
