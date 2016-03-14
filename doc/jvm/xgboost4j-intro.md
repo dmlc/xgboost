@@ -147,7 +147,7 @@ val trainData = MLUtils.readLibSVM(env, "/path/to/data/agaricus.txt.train")
 Model Training can be done as follows
 
 ```scala
-val xgboostModel = XGBoost.train(trainData, paramMap, round, nWorkers)
+val xgboostModel = XGBoost.train(trainData, paramMap, round)
 
 ```
 
