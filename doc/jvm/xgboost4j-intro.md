@@ -9,13 +9,13 @@ comments: true
 ## Introduction
 [XGBoost](https://github.com/dmlc/xgboost) is a library designed and optimized for tree boosting. Gradient boosting trees model is originally proposed by Friedman et al. By embracing multi-threads and introducing regularization, XGBoost delivers higher computational power and more accurate prediction.  **More than half of the winning solutions in machine learning challenges** hosted at Kaggle adopt XGBoost ([Incomplete list](https://github.com/dmlc/xgboost/tree/master/demo#machine-learning-challenge-winning-solutions)).
 XGBoost has provided native interfaces for  C++, R, python, Julia and Java users.
-It is used by both data exploration and [production pipeline](https://github.com/dmlc/xgboost/tree/master/demo#usecases) to solve real world machine learning problems.
+It is used by both [data exploration and production scenarios](https://github.com/dmlc/xgboost/tree/master/demo#usecases) to solve real world machine learning problems.
 
 The distributed XGBoost is described in the [recently published paper](http://arxiv.org/abs/1603.02754).
 In short, the XGBoost system runs magnitudes faster than existing alternatives of distributed ML,
 and uses far fewer resources. The reader is more than welcomed to refer to the paper for more details.
 
-Despite the great success, one of our goal is to make XGBoost even more available for all production scenario.
+Despite the current great success, one of our ultimate goals is to make XGBoost even more available for all production scenario.
 Programming languages and data processing/storage systems based on Java Virtual Machine (JVM) play the significant roles in the BigData ecosystem. [Hadoop](http://hadoop.apache.org/), [Spark](http://spark.apache.org/) and more recently introduced [Flink](http://flink.apache.org/) are very useful solutions to general large-scale data processing.
 
 On the other side, the emerging demands of machine learning and deep learning
@@ -24,9 +24,9 @@ Many of these machine learning libraries(e.g. [XGBoost](https://github.com/dmlc/
 requires new computation abstraction and native support(e.g. C++ for GPU computing).
 They are also often [much more efficient](http://arxiv.org/abs/1603.02754).
 
-The gap between the implementation fundamentals of the general data processing frameworks and the more specific machine learning libraries/systems prohibits the smooth connection between these two types of systems, thus brings unnecessary inconvenience to the end user. The common workflow to the user is to utilize the systems like Flink/Spark to preprocess/clean data, pass the results to machine learning systems like [XGBoost](https://github.com/dmlc/xgboost)/[MxNet](https://github.com/dmlc/mxnet))  via the file system and then conduct the following machine learning phase. While such process won't hurt performance as much in data processing case(because machine learning takes a lot of time compared to data loading), it creates a bit inconvenience for the users.
+The gap between the implementation fundamentals of the general data processing frameworks and the more specific machine learning libraries/systems prohibits the smooth connection between these two types of systems, thus brings unnecessary inconvenience to the end user. The common workflow to the user is to utilize the systems like Spark/Flink to preprocess/clean data, pass the results to machine learning systems like [XGBoost](https://github.com/dmlc/xgboost)/[MxNet](https://github.com/dmlc/mxnet))  via the file systems and then conduct the following machine learning phase. This process jumping across two types of systems creates certain inconvenience for the users and brings additional overhead to the operators of the infrastructor.
 
-We want best of both worlds, so we can use the data processing frameworks like Flink and Spark toghether with
+We want best of both worlds, so we can use the data processing frameworks like Spark and Flink toghether with
 the best distributed machine learning solutions.
 To resolve the situation, we introduce the new-brewed [XGBoost4J](https://github.com/dmlc/xgboost/tree/master/jvm-packages),
 <b>XGBoost</b> for <b>J</b>VM Platform. We aim to provide the clean Java/Scala APIs and the integration with the most popular data processing systems developed in JVM-based languages.
@@ -37,7 +37,7 @@ XGBoost and XGBoost4J adopts Unix Philosophy.
 XGBoost **does its best in one thing -- tree boosting** and is **being designed to work with other systems**.
 We strongly believe that machine learning solution should not be restricted to certain language or certain platform.
 
-Specifically, users will be able to use distributed XGBoost in both Flink and Spark, and possibly more frameworks in Future.
+Specifically, users will be able to use distributed XGBoost in both Spark and Flink, and possibly more frameworks in Future.
 We have made the API in a portable way so it **can be easily ported to other Dataflow frameworks provided by the Cloud**.
 XGBoost4J shares its core with other XGBoost libraries, which means data scientists can use R/python
 read and visualize the model trained distributedly.
@@ -46,7 +46,7 @@ which already can handle hundreds of million examples.
 
 ## System Overview
 
-In the following Figure, we describe the overall architecture of XGBoost4J. XGBoost4J provides the Java/Scala API calling the core functionality of XGBoost library. Most importantly, it not only supports the single-machine model training, but also provides an abstraction layer which masks the difference of the underlying data processing engines (they can be Spark, Flink, or just distributed servers across the cluster)
+In the following Figure, we describe the overall architecture of XGBoost4J. XGBoost4J provides the Java/Scala API calling the core functionality of XGBoost library. Most importantly, it not only supports the single-machine model training, but also provides an abstraction layer which masks the difference of the underlying data processing engines and scales training to the distributed servers.
 
 ![XGBoost4J Architecture](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/xgboost4j.png)
 
@@ -94,7 +94,7 @@ We then evaluate our model:
 val predicts = booster.predict(testMax)
 ```
 
-`predict` can output the output results and you can define a customized evaluation method to derive your own metrics (see the example in ([Customized Evaluation Metric in Java](https://github.com/dmlc/xgboost/blob/master/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/CustomObjective.java), [Customized Evaluation Metric in Scala] (https://github.com/dmlc/xgboost/blob/master/jvm-packages/xgboost4j-example/src/main/scala/ml/dmlc/xgboost4j/scala/example/CustomObjective.scala)).
+`predict` can output the predict results and you can define a customized evaluation method to derive your own metrics (see the example in ([Customized Evaluation Metric in Java](https://github.com/dmlc/xgboost/blob/master/jvm-packages/xgboost4j-example/src/main/java/ml/dmlc/xgboost4j/java/example/CustomObjective.java), [Customized Evaluation Metric in Scala] (https://github.com/dmlc/xgboost/blob/master/jvm-packages/xgboost4j-example/src/main/scala/ml/dmlc/xgboost4j/scala/example/CustomObjective.scala)).
 
 
 ## Distributed Model Training with Distributed Dataflow Frameworks
