@@ -18,12 +18,15 @@ package ml.dmlc.xgboost4j.scala
 
 import java.io.IOException
 
+import com.esotericsoftware.kryo.io.{Output, Input}
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import ml.dmlc.xgboost4j.java.{Booster => JBooster}
 import ml.dmlc.xgboost4j.java.XGBoostError
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
-class Booster private[xgboost4j](booster: JBooster) extends Serializable {
+class Booster private[xgboost4j](private var booster: JBooster)
+  extends Serializable  with KryoSerializable {
 
   /**
     * Set parameter to the Booster.
@@ -192,5 +195,13 @@ class Booster private[xgboost4j](booster: JBooster) extends Serializable {
   override def finalize(): Unit = {
     super.finalize()
     dispose
+  }
+
+  override def write(kryo: Kryo, output: Output): Unit = {
+    kryo.writeObject(output, booster)
+  }
+
+  override def read(kryo: Kryo, input: Input): Unit = {
+    booster = kryo.readObject(input, classOf[JBooster])
   }
 }

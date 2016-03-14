@@ -12,6 +12,9 @@ This file records the changes in xgboost library in reverse chronological order.
   - Enable registry pattern to allow optionally plugin of objective, metric, tree constructor, data loader.
     - Future plugin modules can be put into xgboost/plugin and register back to the library.
   - Remove most of the raw pointers to smart ptrs, for RAII safety.
+* Add official option to approximate algorithm `tree_method` to parameter.
+  - Change default behavior to switch to prefer faster algorithm.
+  - User will get a message when approximate algorithm is chosen.
 * Change library name to libxgboost.so
 * Backward compatiblity
   - The binary buffer file is not backward compatible with previous version.

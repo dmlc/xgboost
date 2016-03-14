@@ -18,3 +18,8 @@ Contents
 --------
 * [Java Overview Tutorial](java_intro.md)
 * [Code Examples](https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example)
+* [Java API Docs](http://dmlc.ml/docs/javadocs/index.html)
+* [Scala API Docs]
+  * [XGBoost4J](http://dmlc.ml/docs/scaladocs/xgboost4j/index.html)
+  * [XGBoost4J-Spark](http://dmlc.ml/docs/scaladocs/xgboost4j-spark/index.html)
+  * [XGBoost4J-Flink](http://dmlc.ml/docs/scaladocs/xgboost4j-flink/index.html)

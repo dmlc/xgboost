@@ -56,7 +56,12 @@ object DistTrainWithSpark {
         "usage: program  num_of_rounds training_path model_path")
       sys.exit(1)
     }
-    val sc = new SparkContext()
+    // if you do not want to use KryoSerializer in Spark, you can ignore the related configuration
+    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoost-spark-example")
+      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    sparkConf.registerKryoClasses(Array(classOf[Booster]))
+    val sc = new SparkContext(sparkConf)
+    val sc = new SparkContext(sparkConf)
     val inputTrainPath = args(1)
     val outputModelPath = args(2)
     // number of iterations

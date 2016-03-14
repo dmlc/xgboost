@@ -53,6 +53,24 @@ Parameters for Tree Booster
   - L2 regularization term on weights
 * alpha [default=0]
   - L1 regularization term on weights
+* tree_method, string [default='auto']
+  - The tree constructtion algorithm used in XGBoost(see description in the [reference paper](http://arxiv.org/abs/1603.02754))
+  - Distributed and external memory version only support approximate algorithm.
+  - Choices: {'auto', 'exact', 'approx'}
+    - 'auto': Use heuristic to choose faster one.
+      - For small to medium dataset, exact greedy will be used.
+      - For very large-dataset, approximate algorithm will be choosed.
+      - Because old behavior is always use exact greedy in single machine,
+        user will get a message when approximate algorithm is choosed to notify this choice.
+    - 'exact': Exact greedy algorithm.
+    - 'approx': Approximate greedy algorithm using sketching and histogram.
+* sketch_eps, [default=0.03]
+  - This is only used for approximate greedy algorithm.
+  - This roughly translated into ```O(1 / sketch_eps)``` number of bins.
+    Compared to directly select number of bins, this comes with theoretical ganrantee with sketch accuracy.
+  - Usuaully user do not have to tune this.
+    but consider set to lower number for more accurate enumeration.
+  - range: (0, 1)
 
 Parameters for Linear Booster
 -----------------------------
