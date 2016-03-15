@@ -41,7 +41,7 @@ XGBoost has been developed and used by a group of active community members. Your
 
 License
 -------
-© Contributors, 2015. Licensed under an [Apache-2](https://github.com/dmlc/xgboost/blob/master/LICENSE) license.
+© Contributors, 2016. Licensed under an [Apache-2](https://github.com/dmlc/xgboost/blob/master/LICENSE) license.
 
 
 Reference
