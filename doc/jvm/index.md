@@ -7,13 +7,9 @@ You have find XGBoost JVM Package!
 
 Installation
 ------------
-To build XGBoost4J contains two steps.
+Currently, XGBoost4J only support installation from source. Building XGBoost4J using Maven requires Maven 3 or newer and Java 7+. 
 
-- First type the following command to build JNI library.
-```bash
-./create_jni.sh
-```
-- Then package the libary. you can run `mvn package` in xgboost4j folder or just use IDE(eclipse/netbeans) to open this maven project and build.
+To install XGBoost4J, it is as simple as run `mvn package` under jvm-packages. 
 
 Contents
 --------
