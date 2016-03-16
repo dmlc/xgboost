@@ -8,6 +8,7 @@ You have find XGBoost JVM Package!
 Installation
 ------------
 To build XGBoost4J contains two steps.
+
 - First type the following command to build JNI library.
 ```bash
 ./create_jni.sh
