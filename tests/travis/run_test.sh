@@ -75,7 +75,6 @@ if [ ${TASK} == "java_test" ]; then
     set -e
     make jvm-packages
     cd jvm-packages
-    ./create_jni.sh
     mvn clean install -DskipTests=true
     mvn test
 fi
