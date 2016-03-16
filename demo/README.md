@@ -111,6 +111,7 @@ Send a PR to add a one sentence description:)
 - XGBoost Distributed is used in [ODPS Cloud Service by Alibaba](https://yq.aliyun.com/articles/6355) (in Chinese)
 - XGBoost is incoporated as part of [Graphlab Create](https://dato.com/products/create/) for scalable machine learning.
 - [Hanjing Su](https://www.52cs.org) from Tencent data platform team: "We use distributed XGBoost for click through prediction in wechat shopping and lookalikes. The problems involve hundreds millions of users and thousands of features. XGBoost is cleanly designed and can be easily integrated into our production environment, reducing our cost in developments."
+- [CNevd](https://github.com/CNevd) from autohome.com ad platform team: "Distributed XGBoost is used for click through rate prediction in our display advertising, XGBoost is highly efficient and flexible and can be easily used on our distributed platform, our ctr made a great improvement with hundred millions samples and millions features due to this awesome XGBoost"
 
 
 
