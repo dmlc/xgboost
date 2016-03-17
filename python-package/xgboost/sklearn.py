@@ -363,7 +363,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             metric measured on the validation set to stderr.
         """
         evals_result = {}
-        self.classes_ = list(np.unique(y))
+        self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
 
 
