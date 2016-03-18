@@ -1038,6 +1038,10 @@ class Booster(object):
         else:
             # Booster can't accept data with different feature names
             if self.feature_names != data.feature_names:
+                dat_missing = set(self.feature_names) - set(data.feature_names)
+                my_missing = set(data.feature_names) - set(self.feature_names)
                 msg = 'feature_names mismatch: {0} {1}'
+                if dat_missing: msg +='\nexpected ' + ', '.join(str(s) for s in dat_missing) +' in input data'
+                if my_missing: msg +='\ntraining data did not have the following fields: ' + ', '.join(str(s) for s in my_missing)
                 raise ValueError(msg.format(self.feature_names,
                                             data.feature_names))
