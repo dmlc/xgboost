@@ -88,6 +88,7 @@ Please send pull requests if you find ones that are missing here.
 ## Tutorials
 
 - [XGBoost Official RMarkdown Tutorials](https://xgboost.readthedocs.org/en/latest/R-package/index.html#tutorials)
+- [An Introduction to XGBoost R Package](http://dmlc.ml/rstats/2016/03/10/xgboost.html) by Tong He
 - [Open Source Tools & Data Science Competitions](http://www.slideshare.net/odsc/owen-zhangopen-sourcetoolsanddscompetitions1) by Owen Zhang - XGBoost parameter tuning tips
 * [Feature Importance Analysis with XGBoost in Tax audit](http://fr.slideshare.net/MichaelBENESTY/feature-importance-analysis-with-xgboost-in-tax-audit)
 * [Winning solution of Kaggle Higgs competition: what a single model can do](http://no2147483647.wordpress.com/2014/09/17/winning-solution-of-kaggle-higgs-competition-what-a-single-model-can-do/)
@@ -101,7 +102,6 @@ Please send pull requests if you find ones that are missing here.
 - [Ensemble Decision Tree with XGBoost](https://www.kaggle.com/binghsu/predict-west-nile-virus/xgboost-starter-code-python-0-69) by [Bing Xu](https://www.kaggle.com/binghsu)
 - [Notes on eXtreme Gradient Boosting](http://startup.ml/blog/xgboost) by ARSHAK NAVRUZYAN ([iPython Notebook](https://github.com/startupml/koan/blob/master/eXtreme%20Gradient%20Boosting.ipynb))
 - [Complete Guide to Parameter Tuning in XGBoost](http://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/) by Aarshay Jain
-
 
 ## Usecases
 If you have particular usecase of xgboost that you would like to highlight.
