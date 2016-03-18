@@ -35,7 +35,7 @@ import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
 class XGBoostSuite extends FunSuite with BeforeAndAfter {
 
   private implicit var sc: SparkContext = null
-  private val numWorkers = 4
+  private val numWorkers = Runtime.getRuntime().availableProcessors()
 
   private class EvalError extends EvalTrait {
 
