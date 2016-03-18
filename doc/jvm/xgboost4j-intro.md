@@ -21,10 +21,10 @@ Programming languages and data processing/storage systems based on Java Virtual 
 On the other side, the emerging demands of machine learning and deep learning
 inspires many excellent machine learning libraries.
 Many of these machine learning libraries(e.g. [XGBoost](https://github.com/dmlc/xgboost)/[MxNet](https://github.com/dmlc/mxnet))
-requires new computation abstraction and native support(e.g. C++ for GPU computing).
+requires new computation abstraction and native support (e.g. C++ for GPU computing).
 They are also often [much more efficient](http://arxiv.org/abs/1603.02754).
 
-The gap between the implementation fundamentals of the general data processing frameworks and the more specific machine learning libraries/systems prohibits the smooth connection between these two types of systems, thus brings unnecessary inconvenience to the end user. The common workflow to the user is to utilize the systems like Spark/Flink to preprocess/clean data, pass the results to machine learning systems like [XGBoost](https://github.com/dmlc/xgboost)/[MxNet](https://github.com/dmlc/mxnet))  via the file systems and then conduct the following machine learning phase. This process jumping across two types of systems creates certain inconvenience for the users and brings additional overhead to the operators of the infrastructor.
+The gap between the implementation fundamentals of the general data processing frameworks and the more specific machine learning libraries/systems prohibits the smooth connection between these two types of systems, thus brings unnecessary inconvenience to the end user. The common workflow to the user is to utilize the systems like Spark/Flink to preprocess/clean data, pass the results to machine learning systems like [XGBoost](https://github.com/dmlc/xgboost)/[MxNet](https://github.com/dmlc/mxnet))  via the file systems and then conduct the following machine learning phase. This process jumping across two types of systems creates certain inconvenience for the users and brings additional overhead to the operators of the infrastructure.
 
 We want best of both worlds, so we can use the data processing frameworks like Spark and Flink toghether with
 the best distributed machine learning solutions.
