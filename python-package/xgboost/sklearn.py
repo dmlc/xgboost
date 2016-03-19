@@ -112,7 +112,7 @@ class XGBModel(XGBModelBase):
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, seed=0, missing=None):
+                 base_score=0.5, seed=0, missing=None, num_pairsample=1, booster_type='gbtree'):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
@@ -135,6 +135,8 @@ class XGBModel(XGBModelBase):
         self.base_score = base_score
         self.seed = seed
         self.missing = missing if missing is not None else np.nan
+        self.num_pairsample = num_pairsample
+        self.booster_type = booster_type
         self._Booster = None
 
     def __setstate__(self, state):
@@ -176,10 +178,12 @@ class XGBModel(XGBModelBase):
 
         if self.nthread <= 0:
             xgb_params.pop('nthread', None)
+        xgb_params['booster'] = self.booster_type
         return xgb_params
 
     def fit(self, X, y, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, verbose=True,
+            learning_rates=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init, redefined-variable-type
         """
         Fit the gradient boosting model
@@ -244,7 +248,8 @@ class XGBModel(XGBModelBase):
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose)
+                              verbose_eval=verbose,
+                              learning_rates=learning_rates)
 
         if evals_result:
             for val in evals_result.items():
@@ -314,14 +319,14 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                  nthread=-1, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, seed=0, missing=None):
+                 base_score=0.5, seed=0, missing=None, num_pairsample=1, booster_type='gbtree'):
         super(XGBClassifier, self).__init__(max_depth, learning_rate,
                                             n_estimators, silent, objective,
                                             nthread, gamma, min_child_weight,
                                             max_delta_step, subsample,
                                             colsample_bytree, colsample_bylevel,
                                             reg_alpha, reg_lambda,
-                                            scale_pos_weight, base_score, seed, missing)
+                                            scale_pos_weight, base_score, seed, missing, num_pairsample, booster_type)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
