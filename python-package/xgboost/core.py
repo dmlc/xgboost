@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import os
 import ctypes
 import collections
+import re
 
 import numpy as np
 import scipy.sparse
@@ -1045,3 +1046,36 @@ class Booster(object):
                 if my_missing: msg +='\ntraining data did not have the following fields: ' + ', '.join(str(s) for s in my_missing)
                 raise ValueError(msg.format(self.feature_names,
                                             data.feature_names))
+
+    def get_split_value_histogram(self, feature, fmap='', bins=None):
+        """Get split value histogram of a feature
+        Parameters
+        ----------
+        feature: str
+            The name of the feature
+        fmap: str (optional)
+            The name of feature map file
+        bin: int (optional)
+            The number of bins.
+            Number of bin equals number of unique split values, if bins == None.
+        """
+        import pandas as pd
+        xgdump = self.get_dump(fmap=fmap)
+        values = []
+        regexp = re.compile("\[{0}<([\d.Ee+-]+)\]".format(feature))
+        for i in range(len(xgdump)):
+            m = re.findall(regexp, xgdump[i])
+            values.extend(map(float, m))
+        hist = pd.DataFrame.from_dict(collections.Counter(values), orient='index'). \
+            reset_index(). \
+            rename(columns={'index': 'SplitValue', 0: 'Count'}). \
+            sort_values(by='SplitValue').reset_index(drop=True)
+
+        if bins is not None:
+            nph = np.histogram(hist.SplitValue, bins=bins, weights=hist.Count)
+            hist = pd.DataFrame()
+            hist['SplitValue'] = nph[1][1:]
+            hist['Count'] = nph[0]
+
+        hist.columns.name = feature
+        return hist
