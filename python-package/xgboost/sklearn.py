@@ -178,7 +178,7 @@ class XGBModel(XGBModelBase):
             xgb_params.pop('nthread', None)
         return xgb_params
 
-    def fit(self, X, y, eval_set=None, eval_metric=None, num_boost_round=10,
+    def fit(self, X, y, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, learning_rates=None, verbose=True):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init, redefined-variable-type
         """
@@ -330,7 +330,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             reg_alpha, reg_lambda,
                                             scale_pos_weight, base_score, seed, missing)
 
-    def fit(self, X, y, num_boost_round=10, sample_weight=None, eval_set=None, eval_metric=None,
+    def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, learning_rates=None, verbose=True):
         # pylint: disable = attribute-defined-outside-init,arguments-differ, redefined-variable-type
         """
