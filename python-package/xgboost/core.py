@@ -144,7 +144,8 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 
     data_dtypes = data.dtypes
     if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
-        raise ValueError('DataFrame.dtypes for data must be int, float or bool')
+        bad_fields = [data.columns[i] for i, dtype in enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER ]  
+        raise ValueError('DataFrame.dtypes for data must be int, float or bool.\nDid not expect the data types in fie    lds '+', '.join(bad_fields))
 
     if feature_names is None:
         feature_names = data.columns.format()
