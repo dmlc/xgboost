@@ -57,7 +57,7 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
 
   if(is.null(fname)) {
     dt = dt[Lines != '0']
-    dt = dt[, Lines = stringi::stri_replace_all_fixed(Lines, '\t', '')
+    dt = dt[, Lines := stringi::stri_replace_all_fixed(Lines, '\t', '')
     dt = dt[Lines != '']
     dt = dt[, paste(Lines)]
     return(dt)
