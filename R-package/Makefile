@@ -1,2 +1,2 @@
 main:
-    cd .. && make Rpack && make Rbuild
+	cd .. && make Rpack && make Rbuild
