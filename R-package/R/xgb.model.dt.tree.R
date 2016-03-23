@@ -82,7 +82,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL, n
 
   anynumber_regex <- "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
   for (i in 1:n_round){
-
+    cat('round: ', i, '\n') 
     tree <- text[(position[i] + 1):(position[i + 1] - 1)]
 
     # avoid tree made of a leaf only (no split)
