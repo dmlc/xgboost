@@ -72,8 +72,8 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL, n
   
   position <- str_match(text, "booster") %>% is.na %>% not %>% which %>% c(length(text) + 1)
 
-  extract <- function(x, pattern)  str_extract(x, pattern) %>% str_split("=") %>% lapply(function(x) x[2] %>% as.numeric) %>% unlist
-
+  #extract <- function(x, pattern)  str_extract(x, pattern) %>% str_split("=") %>% lapply(function(x) x[2] %>% as.numeric) %>% unlist
+  extract <- function(x, pattern) as.numeric(gsub('^.*=', '', stringi::stri_extract_first(x, regex = pattern)))
   n_round <- min(length(position) - 1, n_first_tree)
 
   addTreeId <- function(x, i) paste(i,x,sep = "-")
