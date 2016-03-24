@@ -6,7 +6,7 @@
 #ifndef XGBOOST_COMMON_THREAD_LOCAL_H_
 #define XGBOOST_COMMON_THREAD_LOCAL_H_
 
-#include <dmlc/base.h>
+#include "dmlc/base.h"
 
 #if DMLC_ENABLE_STD_THREAD
 #include <mutex>
