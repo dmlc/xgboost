@@ -327,11 +327,20 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 
 #' Print xgb.DMatrix
 #' 
-#' Print information about an xgb.DMatrix. 
-#' Currently is would display 
+#' Print information about xgb.DMatrix. 
+#' Currently it displays dimensions and presence of info-fields and colnames.
+#' 
 #' @param x an xgb.DMatrix object
 #' @param verbose whether to print colnames (when present)
 #' 
+#' 
+#' @examples
+#' data(agaricus.train, package='xgboost')
+#' train <- agaricus.train
+#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' 
+#' dtrain
+#' print(dtrain, verbose=T)
 #' @export
 print.xgb.DMatrix <- function(x, verbose=FALSE, ...) {
   cat('xgb.DMatrix  dim:', nrow(x), 'x', ncol(x), ' info: ')

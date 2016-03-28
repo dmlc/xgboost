@@ -12,7 +12,15 @@ print.xgb.DMatrix(x, verbose = FALSE, ...)
 \item{verbose}{whether to print colnames (when present)}
 }
 \description{
-Print information about an xgb.DMatrix. 
-Currently is would display
+Print information about xgb.DMatrix. 
+Currently it displays dimensions and presence of info-fields and colnames.
+}
+\examples{
+data(agaricus.train, package='xgboost')
+train <- agaricus.train
+dtrain <- xgb.DMatrix(train$data, label=train$label)
+
+dtrain
+print(dtrain, verbose=T)
 }
 

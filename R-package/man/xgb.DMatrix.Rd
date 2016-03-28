@@ -18,7 +18,7 @@ value that represents missing value. Sometime a data use 0 or other extreme valu
 }
 \description{
 Contruct xgb.DMatrix object from dense matrix, sparse matrix 
-or local file (that is a previously saved \code{xgb.DMatrix}).
+or local file (that was created previously by saving an \code{xgb.DMatrix}).
 }
 \examples{
 data(agaricus.train, package='xgboost')
