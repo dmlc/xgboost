@@ -332,7 +332,7 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 #' 
 #' @param x an xgb.DMatrix object
 #' @param verbose whether to print colnames (when present)
-#' 
+#' @param ... not currently used
 #' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -340,7 +340,7 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 #' dtrain <- xgb.DMatrix(train$data, label=train$label)
 #' 
 #' dtrain
-#' print(dtrain, verbose=T)
+#' print(dtrain, verbose=TRUE)
 #' @export
 print.xgb.DMatrix <- function(x, verbose=FALSE, ...) {
   cat('xgb.DMatrix  dim:', nrow(x), 'x', ncol(x), ' info: ')

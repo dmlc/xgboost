@@ -10,6 +10,8 @@ print.xgb.DMatrix(x, verbose = FALSE, ...)
 \item{x}{an xgb.DMatrix object}
 
 \item{verbose}{whether to print colnames (when present)}
+
+\item{...}{not currently used}
 }
 \description{
 Print information about xgb.DMatrix. 
@@ -21,6 +23,6 @@ train <- agaricus.train
 dtrain <- xgb.DMatrix(train$data, label=train$label)
 
 dtrain
-print(dtrain, verbose=T)
+print(dtrain, verbose=TRUE)
 }
 
