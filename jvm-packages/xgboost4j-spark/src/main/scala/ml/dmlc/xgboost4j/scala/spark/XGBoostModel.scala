@@ -32,8 +32,12 @@ class XGBoostModel(_booster: Booster)(implicit val sc: SparkContext) extends Ser
     import DataUtils._
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
     testSet.mapPartitions { testSamples =>
-      val dMatrix = new DMatrix(new JDMatrix(testSamples, null))
-      Iterator(broadcastBooster.value.predict(dMatrix))
+      if (testSamples.hasNext) {
+        val dMatrix = new DMatrix(new JDMatrix(testSamples, null))
+        Iterator(broadcastBooster.value.predict(dMatrix))
+      } else {
+        Iterator()
+      }
     }
   }
 
