@@ -83,9 +83,15 @@ XGB_DLL SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field);
 
 /*!
  * \brief return number of rows
- * \param handle a instance of data matrix
+ * \param handle an instance of data matrix
  */
 XGB_DLL SEXP XGDMatrixNumRow_R(SEXP handle);
+
+/*!
+ * \brief return number of columns
+ * \param handle an instance of data matrix
+ */
+XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
 
 /*!
  * \brief create xgboost learner
