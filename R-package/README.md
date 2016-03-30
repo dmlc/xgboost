@@ -28,13 +28,40 @@ install.packages("xgboost", repos="http://dmlc.ml/drat/", type="source")
 
 ***Important*** Due to the usage of submodule, `install_github` is no longer support to install the
 latest version of R package. 
-For up-to-date version, please install from github. Windows user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
+For up-to-date version, please install from github.
+
+Windows users will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first. They also need to download [MinGW-W64](http://iweb.dl.sourceforge.net/project/mingw-w64/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/installer/mingw-w64-install.exe) using x86_64 architecture during installation.
+
+Run the following command to add MinGW to PATH in Windows if not already added.
+
+```cmd
+PATH %PATH%;C:\Program Files\mingw-w64\x86_64-5.3.0-posix-seh-rt_v4-rev0\mingw64\bin
+```
+
+To compile xgboost at the root of your storage, run the following bash script.
 
 ```bash
 git clone --recursive https://github.com/dmlc/xgboost
 cd xgboost
-make Rbuild
-R CMD INSTALL xgboost_0.4-3.tar.gz
+git submodule init
+git submodule update
+alias make='mingw32-make'
+cd dmlc-core
+make -j4
+cd ../rabit
+make lib/librabit_empty.a -j4
+cd ..
+cp make/mingw64.mk config.mk
+make -j4
+```
+
+Run the following R script to install xgboost package from the root directory.
+
+```r
+install.package('devtools') # if not installed
+setwd('C:/xgboost/')
+library(devtools)
+install('R-package')
 ```
 
 For more detailed installation instructions, please see [here](http://xgboost.readthedocs.org/en/latest/build.html#r-package-installation).
