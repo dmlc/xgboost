@@ -200,7 +200,7 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
     succ <- xgb.iter.update(bst$handle, dtrain, i - 1, obj)
     if (length(watchlist) != 0) {
       msg <- xgb.iter.eval(bst$handle, watchlist, i - 1, feval)
-      if (0 == ( (i - 1) %% print.every.n))
+      if ((verbose > 0) && (0 == ((i - 1) %% print.every.n)))
 	    cat(paste(msg, "\n", sep = ""))
       if (!is.null(early.stop.round))
       {
