@@ -79,10 +79,10 @@ endif
 all: lib/libxgboost.a $(XGBOOST_DYLIB) xgboost
 
 $(DMLC_CORE)/libdmlc.a: $(wildcard $(DMLC_CORE)/src/*.cc $(DMLC_CORE)/src/*/*.cc)
-	+ cd $(DMLC_CORE); make libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
+	+ cd $(DMLC_CORE); $(MAKE) libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
 $(RABIT)/lib/$(LIB_RABIT): $(wildcard $(RABIT)/src/*.cc)
-	+ cd $(RABIT); make lib/$(LIB_RABIT); cd $(ROOTDIR)
+	+ cd $(RABIT); $(MAKE) lib/$(LIB_RABIT); cd $(ROOTDIR)
 
 jvm: jvm-packages/lib/libxgboost4j.so
 
@@ -137,8 +137,8 @@ clean:
 	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
 
 clean_all: clean
-	cd $(DMLC_CORE); make clean; cd $(ROODIR)
-	cd $(RABIT); make clean; cd $(ROODIR)
+	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROODIR)
+	cd $(RABIT); $(MAKE) clean; cd $(ROODIR)
 
 doxygen:
 	doxygen doc/Doxyfile
@@ -150,7 +150,7 @@ pypack: ${XGBOOST_DYLIB}
 
 # Script to make a clean installable R package.
 Rpack:
-	make clean_all
+	$(MAKE) clean_all
 	rm -rf xgboost xgboost*.tar.gz
 	cp -r R-package xgboost
 	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
@@ -172,12 +172,12 @@ Rpack:
 	cp xgboost/src/Makevars xgboost/src/Makevars.win
 
 Rbuild:
-	make Rpack
+	$(MAKE) Rpack
 	R CMD build --no-build-vignettes xgboost
 	rm -rf xgboost
 
 Rcheck:
-	make Rbuild
+	$(MAKE) Rbuild
 	R CMD check  xgboost*.tar.gz
 
 -include build/*.d
