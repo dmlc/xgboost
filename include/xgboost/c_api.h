@@ -266,7 +266,7 @@ XGB_DLL int XGDMatrixNumCol(DMatrixHandle handle,
  * \param out handle to the result booster
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterCreate(void* dmats[],
+XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[],
                             bst_ulong len,
                             BoosterHandle *out);
 /*!
