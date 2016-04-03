@@ -169,11 +169,11 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
         num_class <- params[['num_class']]
         if (is.null(num_class))
             stop('must set num_class to use softmax')
-        predictValues <- matrix(0,xgb.numrow(dtrain),num_class)
+        predictValues <- matrix(0, nrow(dtrain), num_class)
         mat_pred <- TRUE
     }
     else
-        predictValues <- rep(0,xgb.numrow(dtrain))
+        predictValues <- rep(0, nrow(dtrain))
     history <- c()
     print.every.n <- max(as.integer(print.every.n), 1L)
     for (i in 1:nrounds) {
