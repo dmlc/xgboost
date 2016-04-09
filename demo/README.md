@@ -84,7 +84,7 @@ Please send pull requests if you find ones that are missing here.
 - Halla Yang, 2nd place of the [Recruit Coupon Purchase Prediction Challenge](https://www.kaggle.com/c/coupon-purchase-prediction). Link to [the Kaggle interview](http://blog.kaggle.com/2015/10/21/recruit-coupon-purchase-winners-interview-2nd-place-halla-yang/).
 - Owen Zhang, 1st place of the [Avito Context Ad Clicks competition](https://www.kaggle.com/c/avito-context-ad-clicks). Link to [the Kaggle interview](http://blog.kaggle.com/2015/08/26/avito-winners-interview-1st-place-owen-zhang/).
 - Keiichi Kuroyanagi, 2nd place of the [Airbnb New User Bookings](https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings). Link to [the Kaggle interview](http://blog.kaggle.com/2016/03/17/airbnb-new-user-bookings-winners-interview-2nd-place-keiichi-kuroyanagi-keiku/).
-
+- Marios Michailidis, Mathias Müller and Ning Situ, 1st place [Homesite Quote Conversion](https://www.kaggle.com/c/homesite-quote-conversion). Link to [the Kaggle interview](http://blog.kaggle.com/2016/04/08/homesite-quote-conversion-winners-write-up-1st-place-kazanova-faron-clobber/).
 ## Tutorials
 
 - [XGBoost Official RMarkdown Tutorials](https://xgboost.readthedocs.org/en/latest/R-package/index.html#tutorials)
