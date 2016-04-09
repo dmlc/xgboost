@@ -370,7 +370,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Number of folds in CV.
     stratified : bool
         Perform stratified sampling.
-    folds : KFold or StratifiedKFold
+    folds : a KFold or StratifiedKFold instance
         Sklearn KFolds or StratifiedKFolds.
     metrics : string or list of strings
         Evaluation metrics to be watched in CV.
