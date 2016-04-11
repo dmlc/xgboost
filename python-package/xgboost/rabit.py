@@ -12,6 +12,7 @@ def _init_rabit():
     if _LIB is not None:
         _LIB.RabitGetRank.restype = ctypes.c_int
         _LIB.RabitGetWorldSize.restype = ctypes.c_int
+        _LIB.RabitIsDistributed.restype = ctypes.c_int
         _LIB.RabitVersionNumber.restype = ctypes.c_int
 
 def init(args=None):
@@ -65,8 +66,12 @@ def tracker_print(msg):
     """
     if not isinstance(msg, STRING_TYPES):
         msg = str(msg)
-    _LIB.RabitTrackerPrint(c_str(msg))
-
+    is_dist = _LIB.RabitIsDistributed()
+    if is_dist != 0:
+        _LIB.RabitTrackerPrint(c_str(msg))
+    else:
+        sys.stdout.write(msg)
+        sys.stdout.flush()
 
 def get_processor_name():
     """Get the processor name.
