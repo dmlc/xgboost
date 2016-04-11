@@ -11,7 +11,7 @@ Currently, XGBoost4J only support installation from source. Building XGBoost4J u
 
 Before you install XGBoost4J, you need to define environment variable `JAVA_HOME` as your JDK directory to ensure that your compiler can find `jni.h` correctly, since XGBoost4J relies on JNI to implement the interaction between the JVM and native libraries.
 
-After your `JAVA_HOME` is defined correctly, it is as simple as run `mvn package` under jvm-packages directory to install XGBoost4J.
+After your `JAVA_HOME` is defined correctly, it is as simple as run `mvn package -DskipTests` under jvm-packages directory to install XGBoost4J.
 
 NOTE: XGBoost4J requires to run with Spark 1.6 or newer 
 
