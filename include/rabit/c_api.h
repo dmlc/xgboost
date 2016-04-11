@@ -46,6 +46,9 @@ RABIT_DLL int RabitGetRank();
 /*! \brief get total number of process */
 RABIT_DLL int RabitGetWorldSize();
 
+/*! \brief get rank of current process */
+RABIT_DLL int RabitIsDistributed();
+
 /*!
  * \brief print the msg to the tracker,
  *    this function can be used to communicate the information of the progress to

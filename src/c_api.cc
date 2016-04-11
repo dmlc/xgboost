@@ -178,6 +178,10 @@ int RabitGetWorldSize() {
   return rabit::GetWorldSize();
 }
 
+int RabitIsDistributed() {
+  return rabit::IsDistributed();
+}
+
 void RabitTrackerPrint(const char *msg) {
   std::string m(msg);
   rabit::TrackerPrint(m);
@@ -200,7 +204,7 @@ void RabitBroadcast(void *sendrecv_data,
 }
 
 void RabitAllreduce(void *sendrecvbuf,
-                      size_t count,
+                    size_t count,
                     int enum_dtype,
                     int enum_op,
                     void (*prepare_fun)(void *arg),
