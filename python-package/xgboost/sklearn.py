@@ -44,6 +44,7 @@ def _objective_decorator(func):
         return func(labels, preds)
     return inner
 
+
 class XGBModel(XGBModelBase):
     # pylint: disable=too-many-arguments, too-many-instance-attributes, invalid-name
     """Implementation of the Scikit-Learn API for XGBoost.
@@ -207,7 +208,10 @@ class XGBModel(XGBModelBase):
             Requires at least one item in evals.  If there's more than one,
             will use the last. Returns the model from the last iteration
             (not the best one). If early stopping occurs, the model will
-            have two additional fields: bst.best_score and bst.best_iteration.
+            have three additional fields: bst.best_score, bst.best_iteration
+            and bst.best_ntree_limit.
+            (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
+            and/or num_class appears in the parameters)
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -255,6 +259,7 @@ class XGBModel(XGBModelBase):
         if early_stopping_rounds is not None:
             self.best_score = self._Booster.best_score
             self.best_iteration = self._Booster.best_iteration
+            self.best_ntree_limit = self._Booster.best_ntree_limit
         return self
 
     def predict(self, data, output_margin=False, ntree_limit=0):
@@ -353,13 +358,16 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             Requires at least one item in evals.  If there's more than one,
             will use the last. Returns the model from the last iteration
             (not the best one). If early stopping occurs, the model will
-            have two additional fields: bst.best_score and bst.best_iteration.
+            have three additional fields: bst.best_score, bst.best_iteration
+            and bst.best_ntree_limit.
+            (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
+            and/or num_class appears in the parameters)
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         """
         evals_result = {}
-        self.classes_ = list(np.unique(y))
+        self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
 
 
@@ -420,6 +428,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if early_stopping_rounds is not None:
             self.best_score = self._Booster.best_score
             self.best_iteration = self._Booster.best_iteration
+            self.best_ntree_limit = self._Booster.best_ntree_limit
 
         return self
 
@@ -496,7 +505,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         fs_dict = dict(zip(keys, fs.values()))
         all_features_dict = dict.fromkeys(range(0, self._features_count), 0)
         all_features_dict.update(fs_dict)
-        return np.array(all_features_dict.values())
+        all_features = np.fromiter(all_features_dict.values(), np.float32)
+        return all_features / all_features.sum()
 
 
 class XGBRegressor(XGBModel, XGBRegressorBase):

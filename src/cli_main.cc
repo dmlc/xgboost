@@ -174,7 +174,6 @@ void CLITrain(const CLIParam& param) {
   }
   // initialize the learner.
   std::unique_ptr<Learner> learner(Learner::Create(cache_mats));
-  learner->Configure(param.cfg);
   int version = rabit::LoadCheckPoint(learner.get());
   if (version == 0) {
     // initializ the model if needed.
@@ -182,7 +181,9 @@ void CLITrain(const CLIParam& param) {
       std::unique_ptr<dmlc::Stream> fi(
           dmlc::Stream::Create(param.model_in.c_str(), "r"));
       learner->Load(fi.get());
+      learner->Configure(param.cfg);
     } else {
+      learner->Configure(param.cfg);
       learner->InitModel();
     }
   }
@@ -213,7 +214,9 @@ void CLITrain(const CLIParam& param) {
         LOG(CONSOLE) << res;
       }
     }
-    if (param.save_period != 0 && (i + 1) % param.save_period == 0) {
+    if (param.save_period != 0 &&
+        (i + 1) % param.save_period == 0 &&
+        rabit::GetRank() == 0) {
       std::ostringstream os;
       os << param.model_dir << '/'
          << std::setfill('0') << std::setw(4)
@@ -233,7 +236,8 @@ void CLITrain(const CLIParam& param) {
   }
   // always save final round
   if ((param.save_period == 0 || param.num_round % param.save_period != 0) &&
-      param.model_out != "NONE") {
+      param.model_out != "NONE" &&
+      rabit::GetRank() == 0) {
     std::ostringstream os;
     if (param.model_out == "NULL") {
       os << param.model_dir << '/'

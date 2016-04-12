@@ -1,16 +1,3 @@
----
-title: "Understand your dataset with Xgboost"
-output:
-  rmarkdown::html_vignette:
-    css: vignette.css
-    number_sections: yes
-    toc: yes
-author: Tianqi Chen, Tong He, Michaël Benesty
-vignette: >
-  %\VignetteIndexEntry{Discover your data}
-  %\VignetteEngine{knitr::rmarkdown}
-  \usepackage[utf8]{inputenc}
----
 
 Understand your dataset with XGBoost
 ====================================

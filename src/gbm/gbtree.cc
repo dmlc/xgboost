@@ -15,6 +15,7 @@
 #include <utility>
 #include <string>
 #include <limits>
+#include "../common/common.h"
 
 namespace xgboost {
 namespace gbm {
@@ -125,6 +126,9 @@ class GBTree : public GradientBooster {
       CHECK_EQ(fi->Read(dmlc::BeginPtr(tree_info), sizeof(int) * mparam.num_trees),
                sizeof(int) * mparam.num_trees);
     }
+    this->cfg.clear();
+    this->cfg.push_back(std::make_pair(std::string("num_feature"),
+                                       common::ToString(mparam.num_feature)));
     // clear the predict buffer.
     this->ResetPredBuffer(num_pbuffer);
   }
@@ -265,13 +269,11 @@ class GBTree : public GradientBooster {
   inline void InitUpdater() {
     if (updaters.size() != 0) return;
     std::string tval = tparam.updater_seq;
-    char *pstr;
-    pstr = std::strtok(&tval[0], ",");
-    while (pstr != nullptr) {
-      std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr));
+    std::vector<std::string> ups = common::Split(tval, ',');
+    for (const std::string& pstr : ups) {
+      std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str()));
       up->Init(this->cfg);
       updaters.push_back(std::move(up));
-      pstr = std::strtok(nullptr, ",");
     }
   }
   // do group specific group

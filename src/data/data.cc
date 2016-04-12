@@ -184,7 +184,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
                  << " of " << npart << " parts";
   }
   // legacy handling of binary data loading
-  if (file_format == "auto" && !load_row_split) {
+  if (file_format == "auto" && npart == 1) {
     int magic;
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
     if (fi.get() != nullptr) {

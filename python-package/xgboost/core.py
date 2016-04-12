@@ -12,7 +12,7 @@ import scipy.sparse
 
 from .libpath import find_lib_path
 
-from .compat import STRING_TYPES, PY3, DataFrame
+from .compat import STRING_TYPES, PY3, DataFrame, py_str
 
 class XGBoostError(Exception):
     """Error throwed by xgboost trainer."""
@@ -144,7 +144,8 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 
     data_dtypes = data.dtypes
     if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
-        raise ValueError('DataFrame.dtypes for data must be int, float or bool')
+        bad_fields = [data.columns[i] for i, dtype in enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER ]  
+        raise ValueError('DataFrame.dtypes for data must be int, float or bool.\nDid not expect the data types in fie    lds '+', '.join(bad_fields))
 
     if feature_names is None:
         feature_names = data.columns.format()
@@ -654,9 +655,62 @@ class Booster(object):
         Returns
         -------
         booster: `Booster`
-          a copied booster model
+            a copied booster model
         """
         return self.__copy__()
+
+    def load_rabit_checkpoint(self):
+        """Initialize the model by load from rabit checkpoint.
+
+        Returns
+        -------
+        version: integer
+            The version number of the model.
+        """
+        version = ctypes.c_int()
+        _check_call(_LIB.XGBoosterLoadRabitCheckpoint(
+            self.handle, ctypes.byref(version)))
+        return version.value
+
+    def save_rabit_checkpoint(self):
+        """Save the current booster to rabit checkpoint."""
+        _check_call(_LIB.XGBoosterSaveRabitCheckpoint(self.handle))
+
+    def attr(self, key):
+        """Get attribute string from the Booster.
+
+        Parameters
+        ----------
+        key : str
+            The key to get attribute from.
+
+        Returns
+        -------
+        value : str
+            The attribute value of the key, returns None if attribute do not exist.
+        """
+        ret = ctypes.c_char_p()
+        success = ctypes.c_int()
+        _check_call(_LIB.XGBoosterGetAttr(
+            self.handle, c_str(key), ctypes.byref(ret), ctypes.byref(success)))
+        if success.value != 0:
+            return py_str(ret.value)
+        else:
+            return None
+
+    def set_attr(self, **kwargs):
+        """Set the attribute of the Booster.
+
+        Parameters
+        ----------
+        **kwargs
+            The attributes to set
+        """
+        for key, value in kwargs.items():
+            if not isinstance(value, STRING_TYPES):
+                raise ValueError("Set Attr only accepts string values")
+            _check_call(_LIB.XGBoosterSetAttr(
+                self.handle, c_str(key), c_str(str(value))))
 
     def set_param(self, params, value=None):
         """Set parameters into the Booster.
@@ -880,11 +934,9 @@ class Booster(object):
         fname : string or a memory buffer
             Input file name or memory buffer(see also save_raw)
         """
-        if isinstance(fname, STRING_TYPES):  # assume file name
-            if os.path.exists(fname):
-                _LIB.XGBoosterLoadModel(self.handle, c_str(fname))
-            else:
-                raise ValueError("No such file: {0}".format(fname))
+        if isinstance(fname, STRING_TYPES):
+            # assume file name, cannot use os.path.exist to check, file can be from URL.
+            _check_call(_LIB.XGBoosterLoadModel(self.handle, c_str(fname)))
         else:
             buf = fname
             length = ctypes.c_ulong(len(buf))
@@ -987,6 +1039,10 @@ class Booster(object):
         else:
             # Booster can't accept data with different feature names
             if self.feature_names != data.feature_names:
+                dat_missing = set(self.feature_names) - set(data.feature_names)
+                my_missing = set(data.feature_names) - set(self.feature_names)
                 msg = 'feature_names mismatch: {0} {1}'
+                if dat_missing: msg +='\nexpected ' + ', '.join(str(s) for s in dat_missing) +' in input data'
+                if my_missing: msg +='\ntraining data did not have the following fields: ' + ', '.join(str(s) for s in my_missing)
                 raise ValueError(msg.format(self.feature_names,
                                             data.feature_names))

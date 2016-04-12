@@ -58,7 +58,7 @@ cd xgboost; make -j4
 
 ### Building on OSX
 
-On Ubuntu OSX, one build xgboost by
+On OSX, one build xgboost by
 
 ```bash
 git clone --recursive https://github.com/dmlc/xgboost
@@ -80,6 +80,9 @@ cd xgboost; cp make/config.mk ./config.mk; make -j4
 ### Building on Windows
 You need to first clone the xgboost repo with recursive option clone the submodules.
 If you are using github tools, you can open the git-shell, and type the following command.
+We recommend using the [Git for Windows](https://git-for-windows.github.io/),
+because it brings a standard bash shell. This will highly ease the installation process.
+
 ```bash
 git submodule init
 git submodule update
@@ -87,7 +90,17 @@ git submodule update
 
 XGBoost support both build by MSVC or MinGW. Here is how you can build xgboost library using MinGW.
 
-Build with mingw
+After installing [Git for Windows](https://git-for-windows.github.io/), you should have a shortcut `Git Bash`.
+All the following steps are in the `Git Bash`.
+
+In MinGW, `make` command comes with the name `mingw32-make`. You can add the following line into the `.bashrc` file.
+
+```bash
+alias make='mingw32-make'
+```
+
+To build with MinGW
+
 ```bash
 cp make/mingw64.mk config.mk; make -j4
 ```
@@ -166,6 +179,16 @@ First follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compi
   drat:::addRepo("dmlc")
   install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
   ```
+
+Due to the usage of submodule, `install_github` is no longer support to install the
+latest version of R package. To install the latest version,
+
+```bash
+git clone --recursive https://github.com/dmlc/xgboost
+cd xgboost
+make Rbuild
+R CMD INSTALL xgboost_0.4-3.tar.gz
+```
 
 ## Trouble Shooting
 

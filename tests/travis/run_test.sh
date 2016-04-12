@@ -26,11 +26,32 @@ if [ ${TASK} == "python_test" ]; then
     echo "-------------------------------"
     source activate python3
     python --version
+    conda install numpy scipy pandas matplotlib nose scikit-learn
+    python -m pip install graphviz
     python -m nose tests/python || exit -1
     source activate python2
     echo "-------------------------------"
     python --version
+    conda install numpy scipy pandas matplotlib nose scikit-learn
+    python -m pip install graphviz
     python -m nose tests/python || exit -1
+    exit 0
+fi
+
+if [ ${TASK} == "python_lightweight_test" ]; then
+    make all || exit -1
+    echo "-------------------------------"
+    source activate python3
+    python --version
+    conda install numpy scipy nose
+    python -m pip install graphviz
+    python -m nose tests/python/test_basic*.py || exit -1
+    source activate python2
+    echo "-------------------------------"
+    python --version
+    conda install numpy scipy nose
+    python -m pip install graphviz
+    python -m nose tests/python/test_basic*.py || exit -1
     exit 0
 fi
 
@@ -52,10 +73,8 @@ fi
 
 if [ ${TASK} == "java_test" ]; then
     set -e
-    make java
-    cd java
-    ./create_wrap.sh
-    cd xgboost4j
+    make jvm-packages
+    cd jvm-packages
     mvn clean install -DskipTests=true
     mvn test
 fi

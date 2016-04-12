@@ -1,17 +1,3 @@
----
-title: "Xgboost presentation"
-output:
-  rmarkdown::html_vignette:
-    css: vignette.css
-    number_sections: yes
-    toc: yes
-bibliography: xgboost.bib
-author: Tianqi Chen, Tong He, Michaël Benesty
-vignette: >
-  %\VignetteIndexEntry{Xgboost presentation}
-  %\VignetteEngine{knitr::rmarkdown}
-  \usepackage[utf8]{inputenc}
----
 
 XGBoost R Tutorial
 ==================

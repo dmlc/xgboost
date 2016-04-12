@@ -15,6 +15,7 @@ env:
     - TASK=r_test
     # python package test
     - TASK=python_test
+    - TASK=python_lightweight_test
     # java package test
     - TASK=java_test
 
@@ -30,6 +31,8 @@ matrix:
       env: TASK=r_test
     - os: osx
       env: TASK=java_test
+    - os: osx
+      env: TASK=python_lightweight_test
 
 # dependent apt packages
 addons:
@@ -44,6 +47,7 @@ addons:
 before_install:
   - source dmlc-core/scripts/travis/travis_setup_env.sh
   - export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package
+  - echo "MAVEN_OPTS='-Xmx2048m -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m'" > ~/.mavenrc 
 
 install:
   - source tests/travis/setup.sh

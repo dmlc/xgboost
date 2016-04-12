@@ -20,8 +20,9 @@
 *buffer
 *model
 *pyc
-*train
-*test
+*.train
+*.test
+*.tar
 *group
 *rar
 *vali
@@ -70,3 +71,11 @@ config.mk
 xgboost
 *.data
 build_plugin
+dmlc-core
+.idea
+recommonmark/
+tags
+*.iml
+*.class
+target
+*.swp

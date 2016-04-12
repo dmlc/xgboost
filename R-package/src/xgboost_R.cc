@@ -195,6 +195,14 @@ SEXP XGDMatrixNumRow_R(SEXP handle) {
   return ScalarInteger(static_cast<int>(nrow));
 }
 
+SEXP XGDMatrixNumCol_R(SEXP handle) {
+  bst_ulong ncol;
+  R_API_BEGIN();
+  CHECK_CALL(XGDMatrixNumCol(R_ExternalPtrAddr(handle), &ncol));
+  R_API_END();
+  return ScalarInteger(static_cast<int>(ncol));
+}
+
 // functions related to booster
 void _BoosterFinalizer(SEXP ext) {
   if (R_ExternalPtrAddr(ext) == NULL) return;
