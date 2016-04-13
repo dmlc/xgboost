@@ -20,7 +20,7 @@ bst.Tree <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 9,
 bst.GLM <- xgboost(data = sparse_matrix, label = output_vector,
                    eta = 1, nthread = 2, nround = 10, objective = "binary:logistic", booster = "gblinear")
 
-feature.names <- agaricus.train$data@Dimnames[[2]]
+feature.names <- colnames(agaricus.train$data)
 
 test_that("xgb.dump works", {
   capture.output(print(xgb.dump(bst.Tree)))
@@ -57,11 +57,10 @@ test_that("xgb-attribute functionality", {
 })
 
 test_that("xgb.model.dt.tree works with and without feature names", {
-  names.dt.trees <- c("ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover",
-   "Tree", "Yes.Feature", "Yes.Cover", "Yes.Quality", "No.Feature", "No.Cover", "No.Quality")
+  names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
   dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
   expect_equal(names.dt.trees, names(dt.tree))
-  expect_equal(dim(dt.tree), c(162, 15))
+  expect_equal(dim(dt.tree), c(162, 10))
   xgb.model.dt.tree(model = bst.Tree)
 })
 
