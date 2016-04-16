@@ -33,7 +33,7 @@ xgb.train(params = list(), data, nrounds, watchlist = list(), obj = NULL,
   \item \code{num_parallel_tree} Experimental parameter. number of trees to grow per round. Useful to test Random Forest through Xgboost (set \code{colsample_bytree < 1}, \code{subsample  < 1}  and \code{round = 1}) accordingly. Default: 1
 }
 
-2.2. Parameter for Linear Booster
+2.2. Parameter for Tree and Linear Boosters
  
 \itemize{
   \item \code{lambda} L2 regularization term on weights. Default: 0
