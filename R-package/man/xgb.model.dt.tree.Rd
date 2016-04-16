@@ -2,7 +2,7 @@
 % Please edit documentation in R/xgb.model.dt.tree.R
 \name{xgb.model.dt.tree}
 \alias{xgb.model.dt.tree}
-\title{Parse boosted tree model text dump}
+\title{Parse a boosted tree model text dump}
 \usage{
 xgb.model.dt.tree(feature_names = NULL, model = NULL, text = NULL,
   n_first_tree = NULL)
@@ -34,8 +34,8 @@ The columns of the \code{data.table} are:
  \item \code{Yes}: ID of the next node when the split condition is met
  \item \code{No}: ID of the next node when the split condition is not met
  \item \code{Missing}: ID of the next node when branch value is missing
- \item \code{Quality}: either the split gain or the leaf value
- \item \code{Cover}: metric related to the number of observation either seen by a split split 
+ \item \code{Quality}: either the split gain (change in loss) or the leaf value
+ \item \code{Cover}: metric related to the number of observation either seen by a split
                      or collected by a leaf during training.
 }
 }
@@ -43,12 +43,19 @@ The columns of the \code{data.table} are:
 Parse a boosted tree model text dump into a \code{data.table} structure.
 }
 \examples{
+# Basic use:
+
 data(agaricus.train, package='xgboost')
 
 bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.depth = 2, 
                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
 
-xgb.model.dt.tree(colnames(agaricus.train$data), bst)
+(dt <- xgb.model.dt.tree(colnames(agaricus.train$data), bst))
 
+
+# How to match feature names of splits that are following a current 'Yes' branch:
+
+merge(dt, dt[, .(ID, Y.Feature=Feature)], by.x='Yes', by.y='ID', all.x=T)[order(Tree,Node)]
+ 
 }
 

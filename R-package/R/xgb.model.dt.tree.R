@@ -1,4 +1,4 @@
-#' Parse boosted tree model text dump
+#' Parse a boosted tree model text dump
 #' 
 #' Parse a boosted tree model text dump into a \code{data.table} structure.
 #' 
@@ -30,19 +30,26 @@
 #'  \item \code{Yes}: ID of the next node when the split condition is met
 #'  \item \code{No}: ID of the next node when the split condition is not met
 #'  \item \code{Missing}: ID of the next node when branch value is missing
-#'  \item \code{Quality}: either the split gain or the leaf value
-#'  \item \code{Cover}: metric related to the number of observation either seen by a split split 
+#'  \item \code{Quality}: either the split gain (change in loss) or the leaf value
+#'  \item \code{Cover}: metric related to the number of observation either seen by a split
 #'                      or collected by a leaf during training.
 #' } 
 #' 
 #' @examples
+#' # Basic use:
+#' 
 #' data(agaricus.train, package='xgboost')
 #' 
 #' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.depth = 2, 
 #'                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
 #' 
-#' xgb.model.dt.tree(colnames(agaricus.train$data), bst)
+#' (dt <- xgb.model.dt.tree(colnames(agaricus.train$data), bst))
 #' 
+#' 
+#' # How to match feature names of splits that are following a current 'Yes' branch:
+#' 
+#' merge(dt, dt[, .(ID, Y.Feature=Feature)], by.x='Yes', by.y='ID', all.x=T)[order(Tree,Node)]
+#'  
 #' @export
 xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
                               n_first_tree = NULL){
@@ -83,24 +90,38 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   td[, Node := str_match(t, "(\\d+):")[,2] %>% as.numeric ]
   td[, ID := addTreeId(Node, Tree)]
   td[, isLeaf := !is.na(str_match(t, "leaf"))]
-  td[isLeaf==TRUE, Feature := "Leaf"]
-  td[isLeaf==FALSE, Feature := str_match(t, "f(\\d+)<")[,2] ]
-  td[isLeaf==FALSE & !is.null(feature_names), Feature := feature_names[as.numeric(Feature) + 1] ]
-  td[isLeaf==FALSE, Split := str_match(t, paste0("<(",anynumber_regex,")\\]"))[,2] ]
-  td[isLeaf==FALSE, Yes := str_match(t, "yes=(\\d+)")[,2] %>% addTreeId(Tree) ]
-  td[isLeaf==FALSE, No  := str_match(t,  "no=(\\d+)")[,2] %>% addTreeId(Tree) ]
-  td[isLeaf==FALSE, Missing := str_match(t, "missing=(\\d+)")[,2] %>% addTreeId(Tree) ]
-  td[isLeaf==FALSE, Quality := str_match(t, paste0("gain=(",anynumber_regex,")"))[,2] %>% as.numeric ]
-  td[isLeaf==TRUE,  Quality := str_match(t, paste0("leaf=(",anynumber_regex,")"))[,2] %>% as.numeric ]
-  td[, Cover := str_match(t, paste0("cover=(\\d*\\.*\\d*)"))[,2] %>% as.numeric ]
+
+  # parse branch lines
+  td[isLeaf==FALSE, c("Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover") := {
+    rx <- paste0("f(\\d+)<(", anynumber_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
+                 "gain=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
+    # skip some indices with spurious capture groups from anynumber_regex
+    xtr <- str_match(t, rx)[, c(2,3,5,6,7,8,10)]
+    xtr[, 3:5] <- addTreeId(xtr[, 3:5], Tree)
+    lapply(1:ncol(xtr), function(i) xtr[,i])
+  }]
+  # assign feature_names when available
+  td[isLeaf==FALSE & !is.null(feature_names), 
+     Feature := feature_names[as.numeric(Feature) + 1] ]
+  
+  # parse leaf lines
+  td[isLeaf==TRUE, c("Feature", "Quality", "Cover") := {
+    rx <- paste0("leaf=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
+    xtr <- str_match(t, rx)[, c(2,4)]
+    c("Leaf", lapply(1:ncol(xtr), function(i) xtr[,i]))
+  }]
+  
+  # convert some columns to numeric
+  numeric_cols <- c("Quality", "Cover")
+  td[, (numeric_cols) := lapply(.SD, as.numeric), .SDcols=numeric_cols]
   
   td[, t := NULL]
   td[, isLeaf := NULL]
-
-  td
+  
+  td[order(Tree, Node)]
 }
 
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
 # They are mainly column names inferred by Data.table...
-globalVariables(c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover"))
+globalVariables(c("Tree", "Node", "ID", "Feature", "t", "isLeaf",".SD", ".SDcols"))
