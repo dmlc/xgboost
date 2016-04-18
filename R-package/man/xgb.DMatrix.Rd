@@ -7,8 +7,7 @@
 xgb.DMatrix(data, info = list(), missing = NA, ...)
 }
 \arguments{
-\item{data}{a \code{matrix} object, a \code{dgCMatrix} object or a character 
-indicating the data file.}
+\item{data}{a \code{matrix} object, a \code{dgCMatrix} object or a character representing a filename}
 
 \item{info}{a list of information of the xgb.DMatrix object}
 
@@ -18,7 +17,8 @@ value that represents missing value. Sometime a data use 0 or other extreme valu
 \item{...}{other information to pass to \code{info}.}
 }
 \description{
-Contruct xgb.DMatrix object from dense matrix, sparse matrix or local file.
+Contruct xgb.DMatrix object from dense matrix, sparse matrix 
+or local file (that was created previously by saving an \code{xgb.DMatrix}).
 }
 \examples{
 data(agaricus.train, package='xgboost')

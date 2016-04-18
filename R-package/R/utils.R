@@ -1,4 +1,4 @@
-  #' @importClassesFrom Matrix dgCMatrix dgeMatrix
+#' @importClassesFrom Matrix dgCMatrix dgeMatrix
 #' @import methods
 
 # depends on matrix
@@ -9,131 +9,10 @@
   library.dynam.unload("xgboost", libpath)
 }
 
-# set information into dmatrix, this mutate dmatrix
-xgb.setinfo <- function(dmat, name, info) {
-  if (class(dmat) != "xgb.DMatrix") {
-    stop("xgb.setinfo: first argument dtrain must be xgb.DMatrix")
-  }
-  if (name == "label") {
-    if (length(info) != xgb.numrow(dmat))
-      stop("The length of labels must equal to the number of rows in the input data")
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info),
-          PACKAGE = "xgboost")
-    return(TRUE)
-  }
-  if (name == "weight") {
-    if (length(info) != xgb.numrow(dmat))
-      stop("The length of weights must equal to the number of rows in the input data")
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info),
-          PACKAGE = "xgboost")
-    return(TRUE)
-  }
-  if (name == "base_margin") {
-    # if (length(info)!=xgb.numrow(dmat))
-    #   stop("The length of base margin must equal to the number of rows in the input data")
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.numeric(info),
-          PACKAGE = "xgboost")
-    return(TRUE)
-  }
-  if (name == "group") {
-    if (sum(info) != xgb.numrow(dmat))
-      stop("The sum of groups must equal to the number of rows in the input data")
-    .Call("XGDMatrixSetInfo_R", dmat, name, as.integer(info),
-          PACKAGE = "xgboost")
-    return(TRUE)
-  }
-  stop(paste("xgb.setinfo: unknown info name", name))
-  return(FALSE)
-}
 
-# construct a Booster from cachelist
-xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
-  if (typeof(cachelist) != "list") {
-    stop("xgb.Booster: only accepts list of DMatrix as cachelist")
-  }
-  for (dm in cachelist) {
-    if (class(dm) != "xgb.DMatrix") {
-      stop("xgb.Booster: only accepts list of DMatrix as cachelist")
-    }
-  }
-  handle <- .Call("XGBoosterCreate_R", cachelist, PACKAGE = "xgboost")
-  if (length(params) != 0) {
-    for (i in 1:length(params)) {
-      p <- params[i]
-      .Call("XGBoosterSetParam_R", handle, gsub("\\.", "_", names(p)), as.character(p),
-            PACKAGE = "xgboost")
-    }
-  }
-  if (!is.null(modelfile)) {
-    if (typeof(modelfile) == "character") {
-      .Call("XGBoosterLoadModel_R", handle, modelfile, PACKAGE = "xgboost")
-    } else if (typeof(modelfile) == "raw") {
-      .Call("XGBoosterLoadModelFromRaw_R", handle, modelfile, PACKAGE = "xgboost")
-    } else {
-      stop("xgb.Booster: modelfile must be character or raw vector")
-    }
-  }
-  return(structure(handle, class = "xgb.Booster.handle"))
-}
-
-# convert xgb.Booster.handle to xgb.Booster
-xgb.handleToBooster <- function(handle, raw = NULL)
-{
-  bst <- list(handle = handle, raw = raw)
-  class(bst) <- "xgb.Booster"
-  return(bst)
-}
-
-# Check whether an xgb.Booster object is complete
-xgb.Booster.check <- function(bst, saveraw = TRUE)
-{
-  isnull <- is.null(bst$handle)
-  if (!isnull) {
-    isnull <- .Call("XGCheckNullPtr_R", bst$handle, PACKAGE="xgboost")
-  }
-  if (isnull) {
-    bst$handle <- xgb.Booster(modelfile = bst$raw)
-  } else {
-    if (is.null(bst$raw) && saveraw)
-      bst$raw <- xgb.save.raw(bst$handle)
-  }
-  return(bst)
-}
-
-## ----the following are low level iteratively function, not needed if
+## ----the following are low level iterative functions, not needed if
 ## you do not want to use them ---------------------------------------
-# get dmatrix from data, label
-xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
-  inClass <- class(data)
-  if (inClass == "dgCMatrix" || inClass == "matrix") {
-    if (is.null(label)) {
-      stop("xgboost: need label when data is a matrix")
-    }
-    dtrain <- xgb.DMatrix(data, label = label, missing = missing)
-    if (!is.null(weight)){
-      xgb.setinfo(dtrain, "weight", weight)
-    }
-  } else {
-    if (!is.null(label)) {
-      warning("xgboost: label will be ignored.")
-    }
-    if (inClass == "character") {
-      dtrain <- xgb.DMatrix(data)
-    } else if (inClass == "xgb.DMatrix") {
-      dtrain <- data
-    } else if (inClass == "data.frame") {
-      stop("xgboost only support numerical matrix input,
-           use 'data.matrix' to transform the data.")
-    } else {
-      stop("xgboost: Invalid input of data")
-    }
-  }
-  return (dtrain)
-}
-xgb.numrow <- function(dmat) {
-  nrow <- .Call("XGDMatrixNumRow_R", dmat, PACKAGE="xgboost")
-  return(nrow)
-}
+
 # iteratively update booster with customized statistics
 xgb.iter.boost <- function(booster, dtrain, gpair) {
   if (class(booster) != "xgb.Booster.handle") {
@@ -227,7 +106,7 @@ xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
            "\tConsider providing pre-computed CV-folds through the folds parameter.")
     }
     y <- getinfo(dall, 'label')
-    randidx <- sample(1 : xgb.numrow(dall))
+    randidx <- sample(1 : nrow(dall))
     if (stratified & length(y) == length(randidx)) {
       y <- y[randidx]
       #

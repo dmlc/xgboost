@@ -463,7 +463,7 @@ int XGDMatrixNumCol(const DMatrixHandle handle,
 }
 
 // xgboost implementation
-int XGBoosterCreate(DMatrixHandle dmats[],
+int XGBoosterCreate(const DMatrixHandle dmats[],
                     bst_ulong len,
                     BoosterHandle *out) {
   API_BEGIN();

@@ -23,7 +23,7 @@ import scala.collection.mutable.ListBuffer
 import scala.io.Source
 
 import org.apache.commons.logging.LogFactory
-import org.apache.spark.mllib.linalg.DenseVector
+import org.apache.spark.mllib.linalg.{Vector => SparkVector, Vectors, DenseVector}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
@@ -35,7 +35,7 @@ import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
 class XGBoostSuite extends FunSuite with BeforeAndAfter {
 
   private implicit var sc: SparkContext = null
-  private val numWorkers = 4
+  private val numWorkers = Runtime.getRuntime().availableProcessors()
 
   private class EvalError extends EvalTrait {
 
@@ -189,5 +189,25 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
     assert(eval.eval(xgBoostModel.predict(testSetDMatrix), testSetDMatrix) < 0.1)
     customSparkContext.stop()
+  }
+
+  test("test with empty partition") {
+
+    def buildEmptyRDD(sparkContext: Option[SparkContext] = None): RDD[SparkVector] = {
+      val sampleList = new ListBuffer[SparkVector]
+      sparkContext.getOrElse(sc).parallelize(sampleList, numWorkers)
+    }
+
+    val eval = new EvalError()
+    val trainingRDD = buildTrainingRDD()
+    val testRDD = buildEmptyRDD()
+    import DataUtils._
+    val tempDir = Files.createTempDirectory("xgboosttest-")
+    val tempFile = Files.createTempFile(tempDir, "", "")
+    val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
+      "objective" -> "binary:logistic").toMap
+    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
+
+    println(xgBoostModel.predict(testRDD))
   }
 }
