@@ -66,7 +66,7 @@ def plot_importance(booster, ax=None, height=0.2,
         raise ValueError('tree must be Booster, XGBModel or dict instance')
 
     if len(importance) == 0:
-        raise ValueError('Booster.get_fscore() results in empty')
+        raise ValueError('Booster.get_score() results in empty')
 
     tuples = [(k, importance[k]) for k in importance]
     tuples = sorted(tuples, key=lambda x: x[1])
