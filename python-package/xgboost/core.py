@@ -153,7 +153,6 @@ def _maybe_pandas_data(data, feature_names, feature_types):
         msg = """DataFrame.dtypes for data must be int, float or bool.
 Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
-
     if feature_names is None:
         feature_names = data.columns.format()
 
@@ -1024,20 +1023,85 @@ class Booster(object):
         fmap: str (optional)
            The name of feature map file
         """
-        trees = self.get_dump(fmap)
-        fmap = {}
-        for tree in trees:
-            for line in tree.split('\n'):
-                arr = line.split('[')
-                if len(arr) == 1:
-                    continue
-                fid = arr[1].split(']')[0]
-                fid = fid.split('<')[0]
-                if fid not in fmap:
-                    fmap[fid] = 1
-                else:
-                    fmap[fid] += 1
-        return fmap
+
+        return get_score(fmap, importance_type='weight')
+
+    def get_score(self, fmap='', importance_type='weight'):
+        """Get feature importance of each feature.
+        Importance type can be defined as:
+            'weight' - the number of times a feature is used to split the data across all trees.
+            'gain' - the average gain of the feature when it is used in trees
+            'cover' - the average coverage of the feature when it is used in trees
+
+        Parameters
+        ----------
+        fmap: str (optional)
+           The name of feature map file
+        """
+
+        if importance_type not in ['weight','gain','cover']:
+            msg = "importance_type mismatch, got '{}', expected 'weight', 'gain', or 'cover'"
+            raise ValueError(msg.format(importance_type))
+
+        # if it's weight, then omap stores the number of missing values
+        if importance_type == 'weight':
+            # do a simpler tree dump to save time
+            trees = self.get_dump(fmap,with_stats=False)
+
+            fmap = {}
+            for tree in trees:
+                for line in tree.split('\n'):
+                    # look for the opening square bracket
+                    arr = line.split('[')
+                    # if no opening bracket (leaf node), ignore this line
+                    if len(arr) == 1:
+                        continue
+
+                    # extract feature name from string between []
+                    fid = arr[1].split(']')[0].split('<')[0]
+
+                    if fid not in fmap: # if the feature hasn't been seen yet
+                        fmap[fid] = 1
+                    else:
+                        fmap[fid] += 1
+
+            return fmap
+
+        else:
+            trees = self.get_dump(fmap,with_stats=True)
+
+            importance_type += '='
+            fmap = {}
+            gmap = {}
+            for tree in trees:
+                for line in tree.split('\n'):
+                    # look for the opening square bracket
+                    arr = line.split('[')
+                    # if no opening bracket (leaf node), ignore this line
+                    if len(arr) == 1:
+                        continue
+
+                    # look for the closing bracket, extract only info within that bracket
+                    fid = arr[1].split(']')
+
+                    # extract gain or cover from string after closing bracket
+                    g = float(fid[1].split(importance_type)[1].split(',')[0])
+
+                    # extract feature name from string before closing bracket
+                    fid = fid[0].split('<')[0]
+
+                    if fid not in fmap: # if the feature hasn't been seen yet
+                        fmap[fid] = 1
+                        gmap[fid] = g
+                    else:
+                        fmap[fid] += 1
+                        gmap[fid] += g
+
+            # calculate average value (gain/cover) for each feature
+            for fid in gmap:
+                gmap[fid] = gmap[fid] / fmap[fid]
+
+            return gmap
 
     def _validate_features(self, data):
         """
