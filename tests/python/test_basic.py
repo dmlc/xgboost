@@ -125,6 +125,36 @@ class TestBasic(unittest.TestCase):
             dm = xgb.DMatrix(dummy, feature_names=list('abcde'))
             self.assertRaises(ValueError, bst.predict, dm)
 
+    def test_feature_importances(self):
+        data = np.random.randn(100, 5)
+        target = np.array([0, 1] * 50)
+
+        features = ['Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5']
+
+        dm = xgb.DMatrix(data, label=target,
+                         feature_names=features)
+        params = {'objective': 'multi:softprob',
+                  'eval_metric': 'mlogloss',
+                  'eta': 0.3,
+                  'num_class': 3}
+
+        bst = xgb.train(params, dm, num_boost_round=10)
+
+        # number of feature importances should == number of features
+        scores1 = bst.get_score()
+        scores2 = bst.get_score(importance_type='weight')
+        scores3 = bst.get_score(importance_type='cover')
+        scores4 = bst.get_score(importance_type='gain')
+        assert len(scores1) == len(features)
+        assert len(scores2) == len(features)
+        assert len(scores3) == len(features)
+        assert len(scores4) == len(features)
+
+
+        # check backwards compatibility of get_fscore
+        fscores = bst.get_fscore()
+        assert scores1 == fscores
+
     def test_load_file_invalid(self):
         self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
                           model_file='incorrect_path')

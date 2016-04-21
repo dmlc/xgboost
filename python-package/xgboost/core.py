@@ -153,6 +153,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
         msg = """DataFrame.dtypes for data must be int, float or bool.
 Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
+        
     if feature_names is None:
         feature_names = data.columns.format()
 
