@@ -1024,7 +1024,7 @@ class Booster(object):
            The name of feature map file
         """
 
-        return get_score(fmap, importance_type='weight')
+        return self.get_score(fmap, importance_type='weight')
 
     def get_score(self, fmap='', importance_type='weight'):
         """Get feature importance of each feature.
