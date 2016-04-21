@@ -14,6 +14,7 @@ from .sklearn import XGBModel
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features',
+                    importance_type='gain',
                     grid=True, **kwargs):
 
     """Plot importance based on fitted trees.
@@ -50,9 +51,9 @@ def plot_importance(booster, ax=None, height=0.2,
         raise ImportError('You must install matplotlib to plot importance')
 
     if isinstance(booster, XGBModel):
-        importance = booster.booster().get_fscore()
+        importance = booster.booster().get_score(importance_type=importance_type)
     elif isinstance(booster, Booster):
-        importance = booster.get_fscore()
+        importance = booster.get_score(importance_type=importance_type)
     elif isinstance(booster, dict):
         importance = booster
     else:
