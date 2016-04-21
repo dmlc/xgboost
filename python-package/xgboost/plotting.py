@@ -14,7 +14,7 @@ from .sklearn import XGBModel
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features',
-                    importance_type='gain',
+                    importance_type='weight',
                     grid=True, **kwargs):
 
     """Plot importance based on fitted trees.
