@@ -13,6 +13,8 @@ Before you install XGBoost4J, you need to define environment variable `JAVA_HOME
 
 After your `JAVA_HOME` is defined correctly, it is as simple as run `mvn package` under jvm-packages directory to install XGBoost4J.
 
+NOTE: XGBoost4J requires to run with Spark 1.6 or newer 
+
 Contents
 --------
 * [Java Overview Tutorial](java_intro.md)
