@@ -32,7 +32,7 @@ Parameters for Tree Booster
   - minimum loss reduction required to make a further partition on a leaf node of the tree. the larger, the more conservative the algorithm will be.
   - range: [0,∞]
 * max_depth [default=6]
-  - maximum depth of a tree
+  - maximum depth of a tree, increase this value will make model more complex / likely to be overfitting.
   - range: [1,∞]
 * min_child_weight [default=1]
   - minimum sum of instance weight(hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be.
@@ -50,9 +50,9 @@ Parameters for Tree Booster
   - subsample ratio of columns for each split, in each level.
   - range: (0,1]
 * lambda [default=1]
-  - L2 regularization term on weights
+  - L2 regularization term on weights, increase this value will make model more conservative.
 * alpha [default=0]
-  - L1 regularization term on weights
+  - L1 regularization term on weights, increase this value will make model more conservative.
 * tree_method, string [default='auto']
   - The tree constructtion algorithm used in XGBoost(see description in the [reference paper](http://arxiv.org/abs/1603.02754))
   - Distributed and external memory version only support approximate algorithm.
@@ -75,9 +75,9 @@ Parameters for Tree Booster
 Parameters for Linear Booster
 -----------------------------
 * lambda [default=0]
-  - L2 regularization term on weights
+  - L2 regularization term on weights, increase this value will make model more conservative.
 * alpha [default=0]
-  - L1 regularization term on weights
+  - L1 regularization term on weights, increase this value will make model more conservative.
 * lambda_bias
   - L2 regularization term on bias, default 0(no L1 reg on bias because it is not important)
 
@@ -96,6 +96,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
  - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
 * base_score [ default=0.5 ]
   - the initial prediction score of all instances, global bias
+  - for sufficent number of iterations, changing this value will not have too much effect.
 * eval_metric [ default according to objective ]
   - evaluation metrics for validation data, a default metric will be assigned according to objective( rmse for regression, and error for classification, mean average precision for ranking )
   - User can add multiple evaluation metrics, for python user, remember to pass the metrics in as list of parameters pairs instead of map, so that latter 'eval_metric' won't override previous one
