@@ -1,11 +1,12 @@
 """Distributed XGBoost Rabit related API."""
 from __future__ import absolute_import
 import sys
-import atexit
 import ctypes
 import numpy as np
 
 from .core import _LIB, c_str, STRING_TYPES
+from .compat import pickle
+
 
 def _init_rabit():
     """internal libary initializer."""
@@ -14,6 +15,7 @@ def _init_rabit():
         _LIB.RabitGetWorldSize.restype = ctypes.c_int
         _LIB.RabitIsDistributed.restype = ctypes.c_int
         _LIB.RabitVersionNumber.restype = ctypes.c_int
+
 
 def init(args=None):
     """Initialize the rabit libary with arguments"""
@@ -73,6 +75,7 @@ def tracker_print(msg):
         sys.stdout.write(msg)
         sys.stdout.flush()
 
+
 def get_processor_name():
     """Get the processor name.
 
@@ -127,14 +130,14 @@ def broadcast(data, root):
 
 # enumeration of dtypes
 DTYPE_ENUM__ = {
-    np.dtype('int8') : 0,
-    np.dtype('uint8') : 1,
-    np.dtype('int32') : 2,
-    np.dtype('uint32') : 3,
-    np.dtype('int64') : 4,
-    np.dtype('uint64') : 5,
-    np.dtype('float32') : 6,
-    np.dtype('float64') : 7
+    np.dtype('int8'): 0,
+    np.dtype('uint8'): 1,
+    np.dtype('int32'): 2,
+    np.dtype('uint32'): 3,
+    np.dtype('int64'): 4,
+    np.dtype('uint64'): 5,
+    np.dtype('float32'): 6,
+    np.dtype('float64'): 7
 }
 
 
@@ -175,6 +178,7 @@ def allreduce(data, op, prepare_fun=None):
                             op, None, None)
     else:
         func_ptr = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+
         def pfunc(args):
             """prepare function."""
             prepare_fun(data)

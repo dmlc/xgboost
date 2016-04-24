@@ -1,7 +1,7 @@
 import xgboost as xgb
 import numpy as np
 from sklearn.datasets import load_digits
-from sklearn.cross_validation import KFold, train_test_split
+from sklearn.cross_validation import train_test_split
 from sklearn.metrics import mean_squared_error
 import unittest
 
@@ -40,7 +40,6 @@ class TestEarlyStopping(unittest.TestCase):
         dm = xgb.DMatrix(X, label=y)
         params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
 
-        import pandas as pd
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, early_stopping_rounds=10)
         assert cv.shape[0] == 10
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, early_stopping_rounds=5)

@@ -8,6 +8,7 @@ rng = np.random.RandomState(1994)
 
 
 class TestBasic(unittest.TestCase):
+
     def test_basic(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
@@ -37,7 +38,7 @@ class TestBasic(unittest.TestCase):
     def test_multiclass(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'num_class' : 2}
+        param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'num_class': 2}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2
@@ -59,7 +60,6 @@ class TestBasic(unittest.TestCase):
         preds2 = bst2.predict(dtest2)
         # assert they are the same
         assert np.sum(np.abs(preds2 - preds)) == 0
-
 
     def test_dmatrix_init(self):
         data = np.random.randn(5, 5)
