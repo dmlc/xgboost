@@ -228,7 +228,8 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     Make an n-fold list of CVPack from random indices.
     """
     evals = list(evals)
-    np.random.seed(seed)
+    if seed != None:
+        np.random.seed(seed)
 
     if stratified is False and folds is None:
         randidx = np.random.permutation(dall.num_row())
