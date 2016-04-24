@@ -1,3 +1,4 @@
+import random
 import xgboost as xgb
 import numpy as np
 from sklearn.metrics import mean_squared_error
@@ -46,6 +47,37 @@ def test_multiclass_classification():
         check_pred(preds2, labels)
         check_pred(preds3, labels)
         check_pred(preds4, labels)
+
+
+def test_feature_importances():
+    digits = load_digits(2)
+    y = digits['target']
+    X = digits['data']
+    xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
+
+    exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
+                    0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
+                    0., 0., 0., 0.00833333, 0.25833333, 0., 0., 0., 0.,
+                    0.03333334, 0.03333334, 0., 0.32499999, 0., 0., 0., 0.,
+                    0.05, 0.06666667, 0., 0., 0., 0., 0., 0., 0., 0.04166667,
+                    0., 0., 0., 0., 0., 0., 0., 0.00833333, 0., 0., 0., 0.,
+                    0.], dtype=np.float32)
+
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
+
+    # numeric columns
+    import pandas as pd
+    y = pd.Series(digits['target'])
+    X = pd.DataFrame(digits['data'])
+    xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
+
+    # string columns, the feature order must be kept
+    chars = list('abcdefghijklmnopqrstuvwxyz')
+    X.columns = ["".join(random.sample(chars, 5)) for x in range(64)]
+
+    xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
+    np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
 def test_boston_housing_regression():
