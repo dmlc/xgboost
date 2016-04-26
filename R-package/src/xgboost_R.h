@@ -102,6 +102,23 @@ XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
 XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats);
 
 /*!
+ * \brief get learner attribute value
+ * \param handle handle
+ * \param name  attribute name
+ * \return string containing attribute value
+ */
+XGB_DLL SEXP XGBoosterGetAttr_R(SEXP handle, SEXP name);
+
+/*!
+ * \brief set learner attribute value
+ * \param handle handle
+ * \param name  attribute name
+ * \param val attribute value
+ * \return R_NilValue
+ */
+XGB_DLL SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val);
+
+/*!
  * \brief set parameters
  * \param handle handle
  * \param name  parameter name

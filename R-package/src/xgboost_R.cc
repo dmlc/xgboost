@@ -229,6 +229,27 @@ SEXP XGBoosterCreate_R(SEXP dmats) {
   return ret;
 }
 
+SEXP XGBoosterGetAttr_R(SEXP handle, SEXP name) {
+  const char* ret;
+  R_API_BEGIN();
+  int success;
+  CHECK_CALL(XGBoosterGetAttr(R_ExternalPtrAddr(handle),
+                             CHAR(asChar(name)),
+                             &ret,
+                             &success));
+  R_API_END();
+  return mkString(ret);
+}
+
+SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val) {
+  R_API_BEGIN();
+  CHECK_CALL(XGBoosterSetAttr(R_ExternalPtrAddr(handle),
+                              CHAR(asChar(name)),
+                              CHAR(asChar(val))));
+  R_API_END();
+  return R_NilValue;
+}
+
 SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterSetParam(R_ExternalPtrAddr(handle),
