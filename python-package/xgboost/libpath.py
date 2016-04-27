@@ -36,7 +36,8 @@ def find_lib_path():
     else:
         dll_path = [os.path.join(p, 'libxgboost.so') for p in dll_path]
     lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
-    #From github issues, most of installation errors come from machines w/o compilers
+
+    # From github issues, most of installation errors come from machines w/o compilers
     if len(lib_path) == 0 and not os.environ.get('XGBOOST_BUILD_DOC', False):
         raise XGBoostLibraryNotFound(
             'Cannot find XGBoost Libarary in the candicate path, ' +

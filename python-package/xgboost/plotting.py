@@ -10,6 +10,7 @@ import numpy as np
 from .core import Booster
 from .sklearn import XGBModel
 
+
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features',
@@ -104,6 +105,7 @@ _NODEPAT = re.compile(r'(\d+):\[(.+)\]')
 _LEAFPAT = re.compile(r'(\d+):(leaf=.+)')
 _EDGEPAT = re.compile(r'yes=(\d+),no=(\d+),missing=(\d+)')
 _EDGEPAT2 = re.compile(r'yes=(\d+),no=(\d+)')
+
 
 def _parse_node(graph, text):
     """parse dumped node"""

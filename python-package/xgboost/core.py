@@ -14,6 +14,7 @@ from .libpath import find_lib_path
 
 from .compat import STRING_TYPES, PY3, DataFrame, py_str
 
+
 class XGBoostError(Exception):
     """Error throwed by xgboost trainer."""
     pass
@@ -82,6 +83,7 @@ def _load_lib():
 # load the XGBoost library globally
 _LIB = _load_lib()
 
+
 def _check_call(ret):
     """Check the return value of C API call
 
@@ -129,7 +131,6 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-
 PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': 'int',
                        'uint8': 'int', 'uint16': 'int', 'uint32': 'int', 'uint64': 'int',
                        'float16': 'float', 'float32': 'float', 'float64': 'float',
@@ -144,8 +145,12 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 
     data_dtypes = data.dtypes
     if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
-        bad_fields = [data.columns[i] for i, dtype in enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER ]  
-        raise ValueError('DataFrame.dtypes for data must be int, float or bool.\nDid not expect the data types in fie    lds '+', '.join(bad_fields))
+        bad_fields = [data.columns[i] for i, dtype in
+                      enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
+
+        msg = """DataFrame.dtypes for data must be int, float or bool.
+Did not expect the data types in fields """
+        raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
         feature_names = data.columns.format()
@@ -173,6 +178,7 @@ def _maybe_pandas_label(label):
     # pd.Series can be passed to xgb as it is
 
     return label
+
 
 class DMatrix(object):
     """Data Matrix used in XGBoost.
@@ -1041,8 +1047,14 @@ class Booster(object):
             if self.feature_names != data.feature_names:
                 dat_missing = set(self.feature_names) - set(data.feature_names)
                 my_missing = set(data.feature_names) - set(self.feature_names)
+
                 msg = 'feature_names mismatch: {0} {1}'
-                if dat_missing: msg +='\nexpected ' + ', '.join(str(s) for s in dat_missing) +' in input data'
-                if my_missing: msg +='\ntraining data did not have the following fields: ' + ', '.join(str(s) for s in my_missing)
+
+                if dat_missing:
+                    msg += '\nexpected ' + ', '.join(str(s) for s in dat_missing) + ' in input data'
+
+                if my_missing:
+                    msg += '\ntraining data did not have the following fields: ' + ', '.join(str(s) for s in my_missing)
+
                 raise ValueError(msg.format(self.feature_names,
                                             data.feature_names))

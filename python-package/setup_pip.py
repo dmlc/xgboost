@@ -4,14 +4,14 @@ from __future__ import absolute_import
 import sys
 import os
 from setuptools import setup, find_packages
-#import subprocess
+# import subprocess
 sys.path.insert(0, '.')
 
-#this script is for packing and shipping pip installation
-#it builds xgboost code on the fly and packs for pip
-#please don't use this file for installing from github
+# this script is for packing and shipping pip installation
+# it builds xgboost code on the fly and packs for pip
+# please don't use this file for installing from github
 
-if os.name != 'nt': #if not windows, compile and install
+if os.name != 'nt':     # if not windows, compile and install
     os.system('sh ./xgboost/build-python.sh')
 else:
     print('Windows users please use github installation.')
@@ -28,12 +28,12 @@ exec(compile(open(libpath_py, "rb").read(), libpath_py, 'exec'), libpath, libpat
 
 LIB_PATH = libpath['find_lib_path']()
 
-#to deploy to pip, please use
-#make pythonpack
-#python setup.py register sdist upload
-#and be sure to test it firstly using "python setup.py register sdist upload -r pypitest"
+# to deploy to pip, please use
+# make pythonpack
+# python setup.py register sdist upload
+# and be sure to test it firstly using "python setup.py register sdist upload -r pypitest"
 setup(name='xgboost',
-      #version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
+      # version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
       version='0.4a30',
       description=open(os.path.join(CURRENT_DIR, 'README.rst')).read(),
       install_requires=[
@@ -44,15 +44,15 @@ setup(name='xgboost',
       maintainer_email='phunter.lau@gmail.com',
       zip_safe=False,
       packages=find_packages(),
-      #don't need this and don't use this, give everything to MANIFEST.in
-      #package_dir = {'':'xgboost'},
-      #package_data = {'': ['*.txt','*.md','*.sh'],
+      # don't need this and don't use this, give everything to MANIFEST.in
+      # package_dir = {'':'xgboost'},
+      # package_data = {'': ['*.txt','*.md','*.sh'],
       #               }
-      #this will use MANIFEST.in during install where we specify additional files,
-      #this is the golden line
+      # this will use MANIFEST.in during install where we specify additional files,
+      # this is the golden line
       include_package_data=True,
-      #!!! don't use data_files for creating pip installation,
-      #otherwise install_data process will copy it to
-      #root directory for some machines, and cause confusions on building
-      #data_files=[('xgboost', LIB_PATH)],
+      # !!! don't use data_files for creating pip installation,
+      # otherwise install_data process will copy it to
+      # root directory for some machines, and cause confusions on building
+      # data_files=[('xgboost', LIB_PATH)],
       url='https://github.com/dmlc/xgboost')
