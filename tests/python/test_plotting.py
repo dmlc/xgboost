@@ -12,6 +12,7 @@ matplotlib.use('Agg')
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
+
 class TestPlotting(unittest.TestCase):
     def test_plotting(self):
         bst2 = xgb.Booster(model_file='xgb.model')

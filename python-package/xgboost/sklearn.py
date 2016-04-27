@@ -366,7 +366,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
 
-
         xgb_options = self.get_xgb_params()
 
         if callable(self.objective):

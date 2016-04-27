@@ -12,11 +12,21 @@ PY3 = (sys.version_info[0] == 3)
 if PY3:
     # pylint: disable=invalid-name, redefined-builtin
     STRING_TYPES = str,
-    py_str = lambda x: x.decode('utf-8')
+
+    def py_str(x):
+        return x.decode('utf-8')
 else:
     # pylint: disable=invalid-name
     STRING_TYPES = basestring,
-    py_str = lambda x: x
+
+    def py_str(x):
+        return x
+
+try:
+    import cPickle as pickle   # noqa
+except ImportError:
+    import pickle              # noqa
+
 
 # pandas
 try:
@@ -34,7 +44,7 @@ except ImportError:
 try:
     from sklearn.base import BaseEstimator
     from sklearn.base import RegressorMixin, ClassifierMixin
-    from sklearn.preprocessing import LabelEncoder
+    from sklearn.preprocessing import LabelEncoder                # noqa
     from sklearn.cross_validation import KFold, StratifiedKFold
     SKLEARN_INSTALLED = True
 

@@ -6,11 +6,11 @@ from __future__ import absolute_import
 
 import sys
 import re
-import os
 import numpy as np
-from .core import Booster, STRING_TYPES
-from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold, XGBKFold)
+from .core import Booster, STRING_TYPES, XGBoostError
+from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import rabit
+
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
@@ -97,7 +97,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
             verbose_eval = True if verbose_eval_every_line > 0 else False
 
     if rabit.get_rank() != 0:
-        verbose_eval = False;
+        verbose_eval = False
 
     if xgb_model is not None:
         if not isinstance(xgb_model, STRING_TYPES):
@@ -135,8 +135,9 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         if isinstance(params, list):
             if len(params) != len(dict(params).items()):
                 params = dict(params)
-                rabit.tracker_print("Multiple eval metrics have been passed: " \
-                                    "'{0}' will be used for early stopping.\n\n".format(params['eval_metric']))
+                msg = ("Multiple eval metrics have been passed: "
+                       "'{0}' will be used for early stopping.\n\n")
+                rabit.tracker_print(msg.format(params['eval_metric']))
             else:
                 params = dict(params)
 
@@ -173,7 +174,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
 
         # Distributed code: need to resume to this point.
         # Skip the first update if it is a recovery step.
-        if version % 2  == 0:
+        if version % 2 == 0:
             bst.update(dtrain, i, obj)
             bst.save_rabit_checkpoint()
             version += 1
@@ -203,7 +204,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                     evals_idx = evals_name.index(key)
                     res_per_eval = len(res) // len(evals_name)
                     for r in range(res_per_eval):
-                        res_item = res[(evals_idx*res_per_eval) + r]
+                        res_item = res[(evals_idx * res_per_eval) + r]
                         res_key = res_item[0]
                         res_val = res_item[1]
                         if res_key in evals_result[key]:
@@ -224,7 +225,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                 elif i - best_iteration >= early_stopping_rounds:
                     best_msg = bst.attr('best_msg')
                     if verbose_eval:
-                        rabit.tracker_print("Stopping. Best iteration:\n{}\n\n".format(best_msg))
+                        msg = "Stopping. Best iteration:\n{}\n\n"
+                        rabit.tracker_print(msg.format(best_msg))
                     break
         # do checkpoint after evaluation, in case evaluation also updates booster.
         bst.save_rabit_checkpoint()
@@ -289,6 +291,7 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
         plst = list(tparam.items()) + [('eval_metric', itm) for itm in evals]
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
+
 
 def aggcv(rlist, show_stdv=True, verbose_eval=None, as_pandas=True, trial=0):
     # pylint: disable=invalid-name
@@ -405,8 +408,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     -------
     evaluation history : list(string)
     """
-    if stratified == True and not SKLEARN_INSTALLED:
-            raise XGBoostError('sklearn needs to be installed in order to use stratified cv')
+    if stratified is True and not SKLEARN_INSTALLED:
+        raise XGBoostError('sklearn needs to be installed in order to use stratified cv')
 
     if isinstance(metrics, str):
         metrics = [metrics]
@@ -417,7 +420,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         if 'eval_metric' in params:
             params['eval_metric'] = _metrics
     else:
-        params= dict((k, v) for k, v in params.items())
+        params = dict((k, v) for k, v in params.items())
 
     if len(metrics) == 0 and 'eval_metric' in params:
         if isinstance(params['eval_metric'], list):
@@ -428,12 +431,14 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     params.pop("eval_metric", None)
 
     if early_stopping_rounds is not None:
+
         if len(metrics) > 1:
-            raise ValueError('Check your params. '\
-                                     'Early stopping works with single eval metric only.')
+            msg = ('Check your params. '
+                   'Early stopping works with single eval metric only.')
+            raise ValueError(msg)
         if verbose_eval:
-            sys.stderr.write("Will train until cv error hasn't decreased in {} rounds.\n".format(\
-                early_stopping_rounds))
+            msg = "Will train until cv error hasn't decreased in {} rounds.\n"
+            sys.stderr.write(msg.format(early_stopping_rounds))
 
         maximize_score = False
         if len(metrics) == 1:
@@ -466,10 +471,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                 best_score = score
                 best_score_i = i
             elif i - best_score_i >= early_stopping_rounds:
-                results = results[:best_score_i+1]
+                results = results[:best_score_i + 1]
                 if verbose_eval:
-                    sys.stderr.write("Stopping. Best iteration:\n[{}] cv-mean:{}\tcv-std:{}\n".
-                                     format(best_score_i, results[-1][0], results[-1][1]))
+                    msg = "Stopping. Best iteration:\n[{}] cv-mean:{}\tcv-std:{}\n"
+                    sys.stderr.write(msg.format(best_score_i, results[-1][0], results[-1][1]))
                 break
     if as_pandas:
         try:

@@ -1,9 +1,8 @@
 import xgboost as xgb
 import numpy as np
-from sklearn.cross_validation import KFold, train_test_split
+from sklearn.cross_validation import train_test_split
 from sklearn.metrics import mean_squared_error
-from sklearn.grid_search import GridSearchCV
-from sklearn.datasets import load_iris, load_digits, load_boston
+from sklearn.datasets import load_digits
 import unittest
 
 rng = np.random.RandomState(1337)
