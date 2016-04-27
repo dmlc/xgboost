@@ -26,6 +26,12 @@ For up-to-date version, please install from github.
    `windows folder <../windows/>`__. See also the `installation
    tutorial <https://www.kaggle.com/c/otto-group-product-classification-challenge/forums/t/13043/run-xgboost-from-windows-and-python>`__
    from Kaggle Otto Forum.
+-  Add MinGW to the system PATH in Windows if you are using the latest version of xgboost which requires compilation:
+
+    ```python
+    import os
+    os.environ['PATH'] = os.environ['PATH'] + ';C:\\Program Files\\mingw-w64\\x86_64-5.3.0-posix-seh-rt_v4-rev0\\mingw64\\bin'
+    ```
 
 Examples
 --------

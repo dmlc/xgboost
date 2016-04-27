@@ -154,6 +154,13 @@ There are several ways to install the package:
     cd python-package; python setup.py develop --user
     ```
 
+4. If you are installing the latest xgboost version which require compilation, add MinGW to the system PATH:
+
+    ```python
+    import os
+    os.environ['PATH'] = os.environ['PATH'] + ';C:\\Program Files\\mingw-w64\\x86_64-5.3.0-posix-seh-rt_v4-rev0\\mingw64\\bin'
+    ```
+
 ## R Package Installation
 
 You can install R package from cran just like other packages, or you can install from our weekly updated drat repo:
@@ -162,8 +169,9 @@ You can install R package from cran just like other packages, or you can install
 install.packages("drat", repos="https://cran.rstudio.com")
 drat:::addRepo("dmlc")
 install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
-
 ```
+
+If you would like to use the latest xgboost version and already compiled xgboost, use `library(devtools); install('xgboost/R-package')` to install manually xgboost package (change the path accordingly to where you compiled xgboost).
 
 For OSX users, single threaded version will be installed, to install multi-threaded version.
 First follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compiler, then:
@@ -181,13 +189,21 @@ First follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compi
   ```
 
 Due to the usage of submodule, `install_github` is no longer support to install the
-latest version of R package. To install the latest version,
+latest version of R package. To install the latest version run the following bash script,
 
 ```bash
 git clone --recursive https://github.com/dmlc/xgboost
 cd xgboost
-make Rbuild
-R CMD INSTALL xgboost_0.4-3.tar.gz
+git submodule init
+git submodule update
+alias make='mingw32-make'
+cd dmlc-core
+make -j4
+cd ../rabit
+make lib/librabit_empty.a -j4
+cd ..
+cp make/mingw64.mk config.mk
+make -j4
 ```
 
 ## Trouble Shooting
