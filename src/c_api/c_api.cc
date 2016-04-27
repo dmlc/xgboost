@@ -35,8 +35,7 @@ class Booster {
     auto it = std::find_if(cfg_.begin(), cfg_.end(),
       [&name](decltype(*cfg_.begin()) &x) {
         return x.first == name;
-      }
-    );
+      });
     if (it == cfg_.end()) {
       cfg_.push_back(std::make_pair(name, val));
     } else {
