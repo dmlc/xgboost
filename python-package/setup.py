@@ -4,7 +4,7 @@ from __future__ import absolute_import
 import sys
 import os
 from setuptools import setup, find_packages
-#import subprocess
+# import subprocess
 sys.path.insert(0, '.')
 
 CURRENT_DIR = os.path.dirname(__file__)
@@ -18,12 +18,12 @@ exec(compile(open(libpath_py, "rb").read(), libpath_py, 'exec'), libpath, libpat
 
 LIB_PATH = libpath['find_lib_path']()
 print("Install libxgboost from: %s" % LIB_PATH)
-#Please use setup_pip.py for generating and deploying pip installation
-#detailed instruction in setup_pip.py
+# Please use setup_pip.py for generating and deploying pip installation
+# detailed instruction in setup_pip.py
 setup(name='xgboost',
       version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
-      #version='0.4a23',
-      description = "XGBoost Python Package",
+      # version='0.4a23',
+      description="XGBoost Python Package",
       long_description=open(os.path.join(CURRENT_DIR, 'README.rst')).read(),
       install_requires=[
           'numpy',
@@ -33,8 +33,8 @@ setup(name='xgboost',
       maintainer_email='phunter.lau@gmail.com',
       zip_safe=False,
       packages=find_packages(),
-      #this will use MANIFEST.in during install where we specify additional files,
-      #this is the golden line
+      # this will use MANIFEST.in during install where we specify additional files,
+      # this is the golden line
       include_package_data=True,
       data_files=[('xgboost', LIB_PATH)],
       url='https://github.com/dmlc/xgboost')
