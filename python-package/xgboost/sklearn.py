@@ -109,6 +109,7 @@ class XGBModel(XGBModelBase):
     hess: array_like of shape [n_samples]
         The value of the second derivative for each sample point
     """
+
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="reg:linear",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,

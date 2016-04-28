@@ -153,7 +153,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
         msg = """DataFrame.dtypes for data must be int, float or bool.
 Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
-        
+
     if feature_names is None:
         feature_names = data.columns.format()
 
@@ -1040,14 +1040,14 @@ class Booster(object):
            The name of feature map file
         """
 
-        if importance_type not in ['weight','gain','cover']:
+        if importance_type not in ['weight', 'gain', 'cover']:
             msg = "importance_type mismatch, got '{}', expected 'weight', 'gain', or 'cover'"
             raise ValueError(msg.format(importance_type))
 
         # if it's weight, then omap stores the number of missing values
         if importance_type == 'weight':
             # do a simpler tree dump to save time
-            trees = self.get_dump(fmap,with_stats=False)
+            trees = self.get_dump(fmap, with_stats=False)
 
             fmap = {}
             for tree in trees:
@@ -1061,7 +1061,8 @@ class Booster(object):
                     # extract feature name from string between []
                     fid = arr[1].split(']')[0].split('<')[0]
 
-                    if fid not in fmap: # if the feature hasn't been seen yet
+                    if fid not in fmap:
+                        # if the feature hasn't been seen yet
                         fmap[fid] = 1
                     else:
                         fmap[fid] += 1
@@ -1069,7 +1070,7 @@ class Booster(object):
             return fmap
 
         else:
-            trees = self.get_dump(fmap,with_stats=True)
+            trees = self.get_dump(fmap, with_stats=True)
 
             importance_type += '='
             fmap = {}
@@ -1091,7 +1092,8 @@ class Booster(object):
                     # extract feature name from string before closing bracket
                     fid = fid[0].split('<')[0]
 
-                    if fid not in fmap: # if the feature hasn't been seen yet
+                    if fid not in fmap:
+                        # if the feature hasn't been seen yet
                         fmap[fid] = 1
                         gmap[fid] = g
                     else:

@@ -150,7 +150,6 @@ class TestBasic(unittest.TestCase):
         assert len(scores3) == len(features)
         assert len(scores4) == len(features)
 
-
         # check backwards compatibility of get_fscore
         fscores = bst.get_fscore()
         assert scores1 == fscores
