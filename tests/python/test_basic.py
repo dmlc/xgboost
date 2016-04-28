@@ -162,3 +162,9 @@ class TestBasic(unittest.TestCase):
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=False)
         assert isinstance(cv, np.ndarray)
         assert cv.shape == (10, 4)
+
+        # return models
+        cv, models = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=False, return_models=True)
+        assert len(models) == 10
+        for i in range(10):
+            assert models[i].predict(dm).shape[0] == dm.num_row()

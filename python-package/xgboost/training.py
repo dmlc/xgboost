@@ -358,7 +358,7 @@ def aggcv(rlist, show_stdv=True, verbose_eval=None, as_pandas=True, trial=0):
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True, seed=0):
+       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True, seed=0, return_models=False):
     # pylint: disable = invalid-name
     """Cross-validation with given paramaters.
 
@@ -404,6 +404,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Results are not affected, and always contains std.
     seed : int
         Seed used to generate the folds (passed to numpy.random.seed).
+    return_models : bool
+        Whether to return the trained models.
 
     Returns
     -------
@@ -486,4 +488,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     else:
         results = np.array(results)
 
-    return results
+    if not return_models:
+        return results
+    else:
+        return results, [fold.bst for fold in cvfolds]
