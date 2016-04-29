@@ -513,7 +513,10 @@ class DMatrix(object):
         -------
         feature_names : list or None
         """
-        return self._feature_names
+        if self._feature_names is None:
+            return ['f{0}'.format(i) for i in range(self.num_col())]
+        else:
+            return self._feature_names
 
     @property
     def feature_types(self):
@@ -567,7 +570,7 @@ class DMatrix(object):
         """
         if feature_types is not None:
 
-            if self.feature_names is None:
+            if self._feature_names is None:
                 msg = 'Unable to set feature types before setting names'
                 raise ValueError(msg)
 

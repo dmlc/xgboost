@@ -497,17 +497,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         """
         b = self.booster()
         fs = b.get_fscore()
-        if b.feature_names is None:
-            keys = [int(k.replace('f', '')) for k in fs.keys()]
-            all_features_dict = dict.fromkeys(range(0, self._features_count), 0)
-            fs_dict = dict(zip(keys, fs.values()))
-            all_features_dict.update(fs_dict)
-            all_features = np.fromiter(all_features_dict.values(),
-                                       dtype=np.float32)
-        else:
-            all_features = [fs.get(f, 0.) for f in b.feature_names]
-            all_features = np.array(all_features, dtype=np.float32)
-
+        all_features = [fs.get(f, 0.) for f in b.feature_names]
+        all_features = np.array(all_features, dtype=np.float32)
         return all_features / all_features.sum()
 
 
