@@ -168,10 +168,10 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     for i in range(start_iteration, num_boost_round):
         if learning_rates is not None:
             if isinstance(learning_rates, list):
-                bst.set_param({'eta': learning_rates[i]})
+                bst.set_param({'learning_rate': learning_rates[i]})
             else:
-                bst.set_param({'eta': learning_rates(i, num_boost_round)})
-
+                bst.set_param(
+                    {'learning_rate': learning_rates(i, num_boost_round)})
         # Distributed code: need to resume to this point.
         # Skip the first update if it is a recovery step.
         if version % 2 == 0:
