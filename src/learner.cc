@@ -189,9 +189,9 @@ class LearnerImpl : public Learner {
       mparam.InitAllowUnknown(args);
       name_obj_ = cfg_["objective"];
       name_gbm_ = cfg_["booster"];
+      // set seed only before the model is initialized
+      common::GlobalRandom().seed(tparam.seed);
     }
-
-    common::GlobalRandom().seed(tparam.seed);
 
     // set number of features correctly.
     cfg_["num_feature"] = common::ToString(mparam.num_feature);
