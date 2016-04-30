@@ -108,6 +108,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         bst = Booster(params, [dtrain] + [d[0] for d in evals])
 
     _params = dict(params) if isinstance(params, list) else params
+    _eta_param_name = 'eta' if 'eta' in _params else 'learning_rate'
     if 'num_parallel_tree' in _params:
         num_parallel_tree = _params['num_parallel_tree']
         nboost //= num_parallel_tree
@@ -168,9 +169,9 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     for i in range(start_iteration, num_boost_round):
         if learning_rates is not None:
             if isinstance(learning_rates, list):
-                bst.set_param({'eta': learning_rates[i]})
+                bst.set_param(_eta_param_name, learning_rates[i])
             else:
-                bst.set_param({'eta': learning_rates(i, num_boost_round)})
+                bst.set_param(_eta_param_name, learning_rates(i, num_boost_round))
 
         # Distributed code: need to resume to this point.
         # Skip the first update if it is a recovery step.

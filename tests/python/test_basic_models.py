@@ -10,7 +10,6 @@ rng = np.random.RandomState(1994)
 
 
 class TestModels(unittest.TestCase):
-
     def test_glm(self):
         param = {'silent': 1, 'objective': 'binary:logistic',
                  'booster': 'gblinear', 'alpha': 0.0001, 'lambda': 1}
@@ -25,12 +24,39 @@ class TestModels(unittest.TestCase):
         assert err < 0.1
 
     def test_eta_decay(self):
-        param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
-        num_round = 2
+        num_round = 4
+
         # learning_rates as a list
-        bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0.4, 0.3])
+        # init eta with 0 to check whether learning_rates work
+        param = {'max_depth': 2, 'eta': 0, 'silent': 1, 'objective': 'binary:logistic'}
+        evals_result = {}
+        bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0.8, 0.7, 0.6, 0.5],
+                        evals_result=evals_result)
+        eval_errors = list(map(float, evals_result['eval']['error']))
         assert isinstance(bst, xgb.core.Booster)
+        # validation error should decrease, if eta > 0
+        assert eval_errors[0] > eval_errors[-1]
+
+        # init learning_rate with 0 to check whether learning_rates work
+        param = {'max_depth': 2, 'learning_rate': 0, 'silent': 1, 'objective': 'binary:logistic'}
+        evals_result = {}
+        bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0.8, 0.7, 0.6, 0.5],
+                        evals_result=evals_result)
+        eval_errors = list(map(float, evals_result['eval']['error']))
+        assert isinstance(bst, xgb.core.Booster)
+        # validation error should decrease, if learning_rate > 0
+        assert eval_errors[0] > eval_errors[-1]
+
+        # check if learning_rates override default value of eta/learning_rate
+        param = {'max_depth': 2, 'silent': 1, 'objective': 'binary:logistic'}
+        evals_result = {}
+        bst = xgb.train(param, dtrain, num_round, watchlist, learning_rates=[0, 0, 0, 0],
+                        evals_result=evals_result)
+        eval_errors = list(map(float, evals_result['eval']['error']))
+        assert isinstance(bst, xgb.core.Booster)
+        # validation error should not decrease, if eta/learning_rate = 0
+        assert eval_errors[0] == eval_errors[-1]
 
         # learning_rates as a customized decay function
         def eta_decay(ithround, num_boost_round):
