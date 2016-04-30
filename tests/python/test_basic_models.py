@@ -99,3 +99,20 @@ class TestModels(unittest.TestCase):
         num_round = 2
         xgb.cv(param, dtrain, num_round, nfold=5,
                metrics={'error'}, seed=0, show_stdv=False)
+
+    def test_feature_names_validation(self):
+        X = np.random.random((10, 3))
+        y = np.random.randint(2, size=(10,))
+
+        dm1 = xgb.DMatrix(X, y)
+        dm2 = xgb.DMatrix(X, y, feature_names=("a", "b", "c"))
+
+        bst = xgb.train([], dm1)
+        bst.predict(dm1)  # success
+        self.assertRaises(ValueError, bst.predict, dm2)
+        bst.predict(dm1)  # success
+
+        bst = xgb.train([], dm2)
+        bst.predict(dm2)  # success
+        self.assertRaises(ValueError, bst.predict, dm1)
+        bst.predict(dm2)  # success
