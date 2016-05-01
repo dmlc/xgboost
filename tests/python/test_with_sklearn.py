@@ -1,15 +1,16 @@
+import numpy as np
 import random
 import xgboost as xgb
-import numpy as np
-from sklearn.metrics import mean_squared_error
-from sklearn.grid_search import GridSearchCV
-from sklearn.datasets import load_iris, load_digits, load_boston
-from sklearn.cross_validation import KFold, StratifiedKFold, train_test_split
+import xgboost.testing as tm
 
 rng = np.random.RandomState(1994)
 
 
 def test_binary_classification():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_digits
+    from sklearn.cross_validation import KFold
+
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
@@ -24,6 +25,9 @@ def test_binary_classification():
 
 
 def test_multiclass_classification():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_iris
+    from sklearn.cross_validation import KFold
 
     def check_pred(preds, labels):
         err = sum(1 for i in range(len(preds))
@@ -50,6 +54,9 @@ def test_multiclass_classification():
 
 
 def test_feature_importances():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_digits
+
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
@@ -81,6 +88,11 @@ def test_feature_importances():
 
 
 def test_boston_housing_regression():
+    tm._skip_if_no_sklearn()
+    from sklearn.metrics import mean_squared_error
+    from sklearn.datasets import load_boston
+    from sklearn.cross_validation import KFold
+
     boston = load_boston()
     y = boston['target']
     X = boston['data']
@@ -102,6 +114,10 @@ def test_boston_housing_regression():
 
 
 def test_parameter_tuning():
+    tm._skip_if_no_sklearn()
+    from sklearn.grid_search import GridSearchCV
+    from sklearn.datasets import load_boston
+
     boston = load_boston()
     y = boston['target']
     X = boston['data']
@@ -114,6 +130,11 @@ def test_parameter_tuning():
 
 
 def test_regression_with_custom_objective():
+    tm._skip_if_no_sklearn()
+    from sklearn.metrics import mean_squared_error
+    from sklearn.datasets import load_boston
+    from sklearn.cross_validation import KFold
+
     def objective_ls(y_true, y_pred):
         grad = (y_pred - y_true)
         hess = np.ones(len(y_true))
@@ -143,6 +164,10 @@ def test_regression_with_custom_objective():
 
 
 def test_classification_with_custom_objective():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_digits
+    from sklearn.cross_validation import KFold
+
     def logregobj(y_true, y_pred):
         y_pred = 1.0 / (1.0 + np.exp(-y_pred))
         grad = y_pred - y_true
@@ -178,6 +203,10 @@ def test_classification_with_custom_objective():
 
 
 def test_sklearn_api():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_iris
+    from sklearn.cross_validation import train_test_split
+
     iris = load_iris()
     tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target, train_size=120)
 
@@ -191,6 +220,9 @@ def test_sklearn_api():
 
 
 def test_sklearn_plotting():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_iris
+
     iris = load_iris()
 
     classifier = xgb.XGBClassifier()
@@ -217,6 +249,10 @@ def test_sklearn_plotting():
 
 
 def test_sklearn_nfolds_cv():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_digits
+    from sklearn.cross_validation import StratifiedKFold
+
     digits = load_digits(3)
     X = digits['data']
     y = digits['target']
@@ -243,6 +279,9 @@ def test_sklearn_nfolds_cv():
 
 
 def test_split_value_histograms():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_digits
+
     digits_2class = load_digits(2)
 
     X = digits_2class['data']

@@ -45,13 +45,13 @@ if [ ${TASK} == "python_lightweight_test" ]; then
     python --version
     conda install numpy scipy nose
     python -m pip install graphviz
-    python -m nose tests/python/test_basic*.py || exit -1
+    python -m nose tests/python || exit -1
     source activate python2
     echo "-------------------------------"
     python --version
     conda install numpy scipy nose
     python -m pip install graphviz
-    python -m nose tests/python/test_basic*.py || exit -1
+    python -m nose tests/python || exit -1
     python -m pip install flake8
     flake8 --ignore E501 python-package || exit -1
     flake8 --ignore E501 tests/python || exit -1

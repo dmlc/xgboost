@@ -48,11 +48,13 @@ try:
     from sklearn.cross_validation import KFold, StratifiedKFold
     SKLEARN_INSTALLED = True
 
-    XGBKFold = KFold
-    XGBStratifiedKFold = StratifiedKFold
     XGBModelBase = BaseEstimator
     XGBRegressorBase = RegressorMixin
     XGBClassifierBase = ClassifierMixin
+
+    XGBKFold = KFold
+    XGBStratifiedKFold = StratifiedKFold
+    XGBLabelEncoder = LabelEncoder
 except ImportError:
     SKLEARN_INSTALLED = False
 
@@ -60,5 +62,7 @@ except ImportError:
     XGBModelBase = object
     XGBClassifierBase = object
     XGBRegressorBase = object
+
     XGBKFold = None
     XGBStratifiedKFold = None
+    XGBLabelEncoder = None
