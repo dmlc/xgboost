@@ -1,15 +1,26 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import xgboost as xgb
+import xgboost.testing as tm
 import unittest
-import pandas as pd
+
+try:
+    import pandas as pd
+except ImportError:
+    pass
+
+
+tm._skip_if_no_pandas()
+
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
 class TestPandas(unittest.TestCase):
+
     def test_pandas(self):
+
         df = pd.DataFrame([[1, 2., True], [2, 3., False]], columns=['a', 'b', 'c'])
         dm = xgb.DMatrix(df, label=pd.Series([1, 2]))
         assert dm.feature_names == ['a', 'b', 'c']

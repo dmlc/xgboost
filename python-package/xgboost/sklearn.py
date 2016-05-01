@@ -7,8 +7,10 @@ import numpy as np
 from .core import Booster, DMatrix, XGBoostError
 from .training import train
 
+# Do not use class names on scikit-learn directly.
+# Re-define the classes on .compat to guarantee the behavior without scikit-learn
 from .compat import (SKLEARN_INSTALLED, XGBModelBase,
-                     XGBClassifierBase, XGBRegressorBase, LabelEncoder)
+                     XGBClassifierBase, XGBRegressorBase, XGBLabelEncoder)
 
 
 def _objective_decorator(func):
@@ -398,7 +400,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         self._features_count = X.shape[1]
 
-        self._le = LabelEncoder().fit(y)
+        self._le = XGBLabelEncoder().fit(y)
         training_labels = self._le.transform(y)
 
         if sample_weight is not None:
