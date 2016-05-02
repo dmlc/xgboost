@@ -102,23 +102,6 @@ XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
 XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats);
 
 /*!
- * \brief get learner attribute value
- * \param handle handle
- * \param name  attribute name
- * \return string containing attribute value
- */
-XGB_DLL SEXP XGBoosterGetAttr_R(SEXP handle, SEXP name);
-
-/*!
- * \brief set learner attribute value
- * \param handle handle
- * \param name  attribute name
- * \param val attribute value
- * \return R_NilValue
- */
-XGB_DLL SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val);
-
-/*!
  * \brief set parameters
  * \param handle handle
  * \param name  parameter name
@@ -202,4 +185,22 @@ XGB_DLL SEXP XGBoosterModelToRaw_R(SEXP handle);
  * \param with_stats whether dump statistics of splits
  */
 XGB_DLL SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats);
+
+/*!
+ * \brief get learner attribute value
+ * \param handle handle
+ * \param name  attribute name
+ * \return character containing attribute value
+ */
+XGB_DLL SEXP XGBoosterGetAttr_R(SEXP handle, SEXP name);
+
+/*!
+ * \brief set learner attribute value
+ * \param handle handle
+ * \param name  attribute name
+ * \param val attribute value
+ * \return R_NilValue
+ */
+XGB_DLL SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val);
+
 #endif  // XGBOOST_WRAPPER_R_H_ // NOLINT(*)
