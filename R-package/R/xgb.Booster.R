@@ -197,7 +197,7 @@ xgb.attr <- function(object, which) {
   handle = xgb.get.handle(object, "xgb.attr")
   # TODO: setting NULL value to remove an attribute
   .Call("XGBoosterSetAttr_R", handle, as.character(which)[1], as.character(value)[1], PACKAGE="xgboost")
-  if (is(object, 'xgb.Booster') & !is.null(object$raw)) {
+  if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
       object$raw <- xgb.save.raw(object$handle)
   }
   object
