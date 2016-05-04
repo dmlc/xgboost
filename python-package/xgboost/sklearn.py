@@ -268,6 +268,29 @@ class XGBModel(XGBModelBase):
                                       output_margin=output_margin,
                                       ntree_limit=ntree_limit)
 
+    def apply(self, X, ntree_limit=0):
+        """Return the predicted leaf every tree for each sample.
+
+        Parameters
+        ----------
+        X : array_like, shape=[n_samples, n_features]
+            Input features matrix.
+
+        ntree_limit : int
+            Limit number of trees in the prediction; defaults to 0 (use all trees).
+
+        Returns
+        -------
+        X_leaves : array_like, shape=[n_samples, n_trees]
+            For each datapoint x in X and for each tree, return the index of the
+            leaf x ends up in. Leaves are numbered within
+            ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
+        """
+        test_dmatrix = DMatrix(X, missing=self.missing)
+        return self.booster().predict(test_dmatrix,
+                                      pred_leaf=True,
+                                      ntree_limit=ntree_limit)
+
     def evals_result(self):
         """Return the evaluation results.
 
