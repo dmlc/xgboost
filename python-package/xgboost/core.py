@@ -904,7 +904,8 @@ class Booster(object):
             preds = preds.astype(np.int32)
         nrow = data.num_row()
         if preds.size != nrow and preds.size % nrow == 0:
-            preds = preds.reshape(nrow, preds.size / nrow)
+            ncol = int(preds.size / nrow)
+            preds = preds.reshape(nrow, ncol)
         return preds
 
     def save_model(self, fname):
