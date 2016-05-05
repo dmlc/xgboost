@@ -270,6 +270,7 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     if stratified is False and folds is None:
         randidx = np.random.permutation(dall.num_row())
         kstep = len(randidx) / nfold
+        kstep = int(kstep)
         idset = [randidx[(i * kstep): min(len(randidx), (i + 1) * kstep)] for i in range(nfold)]
     elif folds is not None:
         idset = [x[1] for x in folds]
