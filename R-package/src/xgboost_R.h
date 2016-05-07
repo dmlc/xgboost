@@ -62,16 +62,18 @@ XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset);
  * \param handle a instance of data matrix
  * \param fname file name
  * \param silent print statistics when saving
+ * \return R_NilValue
  */
-XGB_DLL void XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent);
+XGB_DLL SEXP XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent);
 
 /*!
  * \brief set information to dmatrix
  * \param handle a instance of data matrix
  * \param field field name, can be label, weight
  * \param array pointer to float vector
+ * \return R_NilValue
  */
-XGB_DLL void XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array);
+XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array);
 
 /*!
  * \brief get info vector from matrix
@@ -104,16 +106,18 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats);
  * \param handle handle
  * \param name  parameter name
  * \param val value of parameter
+ * \return R_NilValue
  */
-XGB_DLL void XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val);
+XGB_DLL SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val);
 
 /*!
  * \brief update the model in one round using dtrain
  * \param handle handle
  * \param iter current iteration rounds
  * \param dtrain training data
+ * \return R_NilValue
  */
-XGB_DLL void XGBoosterUpdateOneIter_R(SEXP ext, SEXP iter, SEXP dtrain);
+XGB_DLL SEXP XGBoosterUpdateOneIter_R(SEXP ext, SEXP iter, SEXP dtrain);
 
 /*!
  * \brief update the model, by directly specify gradient and second order gradient,
@@ -122,8 +126,9 @@ XGB_DLL void XGBoosterUpdateOneIter_R(SEXP ext, SEXP iter, SEXP dtrain);
  * \param dtrain training data
  * \param grad gradient statistics
  * \param hess second order gradient statistics
+ * \return R_NilValue
  */
-XGB_DLL void XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP hess);
+XGB_DLL SEXP XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP hess);
 
 /*!
  * \brief get evaluation statistics for xgboost
@@ -131,7 +136,7 @@ XGB_DLL void XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP h
  * \param iter current iteration rounds
  * \param dmats list of handles to dmatrices
  * \param evname name of evaluation
- * \return the string containing evaluation stati
+ * \return the string containing evaluation stats
  */
 XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evnames);
 
@@ -147,21 +152,24 @@ XGB_DLL SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask, SEXP n
  * \brief load model from existing file
  * \param handle handle
  * \param fname file name
+ * \return R_NilValue
  */
-XGB_DLL void XGBoosterLoadModel_R(SEXP handle, SEXP fname);
+XGB_DLL SEXP XGBoosterLoadModel_R(SEXP handle, SEXP fname);
 
 /*!
  * \brief save model into existing file
  * \param handle handle
  * \param fname file name
+ * \return R_NilValue
  */
-XGB_DLL void XGBoosterSaveModel_R(SEXP handle, SEXP fname);
+XGB_DLL SEXP XGBoosterSaveModel_R(SEXP handle, SEXP fname);
 
 /*!
  * \brief load model from raw array
  * \param handle handle
+ * \return R_NilValue
  */
-XGB_DLL void XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw);
+XGB_DLL SEXP XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw);
 
 /*!
  * \brief save model into R's raw array
@@ -177,4 +185,22 @@ XGB_DLL SEXP XGBoosterModelToRaw_R(SEXP handle);
  * \param with_stats whether dump statistics of splits
  */
 XGB_DLL SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats);
+
+/*!
+ * \brief get learner attribute value
+ * \param handle handle
+ * \param name  attribute name
+ * \return character containing attribute value
+ */
+XGB_DLL SEXP XGBoosterGetAttr_R(SEXP handle, SEXP name);
+
+/*!
+ * \brief set learner attribute value
+ * \param handle handle
+ * \param name  attribute name
+ * \param val attribute value
+ * \return R_NilValue
+ */
+XGB_DLL SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val);
+
 #endif  // XGBOOST_WRAPPER_R_H_ // NOLINT(*)

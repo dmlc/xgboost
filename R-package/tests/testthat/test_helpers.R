@@ -28,6 +28,17 @@ test_that("xgb.dump works", {
   expect_true(xgb.dump(bst.Tree, 'xgb.model.dump', with.stats = T))
 })
 
+test_that("xgb.attr", {
+  val <- "my attribute value"
+  expect_error(xgb.attr(bst.Tree, NULL))
+  expect_error(xgb.attr(val, val))
+  xgb.attr(bst.Tree, "my_attr") <- val
+  expect_equal(xgb.attr(bst.Tree, "my_attr"), val)
+  xgb.save(bst.Tree, 'xgb.model')
+  bst1 <- xgb.load('xgb.model')
+  expect_equal(xgb.attr(bst1, "my_attr"), val)
+})
+
 test_that("xgb.model.dt.tree works with and without feature names", {
   names.dt.trees <- c("ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover",
    "Tree", "Yes.Feature", "Yes.Cover", "Yes.Quality", "No.Feature", "No.Cover", "No.Quality")

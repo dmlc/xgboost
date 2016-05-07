@@ -137,15 +137,16 @@ SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
   return ret;
 }
 
-void XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent) {
+SEXP XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent) {
   R_API_BEGIN();
   CHECK_CALL(XGDMatrixSaveBinary(R_ExternalPtrAddr(handle),
                                  CHAR(asChar(fname)),
                                  asInteger(silent)));
   R_API_END();
+  return R_NilValue;
 }
 
-void XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
+SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
   R_API_BEGIN();
   int len = length(array);
   const char *name = CHAR(asChar(field));
@@ -167,6 +168,7 @@ void XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
                                    BeginPtr(vec), len));
   }
   R_API_END();
+  return R_NilValue;
 }
 
 SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field) {
@@ -227,23 +229,25 @@ SEXP XGBoosterCreate_R(SEXP dmats) {
   return ret;
 }
 
-void XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val) {
+SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterSetParam(R_ExternalPtrAddr(handle),
-                             CHAR(asChar(name)),
-                             CHAR(asChar(val))));
+                               CHAR(asChar(name)),
+                               CHAR(asChar(val))));
   R_API_END();
+  return R_NilValue;
 }
 
-void XGBoosterUpdateOneIter_R(SEXP handle, SEXP iter, SEXP dtrain) {
+SEXP XGBoosterUpdateOneIter_R(SEXP handle, SEXP iter, SEXP dtrain) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterUpdateOneIter(R_ExternalPtrAddr(handle),
                                   asInteger(iter),
                                   R_ExternalPtrAddr(dtrain)));
   R_API_END();
+  return R_NilValue;
 }
 
-void XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP hess) {
+SEXP XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP hess) {
   R_API_BEGIN();
   CHECK_EQ(length(grad), length(hess))
       << "gradient and hess must have same length";
@@ -259,6 +263,7 @@ void XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP hess) {
                                  BeginPtr(tgrad), BeginPtr(thess),
                                  len));
   R_API_END();
+  return R_NilValue;
 }
 
 SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evnames) {
@@ -305,24 +310,27 @@ SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask, SEXP ntree_lim
   return ret;
 }
 
-void XGBoosterLoadModel_R(SEXP handle, SEXP fname) {
+SEXP XGBoosterLoadModel_R(SEXP handle, SEXP fname) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterLoadModel(R_ExternalPtrAddr(handle), CHAR(asChar(fname))));
   R_API_END();
+  return R_NilValue;
 }
 
-void XGBoosterSaveModel_R(SEXP handle, SEXP fname) {
+SEXP XGBoosterSaveModel_R(SEXP handle, SEXP fname) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterSaveModel(R_ExternalPtrAddr(handle), CHAR(asChar(fname))));
   R_API_END();
+  return R_NilValue;
 }
 
-void XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw) {
+SEXP XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterLoadModelFromBuffer(R_ExternalPtrAddr(handle),
                                           RAW(raw),
                                           length(raw)));
   R_API_END();
+  return R_NilValue;
 }
 
 SEXP XGBoosterModelToRaw_R(SEXP handle) {
@@ -360,3 +368,31 @@ SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats) {
   return out;
 }
 
+SEXP XGBoosterGetAttr_R(SEXP handle, SEXP name) {
+  SEXP out;
+  R_API_BEGIN();
+  int success;
+  const char *val;
+  CHECK_CALL(XGBoosterGetAttr(R_ExternalPtrAddr(handle),
+                              CHAR(asChar(name)),
+                              &val,
+                              &success));
+  if (success) {
+    out = PROTECT(allocVector(STRSXP, 1));
+    SET_STRING_ELT(out, 0, mkChar(val));
+  } else {
+    out = PROTECT(R_NilValue);
+  }
+  UNPROTECT(1);
+  R_API_END();
+  return out;
+}
+
+SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val) {
+  R_API_BEGIN();
+  CHECK_CALL(XGBoosterSetAttr(R_ExternalPtrAddr(handle),
+                              CHAR(asChar(name)),
+                              CHAR(asChar(val))));
+  R_API_END();
+  return R_NilValue;
+}
