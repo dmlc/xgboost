@@ -222,7 +222,7 @@ class XGBModel(XGBModelBase):
 
         evals_result = {}
         if eval_set is not None:
-            evals = list(DMatrix(x[0], label=x[1],missing=self.missing) for x in eval_set)
+            evals = list(DMatrix(x[0], label=x[1], missing=self.missing) for x in eval_set)
             evals = list(zip(evals, ["validation_{}".format(i) for i in
                                      range(len(evals))]))
         else:
