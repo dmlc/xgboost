@@ -114,7 +114,7 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
  */
 void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root) {
   // skip action in single node
-  if (world_size == 1) return;
+  if (world_size == 1 || world_size == -1) return;
   bool recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter);
   // now we are free to remove the last result, if any
   if (resbuf.LastSeqNo() != -1 &&
