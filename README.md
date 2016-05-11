@@ -23,15 +23,13 @@ All these features comes from the facts about small rabbit:)
 * Reliable: rabit dig burrows to avoid disasters
   - Rabit programs can recover the model and results using synchronous function calls.
 
-Use Rabit
-====
+## Use Rabit
 * Type make in the root folder will compile the rabit library in lib folder
 * Add lib to the library path and include to the include path of compiler
 * Languages: You can use rabit in C++ and python
   - It is also possible to port the library to other languages
 
-Contributing
-====
+## Contributing
 Rabit is an open-source library, contributions are welcomed, including:
 * The rabit core library.
 * Customized tracker script for new platforms and interface of new languages.
