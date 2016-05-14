@@ -121,9 +121,20 @@ class Learner : public rabit::Serializable {
    *  The property will be saved along the booster.
    * \param key The key of the attribute.
    * \param out The output value.
-   * \return Whether the key is contained in the attribute.
+   * \return Whether the key exists among booster's attributes.
    */
   virtual bool GetAttr(const std::string& key, std::string* out) const = 0;
+  /*!
+   * \brief Delete an attribute from the booster.
+   * \param key The key of the attribute.
+   * \return Whether the key was found among booster's attributes.
+   */
+  virtual bool DelAttr(const std::string& key) = 0;
+  /*!
+   * \brief Get a vector of attribute names from the booster.
+   * \return vector of attribute name strings.
+   */
+  virtual std::vector<std::string> GetAttrNames() const = 0;
   /*!
    * \return whether the model allow lazy checkpoint in rabit.
    */

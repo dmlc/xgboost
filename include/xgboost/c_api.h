@@ -433,16 +433,27 @@ XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
                              const char** out,
                              int *success);
 /*!
- * \brief Set string attribute.
+ * \brief Set or delete string attribute.
  *
  * \param handle handle
- * \param key The key of the symbol.
- * \param value The value to be saved.
+ * \param key The key of the attribute.
+ * \param value The value to be saved. 
+ *              If nullptr, the attribute would be deleted.
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterSetAttr(BoosterHandle handle,
                              const char* key,
                              const char* value);
+/*!
+ * \brief Get the names of all attribute from Booster.
+ * \param handle handle
+ * \param len the argument to hold the output length
+ * \param out pointer to hold the output attribute stings
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
+                                  bst_ulong* out_len,
+                                  const char*** out);
 
 // --- Distributed training API----
 // NOTE: functions in rabit/c_api.h will be also available in libxgboost.so

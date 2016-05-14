@@ -330,6 +330,22 @@ class LearnerImpl : public Learner {
     return true;
   }
 
+  bool DelAttr(const std::string& key) override {
+    auto it = attributes_.find(key);
+    if (it == attributes_.end()) return false;
+    attributes_.erase(it);
+    return true;
+  }
+
+  std::vector<std::string> GetAttrNames() const override {
+    std::vector<std::string> out;
+    out.reserve(attributes_.size());
+    for(auto &p: attributes_) {
+      out.push_back(p.first);
+    }
+    return out;
+  }
+
   std::pair<std::string, float> Evaluate(DMatrix* data, std::string metric) {
     if (metric == "auto") metric = obj_->DefaultEvalMetric();
     std::unique_ptr<Metric> ev(Metric::Create(metric.c_str()));
