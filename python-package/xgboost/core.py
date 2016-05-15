@@ -709,19 +709,37 @@ class Booster(object):
         else:
             return None
 
+    def attr_names(self):
+        """Get the names of attributes stored in the Booster.
+
+        Returns
+        -------
+        value : list of strings
+            Returns an empty list if there's no attributes.
+        """
+        length = ctypes.c_ulong()
+        sarr = ctypes.POINTER(ctypes.c_char_p)()
+        _check_call(_LIB.XGBoosterGetAttrNames(self.handle,
+                                               ctypes.byref(length),
+                                               ctypes.byref(sarr)))
+        res = from_cstr_to_pystr(sarr, length)
+        return res
+
     def set_attr(self, **kwargs):
         """Set the attribute of the Booster.
 
         Parameters
         ----------
         **kwargs
-            The attributes to set
+            The attributes to set. Setting a value to None deletes an attribute.
         """
         for key, value in kwargs.items():
-            if not isinstance(value, STRING_TYPES):
-                raise ValueError("Set Attr only accepts string values")
+            if value is not None:
+                if not isinstance(value, STRING_TYPES):
+                    raise ValueError("Set Attr only accepts string values")
+                value = c_str(str(value))
             _check_call(_LIB.XGBoosterSetAttr(
-                self.handle, c_str(key), c_str(str(value))))
+                self.handle, c_str(key), value))
 
     def set_param(self, params, value=None):
         """Set parameters into the Booster.
