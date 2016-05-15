@@ -23,6 +23,32 @@ class TestModels(unittest.TestCase):
                   if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
         assert err < 0.1
 
+    def test_dart(self):
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        param = {'max_depth': 5, 'objective': 'binary:logistic', 'booster': 'dart'}
+        # specify validations set to watch performance
+        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        num_round = 2
+        bst = xgb.train(param, dtrain, num_round, watchlist)
+        # this is prediction
+        preds = bst.predict(dtest)
+        labels = dtest.get_label()
+        err = sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        # error must be smaller than 10%
+        assert err < 0.1
+
+        # save dmatrix into binary buffer
+        dtest.save_binary('dtest.buffer')
+        # save model
+        bst.save_model('xgb.model')
+        # load model and data in
+        bst2 = xgb.Booster(params=param, model_file='xgb.model')
+        dtest2 = xgb.DMatrix('dtest.buffer')
+        preds2 = bst2.predict(dtest2)
+        # assert they are the same
+        assert np.sum(np.abs(preds2 - preds)) == 0
+
     def test_eta_decay(self):
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 4
