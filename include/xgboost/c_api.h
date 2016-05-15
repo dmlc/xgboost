@@ -447,7 +447,7 @@ XGB_DLL int XGBoosterSetAttr(BoosterHandle handle,
 /*!
  * \brief Get the names of all attribute from Booster.
  * \param handle handle
- * \param len the argument to hold the output length
+ * \param out_len the argument to hold the output length
  * \param out pointer to hold the output attribute stings
  * \return 0 when success, -1 when failure happens
  */
