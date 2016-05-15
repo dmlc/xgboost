@@ -340,7 +340,7 @@ class LearnerImpl : public Learner {
   std::vector<std::string> GetAttrNames() const override {
     std::vector<std::string> out;
     out.reserve(attributes_.size());
-    for(auto &p: attributes_) {
+    for (auto& p : attributes_) {
       out.push_back(p.first);
     }
     return out;
