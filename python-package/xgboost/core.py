@@ -709,20 +709,21 @@ class Booster(object):
         else:
             return None
 
-    def attr_names(self):
-        """Get the names of attributes stored in the Booster.
+    def attributes(self):
+        """Get attributes stored in the Booster as a dictionary.
 
         Returns
         -------
-        value : list of strings
-            Returns an empty list if there's no attributes.
+        result : dictionary of  attribute_name: attribute_value pairs of strings.
+            Returns an empty dict if there's no attributes.
         """
         length = ctypes.c_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         _check_call(_LIB.XGBoosterGetAttrNames(self.handle,
                                                ctypes.byref(length),
                                                ctypes.byref(sarr)))
-        res = from_cstr_to_pystr(sarr, length)
+        attr_names = from_cstr_to_pystr(sarr, length)
+        res = {n: self.attr(n) for n in attr_names}
         return res
 
     def set_attr(self, **kwargs):
