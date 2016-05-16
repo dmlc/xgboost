@@ -49,15 +49,18 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with.stats=FALSE) {
     stop("fmap: argument must be type character (when provided)")
   }
 
-  longString <- .Call("XGBoosterDumpModel_R", model$handle, fmap, as.integer(with.stats), PACKAGE = "xgboost")
-
-  dt <- fread(paste(longString, collapse = ""), sep = "\n", header = F)
+  dt <- .Call("XGBoosterDumpModel_R", model$handle, fmap, as.integer(with.stats), PACKAGE = "xgboost")
+  dt <- paste(dt, collapse = "")
+  dt <- stringi::stri_replace_all_fixed(dt, '\t', '')
+  dt <- fread(dt, sep = "\n", header = F)
 
   setnames(dt, "Lines")
 
   if(is.null(fname)) {
-    result <- dt[Lines != "0"][, Lines := str_replace(Lines, "^\t+", "")][Lines != ""][, paste(Lines)]
-    return(result)
+    dt = dt[Lines != '0']
+    dt = dt[Lines != '']
+    dt = dt[, paste(Lines)]
+    return(dt)
   } else {
     result <- dt[Lines != "0"][Lines != ""][, paste(Lines)] %>% writeLines(fname)
     return(TRUE)
