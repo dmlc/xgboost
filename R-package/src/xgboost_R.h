@@ -198,9 +198,15 @@ XGB_DLL SEXP XGBoosterGetAttr_R(SEXP handle, SEXP name);
  * \brief set learner attribute value
  * \param handle handle
  * \param name  attribute name
- * \param val attribute value
+ * \param val attribute value; NULL value would delete an attribute
  * \return R_NilValue
  */
 XGB_DLL SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val);
+
+/*!
+ * \brief get the names of learner attributes
+ * \return string vector containing attribute names
+ */
+XGB_DLL SEXP XGBoosterGetAttrNames_R(SEXP handle);
 
 #endif  // XGBOOST_WRAPPER_R_H_ // NOLINT(*)

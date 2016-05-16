@@ -390,9 +390,30 @@ SEXP XGBoosterGetAttr_R(SEXP handle, SEXP name) {
 
 SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val) {
   R_API_BEGIN();
+  const char *v = isNull(val) ? nullptr : CHAR(asChar(val));
   CHECK_CALL(XGBoosterSetAttr(R_ExternalPtrAddr(handle),
-                              CHAR(asChar(name)),
-                              CHAR(asChar(val))));
+                              CHAR(asChar(name)), v));
   R_API_END();
   return R_NilValue;
 }
+
+SEXP XGBoosterGetAttrNames_R(SEXP handle) {
+  SEXP out;
+  R_API_BEGIN();
+  bst_ulong len;
+  const char **res;
+  CHECK_CALL(XGBoosterGetAttrNames(R_ExternalPtrAddr(handle),
+                                   &len, &res));
+  if (len > 0) {
+    out = PROTECT(allocVector(STRSXP, len));
+    for (size_t i = 0; i < len; ++i) {
+      SET_STRING_ELT(out, i, mkChar(res[i]));
+    }
+  } else {
+    out = PROTECT(R_NilValue);
+  }
+  UNPROTECT(1);
+  R_API_END();
+  return out;
+}
+
