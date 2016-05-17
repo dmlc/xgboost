@@ -127,7 +127,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
       List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
         "objective" -> "binary:logistic").toMap,
       new scala.collection.mutable.HashMap[String, String],
-      numWorkers = 2, round = 5, null, null)
+      numWorkers = 2, round = 5, null, null, false)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === 2)
     val boosters = boosterRDD.collect()
@@ -209,5 +209,27 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
 
     println(xgBoostModel.predict(testRDD))
+  }
+
+  test("training with external memory cache") {
+    sc.stop()
+    sc = null
+    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoostSuite")
+    val customSparkContext = new SparkContext(sparkConf)
+    val eval = new EvalError()
+    val trainingRDD = buildTrainingRDD(Some(customSparkContext))
+    val testSet = readFile(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
+      "objective" -> "binary:logistic").toMap
+    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers, useExternalMemory = true)
+    assert(eval.eval(xgBoostModel.predict(testSetDMatrix), testSetDMatrix) < 0.1)
+    customSparkContext.stop()
+    // clean
+    val dir = new File(".")
+    for (file <- dir.listFiles() if file.getName.startsWith("XGBoostSuite-dtrain_cache")) {
+      file.delete()
+    }
   }
 }

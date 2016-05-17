@@ -201,7 +201,6 @@ void SparsePageSource::Create(DMatrix* src,
                      << (bytes_write >> 20UL) << " written";
       }
     }
-
     if (page->data.size() != 0) {
       writer.PushWrite(std::move(page));
     }
