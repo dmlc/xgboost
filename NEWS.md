@@ -31,7 +31,9 @@ This file records the changes in xgboost library in reverse chronological order.
 * JVM Package
   - Enable xgboost4j for java and scala
   - XGBoost distributed now runs on Flink and Spark.
-
+* Support model attributes listing for meta data.
+  - https://github.com/dmlc/xgboost/pull/1198
+  - https://github.com/dmlc/xgboost/pull/1166
 
 ## v0.47 (2016.01.14)
 
