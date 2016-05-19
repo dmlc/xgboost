@@ -182,7 +182,7 @@ class XGBModel(XGBModelBase):
         return xgb_params
 
     def fit(self, X, y, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, learning_rates=None, verbose=True):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init, redefined-variable-type
         """
         Fit the gradient boosting model
@@ -214,6 +214,13 @@ class XGBModel(XGBModelBase):
             and bst.best_ntree_limit.
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
+        learning_rates: list or function
+            List of learning rate for each boosting round
+            or a customized function that calculates eta in terms of
+            current number of round and the total number of boosting round (e.g. yields
+            learning rate decay)
+            - list l: eta = l[boosting round]
+            - function f: eta = f(boosting round, num_boost_round)
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -243,8 +250,8 @@ class XGBModel(XGBModelBase):
             else:
                 params.update({'eval_metric': eval_metric})
 
-        self._Booster = train(params, trainDmatrix,
-                              self.n_estimators, evals=evals,
+        self._Booster = train(params, trainDmatrix, self.n_estimators,
+                              evals=evals, learning_rates=learning_rates,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose)
@@ -350,7 +357,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             scale_pos_weight, base_score, seed, missing)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, learning_rates=None, verbose=True):
         # pylint: disable = attribute-defined-outside-init,arguments-differ, redefined-variable-type
         """
         Fit gradient boosting classifier
@@ -384,6 +391,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             and bst.best_ntree_limit.
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
+        learning_rates: list or function
+            List of learning rate for each boosting round
+            or a customized function that calculates eta in terms of
+            current number of round and the total number of boosting round (e.g. yields
+            learning rate decay)
+            - list l: eta = l[boosting round]
+            - function f: eta = f(boosting round, num_boost_round)
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -435,7 +449,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                     missing=self.missing)
 
         self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
-                              evals=evals,
+                              evals=evals, learning_rates=learning_rates,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose)
