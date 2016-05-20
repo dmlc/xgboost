@@ -1,7 +1,7 @@
 import numpy as np
 import random
 import xgboost as xgb
-import xgboost.testing as tm
+import testing as tm
 
 rng = np.random.RandomState(1994)
 
