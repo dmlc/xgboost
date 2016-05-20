@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import xgboost as xgb
-import xgboost.testing as tm
+import testing as tm
 import unittest
 
 try:

@@ -73,7 +73,7 @@ endif
 
 
 # specify tensor path
-.PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck java
+.PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck java pylint
 
 
 all: lib/libxgboost.a $(XGBOOST_DYLIB) xgboost
@@ -131,8 +131,11 @@ rcpplint:
 	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
 
 lint: rcpplint
-	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src plugin
+	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src plugin python-package
 
+pylint:
+	flake8 --ignore E501 python-package
+	flake8 --ignore E501 tests/python
 clean:
 	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
 

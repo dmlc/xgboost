@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912
 """Scikit-Learn Wrapper interface for XGBoost."""
 from __future__ import absolute_import
 
@@ -42,6 +42,7 @@ def _objective_decorator(func):
             ``dmatrix.get_label()``
     """
     def inner(preds, dmatrix):
+        """internal function"""
         labels = dmatrix.get_label()
         return func(labels, preds)
     return inner
@@ -183,7 +184,7 @@ class XGBModel(XGBModelBase):
 
     def fit(self, X, y, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init, redefined-variable-type
+        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
 
@@ -351,7 +352,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable = attribute-defined-outside-init,arguments-differ, redefined-variable-type
+        # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
 
