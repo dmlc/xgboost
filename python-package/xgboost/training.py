@@ -292,7 +292,7 @@ def aggcv(rlist):
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True, seed=0,
+       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True, seed=None,
        callbacks=None):
     # pylint: disable = invalid-name
     """Cross-validation with given paramaters.
