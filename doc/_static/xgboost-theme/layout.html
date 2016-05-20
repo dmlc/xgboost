@@ -1,0 +1,156 @@
+{%- block doctype -%}
+<!DOCTYPE html>
+{%- endblock %}
+{%- set reldelim1 = reldelim1 is not defined and ' &raquo;' or reldelim1 %}
+{%- set reldelim2 = reldelim2 is not defined and ' |' or reldelim2 %}
+{%- set render_sidebar = (not embedded) and (not theme_nosidebar|tobool) and
+                         (sidebars != []) %}
+{%- set url_root = pathto('', 1) %}
+{%- if url_root == '#' %}{% set url_root = '' %}{% endif %}
+{%- if not embedded and docstitle %}
+  {%- set titlesuffix = " &mdash; "|safe + docstitle|e %}
+{%- else %}
+  {%- set titlesuffix = "" %}
+{%- endif %}
+
+{%- macro searchform(classes, button) %}
+<form class="{{classes}}" role="search" action="{{ pathto('search') }}" method="get">
+  <div class="form-group">
+    <input type="text" name="q" class="form-control" {{ 'placeholder="Search"' if not button }} >
+  </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+  {% if button %}
+    <input type="submit" class="btn btn-default" value="search">
+  {% endif %}
+</form>
+{%- endmacro %}
+
+{%- macro sidebarglobal() %}
+<ul class="globaltoc">
+  {{ toctree(maxdepth=2|toint, collapse=False,includehidden=theme_globaltoc_includehidden|tobool) }}
+</ul>
+{%- endmacro %}
+
+{%- macro sidebar() %}
+      {%- if render_sidebar %}
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+          {%- block sidebartoc %}
+          {%- include "localtoc.html" %}
+          {%- endblock %}
+        </div>
+      </div>
+      {%- endif %}
+{%- endmacro %}
+
+
+{%- macro script() %}
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '{{ url_root }}',
+        VERSION:     '{{ release|e }}',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '{{ '' if no_search_suffix else file_suffix }}',
+        HAS_SOURCE:  {{ has_source|lower }}
+      };
+    </script>
+
+    {% for name in ['jquery.js', 'underscore.js', 'doctools.js', 'searchtools.js'] %}
+    <script type="text/javascript" src="{{ pathto('_static/' + name, 1) }}"></script>
+    {% endfor %}
+
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+    <!-- {%- for scriptfile in script_files %} -->
+    <!-- <script type="text/javascript" src="{{ pathto(scriptfile, 1) }}"></script> -->
+    <!-- {%- endfor %} -->
+{%- endmacro %}
+
+{%- macro css() %}
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    {% if pagename == 'index' %}
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    {%- else %}
+    <link rel="stylesheet" href="{{ pathto('_static/' + style, 1) }}" type="text/css" />
+    <link rel="stylesheet" href="{{ pathto('_static/pygments.css', 1) }}" type="text/css" />
+    {%- endif %}
+
+    <link rel="stylesheet" href="{{ pathto('_static/xgboost.css', 1) }}">
+{%- endmacro %}
+
+<html lang="en">
+  <head>
+    <meta charset="{{ encoding }}">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {# The above 3 meta tags *must* come first in the head; any other head content
+       must come *after* these tags. #}
+    {{ metatags }}
+    {%- block htmltitle %}
+    {%- if pagename != 'index' %}
+    <title>{{ title|striptags|e }}{{ titlesuffix }}</title>
+    {%- else %}
+    <title>XGBoost Documents</title>
+    {%- endif %}
+    {%- endblock %}
+    {{ css() }}
+    {%- if not embedded %}
+    {{ script() }}
+    {%- if use_opensearch %}
+    <link rel="search" type="application/opensearchdescription+xml"
+          title="{% trans docstitle=docstitle|e %}Search within {{ docstitle }}{% endtrans %}"
+          href="{{ pathto('_static/opensearch.xml', 1) }}"/>
+    {%- endif %}
+    {%- if favicon %}
+    <link rel="shortcut icon" href="{{ pathto('_static/' + favicon, 1) }}"/>
+    {%- endif %}
+    {%- endif %}
+{%- block linktags %}
+    {%- if hasdoc('about') %}
+    <link rel="author" title="{{ _('About these documents') }}" href="{{ pathto('about') }}" />
+    {%- endif %}
+    {%- if hasdoc('genindex') %}
+    <link rel="index" title="{{ _('Index') }}" href="{{ pathto('genindex') }}" />
+    {%- endif %}
+    {%- if hasdoc('search') %}
+    <link rel="search" title="{{ _('Search') }}" href="{{ pathto('search') }}" />
+    {%- endif %}
+    {%- if hasdoc('copyright') %}
+    <link rel="copyright" title="{{ _('Copyright') }}" href="{{ pathto('copyright') }}" />
+    {%- endif %}
+    {%- if parents %}
+    <link rel="up" title="{{ parents[-1].title|striptags|e }}" href="{{ parents[-1].link|e }}" />
+    {%- endif %}
+    {%- if next %}
+    <link rel="next" title="{{ next.title|striptags|e }}" href="{{ next.link|e }}" />
+    {%- endif %}
+    {%- if prev %}
+    <link rel="prev" title="{{ prev.title|striptags|e }}" href="{{ prev.link|e }}" />
+    {%- endif %}
+{%- endblock %}
+{%- block extrahead %} {% endblock %}
+
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/dmlc/web-data/master/mxnet/image/mxnet-icon.png">
+  </head>
+  <body role="document">
+    {%- include "navbar.html" %}
+
+    {% if pagename != 'index' %}
+    <div class="container">
+      <div class="row">
+        {{ sidebar() }}
+        <div class="content">
+          {% block body %} {% endblock %}
+          {%- include "footer.html" %}
+        </div>
+      </div>
+    </div>
+    {%- else %}
+    {%- include "index.html" %}
+    {%- include "footer.html" %}
+    {%- endif %} <!-- pagename != index -->
+
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+  </body>
+</html>
