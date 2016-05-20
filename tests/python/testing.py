@@ -17,6 +17,6 @@ def _skip_if_no_pandas():
 
 def _skip_if_no_matplotlib():
     try:
-        import matplotlib.pyplot as plt     # noqa
+        import matplotlib.pyplot as _     # noqa
     except ImportError:
         raise nose.SkipTest()
