@@ -34,6 +34,7 @@ SparsePage::Writer::Writer(
           fo->Write(format_shard);
           std::unique_ptr<SparsePage> page;
           while (wqueue->Pop(&page)) {
+            if (page.get() == nullptr) break;
             fmt->Write(*page, fo.get());
             qrecycle_.Push(std::move(page));
           }
@@ -45,7 +46,9 @@ SparsePage::Writer::Writer(
 
 SparsePage::Writer::~Writer() {
   for (auto& queue : qworkers_) {
-    queue.SignalForKill();
+    // use nullptr to signal termination.
+    std::unique_ptr<SparsePage> sig(nullptr);
+    queue.Push(std::move(sig));
   }
   for (auto& thread : workers_) {
     thread->join();

@@ -256,41 +256,44 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     name_shards.push_back(prefix + ".col.page");
     format_shards.push_back(SparsePage::Format::DecideFormat(prefix).second);
   }
-  SparsePage::Writer writer(name_shards, format_shards, 6);
-  std::unique_ptr<SparsePage> page;
-  writer.Alloc(&page); page->Clear();
 
-  double tstart = dmlc::GetTime();
-  size_t bytes_write = 0;
-  // print every 4 sec.
-  const double kStep = 4.0;
-  size_t tick_expected = kStep;
+  {
+    SparsePage::Writer writer(name_shards, format_shards, 6);
+    std::unique_ptr<SparsePage> page;
+    writer.Alloc(&page); page->Clear();
 
-  while (make_next_col(page.get())) {
-    for (size_t i = 0; i < page->Size(); ++i) {
-      col_size_[i] += page->offset[i + 1] - page->offset[i];
+    double tstart = dmlc::GetTime();
+    size_t bytes_write = 0;
+    // print every 4 sec.
+    const double kStep = 4.0;
+    size_t tick_expected = kStep;
+
+    while (make_next_col(page.get())) {
+      for (size_t i = 0; i < page->Size(); ++i) {
+        col_size_[i] += page->offset[i + 1] - page->offset[i];
+      }
+
+      bytes_write += page->MemCostBytes();
+      writer.PushWrite(std::move(page));
+      writer.Alloc(&page);
+      page->Clear();
+
+      double tdiff = dmlc::GetTime() - tstart;
+      if (tdiff >= tick_expected) {
+        LOG(CONSOLE) << "Writing col.page file to " << cache_info_
+                     << " in " << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
+                     << (bytes_write >> 20UL) << " MB writen";
+        tick_expected += kStep;
+      }
     }
-
-    bytes_write += page->MemCostBytes();
-    writer.PushWrite(std::move(page));
-    writer.Alloc(&page);
-    page->Clear();
-
-    double tdiff = dmlc::GetTime() - tstart;
-    if (tdiff >= tick_expected) {
-      LOG(CONSOLE) << "Writing col.page file to " << cache_info_
-                   << " in " << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
-                   << (bytes_write >> 20UL) << " MB writen";
-      tick_expected += kStep;
-    }
+    // save meta data
+    std::string col_meta_name = cache_shards[0] + ".col.meta";
+    std::unique_ptr<dmlc::Stream> fo(
+        dmlc::Stream::Create(col_meta_name.c_str(), "w"));
+    fo->Write(buffered_rowset_);
+    fo->Write(col_size_);
+    fo.reset(nullptr);
   }
-  // save meta data
-  std::string col_meta_name = cache_shards[0] + ".col.meta";
-  std::unique_ptr<dmlc::Stream> fo(
-    dmlc::Stream::Create(col_meta_name.c_str(), "w"));
-  fo->Write(buffered_rowset_);
-  fo->Write(col_size_);
-  fo.reset(nullptr);
   // initialize column data
   CHECK(TryInitColData());
 }
