@@ -61,7 +61,6 @@ object DistTrainWithSpark {
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     sparkConf.registerKryoClasses(Array(classOf[Booster]))
     val sc = new SparkContext(sparkConf)
-    val sc = new SparkContext(sparkConf)
     val inputTrainPath = args(1)
     val outputModelPath = args(2)
     // number of iterations
@@ -73,7 +72,8 @@ object DistTrainWithSpark {
       "max_depth" -> 2,
       "objective" -> "binary:logistic").toMap
     // use 5 distributed workers to train the model
-    val model = XGBoost.train(trainRDD, paramMap, numRound, nWorkers = 5)
+    // useExternalMemory indicates whether 
+    val model = XGBoost.train(trainRDD, paramMap, numRound, nWorkers = 5, useExternalMemory = true)
     // save model to HDFS path
     model.saveModelToHadoop(outputModelPath)
   }
