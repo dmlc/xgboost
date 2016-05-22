@@ -130,7 +130,7 @@ bool SparsePageDMatrix::TryInitColData() {
     CHECK(fmeta->Read(&buffered_rowset_)) << "invalid col.meta file";
     CHECK(fmeta->Read(&col_size_)) << "invalid col.meta file";
   }
-  // load real data 
+  // load real data
   std::vector<std::unique_ptr<dmlc::SeekStream> > files;
   for (const std::string& prefix : cache_shards) {
     std::string col_data_name = prefix + ".col.page";
