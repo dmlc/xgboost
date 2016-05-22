@@ -17,7 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import org.apache.hadoop.fs.{Path, FileSystem}
-import org.apache.spark.SparkContext
+import org.apache.spark.{TaskContext, SparkContext}
 import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.rdd.RDD
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
@@ -28,12 +28,20 @@ class XGBoostModel(_booster: Booster)(implicit val sc: SparkContext) extends Ser
   /**
    * Predict result with the given testset (represented as RDD)
    */
-  def predict(testSet: RDD[Vector]): RDD[Array[Array[Float]]] = {
+  def predict(testSet: RDD[Vector], useExternalCache: Boolean = false): RDD[Array[Array[Float]]] = {
     import DataUtils._
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
+    val appName = testSet.context.appName
     testSet.mapPartitions { testSamples =>
       if (testSamples.hasNext) {
-        val dMatrix = new DMatrix(new JDMatrix(testSamples, null))
+        val cacheFileName = {
+          if (useExternalCache) {
+            s"$appName-dtest_cache-${TaskContext.getPartitionId()}"
+          } else {
+            null
+          }
+        }
+        val dMatrix = new DMatrix(new JDMatrix(testSamples, cacheFileName))
         Iterator(broadcastBooster.value.predict(dMatrix))
       } else {
         Iterator()
