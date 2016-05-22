@@ -27,6 +27,8 @@ class XGBoostModel(_booster: Booster)(implicit val sc: SparkContext) extends Ser
 
   /**
    * Predict result with the given testset (represented as RDD)
+   * @param testSet test set representd as RDD
+   * @param useExternalCache whether to use external cache for the test set
    */
   def predict(testSet: RDD[Vector], useExternalCache: Boolean = false): RDD[Array[Array[Float]]] = {
     import DataUtils._
