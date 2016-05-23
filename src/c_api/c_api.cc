@@ -32,7 +32,15 @@ class Booster {
   }
 
   inline void SetParam(const std::string& name, const std::string& val) {
-    cfg_.push_back(std::make_pair(name, val));
+    auto it = std::find_if(cfg_.begin(), cfg_.end(),
+      [&name](decltype(*cfg_.begin()) &x) {
+        return x.first == name;
+      });
+    if (it == cfg_.end()) {
+      cfg_.push_back(std::make_pair(name, val));
+    } else {
+      (*it).second = val;
+    }
     if (configured_) {
       learner_->Configure(cfg_);
     }
@@ -277,7 +285,7 @@ int XGDMatrixCreateFromCSC(const bst_ulong* col_ptr,
                    RowBatch::Entry(static_cast<bst_uint>(i), data[j]),
                    tid);
     }
-}
+  }
   mat.info.num_row = mat.row_ptr_.size() - 1;
   mat.info.num_col = static_cast<uint64_t>(ncol);
   mat.info.num_nonzero = nelem;
@@ -677,7 +685,28 @@ int XGBoosterSetAttr(BoosterHandle handle,
                      const char* value) {
   Booster* bst = static_cast<Booster*>(handle);
   API_BEGIN();
-  bst->learner()->SetAttr(key, value);
+  if (value == nullptr) {
+    bst->learner()->DelAttr(key);
+  } else {
+    bst->learner()->SetAttr(key, value);
+  }
+  API_END();
+}
+
+int XGBoosterGetAttrNames(BoosterHandle handle,
+                     bst_ulong* out_len,
+                     const char*** out) {
+  std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
+  std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
+  Booster *bst = static_cast<Booster*>(handle);
+  API_BEGIN();
+  str_vecs = bst->learner()->GetAttrNames();
+  charp_vecs.resize(str_vecs.size());
+  for (size_t i = 0; i < str_vecs.size(); ++i) {
+    charp_vecs[i] = str_vecs[i].c_str();
+  }
+  *out = dmlc::BeginPtr(charp_vecs);
+  *out_len = static_cast<bst_ulong>(charp_vecs.size());
   API_END();
 }
 

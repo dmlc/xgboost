@@ -16,6 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.nio.file.Paths
+
 import scala.collection.mutable
 import scala.collection.JavaConverters._
 
@@ -41,7 +43,8 @@ object XGBoost extends Serializable {
       trainingData: RDD[LabeledPoint],
       xgBoostConfMap: Map[String, Any],
       rabitEnv: mutable.Map[String, String],
-      numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait): RDD[Booster] = {
+      numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
+      useExternalMemory: Boolean): RDD[Booster] = {
     import DataUtils._
     val partitionedData = {
       if (numWorkers > trainingData.partitions.length) {
@@ -54,11 +57,19 @@ object XGBoost extends Serializable {
         trainingData
       }
     }
+    val appName = partitionedData.context.appName
     partitionedData.mapPartitions {
       trainingSamples =>
         rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
         Rabit.init(rabitEnv.asJava)
-        val trainingSet = new DMatrix(new JDMatrix(trainingSamples, null))
+        val cacheFileName: String = {
+          if (useExternalMemory && trainingSamples.hasNext) {
+            s"$appName-dtrain_cache-${TaskContext.getPartitionId()}"
+          } else {
+            null
+          }
+        }
+        val trainingSet = new DMatrix(new JDMatrix(trainingSamples, cacheFileName))
         val booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
           watches = new mutable.HashMap[String, DMatrix]{put("train", trainingSet)}.toMap,
             obj, eval)
@@ -76,12 +87,15 @@ object XGBoost extends Serializable {
    *                 workers equals to the partition number of trainingData RDD
    * @param obj the user-defined objective function, null by default
    * @param eval the user-defined evaluation function, null by default
+   * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
+   *                           true, the user may save the RAM cost for running XGBoost within Spark
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
   @throws(classOf[XGBoostError])
   def train(trainingData: RDD[LabeledPoint], configMap: Map[String, Any], round: Int,
-      nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null): XGBoostModel = {
+      nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
+      useExternalMemory: Boolean = false): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
     val tracker = new RabitTracker(nWorkers)
     implicit val sc = trainingData.sparkContext
@@ -97,7 +111,7 @@ object XGBoost extends Serializable {
     }
     require(tracker.start(), "FAULT: Failed to start tracker")
     val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
-      tracker.getWorkerEnvs.asScala, nWorkers, round, obj, eval)
+      tracker.getWorkerEnvs.asScala, nWorkers, round, obj, eval, useExternalMemory)
     val sparkJobThread = new Thread() {
       override def run() {
         // force the job

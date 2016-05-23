@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912
 """Scikit-Learn Wrapper interface for XGBoost."""
 from __future__ import absolute_import
 
@@ -7,8 +7,10 @@ import numpy as np
 from .core import Booster, DMatrix, XGBoostError
 from .training import train
 
+# Do not use class names on scikit-learn directly.
+# Re-define the classes on .compat to guarantee the behavior without scikit-learn
 from .compat import (SKLEARN_INSTALLED, XGBModelBase,
-                     XGBClassifierBase, XGBRegressorBase, LabelEncoder)
+                     XGBClassifierBase, XGBRegressorBase, XGBLabelEncoder)
 
 
 def _objective_decorator(func):
@@ -40,6 +42,7 @@ def _objective_decorator(func):
             ``dmatrix.get_label()``
     """
     def inner(preds, dmatrix):
+        """internal function"""
         labels = dmatrix.get_label()
         return func(labels, preds)
     return inner
@@ -107,6 +110,7 @@ class XGBModel(XGBModelBase):
     hess: array_like of shape [n_samples]
         The value of the second derivative for each sample point
     """
+
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
                  silent=True, objective="reg:linear",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
@@ -178,10 +182,9 @@ class XGBModel(XGBModelBase):
             xgb_params.pop('nthread', None)
         return xgb_params
 
-    def fit(self, X, y, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True,
-            sample_weight=None):
-        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init, redefined-variable-type
+    def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
+            early_stopping_rounds=None, verbose=True):
+        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
 
@@ -191,6 +194,8 @@ class XGBModel(XGBModelBase):
             Feature matrix
         y : array_like
             Labels
+        sample_weight: array_like
+            Weight of each instance
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as a validation set for
             early-stopping
@@ -215,15 +220,13 @@ class XGBModel(XGBModelBase):
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
-        sample_weight: array_like
-            Weight of individual samples
         """
         trainDmatrix = DMatrix(X, label=y, missing=self.missing,
                                weight=sample_weight)
 
         evals_result = {}
         if eval_set is not None:
-            evals = list(DMatrix(x[0], label=x[1]) for x in eval_set)
+            evals = list(DMatrix(x[0], label=x[1], missing=self.missing) for x in eval_set)
             evals = list(zip(evals, ["validation_{}".format(i) for i in
                                      range(len(evals))]))
         else:
@@ -267,6 +270,29 @@ class XGBModel(XGBModelBase):
         test_dmatrix = DMatrix(data, missing=self.missing)
         return self.booster().predict(test_dmatrix,
                                       output_margin=output_margin,
+                                      ntree_limit=ntree_limit)
+
+    def apply(self, X, ntree_limit=0):
+        """Return the predicted leaf every tree for each sample.
+
+        Parameters
+        ----------
+        X : array_like, shape=[n_samples, n_features]
+            Input features matrix.
+
+        ntree_limit : int
+            Limit number of trees in the prediction; defaults to 0 (use all trees).
+
+        Returns
+        -------
+        X_leaves : array_like, shape=[n_samples, n_trees]
+            For each datapoint x in X and for each tree, return the index of the
+            leaf x ends up in. Leaves are numbered within
+            ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
+        """
+        test_dmatrix = DMatrix(X, missing=self.missing)
+        return self.booster().predict(test_dmatrix,
+                                      pred_leaf=True,
                                       ntree_limit=ntree_limit)
 
     def evals_result(self):
@@ -329,7 +355,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable = attribute-defined-outside-init,arguments-differ, redefined-variable-type
+        # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
 
@@ -402,7 +428,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         self._features_count = X.shape[1]
 
-        self._le = LabelEncoder().fit(y)
+        self._le = XGBLabelEncoder().fit(y)
         training_labels = self._le.transform(y)
 
         if sample_weight is not None:
@@ -501,17 +527,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         """
         b = self.booster()
         fs = b.get_fscore()
-        if b.feature_names is None:
-            keys = [int(k.replace('f', '')) for k in fs.keys()]
-            all_features_dict = dict.fromkeys(range(0, self._features_count), 0)
-            fs_dict = dict(zip(keys, fs.values()))
-            all_features_dict.update(fs_dict)
-            all_features = np.fromiter(all_features_dict.values(),
-                                       dtype=np.float32)
-        else:
-            all_features = [fs.get(f, 0.) for f in b.feature_names]
-            all_features = np.array(all_features, dtype=np.float32)
-
+        all_features = [fs.get(f, 0.) for f in b.feature_names]
+        all_features = np.array(all_features, dtype=np.float32)
         return all_features / all_features.sum()
 
 

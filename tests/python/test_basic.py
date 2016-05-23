@@ -35,6 +35,22 @@ class TestBasic(unittest.TestCase):
         # assert they are the same
         assert np.sum(np.abs(preds2 - preds)) == 0
 
+    def test_record_results(self):
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+        # specify validations set to watch performance
+        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        num_round = 2
+        result = {}
+        res2 = {}
+        xgb.train(param, dtrain, num_round, watchlist,
+                  callbacks=[xgb.callback.record_evaluation(result)])
+        xgb.train(param, dtrain, num_round, watchlist,
+                  evals_result=res2)
+        assert result['train']['error'][0] < 0.1
+        assert res2 == result
+
     def test_multiclass(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
@@ -91,7 +107,7 @@ class TestBasic(unittest.TestCase):
 
         # reset
         dm.feature_names = None
-        assert dm.feature_names is None
+        self.assertEqual(dm.feature_names, ['f0', 'f1', 'f2', 'f3', 'f4'])
         assert dm.feature_types is None
 
     def test_feature_names(self):
@@ -124,6 +140,35 @@ class TestBasic(unittest.TestCase):
             # different feature name must raises error
             dm = xgb.DMatrix(dummy, feature_names=list('abcde'))
             self.assertRaises(ValueError, bst.predict, dm)
+
+    def test_feature_importances(self):
+        data = np.random.randn(100, 5)
+        target = np.array([0, 1] * 50)
+
+        features = ['Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5']
+
+        dm = xgb.DMatrix(data, label=target,
+                         feature_names=features)
+        params = {'objective': 'multi:softprob',
+                  'eval_metric': 'mlogloss',
+                  'eta': 0.3,
+                  'num_class': 3}
+
+        bst = xgb.train(params, dm, num_boost_round=10)
+
+        # number of feature importances should == number of features
+        scores1 = bst.get_score()
+        scores2 = bst.get_score(importance_type='weight')
+        scores3 = bst.get_score(importance_type='cover')
+        scores4 = bst.get_score(importance_type='gain')
+        assert len(scores1) == len(features)
+        assert len(scores2) == len(features)
+        assert len(scores3) == len(features)
+        assert len(scores4) == len(features)
+
+        # check backwards compatibility of get_fscore
+        fscores = bst.get_fscore()
+        assert scores1 == fscores
 
     def test_load_file_invalid(self):
         self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
@@ -160,5 +205,5 @@ class TestBasic(unittest.TestCase):
 
         # return np.ndarray
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=False)
-        assert isinstance(cv, np.ndarray)
-        assert cv.shape == (10, 4)
+        assert isinstance(cv, dict)
+        assert len(cv) == (4)

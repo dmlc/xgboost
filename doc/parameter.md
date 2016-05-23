@@ -71,6 +71,8 @@ Parameters for Tree Booster
   - Usuaully user do not have to tune this.
     but consider set to lower number for more accurate enumeration.
   - range: (0, 1)
+* scale_pos_weight, [default=0]
+  - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: sum(negative  cases) / sum(positive cases) See [Parameters Tuning](how_to/param_tuning.md) for more discussion. Also see Higgs Kaggle competition demo for examples: [R](../demo/kaggle-higgs/higgs-train.R ), [py1](../demo/kaggle-higgs/higgs-numpy.py ), [py2](../demo/kaggle-higgs/higgs-cv.py ), [py3](../demo/guide-python/cross_validation.py)
 
 Parameters for Linear Booster
 -----------------------------

@@ -1,5 +1,5 @@
 # coding: utf-8
-# pylint: disable=unused-import, invalid-name, wrong-import-position
+# pylint: disable= invalid-name,  unused-import
 """For compatibility"""
 
 from __future__ import absolute_import
@@ -14,12 +14,14 @@ if PY3:
     STRING_TYPES = str,
 
     def py_str(x):
+        """convert c string back to python string"""
         return x.decode('utf-8')
 else:
     # pylint: disable=invalid-name
     STRING_TYPES = basestring,
 
     def py_str(x):
+        """convert c string back to python string"""
         return x
 
 try:
@@ -48,11 +50,13 @@ try:
     from sklearn.cross_validation import KFold, StratifiedKFold
     SKLEARN_INSTALLED = True
 
-    XGBKFold = KFold
-    XGBStratifiedKFold = StratifiedKFold
     XGBModelBase = BaseEstimator
     XGBRegressorBase = RegressorMixin
     XGBClassifierBase = ClassifierMixin
+
+    XGBKFold = KFold
+    XGBStratifiedKFold = StratifiedKFold
+    XGBLabelEncoder = LabelEncoder
 except ImportError:
     SKLEARN_INSTALLED = False
 
@@ -60,5 +64,7 @@ except ImportError:
     XGBModelBase = object
     XGBClassifierBase = object
     XGBRegressorBase = object
+
     XGBKFold = None
     XGBStratifiedKFold = None
+    XGBLabelEncoder = None

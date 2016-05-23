@@ -110,58 +110,60 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
     name_shards.push_back(prefix + ".row.page");
     format_shards.push_back(SparsePage::Format::DecideFormat(prefix).first);
   }
-  SparsePage::Writer writer(name_shards, format_shards, 6);
-  std::unique_ptr<SparsePage> page;
-  writer.Alloc(&page); page->Clear();
+  {
+    SparsePage::Writer writer(name_shards, format_shards, 6);
+    std::unique_ptr<SparsePage> page;
+    writer.Alloc(&page); page->Clear();
 
-  MetaInfo info;
-  size_t bytes_write = 0;
-  double tstart = dmlc::GetTime();
-  // print every 4 sec.
-  const double kStep = 4.0;
-  size_t tick_expected = kStep;
+    MetaInfo info;
+    size_t bytes_write = 0;
+    double tstart = dmlc::GetTime();
+    // print every 4 sec.
+    const double kStep = 4.0;
+    size_t tick_expected = kStep;
 
-  while (src->Next()) {
-    const dmlc::RowBlock<uint32_t>& batch = src->Value();
-    if (batch.label != nullptr) {
-      info.labels.insert(info.labels.end(), batch.label, batch.label + batch.size);
-    }
-    if (batch.weight != nullptr) {
-      info.weights.insert(info.weights.end(), batch.weight, batch.weight + batch.size);
-    }
-    info.num_row += batch.size;
-    info.num_nonzero +=  batch.offset[batch.size] - batch.offset[0];
-    for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
-      uint32_t index = batch.index[i];
-      info.num_col = std::max(info.num_col,
-                              static_cast<uint64_t>(index + 1));
-    }
-    page->Push(batch);
-    if (page->MemCostBytes() >= kPageSize) {
-      bytes_write += page->MemCostBytes();
-      writer.PushWrite(std::move(page));
-      writer.Alloc(&page);
-      page->Clear();
+    while (src->Next()) {
+      const dmlc::RowBlock<uint32_t>& batch = src->Value();
+      if (batch.label != nullptr) {
+        info.labels.insert(info.labels.end(), batch.label, batch.label + batch.size);
+      }
+      if (batch.weight != nullptr) {
+        info.weights.insert(info.weights.end(), batch.weight, batch.weight + batch.size);
+      }
+      info.num_row += batch.size;
+      info.num_nonzero +=  batch.offset[batch.size] - batch.offset[0];
+      for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
+        uint32_t index = batch.index[i];
+        info.num_col = std::max(info.num_col,
+                                static_cast<uint64_t>(index + 1));
+      }
+      page->Push(batch);
+      if (page->MemCostBytes() >= kPageSize) {
+        bytes_write += page->MemCostBytes();
+        writer.PushWrite(std::move(page));
+        writer.Alloc(&page);
+        page->Clear();
 
-      double tdiff = dmlc::GetTime() - tstart;
-      if (tdiff >= tick_expected) {
-        LOG(CONSOLE) << "Writing row.page to " << cache_info << " in "
-                     << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
-                     << (bytes_write >> 20UL) << " written";
-        tick_expected += kStep;
+        double tdiff = dmlc::GetTime() - tstart;
+        if (tdiff >= tick_expected) {
+          LOG(CONSOLE) << "Writing row.page to " << cache_info << " in "
+                       << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
+                       << (bytes_write >> 20UL) << " written";
+          tick_expected += kStep;
+        }
       }
     }
-  }
 
-  if (page->data.size() != 0) {
-    writer.PushWrite(std::move(page));
-  }
+    if (page->data.size() != 0) {
+      writer.PushWrite(std::move(page));
+    }
 
-  std::unique_ptr<dmlc::Stream> fo(
-      dmlc::Stream::Create(name_info.c_str(), "w"));
-  int tmagic = kMagic;
-  fo->Write(&tmagic, sizeof(tmagic));
-  info.SaveBinary(fo.get());
+    std::unique_ptr<dmlc::Stream> fo(
+        dmlc::Stream::Create(name_info.c_str(), "w"));
+    int tmagic = kMagic;
+    fo->Write(&tmagic, sizeof(tmagic));
+    info.SaveBinary(fo.get());
+  }
   LOG(CONSOLE) << "SparsePageSource: Finished writing to " << name_info;
 }
 
@@ -176,38 +178,39 @@ void SparsePageSource::Create(DMatrix* src,
     name_shards.push_back(prefix + ".row.page");
     format_shards.push_back(SparsePage::Format::DecideFormat(prefix).first);
   }
-  SparsePage::Writer writer(name_shards, format_shards, 6);
-  std::unique_ptr<SparsePage> page;
-  writer.Alloc(&page); page->Clear();
+  {
+    SparsePage::Writer writer(name_shards, format_shards, 6);
+    std::unique_ptr<SparsePage> page;
+    writer.Alloc(&page); page->Clear();
 
-  MetaInfo info;
-  size_t bytes_write = 0;
-  double tstart = dmlc::GetTime();
-  dmlc::DataIter<RowBatch>* iter = src->RowIterator();
+    MetaInfo info;
+    size_t bytes_write = 0;
+    double tstart = dmlc::GetTime();
+    dmlc::DataIter<RowBatch>* iter = src->RowIterator();
 
-  while (iter->Next()) {
-    page->Push(iter->Value());
-    if (page->MemCostBytes() >= kPageSize) {
-      bytes_write += page->MemCostBytes();
-      writer.PushWrite(std::move(page));
-      writer.Alloc(&page);
-      page->Clear();
-      double tdiff = dmlc::GetTime() - tstart;
-      LOG(CONSOLE) << "Writing to " << cache_info << " in "
-                   << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
-                   << (bytes_write >> 20UL) << " written";
+    while (iter->Next()) {
+      page->Push(iter->Value());
+      if (page->MemCostBytes() >= kPageSize) {
+        bytes_write += page->MemCostBytes();
+        writer.PushWrite(std::move(page));
+        writer.Alloc(&page);
+        page->Clear();
+        double tdiff = dmlc::GetTime() - tstart;
+        LOG(CONSOLE) << "Writing to " << cache_info << " in "
+                     << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
+                     << (bytes_write >> 20UL) << " written";
+      }
     }
-  }
+    if (page->data.size() != 0) {
+      writer.PushWrite(std::move(page));
+    }
 
-  if (page->data.size() != 0) {
-    writer.PushWrite(std::move(page));
+    std::unique_ptr<dmlc::Stream> fo(
+        dmlc::Stream::Create(name_info.c_str(), "w"));
+    int tmagic = kMagic;
+    fo->Write(&tmagic, sizeof(tmagic));
+    info.SaveBinary(fo.get());
   }
-
-  std::unique_ptr<dmlc::Stream> fo(
-      dmlc::Stream::Create(name_info.c_str(), "w"));
-  int tmagic = kMagic;
-  fo->Write(&tmagic, sizeof(tmagic));
-  info.SaveBinary(fo.get());
   LOG(CONSOLE) << "SparsePageSource: Finished writing to " << name_info;
 }
 

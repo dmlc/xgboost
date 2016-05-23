@@ -1,23 +1,51 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments, too-many-branches
+# pylint: disable=too-many-arguments, too-many-branches, invalid-name
+# pylint: disable=too-many-branches, too-many-lines, W0141
 """Core XGBoost Library."""
 from __future__ import absolute_import
 
+import sys
 import os
 import ctypes
 import collections
+import re
 
 import numpy as np
 import scipy.sparse
 
 from .libpath import find_lib_path
 
-from .compat import STRING_TYPES, PY3, DataFrame, py_str
+from .compat import STRING_TYPES, PY3, DataFrame, py_str, PANDAS_INSTALLED
 
 
 class XGBoostError(Exception):
     """Error throwed by xgboost trainer."""
     pass
+
+
+class EarlyStopException(Exception):
+    """Exception to signal early stopping.
+
+    Parameters
+    ----------
+    best_iteration : int
+        The best iteration stopped.
+    """
+    def __init__(self, best_iteration):
+        super(EarlyStopException, self).__init__()
+        self.best_iteration = best_iteration
+
+
+# Callback environment used by callbacks
+CallbackEnv = collections.namedtuple(
+    "XGBoostCallbackEnv",
+    ["model",
+     "cvfolds",
+     "iteration",
+     "begin_iteration",
+     "end_iteration",
+     "rank",
+     "evaluation_result_list"])
 
 
 def from_pystr_to_cstr(data):
@@ -511,7 +539,10 @@ class DMatrix(object):
         -------
         feature_names : list or None
         """
-        return self._feature_names
+        if self._feature_names is None:
+            return ['f{0}'.format(i) for i in range(self.num_col())]
+        else:
+            return self._feature_names
 
     @property
     def feature_types(self):
@@ -565,7 +596,7 @@ class DMatrix(object):
         """
         if feature_types is not None:
 
-            if self.feature_names is None:
+            if self._feature_names is None:
                 msg = 'Unable to set feature types before setting names'
                 raise ValueError(msg)
 
@@ -652,7 +683,7 @@ class Booster(object):
     def __copy__(self):
         return self.__deepcopy__(None)
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, _):
         return Booster(model_file=self.save_raw())
 
     def copy(self):
@@ -704,19 +735,38 @@ class Booster(object):
         else:
             return None
 
+    def attributes(self):
+        """Get attributes stored in the Booster as a dictionary.
+
+        Returns
+        -------
+        result : dictionary of  attribute_name: attribute_value pairs of strings.
+            Returns an empty dict if there's no attributes.
+        """
+        length = ctypes.c_ulong()
+        sarr = ctypes.POINTER(ctypes.c_char_p)()
+        _check_call(_LIB.XGBoosterGetAttrNames(self.handle,
+                                               ctypes.byref(length),
+                                               ctypes.byref(sarr)))
+        attr_names = from_cstr_to_pystr(sarr, length)
+        res = {n: self.attr(n) for n in attr_names}
+        return res
+
     def set_attr(self, **kwargs):
         """Set the attribute of the Booster.
 
         Parameters
         ----------
         **kwargs
-            The attributes to set
+            The attributes to set. Setting a value to None deletes an attribute.
         """
         for key, value in kwargs.items():
-            if not isinstance(value, STRING_TYPES):
-                raise ValueError("Set Attr only accepts string values")
+            if value is not None:
+                if not isinstance(value, STRING_TYPES):
+                    raise ValueError("Set Attr only accepts string values")
+                value = c_str(str(value))
             _check_call(_LIB.XGBoosterSetAttr(
-                self.handle, c_str(key), c_str(str(value))))
+                self.handle, c_str(key), value))
 
     def set_param(self, params, value=None):
         """Set parameters into the Booster.
@@ -899,7 +949,8 @@ class Booster(object):
             preds = preds.astype(np.int32)
         nrow = data.num_row()
         if preds.size != nrow and preds.size % nrow == 0:
-            preds = preds.reshape(nrow, preds.size / nrow)
+            ncol = int(preds.size / nrow)
+            preds = preds.reshape(nrow, ncol)
         return preds
 
     def save_model(self, fname):
@@ -950,7 +1001,6 @@ class Booster(object):
             _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
 
     def dump_model(self, fout, fmap='', with_stats=False):
-        # pylint: disable=consider-using-enumerate
         """
         Dump model into a text file.
 
@@ -1019,20 +1069,87 @@ class Booster(object):
         fmap: str (optional)
            The name of feature map file
         """
-        trees = self.get_dump(fmap)
-        fmap = {}
-        for tree in trees:
-            for line in tree.split('\n'):
-                arr = line.split('[')
-                if len(arr) == 1:
-                    continue
-                fid = arr[1].split(']')[0]
-                fid = fid.split('<')[0]
-                if fid not in fmap:
-                    fmap[fid] = 1
-                else:
-                    fmap[fid] += 1
-        return fmap
+
+        return self.get_score(fmap, importance_type='weight')
+
+    def get_score(self, fmap='', importance_type='weight'):
+        """Get feature importance of each feature.
+        Importance type can be defined as:
+            'weight' - the number of times a feature is used to split the data across all trees.
+            'gain' - the average gain of the feature when it is used in trees
+            'cover' - the average coverage of the feature when it is used in trees
+
+        Parameters
+        ----------
+        fmap: str (optional)
+           The name of feature map file
+        """
+
+        if importance_type not in ['weight', 'gain', 'cover']:
+            msg = "importance_type mismatch, got '{}', expected 'weight', 'gain', or 'cover'"
+            raise ValueError(msg.format(importance_type))
+
+        # if it's weight, then omap stores the number of missing values
+        if importance_type == 'weight':
+            # do a simpler tree dump to save time
+            trees = self.get_dump(fmap, with_stats=False)
+
+            fmap = {}
+            for tree in trees:
+                for line in tree.split('\n'):
+                    # look for the opening square bracket
+                    arr = line.split('[')
+                    # if no opening bracket (leaf node), ignore this line
+                    if len(arr) == 1:
+                        continue
+
+                    # extract feature name from string between []
+                    fid = arr[1].split(']')[0].split('<')[0]
+
+                    if fid not in fmap:
+                        # if the feature hasn't been seen yet
+                        fmap[fid] = 1
+                    else:
+                        fmap[fid] += 1
+
+            return fmap
+
+        else:
+            trees = self.get_dump(fmap, with_stats=True)
+
+            importance_type += '='
+            fmap = {}
+            gmap = {}
+            for tree in trees:
+                for line in tree.split('\n'):
+                    # look for the opening square bracket
+                    arr = line.split('[')
+                    # if no opening bracket (leaf node), ignore this line
+                    if len(arr) == 1:
+                        continue
+
+                    # look for the closing bracket, extract only info within that bracket
+                    fid = arr[1].split(']')
+
+                    # extract gain or cover from string after closing bracket
+                    g = float(fid[1].split(importance_type)[1].split(',')[0])
+
+                    # extract feature name from string before closing bracket
+                    fid = fid[0].split('<')[0]
+
+                    if fid not in fmap:
+                        # if the feature hasn't been seen yet
+                        fmap[fid] = 1
+                        gmap[fid] = g
+                    else:
+                        fmap[fid] += 1
+                        gmap[fid] += g
+
+            # calculate average value (gain/cover) for each feature
+            for fid in gmap:
+                gmap[fid] = gmap[fid] / fmap[fid]
+
+            return gmap
 
     def _validate_features(self, data):
         """
@@ -1051,10 +1168,56 @@ class Booster(object):
                 msg = 'feature_names mismatch: {0} {1}'
 
                 if dat_missing:
-                    msg += '\nexpected ' + ', '.join(str(s) for s in dat_missing) + ' in input data'
+                    msg += ('\nexpected ' + ', '.join(str(s) for s in dat_missing) +
+                            ' in input data')
 
                 if my_missing:
-                    msg += '\ntraining data did not have the following fields: ' + ', '.join(str(s) for s in my_missing)
+                    msg += ('\ntraining data did not have the following fields: ' +
+                            ', '.join(str(s) for s in my_missing))
 
                 raise ValueError(msg.format(self.feature_names,
                                             data.feature_names))
+
+    def get_split_value_histogram(self, feature, fmap='', bins=None, as_pandas=True):
+        """Get split value histogram of a feature
+        Parameters
+        ----------
+        feature: str
+            The name of the feature.
+        fmap: str (optional)
+            The name of feature map file.
+        bin: int, default None
+            The maximum number of bins.
+            Number of bins equals number of unique split values n_unique,
+            if bins == None or bins > n_unique.
+        as_pandas : bool, default True
+            Return pd.DataFrame when pandas is installed.
+            If False or pandas is not installed, return numpy ndarray.
+
+        Returns
+        -------
+        a histogram of used splitting values for the specified feature
+        either as numpy array or pandas DataFrame.
+        """
+        xgdump = self.get_dump(fmap=fmap)
+        values = []
+        regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
+        for i in range(len(xgdump)):
+            m = re.findall(regexp, xgdump[i])
+            values.extend(map(float, m))
+
+        n_unique = len(np.unique(values))
+        bins = max(min(n_unique, bins) if bins is not None else n_unique, 1)
+
+        nph = np.histogram(values, bins=bins)
+        nph = np.column_stack((nph[1][1:], nph[0]))
+        nph = nph[nph[:, 1] > 0]
+
+        if as_pandas and PANDAS_INSTALLED:
+            return DataFrame(nph, columns=['SplitValue', 'Count'])
+        elif as_pandas and not PANDAS_INSTALLED:
+            sys.stderr.write(
+                "Returning histogram as ndarray (as_pandas == True, but pandas is not installed).")
+            return nph
+        else:
+            return nph

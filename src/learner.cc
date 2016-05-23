@@ -189,9 +189,9 @@ class LearnerImpl : public Learner {
       mparam.InitAllowUnknown(args);
       name_obj_ = cfg_["objective"];
       name_gbm_ = cfg_["booster"];
+      // set seed only before the model is initialized
+      common::GlobalRandom().seed(tparam.seed);
     }
-
-    common::GlobalRandom().seed(tparam.seed);
 
     // set number of features correctly.
     cfg_["num_feature"] = common::ToString(mparam.num_feature);
@@ -328,6 +328,22 @@ class LearnerImpl : public Learner {
     if (it == attributes_.end()) return false;
     *out = it->second;
     return true;
+  }
+
+  bool DelAttr(const std::string& key) override {
+    auto it = attributes_.find(key);
+    if (it == attributes_.end()) return false;
+    attributes_.erase(it);
+    return true;
+  }
+
+  std::vector<std::string> GetAttrNames() const override {
+    std::vector<std::string> out;
+    out.reserve(attributes_.size());
+    for (auto& p : attributes_) {
+      out.push_back(p.first);
+    }
+    return out;
   }
 
   std::pair<std::string, float> Evaluate(DMatrix* data, std::string metric) {

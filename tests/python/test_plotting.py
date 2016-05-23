@@ -1,19 +1,27 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import xgboost as xgb
+import testing as tm
 import unittest
 
-import matplotlib
-from matplotlib.axes import Axes
-from graphviz import Digraph
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib.axes import Axes
+    from graphviz import Digraph
+except ImportError:
+    pass
 
-matplotlib.use('Agg')
+
+tm._skip_if_no_matplotlib()
+
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
 class TestPlotting(unittest.TestCase):
+
     def test_plotting(self):
         bst2 = xgb.Booster(model_file='xgb.model')
 

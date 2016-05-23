@@ -1,3 +1,6 @@
+# coding: utf-8
+# pylint: disable= invalid-name
+
 """Distributed XGBoost Rabit related API."""
 from __future__ import absolute_import
 import sys
@@ -179,7 +182,7 @@ def allreduce(data, op, prepare_fun=None):
     else:
         func_ptr = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
-        def pfunc(args):
+        def pfunc(_):
             """prepare function."""
             prepare_fun(data)
         _LIB.RabitAllreduce(buf.ctypes.data_as(ctypes.c_void_p),

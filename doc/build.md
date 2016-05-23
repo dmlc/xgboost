@@ -1,7 +1,7 @@
 Installation Guide
 ==================
 
-This page gives instructions of how to build and install the xgboost package from
+This page gives instructions on how to build and install the xgboost package from
 scratch on various systems. It consists of two steps:
 
 1. First build the shared library from the C++ codes (`libxgboost.so` for linux/osx and `libxgboost.dll` for windows).
@@ -12,7 +12,7 @@ scratch on various systems. It consists of two steps:
 ```bash
 git clone --recursive https://github.com/dmlc/xgboost
 ```
-For windows users who uses github tools, you can open the git shell, and type the following command.
+For windows users who use github tools, you can open the git shell, and type the following command.
 ```bash
 git submodule init
 git submodule update
@@ -37,20 +37,19 @@ even better to send pull request if you can fix the problem.
 
 Our goal is to build the shared library:
 - On Linux/OSX the target library is ```libxgboost.so```
-- On Windows the target libary is ```libxgboost.dll```
+- On Windows the target library is ```libxgboost.dll```
 
 The minimal building requirement is
 
 - A recent c++ compiler supporting C++ 11 (g++-4.6 or higher)
 
 We can edit `make/config.mk` to change the compile options, and then build by
-`make`. If everything goes well, we can go the specific language installation section.
+`make`. If everything goes well, we can go to the specific language installation section.
 
 ### Building on Ubuntu/Debian
 
-On Ubuntu, one build xgboost by
+On Ubuntu, one builds xgboost by
 
-Then build xgboost
 ```bash
 git clone --recursive https://github.com/dmlc/xgboost
 cd xgboost; make -j4
@@ -58,14 +57,14 @@ cd xgboost; make -j4
 
 ### Building on OSX
 
-On OSX, one build xgboost by
+On OSX, one builds xgboost by
 
 ```bash
 git clone --recursive https://github.com/dmlc/xgboost
 cd xgboost; cp make/minimum.mk ./config.mk; make -j4
 ```
 
-This build xgboost without multi-threading, because by default clang in OSX does not come with open-mp.
+This builds xgboost without multi-threading, because by default clang in OSX does not come with open-mp.
 See the following paragraph for OpenMP enabled xgboost.
 
 
@@ -80,7 +79,7 @@ cd xgboost; cp make/config.mk ./config.mk; make -j4
 ### Building on Windows
 You need to first clone the xgboost repo with recursive option clone the submodules.
 If you are using github tools, you can open the git-shell, and type the following command.
-We recommend using the [Git for Windows](https://git-for-windows.github.io/),
+We recommend using [Git for Windows](https://git-for-windows.github.io/)
 because it brings a standard bash shell. This will highly ease the installation process.
 
 ```bash
@@ -141,8 +140,8 @@ There are several ways to install the package:
 
 2. Only set the environment variable `PYTHONPATH` to tell python where to find
    the library. For example, assume we cloned `xgboost` on the home directory
-   `~`. then we can added the following line in `~/.bashrc`
-   It is ***recommended for developers*** who may change the codes. The changes will be immediately reflected once you pulled the code and rebuild the project (no need to call ```setup``` again)
+   `~`. then we can added the following line in `~/.bashrc`.
+    It is ***recommended for developers*** who may change the codes. The changes will be immediately reflected once you pulled the code and rebuild the project (no need to call ```setup``` again)
 
     ```bash
     export PYTHONPATH=~/xgboost/python-package
@@ -154,7 +153,7 @@ There are several ways to install the package:
     cd python-package; python setup.py develop --user
     ```
 
-4. If you are installing the latest xgboost version which require compilation, add MinGW to the system PATH:
+4. If you are installing the latest xgboost version which requires compilation, add MinGW to the system PATH:
 
     ```python
     import os
@@ -217,6 +216,7 @@ make -j4
    ```
 
 2. **Compile failed after `config.mk` is modified**
+
    Need to clean all first:
 
     ```bash
@@ -225,7 +225,8 @@ make -j4
 
 
 3. **Makefile: dmlc-core/make/dmlc.mk: No such file or directory**
-   We need to recusrively clone the submodule, you can do:
+
+   We need to recursively clone the submodule, you can do:
 
     ```bash
     git submodule init

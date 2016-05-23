@@ -28,7 +28,7 @@ object DistTrainWithSpark {
         "usage: program num_of_rounds num_workers training_path test_path model_path")
       sys.exit(1)
     }
-    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoost-spark-example")
+    val sparkConf = new SparkConf().setAppName("XGBoost-spark-example")
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     sparkConf.registerKryoClasses(Array(classOf[Booster]))
     val sc = new SparkContext(sparkConf)
@@ -45,7 +45,8 @@ object DistTrainWithSpark {
       "eta" -> 0.1f,
       "max_depth" -> 2,
       "objective" -> "binary:logistic").toMap
-    val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound, nWorkers = args(1).toInt)
+    val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound, nWorkers = args(1).toInt,
+      useExternalMemory = true)
     xgboostModel.predict(new DMatrix(testSet))
     // save model to HDFS path
     xgboostModel.saveModelAsHadoopFile(outputModelPath)

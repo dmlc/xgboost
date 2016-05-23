@@ -14,6 +14,7 @@ from .sklearn import XGBModel
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features',
+                    importance_type='weight',
                     grid=True, **kwargs):
 
     """Plot importance based on fitted trees.
@@ -24,6 +25,12 @@ def plot_importance(booster, ax=None, height=0.2,
         Booster or XGBModel instance, or dict taken by Booster.get_fscore()
     ax : matplotlib Axes, default None
         Target axes instance. If None, new figure and axes will be created.
+    importance_type : str, default "weight"
+        How the importance is calculated: either "weight", "gain", or "cover"
+        "weight" is the number of times a feature appears in a tree
+        "gain" is the average gain of splits which use the feature
+        "cover" is the average coverage of splits which use the feature
+            where coverage is defined as the number of samples affected by the split
     height : float, default 0.2
         Bar height, passed to ax.barh()
     xlim : tuple, default None
@@ -50,16 +57,16 @@ def plot_importance(booster, ax=None, height=0.2,
         raise ImportError('You must install matplotlib to plot importance')
 
     if isinstance(booster, XGBModel):
-        importance = booster.booster().get_fscore()
+        importance = booster.booster().get_score(importance_type=importance_type)
     elif isinstance(booster, Booster):
-        importance = booster.get_fscore()
+        importance = booster.get_score(importance_type=importance_type)
     elif isinstance(booster, dict):
         importance = booster
     else:
         raise ValueError('tree must be Booster, XGBModel or dict instance')
 
     if len(importance) == 0:
-        raise ValueError('Booster.get_fscore() results in empty')
+        raise ValueError('Booster.get_score() results in empty')
 
     tuples = [(k, importance[k]) for k in importance]
     tuples = sorted(tuples, key=lambda x: x[1])

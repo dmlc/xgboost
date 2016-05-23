@@ -20,7 +20,7 @@ bst.Tree <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 9,
 bst.GLM <- xgboost(data = sparse_matrix, label = output_vector,
                    eta = 1, nthread = 2, nround = 10, objective = "binary:logistic", booster = "gblinear")
 
-feature.names <- agaricus.train$data@Dimnames[[2]]
+feature.names <- colnames(agaricus.train$data)
 
 test_that("xgb.dump works", {
   capture.output(print(xgb.dump(bst.Tree)))
@@ -28,12 +28,39 @@ test_that("xgb.dump works", {
   expect_true(xgb.dump(bst.Tree, 'xgb.model.dump', with.stats = T))
 })
 
+test_that("xgb-attribute functionality", {
+  val <- "my attribute value"
+  list.val <- list(my_attr=val, a=123, b='ok')
+  list.ch <- list.val[order(names(list.val))]
+  list.ch <- lapply(list.ch, as.character)
+  # proper input:
+  expect_error(xgb.attr(bst.Tree, NULL))
+  expect_error(xgb.attr(val, val))
+  # set & get:
+  expect_null(xgb.attr(bst.Tree, "asdf"))
+  expect_null(xgb.attributes(bst.Tree)) # initially, expect no attributes
+  xgb.attr(bst.Tree, "my_attr") <- val
+  expect_equal(xgb.attr(bst.Tree, "my_attr"), val)
+  xgb.attributes(bst.Tree) <- list.val
+  expect_equal(xgb.attributes(bst.Tree), list.ch)
+  # serializing:
+  xgb.save(bst.Tree, 'xgb.model')
+  bst <- xgb.load('xgb.model')
+  expect_equal(xgb.attr(bst, "my_attr"), val)
+  expect_equal(xgb.attributes(bst), list.ch)
+  # deletion:
+  xgb.attr(bst, "my_attr") <- NULL
+  expect_null(xgb.attr(bst, "my_attr"))
+  expect_equal(xgb.attributes(bst), list.ch[c("a", "b")])
+  xgb.attributes(bst) <- list(a=NULL, b=NULL)
+  expect_null(xgb.attributes(bst))
+})
+
 test_that("xgb.model.dt.tree works with and without feature names", {
-  names.dt.trees <- c("ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover",
-   "Tree", "Yes.Feature", "Yes.Cover", "Yes.Quality", "No.Feature", "No.Cover", "No.Quality")
+  names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
   dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
   expect_equal(names.dt.trees, names(dt.tree))
-  expect_equal(dim(dt.tree), c(162, 15))
+  expect_equal(dim(dt.tree), c(162, 10))
   xgb.model.dt.tree(model = bst.Tree)
 })
 

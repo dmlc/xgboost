@@ -1,7 +1,6 @@
 import xgboost as xgb
+import testing as tm
 import numpy as np
-from sklearn.metrics import mean_squared_error
-from sklearn.datasets import load_digits
 import unittest
 
 rng = np.random.RandomState(1337)
@@ -29,6 +28,10 @@ class TestTrainingContinuation(unittest.TestCase):
     }
 
     def test_training_continuation(self):
+        tm._skip_if_no_sklearn()
+        from sklearn.datasets import load_digits
+        from sklearn.metrics import mean_squared_error
+
         digits_2class = load_digits(2)
         digits_5class = load_digits(5)
 
