@@ -121,7 +121,7 @@ def test_boston_housing_regression_with_sample_weights():
     boston = load_boston()
     y = boston['target']
     X = boston['data']
-    sample_weight = np.ones_like(y) / len(y)
+    sample_weight = np.ones_like(y, 'float')
     kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
 
     for train_index, test_index in kf:
@@ -138,9 +138,9 @@ def test_boston_housing_regression_with_sample_weights():
         labels = y[test_index]
 
         assert mean_squared_error(preds, labels) < 25
-        assert mean_squared_error(preds2, labels) < 350
+        assert mean_squared_error(preds2, labels) < 370
         assert mean_squared_error(preds3, labels) < 25
-        assert mean_squared_error(preds4, labels) < 350
+        assert mean_squared_error(preds4, labels) < 370
 
 
 def test_parameter_tuning():
