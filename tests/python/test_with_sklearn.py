@@ -112,6 +112,7 @@ def test_boston_housing_regression():
         assert mean_squared_error(preds3, labels) < 25
         assert mean_squared_error(preds4, labels) < 350
 
+
 def test_boston_housing_regression_with_sample_weights():
     tm._skip_if_no_sklearn()
     from sklearn.metrics import mean_squared_error
