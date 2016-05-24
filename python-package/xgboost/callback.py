@@ -41,9 +41,10 @@ def print_evaluation(period=1, show_stdv=True):
         if env.rank != 0 or len(env.evaluation_result_list) == 0:
             return
         i = env.iteration
-        if (i % period == 0 or i + 1 == env.begin_iteration):
-            msg = '\t'.join([_fmt_metric(x, show_stdv) for x in env.evaluation_result_list])
-            rabit.tracker_print('[%d]\t%s\n' % (i, msg))
+        if period != False:
+            if (i % period == 0 or i + 1 == env.begin_iteration):
+                msg = '\t'.join([_fmt_metric(x, show_stdv) for x in env.evaluation_result_list])
+                rabit.tracker_print('[%d]\t%s\n' % (i, msg))
     return callback
 
 
