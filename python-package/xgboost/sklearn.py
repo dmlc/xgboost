@@ -80,9 +80,9 @@ class XGBModel(XGBModelBase):
     colsample_bylevel : float
         Subsample ratio of columns for each split, in each level.
     reg_alpha : float (xgb's alpha)
-        L2 regularization term on weights
-    reg_lambda : float (xgb's lambda)
         L1 regularization term on weights
+    reg_lambda : float (xgb's lambda)
+        L2 regularization term on weights
     scale_pos_weight : float
         Balancing of positive and negative weights.
 
