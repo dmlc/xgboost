@@ -297,6 +297,7 @@ void CLIPredict(const CLIParam& param) {
   std::unique_ptr<Learner> learner(Learner::Create({}));
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
+  learner->Configure(param.cfg);
   learner->Load(fi.get());
 
   if (param.silent == 0) {
