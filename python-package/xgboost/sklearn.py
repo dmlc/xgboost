@@ -444,6 +444,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose)
 
+        self.objective = xgb_options["objective"]
         if evals_result:
             for val in evals_result.items():
                 evals_result_key = list(val[1].keys())[0]
