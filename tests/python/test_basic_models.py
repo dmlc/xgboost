@@ -105,6 +105,16 @@ class TestModels(unittest.TestCase):
                    if int(preds2[i] > 0.5) != labels[i]) / float(len(preds2))
         assert err == err2
 
+    def test_multi_eval_metric(self):
+        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        param = {'max_depth': 2, 'eta': 0.2, 'silent': 1, 'objective': 'binary:logistic'}
+        param['eval_metric'] = ["auc", "logloss", 'error']
+        evals_result = {}
+        bst = xgb.train(param, dtrain, 4, watchlist, evals_result=evals_result)
+        assert isinstance(bst, xgb.core.Booster)
+        assert len(evals_result['eval']) == 3
+        assert set(evals_result['eval'].keys()) == {'auc', 'error', 'logloss'}
+
     def test_fpreproc(self):
         param = {'max_depth': 2, 'eta': 1, 'silent': 1,
                  'objective': 'binary:logistic'}

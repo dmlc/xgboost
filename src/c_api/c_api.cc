@@ -33,7 +33,10 @@ class Booster {
 
   inline void SetParam(const std::string& name, const std::string& val) {
     auto it = std::find_if(cfg_.begin(), cfg_.end(),
-      [&name](decltype(*cfg_.begin()) &x) {
+      [&name, &val](decltype(*cfg_.begin()) &x) {
+        if (name == "eval_metric") {
+          return x.first == name && x.second == val;
+        }
         return x.first == name;
       });
     if (it == cfg_.end()) {
