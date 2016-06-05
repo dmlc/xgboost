@@ -111,6 +111,7 @@ class TestModels(unittest.TestCase):
         param['eval_metric'] = ["auc", "logloss", 'error']
         evals_result = {}
         bst = xgb.train(param, dtrain, 4, watchlist, evals_result=evals_result)
+        assert isinstance(bst, xgb.core.Booster)
         assert len(evals_result['eval']) == 3
         assert set(evals_result['eval'].keys()) == {'auc', 'error', 'logloss'}
 
