@@ -271,6 +271,7 @@ void CLIDump2Text(const CLIParam& param) {
   std::unique_ptr<Learner> learner(Learner::Create({}));
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
+  learner->Configure(param.cfg);
   learner->Load(fi.get());
   // dump data
   std::vector<std::string> dump = learner->Dump2Text(fmap, param.dump_stats);
