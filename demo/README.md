@@ -66,6 +66,7 @@ However, the parameter settings can be applied to all versions
 
 - [Starter script for Kaggle Higgs Boson](kaggle-higgs)
 - [Kaggle Tradeshift winning solution by daxiongshu](https://github.com/daxiongshu/kaggle-tradeshift-winning-solution)
+- [Benchmarking the most commonly used open source tools for binary classification](https://github.com/szilard/benchm-ml#boosting-gradient-boosted-treesgradient-boosting-machines)
 
 
 ## Machine Learning Challenge Winning Solutions
