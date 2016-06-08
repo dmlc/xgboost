@@ -13,7 +13,8 @@ In R-package, you can use .(dot) to replace under score in the parameters, for e
 General Parameters
 ------------------
 * booster [default=gbtree]
-  - which booster to use, can be gbtree or gblinear. gbtree uses tree based model while gblinear uses linear function.
+  - which booster to use, can be gbtree, gblinear or dart.
+  　gbtree and dart use tree based model while gblinear uses linear function.
 * silent [default=0]
   - 0 means printing running messages, 1 means silent mode.
 * nthread [default to maximum number of threads available if not set]
@@ -73,6 +74,28 @@ Parameters for Tree Booster
   - range: (0, 1)
 * scale_pos_weight, [default=0]
   - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: sum(negative  cases) / sum(positive cases) See [Parameters Tuning](how_to/param_tuning.md) for more discussion. Also see Higgs Kaggle competition demo for examples: [R](../demo/kaggle-higgs/higgs-train.R ), [py1](../demo/kaggle-higgs/higgs-numpy.py ), [py2](../demo/kaggle-higgs/higgs-cv.py ), [py3](../demo/guide-python/cross_validation.py)
+
+Additional parameters for Dart Booster
+--------------------------------------
+* sample_type [default="uniform"]
+  - type of sampling algorithm.
+    - "uniform": dropped trees are selected uniformly.
+    - "weighted": dropped trees are selected in proportion to weight.
+* normalize_type [default="tree]
+  - type of normalization algorithm.
+    - "tree": New trees have the same weight of each of dropped trees.
+              weight of new trees are learning_rate / (k + learnig_rate)
+              dropped trees are scaled by a factor of k / (k + learning_rate)
+    - "forest": New trees have the same weight of sum of dropped trees (forest).
+                weight of new trees are learning_rate / (1 + learning_rate)
+                dropped trees are scaled by a factor of 1 / (1 + learning_rate)
+* rate_drop [default=0.0]
+  - dropout rate.
+  - range: [0.0, 1.0]
+* skip_drop [default=0.0]
+  - probability of skip dropout.
+    If a dropout is skipped, new trees are added in the same manner as gbtree.
+  - range: [0.0, 1.0]
 
 Parameters for Linear Booster
 -----------------------------
