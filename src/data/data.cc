@@ -223,6 +223,10 @@ DMatrix* DMatrix::Load(const std::string& uri,
       LOG(CONSOLE) << info.base_margin.size()
                    << " base_margin are loaded from " << fname << ".base_margin";
     }
+    if (MetaTryLoadFloatInfo(fname + ".weight", &info.weights) && !silent) {
+      LOG(CONSOLE) << info.weights.size()
+                   << " weights are loaded from " << fname << ".weight";
+    }
   }
   return dmat;
 }

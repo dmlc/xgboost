@@ -1,5 +1,5 @@
 import xgboost as xgb
-import xgboost.testing as tm
+import testing as tm
 import numpy as np
 import unittest
 

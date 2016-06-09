@@ -66,6 +66,7 @@ However, the parameter settings can be applied to all versions
 
 - [Starter script for Kaggle Higgs Boson](kaggle-higgs)
 - [Kaggle Tradeshift winning solution by daxiongshu](https://github.com/daxiongshu/kaggle-tradeshift-winning-solution)
+- [Benchmarking the most commonly used open source tools for binary classification](https://github.com/szilard/benchm-ml#boosting-gradient-boosted-treesgradient-boosting-machines)
 
 
 ## Machine Learning Challenge Winning Solutions
@@ -85,6 +86,10 @@ Please send pull requests if you find ones that are missing here.
 - Owen Zhang, 1st place of the [Avito Context Ad Clicks competition](https://www.kaggle.com/c/avito-context-ad-clicks). Link to [the Kaggle interview](http://blog.kaggle.com/2015/08/26/avito-winners-interview-1st-place-owen-zhang/).
 - Keiichi Kuroyanagi, 2nd place of the [Airbnb New User Bookings](https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings). Link to [the Kaggle interview](http://blog.kaggle.com/2016/03/17/airbnb-new-user-bookings-winners-interview-2nd-place-keiichi-kuroyanagi-keiku/).
 - Marios Michailidis, Mathias Müller and Ning Situ, 1st place [Homesite Quote Conversion](https://www.kaggle.com/c/homesite-quote-conversion). Link to [the Kaggle interview](http://blog.kaggle.com/2016/04/08/homesite-quote-conversion-winners-write-up-1st-place-kazanova-faron-clobber/).
+
+## Talks
+- [XGBoost: A Scalable Tree Boosting System](http://datascience.la/xgboost-workshop-and-meetup-talk-with-tianqi-chen/) (video+slides) by Tianqi Chen at the Los Angeles Data Science meetup
+
 ## Tutorials
 
 - [XGBoost Official RMarkdown Tutorials](https://xgboost.readthedocs.org/en/latest/R-package/index.html#tutorials)

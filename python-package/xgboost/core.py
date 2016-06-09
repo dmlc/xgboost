@@ -1,5 +1,6 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments, too-many-branches
+# pylint: disable=too-many-arguments, too-many-branches, invalid-name
+# pylint: disable=too-many-branches, too-many-lines, W0141
 """Core XGBoost Library."""
 from __future__ import absolute_import
 
@@ -20,6 +21,31 @@ from .compat import STRING_TYPES, PY3, DataFrame, py_str, PANDAS_INSTALLED
 class XGBoostError(Exception):
     """Error throwed by xgboost trainer."""
     pass
+
+
+class EarlyStopException(Exception):
+    """Exception to signal early stopping.
+
+    Parameters
+    ----------
+    best_iteration : int
+        The best iteration stopped.
+    """
+    def __init__(self, best_iteration):
+        super(EarlyStopException, self).__init__()
+        self.best_iteration = best_iteration
+
+
+# Callback environment used by callbacks
+CallbackEnv = collections.namedtuple(
+    "XGBoostCallbackEnv",
+    ["model",
+     "cvfolds",
+     "iteration",
+     "begin_iteration",
+     "end_iteration",
+     "rank",
+     "evaluation_result_list"])
 
 
 def from_pystr_to_cstr(data):
@@ -657,7 +683,7 @@ class Booster(object):
     def __copy__(self):
         return self.__deepcopy__(None)
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, _):
         return Booster(model_file=self.save_raw())
 
     def copy(self):
@@ -975,7 +1001,6 @@ class Booster(object):
             _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
 
     def dump_model(self, fout, fmap='', with_stats=False):
-        # pylint: disable=consider-using-enumerate
         """
         Dump model into a text file.
 
@@ -1143,10 +1168,12 @@ class Booster(object):
                 msg = 'feature_names mismatch: {0} {1}'
 
                 if dat_missing:
-                    msg += '\nexpected ' + ', '.join(str(s) for s in dat_missing) + ' in input data'
+                    msg += ('\nexpected ' + ', '.join(str(s) for s in dat_missing) +
+                            ' in input data')
 
                 if my_missing:
-                    msg += '\ntraining data did not have the following fields: ' + ', '.join(str(s) for s in my_missing)
+                    msg += ('\ntraining data did not have the following fields: ' +
+                            ', '.join(str(s) for s in my_missing))
 
                 raise ValueError(msg.format(self.feature_names,
                                             data.feature_names))
@@ -1161,23 +1188,25 @@ class Booster(object):
             The name of feature map file.
         bin: int, default None
             The maximum number of bins.
-            Number of bins equals number of unique split values n_unique, if bins == None or bins > n_unique.
+            Number of bins equals number of unique split values n_unique,
+            if bins == None or bins > n_unique.
         as_pandas : bool, default True
             Return pd.DataFrame when pandas is installed.
             If False or pandas is not installed, return numpy ndarray.
 
         Returns
         -------
-        a histogram of used splitting values for the specified feature either as numpy array or pandas DataFrame.
+        a histogram of used splitting values for the specified feature
+        either as numpy array or pandas DataFrame.
         """
         xgdump = self.get_dump(fmap=fmap)
         values = []
-        regexp = re.compile("\[{0}<([\d.Ee+-]+)\]".format(feature))
+        regexp = re.compile(r"\[{0}<([\d.Ee+-]+)\]".format(feature))
         for i in range(len(xgdump)):
             m = re.findall(regexp, xgdump[i])
             values.extend(map(float, m))
 
-        n_unique = np.unique(values).shape[0]
+        n_unique = len(np.unique(values))
         bins = max(min(n_unique, bins) if bins is not None else n_unique, 1)
 
         nph = np.histogram(values, bins=bins)
@@ -1187,7 +1216,8 @@ class Booster(object):
         if as_pandas and PANDAS_INSTALLED:
             return DataFrame(nph, columns=['SplitValue', 'Count'])
         elif as_pandas and not PANDAS_INSTALLED:
-            sys.stderr.write("Returning histogram as ndarray (as_pandas == True, but pandas is not installed).")
+            sys.stderr.write(
+                "Returning histogram as ndarray (as_pandas == True, but pandas is not installed).")
             return nph
         else:
             return nph
