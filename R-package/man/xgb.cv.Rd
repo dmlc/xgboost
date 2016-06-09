@@ -6,8 +6,9 @@
 \usage{
 xgb.cv(params = list(), data, nrounds, nfold, label = NULL, missing = NA,
   prediction = FALSE, showsd = TRUE, metrics = list(), obj = NULL,
-  feval = NULL, stratified = TRUE, folds = NULL, verbose = T,
-  print.every.n = 1L, early.stop.round = NULL, maximize = NULL, ...)
+  feval = NULL, stratified = TRUE, folds = NULL, verbose = TRUE,
+  print.every.n = 1L, early.stop.round = NULL, maximize = NULL,
+  callbacks = list(), ...)
 }
 \arguments{
 \item{params}{the list of parameters. Commonly used ones are:
@@ -40,7 +41,7 @@ value that represents missing value. Sometime a data use 0 or other extreme valu
 
 \item{showsd}{\code{boolean}, whether show standard deviation of cross validation}
 
-\item{metrics, }{list of evaluation metrics to be used in corss validation,
+\item{metrics, }{list of evaluation metrics to be used in cross validation,
   when it is not specified, the evaluation metric is chosen according to objective function.
   Possible options are:
 \itemize{
@@ -69,7 +70,7 @@ If folds are supplied, the nfold and stratified parameters would be ignored.}
 
 \item{early.stop.round}{If \code{NULL}, the early stopping function is not triggered. 
 If set to an integer \code{k}, training with a validation set will stop if the performance 
-keeps getting worse consecutively for \code{k} rounds.}
+doesn't improve for \code{k} rounds.}
 
 \item{maximize}{If \code{feval} and \code{early.stop.round} are set, then \code{maximize} must be set as well.
 \code{maximize=TRUE} means the larger the evaluation score the better.}
@@ -77,6 +78,8 @@ keeps getting worse consecutively for \code{k} rounds.}
 \item{...}{other parameters to pass to \code{params}.}
 }
 \value{
+TODO: update this...
+
 If \code{prediction = TRUE}, a list with the following elements is returned:
 \itemize{
   \item \code{dt} a \code{data.table} with each mean and standard deviation stat for training set and test set
@@ -105,5 +108,6 @@ dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 history <- xgb.cv(data = dtrain, nround=3, nthread = 2, nfold = 5, metrics=list("rmse","auc"),
                   max.depth =3, eta = 1, objective = "binary:logistic")
 print(history)
+
 }
 
