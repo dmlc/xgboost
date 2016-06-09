@@ -234,7 +234,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' train <- agaricus.train
-#' cv <- xgbcv(data = train$data, label = train$label, max.depth = 2,
+#' cv <- xgb.cv(data = train$data, label = train$label, nfold = 5, max.depth = 2,
 #'                eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
 #' print(cv)
 #' print(cv, verbose=TRUE)
@@ -269,8 +269,7 @@ print.xgb.cv.synchronous <- function(x, verbose=FALSE, ...) {
         next
       cat(n, ': ', x[[n]], '\n', sep='')
     }
-    cat('nfolds: ', length(x$folds), '\n', sep='')
-    
+
     if (!is.null(x$pred)) {
       cat('pred:\n')
       str(x$pred)
