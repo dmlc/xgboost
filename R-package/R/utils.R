@@ -1,181 +1,219 @@
-#' @importClassesFrom Matrix dgCMatrix dgeMatrix
-#' @import methods
+#
+# This file is for the low level reuseable utility functions
+# that are not supposed to be visibe to a user.
+#
 
-# depends on matrix
-.onLoad <- function(libname, pkgname) {
-  library.dynam("xgboost", pkgname, libname)
-}
-.onUnload <- function(libpath) {
-  library.dynam.unload("xgboost", libpath)
-}
+#
+# General helper utilities ----------------------------------------------------
+#
 
-
-## ----the following are low level iterative functions, not needed if
-## you do not want to use them ---------------------------------------
-
-# iteratively update booster with customized statistics
-xgb.iter.boost <- function(booster, dtrain, gpair) {
-  if (class(booster) != "xgb.Booster.handle") {
-    stop("xgb.iter.update: first argument must be type xgb.Booster.handle")
+# SQL-style NVL shortcut.
+NVL <- function(x, val) {
+  if (is.null(x))
+    return(val)
+  if (is.vector(x)) {
+    x[is.na(x)] <- val
+    return(x)
   }
-  if (class(dtrain) != "xgb.DMatrix") {
-    stop("xgb.iter.update: second argument must be type xgb.DMatrix")
-  }
-  .Call("XGBoosterBoostOneIter_R", booster, dtrain, gpair$grad, gpair$hess, PACKAGE = "xgboost")
-  return(TRUE)
+  if (typeof(x) == 'closure')
+    return(x)
+  stop('x of unsupported for NVL type')
 }
 
-# iteratively update booster with dtrain
+
+#
+# Low-level functions for boosting --------------------------------------------
+#
+
+# Merges booster params with whatever is provided in ...
+# plus runs some checks
+check.params <- function(params, ...) {
+  if (typeof(params) != "list") 
+    stop("params must be a list")
+  
+  # in R interface, allow for '.' instead of '_' in parameter names
+  names(params) <- gsub("\\.", "_", names(params))
+  
+  # merge parameters from the params and the dots-expansion
+  dot.params <- list(...)
+  names(dot.params) <- gsub("\\.", "_", names(dot.params))
+  if (length(intersect(names(params), names(dot.params))) > 0)
+    stop("Same parameters in 'params' and in the call are not allowed. Please check your 'params' list.")
+  params <- c(params, dot.params)
+  
+  # only multiple eval_metric's make sense
+  name.freqs <- table(names(params))
+  multi.names <- setdiff( names(name.freqs[name.freqs>1]), 'eval_metric')
+  if (length(multi.names) > 0) {
+    warning("The following parameters (other than 'eval_metric') were provided multiple times:\n\t",
+            paste(multi.names, collapse=', '), "\n  Only the last value for each of them will be used.\n")
+    # While xgboost itself would choose the last value for a multi-parameter, 
+    # will do some clean-up here b/c multi-parameters could be used further in R code, and R would 
+    # pick the 1st (not the last) value when multiple elements with the same name are present in a list.
+    for (n in multi.names) {
+      del.idx <- which(n == names(params))
+      del.idx <- del.idx[-length(del.idx)]
+      params[[del.idx]] <- NULL
+    }
+  }
+  
+  # for multiclass, expect num_class to be set
+  if (typeof(params[['objective']]) == "character" &&
+    substr(NVL(params[['objective']], 'x'), 1, 6) == 'multi:') {
+    if (as.numeric(NVL(params[['num_class']], 0)) < 2)
+      stop("'num_class' > 1 parameter must be set for multiclass classification")
+  }
+  
+  return(params)
+}
+
+
+# Performs some checks related to custom objective function.
+# WARNING: has side-effects and can modify 'params' and 'obj' in its calling frame
+check.custom.obj <- function(env = parent.frame()) {
+  if (!is.null(env$params[['objective']]) && !is.null(env$obj))
+    stop("Setting objectives in 'params' and 'obj' at the same time is not allowed")
+  
+  if (!is.null(env$obj) && typeof(env$obj) != 'closure')
+    stop("'obj' must be a function")
+  
+  # handle the case when custom objective function was provided through params
+  if (!is.null(env$params[['objective']]) &&
+      typeof(env$params$objective) == 'closure') {
+    env$obj <- env$params$objective
+    p <- env$params
+    p$objective <- NULL
+    env$params <- p
+  }
+}
+
+# Performs some checks related to custom evaluation function.
+# WARNING: has side-effects and can modify 'params' and 'feval' in its calling frame
+check.custom.eval <- function(env = parent.frame()) {
+  if (!is.null(env$params[['eval_metric']]) && !is.null(env$feval))
+    stop("Setting evaluation metrics in 'params' and 'feval' at the same time is not allowed")
+  
+  if (!is.null(env$feval) && typeof(env$feval) != 'closure')
+    stop("'feval' must be a function")
+  
+  if (!is.null(env$feval) && is.null(env$maximize))
+    stop("Please set 'maximize' to indicate whether the metric needs to be maximized or not")
+  
+  # handle the situation when custom eval function was provided through params
+  if (!is.null(env$params[['eval_metric']]) &&
+      typeof(env$params$eval_metric) == 'closure') {
+    env$feval <- env$params$eval_metric
+    p <- env$params
+    p[ which(names(p) == 'eval_metric') ] <- NULL
+    env$params <- p
+  }
+}
+
+
+# Update booster with dtrain for an iteration
 xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
   if (class(booster) != "xgb.Booster.handle") {
-    stop("xgb.iter.update: first argument must be type xgb.Booster.handle")
+    stop("first argument type must be xgb.Booster.handle")
   }
   if (class(dtrain) != "xgb.DMatrix") {
-    stop("xgb.iter.update: second argument must be type xgb.DMatrix")
+    stop("second argument type must be xgb.DMatrix")
   }
 
   if (is.null(obj)) {
     .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain,
           PACKAGE = "xgboost")
-    } else {
+  } else {
     pred <- predict(booster, dtrain)
     gpair <- obj(pred, dtrain)
-    succ <- xgb.iter.boost(booster, dtrain, gpair)
+    .Call("XGBoosterBoostOneIter_R", booster, dtrain, gpair$grad, gpair$hess, PACKAGE = "xgboost")
   }
   return(TRUE)
 }
 
-# iteratively evaluate one iteration
-xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL, prediction = FALSE) {
-  if (class(booster) != "xgb.Booster.handle") {
-    stop("xgb.eval: first argument must be type xgb.Booster")
-  }
-  if (typeof(watchlist) != "list") {
-    stop("xgb.eval: only accepts list of DMatrix as watchlist")
-  }
-  for (w in watchlist) {
-    if (class(w) != "xgb.DMatrix") {
-      stop("xgb.eval: watch list can only contain xgb.DMatrix")
-    }
-  }
-  if (length(watchlist) != 0) {
-    if (is.null(feval)) {
-      evnames <- list()
-      for (i in 1:length(watchlist)) {
-        w <- watchlist[i]
-        if (length(names(w)) == 0) {
-          stop("xgb.eval: name tag must be presented for every elements in watchlist")
-        }
-        evnames <- append(evnames, names(w))
-      }
-      msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist,
-                   evnames, PACKAGE = "xgboost")
-    } else {
-      msg <- paste("[", iter, "]", sep="")
-      for (j in 1:length(watchlist)) {
-        w <- watchlist[j]
-        if (length(names(w)) == 0) {
-          stop("xgb.eval: name tag must be presented for every elements in watchlist")
-        }
-        preds <- predict(booster, w[[1]])
-        ret <- feval(preds, w[[1]])
-        msg <- paste(msg, "\t", names(w), "-", ret$metric, ":", ret$value, sep="")
-      }
-    }
+
+# Evaluate one iteration.
+# Returns a named vector of evaluation metrics 
+# with the names in a 'datasetname-metricname' format.
+xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL) {
+  if (class(booster) != "xgb.Booster.handle")
+    stop("first argument must be type xgb.Booster.handle")
+  if (length(watchlist) == 0) 
+    return(NULL)
+  
+  evnames <- names(watchlist)
+  if (is.null(feval)) {
+    msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist,
+                 as.list(evnames), PACKAGE = "xgboost")
+    msg <- str_split(msg, '(\\s+|:|\\s+)')[[1]][-1]
+    res <- as.numeric(msg[c(FALSE,TRUE)]) # even indices are the values
+    names(res) <- msg[c(TRUE,FALSE)]      # odds are the names
   } else {
-    msg <- ""
+    res <- sapply(seq_along(watchlist), function(j) {
+      w <- watchlist[[j]]
+      preds <- predict(booster, w) # predict using all trees
+      eval_res <- feval(preds, w)
+      out <- eval_res$value
+      names(out) <- paste0(evnames[j], "-", eval_res$metric)
+      out
+    })
   }
-  if (prediction){
-    preds <- predict(booster,watchlist[[2]])
-    return(list(msg,preds))
-  }
-  return(msg)
+  return(res)
 }
 
-#------------------------------------------
-# helper functions for cross validation
+
 #
-xgb.cv.mknfold <- function(dall, nfold, param, stratified, folds) {
-  if (nfold <= 1) {
-    stop("nfold must be bigger than 1")
-  }
-  if(is.null(folds)) {
-    if (exists('objective', where=param) && is.character(param$objective) &&
-        strtrim(param[['objective']], 5) == 'rank:') {
-      stop("\tAutomatic creation of CV-folds is not implemented for ranking!\n",
-           "\tConsider providing pre-computed CV-folds through the folds parameter.")
-    }
-    y <- getinfo(dall, 'label')
-    randidx <- sample(1 : nrow(dall))
-    if (stratified & length(y) == length(randidx)) {
-      y <- y[randidx]
-      #
-      # WARNING: some heuristic logic is employed to identify classification setting!
-      #
-      # For classification, need to convert y labels to factor before making the folds,
-      # and then do stratification by factor levels.
-      # For regression, leave y numeric and do stratification by quantiles.
-      if (exists('objective', where=param) && is.character(param$objective)) {
-        # If 'objective' provided in params, assume that y is a classification label
-        # unless objective is reg:linear
-        if (param[['objective']] != 'reg:linear') y <- factor(y)
-      } else {
-        # If no 'objective' given in params, it means that user either wants to use
-        # the default 'reg:linear' objective or has provided a custom obj function.
-        # Here, assume classification setting when y has 5 or less unique values:
-        if (length(unique(y)) <= 5) y <- factor(y)
-      }
-      folds <- xgb.createFolds(y, nfold)
+# Helper functions for cross validation ---------------------------------------
+#
+
+# Generates random (stratified if needed) CV folds
+generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
+  
+  # cannot do it for rank
+  if (exists('objective', where=params) &&
+      is.character(params$objective) &&
+      strtrim(params$objective, 5) == 'rank:')
+    stop("\n\tAutomatic generation of CV-folds is not implemented for ranking!\n",
+         "\tConsider providing pre-computed CV-folds through the 'folds=' parameter.\n")
+  
+  # shuffle
+  rnd.idx <- sample(1:nrows)
+  if (stratified &&
+      length(label) == length(rnd.idx)) {
+    y <- label[rnd.idx]
+    # WARNING: some heuristic logic is employed to identify classification setting!
+    #  - For classification, need to convert y labels to factor before making the folds,
+    #    and then do stratification by factor levels.
+    #  - For regression, leave y numeric and do stratification by quantiles.
+    if (exists('objective', where=params) &&
+        is.character(params$objective)) {
+      # If 'objective' provided in params, assume that y is a classification label
+      # unless objective is reg:linear
+      if (params$objective != 'reg:linear')
+        y <- factor(y)
     } else {
-      # make simple non-stratified folds
-      kstep <- length(randidx) %/% nfold
-      folds <- list()
-      for (i in 1:(nfold - 1)) {
-        folds[[i]] <- randidx[1:kstep]
-        randidx <- setdiff(randidx, folds[[i]])
-      }
-      folds[[nfold]] <- randidx
+      # If no 'objective' given in params, it means that user either wants to use
+      # the default 'reg:linear' objective or has provided a custom obj function.
+      # Here, assume classification setting when y has 5 or less unique values:
+      if (length(unique(y)) <= 5)
+        y <- factor(y)
     }
-  }
-  ret <- list()
-  for (k in 1:nfold) {
-    dtest <- slice(dall, folds[[k]])
-    didx <- c()
-    for (i in 1:nfold) {
-      if (i != k) {
-        didx <- append(didx, folds[[i]])
-      }
+    folds <- xgb.createFolds(y, nfold)
+  } else {
+    # make simple non-stratified folds
+    kstep <- length(rnd.idx) %/% nfold
+    folds <- list()
+    for (i in 1:(nfold - 1)) {
+      folds[[i]] <- rnd.idx[1:kstep]
+      rnd.idx <- rnd.idx[-(1:kstep)]
     }
-    dtrain <- slice(dall, didx)
-    bst <- xgb.Booster(param, list(dtrain, dtest))
-    watchlist <- list(train=dtrain, test=dtest)
-    ret[[k]] <- list(dtrain=dtrain, booster=bst, watchlist=watchlist, index=folds[[k]])
+    folds[[nfold]] <- rnd.idx
   }
-  return (ret)
+  return(folds)
 }
 
-xgb.cv.aggcv <- function(res, showsd = TRUE) {
-  header <- res[[1]]
-  ret <- header[1]
-  for (i in 2:length(header)) {
-    kv <- strsplit(header[i], ":")[[1]]
-    ret <- paste(ret, "\t", kv[1], ":", sep="")
-    stats <- c()
-    stats[1] <- as.numeric(kv[2])
-    for (j in 2:length(res)) {
-      tkv <- strsplit(res[[j]][i], ":")[[1]]
-      stats[j] <- as.numeric(tkv[2])
-    }
-    ret <- paste(ret, sprintf("%f", mean(stats)), sep="")
-    if (showsd) {
-      ret <- paste(ret, sprintf("+%f", stats::sd(stats)), sep="")
-    }
-  }
-  return (ret)
-}
-
-# Shamelessly copied from caret::createFolds
-# and simplified by always returning an unnamed list of test indices
+# Creates CV folds stratified by the values of y.
+# It was borrowed from caret::createFolds and simplified
+# by always returning an unnamed list of fold indices.
 xgb.createFolds <- function(y, k = 10)
 {
   if(is.numeric(y)) {
