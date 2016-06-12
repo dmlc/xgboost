@@ -82,4 +82,28 @@ class DMatrixSuite extends FunSuite {
     dmat0.setWeight(weights)
     assert(weights === dmat0.getWeight)
   }
+
+  test("create DMatrix from DenseMatrix with missing value") {
+    val nrow = 10
+    val ncol = 5
+    val data0 = new Array[Float](nrow * ncol)
+    // put random nums
+    for (i <- data0.indices) {
+      if (i % 10 == 0) {
+        data0(i) = -0.1f
+      } else {
+        data0(i) = Random.nextFloat()
+      }
+    }
+    // create label
+    val label0 = new Array[Float](nrow)
+    for (i <- label0.indices) {
+      label0(i) = Random.nextFloat()
+    }
+    val dmat0 = new DMatrix(data0, nrow, ncol, -0.1f)
+    dmat0.setLabel(label0)
+    // check
+    assert(dmat0.rowNum === 10)
+    assert(dmat0.getLabel.length === 10)
+  }
 }

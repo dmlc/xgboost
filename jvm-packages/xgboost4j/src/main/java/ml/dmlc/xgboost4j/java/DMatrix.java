@@ -119,6 +119,19 @@ public class DMatrix {
   }
 
   /**
+   * create DMatrix from dense matrix
+   * @param data data values
+   * @param nrow number of rows
+   * @param ncol number of columns
+   * @param missing the specified value to be used to represent the missing value
+   */
+  public DMatrix(float[] data, int nrow, int ncol, float missing) throws XGBoostError {
+    long[] out = new long[1];
+    JNIErrorHandle.checkCall(XGBoostJNI.XGDMatrixCreateFromMat(data, nrow, ncol, missing, out));
+    handle = out[0];
+  }
+
+  /**
    * used for DMatrix slice
    */
   protected DMatrix(long handle) {
