@@ -123,7 +123,7 @@ public class DMatrix {
    * @param data data values
    * @param nrow number of rows
    * @param ncol number of columns
-   * @param missing the specified value to be used to represent the missing value
+   * @param missing the specified value to represent the missing value
    */
   public DMatrix(float[] data, int nrow, int ncol, float missing) throws XGBoostError {
     long[] out = new long[1];
