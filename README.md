@@ -22,7 +22,7 @@ What's New
 ----------
 * [XGBoost4J: Portable Distributed XGboost in Spark, Flink and Dataflow](http://dmlc.ml/2016/03/14/xgboost4j-portable-distributed-xgboost-in-spark-flink-and-dataflow.html), see [JVM-Package](https://github.com/dmlc/xgboost/tree/master/jvm-packages)
 * [Story and Lessons Behind the Evolution of XGBoost](http://homes.cs.washington.edu/~tqchen/2016/03/10/story-and-lessons-behind-the-evolution-of-xgboost.html)
-* [Tutorial: Distributed XGBoost on AWS with YARN](https://xgboost.readthedocs.org/en/latest/tutorial/aws_yarn.html)
+* [Tutorial: Distributed XGBoost on AWS with YARN](https://xgboost.readthedocs.io/en/latest/tutorials/aws_yarn.html)
 * [XGBoost brick](NEWS.md) Release
 
 Ask a Question
