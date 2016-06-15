@@ -214,7 +214,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
 
   test("test with dense vectors containing missing value") {
     def buildDenseRDD(): RDD[LabeledPoint] = {
-      val nrow = 10
+      val nrow = 100
       val ncol = 5
       val data0 = Array.ofDim[Double](nrow, ncol)
       // put random nums
