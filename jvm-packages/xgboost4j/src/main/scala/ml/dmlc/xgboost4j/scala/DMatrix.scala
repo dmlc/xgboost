@@ -68,6 +68,19 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   }
 
   /**
+   * create DMatrix from dense matrix
+   *
+   * @param data data values
+   * @param nrow number of rows
+   * @param ncol number of columns
+   * @param missing the specified value to represent the missing value
+   */
+  @throws(classOf[XGBoostError])
+  def this(data: Array[Float], nrow: Int, ncol: Int, missing: Float) {
+    this(new JDMatrix(data, nrow, ncol, missing))
+  }
+
+  /**
    * set label of dmatrix
    *
    * @param labels labels

@@ -125,4 +125,34 @@ public class DMatrixTest {
 
     TestCase.assertTrue(Arrays.equals(weights, dmat0.getWeight()));
   }
+
+  @Test
+  public void testCreateFromDenseMatrixWithMissingValue() throws XGBoostError {
+    //create DMatrix from 10*5 dense matrix
+    int nrow = 10;
+    int ncol = 5;
+    float[] data0 = new float[nrow * ncol];
+    //put random nums
+    Random random = new Random();
+    for (int i = 0; i < nrow * ncol; i++) {
+      if (i % 10 == 0) {
+        data0[i] = -0.1f;
+      } else {
+        data0[i] = random.nextFloat();
+      }
+    }
+
+    //create label
+    float[] label0 = new float[nrow];
+    for (int i = 0; i < nrow; i++) {
+      label0[i] = random.nextFloat();
+    }
+
+    DMatrix dmat0 = new DMatrix(data0, nrow, ncol, -0.1f);
+    dmat0.setLabel(label0);
+
+    //check
+    TestCase.assertTrue(dmat0.rowNum() == 10);
+    TestCase.assertTrue(dmat0.getLabel().length == 10);
+  }
 }
