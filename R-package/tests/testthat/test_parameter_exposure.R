@@ -11,13 +11,13 @@ dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 bst <- xgboost(data = dtrain,
                max_depth = 2,
                eta = 1,
-               nround = 10,
+               nrounds = 10,
                nthread = 1,
                verbose = 0,
                objective = "binary:logistic")
 
 test_that("call is exposed to R", {
-  expect_true(!is.null(bst$call))
+  expect_false(is.null(bst$call))
   expect_is(bst$call, "call")
 })
 

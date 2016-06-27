@@ -24,22 +24,22 @@ evalerror <- function(preds, dtrain) {
   return(list(metric = "error", value = err))
 }
 
-param <- list(max.depth=2, eta=1, nthread = 2,
+param <- list(max_depth=2, eta=1, nthread = 2,
               objective=logregobj, eval_metric=evalerror)
 num_round <- 2
 
 test_that("custom objective works", {
   bst <- xgb.train(param, dtrain, num_round, watchlist)
   expect_equal(class(bst), "xgb.Booster")
-  expect_equal(length(bst$raw), 1064)
-  expect_true(!is.null(bst$evaluation_log))
-  expect_true(!is.null(bst$evaluation_log$eval_error))
+  expect_equal(length(bst$raw), 1094)
+  expect_false(is.null(bst$evaluation_log))
+  expect_false(is.null(bst$evaluation_log$eval_error))
   expect_lt(bst$evaluation_log[num_round, eval_error], 0.03)
 })
 
 test_that("custom objective in CV works", {
   cv <- xgb.cv(param, dtrain, num_round, nfold=10, verbose=FALSE)
-  expect_true(!is.null(cv$evaluation_log))
+  expect_false(is.null(cv$evaluation_log))
   expect_equal(dim(cv$evaluation_log), c(2, 5))
   expect_lt(cv$evaluation_log[num_round, test_error_mean], 0.03)
 })
@@ -58,5 +58,5 @@ test_that("custom objective using DMatrix attr works", {
   param$objective = logregobjattr
   bst <- xgb.train(param, dtrain, num_round, watchlist)
   expect_equal(class(bst), "xgb.Booster")
-  expect_equal(length(bst$raw), 1064)
+  expect_equal(length(bst$raw), 1094)
 })
