@@ -5,8 +5,8 @@
 #' @export
 xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                     params = list(), nrounds,
-                    verbose = 1, print.every.n = 1L, 
-                    early.stop.round = NULL, maximize = NULL, 
+                    verbose = 1, print_every_n = 1L, 
+                    early_stopping_rounds = NULL, maximize = NULL, 
                     save_period = 0, save_name = "xgboost.model",
                     xgb_model = NULL, callbacks = list(), ...) {
 
@@ -16,8 +16,8 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
   if (verbose > 0)
     watchlist$train = dtrain
 
-  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, print.every.n=print.every.n,
-                   early.stop.round = early.stop.round, maximize = maximize,
+  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, print_every_n=print_every_n,
+                   early_stopping_rounds = early_stopping_rounds, maximize = maximize,
                    save_period = save_period, save_name = save_name,
                    xgb_model = xgb_model, callbacks = callbacks, ...)
   return(bst)
@@ -79,15 +79,23 @@ NULL
 
 # Various imports
 #' @importClassesFrom Matrix dgCMatrix dgeMatrix
+#' @importFrom Matrix cBind
+#' @importFrom Matrix colSums
+#' @importFrom Matrix sparse.model.matrix
+#' @importFrom Matrix sparseVector
 #' @importFrom data.table data.table
 #' @importFrom data.table as.data.table
-#' @importFrom magrittr %>%
 #' @importFrom data.table :=
 #' @importFrom data.table rbindlist
+#' @importFrom data.table setnames
+#' @importFrom magrittr %>%
+#' @importFrom stringr str_detect
 #' @importFrom stringr str_extract
-#' @importFrom stringr str_split
-#' @importFrom stringr str_replace
 #' @importFrom stringr str_match
+#' @importFrom stringr str_replace
+#' @importFrom stringr str_replace_all
+#' @importFrom stringr str_split
+#' 
 #' @import methods
 #' @useDynLib xgboost
 NULL
