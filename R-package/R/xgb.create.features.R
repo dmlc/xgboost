@@ -2,12 +2,9 @@
 #' 
 #' May improve the learning by adding new features to the training data based on the decision trees from a previously learned model.
 #' 
-#' @importFrom magrittr %>%
-#' @importFrom Matrix cBind
-#' @importFrom Matrix sparse.model.matrix
-#' 
 #' @param model decision tree boosting model learned on the original data
-#' @param training.data original data (usually provided as a \code{dgCMatrix} matrix)
+#' @param data original data (usually provided as a \code{dgCMatrix} matrix)
+#' @param ... currently not used
 #' 
 #' @return \code{dgCMatrix} matrix including both the original data and the new features.
 #'
@@ -54,7 +51,7 @@
 #' dtrain <- xgb.DMatrix(data = agaricus.train$data, label = agaricus.train$label)
 #' dtest <- xgb.DMatrix(data = agaricus.test$data, label = agaricus.test$label)
 #'
-#' param <- list(max.depth=2, eta=1, silent=1, objective='binary:logistic')
+#' param <- list(max_depth=2, eta=1, silent=1, objective='binary:logistic')
 #' nround = 4
 #'
 #' bst = xgb.train(params = param, data = dtrain, nrounds = nround, nthread = 2)
@@ -79,13 +76,14 @@
 #' cat(paste("The accuracy was", accuracy.before, "before adding leaf features and it is now", accuracy.after, "!\n"))
 #' 
 #' @export
-xgb.create.features <- function(model, training.data){
-  pred_with_leaf = predict(model, training.data, predleaf = TRUE)
+xgb.create.features <- function(model, data, ...){
+  check.deprecation(...)
+  pred_with_leaf = predict(model, data, predleaf = TRUE)
   cols <- list()
   for(i in 1:length(trees)){
     # max is not the real max but it s not important for the purpose of adding features
-    leaf.id <- sort(unique(pred_with_leaf[,i]))
-    cols[[i]] <- factor(x = pred_with_leaf[,i], level = leaf.id)
+    leaf_id <- sort(unique(pred_with_leaf[,i]))
+    cols[[i]] <- factor(x = pred_with_leaf[,i], level = leaf_id)
   }
-  cBind(training.data, sparse.model.matrix( ~ . -1, as.data.frame(cols)))
+  cBind(data, sparse.model.matrix( ~ . -1, as.data.frame(cols)))
 }
