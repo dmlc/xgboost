@@ -45,8 +45,8 @@
 #'     \item \code{binary:logistic} logistic regression for binary classification. Output probability.
 #'     \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
 #'     \item \code{num_class} set the number of classes. To use only with multiclass objectives.
-#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is represented by a number and should be from 0 to \code{num_class}.
-#'     \item \code{multi:softprob} same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging to each class.
+#'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is represented by a number and should be from 0 to \code{num_class - 1}.
+#'     \item \code{multi:softprob} same as softmax, but prediction outputs a vector of ndata * nclass elements, which can be further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging to each class.
 #'     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
 #'   }
 #'   \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
@@ -63,34 +63,41 @@
 #'        the performance of each round's model on mat1 and mat2
 #'
 #' @param obj customized objective function. Returns gradient and second order 
-#'        gradient with given prediction and dtrain, 
+#'        gradient with given prediction and dtrain.
 #' @param feval custimized evaluation function. Returns 
 #'        \code{list(metric='metric-name', value='metric-value')} with given 
-#'        prediction and dtrain,
+#'        prediction and dtrain.
 #' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
-#'        information of performance. If 2, xgboost will print information of both
-#' @param print.every.n Print every N progress messages when \code{verbose>0}.
-#'        Default is 1 which means all messages are printed.
-#' @param early.stop.round If \code{NULL}, the early stopping function is not triggered. 
+#'        information of performance. If 2, xgboost will print some additional information.
+#'        Setting \code{verbose > 0} automatically engages the \code{\link{cb.evaluation.log}} and 
+#'        \code{\link{cb.print.evaluation}} callback functions.
+#' @param print_every_n Print each n-th iteration evaluation messages when \code{verbose>0}.
+#'        Default is 1 which means all messages are printed. This parameter is passed to the 
+#'        \code{\link{cb.print.evaluation}} callback.
+#' @param early_stopping_rounds If \code{NULL}, the early stopping function is not triggered. 
 #'        If set to an integer \code{k}, training with a validation set will stop if the performance 
-#'        keeps getting worse consecutively for \code{k} rounds.
-#' @param maximize If \code{feval} and \code{early.stop.round} are set, 
-#'        then \code{maximize} must be set as well.
-#'        \code{maximize=TRUE} means the larger the evaluation score the better.
-#' @param save_period save the model to the disk after every \code{save_period} rounds, 0 means save at the end.
-#' @param save_name the name or path for periodically saved model file. 
-#' @param xgb_model the previously built model to continue the trainig from. 
+#'        doesn't improve for \code{k} rounds.
+#'        Setting this parameter engages the \code{\link{cb.early.stop}} callback.
+#' @param maximize If \code{feval} and \code{early_stopping_rounds} are set,
+#'        then this parameter must be set as well.
+#'        When it is \code{TRUE}, it means the larger the evaluation score the better.
+#'        This parameter is passed to the \code{\link{cb.early.stop}} callback.
+#' @param save_period when it is non-NULL, model is saved to disk after every \code{save_period} rounds,
+#'        0 means save at the end. The saving is handled by the \code{\link{cb.save.model}} callback.
+#' @param save_name the name or path for periodically saved model file.
+#' @param xgb_model a previously built model to continue the trainig from.
 #'        Could be either an object of class \code{xgb.Booster}, or its raw data, or the name of a 
 #'        file with a previously saved model.
-#' @param callbacks a list of callback functions to perform various task during boosting. 
-#'        See \code{\link{callbacks}}. Some of the callbacks are currently automatically 
-#'        created when specific parameters are set.
+#' @param callbacks a list of callback functions to perform various task during boosting.
+#'        See \code{\link{callbacks}}. Some of the callbacks are automatically created depending on the 
+#'        parameters' values. User can provide either existing or their own callback methods in order 
+#'        to customize the training process.
 #' @param ... other parameters to pass to \code{params}.
-#' @param label the response variable. User should not set this field,
-#'        if data is local data file or \code{xgb.DMatrix}. 
+#' @param label vector of response values. Should not be provided when data is 
+#'        a local data file name or an \code{xgb.DMatrix}.
 #' @param missing by default is set to NA, which means that NA values should be considered as 'missing'
 #'        by the algorithm. Sometimes, 0 or other extreme value might be used to represent missing values.
-#'        This parameter is only used when input is dense matrix,
+#'        This parameter is only used when input is a dense matrix.
 #' @param weight a vector indicating the weight for each row of the input.
 #' 
 #' @details 
@@ -112,25 +119,50 @@
 #'      \item \code{rmse} root mean square error. \url{http://en.wikipedia.org/wiki/Root_mean_square_error}
 #'      \item \code{logloss} negative log-likelihood. \url{http://en.wikipedia.org/wiki/Log-likelihood}
 #'      \item \code{mlogloss} multiclass logloss. \url{https://www.kaggle.com/wiki/MultiClassLogLoss}
-#'      \item \code{error} Binary classification error rate. It is calculated as \code{(wrong cases) / (all cases)}.
+#'      \item \code{error} Binary classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
 #'            By default, it uses the 0.5 threshold for predicted values to define negative and positive instances.
 #'            Different threshold (e.g., 0.) could be specified as "error@0."
-#'      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(wrong cases) / (all cases)}.
+#'      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
 #'      \item \code{auc} Area under the curve. \url{http://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
 #'      \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{http://en.wikipedia.org/wiki/NDCG}
 #'   }
 #' 
 #' The following callbacks are automatically created when certain parameters are set:
 #' \itemize{
-#'   \item \code{cb.print_evaluation} is turned on when \code{verbose > 0};
-#'         and the \code{print.every.n} parameter is passed to it.
-#'   \item \code{cb.log_evaluation} is on when \code{verbose > 0} and \code{watchlist} is present.
-#'   \item \code{cb.early_stop}: when \code{early.stop.round} is set.
-#'   \item \code{cb.save_model}: when \code{save_period > 0} is set.
+#'   \item \code{cb.print.evaluation} is turned on when \code{verbose > 0};
+#'         and the \code{print_every_n} parameter is passed to it.
+#'   \item \code{cb.evaluation.log} is on when \code{verbose > 0} and \code{watchlist} is present.
+#'   \item \code{cb.early.stop}: when \code{early_stopping_rounds} is set.
+#'   \item \code{cb.save.model}: when \code{save_period > 0} is set.
 #' }
 #' 
 #' @return 
-#' TODO
+#' An object of class \code{xgb.Booster} with the following elements:
+#' \itemize{
+#'   \item \code{handle} a handle (pointer) to the xgboost model in memory.
+#'   \item \code{raw} a cached memory dump of the xgboost model saved as R's \code{raw} type.
+#'   \item \code{niter} number of boosting iterations.
+#'   \item \code{evaluation_log} evaluation history storead as a \code{data.table} with the
+#'         first column corresponding to iteration number and the rest corresponding to evaluation
+#'         metrics' values. It is created by the \code{\link{cb.evaluation.log}} callback.
+#'   \item \code{call} a function call.
+#'   \item \code{params} parameters that were passed to the xgboost library. Note that it does not 
+#'         capture parameters changed by the \code{\link{cb.reset.parameters}} callback.
+#'   \item \code{callbacks} callback functions that were either automatically assigned or 
+#'         explicitely passed.
+#'   \item \code{best_iteration} iteration number with the best evaluation metric value
+#'         (only available with early stopping).
+#'   \item \code{best_ntreelimit} the \code{ntreelimit} value corresponding to the best iteration, 
+#'         which could further be used in \code{predict} method
+#'         (only available with early stopping).
+#'   \item \code{best_score} the best evaluation metric value during early stopping.
+#'         (only available with early stopping).
+#' }
+#' 
+#' @seealso
+#' \code{\link{callbacks}},
+#' \code{\link{predict.xgb.Booster}},
+#' \code{\link{xgb.cv}}
 #' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -141,8 +173,9 @@
 #' watchlist <- list(eval = dtest, train = dtrain)
 #' 
 #' ## A simple xgb.train example:
-#' param <- list(max.depth = 2, eta = 1, silent = 1, objective="binary:logistic", eval_metric="auc")
-#' bst <- xgb.train(param, dtrain, nthread = 2, nround = 2, watchlist)
+#' param <- list(max_depth = 2, eta = 1, silent = 1, 
+#'               objective = "binary:logistic", eval_metric = "auc")
+#' bst <- xgb.train(param, dtrain, nthread = 2, nrounds = 2, watchlist)
 #' 
 #' ## An xgb.train example where custom objective and evaluation metric are used:
 #' logregobj <- function(preds, dtrain) {
@@ -157,33 +190,36 @@
 #'   err <- as.numeric(sum(labels != (preds > 0)))/length(labels)
 #'   return(list(metric = "error", value = err))
 #' }
-#' bst <- xgb.train(param, dtrain, nthread = 2, nround = 2, watchlist)
+#' bst <- xgb.train(param, dtrain, nthread = 2, nrounds = 2, watchlist)
 #' 
 #' ## An xgb.train example of using variable learning rates at each iteration:
 #' my_etas <- list(eta = c(0.5, 0.1))
-#' bst <- xgb.train(param, dtrain, nthread = 2, nround = 2, watchlist,
-#'                  callbacks = list(cb.reset_parameters(my_etas)))
+#' bst <- xgb.train(param, dtrain, nthread = 2, nrounds = 2, watchlist,
+#'                  callbacks = list(cb.reset.parameters(my_etas)))
 #' 
-#' ## Explicit use of the cb.log_evaluation callback allows to run 
+#' ## Explicit use of the cb.evaluation.log callback allows to run 
 #' ## xgb.train silently but still store the evaluation results:
-#' bst <- xgb.train(param, dtrain, nthread = 2, nround = 2, watchlist,
-#'                  verbose = 0, callbacks = list(cb.log_evaluation()))
+#' bst <- xgb.train(param, dtrain, nthread = 2, nrounds = 2, watchlist,
+#'                  verbose = 0, callbacks = list(cb.evaluation.log()))
 #' print(bst$evaluation_log)
 #' 
 #' ## An 'xgboost' interface example:
-#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.depth = 2, 
-#'                eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, 
+#'                max_depth = 2, eta = 1, nthread = 2, nrounds = 2, 
+#'                objective = "binary:logistic")
 #' pred <- predict(bst, agaricus.test$data)
 #' 
 #' @rdname xgb.train
 #' @export
 xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
-                      obj = NULL, feval = NULL, verbose = 1, print.every.n=1L,
-                      early.stop.round = NULL, maximize = NULL,
+                      obj = NULL, feval = NULL, verbose = 1, print_every_n=1L,
+                      early_stopping_rounds = NULL, maximize = NULL,
                       save_period = NULL, save_name = "xgboost.model", 
                       xgb_model = NULL, callbacks = list(), ...) {
   
-  params <- check.params(params, ...)
+  check.deprecation(...)
+  
+  params <- check.booster.params(params, ...)
 
   check.custom.obj()
   check.custom.eval()
@@ -203,31 +239,30 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
   # evaluation printing callback
   params <- c(params, list(silent = ifelse(verbose > 1, 0, 1)))
-  print.every.n <- max( as.integer(print.every.n), 1L)
-  if (!has.callbacks(callbacks, 'cb.print_evaluation') && verbose)
-    callbacks <- c(callbacks, cb.print_evaluation(print.every.n))
-
+  print_every_n <- max( as.integer(print_every_n), 1L)
+  if (!has.callbacks(callbacks, 'cb.print.evaluation') && verbose) {
+    callbacks <- add.cb(callbacks, cb.print.evaluation(print_every_n))
+  }
   # evaluation log callback:  it is automatically enabled only when verbose > 0
   evaluation_log <- list()
   if (verbose > 0 &&
-      !has.callbacks(callbacks, 'cb.log_evaluation') &&
-      length(watchlist) > 0)
-    callbacks <- c(callbacks, cb.log_evaluation())
-  
+      !has.callbacks(callbacks, 'cb.evaluation.log') &&
+      length(watchlist) > 0) {
+    callbacks <- add.cb(callbacks, cb.evaluation.log())
+  }
   # Model saving callback
   if (!is.null(save_period) &&
-      !has.callbacks(callbacks, 'cb.save_model'))
-    callbacks <- c(callbacks, cb.save_model(save_period, save_name))
-  
+      !has.callbacks(callbacks, 'cb.save.model')) {
+    callbacks <- add.cb(callbacks, cb.save.model(save_period, save_name))
+  }
   # Early stopping callback
   stop_condition <- FALSE
-  if (!is.null(early.stop.round) &&
-      !has.callbacks(callbacks, 'cb.early_stop'))
-    callbacks <- c(callbacks, 
-                   cb.early_stop(early.stop.round, maximize=maximize, verbose=verbose))
-
+  if (!is.null(early_stopping_rounds) &&
+      !has.callbacks(callbacks, 'cb.early.stop')) {
+    callbacks <- add.cb(callbacks, cb.early.stop(early_stopping_rounds, 
+                                                 maximize=maximize, verbose=verbose))
+  }
   # Sort the callbacks into categories
-  names(callbacks) <- callback.names(callbacks)
   cb <- categorize.callbacks(callbacks)
 
   
@@ -235,23 +270,24 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   handle <- xgb.Booster(params, append(watchlist, dtrain), xgb_model)
   bst <- xgb.handleToBooster(handle)
 
-  
-  # When the 'xgb_model' was set, find out how many boosting rounds it has
-  # by adjusting its number of trees for num_parallel_tree and multiclass
-  ntree <- 0
-  if (!is.null(xgb_model)) {
-    ntree <- if ('ntree' %in% names(xgb_model)) xgb_model$ntree
-             else length(grep('^booster', xgb.dump(bst)))
-  }
+  # extract parameters that can affect the relationship b/w #trees and #iterations
   num_class <- max(as.numeric(NVL(params[['num_class']], 1)), 1)
   num_parallel_tree <- max(as.numeric(NVL(params[['num_parallel_tree']], 1)), 1)
-  nboost <- ntree %/% (num_parallel_tree * num_class)
+
+  # When the 'xgb_model' was set, find out how many boosting iterations it has
+  niter_skip <- 0
+  if (!is.null(xgb_model)) {
+    niter_skip <- as.numeric(xgb.attr(bst, 'niter')) + 1
+    if (length(niter_skip) == 0) {
+      niter_skip <- xgb.ntree(bst) %/% (num_parallel_tree * num_class)
+    }
+  }
 
   # TODO: distributed code
   rank <- 0
   
-  begin_iteration <- nboost + 1
-  end_iteration <- nboost + nrounds
+  begin_iteration <- niter_skip + 1
+  end_iteration <- niter_skip + nrounds
   
   # the main loop for boosting iterations
   for (iteration in begin_iteration:end_iteration) {
@@ -263,6 +299,8 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     bst_evaluation <- numeric(0)
     if (length(watchlist) > 0)
       bst_evaluation <- xgb.iter.eval(bst$handle, watchlist, iteration - 1, feval)
+    
+    xgb.attr(bst$handle, 'niter') <- iteration - 1
 
     for (f in cb$post_iter) f()
 
@@ -270,20 +308,21 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   }
   for (f in cb$finalize) f(finalize=TRUE)
   
-  bst <- xgb.Booster.check(bst)
+  bst <- xgb.Booster.check(bst, saveraw = TRUE)
   
-  # store the total number of boosting iterations and the number of trees
-  bst$nboost = end_iteration
-  bst$ntree = end_iteration * num_parallel_tree * num_class
-  
+  # store the total number of boosting iterations
+  bst$niter = end_iteration
+
   # store the evaluation results
   if (length(evaluation_log) > 0 &&
       nrow(evaluation_log) > 0) {
     # include the previous compatible history when available
     if (class(xgb_model) == 'xgb.Booster' &&
         !is.null(xgb_model$evaluation_log) &&
-        all(colnames(evaluation_log) == colnames(xgb_model$evaluation_log)))
+        all.equal(colnames(evaluation_log),
+                  colnames(xgb_model$evaluation_log))) {
       evaluation_log <- rbindlist(list(xgb_model$evaluation_log, evaluation_log))
+    }
     bst$evaluation_log <- evaluation_log
   }
 
