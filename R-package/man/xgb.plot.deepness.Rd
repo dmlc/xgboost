@@ -20,7 +20,7 @@ Display both the number of \code{leaf} and the distribution of \code{weighted ob
 by tree deepness level.
 
 The purpose of this function is to help the user to find the best trade-off to set
-the \code{max.depth} and \code{min_child_weight} parameters according to the bias / variance trade-off.
+the \code{max_depth} and \code{min_child_weight} parameters according to the bias / variance trade-off.
 
 See \link{xgb.train} for more information about these parameters.
 
@@ -36,8 +36,8 @@ This function is inspired by the blog post \url{http://aysent.github.io/2015/11/
 \examples{
 data(agaricus.train, package='xgboost')
 
-bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.depth = 15,
-                 eta = 1, nthread = 2, nround = 30, objective = "binary:logistic",
+bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 15,
+                 eta = 1, nthread = 2, nrounds = 30, objective = "binary:logistic",
                  min_child_weight = 50)
 
 xgb.plot.deepness(model = bst)

@@ -52,16 +52,20 @@ Use \code{\link{`xgb.parameters<-`}} to set or change model parameters.
 
 The attribute setters would usually work more efficiently for \code{xgb.Booster.handle}
 than for \code{xgb.Booster}, since only just a handle (pointer) would need to be copied.
+That would only matter if attributes need to be set many times.
+Note, however, that when feeding a handle of an \code{xgb.Booster} object to the attribute setters,
+the raw model cache of an \code{xgb.Booster} object would not be automatically updated, 
+and it would be user's responsibility to call \code{xgb.save.raw} to update it.
 
 The \code{xgb.attributes<-} setter either updates the existing or adds one or several attributes, 
-but doesn't delete the existing attributes which don't have their names in \code{names(attributes)}.
+but it doesn't delete the other existing attributes.
 }
 \examples{
 data(agaricus.train, package='xgboost')
 train <- agaricus.train
 
-bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
-               eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
+               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 
 xgb.attr(bst, "my_attribute") <- "my attribute value"
 print(xgb.attr(bst, "my_attribute"))

@@ -19,18 +19,19 @@ WARNING: side-effects!!! Be aware that these callback functions access and modif
 the environment from which they are called from, which is a fairly uncommon thing to do in R.
 
 To write a custom callback closure, make sure you first understand the main concepts about R envoronments.
-Check either the R docs on \code{\link[base]{environment}} or the 
-\href{http://adv-r.had.co.nz/Environments.html}{Environments chapter} from Hadley Wickham's "Advanced R" book.
-Then take a look at the code of \code{cb.reset_learning_rate} for a simple example, 
-and see the \code{cb.log_evaluation} code for something more involved.
-Also, you would need to get familiar with the objects available inside of the \code{xgb.train} internal environment.
+Check either R documentation on \code{\link[base]{environment}} or the 
+\href{http://adv-r.had.co.nz/Environments.html}{Environments chapter} from the "Advanced R" 
+book by Hadley Wickham. Further, the best option is to read the code of some of the existing callbacks -
+choose ones that do something similar to what you want to achieve. Also, you would need to get familiar 
+with the objects available inside of the \code{xgb.train} and \code{xgb.cv} internal environments.
 }
 \seealso{
-\code{\link{cb.print_evaluation}},
-\code{\link{cb.log_evaluation}},
-\code{\link{cb.reset_parameters}},
-\code{\link{cb.early_stop}},
-\code{\link{cb.save_model}},
+\code{\link{cb.print.evaluation}},
+\code{\link{cb.evaluation.log}},
+\code{\link{cb.reset.parameters}},
+\code{\link{cb.early.stop}},
+\code{\link{cb.save.model}},
+\code{\link{cb.cv.predict}},
 \code{\link{xgb.train}},
 \code{\link{xgb.cv}}
 }

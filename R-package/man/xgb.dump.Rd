@@ -4,7 +4,7 @@
 \alias{xgb.dump}
 \title{Save xgboost model to text file}
 \usage{
-xgb.dump(model = NULL, fname = NULL, fmap = "", with.stats = FALSE)
+xgb.dump(model = NULL, fname = NULL, fmap = "", with_stats = FALSE, ...)
 }
 \arguments{
 \item{model}{the model object.}
@@ -18,10 +18,12 @@ See demo/ for walkthrough example in R, and
 \url{https://github.com/dmlc/xgboost/blob/master/demo/data/featmap.txt} 
 for example Format.}
 
-\item{with.stats}{whether dump statistics of splits 
+\item{with_stats}{whether dump statistics of splits 
 When this option is on, the model dump comes with two additional statistics:
 gain is the approximate loss function gain we get in each split;
 cover is the sum of second order gradient in each node.}
+
+\item{...}{currently not used}
 }
 \value{
 if fname is not provided or set to \code{NULL} the function will return the model as a \code{character} vector. Otherwise it will return \code{TRUE}.
@@ -34,10 +36,10 @@ data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 train <- agaricus.train
 test <- agaricus.test
-bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
-               eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
+bst <- xgboost(data = train$data, label = train$label, max_depth = 2, 
+               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 # save the model in file 'xgb.model.dump'
-xgb.dump(bst, 'xgb.model.dump', with.stats = TRUE)
+xgb.dump(bst, 'xgb.model.dump', with_stats = TRUE)
 
 # print the model without saving it to a file
 print(xgb.dump(bst))
