@@ -21,6 +21,7 @@ import java.nio.file.Files
 
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
+import scala.util.Random
 
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.mllib.linalg.{Vector => SparkVector, Vectors, DenseVector}
@@ -208,7 +209,41 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
 
-    println(xgBoostModel.predict(testRDD))
+    println(xgBoostModel.predict(testRDD).collect())
+  }
+
+  test("test with dense vectors containing missing value") {
+    def buildDenseRDD(): RDD[LabeledPoint] = {
+      val nrow = 100
+      val ncol = 5
+      val data0 = Array.ofDim[Double](nrow, ncol)
+      // put random nums
+      for (r <- 0 until nrow; c <- 0 until ncol) {
+        data0(r)(c) = {
+          if (c == ncol - 1) {
+            -0.1
+          } else {
+            Random.nextDouble()
+          }
+        }
+      }
+      // create label
+      val label0 = new Array[Double](nrow)
+      for (i <- label0.indices) {
+        label0(i) = Random.nextDouble()
+      }
+      val points = new ListBuffer[LabeledPoint]
+      for (r <- 0 until nrow) {
+        points += LabeledPoint(label0(r), Vectors.dense(data0(r)))
+      }
+      sc.parallelize(points)
+    }
+    val trainingRDD = buildDenseRDD().repartition(4)
+    val testRDD = buildDenseRDD().repartition(4)
+    val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
+      "objective" -> "binary:logistic").toMap
+    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, 4)
+    xgBoostModel.predict(testRDD.map(_.features.toDense), missingValue = -0.1f).collect()
   }
 
   test("training with external memory cache") {

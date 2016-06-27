@@ -703,7 +703,7 @@ class Dart : public GBTree {
           weight_drop[i] *= factor;
         }
         for (size_t i = 0; i < size_new_trees; ++i) {
-          weight_drop.push_back(lr * factor);
+          weight_drop.push_back(factor);
         }
       } else {
         // normalize_type 0
@@ -712,7 +712,7 @@ class Dart : public GBTree {
           weight_drop[i] *= factor;
         }
         for (size_t i = 0; i < size_new_trees; ++i) {
-          weight_drop.push_back(1.0 * lr / (num_drop + lr));
+          weight_drop.push_back(1.0 / (num_drop + lr));
         }
       }
     }

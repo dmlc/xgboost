@@ -84,10 +84,10 @@ Additional parameters for Dart Booster
 * normalize_type [default="tree]
   - type of normalization algorithm.
     - "tree": New trees have the same weight of each of dropped trees.
-              weight of new trees are learning_rate / (k + learnig_rate)
+              weight of new trees are 1 / (k + learnig_rate)
               dropped trees are scaled by a factor of k / (k + learning_rate)
     - "forest": New trees have the same weight of sum of dropped trees (forest).
-                weight of new trees are learning_rate / (1 + learning_rate)
+                weight of new trees are 1 / (1 + learning_rate)
                 dropped trees are scaled by a factor of 1 / (1 + learning_rate)
 * rate_drop [default=0.0]
   - dropout rate.
