@@ -35,6 +35,9 @@
 #' @param early.stop.round If \code{NULL}, the early stopping function is not triggered. 
 #'     If set to an integer \code{k}, training with a validation set will stop if the performance 
 #'     keeps getting worse consecutively for \code{k} rounds.
+#' @param early.stop.tolerance Specifies the minimum relative improvement of the best evaluation score at each step.
+#'     If relative improvement will not increase at least on this value on each step during \code{early.stop.round} rounds,
+#'     calculating will stop.
 #' @param maximize If \code{feval} and \code{early.stop.round} are set, then \code{maximize} must be set as well.
 #'     \code{maximize=TRUE} means the larger the evaluation score the better.
 #' @param save_period save the model to the disk in every \code{save_period} rounds, 0 means no such action.
@@ -60,7 +63,8 @@
 #' @export
 xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                     params = list(), nrounds,
-                    verbose = 1, print.every.n = 1L, early.stop.round = NULL,
+                    verbose = 1, print.every.n = 1L,
+                    early.stop.round = NULL, early.stop.tolerance = 0,
                     maximize = NULL, save_period = 0, save_name = "xgboost.model", ...) {
   dtrain <- xgb.get.DMatrix(data, label, missing, weight)
 
@@ -72,8 +76,10 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
     watchlist <- list()
   }
 
-  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, print.every.n=print.every.n,
-                   early.stop.round = early.stop.round, maximize = maximize,
+  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, print.every.n = print.every.n,
+                   early.stop.round = early.stop.round,
+                   early.stop.tolerance = early.stop.tolerance,
+                   maximize = maximize,
                    save_period = save_period, save_name = save_name)
 
   return(bst)

@@ -70,6 +70,9 @@
 #' @param early.stop.round If \code{NULL}, the early stopping function is not triggered. 
 #'     If set to an integer \code{k}, training with a validation set will stop if the performance 
 #'     keeps getting worse consecutively for \code{k} rounds.
+#' @param early.stop.tolerance Specifies the minimum relative improvement of the best evaluation score at each step.
+#'     If relative improvement will not increase at least on this value on each step during \code{early.stop.round} rounds,
+#'     calculating will stop.
 #' @param maximize If \code{feval} and \code{early.stop.round} are set, then \code{maximize} must be set as well.
 #'     \code{maximize=TRUE} means the larger the evaluation score the better.
 #' @param save_period save the model to the disk in every \code{save_period} rounds, 0 means no such action.
@@ -122,7 +125,7 @@
 #' @export
 xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
                       obj = NULL, feval = NULL, verbose = 1, print.every.n=1L,
-                      early.stop.round = NULL, maximize = NULL,
+                      early.stop.round = NULL, early.stop.tolerance = 0, maximize = NULL,
                       save_period = 0, save_name = "xgboost.model", ...) {
   dtrain <- data
   if (typeof(params) != "list") {
@@ -195,18 +198,21 @@ xgb.train <- function(params=list(), data, nrounds, watchlist = list(),
 
   handle <- xgb.Booster(params, append(watchlist, dtrain))
   bst <- xgb.handleToBooster(handle)
-  print.every.n <- max( as.integer(print.every.n), 1L)
+  print.every.n <- max(as.integer(print.every.n), 1L)
   for (i in 1:nrounds) {
     succ <- xgb.iter.update(bst$handle, dtrain, i - 1, obj)
     if (length(watchlist) != 0) {
       msg <- xgb.iter.eval(bst$handle, watchlist, i - 1, feval)
       if (0 == ( (i - 1) %% print.every.n))
-	    cat(paste(msg, "\n", sep = ""))
-      if (!is.null(early.stop.round))
-      {
+        cat(paste(msg, "\n", sep = ""))
+
+      if (!is.null(early.stop.round)) {
         score <- strsplit(msg,':|\\s+')[[1]][3]
         score <- as.numeric(score)
-        if ( (maximize && score > bestScore) || (!maximize && score < bestScore)) {
+
+        deltaScore <- score - bestScore
+        if ((maximize && deltaScore > early.stop.tolerance) ||
+            (!maximize && -deltaScore > early.stop.tolerance)) {
           bestScore <- score
           bestInd <- i - 1
         } else {

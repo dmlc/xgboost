@@ -58,6 +58,9 @@
 #' @param early.stop.round If \code{NULL}, the early stopping function is not triggered. 
 #'     If set to an integer \code{k}, training with a validation set will stop if the performance 
 #'     keeps getting worse consecutively for \code{k} rounds.
+#' @param early.stop.tolerance Specifies the minimum relative improvement of the best evaluation score at each step.
+#'     If relative improvement will not increase at least on this value on each step during \code{early.stop.round} rounds,
+#'     calculating will stop.
 #' @param maximize If \code{feval} and \code{early.stop.round} are set, then \code{maximize} must be set as well.
 #'     \code{maximize=TRUE} means the larger the evaluation score the better.
 #'     
@@ -93,7 +96,7 @@
 xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NA,
                    prediction = FALSE, showsd = TRUE, metrics=list(),
                    obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, verbose = T, print.every.n=1L,
-                   early.stop.round = NULL, maximize = NULL, ...) {
+                   early.stop.round = NULL, early.stop.tolerance = 0, maximize = NULL, ...) {
     if (typeof(params) != "list") {
         stop("xgb.cv: first argument params must be list")
     }
@@ -194,7 +197,9 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
             score <- strsplit(ret,'\\s+')[[1]][1 + length(metrics) + 2]
             score <- strsplit(score,'\\+|:')[[1]][[2]]
             score <- as.numeric(score)
-            if ( (maximize && score > bestScore) || (!maximize && score < bestScore)) {
+            deltaScore <- score - bestScore
+            if ((maximize && deltaScore > early.stop.tolerance) ||
+                (!maximize && -deltaScore > early.stop.tolerance)) {
                 bestScore <- score
                 bestInd <- i - 1
             } else {
