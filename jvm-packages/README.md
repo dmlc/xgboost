@@ -16,6 +16,7 @@ and power xgboost into JVM ecosystem.
 You can find more about XGBoost on [Documentation](https://xgboost.readthedocs.org/en/latest/jvm/index.html) and [Resource Page](../demo/README.md).
 
 ## Hello World
+*NOTE*: Use **one-based** ascending indexes for libsvm format in distributed training mode, WHEREAS - use **zero-based** ascending indexes format when predicting (using the model saved by distributed training) in normal mode.
 ### XGBoost Scala
 ```scala
 import ml.dmlc.xgboost4j.scala.DMatrix
