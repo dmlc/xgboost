@@ -16,7 +16,10 @@ and power xgboost into JVM ecosystem.
 You can find more about XGBoost on [Documentation](https://xgboost.readthedocs.org/en/latest/jvm/index.html) and [Resource Page](../demo/README.md).
 
 ## Hello World
-*NOTE*: Use **one-based** ascending indexes for libsvm format in distributed training mode, WHEREAS - use **zero-based** ascending indexes format when predicting (using the model saved by distributed training) in normal mode.
+*NOTE*: Use **1-based** ascending indexes for libsvm format in distributed training mode:
+- Spark does the internal conversion, and do not accept formats that are 0-based
+- WHEREAS - use **0-based** indexes format when predicting (for instance using the saved model in the Python package) in normal mode
+
 ### XGBoost Scala
 ```scala
 import ml.dmlc.xgboost4j.scala.DMatrix
