@@ -187,18 +187,18 @@ getinfo <- function(object, ...) UseMethod("getinfo")
 #' @rdname getinfo
 #' @export
 getinfo.xgb.DMatrix <- function(object, name) {
-  if (typeof(name) != "character") {
-    stop("getinfo: name must be character")
-  }
-  if (name != "label" && name != "weight" &&
-      name != "base_margin" && name != "nrow") {
-    stop(paste("getinfo: unknown info name", name))
+  if (typeof(name) != "character" ||
+      length(name) != 1 ||
+      !name %in% c('label', 'weight', 'base_margin', 'nrow')) {
+    stop("getinfo: name must one of the following\n",
+         "    'label', 'weight', 'base_margin', 'nrow'")
   }
   if (name != "nrow"){
     ret <- .Call("XGDMatrixGetInfo_R", object, name, PACKAGE = "xgboost")
   } else {
     ret <- nrow(object)
   }
+  if (length(ret) == 0) return(NULL)
   return(ret)
 }
 

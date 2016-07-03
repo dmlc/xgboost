@@ -2,9 +2,9 @@
 #'
 #' Read a data.table containing feature importance details and plot it (for both GLM and Trees).
 #'
-#' @importFrom magrittr %>%
 #' @param importance_matrix a \code{data.table} returned by the \code{xgb.importance} function.
-#' @param numberOfClusters a \code{numeric} vector containing the min and the max range of the possible number of clusters of bars.
+#' @param n_clusters a \code{numeric} vector containing the min and the max range of the possible number of clusters of bars.
+#' @param ... currently not used
 #'
 #' @return A \code{ggplot2} bar graph representing each feature by a horizontal bar. Longer is the bar, more important is the feature. Features are classified by importance and clustered by importance. The group is represented through the color of the bar.
 #'
@@ -20,16 +20,16 @@
 #' #(labels = outcome column which will be learned).
 #' #Each column of the sparse Matrix is a feature in one hot encoding format.
 #'
-#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.depth = 2,
-#'                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
+#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2,
+#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 #'
-#' #agaricus.train$data@@Dimnames[[2]] represents the column names of the sparse matrix.
-#' importance_matrix <- xgb.importance(agaricus.train$data@@Dimnames[[2]], model = bst)
+#' importance_matrix <- xgb.importance(colnames(agaricus.train$data), model = bst)
 #' xgb.plot.importance(importance_matrix)
 #'
 #' @export
 xgb.plot.importance <-
-  function(importance_matrix = NULL, numberOfClusters = c(1:10)) {
+  function(importance_matrix = NULL, n_clusters = c(1:10), ...) {
+    check.deprecation(...)
     if (!"data.table" %in% class(importance_matrix))  {
       stop("importance_matrix: Should be a data.table.")
     }
@@ -53,7 +53,7 @@ xgb.plot.importance <-
       importance_matrix[, .(Gain.or.Weight = sum(get(y.axe.name))), by = Feature]
     
     clusters <-
-      suppressWarnings(Ckmeans.1d.dp::Ckmeans.1d.dp(importance_matrix[,Gain.or.Weight], numberOfClusters))
+      suppressWarnings(Ckmeans.1d.dp::Ckmeans.1d.dp(importance_matrix[,Gain.or.Weight], n_clusters))
     importance_matrix[,"Cluster":= clusters$cluster %>% as.character]
     
     plot <-

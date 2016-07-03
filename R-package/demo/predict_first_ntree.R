@@ -5,7 +5,7 @@ data(agaricus.test, package='xgboost')
 dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 
-param <- list(max.depth=2,eta=1,silent=1,objective='binary:logistic')
+param <- list(max_depth=2, eta=1, silent=1, objective='binary:logistic')
 watchlist <- list(eval = dtest, train = dtrain)
 nround = 2
 
