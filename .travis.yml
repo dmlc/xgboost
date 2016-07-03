@@ -18,6 +18,8 @@ env:
     - TASK=python_lightweight_test
     # java package test
     - TASK=java_test
+    # cmake test
+    - TASK=cmake_test
 
 os:
   - linux

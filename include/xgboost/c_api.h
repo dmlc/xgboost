@@ -22,6 +22,7 @@ XGB_EXTERN_C {
 #else
 #define XGB_DLL XGB_EXTERN_C
 #endif
+
 // manually define unsign long
 typedef unsigned long bst_ulong;  // NOLINT(*)
 

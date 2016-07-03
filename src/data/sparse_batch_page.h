@@ -23,6 +23,10 @@
 #include <thread>
 #endif
 
+#ifdef _MSC_VER
+#include <functional>
+#endif
+
 namespace xgboost {
 namespace data {
 /*!
