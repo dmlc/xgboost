@@ -19,7 +19,7 @@ You can find more about XGBoost on [Documentation](https://xgboost.readthedocs.o
 *NOTE*: 
 - Use **1-based** ascending indexes for the libsvm format in distributed training mode - 
   - Spark does the internal conversion, and does not accept formats that are 0-based
-- WHEREAS - use **0-based** indexes format when predicting (for instance while using the saved model in the Python package) in normal mode
+- Whereas, use **0-based** indexes format when predicting in normal mode - for instance, while using the saved model in the Python package
 
 ### XGBoost Scala
 ```scala
