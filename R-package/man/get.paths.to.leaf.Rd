@@ -7,7 +7,7 @@
 get.paths.to.leaf(dt_tree)
 }
 \arguments{
-\item{dt.tree}{data.table containing the nodes and edges of the trees}
+\item{dt_tree}{data.table containing the nodes and edges of the trees}
 }
 \description{
 Extract path from root to leaf from data.table

@@ -48,7 +48,7 @@ would not be saved by \code{xgb.save} because an xgboost model is an external me
 and its serialization is handled extrnally.
 Also, setting an attribute that has the same name as one of xgboost's parameters wouldn't 
 change the value of that parameter for a model. 
-Use \code{\link{`xgb.parameters<-`}} to set or change model parameters.
+Use \code{\link{xgb.parameters<-}} to set or change model parameters.
 
 The attribute setters would usually work more efficiently for \code{xgb.Booster.handle}
 than for \code{xgb.Booster}, since only just a handle (pointer) would need to be copied.

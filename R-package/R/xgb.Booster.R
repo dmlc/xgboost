@@ -178,7 +178,7 @@ xgb.Booster.check <- function(bst, saveraw = TRUE) {
 #' @rdname predict.xgb.Booster
 #' @export
 predict.xgb.Booster <- function(object, newdata, missing = NA,
-    outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE, reshape = FALSE) {
+    outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE, reshape = FALSE, ...) {
 
   object <- xgb.Booster.check(object, saveraw = FALSE)
   if (class(newdata) != "xgb.DMatrix")
@@ -245,7 +245,7 @@ predict.xgb.Booster.handle <- function(object, ...) {
 #' and its serialization is handled extrnally.
 #' Also, setting an attribute that has the same name as one of xgboost's parameters wouldn't 
 #' change the value of that parameter for a model. 
-#' Use \code{\link{`xgb.parameters<-`}} to set or change model parameters.
+#' Use \code{\link{xgb.parameters<-}} to set or change model parameters.
 #' 
 #' The attribute setters would usually work more efficiently for \code{xgb.Booster.handle}
 #' than for \code{xgb.Booster}, since only just a handle (pointer) would need to be copied.
@@ -413,7 +413,8 @@ xgb.ntree <- function(bst) {
 #' 
 #' print(bst)
 #' print(bst, verbose=TRUE)
-#' 
+#'
+#' @method print xgb.Booster 
 #' @export
 print.xgb.Booster <- function(x, verbose=FALSE, ...) {
   cat('##### xgb.Booster\n')

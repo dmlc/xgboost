@@ -1,7 +1,8 @@
 #' Plot multiple graphs at the same time
 #' 
 #' Plot multiple graph aligned by rows and columns.
-#' 
+#'
+#' @param ... the plots
 #' @param cols number of columns
 #' @return NULL
 multiplot <- function(..., cols = 1) {
@@ -40,7 +41,7 @@ edge.parser <- function(element) {
 }
 
 #' Extract path from root to leaf from data.table
-#' @param dt.tree data.table containing the nodes and edges of the trees
+#' @param dt_tree data.table containing the nodes and edges of the trees
 get.paths.to.leaf <- function(dt_tree) {
   dt.not.leaf.edges <-
     dt_tree[Feature != "Leaf",.(ID, Yes, Tree)] %>% list(dt_tree[Feature != "Leaf",.(ID, No, Tree)]) %>% rbindlist(use.names = F)
@@ -149,6 +150,6 @@ xgb.plot.deepness <- function(model = NULL) {
 # They are mainly column names inferred by Data.table...
 globalVariables(
   c(
-    "Feature", "Count", "ggplot", "aes", "geom_bar", "xlab", "ylab", "ggtitle", "theme", "element_blank", "element_text", "ID", "Yes", "No", "Tree"
+    ".N", "N", "size", "Feature", "Count", "ggplot", "aes", "geom_bar", "xlab", "ylab", "ggtitle", "theme", "element_blank", "element_text", "ID", "Yes", "No", "Tree"
   )
 )

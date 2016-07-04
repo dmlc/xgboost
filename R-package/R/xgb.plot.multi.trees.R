@@ -103,6 +103,6 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
 
 globalVariables(
   c(
-    "Feature", "no.nodes.abs.pos", "ID", "Yes", "No", "Tree", "yes.nodes.abs.pos", "abs.node.position"
+    ".N", "N", "From", "To", "Text", "Feature", "no.nodes.abs.pos", "ID", "Yes", "No", "Tree", "yes.nodes.abs.pos", "abs.node.position"
   )
 )

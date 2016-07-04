@@ -7,6 +7,8 @@
 multiplot(..., cols = 1)
 }
 \arguments{
+\item{...}{the plots}
+
 \item{cols}{number of columns}
 }
 \description{
