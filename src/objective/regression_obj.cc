@@ -218,21 +218,11 @@ XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
 .describe("Possion regression for count data.")
 .set_body([]() { return new PoissonRegression(); });
 
-// declare parameter
-struct GammaRegressionParam : public dmlc::Parameter<GammaRegressionParam> {
-  float lp_bias;
-  DMLC_DECLARE_PARAMETER(GammaRegressionParam) {
-    DMLC_DECLARE_FIELD(lp_bias).set_lower_bound(0.0f)
-        .describe("The bias for the untransformed prediction.");
-  }
-};
-
 // gamma regression
 class GammaRegression : public ObjFunction {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
   }
 
   void GetGradient(const std::vector<float> &preds,
@@ -252,8 +242,7 @@ class GammaRegression : public ObjFunction {
       float w = info.GetWeight(i);
       float y = info.labels[i];
       if (y >= 0.0f) {
-        out_gpair->at(i) = bst_gpair((1 - y / std::exp(p + param_.lp_bias)) * w,
-                                     y / std::exp(p + param_.lp_bias) * w);
+        out_gpair->at(i) = bst_gpair((1 - y / std::exp(p)) * w, y / std::exp(p) * w);
       } else {
         label_correct = false;
       }
@@ -265,7 +254,7 @@ class GammaRegression : public ObjFunction {
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
     #pragma omp parallel for schedule(static)
     for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
-      preds[j] = std::exp(preds[j] + param_.lp_bias);
+      preds[j] = std::exp(preds[j]);
     }
   }
   void EvalTransform(std::vector<float> *io_preds) override {
@@ -277,14 +266,9 @@ class GammaRegression : public ObjFunction {
   const char* DefaultEvalMetric(void) const override {
     return "gamma-nloglik";
   }
-
- private:
-  GammaRegressionParam param_;
 };
 
 // register the ojective functions
-DMLC_REGISTER_PARAMETER(GammaRegressionParam);
-
 XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
 .describe("Gamma regression for severity data.")
 .set_body([]() { return new GammaRegression(); });
