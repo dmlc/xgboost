@@ -103,4 +103,4 @@ xgb.importance <- function(feature_names = NULL, model = NULL, data = NULL, labe
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
 # They are mainly column names inferred by Data.table...
-globalVariables(c(".", "Feature", "Split", "No", "Missing", "MissingNo", "RealCover"))
+globalVariables(c(".", ".N", "Gain", "Frequency", "Feature", "Split", "No", "Missing", "MissingNo", "RealCover"))

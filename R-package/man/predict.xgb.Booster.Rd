@@ -7,7 +7,7 @@
 \usage{
 \method{predict}{xgb.Booster}(object, newdata, missing = NA,
   outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE,
-  reshape = FALSE)
+  reshape = FALSE, ...)
 
 \method{predict}{xgb.Booster.handle}(object, ...)
 }

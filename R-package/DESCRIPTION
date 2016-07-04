@@ -20,6 +20,7 @@ BugReports: https://github.com/dmlc/xgboost/issues
 VignetteBuilder: knitr
 Suggests:
     knitr,
+    rmarkdown,
     ggplot2 (>= 1.0.1),
     DiagrammeR (>= 0.8.1),
     Ckmeans.1d.dp (>= 3.3.1),

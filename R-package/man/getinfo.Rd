@@ -7,7 +7,7 @@
 \usage{
 getinfo(object, ...)
 
-\method{getinfo}{xgb.DMatrix}(object, name)
+\method{getinfo}{xgb.DMatrix}(object, name, ...)
 }
 \arguments{
 \item{object}{Object of class \code{xgb.DMatrix}}

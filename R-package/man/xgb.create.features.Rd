@@ -25,7 +25,7 @@ This is the function inspired from the paragraph 3.1 of the paper:
 \strong{Practical Lessons from Predicting Clicks on Ads at Facebook}
 
 \emph{(Xinran He, Junfeng Pan, Ou Jin, Tianbing Xu, Bo Liu, Tao Xu, Yan, xin Shi, Antoine Atallah, Ralf Herbrich, Stuart Bowers, 
-Joaquin Quiñonero Candela)}
+Joaquin Quinonero Candela)}
  
 International Workshop on Data Mining for Online Advertising (ADKDD) - August 24, 2014
 
@@ -33,7 +33,7 @@ International Workshop on Data Mining for Online Advertising (ADKDD) - August 24
 
 Extract explaining the method:
 
-"\emph{We found that boosted decision trees are a powerful and very
+"We found that boosted decision trees are a powerful and very
 convenient way to implement non-linear and tuple transformations
 of the kind we just described. We treat each individual
 tree as a categorical feature that takes as value the
@@ -54,7 +54,7 @@ We can understand boosted decision tree
 based transformation as a supervised feature encoding that
 converts a real-valued vector into a compact binary-valued
 vector. A traversal from root node to a leaf node represents
-a rule on certain features.}"
+a rule on certain features."
 }
 \examples{
 data(agaricus.train, package='xgboost')

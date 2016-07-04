@@ -4,7 +4,7 @@
 \alias{print.xgb.DMatrix}
 \title{Print xgb.DMatrix}
 \usage{
-print.xgb.DMatrix(x, verbose = FALSE, ...)
+\method{print}{xgb.DMatrix}(x, verbose = FALSE, ...)
 }
 \arguments{
 \item{x}{an xgb.DMatrix object}
@@ -24,5 +24,6 @@ dtrain <- xgb.DMatrix(train$data, label=train$label)
 
 dtrain
 print(dtrain, verbose=TRUE)
+
 }
 

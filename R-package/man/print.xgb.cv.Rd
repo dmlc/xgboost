@@ -4,7 +4,7 @@
 \alias{print.xgb.cv.synchronous}
 \title{Print xgb.cv result}
 \usage{
-print.xgb.cv.synchronous(x, verbose = FALSE, ...)
+\method{print}{xgb.cv.synchronous}(x, verbose = FALSE, ...)
 }
 \arguments{
 \item{x}{an \code{xgb.cv.synchronous} object}

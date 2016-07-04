@@ -241,7 +241,7 @@ Therefore, according to our findings, getting a placebo doesn't seem to help but
 All these things are nice, but it would be even better to plot the results.
 
 ```{r, fig.width=8, fig.height=5, fig.align='center'}
-xgb.plot.importance(importance_matrix = importanceRaw)
+xgb.plot.importance(importance_matrix = importance)
 ```
 
 Feature have automatically been divided in 2 clusters: the interesting features... and the others.

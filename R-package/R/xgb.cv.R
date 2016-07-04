@@ -171,7 +171,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   # CV-predictions callback
   if (prediction &&
       !has.callbacks(callbacks, 'cb.cv.predict')) {
-    callbacks <- add.cb(callbacks, cb.cv.predict(save_model=FALSE))
+    callbacks <- add.cb(callbacks, cb.cv.predict(save_models=FALSE))
   }
   # Sort the callbacks into categories
   cb <- categorize.callbacks(callbacks)
@@ -253,6 +253,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
 #' print(cv, verbose=TRUE)
 #' 
 #' @rdname print.xgb.cv
+#' @method print xgb.cv.synchronous
 #' @export
 print.xgb.cv.synchronous <- function(x, verbose=FALSE, ...) {
   cat('##### xgb.cv ', length(x$folds), '-folds\n', sep='')

@@ -95,6 +95,8 @@ NULL
 #' @importFrom stringr str_replace
 #' @importFrom stringr str_replace_all
 #' @importFrom stringr str_split
+#' @importFrom utils object.size str tail
+#' @importFrom stats predict
 #' 
 #' @import methods
 #' @useDynLib xgboost
