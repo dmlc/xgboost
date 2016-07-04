@@ -14,7 +14,7 @@
 #' \strong{Practical Lessons from Predicting Clicks on Ads at Facebook}
 #' 
 #' \emph{(Xinran He, Junfeng Pan, Ou Jin, Tianbing Xu, Bo Liu, Tao Xu, Yan, xin Shi, Antoine Atallah, Ralf Herbrich, Stuart Bowers, 
-#' Joaquin Quiñonero Candela)}
+#' Joaquin Quinonero Candela)}
 #'  
 #' International Workshop on Data Mining for Online Advertising (ADKDD) - August 24, 2014
 #' 
@@ -22,7 +22,7 @@
 #' 
 #' Extract explaining the method:
 #' 
-#' "\emph{We found that boosted decision trees are a powerful and very
+#' "We found that boosted decision trees are a powerful and very
 #' convenient way to implement non-linear and tuple transformations
 #' of the kind we just described. We treat each individual
 #' tree as a categorical feature that takes as value the
@@ -43,7 +43,7 @@
 #' based transformation as a supervised feature encoding that
 #' converts a real-valued vector into a compact binary-valued
 #' vector. A traversal from root node to a leaf node represents
-#' a rule on certain features.}"
+#' a rule on certain features."
 #' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -78,12 +78,7 @@
 #' @export
 xgb.create.features <- function(model, data, ...){
   check.deprecation(...)
-  pred_with_leaf = predict(model, data, predleaf = TRUE)
-  cols <- list()
-  for(i in 1:length(trees)){
-    # max is not the real max but it s not important for the purpose of adding features
-    leaf_id <- sort(unique(pred_with_leaf[,i]))
-    cols[[i]] <- factor(x = pred_with_leaf[,i], level = leaf_id)
-  }
-  cBind(data, sparse.model.matrix( ~ . -1, as.data.frame(cols)))
+  pred_with_leaf <- predict(model, data, predleaf = TRUE)
+  cols <- lapply(as.data.frame(pred_with_leaf), factor)
+  cBind(data, sparse.model.matrix( ~ . -1, cols))
 }
