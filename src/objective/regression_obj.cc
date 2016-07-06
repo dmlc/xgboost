@@ -217,5 +217,60 @@ DMLC_REGISTER_PARAMETER(PoissonRegressionParam);
 XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
 .describe("Possion regression for count data.")
 .set_body([]() { return new PoissonRegression(); });
+
+// gamma regression
+class GammaRegression : public ObjFunction {
+ public:
+  // declare functions
+  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+  }
+
+  void GetGradient(const std::vector<float> &preds,
+                   const MetaInfo &info,
+                   int iter,
+                   std::vector<bst_gpair> *out_gpair) override {
+    CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
+    CHECK_EQ(preds.size(), info.labels.size()) << "labels are not correctly provided";
+    out_gpair->resize(preds.size());
+    // check if label in range
+    bool label_correct = true;
+    // start calculating gradient
+    const omp_ulong ndata = static_cast<omp_ulong>(preds.size()); // NOLINT(*)
+    #pragma omp parallel for schedule(static)
+    for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
+      float p = preds[i];
+      float w = info.GetWeight(i);
+      float y = info.labels[i];
+      if (y >= 0.0f) {
+        out_gpair->at(i) = bst_gpair((1 - y / std::exp(p)) * w, y / std::exp(p) * w);
+      } else {
+        label_correct = false;
+      }
+    }
+    CHECK(label_correct) << "GammaRegression: label must be positive";
+  }
+  void PredTransform(std::vector<float> *io_preds) override {
+    std::vector<float> &preds = *io_preds;
+    const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
+    #pragma omp parallel for schedule(static)
+    for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
+      preds[j] = std::exp(preds[j]);
+    }
+  }
+  void EvalTransform(std::vector<float> *io_preds) override {
+    PredTransform(io_preds);
+  }
+  float ProbToMargin(float base_score) const override {
+    return std::log(base_score);
+  }
+  const char* DefaultEvalMetric(void) const override {
+    return "gamma-nloglik";
+  }
+};
+
+// register the ojective functions
+XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
+.describe("Gamma regression for severity data.")
+.set_body([]() { return new GammaRegression(); });
 }  // namespace obj
 }  // namespace xgboost
