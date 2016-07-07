@@ -5,7 +5,7 @@
 \title{Plot a boosted tree model}
 \usage{
 xgb.plot.tree(feature_names = NULL, model = NULL, n_first_tree = NULL,
-  plot.width = NULL, plot.height = NULL)
+  plot_width = NULL, plot_height = NULL, ...)
 }
 \arguments{
 \item{feature_names}{names of each feature as a \code{character} vector. Can be extracted from a sparse matrix (see example). If model dump already contains feature names, this argument should be \code{NULL}.}
@@ -14,9 +14,11 @@ xgb.plot.tree(feature_names = NULL, model = NULL, n_first_tree = NULL,
 
 \item{n_first_tree}{limit the plot to the n first trees. If \code{NULL}, all trees of the model are plotted. Performance can be low for huge models.}
 
-\item{plot.width}{the width of the diagram in pixels.}
+\item{plot_width}{the width of the diagram in pixels.}
 
-\item{plot.height}{the height of the diagram in pixels.}
+\item{plot_height}{the height of the diagram in pixels.}
+
+\item{...}{currently not used.}
 }
 \value{
 A \code{DiagrammeR} of the model.
@@ -38,11 +40,10 @@ The function uses \href{http://www.graphviz.org/}{GraphViz} library for that pur
 \examples{
 data(agaricus.train, package='xgboost')
 
-bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.depth = 2, 
-               eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
+bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2, 
+               eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
 
-# agaricus.train$data@Dimnames[[2]] represents the column names of the sparse matrix.
-xgb.plot.tree(feature_names = agaricus.train$data@Dimnames[[2]], model = bst)
+xgb.plot.tree(feature_names = colnames(agaricus.train$data), model = bst)
 
 }
 

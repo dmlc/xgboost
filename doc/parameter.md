@@ -119,6 +119,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
  - "multi:softmax" --set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
  - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
  - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
+ - "reg:gamma" --gamma regression for severity data, output mean of gamma distribution
 * base_score [ default=0.5 ]
   - the initial prediction score of all instances, global bias
   - for sufficent number of iterations, changing this value will not have too much effect.

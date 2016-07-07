@@ -9,6 +9,7 @@
 
 #include <vector>
 #include <cstring>
+#include <cmath>
 
 namespace xgboost {
 namespace tree {

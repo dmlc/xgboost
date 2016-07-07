@@ -4,10 +4,10 @@
 \alias{get.paths.to.leaf}
 \title{Extract path from root to leaf from data.table}
 \usage{
-get.paths.to.leaf(dt.tree)
+get.paths.to.leaf(dt_tree)
 }
 \arguments{
-\item{dt.tree}{data.table containing the nodes and edges of the trees}
+\item{dt_tree}{data.table containing the nodes and edges of the trees}
 }
 \description{
 Extract path from root to leaf from data.table

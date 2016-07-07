@@ -104,8 +104,17 @@ To build with MinGW
 cp make/mingw64.mk config.mk; make -j4
 ```
 
-The MSVC build for new version is not yet updated.
+To build with Visual Studio 2013 use cmake. Make sure you have a recent version of cmake added to your path and then from the xgboost directory:
 
+```bash
+mkdir build
+cd build
+cmake .. -G"Visual Studio 12 2013 Win64"
+``` 
+
+This specifies an out of source build using the MSVC 12 64 bit generator. Open the .sln file in the build directory and build with Visual Studio. To use the Python module you can copy libxgboost.dll into python-package\xgboost.
+
+Other versions of Visual Studio may work but are untested.
 
 ### Customized Building
 

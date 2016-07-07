@@ -23,8 +23,8 @@ than for \code{xgb.Booster}, since only just a handle would need to be copied.
 data(agaricus.train, package='xgboost')
 train <- agaricus.train
 
-bst <- xgboost(data = train$data, label = train$label, max.depth = 2,
-               eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
+               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 
 xgb.parameters(bst) <- list(eta = 0.1)
 

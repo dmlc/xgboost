@@ -186,19 +186,19 @@ getinfo <- function(object, ...) UseMethod("getinfo")
 
 #' @rdname getinfo
 #' @export
-getinfo.xgb.DMatrix <- function(object, name) {
-  if (typeof(name) != "character") {
-    stop("getinfo: name must be character")
-  }
-  if (name != "label" && name != "weight" &&
-      name != "base_margin" && name != "nrow") {
-    stop(paste("getinfo: unknown info name", name))
+getinfo.xgb.DMatrix <- function(object, name, ...) {
+  if (typeof(name) != "character" ||
+      length(name) != 1 ||
+      !name %in% c('label', 'weight', 'base_margin', 'nrow')) {
+    stop("getinfo: name must one of the following\n",
+         "    'label', 'weight', 'base_margin', 'nrow'")
   }
   if (name != "nrow"){
     ret <- .Call("XGDMatrixGetInfo_R", object, name, PACKAGE = "xgboost")
   } else {
     ret <- nrow(object)
   }
+  if (length(ret) == 0) return(NULL)
   return(ret)
 }
 
@@ -211,7 +211,7 @@ getinfo.xgb.DMatrix <- function(object, name) {
 #' @param name the name of the field to get
 #' @param info the specific field of information to set
 #' @param ... other parameters
-#' 
+#'
 #' @details
 #' The \code{name} field can be one of the following:
 #' 
@@ -237,7 +237,7 @@ setinfo <- function(object, ...) UseMethod("setinfo")
 
 #' @rdname setinfo
 #' @export
-setinfo.xgb.DMatrix <- function(object, name, info) {
+setinfo.xgb.DMatrix <- function(object, name, info, ...) {
   if (name == "label") {
     if (length(info) != nrow(object))
       stop("The length of labels must equal to the number of rows in the input data")
@@ -341,6 +341,8 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 #' 
 #' dtrain
 #' print(dtrain, verbose=TRUE)
+#' 
+#' @method print xgb.DMatrix
 #' @export
 print.xgb.DMatrix <- function(x, verbose=FALSE, ...) {
   cat('xgb.DMatrix  dim:', nrow(x), 'x', ncol(x), ' info: ')

@@ -168,8 +168,8 @@ Build the model
 The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
 
 ```{r}
-bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 4,
-               eta = 1, nthread = 2, nround = 10,objective = "binary:logistic")
+bst <- xgboost(data = sparse_matrix, label = output_vector, max_depth = 4,
+               eta = 1, nthread = 2, nrounds = 10,objective = "binary:logistic")
 
 ```
 
@@ -179,7 +179,7 @@ A model which fits too well may [overfit](http://en.wikipedia.org/wiki/Overfitti
 
 > Here you can see the numbers decrease until line 7 and then increase.
 >
-> It probably means we are overfitting. To fix that I should reduce the number of rounds to `nround = 4`. I will let things like that because I don't really care for the purpose of this example :-)
+> It probably means we are overfitting. To fix that I should reduce the number of rounds to `nrounds = 4`. I will let things like that because I don't really care for the purpose of this example :-)
 
 Feature importance
 ------------------
@@ -189,10 +189,10 @@ Feature importance
 
 ### Build the feature importance data.table
 
-In the code below, `sparse_matrix@Dimnames[[2]]` represents the column names of the sparse matrix. These names are the original values of the features (remember, each binary column == one value of one *categorical* feature).
+Remember, each binary column corresponds to a single value of one of *categorical* features.
 
 ```{r}
-importance <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = bst)
+importance <- xgb.importance(feature_names = colnames(sparse_matrix), model = bst)
 head(importance)
 ```
 
@@ -215,7 +215,7 @@ One simple solution is to count the co-occurrences of a feature and a class of t
 For that purpose we will execute the same function as above but using two more parameters, `data` and `label`.
 
 ```{r}
-importanceRaw <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = bst, data = sparse_matrix, label = output_vector)
+importanceRaw <- xgb.importance(feature_names = colnames(sparse_matrix), model = bst, data = sparse_matrix, label = output_vector)
 
 # Cleaning for better display
 importanceClean <- importanceRaw[,`:=`(Cover=NULL, Frequency=NULL)]
@@ -241,7 +241,7 @@ Therefore, according to our findings, getting a placebo doesn't seem to help but
 All these things are nice, but it would be even better to plot the results.
 
 ```{r, fig.width=8, fig.height=5, fig.align='center'}
-xgb.plot.importance(importance_matrix = importanceRaw)
+xgb.plot.importance(importance_matrix = importance)
 ```
 
 Feature have automatically been divided in 2 clusters: the interesting features... and the others.
@@ -328,10 +328,10 @@ train <- agaricus.train
 test <- agaricus.test
 
 #Random Forest™ - 1000 trees
-bst <- xgboost(data = train$data, label = train$label, max.depth = 4, num_parallel_tree = 1000, subsample = 0.5, colsample_bytree =0.5, nround = 1, objective = "binary:logistic")
+bst <- xgboost(data = train$data, label = train$label, max_depth = 4, num_parallel_tree = 1000, subsample = 0.5, colsample_bytree =0.5, nrounds = 1, objective = "binary:logistic")
 
 #Boosting - 3 rounds
-bst <- xgboost(data = train$data, label = train$label, max.depth = 4, nround = 3, objective = "binary:logistic")
+bst <- xgboost(data = train$data, label = train$label, max_depth = 4, nrounds = 3, objective = "binary:logistic")
 ```
 
 > Note that the parameter `round` is set to `1`.

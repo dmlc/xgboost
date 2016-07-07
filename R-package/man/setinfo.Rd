@@ -7,7 +7,7 @@
 \usage{
 setinfo(object, ...)
 
-\method{setinfo}{xgb.DMatrix}(object, name, info)
+\method{setinfo}{xgb.DMatrix}(object, name, info, ...)
 }
 \arguments{
 \item{object}{Object of class "xgb.DMatrix"}

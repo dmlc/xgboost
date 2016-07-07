@@ -65,11 +65,10 @@ output_vector = df[,Y:=0][Improved == "Marked",Y:=1][,Y]
 
 # Following is the same process as other demo
 cat("Learning...\n")
-bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 9,
-               eta = 1, nthread = 2, nround = 10,objective = "binary:logistic")
+bst <- xgboost(data = sparse_matrix, label = output_vector, max_depth = 9,
+               eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic")
 
-# sparse_matrix@Dimnames[[2]] represents the column names of the sparse matrix.
-importance <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = bst)
+importance <- xgb.importance(feature_names = colnames(sparse_matrix), model = bst)
 print(importance)
 # According to the matrix below, the most important feature in this dataset to predict if the treatment will work is the Age. The second most important feature is having received a placebo or not. The sex is third. Then we see our generated features (AgeDiscret). We can see that their contribution is very low (Gain column).
 

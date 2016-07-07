@@ -52,14 +52,13 @@ If you need to remember one thing only: until you want to leave us early, don't 
 \examples{
 data(agaricus.train, package='xgboost')
 
-bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max.depth = 2, 
-               eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
+bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2, 
+               eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
 
-# agaricus.train$data@Dimnames[[2]] represents the column names of the sparse matrix.
-xgb.importance(agaricus.train$data@Dimnames[[2]], model = bst)
+xgb.importance(colnames(agaricus.train$data), model = bst)
 
 # Same thing with co-occurence computation this time
-xgb.importance(agaricus.train$data@Dimnames[[2]], model = bst, data = agaricus.train$data, label = agaricus.train$label)
+xgb.importance(colnames(agaricus.train$data), model = bst, data = agaricus.train$data, label = agaricus.train$label)
 
 }
 

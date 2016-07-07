@@ -81,3 +81,10 @@ if [ ${TASK} == "java_test" ]; then
     mvn clean install -DskipTests=true
     mvn test
 fi
+
+if [ ${TASK} == "cmake_test" ]; then
+    mkdir build
+    cd build
+    cmake ..
+    make
+fi

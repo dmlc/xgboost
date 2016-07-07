@@ -16,6 +16,10 @@
 #include "./data.h"
 #include "./tree_model.h"
 
+#ifdef _MSC_VER
+#include <functional>
+#endif
+
 namespace xgboost {
 /*!
  * \brief interface of tree update module, that performs update of a tree.

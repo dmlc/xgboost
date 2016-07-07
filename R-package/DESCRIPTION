@@ -4,7 +4,7 @@ Title: Extreme Gradient Boosting
 Version: 0.4-3
 Date: 2015-08-01
 Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>,
-    Michael Benesty <michael@benesty.fr>
+    Michael Benesty <michael@benesty.fr>, Vadim Khotilovich <khotilovich@gmail.com>
 Maintainer: Tong He <hetong007@gmail.com>
 Description: Extreme Gradient Boosting, which is an efficient implementation
     of gradient boosting framework. This package is its R interface. The package
@@ -20,6 +20,7 @@ BugReports: https://github.com/dmlc/xgboost/issues
 VignetteBuilder: knitr
 Suggests:
     knitr,
+    rmarkdown,
     ggplot2 (>= 1.0.1),
     DiagrammeR (>= 0.8.1),
     Ckmeans.1d.dp (>= 3.3.1),
