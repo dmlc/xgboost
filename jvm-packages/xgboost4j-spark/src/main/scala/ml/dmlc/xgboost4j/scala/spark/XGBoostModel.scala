@@ -16,12 +16,13 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import org.apache.hadoop.fs.{Path, FileSystem}
-import org.apache.spark.{TaskContext, SparkContext}
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.rdd.RDD
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
-import ml.dmlc.xgboost4j.scala.{DMatrix, Booster}
+import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
+import scala.collection.JavaConverters._
 
 class XGBoostModel(_booster: Booster)(implicit val sc: SparkContext) extends Serializable {
 
@@ -36,6 +37,8 @@ class XGBoostModel(_booster: Booster)(implicit val sc: SparkContext) extends Ser
     val appName = testSet.context.appName
     testSet.mapPartitions { testSamples =>
       if (testSamples.hasNext) {
+        val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
+        Rabit.init(rabitEnv.asJava)
         val cacheFileName = {
           if (useExternalCache) {
             s"$appName-dtest_cache-${TaskContext.getPartitionId()}"
@@ -44,7 +47,9 @@ class XGBoostModel(_booster: Booster)(implicit val sc: SparkContext) extends Ser
           }
         }
         val dMatrix = new DMatrix(new JDMatrix(testSamples, cacheFileName))
-        Iterator(broadcastBooster.value.predict(dMatrix))
+        val res = broadcastBooster.value.predict(dMatrix)
+        Rabit.shutdown()
+        Iterator(res)
       } else {
         Iterator()
       }
