@@ -31,7 +31,7 @@ object DistTrainWithSpark {
     val sparkConf = new SparkConf().setAppName("XGBoost-spark-example")
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     sparkConf.registerKryoClasses(Array(classOf[Booster]))
-    val sc = new SparkContext(sparkConf)
+    implicit val sc = new SparkContext(sparkConf)
     val inputTrainPath = args(2)
     val inputTestPath = args(3)
     val outputModelPath = args(4)
