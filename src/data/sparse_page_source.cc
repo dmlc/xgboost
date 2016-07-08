@@ -183,7 +183,7 @@ void SparsePageSource::Create(DMatrix* src,
     std::unique_ptr<SparsePage> page;
     writer.Alloc(&page); page->Clear();
 
-    MetaInfo info;
+    MetaInfo info = src->info();
     size_t bytes_write = 0;
     double tstart = dmlc::GetTime();
     dmlc::DataIter<RowBatch>* iter = src->RowIterator();
