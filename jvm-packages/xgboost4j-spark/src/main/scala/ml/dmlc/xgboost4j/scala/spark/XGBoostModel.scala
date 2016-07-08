@@ -23,7 +23,7 @@ import org.apache.spark.rdd.RDD
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, Booster}
 
-class XGBoostModel(_booster: Booster)(implicit val sc: SparkContext) extends Serializable {
+class XGBoostModel(_booster: Booster) extends Serializable {
 
   /**
    * Predict result with the given testset (represented as RDD)
@@ -89,7 +89,7 @@ class XGBoostModel(_booster: Booster)(implicit val sc: SparkContext) extends Ser
    *
    * @param modelPath The model path as in Hadoop path.
    */
-  def saveModelAsHadoopFile(modelPath: String): Unit = {
+  def saveModelAsHadoopFile(modelPath: String)(implicit sc: SparkContext): Unit = {
     val path = new Path(modelPath)
     val outputStream = path.getFileSystem(sc.hadoopConfiguration).create(path)
     _booster.saveModel(outputStream)
