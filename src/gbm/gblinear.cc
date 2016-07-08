@@ -194,7 +194,7 @@ class GBLinear : public GradientBooster {
         const size_t ridx = batch.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
-          this->Pred(batch[i], &preds[ridx * ngroup]);
+          this->Pred(batch[i], &preds[ridx * ngroup], gid);
         }
       }
     }
@@ -205,7 +205,7 @@ class GBLinear : public GradientBooster {
                unsigned root_index) override {
     const int ngroup = model.param.num_output_group;
     for (int gid = 0; gid < ngroup; ++gid) {
-      this->Pred(inst, dmlc::BeginPtr(*out_preds));
+      this->Pred(inst, dmlc::BeginPtr(*out_preds), gid);
     }
   }
   void PredictLeaf(DMatrix *p_fmat,
@@ -232,15 +232,13 @@ class GBLinear : public GradientBooster {
   }
 
  protected:
-  inline void Pred(const RowBatch::Inst &inst, float *preds) {
-    for (int gid = 0; gid < model.param.num_output_group; ++gid) {
-      float psum = model.bias()[gid];
-      for (bst_uint i = 0; i < inst.length; ++i) {
-        if (inst[i].index >= model.param.num_feature) continue;
-        psum += inst[i].fvalue * model[inst[i].index][gid];
-      }
-      preds[gid] = psum;
+  inline void Pred(const RowBatch::Inst &inst, float *preds, int gid) {
+    float psum = model.bias()[gid];
+    for (bst_uint i = 0; i < inst.length; ++i) {
+      if (inst[i].index >= model.param.num_feature) continue;
+      psum += inst[i].fvalue * model[inst[i].index][gid];
     }
+    preds[gid] = psum;
   }
   // model for linear booster
   class Model {
