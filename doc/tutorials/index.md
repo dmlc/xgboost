@@ -6,3 +6,4 @@ See [Awesome XGBoost](https://github.com/dmlc/xgboost/tree/master/demo) for link
 ## Contents
 - [Introduction to Boosted Trees](../model.md)
 - [Distributed XGBoost YARN on AWS](aws_yarn.md)
+- [DART booster](dart.md)
