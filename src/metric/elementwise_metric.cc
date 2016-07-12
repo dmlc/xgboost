@@ -59,6 +59,21 @@ struct EvalEWiseBase : public Metric {
   }
 };
 
+struct EvalGDeviance : public EvalEWiseBase<EvalGDeviance> {
+  const char *Name() const override {
+    return "gamma-deviance";
+  }
+  inline float EvalRow(float label, float pred) const {
+    float epsilon = 1.0e-9;
+    float tmp = label / (pred + epsilon);
+    return tmp - std::log(tmp) - 1;
+  }
+  inline static float GetFinal(float esum, float wsum) {
+    //return esum / wsum;
+    return esum;
+  }
+};
+
 struct EvalRMSE : public EvalEWiseBase<EvalRMSE> {
   const char *Name() const override {
     return "rmse";
@@ -134,6 +149,10 @@ struct EvalPoissionNegLogLik : public EvalEWiseBase<EvalPoissionNegLogLik> {
     return common::LogGamma(y + 1.0f) + py - std::log(py) * y;
   }
 };
+
+XGBOOST_REGISTER_METRIC(GammaDeviance, "gamma-deviance")
+.describe("Gamma deviance.")
+.set_body([](const char* param) { return new EvalGDeviance(); });
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")
 .describe("Rooted mean square error.")
