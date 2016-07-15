@@ -79,3 +79,4 @@ tags
 *.class
 target
 *.swp
+/Makefile.old
