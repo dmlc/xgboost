@@ -1,7 +1,7 @@
 XGBoost Python Package
 ======================
 
-|PyPI version| |PyPI downloads|
+|PyPI version|
 
 Installation
 ------------
@@ -58,5 +58,3 @@ Note
 
 .. |PyPI version| image:: https://badge.fury.io/py/xgboost.svg
    :target: http://badge.fury.io/py/xgboost
-.. |PyPI downloads| image:: https://img.shields.io/pypi/dm/xgboost.svg
-   :target: https://pypi.python.org/pypi/xgboost/
