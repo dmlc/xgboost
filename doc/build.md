@@ -83,47 +83,40 @@ We recommend using [Git for Windows](https://git-for-windows.github.io/)
 because it brings a standard bash shell. This will highly ease the installation process.
 
 ```bash
+git clone --recursive https://github.com/dmlc/xgboost
+cd xgboost 
+git checkout 9a48a40 
 git submodule init
 git submodule update
+cp make/mingw64.mk config.mk
+cp make/mingw64.mk dmlc-core/config.mk
+
 ```
 
-XGBoost support both build by MSVC or MinGW. Here is how you can build xgboost library using MinGW.
+XGBoost support both build by MSVC or MinGW. In windows it is recomended to use TDM GCC https://sourceforge.net/projects/tdm-gcc/files/TDM-GCC%20Installer/tdm64-gcc-5.1.0-2.exe/download 
+please make sure openmp is checked during installation.
 
-After installing [Git for Windows](https://git-for-windows.github.io/), you should have a shortcut `Git Bash`.
-All the following steps are in the `Git Bash`.
-
+Then proceed with the installation of xgboost as follows
 In MinGW, `make` command comes with the name `mingw32-make`. You can add the following line into the `.bashrc` file.
+Or you can type the command in the bash terminal just for that session.
 
 ```bash
 alias make='mingw32-make'
 ```
 
-To build with MinGW
+To build 
 
 ```bash
-cp make/mingw64.mk config.mk; make -j4
+cd rabit
+make lib/librabit_empty.a -j4
+
+cd ../dmlc-core
+make -j4
+
+cd ..
+make -j4
+
 ```
-
-To build with Visual Studio 2013 use cmake. Make sure you have a recent version of cmake added to your path and then from the xgboost directory:
-
-```bash
-mkdir build
-cd build
-cmake .. -G"Visual Studio 12 2013 Win64"
-``` 
-
-This specifies an out of source build using the MSVC 12 64 bit generator. Open the .sln file in the build directory and build with Visual Studio. To use the Python module you can copy libxgboost.dll into python-package\xgboost.
-
-Other versions of Visual Studio may work but are untested.
-
-### Customized Building
-
-The configuration of xgboost can be modified by ```config.mk```
-- modify configuration on various distributed filesystem such as HDFS/Amazon S3/...
-- First copy [make/config.mk](../make/config.mk) to the project root, on which
-  any local modification will be ignored by git, then modify the according flags.
-
-
 
 ## Python Package Installation
 
