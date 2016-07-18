@@ -138,6 +138,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - "ndcg@n","map@n": n can be assigned as an integer to cut off the top positions in the lists for evaluation.
   - "ndcg-","map-","ndcg@n-","map@n-": In XGBoost, NDCG and MAP will evaluate the score of a list without any positive samples as 1. By adding "-" in the evaluation metric XGBoost will evaluate these score as 0 to be consistent under some conditions.
 training repeatively
+  - "gamma-deviance": [residual deviance for gamma regression]
 * seed [ default=0 ]
  - random number seed.
 
