@@ -184,7 +184,7 @@ XGBOOST_REGISTER_METRIC(PossionNegLoglik, "poisson-nloglik")
 .set_body([](const char* param) { return new EvalPoissionNegLogLik(); });
 
 XGBOOST_REGISTER_METRIC(GammaDeviance, "gamma-deviance")
-.describe("Deviance for gamma regression.")
+.describe("Residual deviance for gamma regression.")
 .set_body([](const char* param) { return new EvalGammaDeviance(); });
 
 XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
