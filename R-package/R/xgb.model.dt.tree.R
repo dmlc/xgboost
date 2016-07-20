@@ -69,7 +69,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
     text <- xgb.dump(model = model, with_stats = T)
   }
   
-  position <- which(!is.na(str_match(text, "booster")))
+  position <- which(!is.na(stri_match_first_regex(text, "booster")))
   
   add.tree.id <- function(x, i) paste(i, x, sep = "-")
   
@@ -82,16 +82,16 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   n_first_tree <- min(max(td$Tree), n_first_tree)
   td <- td[Tree <= n_first_tree & !grepl('^booster', t)]
   
-  td[, Node := str_match(t, "(\\d+):")[,2] %>% as.numeric ]
+  td[, Node := stri_match_first_regex(t, "(\\d+):")[,2] %>% as.numeric ]
   td[, ID := add.tree.id(Node, Tree)]
-  td[, isLeaf := !is.na(str_match(t, "leaf"))]
+  td[, isLeaf := !is.na(stri_match_first_regex(t, "leaf"))]
 
   # parse branch lines
   td[isLeaf==FALSE, c("Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover") := {
     rx <- paste0("f(\\d+)<(", anynumber_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
                  "gain=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
     # skip some indices with spurious capture groups from anynumber_regex
-    xtr <- str_match(t, rx)[, c(2,3,5,6,7,8,10)]
+    xtr <- stri_match_first_regex(t, rx)[, c(2,3,5,6,7,8,10)]
     xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
     lapply(1:ncol(xtr), function(i) xtr[,i])
   }]
@@ -102,7 +102,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   # parse leaf lines
   td[isLeaf==TRUE, c("Feature", "Quality", "Cover") := {
     rx <- paste0("leaf=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
-    xtr <- str_match(t, rx)[, c(2,4)]
+    xtr <- stri_match_first_regex(t, rx)[, c(2,4)]
     c("Leaf", lapply(1:ncol(xtr), function(i) xtr[,i]))
   }]
   
