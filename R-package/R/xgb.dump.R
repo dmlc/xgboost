@@ -48,7 +48,7 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with_stats=FALSE, ..
     model_dump <- str_replace_all(model_dump, '\t', '')
   
   model_dump <- unlist(str_split(model_dump, '\n'))
-  model_dump <- grep('(^$|^0$)', model_dump, invert = TRUE, value = TRUE)
+  model_dump <- grep('^\\s*$', model_dump, invert = TRUE, value = TRUE)
   
   if (is.null(fname)) {
     return(model_dump)

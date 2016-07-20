@@ -24,10 +24,20 @@ feature.names <- colnames(sparse_matrix)
 
 test_that("xgb.dump works", {
   expect_length(xgb.dump(bst.Tree), 172)
-  expect_length(xgb.dump(bst.GLM), 14)
   expect_true(xgb.dump(bst.Tree, 'xgb.model.dump', with_stats = T))
   expect_true(file.exists('xgb.model.dump'))
   expect_gt(file.size('xgb.model.dump'), 8000)
+})
+
+test_that("xgb.dump works for gblinear", {
+  expect_length(xgb.dump(bst.GLM), 14)
+  # also make sure that it works properly for a sparse model where some coefficients 
+  # are 0 from setting large L1 regularization:
+  bst.GLM.sp <- xgboost(data = sparse_matrix, label = label, eta = 1, nthread = 2, nrounds = 1, 
+                        alpha=2, objective = "binary:logistic", booster = "gblinear")
+  d.sp <- xgb.dump(bst.GLM.sp)
+  expect_length(d.sp, 14)
+  expect_gt(sum(d.sp == "0"), 0)
 })
 
 test_that("xgb-attribute functionality", {
