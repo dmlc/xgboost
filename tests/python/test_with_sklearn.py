@@ -113,6 +113,37 @@ def test_boston_housing_regression():
         assert mean_squared_error(preds4, labels) < 350
 
 
+def test_boston_housing_regression_with_sample_weights():
+    tm._skip_if_no_sklearn()
+    from sklearn.metrics import mean_squared_error
+    from sklearn.datasets import load_boston
+    from sklearn.cross_validation import KFold
+
+    boston = load_boston()
+    y = boston['target']
+    X = boston['data']
+    sample_weight = np.ones_like(y, 'float')
+    kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
+
+    for train_index, test_index in kf:
+        xgb_model = xgb.XGBRegressor().fit(
+            X[train_index], y[train_index],
+            sample_weight=sample_weight[train_index]
+        )
+
+        preds = xgb_model.predict(X[test_index])
+        # test other params in XGBRegressor().fit
+        preds2 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=3)
+        preds3 = xgb_model.predict(X[test_index], output_margin=True, ntree_limit=0)
+        preds4 = xgb_model.predict(X[test_index], output_margin=False, ntree_limit=3)
+        labels = y[test_index]
+
+        assert mean_squared_error(preds, labels) < 25
+        assert mean_squared_error(preds2, labels) < 370
+        assert mean_squared_error(preds3, labels) < 25
+        assert mean_squared_error(preds4, labels) < 370
+
+
 def test_parameter_tuning():
     tm._skip_if_no_sklearn()
     from sklearn.grid_search import GridSearchCV
