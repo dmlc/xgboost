@@ -86,7 +86,9 @@ test_that("xgb.importance works with and without feature names", {
   expect_equal(dim(importance.Tree), c(7, 4))
   expect_equal(colnames(importance.Tree), c("Feature", "Gain", "Cover", "Frequency"))
   expect_output(str(xgb.importance(model = bst.Tree)), 'Feature.*\\"3\\"')
-  xgb.plot.importance(importance_matrix = importance.Tree)
+  imp2plot <- xgb.plot.importance(importance_matrix = importance.Tree)
+  expect_equal(colnames(imp2plot), c("Feature", "Gain", "Cover", "Frequency", "Importance"))
+  xgb.ggplot.importance(importance_matrix = importance.Tree)
 })
 
 test_that("xgb.importance works with GLM model", {
@@ -94,7 +96,9 @@ test_that("xgb.importance works with GLM model", {
   expect_equal(dim(importance.GLM), c(10, 2))
   expect_equal(colnames(importance.GLM), c("Feature", "Weight"))
   xgb.importance(model = bst.GLM)
-  xgb.plot.importance(importance.GLM)
+  imp2plot <- xgb.plot.importance(importance.GLM)
+  expect_equal(colnames(imp2plot), c("Feature", "Weight", "Importance"))
+  xgb.ggplot.importance(importance.GLM)
 })
 
 test_that("xgb.plot.tree works with and without feature names", {
@@ -108,7 +112,10 @@ test_that("xgb.plot.multi.trees works with and without feature names", {
 })
 
 test_that("xgb.plot.deepness works", {
-  xgb.plot.deepness(model = bst.Tree)
+  d2p <- xgb.plot.deepness(model = bst.Tree)
+  expect_equal(colnames(d2p), c("ID", "Tree", "Depth", "Cover", "Weight"))
+  xgb.plot.deepness(model = bst.Tree, which = "med.depth")
+  xgb.ggplot.deepness(model = bst.Tree)
 })
 
 test_that("check.deprecation works", {
