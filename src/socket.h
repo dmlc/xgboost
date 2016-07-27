@@ -57,12 +57,17 @@ struct SockAddr {
    * \param port the port of address
    */
   inline void Set(const char *host, int port) {
-    hostent *hp = gethostbyname(host);
-    Check(hp != NULL, "cannot obtain address of %s", host);
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
+    addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_protocol = SOCK_STREAM;
+    addrinfo *res = NULL;
+    int sig = getaddrinfo(host, NULL, &hints, &res);
+    Check(sig == 0 && res != NULL, "cannot obtain address of %s", host);
+    Check(res->ai_family == AF_INET, "Does not support IPv6");
+    memcpy(&addr, res->ai_addr, res->ai_addrlen);
     addr.sin_port = htons(port);
-    memcpy(&addr.sin_addr, hp->h_addr_list[0], hp->h_length);
+    freeaddrinfo(res);
   }
   /*! \brief return port of the address*/
   inline int port(void) const {
