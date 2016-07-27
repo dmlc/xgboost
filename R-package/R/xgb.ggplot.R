@@ -44,8 +44,7 @@ xgb.ggplot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med
   which <- match.arg(which)
   
   dt_depths <- xgb.plot.deepness(model = model, plot = FALSE)
-  dt_summaries <- dt_depths[, .(.N, Cover = sum(Cover)), Depth][
-                           , Cover := Cover / sum(Cover)]
+  dt_summaries <- dt_depths[, .(.N, Cover = mean(Cover)), Depth]
   setkey(dt_summaries, 'Depth')
 
   if (which == "2x1") {

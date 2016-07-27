@@ -87,6 +87,8 @@ NULL
 #' @importFrom data.table as.data.table
 #' @importFrom data.table :=
 #' @importFrom data.table rbindlist
+#' @importFrom data.table setkey
+#' @importFrom data.table setkeyv
 #' @importFrom data.table setnames
 #' @importFrom magrittr %>%
 #' @importFrom stringi stri_detect_regex

@@ -39,7 +39,7 @@ When \code{which="2x1"}, two distributions with respect to the leaf depth
 are plotted on top of each other:
 \itemize{
  \item the distribution of the number of leafs in a tree model at a certain depth;
- \item the distribution of normalised weighted number of observations ("cover") 
+ \item the distribution of average weighted number of observations ("cover") 
        ending up in leafs at certain depth.
 }
 Those could be helpful in determining sensible ranges of the \code{max_depth} 
@@ -57,7 +57,7 @@ This function was inspired by the blog post
 data(agaricus.train, package='xgboost')
 
 bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 15,
-               eta = 0.1, nthread = 2, nrounds = 500, objective = "binary:logistic",
+               eta = 0.1, nthread = 2, nrounds = 50, objective = "binary:logistic",
                subsample = 0.5, min_child_weight = 2)
 
 xgb.plot.deepness(bst)

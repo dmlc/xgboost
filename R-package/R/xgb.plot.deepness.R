@@ -16,7 +16,7 @@
 #' are plotted on top of each other:
 #' \itemize{
 #'  \item the distribution of the number of leafs in a tree model at a certain depth;
-#'  \item the distribution of normalised weighted number of observations ("cover") 
+#'  \item the distribution of average weighted number of observations ("cover") 
 #'        ending up in leafs at certain depth.
 #' }
 #' Those could be helpful in determining sensible ranges of the \code{max_depth} 
@@ -47,7 +47,7 @@
 #' data(agaricus.train, package='xgboost')
 #'
 #' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 15,
-#'                eta = 0.1, nthread = 2, nrounds = 500, objective = "binary:logistic",
+#'                eta = 0.1, nthread = 2, nrounds = 50, objective = "binary:logistic",
 #'                subsample = 0.5, min_child_weight = 2)
 #'
 #' xgb.plot.deepness(bst)
@@ -81,9 +81,8 @@ xgb.plot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med.d
   
   dt_depths <- merge(get.leaf.depth(dt_tree), dt_tree[, .(ID, Cover, Weight=Quality)], by = "ID")
   setkeyv(dt_depths, c("Tree", "ID"))
-  # count by depth levels, and also calculate normalized cover
-  dt_summaries <- dt_depths[, .(.N, Cover = mean(Cover)), Depth]#[
-                            #, Cover := Cover / sum(Cover)]
+  # count by depth levels, and also calculate average cover at a depth
+  dt_summaries <- dt_depths[, .(.N, Cover = mean(Cover)), Depth]
   setkey(dt_summaries, "Depth")
   
   if (plot) {
