@@ -54,7 +54,7 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, ...) {
 # internal helper method
 xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
   inClass <- class(data)
-  if (inClass == "dgCMatrix" || inClass == "matrix") {
+  if ("dgCMatrix" %in% inClass || "matrix" %in% inClass ) {
     if (is.null(label)) {
       stop("xgboost: need label when data is a matrix")
     }
