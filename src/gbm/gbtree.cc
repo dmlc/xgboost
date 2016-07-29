@@ -26,8 +26,6 @@ DMLC_REGISTRY_FILE_TAG(gbtree);
 
 /*! \brief training parameters */
 struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
-  /*! \brief number of threads */
-  int nthread;
   /*!
    * \brief number of parallel trees constructed each iteration
    *  use this option to support boosted random forest
@@ -37,8 +35,6 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   std::string updater_seq;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
-    DMLC_DECLARE_FIELD(nthread).set_lower_bound(0).set_default(0)
-        .describe("Number of threads used for training.");
     DMLC_DECLARE_FIELD(num_parallel_tree).set_lower_bound(1).set_default(1)
         .describe("Number of parallel trees constructed during each iteration."\
                   " This option is used to support boosted random forest");
@@ -145,9 +141,6 @@ class GBTree : public GradientBooster {
     for (const auto& up : updaters) {
       up->Init(cfg);
     }
-    if (tparam.nthread != 0) {
-      omp_set_num_threads(tparam.nthread);
-    }
   }
 
   void Load(dmlc::Stream* fi) override {
@@ -247,12 +240,16 @@ class GBTree : public GradientBooster {
       const RowBatch &batch = iter->Value();
       // parallel over local batch
       const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      int ridx_error = 0;
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         const int tid = omp_get_thread_num();
         RegTree::FVec &feats = thread_temp[tid];
         int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
-        CHECK_LT(static_cast<size_t>(ridx), info.num_row);
+        if (static_cast<size_t>(ridx) >= info.num_row) {
+          ridx_error = 1;
+          continue;
+        }
         // loop over output groups
         for (int gid = 0; gid < mparam.num_output_group; ++gid) {
           this->Pred(batch[i],
@@ -262,6 +259,7 @@ class GBTree : public GradientBooster {
                      ntree_limit);
         }
       }
+      CHECK(!ridx_error) << "ridx out of bounds";
     }
   }
 
@@ -368,19 +366,28 @@ class GBTree : public GradientBooster {
                                      const int* leaf_position) {
     const RowSet& rowset = p_fmat->buffered_rowset();
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
+    int pred_counter_error = 0, tid_error = 0;
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       const bst_uint ridx = rowset[i];
       const int64_t bid = this->BufferOffset(buffer_offset + ridx, bst_group);
       const int tid = leaf_position[ridx];
-      CHECK_EQ(pred_counter[bid], trees.size());
-      CHECK_GE(tid, 0);
+      if (pred_counter[bid] != trees.size()) {
+        pred_counter_error = 1;
+        continue;
+      }
+      if (tid < 0) {
+        tid_error = 1;
+        continue;
+      }
       pred_buffer[bid] += new_tree[tid].leaf_value();
       for (int i = 0; i < mparam.size_leaf_vector; ++i) {
         pred_buffer[bid + i + 1] += new_tree.leafvec(tid)[i];
       }
       pred_counter[bid] += tparam.num_parallel_tree;
     }
+    CHECK(!pred_counter_error) << "incorrect pred_counter[bid]";
+    CHECK(!tid_error) << "tid cannot be negative";
   }
   // make a prediction for a single instance
   inline void Pred(const RowBatch::Inst &inst,
