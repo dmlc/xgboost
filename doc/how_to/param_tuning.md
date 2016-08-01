@@ -17,7 +17,7 @@ However, such complicated model requires more data to fit.
 
 Most of parameters in xgboost are about bias variance tradeoff. The best model
 should trade the model complexity with its predictive power carefully.
-[Parameters Documentation](parameter.md) will tell you whether each parameter
+[Parameters Documentation](../parameter.md) will tell you whether each parameter
 will make the model more conservative or not. This can be used to help you
 turn the knob between complicated model and simple model.
 
