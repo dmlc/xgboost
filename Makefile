@@ -39,6 +39,14 @@ ifndef CXX
 export CXX = $(if $(shell which g++-5),g++-5,g++)
 endif
 
+# on Mac OS X, force brew gcc-5 or clang-omp, since the Xcode c++ fails anyway
+# it is useful for pip install compiling-on-the-fly
+OS := $(shell uname)
+ifeq ($(OS), Darwin)
+export CC = $(if $(shell which gcc-5),gcc-5,clang-omp)
+export CXX = $(if $(shell which g++-5),g++-5,clang-omp++)
+endif
+
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
 export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
@@ -150,6 +158,18 @@ doxygen:
 pypack: ${XGBOOST_DYLIB}
 	cp ${XGBOOST_DYLIB} python-package/xgboost
 	cd python-package; tar cf xgboost.tar xgboost; cd ..
+
+# create pip installation pack for PyPI
+pippack:
+	$(MAKE) clean_all
+	rm -rf xgboost-python
+	cp -r python-package xgboost-python
+	cp -r Makefile xgboost-python/xgboost/
+	cp -r make xgboost-python/xgboost/
+	cp -r src xgboost-python/xgboost/
+	cp -r include xgboost-python/xgboost/
+	cp -r dmlc-core xgboost-python/xgboost/
+	cp -r rabit xgboost-python/xgboost/
 
 # Script to make a clean installable R package.
 Rpack:
