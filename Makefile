@@ -43,8 +43,8 @@ endif
 # it is useful for pip install compiling-on-the-fly
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
-export CC = $(if $(shell which gcc-5),gcc-5,cc)
-export CXX = $(if $(shell which g++-5),g++-5,c++)
+export CC = $(if $(shell which gcc-5),gcc-5,clang)
+export CXX = $(if $(shell which g++-5),g++-5,clang++)
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
