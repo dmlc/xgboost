@@ -28,7 +28,6 @@ setup(name='xgboost',
       install_requires=[
           'numpy',
           'scipy',
-          'scikit-learn',
       ],
       maintainer='Hongliang Liu',
       maintainer_email='phunter.lau@gmail.com',
