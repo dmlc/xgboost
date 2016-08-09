@@ -44,10 +44,10 @@ Examples
 --------
 
 -  Refer also to the walk through example in `demo
-   folder <../demo/guide-python>`__
--  See also the `example scripts <../demo/kaggle-higgs>`__ for Kaggle
+   folder <https://github.com/dmlc/xgboost/tree/master/demo/guide-python>`__
+-  See also the `example scripts <https://github.com/dmlc/xgboost/tree/master/demo/kaggle-higgs>`__ for Kaggle
    Higgs Challenge, including `speedtest
-   script <../demo/kaggle-higgs/speedtest.py>`__ on this dataset.
+   script <https://github.com/dmlc/xgboost/tree/master/demo/kaggle-higgs/speedtest.py>`__ on this dataset.
 
 Note
 ----
