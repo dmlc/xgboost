@@ -39,12 +39,12 @@ ifndef CXX
 export CXX = $(if $(shell which g++-5),g++-5,g++)
 endif
 
-# on Mac OS X, force brew gcc-5 or clang-omp, since the Xcode c++ fails anyway
+# on Mac OS X, force brew gcc-5, since the Xcode c++ fails anyway
 # it is useful for pip install compiling-on-the-fly
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
-export CC = $(if $(shell which gcc-5),gcc-5,clang-omp)
-export CXX = $(if $(shell which g++-5),g++-5,clang-omp++)
+export CC = $(if $(shell which gcc-5),gcc-5,cc)
+export CXX = $(if $(shell which g++-5),g++-5,c++)
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
