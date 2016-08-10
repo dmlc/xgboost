@@ -162,15 +162,15 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
         maximize_at_n_metrics = ('auc@', 'map@', 'ndcg@')
         maximize_score = maximize
         metric = env.evaluation_result_list[-1][0]
-        
+
         if any(env.evaluation_result_list[-1][0].split('-')[1].startswith(x)
                for x in maximize_at_n_metrics):
             maximize_score = True
-            
+
         if any(env.evaluation_result_list[-1][0].split('-')[1].split(":")[0] == x
                for x in maximize_metrics):
             maximize_score = True
-            
+
         if verbose and env.rank == 0:
             msg = "Will train until {} hasn't improved in {} rounds.\n"
             rabit.tracker_print(msg.format(metric, stopping_rounds))
