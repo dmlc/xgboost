@@ -69,7 +69,7 @@ See the following paragraph for OpenMP enabled xgboost.
 
 
 Here is the complete solution to use OpenMP-enabled compilers to install XGBoost.
-Obtain gcc-5.x.x with openmp support by `brew install gcc --without-multilib`. (`brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.). Installation of `gcc` can take a while (~ 30 minutes)
+Obtain gcc-6.x.x with openmp support by `brew install gcc --without-multilib`. (`brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.). Installation of `gcc` can take a while (~ 30 minutes)
 
 Now, clone the repository
 
@@ -77,27 +77,7 @@ Now, clone the repository
 git clone --recursive https://github.com/dmlc/xgboost
 ```
 
-The next step is to update the compliers in xgboost's configuration file
-
-```bash
-cd xgboost
-```
-
-Open make/config.mk file and replace the following two lines
-
-```bash
-export CC = gcc
-export CXX = g++
-```
-
-with
-
-```bash
-export CC = gcc-5
-export CXX = g++-5
-```
-
-Now, build using the following commands
+and build using the following commands
 
 ````bash
 cd ..; cp make/config.mk ./config.mk; make -j4

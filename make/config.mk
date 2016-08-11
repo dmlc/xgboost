@@ -3,11 +3,11 @@
 #
 #  If you want to change the configuration, please use the following
 #  steps. Assume you are on the root directory of xgboost.
-#  First copy the this file so that any local changes will be ignored by git
+#  First copy this file so that any local changes will be ignored by git
 #
 #  $ cp make/config.mk .
 #
-#  Next modify the according entries, and then compile by
+#  Next modify the according entries in the copied file and then compile by
 #
 #  $ make
 #
