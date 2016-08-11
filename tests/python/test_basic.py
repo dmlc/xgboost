@@ -250,6 +250,3 @@ class TestBasic(unittest.TestCase):
         cv = xgb.cv(params, dm, num_boost_round=10, shuffle=False, nfold=10, as_pandas=False)
         assert isinstance(cv, dict)
         assert len(cv) == (4)
-
-if __name__ == '__main__':
-    unittest.main()
