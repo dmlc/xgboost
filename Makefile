@@ -33,18 +33,18 @@ include $(XGB_PLUGINS)
 
 # use customized config file
 ifndef CC
-export CC  = $(if $(shell which gcc-5),gcc-5,gcc)
+export CC  = $(if $(shell which gcc-6),gcc-6,gcc)
 endif
 ifndef CXX
-export CXX = $(if $(shell which g++-5),g++-5,g++)
+export CXX = $(if $(shell which g++-6),g++-6,g++)
 endif
 
-# on Mac OS X, force brew gcc-5, since the Xcode c++ fails anyway
+# on Mac OS X, force brew gcc-6, since the Xcode c++ fails anyway
 # it is useful for pip install compiling-on-the-fly
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
-export CC = $(if $(shell which gcc-5),gcc-5,clang)
-export CXX = $(if $(shell which g++-5),g++-5,clang++)
+export CC = $(if $(shell which gcc-6),gcc-6,clang)
+export CXX = $(if $(shell which g++-6),g++-6,clang++)
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
