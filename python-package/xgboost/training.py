@@ -223,7 +223,8 @@ class CVPack(object):
         return self.bst.eval_set(self.watchlist, iteration, feval)
 
 
-def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False, shuffle=True, folds=None):
+def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
+            shuffle=True, folds=None):
     """
     Make an n-fold list of CVPack from random indices.
     """
