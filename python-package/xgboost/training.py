@@ -222,7 +222,7 @@ class CVPack(object):
         return self.bst.eval_set(self.watchlist, iteration, feval)
 
 
-def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False, folds=None):
+def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False, folds=None, shuffle=True):
     """
     Make an n-fold list of CVPack from random indices.
     """
@@ -230,9 +230,12 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     np.random.seed(seed)
 
     if stratified is False and folds is None:
-        randidx = np.random.permutation(dall.num_row())
-        kstep = int(len(randidx) / nfold)
-        idset = [randidx[(i * kstep): min(len(randidx), (i + 1) * kstep)] for i in range(nfold)]
+        if shuffle is True:
+            idx = np.random.permutation(dall.num_row())
+        else:
+            idx = np.arange(dall.num_row())
+        kstep = int(len(idx) / nfold)
+        idset = [idx[(i * kstep): min(len(idx), (i + 1) * kstep)] for i in range(nfold)]
     elif folds is not None and isinstance(folds, list):
         idset = [x[1] for x in folds]
         nfold = len(idset)
@@ -289,7 +292,7 @@ def aggcv(rlist):
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
        fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
-       seed=0, callbacks=None):
+       seed=0, callbacks=None, shuffle=True):
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 
@@ -339,6 +342,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         List of callback functions that are applied at end of each iteration.
         It is possible to use predefined callbacks by using xgb.callback module.
         Example: [xgb.callback.reset_learning_rate(custom_rates)]
+     shuffle : bool
+        Shuffle data before creating folds.
 
     Returns
     -------
@@ -367,7 +372,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     params.pop("eval_metric", None)
 
     results = {}
-    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc, stratified, folds)
+    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc,
+                      stratified, folds, shuffle)
 
     # setup callbacks
     callbacks = [] if callbacks is None else callbacks
