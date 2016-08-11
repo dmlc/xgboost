@@ -223,7 +223,7 @@ class CVPack(object):
         return self.bst.eval_set(self.watchlist, iteration, feval)
 
 
-def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False, folds=None):
+def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False, shuffle=True, folds=None):
     """
     Make an n-fold list of CVPack from random indices.
     """
@@ -231,9 +231,12 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     np.random.seed(seed)
 
     if stratified is False and folds is None:
-        randidx = np.random.permutation(dall.num_row())
-        kstep = int(len(randidx) / nfold)
-        idset = [randidx[(i * kstep): min(len(randidx), (i + 1) * kstep)] for i in range(nfold)]
+        if shuffle is True:
+            idx = np.random.permutation(dall.num_row())
+        else:
+            idx = np.arange(dall.num_row())
+        kstep = int(len(idx) / nfold)
+        idset = [idx[(i * kstep): min(len(idx), (i + 1) * kstep)] for i in range(nfold)]
     elif folds is not None:
         idset = [x[1] for x in folds]
         nfold = len(idset)
@@ -289,7 +292,7 @@ def aggcv(rlist):
     return results
 
 
-def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
+def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, shuffle=True, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
        fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True, seed=0,
        callbacks=None):
@@ -306,6 +309,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Number of boosting iterations.
     nfold : int
         Number of folds in CV.
+    shuffle : bool
+        Shuffle data before creating folds.
     stratified : bool
         Perform stratified sampling.
     folds : a KFold or StratifiedKFold instance
@@ -368,7 +373,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     params.pop("eval_metric", None)
 
     results = {}
-    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc, stratified, folds)
+    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc, stratified, shuffle, folds)
 
     # setup callbacks
     callbacks = [] if callbacks is None else callbacks
