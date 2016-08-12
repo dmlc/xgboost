@@ -10,17 +10,17 @@ We think this explanation is cleaner, more formal, and motivates the variant use
 
 Elements of Supervised Learning
 -------------------------------
-XGBoost is used for supervised learning problems, where we use the training data ``$ x_i $`` to predict a target variable ``$ y_i $``.
+XGBoost is used for supervised learning problems, where we use the training data (with multiple features) ``$ x_i $`` to predict a target variable ``$ y_i $``.
 Before we dive into trees, let us start by reviewing the basic elements in supervised learning.
 
 ### Model and Parameters
 The ***model*** in supervised learning usually refers to the mathematical structure of how to make the prediction ``$ y_i $`` given ``$ x_i $``.
-For example, a common model is a *linear model*, where the prediction is given by ``$ \hat{y}_i = \sum_j w_j x_{ij} $``, a linear combination of weighted input features.
-The prediction value can have different interpretations, depending on the task.
+For example, a common model is a *linear model*, where the prediction is given by ``$ \hat{y}_i = \sum_j \theta_j x_{ij} $``, a linear combination of weighted input features.
+The prediction value can have different interpretations, depending on the task, i.e., regression or classification.
 For example, it can be logistic transformed to get the probability of positive class in logistic regression, and it can also be used as a ranking score when we want to rank the outputs.
 
-The ***parameters*** are the undetermined part that we need to learn from data. In linear regression problems, the parameters are the coefficients ``$ w $``.
-Usually we will use ``$ \Theta $`` to denote the parameters.
+The ***parameters*** are the undetermined part that we need to learn from data. In linear regression problems, the parameters are the coefficients ``$ \theta $``.
+Usually we will use ``$ \theta $`` to denote the parameters (there are many paramters in a model, our definition here is sloppy).
 
 ### Objective Function : Training Loss + Regularization
 
@@ -31,14 +31,14 @@ to measure the performance of the model given a certain set of parameters.
 A very important fact about objective functions is they ***must always*** contain two parts: training loss and regularization.
 
 ```math
-Obj(\Theta) = L(\Theta) + \Omega(\Theta)
+Obj(\Theta) = L(\theta) + \Omega(\Theta)
 ```
 
 where ``$ L $`` is the training loss function, and ``$ \Omega $`` is the regularization term. The training loss measures how *predictive* our model is on training data.
 For example, a commonly used training loss is mean squared error.
 
 ```math
-L(\Theta) = \sum_i (y_i-\hat{y}_i)^2
+L(\theta) = \sum_i (y_i-\hat{y}_i)^2
 ```
 Another commonly used loss function is logistic loss for logistic regression
 
@@ -93,7 +93,7 @@ Mathematically, we can write our model in the form
 where ``$ K $`` is the number of trees, ``$ f $`` is a function in the functional space ``$ \mathcal{F} $``, and ``$ \mathcal{F} $`` is the set of all possible CARTs. Therefore our objective to optimize can be written as
 
 ```math
-obj(\Theta) = \sum_i^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \Omega(f_k)
+\text{obj}(\theta) = \sum_i^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \Omega(f_k)
 ```
 Now here comes the question, what is the *model* for random forests? It is exactly tree ensembles! So random forests and boosted trees are not different in terms of model,
 the difference is how we train them. This means if you write a predictive service of tree ensembles, you only need to write one of them and they should directly work
@@ -106,7 +106,7 @@ The answer is, as is always for all supervised learning models: *define an objec
 
 Assume we have the following objective function (remember it always need to contain training loss, and regularization)
 ```math
-Obj = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i) \\
+\text{obj} = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i) \\
 ```
 
 ### Additive Training
@@ -129,14 +129,14 @@ We note the prediction value at step ``$t$`` by ``$ \hat{y}_i^{(t)}$``, so we ha
 It remains to ask, which tree do we want at each step?  A natural thing is to add the one that optimizes our objective.
 
 ```math
-Obj^{(t)} & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i) \\
+\text{obj}^{(t)} & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i) \\
           & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)) + \Omega(f_t) + constant
 ```
 
 If we  consider using MSE as our loss function, it becomes the following form.
 
 ```math
-Obj^{(t)} & = \sum_{i=1}^n (y_i - (\hat{y}_i^{(t-1)} + f_t(x_i)))^2 + \sum_{i=1}^t\Omega(f_i) \\
+\text{obj}^{(t)} & = \sum_{i=1}^n (y_i - (\hat{y}_i^{(t-1)} + f_t(x_i)))^2 + \sum_{i=1}^t\Omega(f_i) \\
           & = \sum_{i=1}^n [2(\hat{y}_i^{(t-1)} - y_i)f_t(x_i) + f_t(x_i)^2] + \Omega(f_t) + constant
 ```
 
@@ -145,7 +145,7 @@ For other losses of interest (for example, logistic loss), it is not so easy to 
 So in the general case, we take the Taylor expansion of the loss function up to the second order
 
 ```math
-Obj^{(t)} = \sum_{i=1}^n [l(y_i, \hat{y}_i^{(t-1)}) + g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i)] + \Omega(f_t) + constant
+\text{obj}^{(t)} = \sum_{i=1}^n [l(y_i, \hat{y}_i^{(t-1)}) + g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i)] + \Omega(f_t) + constant
 ```
 where the ``$g_i$`` and ``$h_i$`` are defined as
 
@@ -197,14 +197,14 @@ Notice that in the second line we have changed the index of the summation becaus
 We could further compress the expression by defining ``$ G_j = \sum_{i\in I_j} g_i $`` and ``$ H_j = \sum_{i\in I_j} h_i $``:
 
 ```math
-Obj^{(t)} = \sum^T_{j=1} [G_jw_j + \frac{1}{2} (H_j+\lambda) w_j^2] +\gamma T
+\text{obj}^{(t)} = \sum^T_{j=1} [G_jw_j + \frac{1}{2} (H_j+\lambda) w_j^2] +\gamma T
 ```
 
 In this equation ``$ w_j $`` are independent to each other, the form ``$ G_jw_j+\frac{1}{2}(H_j+\lambda)w_j^2 $`` is quadratic and the best ``$ w_j $`` for a given structure ``$q(x)$`` and the best objective reduction we can get is:
 
 ```math
 w_j^\ast = -\frac{G_j}{H_j+\lambda}\\
-Obj^\ast = -\frac{1}{2} \sum_{j=1}^T \frac{G_j^2}{H_j+\lambda} + \gamma T
+\text{obj}^\ast = -\frac{1}{2} \sum_{j=1}^T \frac{G_j^2}{H_j+\lambda} + \gamma T
 ```
 The last equation measures ***how good*** a tree structure ``$q(x)$`` is.
 
