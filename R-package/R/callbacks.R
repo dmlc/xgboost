@@ -482,9 +482,12 @@ cb.cv.predict <- function(save_models = FALSE) {
       stop("'cb.cv.predict' callback requires 'basket' and 'bst_folds' lists in its calling frame")
     
     N <- nrow(env$data)
-    pred <- ifelse(env$num_class > 1, 
-                   matrix(NA_real_, N, env$num_class), 
-                   rep(NA_real_, N))
+    pred <- 
+      if (env$num_class > 1) {
+        matrix(NA_real_, N, env$num_class)
+      } else {
+        rep(NA_real_, N)
+      }
 
     ntreelimit <- NVL(env$basket$best_ntreelimit, 
                       env$end_iteration * env$num_parallel_tree)

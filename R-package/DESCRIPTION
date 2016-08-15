@@ -1,7 +1,7 @@
 Package: xgboost
 Type: Package
 Title: Extreme Gradient Boosting
-Version: 0.4-3
+Version: 0.6-0
 Date: 2015-08-01
 Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>,
     Michael Benesty <michael@benesty.fr>, Vadim Khotilovich <khotilovich@gmail.com>,
@@ -35,5 +35,5 @@ Imports:
     methods,
     data.table (>= 1.9.6),
     magrittr (>= 1.5),
-    stringr (>= 0.6.2)
+    stringi (>= 0.5.2)
 RoxygenNote: 5.0.1

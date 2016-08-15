@@ -3,7 +3,8 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
-## brick: next release candidate
+## v0.6 (2016.07.29)
+* Version 0.5 is skipped due to major improvements in the core
 * Major refactor of core library.
   - Goal: more flexible and modular code as a portable library.
   - Switch to use of c++11 standard code.
@@ -34,6 +35,14 @@ This file records the changes in xgboost library in reverse chronological order.
 * Support model attributes listing for meta data.
   - https://github.com/dmlc/xgboost/pull/1198
   - https://github.com/dmlc/xgboost/pull/1166
+* Support callback API
+  - https://github.com/dmlc/xgboost/issues/892
+  - https://github.com/dmlc/xgboost/pull/1211
+  - https://github.com/dmlc/xgboost/pull/1264
+* Support new booster DART(dropout in tree boosting)
+  - https://github.com/dmlc/xgboost/pull/1220
+* Add CMake build system
+  - https://github.com/dmlc/xgboost/pull/1314
 
 ## v0.47 (2016.01.14)
 

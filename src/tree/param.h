@@ -53,9 +53,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int parallel_option;
   // option to open cacheline optimization
   bool cache_opt;
-  // number of threads to be used for tree construction,
-  // if OpenMP is enabled, if equals 0, use system default
-  int nthread;
   // whether to not print info during training.
   bool silent;
   // declare the parameters
@@ -98,10 +95,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe("Different types of parallelization algorithm.");
     DMLC_DECLARE_FIELD(cache_opt).set_default(true)
         .describe("EXP Param: Cache aware optimization.");
-    DMLC_DECLARE_FIELD(nthread).set_default(0)
-        .describe("Number of threads used for training.");
     DMLC_DECLARE_FIELD(silent).set_default(false)
-        .describe("Not print information during trainig.");
+        .describe("Do not print information during trainig.");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);

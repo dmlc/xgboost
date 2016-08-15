@@ -59,3 +59,5 @@ List of Contributors
 * [Sam Thomson](https://github.com/sammthomson)
 * [ganesh-krishnan](https://github.com/ganesh-krishnan)
 * [Damien Carol](https://github.com/damiencarol)
+* [Alex Bain](https://github.com/convexquad)
+* [Baltazar Bieniek](https://github.com/bbieniek)

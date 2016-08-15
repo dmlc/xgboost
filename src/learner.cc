@@ -78,6 +78,9 @@ struct LearnerTrainParam
   float prob_buffer_row;
   // maximum row per batch.
   size_t max_row_perbatch;
+  // number of threads to use if OpenMP is enabled
+  // if equals 0, use system default
+  int nthread;
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
     DMLC_DECLARE_FIELD(seed).set_default(0)
@@ -101,6 +104,8 @@ struct LearnerTrainParam
         .describe("Maximum buffered row portion");
     DMLC_DECLARE_FIELD(max_row_perbatch).set_default(std::numeric_limits<size_t>::max())
         .describe("maximum row per batch.");
+    DMLC_DECLARE_FIELD(nthread).set_default(0)
+        .describe("Number of threads to use.");
   }
 };
 
@@ -149,7 +154,11 @@ class LearnerImpl : public Learner {
         cfg_[kv.first] = kv.second;
       }
     }
-    // add additional parameter
+    if (tparam.nthread != 0) {
+      omp_set_num_threads(tparam.nthread);
+    }
+
+    // add additional parameters
     // These are cosntraints that need to be satisfied.
     if (tparam.dsplit == 0 && rabit::IsDistributed()) {
       tparam.dsplit = 2;

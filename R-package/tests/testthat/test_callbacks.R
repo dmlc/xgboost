@@ -264,7 +264,7 @@ test_that("prediction in early-stopping xgb.cv works", {
   set.seed(1)
   expect_output(
     cv <- xgb.cv(param, dtrain, nfold = 5, eta = 0.1, nrounds = 20,
-                 early_stopping_rounds = 5, maximize = FALSE, prediction=TRUE)
+                 early_stopping_rounds = 5, maximize = FALSE, prediction = TRUE)
   , "Stopping. Best iteration")
   
   expect_false(is.null(cv$best_iteration))
@@ -278,4 +278,18 @@ test_that("prediction in early-stopping xgb.cv works", {
   expect_equal(err_pred, err_log, tolerance = 1e-6)
   err_log_last <- cv$evaluation_log[cv$niter, test_error_mean]
   expect_gt(abs(err_pred - err_log_last), 1e-4)
+})
+
+test_that("prediction in xgb.cv for softprob works", {
+  lb <- as.numeric(iris$Species) - 1
+  set.seed(11)
+  expect_warning(
+    cv <- xgb.cv(data = as.matrix(iris[, -5]), label = lb, nfold = 4,
+                 eta = 0.5, nrounds = 5, max_depth = 3, nthread = 2,
+                 subsample = 0.8, gamma = 2,
+                 prediction = TRUE, objective = "multi:softprob", num_class = 3)
+  , NA)
+  expect_false(is.null(cv$pred))
+  expect_equal(dim(cv$pred), c(nrow(iris), 3))
+  expect_lt(diff(range(rowSums(cv$pred))), 1e-6)
 })

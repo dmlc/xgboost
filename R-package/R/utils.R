@@ -146,7 +146,7 @@ xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL) {
   if (is.null(feval)) {
     msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist,
                  as.list(evnames), PACKAGE = "xgboost")
-    msg <- str_split(msg, '(\\s+|:|\\s+)')[[1]][-1]
+    msg <- stri_split_regex(msg, '(\\s+|:|\\s+)')[[1]][-1]
     res <- as.numeric(msg[c(FALSE,TRUE)]) # even indices are the values
     names(res) <- msg[c(TRUE,FALSE)]      # odds are the names
   } else {

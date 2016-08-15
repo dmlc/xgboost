@@ -97,6 +97,7 @@ struct EvalAuc : public Metric {
     const bst_omp_uint ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     // sum statistics
     double sum_auc = 0.0f;
+    int auc_error = 0;
     #pragma omp parallel reduction(+:sum_auc)
     {
       // each thread takes a local rec
@@ -128,12 +129,16 @@ struct EvalAuc : public Metric {
         sum_npos += buf_pos;
         sum_nneg += buf_neg;
         // check weird conditions
-        CHECK(sum_npos > 0.0 && sum_nneg > 0.0)
-            << "AUC: the dataset only contains pos or neg samples";
+        if (sum_npos <= 0.0 || sum_nneg <= 0.0) {
+          auc_error = 1;
+          continue;
+        }
         // this is the AUC
         sum_auc += sum_pospair / (sum_npos*sum_nneg);
       }
     }
+    CHECK(!auc_error)
+      << "AUC: the dataset only contains pos or neg samples";
     if (distributed) {
       float dat[2];
       dat[0] = static_cast<float>(sum_auc);
