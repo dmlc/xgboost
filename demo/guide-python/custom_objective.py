@@ -2,7 +2,7 @@
 import numpy as np
 import xgboost as xgb
 ###
-# advanced: cutomsized loss function
+# advanced: customized loss function
 #
 print ('start running example to used cutomized objective function')
 
