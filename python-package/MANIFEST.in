@@ -2,10 +2,15 @@ include *.md *.rst
 recursive-include xgboost *
 recursive-include xgboost/include *
 recursive-include xgboost/src *
-#exclude pre-compiled .o file for less confusions
+recursive-include xgboost/make *
+recursive-include xgboost/rabit *
+recursive-include xgboost/lib *
+recursive-include xgboost/dmlc-core *
+#exclude pre-compiled .o and .a file for less confusions
+#make sure .a files are all removed for forcing compiling
 #include the pre-compiled .so is needed as a placeholder
 #since it will be copy after compiling on the fly
-global-exclude xgboost/build/*
-global-exclude xgboost/*.o
+global-exclude *.o
+global-exclude *.a
 global-exclude *.pyo
 global-exclude *.pyc
