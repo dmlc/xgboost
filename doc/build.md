@@ -99,7 +99,7 @@ export CXX = g++-5
 
 Now, build using the following commands
 
-````bash
+```bash
 cd ..; cp make/config.mk ./config.mk; make -j4
 ```
 
