@@ -200,9 +200,10 @@ dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 watchlist <- list(eval = dtest, train = dtrain)
 
 ## A simple xgb.train example:
-param <- list(max_depth = 2, eta = 1, silent = 1, 
+param <- list(max_depth = 2, eta = 1, silent = 1, nthread = 2, 
               objective = "binary:logistic", eval_metric = "auc")
-bst <- xgb.train(param, dtrain, nthread = 2, nrounds = 2, watchlist)
+bst <- xgb.train(param, dtrain, nrounds = 2, watchlist)
+
 
 ## An xgb.train example where custom objective and evaluation metric are used:
 logregobj <- function(preds, dtrain) {
@@ -217,16 +218,33 @@ evalerror <- function(preds, dtrain) {
   err <- as.numeric(sum(labels != (preds > 0)))/length(labels)
   return(list(metric = "error", value = err))
 }
-bst <- xgb.train(param, dtrain, nthread = 2, nrounds = 2, watchlist)
+
+# These functions could be used by passing them either:
+#  as 'objective' and 'eval_metric' parameters in the params list:
+param <- list(max_depth = 2, eta = 1, silent = 1, nthread = 2, 
+              objective = logregobj, eval_metric = evalerror)
+bst <- xgb.train(param, dtrain, nrounds = 2, watchlist)
+
+#  or through the ... arguments:
+param <- list(max_depth = 2, eta = 1, silent = 1, nthread = 2)
+bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
+                 objective = logregobj, eval_metric = evalerror)
+
+#  or as dedicated 'obj' and 'feval' parameters of xgb.train:
+bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
+                 obj = logregobj, feval = evalerror)
+
 
 ## An xgb.train example of using variable learning rates at each iteration:
+param <- list(max_depth = 2, eta = 1, silent = 1, nthread = 2)
 my_etas <- list(eta = c(0.5, 0.1))
-bst <- xgb.train(param, dtrain, nthread = 2, nrounds = 2, watchlist,
+bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
                  callbacks = list(cb.reset.parameters(my_etas)))
+
 
 ## Explicit use of the cb.evaluation.log callback allows to run 
 ## xgb.train silently but still store the evaluation results:
-bst <- xgb.train(param, dtrain, nthread = 2, nrounds = 2, watchlist,
+bst <- xgb.train(param, dtrain, nrounds = 2, watchlist,
                  verbose = 0, callbacks = list(cb.evaluation.log()))
 print(bst$evaluation_log)
 
