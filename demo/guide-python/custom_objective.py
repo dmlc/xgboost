@@ -2,9 +2,9 @@
 import numpy as np
 import xgboost as xgb
 ###
-# advanced: cutomsized loss function
+# advanced: customized loss function
 #
-print ('start running example to used cutomized objective function')
+print ('start running example to used customized objective function')
 
 dtrain = xgb.DMatrix('../data/agaricus.txt.train')
 dtest = xgb.DMatrix('../data/agaricus.txt.test')
@@ -12,12 +12,12 @@ dtest = xgb.DMatrix('../data/agaricus.txt.test')
 # note: for customized objective function, we leave objective as default
 # note: what we are getting is margin value in prediction
 # you must know what you are doing
-param = {'max_depth':2, 'eta':1, 'silent':1 }
-watchlist  = [(dtest,'eval'), (dtrain,'train')]
+param = {'max_depth': 2, 'eta': 1, 'silent': 1}
+watchlist = [(dtest, 'eval'), (dtrain, 'train')]
 num_round = 2
 
 # user define objective function, given prediction, return gradient and second order gradient
-# this is loglikelihood loss
+# this is log likelihood loss
 def logregobj(preds, dtrain):
     labels = dtrain.get_label()
     preds = 1.0 / (1.0 + np.exp(-preds))
