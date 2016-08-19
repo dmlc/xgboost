@@ -13,7 +13,7 @@ with distributed filesystems(HDFS or S3) in ```xgboost/make/config.mk```.
 
 Step by Step Tutorial on AWS
 ----------------------------
-Checkout [this tutorial](https://xgboost.readthedocs.org/en/latest/tutorial/aws_yarn.html) for running distributed xgboost.
+Checkout [this tutorial](https://xgboost.readthedocs.org/en/latest/tutorials/aws_yarn.html) for running distributed xgboost.
 
 
 Model Analysis
