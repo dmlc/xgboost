@@ -56,8 +56,8 @@ SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent) {
   CHECK_CALL(XGDMatrixCreateFromFile(CHAR(asChar(fname)), asInteger(silent), &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return ret;
 }
 
@@ -80,8 +80,8 @@ SEXP XGDMatrixCreateFromMat_R(SEXP mat,
   CHECK_CALL(XGDMatrixCreateFromMat(BeginPtr(data), nrow, ncol, asReal(missing), &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return ret;
 }
 
@@ -113,8 +113,8 @@ SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
                                     &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return ret;
 }
 
@@ -132,8 +132,8 @@ SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
                                    &res));
   ret = PROTECT(R_MakeExternalPtr(res, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return ret;
 }
 
@@ -184,8 +184,8 @@ SEXP XGDMatrixGetInfo_R(SEXP handle, SEXP field) {
   for (size_t i = 0; i < olen; ++i) {
     REAL(ret)[i] = res[i];
   }
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return ret;
 }
 
@@ -224,8 +224,8 @@ SEXP XGBoosterCreate_R(SEXP dmats) {
   CHECK_CALL(XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _BoosterFinalizer, TRUE);
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return ret;
 }
 
@@ -305,8 +305,8 @@ SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask, SEXP ntree_lim
   for (size_t i = 0; i < olen; ++i) {
     REAL(ret)[i] = res[i];
   }
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return ret;
 }
 
@@ -343,8 +343,8 @@ SEXP XGBoosterModelToRaw_R(SEXP handle) {
   if (olen != 0) {
     memcpy(RAW(ret), raw, olen);
   }
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return ret;
 }
 
@@ -363,8 +363,8 @@ SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats) {
     stream <<  "booster[" << i <<"]\n" << res[i];
     SET_STRING_ELT(out, i, mkChar(stream.str().c_str()));
   }
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return out;
 }
 
@@ -383,8 +383,8 @@ SEXP XGBoosterGetAttr_R(SEXP handle, SEXP name) {
   } else {
     out = PROTECT(R_NilValue);
   }
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return out;
 }
 
@@ -412,8 +412,7 @@ SEXP XGBoosterGetAttrNames_R(SEXP handle) {
   } else {
     out = PROTECT(R_NilValue);
   }
-  UNPROTECT(1);
   R_API_END();
+  UNPROTECT(1);
   return out;
 }
-
