@@ -5,7 +5,7 @@ output:
     css: vignette.css
     number_sections: yes
     toc: yes
-author: Tianqi Chen, Tong He, Michaël Benesty
+author: Tianqi Chen, Tong He, Michaël Benesty, Yuan Tang
 vignette: >
   %\VignetteIndexEntry{Discover your data}
   %\VignetteEngine{knitr::rmarkdown}
@@ -18,9 +18,9 @@ Understand your dataset with XGBoost
 Introduction
 ------------
 
-The purpose of this Vignette is to show you how to use **Xgboost** to discover and understand your own dataset better.
+The purpose of this vignette is to show you how to use **Xgboost** to discover and understand your own dataset better.
 
-This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
+This vignette is not about predicting anything (see [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
 
 Pacakge loading:
 
@@ -36,7 +36,7 @@ if (!require('vcd')) install.packages('vcd')
 Preparation of the dataset
 --------------------------
 
-### Numeric VS categorical variables
+### Numeric v.s. categorical variables
 
 
 **Xgboost** manages only `numeric` vectors.
@@ -68,7 +68,7 @@ df <- data.table(Arthritis, keep.rownames = F)
 
 > `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `Pandas` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **Xgboost** **R** package use `data.table`.
 
-The first thing we want to do is to have a look to the first lines of the `data.table`:
+The first thing we want to do is to have a look to the first few lines of the `data.table`:
 
 ```{r}
 head(df)
@@ -103,9 +103,9 @@ Therefore, 20 is not closer to 30 than 60. To make it short, the distance betwee
 head(df[,AgeDiscret := as.factor(round(Age/10,0))])
 ```
 
-##### Random split in two groups
+##### Random split into two groups
 
-Following is an even stronger simplification of the real age with an arbitrary split at 30 years old. I choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (you may already have an idea of how well it will work...).
+Following is an even stronger simplification of the real age with an arbitrary split at 30 years old. We choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (you may already have an idea of how well it will work...).
 
 ```{r}
 head(df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))])
@@ -139,7 +139,7 @@ levels(df[,Treatment])
 Next step, we will transform the categorical data to dummy variables.
 This is the [one-hot encoding](http://en.wikipedia.org/wiki/One-hot) step.
 
-The purpose is to transform each value of each *categorical* feature in a *binary* feature `{0, 1}`.
+The purpose is to transform each value of each *categorical* feature into a *binary* feature `{0, 1}`.
 
 For example, the column `Treatment` will be replaced by two columns, `Placebo`, and `Treated`. Each of them will be *binary*. Therefore, an observation which has the value `Placebo` in column `Treatment` before the transformation will have after the transformation the value `1` in the new column `Placebo` and the value `0` in the new column `Treated`. The column `Treatment` will disappear during the one-hot encoding.
 
@@ -316,8 +316,6 @@ However, in Random Forests™ this random choice will be done for each tree, bec
 In boosting, when a specific link between feature and outcome have been learned by the algorithm, it will try to not refocus on it (in theory it is what happens, reality is not always that simple). Therefore, all the importance will be on feature `A` or on feature `B` (but not both). You will know that one feature have an important role in the link between the observations and the label. It is still up to you to search for the correlated features to the one detected as important if you need to know all of them.
 
 If you want to try Random Forests™ algorithm, you can tweak Xgboost parameters!
-
-**Warning**: this is still an experimental parameter.
 
 For instance, to compute a model with 1000 trees, with a 0.5 factor on sampling rows and columns:
 
