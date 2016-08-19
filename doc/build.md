@@ -36,8 +36,8 @@ even better to send pull request if you can fix the problem.
 ## Build the Shared Library
 
 Our goal is to build the shared library:
-- On Linux/OSX the target library is ```libxgboost.so```
-- On Windows the target library is ```libxgboost.dll```
+- On Linux/OSX the target library is `libxgboost.so`
+- On Windows the target library is `libxgboost.dll`
 
 The minimal building requirement is
 
@@ -99,7 +99,7 @@ export CXX = g++-5
 
 Now, build using the following commands
 
-````bash
+```bash
 cd ..; cp make/config.mk ./config.mk; make -j4
 ```
 
