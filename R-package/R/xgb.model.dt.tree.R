@@ -65,8 +65,13 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
     stop("n_first_tree: Has to be a numeric vector of size 1.")
   }
   
-  if(is.null(text)){
+  if (is.null(text)){
     text <- xgb.dump(model = model, with_stats = T)
+  }
+  
+  if (length(text) < 2 ||
+      sum(stri_detect_regex(text, 'yes=(\\d+),no=(\\d+)')) < 1) {
+    stop("Non-tree model detected! This function can only be used with tree models.")
   }
   
   position <- which(!is.na(stri_match_first_regex(text, "booster")))
