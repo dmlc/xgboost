@@ -16,7 +16,7 @@
 #include <cstdarg>
 #endif
 
-#if !defined(__GNUC__)
+#if !defined(__GNUC__) || defined(__FreeBSD__)
 #define fopen64 std::fopen
 #endif
 #ifdef _MSC_VER
