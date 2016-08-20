@@ -42,7 +42,7 @@ class XGBoostModel(_booster: Booster) extends Serializable {
         Rabit.init(rabitEnv.asJava)
         val cacheFileName = {
           if (useExternalCache) {
-            s"$appName-dtest_cache-${TaskContext.getPartitionId()}"
+            s"$appName-${TaskContext.get().stageId()}-dtest_cache-${TaskContext.getPartitionId()}"
           } else {
             null
           }
