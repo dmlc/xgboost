@@ -24,7 +24,11 @@
 // helper functions
 // set handle
 void setHandle(JNIEnv *jenv, jlongArray jhandle, void* handle) {
+#ifdef __APPLE__
+  long out = (long) handle;
+#else
   int64_t out = (int64_t) handle;
+#endif
   jenv->SetLongArrayRegion(jhandle, 0, 1, &out);
 }
 
