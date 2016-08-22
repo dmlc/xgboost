@@ -182,7 +182,7 @@ class XGBModel(XGBModelBase):
             xgb_params.pop('nthread', None)
         return xgb_params
 
-    def fit(self, X, y, eval_set=None, eval_metric=None,
+    def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
@@ -219,7 +219,7 @@ class XGBModel(XGBModelBase):
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         """
-        trainDmatrix = DMatrix(X, label=y, missing=self.missing)
+        trainDmatrix = DMatrix(X, label=y, missing=self.missing, weight=sample_weight)
 
         evals_result = {}
         if eval_set is not None:
