@@ -260,6 +260,15 @@ test_that("prediction in xgb.cv works", {
   expect_true(all(sapply(cvx$models, class) == 'xgb.Booster'))
 })
 
+test_that("prediction in xgb.cv works for gblinear too", {
+  set.seed(11)
+  p <- list(booster = 'gblinear', objective = "reg:logistic", nthread = 2)
+  cv <- xgb.cv(p, dtrain, nfold = 5, eta = 0.5, nrounds = 2, prediction = TRUE)
+  expect_false(is.null(cv$evaluation_log))
+  expect_false(is.null(cv$pred))
+  expect_length(cv$pred, nrow(train$data))
+})
+
 test_that("prediction in early-stopping xgb.cv works", {
   set.seed(1)
   expect_output(
