@@ -62,6 +62,7 @@ ifneq ($(UNAME), Windows)
 	XGBOOST_DYLIB = lib/libxgboost.so
 else
 	XGBOOST_DYLIB = lib/libxgboost.dll
+	JAVAINCFLAGS += -I${JAVA_HOME}/include/win32
 endif
 
 ifeq ($(UNAME), Linux)
