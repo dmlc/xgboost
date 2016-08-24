@@ -29,7 +29,7 @@ Suggests:
     testthat,
     igraph (>= 1.0.1)
 Depends:
-    R (>= 3.1.0)
+    R (>= 2.15.1)
 Imports:
     Matrix (>= 1.1-0),
     methods,
