@@ -84,6 +84,7 @@ NULL
 #' @importFrom Matrix sparse.model.matrix
 #' @importFrom Matrix sparseVector
 #' @importFrom data.table data.table
+#' @importFrom data.table is.data.table
 #' @importFrom data.table as.data.table
 #' @importFrom data.table :=
 #' @importFrom data.table rbindlist
@@ -98,6 +99,12 @@ NULL
 #' @importFrom stringi stri_split_regex
 #' @importFrom utils object.size str tail
 #' @importFrom stats predict
+#' @importFrom stats median
+#' @importFrom utils head
+#' @importFrom graphics barplot
+#' @importFrom graphics grid
+#' @importFrom graphics par
+#' @importFrom graphics title
 #' 
 #' @import methods
 #' @useDynLib xgboost

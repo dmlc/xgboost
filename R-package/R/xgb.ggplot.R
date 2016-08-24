@@ -131,5 +131,5 @@ multiplot <- function(..., cols = 1) {
 
 globalVariables(c(
   "Cluster", "ggplot", "aes", "geom_bar", "coord_flip", "xlab", "ylab", "ggtitle", "theme",
-  "element_blank", "element_text"
+  "element_blank", "element_text", "V1", "Weight"
 ))
