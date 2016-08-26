@@ -736,4 +736,4 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
 }
 
 // force link rabit
-static int XGBOOST_LINK_RABIT_C_API_ = RabitLinkTag();
+static DMLC_ATTRIBUTE_UNUSED int XGBOOST_LINK_RABIT_C_API_ = RabitLinkTag();
