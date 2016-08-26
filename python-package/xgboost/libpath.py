@@ -40,7 +40,7 @@ def find_lib_path():
     # From github issues, most of installation errors come from machines w/o compilers
     if len(lib_path) == 0 and not os.environ.get('XGBOOST_BUILD_DOC', False):
         raise XGBoostLibraryNotFound(
-            'Cannot find XGBoost Libarary in the candicate path, ' +
+            'Cannot find XGBoost Libarary in the candidate path, ' +
             'did you install compilers and run build.sh in root path?\n'
             'List of candidates:\n' + ('\n'.join(dll_path)))
     return lib_path
