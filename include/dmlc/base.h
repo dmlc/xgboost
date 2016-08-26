@@ -58,6 +58,11 @@
                         __cplusplus >= 201103L || defined(_MSC_VER))
 #endif
 
+/*! \brief strict CXX11 support */
+#ifndef DMLC_STRICT_CXX11
+#define DMLC_STRICT_CXX11 (__cplusplus >= 201103L || defined(_MSC_VER))
+#endif
+
 /// check if g++ is before 4.6
 #if DMLC_USE_CXX11 && defined(__GNUC__) && !defined(__clang_version__)
 #if __GNUC__ == 4 && __GNUC_MINOR__ < 6
@@ -68,6 +73,7 @@
 #define DMLC_USE_CXX11 0
 #endif
 #endif
+
 
 /*!
  * \brief Enable std::thread related modules,
@@ -81,6 +87,17 @@
 #ifndef DMLC_USE_REGEX
 #define DMLC_USE_REGEX (__cplusplus >= 201103L || defined(_MSC_VER))
 #endif
+
+/*! \brief helper macro to supress unused warning */
+#if defined(__GNUC__)
+#define DMLC_ATTRIBUTE_UNUSED __attribute__((unused))
+#else
+#define DMLC_ATTRIBUTE_UNUSED
+#endif
+
+/*! \brief helper macro to generate string concat */
+#define DMLC_STR_CONCAT_(__x, __y) __x##__y
+#define DMLC_STR_CONCAT(__x, __y) DMLC_STR_CONCAT_(__x, __y)
 
 /*!
  * \brief Disable copy constructor and assignment operator.
@@ -108,6 +125,9 @@
 /// code block to handle optionally loading
 ///
 #if !defined(__GNUC__)
+#define fopen64 std::fopen
+#endif
+#if (defined __MINGW32__) && !(defined __MINGW64__)
 #define fopen64 std::fopen
 #endif
 #ifdef _MSC_VER
@@ -150,6 +170,20 @@ typedef unsigned __int64 uint64_t;
 #endif
 #include <string>
 #include <vector>
+
+#if defined(_MSC_VER) && _MSC_VER < 1900
+#define noexcept_true throw ()
+#define noexcept_false
+#define noexcept(a) noexcept_##a
+#endif
+
+#if DMLC_USE_CXX11
+#define DMLC_THROW_EXCEPTION noexcept(false)
+#define DMLC_NO_EXCEPTION  noexcept(true)
+#else
+#define DMLC_THROW_EXCEPTION
+#define DMLC_NO_EXCEPTION
+#endif
 
 /*! \brief namespace for dmlc */
 namespace dmlc {
