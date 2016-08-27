@@ -9,6 +9,7 @@
 
 #include <vector>
 #include <cstring>
+#include <limits>
 #include <cmath>
 
 namespace xgboost {
@@ -55,6 +56,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool cache_opt;
   // whether to not print info during training.
   bool silent;
+  // auxiliary data structure
+  std::vector<int> monotone_constraints;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate).set_lower_bound(0.0f).set_default(0.3f)
@@ -97,13 +100,20 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe("EXP Param: Cache aware optimization.");
     DMLC_DECLARE_FIELD(silent).set_default(false)
         .describe("Do not print information during trainig.");
+    DMLC_DECLARE_FIELD(monotone_constraints).set_default(std::vector<int>())
+        .describe("Constraint of variable monotinicity");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
     DMLC_DECLARE_ALIAS(min_split_loss, gamma);
     DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
-
+  // calculate the cost of loss function
+  inline double CalcGainGivenWeight(double sum_grad,
+                                    double sum_hess,
+                                    double w) const {
+    return -(2.0 * sum_grad * w  + (sum_hess + reg_lambda) * Sqr(w));
+  }
   // calculate the cost of loss function
   inline double CalcGain(double sum_grad, double sum_hess) const {
     if (sum_hess < min_child_weight) return 0.0;
@@ -262,6 +272,103 @@ struct GradStats {
   }
 };
 
+struct NoConstraint {
+  inline static void Init(TrainParam* param, unsigned num_feature) {
+  }
+  inline double CalcSplitGain(
+      const TrainParam& param, bst_uint split_index,
+      GradStats left, GradStats right) const {
+    return left.CalcGain(param) + right.CalcGain(param);
+  }
+  inline double CalcWeight(
+      const TrainParam& param,
+      GradStats stats) const {
+    return stats.CalcWeight(param);
+  }
+  inline double CalcGain(const TrainParam& param,
+                         GradStats stats) const {
+    return stats.CalcGain(param);
+  }
+  inline void SetChild(
+      const TrainParam& param, bst_uint split_index,
+      GradStats left, GradStats right,
+      NoConstraint* cleft, NoConstraint* cright) {
+  }
+};
+
+struct ValueConstraint {
+  double lower_bound;
+  double upper_bound;
+  ValueConstraint() :
+      lower_bound(-std::numeric_limits<double>::max()),
+      upper_bound(std::numeric_limits<double>::max()) {
+  }
+  inline static void Init(TrainParam* param, unsigned num_feature) {
+    param->monotone_constraints.resize(num_feature, 1);
+  }
+  inline double CalcWeight(
+      const TrainParam& param,
+      GradStats stats) const {
+    double w  = stats.CalcWeight(param);
+    if (w < lower_bound) {
+      return lower_bound;
+    }
+    if (w > upper_bound) {
+      return upper_bound;
+    }
+    return w;
+  }
+
+  inline double CalcGain(const TrainParam& param,
+                         GradStats stats) const {
+    return param.CalcGainGivenWeight(
+        stats.sum_grad, stats.sum_hess,
+        CalcWeight(param, stats));
+  }
+
+  inline double CalcSplitGain(
+      const TrainParam& param,
+      bst_uint split_index,
+      GradStats left, GradStats right) const {
+    double wleft = CalcWeight(param, left);
+    double wright = CalcWeight(param, right);
+    int c = param.monotone_constraints[split_index];
+    double gain =
+        param.CalcGainGivenWeight(left.sum_grad, left.sum_hess, wleft) +
+        param.CalcGainGivenWeight(right.sum_grad, right.sum_hess, wright);
+    if (c == 0) {
+      return gain;
+    }  else if (c > 0) {
+      return wleft < wright ? gain : 0.0;
+    } else {
+      return wleft > wright ? gain : 0.0;
+    }
+  }
+
+  inline void SetChild(
+      const TrainParam& param,
+      bst_uint split_index,
+      GradStats left, GradStats right,
+      ValueConstraint* cleft, ValueConstraint *cright) {
+    int c = param.monotone_constraints.at(split_index);
+    *cleft = *this;
+    *cright = *this;
+    if (c == 0) return;
+    double wleft = CalcWeight(param, left);
+    double wright = CalcWeight(param, right);
+    double mid = (wleft + wright) / 2;
+    if (c < 0) {
+      CHECK_GE(wleft, wright);
+      cleft->lower_bound = mid;
+      cright->upper_bound = mid;
+    } else {
+      CHECK_LE(wleft, wright);
+      cleft->upper_bound = mid;
+      cright->lower_bound = mid;
+    }
+  }
+};
+
 /*!
  * \brief statistics that is helpful to store
  *   and represent a split solution for the tree
@@ -340,4 +447,73 @@ struct SplitEntry {
 
 }  // namespace tree
 }  // namespace xgboost
+
+// define string serializer for vector, to get the arguments
+namespace std {
+inline std::ostream &operator<<(std::ostream &os, const std::vector<int> &t) {
+  os << '(';
+  for (std::vector<int>::const_iterator
+           it = t.begin(); it != t.end(); ++it) {
+    if (it != t.begin()) os << ',';
+    os << *it;
+  }
+  // python style tuple
+  if (t.size() == 1) os << ',';
+  os << ')';
+  return os;
+}
+
+inline std::istream &operator>>(std::istream &is, std::vector<int> &t) {
+  // get (
+  while (true) {
+    char ch = is.peek();
+    if (isdigit(ch)) {
+      int idx;
+      if (is >> idx) {
+        t.assign(&idx, &idx + 1);
+      }
+      return is;
+    }
+    is.get();
+    if (ch == '(') break;
+    if (!isspace(ch)) {
+      is.setstate(std::ios::failbit);
+      return is;
+    }
+  }
+  int idx;
+  std::vector<int> tmp;
+  while (is >> idx) {
+    tmp.push_back(idx);
+    char ch;
+    do {
+      ch = is.get();
+    } while (isspace(ch));
+    if (ch == 'L') {
+      ch = is.get();
+    }
+    if (ch == ',') {
+      while (true) {
+        ch = is.peek();
+        if (isspace(ch)) {
+          is.get(); continue;
+        }
+        if (ch == ')') {
+          is.get(); break;
+        }
+        break;
+      }
+      if (ch == ')') break;
+    } else if (ch == ')') {
+      break;
+    } else {
+      is.setstate(std::ios::failbit);
+      return is;
+    }
+  }
+  t.assign(tmp.begin(), tmp.end());
+  return is;
+}
+}  // namespace std
+
 #endif  // XGBOOST_TREE_PARAM_H_
