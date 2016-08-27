@@ -150,11 +150,13 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
-    assert(eval.eval(xgBoostModel.predict(testSetDMatrix), testSetDMatrix) < 0.1)
+    val evalResults = eval.eval(xgBoostModel.predict(testSetDMatrix), testSetDMatrix)
+    assert(evalResults < 0.1)
     xgBoostModel.saveModelAsHadoopFile(tempFile.toFile.getAbsolutePath)
     val loadedXGBooostModel = XGBoost.loadModelFromHadoopFile(tempFile.toFile.getAbsolutePath)
     val predicts = loadedXGBooostModel.predict(testSetDMatrix)
-    assert(eval.eval(predicts, testSetDMatrix) < 0.1)
+    val loadedEvalResults = eval.eval(predicts, testSetDMatrix)
+    assert(loadedEvalResults == evalResults)
   }
 
   test("nthread configuration must be equal to spark.task.cpus") {
