@@ -123,15 +123,6 @@ class XGBoostModel(_booster: Booster) extends Serializable {
   }
 
   /**
-   * Predict result with the given test set (represented as DMatrix)
-   *
-   * @param testSet test set represented as DMatrix
-   */
-  def predict(testSet: DMatrix): Array[Array[Float]] = {
-    _booster.predict(testSet)
-  }
-
-  /**
    * Predict leaf instances with the given test set (represented as RDD)
    *
    * @param testSet test set represented as RDD

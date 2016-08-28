@@ -135,7 +135,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val eval = new EvalError()
     for (booster <- boosters) {
       val predicts = booster.predict(testSetDMatrix, outPutMargin = true)
-      assert(eval.eval(predicts, testSetDMatrix) < 0.17)
+      assert(eval.eval(predicts, testSetDMatrix) < 0.1)
     }
   }
 
@@ -211,7 +211,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1 = predRDD.collect()(0)
     import DataUtils._
-    val predResult2 = xgBoostModel.predict(new DMatrix(testSet.iterator))
+    val predResult2 = xgBoostModel.booster.predict(new DMatrix(testSet.iterator))
     for (i <- predResult1.indices; j <- predResult1(i).indices) {
       assert(predResult1(i)(j) === predResult2(i)(j))
     }
@@ -222,7 +222,6 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
       val sampleList = new ListBuffer[SparkVector]
       sparkContext.getOrElse(sc).parallelize(sampleList, numWorkers)
     }
-
     val trainingRDD = buildTrainingRDD()
     val testRDD = buildEmptyRDD()
     import DataUtils._
