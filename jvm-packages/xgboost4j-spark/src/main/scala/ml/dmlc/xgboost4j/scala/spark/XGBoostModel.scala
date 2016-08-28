@@ -128,7 +128,7 @@ class XGBoostModel(_booster: Booster) extends Serializable {
    * @param testSet test set represented as DMatrix
    */
   def predict(testSet: DMatrix): Array[Array[Float]] = {
-    _booster.predict(testSet, true, 0)
+    _booster.predict(testSet)
   }
 
   /**
