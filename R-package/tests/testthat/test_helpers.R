@@ -81,6 +81,10 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   expect_output(str(xgb.model.dt.tree(model = bst.Tree)), 'Feature.*\\"3\\"')
 })
 
+test_that("xgb.model.dt.tree throws error for gblinear", {
+  expect_error(xgb.model.dt.tree(model = bst.GLM))
+})
+
 test_that("xgb.importance works with and without feature names", {
   importance.Tree <- xgb.importance(feature_names = feature.names, model = bst.Tree)
   expect_equal(dim(importance.Tree), c(7, 4))

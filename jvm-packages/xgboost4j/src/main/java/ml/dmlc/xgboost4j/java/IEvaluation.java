@@ -15,12 +15,14 @@
  */
 package ml.dmlc.xgboost4j.java;
 
+import java.io.Serializable;
+
 /**
  * interface for customized evaluation
  *
  * @author hzx
  */
-public interface IEvaluation {
+public interface IEvaluation extends Serializable {
   /**
    * get evaluate metric
    *

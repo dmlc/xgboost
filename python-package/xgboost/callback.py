@@ -159,9 +159,15 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
                    "'{0}' will be used for early stopping.\n\n")
             rabit.tracker_print(msg.format(env.evaluation_result_list[-1][0]))
         maximize_metrics = ('auc', 'map', 'ndcg')
+        maximize_at_n_metrics = ('auc@', 'map@', 'ndcg@')
         maximize_score = maximize
         metric = env.evaluation_result_list[-1][0]
+
         if any(env.evaluation_result_list[-1][0].split('-')[1].startswith(x)
+               for x in maximize_at_n_metrics):
+            maximize_score = True
+
+        if any(env.evaluation_result_list[-1][0].split('-')[1].split(":")[0] == x
                for x in maximize_metrics):
             maximize_score = True
 

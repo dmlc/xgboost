@@ -65,7 +65,8 @@ object XGBoost extends Serializable {
         if (trainingSamples.hasNext) {
           val cacheFileName: String = {
             if (useExternalMemory && trainingSamples.hasNext) {
-              s"$appName-dtrain_cache-${TaskContext.getPartitionId()}"
+              s"$appName-${TaskContext.get().stageId()}-" +
+                s"dtrain_cache-${TaskContext.getPartitionId()}"
             } else {
               null
             }

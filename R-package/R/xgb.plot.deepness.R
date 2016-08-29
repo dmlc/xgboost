@@ -144,6 +144,6 @@ get.leaf.depth <- function(dt_tree) {
 # They are mainly column names inferred by Data.table...
 globalVariables(
   c(
-    ".N", "N", "Depth", "Quality", "Cover", "Tree", "ID", "Yes", "No", "Feature"
+    ".N", "N", "Depth", "Quality", "Cover", "Tree", "ID", "Yes", "No", "Feature", "Leaf", "Weight"
   )
 )

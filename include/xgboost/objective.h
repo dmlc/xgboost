@@ -105,7 +105,8 @@ struct ObjFunctionReg
  * \endcode
  */
 #define XGBOOST_REGISTER_OBJECTIVE(UniqueId, Name)                      \
-  static ::xgboost::ObjFunctionReg & __make_ ## ObjFunctionReg ## _ ## UniqueId ## __ = \
+  static DMLC_ATTRIBUTE_UNUSED ::xgboost::ObjFunctionReg &              \
+  __make_ ## ObjFunctionReg ## _ ## UniqueId ## __ =                    \
       ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->__REGISTER__(Name)
 }  // namespace xgboost
 #endif  // XGBOOST_OBJECTIVE_H_
