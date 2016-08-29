@@ -125,7 +125,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val boosterRDD = XGBoost.buildDistributedBoosters(
       trainingRDD,
-      List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
+      List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
         "objective" -> "binary:logistic").toMap,
       new scala.collection.mutable.HashMap[String, String],
       numWorkers = 2, round = 5, null, null, useExternalMemory = false)
@@ -134,8 +134,9 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val boosters = boosterRDD.collect()
     val eval = new EvalError()
     for (booster <- boosters) {
+      // the threshold is 0.11 because it does not sync boosters with AllReduce
       val predicts = booster.predict(testSetDMatrix, outPutMargin = true)
-      assert(eval.eval(predicts, testSetDMatrix) < 0.1)
+      assert(eval.eval(predicts, testSetDMatrix) < 0.11)
     }
   }
 
