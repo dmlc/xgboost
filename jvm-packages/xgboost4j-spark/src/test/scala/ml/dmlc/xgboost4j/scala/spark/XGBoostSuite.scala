@@ -132,9 +132,10 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val boosterCount = boosterRDD.count()
     assert(boosterCount === 2)
     val boosters = boosterRDD.collect()
+    val eval = new EvalError()
     for (booster <- boosters) {
       val predicts = booster.predict(testSetDMatrix, outPutMargin = true)
-      assert(new EvalError().eval(predicts, testSetDMatrix) < 0.17)
+      assert(eval.eval(predicts, testSetDMatrix) < 0.17)
     }
   }
 
@@ -148,14 +149,16 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val testSet = readFile(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
-    val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
+    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers, useExternalMemory = true)
-    assert(eval.eval(xgBoostModel.predict(testSetDMatrix), testSetDMatrix) < 0.1)
+    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, round = 5,
+      nWorkers = numWorkers, useExternalMemory = true)
+    assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix) < 0.1)
     customSparkContext.stop()
     // clean
     val dir = new File(".")
-    for (file <- dir.listFiles() if file.getName.startsWith("XGBoostSuite-dtrain_cache")) {
+    for (file <- dir.listFiles() if file.getName.startsWith("XGBoostSuite-0-dtrain_cache")) {
       file.delete()
     }
   }
@@ -190,7 +193,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val testRDD = buildDenseRDD().repartition(4)
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, 4)
+    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
     xgBoostModel.predict(testRDD.map(_.features.toDense), missingValue = -0.1f).collect()
   }
 
@@ -220,7 +223,6 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
       sparkContext.getOrElse(sc).parallelize(sampleList, numWorkers)
     }
 
-    val eval = new EvalError()
     val trainingRDD = buildTrainingRDD()
     val testRDD = buildEmptyRDD()
     import DataUtils._
@@ -243,11 +245,12 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
-    val evalResults = eval.eval(xgBoostModel.predict(testSetDMatrix), testSetDMatrix)
+    val evalResults = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix)
     assert(evalResults < 0.1)
     xgBoostModel.saveModelAsHadoopFile(tempFile.toFile.getAbsolutePath)
     val loadedXGBooostModel = XGBoost.loadModelFromHadoopFile(tempFile.toFile.getAbsolutePath)
-    val predicts = loadedXGBooostModel.predict(testSetDMatrix)
+    val predicts = loadedXGBooostModel.booster.predict(testSetDMatrix, outPutMargin = true)
     val loadedEvalResults = eval.eval(predicts, testSetDMatrix)
     assert(loadedEvalResults == evalResults)
   }
@@ -283,7 +286,8 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
-    assert(eval.eval(xgBoostModel.predict(testSetDMatrix), testSetDMatrix) < 0.1)
+    assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix) < 0.1)
     customSparkContext.stop()
   }
 }
