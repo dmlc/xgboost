@@ -49,7 +49,7 @@ object XGBoost extends Serializable {
         for (i <- dVector.values.indices) {
           if (values(i) != missing) {
             indices += i
-            values += values(i)
+            values += dVector.values(i)
           }
         }
         val sparseVector = new SparseVector(dVector.values.length, indices.toArray,
