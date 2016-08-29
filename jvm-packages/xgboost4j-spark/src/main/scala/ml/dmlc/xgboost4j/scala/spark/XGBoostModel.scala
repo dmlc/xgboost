@@ -141,15 +141,6 @@ class XGBoostModel(_booster: Booster) extends Serializable {
   }
 
   /**
-   * Predict leaf instances with the given test set (represented as DMatrix)
-   *
-   * @param testSet test set represented as DMatrix
-   */
-  def predictLeaves(testSet: DMatrix): Array[Array[Float]] = {
-    _booster.predictLeaf(testSet, 0)
-  }
-
-  /**
    * Save the model as to HDFS-compatible file system.
    *
    * @param modelPath The model path as in Hadoop path.
