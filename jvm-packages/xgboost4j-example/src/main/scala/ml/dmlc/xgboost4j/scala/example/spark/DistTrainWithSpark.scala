@@ -47,7 +47,7 @@ object DistTrainWithSpark {
       "objective" -> "binary:logistic").toMap
     val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound, nWorkers = args(1).toInt,
       useExternalMemory = true)
-    xgboostModel.predict(new DMatrix(testSet))
+    xgboostModel.booster.predict(new DMatrix(testSet))
     // save model to HDFS path
     xgboostModel.saveModelAsHadoopFile(outputModelPath)
   }
