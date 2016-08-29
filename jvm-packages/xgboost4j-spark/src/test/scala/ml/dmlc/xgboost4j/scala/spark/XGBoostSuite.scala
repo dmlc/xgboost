@@ -125,7 +125,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val boosterRDD = XGBoost.buildDistributedBoosters(
       trainingRDD,
-      List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
+      List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
         "objective" -> "binary:logistic").toMap,
       new scala.collection.mutable.HashMap[String, String],
       numWorkers = 2, round = 5, null, null, useExternalMemory = false)
@@ -134,8 +134,9 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val boosters = boosterRDD.collect()
     val eval = new EvalError()
     for (booster <- boosters) {
+      // the threshold is 0.11 because it does not sync boosters with AllReduce
       val predicts = booster.predict(testSetDMatrix, outPutMargin = true)
-      assert(eval.eval(predicts, testSetDMatrix) < 0.17)
+      assert(eval.eval(predicts, testSetDMatrix) < 0.11)
     }
   }
 
@@ -211,7 +212,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1 = predRDD.collect()(0)
     import DataUtils._
-    val predResult2 = xgBoostModel.predict(new DMatrix(testSet.iterator))
+    val predResult2 = xgBoostModel.booster.predict(new DMatrix(testSet.iterator))
     for (i <- predResult1.indices; j <- predResult1(i).indices) {
       assert(predResult1(i)(j) === predResult2(i)(j))
     }
@@ -222,7 +223,6 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
       val sampleList = new ListBuffer[SparkVector]
       sparkContext.getOrElse(sc).parallelize(sampleList, numWorkers)
     }
-
     val trainingRDD = buildTrainingRDD()
     val testRDD = buildEmptyRDD()
     import DataUtils._
