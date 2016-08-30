@@ -38,8 +38,6 @@ def _train_internal(params, dtrain,
             xgb_model = xgb_model.save_raw()
         bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
         nboost = len(bst.get_dump())
-    else:
-        bst = Booster(params, [dtrain] + [d[0] for d in evals])
 
     _params = dict(params) if isinstance(params, list) else params
 
