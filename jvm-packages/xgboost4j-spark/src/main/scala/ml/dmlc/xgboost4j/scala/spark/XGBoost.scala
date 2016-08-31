@@ -70,12 +70,9 @@ object XGBoost extends Serializable {
       useExternalMemory: Boolean, missing: Float = Float.NaN): RDD[Booster] = {
     import DataUtils._
     val partitionedData = {
-      if (numWorkers > trainingData.partitions.length) {
+      if (numWorkers != trainingData.partitions.length) {
         logger.info(s"repartitioning training set to $numWorkers partitions")
         trainingData.repartition(numWorkers)
-      } else if (numWorkers < trainingData.partitions.length) {
-        logger.info(s"repartitioning training set to $numWorkers partitions")
-        trainingData.coalesce(numWorkers)
       } else {
         trainingData
       }
