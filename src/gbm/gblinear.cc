@@ -87,6 +87,9 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
  */
 class GBLinear : public GradientBooster {
  public:
+  explicit GBLinear(float base_margin)
+      : base_margin_(base_margin) {
+  }
   void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
     if (model.weight.size() == 0) {
       model.param.InitAllowUnknown(cfg);
@@ -99,9 +102,9 @@ class GBLinear : public GradientBooster {
   void Save(dmlc::Stream* fo) const override {
     model.Save(fo);
   }
-  virtual void DoBoost(DMatrix *p_fmat,
-                       int64_t buffer_offset,
-                       std::vector<bst_gpair> *in_gpair) {
+  void DoBoost(DMatrix *p_fmat,
+               std::vector<bst_gpair> *in_gpair,
+               ObjFunction* obj) override {
     // lazily initialize the model when not ready.
     if (model.weight.size() == 0) {
       model.InitModel();
@@ -168,7 +171,6 @@ class GBLinear : public GradientBooster {
   }
 
   void Predict(DMatrix *p_fmat,
-               int64_t buffer_offset,
                std::vector<float> *out_preds,
                unsigned ntree_limit) override {
     if (model.weight.size() == 0) {
@@ -177,6 +179,11 @@ class GBLinear : public GradientBooster {
     CHECK_EQ(ntree_limit, 0)
         << "GBLinear::Predict ntrees is only valid for gbtree predictor";
     std::vector<float> &preds = *out_preds;
+    const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
+    if (base_margin.size() != 0) {
+      CHECK_EQ(preds.size(), base_margin.size())
+          << "base_margin.size does not match with prediction size";
+    }
     preds.resize(0);
     // start collecting the prediction
     dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
@@ -188,24 +195,27 @@ class GBLinear : public GradientBooster {
       // k is number of group
       preds.resize(preds.size() + batch.size * ngroup);
       // parallel over local batch
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const omp_ulong nsize = static_cast<omp_ulong>(batch.size);
       #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
+      for (omp_ulong i = 0; i < nsize; ++i) {
         const size_t ridx = batch.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
-          this->Pred(batch[i], &preds[ridx * ngroup], gid);
+          float margin =  (base_margin.size() != 0) ?
+              base_margin[ridx * ngroup + gid] : base_margin_;
+          this->Pred(batch[i], &preds[ridx * ngroup], gid, margin);
         }
       }
     }
   }
+  // add base margin
   void Predict(const SparseBatch::Inst &inst,
                std::vector<float> *out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
     const int ngroup = model.param.num_output_group;
     for (int gid = 0; gid < ngroup; ++gid) {
-      this->Pred(inst, dmlc::BeginPtr(*out_preds), gid);
+      this->Pred(inst, dmlc::BeginPtr(*out_preds), gid, base_margin_);
     }
   }
   void PredictLeaf(DMatrix *p_fmat,
@@ -232,8 +242,8 @@ class GBLinear : public GradientBooster {
   }
 
  protected:
-  inline void Pred(const RowBatch::Inst &inst, float *preds, int gid) {
-    float psum = model.bias()[gid];
+  inline void Pred(const RowBatch::Inst &inst, float *preds, int gid, float base) {
+    float psum = model.bias()[gid] + base;
     for (bst_uint i = 0; i < inst.length; ++i) {
       if (inst[i].index >= model.param.num_feature) continue;
       psum += inst[i].fvalue * model[inst[i].index][gid];
@@ -278,6 +288,8 @@ class GBLinear : public GradientBooster {
       return &weight[i * param.num_output_group];
     }
   };
+  // biase margin score
+  float base_margin_;
   // model field
   Model model;
   // training parameter
@@ -292,8 +304,8 @@ DMLC_REGISTER_PARAMETER(GBLinearTrainParam);
 
 XGBOOST_REGISTER_GBM(GBLinear, "gblinear")
 .describe("Linear booster, implement generalized linear model.")
-.set_body([]() {
-    return new GBLinear();
+.set_body([](const std::vector<std::shared_ptr<DMatrix> >&cache, float base_margin) {
+    return new GBLinear(base_margin);
   });
 }  // namespace gbm
 }  // namespace xgboost
