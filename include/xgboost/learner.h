@@ -166,7 +166,7 @@ class Learner : public rabit::Serializable {
    * \param cache_data The matrix to cache the prediction.
    * \return Created learner.
    */
-  static Learner* Create(const std::vector<DMatrix*>& cache_data);
+  static Learner* Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data);
 
  protected:
   /*! \brief internal base score of the model */
