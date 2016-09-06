@@ -930,16 +930,50 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
   Builder builder;
 };
 
+// simple switch to defer implementation.
+class TreeUpdaterSwitch : public TreeUpdater {
+ public:
+  TreeUpdaterSwitch() : monotone_(false) {}
+  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+    for (auto &kv : args) {
+      if (kv.first == "monotone_constraints" && kv.second.length() != 0) {
+        monotone_ = true;
+      }
+    }
+    if (inner_.get() == nullptr) {
+      if (monotone_) {
+        inner_.reset(new ColMaker<GradStats, ValueConstraint>());
+      } else {
+        inner_.reset(new ColMaker<GradStats, NoConstraint>());
+      }
+    }
+
+    inner_->Init(args);
+  }
+
+  void Update(const std::vector<bst_gpair>& gpair,
+              DMatrix* data,
+              const std::vector<RegTree*>& trees) override {
+    CHECK(inner_ != nullptr);
+    inner_->Update(gpair, data, trees);
+  }
+
+  const int* GetLeafPosition() const override {
+    CHECK(inner_ != nullptr);
+    return inner_->GetLeafPosition();
+  }
+
+ private:
+  //  monotone constraints
+  bool monotone_;
+  // internal implementation
+  std::unique_ptr<TreeUpdater> inner_;
+};
+
 XGBOOST_REGISTER_TREE_UPDATER(ColMaker, "grow_colmaker")
 .describe("Grow tree with parallelization over columns.")
 .set_body([]() {
-    return new ColMaker<GradStats, NoConstraint>();
-  });
-
-XGBOOST_REGISTER_TREE_UPDATER(MonotoneColMaker, "grow_monotone_colmaker")
-.describe("Grow tree with parallelization columns, considering monotone constraint")
-.set_body([]() {
-    return new ColMaker<GradStats, ValueConstraint>();
+    return new TreeUpdaterSwitch();
   });
 
 XGBOOST_REGISTER_TREE_UPDATER(DistColMaker, "distcol")
