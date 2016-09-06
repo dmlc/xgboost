@@ -1,0 +1,58 @@
+# disable sudo to use container based build
+sudo: false
+
+# Enabling test on Linux and OS X
+os:
+  - linux
+  - osx
+
+# Use Build Matrix to do lint and build seperately
+env:
+  matrix:
+    - TASK=lint
+    - TASK=unittest_gtest
+
+matrix:
+  exclude:
+    - os: osx
+      env: TASK=lint
+
+# dependent apt packages
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - doxygen
+      - wget
+      - git
+      - libcurl4-openssl-dev
+      - unzip
+      - gcc-4.8
+      - g++-4.8
+
+before_install:
+  - export TRAVIS=scripts/travis
+  - source ${TRAVIS}/travis_setup_env.sh
+  - ${TRAVIS}/travis_osx_install.sh
+
+install:
+  - pip install cpplint pylint --user `whoami`
+
+script: ${TRAVIS}/travis_script.sh
+
+
+before_cache:
+  - ${TRAVIS}/travis_before_cache.sh
+
+cache:
+  directories:
+    - ${HOME}/.cache/usr
+
+
+notifications:
+# Emails are sent to the committer's git-configured email address by default,
+  email:
+    on_success: change
+    on_failure: always
+  slack: dmlc:mKX5kxjqTP6fBb89lXD3G5f3
