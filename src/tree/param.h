@@ -357,12 +357,11 @@ struct ValueConstraint {
     double wleft = CalcWeight(param, left);
     double wright = CalcWeight(param, right);
     double mid = (wleft + wright) / 2;
+    CHECK(!std::isnan(mid));
     if (c < 0) {
-      CHECK_GE(wleft, wright);
       cleft->lower_bound = mid;
       cright->upper_bound = mid;
     } else {
-      CHECK_LE(wleft, wright);
       cleft->upper_bound = mid;
       cright->lower_bound = mid;
     }
