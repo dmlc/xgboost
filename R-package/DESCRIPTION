@@ -1,11 +1,10 @@
 Package: xgboost
 Type: Package
-Title: Extreme Gradient Boosting
-Version: 0.6-0
-Date: 2015-08-01
+Title: eXtreme Gradient Boosting
+Version: 0.6.0.9000
+Date: 2016-04-15
 Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>,
-    Michael Benesty <michael@benesty.fr>, Vadim Khotilovich <khotilovich@gmail.com>,
-    Yuan Tang <terrytangyuan@gmail.com>
+    Michael Benesty <michael@benesty.fr>
 Maintainer: Tong He <hetong007@gmail.com>
 Description: Extreme Gradient Boosting, which is an efficient implementation
     of gradient boosting framework. This package is its R interface. The package
@@ -36,4 +35,4 @@ Imports:
     data.table (>= 1.9.6),
     magrittr (>= 1.5),
     stringi (>= 0.5.2)
-RoxygenNote: 5.0.1
+RoxygenNote: 5.0.1.9000
