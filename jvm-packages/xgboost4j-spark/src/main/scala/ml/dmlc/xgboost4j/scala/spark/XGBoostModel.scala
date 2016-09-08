@@ -177,6 +177,8 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
     outputStream.close()
   }
 
+  def booster: Booster = _booster
+
   override val uid: String = Identifiable.randomUID("XGBoostModel")
 
   override def copy(extra: ParamMap): XGBoostModel = {

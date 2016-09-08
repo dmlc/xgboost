@@ -24,9 +24,11 @@ import scala.io.Source
 import scala.util.Random
 
 import org.apache.commons.logging.LogFactory
-import org.apache.spark.mllib.linalg.{Vector => SparkVector, Vectors, DenseVector}
+import org.apache.spark.mllib.linalg.{Vector => SparkVector, VectorUDT, Vectors, DenseVector}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.types.{DoubleType, StructField, StructType}
+import org.apache.spark.sql.{SparkSession, Row, DataFrame}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfter, FunSuite}
 
@@ -92,19 +94,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     }
   }
 
-  private def fromSVMStringToLabeledPoint(line: String): LabeledPoint = {
-    val labelAndFeatures = line.split(" ")
-    val label = labelAndFeatures(0).toInt
-    val features = labelAndFeatures.tail
-    val denseFeature = new Array[Double](129)
-    for (feature <- features) {
-      val idAndValue = feature.split(":")
-      denseFeature(idAndValue(0).toInt) = idAndValue(1).toDouble
-    }
-    LabeledPoint(label, new DenseVector(denseFeature))
-  }
-
-  private def readFile(filePath: String): List[LabeledPoint] = {
+  private def loadLabelPoints(filePath: String): List[LabeledPoint] = {
     val file = Source.fromFile(new File(filePath))
     val sampleList = new ListBuffer[LabeledPoint]
     for (sample <- file.getLines()) {
@@ -113,14 +103,55 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     sampleList.toList
   }
 
+  private def loadRow(filePath: String): List[Row] = {
+    val file = Source.fromFile(new File(filePath))
+    val rowList = new ListBuffer[Row]
+    for (rowLine <- file.getLines()) {
+      rowList += fromSVMStringToRow(rowLine)
+    }
+    rowList.toList
+  }
+
+  private def fromSVMStringToLabelAndVector(line: String): (Double, SparkVector) = {
+    val labelAndFeatures = line.split(" ")
+    val label = labelAndFeatures(0).toDouble
+    val features = labelAndFeatures.tail
+    val denseFeature = new Array[Double](129)
+    for (feature <- features) {
+      val idAndValue = feature.split(":")
+      denseFeature(idAndValue(0).toInt) = idAndValue(1).toDouble
+    }
+    (label, new DenseVector(denseFeature))
+  }
+
+  private def fromSVMStringToLabeledPoint(line: String): LabeledPoint = {
+    val (label, sv) = fromSVMStringToLabelAndVector(line)
+    LabeledPoint(label, sv)
+  }
+
+  private def fromSVMStringToRow(line: String): Row = {
+    val (label, sv) = fromSVMStringToLabelAndVector(line)
+    Row(label, sv)
+  }
+
+  private def buildTrainingDataframe(sparkContext: Option[SparkContext] = None):
+      DataFrame = {
+    val rowList = loadRow(getClass.getResource("/agaricus.txt.train").getFile)
+    val rowRDD = sparkContext.getOrElse(sc).parallelize(rowList, numWorkers)
+    val sparkSession = SparkSession.builder().appName("XGBoostTest").getOrCreate()
+    sparkSession.createDataFrame(rowRDD,
+      StructType(Array(StructField("label", DoubleType, nullable = false),
+        StructField("features", new VectorUDT, nullable = false))))
+  }
+
   private def buildTrainingRDD(sparkContext: Option[SparkContext] = None): RDD[LabeledPoint] = {
-    val sampleList = readFile(getClass.getResource("/agaricus.txt.train").getFile)
+    val sampleList = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile)
     sparkContext.getOrElse(sc).parallelize(sampleList, numWorkers)
   }
 
   test("build RDD containing boosters with the specified worker number") {
     val trainingRDD = buildTrainingRDD()
-    val testSet = readFile(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val boosterRDD = XGBoost.buildDistributedBoosters(
@@ -147,7 +178,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val customSparkContext = new SparkContext(sparkConf)
     val eval = new EvalError()
     val trainingRDD = buildTrainingRDD(Some(customSparkContext))
-    val testSet = readFile(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
@@ -162,6 +193,25 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     for (file <- dir.listFiles() if file.getName.startsWith("XGBoostSuite-0-dtrain_cache")) {
       file.delete()
     }
+  }
+
+  test("test consistency between training with dataframe and RDD") {
+    val trainingDF = buildTrainingDataframe()
+    val trainingRDD = buildTrainingRDD()
+    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
+      "objective" -> "binary:logistic").toMap
+    val xgBoostModelWithDF = XGBoost.trainWithDataset(trainingDF, "features", "label", paramMap,
+      round = 5, nWorkers = numWorkers, useExternalMemory = false)
+    val xgBoostModelWithRDD = XGBoost.trainWithRDD(trainingRDD, paramMap,
+      round = 5, nWorkers = numWorkers, useExternalMemory = false)
+    val eval = new EvalError()
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    assert(eval.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix) ===
+      eval.eval(xgBoostModelWithRDD.booster.predict(testSetDMatrix, outPutMargin = true),
+        testSetDMatrix))
   }
 
   test("test with dense vectors containing missing value") {
@@ -200,7 +250,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
 
   test("test consistency of prediction functions with RDD") {
     val trainingRDD = buildTrainingRDD()
-    val testSet = readFile(getClass.getResource("/agaricus.txt.test").getFile)
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile)
     val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
     val testCollection = testRDD.collect()
     for (i <- testSet.indices) {
@@ -237,7 +287,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
   test("test model consistency after save and load") {
     val eval = new EvalError()
     val trainingRDD = buildTrainingRDD()
-    val testSet = readFile(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val tempDir = Files.createTempDirectory("xgboosttest-")
@@ -280,7 +330,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     sparkConf.registerKryoClasses(Array(classOf[Booster]))
     val customSparkContext = new SparkContext(sparkConf)
     val trainingRDD = buildTrainingRDD(Some(customSparkContext))
-    val testSet = readFile(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
