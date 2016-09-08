@@ -15,6 +15,7 @@
 #include <utility>
 #include <string>
 #include <limits>
+#include <unordered_map>
 #include <algorithm>
 #include "../common/common.h"
 
