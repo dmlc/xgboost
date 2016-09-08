@@ -156,16 +156,18 @@ void CLITrain(const CLIParam& param) {
     LOG(CONSOLE) << "start " << pname << ":" << rabit::GetRank();
   }
   // load in data.
-  std::unique_ptr<DMatrix> dtrain(
+  std::shared_ptr<DMatrix> dtrain(
       DMatrix::Load(param.train_path, param.silent != 0, param.dsplit == 2));
-  std::vector<std::unique_ptr<DMatrix> > deval;
-  std::vector<DMatrix*> cache_mats, eval_datasets;
-  cache_mats.push_back(dtrain.get());
+  std::vector<std::shared_ptr<DMatrix> > deval;
+  std::vector<std::shared_ptr<DMatrix> > cache_mats;
+  std::vector<DMatrix*> eval_datasets;
+  cache_mats.push_back(dtrain);
   for (size_t i = 0; i < param.eval_data_names.size(); ++i) {
     deval.emplace_back(
-        DMatrix::Load(param.eval_data_paths[i], param.silent != 0, param.dsplit == 2));
+        std::shared_ptr<DMatrix>(DMatrix::Load(param.eval_data_paths[i],
+                                               param.silent != 0, param.dsplit == 2)));
     eval_datasets.push_back(deval.back().get());
-    cache_mats.push_back(deval.back().get());
+    cache_mats.push_back(deval.back());
   }
   std::vector<std::string> eval_data_names = param.eval_data_names;
   if (param.eval_train) {

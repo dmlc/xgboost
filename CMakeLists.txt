@@ -6,8 +6,10 @@ set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -fPIC")
 
 # Make sure we are using C++11
 # Visual Studio 12.0 and newer supports enough c++11 to make this work
-if(MSVC AND MSVC_VERSION LESS 1800)
+if(MSVC)
+  if(MSVC_VERSION LESS 1800)
     message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+  endif()
 else()
   # GCC 4.6 with c++0x supports enough to make this work
   include(CheckCXXCompilerFlag)
