@@ -74,6 +74,10 @@
 #' @param print_every_n Print each n-th iteration evaluation messages when \code{verbose>0}.
 #'        Default is 1 which means all messages are printed. This parameter is passed to the 
 #'        \code{\link{cb.print.evaluation}} callback.
+#' @param monotone_constraints A numerical vector consists of `1`,`0` and `-1`, has its length equals to the
+#'        number of features in the training data. `1` is increasing, `-1` is decreasing and `0` is no constraint.
+#'        When other features are fixed, the model forces the prediction to be monotonic increasing/decreasing
+#'        with respect to the certain specified feature assigned `1`/`-1`.
 #' @param early_stopping_rounds If \code{NULL}, the early stopping function is not triggered. 
 #'        If set to an integer \code{k}, training with a validation set will stop if the performance 
 #'        doesn't improve for \code{k} rounds.

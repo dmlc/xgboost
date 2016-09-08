@@ -128,6 +128,11 @@ by the algorithm. Sometimes, 0 or other extreme value might be used to represent
 This parameter is only used when input is a dense matrix.}
 
 \item{weight}{a vector indicating the weight for each row of the input.}
+
+\item{monotone_constraints}{A numerical vector consists of `1`,`0` and `-1`, has its length equals to the
+number of features in the training data. `1` is increasing, `-1` is decreasing and `0` is no constraint.
+When other features are fixed, the model forces the prediction to be monotonic increasing/decreasing
+with respect to the certain specified feature assigned `1`/`-1`.}
 }
 \value{
 An object of class \code{xgb.Booster} with the following elements:
