@@ -152,7 +152,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, round = 5,
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
       nWorkers = numWorkers, useExternalMemory = true)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
@@ -194,7 +194,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val testRDD = buildDenseRDD().repartition(4)
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     xgBoostModel.predict(testRDD.map(_.features.toDense), missingValue = -0.1f).collect()
   }
 
@@ -208,7 +208,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     }
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1 = predRDD.collect()(0)
     import DataUtils._
@@ -230,7 +230,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val tempFile = Files.createTempFile(tempDir, "", "")
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     println(xgBoostModel.predict(testRDD).collect().length === 0)
   }
 
@@ -244,7 +244,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val tempFile = Files.createTempFile(tempDir, "", "")
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     val evalResults = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix)
     assert(evalResults < 0.1)
@@ -266,7 +266,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic", "nthread" -> 6).toMap
     intercept[IllegalArgumentException] {
-      XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
+      XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     }
     customSparkContext.stop()
   }
@@ -285,7 +285,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.train(trainingRDD, paramMap, 5, numWorkers)
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
     customSparkContext.stop()

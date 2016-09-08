@@ -27,6 +27,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.mllib.linalg.SparseVector
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Dataset
 import org.apache.spark.{SparkContext, TaskContext}
 
 object XGBoost extends Serializable {
@@ -114,6 +115,31 @@ object XGBoost extends Serializable {
   /**
    *
    * @param trainingData the trainingset represented as RDD
+   * @param params Map containing the parameters to configure XGBoost
+   * @param round the number of iterations
+   * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
+   *                 workers equals to the partition number of trainingData RDD
+   * @param obj the user-defined objective function, null by default
+   * @param eval the user-defined evaluation function, null by default
+   * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
+   *                           true, the user may save the RAM cost for running XGBoost within Spark
+   * @param missing the value represented the missing value in the dataset
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
+   * @return XGBoostModel when successful training
+   */
+  @throws(classOf[XGBoostError])
+  def trainWithDataset(trainingData: Dataset[_], inputCol: String, labelCol: String,
+                       params: Map[String, Any], round: Int,
+                       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
+                       useExternalMemory: Boolean = false, missing: Float = Float.NaN):
+      XGBoostModel = {
+    new XGBoostEstimator(inputCol, labelCol, params, round, nWorkers, obj, eval,
+      useExternalMemory, missing).fit(trainingData)
+  }
+
+  /**
+   *
+   * @param trainingData the trainingset represented as RDD
    * @param configMap Map containing the configuration entries
    * @param round the number of iterations
    * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
@@ -127,9 +153,9 @@ object XGBoost extends Serializable {
    * @return XGBoostModel when successful training
    */
   @throws(classOf[XGBoostError])
-  def train(trainingData: RDD[LabeledPoint], configMap: Map[String, Any], round: Int,
-      nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
-      useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
+  def trainWithRDD(trainingData: RDD[LabeledPoint], configMap: Map[String, Any], round: Int,
+                   nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
+                   useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
     val tracker = new RabitTracker(nWorkers)
     implicit val sc = trainingData.sparkContext
