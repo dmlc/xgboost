@@ -187,27 +187,34 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
 
   def transform(dataset: Dataset[_], predictResultTrans: Option[Array[Float] => DataType]):
       DataFrame = {
+    dataset.schema.printTreeString()
     // validate
     transformSchema(dataset.schema, logging = true)
     val broadcastBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
-    val instances = dataset.select(col(inputCol)).rdd.mapPartitions {
+    val instances = dataset.rdd.mapPartitions {
       rowIterator =>
-        val vectorIterator = rowIterator.map{
-          case Row(features: Vector) =>
-            features
-        }
+        val (rowItr1, rowItr2) = rowIterator.duplicate
+        val vectorIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[Vector](inputCol)).
+          toList.iterator
         import DataUtils._
         val testDataset = new DMatrix(vectorIterator, null)
-        val predictResults = broadcastBooster.value.predict(testDataset)
-        if (predictResultTrans.isDefined) {
-          predictResults.map(prediction => Row(predictResultTrans.get(prediction))).iterator
-        } else {
-          predictResults.map(prediction => Row(prediction)).iterator
+        val rowPredictResults = broadcastBooster.value.predict(testDataset)
+        val predictResults = {
+          if (predictResultTrans.isDefined) {
+            rowPredictResults.map(prediction => Row(predictResultTrans.get(prediction))).iterator
+          } else {
+            rowPredictResults.map(prediction => Row(prediction)).iterator
+          }
+        }
+
+        rowItr1.zip(predictResults).map {
+          case (originalColumns: Row, predictColumn: Row) =>
+            Row.fromSeq(originalColumns.toSeq ++ predictColumn.toSeq)
         }
     }
-    val df = dataset.sparkSession.createDataFrame(instances,
-      StructType(List(StructField("prediction", outputType, nullable = false)))).cache()
-    dataset.toDF().withColumn("prediction", df.col("prediction"))
+    println(instances.collect().length)
+    dataset.sparkSession.createDataFrame(instances, dataset.schema.add("prediction", outputType)).
+      cache()
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {

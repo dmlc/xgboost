@@ -27,7 +27,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.spark.mllib.linalg.{Vector => SparkVector, VectorUDT, Vectors, DenseVector}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{DoubleType, StructField, StructType}
+import org.apache.spark.sql.types.{LongType, DoubleType, StructField, StructType}
 import org.apache.spark.sql.{SparkSession, Row, DataFrame}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfter, FunSuite}
@@ -208,10 +208,29 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
-    assert(eval.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, outPutMargin = true),
-      testSetDMatrix) ===
+    assert(
+      eval.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, outPutMargin = true),
+        testSetDMatrix) ===
       eval.eval(xgBoostModelWithRDD.booster.predict(testSetDMatrix, outPutMargin = true),
         testSetDMatrix))
+  }
+
+  test("test transform of dataframe-based model") {
+    val trainingDF = buildTrainingDataframe()
+    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
+      "objective" -> "binary:logistic").toMap
+    val xgBoostModelWithDF = XGBoost.trainWithDataset(trainingDF, "features", "label", paramMap,
+      round = 5, nWorkers = numWorkers, useExternalMemory = false)
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile)
+    val testRowsRDD = sc.parallelize(testSet, numWorkers).zipWithIndex().map{
+      case (instance: LabeledPoint, id: Long) =>
+        Row(id, instance.features, instance.label)
+    }
+    val testDF = trainingDF.sparkSession.createDataFrame(testRowsRDD, StructType(
+      Array(StructField("id", LongType),
+        StructField("features", new VectorUDT), StructField("label", DoubleType))))
+    testDF.show()
+    xgBoostModelWithDF.transform(testDF).show()
   }
 
   test("test with dense vectors containing missing value") {
