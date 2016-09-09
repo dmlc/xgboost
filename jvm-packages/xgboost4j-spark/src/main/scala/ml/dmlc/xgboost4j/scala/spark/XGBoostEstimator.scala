@@ -16,16 +16,14 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import scala.util.Try
-
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.spark.ml.Estimator
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.Identifiable
-import org.apache.spark.mllib.linalg.Vector
+import org.apache.spark.mllib.linalg.{VectorUDT, Vector}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{DoubleType, StructType}
+import org.apache.spark.sql.types.{NumericType, DoubleType, StructType}
 import org.apache.spark.sql.{Dataset, Row}
 
 class XGBoostEstimator(
@@ -53,7 +51,13 @@ class XGBoostEstimator(
   }
 
   override def transformSchema(schema: StructType): StructType = {
-    // TODO: improve the type checking
+    // check input type, for now we only support vectorUDT as the input feature type
+    val inputType = schema(inputCol).dataType
+    require(inputType.equals(new VectorUDT), s"the type of input column $inputCol has to VectorUDT")
+    // check label Type,
+    val labelType = schema(labelCol).dataType
+    require(labelType.isInstanceOf[NumericType], s"the type of label column $labelCol has to" +
+      s" be NumericType")
     schema
   }
 }

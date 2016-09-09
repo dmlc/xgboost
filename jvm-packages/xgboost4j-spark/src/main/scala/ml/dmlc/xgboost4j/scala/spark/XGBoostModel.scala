@@ -25,7 +25,7 @@ import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.ml.Model
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.Identifiable
-import org.apache.spark.mllib.linalg.{DenseVector, Vector}
+import org.apache.spark.mllib.linalg.{VectorUDT, DenseVector, Vector}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
@@ -229,6 +229,9 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
     if (schema.fieldNames.contains(outputCol)) {
       throw new IllegalArgumentException(s"Output column $outputCol already exists.")
     }
+    val inputType = schema(inputCol).dataType
+    require(inputType.equals(new VectorUDT),
+      s"the type of input column $inputCol has to be VectorUDT")
     val outputFields = schema.fields :+ StructField(outputCol, outputType, nullable = false)
     StructType(outputFields)
   }
