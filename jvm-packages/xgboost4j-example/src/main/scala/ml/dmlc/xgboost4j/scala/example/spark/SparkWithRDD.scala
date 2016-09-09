@@ -21,7 +21,7 @@ import ml.dmlc.xgboost4j.scala.spark.{DataUtils, XGBoost}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.util.MLUtils
 
-object DistTrainWithSpark {
+object SparkWithRDD {
   def main(args: Array[String]): Unit = {
     if (args.length != 5) {
       println(

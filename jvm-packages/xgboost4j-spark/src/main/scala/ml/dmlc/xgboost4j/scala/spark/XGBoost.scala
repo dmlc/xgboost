@@ -124,14 +124,17 @@ object XGBoost extends Serializable {
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                           true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
+   * @param inputCol the name of input column, "features" as default value
+   * @param labelCol the name of output column, "label" as default value
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
   @throws(classOf[XGBoostError])
-  def trainWithDataset(trainingData: Dataset[_], inputCol: String, labelCol: String,
+  def trainWithDataset(trainingData: Dataset[_],
                        params: Map[String, Any], round: Int,
                        nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
-                       useExternalMemory: Boolean = false, missing: Float = Float.NaN):
+                       useExternalMemory: Boolean = false, missing: Float = Float.NaN,
+                       inputCol: String = "features", labelCol: String = "label"):
       XGBoostModel = {
     new XGBoostEstimator(inputCol, labelCol, params, round, nWorkers, obj, eval,
       useExternalMemory, missing).fit(trainingData)
