@@ -26,6 +26,18 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{NumericType, DoubleType, StructType}
 import org.apache.spark.sql.{Dataset, Row}
 
+/**
+ * the estimator wrapping XGBoost to produce a training model
+ * @param inputCol the name of input column
+ * @param labelCol the name of label column
+ * @param xgboostParams the parameters configuring XGBoost
+ * @param round the number of iterations to train
+ * @param nWorkers the total number of workers of xgboost
+ * @param obj the customized objective function, default to be null and using the default in model
+ * @param eval the customized eval function, default to be null and using the default in model
+ * @param useExternalMemory whether to use external memory when training
+ * @param missing the value taken as missing
+ */
 class XGBoostEstimator(
     inputCol: String, labelCol: String,
     xgboostParams: Map[String, Any], round: Int, nWorkers: Int,
@@ -35,12 +47,15 @@ class XGBoostEstimator(
 
   override val uid: String = Identifiable.randomUID("XGBoostEstimator")
 
-  override def fit(dataset: Dataset[_]): XGBoostModel = {
-    val instances = dataset.select(col(inputCol), col(labelCol).cast(DoubleType)).rdd.map {
+  /**
+   * produce a XGBoostModel by fitting the given dataset
+   */
+  override def fit(trainingSet: Dataset[_]): XGBoostModel = {
+    val instances = trainingSet.select(col(inputCol), col(labelCol).cast(DoubleType)).rdd.map {
       case Row(feature: Vector, label: Double) =>
         LabeledPoint(label, feature)
     }
-    transformSchema(dataset.schema, logging = true)
+    transformSchema(trainingSet.schema, logging = true)
     val trainedModel = XGBoost.trainWithRDD(instances, xgboostParams, round, nWorkers, obj,
       eval, useExternalMemory, missing).setParent(this)
     copyValues(trainedModel)

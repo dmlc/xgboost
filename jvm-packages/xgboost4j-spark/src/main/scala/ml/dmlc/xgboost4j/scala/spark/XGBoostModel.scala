@@ -35,21 +35,9 @@ import org.apache.spark.{SparkContext, TaskContext}
 
 class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializable {
 
-  private var _inputCol = "features"
-  private var _outputCol = "prediction"
-  private var _outputType: DataType = ArrayType(elementType = FloatType, containsNull = false)
-
-  def inputCol: String = _inputCol
-
-  def inputCol_=(newInputCol: String): Unit = _inputCol = newInputCol
-
-  def outputCol: String = _outputCol
-
-  def outputCol_=(newOutputCol: String): Unit = _outputCol = newOutputCol
-
-  def outputType: DataType = _outputType
-
-  def outputType_=(newOutputType: DataType): Unit = _outputType = newOutputType
+  var inputCol = "features"
+  var outputCol = "prediction"
+  var outputType: DataType = ArrayType(elementType = FloatType, containsNull = false)
 
   /**
    * evaluate XGBoostModel with a RDD-wrapped dataset
@@ -185,13 +173,18 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
     defaultCopy(extra)
   }
 
-  def transform(dataset: Dataset[_], predictResultTrans: Option[Array[Float] => DataType]):
+  /**
+   * produces the prediction results and append as an additional column in the original dataset
+   * NOTE: the prediction results is transformed by applying the transformation function
+   * predictResultTrans to the original xgboost output
+   * @param predictResultTrans the function to transform xgboost output to the expected format
+   * @return the original dataframe with an additional column containing prediction results
+   */
+  def transform(testSet: Dataset[_], predictResultTrans: Option[Array[Float] => DataType]):
       DataFrame = {
-    dataset.schema.printTreeString()
-    // validate
-    transformSchema(dataset.schema, logging = true)
-    val broadcastBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
-    val instances = dataset.rdd.mapPartitions {
+    transformSchema(testSet.schema, logging = true)
+    val broadcastBooster = testSet.sparkSession.sparkContext.broadcast(_booster)
+    val instances = testSet.rdd.mapPartitions {
       rowIterator =>
         if (rowIterator.hasNext) {
           val (rowItr1, rowItr2) = rowIterator.duplicate
@@ -215,13 +208,18 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
           Iterator[Row]()
         }
     }
-    dataset.sparkSession.createDataFrame(instances, dataset.schema.add("prediction", outputType)).
+    testSet.sparkSession.createDataFrame(instances, testSet.schema.add("prediction", outputType)).
       cache()
   }
 
-  override def transform(dataset: Dataset[_]): DataFrame = {
+  /**
+   * produces the prediction results and append as an additional column in the original dataset
+   * NOTE: the prediction results is kept as the original format of xgboost
+   * @return the original dataframe with an additional column containing prediction results
+   */
+  override def transform(testSet: Dataset[_]): DataFrame = {
     assert(outputType == ArrayType(FloatType, containsNull = false))
-    transform(dataset, None)
+    transform(testSet, None)
   }
 
   @DeveloperApi
