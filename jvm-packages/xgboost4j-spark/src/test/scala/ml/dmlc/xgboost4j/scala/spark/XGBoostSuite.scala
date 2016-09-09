@@ -19,21 +19,23 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 import java.nio.file.Files
 
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
 import scala.util.Random
 
+import ml.dmlc.xgboost4j.scala.spark.DataUtils._
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.mllib.linalg.{Vector => SparkVector, VectorUDT, Vectors, DenseVector}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{LongType, DoubleType, StructField, StructType}
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{SparkSession, Row, DataFrame}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfter, FunSuite}
 
 import ml.dmlc.xgboost4j.java.{Booster => JBooster, DMatrix => JDMatrix, XGBoostError}
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait, XGBoost => ScalaXGBoost}
 
 class XGBoostSuite extends FunSuite with BeforeAndAfter {
 
@@ -229,8 +231,41 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val testDF = trainingDF.sparkSession.createDataFrame(testRowsRDD, StructType(
       Array(StructField("id", LongType),
         StructField("features", new VectorUDT), StructField("label", DoubleType))))
-    testDF.show()
     xgBoostModelWithDF.transform(testDF).show()
+  }
+
+  test("test order preservation of dataframe-based model") {
+    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
+      "objective" -> "binary:logistic").toMap
+    val trainingItr = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile).
+      iterator
+    val (testItr, auxTestItr) =
+      loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator.duplicate
+    import DataUtils._
+    val trainDMatrix = new DMatrix(new JDMatrix(trainingItr, null))
+    val testDMatrix = new DMatrix(new JDMatrix(testItr, null))
+    val xgboostModel = ScalaXGBoost.train(trainDMatrix, paramMap, 5)
+    val predResultFromSeq = xgboostModel.predict(testDMatrix)
+    val testRowsRDD = sc.parallelize(
+      auxTestItr.toList.zipWithIndex, numWorkers).map {
+      case (instance: LabeledPoint, id: Int) =>
+        Row(id, instance.features, instance.label)
+    }
+    val trainingDF = buildTrainingDataframe()
+    val xgBoostModelWithDF = XGBoost.trainWithDataset(trainingDF, "features", "label", paramMap,
+      round = 5, nWorkers = numWorkers, useExternalMemory = false)
+    val testDF = trainingDF.sparkSession.createDataFrame(testRowsRDD, StructType(
+      Array(StructField("id", IntegerType), StructField("features", new VectorUDT),
+        StructField("label", DoubleType))))
+    val predResultsFromDF =
+      xgBoostModelWithDF.transform(testDF).collect().map(row => (row.getAs[Int]("id"),
+        row.getAs[mutable.WrappedArray[Float]]("prediction"))).toMap
+    for (i <- predResultFromSeq.indices) {
+      assert(predResultFromSeq(i).length === predResultsFromDF(i).length)
+      for (j <- predResultFromSeq(i).indices) {
+        assert(predResultFromSeq(i)(j) === predResultsFromDF(i)(j))
+      }
+    }
   }
 
   test("test with dense vectors containing missing value") {

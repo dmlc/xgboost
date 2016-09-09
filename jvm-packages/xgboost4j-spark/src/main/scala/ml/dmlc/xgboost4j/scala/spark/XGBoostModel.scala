@@ -193,26 +193,28 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
     val broadcastBooster = dataset.sparkSession.sparkContext.broadcast(_booster)
     val instances = dataset.rdd.mapPartitions {
       rowIterator =>
-        val (rowItr1, rowItr2) = rowIterator.duplicate
-        val vectorIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[Vector](inputCol)).
-          toList.iterator
-        import DataUtils._
-        val testDataset = new DMatrix(vectorIterator, null)
-        val rowPredictResults = broadcastBooster.value.predict(testDataset)
-        val predictResults = {
-          if (predictResultTrans.isDefined) {
-            rowPredictResults.map(prediction => Row(predictResultTrans.get(prediction))).iterator
-          } else {
-            rowPredictResults.map(prediction => Row(prediction)).iterator
+        if (rowIterator.hasNext) {
+          val (rowItr1, rowItr2) = rowIterator.duplicate
+          val vectorIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[Vector](inputCol)).
+            toList.iterator
+          import DataUtils._
+          val testDataset = new DMatrix(vectorIterator, null)
+          val rowPredictResults = broadcastBooster.value.predict(testDataset)
+          val predictResults = {
+            if (predictResultTrans.isDefined) {
+              rowPredictResults.map(prediction => Row(predictResultTrans.get(prediction))).iterator
+            } else {
+              rowPredictResults.map(prediction => Row(prediction)).iterator
+            }
           }
-        }
-
-        rowItr1.zip(predictResults).map {
-          case (originalColumns: Row, predictColumn: Row) =>
-            Row.fromSeq(originalColumns.toSeq ++ predictColumn.toSeq)
+          rowItr1.zip(predictResults).map {
+            case (originalColumns: Row, predictColumn: Row) =>
+              Row.fromSeq(originalColumns.toSeq ++ predictColumn.toSeq)
+          }
+        } else {
+          Iterator[Row]()
         }
     }
-    println(instances.collect().length)
     dataset.sparkSession.createDataFrame(instances, dataset.schema.add("prediction", outputType)).
       cache()
   }

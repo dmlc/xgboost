@@ -47,6 +47,8 @@ export CC = $(if $(shell which gcc-6),gcc-6,clang)
 export CXX = $(if $(shell which g++-6),g++-6,clang++)
 endif
 
+export CXX=clang-omp++
+
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
 export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
