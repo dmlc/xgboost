@@ -18,10 +18,9 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.JavaConverters._
 
-import org.apache.spark.mllib.linalg.{SparseVector, DenseVector, Vector}
-import org.apache.spark.mllib.regression.{LabeledPoint => SparkLabeledPoint}
-
 import ml.dmlc.xgboost4j.LabeledPoint
+import org.apache.spark.mllib.linalg.{DenseVector, SparseVector, Vector}
+import org.apache.spark.mllib.regression.{LabeledPoint => SparkLabeledPoint}
 
 object DataUtils extends Serializable {
   implicit def fromSparkPointsToXGBoostPointsJava(sps: Iterator[SparkLabeledPoint])
