@@ -16,12 +16,11 @@
 
 package ml.dmlc.xgboost4j.scala.example.spark
 
-import ml.dmlc.xgboost4j.scala.{DMatrix, Booster}
+import ml.dmlc.xgboost4j.scala.Booster
 import ml.dmlc.xgboost4j.scala.spark.{XGBoost, DataUtils}
-import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{SparkSession, Row}
+import org.apache.spark.sql.{SQLContext, Row}
 import org.apache.spark.{SparkContext, SparkConf}
 
 object SparkWithDataFrame {
@@ -35,8 +34,7 @@ object SparkWithDataFrame {
     val sparkConf = new SparkConf().setAppName("XGBoost-spark-example")
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     sparkConf.registerKryoClasses(Array(classOf[Booster]))
-    val sparkSession = SparkSession.builder().appName("XGBoost-spark-example").config(sparkConf).
-      getOrCreate()
+    val sqlContext = new SQLContext(new SparkContext(sparkConf))
     // create training and testing dataframes
     val inputTrainPath = args(2)
     val inputTestPath = args(3)
@@ -44,14 +42,14 @@ object SparkWithDataFrame {
     // number of iterations
     val numRound = args(0).toInt
     import DataUtils._
-    val trainRDDOfRows = MLUtils.loadLibSVMFile(sparkSession.sparkContext, inputTrainPath).
+    val trainRDDOfRows = MLUtils.loadLibSVMFile(sqlContext.sparkContext, inputTrainPath).
       map{ labeledPoint => Row(labeledPoint.features, labeledPoint.label)}
-    val trainDF = sparkSession.createDataFrame(trainRDDOfRows, StructType(
+    val trainDF = sqlContext.createDataFrame(trainRDDOfRows, StructType(
       Array(StructField("features", ArrayType(FloatType)), StructField("label", IntegerType))))
-    val testRDDOfRows = MLUtils.loadLibSVMFile(sparkSession.sparkContext, inputTestPath).
+    val testRDDOfRows = MLUtils.loadLibSVMFile(sqlContext.sparkContext, inputTestPath).
       zipWithIndex().map{ case (labeledPoint, id) =>
       Row(id, labeledPoint.features, labeledPoint.label)}
-    val testDF = sparkSession.createDataFrame(testRDDOfRows, StructType(
+    val testDF = sqlContext.createDataFrame(testRDDOfRows, StructType(
       Array(StructField("id", LongType),
         StructField("features", ArrayType(FloatType)), StructField("label", IntegerType))))
     // training parameters
@@ -59,7 +57,7 @@ object SparkWithDataFrame {
       "eta" -> 0.1f,
       "max_depth" -> 2,
       "objective" -> "binary:logistic").toMap
-    val xgboostModel = XGBoost.trainWithDataset(
+    val xgboostModel = XGBoost.trainWithDataFrame(
       trainDF, paramMap, numRound, nWorkers = args(1).toInt, useExternalMemory = true)
     // xgboost-spark appends the column containing prediction results
     xgboostModel.transform(testDF).show()

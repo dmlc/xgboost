@@ -45,8 +45,8 @@ class XGBoostDFSuite extends Utils {
       DataFrame = {
     val rowList = loadRow(getClass.getResource("/agaricus.txt.train").getFile)
     val rowRDD = sparkContext.getOrElse(sc).parallelize(rowList, numWorkers)
-    val sparkSession = SparkSession.builder().appName("XGBoostTest").getOrCreate()
-    sparkSession.createDataFrame(rowRDD,
+    val sqlContext = new SQLContext(sparkContext.getOrElse(sc))
+    sqlContext.createDataFrame(rowRDD,
       StructType(Array(StructField("label", DoubleType, nullable = false),
         StructField("features", new VectorUDT, nullable = false))))
   }
@@ -61,7 +61,7 @@ class XGBoostDFSuite extends Utils {
     val trainingRDD = buildTrainingRDD()
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModelWithDF = XGBoost.trainWithDataset(trainingDF, paramMap,
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = false)
     val xgBoostModelWithRDD = XGBoost.trainWithRDD(trainingRDD, paramMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = false)
@@ -80,14 +80,14 @@ class XGBoostDFSuite extends Utils {
     val trainingDF = buildTrainingDataframe()
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModelWithDF = XGBoost.trainWithDataset(trainingDF, paramMap,
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = false)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile)
     val testRowsRDD = sc.parallelize(testSet.zipWithIndex, numWorkers).map{
       case (instance: LabeledPoint, id: Int) =>
         Row(id, instance.features, instance.label)
     }
-    val testDF = trainingDF.sparkSession.createDataFrame(testRowsRDD, StructType(
+    val testDF = trainingDF.sqlContext.createDataFrame(testRowsRDD, StructType(
       Array(StructField("id", IntegerType),
         StructField("features", new VectorUDT), StructField("label", DoubleType))))
     xgBoostModelWithDF.transform(testDF).show()
@@ -111,9 +111,9 @@ class XGBoostDFSuite extends Utils {
         Row(id, instance.features, instance.label)
     }
     val trainingDF = buildTrainingDataframe()
-    val xgBoostModelWithDF = XGBoost.trainWithDataset(trainingDF, paramMap,
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = false)
-    val testDF = trainingDF.sparkSession.createDataFrame(testRowsRDD, StructType(
+    val testDF = trainingDF.sqlContext.createDataFrame(testRowsRDD, StructType(
       Array(StructField("id", IntegerType), StructField("features", new VectorUDT),
         StructField("label", DoubleType))))
     val predResultsFromDF =

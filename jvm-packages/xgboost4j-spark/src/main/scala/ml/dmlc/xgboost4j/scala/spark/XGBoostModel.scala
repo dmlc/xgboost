@@ -22,7 +22,7 @@ import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, Rabit}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
 import org.apache.hadoop.fs.Path
 import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.ml.Model
+import org.apache.spark.ml.{Model, PredictionModel}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.mllib.linalg.{VectorUDT, DenseVector, Vector}
@@ -175,15 +175,24 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
 
   /**
    * produces the prediction results and append as an additional column in the original dataset
+   * NOTE: the prediction results is kept as the original format of xgboost
+   * @return the original dataframe with an additional column containing prediction results
+   */
+  override def transform(testSet: DataFrame): DataFrame = {
+    transform(testSet, None)
+  }
+
+  /**
+   * produces the prediction results and append as an additional column in the original dataset
    * NOTE: the prediction results is transformed by applying the transformation function
    * predictResultTrans to the original xgboost output
    * @param predictResultTrans the function to transform xgboost output to the expected format
    * @return the original dataframe with an additional column containing prediction results
    */
-  def transform(testSet: Dataset[_], predictResultTrans: Option[Array[Float] => DataType]):
+  def transform(testSet: DataFrame, predictResultTrans: Option[Array[Float] => DataType]):
       DataFrame = {
     transformSchema(testSet.schema, logging = true)
-    val broadcastBooster = testSet.sparkSession.sparkContext.broadcast(_booster)
+    val broadcastBooster = testSet.sqlContext.sparkContext.broadcast(_booster)
     val instances = testSet.rdd.mapPartitions {
       rowIterator =>
         if (rowIterator.hasNext) {
@@ -208,18 +217,8 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
           Iterator[Row]()
         }
     }
-    testSet.sparkSession.createDataFrame(instances, testSet.schema.add("prediction", outputType)).
+    testSet.sqlContext.createDataFrame(instances, testSet.schema.add("prediction", outputType)).
       cache()
-  }
-
-  /**
-   * produces the prediction results and append as an additional column in the original dataset
-   * NOTE: the prediction results is kept as the original format of xgboost
-   * @return the original dataframe with an additional column containing prediction results
-   */
-  override def transform(testSet: Dataset[_]): DataFrame = {
-    assert(outputType == ArrayType(FloatType, containsNull = false))
-    transform(testSet, None)
   }
 
   @DeveloperApi

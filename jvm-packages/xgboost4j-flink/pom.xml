@@ -35,17 +35,17 @@
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-scala_2.11</artifactId>
+            <artifactId>flink-scala${flink.suffix}</artifactId>
             <version>0.10.2</version>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-clients_2.11</artifactId>
+            <artifactId>flink-clients${flink.suffix}</artifactId>
             <version>0.10.2</version>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-ml_2.11</artifactId>
+            <artifactId>flink-ml${flink.suffix}</artifactId>
             <version>0.10.2</version>
         </dependency>
     </dependencies>

@@ -27,7 +27,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.mllib.linalg.SparseVector
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.{DataFrame, Dataset}
 import org.apache.spark.{SparkContext, TaskContext}
 
 object XGBoost extends Serializable {
@@ -114,7 +114,7 @@ object XGBoost extends Serializable {
 
   /**
    *
-   * @param trainingData the trainingset represented as RDD
+   * @param trainingData the trainingset represented as DataFrame
    * @param params Map containing the parameters to configure XGBoost
    * @param round the number of iterations
    * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
@@ -130,12 +130,11 @@ object XGBoost extends Serializable {
    * @return XGBoostModel when successful training
    */
   @throws(classOf[XGBoostError])
-  def trainWithDataset(trainingData: Dataset[_],
+  def trainWithDataFrame(trainingData: DataFrame,
                        params: Map[String, Any], round: Int,
                        nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
                        useExternalMemory: Boolean = false, missing: Float = Float.NaN,
-                       inputCol: String = "features", labelCol: String = "label"):
-      XGBoostModel = {
+                       inputCol: String = "features", labelCol: String = "label"): XGBoostModel = {
     new XGBoostEstimator(inputCol, labelCol, params, round, nWorkers, obj, eval,
       useExternalMemory, missing).fit(trainingData)
   }
