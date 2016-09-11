@@ -88,6 +88,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     // build SparkContext
     val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoostSuite")
     sc = new SparkContext(sparkConf)
+    sc.setLogLevel("ERROR")
   }
 
   after {
@@ -178,6 +179,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     sc = null
     val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoostSuite")
     val customSparkContext = new SparkContext(sparkConf)
+    customSparkContext.setLogLevel("ERROR")
     val eval = new EvalError()
     val trainingRDD = buildTrainingRDD(Some(customSparkContext))
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
@@ -365,6 +367,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
     val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoostSuite").
       set("spark.task.cpus", "4")
     val customSparkContext = new SparkContext(sparkConf)
+    customSparkContext.setLogLevel("ERROR")
     // start another app
     val trainingRDD = buildTrainingRDD(Some(customSparkContext))
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
@@ -383,6 +386,7 @@ class XGBoostSuite extends FunSuite with BeforeAndAfter {
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     sparkConf.registerKryoClasses(Array(classOf[Booster]))
     val customSparkContext = new SparkContext(sparkConf)
+    customSparkContext.setLogLevel("ERROR")
     val trainingRDD = buildTrainingRDD(Some(customSparkContext))
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
