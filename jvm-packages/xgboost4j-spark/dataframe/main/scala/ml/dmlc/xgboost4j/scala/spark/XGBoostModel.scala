@@ -178,7 +178,7 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
    * NOTE: the prediction results is kept as the original format of xgboost
    * @return the original dataframe with an additional column containing prediction results
    */
-  override def transform(testSet: Dataset[_]): DataFrame = {
+  override def transform(testSet: DataFrame): DataFrame = {
     transform(testSet, None)
   }
 
@@ -189,7 +189,7 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
    * @param predictResultTrans the function to transform xgboost output to the expected format
    * @return the original dataframe with an additional column containing prediction results
    */
-  def transform(testSet: Dataset[_], predictResultTrans: Option[Array[Float] => DataType]):
+  def transform(testSet: DataFrame, predictResultTrans: Option[Array[Float] => DataType]):
       DataFrame = {
     transformSchema(testSet.schema, logging = true)
     val broadcastBooster = testSet.sqlContext.sparkContext.broadcast(_booster)

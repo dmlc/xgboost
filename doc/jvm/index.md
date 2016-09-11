@@ -13,7 +13,7 @@ Before you install XGBoost4J, you need to define environment variable `JAVA_HOME
 
 After your `JAVA_HOME` is defined correctly, it is as simple as run `mvn package` under jvm-packages directory to install XGBoost4J. You can also skip the tests by running `mvn -DskipTests=true package`, if you are sure about the correctness of your local setup.
 
-After integrating with Dataframe/Dataset APIs of Spark 2.0, XGBoost4J-Spark only supports compile with Spark 2.x. You can build XGBoost4J-Spark as a component of XGBoost4J by running `mvn package`. (How to compile with Spark 1.x is TBD)
+After integrating with Dataframe/Dataset APIs of Spark 2.0, XGBoost4J-Spark only supports compile with Spark 2.x. You can build XGBoost4J-Spark as a component of XGBoost4J by running `mvn package`, and you can specify the version of spark with `mvn -Dspark.version=1.6.0 package`. (In the `dataframe` sub directory under `xgboost4j-spark`, we provide the dataframe implementation based on Spark-1.6.x APIs, but this folder will be removed in future release)
 
 Contents
 --------

@@ -52,7 +52,7 @@ class XGBoostEstimator(
   /**
    * produce a XGBoostModel by fitting the given dataset
    */
-  def fit(trainingSet: Dataset[_]): XGBoostModel = {
+  def fit(trainingSet: DataFrame): XGBoostModel = {
     val instances = trainingSet.select(
       col(inputCol), col(labelCol).cast(DoubleType)).rdd.map {
       case Row(feature: Vector, label: Double) =>

@@ -23,15 +23,15 @@
     </modules>
     <profiles>
         <profile>
-            <id>spark-1.x</id>
+            <id>spark-2.x</id>
             <activation>
                 <activeByDefault>true</activeByDefault>
             </activation>
             <properties>
-                <spark.version>1.6.2</spark.version>
-                <flink.suffix></flink.suffix>
-                <scala.version>2.10.5</scala.version>
-                <scala.binary.version>2.10</scala.binary.version>
+                <spark.version>2.0.0</spark.version>
+                <flink.suffix>_2.11</flink.suffix>
+                <scala.version>2.11.8</scala.version>
+                <scala.binary.version>2.11</scala.binary.version>
             </properties>
         </profile>
     </profiles>

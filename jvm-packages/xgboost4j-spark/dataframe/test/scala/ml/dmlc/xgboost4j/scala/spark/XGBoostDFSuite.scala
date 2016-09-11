@@ -45,8 +45,8 @@ class XGBoostDFSuite extends Utils {
       DataFrame = {
     val rowList = loadRow(getClass.getResource("/agaricus.txt.train").getFile)
     val rowRDD = sparkContext.getOrElse(sc).parallelize(rowList, numWorkers)
-    val sparkSession = SparkSession.builder().appName("XGBoostDFSuite").getOrCreate()
-    sparkSession.createDataFrame(rowRDD,
+    val sqlContext = new SQLContext(sparkContext.getOrElse(sc))
+    sqlContext.createDataFrame(rowRDD,
       StructType(Array(StructField("label", DoubleType, nullable = false),
         StructField("features", new VectorUDT, nullable = false))))
   }
@@ -87,7 +87,7 @@ class XGBoostDFSuite extends Utils {
       case (instance: LabeledPoint, id: Int) =>
         Row(id, instance.features, instance.label)
     }
-    val testDF = trainingDF.sparkSession.createDataFrame(testRowsRDD, StructType(
+    val testDF = trainingDF.sqlContext.createDataFrame(testRowsRDD, StructType(
       Array(StructField("id", IntegerType),
         StructField("features", new VectorUDT), StructField("label", DoubleType))))
     xgBoostModelWithDF.transform(testDF).show()

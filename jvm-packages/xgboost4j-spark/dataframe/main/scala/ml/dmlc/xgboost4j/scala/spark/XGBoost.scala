@@ -130,7 +130,7 @@ object XGBoost extends Serializable {
    * @return XGBoostModel when successful training
    */
   @throws(classOf[XGBoostError])
-  def trainWithDataFrame(trainingData: Dataset[_],
+  def trainWithDataFrame(trainingData: DataFrame,
                        params: Map[String, Any], round: Int,
                        nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
                        useExternalMemory: Boolean = false, missing: Float = Float.NaN,
