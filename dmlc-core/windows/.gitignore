@@ -1,0 +1,11 @@
+Debug
+*suo
+*.dll
+*i386
+*x64
+ipch
+*.filters
+*.user
+*sdf
+Release
+Debug
