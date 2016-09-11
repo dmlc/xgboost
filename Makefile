@@ -104,16 +104,16 @@ CLI_OBJ = build/cli_main.o
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
-	$(CXX) -c $(CFLAGS) -c $< -o $@
+	$(CXX) -c $(CFLAGS) $< -o $@
 
 build_plugin/%.o: plugin/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build_plugin/$*.o $< >build_plugin/$*.d
-	$(CXX) -c $(CFLAGS) -c $< -o $@
+	$(CXX) -c $(CFLAGS) $< -o $@
 
 # The should be equivalent to $(ALL_OBJ)  except for build/cli_main.o
 amalgamation/xgboost-all0.o: amalgamation/xgboost-all0.cc
-	$(CXX) -c $(CFLAGS) -c $< -o $@
+	$(CXX) -c $(CFLAGS) $< -o $@
 
 # Equivalent to lib/libxgboost_all.so
 lib/libxgboost_all.so: $(AMALGA_OBJ) $(LIB_DEP)
