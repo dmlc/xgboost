@@ -16,16 +16,28 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import org.apache.hadoop.fs.{Path, FileSystem}
-import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.{TaskContext, SparkContext}
-import org.apache.spark.mllib.linalg.{DenseVector, Vector}
-import org.apache.spark.rdd.RDD
-import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
-import ml.dmlc.xgboost4j.scala.{EvalTrait, Booster, DMatrix}
 import scala.collection.JavaConverters._
 
-class XGBoostModel(_booster: Booster) extends Serializable {
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, Rabit}
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
+import org.apache.hadoop.fs.Path
+import org.apache.spark.annotation.DeveloperApi
+import org.apache.spark.ml.{Model, PredictionModel}
+import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.ml.util.Identifiable
+import org.apache.spark.mllib.linalg.{VectorUDT, DenseVector, Vector}
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.{DataFrame, Dataset, Row}
+import org.apache.spark.{SparkContext, TaskContext}
+
+class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializable {
+
+  var inputCol = "features"
+  var outputCol = "prediction"
+  var outputType: DataType = ArrayType(elementType = FloatType, containsNull = false)
 
   /**
    * evaluate XGBoostModel with a RDD-wrapped dataset
@@ -40,6 +52,7 @@ class XGBoostModel(_booster: Booster) extends Serializable {
       eval: EvalTrait,
       evalName: String,
       useExternalCache: Boolean = false): String = {
+    val broadcastBooster = evalDataset.sparkContext.broadcast(_booster)
     val appName = evalDataset.context.appName
     val allEvalMetrics = evalDataset.mapPartitions {
       labeledPointsPartition =>
@@ -55,7 +68,7 @@ class XGBoostModel(_booster: Booster) extends Serializable {
             }
           }
           val dMatrix = new DMatrix(labeledPointsPartition, cacheFileName)
-          val predictions = _booster.predict(dMatrix)
+          val predictions = broadcastBooster.value.predict(dMatrix)
           Rabit.shutdown()
           Iterator(Some(eval.eval(predictions, dMatrix)))
         } else {
@@ -152,8 +165,71 @@ class XGBoostModel(_booster: Booster) extends Serializable {
     outputStream.close()
   }
 
-  /**
-   * Get the booster instance of this model
-   */
   def booster: Booster = _booster
+
+  override val uid: String = Identifiable.randomUID("XGBoostModel")
+
+  override def copy(extra: ParamMap): XGBoostModel = {
+    defaultCopy(extra)
+  }
+
+  /**
+   * produces the prediction results and append as an additional column in the original dataset
+   * NOTE: the prediction results is kept as the original format of xgboost
+   * @return the original dataframe with an additional column containing prediction results
+   */
+  override def transform(testSet: Dataset[_]): DataFrame = {
+    transform(testSet, None)
+  }
+
+  /**
+   * produces the prediction results and append as an additional column in the original dataset
+   * NOTE: the prediction results is transformed by applying the transformation function
+   * predictResultTrans to the original xgboost output
+   * @param predictResultTrans the function to transform xgboost output to the expected format
+   * @return the original dataframe with an additional column containing prediction results
+   */
+  def transform(testSet: Dataset[_], predictResultTrans: Option[Array[Float] => DataType]):
+      DataFrame = {
+    transformSchema(testSet.schema, logging = true)
+    val broadcastBooster = testSet.sqlContext.sparkContext.broadcast(_booster)
+    val instances = testSet.rdd.mapPartitions {
+      rowIterator =>
+        if (rowIterator.hasNext) {
+          val (rowItr1, rowItr2) = rowIterator.duplicate
+          val vectorIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[Vector](inputCol)).
+            toList.iterator
+          import DataUtils._
+          val testDataset = new DMatrix(vectorIterator, null)
+          val rowPredictResults = broadcastBooster.value.predict(testDataset)
+          val predictResults = {
+            if (predictResultTrans.isDefined) {
+              rowPredictResults.map(prediction => Row(predictResultTrans.get(prediction))).iterator
+            } else {
+              rowPredictResults.map(prediction => Row(prediction)).iterator
+            }
+          }
+          rowItr1.zip(predictResults).map {
+            case (originalColumns: Row, predictColumn: Row) =>
+              Row.fromSeq(originalColumns.toSeq ++ predictColumn.toSeq)
+          }
+        } else {
+          Iterator[Row]()
+        }
+    }
+    testSet.sqlContext.createDataFrame(instances, testSet.schema.add("prediction", outputType)).
+      cache()
+  }
+
+  @DeveloperApi
+  override def transformSchema(schema: StructType): StructType = {
+    if (schema.fieldNames.contains(outputCol)) {
+      throw new IllegalArgumentException(s"Output column $outputCol already exists.")
+    }
+    val inputType = schema(inputCol).dataType
+    require(inputType.equals(new VectorUDT),
+      s"the type of input column $inputCol has to be VectorUDT")
+    val outputFields = schema.fields :+ StructField(outputCol, outputType, nullable = false)
+    StructType(outputFields)
+  }
 }
