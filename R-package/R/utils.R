@@ -65,6 +65,15 @@ check.booster.params <- function(params, ...) {
         stop("'num_class' > 1 parameter must be set for multiclass classification")
   }
   
+  # monotone_constraints parser
+  
+  if (!is.null(params[['monotone_constraints']]) &&
+      typeof(params[['monotone_constraints']]) != "character") {
+        vec2str = paste(params[['monotone_constraints']], collapse = ',')
+        vec2str = paste0('(', vec2str, ')')
+        params[['monotone_constraints']] = vec2str
+  }
+  
   return(params)
 }
 
