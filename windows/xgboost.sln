@@ -1,6 +1,6 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
+Microsoft Visual Studio Solution File, Format Version 14.00
+# Visual Studio 2015
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xgboost", "xgboost\xgboost.vcxproj", "{19766C3F-7508-49D0-BAAC-0988FCC9970C}"
 	ProjectSection(ProjectDependencies) = postProject
 		{D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F} = {D7B77D06-4F5F-4BD7-B81E-7CC8EBBE684F}
