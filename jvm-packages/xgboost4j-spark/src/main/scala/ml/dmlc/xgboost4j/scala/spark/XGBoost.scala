@@ -258,7 +258,7 @@ object XGBoost extends Serializable {
     require(tracker.start(trackerConf.workerConnectionTimeout), "FAULT: Failed to start tracker")
     tracker
   }
-
+  
   /**
    * Train XGBoost model with the RDD-represented data
    *
