@@ -42,8 +42,8 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
   /**
    * evaluate XGBoostModel with a RDD-wrapped dataset
    *
-   * NOTE: you have to specify value of either eval or iter; when you specify both, this adopts
-   * the default eval metric of model
+   * NOTE: you have to specify value of either eval or iter; when you specify both, this method
+   * adopts the default eval metric of model
    *
    * @param evalDataset the dataset used for evaluation
    * @param evalName the name of evaluation
