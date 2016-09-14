@@ -174,7 +174,7 @@ object XGBoost extends Serializable {
     require(tracker.start(trackerConf.workerConnectionTimeout), "FAULT: Failed to start tracker")
     tracker
   }
-
+  
   /**
    * Check to see if Spark expects SSL encryption (`spark.ssl.enabled` set to true).
    * If so, throw an exception unless this safety measure has been explicitly overridden
