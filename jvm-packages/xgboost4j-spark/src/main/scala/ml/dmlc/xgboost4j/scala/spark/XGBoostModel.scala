@@ -250,7 +250,8 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
           val rowPredictResults = broadcastBooster.value.predict(testDataset)
           val predictResults = {
             if (rawPredictTransformer.isDefined) {
-              rowPredictResults.map(prediction => Row(rawPredictTransformer.get(prediction))).iterator
+              rowPredictResults.map(prediction =>
+                Row(rawPredictTransformer.get(prediction))).iterator
             } else {
               rowPredictResults.map(prediction => Row(prediction)).iterator
             }
