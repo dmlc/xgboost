@@ -29,50 +29,8 @@ import org.apache.spark.mllib.linalg.{DenseVector, Vector => SparkVector}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 
-trait Utils extends SharedSparkContext {
+trait Utils extends Serializable {
   protected val numWorkers = Runtime.getRuntime().availableProcessors()
-
-  protected class EvalError extends EvalTrait {
-
-    val logger = LogFactory.getLog(classOf[EvalError])
-
-    private[xgboost4j] var evalMetric: String = "custom_error"
-
-    /**
-     * get evaluate metric
-     *
-     * @return evalMetric
-     */
-    override def getMetric: String = evalMetric
-
-    /**
-     * evaluate with predicts and data
-     *
-     * @param predicts predictions as array
-     * @param dmat     data matrix to evaluate
-     * @return result of the metric
-     */
-    override def eval(predicts: Array[Array[Float]], dmat: DMatrix): Float = {
-      var error: Float = 0f
-      var labels: Array[Float] = null
-      try {
-        labels = dmat.getLabel
-      } catch {
-        case ex: XGBoostError =>
-          logger.error(ex)
-          return -1f
-      }
-      val nrow: Int = predicts.length
-      for (i <- 0 until nrow) {
-        if (labels(i) == 0.0 && predicts(i)(0) > 0) {
-          error += 1
-        } else if (labels(i) == 1.0 && predicts(i)(0) <= 0) {
-          error += 1
-        }
-      }
-      error / labels.length
-    }
-  }
 
   protected def loadLabelPoints(filePath: String): List[LabeledPoint] = {
     val file = Source.fromFile(new File(filePath))
@@ -100,8 +58,8 @@ trait Utils extends SharedSparkContext {
     LabeledPoint(label, sv)
   }
 
-  protected def buildTrainingRDD(sparkContext: Option[SparkContext] = None): RDD[LabeledPoint] = {
+  protected def buildTrainingRDD(sparkContext: SparkContext): RDD[LabeledPoint] = {
     val sampleList = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile)
-    sparkContext.getOrElse(sc).parallelize(sampleList, numWorkers)
+    sparkContext.parallelize(sampleList, numWorkers)
   }
 }
