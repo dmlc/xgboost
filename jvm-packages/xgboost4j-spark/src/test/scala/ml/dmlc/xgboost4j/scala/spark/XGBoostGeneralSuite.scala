@@ -133,13 +133,12 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
   }
 
   test("test eval functions with RDD") {
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = buildTrainingRDD(sc).cache()
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
-    val evalFunc = new EvalError
     xgBoostModel.eval(trainingRDD, "eval1", iter = 5, useExternalCache = false)
-    xgBoostModel.eval(trainingRDD, "eval2", evalFunc = evalFunc, useExternalCache = false)
+    xgBoostModel.eval(trainingRDD, "eval2", evalFunc = new EvalError, useExternalCache = false)
   }
 
   test("test prediction functionality with empty partition") {
