@@ -21,22 +21,37 @@ import java.io.File
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
 
-import ml.dmlc.xgboost4j.java.XGBoostError
-import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
-import org.apache.commons.logging.LogFactory
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.{DenseVector, Vector => SparkVector}
-import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.ml.feature.LabeledPoint
+import org.apache.spark.ml.linalg.{DenseVector, Vector => SparkVector}
 import org.apache.spark.rdd.RDD
 
 trait Utils extends Serializable {
   protected val numWorkers = Runtime.getRuntime().availableProcessors()
+
+  protected var labeledPointsRDD: RDD[LabeledPoint] = null
+
+  protected def cleanExternalCache(prefix: String): Unit = {
+    val dir = new File(".")
+    for (file <- dir.listFiles() if file.getName.startsWith(prefix)) {
+      file.delete()
+    }
+  }
 
   protected def loadLabelPoints(filePath: String): List[LabeledPoint] = {
     val file = Source.fromFile(new File(filePath))
     val sampleList = new ListBuffer[LabeledPoint]
     for (sample <- file.getLines()) {
       sampleList += fromSVMStringToLabeledPoint(sample)
+    }
+    sampleList.toList
+  }
+
+  protected def loadLabelAndVector(filePath: String): List[(Double, SparkVector)] = {
+    val file = Source.fromFile(new File(filePath))
+    val sampleList = new ListBuffer[(Double, SparkVector)]
+    for (sample <- file.getLines()) {
+      sampleList += fromSVMStringToLabelAndVector(sample)
     }
     sampleList.toList
   }
@@ -59,7 +74,10 @@ trait Utils extends Serializable {
   }
 
   protected def buildTrainingRDD(sparkContext: SparkContext): RDD[LabeledPoint] = {
-    val sampleList = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile)
-    sparkContext.parallelize(sampleList, numWorkers)
+    if (labeledPointsRDD == null) {
+      val sampleList = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile)
+      labeledPointsRDD = sparkContext.parallelize(sampleList, numWorkers)
+    }
+    labeledPointsRDD
   }
 }
