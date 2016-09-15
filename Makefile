@@ -148,8 +148,8 @@ clean:
 	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
 
 clean_all: clean
-	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROODIR)
-	cd $(RABIT); $(MAKE) clean; cd $(ROODIR)
+	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROOTDIR)
+	cd $(RABIT); $(MAKE) clean; cd $(ROOTDIR)
 
 doxygen:
 	doxygen doc/Doxyfile
