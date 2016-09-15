@@ -23,26 +23,31 @@ import scala.collection.mutable.ListBuffer
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, Rabit, RabitTracker, XGBoostError}
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.commons.logging.LogFactory
-import org.apache.hadoop.fs.Path
-import org.apache.spark.mllib.linalg.SparseVector
+import org.apache.hadoop.fs.{FSDataInputStream, Path}
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
+import org.apache.spark.ml.linalg.{DenseVector, SparseVector}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Dataset}
+import org.apache.spark.sql.Dataset
 import org.apache.spark.{SparkContext, TaskContext}
 
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
-  private implicit def convertBoosterToXGBoostModel(booster: Booster)
-      (implicit sc: SparkContext): XGBoostModel = {
-    new XGBoostModel(booster)
+  private def convertBoosterToXGBoostModel(booster: Booster, isClassification: Boolean):
+      XGBoostModel = {
+    if (!isClassification) {
+      new XGBoostRegressionModel(booster)
+    } else {
+      new XGBoostClassificationModel(booster)
+    }
   }
 
   private def fromDenseToSparseLabeledPoints(
-      denseLabeledPoints: Iterator[LabeledPoint],
-      missing: Float): Iterator[LabeledPoint] = {
+      denseLabeledPoints: Iterator[MLLabeledPoint],
+      missing: Float): Iterator[MLLabeledPoint] = {
     if (!missing.isNaN) {
-      val sparseLabeledPoints = new ListBuffer[LabeledPoint]
+      val sparseLabeledPoints = new ListBuffer[MLLabeledPoint]
       for (labelPoint <- denseLabeledPoints) {
         val dVector = labelPoint.features.toDense
         val indices = new ListBuffer[Int]
@@ -55,7 +60,7 @@ object XGBoost extends Serializable {
         }
         val sparseVector = new SparseVector(dVector.values.length, indices.toArray,
           values.toArray)
-        sparseLabeledPoints += LabeledPoint(labelPoint.label, sparseVector)
+        sparseLabeledPoints += MLLabeledPoint(labelPoint.label, sparseVector)
       }
       sparseLabeledPoints.iterator
     } else {
@@ -64,7 +69,7 @@ object XGBoost extends Serializable {
   }
 
   private[spark] def buildDistributedBoosters(
-      trainingData: RDD[LabeledPoint],
+      trainingData: RDD[MLLabeledPoint],
       xgBoostConfMap: Map[String, Any],
       rabitEnv: mutable.Map[String, String],
       numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
@@ -124,20 +129,38 @@ object XGBoost extends Serializable {
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                           true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
-   * @param inputCol the name of input column, "features" as default value
+   * @param featureCol the name of input column, "features" as default value
    * @param labelCol the name of output column, "label" as default value
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
   @throws(classOf[XGBoostError])
-  def trainWithDataFrame(trainingData: Dataset[_],
-                       params: Map[String, Any], round: Int,
-                       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
-                       useExternalMemory: Boolean = false, missing: Float = Float.NaN,
-                       inputCol: String = "features", labelCol: String = "label"): XGBoostModel = {
+  def trainWithDataFrame(
+      trainingData: Dataset[_],
+      params: Map[String, Any],
+      round: Int,
+      nWorkers: Int,
+      obj: ObjectiveTrait = null,
+      eval: EvalTrait = null,
+      useExternalMemory: Boolean = false,
+      missing: Float = Float.NaN,
+      featureCol: String = "features",
+      labelCol: String = "label"): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
-    new XGBoostEstimator(inputCol, labelCol, params, round, nWorkers, obj, eval,
-      useExternalMemory, missing).fit(trainingData)
+    val objective = params.get("objective")
+    val isClassificationTask = objective.isDefined && objective.get.toString != "reg:linear"
+    val estimator = new XGBoostEstimator(params, round, nWorkers, obj, eval,
+          useExternalMemory, missing)
+    val model = estimator.setFeaturesCol(featureCol).setLabelCol(labelCol).fit(trainingData)
+    if (!isClassificationTask) {
+      val objStr = objective.toString
+      model.asInstanceOf[XGBoostRegressionModel]
+    } else {
+      val classificationModel = model.asInstanceOf[XGBoostClassificationModel]
+      val numClass = if (params.contains("num_class")) params("num_class").asInstanceOf[Int] else 2
+      classificationModel.numOfClasses = numClass
+      classificationModel
+    }
   }
 
   /**
@@ -158,10 +181,12 @@ object XGBoost extends Serializable {
   @deprecated(since = "0.7", message = "this method is deprecated since 0.7, users are encouraged" +
     " to switch to trainWithRDD")
   def train(trainingData: RDD[LabeledPoint], configMap: Map[String, Any], round: Int,
-            nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
-            useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
+      nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
+      useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
-    trainWithRDD(trainingData, configMap, round, nWorkers, obj, eval, useExternalMemory, missing)
+    trainWithRDD(
+      trainingData.map(mllp => MLLabeledPoint(mllp.label, new DenseVector(mllp.features.toArray))),
+      configMap, round, nWorkers, obj, eval, useExternalMemory, missing)
   }
 
   /**
@@ -180,9 +205,9 @@ object XGBoost extends Serializable {
    * @return XGBoostModel when successful training
    */
   @throws(classOf[XGBoostError])
-  def trainWithRDD(trainingData: RDD[LabeledPoint], configMap: Map[String, Any], round: Int,
-                   nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
-                   useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
+  def trainWithRDD(trainingData: RDD[MLLabeledPoint], configMap: Map[String, Any], round: Int,
+      nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
+      useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
     val tracker = new RabitTracker(nWorkers)
     implicit val sc = trainingData.sparkContext
@@ -209,7 +234,9 @@ object XGBoost extends Serializable {
     val returnVal = tracker.waitFor()
     logger.info(s"Rabit returns with exit code $returnVal")
     if (returnVal == 0) {
-      boosters.first()
+      val objective = configMap.get("objective")
+      val isClassificationTask = objective.isDefined && objective.get.toString != "reg:linear"
+      convertBoosterToXGBoostModel(boosters.first(), isClassificationTask)
     } else {
       try {
         if (sparkJobThread.isAlive) {
@@ -223,6 +250,12 @@ object XGBoost extends Serializable {
     }
   }
 
+  private def loadString(inStream: FSDataInputStream): String = {
+    val colLength = inStream.readInt()
+    mutable.StringBuilder.newBuilder.appendAll(
+      (for (i <- 0 until colLength) yield inStream.readChar()).toSeq).toString()
+  }
+
   /**
    * Load XGBoost model from path in HDFS-compatible file system
    *
@@ -233,7 +266,31 @@ object XGBoost extends Serializable {
       XGBoostModel = {
     val path = new Path(modelPath)
     val dataInStream = path.getFileSystem(sparkContext.hadoopConfiguration).open(path)
-    val xgBoostModel = new XGBoostModel(SXGBoost.loadModel(dataInStream))
-    xgBoostModel
+    val modelTypeArray = for (i <- 0 until 5) yield dataInStream.readChar()
+    val modelType = mutable.StringBuilder.newBuilder.appendAll(modelTypeArray.toSeq).toString()
+    if (modelType == "_cls_") {
+      val rawPredictionCol = loadString(dataInStream)
+      val predCol = loadString(dataInStream)
+      val thresholdLength = dataInStream.readInt()
+      var thresholds: Array[Double] = null
+      if (thresholdLength != -1) {
+        thresholds = new Array[Double](thresholdLength)
+        for (i <- 0 until thresholdLength) {
+          thresholds(i) = dataInStream.readDouble()
+        }
+      }
+      val xgBoostModel = new XGBoostClassificationModel(SXGBoost.loadModel(dataInStream))
+      xgBoostModel.setRawPredictionCol(rawPredictionCol)
+      xgBoostModel.setPredictionCol(predCol)
+      if (thresholdLength != -1) {
+        xgBoostModel.setThresholds(thresholds)
+      }
+      xgBoostModel
+    } else {
+      val predictionCol = loadString(dataInStream)
+      val xgBoostModel = new XGBoostRegressionModel(SXGBoost.loadModel(dataInStream))
+      xgBoostModel.setPredictionCol(predictionCol)
+      xgBoostModel
+    }
   }
 }
