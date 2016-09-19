@@ -20,7 +20,7 @@ The prediction value can have different interpretations, depending on the task, 
 For example, it can be logistic transformed to get the probability of positive class in logistic regression, and it can also be used as a ranking score when we want to rank the outputs.
 
 The ***parameters*** are the undetermined part that we need to learn from data. In linear regression problems, the parameters are the coefficients ``$ \theta $``.
-Usually we will use ``$ \theta $`` to denote the parameters (there are many paramters in a model, our definition here is sloppy).
+Usually we will use ``$ \theta $`` to denote the parameters (there are many parameters in a model, our definition here is sloppy).
 
 ### Objective Function : Training Loss + Regularization
 
