@@ -48,7 +48,7 @@ object XGBoost extends Serializable {
         val indices = new ListBuffer[Int]
         val values = new ListBuffer[Double]
         for (i <- dVector.values.indices) {
-          if (values(i) != missing) {
+          if (dVector.values(i) != missing) {
             indices += i
             values += dVector.values(i)
           }
