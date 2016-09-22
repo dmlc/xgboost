@@ -17,7 +17,6 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.JavaConverters._
-
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, Rabit}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
 import org.apache.hadoop.fs.Path
@@ -32,12 +31,16 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Dataset, Row}
 import org.apache.spark.{SparkContext, TaskContext}
+import org.apache.spark.ml.XGBoostParams
 
-class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializable {
+class XGBoostModel(override val uid: String, _booster: Booster) extends Model[XGBoostModel]
+  with Serializable  with XGBoostParams {
 
-  var inputCol = "features"
-  var outputCol = "prediction"
+  var inputCol = $(featuresCol)
+  var outputCol = $(predictionCol)
   var outputType: DataType = ArrayType(elementType = FloatType, containsNull = false)
+
+  def this(_booster: Booster) = this(Identifiable.randomUID("XGBoostModel"), _booster)
 
   /**
    * evaluate XGBoostModel with a RDD-wrapped dataset
@@ -179,8 +182,6 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
   }
 
   def booster: Booster = _booster
-
-  override val uid: String = Identifiable.randomUID("XGBoostModel")
 
   override def copy(extra: ParamMap): XGBoostModel = {
     defaultCopy(extra)

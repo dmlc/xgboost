@@ -59,11 +59,13 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("test consistency between training with dataframe and RDD") {
     val trainingDF = buildTrainingDataframe()
     val trainingRDD = buildTrainingRDD(sc)
-    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
-      "objective" -> "binary:logistic").toMap
+    val paramMap = Map("eta" -> 1, "max_depth" -> 6, "silent" -> 0,
+      "objective" -> "binary:logistic")
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = false)
-    val xgBoostModelWithRDD = XGBoost.trainWithRDD(trainingRDD, paramMap,
+    val rddParamMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
+      "objective" -> "binary:logistic").toMap
+    val xgBoostModelWithRDD = XGBoost.trainWithRDD(trainingRDD, rddParamMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = false)
     val eval = new EvalError()
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
@@ -78,8 +80,8 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
 
   test("test transform of dataframe-based model") {
     val trainingDF = buildTrainingDataframe()
-    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
-      "objective" -> "binary:logistic").toMap
+    val paramMap = Map("eta" -> 1, "max_depth" -> 6, "silent" -> 0,
+      "objective" -> "binary:logistic")
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = false)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile)
@@ -94,8 +96,8 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   }
 
   test("test order preservation of dataframe-based model") {
-    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
-      "objective" -> "binary:logistic").toMap
+    val paramMap = Map("eta" -> 1, "max_depth" -> 6, "silent" -> 0,
+      "objective" -> "binary:logistic")
     val trainingItr = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile).
       iterator
     val (testItr, auxTestItr) =
