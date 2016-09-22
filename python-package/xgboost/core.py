@@ -116,7 +116,7 @@ def _check_call(ret):
     Parameters
     ----------
     ret : int
-        return value from API call
+        return value from API calls
     """
     if ret != 0:
         raise XGBoostError(_LIB.XGBGetLastError())
@@ -160,7 +160,7 @@ PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': '
 
 
 def _maybe_pandas_data(data, feature_names, feature_types):
-    """Extract internal data from pd.DataFrame for DMatrix data."""
+    """Extract internal data from pd.DataFrame for DMatrix data"""
 
     if not isinstance(data, DataFrame):
         return data, feature_names, feature_types
@@ -205,9 +205,9 @@ def _maybe_pandas_label(label):
 class DMatrix(object):
     """Data Matrix used in XGBoost.
 
-    DMatrix is an internal data structure that used by XGBoost
+    DMatrix is an internal data structure that used by XGBoost,
     which is optimized for both memory efficiency and training speed.
-    You can construct DMatrix from numpy.array
+    You can construct DMatrix from numpy arrays.
     """
 
     _feature_names = None  # for previous version's pickle
@@ -229,7 +229,7 @@ class DMatrix(object):
             Label of the training data.
         missing : float, optional
             Value in the data which needs to be present as a missing value. If
-            None, defaults to numpy.nan.
+            None, defaults to np.nan.
         weight : list or numpy 1-D array, optional
             Weight for each instance.
         silent : boolean, optional
@@ -746,7 +746,7 @@ class Booster(object):
         Parameters
         ----------
         **kwargs
-            The attributes to set. Setting a value to None deletes an attribute.
+            The attributes to be set. Setting a value to None deletes an attribute.
         """
         for key, value in kwargs.items():
             if value is not None:
@@ -762,7 +762,7 @@ class Booster(object):
         Parameters
         ----------
         params: dict/list/str
-           list of key, value paris, dict of key to value or simply str key
+           list of key, value pairs, dict of key to value or simply str key
         value: optional
            value of the specified parameter, when params is str key
         """
@@ -870,7 +870,7 @@ class Booster(object):
         Parameters
         ----------
         data : DMatrix
-            The dmatrix storing the input.
+            The DMatrix storing the input.
 
         name : str, optional
             The name of the dataset.
@@ -897,7 +897,7 @@ class Booster(object):
         Parameters
         ----------
         data : DMatrix
-            The dmatrix storing the input.
+            The DMatrix storing the input.
 
         output_margin : bool
             Whether to output the raw untransformed margin value.
@@ -920,7 +920,7 @@ class Booster(object):
             option_mask |= 0x01
         if pred_leaf:
             option_mask |= 0x02
-        
+
         self._validate_features(data)
 
         length = ctypes.c_ulong()
@@ -949,7 +949,7 @@ class Booster(object):
         if isinstance(fname, STRING_TYPES):  # assume file name
             _check_call(_LIB.XGBoosterSaveModel(self.handle, c_str(fname)))
         else:
-            raise TypeError("fname must be a string")
+            raise TypeError("filename must be a string")
 
     def save_raw(self):
         """Save the model to an in memory buffer representation
