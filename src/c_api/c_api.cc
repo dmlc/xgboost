@@ -227,6 +227,37 @@ int XGDMatrixCreateFromDataIter(
   API_END();
 }
 
+XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
+                           const unsigned* indices,
+                           const float* data,
+                           size_t nindptr,
+                           size_t nelem,
+						   size_t num_col,
+                           DMatrixHandle* out) {
+  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+
+  API_BEGIN();
+  data::SimpleCSRSource& mat = *source;
+  mat.row_ptr_.resize(nindptr);
+  for (size_t i = 0; i < nindptr; ++i) {
+    mat.row_ptr_[i] = indptr[i];
+  }
+  mat.row_data_.resize(nelem);
+  for (size_t i = 0; i < nelem; ++i) {
+    mat.row_data_[i] = RowBatch::Entry(indices[i], data[i]);
+    mat.info.num_col = std::max(mat.info.num_col,
+                                static_cast<uint64_t>(indices[i] + 1));
+  }
+  if (num_col > 0) {
+    CHECK_LE(mat.info.num_col, num_col);
+	mat.info.num_col = num_col;
+  }
+  mat.info.num_row = nindptr - 1;
+  mat.info.num_nonzero = nelem;
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  API_END();
+}
+
 XGB_DLL int XGDMatrixCreateFromCSR(const xgboost::bst_ulong* indptr,
                            const unsigned *indices,
                            const float* data,
@@ -250,6 +281,53 @@ XGB_DLL int XGDMatrixCreateFromCSR(const xgboost::bst_ulong* indptr,
   mat.info.num_row = nindptr - 1;
   mat.info.num_nonzero = static_cast<uint64_t>(nelem);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  API_END();
+}
+
+XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
+                                     const unsigned* indices,
+                                     const float* data,
+                                     size_t nindptr,
+                                     size_t nelem,
+                                     size_t num_row,
+                                     DMatrixHandle* out) {
+  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+
+  API_BEGIN();
+  int nthread;
+  #pragma omp parallel
+  {
+    nthread = omp_get_num_threads();
+  }
+  data::SimpleCSRSource& mat = *source;
+  common::ParallelGroupBuilder<RowBatch::Entry> builder(&mat.row_ptr_, &mat.row_data_);
+  builder.InitBudget(0, nthread);
+  size_t ncol = nindptr - 1;  // NOLINT(*)
+  #pragma omp parallel for schedule(static)
+  for (size_t i = 0; i < ncol; ++i) {  // NOLINT(*)
+    int tid = omp_get_thread_num();
+    for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
+      builder.AddBudget(indices[j], tid);
+    }
+  }
+  builder.InitStorage();
+  #pragma omp parallel for schedule(static)
+  for (size_t i = 0; i < ncol; ++i) {  // NOLINT(*)
+    int tid = omp_get_thread_num();
+    for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
+      builder.Push(indices[j],
+                   RowBatch::Entry(static_cast<bst_uint>(i), data[j]),
+                   tid);
+    }
+  }
+  mat.info.num_row = mat.row_ptr_.size() - 1;
+  if (num_row > 0) {
+    CHECK_LE(mat.info.num_row, num_row);
+	mat.info.num_row = num_row ;
+  }
+  mat.info.num_col = ncol;
+  mat.info.num_nonzero = nelem;
+  *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
 
