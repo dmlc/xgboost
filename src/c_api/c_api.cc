@@ -232,7 +232,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                            const float* data,
                            size_t nindptr,
                            size_t nelem,
-						   size_t num_col,
+                           size_t num_col,
                            DMatrixHandle* out) {
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
@@ -250,7 +250,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
   }
   if (num_col > 0) {
     CHECK_LE(mat.info.num_col, num_col);
-	mat.info.num_col = num_col;
+    mat.info.num_col = num_col;
   }
   mat.info.num_row = nindptr - 1;
   mat.info.num_nonzero = nelem;
@@ -323,7 +323,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   mat.info.num_row = mat.row_ptr_.size() - 1;
   if (num_row > 0) {
     CHECK_LE(mat.info.num_row, num_row);
-	mat.info.num_row = num_row ;
+    mat.info.num_row = num_row;
   }
   mat.info.num_col = ncol;
   mat.info.num_nonzero = nelem;
