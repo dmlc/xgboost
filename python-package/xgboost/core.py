@@ -287,10 +287,11 @@ class DMatrix(object):
         if len(csr.indices) != len(csr.data):
             raise ValueError('length mismatch: {} vs {}'.format(len(csr.indices), len(csr.data)))
         self.handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixCreateFromCSR(c_array(ctypes.c_ulong, csr.indptr),
+        _check_call(_LIB.XGDMatrixCreateFromCSREx(c_array(ctypes.c_size_t, csr.indptr),
                                                 c_array(ctypes.c_uint, csr.indices),
                                                 c_array(ctypes.c_float, csr.data),
                                                 len(csr.indptr), len(csr.data),
+                                                csr.shape[1],
                                                 ctypes.byref(self.handle)))
 
     def _init_from_csc(self, csc):
@@ -300,10 +301,11 @@ class DMatrix(object):
         if len(csc.indices) != len(csc.data):
             raise ValueError('length mismatch: {} vs {}'.format(len(csc.indices), len(csc.data)))
         self.handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixCreateFromCSC(c_array(ctypes.c_ulong, csc.indptr),
+        _check_call(_LIB.XGDMatrixCreateFromCSCEx(c_array(ctypes.c_size_t, csc.indptr),
                                                 c_array(ctypes.c_uint, csc.indices),
                                                 c_array(ctypes.c_float, csc.data),
                                                 len(csc.indptr), len(csc.data),
+                                                csc.shape[0],
                                                 ctypes.byref(self.handle)))
 
     def _init_from_npy2d(self, mat, missing):
