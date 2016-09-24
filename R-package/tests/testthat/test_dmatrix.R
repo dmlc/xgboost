@@ -1,4 +1,5 @@
 require(xgboost)
+require(Matrix)
 
 context("testing xgb.DMatrix functionality")
 
@@ -64,4 +65,14 @@ test_that("xgb.DMatrix: colnames", {
   expect_equal(colnames(dtest), new_names)
   expect_silent(colnames(dtest) <- NULL)
   expect_null(colnames(dtest))
+})
+
+test_that("xgb.DMatrix: nrow is correct for a very sparse matrix", {
+  set.seed(123)
+  nr <- 1000
+  x <- rsparsematrix(nr, 100, density=0.0005)
+  # we want it very sparse, so that last rows are empty
+  expect_lt(max(x@i), nr)
+  dtest <- xgb.DMatrix(x)
+  expect_equal(dim(dtest), dim(x))
 })
