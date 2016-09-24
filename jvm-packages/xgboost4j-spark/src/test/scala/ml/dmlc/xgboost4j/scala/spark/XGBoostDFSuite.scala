@@ -42,8 +42,8 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   }
 
   test("test consistency and order preservation of dataframe-based model") {
-    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic").toMap
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic")
     val trainingItr = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile).
       iterator
     val (testItr, auxTestItr) =
@@ -66,6 +66,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
       collect().map(row =>
       (row.getAs[Int]("id"), row.getAs[mutable.WrappedArray[Float]]("rawPrediction"))
     ).toMap
+    assert(testDF.count() === predResultsFromDF.size)
     for (i <- predResultFromSeq.indices) {
       assert(predResultFromSeq(i).length === predResultsFromDF(i).length)
       for (j <- predResultFromSeq(i).indices) {
@@ -73,5 +74,44 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
       }
     }
     cleanExternalCache("XGBoostDFSuite")
+  }
+
+  test("test schema in transformation of DF-based prediction") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic")
+    val testItr = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator.
+      zipWithIndex.map { case (instance: LabeledPoint, id: Int) =>
+      (id, instance.features, instance.label)
+    }
+    val trainingDF = buildTrainingDataframe()
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
+      round = 5, nWorkers = numWorkers, useExternalMemory = false)
+    xgBoostModelWithDF.asInstanceOf[XGBoostClassificationModel].setRawPredictionCol(
+      "raw_prediction").setPredictionCol("final_prediction")
+    val testDF = trainingDF.sparkSession.createDataFrame(testItr.toList).toDF(
+      "id", "features", "label")
+    var predictionDF = xgBoostModelWithDF.transform(testDF)
+    assert(predictionDF.columns.contains("id") === true)
+    assert(predictionDF.columns.contains("features") === true)
+    assert(predictionDF.columns.contains("label") === true)
+    assert(predictionDF.columns.contains("raw_prediction") === true)
+    assert(predictionDF.columns.contains("final_prediction") === true)
+    xgBoostModelWithDF.asInstanceOf[XGBoostClassificationModel].setRawPredictionCol("").
+      setPredictionCol("final_prediction")
+    predictionDF = xgBoostModelWithDF.transform(testDF)
+    assert(predictionDF.columns.contains("id") === true)
+    assert(predictionDF.columns.contains("features") === true)
+    assert(predictionDF.columns.contains("label") === true)
+    assert(predictionDF.columns.contains("raw_prediction") === false)
+    assert(predictionDF.columns.contains("final_prediction") === true)
+    xgBoostModelWithDF.asInstanceOf[XGBoostClassificationModel].
+      setRawPredictionCol("raw_prediction").setPredictionCol("")
+    predictionDF = xgBoostModelWithDF.transform(testDF)
+    assert(predictionDF.columns.contains("id") === true)
+    assert(predictionDF.columns.contains("features") === true)
+    assert(predictionDF.columns.contains("label") === true)
+    assert(predictionDF.columns.contains("raw_prediction") === true)
+    assert(predictionDF.columns.contains("final_prediction") === false)
+
   }
 }

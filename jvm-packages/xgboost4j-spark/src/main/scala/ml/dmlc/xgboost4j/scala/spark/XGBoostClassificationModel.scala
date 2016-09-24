@@ -89,23 +89,21 @@ class XGBoostClassificationModel private[spark](
       ArrayType(FloatType, containsNull = false)))
   }
 
-  private def predictRaw(testSet: Dataset[_], append: Boolean): DataFrame = {
-    val predictRDD = produceRowRDD(testSet, append, $(outputMargin))
+  private def predictRaw(testSet: Dataset[_], temporalColName: Option[String] = None): DataFrame = {
+    val predictRDD = produceRowRDD(testSet, $(outputMargin))
     testSet.sparkSession.createDataFrame(predictRDD, schema = {
-      if (append) {
-        StructType(testSet.schema.add(StructField($(rawPredictionCol),
-          ArrayType(FloatType, containsNull = false), nullable = false)))
-      } else {
-        StructType(Seq(StructField($(rawPredictionCol),
-          ArrayType(FloatType, containsNull = false), nullable = false)))
-      }
+      StructType(testSet.schema.add(StructField(
+        temporalColName.getOrElse($(rawPredictionCol)),
+        ArrayType(FloatType, containsNull = false), nullable = false)))
     })
   }
 
   private def fromFeatureToPrediction(testSet: Dataset[_]): Dataset[_] = {
-    val rawPredictionColFromDF = predictRaw(testSet, append = false).col($(rawPredictionCol))
-    val rawToPredictionUDF = udf (raw2prediction _).apply(rawPredictionColFromDF)
-    testSet.withColumn($(predictionCol), rawToPredictionUDF)
+    val rawPredictionDF = predictRaw(testSet, Some("rawPredictionCol"))
+    val predictionUDF = udf(raw2prediction _).apply(col("rawPredictionCol"))
+    val tempDF = rawPredictionDF.withColumn($(predictionCol), predictionUDF)
+    val allColumnNames = testSet.columns ++ Seq($(predictionCol))
+    tempDF.select(allColumnNames(0), allColumnNames.tail: _*)
   }
 
   private def argMax(vector: mutable.WrappedArray[Float]): Double = {
@@ -144,7 +142,7 @@ class XGBoostClassificationModel private[spark](
     var outputData = testSet
     var numColsOutput = 0
     if ($(rawPredictionCol).nonEmpty) {
-      outputData = predictRaw(testSet, append = true)
+      outputData = predictRaw(testSet)
       numColsOutput += 1
     }
 

@@ -35,7 +35,7 @@ class XGBoostRegressionModel private[spark](override val uid: String, _booster: 
 
   override protected def transformImpl(testSet: Dataset[_]): DataFrame = {
     transformSchema(testSet.schema, logging = true)
-    val predictRDD = produceRowRDD(testSet, append = true)
+    val predictRDD = produceRowRDD(testSet)
     testSet.sparkSession.createDataFrame(predictRDD, schema =
       StructType(testSet.schema.add(StructField("prediction",
           ArrayType(FloatType, containsNull = false), nullable = false)))

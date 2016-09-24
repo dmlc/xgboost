@@ -173,7 +173,7 @@ abstract class XGBoostModel(_booster: Booster)
 
   protected def transformImpl(testSet: Dataset[_]): DataFrame
 
-  protected def produceRowRDD(testSet: Dataset[_], append: Boolean, outputMargin: Boolean = false):
+  protected def produceRowRDD(testSet: Dataset[_], outputMargin: Boolean = false):
       RDD[Row] = {
     val broadcastBooster = testSet.sparkSession.sparkContext.broadcast(_booster)
     val appName = testSet.sparkSession.sparkContext.appName
@@ -194,14 +194,10 @@ abstract class XGBoostModel(_booster: Booster)
           val testDataset = new DMatrix(vectorIterator, cachePrefix)
           val rawPredictResults = broadcastBooster.value.predict(testDataset, outputMargin).
             map(Row(_)).iterator
-          if (append) {
-            rowItr1.zip(rawPredictResults).map {
-              case (originalColumns: Row, predictColumn: Row) =>
-                Row.fromSeq(originalColumns.toSeq ++ predictColumn.toSeq)
-            }.toList.iterator
-          } else {
-            rawPredictResults
-          }
+          rowItr1.zip(rawPredictResults).map {
+            case (originalColumns: Row, predictColumn: Row) =>
+              Row.fromSeq(originalColumns.toSeq ++ predictColumn.toSeq)
+          }.toList.iterator
         } else {
           Iterator[Row]()
         }
