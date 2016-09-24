@@ -17,9 +17,8 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
-import ml.dmlc.xgboost4j.scala.DMatrix
-import ml.dmlc.xgboost4j.scala.{DMatrix, Booster}
-import org.apache.spark.{SparkContext, SparkConf}
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
+import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.FunSuite
 
 class XGBoostConfigureSuite extends FunSuite with Utils {

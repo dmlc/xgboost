@@ -16,18 +16,17 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.io.File
 import java.nio.file.Files
 
 import scala.collection.mutable.ListBuffer
 import scala.util.Random
 
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-import org.apache.spark.ml.linalg.{Vector => SparkVector, Vectors}
+import ml.dmlc.xgboost4j.scala.DMatrix
+import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.LabeledPoint
+import org.apache.spark.ml.linalg.{Vector => SparkVector, Vectors}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkConf, SparkContext}
 
 class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
@@ -105,8 +104,8 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     for (i <- testSet.indices) {
       assert(testCollection(i).toDense.values.sameElements(testSet(i).features.toDense.values))
     }
-    val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
-      "objective" -> "binary:logistic").toMap
+    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
+      "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1 = predRDD.collect()(0)
@@ -152,8 +151,8 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val tempDir = Files.createTempDirectory("xgboosttest-")
     val tempFile = Files.createTempFile(tempDir, "", "")
-    val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
-      "objective" -> "binary:logistic").toMap
+    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
+      "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     val evalResults = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix)

@@ -17,7 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import org.apache.spark.{SparkConf, SparkContext}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfter, FunSuite}
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 trait SharedSparkContext extends FunSuite with BeforeAndAfterAll with Serializable {
 
@@ -25,7 +25,8 @@ trait SharedSparkContext extends FunSuite with BeforeAndAfterAll with Serializab
 
   override def beforeAll() {
     // build SparkContext
-    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoostSuite")
+    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoostSuite").
+      set("spark.driver.memory", "512m")
     sc = new SparkContext(sparkConf)
     sc.setLogLevel("ERROR")
   }

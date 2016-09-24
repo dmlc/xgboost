@@ -16,17 +16,13 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.io.File
-
 import scala.collection.mutable
 
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.LabeledPoint
-import org.apache.spark.ml.linalg.{DenseVector, VectorUDT}
 import org.apache.spark.sql._
-import org.apache.spark.sql.types.{DoubleType, IntegerType, StructField, StructType}
 
 class XGBoostDFSuite extends SharedSparkContext with Utils {
 
@@ -112,6 +108,5 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(predictionDF.columns.contains("label") === true)
     assert(predictionDF.columns.contains("raw_prediction") === true)
     assert(predictionDF.columns.contains("final_prediction") === false)
-
   }
 }
