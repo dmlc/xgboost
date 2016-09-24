@@ -81,12 +81,12 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     }
     val trainingDF = buildTrainingDataframe()
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
-      round = 5, nWorkers = numWorkers, useExternalMemory = false)
+      round = 5, nWorkers = numWorkers, useExternalMemory = true)
     xgBoostModelWithDF.asInstanceOf[XGBoostClassificationModel].setRawPredictionCol(
       "raw_prediction").setPredictionCol("final_prediction")
     val testDF = trainingDF.sparkSession.createDataFrame(testItr.toList).toDF(
       "id", "features", "label")
-    var predictionDF = xgBoostModelWithDF.transform(testDF)
+    var predictionDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF)
     assert(predictionDF.columns.contains("id") === true)
     assert(predictionDF.columns.contains("features") === true)
     assert(predictionDF.columns.contains("label") === true)
