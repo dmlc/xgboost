@@ -20,24 +20,45 @@ import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, Rabit}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
-import org.apache.hadoop.fs.Path
-import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.ml.{Model, PredictionModel}
-import org.apache.spark.ml.param.ParamMap
-import org.apache.spark.ml.util.Identifiable
-import org.apache.spark.mllib.linalg.{VectorUDT, DenseVector, Vector}
-import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.hadoop.fs.{FSDataOutputStream, Path}
+import org.apache.spark.ml.PredictionModel
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
+import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
+import org.apache.spark.ml.param.{Param, Params}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.{DataFrame, Dataset, Row}
+import org.apache.spark.sql._
 import org.apache.spark.{SparkContext, TaskContext}
 
-class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializable {
+abstract class XGBoostModel(_booster: Booster)
+  extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params {
 
-  var inputCol = "features"
-  var outputCol = "prediction"
-  var outputType: DataType = ArrayType(elementType = FloatType, containsNull = false)
+  // scalastyle:off
+
+  final val useExternalMemory: Param[Boolean] = new Param[Boolean](this, "useExternalMemory", "whether to use external memory for prediction")
+
+  setDefault(useExternalMemory, false)
+
+  def setExternalMemory(value: Boolean): XGBoostModel = set(useExternalMemory, value).asInstanceOf[XGBoostClassificationModel]
+
+  // scalastyle:on
+
+  /**
+   * Predict leaf instances with the given test set (represented as RDD)
+   *
+   * @param testSet test set represented as RDD
+   */
+  def predictLeaves(testSet: RDD[MLVector]): RDD[Array[Array[Float]]] = {
+    import DataUtils._
+    val broadcastBooster = testSet.sparkContext.broadcast(_booster)
+    testSet.mapPartitions { testSamples =>
+      if (testSamples.hasNext) {
+        val dMatrix = new DMatrix(new JDMatrix(testSamples, null))
+        Iterator(broadcastBooster.value.predictLeaf(dMatrix))
+      } else {
+        Iterator()
+      }
+    }
+  }
 
   /**
    * evaluate XGBoostModel with a RDD-wrapped dataset
@@ -53,24 +74,25 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
    * @param useExternalCache if use external cache
    * @return the average metric over all partitions
    */
-  def eval(evalDataset: RDD[LabeledPoint], evalName: String, evalFunc: EvalTrait = null,
+  def eval(evalDataset: RDD[MLLabeledPoint], evalName: String, evalFunc: EvalTrait = null,
            iter: Int = -1, useExternalCache: Boolean = false): String = {
-    require(evalFunc != null || iter != -1, "you have to specify value of either eval or iter")
+    require(evalFunc != null || iter != -1, "you have to specify the value of either eval or iter")
     val broadcastBooster = evalDataset.sparkContext.broadcast(_booster)
     val appName = evalDataset.context.appName
     val allEvalMetrics = evalDataset.mapPartitions {
       labeledPointsPartition =>
         if (labeledPointsPartition.hasNext) {
-          val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
+          val rabitEnv = Map("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
           Rabit.init(rabitEnv.asJava)
-          import DataUtils._
           val cacheFileName = {
             if (useExternalCache) {
-              s"$appName-${TaskContext.get().stageId()}-deval_cache-${TaskContext.getPartitionId()}"
+              s"$appName-${TaskContext.get().stageId()}-$evalName" +
+                s"-deval_cache-${TaskContext.getPartitionId()}"
             } else {
               null
             }
           }
+          import DataUtils._
           val dMatrix = new DMatrix(labeledPointsPartition, cacheFileName)
           if (iter == -1) {
             val predictions = broadcastBooster.value.predict(dMatrix)
@@ -95,40 +117,9 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
    * Predict result with the given test set (represented as RDD)
    *
    * @param testSet test set represented as RDD
-   * @param useExternalCache whether to use external cache for the test set
-   */
-  def predict(testSet: RDD[Vector], useExternalCache: Boolean = false): RDD[Array[Array[Float]]] = {
-    import DataUtils._
-    val broadcastBooster = testSet.sparkContext.broadcast(_booster)
-    val appName = testSet.context.appName
-    testSet.mapPartitions { testSamples =>
-      if (testSamples.hasNext) {
-        val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
-        Rabit.init(rabitEnv.asJava)
-        val cacheFileName = {
-          if (useExternalCache) {
-            s"$appName-${TaskContext.get().stageId()}-dtest_cache-${TaskContext.getPartitionId()}"
-          } else {
-            null
-          }
-        }
-        val dMatrix = new DMatrix(new JDMatrix(testSamples, cacheFileName))
-        val res = broadcastBooster.value.predict(dMatrix)
-        Rabit.shutdown()
-        Iterator(res)
-      } else {
-        Iterator()
-      }
-    }
-  }
-
-  /**
-   * Predict result with the given test set (represented as RDD)
-   *
-   * @param testSet test set represented as RDD
    * @param missingValue the specified value to represent the missing value
    */
-  def predict(testSet: RDD[DenseVector], missingValue: Float): RDD[Array[Array[Float]]] = {
+  def predict(testSet: RDD[MLDenseVector], missingValue: Float): RDD[Array[Array[Float]]] = {
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
     testSet.mapPartitions { testSamples =>
       val sampleArray = testSamples.toList
@@ -149,21 +140,83 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
   }
 
   /**
-   * Predict leaf instances with the given test set (represented as RDD)
+   * Predict result with the given test set (represented as RDD)
    *
    * @param testSet test set represented as RDD
+   * @param useExternalCache whether to use external cache for the test set
    */
-  def predictLeaves(testSet: RDD[Vector]): RDD[Array[Array[Float]]] = {
-    import DataUtils._
+  def predict(testSet: RDD[MLVector], useExternalCache: Boolean = false):
+      RDD[Array[Array[Float]]] = {
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
+    val appName = testSet.context.appName
     testSet.mapPartitions { testSamples =>
       if (testSamples.hasNext) {
-        val dMatrix = new DMatrix(new JDMatrix(testSamples, null))
-        Iterator(broadcastBooster.value.predictLeaf(dMatrix))
+        import DataUtils._
+        val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
+        Rabit.init(rabitEnv.asJava)
+        val cacheFileName = {
+          if (useExternalCache) {
+            s"$appName-${TaskContext.get().stageId()}-dtest_cache-${TaskContext.getPartitionId()}"
+          } else {
+            null
+          }
+        }
+        val dMatrix = new DMatrix(new JDMatrix(testSamples, cacheFileName))
+        val res = broadcastBooster.value.predict(dMatrix)
+        Rabit.shutdown()
+        Iterator(res)
       } else {
         Iterator()
       }
     }
+  }
+
+  protected def transformImpl(testSet: Dataset[_]): DataFrame
+
+  protected def produceRowRDD(testSet: Dataset[_], outputMargin: Boolean = false):
+      RDD[Row] = {
+    val broadcastBooster = testSet.sparkSession.sparkContext.broadcast(_booster)
+    val appName = testSet.sparkSession.sparkContext.appName
+    testSet.rdd.mapPartitions {
+      rowIterator =>
+        if (rowIterator.hasNext) {
+          val (rowItr1, rowItr2) = rowIterator.duplicate
+          val vectorIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[MLVector](
+            $(featuresCol))).toList.iterator
+          import DataUtils._
+          val cachePrefix = {
+            if ($(useExternalMemory)) {
+              s"$appName-${TaskContext.get().stageId()}-dtest_cache-${TaskContext.getPartitionId()}"
+            } else {
+              null
+            }
+          }
+          val testDataset = new DMatrix(vectorIterator, cachePrefix)
+          val rawPredictResults = broadcastBooster.value.predict(testDataset, outputMargin).
+            map(Row(_)).iterator
+          rowItr1.zip(rawPredictResults).map {
+            case (originalColumns: Row, predictColumn: Row) =>
+              Row.fromSeq(originalColumns.toSeq ++ predictColumn.toSeq)
+          }.toList.iterator
+        } else {
+          Iterator[Row]()
+        }
+    }
+  }
+
+  /**
+   * produces the prediction results and append as an additional column in the original dataset
+   * NOTE: the prediction results is kept as the original format of xgboost
+   *
+   * @return the original dataframe with an additional column containing prediction results
+   */
+  override def transform(testSet: Dataset[_]): DataFrame = {
+    transformImpl(testSet)
+  }
+
+  private def saveString(outStream: FSDataOutputStream, str: String): Unit = {
+    outStream.writeInt(str.length)
+    outStream.writeChars(str)
   }
 
   /**
@@ -174,109 +227,32 @@ class XGBoostModel(_booster: Booster) extends Model[XGBoostModel] with Serializa
   def saveModelAsHadoopFile(modelPath: String)(implicit sc: SparkContext): Unit = {
     val path = new Path(modelPath)
     val outputStream = path.getFileSystem(sc.hadoopConfiguration).create(path)
+    // output model type
+    this match {
+      case model: XGBoostClassificationModel =>
+        outputStream.writeChars("_cls_")
+        saveString(outputStream, model.getRawPredictionCol)
+        saveString(outputStream, model.getPredictionCol)
+        // threshold
+        // threshold length
+        if (!isDefined(model.thresholds)) {
+          outputStream.writeInt(-1)
+        } else {
+          val thresholdLength = model.getThresholds.length
+          outputStream.writeInt(thresholdLength)
+          for (i <- 0 until thresholdLength) {
+            outputStream.writeDouble(model.getThresholds(i))
+          }
+        }
+      case model: XGBoostRegressionModel =>
+        outputStream.writeChars("_reg_")
+        // eventual prediction col
+        saveString(outputStream, model.getPredictionCol)
+    }
+    // booster
     _booster.saveModel(outputStream)
     outputStream.close()
   }
 
   def booster: Booster = _booster
-
-  override val uid: String = Identifiable.randomUID("XGBoostModel")
-
-  override def copy(extra: ParamMap): XGBoostModel = {
-    defaultCopy(extra)
-  }
-
-  /**
-   * append leaf index of each row as an additional column in the original dataset
-   *
-   * @return the original dataframe with an additional column containing prediction results
-   */
-  def transformLeaf(testSet: Dataset[_]): Unit = {
-    outputCol = "predLeaf"
-    transformSchema(testSet.schema, logging = true)
-    val broadcastBooster = testSet.sparkSession.sparkContext.broadcast(_booster)
-    val instances = testSet.rdd.mapPartitions {
-      rowIterator =>
-        if (rowIterator.hasNext) {
-          val (rowItr1, rowItr2) = rowIterator.duplicate
-          val vectorIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[Vector](inputCol)).
-            toList.iterator
-          import DataUtils._
-          val testDataset = new DMatrix(vectorIterator, null)
-          val rowPredictResults = broadcastBooster.value.predictLeaf(testDataset)
-          val predictResults = rowPredictResults.map(prediction => Row(prediction)).iterator
-          rowItr1.zip(predictResults).map {
-            case (originalColumns: Row, predictColumn: Row) =>
-              Row.fromSeq(originalColumns.toSeq ++ predictColumn.toSeq)
-          }
-        } else {
-          Iterator[Row]()
-        }
-    }
-    testSet.sparkSession.createDataFrame(instances, testSet.schema.add(outputCol, outputType)).
-      cache()
-  }
-
-  /**
-   * produces the prediction results and append as an additional column in the original dataset
-   * NOTE: the prediction results is kept as the original format of xgboost
-   *
-   * @return the original dataframe with an additional column containing prediction results
-   */
-  override def transform(testSet: Dataset[_]): DataFrame = {
-    transform(testSet, None)
-  }
-
-  /**
-   * produces the prediction results and append as an additional column in the original dataset
-   * NOTE: the prediction results is transformed by applying the transformation function
-   * predictResultTrans to the original xgboost output
-   *
-   * @param rawPredictTransformer the function to transform xgboost output to the expected format
-   * @return the original dataframe with an additional column containing prediction results
-   */
-  def transform(testSet: Dataset[_], rawPredictTransformer: Option[Array[Float] => DataType]):
-      DataFrame = {
-    transformSchema(testSet.schema, logging = true)
-    val broadcastBooster = testSet.sparkSession.sparkContext.broadcast(_booster)
-    val instances = testSet.rdd.mapPartitions {
-      rowIterator =>
-        if (rowIterator.hasNext) {
-          val (rowItr1, rowItr2) = rowIterator.duplicate
-          val vectorIterator = rowItr2.map(row => row.asInstanceOf[Row].getAs[Vector](inputCol)).
-            toList.iterator
-          import DataUtils._
-          val testDataset = new DMatrix(vectorIterator, null)
-          val rowPredictResults = broadcastBooster.value.predict(testDataset)
-          val predictResults = {
-            if (rawPredictTransformer.isDefined) {
-              rowPredictResults.map(prediction =>
-                Row(rawPredictTransformer.get(prediction))).iterator
-            } else {
-              rowPredictResults.map(prediction => Row(prediction)).iterator
-            }
-          }
-          rowItr1.zip(predictResults).map {
-            case (originalColumns: Row, predictColumn: Row) =>
-              Row.fromSeq(originalColumns.toSeq ++ predictColumn.toSeq)
-          }
-        } else {
-          Iterator[Row]()
-        }
-    }
-    testSet.sparkSession.createDataFrame(instances, testSet.schema.add(outputCol, outputType)).
-      cache()
-  }
-
-  @DeveloperApi
-  override def transformSchema(schema: StructType): StructType = {
-    if (schema.fieldNames.contains(outputCol)) {
-      throw new IllegalArgumentException(s"Output column $outputCol already exists.")
-    }
-    val inputType = schema(inputCol).dataType
-    require(inputType.equals(new VectorUDT),
-      s"the type of input column $inputCol has to be VectorUDT")
-    val outputFields = schema.fields :+ StructField(outputCol, outputType, nullable = false)
-    StructType(outputFields)
-  }
 }

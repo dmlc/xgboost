@@ -17,20 +17,18 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
-import org.apache.spark.ml.{Predictor, Estimator}
+import org.apache.spark.ml.Predictor
+import org.apache.spark.ml.feature.LabeledPoint
+import org.apache.spark.ml.linalg.{Vector => VectorType}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.Identifiable
-import org.apache.spark.mllib.linalg.{VectorUDT, Vector}
-import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{NumericType, DoubleType, StructType}
-import org.apache.spark.sql.{DataFrame, TypedColumn, Dataset, Row}
+import org.apache.spark.sql.types.DoubleType
+import org.apache.spark.sql.{Dataset, Row}
 
 /**
  * the estimator wrapping XGBoost to produce a training model
  *
- * @param inputCol the name of input column
- * @param labelCol the name of label column
  * @param xgboostParams the parameters configuring XGBoost
  * @param round the number of iterations to train
  * @param nWorkers the total number of workers of xgboost
@@ -39,24 +37,26 @@ import org.apache.spark.sql.{DataFrame, TypedColumn, Dataset, Row}
  * @param useExternalMemory whether to use external memory when training
  * @param missing the value taken as missing
  */
-class XGBoostEstimator(
-    inputCol: String, labelCol: String,
-    xgboostParams: Map[String, Any], round: Int, nWorkers: Int,
-    obj: ObjectiveTrait = null,
-    eval: EvalTrait = null, useExternalMemory: Boolean = false, missing: Float = Float.NaN)
-  extends Estimator[XGBoostModel] {
+class XGBoostEstimator private[spark](
+    override val uid: String, xgboostParams: Map[String, Any], round: Int, nWorkers: Int,
+    obj: ObjectiveTrait, eval: EvalTrait, useExternalMemory: Boolean, missing: Float)
+  extends Predictor[VectorType, XGBoostEstimator, XGBoostModel] {
 
-  override val uid: String = Identifiable.randomUID("XGBoostEstimator")
-
+  def this(xgboostParams: Map[String, Any], round: Int, nWorkers: Int,
+           obj: ObjectiveTrait = null,
+           eval: EvalTrait = null, useExternalMemory: Boolean = false, missing: Float = Float.NaN) =
+    this(Identifiable.randomUID("XGBoostEstimator"), xgboostParams: Map[String, Any], round: Int,
+      nWorkers: Int, obj: ObjectiveTrait, eval: EvalTrait, useExternalMemory: Boolean,
+      missing: Float)
 
   /**
    * produce a XGBoostModel by fitting the given dataset
    */
-  def fit(trainingSet: Dataset[_]): XGBoostModel = {
+  override def train(trainingSet: Dataset[_]): XGBoostModel = {
     val instances = trainingSet.select(
-      col(inputCol), col(labelCol).cast(DoubleType)).rdd.map {
-      case Row(feature: Vector, label: Double) =>
-        LabeledPoint(label, feature)
+      col($(featuresCol)), col($(labelCol)).cast(DoubleType)).rdd.map {
+      case Row(feature: VectorType, label: Double) =>
+        LabeledPoint(label, feature.toDense)
     }
     transformSchema(trainingSet.schema, logging = true)
     val trainedModel = XGBoost.trainWithRDD(instances, xgboostParams, round, nWorkers, obj,
@@ -64,18 +64,7 @@ class XGBoostEstimator(
     copyValues(trainedModel)
   }
 
-  override def copy(extra: ParamMap): Estimator[XGBoostModel] = {
+  override def copy(extra: ParamMap): XGBoostEstimator = {
     defaultCopy(extra)
-  }
-
-  override def transformSchema(schema: StructType): StructType = {
-    // check input type, for now we only support vectorUDT as the input feature type
-    val inputType = schema(inputCol).dataType
-    require(inputType.equals(new VectorUDT), s"the type of input column $inputCol has to VectorUDT")
-    // check label Type,
-    val labelType = schema(labelCol).dataType
-    require(labelType.isInstanceOf[NumericType], s"the type of label column $labelCol has to" +
-      s" be NumericType")
-    schema
   }
 }
