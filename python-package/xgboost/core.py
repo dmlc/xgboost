@@ -1008,7 +1008,7 @@ class Booster(object):
 
     def get_dump(self, fmap='', with_stats=False):
         """Returns the dump model as a list of strings.
-        
+
         Parameters
         ----------
         fmap : str, optional
