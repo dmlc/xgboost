@@ -114,7 +114,7 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
     DMatrixHandle *out);
 
 /*!
- * \brief create a matrix content from csr format
+ * \brief create a matrix content from CSR format
  * \param indptr pointer to row headers
  * \param indices findex
  * \param data fvalue
@@ -125,16 +125,15 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
-                                   const unsigned* indices,
-                                   const float* data,
-                                   size_t nindptr,
-                                   size_t nelem,
-                                   size_t num_col,
-                                   DMatrixHandle* out);
-
+                                     const unsigned* indices,
+                                     const float* data,
+                                     size_t nindptr,
+                                     size_t nelem,
+                                     size_t num_col,
+                                     DMatrixHandle* out);
 /*!
  * \deprecated
- * \brief create a matrix content from csr format
+ * \brief create a matrix content from CSR format
  * \param indptr pointer to row headers
  * \param indices findex
  * \param data fvalue
@@ -149,7 +148,6 @@ XGB_DLL int XGDMatrixCreateFromCSR(const bst_ulong *indptr,
                                    bst_ulong nindptr,
                                    bst_ulong nelem,
                                    DMatrixHandle *out);
-
 /*!
  * \brief create a matrix content from CSC format
  * \param col_ptr pointer to col headers
@@ -168,7 +166,6 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      size_t nelem,
                                      size_t num_row,
                                      DMatrixHandle* out);
-
 /*!
  * \deprecated
  * \brief create a matrix content from CSC format
