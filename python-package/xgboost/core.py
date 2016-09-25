@@ -49,7 +49,7 @@ CallbackEnv = collections.namedtuple(
 
 
 def from_pystr_to_cstr(data):
-    """Convert a list of Python str to C pointer
+    """Convert a list of Python str to C pointer.
 
     Parameters
     ----------
@@ -72,7 +72,7 @@ def from_pystr_to_cstr(data):
 
 
 def from_cstr_to_pystr(data, length):
-    """Revert C pointer to Python str
+    """Revert C pointer to Python str.
 
     Parameters
     ----------
@@ -81,19 +81,14 @@ def from_cstr_to_pystr(data, length):
     length : ctypes pointer
         pointer to length of data
     """
-    if PY3:
-        res = []
-        for i in range(length.value):
-            try:
-                res.append(str(data[i].decode('ascii')))
-            except UnicodeDecodeError:
+    res = []
+    for i in range(length.value):
+        try:
+            res.append(str(data[i].decode('ascii')))
+        except UnicodeDecodeError:
+            if PY3:
                 res.append(str(data[i].decode('utf-8')))
-    else:
-        res = []
-        for i in range(length.value):
-            try:
-                res.append(str(data[i].decode('ascii')))
-            except UnicodeDecodeError:
+            else:
                 res.append(unicode(data[i].decode('utf-8')))
     return res
 
@@ -101,7 +96,7 @@ def from_cstr_to_pystr(data, length):
 def _load_lib():
     """Load xgboost Library."""
     lib_path = find_lib_path()
-    if len(lib_path) == 0:
+    if not lib_path:
         return None
     lib = ctypes.cdll.LoadLibrary(lib_path[0])
     lib.XGBGetLastError.restype = ctypes.c_char_p
@@ -113,7 +108,7 @@ _LIB = _load_lib()
 
 
 def _check_call(ret):
-    """Check the return value of C API call
+    """Check the return value of C API call.
 
     This function will raise exception when error occurs.
     Wrap every API call with this function
@@ -128,8 +123,7 @@ def _check_call(ret):
 
 
 def ctypes2numpy(cptr, length, dtype):
-    """Convert a ctypes pointer array to a numpy array.
-    """
+    """Convert a ctypes pointer array to a numpy array."""
     if not isinstance(cptr, ctypes.POINTER(ctypes.c_float)):
         raise RuntimeError('expected float pointer')
     res = np.zeros(length, dtype=dtype)
@@ -166,7 +160,7 @@ PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64': '
 
 
 def _maybe_pandas_data(data, feature_names, feature_types):
-    """ Extract internal data from pd.DataFrame for DMatrix data """
+    """Extract internal data from pd.DataFrame for DMatrix data"""
 
     if not isinstance(data, DataFrame):
         return data, feature_names, feature_types
@@ -177,7 +171,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
                       enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
 
         msg = """DataFrame.dtypes for data must be int, float or bool.
-Did not expect the data types in fields """
+Did not expect the data types in fields: """
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
@@ -192,7 +186,7 @@ Did not expect the data types in fields """
 
 
 def _maybe_pandas_label(label):
-    """ Extract internal data from pd.DataFrame for DMatrix label """
+    """Extract internal data from pd.DataFrame for DMatrix label."""
 
     if isinstance(label, DataFrame):
         if len(label.columns) > 1:
@@ -211,9 +205,9 @@ def _maybe_pandas_label(label):
 class DMatrix(object):
     """Data Matrix used in XGBoost.
 
-    DMatrix is a internal data structure that used by XGBoost
+    DMatrix is an internal data structure that used by XGBoost,
     which is optimized for both memory efficiency and training speed.
-    You can construct DMatrix from numpy.arrays
+    You can construct DMatrix from numpy.array.
     """
 
     _feature_names = None  # for previous version's pickle
@@ -227,19 +221,19 @@ class DMatrix(object):
 
         Parameters
         ----------
-        data : string/numpy array/scipy.sparse/pd.DataFrame
+        data : str/numpy.array/scipy.sparse/pd.DataFrame
             Data source of DMatrix.
-            When data is string type, it represents the path libsvm format txt file,
+            When data is string type, it represents the path of libsvm format txt file,
             or binary file that xgboost can read from.
         label : list or numpy 1-D array, optional
             Label of the training data.
         missing : float, optional
             Value in the data which needs to be present as a missing value. If
             None, defaults to np.nan.
-        weight : list or numpy 1-D array , optional
+        weight : list or numpy 1-D array, optional
             Weight for each instance.
         silent : boolean, optional
-            Whether print messages during construction
+            Whether to print messages during construction
         feature_names : list, optional
             Set names for features.
         feature_types : list, optional
@@ -281,9 +275,7 @@ class DMatrix(object):
         self.feature_types = feature_types
 
     def _init_from_csr(self, csr):
-        """
-        Initialize data from a CSR matrix.
-        """
+        """Initialize data from a CSR matrix."""
         if len(csr.indices) != len(csr.data):
             raise ValueError('length mismatch: {} vs {}'.format(len(csr.indices), len(csr.data)))
         self.handle = ctypes.c_void_p()
@@ -294,9 +286,7 @@ class DMatrix(object):
                                                 ctypes.byref(self.handle)))
 
     def _init_from_csc(self, csc):
-        """
-        Initialize data from a CSC matrix.
-        """
+        """Initialize data from a CSC matrix."""
         if len(csc.indices) != len(csc.data):
             raise ValueError('length mismatch: {} vs {}'.format(len(csc.indices), len(csc.data)))
         self.handle = ctypes.c_void_p()
@@ -307,9 +297,7 @@ class DMatrix(object):
                                                 ctypes.byref(self.handle)))
 
     def _init_from_npy2d(self, mat, missing):
-        """
-        Initialize data from a 2-D numpy matrix.
-        """
+        """Initialize data from a 2-D numpy matrix."""
         if len(mat.shape) != 2:
             raise ValueError('Input numpy.ndarray must be 2 dimensional')
         data = np.array(mat.reshape(mat.size), dtype=np.float32)
@@ -374,7 +362,7 @@ class DMatrix(object):
             The field name of the information
 
         data: numpy array
-            The array ofdata to be set
+            The array of data to be set
         """
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -390,7 +378,7 @@ class DMatrix(object):
             The field name of the information
 
         data: numpy array
-            The array ofdata to be set
+            The array of data to be set
         """
         _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
                                               c_str(field),
@@ -412,7 +400,7 @@ class DMatrix(object):
                                              int(silent)))
 
     def set_label(self, label):
-        """Set label of dmatrix
+        """Set label of DMatrix.
 
         Parameters
         ----------
@@ -422,7 +410,7 @@ class DMatrix(object):
         self.set_float_info('label', label)
 
     def set_weight(self, weight):
-        """ Set weight of each instance.
+        """Set weight of each instance.
 
         Parameters
         ----------
@@ -432,7 +420,7 @@ class DMatrix(object):
         self.set_float_info('weight', weight)
 
     def set_base_margin(self, margin):
-        """ Set base margin of booster to start from.
+        """Set base margin of booster to start from.
 
         This can be used to specify a prediction value of
         existing model to be base_margin
@@ -618,7 +606,7 @@ class DMatrix(object):
 
 
 class Booster(object):
-    """"A Booster of of XGBoost.
+    """A Booster of XGBoost.
 
     Booster is the model of xgboost, that contains low level routines for
     training, prediction and evaluation.
@@ -636,7 +624,7 @@ class Booster(object):
             Parameters for boosters.
         cache : list
             List of cache items.
-        model_file : string
+        model_file : str
             Path to the model file.
         """
         for d in cache:
@@ -697,7 +685,7 @@ class Booster(object):
         return self.__copy__()
 
     def load_rabit_checkpoint(self):
-        """Initialize the model by load from rabit checkpoint.
+        """Initialize the model by loading from rabit checkpoint.
 
         Returns
         -------
@@ -740,7 +728,7 @@ class Booster(object):
 
         Returns
         -------
-        result : dictionary of  attribute_name: attribute_value pairs of strings.
+        result : dictionary of attribute_name: attribute_value pairs of strings.
             Returns an empty dict if there's no attributes.
         """
         length = ctypes.c_ulong()
@@ -758,7 +746,7 @@ class Booster(object):
         Parameters
         ----------
         **kwargs
-            The attributes to set. Setting a value to None deletes an attribute.
+            The attributes to be set. Setting a value to None deletes an attribute.
         """
         for key, value in kwargs.items():
             if value is not None:
@@ -774,7 +762,7 @@ class Booster(object):
         Parameters
         ----------
         params: dict/list/str
-           list of key,value paris, dict of key to value or simply str key
+           list of key, value pairs, dict of key to value or simply str key
         value: optional
            value of the specified parameter, when params is str key
         """
@@ -786,8 +774,7 @@ class Booster(object):
             _check_call(_LIB.XGBoosterSetParam(self.handle, c_str(key), c_str(str(val))))
 
     def update(self, dtrain, iteration, fobj=None):
-        """
-        Update for one iteration, with objective function calculated internally.
+        """Update for one iteration, with objective function calculated internally.
 
         Parameters
         ----------
@@ -810,8 +797,7 @@ class Booster(object):
             self.boost(dtrain, grad, hess)
 
     def boost(self, dtrain, grad, hess):
-        """
-        Boost the booster for one iteration, with customized gradient statistics.
+        """Boost the booster for one iteration, with customized gradient statistics.
 
         Parameters
         ----------
@@ -835,7 +821,7 @@ class Booster(object):
 
     def eval_set(self, evals, iteration=0, feval=None):
         # pylint: disable=invalid-name
-        """Evaluate  a set of data.
+        """Evaluate a set of data.
 
         Parameters
         ----------
@@ -844,7 +830,7 @@ class Booster(object):
         iteration : int
             Current iteration.
         feval : function
-            Custom evaluation function.
+            Customized evaluation function.
 
         Returns
         -------
@@ -884,7 +870,7 @@ class Booster(object):
         Parameters
         ----------
         data : DMatrix
-            The dmatrix storing the input.
+            The DMatrix storing the input.
 
         name : str, optional
             The name of the dataset.
@@ -901,8 +887,7 @@ class Booster(object):
         return self.eval_set([(data, name)], iteration)
 
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False):
-        """
-        Predict with data.
+        """Predict with data.
 
         NOTE: This function is not thread safe.
               For each booster object, predict can only be called from one thread.
@@ -912,7 +897,7 @@ class Booster(object):
         Parameters
         ----------
         data : DMatrix
-            The dmatrix storing the input.
+            The DMatrix storing the input.
 
         output_margin : bool
             Whether to output the raw untransformed margin value.
@@ -954,8 +939,7 @@ class Booster(object):
         return preds
 
     def save_model(self, fname):
-        """
-        Save the model to a file.
+        """Save the model to a file.
 
         Parameters
         ----------
@@ -968,12 +952,11 @@ class Booster(object):
             raise TypeError("fname must be a string")
 
     def save_raw(self):
-        """
-        Save the model to a in memory buffer represetation
+        """Save the model to an in memory buffer representation
 
         Returns
         -------
-        a in memory buffer represetation of the model
+        An in memory buffer representation of the model
         """
         length = ctypes.c_ulong()
         cptr = ctypes.POINTER(ctypes.c_char)()
@@ -983,8 +966,7 @@ class Booster(object):
         return ctypes2buffer(cptr, length.value)
 
     def load_model(self, fname):
-        """
-        Load the model from a file.
+        """Load the model from a file.
 
         Parameters
         ----------
@@ -1001,12 +983,11 @@ class Booster(object):
             _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr, length))
 
     def dump_model(self, fout, fmap='', with_stats=False):
-        """
-        Dump model into a text file.
+        """Dump model into a text file.
 
         Parameters
         ----------
-        foout : string
+        fout : string
             Output file name.
         fmap : string, optional
             Name of the file containing feature map names.
@@ -1026,13 +1007,18 @@ class Booster(object):
             fout.close()
 
     def get_dump(self, fmap='', with_stats=False):
-        """
-        Returns the dump the model as a list of strings.
-        """
+        """Returns the dump model as a list of strings.
 
+        Parameters
+        ----------
+        fmap : str, optional
+            Name of the file containing feature map names.
+        with_stats : bool, optional
+            Controls whether the split statistics are output.
+        """
         length = ctypes.c_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
-        if self.feature_names is not None and fmap == '':
+        if self.feature_names is not None and not fmap:
             flen = int(len(self.feature_names))
 
             fname = from_pystr_to_cstr(self.feature_names)
@@ -1051,7 +1037,7 @@ class Booster(object):
                                                             ctypes.byref(length),
                                                             ctypes.byref(sarr)))
         else:
-            if fmap != '' and not os.path.exists(fmap):
+            if fmap and not os.path.exists(fmap):
                 raise ValueError("No such file: {0}".format(fmap))
             _check_call(_LIB.XGBoosterDumpModel(self.handle,
                                                 c_str(fmap),
@@ -1084,12 +1070,11 @@ class Booster(object):
         fmap: str (optional)
            The name of feature map file
         """
-
         if importance_type not in ['weight', 'gain', 'cover']:
             msg = "importance_type mismatch, got '{}', expected 'weight', 'gain', or 'cover'"
             raise ValueError(msg.format(importance_type))
 
-        # if it's weight, then omap stores the number of missing values
+        # if it's weight, then fmap stores the number of missing values
         if importance_type == 'weight':
             # do a simpler tree dump to save time
             trees = self.get_dump(fmap, with_stats=False)
@@ -1152,8 +1137,7 @@ class Booster(object):
             return gmap
 
     def _validate_features(self, data):
-        """
-        Validate Booster and data's feature_names are identical.
+        """Validate wheather Booster and data's feature_names are identical.
         Set feature_names and feature_types from DMatrix
         """
         if self.feature_names is None:
@@ -1179,7 +1163,8 @@ class Booster(object):
                                             data.feature_names))
 
     def get_split_value_histogram(self, feature, fmap='', bins=None, as_pandas=True):
-        """Get split value histogram of a feature
+        """Get split value histogram of a feature.
+
         Parameters
         ----------
         feature: str
@@ -1197,7 +1182,7 @@ class Booster(object):
         Returns
         -------
         a histogram of used splitting values for the specified feature
-        either as numpy array or pandas DataFrame.
+        either as numpy.array or pandas.DataFrame.
         """
         xgdump = self.get_dump(fmap=fmap)
         values = []
@@ -1217,7 +1202,5 @@ class Booster(object):
             return DataFrame(nph, columns=['SplitValue', 'Count'])
         elif as_pandas and not PANDAS_INSTALLED:
             sys.stderr.write(
-                "Returning histogram as ndarray (as_pandas == True, but pandas is not installed).")
-            return nph
-        else:
-            return nph
+                "Return histogram as ndarray (as_pandas == True, but pandas is not installed).")
+        return nph
