@@ -207,7 +207,7 @@ class DMatrix(object):
 
     DMatrix is an internal data structure that used by XGBoost,
     which is optimized for both memory efficiency and training speed.
-    You can construct DMatrix from numpy arrays.
+    You can construct DMatrix from numpy.array.
     """
 
     _feature_names = None  # for previous version's pickle
@@ -949,7 +949,7 @@ class Booster(object):
         if isinstance(fname, STRING_TYPES):  # assume file name
             _check_call(_LIB.XGBoosterSaveModel(self.handle, c_str(fname)))
         else:
-            raise TypeError("filename must be a string")
+            raise TypeError("fname must be a string")
 
     def save_raw(self):
         """Save the model to an in memory buffer representation
@@ -991,7 +991,7 @@ class Booster(object):
             Output file name.
         fmap : string, optional
             Name of the file containing feature map names.
-        with_stats : bool, optional
+        with_stats : bool (optional)
             Controls whether the split statistics are output.
         """
         if isinstance(fout, STRING_TYPES):
@@ -1052,7 +1052,7 @@ class Booster(object):
 
         Parameters
         ----------
-        fmap: str, optional
+        fmap: str (optional)
            The name of feature map file
         """
 
@@ -1067,7 +1067,7 @@ class Booster(object):
 
         Parameters
         ----------
-        fmap: str, optional
+        fmap: str (optional)
            The name of feature map file
         """
         if importance_type not in ['weight', 'gain', 'cover']:
