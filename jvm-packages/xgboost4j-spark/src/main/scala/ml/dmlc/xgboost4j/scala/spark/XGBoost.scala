@@ -48,7 +48,7 @@ object XGBoost extends Serializable {
         val indices = new ListBuffer[Int]
         val values = new ListBuffer[Double]
         for (i <- dVector.values.indices) {
-          if (values(i) != missing) {
+          if (dVector.values(i) != missing) {
             indices += i
             values += dVector.values(i)
           }
@@ -188,9 +188,9 @@ object XGBoost extends Serializable {
     implicit val sc = trainingData.sparkContext
     var overridedConfMap = configMap
     if (overridedConfMap.contains("nthread")) {
-      val nThread = overridedConfMap("nthread")
-      val coresPerTask = sc.getConf.get("spark.task.cpus", "1")
-      require(nThread.toString <= coresPerTask,
+      val nThread = overridedConfMap("nthread").toString.toInt
+      val coresPerTask = sc.getConf.get("spark.task.cpus", "1").toInt
+      require(nThread <= coresPerTask,
         s"the nthread configuration ($nThread) must be no larger than " +
           s"spark.task.cpus ($coresPerTask)")
     } else {
