@@ -29,10 +29,10 @@ import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 
-class XGBoostGeneralSuite extends Utils {
+class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   test("build RDD containing boosters with the specified worker number") {
-    val trainingRDD = buildTrainingRDD()
+    val trainingRDD = buildTrainingRDD(sc)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
@@ -60,7 +60,7 @@ class XGBoostGeneralSuite extends Utils {
     val customSparkContext = new SparkContext(sparkConf)
     customSparkContext.setLogLevel("ERROR")
     val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(Some(customSparkContext))
+    val trainingRDD = buildTrainingRDD(customSparkContext)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
@@ -113,7 +113,7 @@ class XGBoostGeneralSuite extends Utils {
   }
 
   test("test consistency of prediction functions with RDD") {
-    val trainingRDD = buildTrainingRDD()
+    val trainingRDD = buildTrainingRDD(sc)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile)
     val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
     val testCollection = testRDD.collect()
@@ -132,12 +132,21 @@ class XGBoostGeneralSuite extends Utils {
     }
   }
 
+  test("test eval functions with RDD") {
+    val trainingRDD = buildTrainingRDD(sc).cache()
+    val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
+      "objective" -> "binary:logistic").toMap
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+    xgBoostModel.eval(trainingRDD, "eval1", iter = 5, useExternalCache = false)
+    xgBoostModel.eval(trainingRDD, "eval2", evalFunc = new EvalError, useExternalCache = false)
+  }
+
   test("test prediction functionality with empty partition") {
     def buildEmptyRDD(sparkContext: Option[SparkContext] = None): RDD[SparkVector] = {
       val sampleList = new ListBuffer[SparkVector]
       sparkContext.getOrElse(sc).parallelize(sampleList, numWorkers)
     }
-    val trainingRDD = buildTrainingRDD()
+    val trainingRDD = buildTrainingRDD(sc)
     val testRDD = buildEmptyRDD()
     val tempDir = Files.createTempDirectory("xgboosttest-")
     val tempFile = Files.createTempFile(tempDir, "", "")
@@ -149,7 +158,7 @@ class XGBoostGeneralSuite extends Utils {
 
   test("test model consistency after save and load") {
     val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD()
+    val trainingRDD = buildTrainingRDD(sc)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
@@ -176,7 +185,7 @@ class XGBoostGeneralSuite extends Utils {
     val customSparkContext = new SparkContext(sparkConf)
     customSparkContext.setLogLevel("ERROR")
     // start another app
-    val trainingRDD = buildTrainingRDD(Some(customSparkContext))
+    val trainingRDD = buildTrainingRDD(customSparkContext)
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "0",
       "objective" -> "binary:logistic", "nthread" -> 6).toMap
     intercept[IllegalArgumentException] {
@@ -194,7 +203,7 @@ class XGBoostGeneralSuite extends Utils {
     sparkConf.registerKryoClasses(Array(classOf[Booster]))
     val customSparkContext = new SparkContext(sparkConf)
     customSparkContext.setLogLevel("ERROR")
-    val trainingRDD = buildTrainingRDD(Some(customSparkContext))
+    val trainingRDD = buildTrainingRDD(customSparkContext)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
