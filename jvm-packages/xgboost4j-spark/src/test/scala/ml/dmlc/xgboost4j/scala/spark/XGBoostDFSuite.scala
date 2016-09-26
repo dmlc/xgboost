@@ -30,7 +30,7 @@ import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.sql._
 import org.apache.spark.sql.types.{DoubleType, IntegerType, StructField, StructType}
 
-class XGBoostDFSuite extends Utils {
+class XGBoostDFSuite extends SharedSparkContext with Utils {
 
   private def loadRow(filePath: String): List[Row] = {
     val file = Source.fromFile(new File(filePath))
@@ -58,7 +58,7 @@ class XGBoostDFSuite extends Utils {
 
   test("test consistency between training with dataframe and RDD") {
     val trainingDF = buildTrainingDataframe()
-    val trainingRDD = buildTrainingRDD()
+    val trainingRDD = buildTrainingRDD(sc)
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "0",
       "objective" -> "binary:logistic").toMap
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,

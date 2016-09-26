@@ -43,11 +43,13 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat,
  * \param indptr pointer to column headers
  * \param indices row indices
  * \param data content of the data
+ * \param num_row numer of rows (when it's set to 0, then guess from data)
  * \return created dmatrix
  */
 XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
                                       SEXP indices,
-                                      SEXP data);
+                                      SEXP data,
+                                      SEXP num_row);
 
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix

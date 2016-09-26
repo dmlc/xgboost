@@ -19,9 +19,9 @@ package ml.dmlc.xgboost4j.scala.spark
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfter, FunSuite}
 
-trait SharedSparkContext extends FunSuite with BeforeAndAfter {
+class SharedSparkContext extends FunSuite with BeforeAndAfter with Serializable {
 
-  protected implicit var sc: SparkContext = null
+  @transient protected implicit var sc: SparkContext = null
 
   before {
     // build SparkContext
