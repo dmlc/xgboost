@@ -71,7 +71,7 @@ class XGBoostModel(_booster: Booster) extends Serializable {
    * @param testSet test set represented as RDD
    * @param useExternalCache whether to use external cache for the test set
    */
-  def predict(testSet: RDD[Vector], useExternalCache: Boolean = false): RDD[Array[Array[Float]]] = {
+  def predict(testSet: RDD[Vector], useExternalCache: Boolean = false): RDD[Array[Float]] = {
     import DataUtils._
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
     val appName = testSet.context.appName
@@ -89,7 +89,7 @@ class XGBoostModel(_booster: Booster) extends Serializable {
         val dMatrix = new DMatrix(new JDMatrix(testSamples, cacheFileName))
         val res = broadcastBooster.value.predict(dMatrix)
         Rabit.shutdown()
-        Iterator(res)
+        res.iterator
       } else {
         Iterator()
       }
