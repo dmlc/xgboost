@@ -63,6 +63,7 @@ class Booster {
   inline void LoadModel(dmlc::Stream* fi) {
     learner_->Load(fi);
     initialized_ = true;
+    configured_ = true;
   }
 
  public:
