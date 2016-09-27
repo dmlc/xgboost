@@ -253,6 +253,11 @@ class LearnerImpl : public Learner {
       attributes_ = std::map<std::string, std::string>(
           attr.begin(), attr.end());
     }
+    if (name_obj_ == "count:poisson") {
+        std::string max_delta_step;
+        fi->Read(&max_delta_step);
+        cfg_["max_delta_step"] = max_delta_step;
+    }
     cfg_["num_class"] = common::ToString(mparam.num_class);
     cfg_["num_feature"] = common::ToString(mparam.num_feature);
     obj_->Configure(cfg_.begin(), cfg_.end());
@@ -268,6 +273,11 @@ class LearnerImpl : public Learner {
       std::vector<std::pair<std::string, std::string> > attr(
           attributes_.begin(), attributes_.end());
       fo->Write(attr);
+    }
+    if (name_obj_ == "count:poisson") {
+        std::map<std::string, std::string>::const_iterator it = cfg_.find("max_delta_step");
+        if (it != cfg_.end())
+            fo->Write(it->second);
     }
   }
 
