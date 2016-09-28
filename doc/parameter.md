@@ -39,6 +39,7 @@ Parameters for Tree Booster
   - range: [0,∞]
 * max_delta_step [default=0]
   - Maximum delta step we allow each tree's weight estimation to be. If the value is set to 0, it means there is no constraint. If it is set to a positive value, it can help making the update step more conservative. Usually this parameter is not needed, but it might help in logistic regression when class is extremely imbalanced. Set it to value of 1-10 might help control the update
+  - range: [0,∞]
 * subsample [default=1]
   - subsample ratio of the training instance. Setting it to 0.5 means that XGBoost randomly collected half of the data instances to grow trees and this will prevent overfitting.
   - range: (0,1]
