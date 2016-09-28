@@ -19,7 +19,6 @@ package ml.dmlc.xgboost4j.scala.spark
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, Rabit, RabitTracker, XGBoostError}
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.commons.logging.LogFactory
@@ -29,6 +28,7 @@ import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Dataset}
 import org.apache.spark.{SparkContext, TaskContext}
+import org.apache.spark.ml.XGBoostParams
 
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
@@ -136,8 +136,13 @@ object XGBoost extends Serializable {
                        useExternalMemory: Boolean = false, missing: Float = Float.NaN,
                        inputCol: String = "features", labelCol: String = "label"): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
-    new XGBoostEstimator(inputCol, labelCol, params, round, nWorkers, obj, eval,
-      useExternalMemory, missing).fit(trainingData)
+    val estimator = new XGBoostEstimator(nWorkers, obj, eval, missing)
+    val allParams = params ++ Map("featuresCol" -> inputCol, "labelCol" -> labelCol,
+      "rounds" -> round, "use_external_memory" -> useExternalMemory)
+    allParams.foreach { case(param, value) =>
+        estimator.set(estimator.getParam(param), value)
+    }
+    estimator.fit(trainingData)
   }
 
   /**
