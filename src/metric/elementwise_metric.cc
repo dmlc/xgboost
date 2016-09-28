@@ -163,6 +163,26 @@ struct EvalGammaNLogLik: public EvalEWiseBase<EvalGammaNLogLik> {
   }
 };
 
+struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
+  explicit EvalTweedieNLogLik(float td) {
+    if (td <= 1 || td > 2) {
+      td_ = 1.5f;
+    } else {
+      td_ = td;
+    }
+  }
+  const char *Name() const override {
+    return "tweedie-nloglik";
+  }
+  inline float EvalRow(float y, float p) const {
+    float a = y * std::exp((1 - td_) * std::log(p)) / (1 - td_);
+    float b = std::exp((2 - td_) * std::log(p)) / (2 - td_);
+    return -a + b;
+  }
+  protected:
+    float td_;
+};
+
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")
 .describe("Rooted mean square error.")
 .set_body([](const char* param) { return new EvalRMSE(); });
@@ -190,6 +210,13 @@ XGBOOST_REGISTER_METRIC(GammaDeviance, "gamma-deviance")
 XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
 .describe("Negative log-likelihood for gamma regression.")
 .set_body([](const char* param) { return new EvalGammaNLogLik(); });
+
+XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
+.describe("Negative log-likelihood for tweedie regression.")
+.set_body([](const char* param) { 
+  float tweedie_dispersion = atof(param);
+  return new EvalTweedieNLogLik(tweedie_dispersion);
+});
 
 }  // namespace metric
 }  // namespace xgboost
