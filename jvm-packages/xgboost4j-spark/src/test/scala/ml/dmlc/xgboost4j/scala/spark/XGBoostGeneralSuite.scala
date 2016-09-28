@@ -115,7 +115,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
   test("test consistency of prediction functions with RDD") {
     val trainingRDD = buildTrainingRDD(sc)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile)
-    val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
+    val testRDD = sc.parallelize(testSet, numSlices = 2).map(_.features)
     val testCollection = testRDD.collect()
     for (i <- testSet.indices) {
       assert(testCollection(i).toDense.values.sameElements(testSet(i).features.toDense.values))
@@ -124,7 +124,8 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     val predRDD = xgBoostModel.predict(testRDD)
-    val predResult1 = predRDD.collect()(0)
+    val predResult1 = predRDD.collect()
+    assert(testRDD.count() === predResult1.size)
     import DataUtils._
     val predResult2 = xgBoostModel.booster.predict(new DMatrix(testSet.iterator))
     for (i <- predResult1.indices; j <- predResult1(i).indices) {
