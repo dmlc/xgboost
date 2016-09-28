@@ -332,8 +332,8 @@ class TweedieRegression : public ObjFunction {
     return metric.c_str();
   }
 
-  private:
-    TweedieRegressionParam param_;
+ private:
+  TweedieRegressionParam param_;
 };
 
 // register the ojective functions
