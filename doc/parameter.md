@@ -39,7 +39,6 @@ Parameters for Tree Booster
   - range: [0,∞]
 * max_delta_step [default=0]
   - Maximum delta step we allow each tree's weight estimation to be. If the value is set to 0, it means there is no constraint. If it is set to a positive value, it can help making the update step more conservative. Usually this parameter is not needed, but it might help in logistic regression when class is extremely imbalanced. Set it to value of 1-10 might help control the update
-  - range: [0,∞]
 * subsample [default=1]
   - subsample ratio of the training instance. Setting it to 0.5 means that XGBoost randomly collected half of the data instances to grow trees and this will prevent overfitting.
   - range: (0,1]
@@ -107,6 +106,11 @@ Parameters for Linear Booster
 * lambda_bias
   - L2 regularization term on bias, default 0(no L1 reg on bias because it is not important)
 
+Parameters for Tweedie Regression
+-----------------------------
+* tweedie_dispersion [default=1.5]
+  - Dispersion parameter that controls the variance of the tweedie distribution.  Set closer to 2 to shift towards a gamma distribution and closer to 1 to shift towards a poisson distribution.
+
 Learning Task Parameters
 ------------------------
 Specify the learning task and the corresponding learning objective. The objective options are below:
@@ -121,6 +125,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
  - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
  - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
  - "reg:gamma" --gamma regression for severity data, output mean of gamma distribution
+ - "reg:tweedie" --tweedie regression for insurance data
+   - tweedie_dispersion is set to 1.5 by default in tweedie regression and must be in the range [1, 2)
 * base_score [ default=0.5 ]
   - the initial prediction score of all instances, global bias
   - for sufficient number of iterations, changing this value will not have too much effect.
