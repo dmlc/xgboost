@@ -866,7 +866,7 @@ class Booster(object):
         _check_call(_LIB.XGBoosterEvalOneIter(self.handle, iteration,
                                               dmats, evnames, len(evals),
                                               ctypes.byref(msg)))
-        res = msg.value
+        res = msg.value.decode()
         if feval is not None:
             for dmat, evname in evals:
                 feval_ret = feval(self.predict(dmat), dmat)
