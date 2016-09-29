@@ -36,6 +36,7 @@ object RabitTrackerConnectionHandler {
   case object AwaitingCommand extends State
   case object BuildingLinkMap extends State
   case object AwaitingErrorCount extends State
+  case object AwaitingPortNumber extends State
   case object SetupComplete extends State
 
   sealed trait DataField
@@ -143,6 +144,7 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
 
   // indicate if the connection is transient (like "print" or "shutdown")
   private[this] var transient: Boolean = false
+  private[this] var peerClosed: Boolean = false
 
   // number of workers pending acceptance of current worker
   private[this] var awaitingAcceptance: Int = 0
@@ -326,7 +328,7 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
       buf.getInt match {
         case 0 =>
           stashSpillOver(buf)
-          goto(SetupComplete)
+          goto(AwaitingPortNumber)
         case _ =>
           stashSpillOver(buf)
           goto(BuildingLinkMap) using StructNodes
@@ -334,16 +336,24 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
       }
   }
 
-  when(SetupComplete) {
+  when(AwaitingPortNumber) {
     case Event(Tcp.Received(assignedPort), _) =>
       assert(assignedPort.length == 4)
       port = assignedPort.asNativeOrderByteBuffer.getInt
       log.debug(s"Rank $rank listening @ $host:$port")
-      stay
+      // wait until the worker closes connection.
+      if (peerClosed) goto(SetupComplete) else stay
 
+    case Event(Tcp.PeerClosed, _) =>
+      peerClosed = true
+      if (port == 0) stay else goto(SetupComplete)
+  }
+
+  when(SetupComplete) {
     case Event(ReduceWaitCount(count: Int), _) =>
       awaitingAcceptance -= count
-      if (awaitingAcceptance == 0) {
+      // check peerClosed to avoid prematurely stopping this actor (which sends RST to worker)
+      if (awaitingAcceptance == 0 && peerClosed) {
         tracker ! DropFromWaitingList(rank)
         // no long needed.
         context.stop(self)
@@ -357,7 +367,7 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
         peer ! ReduceWaitCount(1)
       }
 
-      if (awaitingAcceptance == 0) self ! PoisonPill
+      if (awaitingAcceptance == 0 && peerClosed) self ! PoisonPill
 
       stay
 
@@ -385,6 +395,7 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
   // default message handler
   whenUnhandled {
     case Event(Tcp.PeerClosed, _) =>
+      peerClosed = true
       if (transient) context.stop(self)
       stay
   }
