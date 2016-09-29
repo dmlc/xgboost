@@ -265,7 +265,7 @@ XGB_DLL int XGDMatrixCreateFromCSR(const xgboost::bst_ulong* indptr,
                                    xgboost::bst_ulong nelem,
                                    DMatrixHandle* out) {
   std::vector<size_t> indptr_(nindptr);
-  for (bst_ulong i = 0; i < nindptr; ++i) {
+  for (xgboost::bst_ulong i = 0; i < nindptr; ++i) {
     indptr_[i] = static_cast<size_t>(indptr[i]);
   }
   return XGDMatrixCreateFromCSREx(&indptr_[0], indices, data,
@@ -292,7 +292,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   builder.InitBudget(0, nthread);
   size_t ncol = nindptr - 1;  // NOLINT(*)
   #pragma omp parallel for schedule(static)
-  for (size_t i = 0; i < ncol; ++i) {  // NOLINT(*)
+  for (omp_ulong i = 0; i < static_cast<omp_ulong>(ncol); ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
       builder.AddBudget(indices[j], tid);
@@ -300,7 +300,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   }
   builder.InitStorage();
   #pragma omp parallel for schedule(static)
-  for (size_t i = 0; i < ncol; ++i) {  // NOLINT(*)
+  for (omp_ulong i = 0; i < static_cast<omp_ulong>(ncol); ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
       builder.Push(indices[j],
@@ -326,7 +326,7 @@ XGB_DLL int XGDMatrixCreateFromCSC(const xgboost::bst_ulong* col_ptr,
                                    xgboost::bst_ulong nelem,
                                    DMatrixHandle* out) {
   std::vector<size_t> col_ptr_(nindptr);
-  for (bst_ulong i = 0; i < nindptr; ++i) {
+  for (xgboost::bst_ulong i = 0; i < nindptr; ++i) {
     col_ptr_[i] = static_cast<size_t>(col_ptr[i]);
   }
   return XGDMatrixCreateFromCSCEx(&col_ptr_[0], indices, data,
