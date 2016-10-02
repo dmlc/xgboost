@@ -29,10 +29,10 @@ import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
 import akka.actor.ActorSystem
 import akka.pattern.ask
+import ml.dmlc.xgboost4j.java.IRabitTracker
 
 import scala.concurrent.{Await, Future, Promise}
 import scala.util.{Failure, Random, Success, Try}
-
 import ml.dmlc.xgboost4j.scala.handler.RabitTrackerHandler
 
 object RabitTracker {
@@ -76,7 +76,9 @@ object RabitTracker {
   */
 class RabitTracker(numWorkers: Int, port: Option[Int] = None,
                    maxPortTrials: Int = 1000,
-                   workerConnectionTimeout: Duration = 10 minutes) {
+                   workerConnectionTimeout: Duration = 10 minutes) extends IRabitTracker {
+  import scala.collection.JavaConverters._
+
   require(numWorkers >=1, "numWorkers must be greater than or equal to one (1).")
 
   val system = ActorSystem.create("RabitTracker")
@@ -124,11 +126,14 @@ class RabitTracker(numWorkers: Int, port: Option[Int] = None,
     Try(Await.ready(futureWorkerEnvs, timeout)).isSuccess
   }
 
-  def getWorkerEnvs: Map[String, String] = {
-    Await.result(futureWorkerEnvs, 0 nano) ++ Map(
+  def start(): Boolean = start(30 seconds)
+  def start(timeout: Long, unit: TimeUnit): Boolean = start(Duration(timeout, unit))
+
+  def getWorkerEnvs: java.util.Map[String, String] = {
+    (Await.result(futureWorkerEnvs, 0 nano) ++ Map(
         "DMLC_NUM_WORKER" -> numWorkers.toString,
         "DMLC_NUM_SERVER" -> "0"
-    )
+    )).asJava
   }
 
   /**
@@ -149,4 +154,7 @@ class RabitTracker(numWorkers: Int, port: Option[Int] = None,
       case Failure(e) => throw e
     }
   }
+
+  def waitFor(): Int = waitFor(Duration.Inf)
+  def waitFor(atMost: Long, unit: TimeUnit): Int = waitFor(Duration(atMost, unit))
 }

@@ -39,15 +39,17 @@ import org.apache.spark.sql.{Dataset, Row}
  */
 class XGBoostEstimator private[spark](
     override val uid: String, xgboostParams: Map[String, Any], round: Int, nWorkers: Int,
-    obj: ObjectiveTrait, eval: EvalTrait, useExternalMemory: Boolean, missing: Float)
+    obj: ObjectiveTrait, eval: EvalTrait, useExternalMemory: Boolean, missing: Float,
+    trackerConf: TrackerConf)
   extends Predictor[MLVector, XGBoostEstimator, XGBoostModel] {
 
   def this(xgboostParams: Map[String, Any], round: Int, nWorkers: Int,
            obj: ObjectiveTrait = null,
-           eval: EvalTrait = null, useExternalMemory: Boolean = false, missing: Float = Float.NaN) =
+           eval: EvalTrait = null, useExternalMemory: Boolean = false, missing: Float = Float.NaN,
+           trackerConf: TrackerConf) =
     this(Identifiable.randomUID("XGBoostEstimator"), xgboostParams: Map[String, Any], round: Int,
       nWorkers: Int, obj: ObjectiveTrait, eval: EvalTrait, useExternalMemory: Boolean,
-      missing: Float)
+      missing: Float, trackerConf: TrackerConf)
 
   /**
    * produce a XGBoostModel by fitting the given dataset
@@ -60,7 +62,7 @@ class XGBoostEstimator private[spark](
     }
     transformSchema(trainingSet.schema, logging = true)
     val trainedModel = XGBoost.trainWithRDD(instances, xgboostParams, round, nWorkers, obj,
-      eval, useExternalMemory, missing).setParent(this)
+      eval, useExternalMemory, missing, trackerConf).setParent(this)
     val returnedModel = copyValues(trainedModel)
     if (XGBoost.isClassificationTask(
       if (obj == null) xgboostParams.get("objective") else xgboostParams.get("obj_type"))) {

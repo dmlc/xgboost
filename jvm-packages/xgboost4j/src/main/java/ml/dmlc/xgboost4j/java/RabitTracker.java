@@ -5,6 +5,7 @@ package ml.dmlc.xgboost4j.java;
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.logging.Log;
@@ -13,7 +14,7 @@ import org.apache.commons.logging.LogFactory;
 /**
  * Distributed RabitTracker, need to be started on driver code before running distributed jobs.
  */
-public class RabitTracker {
+public class RabitTracker implements IRabitTracker {
   // Maybe per tracker logger?
   private static final Log logger = LogFactory.getLog(RabitTracker.class);
   // tracker python file.
@@ -142,6 +143,11 @@ public class RabitTracker {
     }
   }
 
+  public boolean start(long timeout, TimeUnit unit) {
+    logger.warn("Java RabitTracker does not support timeout.");
+    return start();
+  }
+
   public int waitFor() {
     try {
       trackerProcess.get().waitFor();
@@ -155,5 +161,10 @@ public class RabitTracker {
       logger.error("the RabitTracker thread is terminated unexpectedly");
       return 1;
     }
+  }
+
+  public int waitFor(long timeout, TimeUnit unit) {
+    logger.warn("Java RabitTracker does not support timeout.");
+    return waitFor();
   }
 }
