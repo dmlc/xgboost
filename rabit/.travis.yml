@@ -1,0 +1,51 @@
+# disable sudo to use container based build
+sudo: false
+
+# Use Build Matrix to do lint and build seperately
+env:
+  matrix:
+    - TASK=lint LINT_LANG=cpp
+    - TASK=lint LINT_LANG=python
+    - TASK=doc
+    - TASK=build CXX=g++
+    - TASK=test CXX=g++
+
+# dependent apt packages
+addons:
+  apt:
+    packages:
+      - doxygen
+      - libopenmpi-dev
+      - wget
+      - git
+      - libcurl4-openssl-dev
+      - unzip
+      - python-numpy
+      
+before_install:
+  - git clone https://github.com/dmlc/dmlc-core
+  - export TRAVIS=dmlc-core/scripts/travis/
+  - source ${TRAVIS}/travis_setup_env.sh
+
+install:
+  - pip install cpplint pylint --user `whoami`
+
+script: scripts/travis_script.sh
+
+
+before_cache:
+  - ${TRAVIS}/travis_before_cache.sh
+
+
+cache:
+  directories:
+    - ${HOME}/.cache/usr
+
+
+notifications:
+# Emails are sent to the committer's git-configured email address by default,
+  email:
+    on_success: change
+    on_failure: always
+
+
