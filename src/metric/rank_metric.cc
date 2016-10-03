@@ -216,6 +216,7 @@ struct EvalRankList : public Metric {
         minus_ = true;
       }
     } else {
+      name_ = name;
       topn_ = std::numeric_limits<unsigned>::max();
     }
   }

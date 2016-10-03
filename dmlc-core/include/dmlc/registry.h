@@ -26,9 +26,19 @@ namespace dmlc {
 template<typename EntryType>
 class Registry {
  public:
-  /*! \return list of functions in the registry */
-  inline static const std::vector<const EntryType*> &List() {
-    return Get()->entry_list_;
+  /*! \return list of entries in the registry(excluding alias) */
+  inline static const std::vector<const EntryType*>& List() {
+    return Get()->const_list_;
+  }
+  /*! \return list all names registered in the registry, including alias */
+  inline static std::vector<std::string> ListAllNames() {
+    const std::map<std::string, EntryType*> &fmap = Get()->fmap_;
+    typename std::map<std::string, EntryType*>::const_iterator p;
+    std::vector<std::string> names;
+    for (p = fmap.begin(); p !=fmap.end(); ++p) {
+      names.push_back(p->first);
+    }
+    return names;
   }
   /*!
    * \brief Find the entry with corresponding name.
@@ -45,6 +55,21 @@ class Registry {
     }
   }
   /*!
+   * \brief Add alias to the key_name
+   * \param key_name The original entry key
+   * \param alias The alias key.
+   */
+  inline void AddAlias(const std::string& key_name,
+                       const std::string& alias) {
+    EntryType* e = fmap_.at(key_name);
+    if (fmap_.count(alias)) {
+      CHECK_EQ(e, fmap_.at(alias))
+          << "Entry " << e->name << " already registered under different entry";
+    } else {
+      fmap_[alias] = e;
+    }
+  }
+  /*!
    * \brief Internal function to register a name function under name.
    * \param name name of the function
    * \return ref to the registered entry, used to set properties
@@ -55,6 +80,7 @@ class Registry {
     EntryType *e = new EntryType();
     e->name = name;
     fmap_[name] = e;
+    const_list_.push_back(e);
     entry_list_.push_back(e);
     return *e;
   }
@@ -79,16 +105,17 @@ class Registry {
 
  private:
   /*! \brief list of entry types */
-  std::vector<const EntryType*> entry_list_;
+  std::vector<EntryType*> entry_list_;
+  /*! \brief list of entry types */
+  std::vector<const EntryType*> const_list_;
   /*! \brief map of name->function */
   std::map<std::string, EntryType*> fmap_;
   /*! \brief constructor */
   Registry() {}
   /*! \brief destructor */
   ~Registry() {
-    for (typename std::map<std::string, EntryType*>::iterator p = fmap_.begin();
-         p != fmap_.end(); ++p) {
-      delete p->second;
+    for (size_t i = 0; i < entry_list_.size(); ++i) {
+      delete entry_list_[i];
     }
   }
 };
@@ -216,7 +243,7 @@ class FunctionRegEntryBase {
  * \sa FactoryRegistryEntryBase
  */
 #define DMLC_REGISTRY_REGISTER(EntryType, EntryTypeName, Name)          \
-  static DMLC_ATTRIBUTE_UNUSED EntryType & __make_ ## EntryTypeName ## _ ## Name ## __ =      \
+  static DMLC_ATTRIBUTE_UNUSED EntryType & __make_ ## EntryTypeName ## _ ## Name ## __ = \
       ::dmlc::Registry<EntryType>::Get()->__REGISTER__(#Name)           \
 
 /*!

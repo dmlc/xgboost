@@ -259,7 +259,8 @@ inline const std::type_info& any::type() const {
 template<typename T>
 inline void any::check_type() const {
   CHECK(type_ != nullptr)
-      << "The any container is empty";
+      << "The any container is empty"
+      << " requested=" << typeid(T).name();
   CHECK(type_->ptype_info == &typeid(T))
       << "The stored type mismatch"
       << " stored=" << type_->ptype_info->name()

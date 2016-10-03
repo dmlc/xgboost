@@ -201,7 +201,7 @@ inline T *BeginPtr(std::vector<T> &vec) {  // NOLINT(*)
   }
 }
 /*!
- * \brief get the beginning address of a vector
+ * \brief get the beginning address of a const vector
  * \param vec input vector
  * \return beginning address of a vector
  */
@@ -214,7 +214,7 @@ inline const T *BeginPtr(const std::vector<T> &vec) {
   }
 }
 /*!
- * \brief get the beginning address of a vector
+ * \brief get the beginning address of a string
  * \param str input string
  * \return beginning address of a string
  */
@@ -223,7 +223,7 @@ inline char* BeginPtr(std::string &str) {  // NOLINT(*)
   return &str[0];
 }
 /*!
- * \brief get the beginning address of a vector
+ * \brief get the beginning address of a const string
  * \param str input string
  * \return beginning address of a string
  */

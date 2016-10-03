@@ -11,9 +11,17 @@ include make/dmlc.mk
 
 # this is the common build script for dmlc lib
 export LDFLAGS= -pthread -lm
-export CFLAGS = -O3 -Wall -msse2  -Wno-unknown-pragmas -Iinclude  -std=c++0x
+export CFLAGS = -O3 -Wall -Wno-unknown-pragmas -Iinclude  -std=c++0x
 LDFLAGS+= $(DMLC_LDFLAGS)
 CFLAGS+= $(DMLC_CFLAGS)
+
+ifndef USE_SSE
+	USE_SSE = 1
+endif
+
+ifeq ($(USE_SSE), 1)
+	CFLAGS += -msse2
+endif
 
 ifdef DEPS_PATH
 CFLAGS+= -I$(DEPS_PATH)/include

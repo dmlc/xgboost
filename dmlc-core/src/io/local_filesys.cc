@@ -17,6 +17,11 @@ extern "C" {
 
 #include "./local_filesys.h"
 
+#if defined(__FreeBSD__)
+#define fopen64 std::fopen
+#endif
+
+
 namespace dmlc {
 namespace io {
 /*! \brief implementation of file i/o stream */

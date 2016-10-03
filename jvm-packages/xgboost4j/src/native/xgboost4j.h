@@ -33,19 +33,19 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixCreateFromCSR
+ * Method:    XGDMatrixCreateFromCSREx
  * Signature: ([J[I[F[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromCSR
-  (JNIEnv *, jclass, jlongArray, jintArray, jfloatArray, jlongArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromCSREx
+  (JNIEnv *, jclass, jlongArray, jintArray, jfloatArray, jint, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixCreateFromCSC
+ * Method:    XGDMatrixCreateFromCSCEx
  * Signature: ([J[I[F[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromCSC
-  (JNIEnv *, jclass, jlongArray, jintArray, jfloatArray, jlongArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromCSCEx
+  (JNIEnv *, jclass, jlongArray, jintArray, jfloatArray, jint, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI

@@ -57,6 +57,14 @@ class FieldEntry;
 // forward declare ParamManagerSingleton
 template<typename PType>
 struct ParamManagerSingleton;
+
+/*! \brief option in parameter initialization */
+enum ParamInitOption {
+  /*! \brief allow unknown parameters */
+  kAllowUnknown,
+  /*! \brief need to match exact parameters */
+  kAllMatch
+};
 }  // namespace parameter
 /*!
  * \brief Information about a parameter field in string representations.
@@ -108,13 +116,17 @@ struct Parameter {
    *  and throw error if something wrong happens.
    *
    * \param kwargs map of keyword arguments, or vector of pairs
+   * \parma option The option on initialization.
    * \tparam Container container type
    * \throw ParamError when something go wrong.
    */
   template<typename Container>
-  inline void Init(const Container &kwargs) {
+  inline void Init(const Container &kwargs,
+                   parameter::ParamInitOption option = parameter::kAllowUnknown) {
     PType::__MANAGER__()->RunInit(static_cast<PType*>(this),
-                                  kwargs.begin(), kwargs.end(), NULL);
+                                  kwargs.begin(), kwargs.end(),
+                                  NULL,
+                                  option == parameter::kAllowUnknown);
   }
   /*!
    * \brief initialize the parameter by keyword arguments.
@@ -130,7 +142,8 @@ struct Parameter {
   InitAllowUnknown(const Container &kwargs) {
     std::vector<std::pair<std::string, std::string> > unknown;
     PType::__MANAGER__()->RunInit(static_cast<PType*>(this),
-                                  kwargs.begin(), kwargs.end(), &unknown);
+                                  kwargs.begin(), kwargs.end(),
+                                  &unknown, true);
     return unknown;
   }
   /*!
@@ -355,7 +368,8 @@ class ParamManager {
   inline void RunInit(void *head,
                       RandomAccessIterator begin,
                       RandomAccessIterator end,
-                      std::vector<std::pair<std::string, std::string> > *unknown_args) const {
+                      std::vector<std::pair<std::string, std::string> > *unknown_args,
+                      bool allow_unknown) const {
     std::set<FieldAccessEntry*> selected_args;
     for (RandomAccessIterator it = begin; it != end; ++it) {
       FieldAccessEntry *e = Find(it->first);
@@ -367,11 +381,13 @@ class ParamManager {
         if (unknown_args != NULL) {
           unknown_args->push_back(*it);
         } else {
-          std::ostringstream os;
-          os << "Cannot find argument \'" << it->first << "\', Possible Arguments:\n";
-          os << "----------------\n";
-          PrintDocString(os);
-          throw dmlc::ParamError(os.str());
+          if (!allow_unknown) {
+            std::ostringstream os;
+            os << "Cannot find argument \'" << it->first << "\', Possible Arguments:\n";
+            os << "----------------\n";
+            PrintDocString(os);
+            throw dmlc::ParamError(os.str());
+          }
         }
       }
     }

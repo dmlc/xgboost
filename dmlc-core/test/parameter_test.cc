@@ -46,16 +46,9 @@ int main(int argc, char *argv[]) {
   printf("Parameters\n-----------\n%s", Param::__DOC__().c_str());
   std::vector<std::pair<std::string, std::string> > unknown;
   unknown = param.InitAllowUnknown(kwargs);
-  unknown = param2.InitAllowUnknown(unknown);
+  param2.Init(unknown);
 
-  if (unknown.size() != 0) {
-    std::ostringstream os;
-    os << "Cannot find argument \'" << unknown[0].first << "\', Possible Arguments:\n";
-    os << "----------------\n";
-    os << param.__DOC__();
-    os << param2.__DOC__();
-    throw dmlc::ParamError(os.str());
-  }
+
   printf("-----\n");
   printf("param.num_hidden=%d\n", param.num_hidden);
   printf("param.learning_rate=%f\n", param.learning_rate);

@@ -13,6 +13,10 @@
 #include <string>
 #include <algorithm>
 
+#if defined(__FreeBSD__)
+#define fopen64 std::fopen
+#endif
+
 namespace dmlc {
 namespace io {
 /*!
