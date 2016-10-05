@@ -311,12 +311,12 @@ class DMatrix(object):
     def _init_from_npy2d(self, mat, missing):
         """
         Initialize data from a 2-D numpy matrix.
-        
+
         If ``mat`` does not have ``order='C'`` (aka row-major) or is not contiguous,
         a temporary copy will be made.
-        
+
         If ``mat`` does not have ``dtype=numpy.float32``, a temporary copy will be made.
-        
+
         So there could be as many as two temporary data copies; be mindful of input layout
         and type if memory use is a concern.
         """
