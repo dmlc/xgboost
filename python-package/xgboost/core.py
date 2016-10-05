@@ -311,10 +311,21 @@ class DMatrix(object):
     def _init_from_npy2d(self, mat, missing):
         """
         Initialize data from a 2-D numpy matrix.
+        
+        If ``mat`` does not have ``order='C'`` (aka row-major) or is not contiguous,
+        a temporary copy will be made.
+        
+        If ``mat`` does not have ``dtype=numpy.float32``, a temporary copy will be made.
+        
+        So there could be as many as two temporary data copies; be mindful of input layout
+        and type if memory use is a concern.
         """
         if len(mat.shape) != 2:
             raise ValueError('Input numpy.ndarray must be 2 dimensional')
-        data = np.array(mat.reshape(mat.size), dtype=np.float32)
+        # flatten the array by rows and ensure it is float32.
+        # we try to avoid data copies if possible (reshape returns a view when possible
+        # and we explicitly tell np.array to try and avoid copying)
+        data = np.array(mat.reshape(mat.size), copy=False, dtype=np.float32)
         self.handle = ctypes.c_void_p()
         missing = missing if missing is not None else np.nan
         _check_call(_LIB.XGDMatrixCreateFromMat(data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
