@@ -31,6 +31,11 @@ mv lib/libxgboost4j.so xgboost4j/src/main/resources/lib/libxgboost4j.${dl}
 cp ../dmlc-core/tracker/dmlc_tracker/tracker.py xgboost4j/src/main/resources/tracker.py
 # copy test data files
 mkdir -p xgboost4j-spark/src/test/resources/
+cd ../demo/regression
+python mapfeat.py
+python mknfold.py machine.txt 1
+cd -
+cp ../demo/regression/machine.txt.t* xgboost4j-spark/src/test/resources/
 cp ../demo/data/agaricus.* xgboost4j-spark/src/test/resources/
 popd > /dev/null
 echo "complete"

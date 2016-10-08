@@ -302,7 +302,11 @@ xgb.attr <- function(object, name) {
   if (!is.null(value)) {
     # Coerce the elements to be scalar strings.
     # Q: should we warn user about non-scalar elements?
-    value <- as.character(value[1])
+    if (is.numeric(value[1])) {
+      value <- format(value[1], digits = 17)
+    } else {
+      value <- as.character(value[1])
+    }
   }
   .Call("XGBoosterSetAttr_R", handle, as.character(name[1]), value, PACKAGE="xgboost")
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
@@ -335,7 +339,11 @@ xgb.attributes <- function(object) {
   # Q: should we warn a user about non-scalar elements?
   a <- lapply(a, function(x) {
     if (is.null(x)) return(NULL)
-    as.character(x[1])
+    if (is.numeric(value[1])) {
+      format(x[1], digits = 17)
+    } else {
+      as.character(x[1])
+    }
   })
   handle <- xgb.get.handle(object)
   for (i in seq_along(a)) {
