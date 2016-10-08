@@ -48,9 +48,9 @@ try:
     from sklearn.base import RegressorMixin, ClassifierMixin
     from sklearn.preprocessing import LabelEncoder                # noqa
     try:
-        from sklearn.cross_validation import KFold, StratifiedKFold
-    except DeprecationWarning:
         from sklearn.model_selection import KFold, StratifiedKFold
+    except ImportError:
+        from sklearn.cross_validation import KFold, StratifiedKFold
     
     SKLEARN_INSTALLED = True
 
