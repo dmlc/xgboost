@@ -21,10 +21,6 @@ env:
     # cmake test
     - TASK=cmake_test
 
-os:
-  - linux
-  - osx
-
 matrix:
   exclude:
     - os: osx
