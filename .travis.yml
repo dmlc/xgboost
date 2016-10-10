@@ -25,6 +25,8 @@ matrix:
   exclude:
     - os: osx
       env: TASK=lint
+    - os: osx
+      env: TASK=cmake_test
     - os: linux
       env: TASK=r_test
     - os: osx
