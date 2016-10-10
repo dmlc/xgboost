@@ -182,7 +182,7 @@ object XGBoost extends Serializable {
     require(nWorkers > 0, "you must specify more than 0 workers")
     trainWithRDD(trainingData, configMap, round, nWorkers, obj, eval, useExternalMemory, missing)
   }
-  
+
   /**
    *
    * @param trainingData the trainingset represented as RDD
