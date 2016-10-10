@@ -216,7 +216,7 @@ object XGBoost extends Serializable {
     require(tracker.start(), "FAULT: Failed to start tracker")
     tracker
   }
-  
+
   /**
    *
    * @param trainingData the trainingset represented as RDD
