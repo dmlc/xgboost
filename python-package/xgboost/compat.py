@@ -47,7 +47,11 @@ try:
     from sklearn.base import BaseEstimator
     from sklearn.base import RegressorMixin, ClassifierMixin
     from sklearn.preprocessing import LabelEncoder                # noqa
-    from sklearn.cross_validation import KFold, StratifiedKFold
+    try:
+        from sklearn.model_selection import KFold, StratifiedKFold
+    except ImportError:
+        from sklearn.cross_validation import KFold, StratifiedKFold
+    
     SKLEARN_INSTALLED = True
 
     XGBModelBase = BaseEstimator
