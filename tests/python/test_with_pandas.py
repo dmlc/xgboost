@@ -66,10 +66,9 @@ class TestPandas(unittest.TestCase):
                         [2., 0., 1., 0.],
                         [3., 0., 0., 1.]])
         np.testing.assert_array_equal(result, exp)
-
         dm = xgb.DMatrix(dummies)
         assert dm.feature_names == ['B', 'A_X', 'A_Y', 'A_Z']
-        assert dm.feature_types == ['int', 'float', 'float', 'float']
+        assert dm.feature_types == ['int', 'int', 'int', 'int']
         assert dm.num_row() == 3
         assert dm.num_col() == 4
 

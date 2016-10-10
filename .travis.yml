@@ -21,14 +21,12 @@ env:
     # cmake test
     - TASK=cmake_test
 
-os:
-  - linux
-  - osx
-
 matrix:
   exclude:
     - os: osx
       env: TASK=lint
+    - os: osx
+      env: TASK=cmake_test
     - os: linux
       env: TASK=r_test
     - os: osx
@@ -49,7 +47,7 @@ addons:
 before_install:
   - source dmlc-core/scripts/travis/travis_setup_env.sh
   - export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package
-  - echo "MAVEN_OPTS='-Xmx2048m -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m'" > ~/.mavenrc 
+  - echo "MAVEN_OPTS='-Xmx2048m -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc 
 
 install:
   - source tests/travis/setup.sh

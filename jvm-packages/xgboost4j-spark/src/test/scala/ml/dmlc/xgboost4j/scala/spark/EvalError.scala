@@ -50,6 +50,8 @@ class EvalError extends EvalTrait {
         logger.error(ex)
         return -1f
     }
+    require(predicts.length == labels.length, s"predicts length ${predicts.length} has to be" +
+      s" equal with label length ${labels.length}")
     val nrow: Int = predicts.length
     for (i <- 0 until nrow) {
       if (labels(i) == 0.0 && predicts(i)(0) > 0) {
