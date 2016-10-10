@@ -173,7 +173,7 @@ object XGBoost extends Serializable {
     require(tracker.start(trackerConf.workerConnectionTimeout), "FAULT: Failed to start tracker")
     tracker
   }
-  
+
   /**
    * @return A tuple of the booster and the metrics used to build training summary
    */
