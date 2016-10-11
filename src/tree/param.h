@@ -64,6 +64,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool cache_opt;
   // whether to not print info during training.
   bool silent;
+  // whether refresh updater needs to update the leaf values
+  bool refresh_leaf;
   // auxiliary data structure
   std::vector<int> monotone_constraints;
   // declare the parameters
@@ -136,13 +138,18 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(parallel_option)
         .set_default(0)
         .describe("Different types of parallelization algorithm.");
-    DMLC_DECLARE_FIELD(cache_opt).set_default(true).describe(
-        "EXP Param: Cache aware optimization.");
-    DMLC_DECLARE_FIELD(silent).set_default(false).describe(
-        "Do not print information during training.");
+    DMLC_DECLARE_FIELD(cache_opt)
+        .set_default(true)
+        .describe("EXP Param: Cache aware optimization.");
+    DMLC_DECLARE_FIELD(silent)
+        .set_default(false)
+        .describe("Do not print information during trainig.");
+    DMLC_DECLARE_FIELD(refresh_leaf)
+        .set_default(true)
+        .describe("Whether the refresh updater needs to update leaf values.");
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
-        .describe("Constraint of variable monotonicity");
+        .describe("Constraint of variable monotinicity");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
