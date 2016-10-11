@@ -110,6 +110,7 @@ Please send pull requests if you find ones that are missing here.
 - [Notes on eXtreme Gradient Boosting](http://startup.ml/blog/xgboost) by ARSHAK NAVRUZYAN ([iPython Notebook](https://github.com/startupml/koan/blob/master/eXtreme%20Gradient%20Boosting.ipynb))
 - [Complete Guide to Parameter Tuning in XGBoost](http://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/) by Aarshay Jain
 - [Practical XGBoost in Python online course](http://education.parrotprediction.teachable.com/courses/practical-xgboost-in-python) by Parrot Prediction
+- [Spark and XGBoost using Scala](http://www.elenacuoco.com/2016/10/10/scala-spark-xgboost-classification/) by Elena Cuoco
 
 ## Usecases
 If you have particular usecase of xgboost that you would like to highlight.
