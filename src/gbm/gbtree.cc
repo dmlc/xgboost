@@ -35,6 +35,8 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   int num_parallel_tree;
   /*! \brief tree updater sequence */
   std::string updater_seq;
+  /*! \brief Whether the whole boosting process or only its part needs to be run */
+  int process_type;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
     DMLC_DECLARE_FIELD(num_parallel_tree).set_lower_bound(1).set_default(1)
@@ -42,6 +44,11 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
                   " This option is used to support boosted random forest");
     DMLC_DECLARE_FIELD(updater_seq).set_default("grow_colmaker,prune")
         .describe("Tree updater sequence.");
+    DMLC_DECLARE_FIELD(process_type).set_default(0)
+        .add_enum("whole", 0)
+        .add_enum("update", 1)
+        .describe("Whether to run the whole boosting process to create new trees,"\
+                  " or to only update the loaded trees.");
     // add alias
     DMLC_DECLARE_ALIAS(updater_seq, updater);
   }
@@ -163,6 +170,7 @@ class GBTree : public GradientBooster {
     CHECK_EQ(fi->Read(&mparam, sizeof(mparam)), sizeof(mparam))
         << "GBTree: invalid model file";
     trees.clear();
+    trees_to_update.clear();
     for (int i = 0; i < mparam.num_trees; ++i) {
       std::unique_ptr<RegTree> ptr(new RegTree());
       ptr->Load(fi);
@@ -374,6 +382,16 @@ class GBTree : public GradientBooster {
       up->Init(this->cfg);
       updaters.push_back(std::move(up));
     }
+    // for the 'update' process_type, move trees into trees_to_update
+    if (tparam.process_type == 1) {
+      CHECK_EQ(trees_to_update.size(), 0u);
+      // load trees to be updated into trees_to_update
+      for (size_t i = 0; i < trees.size(); ++i) {
+        trees_to_update.push_back(std::move(trees[i]));
+      }
+      trees.clear();
+      mparam.num_trees = 0;
+    }
   }
   // do group specific group
   inline void
@@ -386,11 +404,20 @@ class GBTree : public GradientBooster {
     ret->clear();
     // create the trees
     for (int i = 0; i < tparam.num_parallel_tree; ++i) {
-      std::unique_ptr<RegTree> ptr(new RegTree());
-      ptr->param.InitAllowUnknown(this->cfg);
-      ptr->InitModel();
-      new_trees.push_back(ptr.get());
-      ret->push_back(std::move(ptr));
+      if (tparam.process_type == 0) {
+        // create new tree
+        std::unique_ptr<RegTree> ptr(new RegTree());
+        ptr->param.InitAllowUnknown(this->cfg);
+        ptr->InitModel();
+        new_trees.push_back(ptr.get());
+        ret->push_back(std::move(ptr));
+      } else if (tparam.process_type == 1) {
+        CHECK_LE(trees.size(), trees_to_update.size());
+        // move an existing tree from trees_to_update
+        auto t = std::move(trees_to_update[trees.size()]);
+        new_trees.push_back(t.get());
+        ret->push_back(std::move(t));
+      }
     }
     // update the trees
     for (auto& up : updaters) {
@@ -493,6 +520,8 @@ class GBTree : public GradientBooster {
   GBTreeModelParam mparam;
   /*! \brief vector of trees stored in the model */
   std::vector<std::unique_ptr<RegTree> > trees;
+  /*! \brief for the update process, a place to keep the initial trees */
+  std::vector<std::unique_ptr<RegTree> > trees_to_update;
   /*! \brief some information indicator of the tree, reserved */
   std::vector<int> tree_info;
   // ----training fields----
