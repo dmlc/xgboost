@@ -284,7 +284,9 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   # Sort the callbacks into categories
   cb <- categorize.callbacks(callbacks)
 
-  
+  # The tree updating process would need slightly different handling
+  is_update <- NVL(params[['process_type']], '.') == 'update'
+
   # Construct a booster (either a new one or load from xgb_model)
   handle <- xgb.Booster(params, append(watchlist, dtrain), xgb_model)
   bst <- xgb.handleToBooster(handle)
@@ -295,7 +297,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
   # When the 'xgb_model' was set, find out how many boosting iterations it has
   niter_skip <- 0
-  if (!is.null(xgb_model)) {
+  if (!is.null(xgb_model) && !is_update) {
     niter_skip <- as.numeric(xgb.attr(bst, 'niter')) + 1
     if (length(niter_skip) == 0) {
       niter_skip <- xgb.ntree(bst) %/% (num_parallel_tree * num_class)
@@ -337,6 +339,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
       nrow(evaluation_log) > 0) {
     # include the previous compatible history when available
     if (class(xgb_model) == 'xgb.Booster' &&
+        !is_update &&
         !is.null(xgb_model$evaluation_log) &&
         all.equal(colnames(evaluation_log),
                   colnames(xgb_model$evaluation_log))) {
