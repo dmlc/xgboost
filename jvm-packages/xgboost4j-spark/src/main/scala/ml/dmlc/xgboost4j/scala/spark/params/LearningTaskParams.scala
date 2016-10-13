@@ -25,26 +25,15 @@ private[spark] trait LearningTaskParams extends Params {
   val objective = new Param[String](this, "objective", "objective function used during training",
     (value: String) => LearningTaskParams.supportedObjective.contains(value))
 
-  setDefault(objective, "reg:linear")
-
   val baseScore = new DoubleParam(this, "base_score", "the initial prediction score of all" +
     " instances, global bias")
-
-  setDefault(baseScore, 0.5)
 
   val evalMetric = new Param[String](this, "eval_metric", "evaluation metrics for validation" +
     " data, a default metric will be assigned according to objective( rmse for regression, and" +
     " error for classification, mean average precision for ranking )",
     (value: String) => LearningTaskParams.supportedEvalMetrics.contains(value))
 
-  // set according to objective
-  if ($(objective).startsWith("reg:") || $(objective) == "count:poisson") {
-    set(evalMetric, "rmse")
-  } else if ($(objective) == "rank:pairwise") {
-    set(evalMetric, "map")
-  } else {
-    set(evalMetric, "error")
-  }
+  setDefault(objective -> "reg:linear", baseScore -> 0.5)
 }
 
 private[spark] object LearningTaskParams {
