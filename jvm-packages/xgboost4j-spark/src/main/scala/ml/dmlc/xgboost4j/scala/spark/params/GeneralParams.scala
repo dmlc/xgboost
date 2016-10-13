@@ -16,6 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark.params
 
+import scala.collection.immutable.HashSet
+
 import org.apache.spark.ml.param._
 
 private[spark] trait GeneralParams extends Params {
@@ -50,5 +52,5 @@ private[spark] trait GeneralParams extends Params {
 
 private[spark] object GeneralParams {
 
-  val supportedBoosters: Array[String] = Array("gbtree", "gblinear", "dart")
+  val supportedBoosters = HashSet("gbtree", "gblinear", "dart")
 }
