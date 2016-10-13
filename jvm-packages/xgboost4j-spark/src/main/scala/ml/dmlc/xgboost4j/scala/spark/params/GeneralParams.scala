@@ -16,6 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark.params
 
+import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.spark.ml.param._
 
 private[spark] trait GeneralParams extends Params {
@@ -33,5 +34,12 @@ private[spark] trait GeneralParams extends Params {
     "0 means printing running messages, 1 means silent mode.",
     (value: Int) => value >= 0 && value <= 1)
 
-  setDefault(round -> 1, nWorkers -> 1, useExternalMemory -> false, silent -> 0)
+  val customObj = new Param[ObjectiveTrait](this, "custom_obj", "customized objective function " +
+    "provided by the user")
+
+  val customEval = new Param[EvalTrait](this, "custom_obj", "customized evaluation function " +
+    "provided by the user")
+
+  setDefault(round -> 1, nWorkers -> 1, useExternalMemory -> false, silent -> 0,
+    customObj -> null, customEval -> null)
 }

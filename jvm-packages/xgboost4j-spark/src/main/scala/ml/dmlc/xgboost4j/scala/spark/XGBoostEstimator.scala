@@ -31,19 +31,16 @@ import org.apache.spark.sql.{Dataset, Row}
  * the estimator wrapping XGBoost to produce a training model
  *
  * @param xgboostParams the parameters configuring XGBoost
- * @param obj the customized objective function, default to be null and using the default in model
- * @param eval the customized eval function, default to be null and using the default in model
  * @param missing the value taken as missing
  */
 class XGBoostEstimator private[spark](
-  override val uid: String, xgboostParams: Map[String, Any], obj: ObjectiveTrait, eval: EvalTrait,
-  missing: Float) extends Predictor[MLVector, XGBoostEstimator, XGBoostModel]
+  override val uid: String, xgboostParams: Map[String, Any], missing: Float)
+  extends Predictor[MLVector, XGBoostEstimator, XGBoostModel]
   with LearningTaskParams with GeneralParams with BoosterParams {
 
-  private[spark] def this(xgboostParams: Map[String, Any], obj: ObjectiveTrait = null,
-           eval: EvalTrait = null, missing: Float = Float.NaN) =
+  private[spark] def this(xgboostParams: Map[String, Any], missing: Float = Float.NaN) =
     this(Identifiable.randomUID("XGBoostEstimator"), xgboostParams: Map[String, Any],
-      obj: ObjectiveTrait, eval: EvalTrait, missing: Float)
+      missing: Float)
 
   private def syncParams(): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {
@@ -74,11 +71,12 @@ class XGBoostEstimator private[spark](
         LabeledPoint(label, feature)
     }
     transformSchema(trainingSet.schema, logging = true)
-    val trainedModel = XGBoost.trainWithRDD(instances, xgboostParams, $(round), $(nWorkers), obj,
-      eval, $(useExternalMemory), missing).setParent(this)
+    val trainedModel = XGBoost.trainWithRDD(instances, xgboostParams, $(round), $(nWorkers),
+      $(customObj), $(customEval), $(useExternalMemory), missing).setParent(this)
     val returnedModel = copyValues(trainedModel)
     if (XGBoost.isClassificationTask(
-      if (obj == null) xgboostParams.get("objective") else xgboostParams.get("obj_type"))) {
+      if ($(customObj) == null) xgboostParams.get("objective") else xgboostParams.get("obj_type")))
+    {
       val numClass = {
         if (xgboostParams.contains("num_class")) {
           xgboostParams("num_class").asInstanceOf[Int]
