@@ -67,6 +67,16 @@ object XGBoost extends Serializable {
     }
   }
 
+  private def repartitionData(trainingData: RDD[MLLabeledPoint], numWorkers: Int):
+      RDD[MLLabeledPoint] = {
+    if (numWorkers != trainingData.partitions.length) {
+      logger.info(s"repartitioning training set to $numWorkers partitions")
+      trainingData.repartition(numWorkers)
+    } else {
+      trainingData
+    }
+  }
+
   private[spark] def buildDistributedBoosters(
       trainingData: RDD[MLLabeledPoint],
       xgBoostConfMap: Map[String, Any],
@@ -74,14 +84,7 @@ object XGBoost extends Serializable {
       numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
       useExternalMemory: Boolean, missing: Float = Float.NaN): RDD[Booster] = {
     import DataUtils._
-    val partitionedData = {
-      if (numWorkers != trainingData.partitions.length) {
-        logger.info(s"repartitioning training set to $numWorkers partitions")
-        trainingData.repartition(numWorkers)
-      } else {
-        trainingData
-      }
-    }
+    val partitionedData = repartitionData(trainingData, numWorkers)
     val appName = partitionedData.context.appName
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
@@ -93,7 +96,7 @@ object XGBoost extends Serializable {
         var booster: Booster = null
         if (trainingSamples.hasNext) {
           val cacheFileName: String = {
-            if (useExternalMemory && trainingSamples.hasNext) {
+            if (useExternalMemory) {
               s"$appName-${TaskContext.get().stageId()}-" +
                 s"dtrain_cache-${TaskContext.getPartitionId()}"
             } else {
@@ -186,6 +189,27 @@ object XGBoost extends Serializable {
     trainWithRDD(trainingData, configMap, round, nWorkers, obj, eval, useExternalMemory, missing)
   }
 
+  private def configureThreadNum(configMap: Map[String, Any], sc: SparkContext):
+      Map[String, Any] = {
+    var overridedConfMap = configMap
+    if (overridedConfMap.contains("nthread")) {
+      val nThread = overridedConfMap("nthread").toString.toInt
+      val coresPerTask = sc.getConf.get("spark.task.cpus", "1").toInt
+      require(nThread <= coresPerTask,
+        s"the nthread configuration ($nThread) must be no larger than " +
+          s"spark.task.cpus ($coresPerTask)")
+    } else {
+      overridedConfMap = configMap + ("nthread" -> sc.getConf.get("spark.task.cpus", "1").toInt)
+    }
+    overridedConfMap
+  }
+
+  private def startTracker(nWorkers: Int): RabitTracker = {
+    val tracker = new RabitTracker(nWorkers)
+    require(tracker.start(), "FAULT: Failed to start tracker")
+    tracker
+  }
+
   /**
    *
    * @param trainingData the trainingset represented as RDD
@@ -207,24 +231,8 @@ object XGBoost extends Serializable {
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
       useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
-    if (obj != null) {
-      require(configMap.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
-        " you have to specify the objective type as classification or regression with a" +
-        " customized objective function")
-    }
-    val tracker = new RabitTracker(nWorkers)
-    implicit val sc = trainingData.sparkContext
-    var overridedConfMap = configMap
-    if (overridedConfMap.contains("nthread")) {
-      val nThread = overridedConfMap("nthread").toString.toInt
-      val coresPerTask = sc.getConf.get("spark.task.cpus", "1").toInt
-      require(nThread <= coresPerTask,
-        s"the nthread configuration ($nThread) must be no larger than " +
-          s"spark.task.cpus ($coresPerTask)")
-    } else {
-      overridedConfMap = configMap + ("nthread" -> sc.getConf.get("spark.task.cpus", "1").toInt)
-    }
-    require(tracker.start(), "FAULT: Failed to start tracker")
+    val tracker = startTracker(nWorkers)
+    val overridedConfMap = configureThreadNum(configMap, trainingData.sparkContext)
     val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
       tracker.getWorkerEnvs.asScala, nWorkers, round, obj, eval, useExternalMemory, missing)
     val sparkJobThread = new Thread() {
@@ -234,16 +242,29 @@ object XGBoost extends Serializable {
       }
     }
     sparkJobThread.start()
-    val returnVal = tracker.waitFor()
-    logger.info(s"Rabit returns with exit code $returnVal")
-    if (returnVal == 0) {
-      convertBoosterToXGBoostModel(boosters.first(),
-        isClassificationTask(
-          if (obj == null) {
-            configMap.get("objective")
-          } else {
-            configMap.get("obj_type")
-          }))
+    if (obj != null) {
+      require(configMap.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
+        " you have to specify the objective type as classification or regression with a" +
+        " customized objective function")
+    }
+    val isClsTask = isClassificationTask(
+      if (obj == null) {
+        configMap.get("objective")
+      } else {
+        configMap.get("obj_type")
+      })
+    val trackerReturnVal = tracker.waitFor()
+    logger.info(s"Rabit returns with exit code $trackerReturnVal")
+    postTrackerReturnProcessing(trackerReturnVal, boosters, overridedConfMap, sparkJobThread,
+      isClsTask)
+  }
+
+  private def postTrackerReturnProcessing(
+      trackerReturnVal: Int, distributedBoosters: RDD[Booster],
+      configMap: Map[String, Any], sparkJobThread: Thread, isClassificationTask: Boolean):
+    XGBoostModel = {
+    if (trackerReturnVal == 0) {
+      convertBoosterToXGBoostModel(distributedBoosters.first(), isClassificationTask)
     } else {
       try {
         if (sparkJobThread.isAlive) {
