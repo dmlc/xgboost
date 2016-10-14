@@ -179,8 +179,6 @@ object XGBoost extends Serializable {
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
-  @deprecated(since = "0.7", message = "this method is deprecated since 0.7, users are encouraged" +
-    " to switch to trainWithRDD")
   def train(trainingData: RDD[MLLabeledPoint], configMap: Map[String, Any], round: Int,
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
       useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
@@ -204,7 +202,8 @@ object XGBoost extends Serializable {
    * @return XGBoostModel when successful training
    */
   @throws(classOf[XGBoostError])
-  def trainWithRDD(trainingData: RDD[MLLabeledPoint], configMap: Map[String, Any], round: Int,
+  private[spark] def trainWithRDD(
+      trainingData: RDD[MLLabeledPoint], configMap: Map[String, Any], round: Int,
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
       useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
