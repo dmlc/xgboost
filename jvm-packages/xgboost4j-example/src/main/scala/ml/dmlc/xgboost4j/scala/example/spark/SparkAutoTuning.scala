@@ -20,10 +20,10 @@ import ml.dmlc.xgboost4j.scala.Booster
 import ml.dmlc.xgboost4j.scala.spark.{XGBoost, DataUtils}
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{SparkSession, SQLContext, Row}
 import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.sql.{SparkSession, Row, SQLContext}
 
-object SparkWithDataFrame {
+object SparkAutoTuning {
   def main(args: Array[String]): Unit = {
     if (args.length != 4) {
       println(
