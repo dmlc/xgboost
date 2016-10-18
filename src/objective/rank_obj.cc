@@ -215,7 +215,7 @@ class LambdaRankObjNDCG : public LambdaRankObj {
     for (size_t i = 0; i < labels.size(); ++i) {
       const unsigned rel = static_cast<unsigned>(labels[i]);
       if (rel != 0) {
-        sumdcg += ((1 << rel) - 1) / std::log(static_cast<float>(i + 2));
+        sumdcg += ((1 << rel) - 1) / std::log2(static_cast<float>(i + 2));
       }
     }
     return static_cast<float>(sumdcg);
