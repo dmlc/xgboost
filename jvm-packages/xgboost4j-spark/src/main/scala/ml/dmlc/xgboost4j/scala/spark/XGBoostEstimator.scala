@@ -44,17 +44,16 @@ class XGBoostEstimator private[spark](
 
   private def syncParams(): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {
-      $(params.find(_.name == paramName).get) match {
-        case dp: Double =>
-          set(paramName, paramValue.toString.toDouble)
-        case ip: Int =>
-          set(paramName, paramValue.toString.toInt)
-        case bp: Boolean =>
-          set(paramName, bp.toString.toBoolean)
-        case sp: String =>
-          set(paramName, paramValue.toString)
-        case _ =>
-          // pass
+      params.find(_.name == paramName) match {
+        case None =>
+        case Some(dp: DoubleParam) =>
+          set(paramName, $(dp))
+        case Some(ip: IntParam) =>
+          set(paramName, $(ip))
+        case Some(bp: BooleanParam) =>
+          set(paramName, $(bp))
+        case Some(sp: Param[String]) =>
+          set(paramName, $(sp))
       }
     }
   }
