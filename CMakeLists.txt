@@ -74,8 +74,9 @@ add_subdirectory(dmlc-core)
 
 add_library(rabit STATIC ${RABIT_SOURCES})
 
-add_executable(xgboost ${SOURCES})
-add_library(libxgboost SHARED ${SOURCES})
+add_executable(xgboost-bin ${SOURCES})
+SET_TARGET_PROPERTIES(xgboost-bin PROPERTIES OUTPUT_NAME xgboost)
+add_library(xgboost SHARED ${SOURCES})
 
+target_link_libraries(xgboost-bin dmlccore rabit)
 target_link_libraries(xgboost dmlccore rabit)
-target_link_libraries(libxgboost dmlccore rabit)
