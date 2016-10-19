@@ -16,49 +16,86 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.collection.mutable
+
 import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, GeneralParams, LearningTaskParams}
-import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.spark.ml.Predictor
 import org.apache.spark.ml.feature.LabeledPoint
-import org.apache.spark.ml.linalg.{Vector => MLVector, VectorUDT}
+import org.apache.spark.ml.linalg.{Vector => MLVector}
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{StructType, DoubleType}
+import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.sql.{Dataset, Row}
 
 /**
  * the estimator wrapping XGBoost to produce a training model
  *
  * @param xgboostParams the parameters configuring XGBoost
- * @param missing the value taken as missing
  */
 class XGBoostEstimator private[spark](
-  override val uid: String, xgboostParams: Map[String, Any], missing: Float)
+  override val uid: String, xgboostParams: Map[String, Any])
   extends Predictor[MLVector, XGBoostEstimator, XGBoostModel]
   with LearningTaskParams with GeneralParams with BoosterParams {
 
-  private[spark] def this(xgboostParams: Map[String, Any], missing: Float = Float.NaN) =
-    this(Identifiable.randomUID("XGBoostEstimator"), xgboostParams: Map[String, Any],
-      missing: Float)
+  def this(xgboostParams: Map[String, Any]) =
+    this(Identifiable.randomUID("XGBoostEstimator"), xgboostParams: Map[String, Any])
+
+  def this(uid: String) = this(uid, Map[String, Any]())
+
+  // called in syncParams only when eval_metric is not defined
+  private def deriveEvalMetric(): String = {
+    val objFunc = xgboostParams.get("objective")
+    if (objFunc.isEmpty) {
+      "rmse"
+    } else {
+      // compute default metric based on specified objective
+      val isClassificationTask = XGBoost.isClassificationTask(objFunc)
+      if (!isClassificationTask) {
+        // default metric for regression or ranking
+        if (objFunc.get.toString.startsWith("rank")) {
+          "map"
+        } else {
+          "rmse"
+        }
+      } else {
+        // default metric for classification
+        if (objFunc.get.toString.startsWith("multi")) {
+          // multi
+          "merror"
+        } else {
+          // binary
+          "error"
+        }
+      }
+    }
+  }
 
   private def syncParams(): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {
       params.find(_.name == paramName) match {
         case None =>
-        case Some(dp: DoubleParam) =>
-          set(paramName, $(dp))
-        case Some(ip: IntParam) =>
-          set(paramName, $(ip))
-        case Some(bp: BooleanParam) =>
-          set(paramName, $(bp))
-        case Some(sp: Param[String]) =>
-          set(paramName, $(sp))
+        case Some(p: Param[_]) =>
+          set(paramName, $(p))
       }
+    }
+    if (xgboostParams.get("eval_metric").isEmpty) {
+      set("eval_metric", deriveEvalMetric())
     }
   }
 
   syncParams()
+
+  // only called when XGBParamMap is empty, i.e. in the constructor this(String)
+  private def fromParamsToXGBParamMap(): Map[String, Any] = {
+    require(xgboostParams.isEmpty, "fromParamsToXGBParamMap can only be called when" +
+      " XGBParamMap is empty, i.e. in the constructor this(String)")
+    val xgbParamMap = new mutable.HashMap[String, Any]()
+    for (param <- params) {
+      xgbParamMap += param.name -> $(param)
+    }
+    xgbParamMap.toMap
+  }
 
   /**
    * produce a XGBoostModel by fitting the given dataset
@@ -70,8 +107,15 @@ class XGBoostEstimator private[spark](
         LabeledPoint(label, feature)
     }
     transformSchema(trainingSet.schema, logging = true)
-    val trainedModel = XGBoost.trainWithRDD(instances, xgboostParams, $(round), $(nWorkers),
-      $(customObj), $(customEval), $(useExternalMemory), missing).setParent(this)
+    val localXGBParams = {
+      if (xgboostParams.isEmpty) {
+        fromParamsToXGBParamMap()
+      } else {
+        xgboostParams
+      }
+    }
+    val trainedModel = XGBoost.trainWithRDD(instances, localXGBParams, $(round), $(nWorkers),
+      $(customObj), $(customEval), $(useExternalMemory), $(missing)).setParent(this)
     val returnedModel = copyValues(trainedModel)
     if (XGBoost.isClassificationTask(
       if ($(customObj) == null) xgboostParams.get("objective") else xgboostParams.get("obj_type")))
@@ -79,8 +123,7 @@ class XGBoostEstimator private[spark](
       val numClass = {
         if (xgboostParams.contains("num_class")) {
           xgboostParams("num_class").asInstanceOf[Int]
-        }
-        else {
+        } else {
           2
         }
       }

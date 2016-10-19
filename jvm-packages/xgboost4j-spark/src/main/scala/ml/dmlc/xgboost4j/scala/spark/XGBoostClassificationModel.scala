@@ -27,10 +27,13 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Dataset, Row}
 
 class XGBoostClassificationModel private[spark](
-    override val uid: String, _booster: Booster)
-    extends XGBoostModel(_booster) {
+    override val uid: String, booster: Booster)
+    extends XGBoostModel(booster) {
 
-  def this(_booster: Booster) = this(Identifiable.randomUID("XGBoostClassificationModel"), _booster)
+  def this(booster: Booster) = this(Identifiable.randomUID("XGBoostClassificationModel"), booster)
+
+  // only called in copy()
+  def this(uid: String) = this(uid, null)
 
   // scalastyle:off
 
@@ -144,7 +147,9 @@ class XGBoostClassificationModel private[spark](
   def numClasses: Int = numOfClasses
 
   override def copy(extra: ParamMap): XGBoostClassificationModel = {
-    defaultCopy(extra)
+    val clsModel = defaultCopy(extra).asInstanceOf[XGBoostClassificationModel]
+    clsModel._booster = booster
+    clsModel
   }
 
   override protected def predict(features: MLVector): Double = {

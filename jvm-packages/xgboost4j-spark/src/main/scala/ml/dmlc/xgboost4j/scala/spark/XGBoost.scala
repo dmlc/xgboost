@@ -149,13 +149,14 @@ object XGBoost extends Serializable {
       featureCol: String = "features",
       labelCol: String = "label"): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
-    val estimator = new XGBoostEstimator(params, missing)
+    val estimator = new XGBoostEstimator(params)
     // assigning general parameters
     estimator.set(estimator.useExternalMemory, useExternalMemory)
     estimator.set(estimator.round, round)
     estimator.set(estimator.nWorkers, nWorkers)
     estimator.set(estimator.customObj, obj)
     estimator.set(estimator.customEval, eval)
+    estimator.set(estimator.missing, missing)
     estimator.setFeaturesCol(featureCol).setLabelCol(labelCol).fit(trainingData)
   }
 

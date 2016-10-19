@@ -40,6 +40,8 @@ private[spark] trait GeneralParams extends Params {
   val customEval = new Param[EvalTrait](this, "custom_obj", "customized evaluation function " +
     "provided by the user")
 
+  val missing = new FloatParam(this, "missing", "the value treated as missing")
+
   setDefault(round -> 1, nWorkers -> 1, useExternalMemory -> false, silent -> 0,
-    customObj -> null, customEval -> null)
+    customObj -> null, customEval -> null, missing -> Float.NaN)
 }

@@ -30,7 +30,7 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types.{FloatType, ArrayType, DataType}
 import org.apache.spark.{SparkContext, TaskContext}
 
-abstract class XGBoostModel(_booster: Booster)
+abstract class XGBoostModel(protected var _booster: Booster)
   extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params {
 
   def setLabelCol(name: String): XGBoostModel = set(labelCol, name)
@@ -214,8 +214,7 @@ abstract class XGBoostModel(_booster: Booster)
           val testDataset = new DMatrix(vectorIterator, cachePrefix)
           val rawPredictResults = {
             if (!predLeaf) {
-              broadcastBooster.value.predict(testDataset, outputMargin).
-                map(Row(_)).iterator
+              broadcastBooster.value.predict(testDataset, outputMargin).map(Row(_)).iterator
             } else {
               broadcastBooster.value.predictLeaf(testDataset).map(Row(_)).iterator
             }
