@@ -29,10 +29,11 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 import org.apache.spark.{SparkContext, TaskContext}
 
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.{SECONDS, Duration}
 
 object TrackerConf {
-  def apply(): TrackerConf = TrackerConf(Duration.Inf, Duration.Inf, "python")
+  def apply(): TrackerConf = TrackerConf(Duration.apply(Long.MaxValue, SECONDS),
+    Duration.apply(Long.MaxValue, SECONDS), "python")
 }
 
 /**
@@ -41,7 +42,7 @@ object TrackerConf {
   *                               a finite timeout value to prevent tracker from hanging
   *                               indefinitely.
   * @param trainingTimeout: the timeout for the training task.
-  * @param trackerImpl: choice between "python" or "akka". The former utilizes the Python-version
+  * @param trackerImpl: choice between "python" or "scala". The former utilizes the Python-version
   *                   of Rabit tracker (in dmlc_core), whereas the latter is implemented in Akka
   *                   without Python components, suitable for users experiencing issues with
   *                   Python. The Akka implementation is currently experimental, use at your own
@@ -234,7 +235,8 @@ object XGBoost extends Serializable {
         " customized objective function")
     }
     val tracker: IRabitTracker = trackerConf.trackerImpl match {
-      case "akka" => new AkkaRabitTracker(nWorkers)
+      case "scala" => new AkkaRabitTracker(nWorkers,
+        workerConnectionTimeout = trackerConf.workerConnectionTimeout)
       case "python" => new PyRabitTracker(nWorkers)
       case _ => new PyRabitTracker(nWorkers)
     }
@@ -249,9 +251,7 @@ object XGBoost extends Serializable {
     } else {
       overridedConfMap = configMap + ("nthread" -> sc.getConf.get("spark.task.cpus", "1").toInt)
     }
-    require(tracker.start(
-      trackerConf.workerConnectionTimeout.length,
-      trackerConf.workerConnectionTimeout.unit), "FAULT: Failed to start tracker")
+    require(tracker.start(), "FAULT: Failed to start tracker")
     val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
       tracker.getWorkerEnvs.asScala, nWorkers, round, obj, eval, useExternalMemory, missing)
     val sparkJobThread = new Thread() {
@@ -263,7 +263,7 @@ object XGBoost extends Serializable {
     sparkJobThread.start()
     val returnVal = tracker.waitFor(trackerConf.trainingTimeout.length,
       trackerConf.trainingTimeout.unit)
-    logger.info(s"Rabit returns with exit code $returnVal")
+
     if (returnVal == 0) {
       convertBoosterToXGBoostModel(boosters.first(),
         isClassificationTask(
