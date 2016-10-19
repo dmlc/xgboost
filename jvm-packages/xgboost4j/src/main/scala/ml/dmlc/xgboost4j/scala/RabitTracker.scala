@@ -27,23 +27,14 @@ import java.net.{InetAddress, InetSocketAddress}
 import java.util.concurrent.TimeoutException
 
 import scala.concurrent.duration._
-import akka.actor.ActorSystem
-import akka.pattern.ask
-import ml.dmlc.xgboost4j.java.IRabitTracker
-
 import scala.concurrent.{Await, Future, Promise}
 import scala.util.{Failure, Random, Success, Try}
+
+import akka.actor.ActorSystem
+import akka.pattern.ask
+
+import ml.dmlc.xgboost4j.java.IRabitTracker
 import ml.dmlc.xgboost4j.scala.handler.RabitTrackerHandler
-
-object RabitTracker {
-  def main(args: Array[String]): Unit = {
-    val tracker = new RabitTracker(196, Some(10080))
-    tracker.start()
-
-    println(tracker.getWorkerEnvs)
-    tracker.waitFor()
-  }
-}
 
 /**
   * Synchronous tracker class that mimics the Java API.
@@ -63,7 +54,8 @@ object RabitTracker {
   * }}}
   *
   * @param numWorkers number of distributed workers, each corresponding to a Spark task.
-  * @param port The minimum port that the tracker binds to.
+  * @param port The minimum port that the tracker binds to. If port is omitted, or given as None,
+  *             a random ephemeral port is chosen at runtime.
   * @param maxPortTrials The maximum number of trials of socket binding, by sequentially
   *        increasing port.
   * @param workerConnectionTimeout The timeout for awaiting connections from worker nodes.
