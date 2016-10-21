@@ -110,14 +110,33 @@ if(PLUGIN_UPDATER_GPU)
     )
 endif()
 
-add_executable(xgboost ${SOURCES})
-add_library(libxgboost SHARED ${SOURCES})
-target_link_libraries(xgboost dmlccore rabit)
-target_link_libraries(libxgboost dmlccore rabit)
+if(MSVC)
+    add_executable(xgboost ${SOURCES})
+    add_library(libxgboost SHARED ${SOURCES})
 
+    target_link_libraries(xgboost dmlccore rabit)
+    target_link_libraries(libxgboost dmlccore rabit)
+    
+    if(PLUGIN_UPDATER_GPU)
+        target_link_libraries(xgboost updater_gpu)
+        target_link_libraries(libxgboost updater_gpu)
+    endif()
 
-if(PLUGIN_UPDATER_GPU)
-    target_link_libraries(xgboost updater_gpu)
-    target_link_libraries(libxgboost updater_gpu)
+else()
+    add_executable(xgboost-bin ${SOURCES})
+    SET_TARGET_PROPERTIES(xgboost-bin PROPERTIES OUTPUT_NAME xgboost)
+    add_library(xgboost SHARED ${SOURCES})
+
+    target_link_libraries(xgboost-bin dmlccore rabit)
+    target_link_libraries(xgboost dmlccore rabit)
+    
+    if(PLUGIN_UPDATER_GPU)
+        target_link_libraries(xgboost-bin updater_gpu)
+        target_link_libraries(xgboost updater_gpu)
+    endif()
+    
 endif()
+
+
+
 
