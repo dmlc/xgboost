@@ -275,10 +275,10 @@ XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
 
 // declare parameter
 struct TweedieRegressionParam : public dmlc::Parameter<TweedieRegressionParam> {
-  float tweedie_dispersion;
+  float tweedie_variance_power;
   DMLC_DECLARE_PARAMETER(TweedieRegressionParam) {
-    DMLC_DECLARE_FIELD(tweedie_dispersion).set_range(1.0f, 2.0f).set_default(1.5f)
-      .describe("Tweedie dispersion parameter.  Must be between in range [1, 2).");
+    DMLC_DECLARE_FIELD(tweedie_variance_power).set_range(1.0f, 2.0f).set_default(1.5f)
+      .describe("Tweedie variance power.  Must be between in range [1, 2).");
   }
 };
 
@@ -306,10 +306,10 @@ class TweedieRegression : public ObjFunction {
       float p = preds[i];
       float w = info.GetWeight(i);
       float y = info.labels[i];
-      float td = param_.tweedie_dispersion;
+      float rho = param_.tweedie_variance_power;
       if (y >= 0.0f) {
-        float grad = -y * std::exp((1 - td) * p) + std::exp((2 - td) * p);
-        float hess =  -y * (1 - td) * std::exp((1 - td) * p) + (2 - td) * std::exp((2 - td) * p);
+        float grad = -y * std::exp((1 - rho) * p) + std::exp((2 - rho) * p);
+        float hess =  -y * (1 - rho) * std::exp((1 - rho) * p) + (2 - rho) * std::exp((2 - rho) * p);
         out_gpair->at(i) = bst_gpair(grad * w, hess * w);
       } else {
         label_correct = false;
@@ -327,7 +327,7 @@ class TweedieRegression : public ObjFunction {
   }
   const char* DefaultEvalMetric(void) const override {
     std::ostringstream os;
-    os << "tweedie-nloglik@" << param_.tweedie_dispersion;
+    os << "tweedie-nloglik@" << param_.tweedie_variance_power;
     std::string metric = os.str();
     return metric.c_str();
   }
