@@ -309,7 +309,7 @@ class TweedieRegression : public ObjFunction {
       float rho = param_.tweedie_variance_power;
       if (y >= 0.0f) {
         float grad = -y * std::exp((1 - rho) * p) + std::exp((2 - rho) * p);
-        float hess =  -y * (1 - rho) * std::exp((1 - rho) * p) + (2 - rho) * std::exp((2 - rho) * p);
+        float hess = -y * (1 - rho) * std::exp((1 - rho) * p) + (2 - rho) * std::exp((2 - rho) * p);
         out_gpair->at(i) = bst_gpair(grad * w, hess * w);
       } else {
         label_correct = false;
