@@ -16,6 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.lang.reflect.Modifier
+
 import scala.collection.mutable
 
 import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, GeneralParams, LearningTaskParams}
@@ -42,6 +44,14 @@ class XGBoostEstimator private[spark](
     this(Identifiable.randomUID("XGBoostEstimator"), xgboostParams: Map[String, Any])
 
   def this(uid: String) = this(uid, Map[String, Any]())
+
+  lazy val xgbParams: Array[Param[_]] = {
+    val fields = classOf[BoosterParams].getDeclaredMethods ++
+      classOf[GeneralParams].getDeclaredMethods ++ classOf[LearningTaskParams].getDeclaredMethods
+    fields.filter { m => classOf[Param[_]].isAssignableFrom(m.getReturnType) &&
+      m.getParameterTypes.isEmpty
+    }.sortBy(_.getName).map(m => m.invoke(this).asInstanceOf[Param[_]])
+  }
 
   // called in syncParams only when eval_metric is not defined
   private def deriveEvalMetric(): String = {
@@ -73,10 +83,10 @@ class XGBoostEstimator private[spark](
 
   private def syncParams(): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {
-      params.find(_.name == paramName) match {
+      xgbParams.find(_.name == paramName) match {
         case None =>
-        case Some(p: Param[_]) =>
-          set(paramName, $(p))
+        case Some(_: Param[_]) =>
+          set(paramName, paramValue)
       }
     }
     if (xgboostParams.get("eval_metric").isEmpty) {
@@ -91,7 +101,7 @@ class XGBoostEstimator private[spark](
     require(xgboostParams.isEmpty, "fromParamsToXGBParamMap can only be called when" +
       " XGBParamMap is empty, i.e. in the constructor this(String)")
     val xgbParamMap = new mutable.HashMap[String, Any]()
-    for (param <- params) {
+    for (param <- xgbParams) {
       xgbParamMap += param.name -> $(param)
     }
     xgbParamMap.toMap
@@ -118,11 +128,12 @@ class XGBoostEstimator private[spark](
       $(customObj), $(customEval), $(useExternalMemory), $(missing)).setParent(this)
     val returnedModel = copyValues(trainedModel)
     if (XGBoost.isClassificationTask(
-      if ($(customObj) == null) xgboostParams.get("objective") else xgboostParams.get("obj_type")))
+      if ($(customObj) == null) localXGBParams.get("objective") else
+        localXGBParams.get("obj_type")))
     {
       val numClass = {
-        if (xgboostParams.contains("num_class")) {
-          xgboostParams("num_class").asInstanceOf[Int]
+        if (localXGBParams.contains("num_class")) {
+          localXGBParams("num_class").asInstanceOf[Int]
         } else {
           2
         }

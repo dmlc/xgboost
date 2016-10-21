@@ -65,11 +65,24 @@ class XGBoostClassificationModel private[spark](
       temporalColName: Option[String] = None,
       forceTransformedScore: Option[Boolean] = None): DataFrame = {
     val predictRDD = produceRowRDD(testSet, forceTransformedScore.getOrElse($(outputMargin)))
-    testSet.sparkSession.createDataFrame(predictRDD, schema = {
+    val colName = temporalColName.getOrElse($(rawPredictionCol))
+    val tempColName = colName + "_arraytype"
+    val dsWithArrayType = testSet.sparkSession.createDataFrame(predictRDD, schema = {
       StructType(testSet.schema.add(StructField(
-        temporalColName.getOrElse($(rawPredictionCol)),
+        tempColName,
         ArrayType(FloatType, containsNull = false), nullable = false)))
     })
+    val transformerForProbabilitiesArray =
+      (rawPredArray: mutable.WrappedArray[Float]) =>
+        if (numClasses == 2) {
+          Array(1 - rawPredArray(0), rawPredArray(0)).map(_.toDouble)
+        } else {
+          rawPredArray.map(_.toDouble).array
+        }
+    dsWithArrayType.withColumn(colName,
+      udf((rawPredArray: mutable.WrappedArray[Float]) =>
+        new MLDenseVector(transformerForProbabilitiesArray(rawPredArray))).apply(col(tempColName))).
+      drop(tempColName)
   }
 
   private def fromFeatureToPrediction(testSet: Dataset[_]): Dataset[_] = {
@@ -80,28 +93,28 @@ class XGBoostClassificationModel private[spark](
     tempDF.select(allColumnNames(0), allColumnNames.tail: _*)
   }
 
-  private def argMax(vector: mutable.WrappedArray[Float]): Double = {
+  private def argMax(vector: Array[Double]): Double = {
     vector.zipWithIndex.maxBy(_._1)._2
   }
 
-  private def raw2prediction(rawPrediction: mutable.WrappedArray[Float]): Double = {
+  private def raw2prediction(rawPrediction: MLDenseVector): Double = {
     if (!isDefined(thresholds)) {
-      argMax(rawPrediction)
+      argMax(rawPrediction.values)
     } else {
       probability2prediction(rawPrediction)
     }
   }
 
-  private def probability2prediction(probability: mutable.WrappedArray[Float]): Double = {
+  private def probability2prediction(probability: MLDenseVector): Double = {
     if (!isDefined(thresholds)) {
-      argMax(probability)
+      argMax(probability.values)
     } else {
       val thresholds: Array[Double] = getThresholds
-      val scaledProbability: mutable.WrappedArray[Double] =
-        probability.zip(thresholds).map { case (p, t) =>
+      val scaledProbability =
+        probability.values.zip(thresholds).map { case (p, t) =>
           if (t == 0.0) Double.PositiveInfinity else p / t
         }
-      argMax(scaledProbability.map(_.toFloat))
+      argMax(scaledProbability)
     }
   }
 
