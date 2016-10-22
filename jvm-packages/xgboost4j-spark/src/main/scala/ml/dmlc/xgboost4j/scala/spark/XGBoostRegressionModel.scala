@@ -38,8 +38,8 @@ class XGBoostRegressionModel private[spark](override val uid: String, booster: B
     transformSchema(testSet.schema, logging = true)
     val predictRDD = produceRowRDD(testSet)
     testSet.sparkSession.createDataFrame(predictRDD,
-      schema = StructType(testSet.schema.add(StructField($(predictionCol) + "_temp",
-          ArrayType(FloatType, containsNull = false))))
+      schema = testSet.schema.add($(predictionCol) + "_temp",
+        ArrayType(FloatType, containsNull = false))
     ).withColumn(
       $(predictionCol),
       udf((regressionResults: mutable.WrappedArray[Float]) => regressionResults(0)).

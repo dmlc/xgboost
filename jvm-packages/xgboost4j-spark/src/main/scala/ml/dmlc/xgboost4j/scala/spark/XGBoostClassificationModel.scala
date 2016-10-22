@@ -68,9 +68,7 @@ class XGBoostClassificationModel private[spark](
     val colName = temporalColName.getOrElse($(rawPredictionCol))
     val tempColName = colName + "_arraytype"
     val dsWithArrayType = testSet.sparkSession.createDataFrame(predictRDD, schema = {
-      StructType(testSet.schema.add(StructField(
-        tempColName,
-        ArrayType(FloatType, containsNull = false), nullable = false)))
+      testSet.schema.add(tempColName, ArrayType(FloatType, containsNull = false))
     })
     val transformerForProbabilitiesArray =
       (rawPredArray: mutable.WrappedArray[Float]) =>
