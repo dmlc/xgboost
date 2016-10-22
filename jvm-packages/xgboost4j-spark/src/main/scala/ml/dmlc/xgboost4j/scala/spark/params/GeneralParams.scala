@@ -30,7 +30,7 @@ private[spark] trait GeneralParams extends Params {
   val useExternalMemory = new BooleanParam(this, "use_external_memory", "whether to use external" +
     "memory as cache")
 
-  val silent = new Param[Int](this, "silent",
+  val silent = new IntParam(this, "silent",
     "0 means printing running messages, 1 means silent mode.",
     (value: Int) => value >= 0 && value <= 1)
 

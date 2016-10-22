@@ -26,6 +26,7 @@ import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.LabeledPoint
+import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.sql._
 
 class XGBoostDFSuite extends SharedSparkContext with Utils {
@@ -66,13 +67,15 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
       "id", "features", "label")
     val predResultsFromDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF).
       collect().map(row =>
-      (row.getAs[Int]("id"), row.getAs[mutable.WrappedArray[Float]]("probabilities"))
+      (row.getAs[Int]("id"), row.getAs[DenseVector]("probabilities"))
     ).toMap
     assert(testDF.count() === predResultsFromDF.size)
+    // the vector length in probabilties column is 2 since we have to fit to the evaluator in
+    // Spark
     for (i <- predResultFromSeq.indices) {
-      assert(predResultFromSeq(i).length === predResultsFromDF(i).length)
+      assert(predResultFromSeq(i).length === predResultsFromDF(i).values.length - 1)
       for (j <- predResultFromSeq(i).indices) {
-        assert(predResultFromSeq(i)(j) === predResultsFromDF(i)(j))
+        assert(predResultFromSeq(i)(j) === predResultsFromDF(i)(j + 1))
       }
     }
     cleanExternalCache("XGBoostDFSuite")

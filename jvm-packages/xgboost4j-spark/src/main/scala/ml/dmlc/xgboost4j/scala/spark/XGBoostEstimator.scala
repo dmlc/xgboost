@@ -85,7 +85,16 @@ class XGBoostEstimator private[spark](
     for ((paramName, paramValue) <- xgboostParams) {
       xgbParams.find(_.name == paramName) match {
         case None =>
+        case Some(_: DoubleParam) =>
+          set(paramName, paramValue.toString.toDouble)
+        case Some(_: BooleanParam) =>
+          set(paramName, paramValue.toString.toBoolean)
+        case Some(_: IntParam) =>
+          set(paramName, paramValue.toString.toInt)
+        case Some(_: FloatParam) =>
+          set(paramName, paramValue.toString.toFloat)
         case Some(_: Param[_]) =>
+          println(paramName)
           set(paramName, paramValue)
       }
     }
