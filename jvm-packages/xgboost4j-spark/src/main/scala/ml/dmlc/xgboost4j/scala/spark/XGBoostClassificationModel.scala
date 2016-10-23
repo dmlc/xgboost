@@ -18,19 +18,22 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable
 
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-import org.apache.spark.ml.linalg.{Vector => MLVector, DenseVector => MLDenseVector}
+import ml.dmlc.xgboost4j.scala.Booster
+import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
 import org.apache.spark.ml.param.{DoubleArrayParam, Param, ParamMap}
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{DataFrame, Dataset, Row}
+import org.apache.spark.sql.{DataFrame, Dataset}
 
 class XGBoostClassificationModel private[spark](
-    override val uid: String, _booster: Booster)
-    extends XGBoostModel(_booster) {
+    override val uid: String, booster: Booster)
+    extends XGBoostModel(booster) {
 
-  def this(_booster: Booster) = this(Identifiable.randomUID("XGBoostClassificationModel"), _booster)
+  def this(booster: Booster) = this(Identifiable.randomUID("XGBoostClassificationModel"), booster)
+
+  // only called in copy()
+  def this(uid: String) = this(uid, null)
 
   // scalastyle:off
 
@@ -57,16 +60,28 @@ class XGBoostClassificationModel private[spark](
 
   // scalastyle:on
 
+  // generate dataframe containing raw prediction column which is typed as Vector
   private def predictRaw(
       testSet: Dataset[_],
       temporalColName: Option[String] = None,
       forceTransformedScore: Option[Boolean] = None): DataFrame = {
     val predictRDD = produceRowRDD(testSet, forceTransformedScore.getOrElse($(outputMargin)))
-    testSet.sparkSession.createDataFrame(predictRDD, schema = {
-      StructType(testSet.schema.add(StructField(
-        temporalColName.getOrElse($(rawPredictionCol)),
-        ArrayType(FloatType, containsNull = false), nullable = false)))
+    val colName = temporalColName.getOrElse($(rawPredictionCol))
+    val tempColName = colName + "_arraytype"
+    val dsWithArrayTypedRawPredCol = testSet.sparkSession.createDataFrame(predictRDD, schema = {
+      testSet.schema.add(tempColName, ArrayType(FloatType, containsNull = false))
     })
+    val transformerForProbabilitiesArray =
+      (rawPredArray: mutable.WrappedArray[Float]) =>
+        if (numClasses == 2) {
+          Array(1 - rawPredArray(0), rawPredArray(0)).map(_.toDouble)
+        } else {
+          rawPredArray.map(_.toDouble).array
+        }
+    dsWithArrayTypedRawPredCol.withColumn(colName,
+      udf((rawPredArray: mutable.WrappedArray[Float]) =>
+        new MLDenseVector(transformerForProbabilitiesArray(rawPredArray))).apply(col(tempColName))).
+      drop(tempColName)
   }
 
   private def fromFeatureToPrediction(testSet: Dataset[_]): Dataset[_] = {
@@ -77,28 +92,28 @@ class XGBoostClassificationModel private[spark](
     tempDF.select(allColumnNames(0), allColumnNames.tail: _*)
   }
 
-  private def argMax(vector: mutable.WrappedArray[Float]): Double = {
+  private def argMax(vector: Array[Double]): Double = {
     vector.zipWithIndex.maxBy(_._1)._2
   }
 
-  private def raw2prediction(rawPrediction: mutable.WrappedArray[Float]): Double = {
+  private def raw2prediction(rawPrediction: MLDenseVector): Double = {
     if (!isDefined(thresholds)) {
-      argMax(rawPrediction)
+      argMax(rawPrediction.values)
     } else {
       probability2prediction(rawPrediction)
     }
   }
 
-  private def probability2prediction(probability: mutable.WrappedArray[Float]): Double = {
+  private def probability2prediction(probability: MLDenseVector): Double = {
     if (!isDefined(thresholds)) {
-      argMax(probability)
+      argMax(probability.values)
     } else {
       val thresholds: Array[Double] = getThresholds
-      val scaledProbability: mutable.WrappedArray[Double] =
-        probability.zip(thresholds).map { case (p, t) =>
+      val scaledProbability =
+        probability.values.zip(thresholds).map { case (p, t) =>
           if (t == 0.0) Double.PositiveInfinity else p / t
         }
-      argMax(scaledProbability.map(_.toFloat))
+      argMax(scaledProbability)
     }
   }
 
@@ -144,7 +159,9 @@ class XGBoostClassificationModel private[spark](
   def numClasses: Int = numOfClasses
 
   override def copy(extra: ParamMap): XGBoostClassificationModel = {
-    defaultCopy(extra)
+    val clsModel = defaultCopy(extra).asInstanceOf[XGBoostClassificationModel]
+    clsModel._booster = booster
+    clsModel
   }
 
   override protected def predict(features: MLVector): Double = {

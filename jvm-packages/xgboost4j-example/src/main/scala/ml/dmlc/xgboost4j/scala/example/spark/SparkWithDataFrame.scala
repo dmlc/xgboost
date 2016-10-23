@@ -20,39 +20,38 @@ import ml.dmlc.xgboost4j.scala.Booster
 import ml.dmlc.xgboost4j.scala.spark.{XGBoost, DataUtils}
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{SQLContext, Row}
+import org.apache.spark.sql.{SparkSession, SQLContext, Row}
 import org.apache.spark.{SparkContext, SparkConf}
 
 object SparkWithDataFrame {
   def main(args: Array[String]): Unit = {
-    if (args.length != 5) {
+    if (args.length != 4) {
       println(
-        "usage: program num_of_rounds num_workers training_path test_path model_path")
+        "usage: program num_of_rounds num_workers training_path test_path")
       sys.exit(1)
     }
     // create SparkSession
     val sparkConf = new SparkConf().setAppName("XGBoost-spark-example")
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     sparkConf.registerKryoClasses(Array(classOf[Booster]))
-    val sqlContext = new SQLContext(new SparkContext(sparkConf))
+    // val sqlContext = new SQLContext(new SparkContext(sparkConf))
+    val sparkSession = SparkSession.builder().config(sparkConf).getOrCreate()
     // create training and testing dataframes
+    val numRound = args(0).toInt
     val inputTrainPath = args(2)
     val inputTestPath = args(3)
-    val outputModelPath = args(4)
-    // number of iterations
-    val numRound = args(0).toInt
-    import DataUtils._
-    val trainRDDOfRows = MLUtils.loadLibSVMFile(sqlContext.sparkContext, inputTrainPath).
+    // build dataset
+    val trainRDDOfRows = MLUtils.loadLibSVMFile(sparkSession.sparkContext, inputTrainPath).
       map{ labeledPoint => Row(labeledPoint.features, labeledPoint.label)}
-    val trainDF = sqlContext.createDataFrame(trainRDDOfRows, StructType(
+    val trainDF = sparkSession.createDataFrame(trainRDDOfRows, StructType(
       Array(StructField("features", ArrayType(FloatType)), StructField("label", IntegerType))))
-    val testRDDOfRows = MLUtils.loadLibSVMFile(sqlContext.sparkContext, inputTestPath).
+    val testRDDOfRows = MLUtils.loadLibSVMFile(sparkSession.sparkContext, inputTestPath).
       zipWithIndex().map{ case (labeledPoint, id) =>
       Row(id, labeledPoint.features, labeledPoint.label)}
-    val testDF = sqlContext.createDataFrame(testRDDOfRows, StructType(
+    val testDF = sparkSession.createDataFrame(testRDDOfRows, StructType(
       Array(StructField("id", LongType),
         StructField("features", ArrayType(FloatType)), StructField("label", IntegerType))))
-    // training parameters
+    // start training
     val paramMap = List(
       "eta" -> 0.1f,
       "max_depth" -> 2,
