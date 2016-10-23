@@ -27,6 +27,7 @@ import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.ml.linalg.DenseVector
+import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 
 class XGBoostDFSuite extends SharedSparkContext with Utils {
@@ -163,4 +164,29 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(predictionDF.columns.contains("final_prediction") === false)
     cleanExternalCache("XGBoostDFSuite")
   }
+
+  test("xgboost and spark parameters synchronize correctly") {
+    val xgbParamMap = Map("eta" -> "1", "objective" -> "binary:logistic")
+    // from xgboost params to spark params
+    val xgbEstimator = new XGBoostEstimator(xgbParamMap)
+    assert(xgbEstimator.get(xgbEstimator.eta).get === 1.0)
+    assert(xgbEstimator.get(xgbEstimator.objective).get === "binary:logistic")
+    // from spark to xgboost params
+    val xgbEstimatorCopy = xgbEstimator.copy(ParamMap.empty)
+    assert(xgbEstimatorCopy.xgboostParams.get("eta").get.toString.toDouble === 1.0)
+    assert(xgbEstimatorCopy.xgboostParams.get("objective").get.toString === "binary:logistic")
+  }
+
+  test("eval_metric is configured correctly") {
+    val xgbParamMap = Map("eta" -> "1", "objective" -> "binary:logistic")
+    val xgbEstimator = new XGBoostEstimator(xgbParamMap)
+    assert(xgbEstimator.get(xgbEstimator.evalMetric).get === "error")
+    val sparkParamMap = ParamMap.empty
+    val xgbEstimatorCopy = xgbEstimator.copy(sparkParamMap)
+    assert(xgbEstimatorCopy.xgboostParams.get("eval_metric") === Some("error"))
+    val xgbEstimatorCopy1 = xgbEstimator.copy(sparkParamMap.put(xgbEstimator.evalMetric, "logloss"))
+    assert(xgbEstimatorCopy1.xgboostParams.get("eval_metric") === Some("logloss"))
+  }
+
+
 }

@@ -160,9 +160,10 @@ object XGBoost extends Serializable {
     estimator.setFeaturesCol(featureCol).setLabelCol(labelCol).fit(trainingData)
   }
 
-  private[spark] def isClassificationTask(objective: Option[Any]): Boolean = {
-    objective.isDefined && {
-      val objStr = objective.get.toString
+  private[spark] def isClassificationTask(paramsMap: Map[String, Any]): Boolean = {
+    val objective = paramsMap.getOrElse("objective", paramsMap.getOrElse("obj_type", null))
+    objective != null && {
+      val objStr = objective.toString
       objStr == "classification" || (!objStr.startsWith("reg:") && objStr != "count:poisson" &&
         objStr != "rank:pairwise")
     }
@@ -248,12 +249,7 @@ object XGBoost extends Serializable {
         " you have to specify the objective type as classification or regression with a" +
         " customized objective function")
     }
-    val isClsTask = isClassificationTask(
-      if (obj == null) {
-        configMap.get("objective")
-      } else {
-        configMap.get("obj_type")
-      })
+    val isClsTask = isClassificationTask(configMap)
     val trackerReturnVal = tracker.waitFor()
     logger.info(s"Rabit returns with exit code $trackerReturnVal")
     postTrackerReturnProcessing(trackerReturnVal, boosters, overridedConfMap, sparkJobThread,

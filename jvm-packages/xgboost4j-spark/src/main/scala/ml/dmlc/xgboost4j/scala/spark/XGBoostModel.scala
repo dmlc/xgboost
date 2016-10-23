@@ -37,7 +37,8 @@ abstract class XGBoostModel(protected var _booster: Booster)
 
   // scalastyle:off
 
-  final val useExternalMemory: Param[Boolean] = new Param[Boolean](this, "useExternalMemory", "whether to use external memory for prediction")
+  final val useExternalMemory: Param[Boolean] = new Param[Boolean](this,
+    "useExternalMemory", "whether to use external memory for prediction")
 
   setDefault(useExternalMemory, false)
 

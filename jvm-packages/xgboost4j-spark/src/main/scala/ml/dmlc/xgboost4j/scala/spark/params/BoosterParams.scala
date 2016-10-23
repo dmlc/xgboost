@@ -121,15 +121,15 @@ private[spark] trait BoosterParams extends Params {
     val validParamList = {
       if (boosterTypeStr == "gblinear") {
         // gblinear
-        xgbParams.filter(param => param.name == "lambda" ||
+        params.filter(param => param.name == "lambda" ||
           param.name == "alpha" || param.name == "lambda_bias")
       } else if (boosterTypeStr != "dart") {
         // gbtree
-        xgbParams.filter(param => param.name != "sample_type" &&
+        params.filter(param => param.name != "sample_type" &&
           param.name != "normalize_type" && param.name != "rate_drop" && param.name != "skip_drop")
       } else {
         // dart
-        xgbParams.filter(_.name != "lambda_bias")
+        params.filter(_.name != "lambda_bias")
       }
     }
     explainParam(boosterType) + "\n" ++ validParamList.map(explainParam).mkString("\n")
