@@ -25,7 +25,7 @@ private[spark] trait BoosterParams extends Params {
   this: XGBoostEstimator =>
 
   val boosterType = new Param[String](this, "booster",
-    s"Booster to use ${BoosterParams.supportedBoosters.mkString(", ")}.",
+    s"Booster to use, options: {'gbtree', 'gblinear', 'dart'}",
     (value: String) => BoosterParams.supportedBoosters.contains(value.toLowerCase))
 
   // Tree Booster parameters
@@ -73,7 +73,7 @@ private[spark] trait BoosterParams extends Params {
     " value will make model more conservative.", (value: Double) => value >= 0)
 
   val treeMethod = new Param[String](this, "tree_method",
-    "The tree construction algorithm used in XGBoost, Choices: {'auto', 'exact', 'approx'}",
+    "The tree construction algorithm used in XGBoost, options: {'auto', 'exact', 'approx'}",
     (value: String) => BoosterParams.supportedTreeMethods.contains(value))
 
   val sketchEps = new DoubleParam(this, "sketch_eps",
@@ -88,10 +88,12 @@ private[spark] trait BoosterParams extends Params {
 
   // Dart boosters
 
-  val sampleType = new Param[String](this, "sample_type", "type of sampling algorithm.",
+  val sampleType = new Param[String](this, "sample_type", "type of sampling algorithm, options:" +
+    " {'uniform', 'weighted'}",
     (value: String) => BoosterParams.supportedSampleType.contains(value))
 
-  val normalizeType = new Param[String](this, "normalize_type", "type of normalization algorithm.",
+  val normalizeType = new Param[String](this, "normalize_type", "type of normalization" +
+    " algorithm, options: {'tree', 'forest'}",
     (value: String) => BoosterParams.supportedNormalizeType.contains(value))
 
   val rateDrop = new DoubleParam(this, "rate_drop", "dropout rate", (value: Double) =>

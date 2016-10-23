@@ -22,15 +22,17 @@ import org.apache.spark.ml.param.{DoubleParam, Param, Params}
 
 private[spark] trait LearningTaskParams extends Params {
 
-  val objective = new Param[String](this, "objective", "objective function used during training",
+  val objective = new Param[String](this, "objective", "objective function used for training," +
+    s" options: {${LearningTaskParams.supportedObjective.mkString(",")}",
     (value: String) => LearningTaskParams.supportedObjective.contains(value))
 
   val baseScore = new DoubleParam(this, "base_score", "the initial prediction score of all" +
     " instances, global bias")
 
   val evalMetric = new Param[String](this, "eval_metric", "evaluation metrics for validation" +
-    " data, a default metric will be assigned according to objective( rmse for regression, and" +
-    " error for classification, mean average precision for ranking )",
+    " data, a default metric will be assigned according to objective (rmse for regression, and" +
+    " error for classification, mean average precision for ranking), options: " +
+    s" {${LearningTaskParams.supportedEvalMetrics.mkString(",")}}",
     (value: String) => LearningTaskParams.supportedEvalMetrics.contains(value))
 
   setDefault(objective -> "reg:linear", baseScore -> 0.5)
