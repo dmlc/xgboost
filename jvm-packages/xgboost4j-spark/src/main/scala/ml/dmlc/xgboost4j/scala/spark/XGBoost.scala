@@ -78,18 +78,18 @@ object XGBoost extends Serializable {
   }
 
   private[spark] def buildDistributedBoosters(
-      trainingData: RDD[MLLabeledPoint],
+      trainingSet: RDD[MLLabeledPoint],
       xgBoostConfMap: Map[String, Any],
       rabitEnv: mutable.Map[String, String],
       numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
       useExternalMemory: Boolean, missing: Float = Float.NaN): RDD[Booster] = {
     import DataUtils._
-    val partitionedData = repartitionData(trainingData, numWorkers)
-    val appName = partitionedData.context.appName
+    val partitionedTrainingSet = repartitionData(trainingSet, numWorkers)
+    val appName = partitionedTrainingSet.context.appName
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    partitionedData.mapPartitions {
+    partitionedTrainingSet.mapPartitions {
       trainingSamples =>
         rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
         Rabit.init(rabitEnv.asJava)
@@ -172,7 +172,7 @@ object XGBoost extends Serializable {
   /**
    *
    * @param trainingData the trainingset represented as RDD
-   * @param configMap Map containing the configuration entries
+   * @param params Map containing the configuration entries
    * @param round the number of iterations
    * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
    *                 workers equals to the partition number of trainingData RDD
@@ -184,26 +184,28 @@ object XGBoost extends Serializable {
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
-  def train(trainingData: RDD[MLLabeledPoint], configMap: Map[String, Any], round: Int,
+  def train(
+      trainingData: RDD[MLLabeledPoint], params: Map[String, Any], round: Int,
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
       useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
-    trainWithRDD(trainingData, configMap, round, nWorkers, obj, eval, useExternalMemory, missing)
+    trainWithRDD(trainingData, params, round, nWorkers, obj, eval, useExternalMemory, missing)
   }
 
-  private def configureThreadNum(configMap: Map[String, Any], sc: SparkContext):
-      Map[String, Any] = {
-    var overridedConfMap = configMap
-    if (overridedConfMap.contains("nthread")) {
-      val nThread = overridedConfMap("nthread").toString.toInt
-      val coresPerTask = sc.getConf.get("spark.task.cpus", "1").toInt
+  private def overrideParamMapAccordingtoTaskCPUs(
+      params: Map[String, Any],
+      sc: SparkContext): Map[String, Any] = {
+    val coresPerTask = sc.getConf.get("spark.task.cpus", "1").toInt
+    var overridedParams = params
+    if (overridedParams.contains("nthread")) {
+      val nThread = overridedParams("nthread").toString.toInt
       require(nThread <= coresPerTask,
         s"the nthread configuration ($nThread) must be no larger than " +
           s"spark.task.cpus ($coresPerTask)")
     } else {
-      overridedConfMap = configMap + ("nthread" -> sc.getConf.get("spark.task.cpus", "1").toInt)
+      overridedParams = params + ("nthread" -> coresPerTask)
     }
-    overridedConfMap
+    overridedParams
   }
 
   private def startTracker(nWorkers: Int): RabitTracker = {
@@ -215,7 +217,7 @@ object XGBoost extends Serializable {
   /**
    *
    * @param trainingData the trainingset represented as RDD
-   * @param configMap Map containing the configuration entries
+   * @param params Map containing the configuration entries
    * @param round the number of iterations
    * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
    *                 workers equals to the partition number of trainingData RDD
@@ -228,13 +230,13 @@ object XGBoost extends Serializable {
    * @return XGBoostModel when successful training
    */
   @throws(classOf[XGBoostError])
-  private[spark] def trainWithRDD(
-      trainingData: RDD[MLLabeledPoint], configMap: Map[String, Any], round: Int,
+  def trainWithRDD(
+      trainingData: RDD[MLLabeledPoint], params: Map[String, Any], round: Int,
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
       useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
     val tracker = startTracker(nWorkers)
-    val overridedConfMap = configureThreadNum(configMap, trainingData.sparkContext)
+    val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
     val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
       tracker.getWorkerEnvs.asScala, nWorkers, round, obj, eval, useExternalMemory, missing)
     val sparkJobThread = new Thread() {
@@ -245,11 +247,11 @@ object XGBoost extends Serializable {
     }
     sparkJobThread.start()
     if (obj != null) {
-      require(configMap.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
+      require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
         " you have to specify the objective type as classification or regression with a" +
         " customized objective function")
     }
-    val isClsTask = isClassificationTask(configMap)
+    val isClsTask = isClassificationTask(params)
     val trackerReturnVal = tracker.waitFor()
     logger.info(s"Rabit returns with exit code $trackerReturnVal")
     postTrackerReturnProcessing(trackerReturnVal, boosters, overridedConfMap, sparkJobThread,

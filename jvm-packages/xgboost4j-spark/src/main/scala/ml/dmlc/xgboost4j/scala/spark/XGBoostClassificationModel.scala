@@ -60,6 +60,7 @@ class XGBoostClassificationModel private[spark](
 
   // scalastyle:on
 
+  // generate dataframe containing raw prediction column which is typed as Vector
   private def predictRaw(
       testSet: Dataset[_],
       temporalColName: Option[String] = None,
@@ -67,7 +68,7 @@ class XGBoostClassificationModel private[spark](
     val predictRDD = produceRowRDD(testSet, forceTransformedScore.getOrElse($(outputMargin)))
     val colName = temporalColName.getOrElse($(rawPredictionCol))
     val tempColName = colName + "_arraytype"
-    val dsWithArrayType = testSet.sparkSession.createDataFrame(predictRDD, schema = {
+    val dsWithArrayTypedRawPredCol = testSet.sparkSession.createDataFrame(predictRDD, schema = {
       testSet.schema.add(tempColName, ArrayType(FloatType, containsNull = false))
     })
     val transformerForProbabilitiesArray =
@@ -77,7 +78,7 @@ class XGBoostClassificationModel private[spark](
         } else {
           rawPredArray.map(_.toDouble).array
         }
-    dsWithArrayType.withColumn(colName,
+    dsWithArrayTypedRawPredCol.withColumn(colName,
       udf((rawPredArray: mutable.WrappedArray[Float]) =>
         new MLDenseVector(transformerForProbabilitiesArray(rawPredArray))).apply(col(tempColName))).
       drop(tempColName)

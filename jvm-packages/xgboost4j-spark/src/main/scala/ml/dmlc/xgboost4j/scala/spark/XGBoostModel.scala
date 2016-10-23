@@ -75,14 +75,13 @@ abstract class XGBoostModel(protected var _booster: Booster)
    * @param evalFunc the customized evaluation function, null by default to use the default metric
    *             of model
    * @param iter the current iteration, -1 to be null to use customized evaluation functions
-   * @param useExternalCache if use external cache
    * @return the average metric over all partitions
    */
   def eval(evalDataset: RDD[MLLabeledPoint], evalName: String, evalFunc: EvalTrait = null,
            iter: Int = -1, useExternalCache: Boolean = false): String = {
     require(evalFunc != null || iter != -1, "you have to specify the value of either eval or iter")
     if (evalFunc == null) {
-
+      // use the default eval_metrics according to objective function
       val broadcastBooster = evalDataset.sparkContext.broadcast(_booster)
       val appName = evalDataset.context.appName
       val allEvalMetrics = evalDataset.mapPartitions {
@@ -112,8 +111,41 @@ abstract class XGBoostModel(protected var _booster: Booster)
       val evalMetricMean = allEvalMetrics.map(_.get._2).sum / allEvalMetrics.length
       s"$evalPrefix = $evalMetricMean"
     } else {
-      XGBoostModel.eval(_booster, evalDataset, evalName, evalFunc, useExternalCache)
+      evalWithCustomizedEvalFunc(_booster, evalDataset, evalName, evalFunc, useExternalCache)
     }
+  }
+
+  def evalWithCustomizedEvalFunc(
+      booster: Booster, evalDataset: RDD[MLLabeledPoint], evalName: String,
+      evalFunc: EvalTrait, useExternalCache: Boolean = false): String = {
+    require(evalFunc != null, "you have to specify the value of either eval or iter")
+    val broadcastBooster = evalDataset.sparkContext.broadcast(booster)
+    val appName = evalDataset.context.appName
+    val allEvalMetrics = evalDataset.mapPartitions {
+      labeledPointsPartition =>
+        if (labeledPointsPartition.hasNext) {
+          val rabitEnv = Map("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
+          Rabit.init(rabitEnv.asJava)
+          val cacheFileName = {
+            if (useExternalCache) {
+              s"$appName-${TaskContext.get().stageId()}-$evalName" +
+                s"-deval_cache-${TaskContext.getPartitionId()}"
+            } else {
+              null
+            }
+          }
+          import DataUtils._
+          val dMatrix = new DMatrix(labeledPointsPartition, cacheFileName)
+          val predictions = broadcastBooster.value.predict(dMatrix)
+          Rabit.shutdown()
+          Iterator(Some((evalName, evalFunc.eval(predictions, dMatrix))))
+        } else {
+          Iterator(None)
+        }
+    }.filter(_.isDefined).collect()
+    val evalPrefix = allEvalMetrics.map(_.get._1).head
+    val evalMetricMean = allEvalMetrics.map(_.get._2).sum / allEvalMetrics.length
+    s"$evalPrefix = $evalMetricMean"
   }
 
   /**
@@ -286,52 +318,4 @@ abstract class XGBoostModel(protected var _booster: Booster)
   // override protected def featuresDataType: DataType = new VectorUDT
 
   def booster: Booster = _booster
-}
-
-
-private[spark] object XGBoostModel {
-  /**
-   * evaluate XGBoostModel with a RDD-wrapped dataset
-   *
-   * NOTE: you have to specify value of either eval or iter; when you specify both, this method
-   * adopts the default eval metric of model
-   *
-   * @param evalDataset the dataset used for evaluation
-   * @param evalName the name of evaluation
-   * @param evalFunc the customized evaluation function, null by default to use the default metric
-   *             of model
-   * @param useExternalCache if use external cache
-   * @return the average metric over all partitions
-   */
-  def eval(booster: Booster, evalDataset: RDD[MLLabeledPoint], evalName: String,
-           evalFunc: EvalTrait = null, useExternalCache: Boolean = false): String = {
-    require(evalFunc != null, "you have to specify the value of either eval or iter")
-    val broadcastBooster = evalDataset.sparkContext.broadcast(booster)
-    val appName = evalDataset.context.appName
-    val allEvalMetrics = evalDataset.mapPartitions {
-      labeledPointsPartition =>
-        if (labeledPointsPartition.hasNext) {
-          val rabitEnv = Map("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
-          Rabit.init(rabitEnv.asJava)
-          val cacheFileName = {
-            if (useExternalCache) {
-              s"$appName-${TaskContext.get().stageId()}-$evalName" +
-                s"-deval_cache-${TaskContext.getPartitionId()}"
-            } else {
-              null
-            }
-          }
-          import DataUtils._
-          val dMatrix = new DMatrix(labeledPointsPartition, cacheFileName)
-          val predictions = broadcastBooster.value.predict(dMatrix)
-          Rabit.shutdown()
-          Iterator(Some((evalName, evalFunc.eval(predictions, dMatrix))))
-        } else {
-          Iterator(None)
-        }
-    }.filter(_.isDefined).collect()
-    val evalPrefix = allEvalMetrics.map(_.get._1).head
-    val evalMetricMean = allEvalMetrics.map(_.get._2).sum / allEvalMetrics.length
-    s"$evalPrefix = $evalMetricMean"
-  }
 }

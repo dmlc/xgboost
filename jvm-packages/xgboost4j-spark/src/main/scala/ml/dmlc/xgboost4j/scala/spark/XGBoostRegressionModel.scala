@@ -37,13 +37,14 @@ class XGBoostRegressionModel private[spark](override val uid: String, booster: B
   override protected def transformImpl(testSet: Dataset[_]): DataFrame = {
     transformSchema(testSet.schema, logging = true)
     val predictRDD = produceRowRDD(testSet)
+    val tempPredColName = $(predictionCol) + "_temp"
+    val transformerForArrayTypedPredCol =
+      udf((regressionResults: mutable.WrappedArray[Float]) => regressionResults(0))
     testSet.sparkSession.createDataFrame(predictRDD,
-      schema = testSet.schema.add($(predictionCol) + "_temp",
-        ArrayType(FloatType, containsNull = false))
+      schema = testSet.schema.add(tempPredColName, ArrayType(FloatType, containsNull = false))
     ).withColumn(
       $(predictionCol),
-      udf((regressionResults: mutable.WrappedArray[Float]) => regressionResults(0)).
-        apply(col($(predictionCol) + "_temp"))).drop($(predictionCol) + "_temp")
+      transformerForArrayTypedPredCol.apply(col(tempPredColName))).drop(tempPredColName)
   }
 
   override protected def predict(features: MLVector): Double = {

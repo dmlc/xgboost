@@ -98,7 +98,7 @@ class XGBoostEstimator private[spark](
   fromXGBParamMapToParams()
 
   // only called when XGBParamMap is empty, i.e. in the constructor this(String)
-  // TODO: redesign to be functional
+  // TODO: refactor to be functional
   private def fromParamsToXGBParamMap(): Map[String, Any] = {
     require(xgboostParams.isEmpty, "fromParamsToXGBParamMap can only be called when" +
       " XGBParamMap is empty, i.e. in the constructor this(String)")
