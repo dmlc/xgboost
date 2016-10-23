@@ -24,7 +24,7 @@ import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType}
+import org.apache.spark.sql.types.{ArrayType, FloatType}
 
 class XGBoostRegressionModel private[spark](override val uid: String, booster: Booster)
   extends XGBoostModel(booster) {

@@ -18,13 +18,13 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable
 
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-import org.apache.spark.ml.linalg.{Vector => MLVector, DenseVector => MLDenseVector}
+import ml.dmlc.xgboost4j.scala.Booster
+import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
 import org.apache.spark.ml.param.{DoubleArrayParam, Param, ParamMap}
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{DataFrame, Dataset, Row}
+import org.apache.spark.sql.{DataFrame, Dataset}
 
 class XGBoostClassificationModel private[spark](
     override val uid: String, booster: Booster)

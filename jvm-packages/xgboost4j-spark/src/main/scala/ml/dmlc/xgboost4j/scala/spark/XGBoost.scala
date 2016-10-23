@@ -25,7 +25,7 @@ import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
-import org.apache.spark.ml.linalg.{DenseVector, SparseVector}
+import org.apache.spark.ml.linalg.SparseVector
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 import org.apache.spark.{SparkContext, TaskContext}
@@ -151,13 +151,16 @@ object XGBoost extends Serializable {
     require(nWorkers > 0, "you must specify more than 0 workers")
     val estimator = new XGBoostEstimator(params)
     // assigning general parameters
-    estimator.set(estimator.useExternalMemory, useExternalMemory)
-    estimator.set(estimator.round, round)
-    estimator.set(estimator.nWorkers, nWorkers)
-    estimator.set(estimator.customObj, obj)
-    estimator.set(estimator.customEval, eval)
-    estimator.set(estimator.missing, missing)
-    estimator.setFeaturesCol(featureCol).setLabelCol(labelCol).fit(trainingData)
+    estimator.
+      set(estimator.useExternalMemory, useExternalMemory).
+      set(estimator.round, round).
+      set(estimator.nWorkers, nWorkers).
+      set(estimator.customObj, obj).
+      set(estimator.customEval, eval).
+      set(estimator.missing, missing).
+      setFeaturesCol(featureCol).
+      setLabelCol(labelCol).
+      fit(trainingData)
   }
 
   private[spark] def isClassificationTask(paramsMap: Map[String, Any]): Boolean = {
@@ -235,6 +238,11 @@ object XGBoost extends Serializable {
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
       useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
+    if (obj != null) {
+      require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
+        " you have to specify the objective type as classification or regression with a" +
+        " customized objective function")
+    }
     val tracker = startTracker(nWorkers)
     val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
     val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
@@ -246,11 +254,6 @@ object XGBoost extends Serializable {
       }
     }
     sparkJobThread.start()
-    if (obj != null) {
-      require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
-        " you have to specify the objective type as classification or regression with a" +
-        " customized objective function")
-    }
     val isClsTask = isClassificationTask(params)
     val trackerReturnVal = tracker.waitFor()
     logger.info(s"Rabit returns with exit code $trackerReturnVal")

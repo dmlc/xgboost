@@ -16,12 +16,6 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.io.File
-
-import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
-import scala.io.Source
-
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import org.apache.spark.SparkContext

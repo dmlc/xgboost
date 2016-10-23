@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark.params
 import scala.collection.immutable.HashSet
 
 import ml.dmlc.xgboost4j.scala.spark.XGBoostEstimator
-import org.apache.spark.ml.param.{Param, IntParam, DoubleParam, Params}
+import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
 
 private[spark] trait BoosterParams extends Params {
   this: XGBoostEstimator =>

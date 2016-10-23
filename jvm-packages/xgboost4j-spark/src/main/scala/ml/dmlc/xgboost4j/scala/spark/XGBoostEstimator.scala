@@ -16,8 +16,6 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.lang.reflect.Modifier
-
 import scala.collection.mutable
 
 import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, GeneralParams, LearningTaskParams}
@@ -47,7 +45,7 @@ class XGBoostEstimator private[spark](
 
 
   // called in fromXGBParamMapToParams only when eval_metric is not defined
-  private def deriveEvalMetric(): String = {
+  private def setupDefaultEvalMetric(): String = {
     val objFunc = xgboostParams.getOrElse("objective", xgboostParams.getOrElse("obj_type", null))
     if (objFunc == null) {
       "rmse"
@@ -91,7 +89,7 @@ class XGBoostEstimator private[spark](
       }
     }
     if (xgboostParams.get("eval_metric").isEmpty) {
-      set("eval_metric", deriveEvalMetric())
+      set("eval_metric", setupDefaultEvalMetric())
     }
   }
 
@@ -139,8 +137,8 @@ class XGBoostEstimator private[spark](
   override def copy(extra: ParamMap): XGBoostEstimator = {
     val est = defaultCopy(extra).asInstanceOf[XGBoostEstimator]
     // we need to synchronize the params here instead of in the constructor
-    // because we cannot guarantee that params (default implementation) is initialized before
-    // the other params
+    // because we cannot guarantee that params (default implementation) is initialized fully
+    // before the other params
     est.fromParamsToXGBParamMap()
     est
   }
