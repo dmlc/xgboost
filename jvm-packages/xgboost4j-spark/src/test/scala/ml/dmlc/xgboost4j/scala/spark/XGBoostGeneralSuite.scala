@@ -122,7 +122,8 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5, nWorkers = numWorkers)
-    xgBoostModel.eval(trainingRDD, "eval1", iter = 5, useExternalCache = false)
+    // Nan Zhu: deprecate it for now
+    // xgBoostModel.eval(trainingRDD, "eval1", iter = 5, useExternalCache = false)
     xgBoostModel.eval(trainingRDD, "eval2", evalFunc = new EvalError, useExternalCache = false)
   }
 
