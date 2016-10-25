@@ -1,6 +1,6 @@
 Distributed XGBoost Training
 ============================
-This is an tutorial of Distributed XGBoost Training.
+This is the tutorial of Distributed XGBoost Training.
 Currently xgboost supports distributed training via CLI program with the configuration file.
 There is also plan push distributed python and other language bindings, please open an issue
 if you are interested in contributing.

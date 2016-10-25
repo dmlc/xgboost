@@ -17,6 +17,7 @@ package ml.dmlc.xgboost4j.java.example;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 
 import ml.dmlc.xgboost4j.java.DMatrix;
 import ml.dmlc.xgboost4j.java.XGBoost;
@@ -30,10 +31,10 @@ import ml.dmlc.xgboost4j.java.XGBoostError;
 public class CrossValidation {
   public static void main(String[] args) throws IOException, XGBoostError {
     //load train mat
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix trainMat = new DMatrix("../demo/data/agaricus.txt.train");
 
     //set params
-    HashMap<String, Object> params = new HashMap<String, Object>();
+    Map<String, Object> params = new HashMap<>();
 
     params.put("eta", 1.0);
     params.put("max_depth", 3);

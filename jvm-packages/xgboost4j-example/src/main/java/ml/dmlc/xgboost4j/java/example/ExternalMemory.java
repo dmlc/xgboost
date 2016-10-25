@@ -16,6 +16,7 @@
 package ml.dmlc.xgboost4j.java.example;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
@@ -36,7 +37,7 @@ public class ExternalMemory {
     DMatrix testMat = new DMatrix("../demo/data/agaricus.txt.test#dtest.cache");
 
     //specify parameters
-    HashMap<String, Object> params = new HashMap<String, Object>();
+    Map<String, Object> params = new HashMap<>();
     params.put("eta", 1.0);
     params.put("max_depth", 2);
     params.put("silent", 1);
@@ -45,10 +46,10 @@ public class ExternalMemory {
     //performance notice: set nthread to be the number of your real cpu
     //some cpu offer two threads per core, for example, a 4 core cpu with 8 threads, in such case
     // set nthread=4
-    //param.put("nthread", num_real_cpu);
+    //params.put("nthread", num_real_cpu);
 
     //specify watchList
-    HashMap<String, DMatrix> watches = new HashMap<String, DMatrix>();
+    Map<String, DMatrix> watches = new HashMap<>();
     watches.put("train", trainMat);
     watches.put("test", testMat);
 

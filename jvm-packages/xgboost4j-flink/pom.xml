@@ -9,7 +9,8 @@
         <version>0.7</version>
     </parent>
     <artifactId>xgboost4j-flink</artifactId>
-    <version>0.7</version>
+    <version>${xgboost.jvm.version}</version>
+    <packaging>jar</packaging>
     <build>
         <plugins>
             <plugin>
@@ -21,12 +22,11 @@
             </plugin>
         </plugins>
     </build>
-    <packaging>jar</packaging>
     <dependencies>
         <dependency>
             <groupId>ml.dmlc</groupId>
             <artifactId>xgboost4j</artifactId>
-            <version>0.7</version>
+            <version>${xgboost.jvm.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -36,17 +36,17 @@
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-scala${flink.suffix}</artifactId>
-            <version>0.10.2</version>
+            <version>${flink.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-clients${flink.suffix}</artifactId>
-            <version>0.10.2</version>
+            <version>${flink.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-ml${flink.suffix}</artifactId>
-            <version>0.10.2</version>
+            <version>${flink.version}</version>
         </dependency>
     </dependencies>
 

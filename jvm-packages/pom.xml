@@ -3,7 +3,6 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost-jvm</artifactId>
     <version>0.7</version>
@@ -25,8 +24,8 @@
     <modules>
         <module>xgboost4j</module>
         <module>xgboost4j-example</module>
-        <module>xgboost4j-spark</module>
         <module>xgboost4j-flink</module>
+        <module>xgboost4j-spark</module>
     </modules>
     <profiles>
         <profile>
@@ -36,9 +35,11 @@
             </activation>
             <properties>
                 <spark.version>2.0.1</spark.version>
+                <flink.version>0.10.2</flink.version>
                 <flink.suffix>_2.11</flink.suffix>
                 <scala.version>2.11.8</scala.version>
                 <scala.binary.version>2.11</scala.binary.version>
+                <xgboost.jvm.version>0.7</xgboost.jvm.version>
             </properties>
         </profile>
     </profiles>
@@ -51,11 +52,13 @@
                 <configuration>
                     <verbose>false</verbose>
                     <failOnViolation>true</failOnViolation>
-                    <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                    <failOnWarning>false</failOnWarning>
+                    <includeTestSourceDirectory>false</includeTestSourceDirectory>
                     <sourceDirectory>${basedir}/src/main/scala</sourceDirectory>
                     <testSourceDirectory>${basedir}/src/test/scala</testSourceDirectory>
                     <configLocation>scalastyle-config.xml</configLocation>
                     <outputEncoding>UTF-8</outputEncoding>
+                    <inputEncoding>UTF-8</inputEncoding>
                 </configuration>
                 <executions>
                     <execution>
@@ -147,7 +150,6 @@
                     </execution>
                 </executions>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>

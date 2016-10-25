@@ -25,7 +25,7 @@ import org.apache.commons.logging.{LogFactory, Log}
 /**
  * an example user define objective and eval
  * NOTE: when you do customized loss function, the default prediction value is margin
- * this may make buildin evalution metric not function properly
+ * this may make buildin evaluation metric not function properly
  * for example, we are doing logistic loss, the prediction is score before logistic transformation
  * he buildin evaluation error assumes input is after logistic transformation
  * Take this in mind when you use the customization, and maybe you need write customized evaluation
@@ -138,8 +138,8 @@ object CustomObjective {
   }
 
   def main(args: Array[String]): Unit = {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val trainMat = new DMatrix("../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../demo/data/agaricus.txt.test")
     val params = new mutable.HashMap[String, Any]()
     params += "eta" -> 1.0
     params += "max_depth" -> 2

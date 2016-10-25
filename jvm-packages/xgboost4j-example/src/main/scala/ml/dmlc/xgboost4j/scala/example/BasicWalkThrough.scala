@@ -26,8 +26,8 @@ import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
 
 object BasicWalkThrough {
   def main(args: Array[String]): Unit = {
-    val trainMax = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMax = new DMatrix("../../demo/data/agaricus.txt.test")
+    val trainMax = new DMatrix("../demo/data/agaricus.txt.train")
+    val testMax = new DMatrix("../demo/data/agaricus.txt.test")
 
     val params = new mutable.HashMap[String, Any]()
     params += "eta" -> 1.0
@@ -49,11 +49,10 @@ object BasicWalkThrough {
     if (!file.exists()) {
       file.mkdirs()
     }
+
     booster.saveModel(file.getAbsolutePath + "/xgb.model")
-    // dump model
-    booster.getModelDump(file.getAbsolutePath + "/dump.raw.txt", false)
     // dump model with feature map
-    booster.getModelDump(file.getAbsolutePath + "/featmap.txt", false)
+    booster.getModelDump("../demo/data/featmap.txt", false)
     // save dmatrix into binary buffer
     testMax.saveBinary(file.getAbsolutePath + "/dtest.buffer")
 
@@ -67,7 +66,7 @@ object BasicWalkThrough {
 
     // build dmatrix from CSR Sparse Matrix
     println("start build dmatrix from csr sparse data ...")
-    val spData = DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train")
+    val spData = DataLoader.loadSVMFile("../demo/data/agaricus.txt.train")
     val trainMax2 = new DMatrix(spData.rowHeaders, spData.colIndex, spData.data,
       JDMatrix.SparseType.CSR)
     trainMax2.setLabel(spData.labels)
@@ -91,4 +90,5 @@ object BasicWalkThrough {
     }
     true
   }
+
 }

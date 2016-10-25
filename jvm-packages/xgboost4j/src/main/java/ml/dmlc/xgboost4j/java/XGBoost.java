@@ -78,11 +78,11 @@ public class XGBoost {
       IObjective obj,
       IEvaluation eval) throws XGBoostError {
 
-    //collect eval matrixs
+    //collect eval matrices
     String[] evalNames;
     DMatrix[] evalMats;
-    List<String> names = new ArrayList<String>();
-    List<DMatrix> mats = new ArrayList<DMatrix>();
+    List<String> names = new ArrayList<>();
+    List<DMatrix> mats = new ArrayList<>();
 
     for (Map.Entry<String, DMatrix> evalEntry : watches.entrySet()) {
       names.add(evalEntry.getKey());
@@ -92,7 +92,7 @@ public class XGBoost {
     evalNames = names.toArray(new String[names.size()]);
     evalMats = mats.toArray(new DMatrix[mats.size()]);
 
-    //collect all data matrixs
+    //collect all data matrices
     DMatrix[] allMats;
     if (evalMats != null && evalMats.length > 0) {
       allMats = new DMatrix[evalMats.length + 1];
@@ -237,7 +237,7 @@ public class XGBoost {
   }
 
   private static List<Integer> genRandPermutationNums(int start, int end) {
-    List<Integer> samples = new ArrayList<Integer>();
+    List<Integer> samples = new ArrayList<>();
     for (int i = start; i < end; i++) {
       samples.add(i);
     }
