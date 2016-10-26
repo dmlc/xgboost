@@ -46,7 +46,7 @@ val xgboostModel = XGBoost.trainWithDataFrame(
       indexed, paramMap, numRound, nWorkers, useExternalMemory)
 ```
 
-The most charming benefit brought by the full integration of XGBoost and Spark DataFrame/Dataset might be the availability of pipeline and parameter tuning tool of Spark ML package to XGBoost users. The following example shows how to build such a pipeline and tune the hyperparameters.
+The most charming benefit brought by the full integration of XGBoost and Spark DataFrame/Dataset might be the availability of pipeline and parameter tuning tool of Spark ML package to XGBoost users. The following example shows how to build such a pipeline consisting of feature transformers and the XGBoost estimator with the default learning parameters.
 
 
 ```scala
@@ -67,11 +67,13 @@ val vectorAssembler = new VectorAssembler()
 
 // construct the pipeline       
 val pipeline = new Pipeline().setStages(
-      Array(storeTypeIndexer, ..., vectorAssembler))
+      Array(storeTypeIndexer, ..., vectorAssembler, new XGBoostEstimator(Map[String, Any]()))
 
 // use the transformed dataframe as training dataset
 val xgboostModel = pipeline.fit(salesDF).transform(salesDF)
 ```
+
+
 
 
 ## An Example of Pipeline based on XGBoost and Spark
