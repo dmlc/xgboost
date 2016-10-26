@@ -17,7 +17,6 @@
 package ml.dmlc.xgboost4j.scala.example
 
 import java.io.File
-import java.util
 
 import scala.collection.mutable
 
@@ -27,7 +26,6 @@ import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
 
 object BasicWalkThrough {
   def main(args: Array[String]): Unit = {
-    import BasicWalkThrough._
     val trainMax = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMax = new DMatrix("../../demo/data/agaricus.txt.test")
 
