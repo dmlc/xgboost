@@ -73,9 +73,21 @@ val pipeline = new Pipeline().setStages(
 val xgboostModel = pipeline.fit(salesDF).transform(salesDF)
 ```
 
-The most critical operation to maximize the power of XGBoost is to tune the parameters. Tuning parameters manually is a tedious and labor-consuming process. With the integration of XGBoost and Spark, we can utilize the Spark model selecting tool to automate this process. 
+The most critical operation to maximize the power of XGBoost is to tune the parameters. Tuning parameters manually is a tedious and labor-consuming process. With the integration of XGBoost and Spark, we can utilize the Spark model selecting tool to automate this process. The following example shows the code snippet utilizing the TrainValidationSplit and RegressionEvaluator tool to search the optimal combination of two xgboost parameters, [max_depth and eta] (https://github.com/dmlc/xgboost/blob/master/doc/parameter.md)
 
 ```scala
+val xgbEstimator = new XGBoostEstimator(xgboostParam).setFeaturesCol("features").
+      setLabelCol("sales")
+val paramGrid = new ParamGridBuilder()
+      .addGrid(xgbEstimator.maxDepth, Array(5, 6))
+      .addGrid(xgbEstimator.eta, Array(0.1, 0.4))
+      .build()
+val tv = new TrainValidationSplit()
+      .setEstimator(xgbEstimator)
+      .setEvaluator(new RegressionEvaluator().setLabelCol("sales"))
+      .setEstimatorParamMaps(paramGrid)
+      .setTrainRatio(0.8)  // Use 3+ in practice
+tv.fit(trainingData)
 ```
 
 
