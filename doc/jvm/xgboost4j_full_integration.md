@@ -73,9 +73,10 @@ val pipeline = new Pipeline().setStages(
 val xgboostModel = pipeline.fit(salesDF).transform(salesDF)
 ```
 
-The most critical operation to maximize the power of XGBoost is to tune the parameters. Manually 
+The most critical operation to maximize the power of XGBoost is to tune the parameters. Tuning parameters manually is a tedious and labor-consuming process. With the integration of XGBoost and Spark, we can utilize the Spark model selecting tool to automate this process. 
 
+```scala
+```
 
-## An Example of Pipeline based on XGBoost and Spark
 
 
