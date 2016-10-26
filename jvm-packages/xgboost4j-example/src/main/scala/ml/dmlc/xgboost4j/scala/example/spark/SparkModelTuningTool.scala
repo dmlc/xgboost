@@ -35,7 +35,7 @@ case class Store(storeId: Int, storeType: String, assortment: String, competitio
                  competitionOpenSinceMonth: Int, competitionOpenSinceYear: Int, promo2: Int,
                  promo2SinceWeek: Int, promo2SinceYear: Int, promoInterval: String)
 
-object Main {
+object SparkModelTuningTool {
 
   private def parseStoreFile(storeFilePath: String): List[Store] = {
     var isHeader = true
