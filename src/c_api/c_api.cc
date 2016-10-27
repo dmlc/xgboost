@@ -366,18 +366,15 @@ XGB_DLL int XGDMatrixCreateFromMat(const float* data,
 }
 
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
-                                  const int* idxset,
-                                  xgboost::bst_ulong len,
-                                  DMatrixHandle* out) {
+  const int* idxset,
+  xgboost::bst_ulong len,
+  DMatrixHandle* out) {
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
   API_BEGIN();
   data::SimpleCSRSource src;
   src.CopyFrom(static_cast<std::shared_ptr<DMatrix>*>(handle)->get());
   data::SimpleCSRSource& ret = *source;
-
-  CHECK_EQ(src.info.group_ptr.size(), 0)
-      << "slice does not support group structure";
 
   ret.Clear();
   ret.info.num_row = len;
@@ -387,14 +384,16 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
   iter->BeforeFirst();
   CHECK(iter->Next());
 
+  std::vector<xgboost::bst_ulong> idx(len);
   const RowBatch& batch = iter->Value();
   for (xgboost::bst_ulong i = 0; i < len; ++i) {
     const int ridx = idxset[i];
+
     RowBatch::Inst inst = batch[ridx];
     CHECK_LT(static_cast<xgboost::bst_ulong>(ridx), batch.size);
     ret.row_data_.resize(ret.row_data_.size() + inst.length);
     std::memcpy(dmlc::BeginPtr(ret.row_data_) + ret.row_ptr_.back(), inst.data,
-                sizeof(RowBatch::Entry) * inst.length);
+      sizeof(RowBatch::Entry) * inst.length);
     ret.row_ptr_.push_back(ret.row_ptr_.back() + inst.length);
     ret.info.num_nonzero += inst.length;
 
@@ -407,7 +406,75 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
     if (src.info.root_index.size() != 0) {
       ret.info.root_index.push_back(src.info.root_index[ridx]);
     }
+    if (src.info.group_ptr.size() != 0) {
+      idx[i] = i;
+    }
   }
+
+  //If this contains 'group' information, we need to recreate the group data. It is imperative
+  //that slice group indexes provided are 1) located together and 2) fully intact:
+  if (src.info.group_ptr.size() != 0) {
+    //transform idx to hold the mapping of the original idxset indexes to an ordered version of idxset:
+    std::sort(idx.begin(), idx.end(), [idxset](xgboost::bst_ulong i1, xgboost::bst_ulong i2) {return idxset[i1] < idxset[i2]; });
+    std::vector<xgboost::bst_ulong> related_grp(len);
+
+    xgboost::bst_ulong ixPos = 0;
+    xgboost::bst_ulong num_groups = 0;
+    //loop through the original group items until a match is found for slice index groups (i.e., idxset):
+    for (xgboost::bst_ulong a = 1, end = src.info.group_ptr.size(); a < end && ixPos != len; a++) {
+      xgboost::bst_ulong cumlGrpSize = src.info.group_ptr[a];
+      if (static_cast<xgboost::bst_ulong>(idxset[idx[ixPos]]) >= cumlGrpSize) 
+        continue; //not a matching group so move to next group
+      else {
+        num_groups++;
+        //validate groups are formatted correctly and create a group mapping per row index (i.e., related_grp):
+        xgboost::bst_ulong minIncl = src.info.group_ptr[a - 1];
+        xgboost::bst_ulong minIndex = static_cast<xgboost::bst_ulong>(idx[ixPos]);
+        xgboost::bst_ulong maxIndex = minIndex;
+        for (xgboost::bst_ulong i = minIncl; i < cumlGrpSize; i++) {
+          //Though we have valid indexes, they may not be grouped together correctly so check by relative neighbours.
+          //This is done by comparing index to the known min and max of group and group size:
+          xgboost::bst_ulong index = static_cast<xgboost::bst_ulong>(idx[ixPos]);
+          if (minIndex > index)
+            minIndex = index;
+          if (maxIndex < index)
+            maxIndex = index;
+          if (i != static_cast<xgboost::bst_ulong>(idxset[idx[ixPos]]) || (maxIndex - minIndex >= cumlGrpSize - minIncl))
+          {
+            LOG(FATAL) << "Incomplete/split/duplicate index group found in the slice! Review group containing (or missing) index: " << i; // idxset[idx[ixPos]];
+          }
+
+          related_grp[idx[ixPos]] = cumlGrpSize - minIncl;
+          ixPos++;
+        }
+      }
+    }
+
+    //lastly, we need to convert 'related_grp' into the expected format for the new slice 'group_ptr'
+    ret.info.group_ptr.resize(num_groups + 1);
+    ret.info.group_ptr[0] = 0;
+    xgboost::bst_ulong cycle = 1;
+    xgboost::bst_ulong grpSize = 0;
+    xgboost::bst_ulong count = 1;
+    xgboost::bst_ulong sum = 0;
+    for (xgboost::bst_ulong i = 0; i < len; i++) {
+      if (count == 1)
+        grpSize = related_grp[i];
+      
+      if (count == grpSize) {
+        sum += grpSize;
+        ret.info.group_ptr[cycle] = sum;
+        cycle++;
+        count = 1;
+      }
+      else
+        count++;
+      
+      if (grpSize != related_grp[i]) //the previous validation checks should catch all problems, but just in case...
+        LOG(FATAL) << "Slice indexes must be grouped consecutively! Review group containing index: " << idxset[i];
+    }
+  }
+
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
