@@ -199,7 +199,7 @@ object SparkModelTuningTool {
     params += "ntreelimit" -> 1000
     params += "objective" -> "reg:linear"
     params += "subsample" -> 0.8
-    params += "round" -> 100
+    params += "num_round" -> 100
 
     val bestModel = crossValidation(params.toMap, featureEngineeredDF)
   }
