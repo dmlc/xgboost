@@ -30,6 +30,9 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types.{ArrayType, FloatType}
 import org.apache.spark.{SparkContext, TaskContext}
 
+/**
+ * the base class of [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
+ */
 abstract class XGBoostModel(protected var _booster: Booster)
   extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params {
 

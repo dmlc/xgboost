@@ -29,9 +29,7 @@ import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.sql.{Dataset, Row}
 
 /**
- * the estimator wrapping XGBoost to produce a training model
- *
- * @param xgboostParams the parameters configuring XGBoost
+ * XGBoost Estimator to produce a XGBoost model
  */
 class XGBoostEstimator private[spark](
   override val uid: String, private[spark] var xgboostParams: Map[String, Any])
