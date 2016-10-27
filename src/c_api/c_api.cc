@@ -427,9 +427,8 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
     for (xgboost::bst_ulong a = 1, end = src.info.group_ptr.size(); a < end && ixPos != len; a++) {
       xgboost::bst_ulong cumlGrpSize = src.info.group_ptr[a];
       if (static_cast<xgboost::bst_ulong>(idxset[idx[ixPos]]) >= cumlGrpSize) {
-        continue;  //not a matching group so move to next group
-      }
-      else {
+        continue;  // not a matching group so move to next group
+      } else {
         num_groups++;
         // validate groups are formatted correctly and create a group mapping
         // per row index (i.e., related_grp):
