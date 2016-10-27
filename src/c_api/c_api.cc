@@ -422,15 +422,16 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
 
     xgboost::bst_ulong ixPos = 0;
     xgboost::bst_ulong num_groups = 0;
-    // loop through the original group items until a match is found 
+    // loop through the original group items until a match is found
     // for slice index groups (i.e., idxset):
     for (xgboost::bst_ulong a = 1, end = src.info.group_ptr.size(); a < end && ixPos != len; a++) {
       xgboost::bst_ulong cumlGrpSize = src.info.group_ptr[a];
-      if (static_cast<xgboost::bst_ulong>(idxset[idx[ixPos]]) >= cumlGrpSize) 
-        continue; //not a matching group so move to next group
+      if (static_cast<xgboost::bst_ulong>(idxset[idx[ixPos]]) >= cumlGrpSize) {
+        continue;  //not a matching group so move to next group
+      }
       else {
         num_groups++;
-        // validate groups are formatted correctly and create a group mapping 
+        // validate groups are formatted correctly and create a group mapping
         // per row index (i.e., related_grp):
         xgboost::bst_ulong minIncl = src.info.group_ptr[a - 1];
         xgboost::bst_ulong minIndex = static_cast<xgboost::bst_ulong>(idx[ixPos]);
@@ -444,8 +445,8 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
             minIndex = index;
           if (maxIndex < index)
             maxIndex = index;
-          if (i != static_cast<xgboost::bst_ulong>(idxset[idx[ixPos]]) 
-            || (maxIndex - minIndex >= cumlGrpSize - minIncl)){
+          if (i != static_cast<xgboost::bst_ulong>(idxset[idx[ixPos]])
+            || (maxIndex - minIndex >= cumlGrpSize - minIncl)) {
             LOG(FATAL) << "Incomplete/split/duplicate index group found in the slice! "
               << "Review group containing (or missing) index: " << i;
           }
@@ -456,7 +457,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
       }
     }
 
-    // lastly, we need to convert 'related_grp' into the expected format for 
+    // lastly, we need to convert 'related_grp' into the expected format for
     // the new slice 'group_ptr'
     ret.info.group_ptr.resize(num_groups + 1);
     ret.info.group_ptr[0] = 0;
@@ -467,19 +468,19 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
     for (xgboost::bst_ulong i = 0; i < len; i++) {
       if (count == 1)
         grpSize = related_grp[i];
-      
+
       if (count == grpSize) {
         sum += grpSize;
         ret.info.group_ptr[cycle] = sum;
         cycle++;
         count = 1;
-      }
-      else
+      } else {
         count++;
-      
+      }
+
       // the previous validation checks should catch all problems, but just in case...
       if (grpSize != related_grp[i])
-        LOG(FATAL) << "Slice indexes must be grouped consecutively! " 
+        LOG(FATAL) << "Slice indexes must be grouped consecutively! "
           << "Review group containing index: " << idxset[i];
     }
   }
