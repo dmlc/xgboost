@@ -439,8 +439,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
             minIndex = index;
           if (maxIndex < index)
             maxIndex = index;
-          if (i != static_cast<xgboost::bst_ulong>(idxset[idx[ixPos]]) || (maxIndex - minIndex >= cumlGrpSize - minIncl))
-          {
+          if (i != static_cast<xgboost::bst_ulong>(idxset[idx[ixPos]]) || (maxIndex - minIndex >= cumlGrpSize - minIncl)){
             LOG(FATAL) << "Incomplete/split/duplicate index group found in the slice! Review group containing (or missing) index: " << i; // idxset[idx[ixPos]];
           }
 
