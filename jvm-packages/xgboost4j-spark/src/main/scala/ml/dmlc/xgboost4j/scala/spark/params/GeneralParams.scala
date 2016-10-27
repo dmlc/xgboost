@@ -24,7 +24,10 @@ private[spark] trait GeneralParams extends Params {
   val round = new IntParam(this, "num_round", "The number of rounds for boosting",
     ParamValidators.gtEq(1))
 
-  val nWorkers = new IntParam(this, "nthread", "number of workers used to run xgboost",
+  val nWorkers = new IntParam(this, "nworkers", "number of workers used to run xgboost",
+    ParamValidators.gtEq(1))
+
+  val numThreadPerTask = new IntParam(this, "nthread", "number of threads used by per worker",
     ParamValidators.gtEq(1))
 
   val useExternalMemory = new BooleanParam(this, "use_external_memory", "whether to use external" +
@@ -42,6 +45,7 @@ private[spark] trait GeneralParams extends Params {
 
   val missing = new FloatParam(this, "missing", "the value treated as missing")
 
-  setDefault(round -> 1, nWorkers -> 1, useExternalMemory -> false, silent -> 0,
+  setDefault(round -> 1, nWorkers -> 1, numThreadPerTask -> 1,
+    useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN)
 }
