@@ -27,7 +27,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Dataset}
 
 /**
- * class representing the XGBoost model used for classification task
+ * class of the XGBoost model used for classification task
  */
 class XGBoostClassificationModel private[spark](
     override val uid: String, booster: Booster)
