@@ -17,7 +17,6 @@
 package ml.dmlc.xgboost4j.scala.example
 
 import java.io.File
-import java.util
 
 import scala.collection.mutable
 
@@ -25,9 +24,8 @@ import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.java.example.util.DataLoader
 import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
 
-class BasicWalkThrough {
+object BasicWalkThrough {
   def main(args: Array[String]): Unit = {
-    import BasicWalkThrough._
     val trainMax = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMax = new DMatrix("../../demo/data/agaricus.txt.test")
 
@@ -82,9 +80,7 @@ class BasicWalkThrough {
     val predicts3 = booster3.predict(testMax2)
     println(checkPredicts(predicts, predicts3))
   }
-}
 
-object BasicWalkThrough {
   def checkPredicts(fPredicts: Array[Array[Float]], sPredicts: Array[Array[Float]]): Boolean = {
     require(fPredicts.length == sPredicts.length, "the comparing predicts must be with the same " +
       "length")
