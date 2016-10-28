@@ -30,6 +30,9 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types.{ArrayType, FloatType}
 import org.apache.spark.{SparkContext, TaskContext}
 
+/**
+ * the base class of [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
+ */
 abstract class XGBoostModel(protected var _booster: Booster)
   extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params {
 
@@ -76,24 +79,18 @@ abstract class XGBoostModel(protected var _booster: Booster)
    * @param iter the current iteration, -1 to be null to use customized evaluation functions
    * @return the average metric over all partitions
    */
-  @deprecated(message = "this API is deprecated from 0.7," +
-    " use eval(booster: Booster, evalDataset: RDD[MLLabeledPoint], evalName: String,iter: Int) or" +
-    " eval(booster: Booster, evalDataset: RDD[MLLabeledPoint], evalName: String," +
-    " evalFunc: EvalTrait) instead", since = "0.7")
   def eval(evalDataset: RDD[MLLabeledPoint], evalName: String, evalFunc: EvalTrait = null,
            iter: Int = -1, useExternalCache: Boolean = false): String = {
     require(evalFunc != null || iter != -1, "you have to specify the value of either eval or iter")
     if (evalFunc == null) {
-      eval(_booster, evalDataset, evalName, iter)
+      eval(evalDataset, evalName, iter)
     } else {
-      eval(_booster, evalDataset, evalName, evalFunc)
+      eval(evalDataset, evalName, evalFunc)
     }
   }
 
   // TODO: refactor to remove duplicate code in two variations of eval()
-  def eval(
-      booster: Booster, evalDataset: RDD[MLLabeledPoint], evalName: String,
-      iter: Int): String = {
+  private def eval(evalDataset: RDD[MLLabeledPoint], evalName: String, iter: Int): String = {
     val broadcastBooster = evalDataset.sparkContext.broadcast(_booster)
     val broadcastUseExternalCache = evalDataset.sparkContext.broadcast($(useExternalMemory))
     val appName = evalDataset.context.appName
@@ -125,11 +122,10 @@ abstract class XGBoostModel(protected var _booster: Booster)
     s"$evalPrefix = $evalMetricMean"
   }
 
-  def eval(
-      booster: Booster, evalDataset: RDD[MLLabeledPoint], evalName: String,
-      evalFunc: EvalTrait): String = {
+  private def eval(evalDataset: RDD[MLLabeledPoint], evalName: String, evalFunc: EvalTrait):
+      String = {
     require(evalFunc != null, "you have to specify the value of either eval or iter")
-    val broadcastBooster = evalDataset.sparkContext.broadcast(booster)
+    val broadcastBooster = evalDataset.sparkContext.broadcast(_booster)
     val broadcastUseExternalCache = evalDataset.sparkContext.broadcast($(useExternalMemory))
     val appName = evalDataset.context.appName
     val allEvalMetrics = evalDataset.mapPartitions {

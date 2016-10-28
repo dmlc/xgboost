@@ -26,6 +26,9 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{ArrayType, FloatType}
 
+/**
+ * class of XGBoost model used for regression task
+ */
 class XGBoostRegressionModel private[spark](override val uid: String, booster: Booster)
   extends XGBoostModel(booster) {
 
