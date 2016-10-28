@@ -120,7 +120,7 @@ object XGBoost extends Serializable {
   }
 
   /**
-   *
+   * train XGBoost model with the DataFrame-represented data
    * @param trainingData the trainingset represented as DataFrame
    * @param params Map containing the parameters to configure XGBoost
    * @param round the number of iterations
@@ -173,7 +173,7 @@ object XGBoost extends Serializable {
   }
 
   /**
-   *
+   * train XGBoost model with the RDD-represented data
    * @param trainingData the trainingset represented as RDD
    * @param params Map containing the configuration entries
    * @param round the number of iterations
@@ -218,7 +218,7 @@ object XGBoost extends Serializable {
   }
 
   /**
-   *
+   * various of train()
    * @param trainingData the trainingset represented as RDD
    * @param params Map containing the configuration entries
    * @param round the number of iterations

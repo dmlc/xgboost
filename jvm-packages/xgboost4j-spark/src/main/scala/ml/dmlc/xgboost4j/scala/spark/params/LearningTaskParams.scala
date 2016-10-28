@@ -20,15 +20,28 @@ import scala.collection.immutable.HashSet
 
 import org.apache.spark.ml.param.{DoubleParam, Param, Params}
 
-private[spark] trait LearningTaskParams extends Params {
+trait LearningTaskParams extends Params {
 
+  /**
+   * Specify the learning task and the corresponding learning objective.
+   * options: reg:linear, reg:logistic, binary:logistic, binary:logitraw, count:poisson,
+   * multi:softmax, multi:softprob, rank:pairwise, reg:gamma. default: reg:linear
+   */
   val objective = new Param[String](this, "objective", "objective function used for training," +
     s" options: {${LearningTaskParams.supportedObjective.mkString(",")}",
     (value: String) => LearningTaskParams.supportedObjective.contains(value))
 
+  /**
+   * the initial prediction score of all instances, global bias. default=0.5
+   */
   val baseScore = new DoubleParam(this, "base_score", "the initial prediction score of all" +
     " instances, global bias")
 
+  /**
+   * evaluation metrics for validation data, a default metric will be assigned according to
+   * objective(rmse for regression, and error for classification, mean average precision for
+   * ranking). options: rmse, mae, logloss, error, merror, mlogloss, auc, ndcg, map, gamma-deviance
+   */
   val evalMetric = new Param[String](this, "eval_metric", "evaluation metrics for validation" +
     " data, a default metric will be assigned according to objective (rmse for regression, and" +
     " error for classification, mean average precision for ranking), options: " +

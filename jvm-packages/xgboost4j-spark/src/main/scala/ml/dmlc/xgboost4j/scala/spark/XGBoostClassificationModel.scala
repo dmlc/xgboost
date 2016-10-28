@@ -26,6 +26,9 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Dataset}
 
+/**
+ * class of the XGBoost model used for classification task
+ */
 class XGBoostClassificationModel private[spark](
     override val uid: String, booster: Booster)
     extends XGBoostModel(booster) {
@@ -37,12 +40,19 @@ class XGBoostClassificationModel private[spark](
 
   // scalastyle:off
 
+  /**
+   * whether to output raw margin
+   */
   final val outputMargin: Param[Boolean] = new Param[Boolean](this, "outputMargin", "whether to output untransformed margin value ")
 
   setDefault(outputMargin, false)
 
   def setOutputMargin(value: Boolean): XGBoostModel = set(outputMargin, value).asInstanceOf[XGBoostClassificationModel]
 
+  /**
+   * the name of the column storing the raw prediction value, either probabilities (as default) or
+   * raw margin value
+   */
   final val rawPredictionCol: Param[String] = new Param[String](this, "rawPredictionCol", "Column name for raw prediction output of xgboost. If outputMargin is true, the column contains untransformed margin value; otherwise it is the probability for each class (by default).")
 
   setDefault(rawPredictionCol, "probabilities")
@@ -51,6 +61,9 @@ class XGBoostClassificationModel private[spark](
 
   def setRawPredictionCol(value: String): XGBoostClassificationModel = set(rawPredictionCol, value).asInstanceOf[XGBoostClassificationModel]
 
+  /**
+   * Thresholds in multi-class classification
+   */
   final val thresholds: DoubleArrayParam = new DoubleArrayParam(this, "thresholds", "Thresholds in multi-class classification to adjust the probability of predicting each class. Array must have length equal to the number of classes, with values >= 0. The class with largest value p/t is predicted, where p is the original probability of that class and t is the class' threshold", (t: Array[Double]) => t.forall(_ >= 0))
 
   def getThresholds: Array[Double] = $(thresholds)

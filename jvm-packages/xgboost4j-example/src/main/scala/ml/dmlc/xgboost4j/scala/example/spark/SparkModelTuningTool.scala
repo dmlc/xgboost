@@ -158,8 +158,8 @@ object SparkModelTuningTool {
   }
 
   private def crossValidation(
-                               xgboostParam: Map[String, Any],
-                               trainingData: Dataset[_]): TrainValidationSplitModel = {
+      xgboostParam: Map[String, Any],
+      trainingData: Dataset[_]): TrainValidationSplitModel = {
     val xgbEstimator = new XGBoostEstimator(xgboostParam).setFeaturesCol("features").
       setLabelCol("logSales")
     val paramGrid = new ParamGridBuilder()
@@ -199,7 +199,7 @@ object SparkModelTuningTool {
     params += "ntreelimit" -> 1000
     params += "objective" -> "reg:linear"
     params += "subsample" -> 0.8
-    params += "round" -> 100
+    params += "num_round" -> 100
 
     val bestModel = crossValidation(params.toMap, featureEngineeredDF)
   }
