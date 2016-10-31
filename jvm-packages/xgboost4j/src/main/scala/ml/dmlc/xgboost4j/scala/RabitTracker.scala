@@ -49,7 +49,10 @@ import ml.dmlc.xgboost4j.scala.handler.RabitTrackerHandler
   *      launching workers in parallel
   *      ...
   *   */
+  *
   *   // wait for worker execution up to 6 hours.
+  *   // providing a finite timeout prevents a long-running task from hanging forever in
+  *   // catastrophic events, like the loss of an executor during model training.
   *   tracker.waitFor(6 hours)
   * }}}
   *
@@ -134,7 +137,7 @@ class RabitTracker(numWorkers: Int, port: Option[Int] = None,
     *     the tracker waits for the workers indefinitely.
     * @return the number of completed workers.
     */
-  @throws[TimeoutException]
+  // @throws[TimeoutException]
   def waitFor(atMost: Duration = Duration.Inf): Int = {
     // wait for all workers to complete synchronously.
     Try(Await.result(futureCompleted, atMost)) match {
@@ -142,8 +145,11 @@ class RabitTracker(numWorkers: Int, port: Option[Int] = None,
         system.shutdown()
         0
       case Success(n) if n < numWorkers =>
-        throw new TimeoutException(s"Only $n out of $numWorkers workers have started.")
-      case Failure(e) => throw e
+        // throw new TimeoutException(s"Only $n out of $numWorkers workers have started.")
+        1
+      case Failure(e) =>
+        // throw e
+        2
     }
   }
 
