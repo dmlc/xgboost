@@ -74,7 +74,9 @@ void DumpRegTree2Text(std::stringstream& fo,  // NOLINT(*)
   }
 }
 
-std::string RegTree::Dump2Text(const FeatureMap& fmap, bool with_stats) const {
+std::string RegTree::DumpModel(const FeatureMap& fmap,
+                               bool with_stats,
+                               std::string format) const {
   std::stringstream fo("");
   for (int i = 0; i < param.num_roots; ++i) {
     DumpRegTree2Text(fo, *this, fmap, i, 0, with_stats);

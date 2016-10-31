@@ -224,7 +224,9 @@ class GBLinear : public GradientBooster {
     LOG(FATAL) << "gblinear does not support predict leaf index";
   }
 
-  std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) const override {
+  std::vector<std::string> DumpModel(const FeatureMap& fmap,
+                                     bool with_stats,
+                                     std::string format) const override {
     std::stringstream fo("");
     fo << "bias:\n";
     for (int i = 0; i < model.param.num_output_group; ++i) {
