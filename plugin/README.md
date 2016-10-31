@@ -2,16 +2,17 @@ XGBoost Plugins Modules
 =======================
 This folder contains plugin modules to xgboost that can be optionally installed.
 The plugin system helps us to extend xgboost with additional features,
-and add experimental features that may not yet ready to be included in main project.
+and add experimental features that may not yet be ready to be included in the
+main project.
 
 To include a certain plugin, say ```plugin_a```, you only need to add the following line to the config.mk.
 
 ```makefile
-# Add plugin by include the plugin in config
+# Add plugin by including the plugin in config.mk
 XGB_PLUGINS += plugin/plugin_a/plugin.mk
 ```
 
-Then rebuild libxgboost by typing make, you can get a new library with the plugin enabled.
+Then rebuild libxgboost by typing ```make```, you can get a new library with the plugin enabled.
 
 Link Static XGBoost Library with Plugins
 ----------------------------------------
@@ -20,7 +21,7 @@ If you only use ```libxgboost.so```(this include python and other bindings),
 you can ignore this section.
 
 When you want to link ```libxgboost.a``` with additional plugins included,
-you will need to enabled whole archeive via The following option.
+you will need to enabled whole archive via The following option.
 ```bash
 --whole-archive libxgboost.a --no-whole-archive
 ```
