@@ -89,18 +89,43 @@ object RabitTrackerConnectionHandler {
     IntField, IntField, StringField, StringField
   ), 0)
 
-  sealed trait TrackerCommand {
+  abstract class TrackerCommand(val command: String) {
     def rank: Int
     def worldSize: Int
     def jobId: String
+
+    def encode: ByteString = {
+      val buf = ByteBuffer.allocate(4 * 4 + jobId.length + command.length)
+        .order(ByteOrder.nativeOrder())
+
+      buf.putInt(rank).putInt(worldSize).putInt(jobId.length).put(jobId.getBytes())
+        .putInt(command.length).put(command.getBytes()).flip()
+
+      ByteString.fromByteBuffer(buf)
+    }
   }
 
   // packaged worker commands
-  case class WorkerStart(rank: Int, worldSize: Int, jobId: String) extends TrackerCommand
-  case class WorkerShutdown(rank: Int, worldSize: Int, jobId: String) extends TrackerCommand
-  case class WorkerRecover(rank: Int, worldSize: Int, jobId: String) extends TrackerCommand
+  case class WorkerStart(rank: Int, worldSize: Int, jobId: String)
+    extends TrackerCommand("start")
+  case class WorkerShutdown(rank: Int, worldSize: Int, jobId: String)
+    extends TrackerCommand("shutdown")
+  case class WorkerRecover(rank: Int, worldSize: Int, jobId: String)
+    extends TrackerCommand("recover")
   case class WorkerTrackerPrint(rank: Int, worldSize: Int, jobId: String, msg: String)
-    extends TrackerCommand
+    extends TrackerCommand("print") {
+
+    override def encode: ByteString = {
+      val buf = ByteBuffer.allocate(4 * 5 + jobId.length + command.length + msg.length)
+        .order(ByteOrder.nativeOrder())
+
+      buf.putInt(rank).putInt(worldSize).putInt(jobId.length).put(jobId.getBytes())
+        .putInt(command.length).put(command.getBytes())
+        .putInt(msg.length).put(msg.getBytes()).flip()
+
+      ByteString.fromByteBuffer(buf)
+    }
+  }
 
   // request host and port information from peer actors
   case object RequestHostPort
@@ -176,6 +201,8 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
     if (buf.remaining() > 0) spillOverBuffer.put(buf)
   }
 
+  def getNeighboringWorkers: Set[Int] = neighboringWorkers
+
   def decodeCommand(buffer: ByteBuffer): TrackerCommand = {
     val rank = buffer.getInt()
     val worldSize = buffer.getInt()
@@ -222,15 +249,10 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
       stay
     // when rank for a worker is assigned, send encoded rank information
     // back to worker over Tcp socket.
-    case Event(AssignedRank(assignedRank, neighbors, ring, parent), _) =>
+    case Event(aRank @ AssignedRank(assignedRank, neighbors, ring, parent), _) =>
       log.debug(s"Assigned rank [$assignedRank] for $host, T: $neighbors, R: $ring, P: $parent")
 
       rank = assignedRank
-      val buffer = ByteBuffer.allocate(4 * (neighbors.length + 6))
-        .order(ByteOrder.nativeOrder())
-      buffer.putInt(assignedRank).putInt(parent).putInt(worldSize).putInt(neighbors.length)
-      // neighbors in tree structure
-      neighbors.foreach { n => buffer.putInt(n) }
       // ranks from the ring
       val ringRanks = List(
         // ringPrev
@@ -238,13 +260,11 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
         // ringNext
         if (ring._2 != -1 && ring._2 != rank) ring._2 else -1
       )
-      ringRanks.foreach { r => buffer.putInt(r) }
 
       // update the set of all linked workers to current worker.
       neighboringWorkers = neighbors.toSet ++ ringRanks.filterNot(_ == -1).toSet
 
-      buffer.flip()
-      connection ! Tcp.Write(ByteString.fromByteBuffer(buffer))
+      connection ! Tcp.Write(ByteString.fromByteBuffer(aRank.toByteBuffer(worldSize)))
       // to prevent reading before state transition
       connection ! Tcp.SuspendReading
       goto(BuildingLinkMap) using StructNodes

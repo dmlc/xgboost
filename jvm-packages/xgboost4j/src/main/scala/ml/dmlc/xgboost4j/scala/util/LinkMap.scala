@@ -23,7 +23,21 @@
 
 package ml.dmlc.xgboost4j.scala.util
 
-case class AssignedRank(rank: Int, neighbors: Seq[Int], ring: (Int, Int), parent: Int)
+import java.nio.{ByteBuffer, ByteOrder}
+
+case class AssignedRank(rank: Int, neighbors: Seq[Int], ring: (Int, Int), parent: Int) {
+  def toByteBuffer(worldSize: Int): ByteBuffer = {
+    val buffer = ByteBuffer.allocate(4 * (neighbors.length + 6)).order(ByteOrder.nativeOrder())
+    buffer.putInt(rank).putInt(parent).putInt(worldSize).putInt(neighbors.length)
+    // neighbors in tree structure
+    neighbors.foreach { n => buffer.putInt(n) }
+    buffer.putInt(if (ring._1 != -1 && ring._1 != rank) ring._1 else -1)
+    buffer.putInt(if (ring._2 != -1 && ring._2 != rank) ring._2 else -1)
+
+    buffer.flip()
+    buffer
+  }
+}
 
 class LinkMap(numWorkers: Int) {
   private def getNeighbors(rank: Int): Seq[Int] = {
