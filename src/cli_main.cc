@@ -285,9 +285,18 @@ void CLIDumpModel(const CLIParam& param) {
   std::unique_ptr<dmlc::Stream> fo(
       dmlc::Stream::Create(param.name_dump.c_str(), "w"));
   dmlc::ostream os(fo.get());
-  for (size_t i = 0; i < dump.size(); ++i) {
-    os << "booster[" << i << "]:\n";
-    os << dump[i];
+  if (param.dump_format == "json") {
+    os << "[" << std::endl;
+    for (size_t i = 0; i < dump.size(); ++i) {
+      if (i != 0) os << "," << std::endl;
+      os << dump[i];  // Dump the previously generated JSON here
+    }
+    os << std::endl << "]" << std::endl;
+  } else {
+    for (size_t i = 0; i < dump.size(); ++i) {
+      os << "booster[" << i << "]:\n";
+      os << dump[i];
+    }
   }
   // force flush before fo destruct.
   os.set_stream(nullptr);
