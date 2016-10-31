@@ -31,3 +31,21 @@ Write Your Own Plugin
 You can plugin your own modules to xgboost by adding code to this folder,
 without modification to the main code repo.
 The [example](example) folder provides an example to write a plugin.
+
+List of register functions
+--------------------------
+A plugin has to register a new functionality to xgboost to be able to use it.
+The register macros available to plugin writers are:
+
+ - XGBOOST_REGISTER_METRIC - Register an evaluation metric
+ - XGBOOST_REGISTER_GBM - Register a new gradient booster that learns through
+   gradient statistics
+ - XGBOOST_REGISTER_OBJECTIVE - Register a new objective function used by xgboost
+ - XGBOOST_REGISTER_TREE_UPDATER - Register a new tree-updater which updates
+   the tree given the gradient information
+
+And from dmlc-core:
+
+ - DMLC_REGISTER_PARAMETER - Register a set of parameter for a specific usecase
+ - DMLC_REGISTER_DATA_PARSER - Register a data parser where the data can be
+   represented by a URL. This is used by DMatrix.
