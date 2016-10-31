@@ -269,7 +269,7 @@ void CLIDump2Text(const CLIParam& param) {
   }
   // load model
   CHECK_NE(param.model_in, "NULL")
-      << "Must specifiy model_in for dump";
+      << "Must specify model_in for dump";
   std::unique_ptr<Learner> learner(Learner::Create({}));
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
@@ -296,7 +296,7 @@ void CLIPredict(const CLIParam& param) {
       DMatrix::Load(param.test_path, param.silent != 0, param.dsplit == 2));
   // load model
   CHECK_NE(param.model_in, "NULL")
-      << "Must specifiy model_in for dump";
+      << "Must specify model_in for predict";
   std::unique_ptr<Learner> learner(Learner::Create({}));
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));

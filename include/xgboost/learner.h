@@ -19,7 +19,7 @@
 
 namespace xgboost {
 /*!
- * \brief Learner class that do trainig and prediction.
+ * \brief Learner class that does training and prediction.
  *  This is the user facing module of xgboost training.
  *  The Load/Save function corresponds to the model used in python/R.
  *  \code
@@ -173,7 +173,7 @@ class Learner : public rabit::Serializable {
   bst_float base_score_;
   /*! \brief objective function */
   std::unique_ptr<ObjFunction> obj_;
-  /*! \brief The gradient boosted used by the model*/
+  /*! \brief The gradient booster used by the model*/
   std::unique_ptr<GradientBooster> gbm_;
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;
