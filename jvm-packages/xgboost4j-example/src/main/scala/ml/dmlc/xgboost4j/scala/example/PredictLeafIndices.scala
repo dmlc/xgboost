@@ -22,7 +22,7 @@ import scala.collection.mutable
 
 import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
 
-class PredictLeafIndices {
+object PredictLeafIndices {
 
   def main(args: Array[String]): Unit = {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")

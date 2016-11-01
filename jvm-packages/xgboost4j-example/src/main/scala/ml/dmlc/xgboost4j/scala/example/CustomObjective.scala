@@ -32,7 +32,7 @@ import org.apache.commons.logging.{LogFactory, Log}
  * function
  *
  */
-class CustomObjective {
+object CustomObjective {
 
   /**
    * loglikelihoode loss obj function

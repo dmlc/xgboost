@@ -45,12 +45,11 @@ object XGBoost {
       watches: Map[String, DMatrix] = Map[String, DMatrix](),
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null): Booster = {
-
-
     val jWatches = watches.map{case (name, matrix) => (name, matrix.jDMatrix)}
     val xgboostInJava = JXGBoost.train(
       dtrain.jDMatrix,
-      params.map{
+      // we have to filter null value for customized obj and eval
+      params.filter(_._2 != null).map{
         case (key: String, value) => (key, value.toString)
       }.toMap[String, AnyRef].asJava,
       round, jWatches.asJava,

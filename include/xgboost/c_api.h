@@ -24,7 +24,7 @@ XGB_EXTERN_C {
 #endif
 
 // manually define unsign long
-typedef unsigned long bst_ulong;  // NOLINT(*)
+typedef uint64_t bst_ulong;  // NOLINT(*)
 
 /*! \brief handle to DMatrix */
 typedef void *DMatrixHandle;
@@ -40,7 +40,13 @@ typedef struct {
   /*! \brief number of rows in the minibatch */
   size_t size;
   /*! \brief row pointer to the rows in the data */
-  long* offset;  // NOLINT(*)
+#ifdef __APPLE__
+  /* Necessary as Java on MacOS defines jlong as long int
+   * and gcc defines int64_t as long long int. */
+  long* offset; // NOLINT(*)
+#else
+  int64_t* offset;  // NOLINT(*)
+#endif
   /*! \brief labels of each instance */
   float* label;
   /*! \brief weight of each instance, can be NULL */

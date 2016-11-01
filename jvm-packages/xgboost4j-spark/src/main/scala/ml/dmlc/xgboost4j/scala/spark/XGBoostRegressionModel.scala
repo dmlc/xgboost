@@ -16,26 +16,38 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.collection.mutable
+
 import ml.dmlc.xgboost4j.scala.Booster
 import org.apache.spark.ml.linalg.{Vector => MLVector}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType}
+import org.apache.spark.sql.types.{ArrayType, FloatType}
 
-class XGBoostRegressionModel private[spark](override val uid: String, _booster: Booster)
-  extends XGBoostModel(_booster) {
+/**
+ * class of XGBoost model used for regression task
+ */
+class XGBoostRegressionModel private[spark](override val uid: String, booster: Booster)
+  extends XGBoostModel(booster) {
 
   def this(_booster: Booster) = this(Identifiable.randomUID("XGBoostRegressionModel"), _booster)
+
+  // only called in copy()
+  def this(uid: String) = this(uid, null)
 
   override protected def transformImpl(testSet: Dataset[_]): DataFrame = {
     transformSchema(testSet.schema, logging = true)
     val predictRDD = produceRowRDD(testSet)
-    testSet.sparkSession.createDataFrame(predictRDD, schema =
-      StructType(testSet.schema.add(StructField($(predictionCol),
-        ArrayType(FloatType, containsNull = false), nullable = false)))
-    )
+    val tempPredColName = $(predictionCol) + "_temp"
+    val transformerForArrayTypedPredCol =
+      udf((regressionResults: mutable.WrappedArray[Float]) => regressionResults(0))
+    testSet.sparkSession.createDataFrame(predictRDD,
+      schema = testSet.schema.add(tempPredColName, ArrayType(FloatType, containsNull = false))
+    ).withColumn(
+      $(predictionCol),
+      transformerForArrayTypedPredCol.apply(col(tempPredColName))).drop(tempPredColName)
   }
 
   override protected def predict(features: MLVector): Double = {
@@ -43,6 +55,8 @@ class XGBoostRegressionModel private[spark](override val uid: String, _booster: 
   }
 
   override def copy(extra: ParamMap): XGBoostRegressionModel = {
-    defaultCopy(extra)
+    val regModel = defaultCopy(extra).asInstanceOf[XGBoostRegressionModel]
+    regModel._booster = booster
+    regModel
   }
 }
