@@ -43,22 +43,22 @@ class SparsePageSource : public DataSource {
   /*!
    * \brief Create source by taking data from parser.
    * \param src source parser.
-   * \param cache_prefix The cache_prefix of cache file location.
+   * \param cache_info The cache_info of cache file location.
    */
   static void Create(dmlc::Parser<uint32_t>* src,
-                     const std::string& cache_prefix);
+                     const std::string& cache_info);
   /*!
    * \brief Create source cache by copy content from DMatrix.
-   * \param cache_prefix The cache_prefix of cache file location.
+   * \param cache_info The cache_info of cache file location.
    */
   static void Create(DMatrix* src,
-                     const std::string& cache_prefix);
+                     const std::string& cache_info);
   /*!
    * \brief Check if the cache file already exists.
-   * \param cache_prefix The cache prefix of files.
+   * \param cache_info The cache prefix of files.
    * \return Whether cache file already exists.
    */
-  static bool CacheExist(const std::string& cache_prefix);
+  static bool CacheExist(const std::string& cache_info);
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
   /*! \brief magic number used to identify Page */
