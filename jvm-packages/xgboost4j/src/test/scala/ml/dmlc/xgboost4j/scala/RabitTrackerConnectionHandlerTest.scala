@@ -175,6 +175,52 @@ class RabitTrackerConnectionHandlerTest
   }
 
   it should "handle spill-over Tcp data correctly between state transition" in {
+    val trackerProbe = TestProbe()
+    val connProbe = TestProbe()
 
+    val worldSize = 4
+
+    val fsm = TestFSMRef(new RabitTrackerConnectionHandler("localhost", worldSize,
+      trackerProbe.ref, connProbe.ref))
+    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingHandshake
+
+    // send mock magic number
+    fsm ! Tcp.Received(magic)
+    connProbe.expectMsg(Tcp.Write(magic))
+
+    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingCommand
+    fsm.stateData shouldEqual RabitTrackerConnectionHandler.StructTrackerCommand
+    // ResumeReading should be seen once state transitions
+    connProbe.expectMsg(Tcp.ResumeReading)
+
+    // send mock tracker command in fragments: the handler should be able to handle it.
+    val bufCmd = ByteBuffer.allocate(26).order(ByteOrder.nativeOrder())
+    bufCmd.putInt(0).putInt(worldSize).putInt(1).put(Array[Byte]('0'))
+      .putInt(5).put("start".getBytes())
+      // spilled-over data
+      .putInt(0).flip()
+
+    // send data with 4 extra bytes corresponding to the next state.
+    fsm ! Tcp.Received(ByteString.fromByteBuffer(bufCmd))
+
+    trackerProbe.expectMsg(WorkerStart(0, worldSize, "0"))
+
+    val linkMap = new LinkMap(worldSize)
+    val assignedRank = linkMap.assignRank(0)
+    trackerProbe.reply(assignedRank)
+
+    connProbe.expectMsg(Tcp.Write(ByteString.fromByteBuffer(
+      assignedRank.toByteBuffer(worldSize)
+    )))
+
+    // reading should be suspended upon transitioning to BuildingLinkMap
+    connProbe.expectMsg(Tcp.SuspendReading)
+    // state should transition with according state data changes.
+    fsm.stateName shouldEqual RabitTrackerConnectionHandler.BuildingLinkMap
+    fsm.stateData shouldEqual RabitTrackerConnectionHandler.StructNodes
+    connProbe.expectMsg(Tcp.ResumeReading)
+
+    // the handler should be able to handle spill-over data, and stash it until state transition.
+    trackerProbe.expectMsg(RequestAwaitConnWorkers(0, fsm.underlyingActor.getNeighboringWorkers))
   }
 }
