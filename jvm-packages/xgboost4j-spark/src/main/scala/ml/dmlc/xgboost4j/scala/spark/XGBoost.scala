@@ -16,7 +16,6 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, DMatrix => JDMatrix, RabitTracker => PyRabitTracker}
@@ -101,7 +100,7 @@ object XGBoost extends Serializable {
   private[spark] def buildDistributedBoosters(
       trainingSet: RDD[MLLabeledPoint],
       xgBoostConfMap: Map[String, Any],
-      rabitEnv: mutable.Map[String, String],
+      rabitEnv: java.util.Map[String, String],
       numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
       useExternalMemory: Boolean, missing: Float = Float.NaN): RDD[Booster] = {
     import DataUtils._
@@ -113,7 +112,7 @@ object XGBoost extends Serializable {
     partitionedTrainingSet.mapPartitions {
       trainingSamples =>
         rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
-        Rabit.init(rabitEnv.asJava)
+        Rabit.init(rabitEnv)
         var booster: Booster = null
         if (trainingSamples.hasNext) {
           val cacheFileName: String = {
@@ -280,7 +279,7 @@ object XGBoost extends Serializable {
     val tracker = startTracker(nWorkers, trackerConf)
     val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
     val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
-      tracker.getWorkerEnvs.asScala, nWorkers, round, obj, eval, useExternalMemory, missing)
+      tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
     val sparkJobThread = new Thread() {
       override def run() {
         // force the job

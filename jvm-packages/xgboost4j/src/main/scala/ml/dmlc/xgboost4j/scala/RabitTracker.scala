@@ -125,10 +125,10 @@ class RabitTracker(numWorkers: Int, port: Option[Int] = None,
   def start(timeout: Long, unit: TimeUnit): Boolean = start(Duration(timeout, unit))
 
   def getWorkerEnvs: java.util.Map[String, String] = {
-    (Await.result(futureWorkerEnvs, 0 nano) ++ Map(
+    new java.util.HashMap((Await.result(futureWorkerEnvs, 0 nano) ++ Map(
         "DMLC_NUM_WORKER" -> numWorkers.toString,
         "DMLC_NUM_SERVER" -> "0"
-    )).asJava
+    )).asJava)
   }
 
   /**
