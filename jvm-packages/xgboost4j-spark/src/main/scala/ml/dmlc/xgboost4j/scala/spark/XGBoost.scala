@@ -258,7 +258,7 @@ object XGBoost extends Serializable {
    * @param obj the user-defined objective function, null by default
    * @param eval the user-defined evaluation function, null by default
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
-   *           j               true, the user may save the RAM cost for running XGBoost within Spark
+   *                          true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
    * @param trackerConf configurations for the Rabit tracker.
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
