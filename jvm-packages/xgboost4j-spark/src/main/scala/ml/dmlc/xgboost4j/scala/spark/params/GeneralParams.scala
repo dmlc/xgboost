@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark.params
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.spark.ml.param._
 
-import scala.concurrent.duration.{SECONDS, Duration}
+import scala.concurrent.duration.{NANOSECONDS, Duration}
 
 trait GeneralParams extends Params {
 
@@ -88,7 +88,7 @@ trait GeneralParams extends Params {
    * set a reasonable timeout value to prevent model training/testing from hanging indefinitely.
    * ignored if the tracker implementation is "python".
    *
-   * default: Long.MaxValue seconds
+   * default: Long.MaxValue ns (292 years)
    */
   val workerConnectionTimeout = new Param[Duration](this, "worker_connection_timeout",
     "the timeout for all workers to connect to the tracker. " +
@@ -101,7 +101,7 @@ trait GeneralParams extends Params {
    * and setting a finite timeout value prevents hanging.
    * ignored if the tracker implementation is "python".
    *
-   * default: Long.MaxValue seconds
+   * default: Long.MaxValue ns (292 years)
    */
   val trainingTimeout = new Param[Duration](this, "training_timeout",
     "the timeout for model-training.")
@@ -110,7 +110,7 @@ trait GeneralParams extends Params {
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerImpl -> "python",
-    workerConnectionTimeout -> Duration.apply(Long.MaxValue, SECONDS),
-    trainingTimeout -> Duration.apply(Long.MaxValue, SECONDS)
+    workerConnectionTimeout -> Duration.apply(Long.MaxValue, NANOSECONDS),
+    trainingTimeout -> Duration.apply(Long.MaxValue, NANOSECONDS)
   )
 }

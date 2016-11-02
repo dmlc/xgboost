@@ -29,11 +29,11 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 import org.apache.spark.{SparkContext, TaskContext}
 
-import scala.concurrent.duration.{SECONDS, Duration}
+import scala.concurrent.duration.{NANOSECONDS, Duration}
 
 object TrackerConf {
-  def apply(): TrackerConf = TrackerConf(Duration.apply(Long.MaxValue, SECONDS),
-    Duration.apply(Long.MaxValue, SECONDS), "python")
+  def apply(): TrackerConf = TrackerConf(Duration.apply(Long.MaxValue, NANOSECONDS),
+    Duration.apply(Long.MaxValue, NANOSECONDS), "python")
 }
 
 /**
