@@ -25,7 +25,7 @@ public class Rabit {
     }
   }
 
-  public enum OpType {
+  public enum OpType implements Serializable {
     MAX(0), MIN(1), SUM(2), BITWISE_OR(3);
 
     private int op;
@@ -39,7 +39,7 @@ public class Rabit {
     }
   }
 
-  public enum DataType {
+  public enum DataType implements Serializable {
     CHAR(0, 1), UCHAR(1, 1), INT(2, 4), UNIT(3, 4),
     LONG(4, 8), ULONG(5, 8), FLOAT(6, 4), DOUBLE(7, 8),
     LONGLONG(8, 8), ULONGLONG(9, 8);
