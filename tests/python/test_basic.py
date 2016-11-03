@@ -2,6 +2,7 @@
 import numpy as np
 import xgboost as xgb
 import unittest
+import json
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
@@ -169,6 +170,39 @@ class TestBasic(unittest.TestCase):
         # check backwards compatibility of get_fscore
         fscores = bst.get_fscore()
         assert scores1 == fscores
+
+    def test_dump(self):
+        data = np.random.randn(100, 2)
+        target = np.array([0, 1] * 50)
+        features = ['Feature1', 'Feature2']
+
+        dm = xgb.DMatrix(data, label=target, feature_names=features)
+        params = {'objective': 'binary:logistic',
+                  'eval_metric': 'logloss',
+                  'eta': 0.3,
+                  'max_depth': 1}
+
+        bst = xgb.train(params, dm, num_boost_round=1)
+
+        # number of feature importances should == number of features
+        dump1 = bst.get_dump()
+        self.assertEqual(len(dump1), 1, "Expected only 1 tree to be dumped.")
+        self.assertEqual(len(dump1[0].splitlines()), 3,
+                         "Expected 1 root and 2 leaves - 3 lines in dump.")
+
+        dump2 = bst.get_dump(with_stats=True)
+        self.assertEqual(dump2[0].count('\n'), 3,
+                         "Expected 1 root and 2 leaves - 3 lines in dump.")
+        self.assertGreater(dump2[0].find('\n'), dump1[0].find('\n'),
+                           "Expected more info when with_stats=True is given.")
+
+        dump3 = bst.get_dump(dump_format="json")
+        dump3j = json.loads(dump3[0])
+        self.assertEqual(dump3j["nodeid"], 0, "Expected the root node on top.")
+
+        dump4 = bst.get_dump(dump_format="json", with_stats=True)
+        dump4j = json.loads(dump4[0])
+        self.assertIn("gain", dump4j, "Expected 'gain' to be dumped in JSON.")
 
     def test_load_file_invalid(self):
         self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
