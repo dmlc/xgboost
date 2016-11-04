@@ -353,7 +353,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
     if learning_rates is not None:
         callbacks.append(callback.reset_learning_rate(learning_rates))
-        
+
     if isinstance(metrics, str):
         metrics = [metrics]
 
