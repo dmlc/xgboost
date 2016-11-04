@@ -1038,7 +1038,7 @@ class Booster(object):
         if need_close:
             fout.close()
 
-    def get_dump(self, fmap='', with_stats=False):
+    def get_dump(self, fmap='', with_stats=False, dump_format="text"):
         """
         Returns the dump the model as a list of strings.
         """
@@ -1056,21 +1056,24 @@ class Booster(object):
                 ftype = from_pystr_to_cstr(['q'] * flen)
             else:
                 ftype = from_pystr_to_cstr(self.feature_types)
-            _check_call(_LIB.XGBoosterDumpModelWithFeatures(self.handle,
-                                                            flen,
-                                                            fname,
-                                                            ftype,
-                                                            int(with_stats),
-                                                            ctypes.byref(length),
-                                                            ctypes.byref(sarr)))
+            _check_call(_LIB.XGBoosterDumpModelExWithFeatures(
+                self.handle,
+                flen,
+                fname,
+                ftype,
+                int(with_stats),
+                c_str(dump_format),
+                ctypes.byref(length),
+                ctypes.byref(sarr)))
         else:
             if fmap != '' and not os.path.exists(fmap):
                 raise ValueError("No such file: {0}".format(fmap))
-            _check_call(_LIB.XGBoosterDumpModel(self.handle,
-                                                c_str(fmap),
-                                                int(with_stats),
-                                                ctypes.byref(length),
-                                                ctypes.byref(sarr)))
+            _check_call(_LIB.XGBoosterDumpModelEx(self.handle,
+                                                  c_str(fmap),
+                                                  int(with_stats),
+                                                  c_str(dump_format),
+                                                  ctypes.byref(length),
+                                                  ctypes.byref(sarr)))
         res = from_cstr_to_pystr(sarr, length)
         return res
 

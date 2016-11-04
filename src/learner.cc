@@ -25,8 +25,10 @@ bool Learner::AllowLazyCheckPoint() const {
 }
 
 std::vector<std::string>
-Learner::Dump2Text(const FeatureMap& fmap, int option) const {
-  return gbm_->Dump2Text(fmap, option);
+Learner::DumpModel(const FeatureMap& fmap,
+                   bool with_stats,
+                   std::string format) const {
+  return gbm_->DumpModel(fmap, with_stats, format);
 }
 
 

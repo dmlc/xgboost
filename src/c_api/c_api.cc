@@ -662,13 +662,14 @@ inline void XGBoostDumpModelImpl(
     BoosterHandle handle,
     const FeatureMap& fmap,
     int with_stats,
+    const char *format,
     xgboost::bst_ulong* len,
     const char*** out_models) {
   std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
   std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
   Booster *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
-  str_vecs = bst->learner()->Dump2Text(fmap, with_stats != 0);
+  str_vecs = bst->learner()->DumpModel(fmap, with_stats != 0, format);
   charp_vecs.resize(str_vecs.size());
   for (size_t i = 0; i < str_vecs.size(); ++i) {
     charp_vecs[i] = str_vecs[i].c_str();
@@ -681,6 +682,14 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
                        int with_stats,
                        xgboost::bst_ulong* len,
                        const char*** out_models) {
+  XGBoosterDumpModelEx(handle, fmap, with_stats, "text", len, out_models);
+}
+XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
+                       const char* fmap,
+                       int with_stats,
+                       const char *format,
+                       xgboost::bst_ulong* len,
+                       const char*** out_models) {
   API_BEGIN();
   FeatureMap featmap;
   if (strlen(fmap) != 0) {
@@ -689,7 +698,7 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
     dmlc::istream is(fs.get());
     featmap.LoadText(is);
   }
-  XGBoostDumpModelImpl(handle, featmap, with_stats, len, out_models);
+  XGBoostDumpModelImpl(handle, featmap, with_stats, format, len, out_models);
   API_END();
 }
 
@@ -700,12 +709,23 @@ XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
                                    int with_stats,
                                    xgboost::bst_ulong* len,
                                    const char*** out_models) {
+  XGBoosterDumpModelExWithFeatures(handle, fnum, fname, ftype, with_stats,
+                                   "text", len, out_models);
+}
+XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
+                                   int fnum,
+                                   const char** fname,
+                                   const char** ftype,
+                                   int with_stats,
+                                   const char *format,
+                                   xgboost::bst_ulong* len,
+                                   const char*** out_models) {
   API_BEGIN();
   FeatureMap featmap;
   for (int i = 0; i < fnum; ++i) {
     featmap.PushBack(i, fname[i], ftype[i]);
   }
-  XGBoostDumpModelImpl(handle, featmap, with_stats, len, out_models);
+  XGBoostDumpModelImpl(handle, featmap, with_stats, format, len, out_models);
   API_END();
 }
 

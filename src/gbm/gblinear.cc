@@ -224,16 +224,35 @@ class GBLinear : public GradientBooster {
     LOG(FATAL) << "gblinear does not support predict leaf index";
   }
 
-  std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) const override {
+  std::vector<std::string> DumpModel(const FeatureMap& fmap,
+                                     bool with_stats,
+                                     std::string format) const override {
     std::stringstream fo("");
-    fo << "bias:\n";
-    for (int i = 0; i < model.param.num_output_group; ++i) {
-      fo << model.bias()[i] << std::endl;
-    }
-    fo << "weight:\n";
-    for (int i = 0; i < model.param.num_output_group; ++i) {
-      for (unsigned j = 0; j <model.param.num_feature; ++j) {
-        fo << model[i][j] << std::endl;
+    if (format == "json") {
+      fo << "  { \"bias\": [" << std::endl;
+      for (int i = 0; i < model.param.num_output_group; ++i) {
+        if (i != 0) fo << "," << std::endl;
+        fo << "      " << model.bias()[i];
+      }
+      fo << std::endl << "    ]," << std::endl
+         << "    \"weight\": [" << std::endl;
+      for (int i = 0; i < model.param.num_output_group; ++i) {
+        for (unsigned j = 0; j < model.param.num_feature; ++j) {
+          if (i != 0 || j != 0) fo << "," << std::endl;
+          fo << "      " << model[i][j];
+        }
+      }
+      fo << std::endl << "    ]" << std::endl << "  }";
+    } else {
+      fo << "bias:\n";
+      for (int i = 0; i < model.param.num_output_group; ++i) {
+        fo << model.bias()[i] << std::endl;
+      }
+      fo << "weight:\n";
+      for (int i = 0; i < model.param.num_output_group; ++i) {
+        for (unsigned j = 0; j <model.param.num_feature; ++j) {
+          fo << model[i][j] << std::endl;
+        }
       }
     }
     std::vector<std::string> v;

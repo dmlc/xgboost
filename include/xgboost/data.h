@@ -225,7 +225,7 @@ struct RowSet {
  *  - Provide a dmlc::Parser and pass into the DMatrix::Create
  *  - Alternatively, if data can be represented by an URL, define a new dmlc::Parser and register by DMLC_REGISTER_DATA_PARSER;
  *      - This works best for user defined data input source, such as data-base, filesystem.
- *  - Provdie a DataSource, that can be passed to DMatrix::Create
+ *  - Provide a DataSource, that can be passed to DMatrix::Create
  *      This can be used to re-use inmemory data structure into DMatrix.
  */
 class DMatrix {
