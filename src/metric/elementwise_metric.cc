@@ -164,28 +164,32 @@ struct EvalGammaNLogLik: public EvalEWiseBase<EvalGammaNLogLik> {
 };
 
 struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
-  explicit EvalTweedieNLogLik(float td) {
-    if (td <= 1 || td > 2) {
-      td_ = 1.5f;
+  explicit EvalTweedieNLogLik(float rho) {
+    if (rho <= 1 || rho > 2) {
+      rho_ = 1.5f;
     } else {
-      td_ = td;
+      rho_ = rho;
     }
   }
   const char *Name() const override {
     return "tweedie-nloglik";
   }
   inline float EvalRow(float y, float p) const {
-    float a = y * std::exp((1 - td_) * std::log(p)) / (1 - td_);
-    float b = std::exp((2 - td_) * std::log(p)) / (2 - td_);
+    float a = y * std::exp((1 - rho_) * std::log(p)) / (1 - rho_);
+    float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
     return -a + b;
   }
 <<<<<<< HEAD
  protected:
+<<<<<<< HEAD
   float td_;
 =======
   protected:
     float td_;
 >>>>>>> add support for tweedie regression
+=======
+  float rho_;
+>>>>>>> changed parameter name to tweedie_variance_power
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")
@@ -220,11 +224,16 @@ XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
 .describe("Negative log-likelihood for tweedie regression.")
 <<<<<<< HEAD
 .set_body([](const char* param) {
+<<<<<<< HEAD
 =======
 .set_body([](const char* param) { 
 >>>>>>> add support for tweedie regression
   float tweedie_dispersion = atof(param);
   return new EvalTweedieNLogLik(tweedie_dispersion);
+=======
+  float tweedie_variance_power = atof(param);
+  return new EvalTweedieNLogLik(tweedie_variance_power);
+>>>>>>> changed parameter name to tweedie_variance_power
 });
 
 }  // namespace metric

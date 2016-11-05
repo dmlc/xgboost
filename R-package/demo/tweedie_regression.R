@@ -21,7 +21,7 @@ y <- dt[, CLM_AMT5]
 
 d_train <- xgb.DMatrix(data = x, label = y, missing = NA)
 
-# the tweedie_dispersion parameter determines the shape of 
+# the tweedie_variance_power parameter determines the shape of 
 # distribution
 # - closer to 1 is more poisson like and the mass
 #   is more concentrated near zero 
@@ -31,7 +31,7 @@ d_train <- xgb.DMatrix(data = x, label = y, missing = NA)
 params <- list(
   objective = 'reg:tweedie',
   eval_metric = 'rmse', 
-  tweedie_dispersion = 1.4,
+  tweedie_variance_power = 1.4,
   max_depth = 6,
   eta = 1)
 
