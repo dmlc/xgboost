@@ -175,7 +175,7 @@ struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
     name_ = os.str();
   }
   const char *Name() const override {
-    return "tweedie-nloglik";
+    return name_.c_str();
   }
   inline float EvalRow(float y, float p) const {
     float a = y * std::exp((1 - rho_) * std::log(p)) / (1 - rho_);
