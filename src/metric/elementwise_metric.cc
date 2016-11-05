@@ -179,8 +179,13 @@ struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
     float b = std::exp((2 - td_) * std::log(p)) / (2 - td_);
     return -a + b;
   }
+<<<<<<< HEAD
  protected:
   float td_;
+=======
+  protected:
+    float td_;
+>>>>>>> add support for tweedie regression
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")
@@ -213,7 +218,11 @@ XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
 
 XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
 .describe("Negative log-likelihood for tweedie regression.")
+<<<<<<< HEAD
 .set_body([](const char* param) {
+=======
+.set_body([](const char* param) { 
+>>>>>>> add support for tweedie regression
   float tweedie_dispersion = atof(param);
   return new EvalTweedieNLogLik(tweedie_dispersion);
 });
