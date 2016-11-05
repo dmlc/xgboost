@@ -107,6 +107,11 @@ Parameters for Linear Booster
 * lambda_bias
   - L2 regularization term on bias, default 0(no L1 reg on bias because it is not important)
 
+Parameters for Tweedie Regression
+-----------------------------
+* tweedie_variance_power [default=1.5]
+  - Parameter that controls the variance of the tweedie distribution.  Set closer to 2 to shift towards a gamma distribution and closer to 1 to shift towards a poisson distribution.
+
 Learning Task Parameters
 ------------------------
 Specify the learning task and the corresponding learning objective. The objective options are below:
@@ -121,6 +126,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
  - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
  - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
  - "reg:gamma" --gamma regression for severity data, output mean of gamma distribution
+ - "reg:tweedie" --tweedie regression for insurance data
+   - tweedie_variance_power is set to 1.5 by default in tweedie regression and must be in the range [1, 2)
 * base_score [ default=0.5 ]
   - the initial prediction score of all instances, global bias
   - for sufficient number of iterations, changing this value will not have too much effect.
