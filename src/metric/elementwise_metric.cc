@@ -164,15 +164,19 @@ struct EvalGammaNLogLik: public EvalEWiseBase<EvalGammaNLogLik> {
 };
 
 struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
-  explicit EvalTweedieNLogLik(float rho) {
-    if (rho <= 1 || rho > 2) {
+  explicit EvalTweedieNLogLik(const char* param) {
+    CHECK(param != nullptr)
+        << "tweedie-nloglik must be in format tweedie-nloglik@rho";
+    rho_ = atof(param);
+    std::ostringstream os;
+    os << "tweedie-nloglik@" << rho_;
+    name_ = os.str();
+    if (rho_ <= 1 || rho_ > 2) {
       rho_ = 1.5f;
-    } else {
-      rho_ = rho;
     }
   }
   const char *Name() const override {
-    return "tweedie-nloglik";
+    return name_.c_str();
   }
   inline float EvalRow(float y, float p) const {
     float a = y * std::exp((1 - rho_) * std::log(p)) / (1 - rho_);
@@ -180,6 +184,7 @@ struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
     return -a + b;
   }
  protected:
+  std::string name_;
   float rho_;
 };
 
@@ -212,10 +217,9 @@ XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
 .set_body([](const char* param) { return new EvalGammaNLogLik(); });
 
 XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
-.describe("Negative log-likelihood for tweedie regression.")
+.describe("tweedie-nloglik@rho for tweedie regression.")
 .set_body([](const char* param) {
-  float tweedie_variance_power = atof(param);
-  return new EvalTweedieNLogLik(tweedie_variance_power);
+  return new EvalTweedieNLogLik(param);
 });
 
 }  // namespace metric
