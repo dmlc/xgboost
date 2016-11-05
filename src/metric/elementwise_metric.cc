@@ -216,7 +216,7 @@ XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
 .set_body([](const char* param) { return new EvalGammaNLogLik(); });
 
 XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
-.describe("Negative log-likelihood for tweedie regression.")
+.describe("tweedie-nloglik@rho for tweedie regression.")
 .set_body([](const char* param) {
   return new EvalTweedieNLogLik(param);
 });
