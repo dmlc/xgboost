@@ -164,12 +164,15 @@ struct EvalGammaNLogLik: public EvalEWiseBase<EvalGammaNLogLik> {
 };
 
 struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
-  explicit EvalTweedieNLogLik(float rho) {
-    if (rho <= 1 || rho > 2) {
-      rho_ = 1.5f;
-    } else {
-      rho_ = rho;
-    }
+  explicit EvalTweedieNLogLik(const char* param) {
+    CHECK(param != nullptr)
+        << "tweedie-nloglik must be in format tweedie-nloglik@rho";
+    rho_ = atof(param);
+    CHECK(rho_ < 2 && rho_ >= 1)
+        << "tweedie variance power must be in interval [1, 2)";
+    std::ostringstream os;
+    os << "tweedie-nloglik@" << rho_;
+    name_ = os.str();
   }
   const char *Name() const override {
     return "tweedie-nloglik";
@@ -179,17 +182,9 @@ struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
     float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
     return -a + b;
   }
-<<<<<<< HEAD
  protected:
-<<<<<<< HEAD
-  float td_;
-=======
-  protected:
-    float td_;
->>>>>>> add support for tweedie regression
-=======
+  std::string name_;  
   float rho_;
->>>>>>> changed parameter name to tweedie_variance_power
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")
@@ -222,18 +217,8 @@ XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
 
 XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
 .describe("Negative log-likelihood for tweedie regression.")
-<<<<<<< HEAD
 .set_body([](const char* param) {
-<<<<<<< HEAD
-=======
-.set_body([](const char* param) { 
->>>>>>> add support for tweedie regression
-  float tweedie_dispersion = atof(param);
-  return new EvalTweedieNLogLik(tweedie_dispersion);
-=======
-  float tweedie_variance_power = atof(param);
-  return new EvalTweedieNLogLik(tweedie_variance_power);
->>>>>>> changed parameter name to tweedie_variance_power
+  return new EvalTweedieNLogLik(param);
 });
 
 }  // namespace metric
