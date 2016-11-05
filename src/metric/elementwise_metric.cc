@@ -168,12 +168,11 @@ struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
     CHECK(param != nullptr)
         << "tweedie-nloglik must be in format tweedie-nloglik@rho";
     rho_ = atof(param);
+    CHECK(rho_ < 2 && rho_ >= 1)
+        << "tweedie variance power must be in interval [1, 2)";
     std::ostringstream os;
     os << "tweedie-nloglik@" << rho_;
     name_ = os.str();
-    if (rho_ <= 1 || rho_ > 2) {
-      rho_ = 1.5f;
-    }
   }
   const char *Name() const override {
     return name_.c_str();
