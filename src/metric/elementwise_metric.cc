@@ -183,7 +183,7 @@ struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
     return -a + b;
   }
  protected:
-  std::string name_;  
+  std::string name_; 
   float rho_;
 };
 
