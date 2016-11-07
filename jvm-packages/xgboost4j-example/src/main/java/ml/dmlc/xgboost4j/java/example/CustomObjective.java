@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.java.example;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -27,9 +28,9 @@ import ml.dmlc.xgboost4j.java.*;
 /**
  * an example user define objective and eval
  * NOTE: when you do customized loss function, the default prediction value is margin
- * this may make buildin evalution metric not function properly
+ * this may make build-in evaluation metric not function properly
  * for example, we are doing logistic loss, the prediction is score before logistic transformation
- * he buildin evaluation error assumes input is after logistic transformation
+ * the build-in evaluation error assumes input is after logistic transformation
  * Take this in mind when you use the customization, and maybe you need write customized evaluation
  * function
  *
@@ -37,7 +38,7 @@ import ml.dmlc.xgboost4j.java.*;
  */
 public class CustomObjective {
   /**
-   * loglikelihoode loss obj function
+   * log likelihood loss obj function
    */
   public static class LogRegObj implements IObjective {
     private static final Log logger = LogFactory.getLog(LogRegObj.class);
@@ -46,7 +47,8 @@ public class CustomObjective {
      * simple sigmoid func
      *
      * @param input
-     * @return Note: this func is not concern about numerical stability, only used as example
+     * @return Note: this func does not concern about numerical stability,
+     * only used as an example
      */
     public float sigmoid(float input) {
       float val = (float) (1 / (1 + Math.exp(-input)));
@@ -67,7 +69,7 @@ public class CustomObjective {
     @Override
     public List<float[]> getGradient(float[][] predicts, DMatrix dtrain) {
       int nrow = predicts.length;
-      List<float[]> gradients = new ArrayList<float[]>();
+      List<float[]> gradients = new ArrayList<>();
       float[] labels;
       try {
         labels = dtrain.getLabel();
@@ -95,9 +97,9 @@ public class CustomObjective {
   /**
    * user defined eval function.
    * NOTE: when you do customized loss function, the default prediction value is margin
-   * this may make buildin evalution metric not function properly
+   * this may make build-in evaluation metric not function properly
    * for example, we are doing logistic loss, the prediction is score before logistic transformation
-   * the buildin evaluation error assumes input is after logistic transformation
+   * the build-in evaluation error assumes input is after logistic transformation
    * Take this in mind when you use the customization, and maybe you need write customized
    * evaluation function
    */
@@ -139,21 +141,20 @@ public class CustomObjective {
 
   public static void main(String[] args) throws XGBoostError {
     //load train mat (svmlight format)
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix trainMat = new DMatrix("../demo/data/agaricus.txt.train");
     //load valid mat (svmlight format)
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+    DMatrix testMat = new DMatrix("../demo/data/agaricus.txt.test");
 
-    HashMap<String, Object> params = new HashMap<String, Object>();
+    Map<String, Object> params = new HashMap<>();
     params.put("eta", 1.0);
     params.put("max_depth", 2);
     params.put("silent", 1);
-
 
     //set round
     int round = 2;
 
     //specify watchList
-    HashMap<String, DMatrix> watches = new HashMap<String, DMatrix>();
+    Map<String, DMatrix> watches = new HashMap<>();
     watches.put("train", trainMat);
     watches.put("test", testMat);
 

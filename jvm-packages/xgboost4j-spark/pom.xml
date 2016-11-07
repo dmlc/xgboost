@@ -9,6 +9,8 @@
         <version>0.7</version>
     </parent>
     <artifactId>xgboost4j-spark</artifactId>
+    <version>${xgboost.jvm.version}</version>
+    <packaging>jar</packaging>
     <build>
         <plugins>
             <plugin>
@@ -24,7 +26,7 @@
         <dependency>
             <groupId>ml.dmlc</groupId>
             <artifactId>xgboost4j</artifactId>
-            <version>0.7</version>
+            <version>${xgboost.jvm.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>

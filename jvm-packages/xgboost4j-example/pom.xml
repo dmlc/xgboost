@@ -9,7 +9,7 @@
         <version>0.7</version>
     </parent>
     <artifactId>xgboost4j-example</artifactId>
-    <version>0.7</version>
+    <version>${xgboost.jvm.version}</version>
     <packaging>jar</packaging>
     <build>
         <plugins>
@@ -24,25 +24,14 @@
     </build>
     <dependencies>
         <dependency>
-            <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j-spark</artifactId>
-            <version>0.7</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.spark</groupId>
-            <artifactId>spark-mllib_${scala.binary.version}</artifactId>
-            <version>${spark.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j-flink</artifactId>
-            <version>0.7</version>
-        </dependency>
-        <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>3.4</version>
+        </dependency>
+        <dependency>
+            <groupId>ml.dmlc</groupId>
+            <artifactId>xgboost4j</artifactId>
+            <version>${xgboost.jvm.version}</version>
         </dependency>
     </dependencies>
 </project>

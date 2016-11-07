@@ -10,7 +10,7 @@ public class LabeledPoint implements Serializable {
   /** Label of the point */
   public float label;
   /** Weight of this data point */
-  public float weight = 1.0f;
+  private float weight = 1.0f;
   /** Feature indices, used for sparse input */
   public int[] indices = null;
   /** Feature values */

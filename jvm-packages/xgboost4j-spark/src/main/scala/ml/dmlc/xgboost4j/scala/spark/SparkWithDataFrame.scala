@@ -14,14 +14,13 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.example.spark
+package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.Booster
-import ml.dmlc.xgboost4j.scala.spark.{XGBoost, DataUtils}
+import org.apache.spark.SparkConf
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{SparkSession, SQLContext, Row}
-import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.sql.{Row, SparkSession}
 
 object SparkWithDataFrame {
   def main(args: Array[String]): Unit = {

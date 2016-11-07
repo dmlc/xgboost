@@ -21,7 +21,7 @@ import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
 
 object CrossValidation {
   def main(args: Array[String]): Unit = {
-    val trainMat: DMatrix = new DMatrix("../../demo/data/agaricus.txt.train")
+    val trainMat: DMatrix = new DMatrix("../demo/data/agaricus.txt.train")
 
     // set params
     val params = new mutable.HashMap[String, Any]
@@ -40,7 +40,8 @@ object CrossValidation {
     // set additional eval_metrics
     val metrics: Array[String] = null
 
-    val evalHist: Array[String] =
+    val evalHist =
       XGBoost.crossValidation(trainMat, params.toMap, round, nfold, metrics, null, null)
+
   }
 }

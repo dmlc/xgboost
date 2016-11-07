@@ -45,9 +45,9 @@ public class DMatrix {
   /**
    * sparse matrix type (CSR or CSC)
    */
-  public static enum SparseType {
+  public enum SparseType {
     CSR,
-    CSC;
+    CSC
   }
 
   /**

@@ -14,14 +14,13 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.example.spark
+package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-import ml.dmlc.xgboost4j.scala.spark.{DataUtils, XGBoost}
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.mllib.util.MLUtils
-import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector}
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
+import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector}
+import org.apache.spark.mllib.util.MLUtils
+import org.apache.spark.{SparkConf, SparkContext}
 
 object SparkWithRDD {
   def main(args: Array[String]): Unit = {

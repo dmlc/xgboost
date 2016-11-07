@@ -42,8 +42,7 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def fromDenseToSparseLabeledPoints(
-      denseLabeledPoints: Iterator[MLLabeledPoint],
+  private def fromDenseToSparseLabeledPoints(denseLabeledPoints: Iterator[MLLabeledPoint],
       missing: Float): Iterator[MLLabeledPoint] = {
     if (!missing.isNaN) {
       val sparseLabeledPoints = new ListBuffer[MLLabeledPoint]
