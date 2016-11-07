@@ -3,7 +3,9 @@ XGBoost4J Java API
 This tutorial introduces
 
 ## Data Interface
-Like the xgboost python module, xgboost4j use ```DMatrix``` to handle data, libsvm txt format file, sparse matrix in CSR/CSC format, and dense matrix is supported.
+Like the xgboost python module, xgboost4j uses ```DMatrix``` to handle data,
+libsvm txt format file, sparse matrix in CSR/CSC format, and dense matrix is
+supported.
 
 * To import ```DMatrix``` :
 ```java
@@ -97,7 +99,7 @@ import org.dmlc.xgboost4j.util.Trainer;
 ```java
 DMatrix trainMat = new DMatrix("train.svm.txt");
 DMatrix validMat = new DMatrix("valid.svm.txt");
-//specifiy a watchList to see the performance
+//specify a watchList to see the performance
 //any Iterable<Entry<String, DMatrix>> object could be used as watchList
 List<Entry<String, DMatrix>> watchs =  new ArrayList<>();
 watchs.add(new SimpleEntry<>("train", trainMat));
