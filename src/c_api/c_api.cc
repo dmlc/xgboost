@@ -682,7 +682,7 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
                        int with_stats,
                        xgboost::bst_ulong* len,
                        const char*** out_models) {
-  XGBoosterDumpModelEx(handle, fmap, with_stats, "text", len, out_models);
+  return XGBoosterDumpModelEx(handle, fmap, with_stats, "text", len, out_models);
 }
 XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
                        const char* fmap,
@@ -709,8 +709,8 @@ XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
                                    int with_stats,
                                    xgboost::bst_ulong* len,
                                    const char*** out_models) {
-  XGBoosterDumpModelExWithFeatures(handle, fnum, fname, ftype, with_stats,
-                                   "text", len, out_models);
+  return XGBoosterDumpModelExWithFeatures(handle, fnum, fname, ftype, with_stats,
+                                          "text", len, out_models);
 }
 XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
                                    int fnum,
