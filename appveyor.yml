@@ -1,0 +1,23 @@
+environment:
+        matrix:
+                - solution_name: C:/projects/xgboost/build2013/xgboost.sln
+                - solution_name: C:/projects/xgboost/build2015/xgboost.sln
+platform:
+        - x64
+
+configuration:
+        - Debug
+        - Release
+
+install:
+        - git submodule update --init --recursive
+
+before_build:
+        - mkdir build2013
+        - mkdir build2015
+        - cd build2013
+        - cmake .. -G"Visual Studio 12 2013 Win64"
+        - cd ../build2015
+        - cmake .. -G"Visual Studio 14 2015 Win64"
+build_script:
+        - msbuild %solution_name% 
