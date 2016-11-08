@@ -64,6 +64,10 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool silent;
   // auxiliary data structure
   std::vector<int> monotone_constraints;
+  // option to specify interaction constraints
+  bool int_constraints_flag;
+  // structure to record interaction constraints
+  std::vector<bool> int_constraints_list;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -141,6 +145,11 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
         .describe("Constraint of variable monotinicity");
+    DMLC_DECLARE_FIELD(int_constraints_flag).set_default(false).describe(
+        "Enforce interaction constraints");
+    DMLC_DECLARE_FIELD(int_constraints_list)
+        .set_default(std::vector<bool>())
+        .describe("Constraints for interaction");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
