@@ -43,7 +43,8 @@ void DumpRegTree2Text(std::stringstream& fo,  // NOLINT(*)
         }
         case FeatureMap::kInteger: {
           fo << nid << ":[" << fmap.name(split_index) << "<"
-             << int(float(cond)+1.0f)
+             // << int(float(cond)+1.0f)
+             << float(cond)
              << "] yes=" << tree[nid].cleft()
              << ",no=" << tree[nid].cright()
              << ",missing=" << tree[nid].cdefault();
