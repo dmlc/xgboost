@@ -449,6 +449,23 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
 /*!
  * \brief dump model, return array of strings representing model dump
  * \param handle handle
+ * \param fmap  name to fmap can be empty string
+ * \param with_stats whether to dump with statistics
+ * \param format the format to dump the model in
+ * \param out_len length of output array
+ * \param out_dump_array pointer to hold representing dump of each model
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
+                                 const char *fmap,
+                                 int with_stats,
+                                 const char *format,
+                                 bst_ulong *out_len,
+                                 const char ***out_dump_array);
+
+/*!
+ * \brief dump model, return array of strings representing model dump
+ * \param handle handle
  * \param fnum number of features
  * \param fname names of features
  * \param ftype types of features
@@ -464,6 +481,27 @@ XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
                                            int with_stats,
                                            bst_ulong *out_len,
                                            const char ***out_models);
+
+/*!
+ * \brief dump model, return array of strings representing model dump
+ * \param handle handle
+ * \param fnum number of features
+ * \param fname names of features
+ * \param ftype types of features
+ * \param with_stats whether to dump with statistics
+ * \param format the format to dump the model in
+ * \param out_len length of output array
+ * \param out_models pointer to hold representing dump of each model
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
+                                             int fnum,
+                                             const char **fname,
+                                             const char **ftype,
+                                             int with_stats,
+                                             const char *format,
+                                             bst_ulong *out_len,
+                                             const char ***out_models);
 
 /*!
  * \brief Get string attribute from Booster.
