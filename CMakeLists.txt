@@ -99,7 +99,7 @@ if(PLUGIN_UPDATER_GPU)
 	include_directories(${CUB_DIRECTORY})
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;-arch=compute_35")
     if(NOT MSVC)
-        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-std=c++11; -Xcompiler -fPIC")
+        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
     endif()
     set(SOURCES ${SOURCES} 
         plugin/updater_gpu/src/updater_gpu.cc
