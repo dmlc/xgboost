@@ -12,7 +12,7 @@ namespace xgboost {
 
 #if XGBOOST_CUSTOMIZE_LOGGER == 0
 ConsoleLogger::~ConsoleLogger() {
-  std::cout << log_stream_.str() << std::endl;
+  std::cerr << log_stream_.str() << std::endl;
 }
 
 TrackerLogger::~TrackerLogger() {
