@@ -1,6 +1,6 @@
 #' Cross Validation
 #' 
-#' The cross valudation function of xgboost
+#' The cross validation function of xgboost
 #' 
 #' @param params the list of parameters. Commonly used ones are:
 #' \itemize{
