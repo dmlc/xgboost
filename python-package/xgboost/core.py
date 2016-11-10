@@ -864,23 +864,21 @@ class Booster(object):
         result: str
             Evaluation result string.
         """
-        if feval is None:
-            for d in evals:
-                if not isinstance(d[0], DMatrix):
-                    raise TypeError('expected DMatrix, got {}'.format(type(d[0]).__name__))
-                if not isinstance(d[1], STRING_TYPES):
-                    raise TypeError('expected string, got {}'.format(type(d[1]).__name__))
-                self._validate_features(d[0])
+        for d in evals:
+            if not isinstance(d[0], DMatrix):
+                raise TypeError('expected DMatrix, got {}'.format(type(d[0]).__name__))
+            if not isinstance(d[1], STRING_TYPES):
+                raise TypeError('expected string, got {}'.format(type(d[1]).__name__))
+            self._validate_features(d[0])
 
-            dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
-            evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
-            msg = ctypes.c_char_p()
-            _check_call(_LIB.XGBoosterEvalOneIter(self.handle, iteration,
-                                                  dmats, evnames, len(evals),
-                                                  ctypes.byref(msg)))
-            return msg.value
-        else:
-            res = '[%d]' % iteration
+        dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
+        evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
+        msg = ctypes.c_char_p()
+        _check_call(_LIB.XGBoosterEvalOneIter(self.handle, iteration,
+                                              dmats, evnames, len(evals),
+                                              ctypes.byref(msg)))
+        res = msg.value.decode()
+        if feval is not None:
             for dmat, evname in evals:
                 feval_ret = feval(self.predict(dmat), dmat)
                 if isinstance(feval_ret, list):
@@ -889,7 +887,7 @@ class Booster(object):
                 else:
                     name, val = feval_ret
                     res += '\t%s-%s:%f' % (evname, name, val)
-            return res
+        return res
 
     def eval(self, data, name='eval', iteration=0):
         """Evaluate the model on mat.
