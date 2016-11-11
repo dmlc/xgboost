@@ -64,7 +64,7 @@ struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
   // declare parameters
   DMLC_DECLARE_PARAMETER(DartTrainParam) {
     DMLC_DECLARE_FIELD(silent).set_default(false)
-        .describe("Not print information during trainig.");
+        .describe("Not print information during training.");
     DMLC_DECLARE_FIELD(sample_type).set_default(0)
         .add_enum("uniform", 0)
         .add_enum("weighted", 1)
@@ -275,10 +275,12 @@ class GBTree : public GradientBooster {
     this->PredPath(p_fmat, out_preds, ntree_limit);
   }
 
-  std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) const override {
+  std::vector<std::string> DumpModel(const FeatureMap& fmap,
+                                     bool with_stats,
+                                     std::string format) const override {
     std::vector<std::string> dump;
     for (size_t i = 0; i < trees.size(); i++) {
-      dump.push_back(trees[i]->Dump2Text(fmap, option & 1));
+      dump.push_back(trees[i]->DumpModel(fmap, with_stats, format));
     }
     return dump;
   }

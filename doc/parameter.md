@@ -71,8 +71,10 @@ Parameters for Tree Booster
   - Usually user does not have to tune this.
     but consider setting to a lower number for more accurate enumeration.
   - range: (0, 1)
-* scale_pos_weight, [default=0]
+* scale_pos_weight, [default=1]
   - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: sum(negative  cases) / sum(positive cases) See [Parameters Tuning](how_to/param_tuning.md) for more discussion. Also see Higgs Kaggle competition demo for examples: [R](../demo/kaggle-higgs/higgs-train.R ), [py1](../demo/kaggle-higgs/higgs-numpy.py ), [py2](../demo/kaggle-higgs/higgs-cv.py ), [py3](../demo/guide-python/cross_validation.py)
+* updater_seq, [default="grow_colmaker,prune"]
+  - A comma separated string mentioning tThe sequence of Tree updaters that should be run. A tree updater is a pluggable operation performed on the tree at every step using the gradient information. Tree updaters can be registered using the plugin system provided.
 
 Additional parameters for Dart Booster
 --------------------------------------
@@ -105,6 +107,11 @@ Parameters for Linear Booster
 * lambda_bias
   - L2 regularization term on bias, default 0(no L1 reg on bias because it is not important)
 
+Parameters for Tweedie Regression
+-----------------------------
+* tweedie_variance_power [default=1.5]
+  - Parameter that controls the variance of the tweedie distribution.  Set closer to 2 to shift towards a gamma distribution and closer to 1 to shift towards a poisson distribution.
+
 Learning Task Parameters
 ------------------------
 Specify the learning task and the corresponding learning objective. The objective options are below:
@@ -119,6 +126,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
  - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
  - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
  - "reg:gamma" --gamma regression for severity data, output mean of gamma distribution
+ - "reg:tweedie" --tweedie regression for insurance data
+   - tweedie_variance_power is set to 1.5 by default in tweedie regression and must be in the range [1, 2)
 * base_score [ default=0.5 ]
   - the initial prediction score of all instances, global bias
   - for sufficient number of iterations, changing this value will not have too much effect.
