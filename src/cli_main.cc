@@ -27,7 +27,7 @@ namespace xgboost {
 
 enum CLITask {
   kTrain = 0,
-  kDump2Text = 1,
+  kDumpModel = 1,
   kPredict = 2
 };
 
@@ -62,6 +62,8 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
   bool pred_margin;
   /*! \brief whether dump statistics along with model */
   int dump_stats;
+  /*! \brief what format to dump the model in */
+  std::string dump_format;
   /*! \brief name of feature map */
   std::string name_fmap;
   /*! \brief name of dump file */
@@ -78,7 +80,7 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
     // NOTE: declare everything except eval_data_paths.
     DMLC_DECLARE_FIELD(task).set_default(kTrain)
         .add_enum("train", kTrain)
-        .add_enum("dump", kDump2Text)
+        .add_enum("dump", kDumpModel)
         .add_enum("pred", kPredict)
         .describe("Task to be performed by the CLI program.");
     DMLC_DECLARE_FIELD(silent).set_default(0).set_range(0, 2)
@@ -112,6 +114,8 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
         .describe("Whether to predict margin value instead of probability.");
     DMLC_DECLARE_FIELD(dump_stats).set_default(false)
         .describe("Whether dump the model statistics.");
+    DMLC_DECLARE_FIELD(dump_format).set_default("text")
+        .describe("What format to dump the model in.");
     DMLC_DECLARE_FIELD(name_fmap).set_default("NULL")
         .describe("Name of the feature map file.");
     DMLC_DECLARE_FIELD(name_dump).set_default("dump.txt")
@@ -259,7 +263,7 @@ void CLITrain(const CLIParam& param) {
   }
 }
 
-void CLIDump2Text(const CLIParam& param) {
+void CLIDumpModel(const CLIParam& param) {
   FeatureMap fmap;
   if (param.name_fmap != "NULL") {
     std::unique_ptr<dmlc::Stream> fs(
@@ -269,20 +273,30 @@ void CLIDump2Text(const CLIParam& param) {
   }
   // load model
   CHECK_NE(param.model_in, "NULL")
-      << "Must specifiy model_in for dump";
+      << "Must specify model_in for dump";
   std::unique_ptr<Learner> learner(Learner::Create({}));
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
   learner->Configure(param.cfg);
   learner->Load(fi.get());
   // dump data
-  std::vector<std::string> dump = learner->Dump2Text(fmap, param.dump_stats);
+  std::vector<std::string> dump = learner->DumpModel(
+      fmap, param.dump_stats, param.dump_format);
   std::unique_ptr<dmlc::Stream> fo(
       dmlc::Stream::Create(param.name_dump.c_str(), "w"));
   dmlc::ostream os(fo.get());
-  for (size_t i = 0; i < dump.size(); ++i) {
-    os << "booster[" << i << "]:\n";
-    os << dump[i];
+  if (param.dump_format == "json") {
+    os << "[" << std::endl;
+    for (size_t i = 0; i < dump.size(); ++i) {
+      if (i != 0) os << "," << std::endl;
+      os << dump[i];  // Dump the previously generated JSON here
+    }
+    os << std::endl << "]" << std::endl;
+  } else {
+    for (size_t i = 0; i < dump.size(); ++i) {
+      os << "booster[" << i << "]:\n";
+      os << dump[i];
+    }
   }
   // force flush before fo destruct.
   os.set_stream(nullptr);
@@ -296,7 +310,7 @@ void CLIPredict(const CLIParam& param) {
       DMatrix::Load(param.test_path, param.silent != 0, param.dsplit == 2));
   // load model
   CHECK_NE(param.model_in, "NULL")
-      << "Must specifiy model_in for dump";
+      << "Must specify model_in for predict";
   std::unique_ptr<Learner> learner(Learner::Create({}));
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
@@ -347,7 +361,7 @@ int CLIRunTask(int argc, char *argv[]) {
 
   switch (param.task) {
     case kTrain: CLITrain(param); break;
-    case kDump2Text: CLIDump2Text(param); break;
+    case kDumpModel: CLIDumpModel(param); break;
     case kPredict: CLIPredict(param); break;
   }
   rabit::Finalize();

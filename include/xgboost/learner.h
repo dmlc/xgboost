@@ -19,7 +19,7 @@
 
 namespace xgboost {
 /*!
- * \brief Learner class that do trainig and prediction.
+ * \brief Learner class that does training and prediction.
  *  This is the user facing module of xgboost training.
  *  The Load/Save function corresponds to the model used in python/R.
  *  \code
@@ -140,12 +140,15 @@ class Learner : public rabit::Serializable {
    */
   bool AllowLazyCheckPoint() const;
   /*!
-   * \brief dump the model in text format
+   * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
-   * \param option extra option of the dump model
+   * \param with_stats extra statistics while dumping model
+   * \param format the format to dump the model in
    * \return a vector of dump for boosters.
    */
-  std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) const;
+  std::vector<std::string> DumpModel(const FeatureMap& fmap,
+                                     bool with_stats,
+                                     std::string format) const;
   /*!
    * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually
@@ -173,7 +176,7 @@ class Learner : public rabit::Serializable {
   bst_float base_score_;
   /*! \brief objective function */
   std::unique_ptr<ObjFunction> obj_;
-  /*! \brief The gradient boosted used by the model*/
+  /*! \brief The gradient booster used by the model*/
   std::unique_ptr<GradientBooster> gbm_;
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;

@@ -274,3 +274,7 @@ template <typename T> __device__ range block_stride_range(T begin, T end) {
 template <typename T> T *raw(thrust::device_vector<T> &v) { //  NOLINT
   return raw_pointer_cast(v.data());
 }
+
+template <typename T> size_t size_bytes(const thrust::device_vector<T> &v) {
+    return sizeof(T) * v.size();
+}

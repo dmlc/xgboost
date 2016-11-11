@@ -480,12 +480,15 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    */
   inline int GetNext(int pid, float fvalue, bool is_unknown) const;
   /*!
-   * \brief dump model to text string
-   * \param fmap feature map of feature types
+   * \brief dump the model in the requested format as a text string
+   * \param fmap feature map that may help give interpretations of feature
    * \param with_stats whether dump out statistics as well
+   * \param format the format to dump the model in
    * \return the string of dumped model
    */
-  std::string Dump2Text(const FeatureMap& fmap, bool with_stats) const;
+  std::string DumpModel(const FeatureMap& fmap,
+                        bool with_stats,
+                        std::string format) const;
 };
 
 // implementations of inline functions
