@@ -177,10 +177,13 @@ xgb.Booster.check <- function(bst, saveraw = TRUE) {
 #'
 #' @rdname predict.xgb.Booster
 #' @export
-predict.xgb.Booster <- function(object, newdata, missing = NA,
+predict.xgb.Booster <- function(object, newdata = NULL, missing = NA,
     outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE, reshape = FALSE, ...) {
 
   object <- xgb.Booster.check(object, saveraw = FALSE)
+  if(is.null(newdata)){
+    newdata = object$data
+  }
   if (class(newdata) != "xgb.DMatrix")
     newdata <- xgb.DMatrix(newdata, missing = missing)
   if (is.null(ntreelimit))
