@@ -83,7 +83,7 @@ def record_evaluation(eval_result):
     return callback
 
 
-def reset_learning_rate(learning_rates):
+def reset_learning_rate(learning_rates, caller=None):
     """Reset learning rate after iteration 1
 
     NOTE: the initial learning rate will still take in-effect on first iteration.
@@ -97,22 +97,45 @@ def reset_learning_rate(learning_rates):
         learning rate decay)
         - list l: eta = l[boosting round]
         - function f: eta = f(boosting round, num_boost_round)
+        
+    caller: (optional) None (default) or 'train' or 'cv'
+        Allows 'learning_rates' callback to work indifferently when called
+        from either xgb.train() or xgb.cv() methods
 
     Returns
     -------
     callback : function
         The requested callback function.
     """
-    def callback(env):
-        """internal function"""
-        bst = env.model
-        i = env.iteration
+    def get_learning_rate(i, n, learning_rates):
+        """helper providing the learning rate"""
         if isinstance(learning_rates, list):
-            if len(learning_rates) != env.end_iteration:
+            if len(learning_rates) != n:
                 raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
-            bst.set_param('learning_rate', learning_rates[i])
+            new_learning_rate = learning_rates[i]
         else:
-            bst.set_param('learning_rate', learning_rates(i, env.end_iteration))
+            new_learning_rate = learning_rates(i, n)
+        return new_learning_rate
+
+    def callback_train(env):
+        """internal function - used when called from xgb.train()"""
+        bst, i, n = env.model, env.iteration, env.end_iteration
+        bst.set_param('learning_rate', get_learning_rate(i, n, learning_rates))
+    
+    def callback_cv(env):
+        """internal function - used when called from xgb.cv()"""
+        i, n = env.iteration, env.end_iteration
+        for cvpack in env.cvfolds:
+            bst = cvpack.bst
+            bst.set_param('learning_rate', get_learning_rate(i, n, learning_rates))
+
+    if caller == None or caller == 'train':
+        callback = callback_train
+    elif caller == 'cv':
+        callback = callback_cv
+    else:
+        raise ValueError("Parameter 'caller' must be either None (default), 'train' or 'cv'")
+
     callback.before_iteration = True
     return callback
 
