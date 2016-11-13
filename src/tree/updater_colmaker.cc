@@ -449,8 +449,6 @@ class ColMaker: public TreeUpdater {
       TStats c(param);
       // local cache buffer for position and gradient pair
       const int kBuffer = 32;
-      int buf_position[kBuffer];
-      bst_gpair buf_gpair[kBuffer];
       // aligned ending position
       const ColBatch::Entry *align_end;
       if (d_step > 0) {
@@ -458,38 +456,28 @@ class ColMaker: public TreeUpdater {
       } else {
         align_end = begin - (begin - end) / kBuffer * kBuffer;
       }
-      int i;
-      const ColBatch::Entry *it;
       const int align_step = d_step * kBuffer;
       // internal cached loop
-      for (it = begin; it != align_end; it += align_step) {
-        const ColBatch::Entry *p;
+      for (const ColBatch::Entry *it = begin; it != align_end; it += align_step) {
+        const ColBatch::Entry *p; int i;
         for (i = 0, p = it; i < kBuffer; ++i, p += d_step) {
-          buf_position[i] = position[p->index];
-          buf_gpair[i] = gpair[p->index];
-        }
-        for (i = 0, p = it; i < kBuffer; ++i, p += d_step) {
-          const int nid = buf_position[i];
+          const int nid = position[p->index];
           if (nid < 0) continue;
-          this->UpdateEnumeration(nid, buf_gpair[i],
+          this->UpdateEnumeration(nid, gpair[p->index],
                                   p->fvalue, d_step,
                                   fid, c, temp);
         }
       }
       // finish up the ending piece
-      for (it = align_end, i = 0; it != end; ++i, it += d_step) {
-        buf_position[i] = position[it->index];
-        buf_gpair[i] = gpair[it->index];
-      }
-      for (it = align_end, i = 0; it != end; ++i, it += d_step) {
-        const int nid = buf_position[i];
+      for (const ColBatch::Entry *it = align_end; it != end; it += d_step) {
+        const int nid = position[it->index];
         if (nid < 0) continue;
-        this->UpdateEnumeration(nid, buf_gpair[i],
+        this->UpdateEnumeration(nid, gpair[it->index],
                                 it->fvalue, d_step,
                                 fid, c, temp);
       }
       // finish updating all statistics, check if it is possible to include all sum statistics
-      for (size_t i = 0; i < qexpand.size(); ++i) {
+      for (size_t i = 0, I = qexpand.size(); i < I; ++i) {
         const int nid = qexpand[i];
         ThreadEntry &e = temp[nid];
         c.SetSubstract(snode[nid].stats, e.stats);
@@ -581,7 +569,7 @@ class ColMaker: public TreeUpdater {
                 constraints_[nid].CalcSplitGain(param, fid, e.stats, c) - snode[nid].root_gain);
           }
           const float gap = std::abs(e.last_fvalue) + rt_eps;
-          const float delta = d_step == +1 ? gap: -gap;
+          const float delta = d_step == +1 ? gap : -gap;
           e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1);
         }
       }
@@ -645,18 +633,19 @@ class ColMaker: public TreeUpdater {
       // after this each thread's stemp will get the best candidates, aggregate results
       this->SyncBestSolution(qexpand);
       // get the best result, we can synchronize the solution
-      for (size_t i = 0; i < qexpand.size(); ++i) {
+      for (size_t i = 0, I = qexpand.size(); i < I; ++i) {
         const int nid = qexpand[i];
         NodeEntry &e = snode[nid];
+        RegTree &tree = *p_tree;
         // now we know the solution in snode[nid], set split
         if (e.best.loss_chg > rt_eps) {
-          p_tree->AddChilds(nid);
-          (*p_tree)[nid].set_split(e.best.split_index(), e.best.split_value, e.best.default_left());
+          tree.AddChilds(nid);
+          tree[nid].set_split(e.best.split_index(), e.best.split_value, e.best.default_left());
           // mark right child as 0, to indicate fresh leaf
-          (*p_tree)[(*p_tree)[nid].cleft()].set_leaf(0.0f, 0);
-          (*p_tree)[(*p_tree)[nid].cright()].set_leaf(0.0f, 0);
+          tree[tree[nid].cleft()].set_leaf(0.0f, 0);
+          tree[tree[nid].cright()].set_leaf(0.0f, 0);
         } else {
-          (*p_tree)[nid].set_leaf(e.weight * param.learning_rate);
+          tree[nid].set_leaf(e.weight * param.learning_rate);
         }
       }
     }
