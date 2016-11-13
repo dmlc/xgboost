@@ -97,7 +97,7 @@ def reset_learning_rate(learning_rates, caller=None):
         learning rate decay)
         - list l: eta = l[boosting round]
         - function f: eta = f(boosting round, num_boost_round)
-        
+
     caller: (optional) None (default) or 'train' or 'cv'
         Allows 'learning_rates' callback to work indifferently when called
         from either xgb.train() or xgb.cv() methods
@@ -121,7 +121,7 @@ def reset_learning_rate(learning_rates, caller=None):
         """internal function - used when called from xgb.train()"""
         bst, i, n = env.model, env.iteration, env.end_iteration
         bst.set_param('learning_rate', get_learning_rate(i, n, learning_rates))
-    
+
     def callback_cv(env):
         """internal function - used when called from xgb.cv()"""
         i, n = env.iteration, env.end_iteration
@@ -129,7 +129,7 @@ def reset_learning_rate(learning_rates, caller=None):
             bst = cvpack.bst
             bst.set_param('learning_rate', get_learning_rate(i, n, learning_rates))
 
-    if caller == None or caller == 'train':
+    if caller is None or caller == 'train':
         callback = callback_train
     elif caller == 'cv':
         callback = callback_cv
