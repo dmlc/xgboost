@@ -85,7 +85,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   td[, Tree := cumsum(ifelse(is.na(Tree), 0L, Tree)) - 1L]
   
   n_first_tree <- min(max(td$Tree), n_first_tree)
-  td <- td[Tree <= n_first_tree & !grepl('^booster', t)]
+  td <- td[Tree < n_first_tree & !grepl('^booster', t)]
   
   td[, Node := stri_match_first_regex(t, "(\\d+):")[,2] %>% as.numeric ]
   td[, ID := add.tree.id(Node, Tree)]
