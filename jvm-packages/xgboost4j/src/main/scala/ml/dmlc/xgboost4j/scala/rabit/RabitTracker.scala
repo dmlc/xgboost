@@ -71,10 +71,10 @@ class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
 
   val system = ActorSystem.create("RabitTracker")
   val handler = system.actorOf(RabitTrackerHandler.props(numWorkers), "Handler")
-  implicit val askTimeout: akka.util.Timeout = akka.util.Timeout(1 second)
+  implicit val askTimeout: akka.util.Timeout = akka.util.Timeout(30 seconds)
 
   val futureWorkerEnvs: Future[Map[String, String]] = Try(
-    Await.result(handler ? RabitTrackerHandler.RequestBoundFuture, 5 seconds)
+    Await.result(handler ? RabitTrackerHandler.RequestBoundFuture, askTimeout.duration)
       .asInstanceOf[Future[Map[String, String]]]
   ) match {
     case Success(fut) => fut
@@ -86,7 +86,7 @@ class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
 
   // a future for XGBoost worker execution
   val futureCompleted: Future[Int] = Try(
-    Await.result(handler ? RabitTrackerHandler.RequestCompletionFuture, 5 seconds)
+    Await.result(handler ? RabitTrackerHandler.RequestCompletionFuture, askTimeout.duration)
       .asInstanceOf[Future[Int]]
   ) match {
     case Success(fut) => fut
@@ -160,11 +160,11 @@ class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
     Try(Await.result(futureCompleted, atMost)) match {
       case Success(n) if n == numWorkers =>
         system.shutdown()
-        0
+        RabitTracker.SUCCESS.statusCode
       case Success(n) if n < numWorkers =>
-        1
+        RabitTracker.TIMEOUT.statusCode
       case Failure(e) =>
-        2
+        RabitTracker.FAILURE.statusCode
     }
   }
 
@@ -183,4 +183,11 @@ class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
       waitFor(Duration.fromNanos(atMostMillis * 1e6))
     }
   }
+}
+
+private[scala] object RabitTracker {
+  sealed abstract class TrackerStatus(val statusCode: Int)
+  case object SUCCESS extends TrackerStatus(0)
+  case object TIMEOUT extends TrackerStatus(1)
+  case object FAILURE extends TrackerStatus(2)
 }
