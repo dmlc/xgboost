@@ -77,10 +77,11 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(min_split_loss)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
-        .describe(
-            "Minimum loss reduction required to make a further partition.");
-    DMLC_DECLARE_FIELD(max_depth).set_lower_bound(0).set_default(6).describe(
-        "Maximum depth of the tree.");
+        .describe("Minimum loss reduction required to make a further partition.");
+    DMLC_DECLARE_FIELD(max_depth)
+        .set_lower_bound(0)
+        .set_default(6)
+        .describe("Maximum depth of the tree.");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)
@@ -102,9 +103,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(max_delta_step)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
-        .describe(
-            "Maximum delta step we allow each tree's weight estimate to be. "
-            "If the value is set to 0, it means there is no constraint");
+        .describe("Maximum delta step we allow each tree's weight estimate to be. "\
+                  "If the value is set to 0, it means there is no constraint");
     DMLC_DECLARE_FIELD(subsample)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
@@ -116,8 +116,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(colsample_bytree)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
-        .describe(
-            "Subsample ratio of columns, resample on each tree construction.");
+        .describe("Subsample ratio of columns, resample on each tree construction.");
     DMLC_DECLARE_FIELD(opt_dense_col)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
@@ -129,8 +128,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(sketch_ratio)
         .set_lower_bound(0.0f)
         .set_default(2.0f)
-        .describe("EXP Param: Sketch accuracy related parameter of approximate "
-                  "algorithm.");
+        .describe("EXP Param: Sketch accuracy related parameter of approximate algorithm.");
     DMLC_DECLARE_FIELD(size_leaf_vector)
         .set_lower_bound(0)
         .set_default(0)
