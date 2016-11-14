@@ -23,7 +23,8 @@ import scala.collection.mutable.ListBuffer
 import scala.util.Random
 import scala.concurrent.duration._
 import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix, RabitTracker => PyRabitTracker}
-import ml.dmlc.xgboost4j.scala.{DMatrix, RabitTracker => AkkaRabitTracker}
+import ml.dmlc.xgboost4j.scala.DMatrix
+import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.ml.linalg.{Vectors, Vector => SparkVector}
@@ -36,8 +37,8 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       (1 to numWorkers * vectorLength).toArray.map { _ => Random.nextFloat() },
       numWorkers).cache()
 
-    val tracker = new AkkaRabitTracker(numWorkers)
-    tracker.start()
+    val tracker = new RabitTracker(numWorkers)
+    tracker.start(0)
     val trackerEnvs = tracker.getWorkerEnvs
     val queue = new LinkedBlockingDeque[Array[Float]]()
 

@@ -14,7 +14,7 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.handler
+package ml.dmlc.xgboost4j.scala.rabit.handler
 
 import java.net.InetSocketAddress
 import java.util.UUID
@@ -24,27 +24,15 @@ import scala.collection.mutable
 import scala.concurrent.{Promise, TimeoutException}
 import akka.io.{IO, Tcp}
 import akka.actor._
-import ml.dmlc.xgboost4j.scala.util.{LinkMap, AssignedRank}
+import ml.dmlc.xgboost4j.scala.rabit.util.{AssignedRank, LinkMap}
 
-object RabitTrackerHandler {
-  case object RequestCompletionFuture
-  case object RequestBoundFuture
-  case class StartTracker(addr: InetSocketAddress)
+import scala.util.Random
 
-  def props(numWorkers: Int, maxPortTrials: Int = 1000,
-            workerConnectionTimeout: Duration = 10 minutes): Props =
-    Props(new RabitTrackerHandler(numWorkers, maxPortTrials, workerConnectionTimeout))
-}
-
-/**
+/** The Akka actor for handling Rabit worker connections.
   *
-  * @param numWorkers
-  * @param workerConnectionTimeout Timeout for all workers to start and connect
-  *                                to the tracker. Using this timeout prevents
-  *                                the tracker and its owner from hanging indefinitely.
+  * @param numWorkers Number of workers to track.
   */
-class RabitTrackerHandler(numWorkers: Int, maxPortTrials: Int,
-                          workerConnectionTimeout: Duration)
+class RabitTrackerHandler private[scala](numWorkers: Int)
   extends Actor with ActorLogging {
 
   import context.system
@@ -63,6 +51,8 @@ class RabitTrackerHandler(numWorkers: Int, maxPortTrials: Int,
   private[this] val jobToRankMap = mutable.HashMap.empty[String, Int]
   private[this] val actorRefToHost = mutable.HashMap.empty[ActorRef, String]
   private[this] val ranksToAssign = mutable.ListBuffer(0 until numWorkers: _*)
+  private[this] var maxPortTrials = 0
+  private[this] var workerConnectionTimeout: Duration = Duration.Inf
   private[this] var portTrials = 0
   private[this] val startedWorkers = mutable.Set.empty[Int]
 
@@ -79,11 +69,12 @@ class RabitTrackerHandler(numWorkers: Int, maxPortTrials: Int,
     }
   }
 
-  def receive: Actor.Receive = {
-    case StartTracker(addr) =>
-      tcpManager ! Tcp.Bind(self, addr, backlog = 256)
-      sender() ! true
-
+  /**
+    * Handler for all Akka Tcp events.
+    * @param event
+    * @return
+    */
+  private def handleTcpEvents(event: Tcp.Event) = event match {
     case Tcp.Bound(local) =>
       // expect all workers to connect within timeout
       log.info(s"Tracker listening @ ${local.getAddress.getHostAddress}:${local.getPort}")
@@ -116,6 +107,24 @@ class RabitTrackerHandler(numWorkers: Int, maxPortTrials: Int,
       connection ! Tcp.Register(connHandler, keepOpenOnPeerClosed = true)
 
       actorRefToHost.put(connHandler, remote.getAddress.getHostName)
+  }
+
+  def receive: Actor.Receive = {
+    case tcpEvent: Tcp.Event => handleTcpEvents(tcpEvent)
+
+    case StartTracker(addr, portTrials, connectionTimeout) =>
+      maxPortTrials = portTrials
+      workerConnectionTimeout = connectionTimeout
+
+      // if the port number is missing, try binding to a random ephemeral port.
+      if (addr.getPort == 0) {
+        tcpManager ! Tcp.Bind(self,
+          new InetSocketAddress(addr.getAddress, new Random().nextInt(61000 - 32768) + 32768),
+          backlog = 256)
+      } else {
+        tcpManager ! Tcp.Bind(self, addr, backlog = 256)
+      }
+      sender() ! true
 
     case RequestBoundFuture =>
       sender() ! promisedWorkerEnvs.future
@@ -238,8 +247,7 @@ class WorkerDependencyResolver(handler: ActorRef) extends Actor with ActorLoggin
         // all dependencies are satisfied
         log.debug(s"Rank $rank has all dependencies satisfied.")
         promise.success(awaitingWorkers(toConnectSet))
-      }
-      else {
+      } else {
         log.debug(s"Rank $rank's request for AwaitConnWorkers is pending fulfillment.")
         // promise is pending fulfillment due to unresolved dependency
         pendingFulfillment.put(rank, Fulfillment(toConnectSet, promise))
@@ -272,4 +280,20 @@ class WorkerDependencyResolver(handler: ActorRef) extends Actor with ActorLoggin
     case DropFromWaitingList(rank) =>
       assert(awaitConnWorkers.remove(rank).isDefined)
   }
+}
+
+object RabitTrackerHandler {
+  // Messages sent by RabitTracker to this RabitTrackerHandler actor
+
+  case object RequestCompletionFuture
+  case object RequestBoundFuture
+  // Start the Rabit tracker at given socket address awaiting worker connections.
+  // All workers must connect to the tracker before connectionTimeout, otherwise the tracker will
+  // shut down due to timeout.
+  case class StartTracker(addr: InetSocketAddress,
+                          maxPortTrials: Int,
+                          connectionTimeout: Duration)
+
+  def props(numWorkers: Int): Props =
+    Props(new RabitTrackerHandler(numWorkers))
 }

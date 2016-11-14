@@ -14,14 +14,14 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.handler
+package ml.dmlc.xgboost4j.scala.rabit.handler
 
 import java.nio.{ByteBuffer, ByteOrder}
 
 import akka.io.Tcp
 import akka.actor._
 import akka.util.ByteString
-import ml.dmlc.xgboost4j.scala.util.{AssignedRank, RabitTrackerHelpers}
+import ml.dmlc.xgboost4j.scala.rabit.util.{AssignedRank, RabitTrackerHelpers}
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._

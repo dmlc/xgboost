@@ -22,9 +22,9 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.io.Tcp
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit, TestProbe}
 import akka.util.ByteString
-import ml.dmlc.xgboost4j.scala.handler.RabitTrackerConnectionHandler
-import ml.dmlc.xgboost4j.scala.handler.RabitTrackerConnectionHandler.{AwaitingConnections, RequestAwaitConnWorkers, WorkerStart, WorkerTrackerPrint}
-import ml.dmlc.xgboost4j.scala.util.{AssignedRank, LinkMap}
+import ml.dmlc.xgboost4j.scala.rabit.handler.RabitTrackerConnectionHandler
+import ml.dmlc.xgboost4j.scala.rabit.handler.RabitTrackerConnectionHandler.{AwaitingConnections, RequestAwaitConnWorkers, WorkerStart, WorkerTrackerPrint}
+import ml.dmlc.xgboost4j.scala.rabit.util.{AssignedRank, LinkMap}
 import org.junit.runner.RunWith
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatest.junit.JUnitRunner
@@ -47,9 +47,7 @@ class RabitTrackerConnectionHandlerTest
 
   import RabitTrackerConnectionHandlerTest._
 
-  val magicBuf = ByteBuffer.allocate(4).order(ByteOrder.nativeOrder()).putInt(0xff99)
-  magicBuf.flip()
-  val magic = ByteString.fromByteBuffer(magicBuf)
+  val magic = intSeqToByteString(List(0xff99))
 
   "RabitTrackerConnectionHandler" should "handle Rabit client 'start' command properly" in {
     val trackerProbe = TestProbe()

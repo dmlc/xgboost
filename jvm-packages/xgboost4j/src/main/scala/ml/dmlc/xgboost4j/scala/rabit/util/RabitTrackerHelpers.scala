@@ -14,7 +14,7 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.util
+package ml.dmlc.xgboost4j.scala.rabit.util
 
 import java.nio.{ByteOrder, ByteBuffer}
 import akka.util.ByteString

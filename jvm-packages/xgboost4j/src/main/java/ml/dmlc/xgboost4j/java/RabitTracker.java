@@ -12,7 +12,15 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 /**
- * Distributed RabitTracker, need to be started on driver code before running distributed jobs.
+ * Java implementation of the Rabit tracker to coordinate distributed workers.
+ * As a wrapper of the Python Rabit tracker, this implementation does not handle timeout for both
+ * start() and waitFor() methods (i.e., the timeout is infinite.)
+ *
+ * For systems lacking Python environment, or for timeout functionality, consider using the Scala
+ * Rabit tracker (ml.dmlc.xgboost4j.scala.rabit.RabitTracker) which does not depend on Python, and
+ * provides timeout support.
+ *
+ * The tracker must be started on driver node before running distributed jobs.
  */
 public class RabitTracker implements IRabitTracker {
   // Maybe per tracker logger?
@@ -127,7 +135,11 @@ public class RabitTracker implements IRabitTracker {
     }
   }
 
-  public boolean start() {
+  public boolean start(long timeout) {
+    if (timeout > 0L) {
+      logger.warn("ml.dmlc.xgboost4j.java.RabitTracker does not support timeout");
+    }
+
     if (startTrackerProcess()) {
       logger.debug("Tracker started, with env=" + envs.toString());
       System.out.println("Tracker started, with env=" + envs.toString());
@@ -143,12 +155,11 @@ public class RabitTracker implements IRabitTracker {
     }
   }
 
-  public boolean start(long timeout, TimeUnit unit) {
-    logger.warn("Java RabitTracker does not support timeout.");
-    return start();
-  }
+  public int waitFor(long timeout) {
+    if (timeout > 0L) {
+      logger.warn("ml.dmlc.xgboost4j.java.RabitTracker does not support timeout");
+    }
 
-  public int waitFor() {
     try {
       trackerProcess.get().waitFor();
       int returnVal = trackerProcess.get().exitValue();
@@ -161,10 +172,5 @@ public class RabitTracker implements IRabitTracker {
       logger.error("the RabitTracker thread is terminated unexpectedly");
       return 1;
     }
-  }
-
-  public int waitFor(long timeout, TimeUnit unit) {
-    logger.warn("Java RabitTracker does not support timeout.");
-    return waitFor();
   }
 }

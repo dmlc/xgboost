@@ -21,7 +21,7 @@
   * suspectible to Python-related issues.
   */
 
-package ml.dmlc.xgboost4j.scala.util
+package ml.dmlc.xgboost4j.scala.rabit.util
 
 import java.nio.{ByteBuffer, ByteOrder}
 
