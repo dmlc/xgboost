@@ -86,7 +86,7 @@
 #' @param save_period when it is non-NULL, model is saved to disk after every \code{save_period} rounds,
 #'        0 means save at the end. The saving is handled by the \code{\link{cb.save.model}} callback.
 #' @param save_name the name or path for periodically saved model file.
-#' @param xgb_model a previously built model to continue the trainig from.
+#' @param xgb_model a previously built model to continue the training from.
 #'        Could be either an object of class \code{xgb.Booster}, or its raw data, or the name of a 
 #'        file with a previously saved model.
 #' @param callbacks a list of callback functions to perform various task during boosting.
