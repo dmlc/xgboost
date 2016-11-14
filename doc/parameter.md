@@ -124,7 +124,7 @@ Parameters for Linear Booster
 * alpha [default=0, alias: reg_alpha]
   - L1 regularization term on weights, increase this value will make model more conservative.
 * lambda_bias [default=0, alias: reg_lambda_bias]
-  - L2 regularization term on bias, default is no L1 reg on bias (because it is not important)
+  - L2 regularization term on bias (no L1 reg on bias because it is not important)
 
 Parameters for Tweedie Regression
 ---------------------------------

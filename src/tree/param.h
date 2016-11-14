@@ -147,7 +147,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe("Whether the refresh updater needs to update leaf values.");
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
-        .describe("Constraint of variable monotinicity");
+        .describe("Constraint of variable monotonicity");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
