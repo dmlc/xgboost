@@ -25,7 +25,7 @@ import ml.dmlc.xgboost4j.scala.rabit.handler.RabitTrackerHandler
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future, Promise}
-import scala.util.{Failure, Random, Success, Try}
+import scala.util.{Failure, Success, Try}
 
 /**
   * Scala implementation of the Rabit tracker interface without Python dependency.
