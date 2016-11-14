@@ -35,20 +35,24 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   int num_parallel_tree;
   /*! \brief tree updater sequence */
   std::string updater_seq;
-  /*! \brief Whether the whole boosting process or only its part needs to be run */
+  /*! \brief type of boosting process to run */
   int process_type;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
-    DMLC_DECLARE_FIELD(num_parallel_tree).set_lower_bound(1).set_default(1)
+    DMLC_DECLARE_FIELD(num_parallel_tree)
+        .set_default(1)
+        .set_lower_bound(1)
         .describe("Number of parallel trees constructed during each iteration."\
                   " This option is used to support boosted random forest");
-    DMLC_DECLARE_FIELD(updater_seq).set_default("grow_colmaker,prune")
+    DMLC_DECLARE_FIELD(updater_seq)
+        .set_default("grow_colmaker,prune")
         .describe("Tree updater sequence.");
-    DMLC_DECLARE_FIELD(process_type).set_default(0)
-        .add_enum("whole", 0)
+    DMLC_DECLARE_FIELD(process_type)
+        .set_default(0)
+        .add_enum("default", 0)
         .add_enum("update", 1)
-        .describe("Whether to run the whole boosting process to create new trees,"\
-                  " or to only update the loaded trees.");
+        .describe("Whether to run the normal boosting process that creates new trees,"\
+                  " or to update the trees in an existing model.");
     // add alias
     DMLC_DECLARE_ALIAS(updater_seq, updater);
   }
@@ -70,21 +74,30 @@ struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
   float learning_rate;
   // declare parameters
   DMLC_DECLARE_PARAMETER(DartTrainParam) {
-    DMLC_DECLARE_FIELD(silent).set_default(false)
+    DMLC_DECLARE_FIELD(silent)
+        .set_default(false)
         .describe("Not print information during training.");
-    DMLC_DECLARE_FIELD(sample_type).set_default(0)
+    DMLC_DECLARE_FIELD(sample_type)
+        .set_default(0)
         .add_enum("uniform", 0)
         .add_enum("weighted", 1)
         .describe("Different types of sampling algorithm.");
-    DMLC_DECLARE_FIELD(normalize_type).set_default(0)
+    DMLC_DECLARE_FIELD(normalize_type)
+        .set_default(0)
         .add_enum("tree", 0)
         .add_enum("forest", 1)
         .describe("Different types of normalization algorithm.");
-    DMLC_DECLARE_FIELD(rate_drop).set_range(0.0f, 1.0f).set_default(0.0f)
+    DMLC_DECLARE_FIELD(rate_drop)
+        .set_range(0.0f, 1.0f)
+        .set_default(0.0f)
         .describe("Parameter of how many trees are dropped.");
-    DMLC_DECLARE_FIELD(skip_drop).set_range(0.0f, 1.0f).set_default(0.0f)
+    DMLC_DECLARE_FIELD(skip_drop)
+        .set_range(0.0f, 1.0f)
+        .set_default(0.0f)
         .describe("Parameter of whether to drop trees.");
-    DMLC_DECLARE_FIELD(learning_rate).set_lower_bound(0.0f).set_default(0.3f)
+    DMLC_DECLARE_FIELD(learning_rate)
+        .set_lower_bound(0.0f)
+        .set_default(0.3f)
         .describe("Learning rate(step size) of update.");
     DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
@@ -163,6 +176,14 @@ class GBTree : public GradientBooster {
     if (updater_seq != tparam.updater_seq) updaters.clear();
     for (const auto& up : updaters) {
       up->Init(cfg);
+    }
+    // for the 'update' process_type, move trees into trees_to_update
+    if (tparam.process_type == 1 && trees_to_update.size() == 0u) {
+      for (size_t i = 0; i < trees.size(); ++i) {
+        trees_to_update.push_back(std::move(trees[i]));
+      }
+      trees.clear();
+      mparam.num_trees = 0;
     }
   }
 
@@ -382,16 +403,6 @@ class GBTree : public GradientBooster {
       up->Init(this->cfg);
       updaters.push_back(std::move(up));
     }
-    // for the 'update' process_type, move trees into trees_to_update
-    if (tparam.process_type == 1) {
-      CHECK_EQ(trees_to_update.size(), 0u);
-      // load trees to be updated into trees_to_update
-      for (size_t i = 0; i < trees.size(); ++i) {
-        trees_to_update.push_back(std::move(trees[i]));
-      }
-      trees.clear();
-      mparam.num_trees = 0;
-    }
   }
   // do group specific group
   inline void
@@ -412,7 +423,7 @@ class GBTree : public GradientBooster {
         new_trees.push_back(ptr.get());
         ret->push_back(std::move(ptr));
       } else if (tparam.process_type == 1) {
-        CHECK_LE(trees.size(), trees_to_update.size());
+        CHECK_LT(trees.size(), trees_to_update.size());
         // move an existing tree from trees_to_update
         auto t = std::move(trees_to_update[trees.size()]);
         new_trees.push_back(t.get());
