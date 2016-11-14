@@ -25,10 +25,10 @@ General Parameters
 
 Parameters for Tree Booster
 ---------------------------
-* eta [default=0.3]
+* eta [default=0.3, alias: learning_rate]
   - step size shrinkage used in update to prevents overfitting. After each boosting step, we can directly get the weights of new features. and eta actually shrinks the feature weights to make the boosting process more conservative.
   - range: [0,1]
-* gamma [default=0]
+* gamma [default=0, alias: min_split_loss]
   - minimum loss reduction required to make a further partition on a leaf node of the tree. The larger, the more conservative the algorithm will be.
   - range: [0,∞]
 * max_depth [default=6]
@@ -49,9 +49,9 @@ Parameters for Tree Booster
 * colsample_bylevel [default=1]
   - subsample ratio of columns for each split, in each level.
   - range: (0,1]
-* lambda [default=1]
+* lambda [default=1, alias: reg_lambda]
   - L2 regularization term on weights, increase this value will make model more conservative.
-* alpha [default=0]
+* alpha [default=0, alias: reg_alpha]
   - L1 regularization term on weights, increase this value will make model more conservative.
 * tree_method, string [default='auto']
   - The tree construction algorithm used in XGBoost(see description in the [reference paper](http://arxiv.org/abs/1603.02754))
@@ -73,8 +73,27 @@ Parameters for Tree Booster
   - range: (0, 1)
 * scale_pos_weight, [default=1]
   - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: sum(negative  cases) / sum(positive cases) See [Parameters Tuning](how_to/param_tuning.md) for more discussion. Also see Higgs Kaggle competition demo for examples: [R](../demo/kaggle-higgs/higgs-train.R ), [py1](../demo/kaggle-higgs/higgs-numpy.py ), [py2](../demo/kaggle-higgs/higgs-cv.py ), [py3](../demo/guide-python/cross_validation.py)
-* updater_seq, [default="grow_colmaker,prune"]
-  - A comma separated string mentioning tThe sequence of Tree updaters that should be run. A tree updater is a pluggable operation performed on the tree at every step using the gradient information. Tree updaters can be registered using the plugin system provided.
+* updater, [default='grow_colmaker,prune']
+  - A comma separated string defining the sequence of tree updaters to run, providing a modular way to construct and to modify the trees. This is an advanced parameter that is usually set automatically, depending on some other parameters. However, it could be also set explicitely by a user. The following updater plugins exist:
+    - 'grow_colmaker': non-distributed column-based construction of trees.
+    - 'distcol': distributed tree construction with column-based data splitting mode.
+    - 'grow_histmaker': distributed tree construction with row-based data splitting based on global proposal of histogram counting.
+    - 'grow_local_histmaker': based on local histogram counting.
+    - 'grow_skmaker': uses the approximate sketching algorithm.
+    - 'sync': synchronizes trees in all distributed nodes.
+    - 'refresh': refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
+    - 'prune': prunes the splits where loss < min_split_loss (or gamma).
+  - In a distributed setting, the implicit updater sequence value would be adjusted as follows:
+    - 'grow_histmaker,prune' when  dsplit='row' (or default) and prob_buffer_row == 1 (or default); or when data has multiple sparse pages
+    - 'grow_histmaker,refresh,prune' when  dsplit='row' and prob_buffer_row < 1
+    - 'distcol' when dsplit='col'
+* refresh_leaf, [default=1]
+  - This is a parameter of the 'refresh' updater plugin. When this flag is true, tree leafs as well as tree nodes' stats are updated. When it is false, only node stats are updated.
+* process_type, [default='default']
+  - A type of boosting process to run.
+  - Choices: {'default', 'update'}
+    - 'default': the normal boosting process which creates new trees.
+    - 'update': starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updater plugins is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updater plugins could be meaningfully used with this process type: 'refresh', 'prune'. With 'update', one cannot use updater plugins that create new nrees.
 
 Additional parameters for Dart Booster
 --------------------------------------
@@ -100,17 +119,21 @@ Additional parameters for Dart Booster
 
 Parameters for Linear Booster
 -----------------------------
-* lambda [default=0]
+* lambda [default=0, alias: reg_lambda]
   - L2 regularization term on weights, increase this value will make model more conservative.
-* alpha [default=0]
+* alpha [default=0, alias: reg_alpha]
   - L1 regularization term on weights, increase this value will make model more conservative.
-* lambda_bias
-  - L2 regularization term on bias, default 0 (no L1 reg on bias because it is not important)
+* lambda_bias [default=0, alias: reg_lambda_bias]
+  - L2 regularization term on bias, default is no L1 reg on bias (because it is not important)
 
 Parameters for Tweedie Regression
 ---------------------------------
 * tweedie_variance_power [default=1.5]
-  - Parameter that controls the variance of the tweedie distribution.  Set closer to 2 to shift towards a gamma distribution and closer to 1 to shift towards a poisson distribution.
+  - parameter that controls the variance of the Tweedie distribution
+    - var(y) ~ E(y)^tweedie_variance_power
+  - range: (1,2)
+  - set closer to 2 to shift towards a gamma distribution
+  - set closer to 1 to shift towards a Poisson distribution.
 
 Learning Task Parameters
 ------------------------
@@ -125,9 +148,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
  - "multi:softmax" --set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
  - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
  - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
- - "reg:gamma" --gamma regression for severity data, output mean of gamma distribution
- - "reg:tweedie" --tweedie regression for insurance data
-   - tweedie_variance_power is set to 1.5 by default in tweedie regression and must be in the range [1, 2)
+ - "reg:gamma" --gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be [gamma-distributed](https://en.wikipedia.org/wiki/Gamma_distribution#Applications)
+ - "reg:tweedie" --Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be [Tweedie-distributed](https://en.wikipedia.org/wiki/Tweedie_distribution#Applications).
 * base_score [ default=0.5 ]
   - the initial prediction score of all instances, global bias
   - for sufficient number of iterations, changing this value will not have too much effect.
@@ -135,19 +157,23 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and error for classification, mean average precision for ranking )
   - User can add multiple evaluation metrics, for python user, remember to pass the metrics in as list of parameters pairs instead of map, so that latter 'eval_metric' won't override previous one
   - The choices are listed below:
-  - "rmse": [root mean square error](http://en.wikipedia.org/wiki/Root_mean_square_error)
-  - "mae": [mean absolute error](https://en.wikipedia.org/wiki/Mean_absolute_error)
-  - "logloss": negative [log-likelihood](http://en.wikipedia.org/wiki/Log-likelihood)
-  - "error": Binary classification error rate. It is calculated as #(wrong cases)/#(all cases). For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
-  - "merror": Multiclass classification error rate. It is calculated as #(wrong cases)/#(all cases).
-  - "mlogloss": [Multiclass logloss](https://www.kaggle.com/wiki/MultiClassLogLoss)
-  - "auc": [Area under the curve](http://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_curve) for ranking evaluation.
-  - "ndcg":[Normalized Discounted Cumulative Gain](http://en.wikipedia.org/wiki/NDCG)
-  - "map":[Mean average precision](http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision)
-  - "ndcg@n","map@n": n can be assigned as an integer to cut off the top positions in the lists for evaluation.
-  - "ndcg-","map-","ndcg@n-","map@n-": In XGBoost, NDCG and MAP will evaluate the score of a list without any positive samples as 1. By adding "-" in the evaluation metric XGBoost will evaluate these score as 0 to be consistent under some conditions.
+    - "rmse": [root mean square error](http://en.wikipedia.org/wiki/Root_mean_square_error)
+    - "mae": [mean absolute error](https://en.wikipedia.org/wiki/Mean_absolute_error)
+    - "logloss": negative [log-likelihood](http://en.wikipedia.org/wiki/Log-likelihood)
+    - "error": Binary classification error rate. It is calculated as #(wrong cases)/#(all cases). For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
+    - "error@t": a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
+    - "merror": Multiclass classification error rate. It is calculated as #(wrong cases)/#(all cases).
+    - "mlogloss": [Multiclass logloss](https://www.kaggle.com/wiki/MultiClassLogLoss)
+    - "auc": [Area under the curve](http://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_curve) for ranking evaluation.
+    - "ndcg":[Normalized Discounted Cumulative Gain](http://en.wikipedia.org/wiki/NDCG)
+    - "map":[Mean average precision](http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision)
+    - "ndcg@n","map@n": n can be assigned as an integer to cut off the top positions in the lists for evaluation.
+    - "ndcg-","map-","ndcg@n-","map@n-": In XGBoost, NDCG and MAP will evaluate the score of a list without any positive samples as 1. By adding "-" in the evaluation metric XGBoost will evaluate these score as 0 to be consistent under some conditions.
 training repeatedly
-  - "gamma-deviance": [residual deviance for gamma regression]
+  - "poisson-nloglik": negative log-likelihood for Poisson regression
+  - "gamma-nloglik": negative log-likelihood for gamma regression
+  - "gamma-deviance": residual deviance for gamma regression
+  - "tweedie-nloglik": negative log-likelihood for Tweedie regression (at a specified value of the tweedie_variance_power parameter)
 * seed [ default=0 ]
  - random number seed.
 
