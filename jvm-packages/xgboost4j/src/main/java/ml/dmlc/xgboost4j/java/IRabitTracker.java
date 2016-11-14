@@ -17,6 +17,6 @@ import java.util.concurrent.TimeUnit;
  */
 public interface IRabitTracker {
   Map<String, String> getWorkerEnvs();
-  boolean start(long timeout);
-  int waitFor(long timeout);
+  boolean start(long workerConnectionTimeout);
+  int waitFor(long taskExecutionTimeout);
 }

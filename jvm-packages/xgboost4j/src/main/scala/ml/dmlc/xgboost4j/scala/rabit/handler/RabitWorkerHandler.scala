@@ -27,124 +27,6 @@ import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.util.Try
 
-object RabitTrackerConnectionHandler {
-  val MAGIC_NUMBER = 0xff99
-
-  // finite states
-  sealed trait State
-  case object AwaitingHandshake extends State
-  case object AwaitingCommand extends State
-  case object BuildingLinkMap extends State
-  case object AwaitingErrorCount extends State
-  case object AwaitingPortNumber extends State
-  case object SetupComplete extends State
-
-  sealed trait DataField
-  case object IntField extends DataField
-  // an integer preceding the actual string
-  case object StringField extends DataField
-  case object IntSeqField extends DataField
-
-  object DataStruct {
-    def apply(): DataStruct = DataStruct(Seq.empty[DataField], 0)
-  }
-
-  case class DataStruct(fields: Seq[DataField], counter: Int) {
-    /**
-      * Validate whether the provided buffer is complete (i.e., contains
-      * all data fields specified for this DataStruct.
-      * @param buf
-      */
-    def verify(buf: ByteBuffer): Boolean = {
-      if (fields.isEmpty) return true
-
-      val dupBuf = buf.duplicate().order(ByteOrder.nativeOrder())
-      dupBuf.flip()
-
-      Try(fields.foldLeft(true) {
-        case (complete, field) =>
-          val remBytes = dupBuf.remaining()
-          complete && (remBytes > 0) && (remBytes >= (field match {
-            case IntField =>
-              dupBuf.position(dupBuf.position() + 4)
-              4
-            case StringField =>
-              val strLen = dupBuf.getInt
-              dupBuf.position(dupBuf.position() + strLen)
-              4 + strLen
-            case IntSeqField =>
-              val seqLen = dupBuf.getInt
-              dupBuf.position(dupBuf.position() + seqLen * 4)
-              4 + seqLen * 4
-          }))
-      }).getOrElse(false)
-    }
-
-    def increment(): DataStruct = DataStruct(fields, counter + 1)
-    def decrement(): DataStruct = DataStruct(fields, counter - 1)
-  }
-
-  val StructNodes = DataStruct(List(IntSeqField), 0)
-  val StructTrackerCommand = DataStruct(List(
-    IntField, IntField, StringField, StringField
-  ), 0)
-
-  abstract class TrackerCommand(val command: String) {
-    def rank: Int
-    def worldSize: Int
-    def jobId: String
-
-    def encode: ByteString = {
-      val buf = ByteBuffer.allocate(4 * 4 + jobId.length + command.length)
-        .order(ByteOrder.nativeOrder())
-
-      buf.putInt(rank).putInt(worldSize).putInt(jobId.length).put(jobId.getBytes())
-        .putInt(command.length).put(command.getBytes()).flip()
-
-      ByteString.fromByteBuffer(buf)
-    }
-  }
-
-  // packaged worker commands
-  case class WorkerStart(rank: Int, worldSize: Int, jobId: String)
-    extends TrackerCommand("start")
-  case class WorkerShutdown(rank: Int, worldSize: Int, jobId: String)
-    extends TrackerCommand("shutdown")
-  case class WorkerRecover(rank: Int, worldSize: Int, jobId: String)
-    extends TrackerCommand("recover")
-  case class WorkerTrackerPrint(rank: Int, worldSize: Int, jobId: String, msg: String)
-    extends TrackerCommand("print") {
-
-    override def encode: ByteString = {
-      val buf = ByteBuffer.allocate(4 * 5 + jobId.length + command.length + msg.length)
-        .order(ByteOrder.nativeOrder())
-
-      buf.putInt(rank).putInt(worldSize).putInt(jobId.length).put(jobId.getBytes())
-        .putInt(command.length).put(command.getBytes())
-        .putInt(msg.length).put(msg.getBytes()).flip()
-
-      ByteString.fromByteBuffer(buf)
-    }
-  }
-
-  // request host and port information from peer actors
-  case object RequestHostPort
-  // response to the above request
-  case class DivulgedHostPort(rank: Int, host: String, port: Int)
-  case class AcknowledgeAcceptance(peers: Map[Int, ActorRef], numBad: Int)
-  case class ReduceWaitCount(count: Int)
-
-  case class DropFromWaitingList(rank: Int)
-  case class WorkerStarted(host: String, rank: Int, awaitingAcceptance: Int)
-  // Request, from the tracker, the set of nodes to connect.
-  case class RequestAwaitConnWorkers(rank: Int, toConnectSet: Set[Int])
-  case class AwaitingConnections(workers: Map[Int, ActorRef], numBad: Int)
-
-  def props(host: String, worldSize: Int, tracker: ActorRef, connection: ActorRef): Props = {
-    Props(new RabitTrackerConnectionHandler(host, worldSize, tracker, connection))
-  }
-}
-
 /**
   * Actor to handle socket communication from worker node.
   * To handle fragmentation in received data, this class acts like a FSM
@@ -154,12 +36,12 @@ object RabitTrackerConnectionHandler {
   * @param worldSize number of total workers
   * @param tracker the RabitTrackerHandler actor reference
   */
-class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: ActorRef,
-                                    connection: ActorRef)
-  extends FSM[RabitTrackerConnectionHandler.State, RabitTrackerConnectionHandler.DataStruct]
+class RabitWorkerHandler(host: String, worldSize: Int, tracker: ActorRef,
+                         connection: ActorRef)
+  extends FSM[RabitWorkerHandler.State, RabitWorkerHandler.DataStruct]
     with ActorLogging with Stash {
 
-  import RabitTrackerConnectionHandler._
+  import RabitWorkerHandler._
   import RabitTrackerHelpers._
 
   context.watch(tracker)
@@ -313,7 +195,7 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
           }
           else {
             waitConnNodes.foreach { case (peerRank, peerRef) =>
-              peerRef ! RequestHostPort
+              peerRef ! RequestWorkerHostPort
             }
 
             // a countdown for DivulgedHostPort messages.
@@ -321,7 +203,7 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
           }
       }
 
-    case Event(DivulgedHostPort(peerRank, peerHost, peerPort), data) =>
+    case Event(DivulgedWorkerHostPort(peerRank, peerHost, peerPort), data) =>
       val hostBytes = peerHost.getBytes()
       val buffer = ByteBuffer.allocate(4 * 3 + hostBytes.length)
         .order(ByteOrder.nativeOrder())
@@ -394,8 +276,8 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
     // can only divulge the complete host and port information
     // when this worker is declared fully connected (otherwise
     // port information is still missing.)
-    case Event(RequestHostPort, _) =>
-      sender() ! DivulgedHostPort(rank, host, port)
+    case Event(RequestWorkerHostPort, _) =>
+      sender() ! DivulgedWorkerHostPort(rank, host, port)
       stay
   }
 
@@ -418,5 +300,161 @@ class RabitTrackerConnectionHandler(host: String, worldSize: Int, tracker: Actor
       peerClosed = true
       if (transient) context.stop(self)
       stay
+  }
+}
+
+private[scala] object RabitWorkerHandler {
+  val MAGIC_NUMBER = 0xff99
+
+  // Finite states of this actor, which acts like a FSM.
+  // The following states are defined in order as the FSM progresses.
+  sealed trait State
+
+  // [1] Initial state, awaiting worker to send magic number per protocol.
+  case object AwaitingHandshake extends State
+  // [2] Awaiting worker to send command (start/print/recover/shutdown etc.)
+  case object AwaitingCommand extends State
+  // [3] Brokers connections between workers per ring/tree/parent link map.
+  case object BuildingLinkMap extends State
+  // [4] A transient state in which the worker reports the number of errors in establishing
+  // connections to other peer workers. If no errors, transition to next state.
+  case object AwaitingErrorCount extends State
+  // [5] Awaiting the worker to report its port number for accepting connections from peer workers.
+  // This port number information is later forwarded to linked workers.
+  case object AwaitingPortNumber extends State
+  // [6] Final state after completing the setup with the connecting worker. At this stage, the
+  // worker will have closed the Tcp connection. The actor remains alive to handle messages from
+  // peer actors representing workers with pending setups.
+  case object SetupComplete extends State
+
+  sealed trait DataField
+  case object IntField extends DataField
+  // an integer preceding the actual string
+  case object StringField extends DataField
+  case object IntSeqField extends DataField
+
+  object DataStruct {
+    def apply(): DataStruct = DataStruct(Seq.empty[DataField], 0)
+  }
+
+  // Internal data pertaining to individual state, used to verify the validity of packets sent by
+  // workers.
+  case class DataStruct(fields: Seq[DataField], counter: Int) {
+    /**
+      * Validate whether the provided buffer is complete (i.e., contains
+      * all data fields specified for this DataStruct.)
+ *
+      * @param buf a byte buffer containing received data.
+      */
+    def verify(buf: ByteBuffer): Boolean = {
+      if (fields.isEmpty) return true
+
+      val dupBuf = buf.duplicate().order(ByteOrder.nativeOrder())
+      dupBuf.flip()
+
+      Try(fields.foldLeft(true) {
+        case (complete, field) =>
+          val remBytes = dupBuf.remaining()
+          complete && (remBytes > 0) && (remBytes >= (field match {
+            case IntField =>
+              dupBuf.position(dupBuf.position() + 4)
+              4
+            case StringField =>
+              val strLen = dupBuf.getInt
+              dupBuf.position(dupBuf.position() + strLen)
+              4 + strLen
+            case IntSeqField =>
+              val seqLen = dupBuf.getInt
+              dupBuf.position(dupBuf.position() + seqLen * 4)
+              4 + seqLen * 4
+          }))
+      }).getOrElse(false)
+    }
+
+    def increment(): DataStruct = DataStruct(fields, counter + 1)
+    def decrement(): DataStruct = DataStruct(fields, counter - 1)
+  }
+
+  val StructNodes = DataStruct(List(IntSeqField), 0)
+  val StructTrackerCommand = DataStruct(List(
+    IntField, IntField, StringField, StringField
+  ), 0)
+
+  // ---- Messages between RabitTrackerHandler and RabitTrackerConnectionHandler ----
+
+  // RabitWorkerHandler --> RabitTrackerHandler
+  sealed trait RabitWorkerRequest
+  // RabitWorkerHandler <-- RabitTrackerHandler
+  sealed trait RabitWorkerResponse
+
+  // Representations of decoded worker commands.
+  abstract class TrackerCommand(val command: String) extends RabitWorkerRequest {
+    def rank: Int
+    def worldSize: Int
+    def jobId: String
+
+    def encode: ByteString = {
+      val buf = ByteBuffer.allocate(4 * 4 + jobId.length + command.length)
+        .order(ByteOrder.nativeOrder())
+
+      buf.putInt(rank).putInt(worldSize).putInt(jobId.length).put(jobId.getBytes())
+        .putInt(command.length).put(command.getBytes()).flip()
+
+      ByteString.fromByteBuffer(buf)
+    }
+  }
+
+  case class WorkerStart(rank: Int, worldSize: Int, jobId: String)
+    extends TrackerCommand("start")
+  case class WorkerShutdown(rank: Int, worldSize: Int, jobId: String)
+    extends TrackerCommand("shutdown")
+  case class WorkerRecover(rank: Int, worldSize: Int, jobId: String)
+    extends TrackerCommand("recover")
+  case class WorkerTrackerPrint(rank: Int, worldSize: Int, jobId: String, msg: String)
+    extends TrackerCommand("print") {
+
+    override def encode: ByteString = {
+      val buf = ByteBuffer.allocate(4 * 5 + jobId.length + command.length + msg.length)
+        .order(ByteOrder.nativeOrder())
+
+      buf.putInt(rank).putInt(worldSize).putInt(jobId.length).put(jobId.getBytes())
+        .putInt(command.length).put(command.getBytes())
+        .putInt(msg.length).put(msg.getBytes()).flip()
+
+      ByteString.fromByteBuffer(buf)
+    }
+  }
+
+  // Request to remove the worker of given rank from the list of workers awaiting peer connections.
+  case class DropFromWaitingList(rank: Int) extends RabitWorkerRequest
+  // Notify the tracker that the worker of given rank has finished setup and started.
+  case class WorkerStarted(host: String, rank: Int, awaitingAcceptance: Int)
+    extends RabitWorkerRequest
+  // Request the set of workers to connect to, according to the LinkMap structure.
+  case class RequestAwaitConnWorkers(rank: Int, toConnectSet: Set[Int])
+    extends RabitWorkerRequest
+
+  // Request, from the tracker, the set of nodes to connect.
+  case class AwaitingConnections(workers: Map[Int, ActorRef], numBad: Int)
+    extends RabitWorkerResponse
+
+  // ---- Messages between ConnectionHandler actors ----
+  sealed trait IntraWorkerMessage
+
+  // Notify neighboring workers to decrease the counter of awaiting workers by `count`.
+  case class ReduceWaitCount(count: Int) extends IntraWorkerMessage
+  // Request host and port information from peer ConnectionHandler actors (acting on behave of
+  // connecting workers.) This message will be brokered by RabitTrackerHandler.
+  case object RequestWorkerHostPort extends IntraWorkerMessage
+  // Response to the above request
+  case class DivulgedWorkerHostPort(rank: Int, host: String, port: Int) extends IntraWorkerMessage
+  // A reminder to send ReduceWaitCount messages once the actor is in state "SetupComplete".
+  case class AcknowledgeAcceptance(peers: Map[Int, ActorRef], numBad: Int)
+    extends IntraWorkerMessage
+
+  // ---- End of message definitions ----
+
+  def props(host: String, worldSize: Int, tracker: ActorRef, connection: ActorRef): Props = {
+    Props(new RabitWorkerHandler(host, worldSize, tracker, connection))
   }
 }

@@ -28,7 +28,9 @@ import ml.dmlc.xgboost4j.scala.rabit.util.{AssignedRank, LinkMap}
 
 import scala.util.Random
 
-/** The Akka actor for handling Rabit worker connections.
+/** The Akka actor for handling and coordinating Rabit worker connections.
+  * This is the main actor for handling socket connections, interacting with the synchronous
+  * tracker interface, and resolving tree/ring/parent dependencies between workers.
   *
   * @param numWorkers Number of workers to track.
   */
@@ -36,7 +38,7 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
   extends Actor with ActorLogging {
 
   import context.system
-  import RabitTrackerConnectionHandler._
+  import RabitWorkerHandler._
   import RabitTrackerHandler._
 
   private[this] val promisedWorkerEnvs = Promise[Map[String, String]]()
@@ -70,11 +72,12 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
   }
 
   /**
-    * Handler for all Akka Tcp events.
-    * @param event
-    * @return
+    * Handler for all Akka Tcp connection/binding events. Read/write over the socket is handled
+    * by the RabitWorkerHandler.
+    *
+    * @param event Generic Tcp.Event
     */
-  private def handleTcpEvents(event: Tcp.Event) = event match {
+  private def handleTcpEvents(event: Tcp.Event): Unit = event match {
     case Tcp.Bound(local) =>
       // expect all workers to connect within timeout
       log.info(s"Tracker listening @ ${local.getAddress.getHostAddress}:${local.getPort}")
@@ -100,7 +103,7 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
     case Tcp.Connected(remote, local) =>
       log.debug(s"Incoming connection from worker @ ${remote.getAddress.getHostAddress}")
       // revoke timeout if all workers have connected.
-      val connHandler = context.actorOf(RabitTrackerConnectionHandler.props(
+      val connHandler = context.actorOf(RabitWorkerHandler.props(
         remote.getAddress.getHostAddress, numWorkers, self, sender()
       ), s"ConnectionHandler-${UUID.randomUUID().toString}")
       val connection = sender()
@@ -109,20 +112,26 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
       actorRefToHost.put(connHandler, remote.getAddress.getHostName)
   }
 
-  def receive: Actor.Receive = {
-    case tcpEvent: Tcp.Event => handleTcpEvents(tcpEvent)
+  /**
+    * Handles external tracker control messages sent by RabitTracker (usually in ask patterns)
+    * to interact with the tracker interface.
+    *
+    * @param trackerMsg control messages sent by RabitTracker class.
+    */
+  private def handleTrackerControlMessage(trackerMsg: TrackerControlMessage): Unit =
+    trackerMsg match {
 
-    case StartTracker(addr, portTrials, connectionTimeout) =>
-      maxPortTrials = portTrials
-      workerConnectionTimeout = connectionTimeout
+    case msg: StartTracker =>
+      maxPortTrials = msg.maxPortTrials
+      workerConnectionTimeout = msg.connectionTimeout
 
       // if the port number is missing, try binding to a random ephemeral port.
-      if (addr.getPort == 0) {
+      if (msg.addr.getPort == 0) {
         tcpManager ! Tcp.Bind(self,
-          new InetSocketAddress(addr.getAddress, new Random().nextInt(61000 - 32768) + 32768),
+          new InetSocketAddress(msg.addr.getAddress, new Random().nextInt(61000 - 32768) + 32768),
           backlog = 256)
       } else {
-        tcpManager ! Tcp.Bind(self, addr, backlog = 256)
+        tcpManager ! Tcp.Bind(self, msg.addr, backlog = 256)
       }
       sender() ! true
 
@@ -131,14 +140,22 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
 
     case RequestCompletionFuture =>
       sender() ! promisedShutdownWorkers.future
+  }
 
+  /**
+    * Handles messages sent by child actors representing connecting Rabit workers, by brokering
+    * messages to the dependency resolver, and processing worker commands.
+    *
+    * @param workerMsg Message sent by RabitWorkerHandler actors.
+    */
+  private def handleRabitWorkerMessage(workerMsg: RabitWorkerRequest): Unit = workerMsg match {
     case req @ RequestAwaitConnWorkers(_, _) =>
       // since the requester may request to connect to other workers
       // that have not fully set up, delegate this request to the
-      // dependency resolver that handles the dependencies properly.
+      // dependency resolver which handles the dependencies properly.
       resolver forward req
 
-    // process messages from worker
+    // ---- Rabit worker commands: start/recover/shutdown/print ----
     case WorkerTrackerPrint(_, _, _, msg) =>
       log.info(msg.trim)
 
@@ -174,6 +191,7 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
       log.info("Received start signal from " +
         s"${actorRefToHost.getOrElse(sender(), "")} [rank: $wkRank]")
 
+    // ---- Dependency resolving related messages ----
     case msg @ WorkerStarted(host, rank, awaitingAcceptance) =>
       log.info(s"Worker $host (rank: $rank) has started.")
       resolver forward msg
@@ -184,8 +202,17 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
       }
 
     case req @ DropFromWaitingList(_) =>
-      // handled by resolver
+      // all peer workers in dependency link map have connected;
+      // forward message to resolver to update dependencies.
       resolver forward req
+
+    case _ =>
+  }
+
+  def receive: Actor.Receive = {
+    case tcpEvent: Tcp.Event => handleTcpEvents(tcpEvent)
+    case trackerMsg: TrackerControlMessage => handleTrackerControlMessage(trackerMsg)
+    case workerMsg: RabitWorkerRequest => handleRabitWorkerMessage(workerMsg)
 
     case akka.actor.ReceiveTimeout =>
       if (startedWorkers.size < numWorkers) {
@@ -207,8 +234,8 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
   * connections by workers, this dependency constraint assumes that a worker node connects first
   * is likely to finish setup first.
   */
-class WorkerDependencyResolver(handler: ActorRef) extends Actor with ActorLogging {
-  import RabitTrackerConnectionHandler._
+class WorkerDependencyResolver private[scala](handler: ActorRef) extends Actor with ActorLogging {
+  import RabitWorkerHandler._
 
   context.watch(handler)
 
@@ -237,6 +264,7 @@ class WorkerDependencyResolver(handler: ActorRef) extends Actor with ActorLoggin
 
       log.debug(s"Rank $rank connected, dependencies: $dependentWorkers")
       dependencyMap.put(rank, dependentWorkers)
+
     case RequestAwaitConnWorkers(rank, toConnectSet) =>
       val promise = Promise[AwaitingConnections]()
 
@@ -282,17 +310,17 @@ class WorkerDependencyResolver(handler: ActorRef) extends Actor with ActorLoggin
   }
 }
 
-object RabitTrackerHandler {
+private[scala] object RabitTrackerHandler {
   // Messages sent by RabitTracker to this RabitTrackerHandler actor
-
-  case object RequestCompletionFuture
-  case object RequestBoundFuture
+  trait TrackerControlMessage
+  case object RequestCompletionFuture extends TrackerControlMessage
+  case object RequestBoundFuture extends TrackerControlMessage
   // Start the Rabit tracker at given socket address awaiting worker connections.
   // All workers must connect to the tracker before connectionTimeout, otherwise the tracker will
   // shut down due to timeout.
   case class StartTracker(addr: InetSocketAddress,
                           maxPortTrials: Int,
-                          connectionTimeout: Duration)
+                          connectionTimeout: Duration) extends TrackerControlMessage
 
   def props(numWorkers: Int): Props =
     Props(new RabitTrackerHandler(numWorkers))

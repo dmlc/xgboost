@@ -14,18 +14,33 @@
  limitations under the License.
  */
 
-/**
-  * Pure Scala implementation of the DMLC tracker using Akka, ported from the
-  * original Python implementation. This implementation gets rid of the Python
-  * dependency in the Java version (RabitTracker.java) and therefore is less
-  * suspectible to Python-related issues.
-  */
-
 package ml.dmlc.xgboost4j.scala.rabit.util
 
 import java.nio.{ByteBuffer, ByteOrder}
 
-case class AssignedRank(rank: Int, neighbors: Seq[Int], ring: (Int, Int), parent: Int) {
+/**
+  * The assigned rank to a connecting Rabit worker, along with the information of the ranks of
+  * its linked peer workers, which are critical to perform Allreduce.
+  * When RabitWorkerHandler delegates "start" or "recover" commands from the connecting worker
+  * client, RabitTrackerHandler utilizes LinkMap to figure out linkage relationships, and respond
+  * with this class as a message, which is later encoded to byte string, and sent over socket
+  * connection to the worker client.
+  *
+  * @param rank assigned rank (ranked by worker connection order: first worker connecting to the
+  *             tracker is assigned rank 0, second with rank 1, etc.)
+  * @param neighbors ranks of neighboring workers in a tree map.
+  * @param ring ranks of neighboring workers in a ring map.
+  * @param parent rank of the parent worker.
+  */
+case class AssignedRank private[scala](rank: Int, neighbors: Seq[Int],
+                                       ring: (Int, Int), parent: Int) {
+  /**
+    * Encode the AssignedRank message into byte sequence for socket communication with Rabit worker
+    * client.
+    * @param worldSize the number of total distributed workers. Must match `numWorkers` used in
+    *                  LinkMap.
+    * @return a ByteBuffer containing encoded data.
+    */
   def toByteBuffer(worldSize: Int): ByteBuffer = {
     val buffer = ByteBuffer.allocate(4 * (neighbors.length + 6)).order(ByteOrder.nativeOrder())
     buffer.putInt(rank).putInt(parent).putInt(worldSize).putInt(neighbors.length)
@@ -39,7 +54,7 @@ case class AssignedRank(rank: Int, neighbors: Seq[Int], ring: (Int, Int), parent
   }
 }
 
-class LinkMap(numWorkers: Int) {
+class LinkMap private[scala](numWorkers: Int) {
   private def getNeighbors(rank: Int): Seq[Int] = {
     val rank1 = rank + 1
     Vector(rank1 / 2 - 1, rank1 * 2 - 1, rank1 * 2).filter { r =>
@@ -75,7 +90,7 @@ class LinkMap(numWorkers: Int) {
     }
   }
   /**
-    * Construct a ring connection used to recover local data
+    * Construct a ring connection used to recover local data.
     *
     * @param treeMap
     * @param parentMap

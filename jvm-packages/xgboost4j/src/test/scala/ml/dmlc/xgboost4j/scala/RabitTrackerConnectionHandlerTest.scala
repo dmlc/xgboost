@@ -22,9 +22,9 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.io.Tcp
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit, TestProbe}
 import akka.util.ByteString
-import ml.dmlc.xgboost4j.scala.rabit.handler.RabitTrackerConnectionHandler
-import ml.dmlc.xgboost4j.scala.rabit.handler.RabitTrackerConnectionHandler.{AwaitingConnections, RequestAwaitConnWorkers, WorkerStart, WorkerTrackerPrint}
-import ml.dmlc.xgboost4j.scala.rabit.util.{AssignedRank, LinkMap}
+import ml.dmlc.xgboost4j.scala.rabit.handler.RabitWorkerHandler
+import ml.dmlc.xgboost4j.scala.rabit.handler.RabitWorkerHandler._
+import ml.dmlc.xgboost4j.scala.rabit.util.LinkMap
 import org.junit.runner.RunWith
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatest.junit.JUnitRunner
@@ -55,16 +55,16 @@ class RabitTrackerConnectionHandlerTest
 
     val worldSize = 4
 
-    val fsm = TestFSMRef(new RabitTrackerConnectionHandler("localhost", worldSize,
+    val fsm = TestFSMRef(new RabitWorkerHandler("localhost", worldSize,
       trackerProbe.ref, connProbe.ref))
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingHandshake
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingHandshake
 
     // send mock magic number
     fsm ! Tcp.Received(magic)
     connProbe.expectMsg(Tcp.Write(magic))
 
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingCommand
-    fsm.stateData shouldEqual RabitTrackerConnectionHandler.StructTrackerCommand
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingCommand
+    fsm.stateData shouldEqual RabitWorkerHandler.StructTrackerCommand
     // ResumeReading should be seen once state transitions
     connProbe.expectMsg(Tcp.ResumeReading)
 
@@ -82,7 +82,7 @@ class RabitTrackerConnectionHandlerTest
     fsm ! Tcp.Received(ByteString.fromByteBuffer(bufJobId))
 
     // the state should not change for incomplete command data.
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingCommand
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingCommand
 
     // send the last fragment, and expect message at tracker actor.
     fsm ! Tcp.Received(ByteString.fromByteBuffer(bufCmd))
@@ -99,8 +99,8 @@ class RabitTrackerConnectionHandlerTest
     // reading should be suspended upon transitioning to BuildingLinkMap
     connProbe.expectMsg(Tcp.SuspendReading)
     // state should transition with according state data changes.
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.BuildingLinkMap
-    fsm.stateData shouldEqual RabitTrackerConnectionHandler.StructNodes
+    fsm.stateName shouldEqual RabitWorkerHandler.BuildingLinkMap
+    fsm.stateData shouldEqual RabitWorkerHandler.StructNodes
     connProbe.expectMsg(Tcp.ResumeReading)
 
     // since the connection handler in test has rank 0, it will not have any nodes to connect to.
@@ -117,34 +117,34 @@ class RabitTrackerConnectionHandlerTest
       intSeqToByteString(List(0, fsm.underlyingActor.getNeighboringWorkers.size))
     ))
     connProbe.expectMsg(Tcp.SuspendReading)
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingErrorCount
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingErrorCount
     connProbe.expectMsg(Tcp.ResumeReading)
 
     // send mock error count (0)
     fsm ! Tcp.Received(intSeqToByteString(List(0)))
 
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingPortNumber
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingPortNumber
     connProbe.expectMsg(Tcp.ResumeReading)
 
     // simulate Tcp.PeerClosed event first, then Tcp.Received to test handling of async events.
     fsm ! Tcp.PeerClosed
     // state should not transition
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingPortNumber
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingPortNumber
     fsm ! Tcp.Received(intSeqToByteString(List(32768)))
 
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.SetupComplete
+    fsm.stateName shouldEqual RabitWorkerHandler.SetupComplete
     connProbe.expectMsg(Tcp.ResumeReading)
 
-    trackerProbe.expectMsg(RabitTrackerConnectionHandler.WorkerStarted("localhost", 0, 2))
+    trackerProbe.expectMsg(RabitWorkerHandler.WorkerStarted("localhost", 0, 2))
 
     val handlerStopProbe = TestProbe()
     handlerStopProbe watch fsm
 
     // simulate connections from other workers by mocking ReduceWaitCount commands
-    fsm ! RabitTrackerConnectionHandler.ReduceWaitCount(1)
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.SetupComplete
-    fsm ! RabitTrackerConnectionHandler.ReduceWaitCount(1)
-    trackerProbe.expectMsg(RabitTrackerConnectionHandler.DropFromWaitingList(0))
+    fsm ! RabitWorkerHandler.ReduceWaitCount(1)
+    fsm.stateName shouldEqual RabitWorkerHandler.SetupComplete
+    fsm ! RabitWorkerHandler.ReduceWaitCount(1)
+    trackerProbe.expectMsg(RabitWorkerHandler.DropFromWaitingList(0))
     handlerStopProbe.expectTerminated(fsm)
 
     // all done.
@@ -154,15 +154,15 @@ class RabitTrackerConnectionHandlerTest
     val trackerProbe = TestProbe()
     val connProbe = TestProbe()
 
-    val fsm = TestFSMRef(new RabitTrackerConnectionHandler("localhost", 4,
+    val fsm = TestFSMRef(new RabitWorkerHandler("localhost", 4,
       trackerProbe.ref, connProbe.ref))
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingHandshake
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingHandshake
 
     fsm ! Tcp.Received(magic)
     connProbe.expectMsg(Tcp.Write(magic))
 
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingCommand
-    fsm.stateData shouldEqual RabitTrackerConnectionHandler.StructTrackerCommand
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingCommand
+    fsm.stateData shouldEqual RabitWorkerHandler.StructTrackerCommand
     // ResumeReading should be seen once state transitions
     connProbe.expectMsg(Tcp.ResumeReading)
 
@@ -178,16 +178,16 @@ class RabitTrackerConnectionHandlerTest
 
     val worldSize = 4
 
-    val fsm = TestFSMRef(new RabitTrackerConnectionHandler("localhost", worldSize,
+    val fsm = TestFSMRef(new RabitWorkerHandler("localhost", worldSize,
       trackerProbe.ref, connProbe.ref))
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingHandshake
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingHandshake
 
     // send mock magic number
     fsm ! Tcp.Received(magic)
     connProbe.expectMsg(Tcp.Write(magic))
 
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.AwaitingCommand
-    fsm.stateData shouldEqual RabitTrackerConnectionHandler.StructTrackerCommand
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingCommand
+    fsm.stateData shouldEqual RabitWorkerHandler.StructTrackerCommand
     // ResumeReading should be seen once state transitions
     connProbe.expectMsg(Tcp.ResumeReading)
 
@@ -214,8 +214,8 @@ class RabitTrackerConnectionHandlerTest
     // reading should be suspended upon transitioning to BuildingLinkMap
     connProbe.expectMsg(Tcp.SuspendReading)
     // state should transition with according state data changes.
-    fsm.stateName shouldEqual RabitTrackerConnectionHandler.BuildingLinkMap
-    fsm.stateData shouldEqual RabitTrackerConnectionHandler.StructNodes
+    fsm.stateName shouldEqual RabitWorkerHandler.BuildingLinkMap
+    fsm.stateData shouldEqual RabitWorkerHandler.StructNodes
     connProbe.expectMsg(Tcp.ResumeReading)
 
     // the handler should be able to handle spill-over data, and stash it until state transition.
