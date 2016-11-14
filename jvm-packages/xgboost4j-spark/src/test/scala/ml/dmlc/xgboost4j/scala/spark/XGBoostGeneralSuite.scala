@@ -112,10 +112,10 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic").toMap
+      "objective" -> "binary:logistic",
+      "tracker_conf" -> TrackerConf(1 minute, 1 minute, "scala")).toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
-      nWorkers = numWorkers, useExternalMemory = true,
-      trackerConf = TrackerConf(1 minute, 1 minute, "scala"))
+      nWorkers = numWorkers, useExternalMemory = true)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
   }

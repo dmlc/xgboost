@@ -116,9 +116,8 @@ class XGBoostEstimator private[spark](
         LabeledPoint(label, feature)
     }
     transformSchema(trainingSet.schema, logging = true)
-    val trackerConf = TrackerConf($(workerConnectionTimeout), $(trainingTimeout), $(trackerImpl))
     val trainedModel = XGBoost.trainWithRDD(instances, xgboostParams, $(round), $(nWorkers),
-      $(customObj), $(customEval), $(useExternalMemory), $(missing), trackerConf).setParent(this)
+      $(customObj), $(customEval), $(useExternalMemory), $(missing)).setParent(this)
     val returnedModel = copyValues(trainedModel)
     if (XGBoost.isClassificationTask(xgboostParams)) {
       val numClass = {

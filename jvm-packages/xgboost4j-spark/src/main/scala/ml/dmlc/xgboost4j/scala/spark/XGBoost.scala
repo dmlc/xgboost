@@ -158,7 +158,6 @@ object XGBoost extends Serializable {
    * @param missing the value represented the missing value in the dataset
    * @param featureCol the name of input column, "features" as default value
    * @param labelCol the name of output column, "label" as default value
-   * @param trackerConf configurations for the Rabit tracker.
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
@@ -173,7 +172,7 @@ object XGBoost extends Serializable {
       useExternalMemory: Boolean = false,
       missing: Float = Float.NaN,
       featureCol: String = "features",
-      labelCol: String = "label", trackerConf: TrackerConf = TrackerConf()): XGBoostModel = {
+      labelCol: String = "label"): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
     val estimator = new XGBoostEstimator(params)
     // assigning general parameters
@@ -184,9 +183,6 @@ object XGBoost extends Serializable {
       set(estimator.customObj, obj).
       set(estimator.customEval, eval).
       set(estimator.missing, missing).
-      set(estimator.trackerImpl, trackerConf.trackerImpl).
-      set(estimator.workerConnectionTimeout, trackerConf.workerConnectionTimeout).
-      set(estimator.trainingTimeout, trackerConf.trainingTimeout).
       setFeaturesCol(featureCol).
       setLabelCol(labelCol).
       fit(trainingData)
@@ -213,15 +209,13 @@ object XGBoost extends Serializable {
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                           true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
-   * @param trackerConf configurations for the Rabit tracker.
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
   def train(
       trainingData: RDD[MLLabeledPoint], params: Map[String, Any], round: Int,
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
-      useExternalMemory: Boolean = false, missing: Float = Float.NaN,
-      trackerConf: TrackerConf = TrackerConf()): XGBoostModel = {
+      useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
     trainWithRDD(trainingData, params, round, nWorkers, obj, eval, useExternalMemory, missing)
   }
@@ -248,8 +242,15 @@ object XGBoost extends Serializable {
       case "python" => new PyRabitTracker(nWorkers)
       case _ => new PyRabitTracker(nWorkers)
     }
-    require(tracker.start(trackerConf.workerConnectionTimeout.toMillis),
-      "FAULT: Failed to start tracker")
+
+    val connectionTimeout = if (trackerConf.workerConnectionTimeout.isFinite()) {
+      trackerConf.workerConnectionTimeout.toMillis
+    } else {
+      // 0 == Duration.Inf
+      0L
+    }
+
+    require(tracker.start(connectionTimeout), "FAULT: Failed to start tracker")
     tracker
   }
 
@@ -265,7 +266,6 @@ object XGBoost extends Serializable {
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                          true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
-   * @param trackerConf configurations for the Rabit tracker.
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
@@ -273,13 +273,20 @@ object XGBoost extends Serializable {
   def trainWithRDD(
       trainingData: RDD[MLLabeledPoint], params: Map[String, Any], round: Int,
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
-      useExternalMemory: Boolean = false, missing: Float = Float.NaN,
-      trackerConf: TrackerConf = TrackerConf()): XGBoostModel = {
+      useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
     if (obj != null) {
       require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
         " you have to specify the objective type as classification or regression with a" +
         " customized objective function")
+    }
+    val trackerConf = if (params.contains("tracker_conf")) {
+      val conf = params("tracker_conf")
+      require(conf.isInstanceOf[TrackerConf], "parameter \"tracker_conf\" must be an instance" +
+        " of ml.dmlc.xgboost4j.scala.spark.TrackerConf")
+      conf.asInstanceOf[TrackerConf]
+    } else {
+      TrackerConf()
     }
     val tracker = startTracker(nWorkers, trackerConf)
     val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
@@ -293,7 +300,14 @@ object XGBoost extends Serializable {
     }
     sparkJobThread.start()
     val isClsTask = isClassificationTask(params)
-    val trackerReturnVal = tracker.waitFor(trackerConf.trainingTimeout.toMillis)
+    val trainingTimeout = if (trackerConf.trainingTimeout.isFinite()) {
+      trackerConf.trainingTimeout.toMillis
+    } else {
+      // 0 == Duration.Inf
+      0L
+    }
+
+    val trackerReturnVal = tracker.waitFor(trainingTimeout)
     logger.info(s"Rabit returns with exit code $trackerReturnVal")
     postTrackerReturnProcessing(trackerReturnVal, boosters, overridedConfMap, sparkJobThread,
       isClsTask)
