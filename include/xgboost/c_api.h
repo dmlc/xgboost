@@ -558,4 +558,10 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(
  */
 XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
 
+/*!
+* \brief This method is for testing that new developments do not break existing
+*  functionality. See integrity_tests.h for further detail.
+*/
+XGB_DLL int XGPerformIntegrityTests();
+
 #endif  // XGBOOST_C_API_H_

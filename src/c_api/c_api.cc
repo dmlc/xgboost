@@ -12,6 +12,7 @@
 #include <memory>
 
 #include "./c_api_error.h"
+#include "./integrity_tests.h"
 #include "../data/simple_csr_source.h"
 #include "../common/thread_local.h"
 #include "../common/math.h"
@@ -871,6 +872,12 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
   } else {
     rabit::CheckPoint(bst->learner());
   }
+  API_END();
+}
+
+XGB_DLL int XGPerformIntegrityTests() {
+  API_BEGIN();
+  XGIntegrityTests::DMatrixGroupSlices();
   API_END();
 }
 
