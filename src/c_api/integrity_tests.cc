@@ -1,7 +1,7 @@
 // Copyright (c) 2016 by Contributors
 #include "integrity_tests.h"
-#include "../common/sync.h"
-#include <xgboost\c_api.h>
+#include <xgboost/learner.h>
+#include <xgboost/c_api.h>
 #include <random>
 #include <vector>
 #include "../data/simple_csr_source.h"
@@ -135,7 +135,7 @@ void XGIntegrityTests::DMatrixGroupSlices() {
   XGDMatrixSliceDMatrix(dmAll, &ids[0], ids.size(), &dmSlice);
 
   // if slice is created without error (as expected), do a final check to ensure sliced information
-  // is the same as requested.  This can be done by simply comparing DMatrix column 0 with 'ids' 
+  // is the same as requested.  This can be done by simply comparing DMatrix column 0 with 'ids'
   // array (as provided to slice method)
   xgboost::data::SimpleCSRSource src;
   src.CopyFrom(static_cast<std::shared_ptr<xgboost::DMatrix>*>(dmSlice)->get());
@@ -156,7 +156,7 @@ void XGIntegrityTests::DMatrixGroupSlices() {
   if (!failed) {
     unsigned cumlSliceGroupAmt = 0;
     for (unsigned grpCumlIndex = 1; grpCumlIndex < src.info.group_ptr.size(); grpCumlIndex++) {
-      cumlSliceGroupAmt += 
+      cumlSliceGroupAmt +=
         static_cast<unsigned>(groupStructure[sliceGroups[grpCumlIndex - 1]].size());
 
       if (cumlSliceGroupAmt != src.info.group_ptr[grpCumlIndex]) {
