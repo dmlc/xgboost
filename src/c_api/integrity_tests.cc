@@ -1,18 +1,18 @@
 // Copyright (c) 2016 by Contributors
 #include "integrity_tests.h"
-#include <random>
 #include "../common/sync.h"
-#include "../data/simple_csr_source.h"
 #include <xgboost\c_api.h>
+#include <random>
+#include <vector>
+#include "../data/simple_csr_source.h"
 
 namespace xgboost {
-
+// unit test methods:
 void XGIntegrityTests::DMatrixGroupSlices() {
-
-  // static std::random_device _rd; // seed initialiser
+  // static std::random_device _rd;  // seed initialiser
   // static unsigned int _seed = _rd();
   unsigned int _seed = 0;
-  std::mt19937 _rndGen(_seed); // Mersenne-Twister
+  std::mt19937 _rndGen(_seed);  // Mersenne-Twister
 
   const int noOfGroups = 1000;
   const int noOfSliceGroups = 100;
@@ -45,16 +45,15 @@ void XGIntegrityTests::DMatrixGroupSlices() {
     groupStructure.push_back(grp);
   }
 
-  // format data suitable for XGDMatrixCreateFromMat: 
+  // format data suitable for XGDMatrixCreateFromMat:
   std::vector<float> data;
-  for (unsigned i = 0; (i < rowStructure.size()); i++)
-  {
+  for (unsigned i = 0; (i < rowStructure.size()); i++) {
     data.push_back(static_cast<float>(rowStructure[i][0]));
     data.push_back(static_cast<float>(rowStructure[i][1]));
   }
 
   DMatrixHandle dmAll;
-  XGDMatrixCreateFromMat((float *)&data[0], rowStructure.size(), 2, -1, &dmAll);
+  XGDMatrixCreateFromMat(static_cast<float *>(&data[0]), rowStructure.size(), 2, -1, &dmAll);
 
   XGDMatrixSetGroup(dmAll, (const unsigned int*)&groupInfo[0], groupInfo.size());
 
@@ -135,15 +134,17 @@ void XGIntegrityTests::DMatrixGroupSlices() {
   DMatrixHandle dmSlice;
   XGDMatrixSliceDMatrix(dmAll, &ids[0], ids.size(), &dmSlice);
 
-  // if slice is created without error (as expected), do a final check to ensure sliced information is the same 
-  // as requested.  This can be done by simply comparing DMatrix column 0 with 'ids' array (as provided to slice method)
+  // if slice is created without error (as expected), do a final check to ensure sliced information
+  // is the same as requested.  This can be done by simply comparing DMatrix column 0 with 'ids' 
+  // array (as provided to slice method)
   xgboost::data::SimpleCSRSource src;
   src.CopyFrom(static_cast<std::shared_ptr<xgboost::DMatrix>*>(dmSlice)->get());
   bool failed = false;
   int ix = 0;
   for (unsigned i = 0; i < src.row_data_.size(); i += 2) {
     if (static_cast<int>(src.row_data_[i].fvalue != ids[ix])) {
-      LOG(FATAL) << "Integrity test failed for XGIntegrityTests::GroupSlices(). Before and after comparisons failed!";
+      LOG(FATAL) << "Integrity test failed for XGIntegrityTests::GroupSlices(). "
+        << "Before and after comparisons failed!";
       // std::cout << "Error this should never occur!!! Place breakpoint and debug!";
       // failed = true;
       // break;
@@ -155,10 +156,14 @@ void XGIntegrityTests::DMatrixGroupSlices() {
   if (!failed) {
     unsigned cumlSliceGroupAmt = 0;
     for (unsigned grpCumlIndex = 1; grpCumlIndex < src.info.group_ptr.size(); grpCumlIndex++) {
-      cumlSliceGroupAmt += static_cast<unsigned>(groupStructure[sliceGroups[grpCumlIndex - 1]].size());
+      cumlSliceGroupAmt += 
+        static_cast<unsigned>(groupStructure[sliceGroups[grpCumlIndex - 1]].size());
+
       if (cumlSliceGroupAmt != src.info.group_ptr[grpCumlIndex]) {
-        LOG(FATAL) << "Integrity test failed for XGIntegrityTests::GroupSlices(). Group sizes do not match!";
-        // std::cout << "Error with group sizes! This should never occur!!! Place breakpoint and debug!";
+        LOG(FATAL) << "Integrity test failed for XGIntegrityTests::GroupSlices(). "
+          << "Group sizes do not match!";
+        // std::cout << "Error with group sizes! This should never occur!!! "
+        //   << "Place breakpoint and debug!";
         // failed = true;
         // break;
       }

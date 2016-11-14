@@ -1,4 +1,6 @@
 // Copyright (c) 2016 by Contributors
+#ifndef XGBOOST_C_API_INTEGRITY_TESTS_H_
+#define XGBOOST_C_API_INTEGRITY_TESTS_H_
 
 namespace xgboost {
 /*!
@@ -19,3 +21,4 @@ class XGIntegrityTests {
     static void DMatrixGroupSlices();
 };
 }  // namespace xgboost
+#endif  // XGBOOST_C_API_INTEGRITY_TESTS_H_
