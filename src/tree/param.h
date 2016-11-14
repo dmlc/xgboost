@@ -137,10 +137,10 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(cache_opt).set_default(true).describe(
         "EXP Param: Cache aware optimization.");
     DMLC_DECLARE_FIELD(silent).set_default(false).describe(
-        "Do not print information during trainig.");
+        "Do not print information during training.");
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
-        .describe("Constraint of variable monotinicity");
+        .describe("Constraint of variable monotonicity");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);

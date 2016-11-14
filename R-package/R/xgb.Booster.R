@@ -87,8 +87,8 @@ xgb.Booster.check <- function(bst, saveraw = TRUE) {
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #' 
 #' @details  
-#' Note that \code{ntreelimit} is not necesserily equal to the number of boosting iterations
-#' and it is not necesserily equal to the number of trees in a model.
+#' Note that \code{ntreelimit} is not necessarily equal to the number of boosting iterations
+#' and it is not necessarily equal to the number of trees in a model.
 #' E.g., in a random forest-like model, \code{ntreelimit} would limit the number of trees.
 #' But for multiclass classification, there are multiple trees per iteration, 
 #' but \code{ntreelimit} limits the number of boosting iterations.
@@ -242,7 +242,7 @@ predict.xgb.Booster.handle <- function(object, ...) {
 #' (from R or any other interface).
 #' In contrast, any R-attribute assigned to an R-object of \code{xgb.Booster} class
 #' would not be saved by \code{xgb.save} because an xgboost model is an external memory object
-#' and its serialization is handled extrnally.
+#' and its serialization is handled externally.
 #' Also, setting an attribute that has the same name as one of xgboost's parameters wouldn't 
 #' change the value of that parameter for a model. 
 #' Use \code{\link{xgb.parameters<-}} to set or change model parameters.

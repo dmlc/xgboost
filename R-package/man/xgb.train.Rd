@@ -110,7 +110,7 @@ This parameter is passed to the \code{\link{cb.early.stop}} callback.}
 
 \item{save_name}{the name or path for periodically saved model file.}
 
-\item{xgb_model}{a previously built model to continue the trainig from.
+\item{xgb_model}{a previously built model to continue the training from.
 Could be either an object of class \code{xgb.Booster}, or its raw data, or the name of a 
 file with a previously saved model.}
 
