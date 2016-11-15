@@ -15,19 +15,33 @@ namespace tree {
 DMLC_REGISTER_PARAMETER(TrainParam);
 }
 // internal function to dump regression tree to text
-void DumpRegTree2Text(std::stringstream& fo,  // NOLINT(*)
-                      const RegTree& tree,
-                      const FeatureMap& fmap,
-                      int nid, int depth, bool with_stats) {
-  for (int i = 0;  i < depth; ++i) {
-    fo << '\t';
+void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
+                 const RegTree& tree,
+                 const FeatureMap& fmap,
+                 int nid, int depth, int add_comma,
+                 bool with_stats, std::string format) {
+  if (format == "json") {
+    if (add_comma) fo << ",";
+    if (depth != 0) fo << std::endl;
+    for (int i = 0; i < depth+1; ++i) fo << "  ";
+  } else {
+    for (int i = 0; i < depth; ++i) fo << '\t';
   }
   if (tree[nid].is_leaf()) {
-    fo << nid << ":leaf=" << tree[nid].leaf_value();
-    if (with_stats) {
-      fo << ",cover=" << tree.stat(nid).sum_hess;
+    if (format == "json") {
+      fo << "{ \"nodeid\": " << nid
+         << ", \"leaf\": " << tree[nid].leaf_value();
+      if (with_stats) {
+        fo << ", \"cover\": " << tree.stat(nid).sum_hess;
+      }
+      fo << " }";
+    } else {
+      fo << nid << ":leaf=" << tree[nid].leaf_value();
+      if (with_stats) {
+        fo << ",cover=" << tree.stat(nid).sum_hess;
+      }
+      fo << '\n';
     }
-    fo << '\n';
   } else {
     // right then left,
     bst_float cond = tree[nid].split_cond();
@@ -37,47 +51,101 @@ void DumpRegTree2Text(std::stringstream& fo,  // NOLINT(*)
         case FeatureMap::kIndicator: {
           int nyes = tree[nid].default_left() ?
               tree[nid].cright() : tree[nid].cleft();
-          fo << nid << ":[" << fmap.name(split_index) << "] yes=" << nyes
-             << ",no=" << tree[nid].cdefault();
+          if (format == "json") {
+            fo << "{ \"nodeid\": " << nid
+               << ", \"depth\": " << depth
+               << ", \"split\": \"" << fmap.name(split_index) << "\""
+               << ", \"yes\": " << nyes
+               << ", \"no\": " << tree[nid].cdefault();
+          } else {
+            fo << nid << ":[" << fmap.name(split_index) << "] yes=" << nyes
+               << ",no=" << tree[nid].cdefault();
+          }
           break;
         }
         case FeatureMap::kInteger: {
-          fo << nid << ":[" << fmap.name(split_index) << "<"
-             << int(float(cond)+1.0f)
-             << "] yes=" << tree[nid].cleft()
-             << ",no=" << tree[nid].cright()
-             << ",missing=" << tree[nid].cdefault();
+          if (format == "json") {
+            fo << "{ \"nodeid\": " << nid
+               << ", \"depth\": " << depth
+               << ", \"split\": \"" << fmap.name(split_index) << "\""
+               << ", \"split_condition\": " << int(float(cond) + 1.0f)
+               << ", \"yes\": " << tree[nid].cleft()
+               << ", \"no\": " << tree[nid].cright()
+               << ", \"missing\": " << tree[nid].cdefault();
+          } else {
+            fo << nid << ":[" << fmap.name(split_index) << "<"
+               << int(float(cond)+1.0f)
+               << "] yes=" << tree[nid].cleft()
+               << ",no=" << tree[nid].cright()
+               << ",missing=" << tree[nid].cdefault();
+          }
           break;
         }
         case FeatureMap::kFloat:
         case FeatureMap::kQuantitive: {
-          fo << nid << ":[" << fmap.name(split_index) << "<"<< float(cond)
-             << "] yes=" << tree[nid].cleft()
-             << ",no=" << tree[nid].cright()
-             << ",missing=" << tree[nid].cdefault();
-            break;
+          if (format == "json") {
+            fo << "{ \"nodeid\": " << nid
+               << ", \"depth\": " << depth
+               << ", \"split\": \"" << fmap.name(split_index) << "\""
+               << ", \"split_condition\": " << float(cond)
+               << ", \"yes\": " << tree[nid].cleft()
+               << ", \"no\": " << tree[nid].cright()
+               << ", \"missing\": " << tree[nid].cdefault();
+          } else {
+            fo << nid << ":[" << fmap.name(split_index) << "<" << float(cond)
+               << "] yes=" << tree[nid].cleft()
+               << ",no=" << tree[nid].cright()
+               << ",missing=" << tree[nid].cdefault();
+          }
+          break;
         }
         default: LOG(FATAL) << "unknown fmap type";
         }
     } else {
-      fo << nid << ":[f" << split_index << "<"<< float(cond)
-         << "] yes=" << tree[nid].cleft()
-         << ",no=" << tree[nid].cright()
-         << ",missing=" << tree[nid].cdefault();
+      if (format == "json") {
+        fo << "{ \"nodeid\": " << nid
+           << ", \"depth\": " << depth
+           << ", \"split\": " << split_index
+           << ", \"split_condition\": " << float(cond)
+           << ", \"yes\": " << tree[nid].cleft()
+           << ", \"no\": " << tree[nid].cright()
+           << ", \"missing\": " << tree[nid].cdefault();
+      } else {
+        fo << nid << ":[f" << split_index << "<"<< float(cond)
+           << "] yes=" << tree[nid].cleft()
+           << ",no=" << tree[nid].cright()
+           << ",missing=" << tree[nid].cdefault();
+      }
     }
     if (with_stats) {
-      fo << ",gain=" << tree.stat(nid).loss_chg << ",cover=" << tree.stat(nid).sum_hess;
+      if (format == "json") {
+        fo << ", \"gain\": " << tree.stat(nid).loss_chg
+           << ", \"cover\": " << tree.stat(nid).sum_hess;
+      } else {
+        fo << ",gain=" << tree.stat(nid).loss_chg << ",cover=" << tree.stat(nid).sum_hess;
+      }
     }
-    fo << '\n';
-    DumpRegTree2Text(fo, tree, fmap, tree[nid].cleft(), depth + 1, with_stats);
-    DumpRegTree2Text(fo, tree, fmap, tree[nid].cright(), depth + 1, with_stats);
+    if (format == "json") {
+      fo << ", \"children\": [";
+    } else {
+      fo << '\n';
+    }
+    DumpRegTree(fo, tree, fmap, tree[nid].cleft(), depth + 1, false, with_stats, format);
+    DumpRegTree(fo, tree, fmap, tree[nid].cright(), depth + 1, true, with_stats, format);
+    if (format == "json") {
+      fo << std::endl;
+      for (int i = 0; i < depth+1; ++i) fo << "  ";
+      fo << "]}";
+    }
   }
 }
 
-std::string RegTree::Dump2Text(const FeatureMap& fmap, bool with_stats) const {
+std::string RegTree::DumpModel(const FeatureMap& fmap,
+                               bool with_stats,
+                               std::string format) const {
   std::stringstream fo("");
   for (int i = 0; i < param.num_roots; ++i) {
-    DumpRegTree2Text(fo, *this, fmap, i, 0, with_stats);
+    DumpRegTree(fo, *this, fmap, i, 0, false, with_stats, format);
   }
   return fo.str();
 }

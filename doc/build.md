@@ -81,14 +81,14 @@ git clone --recursive https://github.com/dmlc/xgboost
 and build using the following commands
 
 ```bash
-cd ..; cp make/config.mk ./config.mk; make -j4
+cd xgboost; cp make/config.mk ./config.mk; make -j4
 ```
 
 NOTE:
 If you use OSX El Capitan, brew installs gcc the latest version gcc-6. So you may need to modify Makefile#L46 and change gcc-5 to gcc-6. After that change gcc-5/g++-5 to gcc-6/g++-6 in make/config.mk then build using the following commands
 
 ```bash
-cd ..; cp make/config.mk ./config.mk; make -j4
+cd xgboost; cp make/config.mk ./config.mk; make -j4
 ```
 
 ### Building on Windows

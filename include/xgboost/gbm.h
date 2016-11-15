@@ -108,12 +108,15 @@ class GradientBooster {
                            std::vector<float>* out_preds,
                            unsigned ntree_limit = 0) = 0;
   /*!
-   * \brief dump the model to text format
+   * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
-   * \param option extra option of the dump model
+   * \param with_stats extra statistics while dumping model
+   * \param format the format to dump the model in
    * \return a vector of dump for boosters.
    */
-  virtual std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) const = 0;
+  virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
+                                             bool with_stats,
+                                             std::string format) const = 0;
   /*!
    * \brief create a gradient booster from given name
    * \param name name of gradient booster
