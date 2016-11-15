@@ -19,6 +19,8 @@ package ml.dmlc.xgboost4j.scala.rabit.handler
 import java.net.InetSocketAddress
 import java.util.UUID
 
+import akka.actor.SupervisorStrategy.Stop
+
 import scala.concurrent.duration._
 import scala.collection.mutable
 import scala.concurrent.{Promise, TimeoutException}
@@ -57,8 +59,14 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
   private[this] var workerConnectionTimeout: Duration = Duration.Inf
   private[this] var portTrials = 0
   private[this] val startedWorkers = mutable.Set.empty[Int]
+  private[this] val startedWorkerHandlers = mutable.Set.empty[ActorRef]
 
   val linkMap = new LinkMap(numWorkers)
+
+  // stop worker handler when encountering exceptions.
+  override val supervisorStrategy = AllForOneStrategy(maxPortTrials = 0) {
+    case _: Exception => Stop
+  }
 
   def decideRank(rank: Int, jobId: String = "NULL"): Option[Int] = {
     rank match {
@@ -103,13 +111,14 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
     case Tcp.Connected(remote, local) =>
       log.debug(s"Incoming connection from worker @ ${remote.getAddress.getHostAddress}")
       // revoke timeout if all workers have connected.
-      val connHandler = context.actorOf(RabitWorkerHandler.props(
+      val workerHandler = context.actorOf(RabitWorkerHandler.props(
         remote.getAddress.getHostAddress, numWorkers, self, sender()
       ), s"ConnectionHandler-${UUID.randomUUID().toString}")
+      context.watch(workerHandler)
       val connection = sender()
-      connection ! Tcp.Register(connHandler, keepOpenOnPeerClosed = true)
+      connection ! Tcp.Register(workerHandler, keepOpenOnPeerClosed = true)
 
-      actorRefToHost.put(connHandler, remote.getAddress.getHostName)
+      actorRefToHost.put(workerHandler, remote.getAddress.getHostName)
   }
 
   /**
@@ -197,6 +206,7 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
       resolver forward msg
 
       startedWorkers.add(rank)
+      startedWorkerHandlers.add(sender())
       if (startedWorkers.size == numWorkers) {
         log.info("All workers have started.")
       }
@@ -224,6 +234,14 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
       }
 
       context.setReceiveTimeout(Duration.Undefined)
+
+    case akka.actor.Terminated(handler) =>
+      if (!startedWorkerHandlers.contains(handler)) {
+        // unexpected/premature termination of worker handler, which will likely corrupt the entire
+        // session, shut down the tracker.
+        promisedShutdownWorkers.success(shutdownWorkers.size)
+        context.stop(self)
+      }
   }
 }
 

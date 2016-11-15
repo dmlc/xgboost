@@ -44,8 +44,6 @@ class RabitWorkerHandler(host: String, worldSize: Int, tracker: ActorRef,
   import RabitWorkerHandler._
   import RabitTrackerHelpers._
 
-  context.watch(tracker)
-
   private[this] var rank: Int = 0
   private[this] var port: Int = 0
 
@@ -121,7 +119,6 @@ class RabitWorkerHandler(host: String, worldSize: Int, tracker: ActorRef,
   when(AwaitingCommand) {
     case Event(Tcp.Received(bytes), validator) =>
       bytes.asByteBuffers.foreach { buf => readBuffer.put(buf) }
-
       if (validator.verify(readBuffer)) {
         readBuffer.flip()
         tracker ! decodeCommand(readBuffer)
@@ -234,7 +231,6 @@ class RabitWorkerHandler(host: String, worldSize: Int, tracker: ActorRef,
         case _ =>
           stashSpillOver(buf)
           goto(BuildingLinkMap) using StructNodes
-
       }
   }
 
@@ -257,7 +253,7 @@ class RabitWorkerHandler(host: String, worldSize: Int, tracker: ActorRef,
       // check peerClosed to avoid prematurely stopping this actor (which sends RST to worker)
       if (awaitingAcceptance == 0 && peerClosed) {
         tracker ! DropFromWaitingList(rank)
-        // no long needed.
+        // no longer needed.
         context.stop(self)
       }
       stay
