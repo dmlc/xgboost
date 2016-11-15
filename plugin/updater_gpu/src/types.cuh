@@ -7,7 +7,7 @@
 namespace xgboost {
 namespace tree {
 
-typedef int32_t NodeIdT;
+typedef int16_t NodeIdT;
 
 // gpair type defined with device accessible functions
 struct gpu_gpair {

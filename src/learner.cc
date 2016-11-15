@@ -25,8 +25,10 @@ bool Learner::AllowLazyCheckPoint() const {
 }
 
 std::vector<std::string>
-Learner::Dump2Text(const FeatureMap& fmap, int option) const {
-  return gbm_->Dump2Text(fmap, option);
+Learner::DumpModel(const FeatureMap& fmap,
+                   bool with_stats,
+                   std::string format) const {
+  return gbm_->DumpModel(fmap, with_stats, format);
 }
 
 
@@ -92,7 +94,7 @@ struct LearnerTrainParam
         .add_enum("auto", 0)
         .add_enum("col", 1)
         .add_enum("row", 2)
-        .describe("Data split mode for distributed trainig. ");
+        .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(tree_method).set_default(0)
         .add_enum("auto", 0)
         .add_enum("approx", 1)

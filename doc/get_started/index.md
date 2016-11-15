@@ -1,6 +1,6 @@
 # Get Started with XGBoost
 
-This is a quick started tutorial showing snippets for you to quickly try out xgboost
+This is a quick start tutorial showing snippets for you to quickly try out xgboost
 on the demo dataset on a binary classification task.
 
 ## Links to Helpful Other Resources

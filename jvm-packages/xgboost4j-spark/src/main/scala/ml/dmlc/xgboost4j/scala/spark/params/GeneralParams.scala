@@ -64,7 +64,7 @@ trait GeneralParams extends Params {
   /**
    * customized evaluation function provided by user. default: null
    */
-  val customEval = new Param[EvalTrait](this, "custom_obj", "customized evaluation function " +
+  val customEval = new Param[EvalTrait](this, "custom_eval", "customized evaluation function " +
     "provided by user")
 
   /**

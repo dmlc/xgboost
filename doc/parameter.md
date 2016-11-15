@@ -8,7 +8,7 @@ Before running XGboost, we must set three types of parameters: general parameter
 
 Parameters in R Package
 -----------------------
-In R-package, you can use .(dot) to replace under score in the parameters, for example, you can use max.depth as max_depth. The underscore parameters are also valid in R.
+In R-package, you can use .(dot) to replace underscore in the parameters, for example, you can use max.depth as max_depth. The underscore parameters are also valid in R.
 
 General Parameters
 ------------------
@@ -29,13 +29,13 @@ Parameters for Tree Booster
   - step size shrinkage used in update to prevents overfitting. After each boosting step, we can directly get the weights of new features. and eta actually shrinks the feature weights to make the boosting process more conservative.
   - range: [0,1]
 * gamma [default=0]
-  - minimum loss reduction required to make a further partition on a leaf node of the tree. the larger, the more conservative the algorithm will be.
+  - minimum loss reduction required to make a further partition on a leaf node of the tree. The larger, the more conservative the algorithm will be.
   - range: [0,∞]
 * max_depth [default=6]
-  - maximum depth of a tree, increase this value will make model more complex / likely to be overfitting.
+  - maximum depth of a tree, increase this value will make the model more complex / likely to be overfitting.
   - range: [1,∞]
 * min_child_weight [default=1]
-  - minimum sum of instance weight(hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be.
+  - minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be.
   - range: [0,∞]
 * max_delta_step [default=0]
   - Maximum delta step we allow each tree's weight estimation to be. If the value is set to 0, it means there is no constraint. If it is set to a positive value, it can help making the update step more conservative. Usually this parameter is not needed, but it might help in logistic regression when class is extremely imbalanced. Set it to value of 1-10 might help control the update
@@ -71,8 +71,10 @@ Parameters for Tree Booster
   - Usually user does not have to tune this.
     but consider setting to a lower number for more accurate enumeration.
   - range: (0, 1)
-* scale_pos_weight, [default=0]
+* scale_pos_weight, [default=1]
   - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: sum(negative  cases) / sum(positive cases) See [Parameters Tuning](how_to/param_tuning.md) for more discussion. Also see Higgs Kaggle competition demo for examples: [R](../demo/kaggle-higgs/higgs-train.R ), [py1](../demo/kaggle-higgs/higgs-numpy.py ), [py2](../demo/kaggle-higgs/higgs-cv.py ), [py3](../demo/guide-python/cross_validation.py)
+* updater_seq, [default="grow_colmaker,prune"]
+  - A comma separated string mentioning tThe sequence of Tree updaters that should be run. A tree updater is a pluggable operation performed on the tree at every step using the gradient information. Tree updaters can be registered using the plugin system provided.
 
 Additional parameters for Dart Booster
 --------------------------------------
@@ -83,7 +85,7 @@ Additional parameters for Dart Booster
 * normalize_type [default="tree"]
   - type of normalization algorithm.
     - "tree": new trees have the same weight of each of dropped trees.
-      - weight of new trees are 1 / (k + learnig_rate)
+      - weight of new trees are 1 / (k + learning_rate)
       - dropped trees are scaled by a factor of k / (k + learning_rate)
     - "forest": new trees have the same weight of sum of dropped trees (forest).
       - weight of new trees are 1 / (1 + learning_rate)
@@ -103,7 +105,12 @@ Parameters for Linear Booster
 * alpha [default=0]
   - L1 regularization term on weights, increase this value will make model more conservative.
 * lambda_bias
-  - L2 regularization term on bias, default 0(no L1 reg on bias because it is not important)
+  - L2 regularization term on bias, default 0 (no L1 reg on bias because it is not important)
+
+Parameters for Tweedie Regression
+---------------------------------
+* tweedie_variance_power [default=1.5]
+  - Parameter that controls the variance of the tweedie distribution.  Set closer to 2 to shift towards a gamma distribution and closer to 1 to shift towards a poisson distribution.
 
 Learning Task Parameters
 ------------------------
@@ -119,11 +126,13 @@ Specify the learning task and the corresponding learning objective. The objectiv
  - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
  - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
  - "reg:gamma" --gamma regression for severity data, output mean of gamma distribution
+ - "reg:tweedie" --tweedie regression for insurance data
+   - tweedie_variance_power is set to 1.5 by default in tweedie regression and must be in the range [1, 2)
 * base_score [ default=0.5 ]
   - the initial prediction score of all instances, global bias
   - for sufficient number of iterations, changing this value will not have too much effect.
 * eval_metric [ default according to objective ]
-  - evaluation metrics for validation data, a default metric will be assigned according to objective( rmse for regression, and error for classification, mean average precision for ranking )
+  - evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and error for classification, mean average precision for ranking )
   - User can add multiple evaluation metrics, for python user, remember to pass the metrics in as list of parameters pairs instead of map, so that latter 'eval_metric' won't override previous one
   - The choices are listed below:
   - "rmse": [root mean square error](http://en.wikipedia.org/wiki/Root_mean_square_error)
@@ -154,12 +163,12 @@ The following parameters are only used in the console version of xgboost
 * test:data
   - The path of test data to do prediction
 * save_period [default=0]
- - the period to save the model, setting save_period=10 means that for every 10 rounds XGBoost will save the model, setting it to 0 means not save any model during training.
+ - the period to save the model, setting save_period=10 means that for every 10 rounds XGBoost will save the model, setting it to 0 means not saving any model during the training.
 * task [default=train] options: train, pred, eval, dump
   - train: training using data
   - pred: making prediction for test:data
   - eval: for evaluating statistics specified by eval[name]=filename
-  - dump: for dump the learned model into text format(preliminary)
+  - dump: for dump the learned model into text format (preliminary)
 * model_in [default=NULL]
   - path to input model, needed for test, eval, dump, if it is specified in training, xgboost will continue training from the input model
 * model_out [default=NULL]

@@ -57,44 +57,66 @@ struct GPUData {
             const std::vector<bst_gpair> &in_gpair, bst_uint n_instances_in,
             bst_uint n_features_in, int max_depth, const TrainParam &param_in) {
     Timer t;
+
+    // Track allocated device memory
+    size_t n_bytes = 0;
+
     n_features = n_features_in;
     n_instances = n_instances_in;
 
     fvalues = in_fvalues;
+    n_bytes += size_bytes(fvalues);
     foffsets = in_foffsets;
+    n_bytes += size_bytes(foffsets);
     instance_id = in_instance_id;
+    n_bytes += size_bytes(instance_id);
     feature_id = in_feature_id;
+    n_bytes += size_bytes(feature_id);
 
     param = GPUTrainingParam(param_in.min_child_weight, param_in.reg_lambda,
                              param_in.reg_alpha, param_in.max_delta_step);
 
     gpair = thrust::device_vector<gpu_gpair>(in_gpair.begin(), in_gpair.end());
+    n_bytes += size_bytes(gpair);
 
     uint32_t max_nodes_level = 1 << max_depth;
 
     node_sums = thrust::device_vector<gpu_gpair>(max_nodes_level * n_features);
+    n_bytes += size_bytes(node_sums);
     node_offsets = thrust::device_vector<int>(max_nodes_level * n_features);
+    n_bytes += size_bytes(node_offsets);
 
     node_id_instance = thrust::device_vector<NodeIdT>(n_instances, 0);
+    n_bytes += size_bytes(node_id_instance);
 
     node_id = thrust::device_vector<NodeIdT>(fvalues.size(), 0);
+    n_bytes += size_bytes(node_id);
     node_id_temp = thrust::device_vector<NodeIdT>(fvalues.size());
+    n_bytes += size_bytes(node_id_temp);
 
     uint32_t max_nodes = (1 << (max_depth + 1)) - 1;
     nodes = thrust::device_vector<Node>(max_nodes);
+    n_bytes += size_bytes(nodes);
 
     split_candidates =
         thrust::device_vector<Split>(max_nodes_level * n_features);
-    allocated = true;
+    n_bytes += size_bytes(split_candidates);
 
     // Init items
     items = thrust::device_vector<Item>(fvalues.size());
+    n_bytes += size_bytes(items);
     items_temp = thrust::device_vector<Item>(fvalues.size());
+    n_bytes += size_bytes(items_temp);
 
     sort_index_in = thrust::device_vector<int>(fvalues.size());
+    n_bytes += size_bytes(sort_index_in);
     sort_index_out = thrust::device_vector<int>(fvalues.size());
+    n_bytes += size_bytes(sort_index_out);
+
+    // std::cout << "Device memory allocated: " << n_bytes << "\n";
 
     this->CreateItems();
+    allocated = true;
   }
 
   ~GPUData() {}
@@ -150,7 +172,10 @@ struct GPUData {
 
 GPUBuilder::GPUBuilder() { gpu_data = new GPUData(); }
 
-void GPUBuilder::Init(const TrainParam &param_in) { param = param_in; }
+void GPUBuilder::Init(const TrainParam &param_in) {
+  param = param_in;
+  CHECK(param.max_depth < 16) << "Max depth > 15 not supported.";
+}
 
 GPUBuilder::~GPUBuilder() { delete gpu_data; }
 
@@ -186,8 +211,9 @@ template <int ITEMS_PER_THREAD>
 __global__ void
 update_nodeid_fvalue_kernel(NodeIdT *d_node_id, NodeIdT *d_node_id_instance,
                             Item *d_items, Node *d_nodes, const int n_nodes,
-                            const int *d_feature_id, const size_t n,
-                            const int n_features, bool cache_nodes) {
+                            const int *d_foffsets, const int *d_feature_id,
+                            const size_t n, const int n_features,
+                            bool cache_nodes) {
   // Load nodes into shared memory
   extern __shared__ Node s_nodes[];
 
@@ -254,8 +280,8 @@ void GPUBuilder::UpdateNodeId(int level) {
         ITEMS_PER_THREAD><<<GRID_SIZE, BLOCK_THREADS, smem_size>>>(
         raw(gpu_data->node_id), raw(gpu_data->node_id_instance),
         raw(gpu_data->items), raw(gpu_data->nodes), n_nodes,
-        raw(gpu_data->feature_id), gpu_data->fvalues.size(),
-        gpu_data->n_features, cache_nodes);
+        raw(gpu_data->foffsets), raw(gpu_data->feature_id),
+        gpu_data->fvalues.size(), gpu_data->n_features, cache_nodes);
 
     safe_cuda(cudaGetLastError());
     safe_cuda(cudaDeviceSynchronize());
@@ -267,35 +293,42 @@ void GPUBuilder::UpdateNodeId(int level) {
 void GPUBuilder::Sort(int level) {
   thrust::sequence(gpu_data->sort_index_in.begin(),
                    gpu_data->sort_index_in.end());
+
+  cub::DoubleBuffer<NodeIdT> d_keys(raw(gpu_data->node_id),
+                                    raw(gpu_data->node_id_temp));
+  cub::DoubleBuffer<int> d_values(raw(gpu_data->sort_index_in),
+                                  raw(gpu_data->sort_index_out));
+
   if (!gpu_data->cub_mem.IsAllocated()) {
     cub::DeviceSegmentedRadixSort::SortPairs(
         gpu_data->cub_mem.d_temp_storage, gpu_data->cub_mem.temp_storage_bytes,
-        raw(gpu_data->node_id), raw(gpu_data->node_id_temp),
-        raw(gpu_data->sort_index_in), raw(gpu_data->sort_index_out),
-        gpu_data->fvalues.size(), gpu_data->n_features, raw(gpu_data->foffsets),
-        raw(gpu_data->foffsets) + 1);
+        d_keys, d_values, gpu_data->fvalues.size(), gpu_data->n_features,
+        raw(gpu_data->foffsets), raw(gpu_data->foffsets) + 1);
     gpu_data->cub_mem.Allocate();
   }
 
   cub::DeviceSegmentedRadixSort::SortPairs(
       gpu_data->cub_mem.d_temp_storage, gpu_data->cub_mem.temp_storage_bytes,
-      raw(gpu_data->node_id), raw(gpu_data->node_id_temp),
-      raw(gpu_data->sort_index_in), raw(gpu_data->sort_index_out),
-      gpu_data->fvalues.size(), gpu_data->n_features, raw(gpu_data->foffsets),
-      raw(gpu_data->foffsets) + 1);
+      d_keys, d_values, gpu_data->fvalues.size(), gpu_data->n_features,
+      raw(gpu_data->foffsets), raw(gpu_data->foffsets) + 1);
 
-  thrust::gather(gpu_data->sort_index_out.begin(),
-                 gpu_data->sort_index_out.end(), gpu_data->items.begin(),
-                 gpu_data->items_temp.begin());
+  thrust::gather(thrust::device_pointer_cast(d_values.Current()),
+                 thrust::device_pointer_cast(d_values.Current()) +
+                     gpu_data->sort_index_out.size(),
+                 gpu_data->items.begin(), gpu_data->items_temp.begin());
 
   thrust::copy(gpu_data->items_temp.begin(), gpu_data->items_temp.end(),
                gpu_data->items.begin());
-  thrust::copy(gpu_data->node_id_temp.begin(), gpu_data->node_id_temp.end(),
-               gpu_data->node_id.begin());
+
+  if (d_keys.Current() == raw(gpu_data->node_id_temp)) {
+    thrust::copy(gpu_data->node_id_temp.begin(), gpu_data->node_id_temp.end(),
+                 gpu_data->node_id.begin());
+  }
 }
 
 void GPUBuilder::Update(const std::vector<bst_gpair> &gpair, DMatrix *p_fmat,
                         RegTree *p_tree) {
+  cudaProfilerStart();
   try {
     Timer update;
     Timer t;
@@ -336,7 +369,14 @@ void GPUBuilder::Update(const std::vector<bst_gpair> &gpair, DMatrix *p_fmat,
   } catch (thrust::system_error &e) {
     std::cerr << "CUDA error: " << e.what() << std::endl;
     exit(-1);
+  } catch (const std::exception &e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+    exit(-1);
+  } catch (...) {
+    std::cerr << "Unknown exception." << std::endl;
+    exit(-1);
   }
+  cudaProfilerStop();
 }
 
 void GPUBuilder::InitData(const std::vector<bst_gpair> &gpair, DMatrix &fmat,
