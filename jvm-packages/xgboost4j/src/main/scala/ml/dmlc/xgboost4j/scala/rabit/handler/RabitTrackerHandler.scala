@@ -59,14 +59,8 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
   private[this] var workerConnectionTimeout: Duration = Duration.Inf
   private[this] var portTrials = 0
   private[this] val startedWorkers = mutable.Set.empty[Int]
-  private[this] val startedWorkerHandlers = mutable.Set.empty[ActorRef]
 
   val linkMap = new LinkMap(numWorkers)
-
-  // stop worker handler when encountering exceptions.
-  override val supervisorStrategy = AllForOneStrategy(maxPortTrials = 0) {
-    case _: Exception => Stop
-  }
 
   def decideRank(rank: Int, jobId: String = "NULL"): Option[Int] = {
     rank match {
@@ -114,7 +108,6 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
       val workerHandler = context.actorOf(RabitWorkerHandler.props(
         remote.getAddress.getHostAddress, numWorkers, self, sender()
       ), s"ConnectionHandler-${UUID.randomUUID().toString}")
-      context.watch(workerHandler)
       val connection = sender()
       connection ! Tcp.Register(workerHandler, keepOpenOnPeerClosed = true)
 
@@ -206,7 +199,6 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
       resolver forward msg
 
       startedWorkers.add(rank)
-      startedWorkerHandlers.add(sender())
       if (startedWorkers.size == numWorkers) {
         log.info("All workers have started.")
       }
@@ -234,14 +226,6 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
       }
 
       context.setReceiveTimeout(Duration.Undefined)
-
-    case akka.actor.Terminated(handler) =>
-      if (!startedWorkerHandlers.contains(handler)) {
-        // unexpected/premature termination of worker handler, which will likely corrupt the entire
-        // session, shut down the tracker.
-        promisedShutdownWorkers.success(shutdownWorkers.size)
-        context.stop(self)
-      }
   }
 }
 
@@ -325,6 +309,11 @@ class WorkerDependencyResolver private[scala](handler: ActorRef) extends Actor w
 
     case DropFromWaitingList(rank) =>
       assert(awaitConnWorkers.remove(rank).isDefined)
+
+    case Terminated(ref) =>
+      if (ref.equals(handler)) {
+        context.stop(self)
+      }
   }
 }
 
