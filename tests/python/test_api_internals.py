@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-import xgboost as xgb
 import unittest
 import ctypes
+import xgboost as xgb
 
 class TestAPIInternals(unittest.TestCase):
     """
@@ -25,4 +25,4 @@ class TestAPIInternals(unittest.TestCase):
         if ret != 0:
             raise NameError(lib.XGBGetLastError())
 
-#unittest.main()
+# unittest.main()
