@@ -40,7 +40,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val tracker = new RabitTracker(numWorkers)
     tracker.start(0)
     val trackerEnvs = tracker.getWorkerEnvs
-    val queue = new LinkedBlockingDeque[Array[Float]]()
+    val collectedAllReduceResults = new LinkedBlockingDeque[Array[Float]]()
 
     val rawData = rdd.mapPartitions { iter =>
       Iterator(iter.toArray)
@@ -50,30 +50,27 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       (0 until numWorkers).toArray.map { i => rawData(i)(j) }.max
     }
 
-    val partitions = rdd.mapPartitions { iter =>
+    val allReduceResults = rdd.mapPartitions { iter =>
       Rabit.init(trackerEnvs)
       val arr = iter.toArray
       val results = Rabit.allReduce(arr, Rabit.OpType.MAX)
       Rabit.shutdown()
-
       Iterator(results)
     }.cache()
 
     val sparkThread = new Thread() {
       override def run(): Unit = {
-        partitions.foreachPartition(() => _)
-        val allReduceResults = partitions.collect()
-        assert(allReduceResults(0).length == vectorLength)
-        queue.put(allReduceResults(0))
+        allReduceResults.foreachPartition(() => _)
+        val byPartitionResults = allReduceResults.collect()
+        assert(byPartitionResults(0).length == vectorLength)
+        collectedAllReduceResults.put(byPartitionResults(0))
       }
     }
     sparkThread.start()
     assert(tracker.waitFor() == 0)
     sparkThread.join()
 
-    queue.poll().zip(maxVec).foreach { case (x, y) =>
-      assert(x == y)
-    }
+    assert(collectedAllReduceResults.poll().sameElements(maxVec))
   }
 
   test("build RDD containing boosters with the specified worker number") {
