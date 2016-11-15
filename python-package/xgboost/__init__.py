@@ -14,6 +14,7 @@ from . import rabit                   # noqa
 try:
     from .sklearn import XGBModel, XGBClassifier, XGBRegressor
     from .plotting import plot_importance, plot_tree, to_graphviz
+    from .libpath import find_lib_path
 except ImportError:
     pass
 
@@ -24,4 +25,5 @@ with open(VERSION_FILE) as f:
 __all__ = ['DMatrix', 'Booster',
            'train', 'cv',
            'XGBModel', 'XGBClassifier', 'XGBRegressor',
-           'plot_importance', 'plot_tree', 'to_graphviz']
+           'plot_importance', 'plot_tree', 'to_graphviz',
+           'find_lib_path']
