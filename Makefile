@@ -45,6 +45,7 @@ OS := $(shell uname)
 ifeq ($(OS), Darwin)
 export CC = $(if $(shell which gcc-6),gcc-6,$(if $(shell which gcc-mp-6), gcc-mp-6, clang))
 export CXX = $(if $(shell which g++-6),g++-6,$(if $(shell which g++-mp-6),g++-mp-6, clang++))
+
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
@@ -52,6 +53,15 @@ export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
+
+ifeq ($(OS), FreeBSD)
+export CC  = $(if $(shell which gcc6),gcc6)
+export CXX = $(if $(shell which g++6),g++6)
+
+LDFLAGS += -Wl,-rpath=/usr/local/lib/gcc6
+export MAKE = gmake
+
+endif
 
 ifndef LINT_LANG
 	LINT_LANG= "all"
@@ -72,6 +82,10 @@ endif
 
 ifeq ($(UNAME), Darwin)
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/darwin
+endif
+
+ifeq ($(UNAME), FreeBSD)
+	JAVAINCFLAGS += -I${JAVA_HOME}/include/freebsd
 endif
 
 ifeq ($(USE_OPENMP), 1)
