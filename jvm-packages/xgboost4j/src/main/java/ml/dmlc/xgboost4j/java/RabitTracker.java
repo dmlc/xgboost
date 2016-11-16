@@ -78,13 +78,17 @@ public class RabitTracker implements IRabitTracker {
     }
   }
 
-
   public RabitTracker(int numWorkers)
     throws XGBoostError {
     if (numWorkers < 1) {
       throw new XGBoostError("numWorkers must be greater equal to one");
     }
     this.numWorkers = numWorkers;
+  }
+
+  public void uncaughtException(Thread t, Throwable e) {
+    logger.error("Uncaught exception thrown by worker:", e);
+    trackerProcess.get().destroy();
   }
 
   /**

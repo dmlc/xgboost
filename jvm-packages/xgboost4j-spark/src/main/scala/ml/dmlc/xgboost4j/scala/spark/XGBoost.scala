@@ -298,6 +298,7 @@ object XGBoost extends Serializable {
         boosters.foreachPartition(() => _)
       }
     }
+    sparkJobThread.setUncaughtExceptionHandler(tracker)
     sparkJobThread.start()
     val isClsTask = isClassificationTask(params)
     val trainingTimeout = if (trackerConf.trainingTimeout.isFinite()) {

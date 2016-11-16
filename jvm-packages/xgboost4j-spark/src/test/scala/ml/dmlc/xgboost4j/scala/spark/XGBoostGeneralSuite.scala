@@ -34,8 +34,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
   test("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
     val vectorLength = 100
     val rdd = sc.parallelize(
-      (1 to numWorkers * vectorLength).toArray.map { _ => Random.nextFloat() },
-      numWorkers).cache()
+      (1 to numWorkers * vectorLength).toArray.map { _ => Random.nextFloat() }, numWorkers).cache()
 
     val tracker = new RabitTracker(numWorkers)
     tracker.start(0)

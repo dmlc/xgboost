@@ -12,10 +12,16 @@ import java.util.concurrent.TimeUnit;
  *  - waitFor(timeout): Wait for the task execution by the worker nodes for at most `timeout`
  *  milliseconds.
  *
+ * Each implementation is expected to implement a callback function
+ *
+ *    public void uncaughtException(Threat t, Throwable e) { ... }
+ *
+ * to interrupt waitFor() in order to prevent the tracker from hanging indefinitely.
+ *
  * The Rabit tracker handles connections from distributed workers, assigns ranks to workers, and
  * brokers connections between workers.
  */
-public interface IRabitTracker {
+public interface IRabitTracker extends Thread.UncaughtExceptionHandler {
   Map<String, String> getWorkerEnvs();
   boolean start(long workerConnectionTimeout);
   int waitFor(long taskExecutionTimeout);

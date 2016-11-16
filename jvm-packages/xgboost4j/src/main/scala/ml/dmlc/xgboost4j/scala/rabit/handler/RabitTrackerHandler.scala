@@ -142,6 +142,12 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
 
     case RequestCompletionFuture =>
       sender() ! promisedShutdownWorkers.future
+
+    case InterruptTracker(e) =>
+      log.error(e, "Uncaught exception thrown by worker.")
+      // make sure that waitFor() does not hang indefinitely.
+      promisedShutdownWorkers.failure(e)
+      context.stop(self)
   }
 
   /**
@@ -328,6 +334,9 @@ private[scala] object RabitTrackerHandler {
   case class StartTracker(addr: InetSocketAddress,
                           maxPortTrials: Int,
                           connectionTimeout: Duration) extends TrackerControlMessage
+  // To interrupt the tracker handler due to uncaught exception thrown by the thread acting as
+  // driver for the distributed training.
+  case class InterruptTracker(e: Throwable) extends TrackerControlMessage
 
   def props(numWorkers: Int): Props =
     Props(new RabitTrackerHandler(numWorkers))

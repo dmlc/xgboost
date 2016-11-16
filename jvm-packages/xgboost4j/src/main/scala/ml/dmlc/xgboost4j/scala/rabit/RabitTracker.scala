@@ -98,6 +98,11 @@ class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
       delayedFailure.future
   }
 
+  override def uncaughtException(t: Thread, e: Throwable): Unit = {
+    println("Caught exception: " + e.getMessage)
+    handler ? RabitTrackerHandler.InterruptTracker(e)
+  }
+
   /**
     * Start the Rabit tracker.
     *
@@ -157,15 +162,16 @@ class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
     */
   def waitFor(atMost: Duration = Duration.Inf): Int = {
     // wait for all workers to complete synchronously.
-    Try(Await.result(futureCompleted, atMost)) match {
+    val statusCode = Try(Await.result(futureCompleted, atMost)) match {
       case Success(n) if n == numWorkers =>
-        system.shutdown()
         RabitTracker.SUCCESS.statusCode
       case Success(n) if n < numWorkers =>
         RabitTracker.TIMEOUT.statusCode
       case Failure(e) =>
         RabitTracker.FAILURE.statusCode
     }
+    system.shutdown()
+    statusCode
   }
 
   /**
