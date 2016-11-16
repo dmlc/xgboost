@@ -150,7 +150,7 @@ XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, "binary:logitraw")
 struct PoissonRegressionParam : public dmlc::Parameter<PoissonRegressionParam> {
   float max_delta_step;
   DMLC_DECLARE_PARAMETER(PoissonRegressionParam) {
-    DMLC_DECLARE_FIELD(max_delta_step).set_lower_bound(0.0f)
+    DMLC_DECLARE_FIELD(max_delta_step).set_lower_bound(0.0f).set_default(0.7f)
         .describe("Maximum delta step we allow each weight estimation to be." \
                   " This parameter is required for possion regression.");
   }
