@@ -16,72 +16,121 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.Rabit
+import ml.dmlc.xgboost4j.java.{Rabit, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.{RabitTracker => ScalaRabitTracker}
-import ml.dmlc.xgboost4j.java.{RabitTracker => PyRabitTracker}
+import org.apache.spark.{SparkConf, SparkContext}
+import org.scalatest.FunSuite
 
-import scala.util.Random
-
-class XGBoostRobustnessSuite extends SharedSparkContext with Utils {
+class XGBoostRobustnessSuite extends FunSuite with Utils {
   test("test Java RabitTracker wrapper's exception handling: it should not hang forever.") {
-    val rdd = sc.parallelize(1 to numWorkers, numWorkers).cache()
+    // Explicitly create new instances of SparkContext in each test to avoid reusing the same
+    // thread pool, which corrupts the internal state of Rabit and causes crash.
+    val sparkConf = new SparkConf().setMaster("local[*]")
+      .setAppName("XGBoostSuite").set("spark.driver.memory", "512m")
+    implicit val sparkContext = new SparkContext(sparkConf)
+    sparkContext.setLogLevel("ERROR")
+
+    val rdd = sparkContext.parallelize(1 to numWorkers, numWorkers).cache()
 
     val tracker = new PyRabitTracker(numWorkers)
     tracker.start(0)
     val trackerEnvs = tracker.getWorkerEnvs
 
-    val allReduceResults = rdd.mapPartitions { iter =>
+    val dummyTasks = rdd.mapPartitions { iter =>
       Rabit.init(trackerEnvs)
       Thread.sleep(500)
-      val index = iter.toArray
-      if (index(0) == 1) {
+      val index = iter.next()
+      if (index == 1) {
         // kill the worker by throwing an exception
         throw new RuntimeException("Worker exception.")
       }
       Rabit.shutdown()
-      Iterator(index(0))
+      Iterator(index)
     }.cache()
 
     val sparkThread = new Thread() {
       override def run(): Unit = {
         // forces a Spark job.
-        allReduceResults.foreachPartition(() => _)
+        dummyTasks.foreachPartition(() => _)
       }
     }
+
     sparkThread.setUncaughtExceptionHandler(tracker)
     sparkThread.start()
     assert(tracker.waitFor(0) != 0)
-    sparkThread.join()
+    sparkContext.stop()
   }
 
   test("test Scala RabitTracker's exception handling: it should not hang forever.") {
-    val rdd = sc.parallelize(1 to numWorkers, numWorkers).cache()
+    val sparkConf = new SparkConf().setMaster("local[*]")
+      .setAppName("XGBoostSuite").set("spark.driver.memory", "512m")
+    implicit val sparkContext = new SparkContext(sparkConf)
+    sparkContext.setLogLevel("ERROR")
+
+    val rdd = sparkContext.parallelize(1 to numWorkers, numWorkers).cache()
 
     val tracker = new ScalaRabitTracker(numWorkers)
     tracker.start(0)
     val trackerEnvs = tracker.getWorkerEnvs
 
-    val allReduceResults = rdd.mapPartitions { iter =>
+    val dummyTasks = rdd.mapPartitions { iter =>
       Rabit.init(trackerEnvs)
       Thread.sleep(500)
-      val index = iter.toArray
-      if (index(0) == 1) {
+      val index = iter.next()
+      if (index == 1) {
         // kill the worker by throwing an exception
         throw new RuntimeException("Worker exception.")
       }
       Rabit.shutdown()
-      Iterator(index(0))
+      Iterator(index)
     }.cache()
 
     val sparkThread = new Thread() {
       override def run(): Unit = {
         // forces a Spark job.
-        allReduceResults.foreachPartition(() => _)
+        dummyTasks.foreachPartition(() => _)
       }
     }
     sparkThread.setUncaughtExceptionHandler(tracker)
     sparkThread.start()
     assert(tracker.waitFor() == ScalaRabitTracker.FAILURE.statusCode)
-    sparkThread.join()
+    sparkContext.stop()
+  }
+
+  test("test Scala RabitTracker's workerConnectionTimeout") {
+    val sparkConf = new SparkConf().setMaster("local[*]")
+      .setAppName("XGBoostSuite").set("spark.driver.memory", "512m")
+    implicit val sparkContext = new SparkContext(sparkConf)
+    sparkContext.setLogLevel("ERROR")
+
+    val rdd = sparkContext.parallelize(1 to numWorkers, numWorkers).cache()
+
+    val tracker = new ScalaRabitTracker(numWorkers)
+    tracker.start(500)
+    val trackerEnvs = tracker.getWorkerEnvs
+
+    val dummyTasks = rdd.mapPartitions { iter =>
+      val index = iter.next()
+      // simulate that the first worker cannot connect to tracker due to network issues.
+      if (index != 1) {
+        Rabit.init(trackerEnvs)
+        Thread.sleep(500)
+        Rabit.shutdown()
+      }
+
+      Iterator(index)
+    }.cache()
+
+    val sparkThread = new Thread() {
+      override def run(): Unit = {
+        // forces a Spark job.
+        dummyTasks.foreachPartition(() => _)
+      }
+    }
+    sparkThread.setUncaughtExceptionHandler(tracker)
+    sparkThread.start()
+    // should fail due to connection timeout
+    assert(tracker.waitFor() == ScalaRabitTracker.FAILURE.statusCode)
+    sparkContext.stop()
   }
 }

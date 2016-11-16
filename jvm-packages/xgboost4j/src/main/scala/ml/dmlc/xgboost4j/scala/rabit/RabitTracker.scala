@@ -99,7 +99,6 @@ class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
   }
 
   override def uncaughtException(t: Thread, e: Throwable): Unit = {
-    println("Caught exception: " + e.getMessage)
     handler ? RabitTrackerHandler.InterruptTracker(e)
   }
 
