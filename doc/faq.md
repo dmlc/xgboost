@@ -56,7 +56,7 @@ Yes, xgboost implements LambdaMART. Checkout the objective section in [parameter
 
 How to deal with Missing Value
 ------------------------------
-xgboost support missing value by default
+xgboost supports missing value by default.
 
 
 Slightly different result between runs
