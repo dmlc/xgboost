@@ -1,8 +1,23 @@
+OS := $(shell uname)
+
+ifeq ($(OS), Linux)
 ifndef CXX
 export CXX = g++
 endif
 export MPICXX = mpicxx
 export LDFLAGS= -Llib -lrt
+
+endif
+
+ifeq ($(OS), FreeBSD)
+ifndef CXX
+export CXX = g++6
+endif
+export MPICXX = /usr/local/mpi/bin/mpicxx
+export LDFLAGS= -Llib -Wl,-rpath=/usr/local/lib/gcc6
+
+endif
+
 export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -std=c++0x
 export CFLAGS = -O3 -msse2 $(WARNFLAGS)
 
