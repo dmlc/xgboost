@@ -88,23 +88,15 @@ trait GeneralParams extends Params {
     *        Python Rabit tracker (in dmlc_core), and does not support timeout settings.
     *        The "scala" version removes Python components, and fully supports timeout settings.
     *
-    *   - workerConectionTimeout: the maximum wait time for all workers to connect to the tracker.
+    *   - workerConnectionTimeout: the maximum wait time for all workers to connect to the tracker.
     *                             default: 0 millisecond (no timeout)
     *
-    *        The timeout value should take the time of data loading and preprocessing into account,
-    *        due to the lazy execution of Spark's operations. Set a reasonable timeout value to
-    *        prevent model training/testing from hanging indefinitely, possible due to network
-    *        issues. Note that zero timeout value means to wait indefinitely, which is equivalent
-    *        to Duration.Inf.
-    *        Ignored if the tracker implementation is "python".
-    *
-    *   - trainingTimeout: the maximum time for training a model with xgboost4j-spark.
-    *                      default: 0 millisecond (no timeout)
-    *
-    *        Using a finite, non-negative timeout value prevents the Spark task from hanging due to
-    *        executor loss, or from running excessively long (due to suboptimal model tuning
-    *        parameters.) Note that zero timeout value means to wait indefinitely, which is
-    *        equivalent to Duration.Inf.
+    *        The timeout value should take the time of data loading and pre-processing into account,
+    *        due to the lazy execution of Spark's operations. Alternatively, you may force Spark to
+    *        perform data transformation before calling XGBoost.train(), so that this timeout truly
+    *        reflects the connection delay. Set a reasonable timeout value to prevent model
+    *        training/testing from hanging indefinitely, possible due to network issues.
+    *        Note that zero timeout value means to wait indefinitely (equivalent to Duration.Inf).
     *        Ignored if the tracker implementation is "python".
     */
   val trackerConf = new Param[TrackerConf](this, "tracker_conf", "Rabit tracker configurations")

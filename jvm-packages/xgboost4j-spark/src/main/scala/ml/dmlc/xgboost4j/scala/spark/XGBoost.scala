@@ -32,8 +32,7 @@ import org.apache.spark.{SparkContext, TaskContext}
 import scala.concurrent.duration.{Duration, MILLISECONDS}
 
 object TrackerConf {
-  def apply(): TrackerConf = TrackerConf(Duration.apply(0L, MILLISECONDS),
-    Duration.apply(0L, MILLISECONDS), "python")
+  def apply(): TrackerConf = TrackerConf(Duration.apply(0L, MILLISECONDS), "python")
 }
 
 /**
@@ -42,18 +41,12 @@ object TrackerConf {
   *                                Set timeout length to zero to disable timeout.
   *                                Use a finite, non-zero timeout value to prevent tracker from
   *                                hanging indefinitely (supported by "scala" implementation only.)
-  * @param trainingTimeout The timeout for distributed training using xgboost4j-spark.
-  *                        If the timeout length is zero, the training task can run indefinitely.
-  *                        Use a finite, non-zero timeout value to prevent the training task from
-  *                        hanging indefinitely due to worker failures. (supported by "scala"
-  *                        implementation only.)
   * @param trackerImpl Choice between "python" or "scala". The former utilizes the Java wrapper of
   *                    the Python Rabit tracker (in dmlc_core), whereas the latter is implemented
   *                    in Scala without Python components, and with full support of timeouts.
   *                    The Scala implementation is currently experimental, use at your own risk.
   */
-case class TrackerConf(workerConnectionTimeout: Duration, trainingTimeout: Duration,
-                       trackerImpl: String)
+case class TrackerConf(workerConnectionTimeout: Duration, trackerImpl: String)
 
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
@@ -301,14 +294,7 @@ object XGBoost extends Serializable {
     sparkJobThread.setUncaughtExceptionHandler(tracker)
     sparkJobThread.start()
     val isClsTask = isClassificationTask(params)
-    val trainingTimeout = if (trackerConf.trainingTimeout.isFinite()) {
-      trackerConf.trainingTimeout.toMillis
-    } else {
-      // 0 == Duration.Inf
-      0L
-    }
-
-    val trackerReturnVal = tracker.waitFor(trainingTimeout)
+    val trackerReturnVal = tracker.waitFor(0L)
     logger.info(s"Rabit returns with exit code $trackerReturnVal")
     postTrackerReturnProcessing(trackerReturnVal, boosters, overridedConfMap, sparkJobThread,
       isClsTask)
