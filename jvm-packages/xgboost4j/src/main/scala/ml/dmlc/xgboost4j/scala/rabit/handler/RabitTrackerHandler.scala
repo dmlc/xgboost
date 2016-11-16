@@ -19,16 +19,15 @@ package ml.dmlc.xgboost4j.scala.rabit.handler
 import java.net.InetSocketAddress
 import java.util.UUID
 
-import akka.actor.SupervisorStrategy.Stop
-
 import scala.concurrent.duration._
 import scala.collection.mutable
 import scala.concurrent.{Promise, TimeoutException}
 import akka.io.{IO, Tcp}
 import akka.actor._
+import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.rabit.util.{AssignedRank, LinkMap}
 
-import scala.util.Random
+import scala.util.{Failure, Random, Success, Try}
 
 /** The Akka actor for handling and coordinating Rabit worker connections.
   * This is the main actor for handling socket connections, interacting with the synchronous
@@ -187,17 +186,37 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
       assert(worldSize == numWorkers || worldSize == -1,
         s"Purported worldSize ($worldSize) does not match worker count ($numWorkers)."
       )
-      val wkRank = decideRank(rank, jobId).getOrElse(ranksToAssign.remove(0))
-      if (jobId != "NULL") {
-        jobToRankMap.put(jobId, wkRank)
+
+      Try(decideRank(rank, jobId).getOrElse(ranksToAssign.remove(0))) match {
+        case Success(wkRank) =>
+          if (jobId != "NULL") {
+            jobToRankMap.put(jobId, wkRank)
+          }
+
+          val assignedRank = linkMap.assignRank(wkRank)
+          sender() ! assignedRank
+          resolver ! assignedRank
+
+          log.info("Received start signal from " +
+            s"${actorRefToHost.getOrElse(sender(), "")} [rank: $wkRank]")
+
+        case Failure(ex: IndexOutOfBoundsException) =>
+          // More than worldSize workers have connected, likely due to executor loss.
+          // Since Rabit currently does not support crash recovery (because the Allreduce results
+          // are not cached by the tracker, and because existing workers cannot reestablish
+          // connections to newly spawned executor/worker), the most reasonble action here is to
+          // interrupt the tracker immediate with failure state.
+          log.error("Received invalid start signal from " +
+            s"${actorRefToHost.getOrElse(sender(), "")}: all $worldSize workers have started."
+          )
+          promisedShutdownWorkers.failure(new XGBoostError("Invalid start signal" +
+            " received from worker, likely due to executor loss."))
+
+        case Failure(ex) =>
+          log.error(ex, "Unexpected error")
+          promisedShutdownWorkers.failure(ex)
       }
 
-      val assignedRank = linkMap.assignRank(wkRank)
-      sender() ! assignedRank
-      resolver ! assignedRank
-
-      log.info("Received start signal from " +
-        s"${actorRefToHost.getOrElse(sender(), "")} [rank: $wkRank]")
 
     // ---- Dependency resolving related messages ----
     case msg @ WorkerStarted(host, rank, awaitingAcceptance) =>
