@@ -29,7 +29,7 @@ template <typename TStats> class GPUMaker : public TreeUpdater {
     param.learning_rate = lr / trees.size();
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
-      builder.Update(gpair, dmat, trees[i]);
+      builder.Update(gpair, dmat, *trees[i]);
     }
     param.learning_rate = lr;
   }

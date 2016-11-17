@@ -37,7 +37,7 @@ class ColMaker: public TreeUpdater {
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
       Builder builder(param);
-      builder.Update(gpair, dmat, trees[i]);
+      builder.Update(gpair, dmat, *trees[i]);
     }
     param.learning_rate = lr;
   }
@@ -85,28 +85,28 @@ class ColMaker: public TreeUpdater {
     // update one tree, growing
     virtual void Update(const std::vector<bst_gpair>& gpair,
                         DMatrix* p_fmat,
-                        RegTree* p_tree) {
-      this->InitData(gpair, *p_fmat, *p_tree);
-      this->InitNewNode(qexpand_, gpair, *p_fmat, *p_tree);
+                        RegTree &tree) {
+      this->InitData(gpair, *p_fmat, tree);
+      this->InitNewNode(qexpand_, gpair, *p_fmat, tree);
       for (int depth = 0; depth < param.max_depth; ++depth) {
-        this->FindSplit(depth, qexpand_, gpair, p_fmat, p_tree);
-        this->ResetPosition(qexpand_, p_fmat, *p_tree);
-        this->UpdateQueueExpand(*p_tree, &qexpand_);
-        this->InitNewNode(qexpand_, gpair, *p_fmat, *p_tree);
+        this->FindSplit(depth, qexpand_, gpair, p_fmat, tree);
+        this->ResetPosition(qexpand_, p_fmat, tree);
+        this->UpdateQueueExpand(tree, &qexpand_);
+        this->InitNewNode(qexpand_, gpair, *p_fmat, tree);
         // if nothing left to be expand, break
         if (qexpand_.size() == 0) break;
       }
       // set all the rest expanding nodes to leaf
       for (size_t i = 0; i < qexpand_.size(); ++i) {
         const int nid = qexpand_[i];
-        (*p_tree)[nid].set_leaf(snode[nid].weight * param.learning_rate);
+        tree[nid].set_leaf(snode[nid].weight * param.learning_rate);
       }
       // remember auxiliary statistics in the tree node
-      for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
-        p_tree->stat(nid).loss_chg = snode[nid].best.loss_chg;
-        p_tree->stat(nid).base_weight = snode[nid].weight;
-        p_tree->stat(nid).sum_hess = static_cast<float>(snode[nid].stats.sum_hess);
-        snode[nid].stats.SetLeafVec(param, p_tree->leafvec(nid));
+      for (int nid = 0; nid < tree.param.num_nodes; ++nid) {
+        tree.stat(nid).loss_chg = snode[nid].best.loss_chg;
+        tree.stat(nid).base_weight = snode[nid].weight;
+        tree.stat(nid).sum_hess = static_cast<float>(snode[nid].stats.sum_hess);
+        snode[nid].stats.SetLeafVec(param, tree.leafvec(nid));
       }
     }
 
@@ -629,7 +629,7 @@ class ColMaker: public TreeUpdater {
                           const std::vector<int> &qexpand,
                           const std::vector<bst_gpair> &gpair,
                           DMatrix *p_fmat,
-                          RegTree *p_tree) {
+                          RegTree &tree) {
       std::vector<bst_uint> feat_set = feat_index;
       if (param.colsample_bylevel != 1.0f) {
         std::shuffle(feat_set.begin(), feat_set.end(), common::GlobalRandom());
@@ -650,13 +650,13 @@ class ColMaker: public TreeUpdater {
         NodeEntry &e = snode[nid];
         // now we know the solution in snode[nid], set split
         if (e.best.loss_chg > rt_eps) {
-          p_tree->AddChilds(nid);
-          (*p_tree)[nid].set_split(e.best.split_index(), e.best.split_value, e.best.default_left());
+          tree.AddChilds(nid);
+          tree[nid].set_split(e.best.split_index(), e.best.split_value, e.best.default_left());
           // mark right child as 0, to indicate fresh leaf
-          (*p_tree)[(*p_tree)[nid].cleft()].set_leaf(0.0f, 0);
-          (*p_tree)[(*p_tree)[nid].cright()].set_leaf(0.0f, 0);
+          tree[tree[nid].cleft()].set_leaf(0.0f, 0);
+          tree[tree[nid].cright()].set_leaf(0.0f, 0);
         } else {
-          (*p_tree)[nid].set_leaf(e.weight * param.learning_rate);
+          tree[nid].set_leaf(e.weight * param.learning_rate);
         }
       }
     }
@@ -793,7 +793,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
     TStats::CheckInfo(dmat->info());
     CHECK_EQ(trees.size(), 1) << "DistColMaker: only support one tree at a time";
     // build the tree
-    builder.Update(gpair, dmat, trees[0]);
+    builder.Update(gpair, dmat, *trees[0]);
     //// prune the tree, note that pruner will sync the tree
     pruner->Update(gpair, dmat, trees);
     // update position after the tree is pruned

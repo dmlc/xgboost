@@ -102,7 +102,7 @@ class TreeRefresher: public TreeUpdater {
     int offset = 0;
     for (size_t i = 0; i < trees.size(); ++i) {
       for (int rid = 0; rid < trees[i]->param.num_roots; ++rid) {
-        this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, rid, trees[i]);
+        this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, rid, *trees[i]);
       }
       offset += trees[i]->param.num_nodes;
     }
@@ -128,8 +128,7 @@ class TreeRefresher: public TreeUpdater {
     }
   }
   inline void Refresh(const TStats *gstats,
-                      int nid, RegTree *p_tree) {
-    RegTree &tree = *p_tree;
+                      int nid, RegTree &tree) {
     tree.stat(nid).base_weight = static_cast<float>(gstats[nid].CalcWeight(param));
     tree.stat(nid).sum_hess = static_cast<float>(gstats[nid].sum_hess);
     gstats[nid].SetLeafVec(param, tree.leafvec(nid));
@@ -140,8 +139,8 @@ class TreeRefresher: public TreeUpdater {
           gstats[tree[nid].cleft()].CalcGain(param) +
           gstats[tree[nid].cright()].CalcGain(param) -
           gstats[nid].CalcGain(param));
-      this->Refresh(gstats, tree[nid].cleft(), p_tree);
-      this->Refresh(gstats, tree[nid].cright(), p_tree);
+      this->Refresh(gstats, tree[nid].cleft(), tree);
+      this->Refresh(gstats, tree[nid].cright(), tree);
     }
   }
   // training parameter

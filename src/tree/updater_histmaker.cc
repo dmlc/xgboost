@@ -30,7 +30,7 @@ class HistMaker: public BaseMaker {
     param.learning_rate = lr / trees.size();
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
-      this->Update(gpair, p_fmat, trees[i]);
+      this->Update(gpair, p_fmat, *trees[i]);
     }
     param.learning_rate = lr;
   }
@@ -124,30 +124,30 @@ class HistMaker: public BaseMaker {
   // update function implementation
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       DMatrix *p_fmat,
-                      RegTree *p_tree) {
-    this->InitData(gpair, *p_fmat, *p_tree);
-    this->InitWorkSet(p_fmat, *p_tree, &fwork_set);
+                      RegTree &tree) {
+    this->InitData(gpair, *p_fmat, tree);
+    this->InitWorkSet(p_fmat, tree, &fwork_set);
     // mark root node as fresh.
-    for (int i = 0; i < p_tree->param.num_roots; ++i) {
-      (*p_tree)[i].set_leaf(0.0f, 0);
+    for (int i = 0; i < tree.param.num_roots; ++i) {
+      tree[i].set_leaf(0.0f, 0);
     }
 
     for (int depth = 0; depth < param.max_depth; ++depth) {
       // reset and propose candidate split
-      this->ResetPosAndPropose(gpair, p_fmat, fwork_set, *p_tree);
+      this->ResetPosAndPropose(gpair, p_fmat, fwork_set, tree);
       // create histogram
-      this->CreateHist(gpair, p_fmat, fwork_set, *p_tree);
+      this->CreateHist(gpair, p_fmat, fwork_set, tree);
       // find split based on histogram statistics
-      this->FindSplit(depth, gpair, p_fmat, fwork_set, p_tree);
+      this->FindSplit(depth, gpair, p_fmat, fwork_set, tree);
       // reset position after split
-      this->ResetPositionAfterSplit(p_fmat, *p_tree);
-      this->UpdateQueueExpand(*p_tree);
+      this->ResetPositionAfterSplit(p_fmat, tree);
+      this->UpdateQueueExpand(tree);
       // if nothing left to be expand, break
       if (qexpand.size() == 0) break;
     }
     for (size_t i = 0; i < qexpand.size(); ++i) {
       const int nid = qexpand[i];
-      (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
+      tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
     }
   }
   // this function does two jobs
@@ -215,7 +215,7 @@ class HistMaker: public BaseMaker {
                         const std::vector<bst_gpair> &gpair,
                         DMatrix *p_fmat,
                         const std::vector <bst_uint> &fset,
-                        RegTree *p_tree) {
+                        RegTree &tree) {
     const size_t num_feature = fset.size();
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand.size());
@@ -237,32 +237,32 @@ class HistMaker: public BaseMaker {
       const int nid = qexpand[wid];
       const SplitEntry &best = sol[wid];
       const TStats &node_sum = wspace.hset[0][num_feature + wid * (num_feature + 1)].data[0];
-      this->SetStats(p_tree, nid, node_sum);
+      this->SetStats(tree, nid, node_sum);
       // set up the values
-      p_tree->stat(nid).loss_chg = best.loss_chg;
+      tree.stat(nid).loss_chg = best.loss_chg;
       // now we know the solution in snode[nid], set split
       if (best.loss_chg > rt_eps) {
-        p_tree->AddChilds(nid);
-        (*p_tree)[nid].set_split(best.split_index(),
+        tree.AddChilds(nid);
+        tree[nid].set_split(best.split_index(),
                                  best.split_value, best.default_left());
         // mark right child as 0, to indicate fresh leaf
-        (*p_tree)[(*p_tree)[nid].cleft()].set_leaf(0.0f, 0);
-        (*p_tree)[(*p_tree)[nid].cright()].set_leaf(0.0f, 0);
+        tree[tree[nid].cleft()].set_leaf(0.0f, 0);
+        tree[tree[nid].cright()].set_leaf(0.0f, 0);
         // right side sum
         TStats right_sum;
         right_sum.SetSubstract(node_sum, left_sum[wid]);
-        this->SetStats(p_tree, (*p_tree)[nid].cleft(), left_sum[wid]);
-        this->SetStats(p_tree, (*p_tree)[nid].cright(), right_sum);
+        this->SetStats(tree, tree[nid].cleft(), left_sum[wid]);
+        this->SetStats(tree, tree[nid].cright(), right_sum);
       } else {
-        (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
+        tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
       }
     }
   }
 
-  inline void SetStats(RegTree *p_tree, int nid, const TStats &node_sum) {
-    p_tree->stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
-    p_tree->stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
-    node_sum.SetLeafVec(param, p_tree->leafvec(nid));
+  inline void SetStats(RegTree &tree, int nid, const TStats &node_sum) {
+    tree.stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
+    tree.stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
+    node_sum.SetLeafVec(param, tree.leafvec(nid));
   }
 };
 

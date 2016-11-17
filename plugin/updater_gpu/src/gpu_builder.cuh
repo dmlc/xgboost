@@ -20,7 +20,7 @@ class GPUBuilder {
   ~GPUBuilder();
 
   void Update(const std::vector<bst_gpair> &gpair, DMatrix *p_fmat,
-              RegTree *p_tree);
+              RegTree &tree);
 
  private:
   void InitData(const std::vector<bst_gpair> &gpair, DMatrix &fmat, // NOLINT
