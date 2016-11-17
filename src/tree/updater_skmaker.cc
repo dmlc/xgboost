@@ -30,7 +30,7 @@ class SketchMaker: public BaseMaker {
     param.learning_rate = lr / trees.size();
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
-      this->Update(gpair, p_fmat, *trees[i]);
+      this->Update(gpair, p_fmat, trees[i]);
     }
     param.learning_rate = lr;
   }
@@ -38,14 +38,15 @@ class SketchMaker: public BaseMaker {
  protected:
   inline void Update(const std::vector<bst_gpair> &gpair,
                      DMatrix *p_fmat,
-                     RegTree &tree) {
-    this->InitData(gpair, *p_fmat, tree);
+                     RegTree *p_tree) {
+    RegTree &tree = *p_tree;
+    this->InitData(gpair, *p_fmat, *p_tree);
     for (int depth = 0; depth < param.max_depth; ++depth) {
       this->GetNodeStats(gpair, *p_fmat, tree,
                          &thread_stats, &node_stats);
       this->BuildSketch(gpair, p_fmat, tree);
       this->SyncNodeStats();
-      this->FindSplit(depth, gpair, p_fmat, tree);
+      this->FindSplit(depth, gpair, p_fmat, p_tree);
       this->ResetPositionCol(qexpand, p_fmat, tree);
       this->UpdateQueueExpand(tree);
       // if nothing left to be expand, break
@@ -58,7 +59,7 @@ class SketchMaker: public BaseMaker {
     }
     // set all statistics correctly
     for (int nid = 0; nid < tree.param.num_nodes; ++nid) {
-      this->SetStats(nid, node_stats[nid], tree);
+      this->SetStats(nid, node_stats[nid], p_tree);
       if (!tree[nid].is_leaf()) {
         tree.stat(nid).loss_chg = static_cast<float>(
             node_stats[tree[nid].cleft()].CalcGain(param) +
@@ -270,7 +271,8 @@ class SketchMaker: public BaseMaker {
   inline void FindSplit(int depth,
                         const std::vector<bst_gpair> &gpair,
                         DMatrix *p_fmat,
-                        RegTree &tree) {
+                        RegTree *p_tree) {
+    RegTree &tree = *p_tree;
     const bst_uint num_feature = tree.param.num_feature;
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand.size());
@@ -294,7 +296,7 @@ class SketchMaker: public BaseMaker {
       const SplitEntry &best = sol[wid];
       // set up the values
       tree.stat(nid).loss_chg = best.loss_chg;
-      this->SetStats(nid, node_stats[nid], tree);
+      this->SetStats(nid, node_stats[nid], p_tree);
       // now we know the solution in snode[nid], set split
       if (best.loss_chg > rt_eps) {
         tree.AddChilds(nid);
@@ -309,10 +311,10 @@ class SketchMaker: public BaseMaker {
     }
   }
   // set statistics on ptree
-  inline void SetStats(int nid, const SKStats &node_sum, RegTree &tree) {
-    tree.stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
-    tree.stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
-    node_sum.SetLeafVec(param, tree.leafvec(nid));
+  inline void SetStats(int nid, const SKStats &node_sum, RegTree *p_tree) {
+    p_tree->stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
+    p_tree->stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
+    node_sum.SetLeafVec(param, p_tree->leafvec(nid));
   }
   inline void EnumerateSplit(const WXQSketch::Summary &pos_grad,
                              const WXQSketch::Summary &neg_grad,

@@ -327,12 +327,12 @@ void GPUBuilder::Sort(int level) {
 }
 
 void GPUBuilder::Update(const std::vector<bst_gpair> &gpair, DMatrix *p_fmat,
-                        RegTree &tree) {
+                        RegTree *p_tree) {
   cudaProfilerStart();
   try {
     Timer update;
     Timer t;
-    this->InitData(gpair, *p_fmat, tree);
+    this->InitData(gpair, *p_fmat, *p_tree);
     t.printElapsed("init data");
     this->InitFirstNode();
 
@@ -364,7 +364,7 @@ void GPUBuilder::Update(const std::vector<bst_gpair> &gpair, DMatrix *p_fmat,
 
       t.printElapsed("level");
     }
-    this->CopyTree(tree);
+    this->CopyTree(*p_tree);
     update.printElapsed("update");
   } catch (thrust::system_error &e) {
     std::cerr << "CUDA error: " << e.what() << std::endl;

@@ -30,7 +30,7 @@ class HistMaker: public BaseMaker {
     param.learning_rate = lr / trees.size();
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
-      this->Update(gpair, p_fmat, *trees[i]);
+      this->Update(gpair, p_fmat, trees[i]);
     }
     param.learning_rate = lr;
   }
@@ -124,7 +124,8 @@ class HistMaker: public BaseMaker {
   // update function implementation
   virtual void Update(const std::vector<bst_gpair> &gpair,
                       DMatrix *p_fmat,
-                      RegTree &tree) {
+                      RegTree *p_tree) {
+    RegTree &tree = *p_tree;
     this->InitData(gpair, *p_fmat, tree);
     this->InitWorkSet(p_fmat, tree, &fwork_set);
     // mark root node as fresh.
@@ -138,7 +139,7 @@ class HistMaker: public BaseMaker {
       // create histogram
       this->CreateHist(gpair, p_fmat, fwork_set, tree);
       // find split based on histogram statistics
-      this->FindSplit(depth, gpair, p_fmat, fwork_set, tree);
+      this->FindSplit(depth, gpair, p_fmat, fwork_set, p_tree);
       // reset position after split
       this->ResetPositionAfterSplit(p_fmat, tree);
       this->UpdateQueueExpand(tree);
@@ -215,7 +216,8 @@ class HistMaker: public BaseMaker {
                         const std::vector<bst_gpair> &gpair,
                         DMatrix *p_fmat,
                         const std::vector <bst_uint> &fset,
-                        RegTree &tree) {
+                        RegTree *p_tree) {
+    RegTree &tree = *p_tree;
     const size_t num_feature = fset.size();
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand.size());
@@ -237,7 +239,7 @@ class HistMaker: public BaseMaker {
       const int nid = qexpand[wid];
       const SplitEntry &best = sol[wid];
       const TStats &node_sum = wspace.hset[0][num_feature + wid * (num_feature + 1)].data[0];
-      this->SetStats(tree, nid, node_sum);
+      this->SetStats(p_tree, nid, node_sum);
       // set up the values
       tree.stat(nid).loss_chg = best.loss_chg;
       // now we know the solution in snode[nid], set split
@@ -251,18 +253,18 @@ class HistMaker: public BaseMaker {
         // right side sum
         TStats right_sum;
         right_sum.SetSubstract(node_sum, left_sum[wid]);
-        this->SetStats(tree, tree[nid].cleft(), left_sum[wid]);
-        this->SetStats(tree, tree[nid].cright(), right_sum);
+        this->SetStats(p_tree, tree[nid].cleft(), left_sum[wid]);
+        this->SetStats(p_tree, tree[nid].cright(), right_sum);
       } else {
         tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
       }
     }
   }
 
-  inline void SetStats(RegTree &tree, int nid, const TStats &node_sum) {
-    tree.stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
-    tree.stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
-    node_sum.SetLeafVec(param, tree.leafvec(nid));
+  inline void SetStats(RegTree *p_tree, int nid, const TStats &node_sum) {
+    p_tree->stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
+    p_tree->stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
+    node_sum.SetLeafVec(param, p_tree->leafvec(nid));
   }
 };
 

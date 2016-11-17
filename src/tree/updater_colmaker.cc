@@ -37,7 +37,7 @@ class ColMaker: public TreeUpdater {
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
       Builder builder(param);
-      builder.Update(gpair, dmat, *trees[i]);
+      builder.Update(gpair, dmat, trees[i]);
     }
     param.learning_rate = lr;
   }
@@ -85,11 +85,12 @@ class ColMaker: public TreeUpdater {
     // update one tree, growing
     virtual void Update(const std::vector<bst_gpair>& gpair,
                         DMatrix* p_fmat,
-                        RegTree &tree) {
+                        RegTree *p_tree) {
+      RegTree &tree = *p_tree;
       this->InitData(gpair, *p_fmat, tree);
       this->InitNewNode(qexpand_, gpair, *p_fmat, tree);
       for (int depth = 0; depth < param.max_depth; ++depth) {
-        this->FindSplit(depth, qexpand_, gpair, p_fmat, tree);
+        this->FindSplit(depth, qexpand_, gpair, p_fmat, p_tree);
         this->ResetPosition(qexpand_, p_fmat, tree);
         this->UpdateQueueExpand(tree, &qexpand_);
         this->InitNewNode(qexpand_, gpair, *p_fmat, tree);
@@ -622,7 +623,8 @@ class ColMaker: public TreeUpdater {
                           const std::vector<int> &qexpand,
                           const std::vector<bst_gpair> &gpair,
                           DMatrix *p_fmat,
-                          RegTree &tree) {
+                          RegTree *p_tree) {
+      RegTree &tree = *p_tree;
       std::vector<bst_uint> feat_set = feat_index;
       if (param.colsample_bylevel != 1.0f) {
         std::shuffle(feat_set.begin(), feat_set.end(), common::GlobalRandom());
@@ -786,7 +788,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
     TStats::CheckInfo(dmat->info());
     CHECK_EQ(trees.size(), 1) << "DistColMaker: only support one tree at a time";
     // build the tree
-    builder.Update(gpair, dmat, *trees[0]);
+    builder.Update(gpair, dmat, trees[0]);
     //// prune the tree, note that pruner will sync the tree
     pruner->Update(gpair, dmat, trees);
     // update position after the tree is pruned
