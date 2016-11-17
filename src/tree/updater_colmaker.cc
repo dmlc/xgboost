@@ -628,7 +628,7 @@ class ColMaker: public TreeUpdater {
         std::shuffle(feat_set.begin(), feat_set.end(), common::GlobalRandom());
         unsigned n = static_cast<unsigned>(param.colsample_bylevel * feat_index.size());
         CHECK_GT(n, 0)
-            << "colsample_bylevel is too small that no feature can be included";
+            << "colsample_bylevel is too small thus no feature can be included";
         feat_set.resize(n);
       }
       dmlc::DataIter<ColBatch>* iter = p_fmat->ColIterator(feat_set);
@@ -752,7 +752,7 @@ class ColMaker: public TreeUpdater {
     }
     //  --data fields--
     const TrainParam& param;
-    // number of omp thread used during training
+    // number of omp threads used during training
     const int nthread = omp_get_max_threads();
     // Per feature: shuffle index of each feature index
     std::vector<bst_uint> feat_index;
