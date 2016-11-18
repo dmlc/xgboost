@@ -17,6 +17,11 @@
     </properties>
     <repositories>
         <repository>
+            <id>central_maven</id>
+            <name>central maven</name>
+            <url>https://repo1.maven.org/maven2</url>
+        </repository>
+        <repository>
             <id>apache_maven</id>
             <name>apache maven</name>
             <url>http://repo.maven.apache.org/maven2</url>
