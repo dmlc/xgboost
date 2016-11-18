@@ -417,14 +417,14 @@ The case studied here is not enough complex to show that. Check [Kaggle website]
 
 Moreover, you can notice that even if we have added some not useful new features highly correlated with other features, the boosting tree algorithm have been able to choose the best one, which in this case is the Age.
 
-Linear model may not be that smart in this scenario.
+Linear models may not be that smart in this scenario.
 
 Special Note: What about Random Forests™?
 -----------------------------------------
 
 As you may know, [Random Forests™](http://en.wikipedia.org/wiki/Random_forest) algorithm is cousin with boosting and both are part of the [ensemble learning](http://en.wikipedia.org/wiki/Ensemble_learning) family.
 
-Both trains several decision trees for one dataset. The *main* difference is that in Random Forests™, trees are independent and in boosting, the tree `N+1` focus its learning on the loss (<=> what has not been well modeled by the tree `N`).
+Both train several decision trees for one dataset. The *main* difference is that in Random Forests™, trees are independent and in boosting, the tree `N+1` focus its learning on the loss (<=> what has not been well modeled by the tree `N`).
 
 This difference have an impact on a corner case in feature importance analysis: the *correlated features*.
 

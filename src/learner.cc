@@ -94,7 +94,7 @@ struct LearnerTrainParam
         .add_enum("auto", 0)
         .add_enum("col", 1)
         .add_enum("row", 2)
-        .describe("Data split mode for distributed trainig. ");
+        .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(tree_method).set_default(0)
         .add_enum("auto", 0)
         .add_enum("approx", 1)
