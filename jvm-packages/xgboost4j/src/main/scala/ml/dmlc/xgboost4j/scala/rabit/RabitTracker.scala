@@ -24,7 +24,7 @@ import ml.dmlc.xgboost4j.java.IRabitTracker
 import ml.dmlc.xgboost4j.scala.rabit.handler.RabitTrackerHandler
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future, Promise}
+import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -71,31 +71,9 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
   val system = ActorSystem.create("RabitTracker")
   val handler = system.actorOf(RabitTrackerHandler.props(numWorkers), "Handler")
   implicit val askTimeout: akka.util.Timeout = akka.util.Timeout(30 seconds)
+  private[this] val tcpBindingTimeout: Duration = 1 minute
 
-  val futureWorkerEnvs: Future[Map[String, String]] = Try(
-    Await.result(handler ? RabitTrackerHandler.RequestBoundFuture, askTimeout.duration)
-      .asInstanceOf[Future[Map[String, String]]]
-  ) match {
-    case Success(fut) => fut
-    case Failure(e) =>
-      val delayedFailure = Promise[Map[String, String]]()
-      delayedFailure.failure(e)
-      delayedFailure.future
-  }
-
-  // a future for XGBoost worker execution
-  val futureCompleted: Future[Int] = Try(
-    Await.result(handler ? RabitTrackerHandler.RequestCompletionFuture, askTimeout.duration)
-      .asInstanceOf[Future[Int]]
-  ) match {
-    case Success(fut) => fut
-    case Failure(_) =>
-      val delayedFailure = Promise[Int]()
-      // mark 0 worker as completed, will trigger AssertionError
-      // when call waitFor()
-      delayedFailure.success(0)
-      delayedFailure.future
-  }
+  var workerEnvs: Map[String, String] = Map.empty
 
   override def uncaughtException(t: Thread, e: Throwable): Unit = {
     handler ? RabitTrackerHandler.InterruptTracker(e)
@@ -105,21 +83,32 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
     * Start the Rabit tracker.
     *
     * @param timeout The timeout for awaiting connections from worker nodes.
-    *        Note that when used in Spark applications, because all Spark transformations are
-    *        lazily executed, the I/O time for loading RDDs/DataFrames from external sources
-    *        (local dist, HDFS, S3 etc.) must be taken into account for the timeout value.
-    *        If the timeout value is too small, the Rabit tracker will likely timeout before workers
-    *        establishing connections to the tracker, due to the overhead of loading data.
-    *        Using a finite timeout is encouraged, as it prevents the tracker (thus the Spark driver
-    *        running it) from hanging indefinitely due to worker connection issues (e.g. firewall.)
+    *                Note that when used in Spark applications, because all Spark transformations are
+    *
+    *                (local dist, HDFS, S3 etc.) must be taken into account for the timeout value.
+    *                If the timeout value is too small, the Rabit tracker will likely timeout before workers
+    *                establishing connections to the tracker, due to the overhead of loading data.
+    *                Using a finite timeout is encouraged, as it prevents the tracker (thus the Spark driver
+    *                running it) from hanging indefinitely due to worker connection issues (e.g. firewall.)
     * @return Boolean flag indicating if the Rabit tracker starts successfully.
     */
   private def start(timeout: Duration): Boolean = {
     handler ? RabitTrackerHandler.StartTracker(
       new InetSocketAddress(InetAddress.getLocalHost, port.getOrElse(0)), maxPortTrials, timeout)
 
-    // The success of the Future is contingent on binding to an InetSocketAddress.
-    Try(Await.ready(futureWorkerEnvs, askTimeout.duration)).isSuccess
+    // block by waiting for the actor to bind to a port
+    Try(Await.result(handler ? RabitTrackerHandler.RequestBoundFuture, askTimeout.duration)
+      .asInstanceOf[Future[Map[String, String]]]) match {
+      case Success(futurePortBound) =>
+        // The success of the Future is contingent on binding to an InetSocketAddress.
+        val isBound = Try(Await.ready(futurePortBound, tcpBindingTimeout)).isSuccess
+        if (isBound) {
+          workerEnvs = Await.result(futurePortBound, 0 nano)
+        }
+        isBound
+      case Failure(ex: Throwable) =>
+        false
+    }
   }
 
   /**
@@ -144,7 +133,7 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
     * @return HashMap containing tracker information.
     */
   def getWorkerEnvs: java.util.Map[String, String] = {
-    new java.util.HashMap((Await.result(futureWorkerEnvs, 0 nano) ++ Map(
+    new java.util.HashMap((workerEnvs ++ Map(
         "DMLC_NUM_WORKER" -> numWorkers.toString,
         "DMLC_NUM_SERVER" -> "0"
     )).asJava)
@@ -159,17 +148,27 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
     * @return 0 if the tasks complete successfully, and non-zero otherwise.
     */
   private def waitFor(atMost: Duration): Int = {
-    // wait for all workers to complete synchronously.
-    val statusCode = Try(Await.result(futureCompleted, atMost)) match {
-      case Success(n) if n == numWorkers =>
-        IRabitTracker.TrackerStatus.SUCCESS.getStatusCode
-      case Success(n) if n < numWorkers =>
-        IRabitTracker.TrackerStatus.TIMEOUT.getStatusCode
-      case Failure(e) =>
+    // request the completion Future from the tracker actor
+    Try(Await.result(handler ? RabitTrackerHandler.RequestCompletionFuture, askTimeout.duration)
+      .asInstanceOf[Future[Int]]) match {
+      case Success(futureCompleted) =>
+        // wait for all workers to complete synchronously.
+        val statusCode = Try(Await.result(futureCompleted, atMost)) match {
+          case Success(n) if n == numWorkers =>
+            IRabitTracker.TrackerStatus.SUCCESS.getStatusCode
+          case Success(n) if n < numWorkers =>
+            IRabitTracker.TrackerStatus.TIMEOUT.getStatusCode
+          case Failure(e) =>
+            IRabitTracker.TrackerStatus.FAILURE.getStatusCode
+        }
+        system.shutdown()
+        statusCode
+      case Failure(ex: Throwable) =>
+        if (!system.isTerminated) {
+          system.shutdown()
+        }
         IRabitTracker.TrackerStatus.FAILURE.getStatusCode
     }
-    system.shutdown()
-    statusCode
   }
 
   /**
