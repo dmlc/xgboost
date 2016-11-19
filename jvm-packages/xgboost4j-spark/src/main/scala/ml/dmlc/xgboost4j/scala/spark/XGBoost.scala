@@ -273,13 +273,11 @@ object XGBoost extends Serializable {
         " you have to specify the objective type as classification or regression with a" +
         " customized objective function")
     }
-    val trackerConf = if (params.contains("tracker_conf")) {
-      val conf = params("tracker_conf")
-      require(conf.isInstanceOf[TrackerConf], "parameter \"tracker_conf\" must be an instance" +
-        " of ml.dmlc.xgboost4j.scala.spark.TrackerConf")
-      conf.asInstanceOf[TrackerConf]
-    } else {
-      TrackerConf()
+    val trackerConf = params.get("tracker_conf") match {
+      case None => TrackerConf()
+      case Some(conf: TrackerConf) => conf
+      case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
+        "instance of TrackerConf.")
     }
     val tracker = startTracker(nWorkers, trackerConf)
     val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
