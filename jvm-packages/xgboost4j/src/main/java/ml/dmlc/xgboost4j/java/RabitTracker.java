@@ -141,7 +141,9 @@ public class RabitTracker implements IRabitTracker {
 
   public boolean start(long timeout) {
     if (timeout > 0L) {
-      logger.warn("ml.dmlc.xgboost4j.java.RabitTracker does not support timeout");
+      logger.warn("Python RabitTracker does not support timeout. " +
+              "The tracker will wait for all workers to connect indefinitely, unless " +
+              "it is interrupted manually. Use the Scala RabitTracker for timeout support.");
     }
 
     if (startTrackerProcess()) {
@@ -161,7 +163,10 @@ public class RabitTracker implements IRabitTracker {
 
   public int waitFor(long timeout) {
     if (timeout > 0L) {
-      logger.warn("ml.dmlc.xgboost4j.java.RabitTracker does not support timeout");
+      logger.warn("Python RabitTracker does not support timeout. " +
+              "The tracker will wait for either all workers to finish tasks and send " +
+              "shutdown signal, or manual interruptions. " +
+              "Use the Scala RabitTracker for timeout support.");
     }
 
     try {
@@ -174,7 +179,7 @@ public class RabitTracker implements IRabitTracker {
       // we should not get here as RabitTracker is accessed in the main thread
       e.printStackTrace();
       logger.error("the RabitTracker thread is terminated unexpectedly");
-      return 1;
+      return TrackerStatus.INTERRUPTED.getStatusCode();
     }
   }
 }

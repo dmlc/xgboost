@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala.rabit.util
 import java.nio.{ByteOrder, ByteBuffer}
 import akka.util.ByteString
 
-object RabitTrackerHelpers {
+private[rabit] object RabitTrackerHelpers {
   implicit class ByteStringHelplers(bs: ByteString) {
     // Java by default uses big endian. Enforce native endian so that
     // the byte order is consistent with the workers.
@@ -29,12 +29,10 @@ object RabitTrackerHelpers {
   }
 
   implicit class ByteBufferHelpers(buf: ByteBuffer) {
-    def getString(): String = {
+    def getString: String = {
       val len = buf.getInt()
-      val stringBuffer = ByteBuffer.allocate(len)
-        .order(ByteOrder.nativeOrder())
+      val stringBuffer = ByteBuffer.allocate(len).order(ByteOrder.nativeOrder())
       buf.get(stringBuffer.array(), 0, len)
-
       new String(stringBuffer.array(), "utf-8")
     }
   }

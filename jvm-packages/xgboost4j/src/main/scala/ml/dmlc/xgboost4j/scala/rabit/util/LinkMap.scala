@@ -32,7 +32,7 @@ import java.nio.{ByteBuffer, ByteOrder}
   * @param ring ranks of neighboring workers in a ring map.
   * @param parent rank of the parent worker.
   */
-case class AssignedRank private[scala](rank: Int, neighbors: Seq[Int],
+private[rabit] case class AssignedRank(rank: Int, neighbors: Seq[Int],
                                        ring: (Int, Int), parent: Int) {
   /**
     * Encode the AssignedRank message into byte sequence for socket communication with Rabit worker
@@ -54,7 +54,7 @@ case class AssignedRank private[scala](rank: Int, neighbors: Seq[Int],
   }
 }
 
-class LinkMap private[scala](numWorkers: Int) {
+private[rabit] class LinkMap(numWorkers: Int) {
   private def getNeighbors(rank: Int): Seq[Int] = {
     val rank1 = rank + 1
     Vector(rank1 / 2 - 1, rank1 * 2 - 1, rank1 * 2).filter { r =>

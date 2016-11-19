@@ -16,12 +16,14 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.{Rabit, RabitTracker => PyRabitTracker}
+import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.{RabitTracker => ScalaRabitTracker}
+import ml.dmlc.xgboost4j.java.IRabitTracker.TrackerStatus
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.FunSuite
 
-class XGBoostRobustnessSuite extends FunSuite with Utils {
+
+class RabitTrackerRobustnessSuite extends FunSuite with Utils {
   test("test Java RabitTracker wrapper's exception handling: it should not hang forever.") {
     // Explicitly create new instances of SparkContext in each test to avoid reusing the same
     // thread pool, which corrupts the internal state of Rabit and causes crash.
@@ -38,7 +40,7 @@ class XGBoostRobustnessSuite extends FunSuite with Utils {
 
     val dummyTasks = rdd.mapPartitions { iter =>
       Rabit.init(trackerEnvs)
-      Thread.sleep(500)
+      Thread.sleep(1000)
       val index = iter.next()
       if (index == 1) {
         // kill the worker by throwing an exception
@@ -93,7 +95,7 @@ class XGBoostRobustnessSuite extends FunSuite with Utils {
     }
     sparkThread.setUncaughtExceptionHandler(tracker)
     sparkThread.start()
-    assert(tracker.waitFor() == ScalaRabitTracker.FAILURE.statusCode)
+    assert(tracker.waitFor(0L) == TrackerStatus.FAILURE.getStatusCode)
     sparkContext.stop()
   }
 
@@ -114,7 +116,7 @@ class XGBoostRobustnessSuite extends FunSuite with Utils {
       // simulate that the first worker cannot connect to tracker due to network issues.
       if (index != 1) {
         Rabit.init(trackerEnvs)
-        Thread.sleep(500)
+        Thread.sleep(800)
         Rabit.shutdown()
       }
 
@@ -130,7 +132,7 @@ class XGBoostRobustnessSuite extends FunSuite with Utils {
     sparkThread.setUncaughtExceptionHandler(tracker)
     sparkThread.start()
     // should fail due to connection timeout
-    assert(tracker.waitFor() == ScalaRabitTracker.FAILURE.statusCode)
+    assert(tracker.waitFor(0L) == TrackerStatus.FAILURE.getStatusCode)
     sparkContext.stop()
   }
 }

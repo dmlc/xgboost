@@ -14,7 +14,7 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala
+package ml.dmlc.xgboost4j.scala.rabit
 
 import java.nio.{ByteBuffer, ByteOrder}
 
@@ -26,8 +26,8 @@ import ml.dmlc.xgboost4j.scala.rabit.handler.RabitWorkerHandler
 import ml.dmlc.xgboost4j.scala.rabit.handler.RabitWorkerHandler._
 import ml.dmlc.xgboost4j.scala.rabit.util.LinkMap
 import org.junit.runner.RunWith
-import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatest.junit.JUnitRunner
+import org.scalatest.{FlatSpecLike, Matchers}
 
 import scala.concurrent.Promise
 

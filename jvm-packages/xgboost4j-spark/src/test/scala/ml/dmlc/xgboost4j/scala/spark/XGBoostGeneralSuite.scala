@@ -66,7 +66,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       }
     }
     sparkThread.start()
-    assert(tracker.waitFor() == 0)
+    assert(tracker.waitFor(0L) == 0)
     sparkThread.join()
 
     assert(collectedAllReduceResults.poll().sameElements(maxVec))

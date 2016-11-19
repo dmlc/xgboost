@@ -59,10 +59,9 @@ import scala.util.{Failure, Success, Try}
   *             If port is omitted, or given as None, a random ephemeral port is chosen at runtime.
   * @param maxPortTrials The maximum number of trials of socket binding, by sequentially
   *                      increasing the port number.
-  * @param tcpBindTimeout Timeout for the tracker to bind to an InetSocketAddress.
   */
-class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
-                                  maxPortTrials: Int = 1000, tcpBindTimeout: Duration = 1 minute)
+private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
+                                  maxPortTrials: Int = 1000)
   extends IRabitTracker {
 
   import scala.collection.JavaConverters._
@@ -115,12 +114,12 @@ class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
     *        running it) from hanging indefinitely due to worker connection issues (e.g. firewall.)
     * @return Boolean flag indicating if the Rabit tracker starts successfully.
     */
-  def start(timeout: Duration = 10 minutes): Boolean = {
+  private def start(timeout: Duration): Boolean = {
     handler ? RabitTrackerHandler.StartTracker(
       new InetSocketAddress(InetAddress.getLocalHost, port.getOrElse(0)), maxPortTrials, timeout)
 
     // The success of the Future is contingent on binding to an InetSocketAddress.
-    Try(Await.ready(futureWorkerEnvs, tcpBindTimeout)).isSuccess
+    Try(Await.ready(futureWorkerEnvs, askTimeout.duration)).isSuccess
   }
 
   /**
@@ -159,15 +158,15 @@ class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
     *     the tracker waits for the workers indefinitely.
     * @return 0 if the tasks complete successfully, and non-zero otherwise.
     */
-  def waitFor(atMost: Duration = Duration.Inf): Int = {
+  private def waitFor(atMost: Duration): Int = {
     // wait for all workers to complete synchronously.
     val statusCode = Try(Await.result(futureCompleted, atMost)) match {
       case Success(n) if n == numWorkers =>
-        RabitTracker.SUCCESS.statusCode
+        IRabitTracker.TrackerStatus.SUCCESS.getStatusCode
       case Success(n) if n < numWorkers =>
-        RabitTracker.TIMEOUT.statusCode
+        IRabitTracker.TrackerStatus.TIMEOUT.getStatusCode
       case Failure(e) =>
-        RabitTracker.FAILURE.statusCode
+        IRabitTracker.TrackerStatus.FAILURE.getStatusCode
     }
     system.shutdown()
     statusCode
@@ -190,9 +189,3 @@ class RabitTracker private[scala](numWorkers: Int, port: Option[Int] = None,
   }
 }
 
-private[scala] object RabitTracker {
-  sealed abstract class TrackerStatus(val statusCode: Int)
-  case object SUCCESS extends TrackerStatus(0)
-  case object TIMEOUT extends TrackerStatus(1)
-  case object FAILURE extends TrackerStatus(2)
-}

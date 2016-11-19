@@ -35,7 +35,7 @@ import scala.util.{Failure, Random, Success, Try}
   *
   * @param numWorkers Number of workers to track.
   */
-class RabitTrackerHandler private[scala](numWorkers: Int)
+private[scala] class RabitTrackerHandler(numWorkers: Int)
   extends Actor with ActorLogging {
 
   import context.system
@@ -261,7 +261,7 @@ class RabitTrackerHandler private[scala](numWorkers: Int)
   * connections by workers, this dependency constraint assumes that a worker node connects first
   * is likely to finish setup first.
   */
-class WorkerDependencyResolver private[scala](handler: ActorRef) extends Actor with ActorLogging {
+private[rabit] class WorkerDependencyResolver(handler: ActorRef) extends Actor with ActorLogging {
   import RabitWorkerHandler._
 
   context.watch(handler)

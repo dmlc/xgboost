@@ -36,8 +36,8 @@ import scala.util.Try
   * @param worldSize number of total workers
   * @param tracker the RabitTrackerHandler actor reference
   */
-class RabitWorkerHandler(host: String, worldSize: Int, tracker: ActorRef,
-                         connection: ActorRef)
+private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: ActorRef,
+                                        connection: ActorRef)
   extends FSM[RabitWorkerHandler.State, RabitWorkerHandler.DataStruct]
     with ActorLogging with Stash {
 
@@ -86,9 +86,9 @@ class RabitWorkerHandler(host: String, worldSize: Int, tracker: ActorRef,
   def decodeCommand(buffer: ByteBuffer): TrackerCommand = {
     val rank = buffer.getInt()
     val worldSize = buffer.getInt()
-    val jobId = buffer.getString()
+    val jobId = buffer.getString
 
-    val command = buffer.getString()
+    val command = buffer.getString
     command match {
       case "start" => WorkerStart(rank, worldSize, jobId)
       case "shutdown" =>
@@ -99,7 +99,7 @@ class RabitWorkerHandler(host: String, worldSize: Int, tracker: ActorRef,
         WorkerRecover(rank, worldSize, jobId)
       case "print" =>
         transient = true
-        WorkerTrackerPrint(rank, worldSize, jobId, buffer.getString())
+        WorkerTrackerPrint(rank, worldSize, jobId, buffer.getString)
     }
   }
 
