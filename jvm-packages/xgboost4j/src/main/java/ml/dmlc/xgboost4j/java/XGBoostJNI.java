@@ -100,7 +100,8 @@ class XGBoostJNI {
   public final static native int RabitGetWorldSize(int[] out);
   public final static native int RabitVersionNumber(int[] out);
 
-  // first pass of RabitAllreduce, which currently does not support prepare_func.
-  public final static native int RabitAllreduce(ByteBuffer sendrecvbuf, int count,
+  // Perform Allreduce operation on data in sendrecvbuf.
+  // This JNI function does not support the callback function for data preparation yet.
+  final static native int RabitAllreduce(ByteBuffer sendrecvbuf, int count,
                                                 int enum_dtype, int enum_op);
 }                                                                             

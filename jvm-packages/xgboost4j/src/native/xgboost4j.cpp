@@ -94,6 +94,11 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
       long max_elem = cbatch.offset[cbatch.size];
       cbatch.index = (int*) jenv->GetIntArrayElements(jindex, 0);
       cbatch.value = jenv->GetFloatArrayElements(jvalue, 0);
+      for (int i = 0; i < cbatch.size; ++i) {
+         std::cout << cbatch.index[i] << ":" << cbatch.value[i] << " ";
+      }
+      std::cout << std::endl;
+
       CHECK_EQ(jenv->GetArrayLength(jindex), max_elem)
           << "batch.index.length must equal batch.offset.back()";
       CHECK_EQ(jenv->GetArrayLength(jvalue), max_elem)
