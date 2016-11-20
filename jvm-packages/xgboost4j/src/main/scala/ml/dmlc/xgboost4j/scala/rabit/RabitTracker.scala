@@ -83,13 +83,13 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
     * Start the Rabit tracker.
     *
     * @param timeout The timeout for awaiting connections from worker nodes.
-    *                Note that when used in Spark applications, because all Spark transformations are
-    *
-    *                (local dist, HDFS, S3 etc.) must be taken into account for the timeout value.
-    *                If the timeout value is too small, the Rabit tracker will likely timeout before workers
-    *                establishing connections to the tracker, due to the overhead of loading data.
-    *                Using a finite timeout is encouraged, as it prevents the tracker (thus the Spark driver
-    *                running it) from hanging indefinitely due to worker connection issues (e.g. firewall.)
+    *      Note that when used in Spark applications, because all Spark transformations are
+    *      lazily executed, the I/O time for loading RDDs/DataFrames from external sources
+    *      (local dist, HDFS, S3 etc.) must be taken into account for the timeout value.
+    *      If the timeout value is too small, the Rabit tracker will likely timeout before workers
+    *      establishing connections to the tracker, due to the overhead of loading data.
+    *      Using a finite timeout is encouraged, as it prevents the tracker (thus the Spark driver
+    *      running it) from hanging indefinitely due to worker connection issues (e.g. firewall.)
     * @return Boolean flag indicating if the Rabit tracker starts successfully.
     */
   private def start(timeout: Duration): Boolean = {
