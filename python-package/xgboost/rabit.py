@@ -131,6 +131,7 @@ def broadcast(data, root):
         del s
     return data
 
+
 # enumeration of dtypes
 DTYPE_ENUM__ = {
     np.dtype('int8'): 0,
@@ -203,6 +204,7 @@ def version_number():
     """
     ret = _LIB.RabitVersionNumber()
     return ret
+
 
 # intialization script
 _init_rabit()
