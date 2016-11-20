@@ -401,14 +401,10 @@ class ColMaker: public TreeUpdater {
                                   TStats &c, std::vector<ThreadEntry> &temp) { // NOLINT(*)
       // get the statistics of nid
       ThreadEntry &e = temp[nid];
-      // test if first hit, this is fine, because we set 0 during init
-      if (e.stats.Empty()) {
-        e.stats.Add(gstats);
-        e.last_fvalue = fvalue;
-      } else {
-        // try to find a split
-        if (fvalue != e.last_fvalue &&
-            e.stats.sum_hess >= param.min_child_weight) {
+      // Try to find a split
+      if (!e.stats.Empty() &&
+          fvalue != e.last_fvalue &&
+          e.stats.sum_hess >= param.min_child_weight) {
           c.SetSubstract(snode[nid].stats, e.stats);
           if (c.sum_hess >= param.min_child_weight) {
             bst_float loss_chg;
@@ -421,11 +417,10 @@ class ColMaker: public TreeUpdater {
             }
             e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f, d_step == -1);
           }
-        }
-        // update the statistics
-        e.stats.Add(gstats);
-        e.last_fvalue = fvalue;
       }
+      // update the statistics
+      e.stats.Add(gstats);
+      e.last_fvalue = fvalue;
     }
     // same as EnumerateSplit, with cacheline prefetch optimization
     inline void EnumerateSplitCacheOpt(const ColBatch::Entry *begin,
