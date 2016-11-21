@@ -159,6 +159,14 @@
                             <goal>compile</goal>
                         </goals>
                     </execution>
+                    <execution>
+                        <id>scala-compile-first</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>compile</goal>
+                            <goal>add-source</goal>
+                        </goals>
+                    </execution>
                 </executions>
             </plugin>
 
