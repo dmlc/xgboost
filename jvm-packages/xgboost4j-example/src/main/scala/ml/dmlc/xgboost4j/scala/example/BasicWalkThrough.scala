@@ -29,7 +29,7 @@ object BasicWalkThrough {
   def saveDumpModel(modelPath: String, modelInfos: Array[String]): Unit = {
     val writer = new PrintWriter(modelPath, "UTF-8")
     for (i <- 0 until modelInfos.length) {
-      writer.print(s"booster[$i]\n")
+      writer.print(s"booster[$i]:\n")
       writer.print(modelInfos(i))
     }
     writer.close()
@@ -61,7 +61,7 @@ object BasicWalkThrough {
     }
     booster.saveModel(file.getAbsolutePath + "/xgb.model")
     // dump model with feature map
-    booster.getModelDump(file.getAbsolutePath + "/featmap.txt", false)
+    val modelInfos = booster.getModelDump(file.getAbsolutePath + "/featmap.txt", false)
     saveDumpModel(file.getAbsolutePath + "/dump.raw.txt", modelInfos)
     // save dmatrix into binary buffer
     testMax.saveBinary(file.getAbsolutePath + "/dtest.buffer")
