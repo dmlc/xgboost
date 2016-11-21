@@ -47,11 +47,11 @@ public class BasicWalkThrough {
     return true;
   }
 
-  public static void saveDumpModel( String modelPath, String[] modelInfos ) throws IOException {
+  public static void saveDumpModel(String modelPath, String[] modelInfos) throws IOException {
     try{
       PrintWriter writer = new PrintWriter(modelPath, "UTF-8");
       for(int i = 0; i < modelInfos.length; ++ i) {
-        writer.println("booster[" + i + "]:");
+        writer.print("booster[" + i + "]:\n");
         writer.print(modelInfos[i]);
       }
       writer.close();
