@@ -148,7 +148,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     evals_result: dict
         This dictionary stores the evaluation results of all the items in watchlist.
         Example: with a watchlist containing [(dtest,'eval'), (dtrain,'train')] and
-        a paramater containing ('eval_metric', 'logloss')
+        a paramater containing ('eval_metric': 'logloss')
         Returns: {'train': {'logloss': ['0.48253', '0.35953']},
                   'eval': {'logloss': ['0.480385', '0.357756']}}
     verbose_eval : bool or int

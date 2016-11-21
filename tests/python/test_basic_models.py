@@ -21,7 +21,7 @@ class TestModels(unittest.TestCase):
         labels = dtest.get_label()
         err = sum(1 for i in range(len(preds))
                   if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
-        assert err < 0.1
+        assert err < 0.2
 
     def test_dart(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
