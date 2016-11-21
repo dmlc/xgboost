@@ -208,7 +208,7 @@ int XGDMatrixCreateFromFile(const char *fname,
     LOG(CONSOLE) << "XGBoost distributed mode detected, "
                  << "will split data among workers";
   }
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, false, true));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, silent != 0, true));
   API_END();
 }
 
