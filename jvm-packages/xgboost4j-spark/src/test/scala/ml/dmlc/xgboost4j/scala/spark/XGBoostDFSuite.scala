@@ -95,12 +95,14 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("test schema of XGBoostRegressionModel") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear")
-    val testItr = loadLabelPoints(getClass.getResource("/machine.txt.test").getFile).iterator.
+    val testItr = loadLabelPoints(getClass.getResource("/machine.txt.test").getFile,
+      zeroBased = true).iterator.
       zipWithIndex.map { case (instance: LabeledPoint, id: Int) =>
       (id, instance.features, instance.label)
     }
     val trainingDF = {
-      val rowList = loadLabelPoints(getClass.getResource("/machine.txt.train").getFile)
+      val rowList = loadLabelPoints(getClass.getResource("/machine.txt.train").getFile,
+        zeroBased = true)
       val labeledPointsRDD = sc.parallelize(rowList, numWorkers)
       val sparkSession = SparkSession.builder().appName("XGBoostDFSuite").getOrCreate()
       import sparkSession.implicits._
@@ -181,6 +183,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     val xgbEstimatorCopy1 = xgbEstimator.copy(sparkParamMap.put(xgbEstimator.evalMetric, "logloss"))
     assert(xgbEstimatorCopy1.xgboostParams.get("eval_metric") === Some("logloss"))
   }
+
 
 
 }
