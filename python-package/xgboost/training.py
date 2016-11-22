@@ -287,8 +287,8 @@ def aggcv(rlist):
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True, seed=0,
-       callbacks=None):
+       fpreproc=None, as_pandas=True, verbose_eval=None, learning_rates=None, show_stdv=True,
+       seed=0, callbacks=None):
     # pylint: disable = invalid-name
     """Cross-validation with given paramaters.
 
@@ -329,6 +329,13 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         when np.ndarray is returned. If True, progress will be displayed at
         boosting stage. If an integer is given, progress will be displayed
         at every given `verbose_eval` boosting stage.
+    learning_rates: list or function
+        List of learning rate for each boosting round
+        or a customized function that calculates eta in terms of
+        current number of round and the total number of boosting round (e.g. yields
+        learning rate decay)
+        - list l: eta = l[boosting round]
+        - function f: eta = f(boosting round, num_boost_round)
     show_stdv : bool, default True
         Whether to display the standard deviation in progress.
         Results are not affected, and always contains std.
@@ -343,6 +350,9 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     """
     if stratified is True and not SKLEARN_INSTALLED:
         raise XGBoostError('sklearn needs to be installed in order to use stratified cv')
+
+    if learning_rates is not None:
+        callbacks.append(callback.reset_learning_rate(learning_rates))
 
     if isinstance(metrics, str):
         metrics = [metrics]
