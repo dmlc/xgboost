@@ -114,7 +114,7 @@ def _train_internal(params, dtrain,
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
-          verbose_eval=True, learning_rates=None, xgb_model=None, callbacks=None):
+          verbose_eval=True, xgb_model=None, callbacks=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -160,13 +160,6 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         / the boosting stage found by using `early_stopping_rounds` is also printed.
         Example: with verbose_eval=4 and at least one item in evals, an evaluation metric
         is printed every 4 boosting stages, instead of every boosting stage.
-    learning_rates: list or function
-        List of learning rate for each boosting round
-        or a customized function that calculates eta in terms of
-        current number of round and the total number of boosting round (e.g. yields
-        learning rate decay)
-        - list l: eta = l[boosting round]
-        - function f: eta = f(boosting round, num_boost_round)
     xgb_model : file name of stored xgb model or 'Booster' instance
         Xgb model to be loaded before training (allows training continuation).
 
@@ -190,9 +183,6 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         callbacks.append(callback.early_stop(early_stopping_rounds,
                                              maximize=maximize,
                                              verbose=bool(verbose_eval)))
-    if learning_rates is not None:
-        callbacks.append(callback.reset_learning_rate(learning_rates))
-
     if evals_result is not None:
         callbacks.append(callback.record_evaluation(evals_result))
 
@@ -287,7 +277,7 @@ def aggcv(rlist):
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, verbose_eval=None, learning_rates=None, show_stdv=True,
+       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
        seed=0, callbacks=None):
     # pylint: disable = invalid-name
     """Cross-validation with given paramaters.
@@ -329,13 +319,6 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         when np.ndarray is returned. If True, progress will be displayed at
         boosting stage. If an integer is given, progress will be displayed
         at every given `verbose_eval` boosting stage.
-    learning_rates: list or function
-        List of learning rate for each boosting round
-        or a customized function that calculates eta in terms of
-        current number of round and the total number of boosting round (e.g. yields
-        learning rate decay)
-        - list l: eta = l[boosting round]
-        - function f: eta = f(boosting round, num_boost_round)
     show_stdv : bool, default True
         Whether to display the standard deviation in progress.
         Results are not affected, and always contains std.
@@ -379,9 +362,6 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         callbacks.append(callback.early_stop(early_stopping_rounds,
                                              maximize=maximize,
                                              verbose=False))
-
-    if learning_rates is not None:
-        callbacks.append(callback.reset_learning_rate(learning_rates))
 
     if isinstance(verbose_eval, bool) and verbose_eval:
         callbacks.append(callback.print_evaluation(show_stdv=show_stdv))
