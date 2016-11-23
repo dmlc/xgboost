@@ -28,7 +28,7 @@ before_install:
   - source ${TRAVIS}/travis_setup_env.sh
 
 install:
-  - pip install cpplint pylint --user `whoami`
+  - pip install --user cpplint pylint 
 
 script: scripts/travis_script.sh
 
