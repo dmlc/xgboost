@@ -5,7 +5,6 @@
 from __future__ import absolute_import
 
 import warnings
-
 import numpy as np
 from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv, EarlyStopException
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
