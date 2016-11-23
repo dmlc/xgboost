@@ -23,7 +23,7 @@ Committers comes from contributors who:
 * Made substantial contribution to the project.
 * Willing to spent time on maintaining and lead the project.
 
-New committers will be proposed by current comitter memembers, with support from more than two of current comitters.
+New committers will be proposed by current comitter members, with support from more than two of current comitters.
 
 List of Contributors
 --------------------
