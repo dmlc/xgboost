@@ -92,7 +92,7 @@ def record_evaluation(eval_result):
     return callback
 
 
-def reset_learning_rate(learning_rates, caller=None):
+def reset_learning_rate(learning_rates):
     """Reset learning rate after iteration 1
 
     NOTE: the initial learning rate will still take in-effect on first iteration.
