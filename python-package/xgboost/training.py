@@ -191,7 +191,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                                              maximize=maximize,
                                              verbose=bool(verbose_eval)))
     if learning_rates is not None:
-        callbacks.append(callback.reset_learning_rate(learning_rates, caller='train'))
+        callbacks.append(callback.reset_learning_rate(learning_rates))
 
     if evals_result is not None:
         callbacks.append(callback.record_evaluation(evals_result))
@@ -381,7 +381,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                                              verbose=False))
 
     if learning_rates is not None:
-        callbacks.append(callback.reset_learning_rate(learning_rates, caller='cv'))
+        callbacks.append(callback.reset_learning_rate(learning_rates))
 
     if isinstance(verbose_eval, bool) and verbose_eval:
         callbacks.append(callback.print_evaluation(show_stdv=show_stdv))
