@@ -192,7 +192,8 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         callbacks.append(callback.record_evaluation(evals_result))
 
     if learning_rates is not None:
-        warnings.warn("learning_rates parameter is deprecated - use callback API instead", DeprecationWarning)
+        warnings.warn("learning_rates parameter is deprecated - use callback API instead",
+                      DeprecationWarning)
         callbacks.append(callback.reset_learning_rate(learning_rates))
 
     return _train_internal(params, dtrain,
