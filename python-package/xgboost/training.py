@@ -167,9 +167,10 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         learning rate decay)
     xgb_model : file name of stored xgb model or 'Booster' instance
         Xgb model to be loaded before training (allows training continuation).
-
     callbacks : list of callback functions
         List of callback functions that are applied at end of each iteration.
+        It is possible to use predefined callbacks by using xgb.callback module.
+        Example: [xgb.callback.reset_learning_rate(custom_rates)]
 
     Returns
     -------
@@ -336,6 +337,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Seed used to generate the folds (passed to numpy.random.seed).
     callbacks : list of callback functions
         List of callback functions that are applied at end of each iteration.
+        It is possible to use predefined callbacks by using xgb.callback module.
+        Example: [xgb.callback.reset_learning_rate(custom_rates)]
 
     Returns
     -------
