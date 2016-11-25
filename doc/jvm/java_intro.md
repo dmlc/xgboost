@@ -133,7 +133,7 @@ Booster booster = new Booster(param, "model.bin");
 ```
 
 ## Prediction
-after training and loading a model, you use it to predict other data, the predict results will be a two-dimension float array (nsample, nclass) ,for predict leaf, it would be (nsample, nclass*ntrees)
+after training and loading a model, you use it to predict other data, the predict results will be a two-dimension float array (nsample, nclass), for predict leaf, it would be (nsample, nclass*ntrees)
 ```java
 DMatrix dtest = new DMatrix("test.svm.txt");
 //predict
