@@ -4,7 +4,7 @@
 #pragma once
 #include <cub/cub.cuh>
 #include <xgboost/base.h>
-#include "cuda_helpers.cuh"
+#include "device_helpers.cuh"
 #include "types_functions.cuh"
 
 namespace xgboost {
@@ -86,8 +86,7 @@ template <typename ParamsT> struct ReduceEnactorMultiscan {
   struct Reduction : cub::Uninitialized<_Reduction> {};
 
   // Thread local member variables
-  const Item *d_items;
-  const NodeIdT *d_node_id;
+  const ItemIter item_iter;
   _TempStorage &temp_storage;
   _Reduction &reduction;
   gpu_gpair gpair;
@@ -95,12 +94,12 @@ template <typename ParamsT> struct ReduceEnactorMultiscan {
   NodeIdT node_id_adjusted;
   const int node_begin;
 
-  __device__ __forceinline__ ReduceEnactorMultiscan(
-      TempStorage &temp_storage, // NOLINT
-      Reduction &reduction,      // NOLINT
-      const Item *d_items, const NodeIdT *d_node_id, const int node_begin)
+  __device__ __forceinline__
+  ReduceEnactorMultiscan(TempStorage &temp_storage, // NOLINT
+                         Reduction &reduction,      // NOLINT
+                         const ItemIter item_iter, const int node_begin)
       : temp_storage(temp_storage.Alias()), reduction(reduction.Alias()),
-        d_items(d_items), d_node_id(d_node_id), node_begin(node_begin) {}
+        item_iter(item_iter), node_begin(node_begin) {}
 
   __device__ __forceinline__ void ResetPartials() {
     if (threadIdx.x < ParamsT::N_WARPS) {
@@ -119,8 +118,11 @@ template <typename ParamsT> struct ReduceEnactorMultiscan {
   __device__ __forceinline__ void LoadTile(const bst_uint &offset,
                                            const bst_uint &num_remaining) {
     if (threadIdx.x < num_remaining) {
-      gpair = d_items[offset + threadIdx.x].gpair;
-      node_id = d_node_id[offset + threadIdx.x];
+      bst_uint i = offset + threadIdx.x;
+      gpair = thrust::get<0>(item_iter[i]);
+      // gpair = d_items[offset + threadIdx.x].gpair;
+      // node_id = d_node_id[offset + threadIdx.x];
+      node_id = thrust::get<2>(item_iter[i]);
       node_id_adjusted = node_id - node_begin;
     } else {
       gpair = gpu_gpair();
@@ -231,12 +233,12 @@ struct FindSplitEnactorMultiscan {
   struct TempStorage : cub::Uninitialized<_TempStorage> {};
 
   // Thread local member variables
-  const Item *d_items;
+  const ItemIter item_iter;
   Split *d_split_candidates_out;
-  const NodeIdT *d_node_id;
   const Node *d_nodes;
   _TempStorage &temp_storage;
-  Item item;
+  gpu_gpair gpair;
+  float fvalue;
   NodeIdT node_id;
   NodeIdT node_id_adjusted;
   const NodeIdT node_begin;
@@ -246,15 +248,14 @@ struct FindSplitEnactorMultiscan {
   FlagPrefixCallbackOp flag_prefix_op;
 
   __device__ __forceinline__ FindSplitEnactorMultiscan(
-      TempStorage &temp_storage, const Item *d_items, // NOLINT
-      Split *d_split_candidates_out, const NodeIdT *d_node_id,
-      const Node *d_nodes, const NodeIdT node_begin,
-      const GPUTrainingParam &param, const ReductionT reduction,
-      const int level)
-      : temp_storage(temp_storage.Alias()), d_items(d_items),
-        d_split_candidates_out(d_split_candidates_out), d_node_id(d_node_id),
-        d_nodes(d_nodes), node_begin(node_begin), param(param),
-        reduction(reduction), level(level), flag_prefix_op() {}
+      TempStorage &temp_storage, const ItemIter item_iter, // NOLINT
+      Split *d_split_candidates_out, const Node *d_nodes,
+      const NodeIdT node_begin, const GPUTrainingParam &param,
+      const ReductionT reduction, const int level)
+      : temp_storage(temp_storage.Alias()), item_iter(item_iter),
+        d_split_candidates_out(d_split_candidates_out), d_nodes(d_nodes),
+        node_begin(node_begin), param(param), reduction(reduction),
+        level(level), flag_prefix_op() {}
 
   __device__ __forceinline__ void UpdateTileCarry() {
     if (threadIdx.x < ParamsT::N_NODES) {
@@ -308,16 +309,17 @@ struct FindSplitEnactorMultiscan {
 
   __device__ __forceinline__ void LoadTile(bst_uint offset,
                                            bst_uint num_remaining) {
-    bst_uint index = offset + threadIdx.x;
     if (threadIdx.x < num_remaining) {
-      item = d_items[index];
-      node_id = d_node_id[index];
+      bst_uint i = offset + threadIdx.x;
+      gpair = thrust::get<0>(item_iter[i]);
+      fvalue = thrust::get<1>(item_iter[i]);
+      node_id = thrust::get<2>(item_iter[i]);
       node_id_adjusted = node_id - node_begin;
     } else {
       node_id = -1;
       node_id_adjusted = -1;
-      item.fvalue = -FLT_MAX;
-      item.gpair = gpu_gpair();
+      fvalue = -FLT_MAX;
+      gpair = gpu_gpair();
     }
   }
 
@@ -333,10 +335,10 @@ struct FindSplitEnactorMultiscan {
     int left_index = offset + threadIdx.x - 1;
     float left_fvalue = left_index >= static_cast<int>(segment_begin) &&
                                 threadIdx.x < num_remaining
-                            ? d_items[left_index].fvalue
+                            ? thrust::get<1>(item_iter[left_index])
                             : -FLT_MAX;
 
-    return left_fvalue != item.fvalue;
+    return left_fvalue != fvalue;
   }
 
   // Prevent splitting in the middle of same valued instances
@@ -434,9 +436,9 @@ struct FindSplitEnactorMultiscan {
     for (int warp = 0; warp < ParamsT::N_WARPS; warp++) {
       if (threadIdx.x / 32 == warp) {
         for (int lane = 0; lane < 32; lane++) {
-          gpu_gpair g = cub::ShuffleIndex(item.gpair, lane);
+          gpu_gpair g = cub::ShuffleIndex(gpair, lane);
           gpu_gpair missing_broadcast = cub::ShuffleIndex(missing, lane);
-          float fvalue_broadcast = __shfl(item.fvalue, lane);
+          float fvalue_broadcast = __shfl(fvalue, lane);
           bool thread_active_broadcast = __shfl(thread_active, lane);
           float loss_chg_broadcast = __shfl(loss_chg, lane);
           NodeIdT node_id_broadcast = cub::ShuffleIndex(node_id, lane);
@@ -476,7 +478,7 @@ struct FindSplitEnactorMultiscan {
     bool missing_left;
 
     float loss_chg = thread_active
-                         ? loss_chg_missing(item.gpair, missing, parent_sum,
+                         ? loss_chg_missing(gpair, missing, parent_sum,
                                             parent_gain, param, missing_left)
                          : -FLT_MAX;
 
@@ -488,16 +490,16 @@ struct FindSplitEnactorMultiscan {
             : 0.0f;
 
     if (QueryUpdateWarpSplit(loss_chg, warp_best_loss)) {
-      float fvalue_split = item.fvalue - FVALUE_EPS;
+      float fvalue_split = fvalue - FVALUE_EPS;
 
       if (missing_left) {
-        gpu_gpair left_sum = missing + item.gpair;
+        gpu_gpair left_sum = missing + gpair;
         gpu_gpair right_sum = parent_sum - left_sum;
         temp_storage.warp_best_splits[node_id_adjusted][warp_id].Update(
             loss_chg, missing_left, fvalue_split, blockIdx.x, left_sum,
             right_sum, param);
       } else {
-        gpu_gpair left_sum = item.gpair;
+        gpu_gpair left_sum = gpair;
         gpu_gpair right_sum = parent_sum - left_sum;
         temp_storage.warp_best_splits[node_id_adjusted][warp_id].Update(
             loss_chg, missing_left, fvalue_split, blockIdx.x, left_sum,
@@ -506,30 +508,6 @@ struct FindSplitEnactorMultiscan {
     }
   }
 
-  /*
-  __device__ __forceinline__ void WarpExclusiveScan(bool active, gpu_gpair
-  input, gpu_gpair &output, gpu_gpair &sum)
-  {
-
-  output = input;
-
-  for (int offset = 1; offset < 32; offset <<= 1){
-  float tmp1 = __shfl_up(output.grad(), offset);
-
-  float tmp2 = __shfl_up(output.hess(), offset);
-  if (cub::LaneId() >= offset)
-  {
-  output.grad += tmp1;
-  output.hess += tmp2;
-  }
-  }
-
-  sum.grad = __shfl(output.grad, 31);
-  sum.hess = __shfl(output.hess, 31);
-
-  output -= input;
-  }
-  */
   __device__ __forceinline__ void BlockExclusiveScan() {
     ResetPartials();
 
@@ -547,14 +525,12 @@ struct FindSplitEnactorMultiscan {
 
       if (ballot > 0) {
         WarpScanT(temp_storage.warp_gpair_scan[warp_id])
-            .InclusiveScan(node_active ? item.gpair : gpu_gpair(), scan_result,
+            .InclusiveScan(node_active ? gpair : gpu_gpair(), scan_result,
                            cub::Sum(), warp_sum);
-        // WarpExclusiveScan( node_active, node_active ? item.gpair :
-        // gpu_gpair(), scan_result, warp_sum);
       }
 
       if (node_active) {
-        item.gpair = scan_result - item.gpair;
+        gpair = scan_result - gpair;
       }
 
       if (lane_id == 0) {
@@ -589,8 +565,8 @@ struct FindSplitEnactorMultiscan {
     __syncthreads();
 
     if (NodeActive()) {
-      item.gpair += temp_storage.partial_sums[node_id_adjusted][warp_id] +
-                    temp_storage.tile_carry[node_id_adjusted];
+      gpair += temp_storage.partial_sums[node_id_adjusted][warp_id] +
+               temp_storage.tile_carry[node_id_adjusted];
     }
 
     __syncthreads();
@@ -633,67 +609,12 @@ struct FindSplitEnactorMultiscan {
     }
   }
 
-  /*
-  __device__ void SequentialAlgorithm(bst_uint segment_begin,
-                                      bst_uint segment_end) {
-    if (threadIdx.x != 0) {
-      return;
-    }
-
-    __shared__ Split best_split[ParamsT::N_NODES];
-
-    __shared__ gpu_gpair scan[ParamsT::N_NODES];
-
-    __shared__ Node nodes[ParamsT::N_NODES];
-
-    __shared__ gpu_gpair missing[ParamsT::N_NODES];
-
-    float previous_fvalue[ParamsT::N_NODES];
-
-    // Initialise counts
-    for (int NODE = 0; NODE < ParamsT::N_NODES; NODE++) {
-      best_split[NODE] = Split();
-      scan[NODE] = gpu_gpair();
-      nodes[NODE] = d_nodes[node_begin + NODE];
-      missing[NODE] = nodes[NODE].sum_gradients - reduction.node_sums[NODE];
-      previous_fvalue[NODE] = FLT_MAX;
-    }
-
-    for (bst_uint i = segment_begin; i < segment_end; i++) {
-      int8_t nodeid_adjusted = d_node_id[i] - node_begin;
-      float fvalue = d_items[i].fvalue;
-
-      if (NodeActive(nodeid_adjusted)) {
-        if (fvalue != previous_fvalue[nodeid_adjusted]) {
-          float f_split;
-          if (previous_fvalue[nodeid_adjusted] != FLT_MAX) {
-            f_split = (previous_fvalue[nodeid_adjusted] + fvalue) * 0.5;
-          } else {
-            f_split = fvalue;
-          }
-
-          best_split[nodeid_adjusted].UpdateCalcLoss(
-              f_split, scan[nodeid_adjusted], missing[nodeid_adjusted],
-              nodes[nodeid_adjusted], param);
-        }
-
-        scan[nodeid_adjusted] += d_items[i].gpair;
-        previous_fvalue[nodeid_adjusted] = fvalue;
-      }
-    }
-
-    for (int NODE = 0; NODE < ParamsT::N_NODES; NODE++) {
-      temp_storage.best_splits[NODE] = best_split[NODE];
-    }
-  }
-  */
-
   __device__ __forceinline__ void ResetSplitCandidates() {
     const int max_nodes = 1 << level;
     const int begin = blockIdx.x * max_nodes;
     const int end = begin + max_nodes;
 
-    for (auto i : block_stride_range(begin, end)) {
+    for (auto i : dh::block_stride_range(begin, end)) {
       d_split_candidates_out[i] = Split();
     }
   }
@@ -730,9 +651,9 @@ __global__ void
 __launch_bounds__(1024, 2)
 #endif
     find_split_candidates_multiscan_kernel(
-        const Item *d_items, Split *d_split_candidates_out,
-        const NodeIdT *d_node_id, const Node *d_nodes, const int node_begin,
-        bst_uint num_items, int num_features, const int *d_feature_offsets,
+        const ItemIter items_iter, Split *d_split_candidates_out,
+        const Node *d_nodes, const int node_begin, bst_uint num_items,
+        int num_features, const int *d_feature_offsets,
         const GPUTrainingParam param, const int level) {
   if (num_items <= 0) {
     return;
@@ -753,22 +674,22 @@ __launch_bounds__(1024, 2)
 
   __shared__ typename ReduceT::Reduction reduction;
 
-  ReduceT(temp_storage.reduce, reduction, d_items, d_node_id, node_begin)
+  ReduceT(temp_storage.reduce, reduction, items_iter, node_begin)
       .ProcessRegion(segment_begin, segment_end);
   __syncthreads();
 
-  FindSplitT find_split(temp_storage.find_split, d_items,
-                        d_split_candidates_out, d_node_id, d_nodes, node_begin,
-                        param, reduction.Alias(), level);
+  FindSplitT find_split(temp_storage.find_split, items_iter,
+                        d_split_candidates_out, d_nodes, node_begin, param,
+                        reduction.Alias(), level);
   find_split.ProcessRegion(segment_begin, segment_end);
 }
 
 template <int N_NODES>
 void find_split_candidates_multiscan_variation(
-    const Item *d_items, Split *d_split_candidates, const NodeIdT *d_node_id,
-    const Node *d_nodes, int node_begin, int node_end, bst_uint num_items,
-    int num_features, const int *d_feature_offsets,
-    const GPUTrainingParam param, const int level) {
+    const ItemIter items_iter, Split *d_split_candidates, const Node *d_nodes,
+    int node_begin, int node_end, bst_uint num_items, int num_features,
+    const int *d_feature_offsets, const GPUTrainingParam param,
+    const int level) {
 
   const int BLOCK_THREADS = 512;
 
@@ -786,47 +707,46 @@ void find_split_candidates_multiscan_variation(
   find_split_candidates_multiscan_kernel<
       find_split_params,
       reduce_params><<<grid_size, find_split_params::BLOCK_THREADS>>>(
-      d_items, d_split_candidates, d_node_id, d_nodes, node_begin, num_items,
+      items_iter, d_split_candidates, d_nodes, node_begin, num_items,
       num_features, d_feature_offsets, param, level);
 
-  safe_cuda(cudaDeviceSynchronize());
+  dh::safe_cuda(cudaDeviceSynchronize());
 }
 
 void find_split_candidates_multiscan(
-    const Item *d_items, Split *d_split_candidates, const NodeIdT *d_node_id,
-    const Node *d_nodes, bst_uint num_items, int num_features,
-    const int *d_feature_offsets, const GPUTrainingParam param,
-    const int level) {
+    const ItemIter items_iter, Split *d_split_candidates, const Node *d_nodes,
+    bst_uint num_items, int num_features, const int *d_feature_offsets,
+    const GPUTrainingParam param, const int level) {
   // Select templated variation of split finding algorithm
   switch (level) {
   case 0:
     find_split_candidates_multiscan_variation<1>(
-        d_items, d_split_candidates, d_node_id, d_nodes, 0, 1, num_items,
-        num_features, d_feature_offsets, param, level);
+        items_iter, d_split_candidates, d_nodes, 0, 1, num_items, num_features,
+        d_feature_offsets, param, level);
     break;
   case 1:
     find_split_candidates_multiscan_variation<2>(
-        d_items, d_split_candidates, d_node_id, d_nodes, 1, 3, num_items,
-        num_features, d_feature_offsets, param, level);
+        items_iter, d_split_candidates, d_nodes, 1, 3, num_items, num_features,
+        d_feature_offsets, param, level);
     break;
   case 2:
     find_split_candidates_multiscan_variation<4>(
-        d_items, d_split_candidates, d_node_id, d_nodes, 3, 7, num_items,
-        num_features, d_feature_offsets, param, level);
+        items_iter, d_split_candidates, d_nodes, 3, 7, num_items, num_features,
+        d_feature_offsets, param, level);
     break;
   case 3:
     find_split_candidates_multiscan_variation<8>(
-        d_items, d_split_candidates, d_node_id, d_nodes, 7, 15, num_items,
-        num_features, d_feature_offsets, param, level);
+        items_iter, d_split_candidates, d_nodes, 7, 15, num_items, num_features,
+        d_feature_offsets, param, level);
     break;
   case 4:
     find_split_candidates_multiscan_variation<16>(
-        d_items, d_split_candidates, d_node_id, d_nodes, 15, 31, num_items,
+        items_iter, d_split_candidates, d_nodes, 15, 31, num_items,
         num_features, d_feature_offsets, param, level);
     break;
   case 5:
     find_split_candidates_multiscan_variation<32>(
-        d_items, d_split_candidates, d_node_id, d_nodes, 31, 63, num_items,
+        items_iter, d_split_candidates, d_nodes, 31, 63, num_items,
         num_features, d_feature_offsets, param, level);
     break;
   }
