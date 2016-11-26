@@ -582,18 +582,12 @@ class CQHistMaker: public HistMaker<TStats> {
     if (TStats::kSimpleStats != 0 && this->param.cache_opt != 0) {
       const bst_uint kBuffer = 32;
       bst_uint align_length = c.length / kBuffer * kBuffer;
-      int buf_position[kBuffer];
-      bst_float buf_hess[kBuffer];
       for (bst_uint j = 0; j < align_length; j += kBuffer) {
         for (bst_uint i = 0; i < kBuffer; ++i) {
           bst_uint ridx = c[j + i].index;
-          buf_position[i] = this->position[ridx];
-          buf_hess[i] = gpair[ridx].hess;
-        }
-        for (bst_uint i = 0; i < kBuffer; ++i) {
-          const int nid = buf_position[i];
+          const int nid = this->position[ridx];
           if (nid >= 0) {
-            sbuilder[nid].Push(c[j + i].fvalue, buf_hess[i], max_size);
+            sbuilder[nid].Push(c[j + i].fvalue, gpair[ridx].hess, max_size);
           }
         }
       }
