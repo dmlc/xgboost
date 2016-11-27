@@ -18,6 +18,6 @@ Checkout [this tutorial](https://xgboost.readthedocs.org/en/latest/tutorials/aws
 
 Model Analysis
 --------------
-XGBoost is exchangable across all bindings and platforms.
+XGBoost is exchangeable across all bindings and platforms.
 This means you can use python or R to analyze the learnt model and do prediction.
 For example, you can use the [plot_model.ipynb](plot_model.ipynb) to visualize the learnt model.

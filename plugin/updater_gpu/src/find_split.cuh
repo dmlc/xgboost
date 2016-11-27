@@ -4,7 +4,7 @@
 #pragma once
 #include <cub/cub.cuh>
 #include <xgboost/base.h>
-#include "cuda_helpers.cuh"
+#include "device_helpers.cuh"
 #include "find_split_multiscan.cuh"
 #include "find_split_sorting.cuh"
 #include "types_functions.cuh"
@@ -54,29 +54,27 @@ void reduce_split_candidates(Split *d_split_candidates, Node *d_nodes,
   int n_current_nodes = 1 << level;
 
   const int BLOCK_THREADS = 512;
-  const int GRID_SIZE = div_round_up(n_current_nodes, BLOCK_THREADS);
+  const int GRID_SIZE = dh::div_round_up(n_current_nodes, BLOCK_THREADS);
 
   reduce_split_candidates_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(
       d_split_candidates, d_current_nodes, d_new_nodes, n_current_nodes,
       n_features, param);
-  safe_cuda(cudaDeviceSynchronize());
+  dh::safe_cuda(cudaDeviceSynchronize());
 }
 
-void find_split(const Item *d_items, Split *d_split_candidates,
-                const NodeIdT *d_node_id, Node *d_nodes, bst_uint num_items,
-                int num_features, const int *d_feature_offsets,
-                gpu_gpair *d_node_sums, int *d_node_offsets,
-                const GPUTrainingParam param, const int level,
-                bool multiscan_algorithm) {
+void find_split(const ItemIter items_iter, Split *d_split_candidates,
+                Node *d_nodes, bst_uint num_items, int num_features,
+                const int *d_feature_offsets, gpu_gpair *d_node_sums,
+                int *d_node_offsets, const GPUTrainingParam param,
+                const int level, bool multiscan_algorithm) {
   if (multiscan_algorithm) {
-    find_split_candidates_multiscan(d_items, d_split_candidates, d_node_id,
-                                    d_nodes, num_items, num_features,
-                                    d_feature_offsets, param, level);
+    find_split_candidates_multiscan(items_iter, d_split_candidates, d_nodes,
+                                    num_items, num_features, d_feature_offsets,
+                                    param, level);
   } else {
-    find_split_candidates_sorted(d_items, d_split_candidates, d_node_id,
-                                 d_nodes, num_items, num_features,
-                                 d_feature_offsets, d_node_sums, d_node_offsets,
-                                 param, level);
+    find_split_candidates_sorted(items_iter, d_split_candidates, d_nodes,
+                                 num_items, num_features, d_feature_offsets,
+                                 d_node_sums, d_node_offsets, param, level);
   }
 
   // Find the best split for each node

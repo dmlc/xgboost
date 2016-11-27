@@ -17,7 +17,7 @@ To publish the artifacts to your local maven repository, run
 
     mvn install
 
-Or, if you would like to skip tests, run 
+Or, if you would like to skip tests, run
 
     mvn -DskipTests install
 
@@ -32,7 +32,7 @@ This command will publish the xgboost binaries, the compiled java classes as wel
 
 
 
-After integrating with Dataframe/Dataset APIs of Spark 2.0, XGBoost4J-Spark only supports compile with Spark 2.x. You can build XGBoost4J-Spark as a component of XGBoost4J by running `mvn package`, and you can specify the version of spark with `mvn -Dspark.version=2.0.0 package`.   (To continue working with Spark 1.x, the users are supposed to update pom.xml by modifying the properties like `spark.version`, `scala.version`, and `scala.binary.version`. Users also need to change the implemention by replacing SparkSession with SQLContext and the type of API parameters from Dataset[_] to Dataframe)
+After integrating with Dataframe/Dataset APIs of Spark 2.0, XGBoost4J-Spark only supports compile with Spark 2.x. You can build XGBoost4J-Spark as a component of XGBoost4J by running `mvn package`, and you can specify the version of spark with `mvn -Dspark.version=2.0.0 package`.   (To continue working with Spark 1.x, the users are supposed to update pom.xml by modifying the properties like `spark.version`, `scala.version`, and `scala.binary.version`. Users also need to change the implementation by replacing SparkSession with SQLContext and the type of API parameters from Dataset[_] to Dataframe)
 
 Contents
 --------

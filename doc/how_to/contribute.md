@@ -138,7 +138,7 @@ make the-markdown-to-make.md
 - Add the generated figure to the ```dmlc/web-data``` repo.
   - If you already cloned the repo to doc, this means a ```git add```
 - Create PR for both the markdown  and ```dmlc/web-data```
-- You can also build the document locally by typing the followig command at ```doc```
+- You can also build the document locally by typing the following command at ```doc```
 ```bash
 make html
 ```
