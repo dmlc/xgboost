@@ -26,7 +26,7 @@ They are also often [much more efficient](http://arxiv.org/abs/1603.02754).
 
 The gap between the implementation fundamentals of the general data processing frameworks and the more specific machine learning libraries/systems prohibits the smooth connection between these two types of systems, thus brings unnecessary inconvenience to the end user. The common workflow to the user is to utilize the systems like Spark/Flink to preprocess/clean data, pass the results to machine learning systems like [XGBoost](https://github.com/dmlc/xgboost)/[MxNet](https://github.com/dmlc/mxnet))  via the file systems and then conduct the following machine learning phase. This process jumping across two types of systems creates certain inconvenience for the users and brings additional overhead to the operators of the infrastructure.
 
-We want best of both worlds, so we can use the data processing frameworks like Spark and Flink toghether with
+We want best of both worlds, so we can use the data processing frameworks like Spark and Flink together with
 the best distributed machine learning solutions.
 To resolve the situation, we introduce the new-brewed [XGBoost4J](https://github.com/dmlc/xgboost/tree/master/jvm-packages),
 <b>XGBoost</b> for <b>J</b>VM Platform. We aim to provide the clean Java/Scala APIs and the integration with the most popular data processing systems developed in JVM-based languages.

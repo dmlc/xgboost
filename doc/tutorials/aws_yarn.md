@@ -49,7 +49,7 @@ Now we can open the browser, and type(replace the DNS with the master DNS)
 ```
 ec2-xx-xx-xx.us-west-2.compute.amazonaws.com:8088
 ```
-This will show the job tracker of the YARN cluster. Note that we may wait a few minutes before the master finishes bootstraping and starts the
+This will show the job tracker of the YARN cluster. Note that we may wait a few minutes before the master finishes bootstrapping and starts the
 job tracker.
 
 After master machine gets up, we can freely add more slave machines to the cluster.
@@ -158,7 +158,7 @@ Application application_1456461717456_0015 finished with state FINISHED at 14564
 Analyze the Model
 -----------------
 After the model is trained, we can analyse the learnt model and use it for future prediction task.
-XGBoost is a portable framework, the model in all platforms are ***exchangable***.
+XGBoost is a portable framework, the model in all platforms are ***exchangeable***.
 This means we can load the trained model in python/R/Julia and take benefit of data science pipelines
 in these languages to do model analysis and prediction.
 

@@ -4,7 +4,6 @@
 import numpy as np
 import xgboost as xgb
 import time
-test_size = 550000
 
 # path to where the data lies
 dpath = '../../demo/data'
@@ -13,6 +12,9 @@ dpath = '../../demo/data'
 dtrain = np.loadtxt( dpath+'/training.csv', delimiter=',', skiprows=1, converters={32: lambda x:int(x=='s') } )
 dtrain = np.concatenate((dtrain, np.copy(dtrain)))
 dtrain = np.concatenate((dtrain, np.copy(dtrain)))
+dtrain = np.concatenate((dtrain, np.copy(dtrain)))
+test_size = len(dtrain)
+
 print(len(dtrain))
 print ('finish loading from csv ')
 
@@ -37,10 +39,9 @@ param['objective'] = 'binary:logitraw'
 # scale weight of positive examples
 param['scale_pos_weight'] = sum_wneg/sum_wpos
 param['bst:eta'] = 0.1
-param['max_depth'] = 16
+param['max_depth'] = 15
 param['eval_metric'] = 'auc'
-param['silent'] = 1
-param['nthread'] = 4
+param['nthread'] = 16
 
 plst = param.items()+[('eval_metric', 'ams@0.15')]
 
