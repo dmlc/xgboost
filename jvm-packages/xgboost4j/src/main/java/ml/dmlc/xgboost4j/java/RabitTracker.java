@@ -88,7 +88,13 @@ public class RabitTracker implements IRabitTracker {
 
   public void uncaughtException(Thread t, Throwable e) {
     logger.error("Uncaught exception thrown by worker:", e);
-    trackerProcess.get().destroy();
+    try {
+      Thread.sleep(5000L);
+    } catch (InterruptedException ex) {
+      logger.error(ex);
+    } finally {
+      trackerProcess.get().destroy();
+    }
   }
 
   /**

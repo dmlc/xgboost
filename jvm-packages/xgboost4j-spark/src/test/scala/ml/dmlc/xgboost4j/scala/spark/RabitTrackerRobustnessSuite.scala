@@ -38,11 +38,12 @@ class RabitTrackerRobustnessSuite extends FunSuite with Utils {
     tracker.start(0)
     val trackerEnvs = tracker.getWorkerEnvs
 
+    val workerCount: Int = numWorkers
     val dummyTasks = rdd.mapPartitions { iter =>
       Rabit.init(trackerEnvs)
-      Thread.sleep(1000)
       val index = iter.next()
-      if (index == 1) {
+      Thread.sleep(100 + index * 10)
+      if (index == workerCount) {
         // kill the worker by throwing an exception
         throw new RuntimeException("Worker exception.")
       }
@@ -75,11 +76,12 @@ class RabitTrackerRobustnessSuite extends FunSuite with Utils {
     tracker.start(0)
     val trackerEnvs = tracker.getWorkerEnvs
 
+    val workerCount: Int = numWorkers
     val dummyTasks = rdd.mapPartitions { iter =>
       Rabit.init(trackerEnvs)
-      Thread.sleep(500)
       val index = iter.next()
-      if (index == 1) {
+      Thread.sleep(100 + index * 10)
+      if (index == workerCount) {
         // kill the worker by throwing an exception
         throw new RuntimeException("Worker exception.")
       }
@@ -116,7 +118,7 @@ class RabitTrackerRobustnessSuite extends FunSuite with Utils {
       // simulate that the first worker cannot connect to tracker due to network issues.
       if (index != 1) {
         Rabit.init(trackerEnvs)
-        Thread.sleep(800)
+        Thread.sleep(1000)
         Rabit.shutdown()
       }
 
