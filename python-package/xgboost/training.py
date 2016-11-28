@@ -4,7 +4,7 @@
 """Training Library containing training routines."""
 from __future__ import absolute_import
 
-
+import warnings
 import numpy as np
 from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv, EarlyStopException
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
@@ -114,7 +114,7 @@ def _train_internal(params, dtrain,
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
-          verbose_eval=True, learning_rates=None, xgb_model=None, callbacks=None):
+          verbose_eval=True, xgb_model=None, callbacks=None, learning_rates=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -160,18 +160,17 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         / the boosting stage found by using `early_stopping_rounds` is also printed.
         Example: with verbose_eval=4 and at least one item in evals, an evaluation metric
         is printed every 4 boosting stages, instead of every boosting stage.
-    learning_rates: list or function
+    learning_rates: list or function (deprecated - use callback API instead)
         List of learning rate for each boosting round
         or a customized function that calculates eta in terms of
         current number of round and the total number of boosting round (e.g. yields
         learning rate decay)
-        - list l: eta = l[boosting round]
-        - function f: eta = f(boosting round, num_boost_round)
     xgb_model : file name of stored xgb model or 'Booster' instance
         Xgb model to be loaded before training (allows training continuation).
-
     callbacks : list of callback functions
         List of callback functions that are applied at end of each iteration.
+        It is possible to use predefined callbacks by using xgb.callback module.
+        Example: [xgb.callback.reset_learning_rate(custom_rates)]
 
     Returns
     -------
@@ -190,11 +189,13 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         callbacks.append(callback.early_stop(early_stopping_rounds,
                                              maximize=maximize,
                                              verbose=bool(verbose_eval)))
-    if learning_rates is not None:
-        callbacks.append(callback.reset_learning_rate(learning_rates))
-
     if evals_result is not None:
         callbacks.append(callback.record_evaluation(evals_result))
+
+    if learning_rates is not None:
+        warnings.warn("learning_rates parameter is deprecated - use callback API instead",
+                      DeprecationWarning)
+        callbacks.append(callback.reset_learning_rate(learning_rates))
 
     return _train_internal(params, dtrain,
                            num_boost_round=num_boost_round,
@@ -287,8 +288,8 @@ def aggcv(rlist):
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True, seed=0,
-       callbacks=None):
+       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
+       seed=0, callbacks=None):
     # pylint: disable = invalid-name
     """Cross-validation with given paramaters.
 
@@ -336,6 +337,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Seed used to generate the folds (passed to numpy.random.seed).
     callbacks : list of callback functions
         List of callback functions that are applied at end of each iteration.
+        It is possible to use predefined callbacks by using xgb.callback module.
+        Example: [xgb.callback.reset_learning_rate(custom_rates)]
 
     Returns
     -------
@@ -372,6 +375,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         callbacks.append(callback.early_stop(early_stopping_rounds,
                                              maximize=maximize,
                                              verbose=False))
+
     if isinstance(verbose_eval, bool) and verbose_eval:
         callbacks.append(callback.print_evaluation(show_stdv=show_stdv))
     else:

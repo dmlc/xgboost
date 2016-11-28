@@ -41,7 +41,7 @@ Most importantly, it pushes the limit of the computation resources we can use.
 
 How can I port the model to my own system
 -----------------------------------------
-The model and data format of XGBoost is exchangable,
+The model and data format of XGBoost is exchangeable,
 which means the model trained by one language can be loaded in another.
 This means you can train the model using R, while running prediction using
 Java or C++, which are more common in production systems.
