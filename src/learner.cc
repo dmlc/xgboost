@@ -392,7 +392,7 @@ class LearnerImpl : public Learner {
           p_train->info().num_row >= (4UL << 20UL)) {
         LOG(CONSOLE) << "Tree method is automatically selected to be \'approx\'"
                      << " for faster speed."
-                     << " to use old behavior(exact greedy algorithm on single machine),"
+                     << " to use the previous default behavior (exact greedy algorithm on single machine),"
                      << " set tree_method to \'exact\'";
         max_row_perbatch = std::min(max_row_perbatch, safe_max_row);
       }

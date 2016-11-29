@@ -118,15 +118,7 @@ class BaseMaker: public TreeUpdater {
     }
     return n.cdefault();
   }
-  /*! \brief get number of omp thread in current context */
-  inline static int get_nthread() {
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-    }
-    return nthread;
-  }
+
   //  ------class member helpers---------
   /*! \brief initialize temp data structure */
   inline void InitData(const std::vector<bst_gpair> &gpair,
@@ -350,7 +342,7 @@ class BaseMaker: public TreeUpdater {
                            std::vector<TStats> *p_node_stats) {
     std::vector< std::vector<TStats> > &thread_temp = *p_thread_temp;
     const MetaInfo &info = fmat.info();
-    thread_temp.resize(this->get_nthread());
+    thread_temp.resize(omp_get_max_threads());
     p_node_stats->resize(tree.param.num_nodes);
     #pragma omp parallel
     {

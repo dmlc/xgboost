@@ -39,37 +39,38 @@ class SketchMaker: public BaseMaker {
   inline void Update(const std::vector<bst_gpair> &gpair,
                      DMatrix *p_fmat,
                      RegTree *p_tree) {
+    RegTree &tree = *p_tree;
     this->InitData(gpair, *p_fmat, *p_tree);
     for (int depth = 0; depth < param.max_depth; ++depth) {
-      this->GetNodeStats(gpair, *p_fmat, *p_tree,
+      this->GetNodeStats(gpair, *p_fmat, tree,
                          &thread_stats, &node_stats);
-      this->BuildSketch(gpair, p_fmat, *p_tree);
+      this->BuildSketch(gpair, p_fmat, tree);
       this->SyncNodeStats();
       this->FindSplit(depth, gpair, p_fmat, p_tree);
-      this->ResetPositionCol(qexpand, p_fmat, *p_tree);
-      this->UpdateQueueExpand(*p_tree);
+      this->ResetPositionCol(qexpand, p_fmat, tree);
+      this->UpdateQueueExpand(tree);
       // if nothing left to be expand, break
       if (qexpand.size() == 0) break;
     }
     if (qexpand.size() != 0) {
-      this->GetNodeStats(gpair, *p_fmat, *p_tree,
+      this->GetNodeStats(gpair, *p_fmat, tree,
                          &thread_stats, &node_stats);
       this->SyncNodeStats();
     }
     // set all statistics correctly
-    for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
+    for (int nid = 0; nid < tree.param.num_nodes; ++nid) {
       this->SetStats(nid, node_stats[nid], p_tree);
-      if (!(*p_tree)[nid].is_leaf()) {
-        p_tree->stat(nid).loss_chg = static_cast<float>(
-            node_stats[(*p_tree)[nid].cleft()].CalcGain(param) +
-            node_stats[(*p_tree)[nid].cright()].CalcGain(param) -
+      if (!tree[nid].is_leaf()) {
+        tree.stat(nid).loss_chg = static_cast<float>(
+            node_stats[tree[nid].cleft()].CalcGain(param) +
+            node_stats[tree[nid].cright()].CalcGain(param) -
             node_stats[nid].CalcGain(param));
       }
     }
     // set left leaves
     for (size_t i = 0; i < qexpand.size(); ++i) {
       const int nid = qexpand[i];
-      (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
+      tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
     }
   }
   // define the sketch we want to use
@@ -141,7 +142,7 @@ class SketchMaker: public BaseMaker {
     for (size_t i = 0; i < sketchs.size(); ++i) {
       sketchs[i].Init(info.num_row, this->param.sketch_eps);
     }
-    thread_sketch.resize(this->get_nthread());
+    thread_sketch.resize(omp_get_max_threads());
     // number of rows in
     const size_t nrows = p_fmat->buffered_rowset().size();
     // start accumulating statistics
@@ -271,7 +272,8 @@ class SketchMaker: public BaseMaker {
                         const std::vector<bst_gpair> &gpair,
                         DMatrix *p_fmat,
                         RegTree *p_tree) {
-    const bst_uint num_feature = p_tree->param.num_feature;
+    RegTree &tree = *p_tree;
+    const bst_uint num_feature = tree.param.num_feature;
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand.size());
     bst_omp_uint nexpand = static_cast<bst_omp_uint>(qexpand.size());
@@ -281,7 +283,7 @@ class SketchMaker: public BaseMaker {
       CHECK_EQ(node2workindex[nid], static_cast<int>(wid));
       SplitEntry &best = sol[wid];
       for (bst_uint fid = 0; fid < num_feature; ++fid) {
-        unsigned base = (wid * p_tree->param.num_feature + fid) * 3;
+        unsigned base = (wid * tree.param.num_feature + fid) * 3;
         EnumerateSplit(summary_array[base + 0],
                        summary_array[base + 1],
                        summary_array[base + 2],
@@ -293,18 +295,18 @@ class SketchMaker: public BaseMaker {
       const int nid = qexpand[wid];
       const SplitEntry &best = sol[wid];
       // set up the values
-      p_tree->stat(nid).loss_chg = best.loss_chg;
+      tree.stat(nid).loss_chg = best.loss_chg;
       this->SetStats(nid, node_stats[nid], p_tree);
       // now we know the solution in snode[nid], set split
       if (best.loss_chg > rt_eps) {
-        p_tree->AddChilds(nid);
-        (*p_tree)[nid].set_split(best.split_index(),
+        tree.AddChilds(nid);
+        tree[nid].set_split(best.split_index(),
                                  best.split_value, best.default_left());
         // mark right child as 0, to indicate fresh leaf
-        (*p_tree)[(*p_tree)[nid].cleft()].set_leaf(0.0f, 0);
-        (*p_tree)[(*p_tree)[nid].cright()].set_leaf(0.0f, 0);
+        tree[tree[nid].cleft()].set_leaf(0.0f, 0);
+        tree[tree[nid].cright()].set_leaf(0.0f, 0);
       } else {
-        (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
+        tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
       }
     }
   }

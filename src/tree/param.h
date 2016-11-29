@@ -345,12 +345,8 @@ struct ValueConstraint {
   }
   inline double CalcWeight(const TrainParam &param, GradStats stats) const {
     double w = stats.CalcWeight(param);
-    if (w < lower_bound) {
-      return lower_bound;
-    }
-    if (w > upper_bound) {
-      return upper_bound;
-    }
+    w = std::max(w, lower_bound);
+    w = std::min(w, upper_bound);
     return w;
   }
 
