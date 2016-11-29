@@ -26,6 +26,7 @@ XGB_EXTERN_C {
 // manually define unsigned long
 typedef uint64_t bst_ulong;  // NOLINT(*)
 
+
 /*! \brief handle to DMatrix */
 typedef void *DMatrixHandle;
 /*! \brief handle to Booster */
@@ -201,7 +202,7 @@ XGB_DLL int XGDMatrixCreateFromCSC(const bst_ulong *col_ptr,
 XGB_DLL int XGDMatrixCreateFromMat(const float *data,
                                    bst_ulong nrow,
                                    bst_ulong ncol,
-                                   float  missing,
+                                   float missing,
                                    DMatrixHandle *out);
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix

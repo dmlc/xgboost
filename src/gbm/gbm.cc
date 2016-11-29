@@ -14,7 +14,7 @@ namespace xgboost {
 GradientBooster* GradientBooster::Create(
     const std::string& name,
     const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
-    float base_margin) {
+    bst_float base_margin) {
   auto *e = ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown gbm type " << name;

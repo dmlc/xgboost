@@ -106,7 +106,7 @@ class TreeModel {
       return cleft_ == -1;
     }
     /*! \return get leaf value of leaf node */
-    inline float leaf_value() const {
+    inline bst_float leaf_value() const {
       return (this->info_).leaf_value;
     }
     /*! \return get split condition of the node */
@@ -154,7 +154,7 @@ class TreeModel {
      * \param right right index, could be used to store
      *        additional information
      */
-    inline void set_leaf(float value, int right = -1) {
+    inline void set_leaf(bst_float value, int right = -1) {
       (this->info_).leaf_value = value;
       this->cleft_ = -1;
       this->cright_ = right;
@@ -171,7 +171,7 @@ class TreeModel {
      *        we have split condition
      */
     union Info{
-      float leaf_value;
+      bst_float leaf_value;
       TSplitCond split_cond;
     };
     // pointer to parent, highest bit is used to
@@ -230,7 +230,7 @@ class TreeModel {
    * \param rid node id of the node
    * \param value new leaf value
    */
-  inline void ChangeToLeaf(int rid, float value) {
+  inline void ChangeToLeaf(int rid, bst_float value) {
     CHECK(nodes[nodes[rid].cleft() ].is_leaf());
     CHECK(nodes[nodes[rid].cright()].is_leaf());
     this->DeleteNode(nodes[rid].cleft());
@@ -242,7 +242,7 @@ class TreeModel {
    * \param rid node id of the node
    * \param value new leaf value
    */
-  inline void CollapseToLeaf(int rid, float value) {
+  inline void CollapseToLeaf(int rid, bst_float value) {
     if (nodes[rid].is_leaf()) return;
     if (!nodes[nodes[rid].cleft() ].is_leaf()) {
       CollapseToLeaf(nodes[rid].cleft(), 0.0f);
@@ -398,11 +398,11 @@ class TreeModel {
 /*! \brief node statistics used in regression tree */
 struct RTreeNodeStat {
   /*! \brief loss change caused by current split */
-  float loss_chg;
+  bst_float loss_chg;
   /*! \brief sum of hessian values, used to measure coverage of data */
-  float sum_hess;
+  bst_float sum_hess;
   /*! \brief weight of current node */
-  float base_weight;
+  bst_float base_weight;
   /*! \brief number of child that is leaf node known up to now */
   int leaf_child_cnt;
 };
@@ -439,7 +439,7 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
      * \param i feature index.
      * \return the i-th feature value
      */
-    inline float fvalue(size_t i) const;
+    inline bst_float fvalue(size_t i) const;
     /*!
      * \brief check whether i-th entry is missing
      * \param i feature index.
@@ -453,7 +453,7 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
      *  when flag == -1, this indicate the value is missing
      */
     union Entry {
-      float fvalue;
+      bst_float fvalue;
       int flag;
     };
     std::vector<Entry> data;
@@ -471,14 +471,14 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    * \param root_id starting root index of the instance
    * \return the leaf index of the given feature
    */
-  inline float Predict(const FVec& feat, unsigned root_id = 0) const;
+  inline bst_float Predict(const FVec& feat, unsigned root_id = 0) const;
   /*!
    * \brief get next position of the tree given current pid
    * \param pid Current node id.
    * \param fvalue feature value if not missing.
    * \param is_unknown Whether current required feature is missing.
    */
-  inline int GetNext(int pid, float fvalue, bool is_unknown) const;
+  inline int GetNext(int pid, bst_float fvalue, bool is_unknown) const;
   /*!
    * \brief dump the model in the requested format as a text string
    * \param fmap feature map that may help give interpretations of feature
@@ -513,7 +513,7 @@ inline void RegTree::FVec::Drop(const RowBatch::Inst& inst) {
   }
 }
 
-inline float RegTree::FVec::fvalue(size_t i) const {
+inline bst_float RegTree::FVec::fvalue(size_t i) const {
   return data[i].fvalue;
 }
 
@@ -530,14 +530,14 @@ inline int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) co
   return pid;
 }
 
-inline float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) const {
+inline bst_float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) const {
   int pid = this->GetLeafIndex(feat, root_id);
   return (*this)[pid].leaf_value();
 }
 
 /*! \brief get next position of the tree given current pid */
-inline int RegTree::GetNext(int pid, float fvalue, bool is_unknown) const {
-  float split_value = (*this)[pid].split_cond();
+inline int RegTree::GetNext(int pid, bst_float fvalue, bool is_unknown) const {
+  bst_float split_value = (*this)[pid].split_cond();
   if (is_unknown) {
     return (*this)[pid].cdefault();
   } else {

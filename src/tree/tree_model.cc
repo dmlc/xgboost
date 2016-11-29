@@ -68,13 +68,13 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
             fo << "{ \"nodeid\": " << nid
                << ", \"depth\": " << depth
                << ", \"split\": \"" << fmap.name(split_index) << "\""
-               << ", \"split_condition\": " << int(float(cond) + 1.0f)
+               << ", \"split_condition\": " << int(cond + 1.0)
                << ", \"yes\": " << tree[nid].cleft()
                << ", \"no\": " << tree[nid].cright()
                << ", \"missing\": " << tree[nid].cdefault();
           } else {
             fo << nid << ":[" << fmap.name(split_index) << "<"
-               << int(float(cond)+1.0f)
+               << int(cond + 1.0)
                << "] yes=" << tree[nid].cleft()
                << ",no=" << tree[nid].cright()
                << ",missing=" << tree[nid].cdefault();
@@ -87,12 +87,12 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
             fo << "{ \"nodeid\": " << nid
                << ", \"depth\": " << depth
                << ", \"split\": \"" << fmap.name(split_index) << "\""
-               << ", \"split_condition\": " << float(cond)
+               << ", \"split_condition\": " << cond
                << ", \"yes\": " << tree[nid].cleft()
                << ", \"no\": " << tree[nid].cright()
                << ", \"missing\": " << tree[nid].cdefault();
           } else {
-            fo << nid << ":[" << fmap.name(split_index) << "<" << float(cond)
+            fo << nid << ":[" << fmap.name(split_index) << "<" << cond
                << "] yes=" << tree[nid].cleft()
                << ",no=" << tree[nid].cright()
                << ",missing=" << tree[nid].cdefault();
@@ -106,12 +106,12 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
         fo << "{ \"nodeid\": " << nid
            << ", \"depth\": " << depth
            << ", \"split\": " << split_index
-           << ", \"split_condition\": " << float(cond)
+           << ", \"split_condition\": " << cond
            << ", \"yes\": " << tree[nid].cleft()
            << ", \"no\": " << tree[nid].cright()
            << ", \"missing\": " << tree[nid].cdefault();
       } else {
-        fo << nid << ":[f" << split_index << "<"<< float(cond)
+        fo << nid << ":[f" << split_index << "<"<< cond
            << "] yes=" << tree[nid].cleft()
            << ",no=" << tree[nid].cright()
            << ",missing=" << tree[nid].cdefault();

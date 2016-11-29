@@ -36,7 +36,7 @@ Learner::DumpModel(const FeatureMap& fmap,
 struct LearnerModelParam
     : public dmlc::Parameter<LearnerModelParam> {
   /* \brief global bias */
-  float base_score;
+  bst_float base_score;
   /* \brief number of features  */
   unsigned num_feature;
   /* \brief number of classes, if it is multi-class classification  */
@@ -353,7 +353,7 @@ class LearnerImpl : public Learner {
     return out;
   }
 
-  std::pair<std::string, float> Evaluate(DMatrix* data, std::string metric) {
+  std::pair<std::string, bst_float> Evaluate(DMatrix* data, std::string metric) {
     if (metric == "auto") metric = obj_->DefaultEvalMetric();
     std::unique_ptr<Metric> ev(Metric::Create(metric.c_str()));
     this->PredictRaw(data, &preds_);
@@ -363,7 +363,7 @@ class LearnerImpl : public Learner {
 
   void Predict(DMatrix* data,
                bool output_margin,
-               std::vector<float> *out_preds,
+               std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
                bool pred_leaf) const override {
     if (pred_leaf) {
@@ -460,7 +460,7 @@ class LearnerImpl : public Learner {
    *   predictor, when it equals 0, this means we are using all the trees
    */
   inline void PredictRaw(DMatrix* data,
-                         std::vector<float>* out_preds,
+                         std::vector<bst_float>* out_preds,
                          unsigned ntree_limit = 0) const {
     CHECK(gbm_.get() != nullptr)
         << "Predict must happen after Load or InitModel";
@@ -481,7 +481,7 @@ class LearnerImpl : public Learner {
   // name of objective function
   std::string name_obj_;
   // temporal storages for prediction
-  std::vector<float> preds_;
+  std::vector<bst_float> preds_;
   // gradient pairs
   std::vector<bst_gpair> gpair_;
 

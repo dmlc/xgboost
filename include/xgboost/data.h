@@ -65,7 +65,7 @@ struct MetaInfo {
    * \param i Instance index.
    * \return The weight.
    */
-  inline float GetWeight(size_t i) const {
+  inline bst_float GetWeight(size_t i) const {
     return weights.size() != 0 ?  weights[i] : 1.0f;
   }
   /*!

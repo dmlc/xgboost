@@ -35,7 +35,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
   }
-  void GetGradient(const std::vector<float>& preds,
+  void GetGradient(const std::vector<bst_float>& preds,
                    const MetaInfo& info,
                    int iter,
                    std::vector<bst_gpair>* out_gpair) override {
@@ -49,7 +49,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     int label_error = 0;
     #pragma omp parallel
     {
-      std::vector<float> rec(nclass);
+      std::vector<bst_float> rec(nclass);
       #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < ndata; ++i) {
         for (int k = 0; k < nclass; ++k) {
@@ -60,10 +60,10 @@ class SoftmaxMultiClassObj : public ObjFunction {
         if (label < 0 || label >= nclass)  {
           label_error = label; label = 0;
         }
-        const float wt = info.GetWeight(i);
+        const bst_float wt = info.GetWeight(i);
         for (int k = 0; k < nclass; ++k) {
-          float p = rec[k];
-          const float h = 2.0f * p * (1.0f - p) * wt;
+          bst_float p = rec[k];
+          const bst_float h = 2.0f * p * (1.0f - p) * wt;
           if (label == k) {
             out_gpair->at(i * nclass + k) = bst_gpair((p - 1.0f) * wt, h);
           } else {
@@ -77,10 +77,10 @@ class SoftmaxMultiClassObj : public ObjFunction {
         << " num_class=" << nclass
         << " but found " << label_error << " in label.";
   }
-  void PredTransform(std::vector<float>* io_preds) override {
+  void PredTransform(std::vector<bst_float>* io_preds) override {
     this->Transform(io_preds, output_prob_);
   }
-  void EvalTransform(std::vector<float>* io_preds) override {
+  void EvalTransform(std::vector<bst_float>* io_preds) override {
     this->Transform(io_preds, true);
   }
   const char* DefaultEvalMetric() const override {
@@ -88,23 +88,23 @@ class SoftmaxMultiClassObj : public ObjFunction {
   }
 
  private:
-  inline void Transform(std::vector<float> *io_preds, bool prob) {
-    std::vector<float> &preds = *io_preds;
-    std::vector<float> tmp;
+  inline void Transform(std::vector<bst_float> *io_preds, bool prob) {
+    std::vector<bst_float> &preds = *io_preds;
+    std::vector<bst_float> tmp;
     const int nclass = param_.num_class;
     const omp_ulong ndata = static_cast<omp_ulong>(preds.size() / nclass);
     if (!prob) tmp.resize(ndata);
 
     #pragma omp parallel
     {
-      std::vector<float> rec(nclass);
+      std::vector<bst_float> rec(nclass);
       #pragma omp for schedule(static)
       for (omp_ulong j = 0; j < ndata; ++j) {
         for (int k = 0; k < nclass; ++k) {
           rec[k] = preds[j * nclass + k];
         }
         if (!prob) {
-          tmp[j] = static_cast<float>(
+          tmp[j] = static_cast<bst_float>(
               common::FindMaxIndex(rec.begin(), rec.end()) - rec.begin());
         } else {
           common::Softmax(&rec);
