@@ -166,6 +166,7 @@ class ColMaker: public TreeUpdater {
         feat_index.resize(n);
       }
       {
+        this->nthread = omp_get_max_threads();
         // reserve a small space
         stemp.clear();
         stemp.resize(this->nthread, std::vector<ThreadEntry>());
@@ -750,7 +751,7 @@ class ColMaker: public TreeUpdater {
     //  --data fields--
     const TrainParam& param;
     // number of omp threads used during training
-    const int nthread = omp_get_max_threads();
+    int nthread;
     // Per feature: shuffle index of each feature index
     std::vector<bst_uint> feat_index;
     // Instance Data: current node position in the tree of each instance
