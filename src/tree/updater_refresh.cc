@@ -27,7 +27,7 @@ class TreeRefresher: public TreeUpdater {
   // update the tree, do pruning
   void Update(const std::vector<bst_gpair> &gpair,
               DMatrix *p_fmat,
-              const std::vector<RegTree*> &trees) {
+              const std::vector<RegTree*> &trees) override {
     if (trees.size() == 0) return;
     // number of threads
     // thread temporal space

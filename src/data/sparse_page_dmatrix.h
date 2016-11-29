@@ -48,7 +48,7 @@ class SparsePageDMatrix : public DMatrix {
     return buffered_rowset_;
   }
 
-  size_t GetColSize(size_t cidx) const {
+  size_t GetColSize(size_t cidx) const override {
     return col_size_[cidx];
   }
 

@@ -898,7 +898,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
       }
     }
     // synchronize the best solution of each node
-    virtual void SyncBestSolution(const std::vector<int> &qexpand) {
+    void SyncBestSolution(const std::vector<int> &qexpand) override {
       std::vector<SplitEntry> vec;
       for (size_t i = 0; i < qexpand.size(); ++i) {
         const int nid = qexpand[i];
