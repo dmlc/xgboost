@@ -317,7 +317,7 @@ class GBLinear : public GradientBooster {
   std::vector<bst_uint> feat_index;
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(GBLinearModelParam);
 DMLC_REGISTER_PARAMETER(GBLinearTrainParam);
 

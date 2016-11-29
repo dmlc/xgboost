@@ -122,7 +122,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
   SoftmaxMultiClassParam param_;
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(SoftmaxMultiClassParam);
 
 XGBOOST_REGISTER_OBJECTIVE(SoftmaxMultiClass, "multi:softmax")

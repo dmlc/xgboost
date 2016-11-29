@@ -20,7 +20,7 @@ stable version, please install using pip:
 -  Note for windows users: this pip installation may not work on some
    windows environment, and it may cause unexpected errors. pip
    installation on windows is currently disabled for further
-   invesigation, please install from github.
+   investigation, please install from github.
 
 For up-to-date version, please install from github.
 

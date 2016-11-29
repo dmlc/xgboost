@@ -338,7 +338,7 @@ class TreeModel {
   }
   /*!
    * \brief add child nodes to node
-   * \param nid node id to add childs
+   * \param nid node id to add children to
    */
   inline void AddChilds(int nid) {
     int pleft  = this->AllocNode();
@@ -426,12 +426,12 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
     inline void Init(size_t size);
     /*!
      * \brief fill the vector with sparse vector
-     * \param inst The sparse instance to fil.
+     * \param inst The sparse instance to fill.
      */
     inline void Fill(const RowBatch::Inst& inst);
     /*!
      * \brief drop the trace after fill, must be called after fill.
-     * \param inst The sparse instanc to drop.
+     * \param inst The sparse instance to drop.
      */
     inline void Drop(const RowBatch::Inst& inst);
     /*!

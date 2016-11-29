@@ -91,7 +91,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
   int num_roots;
   /*! \brief number of features to be used by trees */
   int num_feature;
-  /*! \brief pad this space, for backward compatiblity reason.*/
+  /*! \brief pad this space, for backward compatibility reason.*/
   int pad_32bit;
   /*! \brief deprecated padding space. */
   int64_t num_pbuffer_deprecated;
@@ -672,7 +672,7 @@ class Dart : public GBTree {
   std::vector<size_t> idx_drop;
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(GBTreeModelParam);
 DMLC_REGISTER_PARAMETER(GBTreeTrainParam);
 DMLC_REGISTER_PARAMETER(DartTrainParam);

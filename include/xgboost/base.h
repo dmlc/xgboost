@@ -42,7 +42,7 @@
 /*! \brief namespace of xgboo st*/
 namespace xgboost {
 /*!
- * \brief unsigned interger type used in boost,
+ * \brief unsigned integer type used in boost,
  *  used for feature index and row index.
  */
 typedef uint32_t bst_uint;

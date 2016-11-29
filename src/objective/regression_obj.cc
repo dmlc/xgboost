@@ -75,7 +75,7 @@ struct RegLossParam : public dmlc::Parameter<RegLossParam> {
   }
 };
 
-// regression los function
+// regression loss function
 template<typename Loss>
 class RegLossObj : public ObjFunction {
  public:
@@ -127,7 +127,7 @@ class RegLossObj : public ObjFunction {
   RegLossParam param_;
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(RegLossParam);
 
 XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
@@ -211,7 +211,7 @@ class PoissonRegression : public ObjFunction {
   PoissonRegressionParam param_;
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(PoissonRegressionParam);
 
 XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
@@ -268,7 +268,7 @@ class GammaRegression : public ObjFunction {
   }
 };
 
-// register the ojective functions
+// register the objective functions
 XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
 .describe("Gamma regression for severity data.")
 .set_body([]() { return new GammaRegression(); });
@@ -336,7 +336,7 @@ class TweedieRegression : public ObjFunction {
   TweedieRegressionParam param_;
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(TweedieRegressionParam);
 
 XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")

@@ -42,7 +42,7 @@ class MyLogistic : public ObjFunction {
       float w = info.GetWeight(i);
       // scale the negative examples!
       if (info.labels[i] == 0.0f) w *= param_.scale_neg_weight;
-      // logistic transoformation
+      // logistic transformation
       float p = 1.0f / (1.0f + expf(-preds[i]));
       // this is the gradient
       float grad = (p - info.labels[i]) * w;

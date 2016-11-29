@@ -111,7 +111,7 @@ class SparsePageDMatrix : public DMatrix {
     std::vector<SparseBatch::Inst> col_data_;
   };
   /*!
-   * \brief Try to intitialize column data.
+   * \brief Try to initialize column data.
    * \return true if data already exists, false if they do not.
    */
   bool TryInitColData();

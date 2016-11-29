@@ -12,7 +12,7 @@ from .compat import pickle
 
 
 def _init_rabit():
-    """internal libary initializer."""
+    """internal library initializer."""
     if _LIB is not None:
         _LIB.RabitGetRank.restype = ctypes.c_int
         _LIB.RabitGetWorldSize.restype = ctypes.c_int
@@ -21,7 +21,7 @@ def _init_rabit():
 
 
 def init(args=None):
-    """Initialize the rabit libary with arguments"""
+    """Initialize the rabit library with arguments"""
     if args is None:
         args = []
     arr = (ctypes.c_char_p * len(args))()
@@ -156,7 +156,7 @@ def allreduce(data, op, prepare_fun=None):
         Reduction operators, can be MIN, MAX, SUM, BITOR
     prepare_fun: function
         Lazy preprocessing function, if it is not None, prepare_fun(data)
-        will be called by the function before performing allreduce, to intialize the data
+        will be called by the function before performing allreduce, to initialize the data
         If the result of Allreduce can be recovered directly,
         then prepare_fun will NOT be called
 

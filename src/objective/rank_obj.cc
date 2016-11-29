@@ -309,7 +309,7 @@ class LambdaRankObjMAP : public LambdaRankObj {
   }
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(LambdaRankParam);
 
 XGBOOST_REGISTER_OBJECTIVE(PairwieRankObj, "rank:pairwise")

@@ -478,7 +478,7 @@ class LearnerImpl : public Learner {
   std::map<std::string, std::string> attributes_;
   // name of gbm
   std::string name_gbm_;
-  // name of objective functon
+  // name of objective function
   std::string name_obj_;
   // temporal storages for prediction
   std::vector<float> preds_;
