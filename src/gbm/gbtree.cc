@@ -26,6 +26,12 @@ namespace gbm {
 
 DMLC_REGISTRY_FILE_TAG(gbtree);
 
+// boosting process types
+enum TreeProcessType {
+   kDefault,
+   kUpdate
+};
+
 /*! \brief training parameters */
 struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   /*!
@@ -48,9 +54,9 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
         .set_default("grow_colmaker,prune")
         .describe("Tree updater sequence.");
     DMLC_DECLARE_FIELD(process_type)
-        .set_default(0)
-        .add_enum("default", 0)
-        .add_enum("update", 1)
+        .set_default(kDefault)
+        .add_enum("default", kDefault)
+        .add_enum("update", kUpdate)
         .describe("Whether to run the normal boosting process that creates new trees,"\
                   " or to update the trees in an existing model.");
     // add alias
@@ -178,7 +184,7 @@ class GBTree : public GradientBooster {
       up->Init(cfg);
     }
     // for the 'update' process_type, move trees into trees_to_update
-    if (tparam.process_type == 1 && trees_to_update.size() == 0u) {
+    if (tparam.process_type == kUpdate && trees_to_update.size() == 0u) {
       for (size_t i = 0; i < trees.size(); ++i) {
         trees_to_update.push_back(std::move(trees[i]));
       }
@@ -415,14 +421,14 @@ class GBTree : public GradientBooster {
     ret->clear();
     // create the trees
     for (int i = 0; i < tparam.num_parallel_tree; ++i) {
-      if (tparam.process_type == 0) {
+      if (tparam.process_type == kDefault) {
         // create new tree
         std::unique_ptr<RegTree> ptr(new RegTree());
         ptr->param.InitAllowUnknown(this->cfg);
         ptr->InitModel();
         new_trees.push_back(ptr.get());
         ret->push_back(std::move(ptr));
-      } else if (tparam.process_type == 1) {
+      } else if (tparam.process_type == kUpdate) {
         CHECK_LT(trees.size(), trees_to_update.size());
         // move an existing tree from trees_to_update
         auto t = std::move(trees_to_update[trees.size()]);
