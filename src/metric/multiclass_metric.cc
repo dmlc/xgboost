@@ -20,9 +20,9 @@ DMLC_REGISTRY_FILE_TAG(multiclass_metric);
  */
 template<typename Derived>
 struct EvalMClassBase : public Metric {
-  float Eval(const std::vector<float> &preds,
-             const MetaInfo &info,
-             bool distributed) const override {
+  bst_float Eval(const std::vector<bst_float> &preds,
+                 const MetaInfo &info,
+                 bool distributed) const override {
     CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
     CHECK(preds.size() % info.labels.size() == 0)
         << "label and prediction size not match";
@@ -35,7 +35,7 @@ struct EvalMClassBase : public Metric {
     int label_error = 0;
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
-      const float wt = info.GetWeight(i);
+      const bst_float wt = info.GetWeight(i);
       int label =  static_cast<int>(info.labels[i]);
       if (label >= 0 && label < static_cast<int>(nclass)) {
         sum += Derived::EvalRow(label,
@@ -63,15 +63,15 @@ struct EvalMClassBase : public Metric {
    * \param pred prediction value of current instance
    * \param nclass number of class in the prediction
    */
-  inline static float EvalRow(int label,
-                              const float *pred,
-                              size_t nclass);
+  inline static bst_float EvalRow(int label,
+                                  const bst_float *pred,
+                                  size_t nclass);
   /*!
    * \brief to be overridden by subclass, final transformation
    * \param esum the sum statistics returned by EvalRow
    * \param wsum sum of weight
    */
-  inline static float GetFinal(float esum, float wsum) {
+  inline static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return esum / wsum;
   }
   // used to store error message
@@ -83,9 +83,9 @@ struct EvalMatchError : public EvalMClassBase<EvalMatchError> {
   const char* Name() const override {
     return "merror";
   }
-  inline static float EvalRow(int label,
-                              const float *pred,
-                              size_t nclass) {
+  inline static bst_float EvalRow(int label,
+                                  const bst_float *pred,
+                                  size_t nclass) {
     return common::FindMaxIndex(pred, pred + nclass) != pred + static_cast<int>(label);
   }
 };
@@ -95,10 +95,10 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
   const char* Name() const override {
     return "mlogloss";
   }
-  inline static float EvalRow(int label,
-                              const float *pred,
-                              size_t nclass) {
-    const float eps = 1e-16f;
+  inline static bst_float EvalRow(int label,
+                                  const bst_float *pred,
+                                  size_t nclass) {
+    const bst_float eps = 1e-16f;
     size_t k = static_cast<size_t>(label);
     if (pred[k] > eps) {
       return -std::log(pred[k]);
