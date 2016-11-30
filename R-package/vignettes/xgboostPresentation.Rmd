@@ -57,7 +57,7 @@ drat:::addRepo("dmlc")
 install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
 ```
 
-> *Windows* user will need to install [Rtools](http://cran.r-project.org/bin/windows/Rtools/) first.
+> *Windows* user will need to install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) first.
 
 ### CRAN version
 
@@ -68,7 +68,7 @@ The version 0.4-2 is on CRAN, and you can install it by:
 install.packages("xgboost")
 ```
 
-Formerly available versions can be obtained from the CRAN [archive](http://cran.r-project.org/src/contrib/Archive/xgboost)
+Formerly available versions can be obtained from the CRAN [archive](https://cran.r-project.org/src/contrib/Archive/xgboost)
 
 ## Learning
 
@@ -294,7 +294,7 @@ bst <- xgb.train(data=dtrain, max_depth=2, eta=1, nthread = 2, nrounds=2, watchl
 
 Both training and test error related metrics are very similar, and in some way, it makes sense: what we have learned from the training dataset matches the observations from the test dataset.
 
-If with your own dataset you have not such results, you should think about how you divided your dataset in training and test. May be there is something to fix. Again, `caret` package may [help](http://topepo.github.io/caret/splitting.html).
+If with your own dataset you have not such results, you should think about how you divided your dataset in training and test. May be there is something to fix. Again, `caret` package may [help](http://topepo.github.io/caret/data-splitting.html).
 
 For a better understanding of the learning progression, you may want to have some specific metric or even use multiple evaluation metrics.
 
