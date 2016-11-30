@@ -20,7 +20,7 @@ import scala.collection.mutable
 
 import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
 
-class ExternalMemory {
+object ExternalMemory {
   def main(args: Array[String]): Unit = {
     // this is the only difference, add a # followed by a cache prefix name
     // several cache file with the prefix will be generated

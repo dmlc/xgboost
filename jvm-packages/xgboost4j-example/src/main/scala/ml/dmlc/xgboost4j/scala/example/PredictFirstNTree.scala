@@ -20,7 +20,7 @@ import scala.collection.mutable
 import ml.dmlc.xgboost4j.scala.example.util.CustomEval
 import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
 
-class PredictFirstNTree {
+object PredictFirstNTree {
 
   def main(args: Array[String]): Unit = {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")

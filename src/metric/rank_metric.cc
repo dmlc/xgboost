@@ -216,6 +216,7 @@ struct EvalRankList : public Metric {
         minus_ = true;
       }
     } else {
+      name_ = name;
       topn_ = std::numeric_limits<unsigned>::max();
     }
   }
@@ -256,7 +257,7 @@ struct EvalNDCG : public EvalRankList{
     for (size_t i = 0; i < rec.size() && i < this->topn_; ++i) {
       const unsigned rel = rec[i].second;
       if (rel != 0) {
-        sumdcg += ((1 << rel) - 1) / std::log(i + 2.0);
+        sumdcg += ((1 << rel) - 1) / std::log2(i + 2.0);
       }
     }
     return static_cast<float>(sumdcg);

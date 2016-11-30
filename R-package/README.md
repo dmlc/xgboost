@@ -21,9 +21,7 @@ install.packages('xgboost')
 
 You can also install from our weekly updated drat repo:
 ```r
-install.packages("drat", repos="https://cran.rstudio.com")
-drat:::addRepo("dmlc")
-install.packages("xgboost", repos="http://dmlc.ml/drat/", type="source")
+install.packages("xgboost", repos=c("http://dmlc.ml/drat/", getOption("repos")), type="source")
 ```
 
 ***Important*** Due to the usage of submodule, `install_github` is no longer support to install the

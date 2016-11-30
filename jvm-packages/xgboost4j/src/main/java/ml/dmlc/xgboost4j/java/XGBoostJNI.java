@@ -30,11 +30,11 @@ class XGBoostJNI {
   final static native int XGDMatrixCreateFromDataIter(java.util.Iterator<DataBatch> iter,
                                                              String cache_info, long[] out);
 
-  public final static native int XGDMatrixCreateFromCSR(long[] indptr, int[] indices, float[] data,
-                                                        long[] out);
+  public final static native int XGDMatrixCreateFromCSREx(long[] indptr, int[] indices, float[] data,
+                                                        int shapeParam, long[] out);
 
-  public final static native int XGDMatrixCreateFromCSC(long[] colptr, int[] indices, float[] data,
-                                                        long[] out);
+  public final static native int XGDMatrixCreateFromCSCEx(long[] colptr, int[] indices, float[] data,
+                                                          int shapeParam, long[] out);
 
   public final static native int XGDMatrixCreateFromMat(float[] data, int nrow, int ncol,
                                                         float missing, long[] out);

@@ -28,6 +28,7 @@ even better to send pull request if you can fix the problem.
   - [Building on Ubuntu/Debian](#building-on-ubuntu-debian)
   - [Building on OSX](#building-on-osx)
   - [Building on Windows](#building-on-windows)
+  - [Windows Binaries](#windows-binaries)
   - [Customized Building](#customized-building)
 - [Python Package Installation](#python-package-installation)
 - [R Package Installation](#r-package-installation)
@@ -80,14 +81,14 @@ git clone --recursive https://github.com/dmlc/xgboost
 and build using the following commands
 
 ```bash
-cd ..; cp make/config.mk ./config.mk; make -j4
+cd xgboost; cp make/config.mk ./config.mk; make -j4
 ```
 
 NOTE:
 If you use OSX El Capitan, brew installs gcc the latest version gcc-6. So you may need to modify Makefile#L46 and change gcc-5 to gcc-6. After that change gcc-5/g++-5 to gcc-6/g++-6 in make/config.mk then build using the following commands
 
 ```bash
-cd ..; cp make/config.mk ./config.mk; make -j4
+cd xgboost; cp make/config.mk ./config.mk; make -j4
 ```
 
 ### Building on Windows
@@ -129,6 +130,9 @@ cmake .. -G"Visual Studio 12 2013 Win64"
 This specifies an out of source build using the MSVC 12 64 bit generator. Open the .sln file in the build directory and build with Visual Studio. To use the Python module you can copy libxgboost.dll into python-package\xgboost.
 
 Other versions of Visual Studio may work but are untested.
+
+### Windows Binaries
+Unofficial windows binaries and instructions on how to use them are hosted on [Guido Tapia's blog](http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/)
 
 ### Customized Building
 

@@ -61,3 +61,4 @@ List of Contributors
 * [Damien Carol](https://github.com/damiencarol)
 * [Alex Bain](https://github.com/convexquad)
 * [Baltazar Bieniek](https://github.com/bbieniek)
+* [Adam Pocock](https://github.com/Craigacp)

@@ -24,7 +24,7 @@ XGB_EXTERN_C {
 #endif
 
 // manually define unsign long
-typedef unsigned long bst_ulong;  // NOLINT(*)
+typedef uint64_t bst_ulong;  // NOLINT(*)
 
 /*! \brief handle to DMatrix */
 typedef void *DMatrixHandle;
@@ -40,7 +40,13 @@ typedef struct {
   /*! \brief number of rows in the minibatch */
   size_t size;
   /*! \brief row pointer to the rows in the data */
-  long* offset;  // NOLINT(*)
+#ifdef __APPLE__
+  /* Necessary as Java on MacOS defines jlong as long int
+   * and gcc defines int64_t as long long int. */
+  long* offset; // NOLINT(*)
+#else
+  int64_t* offset;  // NOLINT(*)
+#endif
   /*! \brief labels of each instance */
   float* label;
   /*! \brief weight of each instance, can be NULL */
@@ -114,7 +120,26 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
     DMatrixHandle *out);
 
 /*!
- * \brief create a matrix content from csr format
+ * \brief create a matrix content from CSR format
+ * \param indptr pointer to row headers
+ * \param indices findex
+ * \param data fvalue
+ * \param nindptr number of rows in the matix + 1
+ * \param nelem number of nonzero elements in the matrix
+ * \param num_col number of columns; when it's set to 0, then guess from data
+ * \param out created dmatrix
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
+                                     const unsigned* indices,
+                                     const float* data,
+                                     size_t nindptr,
+                                     size_t nelem,
+                                     size_t num_col,
+                                     DMatrixHandle* out);
+/*!
+ * \deprecated
+ * \brief create a matrix content from CSR format
  * \param indptr pointer to row headers
  * \param indices findex
  * \param data fvalue
@@ -130,6 +155,25 @@ XGB_DLL int XGDMatrixCreateFromCSR(const bst_ulong *indptr,
                                    bst_ulong nelem,
                                    DMatrixHandle *out);
 /*!
+ * \brief create a matrix content from CSC format
+ * \param col_ptr pointer to col headers
+ * \param indices findex
+ * \param data fvalue
+ * \param nindptr number of rows in the matix + 1
+ * \param nelem number of nonzero elements in the matrix
+ * \param num_row number of rows; when it's set to 0, then guess from data
+ * \param out created dmatrix
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
+                                     const unsigned* indices,
+                                     const float* data,
+                                     size_t nindptr,
+                                     size_t nelem,
+                                     size_t num_row,
+                                     DMatrixHandle* out);
+/*!
+ * \deprecated
  * \brief create a matrix content from CSC format
  * \param col_ptr pointer to col headers
  * \param indices findex
@@ -405,6 +449,23 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
 /*!
  * \brief dump model, return array of strings representing model dump
  * \param handle handle
+ * \param fmap  name to fmap can be empty string
+ * \param with_stats whether to dump with statistics
+ * \param format the format to dump the model in
+ * \param out_len length of output array
+ * \param out_dump_array pointer to hold representing dump of each model
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
+                                 const char *fmap,
+                                 int with_stats,
+                                 const char *format,
+                                 bst_ulong *out_len,
+                                 const char ***out_dump_array);
+
+/*!
+ * \brief dump model, return array of strings representing model dump
+ * \param handle handle
  * \param fnum number of features
  * \param fname names of features
  * \param ftype types of features
@@ -420,6 +481,27 @@ XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
                                            int with_stats,
                                            bst_ulong *out_len,
                                            const char ***out_models);
+
+/*!
+ * \brief dump model, return array of strings representing model dump
+ * \param handle handle
+ * \param fnum number of features
+ * \param fname names of features
+ * \param ftype types of features
+ * \param with_stats whether to dump with statistics
+ * \param format the format to dump the model in
+ * \param out_len length of output array
+ * \param out_models pointer to hold representing dump of each model
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
+                                             int fnum,
+                                             const char **fname,
+                                             const char **ftype,
+                                             int with_stats,
+                                             const char *format,
+                                             bst_ulong *out_len,
+                                             const char ***out_models);
 
 /*!
  * \brief Get string attribute from Booster.

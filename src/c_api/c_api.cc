@@ -207,7 +207,7 @@ int XGDMatrixCreateFromFile(const char *fname,
     LOG(CONSOLE) << "XGBoost distributed mode detected, "
                  << "will split data among workers";
   }
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, false, true));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, silent != 0, true));
   API_END();
 }
 
@@ -227,38 +227,58 @@ int XGDMatrixCreateFromDataIter(
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromCSR(const xgboost::bst_ulong* indptr,
-                           const unsigned *indices,
-                           const float* data,
-                           xgboost::bst_ulong nindptr,
-                           xgboost::bst_ulong nelem,
-                           DMatrixHandle* out) {
+XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
+                                     const unsigned* indices,
+                                     const float* data,
+                                     size_t nindptr,
+                                     size_t nelem,
+                                     size_t num_col,
+                                     DMatrixHandle* out) {
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
   API_BEGIN();
   data::SimpleCSRSource& mat = *source;
   mat.row_ptr_.resize(nindptr);
-  for (xgboost::bst_ulong i = 0; i < nindptr; ++i) {
-    mat.row_ptr_[i] = static_cast<size_t>(indptr[i]);
+  for (size_t i = 0; i < nindptr; ++i) {
+    mat.row_ptr_[i] = indptr[i];
   }
   mat.row_data_.resize(nelem);
-  for (xgboost::bst_ulong i = 0; i < nelem; ++i) {
+  for (size_t i = 0; i < nelem; ++i) {
     mat.row_data_[i] = RowBatch::Entry(indices[i], data[i]);
     mat.info.num_col = std::max(mat.info.num_col,
                                 static_cast<uint64_t>(indices[i] + 1));
   }
+  if (num_col > 0) {
+    CHECK_LE(mat.info.num_col, num_col);
+    mat.info.num_col = num_col;
+  }
   mat.info.num_row = nindptr - 1;
-  mat.info.num_nonzero = static_cast<uint64_t>(nelem);
+  mat.info.num_nonzero = nelem;
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromCSC(const xgboost::bst_ulong* col_ptr,
-                                   const unsigned* indices,
+XGB_DLL int XGDMatrixCreateFromCSR(const xgboost::bst_ulong* indptr,
+                                   const unsigned *indices,
                                    const float* data,
                                    xgboost::bst_ulong nindptr,
                                    xgboost::bst_ulong nelem,
                                    DMatrixHandle* out) {
+  std::vector<size_t> indptr_(nindptr);
+  for (xgboost::bst_ulong i = 0; i < nindptr; ++i) {
+    indptr_[i] = static_cast<size_t>(indptr[i]);
+  }
+  return XGDMatrixCreateFromCSREx(&indptr_[0], indices, data,
+    static_cast<size_t>(nindptr), static_cast<size_t>(nelem), 0, out);
+}
+
+XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
+                                     const unsigned* indices,
+                                     const float* data,
+                                     size_t nindptr,
+                                     size_t nelem,
+                                     size_t num_row,
+                                     DMatrixHandle* out) {
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
   API_BEGIN();
@@ -270,29 +290,47 @@ XGB_DLL int XGDMatrixCreateFromCSC(const xgboost::bst_ulong* col_ptr,
   data::SimpleCSRSource& mat = *source;
   common::ParallelGroupBuilder<RowBatch::Entry> builder(&mat.row_ptr_, &mat.row_data_);
   builder.InitBudget(0, nthread);
-  long ncol = static_cast<long>(nindptr - 1);  // NOLINT(*)
+  size_t ncol = nindptr - 1;  // NOLINT(*)
   #pragma omp parallel for schedule(static)
-  for (long i = 0; i < ncol; ++i) {  // NOLINT(*)
+  for (omp_ulong i = 0; i < static_cast<omp_ulong>(ncol); ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
-    for (unsigned j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
+    for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
       builder.AddBudget(indices[j], tid);
     }
   }
   builder.InitStorage();
   #pragma omp parallel for schedule(static)
-  for (long i = 0; i < ncol; ++i) {  // NOLINT(*)
+  for (omp_ulong i = 0; i < static_cast<omp_ulong>(ncol); ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
-    for (unsigned j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
+    for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
       builder.Push(indices[j],
                    RowBatch::Entry(static_cast<bst_uint>(i), data[j]),
                    tid);
     }
   }
   mat.info.num_row = mat.row_ptr_.size() - 1;
-  mat.info.num_col = static_cast<uint64_t>(ncol);
+  if (num_row > 0) {
+    CHECK_LE(mat.info.num_row, num_row);
+    mat.info.num_row = num_row;
+  }
+  mat.info.num_col = ncol;
   mat.info.num_nonzero = nelem;
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
+}
+
+XGB_DLL int XGDMatrixCreateFromCSC(const xgboost::bst_ulong* col_ptr,
+                                   const unsigned* indices,
+                                   const float* data,
+                                   xgboost::bst_ulong nindptr,
+                                   xgboost::bst_ulong nelem,
+                                   DMatrixHandle* out) {
+  std::vector<size_t> col_ptr_(nindptr);
+  for (xgboost::bst_ulong i = 0; i < nindptr; ++i) {
+    col_ptr_[i] = static_cast<size_t>(col_ptr[i]);
+  }
+  return XGDMatrixCreateFromCSCEx(&col_ptr_[0], indices, data,
+    static_cast<size_t>(nindptr), static_cast<size_t>(nelem), 0, out);
 }
 
 XGB_DLL int XGDMatrixCreateFromMat(const float* data,
@@ -624,13 +662,14 @@ inline void XGBoostDumpModelImpl(
     BoosterHandle handle,
     const FeatureMap& fmap,
     int with_stats,
+    const char *format,
     xgboost::bst_ulong* len,
     const char*** out_models) {
   std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
   std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
   Booster *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
-  str_vecs = bst->learner()->Dump2Text(fmap, with_stats != 0);
+  str_vecs = bst->learner()->DumpModel(fmap, with_stats != 0, format);
   charp_vecs.resize(str_vecs.size());
   for (size_t i = 0; i < str_vecs.size(); ++i) {
     charp_vecs[i] = str_vecs[i].c_str();
@@ -643,6 +682,14 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
                        int with_stats,
                        xgboost::bst_ulong* len,
                        const char*** out_models) {
+  return XGBoosterDumpModelEx(handle, fmap, with_stats, "text", len, out_models);
+}
+XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
+                       const char* fmap,
+                       int with_stats,
+                       const char *format,
+                       xgboost::bst_ulong* len,
+                       const char*** out_models) {
   API_BEGIN();
   FeatureMap featmap;
   if (strlen(fmap) != 0) {
@@ -651,7 +698,7 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
     dmlc::istream is(fs.get());
     featmap.LoadText(is);
   }
-  XGBoostDumpModelImpl(handle, featmap, with_stats, len, out_models);
+  XGBoostDumpModelImpl(handle, featmap, with_stats, format, len, out_models);
   API_END();
 }
 
@@ -662,12 +709,23 @@ XGB_DLL int XGBoosterDumpModelWithFeatures(BoosterHandle handle,
                                    int with_stats,
                                    xgboost::bst_ulong* len,
                                    const char*** out_models) {
+  return XGBoosterDumpModelExWithFeatures(handle, fnum, fname, ftype, with_stats,
+                                   "text", len, out_models);
+}
+XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
+                                   int fnum,
+                                   const char** fname,
+                                   const char** ftype,
+                                   int with_stats,
+                                   const char *format,
+                                   xgboost::bst_ulong* len,
+                                   const char*** out_models) {
   API_BEGIN();
   FeatureMap featmap;
   for (int i = 0; i < fnum; ++i) {
     featmap.PushBack(i, fname[i], ftype[i]);
   }
-  XGBoostDumpModelImpl(handle, featmap, with_stats, len, out_models);
+  XGBoostDumpModelImpl(handle, featmap, with_stats, format, len, out_models);
   API_END();
 }
 

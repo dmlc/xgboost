@@ -20,6 +20,8 @@ import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 import ml.dmlc.xgboost4j.scala.spark.{DataUtils, XGBoost}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.util.MLUtils
+import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector}
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 
 object SparkWithRDD {
   def main(args: Array[String]): Unit = {
@@ -38,14 +40,16 @@ object SparkWithRDD {
     // number of iterations
     val numRound = args(0).toInt
     import DataUtils._
-    val trainRDD = MLUtils.loadLibSVMFile(sc, inputTrainPath)
-    val testSet = MLUtils.loadLibSVMFile(sc, inputTestPath).collect().iterator
+    val trainRDD = MLUtils.loadLibSVMFile(sc, inputTrainPath).map(lp =>
+      MLLabeledPoint(lp.label, new MLDenseVector(lp.features.toArray)))
+    val testSet = MLUtils.loadLibSVMFile(sc, inputTestPath).collect().map(
+      lp => new MLDenseVector(lp.features.toArray)).iterator
     // training parameters
     val paramMap = List(
       "eta" -> 0.1f,
       "max_depth" -> 2,
       "objective" -> "binary:logistic").toMap
-    val xgboostModel = XGBoost.trainWithRDD(trainRDD, paramMap, numRound, nWorkers = args(1).toInt,
+    val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound, nWorkers = args(1).toInt,
       useExternalMemory = true)
     xgboostModel.booster.predict(new DMatrix(testSet))
     // save model to HDFS path

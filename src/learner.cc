@@ -25,8 +25,10 @@ bool Learner::AllowLazyCheckPoint() const {
 }
 
 std::vector<std::string>
-Learner::Dump2Text(const FeatureMap& fmap, int option) const {
-  return gbm_->Dump2Text(fmap, option);
+Learner::DumpModel(const FeatureMap& fmap,
+                   bool with_stats,
+                   std::string format) const {
+  return gbm_->DumpModel(fmap, with_stats, format);
 }
 
 
@@ -92,7 +94,7 @@ struct LearnerTrainParam
         .add_enum("auto", 0)
         .add_enum("col", 1)
         .add_enum("row", 2)
-        .describe("Data split mode for distributed trainig. ");
+        .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(tree_method).set_default(0)
         .add_enum("auto", 0)
         .add_enum("approx", 1)
@@ -253,6 +255,11 @@ class LearnerImpl : public Learner {
       attributes_ = std::map<std::string, std::string>(
           attr.begin(), attr.end());
     }
+    if (name_obj_ == "count:poisson") {
+        std::string max_delta_step;
+        fi->Read(&max_delta_step);
+        cfg_["max_delta_step"] = max_delta_step;
+    }
     cfg_["num_class"] = common::ToString(mparam.num_class);
     cfg_["num_feature"] = common::ToString(mparam.num_feature);
     obj_->Configure(cfg_.begin(), cfg_.end());
@@ -268,6 +275,11 @@ class LearnerImpl : public Learner {
       std::vector<std::pair<std::string, std::string> > attr(
           attributes_.begin(), attributes_.end());
       fo->Write(attr);
+    }
+    if (name_obj_ == "count:poisson") {
+        std::map<std::string, std::string>::const_iterator it = cfg_.find("max_delta_step");
+        if (it != cfg_.end())
+            fo->Write(it->second);
     }
   }
 

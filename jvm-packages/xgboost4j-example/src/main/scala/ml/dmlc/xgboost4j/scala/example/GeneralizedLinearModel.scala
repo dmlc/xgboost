@@ -25,7 +25,7 @@ import ml.dmlc.xgboost4j.scala.example.util.CustomEval
  * this is an example of fit generalized linear model in xgboost
  * basically, we are using linear model, instead of tree for our boosters
  */
-class GeneralizedLinearModel {
+object GeneralizedLinearModel {
   def main(args: Array[String]): Unit = {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")

@@ -51,8 +51,25 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
    * @param st      sparse matrix type (CSR or CSC)
    */
   @throws(classOf[XGBoostError])
+  @deprecated
   def this(headers: Array[Long], indices: Array[Int], data: Array[Float], st: JDMatrix.SparseType) {
     this(new JDMatrix(headers, indices, data, st))
+  }
+
+  /**
+   * create DMatrix from sparse matrix
+   *
+   * @param headers index to headers (rowHeaders for CSR or colHeaders for CSC)
+   * @param indices Indices (colIndexs for CSR or rowIndexs for CSC)
+   * @param data    non zero values (sequence by row for CSR or by col for CSC)
+   * @param st      sparse matrix type (CSR or CSC)
+   * @param shapeParam when st is CSR, it specifies the column number, otherwise it is taken as
+   *                     row number
+   */
+  @throws(classOf[XGBoostError])
+  def this(headers: Array[Long], indices: Array[Int], data: Array[Float], st: JDMatrix.SparseType,
+           shapeParam: Int) {
+    this(new JDMatrix(headers, indices, data, st, shapeParam))
   }
 
   /**

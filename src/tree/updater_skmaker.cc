@@ -107,7 +107,7 @@ class SketchMaker: public BaseMaker {
     }
     /*! \brief calculate gain of the solution */
     inline double CalcGain(const TrainParam &param) const {
-      return param.CalcGain(pos_grad - neg_grad, sum_hess);
+      return xgboost::tree::CalcGain(param, pos_grad - neg_grad, sum_hess);
     }
     /*! \brief set current value to a - b */
     inline void SetSubstract(const SKStats &a, const SKStats &b) {
@@ -117,7 +117,7 @@ class SketchMaker: public BaseMaker {
     }
     // calculate leaf weight
     inline double CalcWeight(const TrainParam &param) const {
-      return param.CalcWeight(pos_grad - neg_grad, sum_hess);
+      return xgboost::tree::CalcWeight(param, pos_grad - neg_grad, sum_hess);
     }
     /*! \brief add statistics to the data */
     inline void Add(const SKStats &b) {
