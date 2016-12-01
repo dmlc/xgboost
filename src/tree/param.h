@@ -408,7 +408,7 @@ struct SplitEntry {
   /*! \brief split index */
   unsigned sindex;
   /*! \brief split value */
-  float split_value;
+  bst_float split_value;
   /*! \brief constructor */
   SplitEntry() : loss_chg(0.0f), sindex(0), split_value(0.0f) {}
   /*!
@@ -452,7 +452,7 @@ struct SplitEntry {
    * \return whether the proposed split is better and can replace current split
    */
   inline bool Update(bst_float new_loss_chg, unsigned split_index,
-                     float new_split_value, bool default_left) {
+                     bst_float new_split_value, bool default_left) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
       if (default_left)

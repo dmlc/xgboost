@@ -7,7 +7,7 @@ import sys
 
 
 class XGBoostLibraryNotFound(Exception):
-    """Error throwed by when xgboost is not found"""
+    """Error thrown by when xgboost is not found"""
     pass
 
 

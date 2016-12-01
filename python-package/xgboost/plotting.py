@@ -157,7 +157,7 @@ def to_graphviz(booster, num_trees=0, rankdir='UT',
                 yes_color='#0000FF', no_color='#FF0000', **kwargs):
 
     """Convert specified tree to graphviz instance. IPython can automatically plot the
-    returned graphiz instance. Otherwise, you shoud call .render() method
+    returned graphiz instance. Otherwise, you should call .render() method
     of the returned graphiz instance.
 
     Parameters
@@ -169,9 +169,9 @@ def to_graphviz(booster, num_trees=0, rankdir='UT',
     rankdir : str, default "UT"
         Passed to graphiz via graph_attr
     yes_color : str, default '#0000FF'
-        Edge color when meets the node condigion.
+        Edge color when meets the node condition.
     no_color : str, default '#FF0000'
-        Edge color when doesn't meet the node condigion.
+        Edge color when doesn't meet the node condition.
     kwargs :
         Other keywords passed to graphviz graph_attr
 
