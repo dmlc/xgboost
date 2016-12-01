@@ -11,6 +11,8 @@ UNITTEST_CFLAGS=$(CFLAGS)
 UNITTEST_LDFLAGS=$(LDFLAGS) -L$(GTEST_LIB) -lgtest
 UNITTEST_DEPS=lib/libxgboost.a $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
 
+COVER_OBJ=$(patsubst %.o, %.gcda, $(ALL_OBJ)) $(patsubst %.o, %.gcda, $(UNITTEST_OBJ))
+
 $(UTEST_OBJ_ROOT)/%.o: $(UTEST_ROOT)/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(UNITTEST_CFLAGS) -I$(GTEST_INC) -o $@ -c $<
