@@ -21,9 +21,9 @@ DMLC_REGISTRY_FILE_TAG(elementwise_metric);
  */
 template<typename Derived>
 struct EvalEWiseBase : public Metric {
-  float Eval(const std::vector<float>& preds,
-             const MetaInfo& info,
-             bool distributed) const override {
+  bst_float Eval(const std::vector<bst_float>& preds,
+                 const MetaInfo& info,
+                 bool distributed) const override {
     CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
     CHECK_EQ(preds.size(), info.labels.size())
         << "label and prediction size not match, "
@@ -32,7 +32,7 @@ struct EvalEWiseBase : public Metric {
     double sum = 0.0, wsum = 0.0;
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) {
-      const float wt = info.GetWeight(i);
+      const bst_float wt = info.GetWeight(i);
       sum += static_cast<const Derived*>(this)->EvalRow(info.labels[i], preds[i]) * wt;
       wsum += wt;
     }
@@ -48,13 +48,13 @@ struct EvalEWiseBase : public Metric {
    * \param label label of current instance
    * \param pred prediction value of current instance
    */
-  inline float EvalRow(float label, float pred) const;
+  inline bst_float EvalRow(bst_float label, bst_float pred) const;
   /*!
    * \brief to be overridden by subclass, final transformation
    * \param esum the sum statistics returned by EvalRow
    * \param wsum sum of weight
    */
-  inline static float GetFinal(float esum, float wsum) {
+  inline static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return esum / wsum;
   }
 };
@@ -63,11 +63,11 @@ struct EvalRMSE : public EvalEWiseBase<EvalRMSE> {
   const char *Name() const override {
     return "rmse";
   }
-  inline float EvalRow(float label, float pred) const {
-    float diff = label - pred;
+  inline bst_float EvalRow(bst_float label, bst_float pred) const {
+    bst_float diff = label - pred;
     return diff * diff;
   }
-  inline static float GetFinal(float esum, float wsum) {
+  inline static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return std::sqrt(esum / wsum);
   }
 };
@@ -76,7 +76,7 @@ struct EvalMAE : public EvalEWiseBase<EvalMAE> {
   const char *Name() const override {
     return "mae";
   }
-  inline float EvalRow(float label, float pred) const {
+  inline bst_float EvalRow(bst_float label, bst_float pred) const {
     return std::abs(label - pred);
   }
 };
@@ -85,9 +85,9 @@ struct EvalLogLoss : public EvalEWiseBase<EvalLogLoss> {
   const char *Name() const override {
     return "logloss";
   }
-  inline float EvalRow(float y, float py) const {
-    const float eps = 1e-16f;
-    const float pneg = 1.0f - py;
+  inline bst_float EvalRow(bst_float y, bst_float py) const {
+    const bst_float eps = 1e-16f;
+    const bst_float pneg = 1.0f - py;
     if (py < eps) {
       return -y * std::log(eps) - (1.0f - y)  * std::log(1.0f - eps);
     } else if (pneg < eps) {
@@ -115,12 +115,12 @@ struct EvalError : public EvalEWiseBase<EvalError> {
   const char *Name() const override {
     return name_.c_str();
   }
-  inline float EvalRow(float label, float pred) const {
+  inline bst_float EvalRow(bst_float label, bst_float pred) const {
     // assume label is in [0,1]
     return pred > threshold_ ? 1.0f - label : label;
   }
  protected:
-  float threshold_;
+  bst_float threshold_;
   std::string name_;
 };
 
@@ -128,8 +128,8 @@ struct EvalPoissionNegLogLik : public EvalEWiseBase<EvalPoissionNegLogLik> {
   const char *Name() const override {
     return "poisson-nloglik";
   }
-  inline float EvalRow(float y, float py) const {
-    const float eps = 1e-16f;
+  inline bst_float EvalRow(bst_float y, bst_float py) const {
+    const bst_float eps = 1e-16f;
     if (py < eps) py = eps;
     return common::LogGamma(y + 1.0f) + py - std::log(py) * y;
   }
@@ -139,12 +139,12 @@ struct EvalGammaDeviance : public EvalEWiseBase<EvalGammaDeviance> {
   const char *Name() const override {
     return "gamma-deviance";
   }
-  inline float EvalRow(float label, float pred) const {
-    float epsilon = 1.0e-9;
-    float tmp = label / (pred + epsilon);
+  inline bst_float EvalRow(bst_float label, bst_float pred) const {
+    bst_float epsilon = 1.0e-9;
+    bst_float tmp = label / (pred + epsilon);
     return tmp - std::log(tmp) - 1;
   }
-  inline static float GetFinal(float esum, float wsum) {
+  inline static bst_float GetFinal(bst_float esum, bst_float wsum) {
     return 2 * esum;
   }
 };
@@ -153,12 +153,12 @@ struct EvalGammaNLogLik: public EvalEWiseBase<EvalGammaNLogLik> {
   const char *Name() const override {
     return "gamma-nloglik";
   }
-  inline float EvalRow(float y, float py) const {
-    float psi = 1.0;
-    float theta = -1. / py;
-    float a = psi;
-    float b = -std::log(-theta);
-    float c = 1. / psi * std::log(y/psi) - std::log(y) - common::LogGamma(1. / psi);
+  inline bst_float EvalRow(bst_float y, bst_float py) const {
+    bst_float psi = 1.0;
+    bst_float theta = -1. / py;
+    bst_float a = psi;
+    bst_float b = -std::log(-theta);
+    bst_float c = 1. / psi * std::log(y/psi) - std::log(y) - common::LogGamma(1. / psi);
     return -((y * theta - b) / a + c);
   }
 };
@@ -177,14 +177,14 @@ struct EvalTweedieNLogLik: public EvalEWiseBase<EvalTweedieNLogLik> {
   const char *Name() const override {
     return name_.c_str();
   }
-  inline float EvalRow(float y, float p) const {
-    float a = y * std::exp((1 - rho_) * std::log(p)) / (1 - rho_);
-    float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
+  inline bst_float EvalRow(bst_float y, bst_float p) const {
+    bst_float a = y * std::exp((1 - rho_) * std::log(p)) / (1 - rho_);
+    bst_float b = std::exp((2 - rho_) * std::log(p)) / (2 - rho_);
     return -a + b;
   }
  protected:
   std::string name_;
-  float rho_;
+  bst_float rho_;
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")

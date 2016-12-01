@@ -64,7 +64,7 @@ try:
 except ImportError:
     SKLEARN_INSTALLED = False
 
-    # used for compatiblity without sklearn
+    # used for compatibility without sklearn
     XGBModelBase = object
     XGBClassifierBase = object
     XGBRegressorBase = object

@@ -191,7 +191,7 @@ class HistMaker: public BaseMaker {
         c.SetSubstract(node_sum, s);
         if (c.sum_hess >= param.min_child_weight) {
           double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
-          if (best->Update(static_cast<float>(loss_chg), fid, hist.cut[i], false)) {
+          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i], false)) {
             *left_sum = s;
           }
         }
@@ -204,7 +204,7 @@ class HistMaker: public BaseMaker {
         c.SetSubstract(node_sum, s);
         if (c.sum_hess >= param.min_child_weight) {
           double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
-          if (best->Update(static_cast<float>(loss_chg), fid, hist.cut[i-1], true)) {
+          if (best->Update(static_cast<bst_float>(loss_chg), fid, hist.cut[i-1], true)) {
             *left_sum = c;
           }
         }
@@ -260,8 +260,8 @@ class HistMaker: public BaseMaker {
   }
 
   inline void SetStats(RegTree *p_tree, int nid, const TStats &node_sum) {
-    p_tree->stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
-    p_tree->stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
+    p_tree->stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param));
+    p_tree->stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
     node_sum.SetLeafVec(param, p_tree->leafvec(nid));
   }
 };

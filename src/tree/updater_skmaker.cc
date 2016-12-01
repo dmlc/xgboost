@@ -60,7 +60,7 @@ class SketchMaker: public BaseMaker {
     for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
       this->SetStats(nid, node_stats[nid], p_tree);
       if (!(*p_tree)[nid].is_leaf()) {
-        p_tree->stat(nid).loss_chg = static_cast<float>(
+        p_tree->stat(nid).loss_chg = static_cast<bst_float>(
             node_stats[(*p_tree)[nid].cleft()].CalcGain(param) +
             node_stats[(*p_tree)[nid].cright()].CalcGain(param) -
             node_stats[nid].CalcGain(param));
@@ -310,8 +310,8 @@ class SketchMaker: public BaseMaker {
   }
   // set statistics on ptree
   inline void SetStats(int nid, const SKStats &node_sum, RegTree *p_tree) {
-    p_tree->stat(nid).base_weight = static_cast<float>(node_sum.CalcWeight(param));
-    p_tree->stat(nid).sum_hess = static_cast<float>(node_sum.sum_hess);
+    p_tree->stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param));
+    p_tree->stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
     node_sum.SetLeafVec(param, p_tree->leafvec(nid));
   }
   inline void EnumerateSplit(const WXQSketch::Summary &pos_grad,
@@ -372,7 +372,8 @@ class SketchMaker: public BaseMaker {
           c.sum_hess >= param.min_child_weight) {
         bst_float cpt = fsplits.back();
         double loss_chg = s.CalcGain(param) + c.CalcGain(param) - root_gain;
-        best->Update(static_cast<bst_float>(loss_chg), fid, cpt + fabsf(cpt) + 1.0f, false);
+        best->Update(static_cast<bst_float>(loss_chg),
+                     fid, cpt + std::abs(cpt) + 1.0f, false);
       }
     }
   }

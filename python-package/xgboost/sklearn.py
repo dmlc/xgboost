@@ -142,7 +142,7 @@ class XGBModel(XGBModelBase):
         self._Booster = None
 
     def __setstate__(self, state):
-        # backward compatiblity code
+        # backward compatibility code
         # load booster from raw if it is raw
         # the booster now support pickle
         bst = state["_Booster"]
