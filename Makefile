@@ -48,10 +48,16 @@ export CXX = $(if $(shell which g++-6),g++-6,$(if $(shell which g++-mp-6),g++-mp
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
-export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
+export CFLAGS=  -std=c++0x -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
+
+ifeq ($(TEST_COVER), 1)
+	CFLAGS += -g -O0 -fprofile-arcs -ftest-coverage
+else
+	CFLAGS += -O3 -funroll-loops -msse2
+endif
 
 ifndef LINT_LANG
 	LINT_LANG= "all"
@@ -152,9 +158,14 @@ test: $(ALL_TEST)
 check: test
 	./tests/cpp/xgboost_test
 
+ifeq ($(TEST_COVER), 1)
+cover: check
+	gcov -pbcu $(COVER_OBJ)
+endif
+
 clean:
 	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
-	$(RM) -rf build_tests tests/cpp/xgboost_test
+	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
 
 clean_all: clean
 	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROOTDIR)
