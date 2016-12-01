@@ -34,11 +34,7 @@ class TreeRefresher: public TreeUpdater {
     std::vector<std::vector<TStats> > stemp;
     std::vector<RegTree::FVec> fvec_temp;
     // setup temp space for each thread
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-    }
+    const int nthread = omp_get_max_threads();
     fvec_temp.resize(nthread, RegTree::FVec());
     stemp.resize(nthread, std::vector<TStats>());
     #pragma omp parallel

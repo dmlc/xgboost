@@ -266,11 +266,7 @@ class GBTree : public GradientBooster {
   void PredictLeaf(DMatrix* p_fmat,
                    std::vector<bst_float>* out_preds,
                    unsigned ntree_limit) override {
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-    }
+    const int nthread = omp_get_max_threads();
     InitThreadTemp(nthread);
     this->PredPath(p_fmat, out_preds, ntree_limit);
   }
@@ -330,11 +326,7 @@ class GBTree : public GradientBooster {
       unsigned tree_begin,
       unsigned tree_end) {
     const MetaInfo& info = p_fmat->info();
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-    }
+    const int nthread = omp_get_max_threads();
     CHECK_EQ(num_group, mparam.num_output_group);
     InitThreadTemp(nthread);
     std::vector<bst_float> &preds = *out_preds;
