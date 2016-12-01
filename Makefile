@@ -101,6 +101,7 @@ AMALGA_OBJ = amalgamation/xgboost-all0.o
 LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
 ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
 CLI_OBJ = build/cli_main.o
+include tests/cpp/xgboost_test.mk
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
@@ -145,8 +146,15 @@ lint: rcpplint
 pylint:
 	flake8 --ignore E501 python-package
 	flake8 --ignore E501 tests/python
+
+test: $(ALL_TEST)
+
+check: test
+	./tests/cpp/xgboost_test
+
 clean:
 	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
+	$(RM) -rf build_tests tests/cpp/xgboost_test
 
 clean_all: clean
 	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROOTDIR)

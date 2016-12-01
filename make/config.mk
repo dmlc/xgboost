@@ -47,6 +47,10 @@ LIB_RABIT = librabit.a
 # path to libjvm.so
 LIBJVM=$(JAVA_HOME)/jre/lib/amd64/server
 
+# path to gtest library (only used when $BUILD_TEST=1)
+# there should be an include path in $GTEST_PATH/include and library in $GTEST_PATH/lib
+GTEST_PATH =
+
 # List of additional plugins, checkout plugin folder.
 # uncomment the following lines to include these plugins
 # you can also add your own plugin like this
