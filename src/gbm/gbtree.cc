@@ -28,8 +28,8 @@ DMLC_REGISTRY_FILE_TAG(gbtree);
 
 // boosting process types
 enum TreeProcessType {
-   kDefault,
-   kUpdate
+  kDefault,
+  kUpdate
 };
 
 /*! \brief training parameters */
