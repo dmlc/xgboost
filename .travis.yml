@@ -20,6 +20,8 @@ env:
     - TASK=java_test
     # cmake test
     - TASK=cmake_test
+    # c++ test
+    - TASK=cpp_test
 
 matrix:
   exclude:
@@ -33,6 +35,8 @@ matrix:
       env: TASK=java_test
     - os: osx
       env: TASK=python_lightweight_test
+    - os: osx
+      env: TASK=cpp_test
 
 # dependent apt packages
 addons:
