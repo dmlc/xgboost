@@ -36,7 +36,6 @@ bst <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, n
                nthread = 2, objective = "binary:logistic")
 # predict
 pred <- predict(bst, test$data)
-
 ```
 
 ## Julia

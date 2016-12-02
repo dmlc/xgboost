@@ -65,7 +65,7 @@ struct MetaInfo {
    * \param i Instance index.
    * \return The weight.
    */
-  inline float GetWeight(size_t i) const {
+  inline bst_float GetWeight(size_t i) const {
     return weights.size() != 0 ?  weights[i] : 1.0f;
   }
   /*!
@@ -253,7 +253,7 @@ class DMatrix {
    * \brief check if column access is supported, if not, initialize column access.
    * \param enabled whether certain feature should be included in column access.
    * \param subsample subsample ratio when generating column access.
-   * \param max_row_perbatch auxilary information, maximum row used in each column batch.
+   * \param max_row_perbatch auxiliary information, maximum row used in each column batch.
    *         this is a hint information that can be ignored by the implementation.
    * \return Number of column blocks in the column access.
    */
@@ -304,7 +304,7 @@ class DMatrix {
   static DMatrix* Create(std::unique_ptr<DataSource>&& source,
                          const std::string& cache_prefix = "");
   /*!
-   * \brief Create a DMatrix by loaidng data from parser.
+   * \brief Create a DMatrix by loading data from parser.
    *  Parser can later be deleted after the DMatrix i created.
    * \param parser The input data parser
    * \param cache_prefix The path to prefix of temporary cache file of the DMatrix when used in external memory mode.

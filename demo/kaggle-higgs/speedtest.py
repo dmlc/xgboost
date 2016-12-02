@@ -42,7 +42,7 @@ param['nthread'] = 4
 plst = param.items()+[('eval_metric', 'ams@0.15')]
 
 watchlist = [ (xgmat,'train') ]
-# boost 10 tres
+# boost 10 trees
 num_round = 10
 print ('loading data end, start to boost trees')
 print ("training GBM from sklearn")
