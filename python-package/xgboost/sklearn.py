@@ -142,7 +142,7 @@ class XGBModel(XGBModelBase):
         self._Booster = None
 
     def __setstate__(self, state):
-        # backward compatiblity code
+        # backward compatibility code
         # load booster from raw if it is raw
         # the booster now support pickle
         bst = state["_Booster"]
@@ -327,6 +327,20 @@ class XGBModel(XGBModelBase):
             raise XGBoostError('No results.')
 
         return evals_result
+
+    @property
+    def feature_importances_(self):
+        """
+        Returns
+        -------
+        feature_importances_ : array of shape = [n_features]
+
+        """
+        b = self.booster()
+        fs = b.get_fscore()
+        all_features = [fs.get(f, 0.) for f in b.feature_names]
+        all_features = np.array(all_features, dtype=np.float32)
+        return all_features / all_features.sum()
 
 
 class XGBClassifier(XGBModel, XGBClassifierBase):
@@ -517,20 +531,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             raise XGBoostError('No results.')
 
         return evals_result
-
-    @property
-    def feature_importances_(self):
-        """
-        Returns
-        -------
-        feature_importances_ : array of shape = [n_features]
-
-        """
-        b = self.booster()
-        fs = b.get_fscore()
-        all_features = [fs.get(f, 0.) for f in b.feature_names]
-        all_features = np.array(all_features, dtype=np.float32)
-        return all_features / all_features.sum()
 
 
 class XGBRegressor(XGBModel, XGBRegressorBase):
