@@ -1,6 +1,7 @@
 // Copyright by Contributors
 #include <xgboost/data.h>
-#include <gtest/gtest.h>
+
+#include "../helpers.h"
 
 TEST(MetaInfo, GetSet) {
   xgboost::MetaInfo info;
@@ -31,4 +32,32 @@ TEST(MetaInfo, GetSet) {
   info.SetInfo("group", uint64_t2, xgboost::kUInt64, 2);
   ASSERT_EQ(info.group_ptr.size(), 3);
   EXPECT_EQ(info.group_ptr[2], 3);
+
+  info.Clear();
+  ASSERT_EQ(info.group_ptr.size(), 0);
+}
+
+TEST(MetaInfo, SaveLoadBinary) {
+  xgboost::MetaInfo info;
+  double vals[2] = {1.0, 2.0};
+  info.SetInfo("label", vals, xgboost::kDouble, 2);
+  info.num_row = 2;
+  info.num_col = 1;
+
+  std::string tmp_file = TempFileName();
+  dmlc::Stream * fs = dmlc::Stream::Create(tmp_file.c_str(), "w");
+  info.SaveBinary(fs);
+  delete fs;
+
+  ASSERT_EQ(GetFileSize(tmp_file), 76)
+    << "Expected saved binary file size to be same as object size";
+
+  fs = dmlc::Stream::Create(tmp_file.c_str(), "r");
+  xgboost::MetaInfo inforead;
+  inforead.LoadBinary(fs);
+  EXPECT_EQ(inforead.labels, info.labels);
+  EXPECT_EQ(inforead.num_col, info.num_col);
+  EXPECT_EQ(inforead.num_row, info.num_row);
+
+  std::remove(tmp_file.c_str());
 }
