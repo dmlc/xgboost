@@ -256,10 +256,13 @@ class DMatrix(object):
         label = _maybe_pandas_label(label)
 
         if isinstance(data, STRING_TYPES):
-            self.handle = ctypes.c_void_p()
-            _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
-                                                     int(silent),
-                                                     ctypes.byref(self.handle)))
+            if os.path.exists(data):
+                self.handle = ctypes.c_void_p()
+                _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
+                                                         int(silent),
+                                                         ctypes.byref(self.handle)))
+            else:
+                raise FileExistsError('The \'' +data + '\' path does not exist!')
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
