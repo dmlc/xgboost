@@ -9,3 +9,13 @@ long GetFileSize(const std::string filename) {
   stat(filename.c_str(), &st);
   return st.st_size;
 }
+
+std::string CreateSimpleTestData() {
+  std::string tmp_file = TempFileName();
+  std::ofstream fo;
+  fo.open(tmp_file);
+  fo << "0 0:0 1:10 2:20\n";
+  fo << "1 0:0 3:30 4:40\n";
+  fo.close();
+  return tmp_file;
+}
