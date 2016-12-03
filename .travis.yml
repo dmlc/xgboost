@@ -70,6 +70,10 @@ before_cache:
 after_failure:
   - tests/travis/travis_after_failure.sh
 
+after_success:
+  - tree build
+  - bash <(curl -s https://codecov.io/bash) -a '-o src/ src/*.c'
+
 notifications:
   email:
     on_success: change
