@@ -161,7 +161,7 @@ class ColMaker: public TreeUpdater {
         std::shuffle(feat_index.begin(), feat_index.end(), common::GlobalRandom());
         CHECK_GT(n, 0)
             << "colsample_bytree=" << param.colsample_bytree
-            << " is too small that no feature can be included";
+            << " is too small thus no feature can be included";
         feat_index.resize(n);
       }
       {
@@ -759,7 +759,7 @@ class ColMaker: public TreeUpdater {
     }
     //  --data fields--
     const TrainParam& param;
-    // number of omp thread used during training
+    // number of omp threads used during training
     int nthread;
     // Per feature: shuffle index of each feature index
     std::vector<bst_uint> feat_index;
