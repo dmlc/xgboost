@@ -160,7 +160,9 @@ check: test
 
 ifeq ($(TEST_COVER), 1)
 cover: check
-	gcov -pbcu $(COVER_OBJ)
+	@- $(foreach COV_OBJ, $(COVER_OBJ), \
+		gcov -pbcul -o $(shell dirname $(COV_OBJ)) $(COV_OBJ) > gcov.log || cat gcov.log; \
+	)
 endif
 
 clean:

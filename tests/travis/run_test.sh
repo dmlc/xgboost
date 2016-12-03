@@ -94,5 +94,5 @@ if [ ${TASK} == "cpp_test" ]; then
     make -f dmlc-core/scripts/packages.mk gtest
     echo "TEST_COVER=1" >> config.mk
     echo "GTEST_PATH="${CACHE_PREFIX} >> config.mk
-    make check
+    make cover
 fi
