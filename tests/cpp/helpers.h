@@ -12,6 +12,8 @@
 
 std::string TempFileName();
 
+bool FileExists(const std::string name);
+
 long GetFileSize(const std::string filename);
 
 std::string CreateSimpleTestData();
