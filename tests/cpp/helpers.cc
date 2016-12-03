@@ -24,3 +24,28 @@ std::string CreateSimpleTestData() {
   fo.close();
   return tmp_file;
 }
+
+void CheckObjFunction(xgboost::ObjFunction * obj,
+                      std::vector<xgboost::bst_float> preds,
+                      std::vector<xgboost::bst_float> labels,
+                      std::vector<xgboost::bst_float> weights,
+                      std::vector<xgboost::bst_float> out_grad,
+                      std::vector<xgboost::bst_float> out_hess) {
+  xgboost::MetaInfo info;
+  info.num_row = labels.size();
+  info.labels = labels;
+  info.weights = weights;
+
+  std::vector<xgboost::bst_gpair> gpair;
+  obj->GetGradient(preds, info, 1, &gpair);
+
+  ASSERT_EQ(gpair.size(), preds.size());
+  for (int i = 0; i < gpair.size(); ++i) {
+    EXPECT_NEAR(gpair[i].grad, out_grad[i], 0.01)
+      << "Unexpected grad for pred=" << preds[i] << " label=" << labels[i]
+      << " weight=" << weights[i];
+    EXPECT_NEAR(gpair[i].hess, out_hess[i], 0.01)
+      << "Unexpected hess for pred=" << preds[i] << " label=" << labels[i]
+      << " weight=" << weights[i];
+  }
+}
