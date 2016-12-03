@@ -4,6 +4,11 @@ std::string TempFileName() {
   return std::tmpnam(nullptr);
 }
 
+bool FileExists(const std::string name) {
+  struct stat st;
+  return stat(name.c_str(), &st) == 0; 
+}
+
 long GetFileSize(const std::string filename) {
   struct stat st;
   stat(filename.c_str(), &st);
