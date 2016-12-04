@@ -64,6 +64,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool cache_opt;
   // whether to not print info during training.
   bool silent;
+  // whether refresh updater needs to update the leaf values
+  bool refresh_leaf;
   // auxiliary data structure
   std::vector<int> monotone_constraints;
   // declare the parameters
@@ -75,10 +77,11 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(min_split_loss)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
-        .describe(
-            "Minimum loss reduction required to make a further partition.");
-    DMLC_DECLARE_FIELD(max_depth).set_lower_bound(0).set_default(6).describe(
-        "Maximum depth of the tree.");
+        .describe("Minimum loss reduction required to make a further partition.");
+    DMLC_DECLARE_FIELD(max_depth)
+        .set_lower_bound(0)
+        .set_default(6)
+        .describe("Maximum depth of the tree.");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)
@@ -100,9 +103,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(max_delta_step)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
-        .describe(
-            "Maximum delta step we allow each tree's weight estimate to be. "
-            "If the value is set to 0, it means there is no constraint");
+        .describe("Maximum delta step we allow each tree's weight estimate to be. "\
+                  "If the value is set to 0, it means there is no constraint");
     DMLC_DECLARE_FIELD(subsample)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
@@ -114,8 +116,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(colsample_bytree)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
-        .describe(
-            "Subsample ratio of columns, resample on each tree construction.");
+        .describe("Subsample ratio of columns, resample on each tree construction.");
     DMLC_DECLARE_FIELD(opt_dense_col)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
@@ -127,8 +128,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(sketch_ratio)
         .set_lower_bound(0.0f)
         .set_default(2.0f)
-        .describe("EXP Param: Sketch accuracy related parameter of approximate "
-                  "algorithm.");
+        .describe("EXP Param: Sketch accuracy related parameter of approximate algorithm.");
     DMLC_DECLARE_FIELD(size_leaf_vector)
         .set_lower_bound(0)
         .set_default(0)
@@ -136,10 +136,15 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(parallel_option)
         .set_default(0)
         .describe("Different types of parallelization algorithm.");
-    DMLC_DECLARE_FIELD(cache_opt).set_default(true).describe(
-        "EXP Param: Cache aware optimization.");
-    DMLC_DECLARE_FIELD(silent).set_default(false).describe(
-        "Do not print information during training.");
+    DMLC_DECLARE_FIELD(cache_opt)
+        .set_default(true)
+        .describe("EXP Param: Cache aware optimization.");
+    DMLC_DECLARE_FIELD(silent)
+        .set_default(false)
+        .describe("Do not print information during trainig.");
+    DMLC_DECLARE_FIELD(refresh_leaf)
+        .set_default(true)
+        .describe("Whether the refresh updater needs to update leaf values.");
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
         .describe("Constraint of variable monotonicity");
