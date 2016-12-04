@@ -101,3 +101,38 @@ TEST(Objective, PoissonRegressionBasic) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01);
   }
 }
+
+TEST(Objective, GammaRegressionGPair) {
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:gamma");
+  std::vector<std::pair<std::string, std::string> > args;
+  obj->Configure(args);
+  CheckObjFunction(obj,
+                   {0, 0.1, 0.9, 1, 0,  0.1,  0.9,    1},
+                   {0,   0,   0, 0, 1,    1,    1,    1},
+                   {1,   1,   1, 1, 1,    1,    1,    1},
+                   {1,   1,   1, 1, 0, 0.09, 0.59, 0.63},
+                   {0,   0,   0, 0, 1, 0.90, 0.40, 0.36});
+}
+
+TEST(Objective, GammaRegressionBasic) {
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("reg:gamma");
+  std::vector<std::pair<std::string, std::string> > args;
+  obj->Configure(args);
+
+  // test label validation
+  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {-1}, {1}, {0}, {0}))
+    << "Expected error when label < 0 for GammaRegression";
+
+  // test ProbToMargin
+  EXPECT_NEAR(obj->ProbToMargin(0.1), -2.30, 0.01);
+  EXPECT_NEAR(obj->ProbToMargin(0.5), -0.69, 0.01);
+  EXPECT_NEAR(obj->ProbToMargin(0.9), -0.10, 0.01);
+
+  // test PredTransform
+  std::vector<xgboost::bst_float> preds = {0, 0.1, 0.5, 0.9, 1};
+  std::vector<xgboost::bst_float> out_preds = {1, 1.10, 1.64, 2.45, 2.71};
+  obj->PredTransform(&preds);
+  for (int i = 0; i < preds.size(); ++i) {
+    EXPECT_NEAR(preds[i], out_preds[i], 0.01);
+  }
+}
