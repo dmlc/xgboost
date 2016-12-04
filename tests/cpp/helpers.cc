@@ -49,3 +49,14 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
       << " weight=" << weights[i];
   }
 }
+
+xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
+                                 std::vector<xgboost::bst_float> preds,
+                                 std::vector<xgboost::bst_float> labels,
+                                 std::vector<xgboost::bst_float> weights) {
+  xgboost::MetaInfo info;
+  info.num_row = labels.size();
+  info.labels = labels;
+  info.weights = weights;
+  return metric->Eval(preds, info, false);
+}
