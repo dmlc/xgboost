@@ -196,8 +196,8 @@ class LambdaRankObjNDCG : public LambdaRankObj {
       for (size_t i = 0; i < pairs.size(); ++i) {
         unsigned pos_idx = pairs[i].pos_index;
         unsigned neg_idx = pairs[i].neg_index;
-        float pos_loginv = 1.0f / std::log(pos_idx + 2.0f);
-        float neg_loginv = 1.0f / std::log(neg_idx + 2.0f);
+        float pos_loginv = 1.0f / std::log2(pos_idx + 2.0f);
+        float neg_loginv = 1.0f / std::log2(neg_idx + 2.0f);
         int pos_label = static_cast<int>(sorted_list[pos_idx].label);
         int neg_label = static_cast<int>(sorted_list[neg_idx].label);
         bst_float original =
