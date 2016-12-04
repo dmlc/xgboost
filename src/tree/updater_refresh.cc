@@ -134,7 +134,9 @@ class TreeRefresher: public TreeUpdater {
     tree.stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
     gstats[nid].SetLeafVec(param, tree.leafvec(nid));
     if (tree[nid].is_leaf()) {
-      tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
+      if (param.refresh_leaf) {
+        tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
+      }
     } else {
       tree.stat(nid).loss_chg = static_cast<bst_float>(
           gstats[tree[nid].cleft()].CalcGain(param) +

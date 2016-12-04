@@ -34,7 +34,7 @@ Ask a Question
 Help to Make XGBoost Better
 ---------------------------
 XGBoost has been developed and used by a group of active community members. Your help is very valuable to make the package better for everyone.
-- Check out [call for contributions](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+is%3Aclosed+label%3Acall-for-contribution) and [Roadmap](https://github.com/dmlc/xgboost/issues/873) to see what can be improved, or open an issue if you want something.
+- Check out [call for contributions](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Acall-for-contribution+is%3Aopen) and [Roadmap](https://github.com/dmlc/xgboost/issues/873) to see what can be improved, or open an issue if you want something.
 - Contribute to the [documents and examples](https://github.com/dmlc/xgboost/blob/master/doc/) to share your experience with other users.
 - Add your stories and experience to [Awesome XGBoost](demo/README.md).
 - Please add your name to [CONTRIBUTORS.md](CONTRIBUTORS.md) and after your patch has been merged.

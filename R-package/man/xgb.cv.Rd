@@ -118,7 +118,7 @@ An object of class \code{xgb.cv.synchronous} with the following elements:
 }
 }
 \description{
-The cross valudation function of xgboost
+The cross validation function of xgboost
 }
 \details{
 The original sample is randomly partitioned into \code{nfold} equal size subsamples. 
