@@ -33,7 +33,6 @@ struct EvalAMS : public Metric {
     using namespace std;  // NOLINT(*)
 
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
-    CHECK_EQ(info.weights.size(), ndata) << "we need weight to evaluate ams";
     std::vector<std::pair<bst_float, unsigned> > rec(ndata);
 
     #pragma omp parallel for schedule(static)
@@ -48,7 +47,7 @@ struct EvalAMS : public Metric {
     double s_tp = 0.0, b_fp = 0.0, tams = 0.0;
     for (unsigned i = 0; i < static_cast<unsigned>(ndata-1) && i < ntop; ++i) {
       const unsigned ridx = rec[i].second;
-      const bst_float wt = info.weights[ridx];
+      const bst_float wt = info.GetWeight(ridx);
       if (info.labels[ridx] > 0.5f) {
         s_tp += wt;
       } else {
