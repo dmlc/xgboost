@@ -29,9 +29,9 @@ class Metric {
    *        the average statistics across all the node,
    *        this is only supported by some metrics
    */
-  virtual float Eval(const std::vector<float>& preds,
-                     const MetaInfo& info,
-                     bool distributed) const = 0;
+  virtual bst_float Eval(const std::vector<bst_float>& preds,
+                         const MetaInfo& info,
+                         bool distributed) const = 0;
   /*! \return name of metric */
   virtual const char* Name() const = 0;
   /*! \brief virtual destructor */

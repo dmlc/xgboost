@@ -16,7 +16,7 @@ Introduction
 While XGBoost is known for its fast speed and accurate predictive power, it also comes with various functions to help you understand the model.
 The purpose of this RMarkdown document is to demonstrate how easily we can leverage the functions already implemented in **XGBoost R** package. Of course, everything showed below can be applied to the dataset you may have to manipulate at work or wherever!
 
-First we will prepare the **Otto** dataset and train a model, then we will generate two vizualisations to get a clue of what is important to the model, finally, we will see how we can leverage these information.
+First we will prepare the **Otto** dataset and train a model, then we will generate two visualisations to get a clue of what is important to the model, finally, we will see how we can leverage these information.
 
 Preparation of the data
 =======================
