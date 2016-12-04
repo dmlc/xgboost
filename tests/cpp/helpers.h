@@ -13,6 +13,7 @@
 
 #include <xgboost/base.h>
 #include <xgboost/objective.h>
+#include <xgboost/metric.h>
 
 std::string TempFileName();
 
@@ -28,5 +29,11 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
                       std::vector<xgboost::bst_float> weights,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess);
+
+xgboost::bst_float GetMetricEval(
+  xgboost::Metric * metric,
+  std::vector<xgboost::bst_float> preds,
+  std::vector<xgboost::bst_float> labels,
+  std::vector<xgboost::bst_float> weights = std::vector<xgboost::bst_float> ());
 
 #endif
