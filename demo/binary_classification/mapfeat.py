@@ -18,7 +18,7 @@ def loadfmap( fname ):
             if it.strip() == '':
                 continue
             k , v = it.split('=')
-            fmap[ idx ][ v ] = len(nmap)
+            fmap[ idx ][ v ] = len(nmap) + 1
             nmap[ len(nmap) ] = ftype+'='+k
     return fmap, nmap
 
@@ -45,5 +45,3 @@ for l in open( 'agaricus-lepiota.data' ):
     fo.write('\n')
 
 fo.close()
-
-

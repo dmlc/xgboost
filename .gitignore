@@ -20,12 +20,12 @@
 *buffer
 *model
 *pyc
-*train
-*test
+*.train
+*.test
+*.tar
 *group
 *rar
 *vali
-*data
 *sdf
 Release
 *exe*
@@ -36,7 +36,6 @@ ipch
 *log
 Debug
 *suo
-*test*
 .Rhistory
 *.dll
 *i386
@@ -51,12 +50,9 @@ Debug
 ./xgboost
 ./xgboost.mpi
 ./xgboost.mock
-rabit
 #.Rbuildignore
 R-package.Rproj
 *.cache*
-R-package/inst
-R-package/src
 #java
 java/xgboost4j/target
 java/xgboost4j/tmp
@@ -65,4 +61,30 @@ java/xgboost4j-demo/data/
 java/xgboost4j-demo/tmp/
 java/xgboost4j-demo/model/
 nb-configuration*
+# Eclipse
+.project
+.cproject
+.pydevproject
+.settings/
+build
+config.mk
+xgboost
+*.data
+build_plugin
 dmlc-core
+.idea
+recommonmark/
+tags
+*.iml
+*.class
+target
+*.swp
+
+# cpp tests and gcov generated files
+*.gcov
+*.gcda
+*.gcno
+build_tests
+/tests/cpp/xgboost_test
+
+.DS_Store

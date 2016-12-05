@@ -5,28 +5,38 @@
 from __future__ import absolute_import
 
 import re
+from io import BytesIO
 import numpy as np
 from .core import Booster
+from .sklearn import XGBModel
 
-from io import BytesIO
 
 def plot_importance(booster, ax=None, height=0.2,
-                    xlim=None, title='Feature importance',
+                    xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features',
+                    importance_type='weight',
                     grid=True, **kwargs):
 
     """Plot importance based on fitted trees.
 
     Parameters
     ----------
-    booster : Booster or dict
-        Booster instance, or dict taken by Booster.get_fscore()
+    booster : Booster, XGBModel or dict
+        Booster or XGBModel instance, or dict taken by Booster.get_fscore()
     ax : matplotlib Axes, default None
         Target axes instance. If None, new figure and axes will be created.
+    importance_type : str, default "weight"
+        How the importance is calculated: either "weight", "gain", or "cover"
+        "weight" is the number of times a feature appears in a tree
+        "gain" is the average gain of splits which use the feature
+        "cover" is the average coverage of splits which use the feature
+            where coverage is defined as the number of samples affected by the split
     height : float, default 0.2
         Bar height, passed to ax.barh()
     xlim : tuple, default None
         Tuple passed to axes.xlim()
+    ylim : tuple, default None
+        Tuple passed to axes.ylim()
     title : str, default "Feature importance"
         Axes title. To disable, pass None.
     xlabel : str, default "F score"
@@ -40,21 +50,23 @@ def plot_importance(booster, ax=None, height=0.2,
     -------
     ax : matplotlib Axes
     """
-
+    # TODO: move this to compat.py
     try:
         import matplotlib.pyplot as plt
     except ImportError:
         raise ImportError('You must install matplotlib to plot importance')
 
-    if isinstance(booster, Booster):
-        importance = booster.get_fscore()
+    if isinstance(booster, XGBModel):
+        importance = booster.booster().get_score(importance_type=importance_type)
+    elif isinstance(booster, Booster):
+        importance = booster.get_score(importance_type=importance_type)
     elif isinstance(booster, dict):
         importance = booster
     else:
-        raise ValueError('tree must be Booster or dict instance')
+        raise ValueError('tree must be Booster, XGBModel or dict instance')
 
     if len(importance) == 0:
-        raise ValueError('Booster.get_fscore() results in empty')
+        raise ValueError('Booster.get_score() results in empty')
 
     tuples = [(k, importance[k]) for k in importance]
     tuples = sorted(tuples, key=lambda x: x[1])
@@ -73,11 +85,18 @@ def plot_importance(booster, ax=None, height=0.2,
     ax.set_yticklabels(labels)
 
     if xlim is not None:
-        if not isinstance(xlim, tuple) or len(xlim, 2):
+        if not isinstance(xlim, tuple) or len(xlim) != 2:
             raise ValueError('xlim must be a tuple of 2 elements')
     else:
         xlim = (0, max(values) * 1.1)
     ax.set_xlim(xlim)
+
+    if ylim is not None:
+        if not isinstance(ylim, tuple) or len(ylim) != 2:
+            raise ValueError('ylim must be a tuple of 2 elements')
+    else:
+        ylim = (-1, len(importance))
+    ax.set_ylim(ylim)
 
     if title is not None:
         ax.set_title(title)
@@ -92,6 +111,7 @@ def plot_importance(booster, ax=None, height=0.2,
 _NODEPAT = re.compile(r'(\d+):\[(.+)\]')
 _LEAFPAT = re.compile(r'(\d+):(leaf=.+)')
 _EDGEPAT = re.compile(r'yes=(\d+),no=(\d+),missing=(\d+)')
+_EDGEPAT2 = re.compile(r'yes=(\d+),no=(\d+)')
 
 
 def _parse_node(graph, text):
@@ -111,15 +131,24 @@ def _parse_node(graph, text):
 
 def _parse_edge(graph, node, text, yes_color='#0000FF', no_color='#FF0000'):
     """parse dumped edge"""
-    match = _EDGEPAT.match(text)
+    try:
+        match = _EDGEPAT.match(text)
+        if match is not None:
+            yes, no, missing = match.groups()
+            if yes == missing:
+                graph.edge(node, yes, label='yes, missing', color=yes_color)
+                graph.edge(node, no, label='no', color=no_color)
+            else:
+                graph.edge(node, yes, label='yes', color=yes_color)
+                graph.edge(node, no, label='no, missing', color=no_color)
+            return
+    except ValueError:
+        pass
+    match = _EDGEPAT2.match(text)
     if match is not None:
-        yes, no, missing = match.groups()
-        if yes == missing:
-            graph.edge(node, yes, label='yes, missing', color=yes_color)
-            graph.edge(node, no, label='no', color=no_color)
-        else:
-            graph.edge(node, yes, label='yes', color=yes_color)
-            graph.edge(node, no, label='no, missing', color=no_color)
+        yes, no = match.groups()
+        graph.edge(node, yes, label='yes', color=yes_color)
+        graph.edge(node, no, label='no', color=no_color)
         return
     raise ValueError('Unable to parse edge: {0}'.format(text))
 
@@ -128,21 +157,21 @@ def to_graphviz(booster, num_trees=0, rankdir='UT',
                 yes_color='#0000FF', no_color='#FF0000', **kwargs):
 
     """Convert specified tree to graphviz instance. IPython can automatically plot the
-    returned graphiz instance. Otherwise, you shoud call .render() method
+    returned graphiz instance. Otherwise, you should call .render() method
     of the returned graphiz instance.
 
     Parameters
     ----------
-    booster : Booster
-        Booster instance
+    booster : Booster, XGBModel
+        Booster or XGBModel instance
     num_trees : int, default 0
         Specify the ordinal number of target tree
     rankdir : str, default "UT"
         Passed to graphiz via graph_attr
     yes_color : str, default '#0000FF'
-        Edge color when meets the node condigion.
+        Edge color when meets the node condition.
     no_color : str, default '#FF0000'
-        Edge color when doesn't meet the node condigion.
+        Edge color when doesn't meet the node condition.
     kwargs :
         Other keywords passed to graphviz graph_attr
 
@@ -156,8 +185,11 @@ def to_graphviz(booster, num_trees=0, rankdir='UT',
     except ImportError:
         raise ImportError('You must install graphviz to plot tree')
 
-    if not isinstance(booster, Booster):
-        raise ValueError('booster must be Booster instance')
+    if not isinstance(booster, (Booster, XGBModel)):
+        raise ValueError('booster must be Booster or XGBModel instance')
+
+    if isinstance(booster, XGBModel):
+        booster = booster.booster()
 
     tree = booster.get_dump()[num_trees]
     tree = tree.split()
@@ -184,8 +216,8 @@ def plot_tree(booster, num_trees=0, rankdir='UT', ax=None, **kwargs):
 
     Parameters
     ----------
-    booster : Booster
-        Booster instance
+    booster : Booster, XGBModel
+        Booster or XGBModel instance
     num_trees : int, default 0
         Specify the ordinal number of target tree
     rankdir : str, default "UT"
@@ -206,7 +238,6 @@ def plot_tree(booster, num_trees=0, rankdir='UT', ax=None, **kwargs):
         import matplotlib.image as image
     except ImportError:
         raise ImportError('You must install matplotlib to plot tree')
-
 
     if ax is None:
         _, ax = plt.subplots(1, 1)

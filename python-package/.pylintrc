@@ -1,0 +1,9 @@
+[MASTER]
+
+ignore=tests
+
+disiable=unexpected-special-method-signature,too-many-nested-blocks
+
+dummy-variables-rgx=(unused|)_.*
+
+reports=no

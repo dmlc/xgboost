@@ -1,4 +1,5 @@
-sudo: true
+# disable sudo for container build.
+sudo: false
 
 # Enabling test on Linux and OS X
 os:
@@ -8,49 +9,72 @@ os:
 # Use Build Matrix to do lint and build seperately
 env:
   matrix:
-    - TASK=lint LINT_LANG=cpp
-    - TASK=lint LINT_LANG=python
-    - TASK=R-package CXX=g++
-    - TASK=python-package CXX=g++
-    - TASK=python-package3 CXX=g++
-    - TASK=java-package CXX=g++
-    - TASK=build CXX=g++
-    - TASK=build-with-dmlc CXX=g++
+    # code lint
+    - TASK=lint
+    # r package test
+    - TASK=r_test
+    # python package test
+    - TASK=python_test
+    - TASK=python_lightweight_test
+    # java package test
+    - TASK=java_test
+    # cmake test
+    - TASK=cmake_test
+    # c++ test
+    - TASK=cpp_test
 
-os:
-  - linux
-  - osx
+matrix:
+  exclude:
+    - os: osx
+      env: TASK=lint
+    - os: osx
+      env: TASK=cmake_test
+    - os: linux
+      env: TASK=r_test
+    - os: osx
+      env: TASK=java_test
+    - os: osx
+      env: TASK=python_lightweight_test
+    - os: osx
+      env: TASK=cpp_test
 
 # dependent apt packages
 addons:
   apt:
     packages:
       - doxygen
-      - libopenmpi-dev
       - wget
       - libcurl4-openssl-dev
       - unzip
+      - graphviz
 
 before_install:
-  - scripts/travis_osx_install.sh
-  - git clone https://github.com/dmlc/dmlc-core
-  - export TRAVIS=dmlc-core/scripts/travis/
+  - source dmlc-core/scripts/travis/travis_setup_env.sh
   - export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package
-  - source ${TRAVIS}/travis_setup_env.sh
+  - echo "MAVEN_OPTS='-Xmx2048m -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc 
 
 install:
-  - pip install cpplint pylint --user `whoami`
+  - source tests/travis/setup.sh
 
+script:
+  - tests/travis/run_test.sh
 
-script: scripts/travis_script.sh
+cache:
+  directories:
+    - ${HOME}/.cache/usr
+    - ${HOME}/.cache/pip
 
+before_cache:
+  - dmlc-core/scripts/travis/travis_before_cache.sh
 
 after_failure:
-  - scripts/travis_after_failure.sh
+  - tests/travis/travis_after_failure.sh
 
+after_success:
+  - tree build
+  - bash <(curl -s https://codecov.io/bash) -a '-o src/ src/*.c'
 
 notifications:
   email:
     on_success: change
     on_failure: always
-

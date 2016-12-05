@@ -1,79 +1,50 @@
 <img src=https://raw.githubusercontent.com/dmlc/dmlc.github.io/master/img/logo-m/xgboost.png width=135/>  eXtreme Gradient Boosting
 ===========
 [![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost)
+[![Build Status](https://ci.appveyor.com/api/projects/status/5ypa8vaed6kpmli8?svg=true)](https://ci.appveyor.com/project/tqchen/xgboost)
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org)
+[![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
 [![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](http://cran.r-project.org/web/packages/xgboost)
+[![PyPI version](https://badge.fury.io/py/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
 [![Gitter chat for developers at https://gitter.im/dmlc/xgboost](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/dmlc/xgboost?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-An optimized general purpose gradient boosting library. The library is parallelized, and also provides an optimized distributed version.
+[Documentation](https://xgboost.readthedocs.org) |
+[Resources](demo/README.md) |
+[Installation](https://xgboost.readthedocs.org/en/latest/build.html) |
+[Release Notes](NEWS.md) |
+[RoadMap](https://github.com/dmlc/xgboost/issues/873)
 
-It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework, including [Generalized Linear Model](https://en.wikipedia.org/wiki/Generalized_linear_model) (GLM) and [Gradient Boosted Decision Trees](https://en.wikipedia.org/wiki/Gradient_boosting#Gradient_tree_boosting) (GBDT). XGBoost can also be [distributed](#features) and scale to Terascale data
-
-XGBoost is part of [Distributed Machine Learning Common](http://dmlc.github.io/) <img src=https://avatars2.githubusercontent.com/u/11508361?v=3&s=20> projects
-
-Contents
---------
-* [What's New](#whats-new)
-* [Version](#version)
-* [Documentation](doc/index.md)
-* [Build Instruction](doc/build.md)
-* [Features](#features)
-* [Distributed XGBoost](multi-node)
-* [Usecases](doc/index.md#highlight-links)
-* [Bug Reporting](#bug-reporting)
-* [Contributing to XGBoost](#contributing-to-xgboost)
-* [Committers and Contributors](CONTRIBUTORS.md)
-* [License](#license)
-* [XGBoost in Graphlab Create](#xgboost-in-graphlab-create)
+XGBoost is an optimized distributed gradient boosting library designed to be highly ***efficient***, ***flexible*** and ***portable***.
+It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework.
+XGBoost provides a parallel tree boosting (also known as GBDT, GBM) that solve many data science problems in a fast and accurate way.
+The same code runs on major distributed environment (Hadoop, SGE, MPI) and can solve problems beyond billions of examples.
 
 What's New
 ----------
+* [XGBoost4J: Portable Distributed XGboost in Spark, Flink and Dataflow](http://dmlc.ml/2016/03/14/xgboost4j-portable-distributed-xgboost-in-spark-flink-and-dataflow.html), see [JVM-Package](https://github.com/dmlc/xgboost/tree/master/jvm-packages)
+* [Story and Lessons Behind the Evolution of XGBoost](http://homes.cs.washington.edu/~tqchen/2016/03/10/story-and-lessons-behind-the-evolution-of-xgboost.html)
+* [Tutorial: Distributed XGBoost on AWS with YARN](https://xgboost.readthedocs.io/en/latest/tutorials/aws_yarn.html)
+* [XGBoost brick](NEWS.md) Release
 
-* XGBoost helps Owen Zhang to win the [Avito Context Ad Click competition](https://www.kaggle.com/c/avito-context-ad-clicks). Check out the [interview from Kaggle](http://blog.kaggle.com/2015/08/26/avito-winners-interview-1st-place-owen-zhang/).
-* XGBoost helps Chenglong Chen to win [Kaggle CrowdFlower Competition](https://www.kaggle.com/c/crowdflower-search-relevance)
-  Check out the [winning solution](https://github.com/ChenglongChen/Kaggle_CrowdFlower)
-* XGBoost-0.4 release, see [CHANGES.md](CHANGES.md#xgboost-04)
-* XGBoost helps three champion teams to win [WWW2015  Microsoft Malware Classification Challenge (BIG 2015)](http://www.kaggle.com/c/malware-classification/forums/t/13490/say-no-to-overfitting-approaches-sharing)
-  Check out the [winning solution](doc/README.md#highlight-links)
-* [External Memory Version](doc/external_memory.md)
-
-Version
--------
-
-* Current version xgboost-0.4
-  - [Change log](CHANGES.md)
-  - This version is compatible with 0.3x versions
-
-Features
---------
-* Easily accessible through CLI, [python](https://github.com/dmlc/xgboost/blob/master/demo/guide-python/basic_walkthrough.py),
-  [R](https://github.com/dmlc/xgboost/blob/master/R-package/demo/basic_walkthrough.R),
-  [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/basic_walkthrough.jl)
-* Its fast! Benchmark numbers comparing xgboost, H20, Spark, R - [benchm-ml numbers](https://github.com/szilard/benchm-ml)
-* Memory efficient - Handles sparse matrices, supports external memory
-* Accurate prediction, and used extensively by data scientists and kagglers - [highlight links](https://github.com/dmlc/xgboost/blob/master/doc/README.md#highlight-links)
-* Distributed version runs on Hadoop (YARN), MPI, SGE etc., scales to billions of examples.
-
-Bug Reporting
--------------
-
+Ask a Question
+--------------
 * For reporting bugs please use the [xgboost/issues](https://github.com/dmlc/xgboost/issues) page.
-* For generic questions or to share your experience using xgboost please use the [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/)
+* For generic questions or to share your experience using XGBoost please use the [XGBoost User Group](https://groups.google.com/forum/#!forum/xgboost-user/)
 
-
-Contributing to XGBoost
------------------------
-
-XGBoost has been developed and used by a group of active community members. Everyone is more than welcome to contribute. It is a way to make the project better and more accessible to more users.
-* Check out [Feature Wish List](https://github.com/dmlc/xgboost/labels/Wish-List) to see what can be improved, or open an issue if you want something.
-* Contribute to the [documents and examples](https://github.com/dmlc/xgboost/blob/master/doc/) to share your experience with other users.
-* Please add your name to [CONTRIBUTORS.md](CONTRIBUTORS.md) after your patch has been merged.
+Help to Make XGBoost Better
+---------------------------
+XGBoost has been developed and used by a group of active community members. Your help is very valuable to make the package better for everyone.
+- Check out [call for contributions](https://github.com/dmlc/xgboost/issues?q=is%3Aissue+label%3Acall-for-contribution+is%3Aopen) and [Roadmap](https://github.com/dmlc/xgboost/issues/873) to see what can be improved, or open an issue if you want something.
+- Contribute to the [documents and examples](https://github.com/dmlc/xgboost/blob/master/doc/) to share your experience with other users.
+- Add your stories and experience to [Awesome XGBoost](demo/README.md).
+- Please add your name to [CONTRIBUTORS.md](CONTRIBUTORS.md) and after your patch has been merged.
+  - Please also update [NEWS.md](NEWS.md) on changes and improvements in API and docs.
 
 License
 -------
-© Contributors, 2015. Licensed under an [Apache-2](https://github.com/dmlc/xgboost/blob/master/LICENSE) license.
+© Contributors, 2016. Licensed under an [Apache-2](https://github.com/dmlc/xgboost/blob/master/LICENSE) license.
 
-XGBoost in Graphlab Create
---------------------------
-* XGBoost is adopted as part of boosted tree toolkit in Graphlab Create (GLC). Graphlab Create is a powerful python toolkit that allows you to do data manipulation, graph processing, hyper-parameter search, and visualization of TeraBytes scale data in one framework. Try the [Graphlab Create](http://graphlab.com/products/create/quick-start-guide.html)
-* Nice [blogpost](http://blog.graphlab.com/using-gradient-boosted-trees-to-predict-bike-sharing-demand) by Jay Gu about using GLC boosted tree to solve kaggle bike sharing challenge:
+Reference
+---------
+- Tianqi Chen and Carlos Guestrin. [XGBoost: A Scalable Tree Boosting System](http://arxiv.org/abs/1603.02754). In 22nd SIGKDD Conference on Knowledge Discovery and Data Mining, 2016 
+- XGBoost originates from research project at University of Washington, see also the [Project Page at UW](http://dmlc.cs.washington.edu/xgboost.html).
