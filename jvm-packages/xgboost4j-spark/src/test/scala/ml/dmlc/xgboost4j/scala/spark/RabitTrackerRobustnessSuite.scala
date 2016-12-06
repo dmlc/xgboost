@@ -25,8 +25,14 @@ import org.scalatest.FunSuite
 
 class RabitTrackerRobustnessSuite extends FunSuite with Utils {
   test("test Java RabitTracker wrapper's exception handling: it should not hang forever.") {
-    // Explicitly create new instances of SparkContext in each test to avoid reusing the same
-    // thread pool, which corrupts the internal state of Rabit and causes crash.
+    /*
+      Deliberately create new instances of SparkContext in each unit test to avoid reusing the
+      same thread pool spawned by the local mode of Spark. As these tests simulate worker crashes
+      by throwing exceptions, the crashed worker thread never calls Rabit.shutdown, and therefore
+      corrupts the internal state of the native Rabit C++ code. Calling Rabit.init() in subsequent
+      tests on a reentrant thread will crash the entire Spark application, an undesired side-effect
+      that should be avoided.
+     */
     val sparkConf = new SparkConf().setMaster("local[*]")
       .setAppName("XGBoostSuite").set("spark.driver.memory", "512m")
     implicit val sparkContext = new SparkContext(sparkConf)
@@ -39,6 +45,29 @@ class RabitTrackerRobustnessSuite extends FunSuite with Utils {
     val trackerEnvs = tracker.getWorkerEnvs
 
     val workerCount: Int = numWorkers
+    /*
+       Simulate worker crash events by creating dummy Rabit workers, and throw exceptions in the
+       last created worker. A cascading event chain will be triggered once the RuntimeException is
+       thrown: the thread running the dummy spark job (sparkThread) catches the exception and
+       delegates it to the UnCaughtExceptionHandler, which is the Rabit tracker itself.
+
+       The Java RabitTracker class reacts to exceptions by killing the spawned process running
+       the Python tracker. If at least one Rabit worker has yet connected to the tracker before
+       it is killed, the resulted connection failure will trigger the Rabit worker to call
+       "exit(-1);" in the native C++ code, effectively ending the dummy Spark task.
+
+       In cluster (standalone or YARN) mode of Spark, tasks are run in containers and thus are
+       isolated from each other. That is, one task calling "exit(-1);" has no effect on other tasks
+       running in separate containers. However, as unit tests are run in Spark local mode, in which
+       tasks are executed by threads belonging to the same process, one thread calling "exit(-1);"
+       ultimately kills the entire process, which also happens to host the Spark driver, causing
+       the entire Spark application to crash.
+
+       To prevent unit tests from crashing, deterministic delays were introduced to make sure that
+       the exception is thrown at last, ideally after all worker connections have been established.
+       For the same reason, the Java RabitTracker class delays the killing of the Python tracker
+       process to ensure that pending worker connections are handled.
+     */
     val dummyTasks = rdd.mapPartitions { iter =>
       Rabit.init(trackerEnvs)
       val index = iter.next()
