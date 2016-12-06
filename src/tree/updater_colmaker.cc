@@ -53,9 +53,9 @@ class ColMaker: public TreeUpdater {
     /*! \brief extra statistics of data */
     TStats stats_extra;
     /*! \brief last feature value scanned */
-    float  last_fvalue;
+    bst_float last_fvalue;
     /*! \brief first feature value scanned */
-    float  first_fvalue;
+    bst_float first_fvalue;
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
@@ -69,7 +69,7 @@ class ColMaker: public TreeUpdater {
     /*! \brief loss of this node, without split */
     bst_float root_gain;
     /*! \brief weight calculated related to current data */
-    float weight;
+    bst_float weight;
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
@@ -284,7 +284,7 @@ class ColMaker: public TreeUpdater {
           const bst_uint ridx = col[i].index;
           const int nid = position[ridx];
           if (nid < 0) continue;
-          const float fvalue = col[i].fvalue;
+          const bst_float fvalue = col[i].fvalue;
           if (temp[nid].stats.Empty()) {
             temp[nid].first_fvalue = fvalue;
           }
@@ -309,7 +309,7 @@ class ColMaker: public TreeUpdater {
         for (int tid = 0; tid < nthread; ++tid) {
           stemp[tid][nid].stats_extra = sum;
           ThreadEntry &e = stemp[tid][nid];
-          float fsplit;
+          bst_float fsplit;
           if (tid != 0) {
             if (stemp[tid - 1][nid].last_fvalue != e.first_fvalue) {
               fsplit = (stemp[tid - 1][nid].last_fvalue + e.first_fvalue) * 0.5f;
@@ -364,7 +364,7 @@ class ColMaker: public TreeUpdater {
           const bst_uint ridx = col[i].index;
           const int nid = position[ridx];
           if (nid < 0) continue;
-          const float fvalue = col[i].fvalue;
+          const bst_float fvalue = col[i].fvalue;
           // get the statistics of nid
           ThreadEntry &e = temp[nid];
           if (e.stats.Empty()) {
@@ -403,7 +403,7 @@ class ColMaker: public TreeUpdater {
     }
     // update enumeration solution
     inline void UpdateEnumeration(int nid, bst_gpair gstats,
-                                  float fvalue, int d_step, bst_uint fid,
+                                  bst_float fvalue, int d_step, bst_uint fid,
                                   TStats &c, std::vector<ThreadEntry> &temp) { // NOLINT(*)
       // get the statistics of nid
       ThreadEntry &e = temp[nid];
@@ -503,8 +503,8 @@ class ColMaker: public TreeUpdater {
             loss_chg = static_cast<bst_float>(
                 constraints_[nid].CalcSplitGain(param, fid, e.stats, c) - snode[nid].root_gain);
           }
-          const float gap = std::abs(e.last_fvalue) + rt_eps;
-          const float delta = d_step == +1 ? gap: -gap;
+          const bst_float gap = std::abs(e.last_fvalue) + rt_eps;
+          const bst_float delta = d_step == +1 ? gap: -gap;
           e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1);
         }
       }
@@ -535,7 +535,7 @@ class ColMaker: public TreeUpdater {
         const int nid = position[ridx];
         if (nid < 0) continue;
         // start working
-        const float fvalue = it->fvalue;
+        const bst_float fvalue = it->fvalue;
         // get the statistics of nid
         ThreadEntry &e = temp[nid];
         // test if first hit, this is fine, because we set 0 during init
@@ -580,8 +580,8 @@ class ColMaker: public TreeUpdater {
             loss_chg = static_cast<bst_float>(
                 constraints_[nid].CalcSplitGain(param, fid, e.stats, c) - snode[nid].root_gain);
           }
-          const float gap = std::abs(e.last_fvalue) + rt_eps;
-          const float delta = d_step == +1 ? gap: -gap;
+          const bst_float gap = std::abs(e.last_fvalue) + rt_eps;
+          const bst_float delta = d_step == +1 ? gap: -gap;
           e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1);
         }
       }
@@ -730,7 +730,7 @@ class ColMaker: public TreeUpdater {
           for (bst_omp_uint j = 0; j < ndata; ++j) {
             const bst_uint ridx = col[j].index;
             const int nid = this->DecodePosition(ridx);
-            const float fvalue = col[j].fvalue;
+            const bst_float fvalue = col[j].fvalue;
             // go back to parent, correct those who are not default
             if (!tree[nid].is_leaf() && tree[nid].split_index() == fid) {
               if (fvalue < tree[nid].split_cond()) {
@@ -864,7 +864,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
           #pragma omp parallel for schedule(static)
           for (bst_omp_uint j = 0; j < ndata; ++j) {
             const bst_uint ridx = col[j].index;
-            const float fvalue = col[j].fvalue;
+            const bst_float fvalue = col[j].fvalue;
             const int nid = this->DecodePosition(ridx);
             if (!tree[nid].is_leaf() && tree[nid].split_index() == fid) {
               if (fvalue < tree[nid].split_cond()) {
@@ -898,7 +898,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
       }
     }
     // synchronize the best solution of each node
-    virtual void SyncBestSolution(const std::vector<int> &qexpand) {
+    void SyncBestSolution(const std::vector<int> &qexpand) override {
       std::vector<SplitEntry> vec;
       for (size_t i = 0; i < qexpand.size(); ++i) {
         const int nid = qexpand[i];

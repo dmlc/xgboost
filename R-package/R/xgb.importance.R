@@ -44,7 +44,8 @@
 #' xgb.importance(colnames(agaricus.train$data), model = bst)
 #' 
 #' # Same thing with co-occurence computation this time
-#' xgb.importance(colnames(agaricus.train$data), model = bst, data = agaricus.train$data, label = agaricus.train$label)
+#' xgb.importance(colnames(agaricus.train$data), model = bst, 
+#'                data = agaricus.train$data, label = agaricus.train$label)
 #' 
 #' @export
 xgb.importance <- function(feature_names = NULL, model = NULL, data = NULL, label = NULL, target = function(x) ( (x + label) == 2)){
