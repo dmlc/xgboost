@@ -262,7 +262,7 @@ class DMatrix(object):
                                                          int(silent),
                                                          ctypes.byref(self.handle)))
             else:
-                raise IOError('The \'' +data + '\' path does not exist!')
+                raise IOError('The \'' + data + '\' path does not exist!')
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
