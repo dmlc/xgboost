@@ -85,7 +85,7 @@ object XGBoost {
   def train(dtrain: DataSet[LabeledVector], params: Map[String, Any], round: Int):
       XGBoostModel = {
     val tracker = new RabitTracker(dtrain.getExecutionEnvironment.getParallelism)
-    if (tracker.start()) {
+    if (tracker.start(0L)) {
       dtrain
         .mapPartition(new MapFunction(params, round, tracker.getWorkerEnvs))
         .reduce((x, y) => x).collect().head
