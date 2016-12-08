@@ -171,55 +171,6 @@ struct Timer {
 };
 
 /*
- *  Utility functions
- */
-
-template <typename T>
-void print(const thrust::device_vector<T> &v, size_t max_items = 10) {
-  thrust::host_vector<T> h = v;
-  for (int i = 0; i < std::min(max_items, h.size()); i++) {
-    std::cout << " " << h[i];
-  }
-  std::cout << "\n";
-}
-
-template <typename T>
-void print(char *label, const thrust::device_vector<T> &v,
-           const char *format = "%d ", int max = 10) {
-  thrust::host_vector<T> h_v = v;
-
-  std::cout << label << ":\n";
-  for (int i = 0; i < std::min(static_cast<int>(h_v.size()), max); i++) {
-    printf(format, h_v[i]);
-  }
-  std::cout << "\n";
-}
-
-template <typename T1, typename T2> T1 div_round_up(const T1 a, const T2 b) {
-  return static_cast<T1>(ceil(static_cast<double>(a) / b));
-}
-
-template <typename T> thrust::device_ptr<T> dptr(T *d_ptr) {
-  return thrust::device_pointer_cast(d_ptr);
-}
-
-template <typename T> T *raw(thrust::device_vector<T> &v) { //  NOLINT
-  return raw_pointer_cast(v.data());
-}
-
-template <typename T> size_t size_bytes(const thrust::device_vector<T> &v) {
-  return sizeof(T) * v.size();
-}
-
-// Threadblock iterates over range, filling with value
-template <typename IterT, typename ValueT>
-__device__ void block_fill(IterT begin, size_t n, ValueT value) {
-  for (auto i : block_stride_range(static_cast<size_t>(0), n)) {
-    begin[i] = value;
-  }
-}
-
-/*
  * Range iterator
  */
 
@@ -280,6 +231,55 @@ template <typename T> __device__ range block_stride_range(T begin, T end) {
   range r(begin, end);
   r.step(blockDim.x);
   return r;
+}
+
+/*
+ *  Utility functions
+ */
+
+template <typename T>
+void print(const thrust::device_vector<T> &v, size_t max_items = 10) {
+  thrust::host_vector<T> h = v;
+  for (int i = 0; i < std::min(max_items, h.size()); i++) {
+    std::cout << " " << h[i];
+  }
+  std::cout << "\n";
+}
+
+template <typename T>
+void print(char *label, const thrust::device_vector<T> &v,
+           const char *format = "%d ", int max = 10) {
+  thrust::host_vector<T> h_v = v;
+
+  std::cout << label << ":\n";
+  for (int i = 0; i < std::min(static_cast<int>(h_v.size()), max); i++) {
+    printf(format, h_v[i]);
+  }
+  std::cout << "\n";
+}
+
+template <typename T1, typename T2> T1 div_round_up(const T1 a, const T2 b) {
+  return static_cast<T1>(ceil(static_cast<double>(a) / b));
+}
+
+template <typename T> thrust::device_ptr<T> dptr(T *d_ptr) {
+  return thrust::device_pointer_cast(d_ptr);
+}
+
+template <typename T> T *raw(thrust::device_vector<T> &v) { //  NOLINT
+  return raw_pointer_cast(v.data());
+}
+
+template <typename T> size_t size_bytes(const thrust::device_vector<T> &v) {
+  return sizeof(T) * v.size();
+}
+
+// Threadblock iterates over range, filling with value
+template <typename IterT, typename ValueT>
+__device__ void block_fill(IterT begin, size_t n, ValueT value) {
+  for (auto i : block_stride_range(static_cast<size_t>(0), n)) {
+    begin[i] = value;
+  }
 }
 
 /*
@@ -414,6 +414,7 @@ class bulk_allocator {
     }
 
     _size = get_size_bytes(args...);
+    std::cout << "trying to allocate: " << _size << "\n";
 
     safe_cuda(cudaMalloc(&d_ptr, _size));
 
