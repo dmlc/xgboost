@@ -362,7 +362,7 @@ SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats, SEXP dump_for
                                 fmt,
                                 &olen, &res));
   out = PROTECT(allocVector(STRSXP, olen));
-  if(!strcmp("json", fmt)) {
+  if (!strcmp("json", fmt)) {
     std::stringstream stream;
     stream <<  "[\n";
     for (size_t i = 0; i < olen; ++i) {
