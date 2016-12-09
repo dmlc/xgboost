@@ -68,9 +68,12 @@ struct GPUData {
 
     // Calculate memory for sort
     size_t cub_mem_size = 0;
+    cub::DoubleBuffer<NodeIdT> db_key;
+    cub::DoubleBuffer<int> db_value;
+
     cub::DeviceSegmentedRadixSort::SortPairs(
-        cub_mem.data(), cub_mem_size, cub::DoubleBuffer<NodeIdT>(),
-        cub::DoubleBuffer<int>(), in_fvalues.size(), n_features,
+        cub_mem.data(), cub_mem_size, db_key,
+        db_value, in_fvalues.size(), n_features,
         foffsets.data(), foffsets.data() + 1);
 
     // Allocate memory
@@ -304,7 +307,11 @@ void GPUBuilder::Update(const std::vector<bst_gpair> &gpair, DMatrix *p_fmat,
 
 float GPUBuilder::GetSubsamplingRate(MetaInfo info) {
   float subsample = 1.0;
-  size_t required = 10 * info.num_row + 44 * info.num_nonzero;
+  uint32_t max_nodes = (1 << (param.max_depth + 1)) - 1;
+  uint32_t max_nodes_level = 1 << param.max_depth;
+  size_t required = 10 * info.num_row + 40 * info.num_nonzero
+    + 64 * max_nodes + 76 * max_nodes_level * info.num_col;
+  std::cout << "required: " << required << "\n";
   size_t available = dh::available_memory();
   while (available < required) {
     subsample -= 0.05;
