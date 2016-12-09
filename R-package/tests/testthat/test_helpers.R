@@ -27,7 +27,7 @@ test_that("xgb.dump works", {
   expect_true(xgb.dump(bst.Tree, 'xgb.model.dump', with_stats = T))
   expect_true(file.exists('xgb.model.dump'))
   expect_gt(file.size('xgb.model.dump'), 8000)
-  
+
   # JSON format
   dmp <- xgb.dump(bst.Tree, dump_format = "json")
   expect_length(dmp, 1)
@@ -43,6 +43,11 @@ test_that("xgb.dump works for gblinear", {
   d.sp <- xgb.dump(bst.GLM.sp)
   expect_length(d.sp, 14)
   expect_gt(sum(d.sp == "0"), 0)
+
+  # JSON format
+  dmp <- xgb.dump(bst.GLM.sp, dump_format = "json")
+  expect_length(dmp, 1)
+  expect_length(grep('\\d', strsplit(dmp, '\n')[[1]]), 11)
 })
 
 test_that("xgb-attribute functionality", {
