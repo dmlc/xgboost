@@ -282,11 +282,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
   API_BEGIN();
-  int nthread;
-  #pragma omp parallel
-  {
-    nthread = omp_get_num_threads();
-  }
+  const int nthread = omp_get_max_threads();
   data::SimpleCSRSource& mat = *source;
   common::ParallelGroupBuilder<RowBatch::Entry> builder(&mat.row_ptr_, &mat.row_data_);
   builder.InitBudget(0, nthread);

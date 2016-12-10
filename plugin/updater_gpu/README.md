@@ -1,5 +1,16 @@
 # CUDA Accelerated Tree Construction Algorithm
 
+## Benchmarks
+
+Time for 500 boosting iterations in seconds. 
+
+Dataset | Instances | Features | i7-6700K | Titan X (pascal) | Speedup
+--- | --- | --- | --- | --- | --- 
+Yahoo LTR | 473,134 | 700 | 3738 | 507 | 7.37
+Higgs | 10,500,000 | 28 | 31352 | 4173 | 7.51
+Bosch | 1,183,747 | 968 | 9460 | 1009 | 9.38
+
+
 ## Usage
 Specify the updater parameter as 'grow_gpu'. 
 
@@ -13,9 +24,11 @@ param['updater'] = 'grow_gpu'
 ## Memory usage
 Device memory usage can be calculated as approximately:
 ```
-bytes = (10 x n_rows) + (44 x n_rows x n_columns x column_density)
+bytes = (10 x n_rows) + (40 x n_rows x n_columns x column_density) + (64 x max_nodes) + (76 x max_nodes_level x n_columns)
 ```
-Data is stored in a sparse format. For example, missing values produced by one hot encoding are not stored. If a one hot encoding separates a categorical variable into 5 columns the column_density of these columns is 1/5 = 0.2.
+The maximum number of nodes needed for a given tree depth d is 2<sup>d+1</sup> - 1. The maximum number of nodes on any given level is 2<sup>d</sup>.
+
+Data is stored in a sparse format. For example, missing values produced by one hot encoding are not stored. If a one hot encoding separates a categorical variable into 5 columns the density of these columns is 1/5 = 0.2.
 
 A 4GB graphics card will process approximately 3.5 million rows of the well known Kaggle higgs dataset.
 
@@ -26,7 +39,7 @@ A CUDA capable GPU with at least compute capability >= 3.5 (the algorithm depend
 
 Building the plug-in requires CUDA Toolkit 7.5 or later.
 
-The plugin also depends on CUB 1.5.4 - http://nvlabs.github.io/cub/index.html.
+The plugin also depends on CUB 1.5.2 - https://github.com/NVlabs/cub/tree/1.5.2
 
 CUB is a header only cuda library which provides sort/reduce/scan primitives.
 
@@ -58,7 +71,5 @@ The build process generates an xgboost library and executable as normal but cont
 Rory Mitchell 
 
 Report any bugs to r.a.mitchell.nz at google mail.
-
-
 
 

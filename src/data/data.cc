@@ -203,8 +203,6 @@ DMatrix* DMatrix::Load(const std::string& uri,
     }
   }
 
-  std::string ftype = file_format;
-  if (file_format == "auto") ftype = "libsvm";
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
       dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
   DMatrix* dmat = DMatrix::Create(parser.get(), cache_file);

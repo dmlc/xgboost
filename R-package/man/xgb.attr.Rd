@@ -45,7 +45,7 @@ stored together with the model's binary representation, and accessed later
 (from R or any other interface).
 In contrast, any R-attribute assigned to an R-object of \code{xgb.Booster} class
 would not be saved by \code{xgb.save} because an xgboost model is an external memory object
-and its serialization is handled extrnally.
+and its serialization is handled externally.
 Also, setting an attribute that has the same name as one of xgboost's parameters wouldn't 
 change the value of that parameter for a model. 
 Use \code{\link{xgb.parameters<-}} to set or change model parameters.
