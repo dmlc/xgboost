@@ -229,7 +229,7 @@ cb.reset.parameters <- function(new_params) {
       xgb.parameters(env$bst$handle) <- pars
     } else {
       for (fd in env$bst_folds)
-        xgb.parameters(fd$bst$handle) <- pars
+        xgb.parameters(fd$bst) <- pars
     }
   }
   attr(callback, 'is_pre_iteration') <- TRUE

@@ -27,7 +27,7 @@ namespace xgboost {
  *  std::unique_ptr<Learner> learner(new Learner::Create(cache_mats));
  *  learner.Configure(configs);
  *
- *  for (int iter = 0; iter < max_iter; ++i) {
+ *  for (int iter = 0; iter < max_iter; ++iter) {
  *    learner->UpdateOneIter(iter, train_mat);
  *    LOG(INFO) << learner->EvalOneIter(iter, data_sets, data_names);
  *  }
