@@ -473,6 +473,24 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         return self
 
     def predict(self, data, output_margin=False, ntree_limit=0):
+        """
+        Predict with `data`.
+        NOTE: This function is not thread safe.
+              For each booster object, predict can only be called from one thread.
+              If you want to run prediction using multiple thread, call xgb.copy() to make copies
+              of model object and then call predict
+        Parameters
+        ----------
+        data : DMatrix
+            The dmatrix storing the input.
+        output_margin : bool
+            Whether to output the raw untransformed margin value.
+        ntree_limit : int
+            Limit number of trees in the prediction; defaults to 0 (use all trees).
+        Returns
+        -------
+        prediction : numpy array
+        """
         test_dmatrix = DMatrix(data, missing=self.missing)
         class_probs = self.booster().predict(test_dmatrix,
                                              output_margin=output_margin,
@@ -485,6 +503,25 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         return self._le.inverse_transform(column_indexes)
 
     def predict_proba(self, data, output_margin=False, ntree_limit=0):
+        """
+        Predict the probability of each `data` example being of a given class.
+        NOTE: This function is not thread safe.
+              For each booster object, predict can only be called from one thread.
+              If you want to run prediction using multiple thread, call xgb.copy() to make copies
+              of model object and then call predict
+        Parameters
+        ----------
+        data : DMatrix
+            The dmatrix storing the input.
+        output_margin : bool
+            Whether to output the raw untransformed margin value.
+        ntree_limit : int
+            Limit number of trees in the prediction; defaults to 0 (use all trees).
+        Returns
+        -------
+        prediction : numpy array
+            a numpy array with the probability of each data example being of a given class.
+        """
         test_dmatrix = DMatrix(data, missing=self.missing)
         class_probs = self.booster().predict(test_dmatrix,
                                              output_margin=output_margin,
