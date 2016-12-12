@@ -39,7 +39,7 @@ A CUDA capable GPU with at least compute capability >= 3.5 (the algorithm depend
 
 Building the plug-in requires CUDA Toolkit 7.5 or later.
 
-The plugin also depends on CUB 1.5.2 - https://github.com/NVlabs/cub/tree/1.5.2
+The plugin also depends on CUB 1.6.4 - https://nvlabs.github.io/cub/
 
 CUB is a header only cuda library which provides sort/reduce/scan primitives.
 
@@ -70,6 +70,8 @@ The build process generates an xgboost library and executable as normal but cont
 ## Author
 Rory Mitchell 
 
-Report any bugs to r.a.mitchell.nz at google mail.
+Please report bugs to the xgboost/issues page. You can tag me with @RAMitchell.
+
+Otherwise I can be contacted at r.a.mitchell.nz at gmail.
 
 

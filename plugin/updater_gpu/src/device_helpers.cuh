@@ -414,7 +414,6 @@ class bulk_allocator {
     }
 
     _size = get_size_bytes(args...);
-    std::cout << "trying to allocate: " << _size << "\n";
 
     safe_cuda(cudaMalloc(&d_ptr, _size));
 
