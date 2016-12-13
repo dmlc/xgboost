@@ -164,6 +164,8 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
     ----------
     booster : Booster, XGBModel
         Booster or XGBModel instance
+    fmap: str (optional)
+       The name of feature map file
     num_trees : int, default 0
         Specify the ordinal number of target tree
     rankdir : str, default "UT"
@@ -218,6 +220,8 @@ def plot_tree(booster, fmap='', num_trees=0, rankdir='UT', ax=None, **kwargs):
     ----------
     booster : Booster, XGBModel
         Booster or XGBModel instance
+    fmap: str (optional)
+       The name of feature map file
     num_trees : int, default 0
         Specify the ordinal number of target tree
     rankdir : str, default "UT"
