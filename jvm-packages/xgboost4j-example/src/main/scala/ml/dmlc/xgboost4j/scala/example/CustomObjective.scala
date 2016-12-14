@@ -57,7 +57,7 @@ object CustomObjective {
         case e: XGBoostError =>
           logger.error(e)
           null
-        case _ =>
+        case _: Throwable =>
           null
       }
       val grad = new Array[Float](nrow)

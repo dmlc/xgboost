@@ -339,7 +339,7 @@ xgb.attributes <- function(object) {
   # Q: should we warn a user about non-scalar elements?
   a <- lapply(a, function(x) {
     if (is.null(x)) return(NULL)
-    if (is.numeric(value[1])) {
+    if (is.numeric(x[1])) {
       format(x[1], digits = 17)
     } else {
       as.character(x[1])
