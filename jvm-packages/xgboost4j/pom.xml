@@ -110,13 +110,13 @@
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-actor_${scala.binary.version}</artifactId>
+            <artifactId>akka-actor_2.11</artifactId>
             <version>2.3.11</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-testkit_${scala.binary.version}</artifactId>
+            <artifactId>akka-testkit_2.11</artifactId>
             <version>2.3.11</version>
             <scope>test</scope>
         </dependency>
