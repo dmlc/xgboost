@@ -29,7 +29,7 @@ Joaquin Quinonero Candela)}
  
 International Workshop on Data Mining for Online Advertising (ADKDD) - August 24, 2014
 
-\url{https://research.facebook.com/publications/758569837499391/practical-lessons-from-predicting-clicks-on-ads-at-facebook/}.
+\url{https://research.fb.com/publications/practical-lessons-from-predicting-clicks-on-ads-at-facebook/}.
 
 Extract explaining the method:
 

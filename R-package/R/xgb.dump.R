@@ -14,7 +14,7 @@
 #'        When this option is on, the model dump comes with two additional statistics:
 #'        gain is the approximate loss function gain we get in each split;
 #'        cover is the sum of second order gradient in each node.
-#' @param dump_fomat either 'text' or 'json' format could be specified.
+#' @param dump_format either 'text' or 'json' format could be specified.
 #' @param ... currently not used
 #'
 #' @return
