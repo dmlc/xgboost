@@ -108,5 +108,17 @@
             <version>4.11</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-actor_${scala.binary.version}</artifactId>
+            <version>2.3.11</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-testkit_${scala.binary.version}</artifactId>
+            <version>2.3.11</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

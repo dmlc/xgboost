@@ -303,6 +303,14 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitGetWorldSize
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitVersionNumber
   (JNIEnv *, jclass, jintArray);
 
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    RabitAllreduce
+ * Signature: (Ljava/nio/ByteBuffer;III)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitAllreduce
+  (JNIEnv *, jclass, jobject, jint, jint, jint);
+
 #ifdef __cplusplus
 }
 #endif

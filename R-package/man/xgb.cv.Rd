@@ -26,13 +26,13 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL, missing = NA,
   See \code{\link{xgb.train}} for further details.
   See also demo/ for walkthrough example in R.}
 
-\item{data}{takes an \code{xgb.DMatrix} or \code{Matrix} as the input.}
+\item{data}{takes an \code{xgb.DMatrix}, \code{matrix}, or \code{dgCMatrix} as the input.}
 
 \item{nrounds}{the max number of iterations}
 
 \item{nfold}{the original dataset is randomly partitioned into \code{nfold} equal size subsamples.}
 
-\item{label}{vector of response values. Should be provided only when data is \code{DMatrix}.}
+\item{label}{vector of response values. Should be provided only when data is an R-matrix.}
 
 \item{missing}{is only used when input is a dense matrix. By default is set to NA, which means 
 that NA values should be considered as 'missing' by the algorithm. 

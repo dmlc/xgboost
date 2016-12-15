@@ -34,11 +34,7 @@ class TreeRefresher: public TreeUpdater {
     std::vector<std::vector<TStats> > stemp;
     std::vector<RegTree::FVec> fvec_temp;
     // setup temp space for each thread
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-    }
+    const int nthread = omp_get_max_threads();
     fvec_temp.resize(nthread, RegTree::FVec());
     stemp.resize(nthread, std::vector<TStats>());
     #pragma omp parallel
@@ -134,7 +130,9 @@ class TreeRefresher: public TreeUpdater {
     tree.stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
     gstats[nid].SetLeafVec(param, tree.leafvec(nid));
     if (tree[nid].is_leaf()) {
-      tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
+      if (param.refresh_leaf) {
+        tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
+      }
     } else {
       tree.stat(nid).loss_chg = static_cast<bst_float>(
           gstats[tree[nid].cleft()].CalcGain(param) +

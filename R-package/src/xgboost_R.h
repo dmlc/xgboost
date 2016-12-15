@@ -185,8 +185,9 @@ XGB_DLL SEXP XGBoosterModelToRaw_R(SEXP handle);
  * \param handle handle
  * \param fmap  name to fmap can be empty string
  * \param with_stats whether dump statistics of splits
+ * \param dump_format the format to dump the model in
  */
-XGB_DLL SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats);
+XGB_DLL SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats, SEXP dump_format);
 
 /*!
  * \brief get learner attribute value

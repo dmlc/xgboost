@@ -26,6 +26,12 @@ namespace gbm {
 
 DMLC_REGISTRY_FILE_TAG(gbtree);
 
+// boosting process types
+enum TreeProcessType {
+  kDefault,
+  kUpdate
+};
+
 /*! \brief training parameters */
 struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   /*!
@@ -35,13 +41,24 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   int num_parallel_tree;
   /*! \brief tree updater sequence */
   std::string updater_seq;
+  /*! \brief type of boosting process to run */
+  int process_type;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
-    DMLC_DECLARE_FIELD(num_parallel_tree).set_lower_bound(1).set_default(1)
+    DMLC_DECLARE_FIELD(num_parallel_tree)
+        .set_default(1)
+        .set_lower_bound(1)
         .describe("Number of parallel trees constructed during each iteration."\
                   " This option is used to support boosted random forest");
-    DMLC_DECLARE_FIELD(updater_seq).set_default("grow_colmaker,prune")
+    DMLC_DECLARE_FIELD(updater_seq)
+        .set_default("grow_colmaker,prune")
         .describe("Tree updater sequence.");
+    DMLC_DECLARE_FIELD(process_type)
+        .set_default(kDefault)
+        .add_enum("default", kDefault)
+        .add_enum("update", kUpdate)
+        .describe("Whether to run the normal boosting process that creates new trees,"\
+                  " or to update the trees in an existing model.");
     // add alias
     DMLC_DECLARE_ALIAS(updater_seq, updater);
   }
@@ -63,21 +80,30 @@ struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
   float learning_rate;
   // declare parameters
   DMLC_DECLARE_PARAMETER(DartTrainParam) {
-    DMLC_DECLARE_FIELD(silent).set_default(false)
+    DMLC_DECLARE_FIELD(silent)
+        .set_default(false)
         .describe("Not print information during training.");
-    DMLC_DECLARE_FIELD(sample_type).set_default(0)
+    DMLC_DECLARE_FIELD(sample_type)
+        .set_default(0)
         .add_enum("uniform", 0)
         .add_enum("weighted", 1)
         .describe("Different types of sampling algorithm.");
-    DMLC_DECLARE_FIELD(normalize_type).set_default(0)
+    DMLC_DECLARE_FIELD(normalize_type)
+        .set_default(0)
         .add_enum("tree", 0)
         .add_enum("forest", 1)
         .describe("Different types of normalization algorithm.");
-    DMLC_DECLARE_FIELD(rate_drop).set_range(0.0f, 1.0f).set_default(0.0f)
+    DMLC_DECLARE_FIELD(rate_drop)
+        .set_range(0.0f, 1.0f)
+        .set_default(0.0f)
         .describe("Parameter of how many trees are dropped.");
-    DMLC_DECLARE_FIELD(skip_drop).set_range(0.0f, 1.0f).set_default(0.0f)
+    DMLC_DECLARE_FIELD(skip_drop)
+        .set_range(0.0f, 1.0f)
+        .set_default(0.0f)
         .describe("Parameter of whether to drop trees.");
-    DMLC_DECLARE_FIELD(learning_rate).set_lower_bound(0.0f).set_default(0.3f)
+    DMLC_DECLARE_FIELD(learning_rate)
+        .set_lower_bound(0.0f)
+        .set_default(0.3f)
         .describe("Learning rate(step size) of update.");
     DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
@@ -157,12 +183,21 @@ class GBTree : public GradientBooster {
     for (const auto& up : updaters) {
       up->Init(cfg);
     }
+    // for the 'update' process_type, move trees into trees_to_update
+    if (tparam.process_type == kUpdate && trees_to_update.size() == 0u) {
+      for (size_t i = 0; i < trees.size(); ++i) {
+        trees_to_update.push_back(std::move(trees[i]));
+      }
+      trees.clear();
+      mparam.num_trees = 0;
+    }
   }
 
   void Load(dmlc::Stream* fi) override {
     CHECK_EQ(fi->Read(&mparam, sizeof(mparam)), sizeof(mparam))
         << "GBTree: invalid model file";
     trees.clear();
+    trees_to_update.clear();
     for (int i = 0; i < mparam.num_trees; ++i) {
       std::unique_ptr<RegTree> ptr(new RegTree());
       ptr->Load(fi);
@@ -266,11 +301,7 @@ class GBTree : public GradientBooster {
   void PredictLeaf(DMatrix* p_fmat,
                    std::vector<bst_float>* out_preds,
                    unsigned ntree_limit) override {
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-    }
+    const int nthread = omp_get_max_threads();
     InitThreadTemp(nthread);
     this->PredPath(p_fmat, out_preds, ntree_limit);
   }
@@ -330,11 +361,7 @@ class GBTree : public GradientBooster {
       unsigned tree_begin,
       unsigned tree_end) {
     const MetaInfo& info = p_fmat->info();
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-    }
+    const int nthread = omp_get_max_threads();
     CHECK_EQ(num_group, mparam.num_output_group);
     InitThreadTemp(nthread);
     std::vector<bst_float> &preds = *out_preds;
@@ -386,11 +413,20 @@ class GBTree : public GradientBooster {
     ret->clear();
     // create the trees
     for (int i = 0; i < tparam.num_parallel_tree; ++i) {
-      std::unique_ptr<RegTree> ptr(new RegTree());
-      ptr->param.InitAllowUnknown(this->cfg);
-      ptr->InitModel();
-      new_trees.push_back(ptr.get());
-      ret->push_back(std::move(ptr));
+      if (tparam.process_type == kDefault) {
+        // create new tree
+        std::unique_ptr<RegTree> ptr(new RegTree());
+        ptr->param.InitAllowUnknown(this->cfg);
+        ptr->InitModel();
+        new_trees.push_back(ptr.get());
+        ret->push_back(std::move(ptr));
+      } else if (tparam.process_type == kUpdate) {
+        CHECK_LT(trees.size(), trees_to_update.size());
+        // move an existing tree from trees_to_update
+        auto t = std::move(trees_to_update[trees.size()]);
+        new_trees.push_back(t.get());
+        ret->push_back(std::move(t));
+      }
     }
     // update the trees
     for (auto& up : updaters) {
@@ -493,6 +529,8 @@ class GBTree : public GradientBooster {
   GBTreeModelParam mparam;
   /*! \brief vector of trees stored in the model */
   std::vector<std::unique_ptr<RegTree> > trees;
+  /*! \brief for the update process, a place to keep the initial trees */
+  std::vector<std::unique_ptr<RegTree> > trees_to_update;
   /*! \brief some information indicator of the tree, reserved */
   std::vector<int> tree_info;
   // ----training fields----
