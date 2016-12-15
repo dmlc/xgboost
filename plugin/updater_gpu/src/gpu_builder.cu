@@ -311,7 +311,6 @@ float GPUBuilder::GetSubsamplingRate(MetaInfo info) {
   uint32_t max_nodes_level = 1 << param.max_depth;
   size_t required = 10 * info.num_row + 40 * info.num_nonzero
     + 64 * max_nodes + 76 * max_nodes_level * info.num_col;
-  std::cout << "required: " << required << "\n";
   size_t available = dh::available_memory();
   while (available < required) {
     subsample -= 0.05;
