@@ -1779,6 +1779,11 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
+CXX1X=`"${R_HOME}/bin/R" CMD config CXX1X`
+CXX1XSTD=`"${R_HOME}/bin/R" CMD config CXX1XSTD`
+CXX="${CXX1X} ${CXX1XSTD}"
+CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXX1XFLAGS`
+
 ac_ext=cpp
 ac_cpp='$CXXCPP $CPPFLAGS'
 ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
