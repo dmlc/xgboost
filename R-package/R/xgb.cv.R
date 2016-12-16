@@ -1,6 +1,6 @@
 #' Cross Validation
 #' 
-#' The cross valudation function of xgboost
+#' The cross validation function of xgboost
 #' 
 #' @param params the list of parameters. Commonly used ones are:
 #' \itemize{
@@ -16,10 +16,10 @@
 #'
 #'   See \code{\link{xgb.train}} for further details.
 #'   See also demo/ for walkthrough example in R.
-#' @param data takes an \code{xgb.DMatrix} or \code{Matrix} as the input.
+#' @param data takes an \code{xgb.DMatrix}, \code{matrix}, or \code{dgCMatrix} as the input.
 #' @param nrounds the max number of iterations
 #' @param nfold the original dataset is randomly partitioned into \code{nfold} equal size subsamples. 
-#' @param label vector of response values. Should be provided only when data is \code{DMatrix}.
+#' @param label vector of response values. Should be provided only when data is an R-matrix.
 #' @param missing is only used when input is a dense matrix. By default is set to NA, which means 
 #'        that NA values should be considered as 'missing' by the algorithm. 
 #'        Sometimes, 0 or other extreme value might be used to represent missing values.
@@ -129,10 +129,9 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   #if (is.null(params[['eval_metric']]) && is.null(feval))
   #  stop("Either 'eval_metric' or 'feval' must be provided for CV")
   
-  # Labels
-  if (class(data) == 'xgb.DMatrix')
-    labels <- getinfo(data, 'label')
-  if (is.null(labels))
+  # Check the labels
+  if ( (class(data) == 'xgb.DMatrix' && is.null(getinfo(data, 'label'))) ||
+       (class(data) != 'xgb.DMatrix' && is.null(label)))
     stop("Labels must be provided for CV either through xgb.DMatrix, or through 'label=' when 'data' is matrix")
   
   # CV folds

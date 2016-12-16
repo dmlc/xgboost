@@ -32,7 +32,7 @@ import org.apache.commons.logging.{LogFactory, Log}
  * function
  *
  */
-class CustomObjective {
+object CustomObjective {
 
   /**
    * loglikelihoode loss obj function
@@ -57,7 +57,7 @@ class CustomObjective {
         case e: XGBoostError =>
           logger.error(e)
           null
-        case _ =>
+        case _: Throwable =>
           null
       }
       val grad = new Array[Float](nrow)

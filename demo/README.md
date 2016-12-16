@@ -17,6 +17,7 @@ Contents
 - [Usecases](#usecases)
 - [Tools using XGBoost](#tools-using-xgboost)
 - [Awards](#awards)
+- [Windows Binaries](#windows-binaries)
 
 Code Examples
 -------------
@@ -75,6 +76,7 @@ XGBoost is extensively used by machine learning practitioners to create state of
 this is a list of machine learning winning solutions with XGBoost.
 Please send pull requests if you find ones that are missing here.
 
+- Vlad Sandulescu, Mihai Chiru, 1st place of the [KDD Cup 2016 competition](https://kddcup2016.azurewebsites.net). Link to [the arxiv paper](http://arxiv.org/abs/1609.02728).
 - Marios Michailidis, Mathias Müller and HJ van Veen, 1st place of the [Dato Truely Native? competition](https://www.kaggle.com/c/dato-native). Link to [the Kaggle interview](http://blog.kaggle.com/2015/12/03/dato-winners-interview-1st-place-mad-professors/).
 - Vlad Mironov, Alexander Guschin, 1st place of the [CERN LHCb experiment Flavour of Physics competition](https://www.kaggle.com/c/flavours-of-physics). Link to [the Kaggle interview](http://blog.kaggle.com/2015/11/30/flavour-of-physics-technical-write-up-1st-place-go-polar-bears/).
 - Josef Slavicek, 3rd place of the [CERN LHCb experiment Flavour of Physics competition](https://www.kaggle.com/c/flavours-of-physics). Link to [the Kaggle interview](http://blog.kaggle.com/2015/11/23/flavour-of-physics-winners-interview-3rd-place-josef-slavicek/).
@@ -107,6 +109,8 @@ Please send pull requests if you find ones that are missing here.
 - [Ensemble Decision Tree with XGBoost](https://www.kaggle.com/binghsu/predict-west-nile-virus/xgboost-starter-code-python-0-69) by [Bing Xu](https://www.kaggle.com/binghsu)
 - [Notes on eXtreme Gradient Boosting](http://startup.ml/blog/xgboost) by ARSHAK NAVRUZYAN ([iPython Notebook](https://github.com/startupml/koan/blob/master/eXtreme%20Gradient%20Boosting.ipynb))
 - [Complete Guide to Parameter Tuning in XGBoost](http://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/) by Aarshay Jain
+- [Practical XGBoost in Python online course](http://education.parrotprediction.teachable.com/courses/practical-xgboost-in-python) by Parrot Prediction
+- [Spark and XGBoost using Scala](http://www.elenacuoco.com/2016/10/10/scala-spark-xgboost-classification/) by Elena Cuoco
 
 ## Usecases
 If you have particular usecase of xgboost that you would like to highlight.
@@ -129,3 +133,6 @@ Send a PR to add a one sentence description:)
 
 ## Awards
 - [John Chambers Award](http://stat-computing.org/awards/jmc/winners.html) - 2016 Winner: XGBoost R Package, by Tong He (Simon Fraser University) and Tianqi Chen (University of Washington)
+
+## Windows Binaries
+Unofficial windows binaries and instructions on how to use them are hosted on [Guido Tapia's blog](http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/)

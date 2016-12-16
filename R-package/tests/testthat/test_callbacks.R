@@ -147,6 +147,11 @@ test_that("cb.reset.parameters works as expected", {
     bst4 <- xgb.train(param, dtrain, nrounds = 2, watchlist,
                       callbacks = list(cb.reset.parameters(my_par)))
   , NA) # NA = no error
+  # CV works as well
+  expect_error(
+    bst4 <- xgb.cv(param, dtrain, nfold = 2, nrounds = 2,
+                   callbacks = list(cb.reset.parameters(my_par)))
+  , NA) # NA = no error
 
   # expect no learning with 0 learning rate
   my_par <- list(eta = c(0., 0.))
@@ -258,6 +263,15 @@ test_that("prediction in xgb.cv works", {
   expect_equal(cv$evaluation_log, cvx$evaluation_log)
   expect_length(cvx$models, 5)
   expect_true(all(sapply(cvx$models, class) == 'xgb.Booster'))
+})
+
+test_that("prediction in xgb.cv works for gblinear too", {
+  set.seed(11)
+  p <- list(booster = 'gblinear', objective = "reg:logistic", nthread = 2)
+  cv <- xgb.cv(p, dtrain, nfold = 5, eta = 0.5, nrounds = 2, prediction = TRUE)
+  expect_false(is.null(cv$evaluation_log))
+  expect_false(is.null(cv$pred))
+  expect_length(cv$pred, nrow(train$data))
 })
 
 test_that("prediction in early-stopping xgb.cv works", {

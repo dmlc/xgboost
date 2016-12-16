@@ -87,30 +87,32 @@ SEXP XGDMatrixCreateFromMat_R(SEXP mat,
 
 SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
                               SEXP indices,
-                              SEXP data) {
+                              SEXP data,
+                              SEXP num_row) {
   SEXP ret;
   R_API_BEGIN();
   const int *p_indptr = INTEGER(indptr);
   const int *p_indices = INTEGER(indices);
   const double *p_data = REAL(data);
-  int nindptr = length(indptr);
-  int ndata = length(data);
-  std::vector<bst_ulong> col_ptr_(nindptr);
+  size_t nindptr = static_cast<size_t>(length(indptr));
+  size_t ndata = static_cast<size_t>(length(data));
+  size_t nrow = static_cast<size_t>(INTEGER(num_row)[0]);
+  std::vector<size_t> col_ptr_(nindptr);
   std::vector<unsigned> indices_(ndata);
   std::vector<float> data_(ndata);
 
-  for (int i = 0; i < nindptr; ++i) {
-    col_ptr_[i] = static_cast<bst_ulong>(p_indptr[i]);
+  for (size_t i = 0; i < nindptr; ++i) {
+    col_ptr_[i] = static_cast<size_t>(p_indptr[i]);
   }
   #pragma omp parallel for schedule(static)
-  for (int i = 0; i < ndata; ++i) {
+  for (size_t i = 0; i < ndata; ++i) {
     indices_[i] = static_cast<unsigned>(p_indices[i]);
     data_[i] = static_cast<float>(p_data[i]);
   }
   DMatrixHandle handle;
-  CHECK_CALL(XGDMatrixCreateFromCSC(BeginPtr(col_ptr_), BeginPtr(indices_),
-                                    BeginPtr(data_), nindptr, ndata,
-                                    &handle));
+  CHECK_CALL(XGDMatrixCreateFromCSCEx(BeginPtr(col_ptr_), BeginPtr(indices_),
+                                      BeginPtr(data_), nindptr, ndata,
+                                      nrow, &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
@@ -348,20 +350,37 @@ SEXP XGBoosterModelToRaw_R(SEXP handle) {
   return ret;
 }
 
-SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats) {
+SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats, SEXP dump_format) {
   SEXP out;
   R_API_BEGIN();
   bst_ulong olen;
   const char **res;
-  CHECK_CALL(XGBoosterDumpModel(R_ExternalPtrAddr(handle),
+  const char *fmt = CHAR(asChar(dump_format));
+  CHECK_CALL(XGBoosterDumpModelEx(R_ExternalPtrAddr(handle),
                                 CHAR(asChar(fmap)),
                                 asInteger(with_stats),
+                                fmt,
                                 &olen, &res));
   out = PROTECT(allocVector(STRSXP, olen));
-  for (size_t i = 0; i < olen; ++i) {
+  if (!strcmp("json", fmt)) {
     std::stringstream stream;
-    stream <<  "booster[" << i <<"]\n" << res[i];
-    SET_STRING_ELT(out, i, mkChar(stream.str().c_str()));
+    stream <<  "[\n";
+    for (size_t i = 0; i < olen; ++i) {
+      stream << res[i];
+      if (i < olen - 1) {
+        stream << ",\n";
+      } else {
+        stream << "\n";
+      }
+    }
+    stream <<  "]";
+    SET_STRING_ELT(out, 0, mkChar(stream.str().c_str()));
+  } else {
+    for (size_t i = 0; i < olen; ++i) {
+      std::stringstream stream;
+      stream <<  "booster[" << i <<"]\n" << res[i];
+      SET_STRING_ELT(out, i, mkChar(stream.str().c_str()));
+    }
   }
   R_API_END();
   UNPROTECT(1);

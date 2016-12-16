@@ -42,12 +42,12 @@
 /*! \brief namespace of xgboo st*/
 namespace xgboost {
 /*!
- * \brief unsigned interger type used in boost,
+ * \brief unsigned integer type used in boost,
  *  used for feature index and row index.
  */
 typedef uint32_t bst_uint;
 /*! \brief long integers */
-typedef unsigned long bst_ulong;  // NOLINT(*)
+typedef uint64_t bst_ulong;  // NOLINT(*)
 /*! \brief float type, used for storing statistics */
 typedef float bst_float;
 
@@ -62,7 +62,7 @@ struct bst_gpair {
 };
 
 /*! \brief small eps gap for minimum split decision. */
-const float rt_eps = 1e-6f;
+const bst_float rt_eps = 1e-6f;
 
 /*! \brief define unsigned long for openmp loop */
 typedef dmlc::omp_ulong omp_ulong;

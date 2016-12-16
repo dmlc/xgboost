@@ -43,11 +43,13 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat,
  * \param indptr pointer to column headers
  * \param indices row indices
  * \param data content of the data
+ * \param num_row numer of rows (when it's set to 0, then guess from data)
  * \return created dmatrix
  */
 XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
                                       SEXP indices,
-                                      SEXP data);
+                                      SEXP data,
+                                      SEXP num_row);
 
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix
@@ -183,8 +185,9 @@ XGB_DLL SEXP XGBoosterModelToRaw_R(SEXP handle);
  * \param handle handle
  * \param fmap  name to fmap can be empty string
  * \param with_stats whether dump statistics of splits
+ * \param dump_format the format to dump the model in
  */
-XGB_DLL SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats);
+XGB_DLL SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats, SEXP dump_format);
 
 /*!
  * \brief get learner attribute value

@@ -25,8 +25,10 @@ bool Learner::AllowLazyCheckPoint() const {
 }
 
 std::vector<std::string>
-Learner::Dump2Text(const FeatureMap& fmap, int option) const {
-  return gbm_->Dump2Text(fmap, option);
+Learner::DumpModel(const FeatureMap& fmap,
+                   bool with_stats,
+                   std::string format) const {
+  return gbm_->DumpModel(fmap, with_stats, format);
 }
 
 
@@ -34,7 +36,7 @@ Learner::Dump2Text(const FeatureMap& fmap, int option) const {
 struct LearnerModelParam
     : public dmlc::Parameter<LearnerModelParam> {
   /* \brief global bias */
-  float base_score;
+  bst_float base_score;
   /* \brief number of features  */
   unsigned num_feature;
   /* \brief number of classes, if it is multi-class classification  */
@@ -92,7 +94,7 @@ struct LearnerTrainParam
         .add_enum("auto", 0)
         .add_enum("col", 1)
         .add_enum("row", 2)
-        .describe("Data split mode for distributed trainig. ");
+        .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(tree_method).set_default(0)
         .add_enum("auto", 0)
         .add_enum("approx", 1)
@@ -118,20 +120,8 @@ DMLC_REGISTER_PARAMETER(LearnerTrainParam);
  */
 class LearnerImpl : public Learner {
  public:
-  explicit LearnerImpl(const std::vector<DMatrix*>& cache_mats)
-      noexcept(false) {
-    // setup the cache setting in constructor.
-    CHECK_EQ(cache_.size(), 0);
-    size_t buffer_size = 0;
-    for (auto it  = cache_mats.begin(); it != cache_mats.end(); ++it) {
-      // avoid duplication.
-      if (std::find(cache_mats.begin(), it, *it) != it) continue;
-      DMatrix* pmat = *it;
-      pmat->cache_learner_ptr_ = this;
-      cache_.push_back(CacheEntry(pmat, buffer_size, pmat->info().num_row));
-      buffer_size += pmat->info().num_row;
-    }
-    pred_buffer_size_ = buffer_size;
+  explicit LearnerImpl(const std::vector<std::shared_ptr<DMatrix> >& cache)
+      : cache_(cache) {
     // boosted tree
     name_obj_ = "reg:linear";
     name_gbm_ = "gbtree";
@@ -257,7 +247,7 @@ class LearnerImpl : public Learner {
         << "BoostLearner: wrong model format";
     // duplicated code with LazyInitModel
     obj_.reset(ObjFunction::Create(name_obj_));
-    gbm_.reset(GradientBooster::Create(name_gbm_));
+    gbm_.reset(GradientBooster::Create(name_gbm_, cache_, mparam.base_score));
     gbm_->Load(fi);
     if (mparam.contain_extra_attrs != 0) {
       std::vector<std::pair<std::string, std::string> > attr;
@@ -265,8 +255,11 @@ class LearnerImpl : public Learner {
       attributes_ = std::map<std::string, std::string>(
           attr.begin(), attr.end());
     }
-    this->base_score_ = mparam.base_score;
-    gbm_->ResetPredBuffer(pred_buffer_size_);
+    if (name_obj_ == "count:poisson") {
+        std::string max_delta_step;
+        fi->Read(&max_delta_step);
+        cfg_["max_delta_step"] = max_delta_step;
+    }
     cfg_["num_class"] = common::ToString(mparam.num_class);
     cfg_["num_feature"] = common::ToString(mparam.num_feature);
     obj_->Configure(cfg_.begin(), cfg_.end());
@@ -283,6 +276,11 @@ class LearnerImpl : public Learner {
           attributes_.begin(), attributes_.end());
       fo->Write(attr);
     }
+    if (name_obj_ == "count:poisson") {
+        std::map<std::string, std::string>::const_iterator it = cfg_.find("max_delta_step");
+        if (it != cfg_.end())
+            fo->Write(it->second);
+    }
   }
 
   void UpdateOneIter(int iter, DMatrix* train) override {
@@ -294,7 +292,7 @@ class LearnerImpl : public Learner {
     this->LazyInitDMatrix(train);
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train->info(), iter, &gpair_);
-    gbm_->DoBoost(train, this->FindBufferOffset(train), &gpair_);
+    gbm_->DoBoost(train, &gpair_, obj_.get());
   }
 
   void BoostOneIter(int iter,
@@ -304,7 +302,7 @@ class LearnerImpl : public Learner {
       common::GlobalRandom().seed(tparam.seed * kRandSeedMagic + iter);
     }
     this->LazyInitDMatrix(train);
-    gbm_->DoBoost(train, this->FindBufferOffset(train), in_gpair);
+    gbm_->DoBoost(train, in_gpair);
   }
 
   std::string EvalOneIter(int iter,
@@ -355,7 +353,7 @@ class LearnerImpl : public Learner {
     return out;
   }
 
-  std::pair<std::string, float> Evaluate(DMatrix* data, std::string metric) {
+  std::pair<std::string, bst_float> Evaluate(DMatrix* data, std::string metric) {
     if (metric == "auto") metric = obj_->DefaultEvalMetric();
     std::unique_ptr<Metric> ev(Metric::Create(metric.c_str()));
     this->PredictRaw(data, &preds_);
@@ -365,7 +363,7 @@ class LearnerImpl : public Learner {
 
   void Predict(DMatrix* data,
                bool output_margin,
-               std::vector<float> *out_preds,
+               std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
                bool pred_leaf) const override {
     if (pred_leaf) {
@@ -435,28 +433,24 @@ class LearnerImpl : public Learner {
     // estimate feature bound
     unsigned num_feature = 0;
     for (size_t i = 0; i < cache_.size(); ++i) {
+      CHECK(cache_[i] != nullptr);
       num_feature = std::max(num_feature,
-                             static_cast<unsigned>(cache_[i].mat_->info().num_col));
+                             static_cast<unsigned>(cache_[i]->info().num_col));
     }
     // run allreduce on num_feature to find the maximum value
     rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
     if (num_feature > mparam.num_feature) {
       mparam.num_feature = num_feature;
     }
-
     // setup
     cfg_["num_feature"] = common::ToString(mparam.num_feature);
     CHECK(obj_.get() == nullptr && gbm_.get() == nullptr);
     obj_.reset(ObjFunction::Create(name_obj_));
-    gbm_.reset(GradientBooster::Create(name_gbm_));
-    gbm_->Configure(cfg_.begin(), cfg_.end());
     obj_->Configure(cfg_.begin(), cfg_.end());
-
     // reset the base score
     mparam.base_score = obj_->ProbToMargin(mparam.base_score);
-
-    this->base_score_ = mparam.base_score;
-    gbm_->ResetPredBuffer(pred_buffer_size_);
+    gbm_.reset(GradientBooster::Create(name_gbm_, cache_, mparam.base_score));
+    gbm_->Configure(cfg_.begin(), cfg_.end());
   }
   /*!
    * \brief get un-transformed prediction
@@ -466,34 +460,14 @@ class LearnerImpl : public Learner {
    *   predictor, when it equals 0, this means we are using all the trees
    */
   inline void PredictRaw(DMatrix* data,
-                         std::vector<float>* out_preds,
+                         std::vector<bst_float>* out_preds,
                          unsigned ntree_limit = 0) const {
     CHECK(gbm_.get() != nullptr)
         << "Predict must happen after Load or InitModel";
     gbm_->Predict(data,
-                  this->FindBufferOffset(data),
                   out_preds,
                   ntree_limit);
-    // add base margin
-    std::vector<float>& preds = *out_preds;
-    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
-    const std::vector<bst_float>& base_margin = data->info().base_margin;
-    if (base_margin.size() != 0) {
-      CHECK_EQ(preds.size(), base_margin.size())
-          << "base_margin.size does not match with prediction size";
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint j = 0; j < ndata; ++j) {
-        preds[j] += base_margin[j];
-      }
-    } else {
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint j = 0; j < ndata; ++j) {
-        preds[j] += this->base_score_;
-      }
-    }
   }
-  // cached size of predict buffer
-  size_t pred_buffer_size_;
   // model parameter
   LearnerModelParam mparam;
   // training parameter
@@ -504,41 +478,21 @@ class LearnerImpl : public Learner {
   std::map<std::string, std::string> attributes_;
   // name of gbm
   std::string name_gbm_;
-  // name of objective functon
+  // name of objective function
   std::string name_obj_;
   // temporal storages for prediction
-  std::vector<float> preds_;
+  std::vector<bst_float> preds_;
   // gradient pairs
   std::vector<bst_gpair> gpair_;
 
  private:
   /*! \brief random number transformation seed. */
   static const int kRandSeedMagic = 127;
-  // cache entry object that helps handle feature caching
-  struct CacheEntry {
-    const DMatrix* mat_;
-    size_t buffer_offset_;
-    size_t num_row_;
-    CacheEntry(const DMatrix* mat, size_t buffer_offset, size_t num_row)
-        :mat_(mat), buffer_offset_(buffer_offset), num_row_(num_row) {}
-  };
-
-  // find internal buffer offset for certain matrix, if not exist, return -1
-  inline int64_t FindBufferOffset(const DMatrix* mat) const {
-    for (size_t i = 0; i < cache_.size(); ++i) {
-      if (cache_[i].mat_ == mat && mat->cache_learner_ptr_ == this) {
-        if (cache_[i].num_row_ == mat->info().num_row) {
-          return static_cast<int64_t>(cache_[i].buffer_offset_);
-        }
-      }
-    }
-    return -1;
-  }
-  /*! \brief the entries indicates that we have internal prediction cache */
-  std::vector<CacheEntry> cache_;
+  // internal cached dmatrix
+  std::vector<std::shared_ptr<DMatrix> > cache_;
 };
 
-Learner* Learner::Create(const std::vector<DMatrix*>& cache_data) {
+Learner* Learner::Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data) {
   return new LearnerImpl(cache_data);
 }
 }  // namespace xgboost

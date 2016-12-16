@@ -229,7 +229,7 @@ cb.reset.parameters <- function(new_params) {
       xgb.parameters(env$bst$handle) <- pars
     } else {
       for (fd in env$bst_folds)
-        xgb.parameters(fd$bst$handle) <- pars
+        xgb.parameters(fd$bst) <- pars
     }
   }
   attr(callback, 'is_pre_iteration') <- TRUE
@@ -458,6 +458,7 @@ cb.save.model <- function(save_period = 0, save_name = "xgboost.model") {
 #' \code{basket},
 #' \code{data},
 #' \code{end_iteration},
+#' \code{params},
 #' \code{num_parallel_tree},
 #' \code{num_class}.
 #' 
@@ -491,6 +492,9 @@ cb.cv.predict <- function(save_models = FALSE) {
 
     ntreelimit <- NVL(env$basket$best_ntreelimit, 
                       env$end_iteration * env$num_parallel_tree)
+    if (NVL(env$params[['booster']], '') == 'gblinear') {
+      ntreelimit <- 0 # must be 0 for gblinear
+    }
     for (fd in env$bst_folds) {
       pr <- predict(fd$bst, fd$watchlist[[2]], ntreelimit = ntreelimit, reshape = TRUE)
       if (is.matrix(pred)) {

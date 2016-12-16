@@ -20,24 +20,24 @@ DMLC_REGISTRY_FILE_TAG(regression_obj);
 // common regressions
 // linear regression
 struct LinearSquareLoss {
-  static float PredTransform(float x) { return x; }
-  static bool CheckLabel(float x) { return true; }
-  static float FirstOrderGradient(float predt, float label) { return predt - label; }
-  static float SecondOrderGradient(float predt, float label) { return 1.0f; }
-  static float ProbToMargin(float base_score) { return base_score; }
+  static bst_float PredTransform(bst_float x) { return x; }
+  static bool CheckLabel(bst_float x) { return true; }
+  static bst_float FirstOrderGradient(bst_float predt, bst_float label) { return predt - label; }
+  static bst_float SecondOrderGradient(bst_float predt, bst_float label) { return 1.0f; }
+  static bst_float ProbToMargin(bst_float base_score) { return base_score; }
   static const char* LabelErrorMsg() { return ""; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 };
 // logistic loss for probability regression task
 struct LogisticRegression {
-  static float PredTransform(float x) { return common::Sigmoid(x); }
-  static bool CheckLabel(float x) { return x >= 0.0f && x <= 1.0f; }
-  static float FirstOrderGradient(float predt, float label) { return predt - label; }
-  static float SecondOrderGradient(float predt, float label) {
+  static bst_float PredTransform(bst_float x) { return common::Sigmoid(x); }
+  static bool CheckLabel(bst_float x) { return x >= 0.0f && x <= 1.0f; }
+  static bst_float FirstOrderGradient(bst_float predt, bst_float label) { return predt - label; }
+  static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
     const float eps = 1e-16f;
     return std::max(predt * (1.0f - predt), eps);
   }
-  static float ProbToMargin(float base_score) {
+  static bst_float ProbToMargin(bst_float base_score) {
     CHECK(base_score > 0.0f && base_score < 1.0f)
         << "base_score must be in (0,1) for logistic loss";
     return -std::log(1.0f / base_score - 1.0f);
@@ -53,12 +53,12 @@ struct LogisticClassification : public LogisticRegression {
 };
 // logistic loss, but predict un-transformed margin
 struct LogisticRaw : public LogisticRegression {
-  static float PredTransform(float x) { return x; }
-  static float FirstOrderGradient(float predt, float label) {
+  static bst_float PredTransform(bst_float x) { return x; }
+  static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
     predt = common::Sigmoid(predt);
     return predt - label;
   }
-  static float SecondOrderGradient(float predt, float label) {
+  static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
     const float eps = 1e-16f;
     predt = common::Sigmoid(predt);
     return std::max(predt * (1.0f - predt), eps);
@@ -75,14 +75,14 @@ struct RegLossParam : public dmlc::Parameter<RegLossParam> {
   }
 };
 
-// regression los function
+// regression loss function
 template<typename Loss>
 class RegLossObj : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
   }
-  void GetGradient(const std::vector<float> &preds,
+  void GetGradient(const std::vector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    std::vector<bst_gpair> *out_gpair) override {
@@ -97,8 +97,8 @@ class RegLossObj : public ObjFunction {
     const omp_ulong ndata = static_cast<omp_ulong>(preds.size());
     #pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) {
-      float p = Loss::PredTransform(preds[i]);
-      float w = info.GetWeight(i);
+      bst_float p = Loss::PredTransform(preds[i]);
+      bst_float w = info.GetWeight(i);
       if (info.labels[i] == 1.0f) w *= param_.scale_pos_weight;
       if (!Loss::CheckLabel(info.labels[i])) label_correct = false;
       out_gpair->at(i) = bst_gpair(Loss::FirstOrderGradient(p, info.labels[i]) * w,
@@ -111,15 +111,15 @@ class RegLossObj : public ObjFunction {
   const char* DefaultEvalMetric() const override {
     return Loss::DefaultEvalMetric();
   }
-  void PredTransform(std::vector<float> *io_preds) override {
-    std::vector<float> &preds = *io_preds;
+  void PredTransform(std::vector<bst_float> *io_preds) override {
+    std::vector<bst_float> &preds = *io_preds;
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint j = 0; j < ndata; ++j) {
       preds[j] = Loss::PredTransform(preds[j]);
     }
   }
-  float ProbToMargin(float base_score) const override {
+  bst_float ProbToMargin(bst_float base_score) const override {
     return Loss::ProbToMargin(base_score);
   }
 
@@ -127,7 +127,7 @@ class RegLossObj : public ObjFunction {
   RegLossParam param_;
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(RegLossParam);
 
 XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
@@ -150,7 +150,7 @@ XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, "binary:logitraw")
 struct PoissonRegressionParam : public dmlc::Parameter<PoissonRegressionParam> {
   float max_delta_step;
   DMLC_DECLARE_PARAMETER(PoissonRegressionParam) {
-    DMLC_DECLARE_FIELD(max_delta_step).set_lower_bound(0.0f)
+    DMLC_DECLARE_FIELD(max_delta_step).set_lower_bound(0.0f).set_default(0.7f)
         .describe("Maximum delta step we allow each weight estimation to be." \
                   " This parameter is required for possion regression.");
   }
@@ -164,7 +164,7 @@ class PoissonRegression : public ObjFunction {
     param_.InitAllowUnknown(args);
   }
 
-  void GetGradient(const std::vector<float> &preds,
+  void GetGradient(const std::vector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    std::vector<bst_gpair> *out_gpair) override {
@@ -177,9 +177,9 @@ class PoissonRegression : public ObjFunction {
     const omp_ulong ndata = static_cast<omp_ulong>(preds.size()); // NOLINT(*)
     #pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
-      float p = preds[i];
-      float w = info.GetWeight(i);
-      float y = info.labels[i];
+      bst_float p = preds[i];
+      bst_float w = info.GetWeight(i);
+      bst_float y = info.labels[i];
       if (y >= 0.0f) {
         out_gpair->at(i) = bst_gpair((std::exp(p) - y) * w,
                                      std::exp(p + param_.max_delta_step) * w);
@@ -189,18 +189,18 @@ class PoissonRegression : public ObjFunction {
     }
     CHECK(label_correct) << "PoissonRegression: label must be nonnegative";
   }
-  void PredTransform(std::vector<float> *io_preds) override {
-    std::vector<float> &preds = *io_preds;
+  void PredTransform(std::vector<bst_float> *io_preds) override {
+    std::vector<bst_float> &preds = *io_preds;
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
     #pragma omp parallel for schedule(static)
     for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     }
   }
-  void EvalTransform(std::vector<float> *io_preds) override {
+  void EvalTransform(std::vector<bst_float> *io_preds) override {
     PredTransform(io_preds);
   }
-  float ProbToMargin(float base_score) const override {
+  bst_float ProbToMargin(bst_float base_score) const override {
     return std::log(base_score);
   }
   const char* DefaultEvalMetric(void) const override {
@@ -211,7 +211,7 @@ class PoissonRegression : public ObjFunction {
   PoissonRegressionParam param_;
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(PoissonRegressionParam);
 
 XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
@@ -225,7 +225,7 @@ class GammaRegression : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
   }
 
-  void GetGradient(const std::vector<float> &preds,
+  void GetGradient(const std::vector<bst_float> &preds,
                    const MetaInfo &info,
                    int iter,
                    std::vector<bst_gpair> *out_gpair) override {
@@ -238,9 +238,9 @@ class GammaRegression : public ObjFunction {
     const omp_ulong ndata = static_cast<omp_ulong>(preds.size()); // NOLINT(*)
     #pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
-      float p = preds[i];
-      float w = info.GetWeight(i);
-      float y = info.labels[i];
+      bst_float p = preds[i];
+      bst_float w = info.GetWeight(i);
+      bst_float y = info.labels[i];
       if (y >= 0.0f) {
         out_gpair->at(i) = bst_gpair((1 - y / std::exp(p)) * w, y / std::exp(p) * w);
       } else {
@@ -249,18 +249,18 @@ class GammaRegression : public ObjFunction {
     }
     CHECK(label_correct) << "GammaRegression: label must be positive";
   }
-  void PredTransform(std::vector<float> *io_preds) override {
-    std::vector<float> &preds = *io_preds;
+  void PredTransform(std::vector<bst_float> *io_preds) override {
+    std::vector<bst_float> &preds = *io_preds;
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
     #pragma omp parallel for schedule(static)
     for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     }
   }
-  void EvalTransform(std::vector<float> *io_preds) override {
+  void EvalTransform(std::vector<bst_float> *io_preds) override {
     PredTransform(io_preds);
   }
-  float ProbToMargin(float base_score) const override {
+  bst_float ProbToMargin(bst_float base_score) const override {
     return std::log(base_score);
   }
   const char* DefaultEvalMetric(void) const override {
@@ -268,9 +268,80 @@ class GammaRegression : public ObjFunction {
   }
 };
 
-// register the ojective functions
+// register the objective functions
 XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
 .describe("Gamma regression for severity data.")
 .set_body([]() { return new GammaRegression(); });
+
+// declare parameter
+struct TweedieRegressionParam : public dmlc::Parameter<TweedieRegressionParam> {
+  float tweedie_variance_power;
+  DMLC_DECLARE_PARAMETER(TweedieRegressionParam) {
+    DMLC_DECLARE_FIELD(tweedie_variance_power).set_range(1.0f, 2.0f).set_default(1.5f)
+      .describe("Tweedie variance power.  Must be between in range [1, 2).");
+  }
+};
+
+// tweedie regression
+class TweedieRegression : public ObjFunction {
+ public:
+  // declare functions
+  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+    param_.InitAllowUnknown(args);
+  }
+
+  void GetGradient(const std::vector<bst_float> &preds,
+                   const MetaInfo &info,
+                   int iter,
+                   std::vector<bst_gpair> *out_gpair) override {
+    CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
+    CHECK_EQ(preds.size(), info.labels.size()) << "labels are not correctly provided";
+    out_gpair->resize(preds.size());
+    // check if label in range
+    bool label_correct = true;
+    // start calculating gradient
+    const omp_ulong ndata = static_cast<omp_ulong>(preds.size()); // NOLINT(*)
+    #pragma omp parallel for schedule(static)
+    for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
+      bst_float p = preds[i];
+      bst_float w = info.GetWeight(i);
+      bst_float y = info.labels[i];
+      float rho = param_.tweedie_variance_power;
+      if (y >= 0.0f) {
+        bst_float grad = -y * std::exp((1 - rho) * p) + std::exp((2 - rho) * p);
+        bst_float hess = -y * (1 - rho) * \
+          std::exp((1 - rho) * p) + (2 - rho) * std::exp((2 - rho) * p);
+        out_gpair->at(i) = bst_gpair(grad * w, hess * w);
+      } else {
+        label_correct = false;
+      }
+    }
+    CHECK(label_correct) << "TweedieRegression: label must be nonnegative";
+  }
+  void PredTransform(std::vector<bst_float> *io_preds) override {
+    std::vector<bst_float> &preds = *io_preds;
+    const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
+    #pragma omp parallel for schedule(static)
+    for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
+      preds[j] = std::exp(preds[j]);
+    }
+  }
+  const char* DefaultEvalMetric(void) const override {
+    std::ostringstream os;
+    os << "tweedie-nloglik@" << param_.tweedie_variance_power;
+    std::string metric = os.str();
+    return metric.c_str();
+  }
+
+ private:
+  TweedieRegressionParam param_;
+};
+
+// register the objective functions
+DMLC_REGISTER_PARAMETER(TweedieRegressionParam);
+
+XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
+.describe("Tweedie regression for insurance data.")
+.set_body([]() { return new TweedieRegression(); });
 }  // namespace obj
 }  // namespace xgboost

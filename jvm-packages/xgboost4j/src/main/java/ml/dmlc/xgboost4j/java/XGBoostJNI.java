@@ -16,6 +16,8 @@
 package ml.dmlc.xgboost4j.java;
 
 
+import java.nio.ByteBuffer;
+
 /**
  * xgboost JNI functions
  * change 2015-7-6: *use a long[] (length=1) as container of handle to get the output DMatrix or Booster
@@ -30,11 +32,11 @@ class XGBoostJNI {
   final static native int XGDMatrixCreateFromDataIter(java.util.Iterator<DataBatch> iter,
                                                              String cache_info, long[] out);
 
-  public final static native int XGDMatrixCreateFromCSR(long[] indptr, int[] indices, float[] data,
-                                                        long[] out);
+  public final static native int XGDMatrixCreateFromCSREx(long[] indptr, int[] indices, float[] data,
+                                                        int shapeParam, long[] out);
 
-  public final static native int XGDMatrixCreateFromCSC(long[] colptr, int[] indices, float[] data,
-                                                        long[] out);
+  public final static native int XGDMatrixCreateFromCSCEx(long[] colptr, int[] indices, float[] data,
+                                                          int shapeParam, long[] out);
 
   public final static native int XGDMatrixCreateFromMat(float[] data, int nrow, int ncol,
                                                         float missing, long[] out);
@@ -97,4 +99,9 @@ class XGBoostJNI {
   public final static native int RabitGetRank(int[] out);
   public final static native int RabitGetWorldSize(int[] out);
   public final static native int RabitVersionNumber(int[] out);
+
+  // Perform Allreduce operation on data in sendrecvbuf.
+  // This JNI function does not support the callback function for data preparation yet.
+  final static native int RabitAllreduce(ByteBuffer sendrecvbuf, int count,
+                                                int enum_dtype, int enum_op);
 }                                                                             

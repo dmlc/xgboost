@@ -17,7 +17,7 @@ NVL <- function(x, val) {
   }
   if (typeof(x) == 'closure')
     return(x)
-  stop('x of unsupported for NVL type')
+  stop("typeof(x) == ", typeof(x), " is not supported by NVL")
 }
 
 
@@ -42,15 +42,15 @@ check.booster.params <- function(params, ...) {
     stop("Same parameters in 'params' and in the call are not allowed. Please check your 'params' list.")
   params <- c(params, dot_params)
   
-  # providing a parameter multiple times only makes sense for 'eval_metric'
+  # providing a parameter multiple times makes sense only for 'eval_metric'
   name_freqs <- table(names(params))
   multi_names <- setdiff(names(name_freqs[name_freqs > 1]), 'eval_metric')
   if (length(multi_names) > 0) {
     warning("The following parameters were provided multiple times:\n\t",
             paste(multi_names, collapse=', '), "\n  Only the last value for each of them will be used.\n")
-    # While xgboost itself would choose the last value for a multi-parameter, 
-    # will do some clean-up here b/c multi-parameters could be used further in R code, and R would 
-    # pick the 1st (not the last) value when multiple elements with the same name are present in a list.
+    # While xgboost internals would choose the last value for a multiple-times parameter, 
+    # enforce it here in R as well (b/c multi-parameters might be used further in R code, 
+    # and R takes the 1st value when multiple elements with the same name are present in a list).
     for (n in multi_names) {
       del_idx <- which(n == names(params))
       del_idx <- del_idx[-length(del_idx)]
@@ -60,9 +60,18 @@ check.booster.params <- function(params, ...) {
   
   # for multiclass, expect num_class to be set
   if (typeof(params[['objective']]) == "character" &&
-    substr(NVL(params[['objective']], 'x'), 1, 6) == 'multi:') {
-    if (as.numeric(NVL(params[['num_class']], 0)) < 2)
-      stop("'num_class' > 1 parameter must be set for multiclass classification")
+      substr(NVL(params[['objective']], 'x'), 1, 6) == 'multi:' &&
+      as.numeric(NVL(params[['num_class']], 0)) < 2) {
+        stop("'num_class' > 1 parameter must be set for multiclass classification")
+  }
+  
+  # monotone_constraints parser
+  
+  if (!is.null(params[['monotone_constraints']]) &&
+      typeof(params[['monotone_constraints']]) != "character") {
+        vec2str = paste(params[['monotone_constraints']], collapse = ',')
+        vec2str = paste0('(', vec2str, ')')
+        params[['monotone_constraints']] = vec2str
   }
   
   return(params)
@@ -82,9 +91,7 @@ check.custom.obj <- function(env = parent.frame()) {
   if (!is.null(env$params[['objective']]) &&
       typeof(env$params$objective) == 'closure') {
     env$obj <- env$params$objective
-    p <- env$params
-    p$objective <- NULL
-    env$params <- p
+    env$params$objective <- NULL
   }
 }
 
@@ -97,17 +104,19 @@ check.custom.eval <- function(env = parent.frame()) {
   if (!is.null(env$feval) && typeof(env$feval) != 'closure')
     stop("'feval' must be a function")
   
-  if (!is.null(env$feval) && is.null(env$maximize))
-    stop("Please set 'maximize' to indicate whether the metric needs to be maximized or not")
-  
   # handle a situation when custom eval function was provided through params
   if (!is.null(env$params[['eval_metric']]) &&
       typeof(env$params$eval_metric) == 'closure') {
     env$feval <- env$params$eval_metric
-    p <- env$params
-    p[ which(names(p) == 'eval_metric') ] <- NULL
-    env$params <- p
+    env$params$eval_metric <- NULL
   }
+  
+  # require maximize to be set when custom feval and early stopping are used together
+  if (!is.null(env$feval) &&
+      is.null(env$maximize) && (
+        !is.null(env$early_stopping_rounds) || 
+        has.callbacks(env$callbacks, 'cb.early.stop')))
+    stop("Please set 'maximize' to indicate whether the evaluation metric needs to be maximized or not")
 }
 
 

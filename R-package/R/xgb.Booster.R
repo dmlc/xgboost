@@ -87,8 +87,8 @@ xgb.Booster.check <- function(bst, saveraw = TRUE) {
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #' 
 #' @details  
-#' Note that \code{ntreelimit} is not necesserily equal to the number of boosting iterations
-#' and it is not necesserily equal to the number of trees in a model.
+#' Note that \code{ntreelimit} is not necessarily equal to the number of boosting iterations
+#' and it is not necessarily equal to the number of trees in a model.
 #' E.g., in a random forest-like model, \code{ntreelimit} would limit the number of trees.
 #' But for multiclass classification, there are multiple trees per iteration, 
 #' but \code{ntreelimit} limits the number of boosting iterations.
@@ -242,7 +242,7 @@ predict.xgb.Booster.handle <- function(object, ...) {
 #' (from R or any other interface).
 #' In contrast, any R-attribute assigned to an R-object of \code{xgb.Booster} class
 #' would not be saved by \code{xgb.save} because an xgboost model is an external memory object
-#' and its serialization is handled extrnally.
+#' and its serialization is handled externally.
 #' Also, setting an attribute that has the same name as one of xgboost's parameters wouldn't 
 #' change the value of that parameter for a model. 
 #' Use \code{\link{xgb.parameters<-}} to set or change model parameters.
@@ -302,7 +302,11 @@ xgb.attr <- function(object, name) {
   if (!is.null(value)) {
     # Coerce the elements to be scalar strings.
     # Q: should we warn user about non-scalar elements?
-    value <- as.character(value[1])
+    if (is.numeric(value[1])) {
+      value <- format(value[1], digits = 17)
+    } else {
+      value <- as.character(value[1])
+    }
   }
   .Call("XGBoosterSetAttr_R", handle, as.character(name[1]), value, PACKAGE="xgboost")
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
@@ -335,7 +339,11 @@ xgb.attributes <- function(object) {
   # Q: should we warn a user about non-scalar elements?
   a <- lapply(a, function(x) {
     if (is.null(x)) return(NULL)
-    as.character(x[1])
+    if (is.numeric(x[1])) {
+      format(x[1], digits = 17)
+    } else {
+      as.character(x[1])
+    }
   })
   handle <- xgb.get.handle(object)
   for (i in seq_along(a)) {

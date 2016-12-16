@@ -27,6 +27,11 @@ test_that("xgb.dump works", {
   expect_true(xgb.dump(bst.Tree, 'xgb.model.dump', with_stats = T))
   expect_true(file.exists('xgb.model.dump'))
   expect_gt(file.size('xgb.model.dump'), 8000)
+
+  # JSON format
+  dmp <- xgb.dump(bst.Tree, dump_format = "json")
+  expect_length(dmp, 1)
+  expect_length(grep('nodeid', strsplit(dmp, '\n')[[1]]), 162)
 })
 
 test_that("xgb.dump works for gblinear", {
@@ -38,6 +43,11 @@ test_that("xgb.dump works for gblinear", {
   d.sp <- xgb.dump(bst.GLM.sp)
   expect_length(d.sp, 14)
   expect_gt(sum(d.sp == "0"), 0)
+
+  # JSON format
+  dmp <- xgb.dump(bst.GLM.sp, dump_format = "json")
+  expect_length(dmp, 1)
+  expect_length(grep('\\d', strsplit(dmp, '\n')[[1]]), 11)
 })
 
 test_that("xgb-attribute functionality", {
@@ -73,12 +83,31 @@ test_that("xgb-attribute functionality", {
   expect_null(xgb.attributes(bst))
 })
 
+test_that("xgb-attribute numeric precision", {
+  # check that lossless conversion works with 17 digits
+  # numeric -> character -> numeric
+  X <- 10^runif(100, -20, 20)
+  X2X <- as.numeric(format(X, digits = 17))
+  expect_identical(X, X2X)
+  # retrieved attributes to be the same as written
+  for (x in X) {
+    xgb.attr(bst.Tree, "x") <- x
+    expect_identical(as.numeric(xgb.attr(bst.Tree, "x")), x)
+    xgb.attributes(bst.Tree) <- list(a = "A", b = x)
+    expect_identical(as.numeric(xgb.attr(bst.Tree, "b")), x)
+  }
+})
+
 test_that("xgb.model.dt.tree works with and without feature names", {
   names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
   dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
   expect_equal(names.dt.trees, names(dt.tree))
   expect_equal(dim(dt.tree), c(162, 10))
   expect_output(str(xgb.model.dt.tree(model = bst.Tree)), 'Feature.*\\"3\\"')
+})
+
+test_that("xgb.model.dt.tree throws error for gblinear", {
+  expect_error(xgb.model.dt.tree(model = bst.GLM))
 })
 
 test_that("xgb.importance works with and without feature names", {

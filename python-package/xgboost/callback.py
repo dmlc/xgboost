@@ -7,6 +7,15 @@ from . import rabit
 from .core import EarlyStopException
 
 
+def _get_callback_context(env):
+    """return whether the current callback context is cv or train"""
+    if env.model is not None and env.cvfolds is None:
+        context = 'train'
+    elif env.model is None and env.cvfolds is not None:
+        context = 'cv'
+    return context
+
+
 def _fmt_metric(value, show_stdv=True):
     """format metric string"""
     if len(value) == 2:
@@ -103,16 +112,29 @@ def reset_learning_rate(learning_rates):
     callback : function
         The requested callback function.
     """
+    def get_learning_rate(i, n, learning_rates):
+        """helper providing the learning rate"""
+        if isinstance(learning_rates, list):
+            if len(learning_rates) != n:
+                raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
+            new_learning_rate = learning_rates[i]
+        else:
+            new_learning_rate = learning_rates(i, n)
+        return new_learning_rate
+
     def callback(env):
         """internal function"""
-        bst = env.model
-        i = env.iteration
-        if isinstance(learning_rates, list):
-            if len(learning_rates) != env.end_iteration:
-                raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
-            bst.set_param('learning_rate', learning_rates[i])
-        else:
-            bst.set_param('learning_rate', learning_rates(i, env.end_iteration))
+        context = _get_callback_context(env)
+
+        if context == 'train':
+            bst, i, n = env.model, env.iteration, env.end_iteration
+            bst.set_param('learning_rate', get_learning_rate(i, n, learning_rates))
+        elif context == 'cv':
+            i, n = env.iteration, env.end_iteration
+            for cvpack in env.cvfolds:
+                bst = cvpack.bst
+                bst.set_param('learning_rate', get_learning_rate(i, n, learning_rates))
+
     callback.before_iteration = True
     return callback
 
@@ -159,9 +181,15 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
                    "'{0}' will be used for early stopping.\n\n")
             rabit.tracker_print(msg.format(env.evaluation_result_list[-1][0]))
         maximize_metrics = ('auc', 'map', 'ndcg')
+        maximize_at_n_metrics = ('auc@', 'map@', 'ndcg@')
         maximize_score = maximize
         metric = env.evaluation_result_list[-1][0]
-        if any(env.evaluation_result_list[-1][0].split('-')[1].startswith(x)
+
+        if any(env.evaluation_result_list[-1][0].split('-')[-1].startswith(x)
+               for x in maximize_at_n_metrics):
+            maximize_score = True
+
+        if any(env.evaluation_result_list[-1][0].split('-')[-1].split(":")[0] == x
                for x in maximize_metrics):
             maximize_score = True
 

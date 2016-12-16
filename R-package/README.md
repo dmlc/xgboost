@@ -1,8 +1,8 @@
 XGBoost R Package for Scalable GBM
 ==================================
 
-[![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](http://cran.r-project.org/web/packages/xgboost)
-[![CRAN Downloads](http://cranlogs.r-pkg.org/badges/xgboost)](http://cran.rstudio.com/web/packages/xgboost/index.html)
+[![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](https://cran.r-project.org/web/packages/xgboost)
+[![CRAN Downloads](http://cranlogs.r-pkg.org/badges/xgboost)](https://cran.rstudio.com/web/packages/xgboost/index.html)
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](http://xgboost.readthedocs.org/en/latest/R-package/index.html)
 
 Resources
@@ -21,16 +21,14 @@ install.packages('xgboost')
 
 You can also install from our weekly updated drat repo:
 ```r
-install.packages("drat", repos="https://cran.rstudio.com")
-drat:::addRepo("dmlc")
-install.packages("xgboost", repos="http://dmlc.ml/drat/", type="source")
+install.packages("xgboost", repos=c("http://dmlc.ml/drat/", getOption("repos")), type="source")
 ```
 
 ***Important*** Due to the usage of submodule, `install_github` is no longer support to install the
 latest version of R package. 
 For up-to-date version, please install from github.
 
-Windows users will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first. They also need to download [MinGW-W64](http://iweb.dl.sourceforge.net/project/mingw-w64/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/installer/mingw-w64-install.exe) using x86_64 architecture during installation.
+Windows users will need to install [RTools](https://cran.r-project.org/bin/windows/Rtools/) first. They also need to download [MinGW-W64](http://iweb.dl.sourceforge.net/project/mingw-w64/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/installer/mingw-w64-install.exe) using x86_64 architecture during installation.
 
 Run the following command to add MinGW to PATH in Windows if not already added.
 

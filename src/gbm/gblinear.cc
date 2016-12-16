@@ -87,6 +87,9 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
  */
 class GBLinear : public GradientBooster {
  public:
+  explicit GBLinear(bst_float base_margin)
+      : base_margin_(base_margin) {
+  }
   void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
     if (model.weight.size() == 0) {
       model.param.InitAllowUnknown(cfg);
@@ -99,9 +102,9 @@ class GBLinear : public GradientBooster {
   void Save(dmlc::Stream* fo) const override {
     model.Save(fo);
   }
-  virtual void DoBoost(DMatrix *p_fmat,
-                       int64_t buffer_offset,
-                       std::vector<bst_gpair> *in_gpair) {
+  void DoBoost(DMatrix *p_fmat,
+               std::vector<bst_gpair> *in_gpair,
+               ObjFunction* obj) override {
     // lazily initialize the model when not ready.
     if (model.weight.size() == 0) {
       model.InitModel();
@@ -123,7 +126,7 @@ class GBLinear : public GradientBooster {
       }
       // remove bias effect
       bst_float dw = static_cast<bst_float>(
-          param.learning_rate * param.CalcDeltaBias(sum_grad, sum_hess, model.bias()[gid]));
+        param.learning_rate * param.CalcDeltaBias(sum_grad, sum_hess, model.bias()[gid]));
       model.bias()[gid] += dw;
       // update grad value
       #pragma omp parallel for schedule(static)
@@ -146,13 +149,13 @@ class GBLinear : public GradientBooster {
         for (int gid = 0; gid < ngroup; ++gid) {
           double sum_grad = 0.0, sum_hess = 0.0;
           for (bst_uint j = 0; j < col.length; ++j) {
-            const float v = col[j].fvalue;
+            const bst_float v = col[j].fvalue;
             bst_gpair &p = gpair[col[j].index * ngroup + gid];
             if (p.hess < 0.0f) continue;
             sum_grad += p.grad * v;
             sum_hess += p.hess * v * v;
           }
-          float &w = model[fid][gid];
+          bst_float &w = model[fid][gid];
           bst_float dw = static_cast<bst_float>(param.learning_rate *
                                                 param.CalcDelta(sum_grad, sum_hess, w));
           w += dw;
@@ -168,15 +171,19 @@ class GBLinear : public GradientBooster {
   }
 
   void Predict(DMatrix *p_fmat,
-               int64_t buffer_offset,
-               std::vector<float> *out_preds,
+               std::vector<bst_float> *out_preds,
                unsigned ntree_limit) override {
     if (model.weight.size() == 0) {
       model.InitModel();
     }
     CHECK_EQ(ntree_limit, 0)
         << "GBLinear::Predict ntrees is only valid for gbtree predictor";
-    std::vector<float> &preds = *out_preds;
+    std::vector<bst_float> &preds = *out_preds;
+    const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
+    if (base_margin.size() != 0) {
+      CHECK_EQ(preds.size(), base_margin.size())
+          << "base_margin.size does not match with prediction size";
+    }
     preds.resize(0);
     // start collecting the prediction
     dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
@@ -188,42 +195,64 @@ class GBLinear : public GradientBooster {
       // k is number of group
       preds.resize(preds.size() + batch.size * ngroup);
       // parallel over local batch
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const omp_ulong nsize = static_cast<omp_ulong>(batch.size);
       #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
+      for (omp_ulong i = 0; i < nsize; ++i) {
         const size_t ridx = batch.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
-          this->Pred(batch[i], &preds[ridx * ngroup], gid);
+          bst_float margin =  (base_margin.size() != 0) ?
+              base_margin[ridx * ngroup + gid] : base_margin_;
+          this->Pred(batch[i], &preds[ridx * ngroup], gid, margin);
         }
       }
     }
   }
+  // add base margin
   void Predict(const SparseBatch::Inst &inst,
-               std::vector<float> *out_preds,
+               std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
     const int ngroup = model.param.num_output_group;
     for (int gid = 0; gid < ngroup; ++gid) {
-      this->Pred(inst, dmlc::BeginPtr(*out_preds), gid);
+      this->Pred(inst, dmlc::BeginPtr(*out_preds), gid, base_margin_);
     }
   }
   void PredictLeaf(DMatrix *p_fmat,
-                   std::vector<float> *out_preds,
+                   std::vector<bst_float> *out_preds,
                    unsigned ntree_limit) override {
     LOG(FATAL) << "gblinear does not support predict leaf index";
   }
 
-  std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) const override {
+  std::vector<std::string> DumpModel(const FeatureMap& fmap,
+                                     bool with_stats,
+                                     std::string format) const override {
     std::stringstream fo("");
-    fo << "bias:\n";
-    for (int i = 0; i < model.param.num_output_group; ++i) {
-      fo << model.bias()[i] << std::endl;
-    }
-    fo << "weight:\n";
-    for (int i = 0; i < model.param.num_output_group; ++i) {
-      for (unsigned j = 0; j <model.param.num_feature; ++j) {
-        fo << model[i][j] << std::endl;
+    if (format == "json") {
+      fo << "  { \"bias\": [" << std::endl;
+      for (int i = 0; i < model.param.num_output_group; ++i) {
+        if (i != 0) fo << "," << std::endl;
+        fo << "      " << model.bias()[i];
+      }
+      fo << std::endl << "    ]," << std::endl
+         << "    \"weight\": [" << std::endl;
+      for (int i = 0; i < model.param.num_output_group; ++i) {
+        for (unsigned j = 0; j < model.param.num_feature; ++j) {
+          if (i != 0 || j != 0) fo << "," << std::endl;
+          fo << "      " << model[i][j];
+        }
+      }
+      fo << std::endl << "    ]" << std::endl << "  }";
+    } else {
+      fo << "bias:\n";
+      for (int i = 0; i < model.param.num_output_group; ++i) {
+        fo << model.bias()[i] << std::endl;
+      }
+      fo << "weight:\n";
+      for (int i = 0; i < model.param.num_output_group; ++i) {
+        for (unsigned j = 0; j <model.param.num_feature; ++j) {
+          fo << model[i][j] << std::endl;
+        }
       }
     }
     std::vector<std::string> v;
@@ -232,8 +261,8 @@ class GBLinear : public GradientBooster {
   }
 
  protected:
-  inline void Pred(const RowBatch::Inst &inst, float *preds, int gid) {
-    float psum = model.bias()[gid];
+  inline void Pred(const RowBatch::Inst &inst, bst_float *preds, int gid, bst_float base) {
+    bst_float psum = model.bias()[gid] + base;
     for (bst_uint i = 0; i < inst.length; ++i) {
       if (inst[i].index >= model.param.num_feature) continue;
       psum += inst[i].fvalue * model[inst[i].index][gid];
@@ -246,7 +275,7 @@ class GBLinear : public GradientBooster {
     // parameter
     GBLinearModelParam param;
     // weight for each of feature, bias is the last one
-    std::vector<float> weight;
+    std::vector<bst_float> weight;
     // initialize the model parameter
     inline void InitModel(void) {
       // bias is the last weight
@@ -264,20 +293,22 @@ class GBLinear : public GradientBooster {
       fi->Read(&weight);
     }
     // model bias
-    inline float* bias() {
+    inline bst_float* bias() {
       return &weight[param.num_feature * param.num_output_group];
     }
-    inline const float* bias() const {
+    inline const bst_float* bias() const {
       return &weight[param.num_feature * param.num_output_group];
     }
     // get i-th weight
-    inline float* operator[](size_t i) {
+    inline bst_float* operator[](size_t i) {
       return &weight[i * param.num_output_group];
     }
-    inline const float* operator[](size_t i) const {
+    inline const bst_float* operator[](size_t i) const {
       return &weight[i * param.num_output_group];
     }
   };
+  // biase margin score
+  bst_float base_margin_;
   // model field
   Model model;
   // training parameter
@@ -286,14 +317,14 @@ class GBLinear : public GradientBooster {
   std::vector<bst_uint> feat_index;
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(GBLinearModelParam);
 DMLC_REGISTER_PARAMETER(GBLinearTrainParam);
 
 XGBOOST_REGISTER_GBM(GBLinear, "gblinear")
 .describe("Linear booster, implement generalized linear model.")
-.set_body([]() {
-    return new GBLinear();
+.set_body([](const std::vector<std::shared_ptr<DMatrix> >&cache, bst_float base_margin) {
+    return new GBLinear(base_margin);
   });
 }  // namespace gbm
 }  // namespace xgboost
