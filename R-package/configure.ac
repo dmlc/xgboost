@@ -4,6 +4,11 @@ AC_PREREQ(2.62)
 
 AC_INIT([xgboost],[0.6-0],[],[xgboost],[])
 
+CXX1X=`"${R_HOME}/bin/R" CMD config CXX1X`
+CXX1XSTD=`"${R_HOME}/bin/R" CMD config CXX1XSTD`
+CXX="${CXX1X} ${CXX1XSTD}"
+CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXX1XFLAGS`
+
 AC_LANG(C++)
   OPENMP_[]_AC_LANG_PREFIX[]FLAGS=
   AC_ARG_ENABLE([openmp],
