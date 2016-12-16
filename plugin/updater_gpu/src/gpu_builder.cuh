@@ -36,7 +36,7 @@ class GPUBuilder {
   GPUData *gpu_data;
 
   int multiscan_levels =
-      0;  // Number of levels before switching to sorting algorithm
+     5;  // Number of levels before switching to sorting algorithm
 };
 }  // namespace tree
 }  // namespace xgboost

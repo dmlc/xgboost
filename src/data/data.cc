@@ -77,12 +77,12 @@ inline bool MetaTryLoadGroup(const std::string& fname,
 
 // try to load weight information from file, if exists
 inline bool MetaTryLoadFloatInfo(const std::string& fname,
-                                 std::vector<float>* data) {
+                                 std::vector<bst_float>* data) {
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
   if (fi.get() == nullptr) return false;
   dmlc::istream is(fi.get());
   data->clear();
-  float value;
+  bst_float value;
   while (is >> value) {
     data->push_back(value);
   }
@@ -203,8 +203,6 @@ DMatrix* DMatrix::Load(const std::string& uri,
     }
   }
 
-  std::string ftype = file_format;
-  if (file_format == "auto") ftype = "libsvm";
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
       dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
   DMatrix* dmat = DMatrix::Create(parser.get(), cache_file);

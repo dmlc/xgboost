@@ -182,7 +182,7 @@ void CLITrain(const CLIParam& param) {
   std::unique_ptr<Learner> learner(Learner::Create(cache_mats));
   int version = rabit::LoadCheckPoint(learner.get());
   if (version == 0) {
-    // initializ the model if needed.
+    // initialize the model if needed.
     if (param.model_in != "NULL") {
       std::unique_ptr<dmlc::Stream> fi(
           dmlc::Stream::Create(param.model_in.c_str(), "r"));
@@ -320,7 +320,7 @@ void CLIPredict(const CLIParam& param) {
   if (param.silent == 0) {
     LOG(CONSOLE) << "start prediction...";
   }
-  std::vector<float> preds;
+  std::vector<bst_float> preds;
   learner->Predict(dtest.get(), param.pred_margin, &preds, param.ntree_limit);
   if (param.silent == 0) {
     LOG(CONSOLE) << "writing prediction to " << param.name_pred;
@@ -328,7 +328,7 @@ void CLIPredict(const CLIParam& param) {
   std::unique_ptr<dmlc::Stream> fo(
       dmlc::Stream::Create(param.name_pred.c_str(), "w"));
   dmlc::ostream os(fo.get());
-  for (float p : preds) {
+  for (bst_float p : preds) {
     os << p << '\n';
   }
   // force flush before fo destruct.

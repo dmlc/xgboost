@@ -26,6 +26,12 @@ namespace gbm {
 
 DMLC_REGISTRY_FILE_TAG(gbtree);
 
+// boosting process types
+enum TreeProcessType {
+  kDefault,
+  kUpdate
+};
+
 /*! \brief training parameters */
 struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   /*!
@@ -35,13 +41,24 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   int num_parallel_tree;
   /*! \brief tree updater sequence */
   std::string updater_seq;
+  /*! \brief type of boosting process to run */
+  int process_type;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
-    DMLC_DECLARE_FIELD(num_parallel_tree).set_lower_bound(1).set_default(1)
+    DMLC_DECLARE_FIELD(num_parallel_tree)
+        .set_default(1)
+        .set_lower_bound(1)
         .describe("Number of parallel trees constructed during each iteration."\
                   " This option is used to support boosted random forest");
-    DMLC_DECLARE_FIELD(updater_seq).set_default("grow_colmaker,prune")
+    DMLC_DECLARE_FIELD(updater_seq)
+        .set_default("grow_colmaker,prune")
         .describe("Tree updater sequence.");
+    DMLC_DECLARE_FIELD(process_type)
+        .set_default(kDefault)
+        .add_enum("default", kDefault)
+        .add_enum("update", kUpdate)
+        .describe("Whether to run the normal boosting process that creates new trees,"\
+                  " or to update the trees in an existing model.");
     // add alias
     DMLC_DECLARE_ALIAS(updater_seq, updater);
   }
@@ -63,21 +80,30 @@ struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
   float learning_rate;
   // declare parameters
   DMLC_DECLARE_PARAMETER(DartTrainParam) {
-    DMLC_DECLARE_FIELD(silent).set_default(false)
+    DMLC_DECLARE_FIELD(silent)
+        .set_default(false)
         .describe("Not print information during training.");
-    DMLC_DECLARE_FIELD(sample_type).set_default(0)
+    DMLC_DECLARE_FIELD(sample_type)
+        .set_default(0)
         .add_enum("uniform", 0)
         .add_enum("weighted", 1)
         .describe("Different types of sampling algorithm.");
-    DMLC_DECLARE_FIELD(normalize_type).set_default(0)
+    DMLC_DECLARE_FIELD(normalize_type)
+        .set_default(0)
         .add_enum("tree", 0)
         .add_enum("forest", 1)
         .describe("Different types of normalization algorithm.");
-    DMLC_DECLARE_FIELD(rate_drop).set_range(0.0f, 1.0f).set_default(0.0f)
+    DMLC_DECLARE_FIELD(rate_drop)
+        .set_range(0.0f, 1.0f)
+        .set_default(0.0f)
         .describe("Parameter of how many trees are dropped.");
-    DMLC_DECLARE_FIELD(skip_drop).set_range(0.0f, 1.0f).set_default(0.0f)
+    DMLC_DECLARE_FIELD(skip_drop)
+        .set_range(0.0f, 1.0f)
+        .set_default(0.0f)
         .describe("Parameter of whether to drop trees.");
-    DMLC_DECLARE_FIELD(learning_rate).set_lower_bound(0.0f).set_default(0.3f)
+    DMLC_DECLARE_FIELD(learning_rate)
+        .set_lower_bound(0.0f)
+        .set_default(0.3f)
         .describe("Learning rate(step size) of update.");
     DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
@@ -91,7 +117,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
   int num_roots;
   /*! \brief number of features to be used by trees */
   int num_feature;
-  /*! \brief pad this space, for backward compatiblity reason.*/
+  /*! \brief pad this space, for backward compatibility reason.*/
   int pad_32bit;
   /*! \brief deprecated padding space. */
   int64_t num_pbuffer_deprecated;
@@ -128,13 +154,13 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
 // cache entry
 struct CacheEntry {
   std::shared_ptr<DMatrix> data;
-  std::vector<float> predictions;
+  std::vector<bst_float> predictions;
 };
 
 // gradient boosted trees
 class GBTree : public GradientBooster {
  public:
-  explicit GBTree(float base_margin) : base_margin_(base_margin) {}
+  explicit GBTree(bst_float base_margin) : base_margin_(base_margin) {}
 
   void InitCache(const std::vector<std::shared_ptr<DMatrix> > &cache) {
     for (const std::shared_ptr<DMatrix>& d : cache) {
@@ -157,12 +183,21 @@ class GBTree : public GradientBooster {
     for (const auto& up : updaters) {
       up->Init(cfg);
     }
+    // for the 'update' process_type, move trees into trees_to_update
+    if (tparam.process_type == kUpdate && trees_to_update.size() == 0u) {
+      for (size_t i = 0; i < trees.size(); ++i) {
+        trees_to_update.push_back(std::move(trees[i]));
+      }
+      trees.clear();
+      mparam.num_trees = 0;
+    }
   }
 
   void Load(dmlc::Stream* fi) override {
     CHECK_EQ(fi->Read(&mparam, sizeof(mparam)), sizeof(mparam))
         << "GBTree: invalid model file";
     trees.clear();
+    trees_to_update.clear();
     for (int i = 0; i < mparam.num_trees; ++i) {
       std::unique_ptr<RegTree> ptr(new RegTree());
       ptr->Load(fi);
@@ -225,13 +260,13 @@ class GBTree : public GradientBooster {
   }
 
   void Predict(DMatrix* p_fmat,
-               std::vector<float>* out_preds,
+               std::vector<bst_float>* out_preds,
                unsigned ntree_limit) override {
     if (ntree_limit == 0 ||
         ntree_limit * mparam.num_output_group >= trees.size()) {
       auto it = cache_.find(p_fmat);
       if (it != cache_.end()) {
-        std::vector<float>& y = it->second.predictions;
+        std::vector<bst_float>& y = it->second.predictions;
         if (y.size() != 0) {
           out_preds->resize(y.size());
           std::copy(y.begin(), y.end(), out_preds->begin());
@@ -243,7 +278,7 @@ class GBTree : public GradientBooster {
   }
 
   void Predict(const SparseBatch::Inst& inst,
-               std::vector<float>* out_preds,
+               std::vector<bst_float>* out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
     if (thread_temp.size() == 0) {
@@ -264,13 +299,9 @@ class GBTree : public GradientBooster {
   }
 
   void PredictLeaf(DMatrix* p_fmat,
-                   std::vector<float>* out_preds,
+                   std::vector<bst_float>* out_preds,
                    unsigned ntree_limit) override {
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-    }
+    const int nthread = omp_get_max_threads();
     InitThreadTemp(nthread);
     this->PredPath(p_fmat, out_preds, ntree_limit);
   }
@@ -291,7 +322,7 @@ class GBTree : public GradientBooster {
   template<typename Derived>
   inline void PredLoopInternal(
       DMatrix* p_fmat,
-      std::vector<float>* out_preds,
+      std::vector<bst_float>* out_preds,
       unsigned tree_begin,
       unsigned ntree_limit,
       bool init_out_preds) {
@@ -303,7 +334,7 @@ class GBTree : public GradientBooster {
 
     if (init_out_preds) {
       size_t n = num_group * p_fmat->info().num_row;
-      const std::vector<float>& base_margin = p_fmat->info().base_margin;
+      const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
       out_preds->resize(n);
       if (base_margin.size() != 0) {
         CHECK_EQ(out_preds->size(), n);
@@ -325,19 +356,15 @@ class GBTree : public GradientBooster {
   template<typename Derived>
   inline void PredLoopSpecalize(
       DMatrix* p_fmat,
-      std::vector<float>* out_preds,
+      std::vector<bst_float>* out_preds,
       int num_group,
       unsigned tree_begin,
       unsigned tree_end) {
     const MetaInfo& info = p_fmat->info();
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-    }
+    const int nthread = omp_get_max_threads();
     CHECK_EQ(num_group, mparam.num_output_group);
     InitThreadTemp(nthread);
-    std::vector<float> &preds = *out_preds;
+    std::vector<bst_float> &preds = *out_preds;
     CHECK_EQ(mparam.size_leaf_vector, 0)
         << "size_leaf_vector is enforced to 0 so far";
     CHECK_EQ(preds.size(), p_fmat->info().num_row * num_group);
@@ -386,11 +413,20 @@ class GBTree : public GradientBooster {
     ret->clear();
     // create the trees
     for (int i = 0; i < tparam.num_parallel_tree; ++i) {
-      std::unique_ptr<RegTree> ptr(new RegTree());
-      ptr->param.InitAllowUnknown(this->cfg);
-      ptr->InitModel();
-      new_trees.push_back(ptr.get());
-      ret->push_back(std::move(ptr));
+      if (tparam.process_type == kDefault) {
+        // create new tree
+        std::unique_ptr<RegTree> ptr(new RegTree());
+        ptr->param.InitAllowUnknown(this->cfg);
+        ptr->InitModel();
+        new_trees.push_back(ptr.get());
+        ret->push_back(std::move(ptr));
+      } else if (tparam.process_type == kUpdate) {
+        CHECK_LT(trees.size(), trees_to_update.size());
+        // move an existing tree from trees_to_update
+        auto t = std::move(trees_to_update[trees.size()]);
+        new_trees.push_back(t.get());
+        ret->push_back(std::move(t));
+      }
     }
     // update the trees
     for (auto& up : updaters) {
@@ -424,13 +460,13 @@ class GBTree : public GradientBooster {
   }
 
   // make a prediction for a single instance
-  inline float PredValue(const RowBatch::Inst &inst,
-                         int bst_group,
-                         unsigned root_index,
-                         RegTree::FVec *p_feats,
-                         unsigned tree_begin,
-                         unsigned tree_end) {
-    float psum = 0.0f;
+  inline bst_float PredValue(const RowBatch::Inst &inst,
+                             int bst_group,
+                             unsigned root_index,
+                             RegTree::FVec *p_feats,
+                             unsigned tree_begin,
+                             unsigned tree_end) {
+    bst_float psum = 0.0f;
     p_feats->Fill(inst);
     for (size_t i = tree_begin; i < tree_end; ++i) {
       if (tree_info[i] == bst_group) {
@@ -443,7 +479,7 @@ class GBTree : public GradientBooster {
   }
   // predict independent leaf index
   inline void PredPath(DMatrix *p_fmat,
-                       std::vector<float> *out_preds,
+                       std::vector<bst_float> *out_preds,
                        unsigned ntree_limit) {
     const MetaInfo& info = p_fmat->info();
     // number of valid trees
@@ -451,7 +487,7 @@ class GBTree : public GradientBooster {
     if (ntree_limit == 0 || ntree_limit > trees.size()) {
       ntree_limit = static_cast<unsigned>(trees.size());
     }
-    std::vector<float>& preds = *out_preds;
+    std::vector<bst_float>& preds = *out_preds;
     preds.resize(info.num_row * ntree_limit);
     // start collecting the prediction
     dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
@@ -468,7 +504,7 @@ class GBTree : public GradientBooster {
         feats.Fill(batch[i]);
         for (unsigned j = 0; j < ntree_limit; ++j) {
           int tid = trees[j]->GetLeafIndex(feats, info.GetRoot(ridx));
-          preds[ridx * ntree_limit + j] = static_cast<float>(tid);
+          preds[ridx * ntree_limit + j] = static_cast<bst_float>(tid);
         }
         feats.Drop(batch[i]);
       }
@@ -486,13 +522,15 @@ class GBTree : public GradientBooster {
   }
   // --- data structure ---
   // base margin
-  float base_margin_;
+  bst_float base_margin_;
   // training parameter
   GBTreeTrainParam tparam;
   // model parameter
   GBTreeModelParam mparam;
   /*! \brief vector of trees stored in the model */
   std::vector<std::unique_ptr<RegTree> > trees;
+  /*! \brief for the update process, a place to keep the initial trees */
+  std::vector<std::unique_ptr<RegTree> > trees_to_update;
   /*! \brief some information indicator of the tree, reserved */
   std::vector<int> tree_info;
   // ----training fields----
@@ -508,7 +546,7 @@ class GBTree : public GradientBooster {
 // dart
 class Dart : public GBTree {
  public:
-  explicit Dart(float base_margin) : GBTree(base_margin) {}
+  explicit Dart(bst_float base_margin) : GBTree(base_margin) {}
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
     GBTree::Configure(cfg);
@@ -534,14 +572,14 @@ class Dart : public GBTree {
 
   // predict the leaf scores with dropout if ntree_limit = 0
   void Predict(DMatrix* p_fmat,
-               std::vector<float>* out_preds,
+               std::vector<bst_float>* out_preds,
                unsigned ntree_limit) override {
     DropTrees(ntree_limit);
     PredLoopInternal<Dart>(p_fmat, out_preds, 0, ntree_limit, true);
   }
 
   void Predict(const SparseBatch::Inst& inst,
-               std::vector<float>* out_preds,
+               std::vector<bst_float>* out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
     DropTrees(1);
@@ -579,13 +617,13 @@ class Dart : public GBTree {
     }
   }
   // predict the leaf scores without dropped trees
-  inline float PredValue(const RowBatch::Inst &inst,
-                         int bst_group,
-                         unsigned root_index,
-                         RegTree::FVec *p_feats,
-                         unsigned tree_begin,
-                         unsigned tree_end) {
-    float psum = 0.0f;
+  inline bst_float PredValue(const RowBatch::Inst &inst,
+                             int bst_group,
+                             unsigned root_index,
+                             RegTree::FVec *p_feats,
+                             unsigned tree_begin,
+                             unsigned tree_end) {
+    bst_float psum = 0.0f;
     p_feats->Fill(inst);
     for (size_t i = tree_begin; i < tree_end; ++i) {
       if (tree_info[i] == bst_group) {
@@ -611,7 +649,7 @@ class Dart : public GBTree {
     if (dparam.skip_drop > 0.0) skip = (runif(rnd) < dparam.skip_drop);
     if (ntree_limit_drop == 0 && !skip) {
       if (dparam.sample_type == 1) {
-        float sum_weight = 0.0;
+        bst_float sum_weight = 0.0;
         for (size_t i = 0; i < weight_drop.size(); ++i) {
           sum_weight += weight_drop[i];
         }
@@ -667,26 +705,26 @@ class Dart : public GBTree {
   // training parameter
   DartTrainParam dparam;
   /*! \brief prediction buffer */
-  std::vector<float> weight_drop;
+  std::vector<bst_float> weight_drop;
   // indexes of dropped trees
   std::vector<size_t> idx_drop;
 };
 
-// register the ojective functions
+// register the objective functions
 DMLC_REGISTER_PARAMETER(GBTreeModelParam);
 DMLC_REGISTER_PARAMETER(GBTreeTrainParam);
 DMLC_REGISTER_PARAMETER(DartTrainParam);
 
 XGBOOST_REGISTER_GBM(GBTree, "gbtree")
 .describe("Tree booster, gradient boosted trees.")
-.set_body([](const std::vector<std::shared_ptr<DMatrix> >& cached_mats, float base_margin) {
+.set_body([](const std::vector<std::shared_ptr<DMatrix> >& cached_mats, bst_float base_margin) {
     GBTree* p = new GBTree(base_margin);
     p->InitCache(cached_mats);
     return p;
   });
 XGBOOST_REGISTER_GBM(Dart, "dart")
 .describe("Tree booster, dart.")
-.set_body([](const std::vector<std::shared_ptr<DMatrix> >& cached_mats, float base_margin) {
+.set_body([](const std::vector<std::shared_ptr<DMatrix> >& cached_mats, bst_float base_margin) {
     GBTree* p = new Dart(base_margin);
     return p;
   });

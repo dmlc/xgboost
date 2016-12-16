@@ -48,10 +48,16 @@ export CXX = $(if $(shell which g++-6),g++-6,$(if $(shell which g++-mp-6),g++-mp
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
-export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
+export CFLAGS=  -std=c++0x -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
+
+ifeq ($(TEST_COVER), 1)
+	CFLAGS += -g -O0 -fprofile-arcs -ftest-coverage
+else
+	CFLAGS += -O3 -funroll-loops -msse2
+endif
 
 ifndef LINT_LANG
 	LINT_LANG= "all"
@@ -101,6 +107,7 @@ AMALGA_OBJ = amalgamation/xgboost-all0.o
 LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
 ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
 CLI_OBJ = build/cli_main.o
+include tests/cpp/xgboost_test.mk
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
@@ -145,8 +152,22 @@ lint: rcpplint
 pylint:
 	flake8 --ignore E501 python-package
 	flake8 --ignore E501 tests/python
+
+test: $(ALL_TEST)
+
+check: test
+	./tests/cpp/xgboost_test
+
+ifeq ($(TEST_COVER), 1)
+cover: check
+	@- $(foreach COV_OBJ, $(COVER_OBJ), \
+		gcov -pbcul -o $(shell dirname $(COV_OBJ)) $(COV_OBJ) > gcov.log || cat gcov.log; \
+	)
+endif
+
 clean:
 	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
+	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
 
 clean_all: clean
 	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROOTDIR)

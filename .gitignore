@@ -80,4 +80,11 @@ tags
 target
 *.swp
 
+# cpp tests and gcov generated files
+*.gcov
+*.gcda
+*.gcno
+build_tests
+/tests/cpp/xgboost_test
+
 .DS_Store

@@ -17,18 +17,60 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.nio.file.Files
+import java.util.concurrent.{BlockingQueue, LinkedBlockingDeque}
 
 import scala.collection.mutable.ListBuffer
 import scala.util.Random
-
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
+import scala.concurrent.duration._
+import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.DMatrix
+import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.LabeledPoint
-import org.apache.spark.ml.linalg.{Vector => SparkVector, Vectors}
+import org.apache.spark.ml.linalg.{Vectors, Vector => SparkVector}
 import org.apache.spark.rdd.RDD
 
 class XGBoostGeneralSuite extends SharedSparkContext with Utils {
+  test("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
+    val vectorLength = 100
+    val rdd = sc.parallelize(
+      (1 to numWorkers * vectorLength).toArray.map { _ => Random.nextFloat() }, numWorkers).cache()
+
+    val tracker = new RabitTracker(numWorkers)
+    tracker.start(0)
+    val trackerEnvs = tracker.getWorkerEnvs
+    val collectedAllReduceResults = new LinkedBlockingDeque[Array[Float]]()
+
+    val rawData = rdd.mapPartitions { iter =>
+      Iterator(iter.toArray)
+    }.collect()
+
+    val maxVec = (0 until vectorLength).toArray.map { j =>
+      (0 until numWorkers).toArray.map { i => rawData(i)(j) }.max
+    }
+
+    val allReduceResults = rdd.mapPartitions { iter =>
+      Rabit.init(trackerEnvs)
+      val arr = iter.toArray
+      val results = Rabit.allReduce(arr, Rabit.OpType.MAX)
+      Rabit.shutdown()
+      Iterator(results)
+    }.cache()
+
+    val sparkThread = new Thread() {
+      override def run(): Unit = {
+        allReduceResults.foreachPartition(() => _)
+        val byPartitionResults = allReduceResults.collect()
+        assert(byPartitionResults(0).length == vectorLength)
+        collectedAllReduceResults.put(byPartitionResults(0))
+      }
+    }
+    sparkThread.start()
+    assert(tracker.waitFor(0L) == 0)
+    sparkThread.join()
+
+    assert(collectedAllReduceResults.poll().sameElements(maxVec))
+  }
 
   test("build RDD containing boosters with the specified worker number") {
     val trainingRDD = buildTrainingRDD(sc)
@@ -36,7 +78,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       trainingRDD,
       List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
         "objective" -> "binary:logistic").toMap,
-      new scala.collection.mutable.HashMap[String, String],
+      new java.util.HashMap[String, String](),
       numWorkers = 2, round = 5, eval = null, obj = null, useExternalMemory = true)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === 2)
@@ -57,6 +99,21 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       testSetDMatrix) < 0.1)
     // clean
     cleanExternalCache("XGBoostSuite")
+  }
+
+  test("training with Scala-implemented Rabit tracker") {
+    val eval = new EvalError()
+    val trainingRDD = buildTrainingRDD(sc)
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic",
+      "tracker_conf" -> TrackerConf(1 minute, "scala")).toMap
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = numWorkers, useExternalMemory = true)
+    assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix) < 0.1)
   }
 
   test("test with dense vectors containing missing value") {

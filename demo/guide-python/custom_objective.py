@@ -27,9 +27,9 @@ def logregobj(preds, dtrain):
 
 # user defined evaluation function, return a pair metric_name, result
 # NOTE: when you do customized loss function, the default prediction value is margin
-# this may make buildin evalution metric not function properly
+# this may make builtin evaluation metric not function properly
 # for example, we are doing logistic loss, the prediction is score before logistic transformation
-# the buildin evaluation error assumes input is after logistic transformation
+# the builtin evaluation error assumes input is after logistic transformation
 # Take this in mind when you use the customization, and maybe you need write customized evaluation function
 def evalerror(preds, dtrain):
     labels = dtrain.get_label()

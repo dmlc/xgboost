@@ -19,7 +19,7 @@ from .compat import STRING_TYPES, PY3, DataFrame, py_str, PANDAS_INSTALLED
 
 
 class XGBoostError(Exception):
-    """Error throwed by xgboost trainer."""
+    """Error thrown by xgboost trainer."""
     pass
 
 
@@ -387,7 +387,7 @@ class DMatrix(object):
             The field name of the information
 
         data: numpy array
-            The array ofdata to be set
+            The array of data to be set
         """
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -403,7 +403,7 @@ class DMatrix(object):
             The field name of the information
 
         data: numpy array
-            The array ofdata to be set
+            The array of data to be set
         """
         _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
                                               c_str(field),
@@ -980,11 +980,11 @@ class Booster(object):
 
     def save_raw(self):
         """
-        Save the model to a in memory buffer represetation
+        Save the model to a in memory buffer representation
 
         Returns
         -------
-        a in memory buffer represetation of the model
+        a in memory buffer representation of the model
         """
         length = ctypes.c_ulong()
         cptr = ctypes.POINTER(ctypes.c_char)()
