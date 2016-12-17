@@ -219,7 +219,7 @@ Rpack:
 
 Rbuild:
 	$(MAKE) Rpack
-	R CMD build --no-build-vignettes xgboost
+	R CMD build --no-build-vignettes --clean xgboost
 	rm -rf xgboost
 
 Rcheck:
