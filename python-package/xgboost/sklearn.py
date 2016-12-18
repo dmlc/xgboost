@@ -365,7 +365,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             scale_pos_weight, base_score, seed, missing)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, xgb_model=None, callbacks=None, learning_rates=None, verbose=True):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -399,6 +399,17 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             and bst.best_ntree_limit.
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
+        learning_rates: list or function (deprecated - use callback API instead)
+            List of learning rate for each boosting round
+            or a customized function that calculates eta in terms of
+            current number of round and the total number of boosting round (e.g. yields
+            learning rate decay)
+        xgb_model : file name of stored xgb model or 'Booster' instance
+            Xgb model to be loaded before training (allows training continuation).
+        callbacks : list of callback functions
+            List of callback functions that are applied at end of each iteration.
+            It is possible to use predefined callbacks by using xgb.callback module.
+            Example: [xgb.callback.reset_learning_rate(custom_rates)]
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -456,6 +467,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
+                              xgb_model=xgb_model, callbacks=callbacks, learning_rates=learning_rates,
                               verbose_eval=verbose)
 
         self.objective = xgb_options["objective"]
@@ -531,6 +543,28 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             raise XGBoostError('No results.')
 
         return evals_result
+
+    def save_model(self, fname):
+        """
+        Save the model to a file.
+
+        Parameters
+        ----------
+        fname : string
+            Output file name
+        """
+        self.booster().save_model(fname)
+
+    def load_model(self, fname):
+        """
+        Load the model from a file.
+
+        Parameters
+        ----------
+        fname : string or a memory buffer
+            Input file name or memory buffer(see also save_raw)
+        """
+        self._Booster = Booster(model_file=fname)
 
 
 class XGBRegressor(XGBModel, XGBRegressorBase):
