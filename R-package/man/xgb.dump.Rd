@@ -24,9 +24,9 @@ When this option is on, the model dump comes with two additional statistics:
 gain is the approximate loss function gain we get in each split;
 cover is the sum of second order gradient in each node.}
 
-\item{...}{currently not used}
+\item{dump_format}{either 'text' or 'json' format could be specified.}
 
-\item{dump_fomat}{either 'text' or 'json' format could be specified.}
+\item{...}{currently not used}
 }
 \value{
 if fname is not provided or set to \code{NULL} the function will return the model as a \code{character} vector. Otherwise it will return \code{TRUE}.
