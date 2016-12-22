@@ -495,7 +495,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                      (np.max(class_probs, axis=0) - np.min(class_probs, axis=0))
         if self.objective == "multi:softprob":
             #Renormalize to ensure probabilities of all classes sum to 1 for every instance 
-            class_probs = np.divide(scaled_class_probs, np.sum(scaled_class_probs, axis=1)[:,None])
+            class_probs = np.divide(scaled_class_probs, np.sum(scaled_class_probs, axis=1)[:, None])
             return class_probs
         else:
             classone_probs = scaled_class_probs
