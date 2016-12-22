@@ -32,8 +32,6 @@ Data is stored in a sparse format. For example, missing values produced by one h
 
 A 4GB graphics card will process approximately 3.5 million rows of the well known Kaggle higgs dataset.
 
-The algorithm will automatically perform row subsampling if it detects there is not enough memory on the device.
-
 ## Dependencies
 A CUDA capable GPU with at least compute capability >= 3.5 (the algorithm depends on shuffle and vote instructions introduced in Kepler).
 
