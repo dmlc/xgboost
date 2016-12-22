@@ -489,12 +489,19 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         class_probs = self.booster().predict(test_dmatrix,
                                              output_margin=output_margin,
                                              ntree_limit=ntree_limit)
+        #Ensure that class_probs are between 0 and 1 (min-max transform)
+        scaled_class_probs = (class_probs - np.min(class_probs, axis=0)) \
+                        / \
+                     (np.max(class_probs, axis=0) - np.min(class_probs, axis=0))
         if self.objective == "multi:softprob":
+            #Renormalize to ensure probabilities of all classes sum to 1 for every instance 
+            class_probs = np.divide(scaled_class_probs, np.sum(scaled_class_probs, axis=1)[:,None])
             return class_probs
         else:
-            classone_probs = class_probs
+            classone_probs = scaled_class_probs
             classzero_probs = 1.0 - classone_probs
             return np.vstack((classzero_probs, classone_probs)).transpose()
+
 
     def evals_result(self):
         """Return the evaluation results.
