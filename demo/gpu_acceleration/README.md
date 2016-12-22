@@ -9,10 +9,10 @@ https://www.kaggle.com/c/bosch-production-line-performance/data
 
 Copy train_numeric.csv into xgboost/demo/data.
 
-The subsample parameter can be changed so you can run the script first on a small portion of the data. Processing the entire dataset can take a long time and requires about 8GB of device memory. It is initially set to 0.4, using about 2650/3380MB on a GTX 970. 
+The subset parameter changes the proportion of rows loaded from the CSV file. Processing the entire dataset can take a long time and requires about 8GB of device memory. It is initially set to 0.4, using about 2650/3380MB on a GTX 970. Lower the parameter if your device runs out of memory.
 
 ```python
-subsample = 0.4
+subset = 0.4
 ```
 
 Parameters are set as usual except that we set silent to 0 to see how much memory is being allocated on the GPU and we change 'updater' to 'grow_gpu' to activate the GPU plugin.
