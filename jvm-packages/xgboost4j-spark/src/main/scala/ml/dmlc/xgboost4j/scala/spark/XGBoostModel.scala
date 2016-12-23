@@ -309,6 +309,7 @@ object XGBoostModel extends MLReadable[XGBoostModel] {
   private[XGBoostModel] class XGBoostModelModelWriter(instance: XGBoostModel)
     extends MLWriter {
     override protected def saveImpl(path: String): Unit = {
+      implicit val sc = super.sparkSession.sparkContext
       instance.saveModelAsHadoopFile(path)
     }
   }
@@ -316,6 +317,7 @@ object XGBoostModel extends MLReadable[XGBoostModel] {
   private class XGBoostModelModelReader
     extends MLReader[XGBoostModel] {
     override def load(path: String): XGBoostModel = {
+      implicit val sc = super.sparkSession.sparkContext
       XGBoost.loadModelFromHadoopFile(path)
     }
   }
