@@ -2,14 +2,7 @@
 
 ## Benchmarks
 
-Time for 500 boosting iterations in seconds. 
-
-Dataset | Instances | Features | i7-6700K | Titan X (pascal) | Speedup
---- | --- | --- | --- | --- | --- 
-Yahoo LTR | 473,134 | 700 | 3738 | 507 | 7.37
-Higgs | 10,500,000 | 28 | 31352 | 4173 | 7.51
-Bosch | 1,183,747 | 968 | 9460 | 1009 | 9.38
-
+[See here](http://dmlc.ml/2016/12/14/GPU-accelerated-xgboost.html) for performance benchmarks
 
 ## Usage
 Specify the updater parameter as 'grow_gpu'. 
@@ -31,8 +24,6 @@ The maximum number of nodes needed for a given tree depth d is 2<sup>d+1</sup> -
 Data is stored in a sparse format. For example, missing values produced by one hot encoding are not stored. If a one hot encoding separates a categorical variable into 5 columns the density of these columns is 1/5 = 0.2.
 
 A 4GB graphics card will process approximately 3.5 million rows of the well known Kaggle higgs dataset.
-
-The algorithm will automatically perform row subsampling if it detects there is not enough memory on the device.
 
 ## Dependencies
 A CUDA capable GPU with at least compute capability >= 3.5 (the algorithm depends on shuffle and vote instructions introduced in Kepler).
