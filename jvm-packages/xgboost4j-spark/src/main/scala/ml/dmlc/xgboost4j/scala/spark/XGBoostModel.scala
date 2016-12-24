@@ -18,19 +18,19 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.JavaConverters._
 import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
-import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, DefaultXGBoostParamsWriter}
+import ml.dmlc.xgboost4j.scala.spark.params.DefaultXGBoostParamsWriter
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
 import org.apache.hadoop.fs.{FSDataOutputStream, Path}
 import org.apache.spark.ml.PredictionModel
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
-import org.apache.spark.ml.param.{Param, ParamMap, Params}
+import org.apache.spark.ml.param.{BooleanParam, ParamMap, Params}
 import org.apache.spark.ml.util._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.types.{ArrayType, FloatType}
 import org.apache.spark.{SparkContext, TaskContext}
-import org.json4s.{DefaultFormats, JObject, NoTypeHints}
+import org.json4s.DefaultFormats
 
 /**
  * the base class of [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
@@ -42,7 +42,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
 
   // scalastyle:off
 
-  final val useExternalMemory: Param[Boolean] = new Param[Boolean](this, "useExternalMemory", "whether to use external memory for prediction")
+  final val useExternalMemory = new BooleanParam(this, "use_external_memory", "whether to use external memory for prediction")
 
   setDefault(useExternalMemory, false)
 
