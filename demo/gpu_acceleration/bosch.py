@@ -3,7 +3,7 @@ import pandas as pd
 import xgboost as xgb
 import time
 import random
-from sklearn.cross_validation import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 
 #For sampling rows from input file
 random_seed = 9
