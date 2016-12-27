@@ -43,15 +43,12 @@ class XGBoostSparkPipelinePersistence extends FunSuite
 
     // separate
     println("################## separate")
-    val eval = new EvalError()
-    val vecModel = vectorAssembler.transform(df)
-    val predModel = xgbEstimator.fit(vecModel)
+    val predModel = xgbEstimator.fit(vectorAssembler.transform(df))
     predModel.write.overwrite.save("test2xgbPipe")
     val same2Model = XGBoostModel.load("test2xgbPipe")
 
-    val memoryPredictions = predModel.transform(df)
+    val memoryPredictions = predModel.transform(vectorAssembler.transform(df))
     val loadedPredictions = same2Model.transform(vectorAssembler.transform(df))
-
     // this doesn't work -> will need to compare prediction results
     // assert(predModel == same2Model)
     assertDataFrameEquals(memoryPredictions, loadedPredictions)
