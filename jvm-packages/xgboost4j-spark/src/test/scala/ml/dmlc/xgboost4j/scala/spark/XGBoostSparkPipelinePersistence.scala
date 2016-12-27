@@ -18,10 +18,9 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkConf
-import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.feature._
+import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.SparkSession
-
 
 case class Foobar(TARGET: Int, bar: Double, baz: Double)
 
@@ -55,9 +54,19 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
       .setFeaturesCol("features")
       .setLabelCol("TARGET")
 
+    // separate
+    println("################## separate")
+    val vecModel = vectorAssembler.transform(df)
+    val predModel = xgbEstimator.fit(vecModel)
+    predModel.write.overwrite.save("test2xgbPipe")
+    val same2Model = XGBoostModel.load("test2xgbPipe")
+    assert(predModel == same2Model)
+
+    // in chained pipeline
+    println("################## chained")
     val predictionModel = new Pipeline().setStages(Array(vectorAssembler, xgbEstimator)).fit(df)
     predictionModel.write.overwrite.save("testxgbPipe")
-    val sameModel = XGBoostModel.load("testxgbPipe")
+    val sameModel = PipelineModel.load("testxgbPipe")
     assert(predictionModel == sameModel)
   }
 }
