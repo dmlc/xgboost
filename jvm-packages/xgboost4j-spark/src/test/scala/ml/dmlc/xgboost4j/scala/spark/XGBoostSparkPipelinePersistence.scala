@@ -16,18 +16,29 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import com.holdenkarau.spark.testing.DatasetSuiteBase
+import org.apache.spark.SparkConf
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
-import org.scalatest.FunSuite
+import org.apache.spark.sql.SparkSession
 
 case class Foobar(TARGET: Int, bar: Double, baz: Double)
 
-class XGBoostSparkPipelinePersistence extends FunSuite
-  with com.holdenkarau.spark.testing.SharedSparkContext with DatasetSuiteBase {
+class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
   test("test sparks pipeline persistence of dataframe-based model") {
+    //  maybe move to shared context, but requires session to import implicits.
+    // what about introducing https://github.com/holdenk/spark-testing-base ?
+    val conf: SparkConf = new SparkConf()
+      .setAppName("foo")
+      .setMaster("local[*]")
+
+    val spark: SparkSession = SparkSession
+      .builder()
+      .config(conf)
+      .getOrCreate()
+
     import spark.implicits._
     // maybe move to shared context, but requires session to import implicits
+
     val df = Seq(Foobar(0, 0.5, 1), Foobar(1, 0.01, 0.8),
       Foobar(0, 0.8, 0.5), Foobar(1, 8.4, 0.04))
       .toDS
@@ -48,10 +59,14 @@ class XGBoostSparkPipelinePersistence extends FunSuite
     val same2Model = XGBoostModel.load("test2xgbPipe")
 
     val memoryPredictions = predModel.transform(vectorAssembler.transform(df))
+    memoryPredictions.show
     val loadedPredictions = same2Model.transform(vectorAssembler.transform(df))
+    loadedPredictions.show
+    memoryPredictions.printSchema()
+    loadedPredictions.printSchema()
     // this doesn't work -> will need to compare prediction results
     // assert(predModel == same2Model)
-    assertDataFrameEquals(memoryPredictions, loadedPredictions)
+    assert(loadedPredictions.collect == memoryPredictions.collect)
 
     // in chained pipeline
     println("################## chained")
@@ -61,7 +76,7 @@ class XGBoostSparkPipelinePersistence extends FunSuite
 
     val memoryPredictionsPipe = predictionModel.transform(df)
     val loadedPredictionsPipe = sameModel.transform(df)
-    assertDataFrameEquals(memoryPredictionsPipe, loadedPredictionsPipe)
+    assert(memoryPredictionsPipe == loadedPredictionsPipe)
   }
 }
 
