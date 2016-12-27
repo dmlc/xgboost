@@ -22,6 +22,9 @@ import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.feature._
 import org.apache.spark.sql.SparkSession
 
+
+case class Foobar(TARGET: Int, bar: Double, baz: Double)
+
 class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
   test("test sparks pipeline persistence of dataframe-based model") {
 
@@ -39,14 +42,9 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
 
     import spark.implicits._
     // maybe move to shared context, but requires session to import implicits
-
-    val columnsFactor = Seq("bar", "baz")
-    val columnsToDrop = Seq("dropme")
-
-    val df = Seq((0, 0.5, 1, 0), (1, 0.01, 0.8, 9),
-      (0, 0.8, 0.5, 6),
-      (1, 8.4, 0.04, 4))
-      .toDF("TARGET", "bar", "baz", "column")
+    val df = Seq(Foobar(0, 0.5, 1), Foobar(1, 0.01, 0.8),
+      Foobar(0, 0.8, 0.5), Foobar(1, 8.4, 0.04))
+      .toDS
 
     val vectorAssembler = new VectorAssembler()
       .setInputCols(df.columns
