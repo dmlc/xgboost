@@ -17,7 +17,7 @@
 // based on org.apache.spark.util copy /paste
 package ml.dmlc.xgboost4j.scala.spark.params
 
-object Utils {
+private[spark] object Utils {
 
   def getSparkClassLoader: ClassLoader = getClass.getClassLoader
 

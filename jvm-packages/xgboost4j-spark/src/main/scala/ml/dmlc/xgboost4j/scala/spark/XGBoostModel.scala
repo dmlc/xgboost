@@ -36,7 +36,7 @@ import org.json4s.DefaultFormats
  * the base class of [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
  */
 abstract class XGBoostModel(protected var _booster: Booster)
-  extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params with MLWritable{
+  extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params with MLWritable {
 
   def setLabelCol(name: String): XGBoostModel = set(labelCol, name)
 
@@ -293,9 +293,6 @@ abstract class XGBoostModel(protected var _booster: Booster)
 
   def booster: Booster = _booster
 
-  /**
-    *  For persistence implement interface from object
-    */
   override def copy(extra: ParamMap): XGBoostModel = defaultCopy(extra)
 
   override def write: MLWriter = new XGBoostModel.XGBoostModelModelWriter(this)
@@ -307,8 +304,7 @@ object XGBoostModel extends MLReadable[XGBoostModel] {
 
   override def load(path: String): XGBoostModel = super.load(path)
 
-  private[XGBoostModel] class XGBoostModelModelWriter(instance: XGBoostModel)
-    extends MLWriter {
+  private[XGBoostModel] class XGBoostModelModelWriter(instance: XGBoostModel) extends MLWriter {
     override protected def saveImpl(path: String): Unit = {
       implicit val format = DefaultFormats
       implicit val sc = super.sparkSession.sparkContext
@@ -319,8 +315,7 @@ object XGBoostModel extends MLReadable[XGBoostModel] {
     }
   }
 
-  private class XGBoostModelModelReader
-    extends MLReader[XGBoostModel] {
+  private class XGBoostModelModelReader extends MLReader[XGBoostModel] {
     private val className = classOf[XGBoostModel].getName
     override def load(path: String): XGBoostModel = {
       implicit val sc = super.sparkSession.sparkContext
