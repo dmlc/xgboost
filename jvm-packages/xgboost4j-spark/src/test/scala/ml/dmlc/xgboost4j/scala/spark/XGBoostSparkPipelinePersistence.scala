@@ -16,29 +16,16 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import org.apache.log4j.{Level, Logger}
-import org.apache.spark.SparkConf
+import com.holdenkarau.spark.testing.DatasetSuiteBase
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
-import org.apache.spark.sql.SparkSession
+import org.scalatest.FunSuite
 
 case class Foobar(TARGET: Int, bar: Double, baz: Double)
 
-class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
+class XGBoostSparkPipelinePersistence extends FunSuite
+  with com.holdenkarau.spark.testing.SharedSparkContext with DatasetSuiteBase {
   test("test sparks pipeline persistence of dataframe-based model") {
-
-    //  maybe move to shared context, but requires session to import implicits
-    Logger.getLogger("org").setLevel(Level.WARN)
-
-    val conf: SparkConf = new SparkConf()
-      .setAppName("foo")
-      .setMaster("local[*]")
-
-    val spark: SparkSession = SparkSession
-      .builder()
-      .config(conf)
-      .getOrCreate()
-
     import spark.implicits._
     // maybe move to shared context, but requires session to import implicits
     val df = Seq(Foobar(0, 0.5, 1), Foobar(1, 0.01, 0.8),
@@ -56,18 +43,28 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
 
     // separate
     println("################## separate")
+    val eval = new EvalError()
     val vecModel = vectorAssembler.transform(df)
     val predModel = xgbEstimator.fit(vecModel)
     predModel.write.overwrite.save("test2xgbPipe")
     val same2Model = XGBoostModel.load("test2xgbPipe")
-    assert(predModel == same2Model)
+
+    val memoryPredictions = predModel.transform(df)
+    val loadedPredictions = same2Model.transform(vectorAssembler.transform(df))
+
+    // this doesn't work -> will need to compare prediction results
+    // assert(predModel == same2Model)
+    assertDataFrameEquals(memoryPredictions, loadedPredictions)
 
     // in chained pipeline
     println("################## chained")
     val predictionModel = new Pipeline().setStages(Array(vectorAssembler, xgbEstimator)).fit(df)
     predictionModel.write.overwrite.save("testxgbPipe")
     val sameModel = PipelineModel.load("testxgbPipe")
-    assert(predictionModel == sameModel)
+
+    val memoryPredictionsPipe = predictionModel.transform(df)
+    val loadedPredictionsPipe = sameModel.transform(df)
+    assertDataFrameEquals(memoryPredictionsPipe, loadedPredictionsPipe)
   }
 }
 
