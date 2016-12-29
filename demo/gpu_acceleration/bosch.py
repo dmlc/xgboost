@@ -3,14 +3,14 @@ import pandas as pd
 import xgboost as xgb
 import time
 import random
-from sklearn.cross_validation import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 
-#For sub sampling rows from input file
+#For sampling rows from input file
 random_seed = 9
-subsample = 0.4
+subset = 0.4
 
 n_rows = 1183747;
-train_rows = int(n_rows * subsample)
+train_rows = int(n_rows * subset)
 random.seed(random_seed)
 skip = sorted(random.sample(xrange(1,n_rows + 1),n_rows-train_rows))
 data = pd.read_csv("../data/train_numeric.csv", index_col=0, dtype=np.float32, skiprows=skip)

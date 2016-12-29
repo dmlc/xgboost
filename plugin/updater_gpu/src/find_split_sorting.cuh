@@ -337,17 +337,8 @@ struct FindSplitEnactorSorting {
     WriteBestSplit(node_id_adjusted);
   }
 
-  __device__ __forceinline__ void ResetSplitCandidates() {
-    const int max_nodes = 1 << level;
-    const int begin = blockIdx.x * max_nodes;
-
-    dh::block_fill(d_split_candidates_out + begin, max_nodes, Split());
-  }
-
   __device__ __forceinline__ void ProcessFeature(const bst_uint &segment_begin,
                                                  const bst_uint &segment_end) {
-    ResetSplitCandidates();
-
     int node_begin = segment_begin;
 
     const int max_nodes = 1 << level;
@@ -377,9 +368,9 @@ __global__ __launch_bounds__(1024, 1) void find_split_candidates_sorted_kernel(
     const ItemIter items_iter, Split *d_split_candidates_out,
     const Node *d_nodes, bst_uint num_items, const int num_features,
     const int *d_feature_offsets, gpu_gpair *d_node_sums, int *d_node_offsets,
-    const GPUTrainingParam param, const int level) {
+    const GPUTrainingParam param, const int *d_feature_flags, const int level) {
 
-  if (num_items <= 0) {
+  if (num_items <= 0 || d_feature_flags[blockIdx.x] != 1) {
     return;
   }
 
@@ -408,23 +399,19 @@ __global__ __launch_bounds__(1024, 1) void find_split_candidates_sorted_kernel(
       .ProcessFeature(segment_begin, segment_end);
 }
 
-void find_split_candidates_sorted(const ItemIter items_iter,
-                                  Split *d_split_candidates, Node *d_nodes,
-                                  bst_uint num_items, int num_features,
-                                  const int *d_feature_offsets,
-                                  gpu_gpair *d_node_sums, int *d_node_offsets,
-                                  const GPUTrainingParam param,
-                                  const int level) {
+void find_split_candidates_sorted(GPUData * data, const int level) {
   const int BLOCK_THREADS = 512;
 
   CHECK(BLOCK_THREADS / 32 < 32) << "Too many active warps.";
 
-  int grid_size = num_features;
+  int grid_size = data->n_features;
 
   find_split_candidates_sorted_kernel<
       BLOCK_THREADS><<<grid_size, BLOCK_THREADS>>>(
-      items_iter, d_split_candidates, d_nodes, num_items, num_features,
-      d_feature_offsets, d_node_sums, d_node_offsets, param, level);
+      data->items_iter, data->split_candidates.data(), data->nodes.data(),
+        data->fvalues.size(), data->n_features,
+      data->foffsets.data(), data->node_sums.data(), data->node_offsets.data(),
+        data->param, data->feature_flags.data(), level);
 
   dh::safe_cuda(cudaGetLastError());
   dh::safe_cuda(cudaDeviceSynchronize());
