@@ -1,7 +1,7 @@
 # XGBoost Tutorials
 
 This section contains official tutorials inside XGBoost package.
-See [Awesome XGBoost](https://github.com/dmlc/xgboost/tree/master/demo) for links to mores resources.
+See [Awesome XGBoost](https://github.com/dmlc/xgboost/tree/master/demo) for links to more resources.
 
 ## Contents
 - [Introduction to Boosted Trees](../model.md)
