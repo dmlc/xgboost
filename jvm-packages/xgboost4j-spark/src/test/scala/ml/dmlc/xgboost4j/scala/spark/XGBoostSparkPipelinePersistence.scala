@@ -21,6 +21,8 @@ import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.SparkSession
 
+import scala.concurrent.duration._
+
 case class Foobar(TARGET: Int, bar: Double, baz: Double)
 
 class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
@@ -48,7 +50,9 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
         .filter(!_.contains("TARGET")))
       .setOutputCol("features")
 
-    val xgbEstimator = new XGBoostEstimator(Map("num_rounds" -> 10))
+    val xgbEstimator = new XGBoostEstimator(Map("num_rounds" -> 10,
+      "tracker_conf" -> TrackerConf(1 minute, "scala")
+    ))
       .setFeaturesCol("features")
       .setLabelCol("TARGET")
 
