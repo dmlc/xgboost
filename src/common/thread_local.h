@@ -19,7 +19,9 @@ namespace xgboost {
 namespace common {
 
 // macro hanlding for threadlocal variables
-#ifdef __GNUC__
+#ifdef __sun
+  #define MX_TREAD_LOCAL
+#elif defined(__GNUC__)
   #define MX_TREAD_LOCAL __thread
 #elif __STDC_VERSION__ >= 201112L
   #define  MX_TREAD_LOCAL _Thread_local
