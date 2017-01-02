@@ -53,7 +53,6 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
       .setLabelCol("TARGET")
 
     // separate
-    println("################## separate")
     val predModel = xgbEstimator.fit(vectorAssembler.transform(df))
     predModel.write.overwrite.save("test2xgbPipe")
     val same2Model = XGBoostModel.load("test2xgbPipe")
@@ -61,22 +60,18 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
     val memoryPredictions = predModel.transform(vectorAssembler.transform(df))
     memoryPredictions.show
     val loadedPredictions = same2Model.transform(vectorAssembler.transform(df))
-    loadedPredictions.show
-    memoryPredictions.printSchema()
-    loadedPredictions.printSchema()
-    // this doesn't work -> will need to compare prediction results
-    // assert(predModel == same2Model)
-    assert(loadedPredictions.collect == memoryPredictions.collect)
+    // TODO this doesn't work -> will compare prediction results like other test cases
+    // assert(predModel === same2Model)
+    assert(loadedPredictions.collect === memoryPredictions.collect)
 
-    // in chained pipeline
-    println("################## chained")
+    // chained
     val predictionModel = new Pipeline().setStages(Array(vectorAssembler, xgbEstimator)).fit(df)
     predictionModel.write.overwrite.save("testxgbPipe")
     val sameModel = PipelineModel.load("testxgbPipe")
 
     val memoryPredictionsPipe = predictionModel.transform(df)
     val loadedPredictionsPipe = sameModel.transform(df)
-    assert(memoryPredictionsPipe == loadedPredictionsPipe)
+    assert(memoryPredictionsPipe.collect === loadedPredictionsPipe.collect)
   }
 }
 
