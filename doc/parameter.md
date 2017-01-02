@@ -110,11 +110,14 @@ Additional parameters for Dart Booster
       - weight of new trees are 1 / (1 + learning_rate)
       - dropped trees are scaled by a factor of 1 / (1 + learning_rate)
 * rate_drop [default=0.0]
-  - dropout rate.
+  - dropout rate (a fraction of previous trees to drop during the dropout).
   - range: [0.0, 1.0]
+* one_drop [default=0]
+  - when this flag is enabled, at least one tree is always dropped during the dropout (allows Binomial-plus-one or epsilon-dropout from the original DART paper).
 * skip_drop [default=0.0]
-  - probability of skip dropout.
+  - Probability of skipping the dropout procedure during a boosting iteration.
     - If a dropout is skipped, new trees are added in the same manner as gbtree.
+    - Note that non-zero skip_drop has higher priority than rate_drop or one_drop.
   - range: [0.0, 1.0]
 
 Parameters for Linear Booster
