@@ -58,42 +58,40 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
     val same2Model = XGBoostModel.load("test2xgbPipe")
 
     assert(java.util.Arrays.equals(predModel.booster.toByteArray, same2Model.booster.toByteArray))
-    // cant directly compare parameters as parent (object id) is used in equals.
-    // only want to compre the value
-    // but where to get thw value? Spark internal
-    // $(same2Model.useExternalMemory) does not work
-    // and this neither predModel.useExternalMemory.getOrDefault("use_external_memory")
-    // do not only want to compare names but rather values ...
+    val predParamMap = predModel.extractParamMap()
+    val same2ParamMap = same2Model.extractParamMap()
+    assert(predParamMap.get(predModel.useExternalMemory)
+      === same2ParamMap.get(same2Model.useExternalMemory))
+    assert(predParamMap.get(predModel.featuresCol) === same2ParamMap.get(same2Model.featuresCol))
+    assert(predParamMap.get(predModel.predictionCol)
+      === same2ParamMap.get(same2Model.predictionCol))
+    assert(predParamMap.get(predModel.labelCol) === same2ParamMap.get(same2Model.labelCol))
+    assert(predParamMap.get(predModel.labelCol) === same2ParamMap.get(same2Model.labelCol))
 
-    assert(predModel.useExternalMemory.name == same2Model.useExternalMemory.name)
-    assert(predModel.useExternalMemory == same2Model.useExternalMemory)
-    assert(predModel.featuresCol == same2Model.featuresCol)
-    assert(predModel.predictionCol == same2Model.predictionCol)
-    assert(predModel.labelCol == same2Model.labelCol)
-
-    //    val memoryPredictions = predModel.transform(vectorAssembler.transform(df))
-    //    memoryPredictions.show
-    //    val loadedPredictions = same2Model.transform(vectorAssembler.transform(df))
-    //    // TODO this doesn't work -> will compare prediction results like other test cases
-    //    // assert(predModel === same2Model)
-    //    assert(loadedPredictions.collect === memoryPredictions.collect)
-    //
-    //    // chained
+    // chained
     val predictionModel = new Pipeline().setStages(Array(vectorAssembler, xgbEstimator)).fit(df)
     predictionModel.write.overwrite.save("testxgbPipe")
     val sameModel = PipelineModel.load("testxgbPipe")
 
     val predictionModelXGB = predictionModel.stages collect { case xgb: XGBoostModel => xgb } head
-    val sameModelXGB = predictionModel.stages collect { case xgb: XGBoostModel => xgb } head
+    val sameModelXGB = sameModel.stages collect { case xgb: XGBoostModel => xgb } head
 
     assert(java.util.Arrays.equals(
       predictionModelXGB.booster.toByteArray,
       sameModelXGB.booster.toByteArray
     ))
-    assert(predictionModelXGB.useExternalMemory == sameModelXGB.useExternalMemory)
-    assert(predictionModelXGB.featuresCol == sameModelXGB.featuresCol)
-    assert(predictionModelXGB.predictionCol == sameModelXGB.predictionCol)
-    assert(predictionModelXGB.labelCol == sameModelXGB.labelCol)
+    val predictionModelXGBParamMap = predictionModel.extractParamMap()
+    val sameModelXGBParamMap = sameModel.extractParamMap()
+    assert(predictionModelXGBParamMap.get(predictionModelXGB.useExternalMemory)
+      === sameModelXGBParamMap.get(sameModelXGB.useExternalMemory))
+    assert(predictionModelXGB.get(predictionModelXGB.featuresCol)
+      === sameModelXGBParamMap.get(sameModelXGB.featuresCol))
+    assert(predictionModelXGB.get(predictionModelXGB.predictionCol)
+      === sameModelXGBParamMap.get(sameModelXGB.predictionCol))
+    assert(predictionModelXGB.get(predictionModelXGB.labelCol)
+      === sameModelXGBParamMap.get(sameModelXGB.labelCol))
+    assert(predictionModelXGB.get(predictionModelXGB.labelCol)
+      === sameModelXGBParamMap.get(sameModelXGB.labelCol))
     //
     //    val memoryPredictionsPipe = predictionModel.transform(df)
     //    val loadedPredictionsPipe = sameModel.transform(df)
