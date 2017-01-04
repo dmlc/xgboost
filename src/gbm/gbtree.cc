@@ -664,8 +664,14 @@ class Dart : public GBTree {
           }
         }
         if (dparam.one_drop && idx_drop.empty() && !weight_drop.empty()) {
-          size_t i = std::discrete_distribution<size_t>(weight_drop.begin(),
-                                                        weight_drop.end())(rnd);
+          // the expression below is an ugly but MSVC2013-friendly equivalent of
+          // size_t i = std::discrete_distribution<size_t>(weight_drop.begin(),
+          //                                               weight_drop.end())(rnd);
+          size_t i = std::discrete_distribution<size_t>(
+            weight_drop.size(), 0., static_cast<double>(weight_drop.size()),
+            [this](double x) -> double {
+              return weight_drop[static_cast<size_t>(x)];
+            })(rnd);
           idx_drop.push_back(i);
         }
       } else {
