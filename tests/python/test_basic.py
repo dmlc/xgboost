@@ -241,3 +241,12 @@ class TestBasic(unittest.TestCase):
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=False)
         assert isinstance(cv, dict)
         assert len(cv) == (4)
+
+    def test_cv_no_shuffle(self):
+        dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+
+        # return np.ndarray
+        cv = xgb.cv(params, dm, num_boost_round=10, shuffle=False, nfold=10, as_pandas=False)
+        assert isinstance(cv, dict)
+        assert len(cv) == (4)

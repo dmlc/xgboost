@@ -1,8 +1,8 @@
 Package: xgboost
 Type: Package
 Title: Extreme Gradient Boosting
-Version: 0.6-2
-Date: 2016-11-25
+Version: 0.6-3
+Date: 2016-12-28
 Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>,
     Michael Benesty <michael@benesty.fr>, Vadim Khotilovich <khotilovich@gmail.com>,
     Yuan Tang <terrytangyuan@gmail.com>
@@ -29,7 +29,7 @@ Suggests:
     testthat,
     igraph (>= 1.0.1)
 Depends:
-    R (>= 2.15.1)
+    R (>= 3.3.0)
 Imports:
     Matrix (>= 1.1-0),
     methods,
