@@ -78,7 +78,7 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
   nodes.dt <- tree.matrix[,.(Quality = sum(Quality)),by = .(abs.node.position, Feature)][,.(Text =paste0(Feature[1:min(length(Feature), features_keep)], " (", Quality[1:min(length(Quality), features_keep)], ")") %>% paste0(collapse = "\n")), by=abs.node.position]
   edges.dt <- tree.matrix[Feature != "Leaf",.(abs.node.position, Yes)] %>% list(tree.matrix[Feature != "Leaf",.(abs.node.position, No)]) %>% rbindlist() %>% setnames(c("From", "To")) %>% .[,.N,.(From, To)] %>% .[,N:=NULL]
   
-  nodes <- DiagrammeR::create_nodes(nodes = nodes.dt[,abs.node.position],
+  nodes <- DiagrammeR::create_node_df(n = nrow(nodes.dt),
                                     label = nodes.dt[,Text],
                                     style = "filled",
                                     color = "DimGray",
@@ -87,8 +87,8 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
                                     fontname = "Helvetica"
   )
   
-  edges <- DiagrammeR::create_edges(from = edges.dt[,From],
-                                    to = edges.dt[,To],
+  edges <- DiagrammeR::create_edge_df(from = match(edges.dt[,From], nodes.dt[,abs.node.position]),
+                                    to = match(edges.dt[,To], nodes.dt[,abs.node.position]),
                                     color = "DimGray", 
                                     arrowsize = "1.5", 
                                     arrowhead = "vee",
@@ -96,8 +96,7 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
                                     rel = "leading_to")
   
   graph <- DiagrammeR::create_graph(nodes_df = nodes,
-                                    edges_df = edges,
-                                    graph_attrs = "rankdir = LR")
+                                    edges_df = edges)
   
   DiagrammeR::render_graph(graph, width = plot_width, height = plot_height)  
 }

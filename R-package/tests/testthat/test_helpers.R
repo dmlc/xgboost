@@ -83,20 +83,22 @@ test_that("xgb-attribute functionality", {
   expect_null(xgb.attributes(bst))
 })
 
-test_that("xgb-attribute numeric precision", {
-  # check that lossless conversion works with 17 digits
-  # numeric -> character -> numeric
-  X <- 10^runif(100, -20, 20)
-  X2X <- as.numeric(format(X, digits = 17))
-  expect_identical(X, X2X)
-  # retrieved attributes to be the same as written
-  for (x in X) {
-    xgb.attr(bst.Tree, "x") <- x
-    expect_identical(as.numeric(xgb.attr(bst.Tree, "x")), x)
-    xgb.attributes(bst.Tree) <- list(a = "A", b = x)
-    expect_identical(as.numeric(xgb.attr(bst.Tree, "b")), x)
-  }
-})
+if (grepl('Windows', Sys.info()[['sysname']]) || grepl('Linux', Sys.info()[['sysname']]) || grepl('Darwin', Sys.info()[['sysname']])) {
+    test_that("xgb-attribute numeric precision", {
+      # check that lossless conversion works with 17 digits
+      # numeric -> character -> numeric
+      X <- 10^runif(100, -20, 20)
+      X2X <- as.numeric(format(X, digits = 17))
+      expect_identical(X, X2X)
+      # retrieved attributes to be the same as written
+      for (x in X) {
+        xgb.attr(bst.Tree, "x") <- x
+        expect_identical(as.numeric(xgb.attr(bst.Tree, "x")), x)
+        xgb.attributes(bst.Tree) <- list(a = "A", b = x)
+        expect_identical(as.numeric(xgb.attr(bst.Tree, "b")), x)
+      }
+    })
+}
 
 test_that("xgb.model.dt.tree works with and without feature names", {
   names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
