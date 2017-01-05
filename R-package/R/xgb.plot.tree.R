@@ -49,7 +49,7 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, n_first_tree = NUL
   allTrees[, filledcolor:= "Beige"][Feature == "Leaf", filledcolor:= "Khaki"]
   
   # rev is used to put the first tree on top.
-  nodes <- DiagrammeR::create_nodes(nodes = allTrees[,ID] %>% rev,
+  nodes <- DiagrammeR::create_node_df(n = length(allTrees[,ID] %>% rev),
                  label = allTrees[,label] %>% rev,
                  style = "filled",
                  color = "DimGray",
@@ -59,8 +59,8 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, n_first_tree = NUL
                  fontname = "Helvetica"
                  )
   
-  edges <- DiagrammeR::create_edges(from = allTrees[Feature != "Leaf", c(ID)] %>% rep(2),
-                        to = allTrees[Feature != "Leaf", c(Yes, No)],
+  edges <- DiagrammeR::create_edge_df(from = match(allTrees[Feature != "Leaf", c(ID)] %>% rep(2), allTrees[,ID] %>% rev),
+                        to = match(allTrees[Feature != "Leaf", c(Yes, No)],allTrees[,ID] %>% rev),
                         label = allTrees[Feature != "Leaf", paste("<",Split)] %>% c(rep("",nrow(allTrees[Feature != "Leaf"]))),
                         color = "DimGray", 
                         arrowsize = "1.5", 
@@ -69,8 +69,7 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, n_first_tree = NUL
                         rel = "leading_to")
 
   graph <- DiagrammeR::create_graph(nodes_df = nodes,
-                        edges_df = edges,
-                        graph_attrs = "rankdir = LR")
+                        edges_df = edges)
   
   DiagrammeR::render_graph(graph, width = plot_width, height = plot_height)
 }
