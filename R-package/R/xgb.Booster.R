@@ -185,6 +185,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA,
     newdata <- xgb.DMatrix(newdata, missing = missing)
   if (is.null(ntreelimit))
     ntreelimit <- NVL(object$best_ntreelimit, 0)
+  if (NVL(object$params[['booster']], '') == 'gblinear')
+    ntreelimit <- 0
   if (ntreelimit < 0)
     stop("ntreelimit cannot be negative")
   
