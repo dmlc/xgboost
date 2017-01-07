@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <queue>
 #include <iomanip>
+#include <numeric>
 #include "./param.h"
 #include "../common/random.h"
 #include "../common/bitmap.h"

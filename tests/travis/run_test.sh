@@ -18,7 +18,9 @@ make -f dmlc-core/scripts/packages.mk lz4
 
 
 if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-    echo "USE_OPENMP=0" >> config.mk
+    echo 'USE_OPENMP=0' >> config.mk
+    echo 'TMPVAR := $(XGB_PLUGINS)' >> config.mk
+    echo 'XGB_PLUGINS = $(filter-out plugin/lz4/plugin.mk, $(TMPVAR))' >> config.mk
 fi
 
 if [ ${TASK} == "python_test" ]; then

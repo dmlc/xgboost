@@ -25,8 +25,8 @@ class TestFastHist(unittest.TestCase):
                  'max_depth': 3,
                  'eval_metric': 'auc'}
         res = {}
-        bst = xgb.train(param, dtrain, 10, [(dtrain, 'train'), (dtest, 'test')],
-                        evals_result=res)
+        xgb.train(param, dtrain, 10, [(dtrain, 'train'), (dtest, 'test')],
+                  evals_result=res)
         assert self.non_decreasing(res['train']['auc'])
         assert self.non_decreasing(res['test']['auc'])
 
@@ -37,8 +37,8 @@ class TestFastHist(unittest.TestCase):
                   'max_leaves': 8,
                   'eval_metric': 'auc'}
         res = {}
-        bst = xgb.train(param2, dtrain, 10, [(dtrain, 'train'), (dtest, 'test')],
-                        evals_result=res)
+        xgb.train(param2, dtrain, 10, [(dtrain, 'train'), (dtest, 'test')],
+                  evals_result=res)
         assert self.non_decreasing(res['train']['auc'])
         assert self.non_decreasing(res['test']['auc'])
 
@@ -50,10 +50,10 @@ class TestFastHist(unittest.TestCase):
                   'max_bin': 16,
                   'eval_metric': 'auc'}
         res = {}
-        bst = xgb.train(param3, dtrain, 10, [(dtrain, 'train'), (dtest, 'test')],
-                        evals_result=res)
+        xgb.train(param3, dtrain, 10, [(dtrain, 'train'), (dtest, 'test')],
+                  evals_result=res)
         assert self.non_decreasing(res['train']['auc'])
         assert self.non_decreasing(res['test']['auc'])
-    
+
     def non_decreasing(self, L):
-        return all(x<=y for x, y in zip(L, L[1:]))
+        return all(x <= y for x, y in zip(L, L[1:]))

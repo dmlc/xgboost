@@ -1,6 +1,6 @@
 /*!
  * Copyright 2017 by Contributors
- * \file hist_data.h
+ * \file hist_util.h
  * \brief Utility for fast histogram aggregation
  * \author Philip Cho, Tianqi Chen
  */
