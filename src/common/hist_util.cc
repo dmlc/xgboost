@@ -144,7 +144,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
 }
 
 void HistMaker::MakeHist(const std::vector<bst_gpair>& gpair,
-                         const RowSetCollection::Elem& row_indices,
+                         const RowSetCollection::Elem row_indices,
                          const GHistIndexMatrix& gmat,
                          HistRow hist) {
   CHECK(!data_.empty()) << "HistMaker must be initialized";

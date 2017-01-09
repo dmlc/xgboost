@@ -58,7 +58,7 @@ class RowSetCollection {
                        const std::vector<Split>& row_split_tloc,
                        unsigned left_node_id,
                        unsigned right_node_id) {
-    const Elem& e = elem_of_each_node_[node_id];
+    const Elem e = elem_of_each_node_[node_id];
     const unsigned nthread = row_split_tloc.size();
     CHECK(e.begin != nullptr);
     bst_uint* all_begin = dmlc::BeginPtr(row_indices_);

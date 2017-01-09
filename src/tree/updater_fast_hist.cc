@@ -418,7 +418,7 @@ class FastHistMaker: public TreeUpdater {
           nid, row_split_tloc_, (*p_tree)[nid].cleft(), (*p_tree)[nid].cright());
     }
 
-    inline void ApplySplitDenseData(const RowSetCollection::Elem& rowset,
+    inline void ApplySplitDenseData(const RowSetCollection::Elem rowset,
                                     const GHistIndexMatrix& gmat,
                                     std::vector<RowSetCollection::Split> *p_row_split_tloc,
                                     size_t column_offset,
@@ -459,7 +459,7 @@ class FastHistMaker: public TreeUpdater {
       }
     }
 
-    inline void ApplySplitSparseData(const RowSetCollection::Elem& rowset,
+    inline void ApplySplitSparseData(const RowSetCollection::Elem rowset,
                                      const GHistIndexMatrix& gmat,
                                      std::vector<RowSetCollection::Split> *p_row_split_tloc,
                                      bst_uint lower_bound,
@@ -550,7 +550,7 @@ class FastHistMaker: public TreeUpdater {
             stats.Add(et.sum_grad, et.sum_hess);
           }
         } else {
-          const auto& e = row_set_collection_[nid];
+          const RowSetCollection::Elem e = row_set_collection_[nid];
           for (const bst_uint *it = e.begin; it < e.end; ++it) {
             stats.Add(gpair[*it]);
           }

@@ -198,7 +198,7 @@ class HistMaker {
 
   // construct a histogram via histogram aggregation
   void MakeHist(const std::vector<bst_gpair>& gpair,
-                const RowSetCollection::Elem& row_indices,
+                const RowSetCollection::Elem row_indices,
                 const GHistIndexMatrix& gmat,
                 HistRow hist);
   // construct a histogram via subtraction trick
