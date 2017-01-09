@@ -679,10 +679,9 @@ class FastHistMaker: public TreeUpdater {
     // constraint value
     std::vector<TConstraint> constraints_;
 
-    using ExpandQueue
-      = std::priority_queue<ExpandEntry,
+    typedef std::priority_queue<ExpandEntry,
                             std::vector<ExpandEntry>,
-                            std::function<bool(ExpandEntry, ExpandEntry)>>;
+                            std::function<bool(ExpandEntry, ExpandEntry)>> ExpandQueue;
     std::unique_ptr<ExpandQueue> qexpand_;
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };

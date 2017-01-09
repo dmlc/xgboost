@@ -19,8 +19,10 @@ class RowSetCollection {
  public:
   /*! \brief subset of rows */
   struct Elem {
-    const bst_uint* begin{nullptr};
-    const bst_uint* end{nullptr};
+    const bst_uint* begin;
+    const bst_uint* end;
+    Elem(void)
+        : begin(nullptr), end(nullptr) {}
     Elem(const bst_uint* begin,
          const bst_uint* end)
         : begin(begin), end(end) {}
@@ -51,7 +53,7 @@ class RowSetCollection {
     CHECK_EQ(elem_of_each_node_.size(), 0);
     const bst_uint* begin = dmlc::BeginPtr(row_indices_);
     const bst_uint* end = dmlc::BeginPtr(row_indices_) + row_indices_.size();
-    elem_of_each_node_.emplace_back(Elem{begin, end});
+    elem_of_each_node_.emplace_back(Elem(begin, end));
   }
   // split rowset into two
   inline void AddSplit(unsigned node_id,
@@ -76,15 +78,15 @@ class RowSetCollection {
     }
 
     if (left_node_id >= elem_of_each_node_.size()) {
-      elem_of_each_node_.resize(left_node_id + 1, Elem{nullptr, nullptr});
+      elem_of_each_node_.resize(left_node_id + 1, Elem(nullptr, nullptr));
     }
     if (right_node_id >= elem_of_each_node_.size()) {
-      elem_of_each_node_.resize(right_node_id + 1, Elem{nullptr, nullptr});
+      elem_of_each_node_.resize(right_node_id + 1, Elem(nullptr, nullptr));
     }
 
-    elem_of_each_node_[left_node_id] = Elem{begin, split_pt};
-    elem_of_each_node_[right_node_id] = Elem{split_pt, e.end};
-    elem_of_each_node_[node_id] = Elem{nullptr, nullptr};
+    elem_of_each_node_[left_node_id] = Elem(begin, split_pt);
+    elem_of_each_node_[right_node_id] = Elem(split_pt, e.end);
+    elem_of_each_node_[node_id] = Elem(nullptr, nullptr);
   }
 
   // stores the row indices in the set

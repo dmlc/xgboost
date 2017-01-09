@@ -287,7 +287,7 @@ XGB_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
 }
 
 /*! \brief core statistics used for tree construction */
-struct alignas(16) GradStats {
+struct XGBOOST_ALIGNAS(16) GradStats {
   /*! \brief sum gradient statistics */
   double sum_grad;
   /*! \brief sum hessian statistics */
