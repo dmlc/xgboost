@@ -107,7 +107,7 @@ class FastHistMaker: public TreeUpdater {
     SplitEntry best;
     // constructor
     explicit NodeEntry(const TrainParam& param)
-        : stats(param), root_gain(0.0f), weight(0.0f){
+        : stats(param), root_gain(0.0f), weight(0.0f) {
     }
   };
   // actual builder that runs the algorithm
@@ -128,28 +128,28 @@ class FastHistMaker: public TreeUpdater {
       int num_leaves = 0;
 
       double tstart;
-      double init_data = 0;
-      double init_new_node = 0;
-      double build_hist = 0;
-      double evaluate_split = 0;
-      double apply_split = 0;
+      double time_init_data = 0;
+      double time_init_new_node = 0;
+      double time_build_hist = 0;
+      double time_evaluate_split = 0;
+      double time_apply_split = 0;
 
       tstart = dmlc::GetTime();
       this->InitData(gmat, gpair, *p_fmat, *p_tree);
-      init_data = dmlc::GetTime() - tstart;
+      time_init_data = dmlc::GetTime() - tstart;
       for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
         tstart = dmlc::GetTime();
         hist_.AddHistRow(nid);
         builder_.BuildHist(gpair, row_set_collection_[nid], gmat, hist_[nid]);
-        build_hist += dmlc::GetTime() - tstart;
+        time_build_hist += dmlc::GetTime() - tstart;
 
         tstart = dmlc::GetTime();
         this->InitNewNode(nid, gmat, gpair, *p_fmat, *p_tree);
-        init_new_node += dmlc::GetTime() - tstart;
+        time_init_new_node += dmlc::GetTime() - tstart;
 
         tstart = dmlc::GetTime();
         this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree, feat_set);
-        evaluate_split += dmlc::GetTime() - tstart;
+        time_evaluate_split += dmlc::GetTime() - tstart;
         qexpand_->push(ExpandEntry(nid, p_tree->GetDepth(nid), snode[nid].best.loss_chg));
         ++num_leaves;
       }
@@ -165,7 +165,7 @@ class FastHistMaker: public TreeUpdater {
         } else {
           tstart = dmlc::GetTime();
           this->ApplySplit(nid, gmat, hist_, *p_fmat, p_tree);
-          apply_split += dmlc::GetTime() - tstart;
+          time_apply_split += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
           const int cleft = (*p_tree)[nid].cleft();
@@ -179,17 +179,17 @@ class FastHistMaker: public TreeUpdater {
             builder_.BuildHist(gpair, row_set_collection_[cright], gmat, hist_[cright]);
             builder_.SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
           }
-          build_hist += dmlc::GetTime() - tstart;
+          time_build_hist += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
           this->InitNewNode(cleft, gmat, gpair, *p_fmat, *p_tree);
           this->InitNewNode(cright, gmat, gpair, *p_fmat, *p_tree);
-          init_new_node += dmlc::GetTime() - tstart;
+          time_init_new_node += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
           this->EvaluateSplit(cleft, gmat, hist_, *p_fmat, *p_tree, feat_set);
           this->EvaluateSplit(cright, gmat, hist_, *p_fmat, *p_tree, feat_set);
-          evaluate_split += dmlc::GetTime() - tstart;
+          time_evaluate_split += dmlc::GetTime() - tstart;
 
           qexpand_->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
                                      snode[cleft].best.loss_chg));
@@ -201,6 +201,8 @@ class FastHistMaker: public TreeUpdater {
       }
 
       // set all the rest expanding nodes to leaf
+      // This post condition is not needed in current code, but may be necessary
+      // when there are stopping rule that leaves qexpand non-empty
       while (!qexpand_->empty()) {
         const int nid = qexpand_->top().nid;
         qexpand_->pop();
@@ -217,25 +219,25 @@ class FastHistMaker: public TreeUpdater {
       if (param.verbose > 0) {
         double total_time = dmlc::GetTime() - gstart;
         LOG(INFO) << "\nInitData:          "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << init_data
+                  << std::fixed << std::setw(4) << std::setprecision(2) << time_init_data
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                  << init_data/total_time*100 << "%)\n"
+                  << time_init_data/total_time*100 << "%)\n"
                   << "InitNewNode:       "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << init_new_node
+                  << std::fixed << std::setw(4) << std::setprecision(2) << time_init_new_node
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                  << init_new_node/total_time*100 << "%)\n"
+                  << time_init_new_node/total_time*100 << "%)\n"
                   << "BuildHist:          "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << build_hist
+                  << std::fixed << std::setw(4) << std::setprecision(2) << time_build_hist
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                  << build_hist/total_time*100 << "%)\n"
+                  << time_build_hist/total_time*100 << "%)\n"
                   << "EvaluateSplit:     "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << evaluate_split
+                  << std::fixed << std::setw(4) << std::setprecision(2) << time_evaluate_split
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                  << evaluate_split/total_time*100 << "%)\n"
+                  << time_evaluate_split/total_time*100 << "%)\n"
                   << "ApplySplit:        "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << apply_split
+                  << std::fixed << std::setw(4) << std::setprecision(2) << time_apply_split
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                  << apply_split/total_time*100 << "%)\n"
+                  << time_apply_split/total_time*100 << "%)\n"
                   << "========================================\n"
                   << "Total:             "
                   << std::fixed << std::setw(4) << std::setprecision(2) << total_time;
@@ -314,10 +316,10 @@ class FastHistMaker: public TreeUpdater {
         const auto nnz = info.num_nonzero;
         // number of discrete bins for feature 0
         const unsigned nbins_f0 = gmat.cut->row_ptr[1] - gmat.cut->row_ptr[0];
-        if (nrow*ncol == nnz) {
+        if (nrow * ncol == nnz) {
           // dense data with zero-based indexing
           data_layout_ = kDenseDataZeroBased;
-        } else if (nbins_f0 == 0 && nrow*(ncol-1) == nnz) {
+        } else if (nbins_f0 == 0 && nrow * (ncol - 1) == nnz) {
           // dense data with one-based indexing
           data_layout_ = kDenseDataOneBased;
         } else {
@@ -327,10 +329,10 @@ class FastHistMaker: public TreeUpdater {
       }
       if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
         const std::vector<unsigned>& row_ptr = gmat.cut->row_ptr;
-        const size_t nfeature = row_ptr.size()-1;
+        const size_t nfeature = row_ptr.size() - 1;
         size_t min_nbins_per_feature = 0;
         for (size_t i = 0; i < nfeature; ++i) {
-          const unsigned nbins = row_ptr[i+1] - row_ptr[i];
+          const unsigned nbins = row_ptr[i + 1] - row_ptr[i];
           if (nbins > 0) {
             if (min_nbins_per_feature == 0 || min_nbins_per_feature > nbins) {
               min_nbins_per_feature = nbins;
@@ -409,7 +411,7 @@ class FastHistMaker: public TreeUpdater {
       const auto& rowset = row_set_collection_[nid];
       if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
         /* specialized code for dense data */
-        const size_t column_offset = (data_layout_ == kDenseDataOneBased) ? (fid-1): fid;
+        const size_t column_offset = (data_layout_ == kDenseDataOneBased) ? (fid - 1): fid;
         ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column_offset, split_cond);
       } else {
         ApplySplitSparseData(rowset, gmat, &row_split_tloc_, lower_bound, upper_bound,

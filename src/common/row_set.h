@@ -67,6 +67,7 @@ class RowSetCollection {
     bst_uint* begin = all_begin + (e.begin - all_begin);
 
     bst_uint* it = begin;
+    // TODO(hcho3): parallelize this section
     for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
       std::copy(row_split_tloc[tid].left.begin(), row_split_tloc[tid].left.end(), it);
       it += row_split_tloc[tid].left.size();
