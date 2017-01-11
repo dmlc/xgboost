@@ -298,11 +298,11 @@ struct XGBOOST_ALIGNAS(16) GradStats {
    */
   static const int kSimpleStats = 1;
   /*! \brief constructor, the object must be cleared during construction */
-  explicit GradStats(const TrainParam &param) { this->Clear(); }
+  explicit GradStats(const TrainParam& param) { this->Clear(); }
   /*! \brief clear the statistics */
   inline void Clear() { sum_grad = sum_hess = 0.0f; }
   /*! \brief check if necessary information is ready */
-  inline static void CheckInfo(const MetaInfo &info) {}
+  inline static void CheckInfo(const MetaInfo& info) {}
   /*!
    * \brief accumulate statistics
    * \param p the gradient pair
@@ -314,37 +314,37 @@ struct XGBOOST_ALIGNAS(16) GradStats {
    * \param info the additional information
    * \param ridx instance index of this instance
    */
-  inline void Add(const std::vector<bst_gpair> &gpair, const MetaInfo &info,
+  inline void Add(const std::vector<bst_gpair>& gpair, const MetaInfo& info,
                   bst_uint ridx) {
-    const bst_gpair &b = gpair[ridx];
+    const bst_gpair& b = gpair[ridx];
     this->Add(b.grad, b.hess);
   }
   /*! \brief calculate leaf weight */
-  inline double CalcWeight(const TrainParam &param) const {
+  inline double CalcWeight(const TrainParam& param) const {
     return xgboost::tree::CalcWeight(param, sum_grad, sum_hess);
   }
   /*! \brief calculate gain of the solution */
-  inline double CalcGain(const TrainParam &param) const {
+  inline double CalcGain(const TrainParam& param) const {
     return xgboost::tree::CalcGain(param, sum_grad, sum_hess);
   }
   /*! \brief add statistics to the data */
-  inline void Add(const GradStats &b) {
+  inline void Add(const GradStats& b) {
     sum_grad += b.sum_grad;
     sum_hess += b.sum_hess;
   }
   /*! \brief same as add, reduce is used in All Reduce */
-  inline static void Reduce(GradStats &a, const GradStats &b) { // NOLINT(*)
+  inline static void Reduce(GradStats& a, const GradStats& b) { // NOLINT(*)
     a.Add(b);
   }
   /*! \brief set current value to a - b */
-  inline void SetSubstract(const GradStats &a, const GradStats &b) {
+  inline void SetSubstract(const GradStats& a, const GradStats& b) {
     sum_grad = a.sum_grad - b.sum_grad;
     sum_hess = a.sum_hess - b.sum_hess;
   }
   /*! \return whether the statistics is not used yet */
   inline bool Empty() const { return sum_hess == 0.0; }
   /*! \brief set leaf vector value based on statistics */
-  inline void SetLeafVec(const TrainParam &param, bst_float *vec) const {}
+  inline void SetLeafVec(const TrainParam& param, bst_float* vec) const {}
   // constructor to allow inheritance
   GradStats() {}
   /*! \brief add statistics to the data */

@@ -47,13 +47,13 @@ struct GHistEntry {
 /*! \brief Cut configuration for one feature */
 struct HistCutUnit {
   /*! \brief the index pointer of each histunit */
-  const bst_float *cut;
+  const bst_float* cut;
   /*! \brief number of cutting point, containing the maximum point */
   size_t size;
   // default constructor
   HistCutUnit() {}
   // constructor
-  HistCutUnit(const bst_float *cut, unsigned size)
+  HistCutUnit(const bst_float* cut, unsigned size)
       : cut(cut), size(size) {}
 };
 
@@ -72,7 +72,7 @@ struct HistCutMatrix {
   }
   // create histogram cut matrix given statistics from data
   // using approximate quantile sketch approach
-  void Init(DMatrix *p_fmat, size_t max_num_bins);
+  void Init(DMatrix* p_fmat, size_t max_num_bins);
 };
 
 
@@ -82,7 +82,7 @@ struct HistCutMatrix {
  */
 struct GHistIndexRow {
   /*! \brief The index of the histogram */
-  const unsigned *index;
+  const unsigned* index;
   /*! \brief The size of the histogram */
   unsigned size;
   GHistIndexRow() {}
@@ -107,13 +107,12 @@ struct GHistIndexMatrix {
   /*! \brief The corresponding cuts */
   const HistCutMatrix* cut;
   // Create a global histogram matrix, given cut
-  void Init(DMatrix *p_fmat);
+  void Init(DMatrix* p_fmat);
   // build remap
   void Remap();
   // get i-th row
   inline GHistIndexRow operator[](bst_uint i) const {
-    return GHistIndexRow(
-        &index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]);
+    return GHistIndexRow(&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]);
   }
 };
 
@@ -125,12 +124,12 @@ struct GHistIndexMatrix {
  */
 struct GHistRow {
   /*! \brief base pointer to first entry */
-  GHistEntry *begin;
+  GHistEntry* begin;
   /*! \brief number of entries */
   unsigned size;
 
   GHistRow() {}
-  GHistRow(GHistEntry *begin, unsigned size)
+  GHistRow(GHistEntry* begin, unsigned size)
     : begin(begin), size(size) {}
 };
 
@@ -155,7 +154,6 @@ class HistCollection {
   // initialize histogram collection
   inline void Init(size_t nbins) {
     nbins_ = nbins;
-
     row_ptr_.clear();
     data_.clear();
   }
@@ -163,11 +161,9 @@ class HistCollection {
   // create an empty histogram for i-th node
   inline void AddHistRow(bst_uint nid) {
     const size_t kMax = std::numeric_limits<size_t>::max();
-
     if (nid >= row_ptr_.size()) {
       row_ptr_.resize(nid + 1, kMax);
     }
-
     CHECK_EQ(row_ptr_[nid], kMax);
 
     row_ptr_[nid] = data_.size();

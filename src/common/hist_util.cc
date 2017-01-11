@@ -13,7 +13,7 @@
 namespace xgboost {
 namespace common {
 
-void HistCutMatrix::Init(DMatrix *p_fmat, size_t max_num_bins) {
+void HistCutMatrix::Init(DMatrix* p_fmat, size_t max_num_bins) {
   typedef common::WXQuantileSketch<bst_float, bst_float> WXQSketch;
   const MetaInfo& info = p_fmat->info();
 
@@ -35,7 +35,7 @@ void HistCutMatrix::Init(DMatrix *p_fmat, size_t max_num_bins) {
     s.Init(info.num_row, 1.0 / (max_num_bins * kFactor));
   }
 
-  dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
+  dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
   iter->BeforeFirst();
   while (iter->Next()) {
     const RowBatch& batch = iter->Value();
@@ -98,7 +98,7 @@ void HistCutMatrix::Init(DMatrix *p_fmat, size_t max_num_bins) {
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat) {
   CHECK(cut != nullptr);
-  dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
+  dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
   hit_count.resize(cut->row_ptr.back(), 0);
 
   int nthread;
@@ -144,9 +144,9 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
 }
 
 void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
-                            const RowSetCollection::Elem row_indices,
-                            const GHistIndexMatrix& gmat,
-                            GHistRow hist) {
+                             const RowSetCollection::Elem row_indices,
+                             const GHistIndexMatrix& gmat,
+                             GHistRow hist) {
   CHECK(!data_.empty()) << "GHistBuilder must be initialized";
   CHECK_EQ(data_.size(), nbins_ * nthread_) << "invalid dimensions for temp buffer";
 
@@ -160,19 +160,19 @@ void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
   #pragma omp parallel for num_threads(nthread) schedule(static)
   for (bst_omp_uint i = 0; i < nrows - rest; i += K) {
     const bst_omp_uint tid = omp_get_thread_num();
-    const size_t off = tid*nbins_;
+    const size_t off = tid * nbins_;
     bst_uint rid[K];
     bst_gpair stat[K];
     size_t ibegin[K], iend[K];
     for (int k = 0; k < K; ++k) {
-      rid[k] = row_indices.begin[i+k];
+      rid[k] = row_indices.begin[i + k];
     }
     for (int k = 0; k < K; ++k) {
       stat[k] = gpair[rid[k]];
     }
     for (int k = 0; k < K; ++k) {
       ibegin[k] = static_cast<size_t>(gmat.row_ptr[rid[k]]);
-      iend[k] = static_cast<size_t>(gmat.row_ptr[rid[k]+1]);
+      iend[k] = static_cast<size_t>(gmat.row_ptr[rid[k] + 1]);
     }
     for (int k = 0; k < K; ++k) {
       for (size_t j = ibegin[k]; j < iend[k]; ++j) {
@@ -185,7 +185,7 @@ void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
     const bst_uint rid = row_indices.begin[i];
     const bst_gpair stat = gpair[rid];
     const size_t ibegin = static_cast<size_t>(gmat.row_ptr[rid]);
-    const size_t iend = static_cast<size_t>(gmat.row_ptr[rid+1]);
+    const size_t iend = static_cast<size_t>(gmat.row_ptr[rid + 1]);
     for (size_t j = ibegin; j < iend; ++j) {
       const size_t bin = gmat.index[j];
       data_[bin].Add(stat);
@@ -197,7 +197,7 @@ void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
   #pragma omp parallel for num_threads(nthread) schedule(static)
   for (bst_omp_uint bin_id = 0; bin_id < nbins; ++bin_id) {
     for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
-      hist.begin[bin_id].Add(data_[tid*nbins_ + bin_id]);
+      hist.begin[bin_id].Add(data_[tid * nbins_ + bin_id]);
     }
   }
 }

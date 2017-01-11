@@ -38,7 +38,7 @@ class RowSetCollection {
   };
   /*! \brief return corresponding element set given the node_id */
   inline const Elem& operator[](unsigned node_id) const {
-    const Elem &e = elem_of_each_node_[node_id];
+    const Elem& e = elem_of_each_node_[node_id];
     CHECK(e.begin != nullptr)
         << "access element that is not in the set";
     return e;

@@ -404,7 +404,7 @@ class LearnerImpl : public Learner {
  protected:
   // check if p_train is ready to used by training.
   // if not, initialize the column access.
-  inline void LazyInitDMatrix(DMatrix *p_train) {
+  inline void LazyInitDMatrix(DMatrix* p_train) {
     if (tparam.tree_method != 3 && !p_train->HaveColAccess()) {
       int ncol = static_cast<int>(p_train->info().num_col);
       std::vector<bool> enabled(ncol, true);

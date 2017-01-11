@@ -370,7 +370,7 @@ class GBTree : public GradientBooster {
     const int nthread = omp_get_max_threads();
     CHECK_EQ(num_group, mparam.num_output_group);
     InitThreadTemp(nthread);
-    std::vector<bst_float> &preds = *out_preds;
+    std::vector<bst_float>& preds = *out_preds;
     CHECK_EQ(mparam.size_leaf_vector, 0)
         << "size_leaf_vector is enforced to 0 so far";
     CHECK_EQ(preds.size(), p_fmat->info().num_row * num_group);
@@ -387,14 +387,14 @@ class GBTree : public GradientBooster {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize - rest; i += K) {
         const int tid = omp_get_thread_num();
-        RegTree::FVec &feats = thread_temp[tid];
+        RegTree::FVec& feats = thread_temp[tid];
         int64_t ridx[K];
         RowBatch::Inst inst[K];
         for (int k = 0; k < K; ++k) {
-          ridx[k] = static_cast<int64_t>(batch.base_rowid + i+k);
+          ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
         }
         for (int k = 0; k < K; ++k) {
-          inst[k] = batch[i+k];
+          inst[k] = batch[i + k];
         }
         for (int k = 0; k < K; ++k) {
           for (int gid = 0; gid < num_group; ++gid) {
@@ -406,7 +406,7 @@ class GBTree : public GradientBooster {
         }
       }
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
-        RegTree::FVec &feats = thread_temp[0];
+        RegTree::FVec& feats = thread_temp[0];
         const int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
         const RowBatch::Inst inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {

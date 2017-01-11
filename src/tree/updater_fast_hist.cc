@@ -53,7 +53,7 @@ class FastHistMaker: public TreeUpdater {
       gmat_.Init(dmat);
       is_gmat_initialized_ = true;
       if (param.verbose > 0) {
-        LOG(INFO) << "Generating gmat: " << dmlc::GetTime()-tstart << " sec";
+        LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
       }
     }
     // rescale learning rate according to size of trees
@@ -115,7 +115,8 @@ class FastHistMaker: public TreeUpdater {
   struct Builder {
    public:
     // constructor
-    explicit Builder(const TrainParam& param) : param(param) {}
+    explicit Builder(const TrainParam& param) : param(param) {
+    }
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
                         const std::vector<bst_gpair>& gpair,
@@ -226,23 +227,23 @@ class FastHistMaker: public TreeUpdater {
         LOG(INFO) << "\nInitData:          "
                   << std::fixed << std::setw(4) << std::setprecision(2) << time_init_data
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                  << time_init_data/total_time*100 << "%)\n"
+                  << time_init_data / total_time * 100 << "%)\n"
                   << "InitNewNode:       "
                   << std::fixed << std::setw(4) << std::setprecision(2) << time_init_new_node
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                  << time_init_new_node/total_time*100 << "%)\n"
+                  << time_init_new_node / total_time * 100 << "%)\n"
                   << "BuildHist:          "
                   << std::fixed << std::setw(4) << std::setprecision(2) << time_build_hist
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                  << time_build_hist/total_time*100 << "%)\n"
+                  << time_build_hist / total_time * 100 << "%)\n"
                   << "EvaluateSplit:     "
                   << std::fixed << std::setw(4) << std::setprecision(2) << time_evaluate_split
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                  << time_evaluate_split/total_time*100 << "%)\n"
+                  << time_evaluate_split / total_time * 100 << "%)\n"
                   << "ApplySplit:        "
                   << std::fixed << std::setw(4) << std::setprecision(2) << time_apply_split
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
-                  << time_apply_split/total_time*100 << "%)\n"
+                  << time_apply_split / total_time * 100 << "%)\n"
                   << "========================================\n"
                   << "Total:             "
                   << std::fixed << std::setw(4) << std::setprecision(2) << total_time;
@@ -333,6 +334,10 @@ class FastHistMaker: public TreeUpdater {
         }
       }
       if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
+        /* specialized code for dense data:
+           choose the column that has a least positive number of discrete bins.
+           For dense data (with no missing value),
+              the sum of gradient histogram is equal to snode[nid] */
         const std::vector<unsigned>& row_ptr = gmat.cut->row_ptr;
         const size_t nfeature = row_ptr.size() - 1;
         size_t min_nbins_per_feature = 0;
@@ -380,7 +385,7 @@ class FastHistMaker: public TreeUpdater {
                            const GHistIndexMatrix& gmat,
                            const HistCollection& hist,
                            const DMatrix& fmat,
-                           RegTree *p_tree) {
+                           RegTree* p_tree) {
       // TODO(hcho3): support feature sampling by levels
 
       /* 1. Create child nodes */
@@ -423,12 +428,12 @@ class FastHistMaker: public TreeUpdater {
           split_cond, default_left);
       }
       row_set_collection_.AddSplit(
-          nid, row_split_tloc_, (*p_tree)[nid].cleft(), (*p_tree)[nid].cright());
+        nid, row_split_tloc_, (*p_tree)[nid].cleft(), (*p_tree)[nid].cright());
     }
 
     inline void ApplySplitDenseData(const RowSetCollection::Elem rowset,
                                     const GHistIndexMatrix& gmat,
-                                    std::vector<RowSetCollection::Split> *p_row_split_tloc,
+                                    std::vector<RowSetCollection::Split>* p_row_split_tloc,
                                     size_t column_offset,
                                     bst_uint split_cond) {
       std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
@@ -443,7 +448,7 @@ class FastHistMaker: public TreeUpdater {
         auto& left = row_split_tloc[tid].left;
         auto& right = row_split_tloc[tid].right;
         for (int k = 0; k < K; ++k) {
-          rid[k] = rowset.begin[i+k];
+          rid[k] = rowset.begin[i + k];
         }
         for (int k = 0; k < K; ++k) {
           rbin[k] = gmat[rid[k]].index[column_offset];
@@ -469,7 +474,7 @@ class FastHistMaker: public TreeUpdater {
 
     inline void ApplySplitSparseData(const RowSetCollection::Elem rowset,
                                      const GHistIndexMatrix& gmat,
-                                     std::vector<RowSetCollection::Split> *p_row_split_tloc,
+                                     std::vector<RowSetCollection::Split>* p_row_split_tloc,
                                      bst_uint lower_bound,
                                      bst_uint upper_bound,
                                      bst_uint split_cond,
@@ -482,12 +487,12 @@ class FastHistMaker: public TreeUpdater {
       for (bst_omp_uint i = 0; i < nrows - rest; i += K) {
         bst_uint rid[K];
         GHistIndexRow row[K];
-        const unsigned *p[K];
+        const unsigned* p[K];
         bst_uint tid = omp_get_thread_num();
         auto& left = row_split_tloc[tid].left;
         auto& right = row_split_tloc[tid].right;
         for (int k = 0; k < K; ++k) {
-          rid[k] = rowset.begin[i+k];
+          rid[k] = rowset.begin[i + k];
         }
         for (int k = 0; k < K; ++k) {
           row[k] = gmat[rid[k]];
@@ -547,19 +552,21 @@ class FastHistMaker: public TreeUpdater {
       {
         auto& stats = snode[nid].stats;
         if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
-          // specialized code for dense data
+          /* specialized code for dense data
+             For dense data (with no missing value),
+                the sum of gradient histogram is equal to snode[nid] */
           GHistRow hist = hist_[nid];
           const std::vector<unsigned>& row_ptr = gmat.cut->row_ptr;
 
           const size_t ibegin = row_ptr[fid_least_bins_];
-          const size_t iend = row_ptr[fid_least_bins_+1];
+          const size_t iend = row_ptr[fid_least_bins_ + 1];
           for (size_t i = ibegin; i < iend; ++i) {
             const GHistEntry et = hist.begin[i];
             stats.Add(et.sum_grad, et.sum_hess);
           }
         } else {
           const RowSetCollection::Elem e = row_set_collection_[nid];
-          for (const bst_uint *it = e.begin; it < e.end; ++it) {
+          for (const bst_uint* it = e.begin; it < e.end; ++it) {
             stats.Add(gpair[*it]);
           }
         }
@@ -589,7 +596,7 @@ class FastHistMaker: public TreeUpdater {
                                const NodeEntry& snode,
                                const TConstraint& constraint,
                                const MetaInfo& info,
-                               SplitEntry *p_best,
+                               SplitEntry* p_best,
                                int fid) {
       CHECK(d_step == +1 || d_step == -1);
 
@@ -611,10 +618,10 @@ class FastHistMaker: public TreeUpdater {
       int ibegin, iend;
       if (d_step > 0) {
         ibegin = cut_ptr[fid];
-        iend = cut_ptr[fid+1];
+        iend = cut_ptr[fid + 1];
       } else {
-        ibegin = cut_ptr[fid+1]-1;
-        iend = cut_ptr[fid]-1;
+        ibegin = cut_ptr[fid + 1] - 1;
+        iend = cut_ptr[fid] - 1;
       }
 
       for (int i = ibegin; i != iend; i += d_step) {
@@ -641,7 +648,7 @@ class FastHistMaker: public TreeUpdater {
                 // for leftmost bin, left bound is the smallest feature value
                 split_pt = gmat.cut->min_val[fid];
               } else {
-                split_pt = cut_val[i-1];
+                split_pt = cut_val[i - 1];
               }
             }
             best.Update(loss_chg, fid, split_pt, d_step == -1);
