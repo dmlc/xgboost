@@ -16,13 +16,13 @@ namespace xgboost {
 namespace common {
 
 /*! \brief sums of gradient statistics corresponding to a histogram bin */
-struct HistEntry {
+struct GHistEntry {
   /*! \brief sum of first-order gradient statistics */
   double sum_grad;
   /*! \brief sum of second-order gradient statistics */
   double sum_hess;
 
-  HistEntry() : sum_grad(0), sum_hess(0) {}
+  GHistEntry() : sum_grad(0), sum_hess(0) {}
 
   /*! \brief add a bst_gpair to the sum */
   inline void Add(const bst_gpair& e) {
@@ -30,14 +30,14 @@ struct HistEntry {
     sum_hess += e.hess;
   }
 
-  /*! \brief add a HistEntry to the sum */
-  inline void Add(const HistEntry& e) {
+  /*! \brief add a GHistEntry to the sum */
+  inline void Add(const GHistEntry& e) {
     sum_grad += e.sum_grad;
     sum_hess += e.sum_hess;
   }
 
-  /*! \brief set sum to be difference of two HistEntry's */
-  inline void SetSubtract(const HistEntry& a, const HistEntry& b) {
+  /*! \brief set sum to be difference of two GHistEntry's */
+  inline void SetSubtract(const GHistEntry& a, const GHistEntry& b) {
     sum_grad = a.sum_grad - b.sum_grad;
     sum_hess = a.sum_hess - b.sum_hess;
   }
@@ -119,18 +119,18 @@ struct GHistIndexMatrix {
 
 /*!
  * \brief histogram of graident statistics for a single node.
- *  Consists of multiple HistEntry's, each entry showing total graident statistics 
+ *  Consists of multiple GHistEntry's, each entry showing total graident statistics 
  *     for that particular bin
  *  Uses global bin id so as to represent all features simultaneously
  */
-struct HistRow {
+struct GHistRow {
   /*! \brief base pointer to first entry */
-  HistEntry *begin;
+  GHistEntry *begin;
   /*! \brief number of entries */
   unsigned size;
 
-  HistRow() {}
-  HistRow(HistEntry *begin, unsigned size)
+  GHistRow() {}
+  GHistRow(GHistEntry *begin, unsigned size)
     : begin(begin), size(size) {}
 };
 
@@ -140,10 +140,10 @@ struct HistRow {
 class HistCollection {
  public:
   // access histogram for i-th node
-  inline HistRow operator[](bst_uint nid) const {
+  inline GHistRow operator[](bst_uint nid) const {
     const size_t kMax = std::numeric_limits<size_t>::max();
     CHECK_NE(row_ptr_[nid], kMax);
-    return HistRow(const_cast<HistEntry*>(dmlc::BeginPtr(data_) + row_ptr_[nid]), nbins_);
+    return GHistRow(const_cast<GHistEntry*>(dmlc::BeginPtr(data_) + row_ptr_[nid]), nbins_);
   }
 
   // have we computed a histogram for i-th node?
@@ -178,7 +178,7 @@ class HistCollection {
   /*! \brief number of all bins over all features */
   size_t nbins_;
 
-  std::vector<HistEntry> data_;
+  std::vector<GHistEntry> data_;
 
   /*! \brief row_ptr_[nid] locates bin for historgram of node nid */
   std::vector<size_t> row_ptr_;
@@ -187,29 +187,29 @@ class HistCollection {
 /*!
  * \brief builder for histograms of gradient statistics
  */
-class HistMaker {
+class GHistBuilder {
  public:
   // initialize builder
   inline void Init(size_t nthread, size_t nbins) {
     nthread_ = nthread;
     nbins_ = nbins;
-    data_.resize(nthread * nbins, HistEntry());
+    data_.resize(nthread * nbins, GHistEntry());
   }
 
   // construct a histogram via histogram aggregation
-  void MakeHist(const std::vector<bst_gpair>& gpair,
-                const RowSetCollection::Elem row_indices,
-                const GHistIndexMatrix& gmat,
-                HistRow hist);
+  void BuildHist(const std::vector<bst_gpair>& gpair,
+                 const RowSetCollection::Elem row_indices,
+                 const GHistIndexMatrix& gmat,
+                 GHistRow hist);
   // construct a histogram via subtraction trick
-  void SubtractionTrick(HistRow self, HistRow sibling, HistRow parent);
+  void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
  private:
   /*! \brief number of threads for parallel computation */
   size_t nthread_;
   /*! \brief number of all bins over all features */
   size_t nbins_;
-  std::vector<HistEntry> data_;
+  std::vector<GHistEntry> data_;
 };
 
 

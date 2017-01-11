@@ -143,14 +143,14 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
   }
 }
 
-void HistMaker::MakeHist(const std::vector<bst_gpair>& gpair,
-                         const RowSetCollection::Elem row_indices,
-                         const GHistIndexMatrix& gmat,
-                         HistRow hist) {
-  CHECK(!data_.empty()) << "HistMaker must be initialized";
+void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
+                            const RowSetCollection::Elem row_indices,
+                            const GHistIndexMatrix& gmat,
+                            GHistRow hist) {
+  CHECK(!data_.empty()) << "GHistBuilder must be initialized";
   CHECK_EQ(data_.size(), nbins_ * nthread_) << "invalid dimensions for temp buffer";
 
-  std::fill(data_.begin(), data_.end(), HistEntry());
+  std::fill(data_.begin(), data_.end(), GHistEntry());
 
   const int K = 8;  // loop unrolling factor
   const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
@@ -202,9 +202,9 @@ void HistMaker::MakeHist(const std::vector<bst_gpair>& gpair,
   }
 }
 
-void HistMaker::SubtractionTrick(HistRow self,
-                                 HistRow sibling,
-                                 HistRow parent) {
+void GHistBuilder::SubtractionTrick(GHistRow self,
+                                    GHistRow sibling,
+                                    GHistRow parent) {
   const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
   const bst_omp_uint nbins = static_cast<bst_omp_uint>(nbins_);
   #pragma omp parallel for num_threads(nthread) schedule(static)
