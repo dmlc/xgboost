@@ -126,6 +126,7 @@ class FastHistMaker: public TreeUpdater {
       std::vector<int> feat_set(p_fmat->info().num_col);
       std::iota(feat_set.begin(), feat_set.end(), 0);
       int num_leaves = 0;
+      unsigned timestamp = 0;
 
       double tstart;
       double time_init_data = 0;
@@ -150,7 +151,9 @@ class FastHistMaker: public TreeUpdater {
         tstart = dmlc::GetTime();
         this->EvaluateSplit(nid, gmat, hist_, *p_fmat, *p_tree, feat_set);
         time_evaluate_split += dmlc::GetTime() - tstart;
-        qexpand_->push(ExpandEntry(nid, p_tree->GetDepth(nid), snode[nid].best.loss_chg));
+        qexpand_->push(ExpandEntry(nid, p_tree->GetDepth(nid),
+                                   snode[nid].best.loss_chg,
+                                   timestamp++));
         ++num_leaves;
       }
 
@@ -192,9 +195,11 @@ class FastHistMaker: public TreeUpdater {
           time_evaluate_split += dmlc::GetTime() - tstart;
 
           qexpand_->push(ExpandEntry(cleft, p_tree->GetDepth(cleft),
-                                     snode[cleft].best.loss_chg));
+                                     snode[cleft].best.loss_chg,
+                                     timestamp++));
           qexpand_->push(ExpandEntry(cright, p_tree->GetDepth(cright),
-                                     snode[cright].best.loss_chg));
+                                     snode[cright].best.loss_chg,
+                                     timestamp++));
 
           ++num_leaves;  // give two and take one, as parent is no longer a leaf
         }
@@ -651,14 +656,23 @@ class FastHistMaker: public TreeUpdater {
       int nid;
       int depth;
       bst_float loss_chg;
-      ExpandEntry(int nid, int depth, bst_float loss_chg)
-        : nid(nid), depth(depth), loss_chg(loss_chg) {}
+      unsigned timestamp;
+      ExpandEntry(int nid, int depth, bst_float loss_chg, unsigned tstmp)
+        : nid(nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
     };
     inline static bool depth_wise(ExpandEntry lhs, ExpandEntry rhs) {
-      return lhs.depth > rhs.depth;
+      if (lhs.depth == rhs.depth) {
+        return lhs.timestamp > rhs.timestamp;  // favor small timestamp
+      } else {
+        return lhs.depth > rhs.depth;  // favor small depth
+      }
     }
     inline static bool loss_guide(ExpandEntry lhs, ExpandEntry rhs) {
-      return lhs.loss_chg < rhs.loss_chg;
+      if (lhs.loss_chg == rhs.loss_chg) {
+        return lhs.timestamp > rhs.timestamp;  // favor small timestamp
+      } else {
+        return lhs.loss_chg < rhs.loss_chg;  // favor large loss_chg
+      }
     }
 
     //  --data fields--
