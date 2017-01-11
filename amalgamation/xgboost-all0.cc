@@ -53,6 +53,7 @@
 #include "../src/learner.cc"
 #include "../src/logging.cc"
 #include "../src/common/common.cc"
+#include "../src/common/hist_util.cc"
 
 // c_api
 #include "../src/c_api/c_api.cc"
