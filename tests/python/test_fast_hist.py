@@ -55,5 +55,42 @@ class TestFastHist(unittest.TestCase):
         assert self.non_decreasing(res['train']['auc'])
         assert self.non_decreasing(res['test']['auc'])
 
+        # fail-safe test for dense data
+        from sklearn.datasets import load_svmlight_file
+        dpath = 'demo/data/'
+        X2, y2 = load_svmlight_file(dpath + 'agaricus.txt.train')
+        X2 = X2.toarray()
+        dtrain2 = xgb.DMatrix(X2, label=y2)
+
+        param = {'objective': 'binary:logistic',
+                 'tree_method': 'hist',
+                 'grow_policy': 'depthwise',
+                 'max_depth': 2,
+                 'eval_metric': 'auc'}
+        res = {}
+        xgb.train(param, dtrain2, 10, [(dtrain2, 'train')], evals_result=res)
+        assert self.non_decreasing(res['train']['auc'])
+        assert res['train']['auc'][0] >= 0.85
+
+        for j in xrange(X2.shape[1]):
+          for i in np.random.choice(X2.shape[0], size=10, replace=False):
+            X2[i,j] = 2
+
+        dtrain3 = xgb.DMatrix(X2, label=y2)
+        res = {}
+        xgb.train(param, dtrain3, 10, [(dtrain3, 'train')], evals_result=res)
+        assert self.non_decreasing(res['train']['auc'])
+        assert res['train']['auc'][0] >= 0.85
+
+        for j in xrange(X2.shape[1]):
+          for i in np.random.choice(X2.shape[0], size=10, replace=False):
+            X2[i,j] = 3
+
+        dtrain4 = xgb.DMatrix(X2, label=y2)
+        res = {}
+        xgb.train(param, dtrain4, 10, [(dtrain4, 'train')], evals_result=res)
+        assert self.non_decreasing(res['train']['auc'])
+        assert res['train']['auc'][0] >= 0.85
+
     def non_decreasing(self, L):
         return all(x <= y for x, y in zip(L, L[1:]))
