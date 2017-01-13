@@ -77,21 +77,28 @@ void HistCutMatrix::Init(DMatrix* p_fmat, size_t max_num_bins) {
     a.Reserve(max_num_bins);
     a.SetPrune(summary_array[fid], max_num_bins);
     const bst_float mval = a.data[0].value;
-    this->min_val[fid] = mval - fabs(mval) - rt_eps;
-    for (size_t i = 2; i < a.size; ++i) {
-      bst_float cpt = a.data[i - 1].value - rt_eps;
-      if (i == 2 || cpt > cut.back()) {
-        cut.push_back(cpt);
+    this->min_val[fid] = mval - fabs(mval);
+    if (a.size > 1 && a.size <= 16) {
+      /* specialized code categorial / ordinal data -- use midpoints */
+      for (size_t i = 1; i < a.size; ++i) {
+        bst_float cpt = (a.data[i].value + a.data[i - 1].value) / 2.0;
+        if (i == 1 || cpt > cut.back()) {
+          cut.push_back(cpt);
+        }
+      }
+    } else {
+      for (size_t i = 2; i < a.size; ++i) {
+        bst_float cpt = a.data[i - 1].value;
+        if (i == 2 || cpt > cut.back()) {
+          cut.push_back(cpt);
+        }
       }
     }
     // push a value that is greater than anything
     if (a.size != 0) {
       bst_float cpt = a.data[a.size - 1].value;
-      if (a.size <= 2 || cpt - rt_eps > cut.back()) {
-        cut.push_back(cpt - rt_eps);
-      }
       // this must be bigger than last value in a scale
-      bst_float last = cpt + fabs(cpt) + rt_eps;
+      bst_float last = cpt + fabs(cpt);
       cut.push_back(last);
     }
     row_ptr.push_back(cut.size());
