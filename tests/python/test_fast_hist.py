@@ -92,5 +92,17 @@ class TestFastHist(unittest.TestCase):
         assert self.non_decreasing(res['train']['auc'])
         assert res['train']['auc'][0] >= 0.85
 
+        # fail-safe test for max_bin=2
+        param = {'objective': 'binary:logistic',
+                 'tree_method': 'hist',
+                 'grow_policy': 'depthwise',
+                 'max_depth': 2,
+                 'eval_metric': 'auc',
+                 'max_bin': 2}
+        res = {}
+        xgb.train(param, dtrain2, 10, [(dtrain2, 'train')], evals_result=res)
+        assert self.non_decreasing(res['train']['auc'])
+        assert res['train']['auc'][0] >= 0.85
+
     def non_decreasing(self, L):
         return all(x <= y for x, y in zip(L, L[1:]))
