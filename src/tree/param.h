@@ -31,6 +31,14 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   float min_split_loss;
   // maximum depth of a tree
   int max_depth;
+  // maximum number of leaves
+  int max_leaves;
+  // if using histogram based algorithm, maximum number of bins per feature
+  int max_bin;
+  // growing policy
+  enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
+  int grow_policy;
+  int verbose;
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
@@ -77,11 +85,32 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(min_split_loss)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
-        .describe("Minimum loss reduction required to make a further partition.");
+        .describe(
+            "Minimum loss reduction required to make a further partition.");
+    DMLC_DECLARE_FIELD(verbose)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe(
+            "Setting verbose flag with a positive value causes the updater "
+            "to print out *detailed* list of tasks and their runtime");
     DMLC_DECLARE_FIELD(max_depth)
         .set_lower_bound(0)
         .set_default(6)
-        .describe("Maximum depth of the tree.");
+        .describe(
+            "Maximum depth of the tree; 0 indicates no limit; a limit is required "
+            "for depthwise policy");
+    DMLC_DECLARE_FIELD(max_leaves).set_lower_bound(0).set_default(0).describe(
+        "Maximum number of leaves; 0 indicates no limit.");
+    DMLC_DECLARE_FIELD(max_bin).set_lower_bound(2).set_default(256).describe(
+        "if using histogram-based algorithm, maximum number of bins per feature");
+    DMLC_DECLARE_FIELD(grow_policy)
+        .set_default(kDepthWise)
+        .add_enum("depthwise", kDepthWise)
+        .add_enum("lossguide", kLossGuide)
+        .describe(
+            "Tree growing policy. 0: favor splitting at nodes closest to the node, "
+            "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
+            "change. (cf. LightGBM)");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)
@@ -258,7 +287,7 @@ XGB_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
 }
 
 /*! \brief core statistics used for tree construction */
-struct GradStats {
+struct XGBOOST_ALIGNAS(16) GradStats {
   /*! \brief sum gradient statistics */
   double sum_grad;
   /*! \brief sum hessian statistics */
@@ -269,11 +298,11 @@ struct GradStats {
    */
   static const int kSimpleStats = 1;
   /*! \brief constructor, the object must be cleared during construction */
-  explicit GradStats(const TrainParam &param) { this->Clear(); }
+  explicit GradStats(const TrainParam& param) { this->Clear(); }
   /*! \brief clear the statistics */
   inline void Clear() { sum_grad = sum_hess = 0.0f; }
   /*! \brief check if necessary information is ready */
-  inline static void CheckInfo(const MetaInfo &info) {}
+  inline static void CheckInfo(const MetaInfo& info) {}
   /*!
    * \brief accumulate statistics
    * \param p the gradient pair
@@ -285,34 +314,37 @@ struct GradStats {
    * \param info the additional information
    * \param ridx instance index of this instance
    */
-  inline void Add(const std::vector<bst_gpair> &gpair, const MetaInfo &info,
+  inline void Add(const std::vector<bst_gpair>& gpair, const MetaInfo& info,
                   bst_uint ridx) {
-    const bst_gpair &b = gpair[ridx];
+    const bst_gpair& b = gpair[ridx];
     this->Add(b.grad, b.hess);
   }
   /*! \brief calculate leaf weight */
-  inline double CalcWeight(const TrainParam &param) const {
+  inline double CalcWeight(const TrainParam& param) const {
     return xgboost::tree::CalcWeight(param, sum_grad, sum_hess);
   }
   /*! \brief calculate gain of the solution */
-  inline double CalcGain(const TrainParam &param) const {
+  inline double CalcGain(const TrainParam& param) const {
     return xgboost::tree::CalcGain(param, sum_grad, sum_hess);
   }
   /*! \brief add statistics to the data */
-  inline void Add(const GradStats &b) { this->Add(b.sum_grad, b.sum_hess); }
+  inline void Add(const GradStats& b) {
+    sum_grad += b.sum_grad;
+    sum_hess += b.sum_hess;
+  }
   /*! \brief same as add, reduce is used in All Reduce */
-  inline static void Reduce(GradStats &a, const GradStats &b) { // NOLINT(*)
+  inline static void Reduce(GradStats& a, const GradStats& b) { // NOLINT(*)
     a.Add(b);
   }
   /*! \brief set current value to a - b */
-  inline void SetSubstract(const GradStats &a, const GradStats &b) {
+  inline void SetSubstract(const GradStats& a, const GradStats& b) {
     sum_grad = a.sum_grad - b.sum_grad;
     sum_hess = a.sum_hess - b.sum_hess;
   }
   /*! \return whether the statistics is not used yet */
   inline bool Empty() const { return sum_hess == 0.0; }
   /*! \brief set leaf vector value based on statistics */
-  inline void SetLeafVec(const TrainParam &param, bst_float *vec) const {}
+  inline void SetLeafVec(const TrainParam& param, bst_float* vec) const {}
   // constructor to allow inheritance
   GradStats() {}
   /*! \brief add statistics to the data */

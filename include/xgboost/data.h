@@ -127,6 +127,7 @@ struct SparseBatch {
     /*! \brief length of the instance */
     bst_uint length;
     /*! \brief constructor */
+    Inst() : data(0), length(0) {}
     Inst(const Entry *data, bst_uint length) : data(data), length(length) {}
     /*! \brief get i-th pair in the sparse vector*/
     inline const Entry& operator[](size_t i) const {
