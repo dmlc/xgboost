@@ -72,7 +72,7 @@ class TestFastHist(unittest.TestCase):
         assert self.non_decreasing(res['train']['auc'])
         assert res['train']['auc'][0] >= 0.85
 
-        for j in xrange(X2.shape[1]):
+        for j in range(X2.shape[1]):
           for i in np.random.choice(X2.shape[0], size=10, replace=False):
             X2[i,j] = 2
 
@@ -82,7 +82,7 @@ class TestFastHist(unittest.TestCase):
         assert self.non_decreasing(res['train']['auc'])
         assert res['train']['auc'][0] >= 0.85
 
-        for j in xrange(X2.shape[1]):
+        for j in range(X2.shape[1]):
           for i in np.random.choice(X2.shape[0], size=10, replace=False):
             X2[i,j] = 3
 
