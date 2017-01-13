@@ -52,7 +52,7 @@ class FastHistMaker: public TreeUpdater {
       gmat_.cut = &hmat_;
       gmat_.Init(dmat);
       is_gmat_initialized_ = true;
-      if (param.verbose > 0) {
+      if (param.debug_verbose > 0) {
         LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
       }
     }
@@ -222,7 +222,7 @@ class FastHistMaker: public TreeUpdater {
         snode[nid].stats.SetLeafVec(param, p_tree->leafvec(nid));
       }
 
-      if (param.verbose > 0) {
+      if (param.debug_verbose > 0) {
         double total_time = dmlc::GetTime() - gstart;
         LOG(INFO) << "\nInitData:          "
                   << std::fixed << std::setw(4) << std::setprecision(2) << time_init_data
