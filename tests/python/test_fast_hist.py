@@ -53,7 +53,6 @@ class TestFastHist(unittest.TestCase):
         xgb.train(param3, dtrain, 10, [(dtrain, 'train'), (dtest, 'test')],
                   evals_result=res)
         assert self.non_decreasing(res['train']['auc'])
-        assert self.non_decreasing(res['test']['auc'])
 
         # fail-safe test for dense data
         from sklearn.datasets import load_svmlight_file
@@ -73,8 +72,8 @@ class TestFastHist(unittest.TestCase):
         assert res['train']['auc'][0] >= 0.85
 
         for j in range(X2.shape[1]):
-          for i in np.random.choice(X2.shape[0], size=10, replace=False):
-            X2[i,j] = 2
+            for i in np.random.choice(X2.shape[0], size=10, replace=False):
+                X2[i, j] = 2
 
         dtrain3 = xgb.DMatrix(X2, label=y2)
         res = {}
@@ -83,8 +82,8 @@ class TestFastHist(unittest.TestCase):
         assert res['train']['auc'][0] >= 0.85
 
         for j in range(X2.shape[1]):
-          for i in np.random.choice(X2.shape[0], size=10, replace=False):
-            X2[i,j] = 3
+            for i in np.random.choice(X2.shape[0], size=10, replace=False):
+                X2[i, j] = 3
 
         dtrain4 = xgb.DMatrix(X2, label=y2)
         res = {}
