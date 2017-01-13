@@ -38,7 +38,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   // growing policy
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
-  int verbose;
+  int debug_verbose;
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
@@ -87,7 +87,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_default(0.0f)
         .describe(
             "Minimum loss reduction required to make a further partition.");
-    DMLC_DECLARE_FIELD(verbose)
+    DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
         .describe(
