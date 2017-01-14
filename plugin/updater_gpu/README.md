@@ -2,14 +2,7 @@
 
 ## Benchmarks
 
-Time for 500 boosting iterations in seconds. 
-
-Dataset | Instances | Features | i7-6700K | Titan X (pascal) | Speedup
---- | --- | --- | --- | --- | --- 
-Yahoo LTR | 473,134 | 700 | 3738 | 507 | 7.37
-Higgs | 10,500,000 | 28 | 31352 | 4173 | 7.51
-Bosch | 1,183,747 | 968 | 9460 | 1009 | 9.38
-
+[See here](http://dmlc.ml/2016/12/14/GPU-accelerated-xgboost.html) for performance benchmarks
 
 ## Usage
 Specify the updater parameter as 'grow_gpu'. 

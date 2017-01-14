@@ -17,8 +17,7 @@ xgb.cv(param, dtrain, num_round, nfold=5,
 
 print ('running cross validation, disable standard deviation display')
 # do cross validation, this will print result out as
-# [iteration]  metric_name:mean_value+std_value
-# std_value is standard deviation of the metric
+# [iteration]  metric_name:mean_value
 res = xgb.cv(param, dtrain, num_boost_round=10, nfold=5,
              metrics={'error'}, seed = 0,
              callbacks=[xgb.callback.print_evaluation(show_stdv=False),
