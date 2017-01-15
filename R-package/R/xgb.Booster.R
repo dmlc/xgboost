@@ -429,9 +429,10 @@ xgb.ntree <- function(bst) {
 print.xgb.Booster <- function(x, verbose=FALSE, ...) {
   cat('##### xgb.Booster\n')
   
+  valid_handle <- TRUE
   if (is.null(x$handle) || .Call("XGCheckNullPtr_R", x$handle, PACKAGE="xgboost")) {
     cat("handle is invalid\n")
-    return(x)
+    valid_handle <- FALSE
   }
   
   cat('raw: ')
@@ -454,7 +455,9 @@ print.xgb.Booster <- function(x, verbose=FALSE, ...) {
   }
   # TODO: need an interface to access all the xgboosts parameters
 
-  attrs <- xgb.attributes(x)
+  attrs <- character(0)
+  if (valid_handle)
+    attrs <- xgb.attributes(x)
   if (length(attrs) > 0) {
     cat('xgb.attributes:\n')
     if (verbose) {
