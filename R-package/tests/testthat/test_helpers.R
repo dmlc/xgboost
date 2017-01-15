@@ -100,6 +100,15 @@ if (grepl('Windows', Sys.info()[['sysname']]) || grepl('Linux', Sys.info()[['sys
     })
 }
 
+test_that("xgb.Booster serializing as R object works", {
+  saveRDS(bst.Tree, 'xgb.model.rds')
+  bst <- readRDS('xgb.model.rds')
+  dtrain <- xgb.DMatrix(sparse_matrix, label = label)
+  expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain))
+  expect_equal(xgb.dump(bst.Tree), xgb.dump(bst))
+  xgb.save(bst, 'xgb.model')
+})
+
 test_that("xgb.model.dt.tree works with and without feature names", {
   names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
   dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
