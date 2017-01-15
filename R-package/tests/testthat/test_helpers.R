@@ -3,7 +3,7 @@ context('Test helper functions')
 require(xgboost)
 require(data.table)
 require(Matrix)
-require(vcd)
+require(vcd, quietly = TRUE)
 
 set.seed(1982)
 data(Arthritis)
@@ -15,10 +15,12 @@ sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df)
 label <- df[, ifelse(Improved == "Marked", 1, 0)]
 
 bst.Tree <- xgboost(data = sparse_matrix, label = label, max_depth = 9,
-               eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic", booster = "gbtree")
+                    eta = 1, nthread = 2, nrounds = 10, verbose = 0,
+                    objective = "binary:logistic", booster = "gbtree")
 
 bst.GLM <- xgboost(data = sparse_matrix, label = label,
-                   eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic", booster = "gblinear")
+                   eta = 1, nthread = 2, nrounds = 10, verbose = 0,
+                   objective = "binary:logistic", booster = "gblinear")
 
 feature.names <- colnames(sparse_matrix)
 
