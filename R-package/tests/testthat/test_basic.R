@@ -8,7 +8,9 @@ train <- agaricus.train
 test <- agaricus.test
 set.seed(1994)
 
-windows_flag = grepl('Windows', Sys.info()[['sysname']])
+# disable some tests for Win32
+windows_flag = .Platform$OS.type == "windows" &&
+               .Machine$sizeof.pointer != 8
 
 test_that("train and predict binary classification", {
   nrounds = 2
