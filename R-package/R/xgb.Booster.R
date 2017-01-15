@@ -1,6 +1,6 @@
-# Construct a Booster from cachelist
+# Construct an internal xgboost Booster and return a handle to it
 # internal utility function
-xgb.Booster <- function(params = list(), cachelist = list(), modelfile = NULL) {
+xgb.Booster.handle <- function(params = list(), cachelist = list(), modelfile = NULL) {
   if (typeof(cachelist) != "list" ||
       any(sapply(cachelist, class) != 'xgb.DMatrix')) {
     stop("xgb.Booster only accepts list of DMatrix as cachelist")
@@ -59,7 +59,7 @@ xgb.Booster.check <- function(bst, saveraw = TRUE) {
     isnull <- .Call("XGCheckNullPtr_R", bst$handle, PACKAGE="xgboost")
   }
   if (isnull) {
-    bst$handle <- xgb.Booster(modelfile = bst$raw)
+    bst$handle <- xgb.Booster.handle(modelfile = bst$raw)
   } else {
     if (is.null(bst$raw) && saveraw)
       bst$raw <- xgb.save.raw(bst$handle)

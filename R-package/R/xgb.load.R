@@ -19,7 +19,7 @@ xgb.load <- function(modelfile) {
   if (is.null(modelfile))
     stop("xgb.load: modelfile cannot be NULL")
 
-  handle <- xgb.Booster(modelfile = modelfile)
+  handle <- xgb.Booster.handle(modelfile = modelfile)
   # re-use modelfile if it is raw so we do not need to serialize
   if (typeof(modelfile) == "raw") {
     bst <- xgb.handleToBooster(handle, modelfile)
