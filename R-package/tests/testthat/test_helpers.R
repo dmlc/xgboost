@@ -107,6 +107,12 @@ test_that("xgb.Booster serializing as R object works", {
   expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain))
   expect_equal(xgb.dump(bst.Tree), xgb.dump(bst))
   xgb.save(bst, 'xgb.model')
+  nil_ptr <- new("externalptr")
+  class(nil_ptr) <- "xgb.Booster.handle"
+  expect_true(identical(bst$handle, nil_ptr))
+  bst <- xgb.Booster.complete(bst)
+  expect_true(!identical(bst$handle, nil_ptr))
+  expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain))
 })
 
 test_that("xgb.model.dt.tree works with and without feature names", {

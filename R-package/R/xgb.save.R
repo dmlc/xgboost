@@ -1,9 +1,22 @@
 #' Save xgboost model to binary file
 #' 
-#' Save xgboost model from xgboost or xgb.train
+#' Save xgboost model to a file in binary format.
 #' 
-#' @param model the model object.
-#' @param fname the name of the file to write.
+#' @param model model object of \code{xgb.Booster} class.
+#' @param fname name of the file to write.
+#' 
+#' @details 
+#' This methods allows to save a model in an xgboost-internal binary format which is universal 
+#' among the various xgboost interfaces. In R, the saved model file could be read-in later
+#' using either the \code{\link{xgb.load}} function or the \code{xgb_model} parameter 
+#' of \code{\link{xgb.train}}.
+#' 
+#' Note: a model can also be saved as an R-object (e.g., by using \code{\link[base]{readRDS}} 
+#' or \code{\link[base]{save}}). However, it would then only be compatible with R, and 
+#' corresponding R-methods would need to be used to load it.
+#' 
+#' @seealso 
+#' \code{\link{xgb.load}}, \code{\link{xgb.Booster.complete}}. 
 #' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -22,7 +35,7 @@ xgb.save <- function(model, fname) {
   if (class(model) != "xgb.Booster")
     stop("the input must be xgb.Booster. Use xgb.DMatrix.save to save xgb.DMatrix object.")
   
-  model <- xgb.Booster.check(model, saveraw = FALSE)
+  model <- xgb.Booster.complete(model, saveraw = FALSE)
   .Call("XGBoosterSaveModel_R", model$handle, fname, PACKAGE = "xgboost")
   return(TRUE)
 }

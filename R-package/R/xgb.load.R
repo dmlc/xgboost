@@ -1,8 +1,23 @@
 #' Load xgboost model from binary file
 #' 
-#' Load xgboost model from the binary model file
+#' Load xgboost model from the binary model file. 
 #' 
-#' @param modelfile the name of the binary file.
+#' @param modelfile the name of the binary input file.
+#' 
+#' @details 
+#' The input file is expected to contain a model saved in an xgboost-internal binary format
+#' using either \code{\link{xgb.save}} or \code{\link{cb.save.model}} in R, or using some 
+#' appropriate methods from other xgboost interfaces. E.g., a model trained in Python and 
+#' saved from there in xgboost format, could be loaded from R.
+#' 
+#' Note: a model saved as an R-object, has to be loaded using corresponding R-methods,
+#' not \code{xgb.load}.
+#' 
+#' @return 
+#' An object of \code{xgb.Booster} class.
+#' 
+#' @seealso 
+#' \code{\link{xgb.save}}, \code{\link{xgb.Booster.complete}}. 
 #' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -26,6 +41,6 @@ xgb.load <- function(modelfile) {
   } else {
     bst <- xgb.handleToBooster(handle, NULL)
   }
-  bst <- xgb.Booster.check(bst, saveraw = TRUE)
+  bst <- xgb.Booster.complete(bst, saveraw = TRUE)
   return(bst)
 }

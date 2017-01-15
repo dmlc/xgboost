@@ -332,7 +332,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   }
   for (f in cb$finalize) f(finalize=TRUE)
   
-  bst <- xgb.Booster.check(bst, saveraw = TRUE)
+  bst <- xgb.Booster.complete(bst, saveraw = TRUE)
   
   # store the total number of boosting iterations
   bst$niter = end_iteration
