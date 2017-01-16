@@ -14,7 +14,7 @@ from .sklearn import XGBModel
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features',
-                    importance_type='weight', max_features=None,
+                    importance_type='weight', max_num_features=None,
                     grid=True, **kwargs):
 
     """Plot importance based on fitted trees.
@@ -27,11 +27,11 @@ def plot_importance(booster, ax=None, height=0.2,
         Target axes instance. If None, new figure and axes will be created.
     importance_type : str, default "weight"
         How the importance is calculated: either "weight", "gain", or "cover"
-        "weight" is the number of times a feature appears in a tree
+        "weight" is the number of times a feature appears in a tree@
         "gain" is the average gain of splits which use the feature
         "cover" is the average coverage of splits which use the feature
             where coverage is defined as the number of samples affected by the split
-    max_features : int, default None
+    max_num_features : int, default None
         Maximum number of top features displayed on plot. If None, all features will be displayed.
     height : float, default 0.2
         Bar height, passed to ax.barh()
@@ -71,9 +71,9 @@ def plot_importance(booster, ax=None, height=0.2,
         raise ValueError('Booster.get_score() results in empty')
 
     tuples = [(k, importance[k]) for k in importance]
-    if max_features is not None:
-        tuples = sorted(tuples, key=lambda x: x[1])[-max_features:]
-        ylim = (-1, max_features)
+    if max_num_features is not None:
+        tuples = sorted(tuples, key=lambda x: x[1])[-max_num_features:]
+        ylim = (-1, max_num_features)
     else:
         tuples = sorted(tuples, key=lambda x: x[1])
     labels, values = zip(*tuples)
