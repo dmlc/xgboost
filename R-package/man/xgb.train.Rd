@@ -153,6 +153,8 @@ An object of class \code{xgb.Booster} with the following elements:
         (only available with early stopping).
   \item \code{best_score} the best evaluation metric value during early stopping.
         (only available with early stopping).
+  \item \code{feature_names} names of the training dataset features
+        (only when comun names were defined in training data).
 }
 }
 \description{

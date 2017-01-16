@@ -160,6 +160,8 @@
 #'         (only available with early stopping).
 #'   \item \code{best_score} the best evaluation metric value during early stopping.
 #'         (only available with early stopping).
+#'   \item \code{feature_names} names of the training dataset features
+#'         (only when comun names were defined in training data).
 #' }
 #' 
 #' @seealso
@@ -354,6 +356,8 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   bst$call <- match.call()
   bst$params <- params
   bst$callbacks <- callbacks
+  if (!is.null(colnames(dtrain)))
+    bst$feature_names <- colnames(dtrain)
   
   return(bst)
 }

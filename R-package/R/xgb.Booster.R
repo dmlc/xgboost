@@ -519,15 +519,19 @@ print.xgb.Booster <- function(x, verbose=FALSE, ...) {
     })
   }
   
+  if (!is.null(x$feature_names))
+    cat('# of features:', length(x$feature_names), '\n')
+  
   cat('niter: ', x$niter, '\n', sep='')
   # TODO: uncomment when faster xgb.ntree is implemented
   #cat('ntree: ', xgb.ntree(x), '\n', sep='')
   
-  for (n in setdiff(names(x), c('handle', 'raw', 'call', 'params', 'callbacks','evaluation_log','niter'))) {
+  for (n in setdiff(names(x), c('handle', 'raw', 'call', 'params', 'callbacks',
+                                'evaluation_log','niter','feature_names'))) {
     if (is.atomic(x[[n]])) {
-      cat(n, ': ', x[[n]], '\n', sep='')
+      cat(n, ':', x[[n]], '\n', sep=' ')
     } else {
-      cat(n, ':\n\t', sep='')
+      cat(n, ':\n\t', sep=' ')
       print(x[[n]])
     }
   }

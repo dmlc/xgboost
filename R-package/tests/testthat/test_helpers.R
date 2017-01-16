@@ -122,7 +122,17 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
   expect_equal(names.dt.trees, names(dt.tree))
   expect_equal(dim(dt.tree), c(162, 10))
-  expect_output(str(xgb.model.dt.tree(model = bst.Tree)), 'Feature.*\\"3\\"')
+  expect_output(str(dt.tree), 'Feature.*\\"Age\\"')
+  
+  dt.tree.0 <- xgb.model.dt.tree(model = bst.Tree)
+  expect_equal(dt.tree, dt.tree.0)
+  
+  # when model contains no feature names:
+  bst.Tree.x <- bst.Tree
+  bst.Tree.x$feature_names <- NULL
+  dt.tree.x <- xgb.model.dt.tree(model = bst.Tree.x)
+  expect_output(str(dt.tree.x), 'Feature.*\\"3\\"')
+  expect_equal(dt.tree[, -4, with=FALSE], dt.tree.x[, -4, with=FALSE])
 })
 
 test_that("xgb.model.dt.tree throws error for gblinear", {
@@ -133,7 +143,17 @@ test_that("xgb.importance works with and without feature names", {
   importance.Tree <- xgb.importance(feature_names = feature.names, model = bst.Tree)
   expect_equal(dim(importance.Tree), c(7, 4))
   expect_equal(colnames(importance.Tree), c("Feature", "Gain", "Cover", "Frequency"))
-  expect_output(str(xgb.importance(model = bst.Tree)), 'Feature.*\\"3\\"')
+  expect_output(str(importance.Tree), 'Feature.*\\"Age\\"')
+  
+  importance.Tree.0 <- xgb.importance(model = bst.Tree)
+  expect_equal(importance.Tree, importance.Tree.0)
+  
+  # when model contains no feature names:
+  bst.Tree.x <- bst.Tree
+  bst.Tree.x$feature_names <- NULL
+  importance.Tree.x <- xgb.importance(model = bst.Tree)
+  expect_equal(importance.Tree[, -1, with=FALSE], importance.Tree.x[, -1, with=FALSE])
+  
   imp2plot <- xgb.plot.importance(importance_matrix = importance.Tree)
   expect_equal(colnames(imp2plot), c("Feature", "Gain", "Cover", "Frequency", "Importance"))
   xgb.ggplot.importance(importance_matrix = importance.Tree)
