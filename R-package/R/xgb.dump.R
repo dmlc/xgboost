@@ -14,6 +14,7 @@
 #'        When this option is on, the model dump comes with two additional statistics:
 #'        gain is the approximate loss function gain we get in each split;
 #'        cover is the sum of second order gradient in each node.
+#' @param dump_format either 'text' or 'json' format could be specified.
 #' @param ... currently not used
 #'
 #' @return
@@ -30,10 +31,15 @@
 #' xgb.dump(bst, 'xgb.model.dump', with_stats = TRUE)
 #' 
 #' # print the model without saving it to a file
-#' print(xgb.dump(bst))
+#' print(xgb.dump(bst, with_stats = TRUE))
+#' 
+#' # print in JSON format:
+#' cat(xgb.dump(bst, with_stats = TRUE, dump_format='json'))
+#' 
 #' @export
-xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with_stats=FALSE, ...) {
+xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with_stats=FALSE, dump_format = c("text", "json"), ...) {
   check.deprecation(...)
+  dump_format <- match.arg(dump_format)
   if (class(model) != "xgb.Booster")
     stop("model: argument must be of type xgb.Booster")
   if (!(class(fname) %in% c("character", "NULL") && length(fname) <= 1))
@@ -42,12 +48,15 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with_stats=FALSE, ..
     stop("fmap: argument must be of type character (when provided)")
   
   model <- xgb.Booster.check(model)
-  model_dump <- .Call("XGBoosterDumpModel_R", model$handle, fmap, as.integer(with_stats), PACKAGE = "xgboost")
+  model_dump <- .Call("XGBoosterDumpModel_R", model$handle, fmap, as.integer(with_stats),
+                      as.character(dump_format), PACKAGE = "xgboost")
 
   if (is.null(fname)) 
     model_dump <- stri_replace_all_regex(model_dump, '\t', '')
   
-  model_dump <- unlist(stri_split_regex(model_dump, '\n'))
+  if (dump_format == "text")
+    model_dump <- unlist(stri_split_regex(model_dump, '\n'))
+  
   model_dump <- grep('^\\s*$', model_dump, invert = TRUE, value = TRUE)
   
   if (is.null(fname)) {

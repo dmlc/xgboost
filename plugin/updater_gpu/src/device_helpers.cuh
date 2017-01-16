@@ -7,6 +7,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
+#include <thrust/random.h>
 #include <algorithm>
 #include <ctime>
 #include <sstream>
@@ -147,6 +148,8 @@ struct Timer {
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
     return static_cast<double>(now.QuadPart) / s_frequency.QuadPart;
+#else
+    return 0;
 #endif
   }
 
@@ -160,12 +163,14 @@ struct Timer {
 #ifdef _WIN32
     _ReadWriteBarrier();
     return seconds_now() - start;
+#else
+    return 0;
 #endif
   }
-  void printElapsed(char *label) {
+  void printElapsed(std::string label) {
 #ifdef TIMERS
     safe_cuda(cudaDeviceSynchronize());
-    printf("%s:\t %1.4fs\n", label, elapsed());
+    printf("%s:\t %1.4fs\n", label.c_str(), elapsed());
 #endif
   }
 };
@@ -233,46 +238,6 @@ template <typename T> __device__ range block_stride_range(T begin, T end) {
   return r;
 }
 
-/*
- *  Utility functions
- */
-
-template <typename T>
-void print(const thrust::device_vector<T> &v, size_t max_items = 10) {
-  thrust::host_vector<T> h = v;
-  for (int i = 0; i < std::min(max_items, h.size()); i++) {
-    std::cout << " " << h[i];
-  }
-  std::cout << "\n";
-}
-
-template <typename T>
-void print(char *label, const thrust::device_vector<T> &v,
-           const char *format = "%d ", int max = 10) {
-  thrust::host_vector<T> h_v = v;
-
-  std::cout << label << ":\n";
-  for (int i = 0; i < std::min(static_cast<int>(h_v.size()), max); i++) {
-    printf(format, h_v[i]);
-  }
-  std::cout << "\n";
-}
-
-template <typename T1, typename T2> T1 div_round_up(const T1 a, const T2 b) {
-  return static_cast<T1>(ceil(static_cast<double>(a) / b));
-}
-
-template <typename T> thrust::device_ptr<T> dptr(T *d_ptr) {
-  return thrust::device_pointer_cast(d_ptr);
-}
-
-template <typename T> T *raw(thrust::device_vector<T> &v) { //  NOLINT
-  return raw_pointer_cast(v.data());
-}
-
-template <typename T> size_t size_bytes(const thrust::device_vector<T> &v) {
-  return sizeof(T) * v.size();
-}
 
 // Threadblock iterates over range, filling with value
 template <typename IterT, typename ValueT>
@@ -306,11 +271,11 @@ template <typename T> class dvec {
 
  public:
   dvec() : _ptr(NULL), _size(0) {}
-  size_t size() { return _size; }
-  bool empty() { return _ptr == NULL || _size == 0; }
+  size_t size() const { return _size; }
+  bool empty() const { return _ptr == NULL || _size == 0; }
   T *data() { return _ptr; }
 
-  std::vector<T> as_vector() {
+  std::vector<T> as_vector() const {
     std::vector<T> h_vector(size());
     safe_cuda(cudaMemcpy(h_vector.data(), _ptr, size() * sizeof(T),
                          cudaMemcpyDeviceToHost));
@@ -414,7 +379,6 @@ class bulk_allocator {
     }
 
     _size = get_size_bytes(args...);
-    std::cout << "trying to allocate: " << _size << "\n";
 
     safe_cuda(cudaMalloc(&d_ptr, _size));
 
@@ -456,6 +420,55 @@ inline std::string device_name() {
 }
 
 /*
+ *  Utility functions
+ */
+
+template <typename T>
+void print(const thrust::device_vector<T> &v, size_t max_items = 10) {
+  thrust::host_vector<T> h = v;
+  for (int i = 0; i < std::min(max_items, h.size()); i++) {
+    std::cout << " " << h[i];
+  }
+  std::cout << "\n";
+}
+
+template <typename T>
+void print(const dvec<T> &v, size_t max_items = 10) {
+  std::vector<T> h = v.as_vector();
+  for (int i = 0; i < std::min(max_items, h.size()); i++) {
+    std::cout << " " << h[i];
+  }
+  std::cout << "\n";
+}
+
+template <typename T>
+void print(char *label, const thrust::device_vector<T> &v,
+           const char *format = "%d ", int max = 10) {
+  thrust::host_vector<T> h_v = v;
+
+  std::cout << label << ":\n";
+  for (int i = 0; i < std::min(static_cast<int>(h_v.size()), max); i++) {
+    printf(format, h_v[i]);
+  }
+  std::cout << "\n";
+}
+
+template <typename T1, typename T2> T1 div_round_up(const T1 a, const T2 b) {
+  return static_cast<T1>(ceil(static_cast<double>(a) / b));
+}
+
+template <typename T> thrust::device_ptr<T> dptr(T *d_ptr) {
+  return thrust::device_pointer_cast(d_ptr);
+}
+
+template <typename T> T *raw(thrust::device_vector<T> &v) { //  NOLINT
+  return raw_pointer_cast(v.data());
+}
+
+template <typename T> size_t size_bytes(const thrust::device_vector<T> &v) {
+  return sizeof(T) * v.size();
+}
+/*
  * Kernel launcher
  */
 
@@ -471,4 +484,25 @@ inline void launch_n(size_t n, L lambda) {
 
   launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(n, lambda);
 }
+
+/*
+ * Random 
+ */
+
+struct BernoulliRng {
+  float p;
+  int seed;
+
+  __host__ __device__ BernoulliRng(float p, int seed):p(p),  seed(seed) {}
+
+  __host__ __device__ bool operator()(const int i) const {
+    thrust::default_random_engine rng(seed);
+    thrust::uniform_real_distribution<float> dist;
+    rng.discard(i);
+
+    return dist(rng) <= p;
+  }
+};
+
+
 }  // namespace dh

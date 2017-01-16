@@ -53,11 +53,11 @@ Which solution among the three do you think is the best fit?
 
 ![Step function](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/step_fit.png)
 
-The answer is already marked as red. Please think if it is reasonable to you visually. The general principle is we want a ***simple*** and ***predictive*** model.
+The correct answer is marked in red. Please consider if this visually seems a reasonable fit to you. The general principle is we want both a ***simple*** and ***predictive*** model.
 The tradeoff between the two is also referred as bias-variance tradeoff in machine learning.
 
 
-### Why introduce the general principle
+### Why introduce the general principle?
 The elements introduced above form the basic elements of supervised learning, and they are naturally the building blocks of machine learning toolkits.
 For example, you should be able to describe the differences and commonalities between boosted trees and random forests.
 Understanding the process in a formalized way also helps us to understand the objective that we are learning and the reason behind the heuristics such as
@@ -72,17 +72,17 @@ that classifies whether someone will like computer games.
 
 ![CART](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/cart.png)
 
-We classify the members of a family into different leaves, and assign them the score on corresponding leaf.
+We classify the members of a family into different leaves, and assign them the score on the corresponding leaf.
 A CART is a bit different from decision trees, where the leaf only contains decision values. In CART, a real score
 is associated with each of the leaves, which gives us richer interpretations that go beyond classification.
-This also makes the unified optimization step easier, as we will see in later part of this tutorial.
+This also makes the unified optimization step easier, as we will see in a later part of this tutorial.
 
 Usually, a single tree is not strong enough to be used in practice. What is actually used is the so-called
-tree ensemble model, that sums the prediction of multiple trees together.
+tree ensemble model, which sums the prediction of multiple trees together.
 
 ![TwoCART](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/twocart.png)
 
-Here is an example of tree ensemble of two trees. The prediction scores of each individual tree are summed up to get the final score.
+Here is an example of a tree ensemble of two trees. The prediction scores of each individual tree are summed up to get the final score.
 If you look at the example, an important fact is that the two trees try to *complement* each other.
 Mathematically, we can write our model in the form
 
@@ -97,26 +97,26 @@ where ``$ K $`` is the number of trees, ``$ f $`` is a function in the functiona
 ```
 Now here comes the question, what is the *model* for random forests? It is exactly tree ensembles! So random forests and boosted trees are not different in terms of model,
 the difference is how we train them. This means if you write a predictive service of tree ensembles, you only need to write one of them and they should directly work
-for both random forests and boosted trees. One example of why elements of supervised learning rocks.
+for both random forests and boosted trees. One example of why elements of supervised learning rock.
 
 Tree Boosting
 -------------
 After introducing the model, let us begin with the real training part. How should we learn the trees?
 The answer is, as is always for all supervised learning models: *define an objective function, and optimize it*!
 
-Assume we have the following objective function (remember it always need to contain training loss, and regularization)
+Assume we have the following objective function (remember it always needs to contain training loss and regularization)
 ```math
 \text{obj} = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i) \\
 ```
 
 ### Additive Training
 
-First thing we want to ask is what are the ***parameters*** of trees.
-You can find what we need to learn are those functions ``$f_i$``, with each containing the structure
+First thing we want to ask is what are the ***parameters*** of trees?
+You can find that what we need to learn are those functions ``$f_i$``, with each containing the structure
 of the tree and the leaf scores. This is much harder than traditional optimization problem where you can take the gradient and go.
 It is not easy to train all the trees at once.
-Instead, we use an additive strategy: fix what we have learned, add one new tree at a time.
-We note the prediction value at step ``$t$`` by ``$ \hat{y}_i^{(t)}$``, so we have
+Instead, we use an additive strategy: fix what we have learned, and add one new tree at a time.
+We write the prediction value at step ``$t$`` as ``$ \hat{y}_i^{(t)}$``, so we have
 
 ```math
 \hat{y}_i^{(0)} &= 0\\
@@ -140,7 +140,7 @@ If we  consider using MSE as our loss function, it becomes the following form.
           & = \sum_{i=1}^n [2(\hat{y}_i^{(t-1)} - y_i)f_t(x_i) + f_t(x_i)^2] + \Omega(f_t) + constant
 ```
 
-The form of MSE is friendly, with a first order term (usually called residual) and a quadratic term.
+The form of MSE is friendly, with a first order term (usually called the residual) and a quadratic term.
 For other losses of interest (for example, logistic loss), it is not so easy to get such a nice form.
 So in the general case, we take the Taylor expansion of the loss function up to the second order
 
@@ -162,18 +162,18 @@ After we remove all the constants, the specific objective at step ``$t$`` become
 
 This becomes our optimization goal for the new tree. One important advantage of this definition is that
 it only depends on ``$g_i$`` and ``$h_i$``. This is how xgboost can support custom loss functions.
-We can optimize every loss function, including logistic regression, weighted logistic regression, using exactly
+We can optimize every loss function, including logistic regression and weighted logistic regression, using exactly
 the same solver that takes ``$g_i$`` and ``$h_i$`` as input!
 
 ### Model Complexity
 We have introduced the training step, but wait, there is one important thing, the ***regularization***!
-We need to define the complexity of the tree ``$\Omega(f)$``. In order to do so, let us first refine the definition of the tree a tree ``$ f(x) $`` as
+We need to define the complexity of the tree ``$\Omega(f)$``. In order to do so, let us first refine the definition of the tree ``$ f(x) $`` as
 
 ```math
 f_t(x) = w_{q(x)}, w \in R^T, q:R^d\rightarrow \{1,2,\cdots,T\} .
 ```
 
-Here ``$ w $`` is the vector of scores on leaves, ``$ q $`` is a function assigning each data point to the corresponding leaf and``$ T $`` is the number of leaves.
+Here ``$ w $`` is the vector of scores on leaves, ``$ q $`` is a function assigning each data point to the corresponding leaf, and``$ T $`` is the number of leaves.
 In XGBoost, we define the complexity as
 
 ```math
@@ -200,7 +200,7 @@ We could further compress the expression by defining ``$ G_j = \sum_{i\in I_j} g
 \text{obj}^{(t)} = \sum^T_{j=1} [G_jw_j + \frac{1}{2} (H_j+\lambda) w_j^2] +\gamma T
 ```
 
-In this equation ``$ w_j $`` are independent to each other, the form ``$ G_jw_j+\frac{1}{2}(H_j+\lambda)w_j^2 $`` is quadratic and the best ``$ w_j $`` for a given structure ``$q(x)$`` and the best objective reduction we can get is:
+In this equation ``$ w_j $`` are independent with respect to each other, the form ``$ G_jw_j+\frac{1}{2}(H_j+\lambda)w_j^2 $`` is quadratic and the best ``$ w_j $`` for a given structure ``$q(x)$`` and the best objective reduction we can get is:
 
 ```math
 w_j^\ast = -\frac{G_j}{H_j+\lambda}\\
@@ -217,7 +217,7 @@ This score is like the impurity measure in a decision tree, except that it also 
 
 ### Learn the tree structure
 Now that we have a way to measure how good a tree is, ideally we would enumerate all possible trees and pick the best one.
-In practice it is intractable, so we will try to optimize one level of the tree at a time.
+In practice this is intractable, so we will try to optimize one level of the tree at a time.
 Specifically we try to split a leaf into two leaves, and the score it gains is
 
 ```math
@@ -230,7 +230,7 @@ models! By using the principles of supervised learning, we can naturally come up
 For real valued data, we usually want to search for an optimal split. To efficiently do so, we place all the instances in sorted order, like the following picture.
 ![Best split](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/split_find.png)
 
-Then a left to right scan is sufficient to calculate the structure score of all possible split solutions, and we can find the best split efficiently.
+A left to right scan is sufficient to calculate the structure score of all possible split solutions, and we can find the best split efficiently.
 
 Final words on XGBoost
 ----------------------

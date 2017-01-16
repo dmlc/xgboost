@@ -185,6 +185,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA,
     newdata <- xgb.DMatrix(newdata, missing = missing)
   if (is.null(ntreelimit))
     ntreelimit <- NVL(object$best_ntreelimit, 0)
+  if (NVL(object$params[['booster']], '') == 'gblinear')
+    ntreelimit <- 0
   if (ntreelimit < 0)
     stop("ntreelimit cannot be negative")
   
@@ -339,7 +341,7 @@ xgb.attributes <- function(object) {
   # Q: should we warn a user about non-scalar elements?
   a <- lapply(a, function(x) {
     if (is.null(x)) return(NULL)
-    if (is.numeric(value[1])) {
+    if (is.numeric(x[1])) {
       format(x[1], digits = 17)
     } else {
       as.character(x[1])

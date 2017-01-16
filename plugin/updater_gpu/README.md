@@ -2,14 +2,7 @@
 
 ## Benchmarks
 
-Time for 500 boosting iterations in seconds. 
-
-Dataset | Instances | Features | i7-6700K | Titan X (pascal) | Speedup
---- | --- | --- | --- | --- | --- 
-Yahoo LTR | 473,134 | 700 | 3738 | 507 | 7.37
-Higgs | 10,500,000 | 28 | 31352 | 4173 | 7.51
-Bosch | 1,183,747 | 968 | 9460 | 1009 | 9.38
-
+[See here](http://dmlc.ml/2016/12/14/GPU-accelerated-xgboost.html) for performance benchmarks
 
 ## Usage
 Specify the updater parameter as 'grow_gpu'. 
@@ -32,14 +25,12 @@ Data is stored in a sparse format. For example, missing values produced by one h
 
 A 4GB graphics card will process approximately 3.5 million rows of the well known Kaggle higgs dataset.
 
-The algorithm will automatically perform row subsampling if it detects there is not enough memory on the device.
-
 ## Dependencies
 A CUDA capable GPU with at least compute capability >= 3.5 (the algorithm depends on shuffle and vote instructions introduced in Kepler).
 
 Building the plug-in requires CUDA Toolkit 7.5 or later.
 
-The plugin also depends on CUB 1.5.2 - https://github.com/NVlabs/cub/tree/1.5.2
+The plugin also depends on CUB 1.6.4 - https://nvlabs.github.io/cub/
 
 CUB is a header only cuda library which provides sort/reduce/scan primitives.
 
@@ -70,6 +61,8 @@ The build process generates an xgboost library and executable as normal but cont
 ## Author
 Rory Mitchell 
 
-Report any bugs to r.a.mitchell.nz at google mail.
+Please report bugs to the xgboost/issues page. You can tag me with @RAMitchell.
+
+Otherwise I can be contacted at r.a.mitchell.nz at gmail.
 
 

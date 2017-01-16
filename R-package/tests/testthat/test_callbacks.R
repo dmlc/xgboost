@@ -147,6 +147,11 @@ test_that("cb.reset.parameters works as expected", {
     bst4 <- xgb.train(param, dtrain, nrounds = 2, watchlist,
                       callbacks = list(cb.reset.parameters(my_par)))
   , NA) # NA = no error
+  # CV works as well
+  expect_error(
+    bst4 <- xgb.cv(param, dtrain, nfold = 2, nrounds = 2,
+                   callbacks = list(cb.reset.parameters(my_par)))
+  , NA) # NA = no error
 
   # expect no learning with 0 learning rate
   my_par <- list(eta = c(0., 0.))
