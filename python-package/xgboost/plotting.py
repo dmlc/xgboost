@@ -27,7 +27,7 @@ def plot_importance(booster, ax=None, height=0.2,
         Target axes instance. If None, new figure and axes will be created.
     importance_type : str, default "weight"
         How the importance is calculated: either "weight", "gain", or "cover"
-        "weight" is the number of times a feature appears in a tree@
+        "weight" is the number of times a feature appears in a tree
         "gain" is the average gain of splits which use the feature
         "cover" is the average coverage of splits which use the feature
             where coverage is defined as the number of samples affected by the split
