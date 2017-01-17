@@ -77,6 +77,22 @@ class ScalaBoosterImplSuite extends FunSuite {
     XGBoost.train(trainMat, paramMap, round, watches, null, null)
   }
 
+  private def trainBoosterWithFastHisto(trainMat: DMatrix, testMat: DMatrix): Booster = {
+    val paramMap = List("eta" -> "1", "max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16", "eval_metric" -> "auc").
+      toMap
+    val watches = List("train" -> trainMat, "test" -> testMat).toMap
+
+    val round = 5
+    val metrics = Array.fill(2, round)(0.0f)
+    val booster = XGBoost.train(trainMat, paramMap, round, watches, metrics, null, null)
+    for (i <- 0 until 2; j <- 1 until metrics(i).length) {
+      assert(metrics(i)(j) >= metrics(i)(j - 1))
+    }
+    booster
+  }
+
   test("basic operation of booster") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
@@ -127,5 +143,11 @@ class ScalaBoosterImplSuite extends FunSuite {
     val round = 2
     val nfold = 5
     XGBoost.crossValidation(trainMat, params, round, nfold, null, null, null)
+  }
+
+  test("test with fast histo") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    trainBoosterWithFastHisto(trainMat, testMat)
   }
 }
