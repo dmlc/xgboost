@@ -91,7 +91,7 @@ prediction and dtrain.}
 \item{verbose}{If 0, xgboost will stay silent. If 1, it will print information about performance.
 If 2, some additional information will be printed out.
 Note that setting \code{verbose > 0} automatically engages the 
-\code{\link{cb.print.evaluation(period=1)}} callback function.}
+\code{cb.print.evaluation(period=1)} callback function.}
 
 \item{print_every_n}{Print each n-th iteration evaluation messages when \code{verbose>0}.
 Default is 1 which means all messages are printed. This parameter is passed to the 

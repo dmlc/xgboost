@@ -66,7 +66,7 @@ xgb.get.handle <- function(object) {
 #' or its missing internal handle (when its \code{xgb.Booster.handle} is not valid 
 #' but it has a raw Booster memory dump).
 #' 
-#' @param object Object of class \code{xgb.Booster}
+#' @param object object of class \code{xgb.Booster}
 #' @param saveraw a flag indicating whether to append \code{raw} Booster memory dump data 
 #'                when it doesn't already exist.
 #' 
@@ -99,17 +99,17 @@ xgb.get.handle <- function(object) {
 #' print(bst1$handle)
 #' 
 #' @export
-xgb.Booster.complete <- function(bst, saveraw = TRUE) {
-  if (class(bst) != "xgb.Booster")
+xgb.Booster.complete <- function(object, saveraw = TRUE) {
+  if (class(object) != "xgb.Booster")
     stop("argument type must be xgb.Booster")
   
-  if (is.null.handle(bst$handle)) {
-    bst$handle <- xgb.Booster.handle(modelfile = bst$raw)
+  if (is.null.handle(object$handle)) {
+    object$handle <- xgb.Booster.handle(modelfile = object$raw)
   } else {
-    if (is.null(bst$raw) && saveraw)
-      bst$raw <- xgb.save.raw(bst$handle)
+    if (is.null(object$raw) && saveraw)
+      object$raw <- xgb.save.raw(object$handle)
   }
-  return(bst)
+  return(object)
 }
 
 #' Predict method for eXtreme Gradient Boosting model
