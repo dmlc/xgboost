@@ -202,7 +202,8 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     val error = new EvalError
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testItr, null))
-    assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, true), testSetDMatrix) < 0.1)
+    assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, true),
+      testSetDMatrix) < 0.1)
   }
 
   private def convertCSVPointToLabelPoint(valueArray: Array[String]): LabeledPoint = {
