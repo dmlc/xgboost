@@ -73,7 +73,6 @@ def plot_importance(booster, ax=None, height=0.2,
     tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
         tuples = sorted(tuples, key=lambda x: x[1])[-max_num_features:]
-        ylim = (-1, max_num_features)
     else:
         tuples = sorted(tuples, key=lambda x: x[1])
     labels, values = zip(*tuples)
@@ -101,7 +100,7 @@ def plot_importance(booster, ax=None, height=0.2,
         if not isinstance(ylim, tuple) or len(ylim) != 2:
             raise ValueError('ylim must be a tuple of 2 elements')
     else:
-        ylim = (-1, len(importance))
+        ylim = (-1, len(values))
     ax.set_ylim(ylim)
 
     if title is not None:
