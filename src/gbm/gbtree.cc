@@ -6,6 +6,7 @@
  */
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
+#include <dmlc/timer.h>
 #include <xgboost/logging.h>
 #include <xgboost/gbm.h>
 #include <xgboost/tree_updater.h>
@@ -369,7 +370,7 @@ class GBTree : public GradientBooster {
     const int nthread = omp_get_max_threads();
     CHECK_EQ(num_group, mparam.num_output_group);
     InitThreadTemp(nthread);
-    std::vector<bst_float> &preds = *out_preds;
+    std::vector<bst_float>& preds = *out_preds;
     CHECK_EQ(mparam.size_leaf_vector, 0)
         << "size_leaf_vector is enforced to 0 so far";
     CHECK_EQ(preds.size(), p_fmat->info().num_row * num_group);
@@ -380,17 +381,38 @@ class GBTree : public GradientBooster {
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();
       // parallel over local batch
+      const int K = 8;
       const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const bst_omp_uint rest = nsize % K;
       #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
+      for (bst_omp_uint i = 0; i < nsize - rest; i += K) {
         const int tid = omp_get_thread_num();
-        RegTree::FVec &feats = thread_temp[tid];
-        int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
-        CHECK_LT(static_cast<size_t>(ridx), info.num_row);
+        RegTree::FVec& feats = thread_temp[tid];
+        int64_t ridx[K];
+        RowBatch::Inst inst[K];
+        for (int k = 0; k < K; ++k) {
+          ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
+        }
+        for (int k = 0; k < K; ++k) {
+          inst[k] = batch[i + k];
+        }
+        for (int k = 0; k < K; ++k) {
+          for (int gid = 0; gid < num_group; ++gid) {
+            const size_t offset = ridx[k] * num_group + gid;
+            preds[offset] +=
+                self->PredValue(inst[k], gid, info.GetRoot(ridx[k]),
+                                &feats, tree_begin, tree_end);
+          }
+        }
+      }
+      for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
+        RegTree::FVec& feats = thread_temp[0];
+        const int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
+        const RowBatch::Inst inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {
-          size_t offset = ridx * num_group + gid;
+          const size_t offset = ridx * num_group + gid;
           preds[offset] +=
-              self->PredValue(batch[i], gid, info.GetRoot(ridx),
+              self->PredValue(inst, gid, info.GetRoot(ridx),
                               &feats, tree_begin, tree_end);
         }
       }
