@@ -354,6 +354,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   bst$call <- match.call()
   bst$params <- params
   bst$callbacks <- callbacks
+  bst$data <- data
   
   return(bst)
 }

@@ -221,7 +221,8 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     callbacks = callbacks,
     evaluation_log = evaluation_log,
     niter = end_iteration,
-    folds = folds
+    folds = folds,
+    data = data
   )
   ret <- c(ret, basket)
 
