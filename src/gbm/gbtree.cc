@@ -260,9 +260,11 @@ class GBTree : public GradientBooster {
         new_trees.push_back(std::move(ret));
       }
     }
+    double tstart = dmlc::GetTime();
     for (int gid = 0; gid < mparam.num_output_group; ++gid) {
       this->CommitModel(std::move(new_trees[gid]), gid);
     }
+    LOG(INFO) << "CommitModel(): " << dmlc::GetTime() - tstart << " sec";
   }
 
   void Predict(DMatrix* p_fmat,
@@ -474,14 +476,22 @@ class GBTree : public GradientBooster {
     // update cache entry
     for (auto &kv : cache_) {
       CacheEntry& e = kv.second;
-      if (e.predictions.size() == 0) {
-        PredLoopInternal<GBTree>(
-            e.data.get(), &(e.predictions),
-            0, trees.size(), true);
+      bst_float base_margin = base_margin_;
+
+      if (mparam.num_output_group == 1 && updaters.size() > 0
+        && updaters.back()->UpdatePredictionCache(e.data.get(), &(e.predictions),
+           base_margin) ) {
+        ; // do nothing
       } else {
-        PredLoopInternal<GBTree>(
-            e.data.get(), &(e.predictions),
-            old_ntree, trees.size(), false);
+        if (e.predictions.size() == 0) {
+          PredLoopInternal<GBTree>(
+              e.data.get(), &(e.predictions),
+              0, trees.size(), true);
+        } else {
+          PredLoopInternal<GBTree>(
+              e.data.get(), &(e.predictions),
+              old_ntree, trees.size(), false);
+        }
       }
     }
   }

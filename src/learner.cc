@@ -6,6 +6,7 @@
  */
 #include <xgboost/logging.h>
 #include <xgboost/learner.h>
+#include <dmlc/timer.h>
 #include <dmlc/io.h>
 #include <algorithm>
 #include <vector>
@@ -170,28 +171,9 @@ class LearnerImpl : public Learner {
 
     if (tparam.tree_method == 3) {
       /* histogram-based algorithm */
-      if (cfg_.count("updater") == 0) {
-        LOG(CONSOLE) << "Tree method is selected to be \'hist\', "
-                     << "which uses histogram aggregation for faster training. "
-                     << "Using default sequence of updaters: grow_fast_histmaker,prune";
-        cfg_["updater"] = "grow_fast_histmaker,prune";
-      } else {
-        const std::string first_str = "grow_fast_histmaker";
-        if (first_str.length() <= cfg_["updater"].length()
-          && std::equal(first_str.begin(), first_str.end(), cfg_["updater"].begin())) {
-          // updater sequence starts with "grow_fast_histmaker"
-          LOG(CONSOLE) << "Tree method is selected to be \'hist\', "
-                       << "which uses histogram aggregation for faster training. "
-                       << "Using custom sequence of updaters: " << cfg_["updater"];
-        } else {
-          // updater sequence does not start with "grow_fast_histmaker"
-          LOG(CONSOLE) << "Tree method is selected to be \'hist\', but the given "
-                       << "sequence of updaters is not compatible; "
-                       << "grow_fast_histmaker must run first. "
-                       << "Using default sequence of updaters: grow_fast_histmaker,prune";
-          cfg_["updater"] = "grow_fast_histmaker,prune";
-        }
-      }
+      LOG(CONSOLE) << "Tree method is selected to be \'hist\', which uses a single updater "
+                   << "grow_fast_histmaker.";
+      cfg_["updater"] = "grow_fast_histmaker";
     } else if (cfg_.count("updater") == 0) {
       if (tparam.dsplit == 1) {
         cfg_["updater"] = "distcol";
@@ -333,6 +315,7 @@ class LearnerImpl : public Learner {
   std::string EvalOneIter(int iter,
                           const std::vector<DMatrix*>& data_sets,
                           const std::vector<std::string>& data_names) override {
+    double tstart = dmlc::GetTime();
     std::ostringstream os;
     os << '[' << iter << ']'
        << std::setiosflags(std::ios::fixed);
@@ -347,6 +330,8 @@ class LearnerImpl : public Learner {
            << ev->Eval(preds_, data_sets[i]->info(), tparam.dsplit == 2);
       }
     }
+
+    LOG(INFO) << "EvalOneIter(): " << dmlc::GetTime() - tstart << " sec";
     return os.str();
   }
 

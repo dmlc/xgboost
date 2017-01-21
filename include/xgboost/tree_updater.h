@@ -45,14 +45,11 @@ class TreeUpdater {
   virtual void Update(const std::vector<bst_gpair>& gpair,
                       DMatrix* data,
                       const std::vector<RegTree*>& trees) = 0;
-  /*!
-   * \brief this is simply a function for optimizing performance
-   * this function asks the updater to return the leaf position of each instance in the previous performed update.
-   * if it is cached in the updater, if it is not available, return nullptr
-   * \return array of leaf position of each instance in the last updated tree
-   */
-  virtual const int* GetLeafPosition() const {
-    return nullptr;
+
+  virtual bool UpdatePredictionCache(const DMatrix* data,
+                                     std::vector<bst_float>* out_preds,
+                                     bst_float base_margin) const {
+    return false;
   }
   /*!
    * \brief Create a tree updater given name
