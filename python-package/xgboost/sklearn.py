@@ -490,7 +490,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                              output_margin=output_margin,
                                              ntree_limit=ntree_limit)
         # Ensure that class_probs are between 0 and 1 (min-max transform)
-        scaled_class_probs = (class_probs - np.min(class_probs, axis=0))/(np.max(class_probs, axis=0) - np.min(class_probs, axis=0))
+        scaled_class_probs = (class_probs - np.min(class_probs, axis=0)) /
+                             (np.max(class_probs, axis=0) - np.min(class_probs, axis=0))
         if self.objective == "multi:softprob":
             # Renormalize to ensure probabilities of all classes sum to 1 for every instance 
             class_probs = np.divide(scaled_class_probs, np.sum(scaled_class_probs, axis=1)[:, None])
