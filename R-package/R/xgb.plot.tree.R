@@ -126,4 +126,4 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
 # They are mainly column names inferred by Data.table...
-globalVariables(c("Feature", "ID", "Cover", "Quality", "Split", "Yes", "No", ".", "shape", "filledcolor", "label"))
+globalVariables(c("Feature", "ID", "Cover", "Quality", "Split", "Yes", "No", "Missing", ".", "shape", "filledcolor", "label"))
