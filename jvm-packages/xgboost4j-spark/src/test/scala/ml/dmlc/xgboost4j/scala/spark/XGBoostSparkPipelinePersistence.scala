@@ -88,18 +88,14 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
     val sameModelXGBParamMap = sameModel.extractParamMap()
     assert(predictionModelXGBParamMap.get(predictionModelXGB.useExternalMemory)
       === sameModelXGBParamMap.get(sameModelXGB.useExternalMemory))
-    assert(predictionModelXGB.get(predictionModelXGB.featuresCol)
+    assert(predictionModelXGBParamMap.get(predictionModelXGB.featuresCol)
       === sameModelXGBParamMap.get(sameModelXGB.featuresCol))
-    assert(predictionModelXGB.get(predictionModelXGB.predictionCol)
+    assert(predictionModelXGBParamMap.get(predictionModelXGB.predictionCol)
       === sameModelXGBParamMap.get(sameModelXGB.predictionCol))
-    assert(predictionModelXGB.get(predictionModelXGB.labelCol)
+    assert(predictionModelXGBParamMap.get(predictionModelXGB.labelCol)
       === sameModelXGBParamMap.get(sameModelXGB.labelCol))
-    assert(predictionModelXGB.get(predictionModelXGB.labelCol)
+    assert(predictionModelXGBParamMap.get(predictionModelXGB.labelCol)
       === sameModelXGBParamMap.get(sameModelXGB.labelCol))
-    //
-    //    val memoryPredictionsPipe = predictionModel.transform(df)
-    //    val loadedPredictionsPipe = sameModel.transform(df)
-    //    assert(memoryPredictionsPipe.collect === loadedPredictionsPipe.collect)
   }
 }
 
