@@ -144,6 +144,10 @@ class XGBModel(XGBModelBase):
         self.seed = seed
         self.missing = missing if missing is not None else np.nan
         self._Booster = None
+        self.evals_result_ = None
+        self.best_score = None
+        self.best_iteration = None
+        self.best_ntree_limit = None
 
     def __setstate__(self, state):
         # backward compatibility code
@@ -373,7 +377,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable = attribute-defined-outside-init,arguments-differ
+        # pylint: disable = attribute-defined-outside-init,arguments-differ, too-many-branches
         """
         Fit gradient boosting classifier
 
@@ -440,6 +444,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         training_labels = self._le.transform(y)
 
         if eval_set is not None:
+            # pylint: disable=fixme
             # TODO: use sample_weight if given?
             evals = list(
                 DMatrix(x[0], label=self._le.transform(
