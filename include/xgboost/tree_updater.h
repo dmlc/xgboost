@@ -46,9 +46,18 @@ class TreeUpdater {
                       DMatrix* data,
                       const std::vector<RegTree*>& trees) = 0;
 
+  /*!
+   * \brief determines whether updater has enough knowledge about a given dataset
+   *        to quickly update prediction cache its training data and performs the
+   *        update if possible.
+   * \param data: data matrix
+   * \param out_preds: prediction cache to be updated
+   * \return boolean indicating whether updater has capability to update
+   *         the prediction cache. If true, the prediction cache will have been
+   *         updated by the time this function returns.
+   */
   virtual bool UpdatePredictionCache(const DMatrix* data,
-                                     std::vector<bst_float>* out_preds,
-                                     bst_float base_margin) const {
+                                     std::vector<bst_float>* out_preds) const {
     return false;
   }
   /*!

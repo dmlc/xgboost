@@ -44,6 +44,8 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   std::string updater_seq;
   /*! \brief type of boosting process to run */
   int process_type;
+  // flag to print out detailed breakdown of runtime
+  int debug_verbose;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
     DMLC_DECLARE_FIELD(num_parallel_tree)
@@ -60,6 +62,10 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
         .add_enum("update", kUpdate)
         .describe("Whether to run the normal boosting process that creates new trees,"\
                   " or to update the trees in an existing model.");
+    DMLC_DECLARE_FIELD(debug_verbose)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("flag to print out detailed breakdown of runtime");
     // add alias
     DMLC_DECLARE_ALIAS(updater_seq, updater);
   }
@@ -264,7 +270,9 @@ class GBTree : public GradientBooster {
     for (int gid = 0; gid < mparam.num_output_group; ++gid) {
       this->CommitModel(std::move(new_trees[gid]), gid);
     }
-    LOG(INFO) << "CommitModel(): " << dmlc::GetTime() - tstart << " sec";
+    if (tparam.debug_verbose > 0) {
+      LOG(INFO) << "CommitModel(): " << dmlc::GetTime() - tstart << " sec";
+    }
   }
 
   void Predict(DMatrix* p_fmat,
@@ -476,22 +484,27 @@ class GBTree : public GradientBooster {
     // update cache entry
     for (auto &kv : cache_) {
       CacheEntry& e = kv.second;
-      bst_float base_margin = base_margin_;
+
+      if (e.predictions.size() == 0) {
+        const int num_group = mparam.num_output_group;
+        const size_t n = num_group * e.data->info().num_row;
+        const std::vector<bst_float>& base_margin = e.data->info().base_margin;
+        e.predictions.resize(n);
+        if (base_margin.size() != 0) {
+          CHECK_EQ(e.predictions.size(), n);
+          std::copy(base_margin.begin(), base_margin.end(), e.predictions.begin());
+        } else {
+          std::fill(e.predictions.begin(), e.predictions.end(), base_margin_);
+        }
+      }
 
       if (mparam.num_output_group == 1 && updaters.size() > 0
-        && updaters.back()->UpdatePredictionCache(e.data.get(), &(e.predictions),
-           base_margin) ) {
+        && updaters.back()->UpdatePredictionCache(e.data.get(), &(e.predictions)) ) {
         ; // do nothing
       } else {
-        if (e.predictions.size() == 0) {
-          PredLoopInternal<GBTree>(
-              e.data.get(), &(e.predictions),
-              0, trees.size(), true);
-        } else {
-          PredLoopInternal<GBTree>(
-              e.data.get(), &(e.predictions),
-              old_ntree, trees.size(), false);
-        }
+        PredLoopInternal<GBTree>(
+            e.data.get(), &(e.predictions),
+            old_ntree, trees.size(), false);
       }
     }
   }

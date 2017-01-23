@@ -38,7 +38,11 @@ template<typename TStats, typename TConstraint>
 class FastHistMaker: public TreeUpdater {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
-    p_cfg = &args;
+    // initialize pruner
+    if (!pruner_) {
+      pruner_.reset(TreeUpdater::Create("prune"));
+    }
+    pruner_->Init(args);
     param.InitAllowUnknown(args);
     is_gmat_initialized_ = false;
   }
@@ -53,7 +57,9 @@ class FastHistMaker: public TreeUpdater {
       gmat_.cut = &hmat_;
       gmat_.Init(dmat);
       is_gmat_initialized_ = true;
-      LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
+      if (param.debug_verbose > 0) {
+        LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
+      }
     }
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
@@ -61,7 +67,7 @@ class FastHistMaker: public TreeUpdater {
     TConstraint::Init(&param, dmat->info().num_col);
     // build tree
     if (!builder_) {
-      builder_.reset(new Builder(param, p_cfg));
+      builder_.reset(new Builder(param, pruner_));
     }
     for (size_t i = 0; i < trees.size(); ++i) {
       builder_->Update(gmat_, gpair, dmat, trees[i]);
@@ -70,12 +76,11 @@ class FastHistMaker: public TreeUpdater {
   }
 
   bool UpdatePredictionCache(const DMatrix* data,
-                             std::vector<bst_float>* out_preds,
-                             bst_float base_margin) const override {
+                             std::vector<bst_float>* out_preds) const override {
     if (!builder_ || param.subsample < 1.0f) {
       return false;
     } else {
-      return builder_->UpdatePredictionCache(data, out_preds, base_margin);
+      return builder_->UpdatePredictionCache(data, out_preds);
     }
   }
 
@@ -125,8 +130,8 @@ class FastHistMaker: public TreeUpdater {
    public:
     // constructor
     explicit Builder(const TrainParam& param,
-                     const std::vector<std::pair<std::string, std::string> >* p_cfg)
-      : param(param), p_cfg(p_cfg) {}
+                     std::shared_ptr<TreeUpdater> pruner)
+      : param(param), pruner_(pruner) {}
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
                         const std::vector<bst_gpair>& gpair,
@@ -247,7 +252,7 @@ class FastHistMaker: public TreeUpdater {
                   << std::fixed << std::setw(4) << std::setprecision(2) << time_init_new_node
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_init_new_node / total_time * 100 << "%)\n"
-                  << "BuildHist:          "
+                  << "BuildHist:         "
                   << std::fixed << std::setw(4) << std::setprecision(2) << time_build_hist
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_build_hist / total_time * 100 << "%)\n"
@@ -266,25 +271,14 @@ class FastHistMaker: public TreeUpdater {
     }
 
     inline bool UpdatePredictionCache(const DMatrix* data,
-                                      std::vector<bst_float>* p_out_preds,
-                                      bst_float base_margin) const {
-      const double tstart = dmlc::GetTime();
+                                      std::vector<bst_float>* p_out_preds) const {
       std::vector<bst_float>& out_preds = *p_out_preds;
 
       if (!p_last_fmat_ || data != p_last_fmat_) {
         return false;
       }
 
-      if (out_preds.size() == 0) {
-        const MetaInfo& info = p_last_fmat_->info();
-        const std::vector<bst_float>& base_margin_vec = info.base_margin;
-        out_preds.resize(info.num_row);
-        if (base_margin_vec.size() != 0) {
-          std::copy(base_margin_vec.begin(), base_margin_vec.end(), out_preds.begin());
-        } else {
-          std::fill(out_preds.begin(), out_preds.end(), base_margin);
-        }
-      }
+      CHECK_GT(out_preds.size(), 0);
 
       for (const RowSetCollection::Elem rowset : row_set_collection_) {
         if (rowset.begin != nullptr && rowset.end != nullptr) {
@@ -302,8 +296,6 @@ class FastHistMaker: public TreeUpdater {
           }
         }
       }
-
-      LOG(INFO) << "Updating cache: " << dmlc::GetTime() - tstart << " sec";
 
       return true;
     }
@@ -338,11 +330,6 @@ class FastHistMaker: public TreeUpdater {
           this->nthread = omp_get_num_threads();
         }
         builder_.Init(this->nthread, nbins);
-        // initialize pruner
-        if (!pruner_) {
-          pruner_.reset(TreeUpdater::Create("prune"));
-        }
-        pruner_->Init(*p_cfg);
 
         CHECK_EQ(info.root_index.size(), 0U);
         std::vector<bst_uint>& row_indices = row_set_collection_.row_indices_;
@@ -767,11 +754,10 @@ class FastHistMaker: public TreeUpdater {
     size_t fid_least_bins_;
 
     GHistBuilder builder_;
-    std::unique_ptr<TreeUpdater> pruner_;
+    std::shared_ptr<TreeUpdater> pruner_;
 
     const RegTree* p_last_tree_ = nullptr;
     const DMatrix* p_last_fmat_ = nullptr;
-    const std::vector<std::pair<std::string, std::string> >* p_cfg = nullptr;
 
     // constraint value
     std::vector<TConstraint> constraints_;
@@ -786,7 +772,7 @@ class FastHistMaker: public TreeUpdater {
   };
 
   std::unique_ptr<Builder> builder_;
-  const std::vector<std::pair<std::string, std::string> >* p_cfg = nullptr;
+  std::shared_ptr<TreeUpdater> pruner_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(FastHistMaker, "grow_fast_histmaker")

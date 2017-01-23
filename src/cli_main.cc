@@ -194,7 +194,9 @@ void CLITrain(const CLIParam& param) {
       learner->InitModel();
     }
   }
-  LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";
+  if (param.silent == 0) {
+    LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";
+  }
   // start training.
   const double start = dmlc::GetTime();
   for (int i = version / 2; i < param.num_round; ++i) {

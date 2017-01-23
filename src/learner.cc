@@ -84,6 +84,8 @@ struct LearnerTrainParam
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
   int nthread;
+  // flag to print out detailed breakdown of runtime
+  int debug_verbose;
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
     DMLC_DECLARE_FIELD(seed).set_default(0)
@@ -110,6 +112,10 @@ struct LearnerTrainParam
         .describe("maximum row per batch.");
     DMLC_DECLARE_FIELD(nthread).set_default(0)
         .describe("Number of threads to use.");
+    DMLC_DECLARE_FIELD(debug_verbose)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("flag to print out detailed breakdown of runtime");
   }
 };
 
@@ -331,7 +337,9 @@ class LearnerImpl : public Learner {
       }
     }
 
-    LOG(INFO) << "EvalOneIter(): " << dmlc::GetTime() - tstart << " sec";
+    if (tparam.debug_verbose > 0) {
+      LOG(INFO) << "EvalOneIter(): " << dmlc::GetTime() - tstart << " sec";
+    }
     return os.str();
   }
 

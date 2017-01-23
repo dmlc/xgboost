@@ -38,6 +38,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   // growing policy
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
+  // flag to print out detailed breakdown of runtime
   int debug_verbose;
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
@@ -90,9 +91,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
-        .describe(
-            "Setting verbose flag with a positive value causes the updater "
-            "to print out *detailed* list of tasks and their runtime");
+        .describe("flag to print out detailed breakdown of runtime");
     DMLC_DECLARE_FIELD(max_depth)
         .set_lower_bound(0)
         .set_default(6)
