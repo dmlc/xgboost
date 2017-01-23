@@ -1,5 +1,6 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name,
+# fixme, E0012, R0912
 """Scikit-Learn Wrapper interface for XGBoost."""
 from __future__ import absolute_import
 
@@ -8,7 +9,8 @@ from .core import Booster, DMatrix, XGBoostError
 from .training import train
 
 # Do not use class names on scikit-learn directly.
-# Re-define the classes on .compat to guarantee the behavior without scikit-learn
+# Re-define the classes on .compat to guarantee the behavior without
+# scikit-learn
 from .compat import (SKLEARN_INSTALLED, XGBModelBase,
                      XGBClassifierBase, XGBRegressorBase, XGBLabelEncoder)
 
@@ -49,7 +51,8 @@ def _objective_decorator(func):
 
 
 class XGBModel(XGBModelBase):
-    # pylint: disable=too-many-arguments, too-many-instance-attributes, invalid-name
+    # pylint: disable=too-many-arguments, too-many-instance-attributes,
+    # invalid-name
     """Implementation of the Scikit-Learn API for XGBoost.
 
     Parameters
@@ -118,7 +121,8 @@ class XGBModel(XGBModelBase):
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, seed=0, missing=None):
         if not SKLEARN_INSTALLED:
-            raise XGBoostError('sklearn needs to be installed in order to use this module')
+            raise XGBoostError(
+                'sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.n_estimators = n_estimators
@@ -184,7 +188,8 @@ class XGBModel(XGBModelBase):
 
     def fit(self, X, y, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
+        # pylint:
+        # disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
 
@@ -223,7 +228,8 @@ class XGBModel(XGBModelBase):
 
         evals_result = {}
         if eval_set is not None:
-            evals = list(DMatrix(x[0], label=x[1], missing=self.missing) for x in eval_set)
+            evals = list(DMatrix(x[0], label=x[1],
+                                 missing=self.missing) for x in eval_set)
             evals = list(zip(evals, ["validation_{}".format(i) for i in
                                      range(len(evals))]))
         else:
@@ -253,7 +259,8 @@ class XGBModel(XGBModelBase):
         if evals_result:
             for val in evals_result.items():
                 evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
+                evals_result[val[0]][evals_result_key] = val[
+                    1][evals_result_key]
             self.evals_result_ = evals_result
 
         if early_stopping_rounds is not None:
@@ -417,7 +424,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             obj = None
 
         if self.n_classes_ > 2:
-            # Switch to using a multiclass objective in the underlying XGB instance
+            # Switch to using a multiclass objective in the underlying XGB
+            # instance
             xgb_options["objective"] = "multi:softprob"
             xgb_options['num_class'] = self.n_classes_
 
@@ -434,7 +442,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if eval_set is not None:
             # TODO: use sample_weight if given?
             evals = list(
-                DMatrix(x[0], label=self._le.transform(x[1]), missing=self.missing)
+                DMatrix(x[0], label=self._le.transform(
+                    x[1]), missing=self.missing)
                 for x in eval_set
             )
             nevals = len(evals)
@@ -462,7 +471,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if evals_result:
             for val in evals_result.items():
                 evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
+                evals_result[val[0]][evals_result_key] = val[
+                    1][evals_result_key]
             self.evals_result_ = evals_result
 
         if early_stopping_rounds is not None:
@@ -491,10 +501,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                              ntree_limit=ntree_limit)
         # Ensure that class_probs are between 0 and 1 (min-max transform)
         scaled_class_probs = (class_probs - np.min(class_probs, axis=0)) / \
-                             (np.max(class_probs, axis=0) - np.min(class_probs, axis=0))
+                             (np.max(class_probs, axis=0) -
+                              np.min(class_probs, axis=0))
         if self.objective == "multi:softprob":
-            # Renormalize to ensure probabilities of all classes sum to 1 for every instance 
-            class_probs = np.divide(scaled_class_probs, np.sum(scaled_class_probs, axis=1)[:, None])
+            # Renormalize to ensure probabilities of all classes sum to 1 for
+            # every instance
+            class_probs = np.divide(scaled_class_probs, np.sum(
+                scaled_class_probs, axis=1)[:, None])
             return class_probs
         else:
             classone_probs = scaled_class_probs
