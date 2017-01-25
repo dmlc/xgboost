@@ -14,7 +14,7 @@ from .sklearn import XGBModel
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features',
-                    importance_type='weight',
+                    importance_type='weight', max_num_features=None,
                     grid=True, **kwargs):
 
     """Plot importance based on fitted trees.
@@ -31,6 +31,8 @@ def plot_importance(booster, ax=None, height=0.2,
         "gain" is the average gain of splits which use the feature
         "cover" is the average coverage of splits which use the feature
             where coverage is defined as the number of samples affected by the split
+    max_num_features : int, default None
+        Maximum number of top features displayed on plot. If None, all features will be displayed.
     height : float, default 0.2
         Bar height, passed to ax.barh()
     xlim : tuple, default None
@@ -69,7 +71,10 @@ def plot_importance(booster, ax=None, height=0.2,
         raise ValueError('Booster.get_score() results in empty')
 
     tuples = [(k, importance[k]) for k in importance]
-    tuples = sorted(tuples, key=lambda x: x[1])
+    if max_num_features is not None:
+        tuples = sorted(tuples, key=lambda x: x[1])[-max_num_features:]
+    else:
+        tuples = sorted(tuples, key=lambda x: x[1])
     labels, values = zip(*tuples)
 
     if ax is None:
@@ -95,7 +100,7 @@ def plot_importance(booster, ax=None, height=0.2,
         if not isinstance(ylim, tuple) or len(ylim) != 2:
             raise ValueError('ylim must be a tuple of 2 elements')
     else:
-        ylim = (-1, len(importance))
+        ylim = (-1, len(values))
     ax.set_ylim(ylim)
 
     if title is not None:

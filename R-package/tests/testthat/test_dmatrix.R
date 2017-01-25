@@ -21,6 +21,15 @@ test_that("xgb.DMatrix: basic construction, saving, loading", {
   dtest3 <- xgb.DMatrix(tmp_file)
   unlink(tmp_file)
   expect_equal(getinfo(dtest1, 'label'), getinfo(dtest3, 'label'))
+  
+  # from a libsvm text file
+  tmp <- c("0 1:1 2:1","1 3:1","0 1:1")
+  tmp_file <- 'tmp.libsvm'
+  writeLines(tmp, tmp_file)
+  dtest4 <- xgb.DMatrix(tmp_file)
+  expect_equal(dim(dtest4), c(3, 4))
+  expect_equal(getinfo(dtest4, 'label'), c(0,1,0))
+  unlink(tmp_file)
 })
 
 test_that("xgb.DMatrix: getinfo & setinfo", {

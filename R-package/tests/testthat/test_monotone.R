@@ -10,8 +10,8 @@ train = matrix(x, ncol = 1)
 
 test_that("monotone constraints for regression", {
   bst = xgboost(data = train, label = y, max_depth = 2,
-                 eta = 0.1, nthread = 2, nrounds = 100,
-                 monotone_constraints = -1)
+                eta = 0.1, nthread = 2, nrounds = 100, verbose = 0,
+                monotone_constraints = -1)
   
   pred = predict(bst, train)
   
