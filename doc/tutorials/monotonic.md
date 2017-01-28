@@ -1,7 +1,7 @@
 Monotonic Constraints
 =====================
 
-It is often the case ina  modeling problems or project that the functional form of an acceptable model is constrained in some way.  This may happen due to business considerations, or because of the type of scientific question being investigated.  In some cases, where there is a very strong prior belief that the true relationship has some quality, constraints can be used to improve the predictive performance of the model. 
+It is often the case in a modeling problem or project that the functional form of an acceptable model is constrained in some way.  This may happen due to business considerations, or because of the type of scientific question being investigated.  In some cases, where there is a very strong prior belief that the true relationship has some quality, constraints can be used to improve the predictive performance of the model. 
 
 A common type of constraint in this situation is that certain features bear a *monotonic* relationship to the predicted response:
 
@@ -9,13 +9,13 @@ A common type of constraint in this situation is that certain features bear a *m
 f(x_1, x_2, \ldots, x, \ldots, x_{n-1}, x_n) \leq f(x_1, x_2, \ldots, x', \ldots, x_{n-1}, x_n)
 ```
 
-whenever ``$ x \leq x' $``, an *increasing constraint*; or 
+whenever ``$ x \leq x' $`` is an *increasing constraint*; or 
 
 ```math
 f(x_1, x_2, \ldots, x, \ldots, x_{n-1}, x_n) \geq f(x_1, x_2, \ldots, x', \ldots, x_{n-1}, x_n)
 ```
 
-whenever ``$ x \leq x' $``, a *decreasing constraint*.
+whenever ``$ x \leq x' $`` is a *decreasing constraint*.
 
 XGBoost has the ability to enforce monotonicity constraints on any features used in a boosted model. 
 
@@ -38,7 +38,7 @@ Let's fit a boosted tree model to this data without imposing any monotonic const
 
 ![Fit of Model with No Constraint](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/monotonic/two.feature.no.constraint.png)
 
-The black curve shows the trend inferred from the model for each feature.  To make these plots the distinguished feature ``$x_i$`` is fed to the model over a one dimensional grid of values, while all the other features (in this case only one other feature) are set to their average values.  We see that the model does a good job of capturing the general trend with the oscillatory wave superimposed.
+The black curve shows the trend inferred from the model for each feature.  To make these plots the distinguished feature ``$x_i$`` is fed to the model over a one-dimensional grid of values, while all the other features (in this case only one other feature) are set to their average values.  We see that the model does a good job of capturing the general trend with the oscillatory wave superimposed.
 
 Here is the same model, but fit with monotonicity constraints
 
@@ -70,7 +70,7 @@ model_with_constraints = xgb.train(params_constrained, dtrain,
                                    early_stopping_rounds = 10)
 ```
 
-In this example the training data ```X``` has two columns, and by unsing the parameter value ```(1,-1)``` we are telling XGBoost to impose an increaseing constraint on the first predictor and a decreasing constraint on the second.
+In this example the training data ```X``` has two columns, and by using the parameter values ```(1,-1)``` we are telling XGBoost to impose an increasing constraint on the first predictor and a decreasing constraint on the second.
 
 Some other examples:
 

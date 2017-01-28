@@ -348,10 +348,12 @@ struct WXQSummary : public WQSummary<DType, RType> {
       this->CopyFrom(src); return;
     }
     RType begin = src.data[0].rmax;
-    size_t n = maxsize - 1, nbig = 0;
+    // n is number of points exclude the min/max points
+    size_t n = maxsize - 2, nbig = 0;
+    // these is the range of data exclude the min/max point
     RType range = src.data[src.size - 1].rmin - begin;
     // prune off zero weights
-    if (range == 0.0f) {
+    if (range == 0.0f || maxsize <= 2) {
       // special case, contain only two effective data pts
       this->data[0] = src.data[0];
       this->data[1] = src.data[src.size - 1];
@@ -360,16 +362,21 @@ struct WXQSummary : public WQSummary<DType, RType> {
     } else {
       range = std::max(range, static_cast<RType>(1e-3f));
     }
+    // Get a big enough chunk size, bigger than range / n
+    // (multiply by 2 is a safe factor)
     const RType chunk = 2 * range / n;
     // minimized range
     RType mrange = 0;
     {
       // first scan, grab all the big chunk
-      // moving block index
+      // moving block index, exclude the two ends.
       size_t bid = 0;
-      for (size_t i = 1; i < src.size; ++i) {
+      for (size_t i = 1; i < src.size - 1; ++i) {
+        // detect big chunk data point in the middle
+        // always save these data points.
         if (CheckLarge(src.data[i], chunk)) {
           if (bid != i - 1) {
+            // accumulate the range of the rest points
             mrange += src.data[i].rmax_prev() - src.data[bid].rmin_next();
           }
           bid = i; ++nbig;
@@ -379,17 +386,18 @@ struct WXQSummary : public WQSummary<DType, RType> {
         mrange += src.data[src.size-1].rmax_prev() - src.data[bid].rmin_next();
       }
     }
-    if (nbig >= n - 1) {
+    // assert: there cannot be more than n big data points
+    if (nbig >= n) {
       // see what was the case
       LOG(INFO) << " check quantile stats, nbig=" << nbig << ", n=" << n;
       LOG(INFO) << " srcsize=" << src.size << ", maxsize=" << maxsize
                 << ", range=" << range << ", chunk=" << chunk;
       src.Print();
-      CHECK(nbig < n - 1) << "quantile: too many large chunk";
+      CHECK(nbig < n) << "quantile: too many large chunk";
     }
     this->data[0] = src.data[0];
     this->size = 1;
-    // use smaller size
+    // The counter on the rest of points, to be selected equally from small chunks.
     n = n - nbig;
     // find the rest of point
     size_t bid = 0, k = 1, lastidx = 0;

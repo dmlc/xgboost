@@ -42,6 +42,7 @@
 #include "../src/tree/tree_model.cc"
 #include "../src/tree/tree_updater.cc"
 #include "../src/tree/updater_colmaker.cc"
+#include "../src/tree/updater_fast_hist.cc"
 #include "../src/tree/updater_prune.cc"
 #include "../src/tree/updater_refresh.cc"
 #include "../src/tree/updater_sync.cc"
@@ -52,6 +53,7 @@
 #include "../src/learner.cc"
 #include "../src/logging.cc"
 #include "../src/common/common.cc"
+#include "../src/common/hist_util.cc"
 
 // c_api
 #include "../src/c_api/c_api.cc"
