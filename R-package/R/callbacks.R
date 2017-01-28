@@ -507,7 +507,7 @@ cb.cv.predict <- function(save_models = FALSE) {
     if (save_models) {
       env$basket$models <- lapply(env$bst_folds, function(fd) {
         xgb.attr(fd$bst, 'niter') <- env$end_iteration - 1
-        xgb.Booster.check(xgb.handleToBooster(fd$bst), saveraw = TRUE)
+        xgb.Booster.complete(xgb.handleToBooster(fd$bst), saveraw = TRUE)
       })
     }
   }
