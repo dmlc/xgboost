@@ -6,6 +6,7 @@
  */
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
+#include <dmlc/timer.h>
 #include <xgboost/logging.h>
 #include <xgboost/gbm.h>
 #include <xgboost/tree_updater.h>
@@ -72,9 +73,11 @@ struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
   int sample_type;
   /*! \brief type of normalization algorithm */
   int normalize_type;
-  /*! \brief how many trees are dropped */
+  /*! \brief fraction of trees to drop during the dropout */
   float rate_drop;
-  /*! \brief whether to drop trees */
+  /*! \brief whether at least one tree should always be dropped during the dropout */
+  bool one_drop;
+  /*! \brief probability of skipping the dropout during an iteration */
   float skip_drop;
   /*! \brief learning step size for a time */
   float learning_rate;
@@ -96,11 +99,14 @@ struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
     DMLC_DECLARE_FIELD(rate_drop)
         .set_range(0.0f, 1.0f)
         .set_default(0.0f)
-        .describe("Parameter of how many trees are dropped.");
+        .describe("Fraction of trees to drop during the dropout.");
+    DMLC_DECLARE_FIELD(one_drop)
+        .set_default(false)
+        .describe("Whether at least one tree should always be dropped during the dropout.");
     DMLC_DECLARE_FIELD(skip_drop)
         .set_range(0.0f, 1.0f)
         .set_default(0.0f)
-        .describe("Parameter of whether to drop trees.");
+        .describe("Probability of skipping the dropout during a boosting iteration.");
     DMLC_DECLARE_FIELD(learning_rate)
         .set_lower_bound(0.0f)
         .set_default(0.3f)
@@ -364,7 +370,7 @@ class GBTree : public GradientBooster {
     const int nthread = omp_get_max_threads();
     CHECK_EQ(num_group, mparam.num_output_group);
     InitThreadTemp(nthread);
-    std::vector<bst_float> &preds = *out_preds;
+    std::vector<bst_float>& preds = *out_preds;
     CHECK_EQ(mparam.size_leaf_vector, 0)
         << "size_leaf_vector is enforced to 0 so far";
     CHECK_EQ(preds.size(), p_fmat->info().num_row * num_group);
@@ -375,17 +381,38 @@ class GBTree : public GradientBooster {
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();
       // parallel over local batch
+      const int K = 8;
       const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const bst_omp_uint rest = nsize % K;
       #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
+      for (bst_omp_uint i = 0; i < nsize - rest; i += K) {
         const int tid = omp_get_thread_num();
-        RegTree::FVec &feats = thread_temp[tid];
-        int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
-        CHECK_LT(static_cast<size_t>(ridx), info.num_row);
+        RegTree::FVec& feats = thread_temp[tid];
+        int64_t ridx[K];
+        RowBatch::Inst inst[K];
+        for (int k = 0; k < K; ++k) {
+          ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
+        }
+        for (int k = 0; k < K; ++k) {
+          inst[k] = batch[i + k];
+        }
+        for (int k = 0; k < K; ++k) {
+          for (int gid = 0; gid < num_group; ++gid) {
+            const size_t offset = ridx[k] * num_group + gid;
+            preds[offset] +=
+                self->PredValue(inst[k], gid, info.GetRoot(ridx[k]),
+                                &feats, tree_begin, tree_end);
+          }
+        }
+      }
+      for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
+        RegTree::FVec& feats = thread_temp[0];
+        const int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
+        const RowBatch::Inst inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {
-          size_t offset = ridx * num_group + gid;
+          const size_t offset = ridx * num_group + gid;
           preds[offset] +=
-              self->PredValue(batch[i], gid, info.GetRoot(ridx),
+              self->PredValue(inst, gid, info.GetRoot(ridx),
                               &feats, tree_begin, tree_end);
         }
       }
@@ -658,11 +685,26 @@ class Dart : public GBTree {
             idx_drop.push_back(i);
           }
         }
+        if (dparam.one_drop && idx_drop.empty() && !weight_drop.empty()) {
+          // the expression below is an ugly but MSVC2013-friendly equivalent of
+          // size_t i = std::discrete_distribution<size_t>(weight_drop.begin(),
+          //                                               weight_drop.end())(rnd);
+          size_t i = std::discrete_distribution<size_t>(
+            weight_drop.size(), 0., static_cast<double>(weight_drop.size()),
+            [this](double x) -> double {
+              return weight_drop[static_cast<size_t>(x)];
+            })(rnd);
+          idx_drop.push_back(i);
+        }
       } else {
         for (size_t i = 0; i < weight_drop.size(); ++i) {
           if (runif(rnd) < dparam.rate_drop) {
             idx_drop.push_back(i);
           }
+        }
+        if (dparam.one_drop && idx_drop.empty() && !weight_drop.empty()) {
+          size_t i = std::uniform_int_distribution<size_t>(0, weight_drop.size() - 1)(rnd);
+          idx_drop.push_back(i);
         }
       }
     }
@@ -680,7 +722,7 @@ class Dart : public GBTree {
         // normalize_type 1
         float factor = 1.0 / (1.0 + lr);
         for (size_t i = 0; i < idx_drop.size(); ++i) {
-          weight_drop[i] *= factor;
+          weight_drop[idx_drop[i]] *= factor;
         }
         for (size_t i = 0; i < size_new_trees; ++i) {
           weight_drop.push_back(factor);
@@ -689,7 +731,7 @@ class Dart : public GBTree {
         // normalize_type 0
         float factor = 1.0 * num_drop / (num_drop + lr);
         for (size_t i = 0; i < idx_drop.size(); ++i) {
-          weight_drop[i] *= factor;
+          weight_drop[idx_drop[i]] *= factor;
         }
         for (size_t i = 0; i < size_new_trees; ++i) {
           weight_drop.push_back(1.0 / (num_drop + lr));

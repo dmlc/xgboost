@@ -39,6 +39,15 @@
 #define XGBOOST_CUSTOMIZE_GLOBAL_PRNG  XGBOOST_STRICT_R_MODE
 #endif
 
+/*!
+ * \brief Check if alignas(*) keyword is supported. (g++ 4.8 or higher)
+ */
+#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 8
+#define XGBOOST_ALIGNAS(X) alignas(X)
+#else
+#define XGBOOST_ALIGNAS(X)
+#endif
+
 /*! \brief namespace of xgboo st*/
 namespace xgboost {
 /*!

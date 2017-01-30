@@ -229,7 +229,7 @@ cb.reset.parameters <- function(new_params) {
       xgb.parameters(env$bst$handle) <- pars
     } else {
       for (fd in env$bst_folds)
-        xgb.parameters(fd$bst$handle) <- pars
+        xgb.parameters(fd$bst) <- pars
     }
   }
   attr(callback, 'is_pre_iteration') <- TRUE
@@ -507,7 +507,7 @@ cb.cv.predict <- function(save_models = FALSE) {
     if (save_models) {
       env$basket$models <- lapply(env$bst_folds, function(fd) {
         xgb.attr(fd$bst, 'niter') <- env$end_iteration - 1
-        xgb.Booster.check(xgb.handleToBooster(fd$bst), saveraw = TRUE)
+        xgb.Booster.complete(xgb.handleToBooster(fd$bst), saveraw = TRUE)
       })
     }
   }

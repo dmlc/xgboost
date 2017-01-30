@@ -1,5 +1,9 @@
 # CUDA Accelerated Tree Construction Algorithm
 
+## Benchmarks
+
+[See here](http://dmlc.ml/2016/12/14/GPU-accelerated-xgboost.html) for performance benchmarks
+
 ## Usage
 Specify the updater parameter as 'grow_gpu'. 
 
@@ -13,20 +17,20 @@ param['updater'] = 'grow_gpu'
 ## Memory usage
 Device memory usage can be calculated as approximately:
 ```
-bytes = (10 x n_rows) + (44 x n_rows x n_columns x column_density)
+bytes = (10 x n_rows) + (40 x n_rows x n_columns x column_density) + (64 x max_nodes) + (76 x max_nodes_level x n_columns)
 ```
-Data is stored in a sparse format. For example, missing values produced by one hot encoding are not stored. If a one hot encoding separates a categorical variable into 5 columns the column_density of these columns is 1/5 = 0.2.
+The maximum number of nodes needed for a given tree depth d is 2<sup>d+1</sup> - 1. The maximum number of nodes on any given level is 2<sup>d</sup>.
+
+Data is stored in a sparse format. For example, missing values produced by one hot encoding are not stored. If a one hot encoding separates a categorical variable into 5 columns the density of these columns is 1/5 = 0.2.
 
 A 4GB graphics card will process approximately 3.5 million rows of the well known Kaggle higgs dataset.
-
-The algorithm will automatically perform row subsampling if it detects there is not enough memory on the device.
 
 ## Dependencies
 A CUDA capable GPU with at least compute capability >= 3.5 (the algorithm depends on shuffle and vote instructions introduced in Kepler).
 
 Building the plug-in requires CUDA Toolkit 7.5 or later.
 
-The plugin also depends on CUB 1.5.4 - http://nvlabs.github.io/cub/index.html.
+The plugin also depends on CUB 1.6.4 - https://nvlabs.github.io/cub/
 
 CUB is a header only cuda library which provides sort/reduce/scan primitives.
 
@@ -57,8 +61,8 @@ The build process generates an xgboost library and executable as normal but cont
 ## Author
 Rory Mitchell 
 
-Report any bugs to r.a.mitchell.nz at google mail.
+Please report bugs to the xgboost/issues page. You can tag me with @RAMitchell.
 
-
+Otherwise I can be contacted at r.a.mitchell.nz at gmail.
 
 

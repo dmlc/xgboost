@@ -5,6 +5,7 @@
 #include <cub/cub.cuh>
 #include <xgboost/base.h>
 #include "device_helpers.cuh"
+#include "gpu_data.cuh"
 #include "types_functions.cuh"
 
 namespace xgboost {
@@ -609,22 +610,11 @@ struct FindSplitEnactorMultiscan {
     }
   }
 
-  __device__ __forceinline__ void ResetSplitCandidates() {
-    const int max_nodes = 1 << level;
-    const int begin = blockIdx.x * max_nodes;
-    const int end = begin + max_nodes;
-
-    for (auto i : dh::block_stride_range(begin, end)) {
-      d_split_candidates_out[i] = Split();
-    }
-  }
-
   __device__ __forceinline__ void ProcessRegion(const bst_uint &segment_begin,
                                                 const bst_uint &segment_end) {
     // Current position
     bst_uint offset = segment_begin;
 
-    ResetSplitCandidates();
     ResetTileCarry();
     ResetSplits();
     CacheNodes();
@@ -654,8 +644,9 @@ __launch_bounds__(1024, 2)
         const ItemIter items_iter, Split *d_split_candidates_out,
         const Node *d_nodes, const int node_begin, bst_uint num_items,
         int num_features, const int *d_feature_offsets,
-        const GPUTrainingParam param, const int level) {
-  if (num_items <= 0) {
+        const GPUTrainingParam param, const int *d_feature_flags,
+        const int level) {
+  if (num_items <= 0 || d_feature_flags[blockIdx.x] != 1) {
     return;
   }
 
@@ -685,69 +676,45 @@ __launch_bounds__(1024, 2)
 }
 
 template <int N_NODES>
-void find_split_candidates_multiscan_variation(
-    const ItemIter items_iter, Split *d_split_candidates, const Node *d_nodes,
-    int node_begin, int node_end, bst_uint num_items, int num_features,
-    const int *d_feature_offsets, const GPUTrainingParam param,
-    const int level) {
-
+void find_split_candidates_multiscan_variation(GPUData *data, const int level) {
+  const int node_begin = (1 << level) - 1;
   const int BLOCK_THREADS = 512;
 
-  CHECK((node_end - node_begin) <= N_NODES) << "Multiscan: N_NODES template "
-                                               "parameter too small for given "
-                                               "node range.";
   CHECK(BLOCK_THREADS / 32 < 32)
       << "Too many active warps. See FindSplitEnactor - ReduceSplits.";
 
   typedef FindSplitParamsMultiscan<BLOCK_THREADS, N_NODES, false>
       find_split_params;
   typedef ReduceParamsMultiscan<BLOCK_THREADS, N_NODES, false> reduce_params;
-  int grid_size = num_features;
+  int grid_size = data->n_features;
 
   find_split_candidates_multiscan_kernel<
       find_split_params,
       reduce_params><<<grid_size, find_split_params::BLOCK_THREADS>>>(
-      items_iter, d_split_candidates, d_nodes, node_begin, num_items,
-      num_features, d_feature_offsets, param, level);
+      data->items_iter, data->split_candidates.data(), data->nodes.data(),
+      node_begin, data->fvalues.size(), data->n_features, data->foffsets.data(),
+      data->param, data->feature_flags.data(), level);
 
   dh::safe_cuda(cudaDeviceSynchronize());
 }
 
-void find_split_candidates_multiscan(
-    const ItemIter items_iter, Split *d_split_candidates, const Node *d_nodes,
-    bst_uint num_items, int num_features, const int *d_feature_offsets,
-    const GPUTrainingParam param, const int level) {
+void find_split_candidates_multiscan(GPUData *data, const int level) {
   // Select templated variation of split finding algorithm
   switch (level) {
   case 0:
-    find_split_candidates_multiscan_variation<1>(
-        items_iter, d_split_candidates, d_nodes, 0, 1, num_items, num_features,
-        d_feature_offsets, param, level);
+    find_split_candidates_multiscan_variation<1>(data, level);
     break;
   case 1:
-    find_split_candidates_multiscan_variation<2>(
-        items_iter, d_split_candidates, d_nodes, 1, 3, num_items, num_features,
-        d_feature_offsets, param, level);
+    find_split_candidates_multiscan_variation<2>(data, level);
     break;
   case 2:
-    find_split_candidates_multiscan_variation<4>(
-        items_iter, d_split_candidates, d_nodes, 3, 7, num_items, num_features,
-        d_feature_offsets, param, level);
+    find_split_candidates_multiscan_variation<4>(data, level);
     break;
   case 3:
-    find_split_candidates_multiscan_variation<8>(
-        items_iter, d_split_candidates, d_nodes, 7, 15, num_items, num_features,
-        d_feature_offsets, param, level);
+    find_split_candidates_multiscan_variation<8>(data, level);
     break;
   case 4:
-    find_split_candidates_multiscan_variation<16>(
-        items_iter, d_split_candidates, d_nodes, 15, 31, num_items,
-        num_features, d_feature_offsets, param, level);
-    break;
-  case 5:
-    find_split_candidates_multiscan_variation<32>(
-        items_iter, d_split_candidates, d_nodes, 31, 63, num_items,
-        num_features, d_feature_offsets, param, level);
+    find_split_candidates_multiscan_variation<16>(data, level);
     break;
   }
 }

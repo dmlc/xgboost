@@ -23,6 +23,7 @@ class GPUBuilder {
               RegTree *p_tree);
 
   void UpdateNodeId(int level);
+
  private:
   void InitData(const std::vector<bst_gpair> &gpair, DMatrix &fmat, // NOLINT
                 const RegTree &tree);
@@ -31,12 +32,15 @@ class GPUBuilder {
   void Sort(int level);
   void InitFirstNode();
   void CopyTree(RegTree &tree); // NOLINT
+  void ColsampleTree();
 
   TrainParam param;
   GPUData *gpu_data;
+  std::vector<int> feature_set_tree;
+  std::vector<int> feature_set_level;
 
   int multiscan_levels =
-      0;  // Number of levels before switching to sorting algorithm
+      5;  // Number of levels before switching to sorting algorithm
 };
 }  // namespace tree
 }  // namespace xgboost
