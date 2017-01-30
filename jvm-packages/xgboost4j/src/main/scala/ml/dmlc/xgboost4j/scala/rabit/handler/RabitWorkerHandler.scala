@@ -84,7 +84,6 @@ private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: A
   def getNeighboringWorkers: Set[Int] = neighboringWorkers
 
   def decodeCommand(buffer: ByteBuffer): TrackerCommand = {
-<<<<<<< HEAD
     val readBuffer = buffer.duplicate().order(ByteOrder.nativeOrder())
     readBuffer.flip()
 
@@ -94,14 +93,6 @@ private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: A
 
     val command = readBuffer.getString
     val trackerCommand = command match {
-=======
-    val rank = buffer.getInt()
-    val worldSize = buffer.getInt()
-    val jobId = buffer.getString
-
-    val command = buffer.getString
-    command match {
->>>>>>> 179b384e396a8897340c080d9af79af215c1caaf
       case "start" => WorkerStart(rank, worldSize, jobId)
       case "shutdown" =>
         transient = true
@@ -111,16 +102,11 @@ private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: A
         WorkerRecover(rank, worldSize, jobId)
       case "print" =>
         transient = true
-<<<<<<< HEAD
         WorkerTrackerPrint(rank, worldSize, jobId, readBuffer.getString)
     }
 
     stashSpillOver(readBuffer)
     trackerCommand
-=======
-        WorkerTrackerPrint(rank, worldSize, jobId, buffer.getString)
-    }
->>>>>>> 179b384e396a8897340c080d9af79af215c1caaf
   }
 
   startWith(AwaitingHandshake, DataStruct())
@@ -140,7 +126,6 @@ private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: A
     case Event(Tcp.Received(bytes), validator) =>
       bytes.asByteBuffers.foreach { buf => readBuffer.put(buf) }
       if (validator.verify(readBuffer)) {
-<<<<<<< HEAD
         Try(decodeCommand(readBuffer)) match {
           case scala.util.Success(decodedCommand) =>
             tracker ! decodedCommand
@@ -149,11 +134,6 @@ private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: A
             // Do nothing, wait for next Tcp.Received event
           case scala.util.Failure(th: Throwable) => throw th
         }
-=======
-        readBuffer.flip()
-        tracker ! decodeCommand(readBuffer)
-        stashSpillOver(readBuffer)
->>>>>>> 179b384e396a8897340c080d9af79af215c1caaf
       }
 
       stay
