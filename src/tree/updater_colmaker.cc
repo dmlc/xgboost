@@ -81,7 +81,7 @@ class ColMaker: public TreeUpdater {
   struct Builder {
    public:
     // constructor
-    explicit Builder(const TrainParam& param) : param(param) {}
+    explicit Builder(const TrainParam& param) : param(param), nthread(omp_get_max_threads()) {}
     // update one tree, growing
     virtual void Update(const std::vector<bst_gpair>& gpair,
                         DMatrix* p_fmat,
@@ -166,10 +166,6 @@ class ColMaker: public TreeUpdater {
       }
       {
         // setup temp space for each thread
-        #pragma omp parallel
-        {
-          this->nthread = omp_get_num_threads();
-        }
         // reserve a small space
         stemp.clear();
         stemp.resize(this->nthread, std::vector<ThreadEntry>());
@@ -277,8 +273,7 @@ class ColMaker: public TreeUpdater {
         for (size_t j = 0; j < qexpand.size(); ++j) {
           temp[qexpand[j]].stats.Clear();
         }
-        nthread = omp_get_num_threads();
-        bst_uint step = (col.length + nthread - 1) / nthread;
+        bst_uint step = (col.length + this->nthread - 1) / this->nthread;
         bst_uint end = std::min(col.length, step * (tid + 1));
         for (bst_uint i = tid * step; i < end; ++i) {
           const bst_uint ridx = col[i].index;
@@ -298,7 +293,7 @@ class ColMaker: public TreeUpdater {
       for (bst_omp_uint j = 0; j < nnode; ++j) {
         const int nid = qexpand[j];
         TStats sum(param), tmp(param), c(param);
-        for (int tid = 0; tid < nthread; ++tid) {
+        for (int tid = 0; tid < this->nthread; ++tid) {
           tmp = stemp[tid][nid].stats;
           stemp[tid][nid].stats = sum;
           sum.Add(tmp);
@@ -306,7 +301,7 @@ class ColMaker: public TreeUpdater {
             std::swap(stemp[tid - 1][nid].last_fvalue, stemp[tid][nid].first_fvalue);
           }
         }
-        for (int tid = 0; tid < nthread; ++tid) {
+        for (int tid = 0; tid < this->nthread; ++tid) {
           stemp[tid][nid].stats_extra = sum;
           ThreadEntry &e = stemp[tid][nid];
           bst_float fsplit;
@@ -341,7 +336,7 @@ class ColMaker: public TreeUpdater {
         }
         if (need_backward) {
           tmp = sum;
-          ThreadEntry &e = stemp[nthread-1][nid];
+          ThreadEntry &e = stemp[this->nthread-1][nid];
           c.SetSubstract(snode[nid].stats, tmp);
           if (c.sum_hess >= param.min_child_weight &&
               tmp.sum_hess >= param.min_child_weight) {
@@ -357,8 +352,7 @@ class ColMaker: public TreeUpdater {
         TStats c(param), cright(param);
         const int tid = omp_get_thread_num();
         std::vector<ThreadEntry> &temp = stemp[tid];
-        nthread = static_cast<bst_uint>(omp_get_num_threads());
-        bst_uint step = (col.length + nthread - 1) / nthread;
+        bst_uint step = (col.length + this->nthread - 1) / this->nthread;
         bst_uint end = std::min(col.length, step * (tid + 1));
         for (bst_uint i = tid * step; i < end; ++i) {
           const bst_uint ridx = col[i].index;
@@ -599,7 +593,7 @@ class ColMaker: public TreeUpdater {
       #endif
       int poption = param.parallel_option;
       if (poption == 2) {
-        poption = static_cast<int>(nsize) * 2 < nthread ? 1 : 0;
+        poption = static_cast<int>(nsize) * 2 < this->nthread ? 1 : 0;
       }
       if (poption == 0) {
         #pragma omp parallel for schedule(dynamic, batch_size)
@@ -760,7 +754,7 @@ class ColMaker: public TreeUpdater {
     //  --data fields--
     const TrainParam& param;
     // number of omp thread used during training
-    int nthread;
+    const int nthread;
     // Per feature: shuffle index of each feature index
     std::vector<bst_uint> feat_index;
     // Instance Data: current node position in the tree of each instance

@@ -141,7 +141,7 @@ class SketchMaker: public BaseMaker {
     for (size_t i = 0; i < sketchs.size(); ++i) {
       sketchs[i].Init(info.num_row, this->param.sketch_eps);
     }
-    thread_sketch.resize(this->get_nthread());
+    thread_sketch.resize(omp_get_max_threads());
     // number of rows in
     const size_t nrows = p_fmat->buffered_rowset().size();
     // start accumulating statistics
