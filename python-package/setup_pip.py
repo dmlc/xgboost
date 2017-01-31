@@ -3,7 +3,7 @@
 from __future__ import absolute_import
 import sys
 import os
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Distribution
 # import subprocess
 sys.path.insert(0, '.')
 
@@ -18,6 +18,11 @@ else:
     sys.exit()
 
 CURRENT_DIR = os.path.dirname(__file__)
+
+class BinaryDistribution(Distribution):
+    def has_ext_modules(self):
+        return True
+
 
 # We can not import `xgboost.libpath` in setup.py directly since xgboost/__init__.py
 # import `xgboost.core` and finally will import `numpy` and `scipy` which are setup
@@ -55,4 +60,5 @@ setup(name='xgboost',
       # otherwise install_data process will copy it to
       # root directory for some machines, and cause confusions on building
       # data_files=[('xgboost', LIB_PATH)],
+      distclass=BinaryDistribution,
       url='https://github.com/dmlc/xgboost')
