@@ -18,7 +18,6 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.JavaConverters._
 import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
-import ml.dmlc.xgboost4j.scala.spark.params.{DefaultXGBoostParamsReader, DefaultXGBoostParamsWriter}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
 import org.apache.hadoop.fs.{FSDataOutputStream, Path}
 import org.apache.spark.ml.PredictionModel
@@ -310,24 +309,14 @@ object XGBoostModel extends MLReadable[XGBoostModel] {
   private[XGBoostModel] class XGBoostModelModelWriter(instance: XGBoostModel)
     extends MLWriter {
     override protected def saveImpl(path: String): Unit = {
-      implicit val format = DefaultFormats
-      implicit val sc = super.sparkSession.sparkContext
-      DefaultXGBoostParamsWriter.saveMetadata(instance, path, sc)
-
-      val dataPath = new Path(path, "data").toString
-      instance.saveModelAsHadoopFile(dataPath)
+      instance.saveModelAsHadoopFile(path)
     }
   }
 
   private class XGBoostModelModelReader
     extends MLReader[XGBoostModel] {
-    private val className = classOf[XGBoostModel].getName
     override def load(path: String): XGBoostModel = {
-      implicit val sc = super.sparkSession.sparkContext
-      val dataPath = new Path(path, "data").toString
-      // not used / all data resides in platform independent xgboost model file
-      // val metadata = DefaultXGBoostParamsReader.loadMetadata(path, sc, className)
-      XGBoost.loadModelFromHadoopFile(dataPath)
+      XGBoost.loadModelFromHadoopFile(path)
     }
   }
 
