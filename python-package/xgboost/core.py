@@ -762,7 +762,7 @@ class Booster(object):
                                                ctypes.byref(length),
                                                ctypes.byref(sarr)))
         attr_names = from_cstr_to_pystr(sarr, length)
-        res = {n: self.attr(n) for n in attr_names}
+        res = dict([(n, self.attr(n)) for n in attr_names])
         return res
 
     def set_attr(self, **kwargs):
