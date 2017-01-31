@@ -17,25 +17,24 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.JavaConverters._
-import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
+
+import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, Rabit}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
 import org.apache.hadoop.fs.{FSDataOutputStream, Path}
 import org.apache.spark.ml.PredictionModel
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
-import org.apache.spark.ml.param.{Param, ParamMap, Params}
-import org.apache.spark.ml.util._
+import org.apache.spark.ml.param.{Param, Params}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.types.{ArrayType, FloatType}
 import org.apache.spark.{SparkContext, TaskContext}
-import org.json4s.{DefaultFormats, JObject, NoTypeHints}
 
 /**
  * the base class of [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
  */
 abstract class XGBoostModel(protected var _booster: Booster)
-  extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params with MLWritable{
+  extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params {
 
   def setLabelCol(name: String): XGBoostModel = set(labelCol, name)
 
@@ -291,33 +290,4 @@ abstract class XGBoostModel(protected var _booster: Booster)
   }
 
   def booster: Booster = _booster
-
-  /**
-    *  For persistence implement interface from object
-    */
-  override def copy(extra: ParamMap): XGBoostModel = defaultCopy(extra)
-
-  override def write: MLWriter = new XGBoostModel.XGBoostModelModelWriter(this)
-}
-
-object XGBoostModel extends MLReadable[XGBoostModel] {
-
-  override def read: MLReader[XGBoostModel] = new XGBoostModelModelReader
-
-  override def load(path: String): XGBoostModel = super.load(path)
-
-  private[XGBoostModel] class XGBoostModelModelWriter(instance: XGBoostModel)
-    extends MLWriter {
-    override protected def saveImpl(path: String): Unit = {
-      instance.saveModelAsHadoopFile(path)
-    }
-  }
-
-  private class XGBoostModelModelReader
-    extends MLReader[XGBoostModel] {
-    override def load(path: String): XGBoostModel = {
-      XGBoost.loadModelFromHadoopFile(path)
-    }
-  }
-
 }
