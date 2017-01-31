@@ -298,3 +298,31 @@ def test_split_value_histograms():
     assert gbdt.get_split_value_histogram("f28", bins=2).shape[0] == 2
     assert gbdt.get_split_value_histogram("f28", bins=5).shape[0] == 2
     assert gbdt.get_split_value_histogram("f28", bins=None).shape[0] == 2
+
+def test_predict_proba_normalized_probabilities():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_iris
+    from sklearn.cross_validation import train_test_split
+    iris = load_iris()
+    tr_d, te_d, tr_l, te_l = train_test_split(
+            iris.data, iris.target, 
+            train_size=120
+        )
+    xgb_classifier_mdl = xgb.XGBClassifier(
+            n_estimators=200,
+            objective='binary:logistic', 
+            seed=1234
+        )
+    xgb_classifier_mdl.fit(tr_d, tr_l)
+    # predict with just 1 tree
+    ntrees_predict = 1
+    xgb_classifier_y_prediction = xgb_classifier_mdl.predict_proba(
+            te_d,
+            ntrees_predict
+        )
+    # no value of the predicted probabilities should be > 1.0 or < 0
+    assert (np.max(xgb_classifier_y_prediction, axis = 1) >= 0.0).all() and \
+        (np.max(xgb_classifier_y_prediction, axis = 1) <= 1.0).all()
+    # the predicted probabilities should sum to 1
+    assert (np.abs(np.sum(xgb_classifier_y_prediction, axis = 1) - 1.0) \
+        <= 1e-5).all()
