@@ -99,6 +99,7 @@ struct LearnerTrainParam
         .add_enum("auto", 0)
         .add_enum("approx", 1)
         .add_enum("exact", 2)
+        .add_enum("hist", 3)
         .describe("Choice of tree construction method.");
     DMLC_DECLARE_FIELD(test_flag).set_default("")
         .describe("Internal test flag");
@@ -167,7 +168,31 @@ class LearnerImpl : public Learner {
       cfg_["max_delta_step"] = "0.7";
     }
 
-    if (cfg_.count("updater") == 0) {
+    if (tparam.tree_method == 3) {
+      /* histogram-based algorithm */
+      if (cfg_.count("updater") == 0) {
+        LOG(CONSOLE) << "Tree method is selected to be \'hist\', "
+                     << "which uses histogram aggregation for faster training. "
+                     << "Using default sequence of updaters: grow_fast_histmaker,prune";
+        cfg_["updater"] = "grow_fast_histmaker,prune";
+      } else {
+        const std::string first_str = "grow_fast_histmaker";
+        if (first_str.length() <= cfg_["updater"].length()
+          && std::equal(first_str.begin(), first_str.end(), cfg_["updater"].begin())) {
+          // updater sequence starts with "grow_fast_histmaker"
+          LOG(CONSOLE) << "Tree method is selected to be \'hist\', "
+                       << "which uses histogram aggregation for faster training. "
+                       << "Using custom sequence of updaters: " << cfg_["updater"];
+        } else {
+          // updater sequence does not start with "grow_fast_histmaker"
+          LOG(CONSOLE) << "Tree method is selected to be \'hist\', but the given "
+                       << "sequence of updaters is not compatible; "
+                       << "grow_fast_histmaker must run first. "
+                       << "Using default sequence of updaters: grow_fast_histmaker,prune";
+          cfg_["updater"] = "grow_fast_histmaker,prune";
+        }
+      }
+    } else if (cfg_.count("updater") == 0) {
       if (tparam.dsplit == 1) {
         cfg_["updater"] = "distcol";
       } else if (tparam.dsplit == 2) {
@@ -379,8 +404,8 @@ class LearnerImpl : public Learner {
  protected:
   // check if p_train is ready to used by training.
   // if not, initialize the column access.
-  inline void LazyInitDMatrix(DMatrix *p_train) {
-    if (!p_train->HaveColAccess()) {
+  inline void LazyInitDMatrix(DMatrix* p_train) {
+    if (tparam.tree_method != 3 && !p_train->HaveColAccess()) {
       int ncol = static_cast<int>(p_train->info().num_col);
       std::vector<bool> enabled(ncol, true);
       // set max row per batch to limited value

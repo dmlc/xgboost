@@ -1,9 +1,9 @@
 DART booster
 ============
-[XGBoost](https://github.com/dmlc/xgboost)) mostly combines a huge number of regression trees with small learning rate.
-In this situation, trees added early are significance and trees added late are unimportant.
+[XGBoost](https://github.com/dmlc/xgboost)) mostly combines a huge number of regression trees with a small learning rate.
+In this situation, trees added early are significant and trees added late are unimportant.
 
-Rasmi et.al proposed a new method to add dropout techniques from deep neural nets community to boosted trees, and reported better results in some situations.
+Rasmi et al. proposed a new method to add dropout techniques from the deep neural net community to boosted trees, and reported better results in some situations.
 
 This is a instruction of new tree booster `dart`.
 
@@ -16,15 +16,15 @@ Features
 - Drop trees in order to solve the over-fitting.
   - Trivial trees (to correct trivial errors) may be prevented.
 
-Because the randomness introduced in the training, expect the following few difference.
-- Training can be slower than `gbtree` because the random dropout prevents usage of prediction buffer.
+Because of the randomness introduced in the training, expect the following few differences:
+- Training can be slower than `gbtree` because the random dropout prevents usage of the prediction buffer.
 - The early stop might not be stable, due to the randomness.
 
 How it works
 ------------
-- In ``$ m $``th training round, suppose ``$ k $`` trees are selected drop.
-- Let ``$ D = \sum_{i \in \mathbf{K}} F_i $`` be leaf scores of dropped trees and ``$ F_m = \eta \tilde{F}_m $`` be leaf scores of a new tree.
-- The objective function is following:
+- In ``$ m $``th training round, suppose ``$ k $`` trees are selected to be dropped.
+- Let ``$ D = \sum_{i \in \mathbf{K}} F_i $`` be the leaf scores of dropped trees and ``$ F_m = \eta \tilde{F}_m $`` be the leaf scores of a new tree.
+- The objective function is as follows:
 ```math
 \mathrm{Obj}
 = \sum_{j=1}^n L \left( y_j, \hat{y}_j^{m-1} - D_j + \tilde{F}_m \right)

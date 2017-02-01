@@ -182,7 +182,7 @@ class XGBModel(XGBModelBase):
             xgb_params.pop('nthread', None)
         return xgb_params
 
-    def fit(self, X, y, eval_set=None, eval_metric=None,
+    def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
@@ -194,6 +194,8 @@ class XGBModel(XGBModelBase):
             Feature matrix
         y : array_like
             Labels
+        sample_weight : array_like
+            instance weights
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as a validation set for
             early-stopping
@@ -219,7 +221,10 @@ class XGBModel(XGBModelBase):
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         """
-        trainDmatrix = DMatrix(X, label=y, missing=self.missing)
+        if sample_weight is not None:
+            trainDmatrix = DMatrix(X, label=y, weight=sample_weight, missing=self.missing)
+        else:
+            trainDmatrix = DMatrix(X, label=y, missing=self.missing)
 
         evals_result = {}
         if eval_set is not None:
