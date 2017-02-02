@@ -21,6 +21,8 @@ CURRENT_DIR = os.path.dirname(__file__)
 
 
 class BinaryDistribution(Distribution):
+    """Auxilliary class necessary to inform setuptools that this is a
+    non-generic, platform-specific package."""
     def has_ext_modules(self):
         return True
 
