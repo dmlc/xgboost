@@ -435,6 +435,11 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
      */
     inline void Drop(const RowBatch::Inst& inst);
     /*!
+     * \brief returns the size of the feature vector
+     * \return the size of the feature vector
+     */
+    inline size_t size() const;
+    /*!
      * \brief get ith value
      * \param i feature index.
      * \return the i-th feature value
@@ -472,6 +477,15 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    * \return the leaf index of the given feature
    */
   inline bst_float Predict(const FVec& feat, unsigned root_id = 0) const;
+  /*!
+   * \brief calculate the feature contributions for the given root
+   * \param feat dense feature vector, if the feature is missing the field is set to NaN
+   * \param root_id starting root index of the instance
+   * \param learning_rate the learning rate training parameter
+   * \param out_contribs output vector to hold the contributions
+   */
+  inline void CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+                                     float learning_rate, bst_float *out_contribs) const;
   /*!
    * \brief get next position of the tree given current pid
    * \param pid Current node id.
@@ -513,6 +527,10 @@ inline void RegTree::FVec::Drop(const RowBatch::Inst& inst) {
   }
 }
 
+inline size_t RegTree::FVec::size() const {
+  return data.size();
+}
+
 inline bst_float RegTree::FVec::fvalue(size_t i) const {
   return data[i].fvalue;
 }
@@ -533,6 +551,27 @@ inline int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) co
 inline bst_float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) const {
   int pid = this->GetLeafIndex(feat, root_id);
   return (*this)[pid].leaf_value();
+}
+
+inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+                                            float learning_rate, bst_float *out_contribs) const {
+  // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
+  int pid = static_cast<int>(root_id);
+  bst_float node_value = this->stat(pid).base_weight * learning_rate;
+  // update bias value
+  out_contribs[feat.size()] += node_value;
+  while (!(*this)[pid].is_leaf()) {
+    unsigned split_index = (*this)[pid].split_index();
+    pid = this->GetNext(pid, feat.fvalue(split_index), feat.is_missing(split_index));
+    bst_float new_value = this->stat(pid).base_weight * learning_rate;
+    // update feature weight
+    out_contribs[split_index] += new_value - node_value;
+    node_value = new_value;
+  }
+  unsigned split_index = (*this)[pid].split_index();
+  bst_float leaf_value = (*this)[pid].leaf_value();
+  // update final feature weight
+  out_contribs[split_index] += leaf_value - node_value;
 }
 
 /*! \brief get next position of the tree given current pid */
