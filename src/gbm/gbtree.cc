@@ -498,7 +498,7 @@ class GBTree : public GradientBooster {
         }
       }
 
-      if (mparam.num_output_group == 1 && updaters.size() > 0
+      if (mparam.num_output_group == 1 && updaters.size() > 0 && new_trees.size() == 1
         && updaters.back()->UpdatePredictionCache(e.data.get(), &(e.predictions)) ) {
         ; // do nothing
       } else {

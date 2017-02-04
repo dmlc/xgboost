@@ -48,6 +48,12 @@
 #define XGBOOST_ALIGNAS(X)
 #endif
 
+#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 8
+#define XGBOOST_PARALLEL_SORT_SUPPORTED 1
+#else
+#define XGBOOST_PARALLEL_SORT_SUPPORTED 0
+#endif
+
 /*! \brief namespace of xgboo st*/
 namespace xgboost {
 /*!

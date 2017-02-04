@@ -10,6 +10,10 @@
 #include "../common/sync.h"
 #include "../common/math.h"
 
+#if XGBOOST_PARALLEL_SORT_SUPPORTED == 1
+#include <parallel/algorithm>
+#endif
+
 namespace xgboost {
 namespace metric {
 // tag the this file, used by force static link later.
@@ -97,6 +101,42 @@ struct EvalAuc : public Metric {
     // sum statistics
     bst_float sum_auc = 0.0f;
     int auc_error = 0;
+    // each thread takes a local rec
+    std::vector< std::pair<bst_float, unsigned> > rec;
+    for (bst_omp_uint k = 0; k < ngroup; ++k) {
+      rec.clear();
+      for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
+        rec.push_back(std::make_pair(preds[j], j));
+      }
+      __gnu_parallel::sort(rec.begin(), rec.end(), common::CmpFirst);
+      // calculate AUC
+      double sum_pospair = 0.0;
+      double sum_npos = 0.0, sum_nneg = 0.0, buf_pos = 0.0, buf_neg = 0.0;
+      for (size_t j = 0; j < rec.size(); ++j) {
+        const bst_float wt = info.GetWeight(rec[j].second);
+        const bst_float ctr = info.labels[rec[j].second];
+        // keep bucketing predictions in same bucket
+        if (j != 0 && rec[j].first != rec[j - 1].first) {
+          sum_pospair += buf_neg * (sum_npos + buf_pos *0.5);
+          sum_npos += buf_pos;
+          sum_nneg += buf_neg;
+          buf_neg = buf_pos = 0.0f;
+        }
+        buf_pos += ctr * wt;
+        buf_neg += (1.0f - ctr) * wt;
+      }
+      sum_pospair += buf_neg * (sum_npos + buf_pos *0.5);
+      sum_npos += buf_pos;
+      sum_nneg += buf_neg;
+      // check weird conditions
+      if (sum_npos <= 0.0 || sum_nneg <= 0.0) {
+        auc_error = 1;
+        continue;
+      }
+      // this is the AUC
+      sum_auc += sum_pospair / (sum_npos*sum_nneg);
+    }
+#else
     #pragma omp parallel reduction(+:sum_auc)
     {
       // each thread takes a local rec
@@ -136,6 +176,7 @@ struct EvalAuc : public Metric {
         sum_auc += sum_pospair / (sum_npos*sum_nneg);
       }
     }
+#endif
     CHECK(!auc_error)
       << "AUC: the dataset only contains pos or neg samples";
     if (distributed) {
@@ -262,10 +303,18 @@ struct EvalNDCG : public EvalRankList{
     return sumdcg;
   }
   virtual bst_float EvalMetric(std::vector<std::pair<bst_float, unsigned> > &rec) const { // NOLINT(*)
+
+#if XGBOOST_PARALLEL_SORT_SUPPORTED == 1
+    __gnu_parallel::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
+    bst_float dcg = this->CalcDCG(rec);
+    __gnu_parallel::stable_sort(rec.begin(), rec.end(), common::CmpSecond);
+    bst_float idcg = this->CalcDCG(rec);
+#else
     std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
     bst_float dcg = this->CalcDCG(rec);
     std::stable_sort(rec.begin(), rec.end(), common::CmpSecond);
     bst_float idcg = this->CalcDCG(rec);
+#endif
     if (idcg == 0.0f) {
       if (minus_) {
         return 0.0f;
