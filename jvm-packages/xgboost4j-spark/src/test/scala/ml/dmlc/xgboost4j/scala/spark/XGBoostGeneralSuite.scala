@@ -111,9 +111,92 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       "objective" -> "binary:logistic",
       "tracker_conf" -> TrackerConf(1 minute, "scala")).toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
-      nWorkers = numWorkers, useExternalMemory = true)
+      nWorkers = numWorkers)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
+  }
+
+  test("test with fast histo depthwise") {
+    val eval = new EvalError()
+    val trainingRDD = buildTrainingRDD(sc)
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "eval_metric" -> "error")
+    // TODO: histogram algorithm seems to be very very sensitive to worker number
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = math.min(numWorkers, 2))
+    assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix) < 0.1)
+  }
+
+  test("test with fast histo lossguide") {
+    val eval = new EvalError()
+    val trainingRDD = buildTrainingRDD(sc)
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "1",
+            "objective" -> "binary:logistic", "tree_method" -> "hist",
+            "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "error")
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = math.min(numWorkers, 2))
+    val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix)
+    assert(x < 0.1)
+  }
+
+  test("test with fast histo lossguide with max bin") {
+    val eval = new EvalError()
+    val trainingRDD = buildTrainingRDD(sc)
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+            "objective" -> "binary:logistic", "tree_method" -> "hist",
+            "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
+            "eval_metric" -> "error")
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = math.min(numWorkers, 2))
+    val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix)
+    assert(x < 0.1)
+  }
+
+  test("test with fast histo depthwidth with max depth") {
+    val eval = new EvalError()
+    val trainingRDD = buildTrainingRDD(sc)
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
+      "eval_metric" -> "error")
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 10,
+      nWorkers = math.min(numWorkers, 2))
+    val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix)
+    assert(x < 0.1)
+  }
+
+  test("test with fast histo depthwidth with max depth and max bin") {
+    val eval = new EvalError()
+    val trainingRDD = buildTrainingRDD(sc)
+    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+            "objective" -> "binary:logistic", "tree_method" -> "hist",
+            "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
+            "eval_metric" -> "error")
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 10,
+      nWorkers = math.min(numWorkers, 2))
+    val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix)
+    assert(x < 0.1)
   }
 
   test("test with dense vectors containing missing value") {
@@ -142,6 +225,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       }
       sc.parallelize(points)
     }
+
     val trainingRDD = buildDenseRDD().repartition(4)
     val testRDD = buildDenseRDD().repartition(4)
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
@@ -189,6 +273,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       val sampleList = new ListBuffer[SparkVector]
       sparkContext.getOrElse(sc).parallelize(sampleList, numWorkers)
     }
+
     val trainingRDD = buildTrainingRDD(sc)
     val testRDD = buildEmptyRDD()
     val tempDir = Files.createTempDirectory("xgboosttest-")
