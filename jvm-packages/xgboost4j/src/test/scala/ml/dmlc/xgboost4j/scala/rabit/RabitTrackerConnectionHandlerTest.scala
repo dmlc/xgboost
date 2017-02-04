@@ -172,6 +172,32 @@ class RabitTrackerConnectionHandlerTest
     trackerProbe.expectMsg(printCmd)
   }
 
+  it should "handle fragmented print command without throwing exception" in {
+    val trackerProbe = TestProbe()
+    val connProbe = TestProbe()
+
+    val fsm = TestFSMRef(new RabitWorkerHandler("localhost", 4,
+      trackerProbe.ref, connProbe.ref))
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingHandshake
+
+    fsm ! Tcp.Received(magic)
+    connProbe.expectMsg(Tcp.Write(magic))
+
+    fsm.stateName shouldEqual RabitWorkerHandler.AwaitingCommand
+    fsm.stateData shouldEqual RabitWorkerHandler.StructTrackerCommand
+    // ResumeReading should be seen once state transitions
+    connProbe.expectMsg(Tcp.ResumeReading)
+
+    val printCmd = WorkerTrackerPrint(0, 4, "print", "hello world!")
+    // 4 + 4 + 4 + 5 = 17
+    val (partialMessage, remainder) = printCmd.encode.splitAt(17)
+
+    fsm ! Tcp.Received(partialMessage)
+    fsm ! Tcp.Received(remainder)
+
+    trackerProbe.expectMsg(printCmd)
+  }
+
   it should "handle spill-over Tcp data correctly between state transition" in {
     val trackerProbe = TestProbe()
     val connProbe = TestProbe()
