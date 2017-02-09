@@ -129,12 +129,12 @@ A model that has been trained or loaded can perform predictions on data sets.
 # 7 entities, each contains 10 features
 data = np.random.rand(7, 10)
 dtest = xgb.DMatrix(data)
-ypred = bst.predict(xgmat)
+ypred = bst.predict(dtest)
 ```
 
 If early stopping is enabled during training, you can get predictions from the best iteration with `bst.best_ntree_limit`:
 ```python
-ypred = bst.predict(xgmat,ntree_limit=bst.best_ntree_limit)
+ypred = bst.predict(dtest,ntree_limit=bst.best_ntree_limit)
 ```
 
 Plotting
