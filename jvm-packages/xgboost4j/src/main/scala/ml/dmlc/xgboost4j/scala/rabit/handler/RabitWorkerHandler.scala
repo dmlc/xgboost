@@ -84,12 +84,15 @@ private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: A
   def getNeighboringWorkers: Set[Int] = neighboringWorkers
 
   def decodeCommand(buffer: ByteBuffer): TrackerCommand = {
-    val rank = buffer.getInt()
-    val worldSize = buffer.getInt()
-    val jobId = buffer.getString
+    val readBuffer = buffer.duplicate().order(ByteOrder.nativeOrder())
+    readBuffer.flip()
 
-    val command = buffer.getString
-    command match {
+    val rank = readBuffer.getInt()
+    val worldSize = readBuffer.getInt()
+    val jobId = readBuffer.getString
+
+    val command = readBuffer.getString
+    val trackerCommand = command match {
       case "start" => WorkerStart(rank, worldSize, jobId)
       case "shutdown" =>
         transient = true
@@ -99,8 +102,11 @@ private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: A
         WorkerRecover(rank, worldSize, jobId)
       case "print" =>
         transient = true
-        WorkerTrackerPrint(rank, worldSize, jobId, buffer.getString)
+        WorkerTrackerPrint(rank, worldSize, jobId, readBuffer.getString)
     }
+
+    stashSpillOver(readBuffer)
+    trackerCommand
   }
 
   startWith(AwaitingHandshake, DataStruct())
@@ -120,9 +126,14 @@ private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: A
     case Event(Tcp.Received(bytes), validator) =>
       bytes.asByteBuffers.foreach { buf => readBuffer.put(buf) }
       if (validator.verify(readBuffer)) {
-        readBuffer.flip()
-        tracker ! decodeCommand(readBuffer)
-        stashSpillOver(readBuffer)
+        Try(decodeCommand(readBuffer)) match {
+          case scala.util.Success(decodedCommand) =>
+            tracker ! decodedCommand
+          case scala.util.Failure(th: java.nio.BufferOverflowException) =>
+            // BufferOverflowException would occur if the message to print has not arrived yet.
+            // Do nothing, wait for next Tcp.Received event
+          case scala.util.Failure(th: Throwable) => throw th
+        }
       }
 
       stay
