@@ -590,11 +590,6 @@ class GBTree : public GradientBooster {
         size_t row_idx = static_cast<size_t>(batch.base_rowid + i);
         unsigned root_id = info.GetRoot(row_idx);
         RegTree::FVec &feats = thread_temp[omp_get_thread_num()];
-        // determine learning_rate
-        // NOTE: there should be a better way of doing this
-        int leaf_id = trees[0]->GetLeafIndex(feats, root_id);
-        float learning_rate =
-          (*trees[0])[leaf_id].leaf_value() / trees[0]->stat(leaf_id).base_weight;
         // loop over all classes
         for (int gid = 0; gid < mparam.num_output_group; ++gid) {
           bst_float *p_contribs = &contribs[(row_idx * mparam.num_output_group + gid) * ncolumns];
@@ -604,6 +599,11 @@ class GBTree : public GradientBooster {
             if (tree_info[j] != gid) {
               continue;
             }
+            // determine learning_rate
+            // NOTE: there should be a better way of doing this
+            int leaf_id = trees[j]->GetLeafIndex(feats, root_id);
+            float learning_rate =
+              (*trees[j])[leaf_id].leaf_value() / trees[j]->stat(leaf_id).base_weight;
             trees[j]->CalculateContributions(feats, root_id, learning_rate, p_contribs);
           }
           feats.Drop(batch[i]);
