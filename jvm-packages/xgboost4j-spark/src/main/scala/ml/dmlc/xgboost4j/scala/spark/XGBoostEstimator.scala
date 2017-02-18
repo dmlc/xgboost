@@ -128,13 +128,6 @@ class XGBoostEstimator private[spark](
   }
 
   override def copy(extra: ParamMap): XGBoostEstimator = {
-    val est = defaultCopy(extra).asInstanceOf[XGBoostEstimator]
-    /*
-    // we need to synchronize the params here instead of in the constructor
-    // because we cannot guarantee that params (default implementation) is initialized fully
-    // before the other member variables
-    est.fromParamsToXGBParamMap()
-    */
-    est
+    defaultCopy(extra).asInstanceOf[XGBoostEstimator]
   }
 }
