@@ -574,7 +574,7 @@ class GBTree : public GradientBooster {
     size_t ncolumns = mparam.num_feature + 1;
     // allocate space for (number of features + bias) times the number of rows
     std::vector<bst_float>& contribs = *out_contribs;
-    contribs.resize(info.num_row * ncolumns);
+    contribs.resize(info.num_row * ncolumns * mparam.num_output_group);
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
     // start collecting the contributions
@@ -587,27 +587,32 @@ class GBTree : public GradientBooster {
       const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
-        const int tid = omp_get_thread_num();
         size_t row_idx = static_cast<size_t>(batch.base_rowid + i);
-        bst_float *p_contribs = &contribs[row_idx * ncolumns];
         unsigned root_id = info.GetRoot(row_idx);
-        RegTree::FVec &feats = thread_temp[tid];
-        feats.Fill(batch[i]);
+        RegTree::FVec &feats = thread_temp[omp_get_thread_num()];
         // determine learning_rate
         // NOTE: there should be a better way of doing this
         int leaf_id = trees[0]->GetLeafIndex(feats, root_id);
         float learning_rate =
           (*trees[0])[leaf_id].leaf_value() / trees[0]->stat(leaf_id).base_weight;
-        // calculate contributions
-        for (unsigned j = 0; j < ntree_limit; ++j) {
-          trees[j]->CalculateContributions(feats, root_id, learning_rate, p_contribs);
-        }
-        feats.Drop(batch[i]);
-        // add base margin to BIAS feature
-        if (base_margin.size() != 0) {
-          p_contribs[ncolumns - 1] += base_margin[row_idx];
-        } else {
-          p_contribs[ncolumns - 1] += base_margin_;
+        // loop over all classes
+        for (int gid = 0; gid < mparam.num_output_group; ++gid) {
+          bst_float *p_contribs = &contribs[(row_idx * mparam.num_output_group + gid) * ncolumns];
+          feats.Fill(batch[i]);
+          // calculate contributions
+          for (unsigned j = 0; j < ntree_limit; ++j) {
+            if (tree_info[j] != gid) {
+              continue;
+            }
+            trees[j]->CalculateContributions(feats, root_id, learning_rate, p_contribs);
+          }
+          feats.Drop(batch[i]);
+          // add base margin to BIAS feature
+          if (base_margin.size() != 0) {
+            p_contribs[ncolumns - 1] += base_margin[row_idx * mparam.num_output_group + gid];
+          } else {
+            p_contribs[ncolumns - 1] += base_margin_;
+          }
         }
       }
     }
