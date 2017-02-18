@@ -190,6 +190,21 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(xgbEstimatorCopy1.fromParamsToXGBParamMap("eval_metric") === "logloss")
   }
 
+  test("fast histogram algorithm parameters are exposed correctly") {
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
+      "eval_metric" -> "error")
+    val testItr = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    val trainingDF = buildTrainingDataframe()
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
+      round = 10, nWorkers = math.min(2, numWorkers))
+    val error = new EvalError
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testItr, null))
+    assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, true), testSetDMatrix) < 0.1)
+  }
+
   private def convertCSVPointToLabelPoint(valueArray: Array[String]): LabeledPoint = {
     val intValueArray = new Array[Double](valueArray.length)
     intValueArray(valueArray.length - 2) = {
