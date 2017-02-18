@@ -196,7 +196,7 @@ trait BoosterParams extends Params {
     minChildWeight -> 1, maxDeltaStep -> 0,
     subSample -> 1, colSampleByTree -> 1, colSampleByLevel -> 1,
     lambda -> 1, alpha -> 0, treeMethod -> "auto", sketchEps -> 0.03,
-    scalePosWeight -> 1, sampleType -> "uniform", normalizeType -> "tree",
+    scalePosWeight -> 1.0, sampleType -> "uniform", normalizeType -> "tree",
     rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0)
 
   /**
