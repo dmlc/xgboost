@@ -202,7 +202,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     val error = new EvalError
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(testItr, null))
-    assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, true),
+    assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
   }
 
@@ -230,7 +230,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     }
     sampleList.toList
   }
-
+  
   test("multi_class classification test") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "multi:softmax", "num_class" -> "6")
