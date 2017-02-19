@@ -90,4 +90,3 @@ cat(paste("The accuracy was", accuracy.before, "before adding leaf features and 
           accuracy.after, "!\\n"))
 
 }
-

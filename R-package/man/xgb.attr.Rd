@@ -83,4 +83,3 @@ xgb.attributes(bst1) <- list(a = NULL, b = NULL)
 print(xgb.attributes(bst1))
 
 }
-

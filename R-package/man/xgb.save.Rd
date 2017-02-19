@@ -38,4 +38,3 @@ pred <- predict(bst, test$data)
 \seealso{
 \code{\link{xgb.load}}, \code{\link{xgb.Booster.complete}}.
 }
-
