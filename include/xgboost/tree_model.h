@@ -481,11 +481,10 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    * \brief calculate the feature contributions for the given root
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
    * \param root_id starting root index of the instance
-   * \param learning_rate the learning rate training parameter
    * \param out_contribs output vector to hold the contributions
    */
   inline void CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
-                                     float learning_rate, bst_float *out_contribs) const;
+                                     bst_float *out_contribs) const;
   /*!
    * \brief get next position of the tree given current pid
    * \param pid Current node id.
@@ -503,6 +502,15 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
   std::string DumpModel(const FeatureMap& fmap,
                         bool with_stats,
                         std::string format) const;
+  /*!
+   * \brief calculate the mean value for each node, required for feature contributions
+   */
+  inline void FillNodeMeanValues();
+
+ private:
+  inline bst_float FillNodeMeanValue(int nid);
+
+  std::vector<bst_float> node_mean_values;
 };
 
 // implementations of inline functions
@@ -553,24 +561,53 @@ inline bst_float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) c
   return (*this)[pid].leaf_value();
 }
 
+inline void RegTree::FillNodeMeanValues() {
+  if (this->node_mean_values.size() > 0) {
+    return;
+  }
+  this->node_mean_values.resize(this->param.num_nodes);
+  int root_id = 0;
+  this->FillNodeMeanValue(root_id);
+}
+
+inline bst_float RegTree::FillNodeMeanValue(int nid) {
+  bst_float result;
+  auto& node = (*this)[nid];
+  if (node.is_leaf()) {
+    result = node.leaf_value();
+  } else {
+    result  = this->FillNodeMeanValue(node.cleft()) * this->stat(node.cleft()).sum_hess;
+    result += this->FillNodeMeanValue(node.cright()) * this->stat(node.cright()).sum_hess;
+    result /= this->stat(nid).sum_hess;
+  }
+  this->node_mean_values[nid] = result;
+  return result;
+}
+
 inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
-                                            float learning_rate, bst_float *out_contribs) const {
+                                            bst_float *out_contribs) const {
+  CHECK_GT(this->node_mean_values.size(), 0);
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
+  bst_float node_value;
+  unsigned split_index;
   int pid = static_cast<int>(root_id);
-  bst_float node_value = this->stat(pid).base_weight * learning_rate;
   // update bias value
+  node_value = this->node_mean_values[pid];
   out_contribs[feat.size()] += node_value;
+  if ((*this)[pid].is_leaf()) {
+    // nothing to do anymore
+    return;
+  }
   while (!(*this)[pid].is_leaf()) {
-    unsigned split_index = (*this)[pid].split_index();
+    split_index = (*this)[pid].split_index();
     pid = this->GetNext(pid, feat.fvalue(split_index), feat.is_missing(split_index));
-    bst_float new_value = this->stat(pid).base_weight * learning_rate;
+    bst_float new_value = this->node_mean_values[pid];
     // update feature weight
     out_contribs[split_index] += new_value - node_value;
     node_value = new_value;
   }
-  unsigned split_index = (*this)[pid].split_index();
   bst_float leaf_value = (*this)[pid].leaf_value();
-  // update final feature weight
+  // update leaf feature weight
   out_contribs[split_index] += leaf_value - node_value;
 }
 

@@ -577,6 +577,11 @@ class GBTree : public GradientBooster {
     contribs.resize(info.num_row * ncolumns * mparam.num_output_group);
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
+    // initialize tree node mean values
+    #pragma omp parallel for schedule(static)
+    for (bst_omp_uint i=0; i < ntree_limit; ++i) {
+      trees[i]->FillNodeMeanValues();
+    }
     // start collecting the contributions
     dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
     const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
@@ -599,12 +604,7 @@ class GBTree : public GradientBooster {
             if (tree_info[j] != gid) {
               continue;
             }
-            // determine learning_rate
-            // NOTE: there should be a better way of doing this
-            int leaf_id = trees[j]->GetLeafIndex(feats, root_id);
-            float learning_rate =
-              (*trees[j])[leaf_id].leaf_value() / trees[j]->stat(leaf_id).base_weight;
-            trees[j]->CalculateContributions(feats, root_id, learning_rate, p_contribs);
+            trees[j]->CalculateContributions(feats, root_id, p_contribs);
           }
           feats.Drop(batch[i]);
           // add base margin to BIAS feature
