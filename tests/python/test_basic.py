@@ -2,6 +2,7 @@
 import numpy as np
 import xgboost as xgb
 import unittest
+import itertools
 import json
 
 dpath = 'demo/data/'
@@ -250,3 +251,26 @@ class TestBasic(unittest.TestCase):
         cv = xgb.cv(params, dm, num_boost_round=10, shuffle=False, nfold=10, as_pandas=False)
         assert isinstance(cv, dict)
         assert len(cv) == (4)
+
+
+def test_contributions():
+    dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+    dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+
+    def test_fn(max_depth, num_rounds):
+        # train
+        params = {'max_depth': max_depth, 'eta': 1, 'silent': 1}
+        bst = xgb.train(params, dtrain, num_boost_round=num_rounds)
+
+        # predict
+        preds = bst.predict(dtest)
+        contribs = bst.predict(dtest, pred_contribs=True)
+
+        # result should be (number of features + BIAS) * number of rows
+        assert contribs.shape == (dtest.num_row(), dtest.num_col() + 1)
+
+        # sum of contributions should be same as predictions
+        np.testing.assert_array_almost_equal(np.sum(contribs, axis=1), preds)
+
+    for max_depth, num_rounds in itertools.product(range(0, 3), range(1, 5)):
+        yield test_fn, max_depth, num_rounds
