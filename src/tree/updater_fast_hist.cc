@@ -139,6 +139,9 @@ class FastHistMaker: public TreeUpdater {
       tstart = dmlc::GetTime();
       this->InitData(gmat, gpair, *p_fmat, *p_tree);
       time_init_data = dmlc::GetTime() - tstart;
+      // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
+      CHECK_EQ(p_tree->param.num_roots, 1)
+        << "tree_method=hist does not support multiple roots at this moment";
       for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
         tstart = dmlc::GetTime();
         hist_.AddHistRow(nid);
