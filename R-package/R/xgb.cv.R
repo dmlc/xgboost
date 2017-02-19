@@ -153,7 +153,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   params <- c(params, list(silent = 1))
   print_every_n <- max( as.integer(print_every_n), 1L)
   if (!has.callbacks(callbacks, 'cb.print.evaluation') && verbose) {
-    callbacks <- add.cb(callbacks, cb.print.evaluation(print_every_n))
+    callbacks <- add.cb(callbacks, cb.print.evaluation(print_every_n, showsd=showsd))
   }
   # evaluation log callback: always is on in CV
   evaluation_log <- list()
