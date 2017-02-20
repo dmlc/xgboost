@@ -40,4 +40,3 @@ setinfo(dtrain, 'label', 1-labels)
 labels2 <- getinfo(dtrain, 'label')
 stopifnot(all(labels2 == 1-labels))
 }
-

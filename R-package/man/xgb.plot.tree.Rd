@@ -74,4 +74,3 @@ xgb.plot.tree(feature_names = colnames(agaricus.train$data), model = bst,
               trees = 0, show_node_id = TRUE)
 
 }
-

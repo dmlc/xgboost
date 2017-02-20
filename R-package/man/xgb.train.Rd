@@ -264,4 +264,3 @@ pred <- predict(bst, agaricus.test$data)
 \code{\link{predict.xgb.Booster}},
 \code{\link{xgb.cv}}
 }
-
