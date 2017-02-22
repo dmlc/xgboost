@@ -4,10 +4,12 @@
 \alias{cb.print.evaluation}
 \title{Callback closure for printing the result of evaluation}
 \usage{
-cb.print.evaluation(period = 1)
+cb.print.evaluation(period = 1, showsd = TRUE)
 }
 \arguments{
 \item{period}{results would be printed every number of periods}
+
+\item{showsd}{whether standard deviations should be printed (when available)}
 }
 \description{
 Callback closure for printing the result of evaluation
@@ -25,4 +27,3 @@ Callback function expects the following values to be set in its calling frame:
 \seealso{
 \code{\link{callbacks}}
 }
-

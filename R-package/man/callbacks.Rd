@@ -35,4 +35,3 @@ with the objects available inside of the \code{xgb.train} and \code{xgb.cv} inte
 \code{\link{xgb.train}},
 \code{\link{xgb.cv}}
 }
-

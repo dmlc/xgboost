@@ -29,4 +29,3 @@ Callback function expects the following values to be set in its calling frame:
 \seealso{
 \code{\link{callbacks}}
 }
-
