@@ -6,6 +6,8 @@ This file records the changes in xgboost library in reverse chronological order.
 ## in progress version
 * Refactored gbm to allow more friendly cache strategy
   - Specialized some prediction routine
+* Automatically remove nan from input data when it is sparse.
+  - This can solve some of user reported problem of istart != hist.size
 
 ## v0.6 (2016.07.29)
 * Version 0.5 is skipped due to major improvements in the core
