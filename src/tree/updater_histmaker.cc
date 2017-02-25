@@ -298,8 +298,15 @@ class CQHistMaker: public HistMaker<TStats> {
         hist.data[istart].Add(gstats);
       } else {
         while (istart < hist.size && !(fv < hist.cut[istart])) ++istart;
-        CHECK_NE(istart, hist.size);
-        hist.data[istart].Add(gstats);
+        if (istart != hist.size) {
+          hist.data[istart].Add(gstats);
+        } else {
+          LOG(INFO) << "fv=" << fv << ", hist.size=" << hist.size;
+          for (size_t i = 0; i < hist.size; ++i) {
+            LOG(INFO) << "hist[" << i << "]=" << hist.cut[i];
+          }
+          LOG(FATAL) << "fv=" << fv << ", hist.last=" << hist.cut[hist.size - 1];
+        }
       }
     }
   };
