@@ -63,4 +63,3 @@ bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_dep
 xgb.importance(model = bst)
 
 }
-

@@ -79,4 +79,3 @@ gg + ggplot2::ylab("Frequency")
 \seealso{
 \code{\link[graphics]{barplot}}.
 }
-

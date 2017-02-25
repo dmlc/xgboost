@@ -67,4 +67,3 @@ bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_dep
 merge(dt, dt[, .(ID, Y.Feature=Feature)], by.x='Yes', by.y='ID', all.x=TRUE)[order(Tree,Node)]
  
 }
-
