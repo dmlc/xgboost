@@ -670,9 +670,8 @@ class ColMaker: public TreeUpdater {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
-        if (ridx >= position.size()) {
-          LOG(INFO) << "ridx exceed bound\n";
-        }
+        CHECK_LT(ridx, position.size())
+            << "ridx exceed bound " << "ridx="<<  ridx << " pos=" << position.size();
         const int nid = this->DecodePosition(ridx);
         if (tree[nid].is_leaf()) {
           // mark finish when it is not a fresh leaf
