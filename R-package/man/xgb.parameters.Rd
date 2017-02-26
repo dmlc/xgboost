@@ -29,4 +29,3 @@ bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
 xgb.parameters(bst) <- list(eta = 0.1)
 
 }
-

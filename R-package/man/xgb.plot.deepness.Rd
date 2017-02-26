@@ -72,4 +72,3 @@ xgb.plot.deepness(bst, which='med.weight', pch=16, col=rgb(0,0,1,0.3), cex=2)
 \seealso{
 \code{\link{xgb.train}}, \code{\link{xgb.model.dt.tree}}.
 }
-
