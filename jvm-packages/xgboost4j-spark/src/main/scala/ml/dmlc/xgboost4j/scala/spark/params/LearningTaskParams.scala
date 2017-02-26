@@ -23,6 +23,11 @@ import org.apache.spark.ml.param.{DoubleParam, Param, Params}
 trait LearningTaskParams extends Params {
 
   /**
+   * number of tasks to learn
+   */
+  val numClasses = new Param[Int](this, "num_class", "number of classes to learn")
+
+  /**
    * Specify the learning task and the corresponding learning objective.
    * options: reg:linear, reg:logistic, binary:logistic, binary:logitraw, count:poisson,
    * multi:softmax, multi:softprob, rank:pairwise, reg:gamma. default: reg:linear
@@ -48,7 +53,7 @@ trait LearningTaskParams extends Params {
     s" {${LearningTaskParams.supportedEvalMetrics.mkString(",")}}",
     (value: String) => LearningTaskParams.supportedEvalMetrics.contains(value))
 
-  setDefault(objective -> "reg:linear", baseScore -> 0.5)
+  setDefault(objective -> "reg:linear", baseScore -> 0.5, numClasses -> 2)
 }
 
 private[spark] object LearningTaskParams {

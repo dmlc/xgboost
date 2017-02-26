@@ -110,19 +110,13 @@ class XGBoostEstimator private[spark](
         LabeledPoint(label, feature)
     }
     transformSchema(trainingSet.schema, logging = true)
-    val trainedModel = XGBoost.trainWithRDD(instances, fromParamsToXGBParamMap,
+    val derivedXGBoosterParamMap = fromParamsToXGBParamMap
+    val trainedModel = XGBoost.trainWithRDD(instances, derivedXGBoosterParamMap,
       $(round), $(nWorkers), $(customObj), $(customEval), $(useExternalMemory),
       $(missing)).setParent(this)
     val returnedModel = copyValues(trainedModel)
-    if (XGBoost.isClassificationTask(xgboostParams)) {
-      val numClass = {
-        if (xgboostParams.contains("num_class")) {
-          xgboostParams("num_class").asInstanceOf[Int]
-        } else {
-          2
-        }
-      }
-      returnedModel.asInstanceOf[XGBoostClassificationModel].numOfClasses = numClass
+    if (XGBoost.isClassificationTask(derivedXGBoosterParamMap)) {
+      returnedModel.asInstanceOf[XGBoostClassificationModel].numOfClasses = $(numClasses)
     }
     returnedModel
   }
