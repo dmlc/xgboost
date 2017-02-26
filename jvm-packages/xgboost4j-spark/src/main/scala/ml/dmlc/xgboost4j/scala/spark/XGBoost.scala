@@ -100,15 +100,16 @@ object XGBoost extends Serializable {
       xgBoostConfMap: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
       numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
-      useExternalMemory: Boolean, missing: Float = Float.NaN): RDD[Booster] = {
+      useExternalMemory: Boolean, missing: Float = Float.NaN,
+      groupData: Seq[Seq[Int]] = null): RDD[Booster] = {
     import DataUtils._
     val partitionedTrainingSet = repartitionData(trainingSet, numWorkers)
     val appName = partitionedTrainingSet.context.appName
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    partitionedTrainingSet.mapPartitions {
-      trainingSamples =>
+    partitionedTrainingSet.mapPartitionsWithIndex {
+      case (partIndex, trainingSamples) =>
         rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
         Rabit.init(rabitEnv)
         var booster: Booster = null
@@ -123,6 +124,9 @@ object XGBoost extends Serializable {
           }
           val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
           val trainingSet = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
+          if (groupData != null) {
+            trainingSet.setGroup(groupData(partIndex).toArray)
+          }
           booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
             watches = new mutable.HashMap[String, DMatrix] {
               put("train", trainingSet)
@@ -208,9 +212,11 @@ object XGBoost extends Serializable {
   def train(
       trainingData: RDD[MLLabeledPoint], params: Map[String, Any], round: Int,
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
-      useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
+      useExternalMemory: Boolean = false, missing: Float = Float.NaN,
+      groupData: Seq[Seq[Int]] = null): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
-    trainWithRDD(trainingData, params, round, nWorkers, obj, eval, useExternalMemory, missing)
+    trainWithRDD(trainingData, params, round, nWorkers, obj, eval, useExternalMemory, missing,
+      groupData)
   }
 
   private def overrideParamMapAccordingtoTaskCPUs(
@@ -266,7 +272,8 @@ object XGBoost extends Serializable {
   def trainWithRDD(
       trainingData: RDD[MLLabeledPoint], params: Map[String, Any], round: Int,
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
-      useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
+      useExternalMemory: Boolean = false, missing: Float = Float.NaN,
+      groupData: Seq[Seq[Int]] = null): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
     if (obj != null) {
       require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
@@ -282,7 +289,7 @@ object XGBoost extends Serializable {
     val tracker = startTracker(nWorkers, trackerConf)
     val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
     val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
-      tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
+      tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing, groupData)
     val sparkJobThread = new Thread() {
       override def run() {
         // force the job
