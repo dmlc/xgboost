@@ -25,7 +25,7 @@ trait LearningTaskParams extends Params {
   /**
    * number of tasks to learn
    */
-  val numClasses = new Param[Int](this, "num_class", "number of classes to learn")
+  val numClasses = new Param[Int](this, "num_class", "number of classes")
 
   /**
    * Specify the learning task and the corresponding learning objective.

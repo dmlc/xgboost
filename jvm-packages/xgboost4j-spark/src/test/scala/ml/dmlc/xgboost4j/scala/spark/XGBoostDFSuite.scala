@@ -60,7 +60,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     }
     val trainingDF = buildTrainingDataframe()
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
-      round = round, nWorkers = numWorkers, useExternalMemory = false)
+      round = round, nWorkers = numWorkers)
     val testDF = trainingDF.sparkSession.createDataFrame(testSetItr.toList).toDF(
       "id", "features", "label")
     val predResultsFromDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF).
