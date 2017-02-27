@@ -98,14 +98,10 @@ class XGBoostEstimator private[spark](
       xgbParamMap += param.name -> $(param)
     }
     val r = xgbParamMap.toMap
-    if (!XGBoost.isClassificationTask(r)) {
+    if (!XGBoost.isClassificationTask(r) || $(numClasses) == 2) {
       r - "num_class"
     } else {
-      if ($(numClasses) == 2) {
-        r - "num_class"
-      } else {
-        r
-      }
+      r
     }
   }
 
