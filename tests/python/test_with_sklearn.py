@@ -9,7 +9,10 @@ rng = np.random.RandomState(1994)
 def test_binary_classification():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_digits
-    from sklearn.cross_validation import KFold
+    try:
+        from sklearn.model_selection import KFold
+    except:
+        from sklearn.cross_validation import KFold
 
     digits = load_digits(2)
     y = digits['target']
@@ -27,7 +30,10 @@ def test_binary_classification():
 def test_multiclass_classification():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_iris
-    from sklearn.cross_validation import KFold
+    try:
+        from sklearn.cross_validation import KFold
+    except:
+        from sklearn.model_selection import KFold
 
     def check_pred(preds, labels):
         err = sum(1 for i in range(len(preds))
