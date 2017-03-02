@@ -104,14 +104,6 @@ object XGBoost extends Serializable {
     import DataUtils._
     val partitionedTrainingSet = repartitionData(trainingSet, numWorkers)
     val appName = partitionedTrainingSet.context.appName
-
-    val groupData: Seq[Seq[Int]] = xgBoostConfMap.get("groupData") match {
-      case Some(gpData) => gpData.asInstanceOf[Seq[Seq[Int]]]
-      case None => null
-    }
-    // remove groupData because this value is very large
-    val xgBoostConfMapFiltered = xgBoostConfMap.filterKeys(_ != "groupData")
-
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
@@ -131,10 +123,11 @@ object XGBoost extends Serializable {
           }
           val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
           val trainingSet = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
-          if (groupData != null) {
-            trainingSet.setGroup(groupData(partIndex).toArray)
+          if (xgBoostConfMap.get("groupData").isDefined) {
+            trainingSet.setGroup(
+              xgBoostConfMap.get("groupData").get.asInstanceOf[Seq[Seq[Int]]](partIndex).toArray)
           }
-          booster = SXGBoost.train(trainingSet, xgBoostConfMapFiltered, round,
+          booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
             watches = new mutable.HashMap[String, DMatrix] {
               put("train", trainingSet)
             }.toMap, obj, eval)
