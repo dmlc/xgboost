@@ -149,7 +149,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
           flatSampleArray(i) = sampleArray(i / numColumns).values(i % numColumns).toFloat
         }
         val dMatrix = new DMatrix(flatSampleArray, numRows, numColumns, missingValue)
-        val res = broadcastBooster.value.predictLeaf(dMatrix)
+        val res = broadcastBooster.value.predict(dMatrix)
         Rabit.shutdown()
         Iterator(res)
       }
