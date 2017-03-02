@@ -17,7 +17,10 @@ def test_binary_classification():
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
-    kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
+    try:
+        kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
+    except TypeError:  # sklearn.model_selection.KFold uses n_split
+        kf = KFold(y.shape[0], n_split=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf:
         xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
         preds = xgb_model.predict(X[test_index])
