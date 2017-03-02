@@ -104,9 +104,6 @@ object XGBoost extends Serializable {
     import DataUtils._
     val partitionedTrainingSet = repartitionData(trainingSet, numWorkers)
     val appName = partitionedTrainingSet.context.appName
-    // to workaround the empty partitions in training dataset,
-    // this might not be the best efficient implementation, see
-    // (https://github.com/dmlc/xgboost/issues/1277)
 
     val groupData: Seq[Seq[Int]] = xgBoostConfMap.get("groupData") match {
       case Some(gpData) => gpData.asInstanceOf[Seq[Seq[Int]]]
@@ -115,6 +112,9 @@ object XGBoost extends Serializable {
     // remove groupData because this value is very large
     val xgBoostConfMapFiltered = xgBoostConfMap.filterKeys(_ != "groupData")
 
+    // to workaround the empty partitions in training dataset,
+    // this might not be the best efficient implementation, see
+    // (https://github.com/dmlc/xgboost/issues/1277)
     partitionedTrainingSet.mapPartitionsWithIndex {
       case (partIndex, trainingSamples) =>
         rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
