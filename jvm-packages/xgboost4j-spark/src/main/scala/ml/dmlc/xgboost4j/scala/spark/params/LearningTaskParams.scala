@@ -55,7 +55,7 @@ trait LearningTaskParams extends Params {
   val groupData = new Param[Seq[Seq[Int]]](this, "groupData", "group data specify each group size" +
     " for ranking task. To correspond to partition of training data, it is nested.")
 
-  setDefault(objective -> "reg:linear", baseScore -> 0.5)
+  setDefault(objective -> "reg:linear", baseScore -> 0.5, groupData -> null)
 }
 
 private[spark] object LearningTaskParams {
