@@ -230,7 +230,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     }
     sampleList.toList
   }
-  
+
   test("multi_class classification test") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "multi:softmax", "num_class" -> "6")
