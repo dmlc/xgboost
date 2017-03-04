@@ -88,3 +88,4 @@ build_tests
 /tests/cpp/xgboost_test
 
 .DS_Store
+lib/
