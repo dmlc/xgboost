@@ -20,6 +20,7 @@ import java.nio.file.Files
 import java.util.concurrent.{BlockingQueue, LinkedBlockingDeque}
 
 import scala.collection.mutable.ListBuffer
+import scala.io.Source
 import scala.util.Random
 import scala.concurrent.duration._
 import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix, RabitTracker => PyRabitTracker}
@@ -255,5 +256,51 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     assert(loadedXGBoostModel.getFeaturesCol == "features")
     assert(loadedXGBoostModel.getLabelCol == "label")
     assert(loadedXGBoostModel.getPredictionCol == "prediction")
+  }
+
+  test("test use groupData") {
+    val trainSet = loadLabelPoints(getClass.getResource("/rank-demo-0.txt.train").getFile)
+    val trainingRDD = sc.parallelize(trainSet, numSlices = 1)
+    val trainGroupData: Seq[Seq[Int]] = Seq(Source.fromFile(
+      getClass.getResource("/rank-demo-0.txt.train.group").getFile).getLines().map(_.toInt).toList)
+    val testSet = loadLabelPoints(getClass.getResource("/rank-demo.txt.test").getFile)
+    val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
+    val testGroupData: Seq[Seq[Int]] = Seq(Source.fromFile(
+      getClass.getResource("/rank-demo.txt.test.group").getFile).getLines().map(_.toInt).toList)
+
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
+
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 1)
+    val predRDD = xgBoostModel.predict(testRDD)
+    val predResult1: Array[Array[Float]] = predRDD.collect()(0)
+    assert(testRDD.count() === predResult1.length)
+  }
+
+  test("test use nested groupData") {
+    val trainSet0 = loadLabelPoints(getClass.getResource("/rank-demo-0.txt.train").getFile)
+    val trainingRDD0 = sc.parallelize(trainSet0, numSlices = 1)
+    val trainSet1 = loadLabelPoints(getClass.getResource("/rank-demo-1.txt.train").getFile)
+    val trainingRDD1 = sc.parallelize(trainSet1, numSlices = 1)
+    val trainingRDD = trainingRDD0.union(trainingRDD1)
+
+    val trainGroupData0: Seq[Int] = Source.fromFile(
+      getClass.getResource("/rank-demo-0.txt.train.group").getFile).getLines().map(_.toInt).toList
+    val trainGroupData1: Seq[Int] = Source.fromFile(
+      getClass.getResource("/rank-demo-1.txt.train.group").getFile).getLines().map(_.toInt).toList
+    val trainGroupData: Seq[Seq[Int]] = Seq(trainGroupData0, trainGroupData1)
+
+    val testSet = loadLabelPoints(getClass.getResource("/rank-demo.txt.test").getFile)
+    val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
+    val testGroupData: Seq[Seq[Int]] = Seq(Source.fromFile(
+      getClass.getResource("/rank-demo.txt.test.group").getFile).getLines().map(_.toInt).toList)
+
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
+
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 2)
+    val predRDD = xgBoostModel.predict(testRDD)
+    val predResult1: Array[Array[Float]] = predRDD.collect()(0)
+    assert(testRDD.count() === predResult1.length)
   }
 }
