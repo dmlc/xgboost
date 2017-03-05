@@ -562,10 +562,11 @@ inline bst_float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) c
 }
 
 inline void RegTree::FillNodeMeanValues() {
-  if (this->node_mean_values.size() > 0) {
+  size_t num_nodes = this->param.num_nodes;
+  if (this->node_mean_values.size() == num_nodes) {
     return;
   }
-  this->node_mean_values.resize(this->param.num_nodes);
+  this->node_mean_values.resize(num_nodes);
   int root_id = 0;
   this->FillNodeMeanValue(root_id);
 }
