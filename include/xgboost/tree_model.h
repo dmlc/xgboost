@@ -567,8 +567,9 @@ inline void RegTree::FillNodeMeanValues() {
     return;
   }
   this->node_mean_values.resize(num_nodes);
-  int root_id = 0;
-  this->FillNodeMeanValue(root_id);
+  for (int root_id = 0; root_id < param.num_roots; ++root_id) {
+    this->FillNodeMeanValue(root_id);
+  }
 }
 
 inline bst_float RegTree::FillNodeMeanValue(int nid) {
