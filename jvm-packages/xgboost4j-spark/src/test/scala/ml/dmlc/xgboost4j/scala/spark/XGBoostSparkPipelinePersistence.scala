@@ -77,8 +77,8 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
     predictionModel.write.overwrite.save("testxgbPipe")
     val sameModel = PipelineModel.load("testxgbPipe")
 
-    val predictionModelXGB = predictionModel.stages collect { case xgb: XGBoostModel => xgb } head
-    val sameModelXGB = sameModel.stages collect { case xgb: XGBoostModel => xgb } head
+    val predictionModelXGB = predictionModel.stages.collect { case xgb: XGBoostModel => xgb } head
+    val sameModelXGB = sameModel.stages.collect { case xgb: XGBoostModel => xgb } head
 
     assert(java.util.Arrays.equals(
       predictionModelXGB.booster.toByteArray,
