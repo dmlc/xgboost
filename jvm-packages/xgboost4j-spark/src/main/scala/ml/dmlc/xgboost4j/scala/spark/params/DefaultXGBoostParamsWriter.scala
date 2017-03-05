@@ -23,7 +23,7 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.{JObject, _}
 
-// This originates from spark https://github.com/apache/spark/blob/04ee8cf633e17b6bf95225a8dd77bf2e06980eb3/mllib/src/main/scala/org/apache/spark/ml/util/ReadWrite.scala copy paste
+// This originates from apache-spark DefaultPramsWriter copy paste
 private[spark] object DefaultXGBoostParamsWriter {
 
   /**
