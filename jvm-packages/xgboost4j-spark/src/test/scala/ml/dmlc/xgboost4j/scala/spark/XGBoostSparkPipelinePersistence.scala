@@ -25,7 +25,7 @@ import scala.concurrent.duration._
 
 class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
   case class Foobar(TARGET: Int, bar: Double, baz: Double)
-  
+
   test("test sparks pipeline persistence of dataframe-based model") {
     //  maybe move to shared context, but requires session to import implicits.
     // what about introducing https://github.com/holdenk/spark-testing-base ?
