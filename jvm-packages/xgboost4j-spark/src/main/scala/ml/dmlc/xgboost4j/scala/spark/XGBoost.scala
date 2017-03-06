@@ -107,8 +107,8 @@ object XGBoost extends Serializable {
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    partitionedTrainingSet.mapPartitionsWithIndex {
-      case (partIndex, trainingSamples) =>
+    partitionedTrainingSet.mapPartitions {
+      trainingSamples =>
         rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
         Rabit.init(rabitEnv)
         var booster: Booster = null
@@ -126,7 +126,8 @@ object XGBoost extends Serializable {
           if (xgBoostConfMap.isDefinedAt("groupData")
             && xgBoostConfMap.get("groupData").get != null) {
             trainingSet.setGroup(
-              xgBoostConfMap.get("groupData").get.asInstanceOf[Seq[Seq[Int]]](partIndex).toArray)
+              xgBoostConfMap.get("groupData").get.asInstanceOf[Seq[Seq[Int]]](
+                TaskContext.getPartitionId()).toArray)
           }
           booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
             watches = new mutable.HashMap[String, DMatrix] {
