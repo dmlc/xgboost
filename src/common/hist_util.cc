@@ -22,12 +22,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, size_t max_num_bins) {
   const int kFactor = 8;
   std::vector<WXQSketch> sketchs;
 
-  int nthread;
-  #pragma omp parallel
-  {
-    nthread = omp_get_num_threads();
-  }
-  nthread = std::max(nthread / 2, 1);
+  const int nthread = omp_get_max_threads();
 
   unsigned nstep = (info.num_col + nthread - 1) / nthread;
   unsigned ncol = static_cast<unsigned>(info.num_col);
@@ -110,13 +105,8 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
   CHECK(cut != nullptr);
   dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
 
-  int nthread;
+  const int nthread = omp_get_max_threads();
   const unsigned nbins = cut->row_ptr.back();
-  #pragma omp parallel
-  {
-    nthread = omp_get_num_threads();
-  }
-  nthread = std::max(nthread / 2, 1);
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
 
@@ -161,6 +151,110 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
         hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
       }
     }
+  }
+}
+
+void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
+                             const RowSetCollection::Elem row_indices,
+                             const GHistIndexMatrix& gmat,
+                             const std::vector<bst_uint>& feat_set,
+                             GHistRow hist) {
+  data_.resize(nbins_ * nthread_, GHistEntry());
+  std::fill(data_.begin(), data_.end(), GHistEntry());
+  stat_buf_.resize(row_indices.size());
+
+  const int K = 8; // loop unrolling factor
+  const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
+  const bst_omp_uint nrows = row_indices.end - row_indices.begin;
+  const bst_omp_uint rest = nrows % K;
+
+  #pragma omp parallel for num_threads(nthread) schedule(static)
+  for (bst_omp_uint i = 0; i < nrows - rest; i += K) {
+    bst_uint rid[K];
+    bst_gpair stat[K];
+    for (int k = 0; k < K; ++k) {
+      rid[k] = row_indices.begin[i + k];
+    }
+    for (int k = 0; k < K; ++k) {
+      stat[k] = gpair[rid[k]];
+    }
+    for (int k = 0; k < K; ++k) {
+      stat_buf_[i + k] = stat[k];
+    }
+  }
+  for (bst_omp_uint i = nrows - rest; i < nrows; ++i) {
+    const bst_uint rid = row_indices.begin[i];
+    const bst_gpair stat = gpair[rid];
+    stat_buf_[i] = stat;
+  }
+
+  #pragma omp parallel for num_threads(nthread) schedule(dynamic)
+  for (bst_omp_uint i = 0; i < nrows - rest; i += K) {
+    const bst_omp_uint tid = omp_get_thread_num();
+    const size_t off = tid * nbins_;
+    bst_uint rid[K];
+    size_t ibegin[K];
+    size_t iend[K];
+    bst_gpair stat[K];
+    for (int k = 0; k < K; ++k) {
+      rid[k] = row_indices.begin[i + k];
+    }
+    for (int k = 0; k < K; ++k) {
+      ibegin[k] = static_cast<size_t>(gmat.row_ptr[rid[k]]);
+      iend[k] = static_cast<size_t>(gmat.row_ptr[rid[k] + 1]);
+    }
+    for (int k = 0; k < K; ++k) {
+      stat[k] = stat_buf_[i + k];
+    }
+    for (int k = 0; k < K; ++k) {
+      for (size_t j = ibegin[k]; j < iend[k]; ++j) {
+        const size_t bin = gmat.index[j];
+        data_[off + bin].Add(stat[k]);
+      }
+    }
+  }
+  for (bst_omp_uint i = nrows - rest; i < nrows; ++i) {
+    const bst_uint rid = row_indices.begin[i];
+    const size_t ibegin = static_cast<size_t>(gmat.row_ptr[rid]);
+    const size_t iend = static_cast<size_t>(gmat.row_ptr[rid + 1]);
+    const bst_gpair stat = stat_buf_[i];
+    for (size_t j = ibegin; j < iend; ++j) {
+      const size_t bin = gmat.index[j];
+      data_[bin].Add(stat);
+    }
+  }
+
+  /* reduction */
+  const bst_omp_uint nbins = static_cast<bst_omp_uint>(nbins_);
+  #pragma omp parallel for num_threads(nthread) schedule(static)
+  for (bst_omp_uint bin_id = 0; bin_id < nbins; ++bin_id) {
+    for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
+      hist.begin[bin_id].Add(data_[tid * nbins_ + bin_id]);
+    }
+  }
+}
+
+void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
+  const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
+  const bst_omp_uint nbins = static_cast<bst_omp_uint>(nbins_);
+  const int K = 8;
+  const bst_omp_uint rest = nbins % K;
+  #pragma omp parallel for num_threads(nthread) schedule(static)
+  for (bst_omp_uint bin_id = 0; bin_id < nbins - rest; bin_id += K) {
+    GHistEntry pb[K];
+    GHistEntry sb[K];
+    for (int k = 0; k < K; ++k) {
+      pb[k] = parent.begin[bin_id + k];
+    }
+    for (int k = 0; k < K; ++k) {
+      sb[k] = sibling.begin[bin_id + k];
+    }
+    for (int k = 0; k < K; ++k) {
+      self.begin[bin_id + k].SetSubtract(pb[k], sb[k]);
+    }
+  }
+  for (bst_omp_uint bin_id = nbins - rest; bin_id < nbins; ++bin_id) {
+    self.begin[bin_id].SetSubtract(parent.begin[bin_id], sibling.begin[bin_id]);
   }
 }
 

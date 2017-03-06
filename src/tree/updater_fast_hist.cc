@@ -280,19 +280,27 @@ class FastHistMaker: public TreeUpdater {
     }
 
     inline bool UpdatePredictionCache(const DMatrix* data,
-                                      std::vector<bst_float>* p_out_preds) const {
+                                      std::vector<bst_float>* p_out_preds) {
       std::vector<bst_float>& out_preds = *p_out_preds;
 
-      if (!p_last_fmat_ || data != p_last_fmat_) {
+      // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
+      // conjunction with Update().
+      if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
         return false;
+      }
+
+      if (leaf_value_cache_.empty()) {
+        leaf_value_cache_.resize(p_last_tree_->param.num_nodes, std::numeric_limits<float>::infinity());
       }
 
       CHECK_GT(out_preds.size(), 0);
 
       for (const RowSetCollection::Elem rowset : row_set_collection_) {
         if (rowset.begin != nullptr && rowset.end != nullptr) {
-          int nid = rowset.nid;
+          int nid = rowset.node_id;
           bst_float leaf_value;
+          // if a node is marked as deleted by the pruner, traverse upward to locate
+          // a non-deleted leaf.
           if ((*p_last_tree_)[nid].is_deleted()) {
             while ((*p_last_tree_)[nid].is_deleted()) {
               nid = (*p_last_tree_)[nid].parent();
@@ -300,6 +308,7 @@ class FastHistMaker: public TreeUpdater {
             CHECK((*p_last_tree_)[nid].is_leaf());
           }
           leaf_value = (*p_last_tree_)[nid].leaf_value();
+
           for (const bst_uint* it = rowset.begin; it < rowset.end; ++it) {
             out_preds[*it] += leaf_value;
           }
@@ -329,6 +338,8 @@ class FastHistMaker: public TreeUpdater {
       {
         // initialize the row set
         row_set_collection_.Clear();
+        // clear local prediction cache
+        leaf_value_cache_.clear();
         // initialize histogram collection
         size_t nbins = gmat.cut->row_ptr.back();
         hist_.Init(nbins);
@@ -517,7 +528,7 @@ class FastHistMaker: public TreeUpdater {
       const auto& rowset = row_set_collection_[nid];
 
       Column<T> column = column_matrix.GetColumn<T>(fid);
-      if (column.type_ == xgboost::common::kDenseColumn) {
+      if (column.type == xgboost::common::kDenseColumn) {
         ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column, split_cond,
           default_left); 
       } else {
@@ -552,7 +563,7 @@ class FastHistMaker: public TreeUpdater {
           rid[k] = rowset.begin[i + k];
         }
         for (int k = 0; k < K; ++k) {
-          rbin[k] = column.index_[rid[k]];
+          rbin[k] = column.index[rid[k]];
         }
         for (int k = 0; k < K; ++k) {
           if (rbin[k] == std::numeric_limits<T>::max()) { // missing value
@@ -562,7 +573,7 @@ class FastHistMaker: public TreeUpdater {
               right.push_back(rid[k]);
             }
           } else {
-            if (rbin[k] + column.index_base_ <= split_cond) {
+            if (rbin[k] + column.index_base <= split_cond) {
               left.push_back(rid[k]);
             } else {
               right.push_back(rid[k]);
@@ -574,7 +585,7 @@ class FastHistMaker: public TreeUpdater {
         auto& left = row_split_tloc[nthread-1].left;
         auto& right = row_split_tloc[nthread-1].right;
         const bst_uint rid = rowset.begin[i];
-        const T rbin = column.index_[rid];
+        const T rbin = column.index[rid];
         if (rbin == std::numeric_limits<T>::max()) { // missing value
           if (default_left) {
             left.push_back(rid);
@@ -582,7 +593,7 @@ class FastHistMaker: public TreeUpdater {
             right.push_back(rid);
           }
         } else {
-          if (rbin + column.index_base_ <= split_cond) {
+          if (rbin + column.index_base <= split_cond) {
             left.push_back(rid);
           } else {
             right.push_back(rid);
@@ -609,25 +620,25 @@ class FastHistMaker: public TreeUpdater {
         const bst_omp_uint ibegin = tid * nrows / nthread;
         const bst_omp_uint iend = (tid + 1) * nrows / nthread;
         // search first nonzero row with index >= rowset[ibegin]
-        const uint32_t* p = std::lower_bound(column.row_ind_,
-                                             column.row_ind_ + column.len_,
+        const uint32_t* p = std::lower_bound(column.row_ind,
+                                             column.row_ind + column.len,
                                              rowset.begin[ibegin]);
 
-        if (p != column.row_ind_ + column.len_) {
-          bst_omp_uint cursor = p - column.row_ind_;
+        if (p != column.row_ind + column.len) {
+          bst_omp_uint cursor = p - column.row_ind;
 
           for (bst_omp_uint i = ibegin; i < iend; ++i) {
             auto& left = row_split_tloc[tid].left;
             auto& right = row_split_tloc[tid].right;
             bst_uint rid = rowset.begin[i];
-            while (cursor < column.len_
-                   && column.row_ind_[cursor] < rid
-                   && column.row_ind_[cursor] <= rowset.begin[iend - 1]) {
+            while (cursor < column.len
+                   && column.row_ind[cursor] < rid
+                   && column.row_ind[cursor] <= rowset.begin[iend - 1]) {
               ++cursor;
             }
-            if (column.row_ind_[cursor] == rid) {
-              const T rbin = column.index_[cursor];
-              if (rbin + column.index_base_ <= split_cond) {
+            if (column.row_ind[cursor] == rid) {
+              const T rbin = column.index[cursor];
+              if (rbin + column.index_base <= split_cond) {
                 left.push_back(rid);
               } else {
                 right.push_back(rid);
@@ -805,11 +816,16 @@ class FastHistMaker: public TreeUpdater {
     std::vector<NodeEntry> snode;
     /*! \brief culmulative histogram of gradients. */
     HistCollection hist_;
+    /*! \brief feature with least # of bins. to be used for dense specialization
+               of InitNewNode() */
     size_t fid_least_bins_;
+    /*! \brief local prediction cache; maps node id to leaf value */
+    std::vector<float> leaf_value_cache_;
 
     GHistBuilder builder_;
     std::unique_ptr<TreeUpdater> pruner_;
 
+    // back pointers to tree and data matrix
     const RegTree* p_last_tree_ = nullptr;
     const DMatrix* p_last_fmat_ = nullptr;
 

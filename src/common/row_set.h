@@ -21,13 +21,13 @@ class RowSetCollection {
   struct Elem {
     const bst_uint* begin;
     const bst_uint* end;
-    int nid;
+    int node_id;
     Elem(void)
-        : begin(nullptr), end(nullptr), nid(-1) {}
+        : begin(nullptr), end(nullptr), node_id(-1) {}
     Elem(const bst_uint* begin,
          const bst_uint* end,
-         int nid)
-        : begin(begin), end(end), nid(nid) {}
+         int node_id)
+        : begin(begin), end(end), node_id(node_id) {}
 
     inline size_t size() const {
       return end - begin;
