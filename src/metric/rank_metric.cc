@@ -101,6 +101,7 @@ struct EvalAuc : public Metric {
     // sum statistics
     bst_float sum_auc = 0.0f;
     int auc_error = 0;
+#if XGBOOST_PARALLEL_SORT_SUPPORTED == 1
     // each thread takes a local rec
     std::vector< std::pair<bst_float, unsigned> > rec;
     for (bst_omp_uint k = 0; k < ngroup; ++k) {
