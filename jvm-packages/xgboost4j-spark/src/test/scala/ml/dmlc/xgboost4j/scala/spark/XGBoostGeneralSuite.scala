@@ -350,8 +350,6 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       getClass.getResource("/rank-demo-0.txt.train.group").getFile).getLines().map(_.toInt).toList)
     val testSet = loadLabelPoints(getClass.getResource("/rank-demo.txt.test").getFile)
     val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
-    val testGroupData: Seq[Seq[Int]] = Seq(Source.fromFile(
-      getClass.getResource("/rank-demo.txt.test.group").getFile).getLines().map(_.toInt).toList)
 
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
@@ -377,8 +375,6 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
     val testSet = loadLabelPoints(getClass.getResource("/rank-demo.txt.test").getFile)
     val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
-    val testGroupData: Seq[Seq[Int]] = Seq(Source.fromFile(
-      getClass.getResource("/rank-demo.txt.test.group").getFile).getLines().map(_.toInt).toList)
 
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
