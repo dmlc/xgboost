@@ -239,4 +239,36 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers)
   }
+
+  test("test DF use nested groupData") {
+    val testItr = loadLabelPoints(getClass.getResource("/rank-demo.txt.test").getFile).iterator.
+      zipWithIndex.map { case (instance: LabeledPoint, id: Int) =>
+      (id, instance.features, instance.label)
+    }
+    val trainingDF = {
+      val rowList0 = loadLabelPoints(getClass.getResource("/rank-demo-0.txt.train").getFile)
+      val labeledPointsRDD0 = sc.parallelize(rowList0, numSlices = 1)
+      val rowList1 = loadLabelPoints(getClass.getResource("/rank-demo-1.txt.train").getFile)
+      val labeledPointsRDD1 = sc.parallelize(rowList1, numSlices = 1)
+      val labeledPointsRDD = labeledPointsRDD0.union(labeledPointsRDD1)
+      val sparkSession = SparkSession.builder().appName("XGBoostDFSuite").getOrCreate()
+      import sparkSession.implicits._
+      sparkSession.createDataset(labeledPointsRDD).toDF
+    }
+    val trainGroupData0: Seq[Int] = Source.fromFile(
+      getClass.getResource("/rank-demo-0.txt.train.group").getFile).getLines().map(_.toInt).toList
+    val trainGroupData1: Seq[Int] = Source.fromFile(
+      getClass.getResource("/rank-demo-1.txt.train.group").getFile).getLines().map(_.toInt).toList
+    val trainGroupData: Seq[Seq[Int]] = Seq(trainGroupData0, trainGroupData1)
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
+
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
+      round = 5, nWorkers = 2)
+    val testDF = trainingDF.sparkSession.createDataFrame(testItr.toList).toDF(
+      "id", "features", "label")
+    val predResultsFromDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF).
+      collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("features"))).toMap
+    assert(testDF.count() === predResultsFromDF.size)
+  }
 }
