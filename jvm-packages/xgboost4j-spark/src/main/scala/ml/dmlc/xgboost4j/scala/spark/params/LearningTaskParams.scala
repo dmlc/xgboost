@@ -53,7 +53,14 @@ trait LearningTaskParams extends Params {
     s" {${LearningTaskParams.supportedEvalMetrics.mkString(",")}}",
     (value: String) => LearningTaskParams.supportedEvalMetrics.contains(value))
 
-  setDefault(objective -> "reg:linear", baseScore -> 0.5, numClasses -> 2)
+  /**
+    * group data specify each group sizes for ranking task. To correspond to partition of
+    * training data, it is nested.
+    */
+  val groupData = new Param[Seq[Seq[Int]]](this, "groupData", "group data specify each group size" +
+    " for ranking task. To correspond to partition of training data, it is nested.")
+
+  setDefault(objective -> "reg:linear", baseScore -> 0.5, numClasses -> 2, groupData -> null)
 }
 
 private[spark] object LearningTaskParams {

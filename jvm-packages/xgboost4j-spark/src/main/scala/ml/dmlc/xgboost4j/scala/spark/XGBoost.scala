@@ -123,6 +123,12 @@ object XGBoost extends Serializable {
           }
           val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
           val trainingSet = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
+          if (xgBoostConfMap.isDefinedAt("groupData")
+            && xgBoostConfMap.get("groupData").get != null) {
+            trainingSet.setGroup(
+              xgBoostConfMap.get("groupData").get.asInstanceOf[Seq[Seq[Int]]](
+                TaskContext.getPartitionId()).toArray)
+          }
           booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
             watches = new mutable.HashMap[String, DMatrix] {
               put("train", trainingSet)
