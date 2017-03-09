@@ -66,7 +66,7 @@ Setting Parameters
 XGBoost can use either a list of pairs or a dictionary to set [parameters](../parameter.md). For instance:
 * Booster parameters
 ```python
-param = {'bst:max_depth':2, 'bst:eta':1, 'silent':1, 'objective':'binary:logistic' }
+param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic' }
 param['nthread'] = 4
 param['eval_metric'] = 'auc'
 ```
