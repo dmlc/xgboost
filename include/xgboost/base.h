@@ -49,9 +49,12 @@
 #endif
 
 #if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 8
-#define XGBOOST_PARALLEL_SORT_SUPPORTED 1
+#include <parallel/algorithm>
+#define XGBOOST_PARALLEL_SORT(X, Y, Z) __gnu_parallel::sort((X), (Y), (Z))
+#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) __gnu_parallel::stable_sort((X), (Y), (Z))
 #else
-#define XGBOOST_PARALLEL_SORT_SUPPORTED 0
+#define XGBOOST_PARALLEL_SORT(X, Y, Z) std::sort((X), (Y), (Z))
+#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
 #endif
 
 /*! \brief namespace of xgboo st*/
