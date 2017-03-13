@@ -228,7 +228,8 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     Make an n-fold list of CVPack from random indices.
     """
     evals = list(evals)
-    np.random.seed(seed)
+    if seed != None:
+        np.random.seed(seed)
 
     if stratified is False and folds is None:
         if shuffle is True:
@@ -293,7 +294,7 @@ def aggcv(rlist):
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
        fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
-       seed=0, callbacks=None, shuffle=True):
+       seed=None, callbacks=None, shuffle=True):
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 
