@@ -258,7 +258,6 @@ struct EvalNDCG : public EvalRankList{
     return sumdcg;
   }
   virtual bst_float EvalMetric(std::vector<std::pair<bst_float, unsigned> > &rec) const { // NOLINT(*)
-
     XGBOOST_PARALLEL_STABLE_SORT(rec.begin(), rec.end(), common::CmpFirst);
     bst_float dcg = this->CalcDCG(rec);
     XGBOOST_PARALLEL_STABLE_SORT(rec.begin(), rec.end(), common::CmpSecond);

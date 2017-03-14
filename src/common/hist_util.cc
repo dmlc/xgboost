@@ -163,7 +163,7 @@ void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
   std::fill(data_.begin(), data_.end(), GHistEntry());
   stat_buf_.resize(row_indices.size());
 
-  const int K = 8; // loop unrolling factor
+  const int K = 8;  // loop unrolling factor
   const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
   const bst_omp_uint nrows = row_indices.end - row_indices.begin;
   const bst_omp_uint rest = nrows % K;

@@ -5,28 +5,30 @@
  * \author Philip Cho
  */
 
-#ifndef XGBOOST_COLUMN_MATRIX_H_
-#define XGBOOST_COLUMN_MATRIX_H_
+#ifndef XGBOOST_COMMON_COLUMN_MATRIX_H_
+#define XGBOOST_COMMON_COLUMN_MATRIX_H_
 
-#define XGBOOST_TYPE_SWITCH(dtype, OP)					\
-switch (dtype) {						\
-  case xgboost::common::kUInt32 : {						\
+#define XGBOOST_TYPE_SWITCH(dtype, OP)        \
+switch (dtype) {                \
+  case xgboost::common::kUInt32 : {           \
     typedef uint32_t DType;         \
-    OP; break;							\
-  }								\
-  case xgboost::common::kUInt16 : {						\
+    OP; break;              \
+  }               \
+  case xgboost::common::kUInt16 : {           \
     typedef uint16_t DType;         \
-    OP; break;							\
-  }								\
-  case xgboost::common::kUInt8 : {						\
-    typedef uint8_t DType;         \
-    OP; break;							\
-    default: LOG(FATAL) << "don't recognize type flag" << dtype;	\
-  } \
+    OP; break;              \
+  }               \
+  case xgboost::common::kUInt8 : {            \
+    typedef uint8_t DType;          \
+    OP; break;              \
+    default: LOG(FATAL) << "don't recognize type flag" << dtype;  \
+  }               \
 }
 
-#include "hist_util.h"
 #include <type_traits>
+#include <limits>
+#include <vector>
+#include "hist_util.h"
 
 namespace xgboost {
 namespace common {
@@ -180,9 +182,10 @@ class ColumnMatrix {
      to determine type of bin id's */
   template<typename T>
   inline Column<T> GetColumn(unsigned fid) const {
-    CHECK( (std::is_same<T,uint32_t>::value
-       || std::is_same<T,uint16_t>::value
-       || std::is_same<T,uint8_t>::value) );
+    const bool valid_type = std::is_same<T, uint32_t>::value
+                          || std::is_same<T, uint16_t>::value
+                          || std::is_same<T, uint8_t>::value;
+    CHECK(valid_type);
 
     Column<T> c;
 
@@ -225,4 +228,4 @@ class ColumnMatrix {
 
 }  // namespace common
 }  // namespace xgboost
-#endif  // XGBOOST_COLUMN_MATRIX_H_
+#endif  // XGBOOST_COMMON_COLUMN_MATRIX_H_

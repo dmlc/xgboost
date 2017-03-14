@@ -291,7 +291,8 @@ class FastHistMaker: public TreeUpdater {
       }
 
       if (leaf_value_cache_.empty()) {
-        leaf_value_cache_.resize(p_last_tree_->param.num_nodes, std::numeric_limits<float>::infinity());
+        leaf_value_cache_.resize(p_last_tree_->param.num_nodes,
+          std::numeric_limits<float>::infinity());
       }
 
       CHECK_GT(out_preds.size(), 0);
@@ -531,10 +532,10 @@ class FastHistMaker: public TreeUpdater {
       Column<T> column = column_matrix.GetColumn<T>(fid);
       if (column.type == xgboost::common::kDenseColumn) {
         ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column, split_cond,
-          default_left); 
+          default_left);
       } else {
         ApplySplitSparseData(rowset, gmat, &row_split_tloc_, column, lower_bound,
-          upper_bound, split_cond, default_left); 
+          upper_bound, split_cond, default_left);
       }
 
       row_set_collection_.AddSplit(
@@ -567,7 +568,7 @@ class FastHistMaker: public TreeUpdater {
           rbin[k] = column.index[rid[k]];
         }
         for (int k = 0; k < K; ++k) {
-          if (rbin[k] == std::numeric_limits<T>::max()) { // missing value
+          if (rbin[k] == std::numeric_limits<T>::max()) {  // missing value
             if (default_left) {
               left.push_back(rid[k]);
             } else {
@@ -587,7 +588,7 @@ class FastHistMaker: public TreeUpdater {
         auto& right = row_split_tloc[nthread-1].right;
         const bst_uint rid = rowset.begin[i];
         const T rbin = column.index[rid];
-        if (rbin == std::numeric_limits<T>::max()) { // missing value
+        if (rbin == std::numeric_limits<T>::max()) {  // missing value
           if (default_left) {
             left.push_back(rid);
           } else {
