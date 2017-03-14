@@ -11,15 +11,15 @@
 #define XGBOOST_TYPE_SWITCH(dtype, OP)					\
 switch (dtype) {						\
   case xgboost::common::kUInt32 : {						\
-    using DType = uint32_t;					\
+    typedef uint32_t DType;         \
     OP; break;							\
   }								\
   case xgboost::common::kUInt16 : {						\
-    using DType = uint16_t;					\
+    typedef uint16_t DType;         \
     OP; break;							\
   }								\
   case xgboost::common::kUInt8 : {						\
-    using DType = uint8_t;					\
+    typedef uint8_t DType;         \
     OP; break;							\
     default: LOG(FATAL) << "don't recognize type flag" << dtype;	\
   } \

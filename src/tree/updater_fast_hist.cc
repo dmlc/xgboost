@@ -137,7 +137,8 @@ class FastHistMaker: public TreeUpdater {
     // constructor
     explicit Builder(const TrainParam& param,
                      std::unique_ptr<TreeUpdater> pruner)
-      : param(param), pruner_(std::move(pruner)) {}
+      : param(param), pruner_(std::move(pruner)),
+        p_last_tree_(nullptr), p_last_fmat_(nullptr) {}
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
                         const ColumnMatrix& column_matrix,
@@ -458,11 +459,11 @@ class FastHistMaker: public TreeUpdater {
       const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread);
       best_split_tloc_.resize(nthread);
       #pragma omp parallel for schedule(static) num_threads(nthread)
-      for (unsigned tid = 0; tid < nthread; ++tid) {
+      for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
         best_split_tloc_[tid] = snode[nid].best;
       }
       #pragma omp parallel for schedule(dynamic) num_threads(nthread)
-      for (unsigned i = 0; i < nfeature; ++i) {
+      for (bst_omp_uint i = 0; i < nfeature; ++i) {
         const bst_uint fid = feat_set[i];
         const unsigned tid = omp_get_thread_num();
         this->EnumerateSplit(-1, gmat, hist[nid], snode[nid], constraints_[nid], info,
@@ -826,8 +827,8 @@ class FastHistMaker: public TreeUpdater {
     std::unique_ptr<TreeUpdater> pruner_;
 
     // back pointers to tree and data matrix
-    const RegTree* p_last_tree_ = nullptr;
-    const DMatrix* p_last_fmat_ = nullptr;
+    const RegTree* p_last_tree_;
+    const DMatrix* p_last_fmat_;
 
     // constraint value
     std::vector<TConstraint> constraints_;
