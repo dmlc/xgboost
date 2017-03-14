@@ -126,4 +126,3 @@ plot(err, type='l', ylim=c(0,0.1), xlab='#trees')
 \seealso{
 \code{\link{xgb.train}}.
 }
-

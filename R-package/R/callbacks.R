@@ -41,6 +41,7 @@ NULL
 #' Callback closure for printing the result of evaluation
 #' 
 #' @param period  results would be printed every number of periods
+#' @param showsd  whether standard deviations should be printed (when available)
 #' 
 #' @details
 #' The callback function prints the result of evaluation at every \code{period} iterations.
@@ -56,7 +57,7 @@ NULL
 #' \code{\link{callbacks}}
 #' 
 #' @export
-cb.print.evaluation <- function(period=1) {
+cb.print.evaluation <- function(period=1, showsd=TRUE) {
   
   callback <- function(env = parent.frame()) {
     if (length(env$bst_evaluation) == 0 ||
@@ -68,7 +69,8 @@ cb.print.evaluation <- function(period=1) {
     if ((i-1) %% period == 0 ||
         i == env$begin_iteration ||
         i == env$end_iteration) {
-      msg <- format.eval.string(i, env$bst_evaluation, env$bst_evaluation_err)
+      stdev <- if (showsd) env$bst_evaluation_err else NULL
+      msg <- format.eval.string(i, env$bst_evaluation, stdev)
       cat(msg, '\n')
     }
   }

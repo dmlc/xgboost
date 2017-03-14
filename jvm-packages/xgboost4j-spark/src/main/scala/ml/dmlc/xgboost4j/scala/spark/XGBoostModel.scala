@@ -17,30 +17,32 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.JavaConverters._
-
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, Rabit}
+import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
+import ml.dmlc.xgboost4j.scala.spark.params.DefaultXGBoostParamsWriter
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
 import org.apache.hadoop.fs.{FSDataOutputStream, Path}
 import org.apache.spark.ml.PredictionModel
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
-import org.apache.spark.ml.param.{Param, Params}
+import org.apache.spark.ml.param.{BooleanParam, ParamMap, Params}
+import org.apache.spark.ml.util._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.types.{ArrayType, FloatType}
 import org.apache.spark.{SparkContext, TaskContext}
+import org.json4s.DefaultFormats
 
 /**
  * the base class of [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
  */
 abstract class XGBoostModel(protected var _booster: Booster)
-  extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params {
+  extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params with MLWritable {
 
   def setLabelCol(name: String): XGBoostModel = set(labelCol, name)
 
   // scalastyle:off
 
-  final val useExternalMemory: Param[Boolean] = new Param[Boolean](this, "useExternalMemory", "whether to use external memory for prediction")
+  final val useExternalMemory = new BooleanParam(this, "use_external_memory", "whether to use external memory for prediction")
 
   setDefault(useExternalMemory, false)
 
@@ -57,9 +59,13 @@ abstract class XGBoostModel(protected var _booster: Booster)
     import DataUtils._
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
     testSet.mapPartitions { testSamples =>
+      val rabitEnv = Map("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
+      Rabit.init(rabitEnv.asJava)
       if (testSamples.hasNext) {
         val dMatrix = new DMatrix(new JDMatrix(testSamples, null))
-        Iterator(broadcastBooster.value.predictLeaf(dMatrix))
+        val res = broadcastBooster.value.predictLeaf(dMatrix)
+        Rabit.shutdown()
+        Iterator(res)
       } else {
         Iterator()
       }
@@ -145,8 +151,9 @@ abstract class XGBoostModel(protected var _booster: Booster)
           flatSampleArray(i) = sampleArray(i / numColumns).values(i % numColumns).toFloat
         }
         val dMatrix = new DMatrix(flatSampleArray, numRows, numColumns, missingValue)
+        val res = broadcastBooster.value.predict(dMatrix)
         Rabit.shutdown()
-        Iterator(broadcastBooster.value.predict(dMatrix))
+        Iterator(res)
       }
     }
   }
@@ -290,4 +297,38 @@ abstract class XGBoostModel(protected var _booster: Booster)
   }
 
   def booster: Booster = _booster
+
+  override def copy(extra: ParamMap): XGBoostModel = defaultCopy(extra)
+
+  override def write: MLWriter = new XGBoostModel.XGBoostModelModelWriter(this)
+}
+
+object XGBoostModel extends MLReadable[XGBoostModel] {
+
+  override def read: MLReader[XGBoostModel] = new XGBoostModelModelReader
+
+  override def load(path: String): XGBoostModel = super.load(path)
+
+  private[XGBoostModel] class XGBoostModelModelWriter(instance: XGBoostModel) extends MLWriter {
+    override protected def saveImpl(path: String): Unit = {
+      implicit val format = DefaultFormats
+      implicit val sc = super.sparkSession.sparkContext
+      DefaultXGBoostParamsWriter.saveMetadata(instance, path, sc)
+
+      val dataPath = new Path(path, "data").toString
+      instance.saveModelAsHadoopFile(dataPath)
+    }
+  }
+
+  private class XGBoostModelModelReader extends MLReader[XGBoostModel] {
+    private val className = classOf[XGBoostModel].getName
+    override def load(path: String): XGBoostModel = {
+      implicit val sc = super.sparkSession.sparkContext
+      val dataPath = new Path(path, "data").toString
+      // not used / all data resides in platform independent xgboost model file
+      // val metadata = DefaultXGBoostParamsReader.loadMetadata(path, sc, className)
+      XGBoost.loadModelFromHadoopFile(dataPath)
+    }
+  }
+
 }

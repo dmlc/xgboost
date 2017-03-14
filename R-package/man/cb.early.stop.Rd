@@ -60,4 +60,3 @@ Callback function expects the following values to be set in its calling frame:
 \code{\link{callbacks}},
 \code{\link{xgb.attr}}
 }
-

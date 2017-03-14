@@ -29,4 +29,3 @@ Bache, K. & Lichman, M. (2013). UCI Machine Learning Repository
 School of Information and Computer Science.
 }
 \keyword{datasets}
-

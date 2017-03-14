@@ -14,4 +14,3 @@ A deprecation warning is shown when any of the deprecated parameters is used in 
 An additional warning is shown when there was a partial match to a deprecated parameter 
 (as R is able to partially match parameter names).
 }
-
