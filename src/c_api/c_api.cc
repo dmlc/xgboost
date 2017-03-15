@@ -785,6 +785,18 @@ XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
   API_END();
 }
 
+XGB_DLL int XGBThreadLocalStoreFree() {
+	API_BEGIN();
+
+	XGBAPIThreadLocalStore::Get()->ret_vec_str.clear();
+	XGBAPIThreadLocalStore::Get()->ret_vec_str.shrink_to_fit();
+
+	XGBAPIThreadLocalStore::Get()->ret_vec_charp.clear();
+	XGBAPIThreadLocalStore::Get()->ret_vec_charp.shrink_to_fit();
+
+	API_END();
+}
+
 XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
                                  int* version) {
   API_BEGIN();
