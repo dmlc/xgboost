@@ -14,6 +14,10 @@
 #include <stdexcept>
 #include "./base.h"
 
+#if DMLC_LOG_STACK_TRACE
+#include <execinfo.h>
+#endif
+
 namespace dmlc {
 /*!
  * \brief exception class that will be thrown by
@@ -27,16 +31,6 @@ struct Error : public std::runtime_error {
   explicit Error(const std::string &s) : std::runtime_error(s) {}
 };
 }  // namespace dmlc
-
-#if defined(_MSC_VER) && _MSC_VER < 1900
-#define noexcept(a)
-#endif
-
-#if DMLC_USE_CXX11
-#define DMLC_THROW_EXCEPTION noexcept(false)
-#else
-#define DMLC_THROW_EXCEPTION
-#endif
 
 #if DMLC_USE_GLOG
 #include <glog/logging.h>
@@ -63,21 +57,54 @@ inline void InitLogging(const char* argv0) {
 #endif
 
 namespace dmlc {
-inline void InitLogging(const char* argv0) {
+inline void InitLogging(const char*) {
   // DO NOTHING
 }
+
+class LogCheckError {
+ public:
+  LogCheckError() : str(nullptr) {}
+  explicit LogCheckError(const std::string& str_) : str(new std::string(str_)) {}
+  ~LogCheckError() { if (str != nullptr) delete str; }
+  operator bool() {return str != nullptr; }
+  std::string* str;
+};
+
+#define DEFINE_CHECK_FUNC(name, op)                               \
+  template <typename X, typename Y>                               \
+  inline LogCheckError LogCheck##name(const X& x, const Y& y) {   \
+    if (x op y) return LogCheckError();                           \
+    std::ostringstream os;                                        \
+    os << " (" << x << " vs. " << y << ") ";  /* CHECK_XX(x, y) requires x and y can be serialized to string. Use CHECK(x OP y) otherwise. NOLINT(*) */ \
+    return LogCheckError(os.str());                               \
+  }                                                               \
+  inline LogCheckError LogCheck##name(int x, int y) {             \
+    return LogCheck##name<int, int>(x, y);                        \
+  }
+
+#define CHECK_BINARY_OP(name, op, x, y)                               \
+  if (dmlc::LogCheckError _check_err = dmlc::LogCheck##name(x, y))    \
+    dmlc::LogMessageFatal(__FILE__, __LINE__).stream()                \
+      << "Check failed: " << #x " " #op " " #y << *(_check_err.str)
+
+DEFINE_CHECK_FUNC(_LT, <)
+DEFINE_CHECK_FUNC(_GT, >)
+DEFINE_CHECK_FUNC(_LE, <=)
+DEFINE_CHECK_FUNC(_GE, >=)
+DEFINE_CHECK_FUNC(_EQ, ==)
+DEFINE_CHECK_FUNC(_NE, !=)
 
 // Always-on checking
 #define CHECK(x)                                           \
   if (!(x))                                                \
-    dmlc::LogMessageFatal(__FILE__, __LINE__).stream() << "Check "  \
-      "failed: " #x << ' '
-#define CHECK_LT(x, y) CHECK((x) < (y))
-#define CHECK_GT(x, y) CHECK((x) > (y))
-#define CHECK_LE(x, y) CHECK((x) <= (y))
-#define CHECK_GE(x, y) CHECK((x) >= (y))
-#define CHECK_EQ(x, y) CHECK((x) == (y))
-#define CHECK_NE(x, y) CHECK((x) != (y))
+    dmlc::LogMessageFatal(__FILE__, __LINE__).stream()     \
+      << "Check failed: " #x << ' '
+#define CHECK_LT(x, y) CHECK_BINARY_OP(_LT, <, x, y)
+#define CHECK_GT(x, y) CHECK_BINARY_OP(_GT, >, x, y)
+#define CHECK_LE(x, y) CHECK_BINARY_OP(_LE, <=, x, y)
+#define CHECK_GE(x, y) CHECK_BINARY_OP(_GE, >=, x, y)
+#define CHECK_EQ(x, y) CHECK_BINARY_OP(_EQ, ==, x, y)
+#define CHECK_NE(x, y) CHECK_BINARY_OP(_NE, !=, x, y)
 #define CHECK_NOTNULL(x) \
   ((x) == NULL ? dmlc::LogMessageFatal(__FILE__, __LINE__).stream() << "Check  notnull: "  #x << ' ', (x) : (x)) // NOLINT(*)
 // Debug-only checking.
@@ -221,6 +248,20 @@ class LogMessageFatal : public LogMessage {
  public:
   LogMessageFatal(const char* file, int line) : LogMessage(file, line) {}
   ~LogMessageFatal() {
+#if DMLC_LOG_STACK_TRACE
+    const int MAX_STACK_SIZE = 10;
+    void *stack[MAX_STACK_SIZE];
+
+    int nframes = backtrace(stack, MAX_STACK_SIZE);
+    log_stream_ << "\n\n" << "Stack trace returned " << nframes << " entries:\n";
+    char **msgs = backtrace_symbols(stack, nframes);
+    if (msgs != nullptr) {
+      for (int i = 0; i < nframes; ++i) {
+        log_stream_ << "[bt] (" << i << ") " << msgs[i] << "\n";
+      }
+    }
+#endif
+
     log_stream_ << "\n";
     abort();
   }
@@ -238,6 +279,20 @@ class LogMessageFatal {
   }
   std::ostringstream &stream() { return log_stream_; }
   ~LogMessageFatal() DMLC_THROW_EXCEPTION {
+#if DMLC_LOG_STACK_TRACE
+    const int MAX_STACK_SIZE = 10;
+    void *stack[MAX_STACK_SIZE];
+
+    int nframes = backtrace(stack, MAX_STACK_SIZE);
+    log_stream_ << "\n\n" << "Stack trace returned " << nframes << " entries:\n";
+    char **msgs = backtrace_symbols(stack, nframes);
+    if (msgs != nullptr) {
+      for (int i = 0; i < nframes; ++i) {
+        log_stream_ << "[bt] (" << i << ") " << msgs[i] << "\n";
+      }
+    }
+#endif
+
     // throwing out of destructor is evil
     // hopefully we can do it here
     // also log the message before throw

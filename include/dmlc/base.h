@@ -37,6 +37,14 @@
 #define DMLC_LOG_CUSTOMIZE 0
 #endif
 
+/*!
+ * \brief Wheter to print stack trace for fatal error,
+ * enabled on linux when using gcc.
+ */
+#if (!defined(DMLC_LOG_STACK_TRACE) && defined(__GNUC__) && !defined(__MINGW32__))
+#define DMLC_LOG_STACK_TRACE 1
+#endif
+
 /*! \brief whether compile with hdfs support */
 #ifndef DMLC_USE_HDFS
 #define DMLC_USE_HDFS 0
@@ -54,13 +62,39 @@
 
 /*! \brief whether or not use c++11 support */
 #ifndef DMLC_USE_CXX11
-#define DMLC_USE_CXX11 (defined(__GXX_EXPERIMENTAL_CXX0X__) ||\
-                        __cplusplus >= 201103L || defined(_MSC_VER))
+#if defined(__GXX_EXPERIMENTAL_CXX0X__) || defined(_MSC_VER)
+#define DMLC_USE_CXX11 1
+#else
+#define DMLC_USE_CXX11 (__cplusplus >= 201103L)
+#endif
 #endif
 
 /*! \brief strict CXX11 support */
 #ifndef DMLC_STRICT_CXX11
-#define DMLC_STRICT_CXX11 (__cplusplus >= 201103L || defined(_MSC_VER))
+#if defined(_MSC_VER)
+#define DMLC_STRICT_CXX11 1
+#else
+#define DMLC_STRICT_CXX11 (__cplusplus >= 201103L)
+#endif
+#endif
+
+/*! \brief Whether cxx11 thread local is supported */
+#ifndef DMLC_CXX11_THREAD_LOCAL
+#if defined(_MSC_VER)
+#if (_MSC_VER >= 1900)
+#define DMLC_CXX11_THREAD_LOCAL 1
+#else
+#define DMLC_CXX11_THREAD_LOCAL 0
+#endif
+#else
+#define DMLC_CXX11_THREAD_LOCAL (__cplusplus >= 201103L)
+#endif
+#endif
+
+
+/*! \brief whether RTTI is enabled */
+#ifndef DMLC_ENABLE_RTTI
+#define DMLC_ENABLE_RTTI 1
 #endif
 
 /// check if g++ is before 4.6
@@ -85,7 +119,7 @@
 
 /*! \brief whether enable regex support, actually need g++-4.9 or higher*/
 #ifndef DMLC_USE_REGEX
-#define DMLC_USE_REGEX (__cplusplus >= 201103L || defined(_MSC_VER))
+#define DMLC_USE_REGEX DMLC_STRICT_CXX11
 #endif
 
 /*! \brief helper macro to supress unused warning */
@@ -201,7 +235,7 @@ inline T *BeginPtr(std::vector<T> &vec) {  // NOLINT(*)
   }
 }
 /*!
- * \brief get the beginning address of a vector
+ * \brief get the beginning address of a const vector
  * \param vec input vector
  * \return beginning address of a vector
  */
@@ -214,7 +248,7 @@ inline const T *BeginPtr(const std::vector<T> &vec) {
   }
 }
 /*!
- * \brief get the beginning address of a vector
+ * \brief get the beginning address of a string
  * \param str input string
  * \return beginning address of a string
  */
@@ -223,7 +257,7 @@ inline char* BeginPtr(std::string &str) {  // NOLINT(*)
   return &str[0];
 }
 /*!
- * \brief get the beginning address of a vector
+ * \brief get the beginning address of a const string
  * \param str input string
  * \return beginning address of a string
  */

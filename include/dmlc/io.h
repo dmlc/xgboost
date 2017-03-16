@@ -11,6 +11,7 @@
 #include <istream>
 #include <ostream>
 #include <streambuf>
+#include "./logging.h"
 
 // include uint64_t only to make io standalone
 #ifdef _MSC_VER
@@ -149,6 +150,8 @@ class InputSplit {
    * \param chunk_size the chunk size
    */
   virtual void HintChunkSize(size_t chunk_size) {}
+  /*! \brief get the total size of the InputSplit */
+  virtual size_t GetTotalSize(void) = 0;
   /*! \brief reset the position of InputSplit to beginning */
   virtual void BeforeFirst(void) = 0;
   /*!
@@ -243,7 +246,7 @@ class ostream : public std::basic_ostream<char> {
     this->set_stream(stream);
   }
   // explictly synchronize the buffer
-  virtual ~ostream() {
+  virtual ~ostream() DMLC_NO_EXCEPTION {
     buf_.pubsync();
   }
   /*!
@@ -313,7 +316,7 @@ class istream : public std::basic_istream<char> {
       : std::basic_istream<char>(NULL), buf_(buffer_size) {
     this->set_stream(stream);
   }
-  virtual ~istream() {}
+  virtual ~istream() DMLC_NO_EXCEPTION {}
   /*!
    * \brief set internal stream to be stream, reset states
    * \param stream new stream as output
