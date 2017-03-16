@@ -21,6 +21,11 @@ if [ ${TRAVIS_OS_NAME} == "osx" ]; then
     echo 'USE_OPENMP=0' >> config.mk
     echo 'TMPVAR := $(XGB_PLUGINS)' >> config.mk
     echo 'XGB_PLUGINS = $(filter-out plugin/lz4/plugin.mk, $(TMPVAR))' >> config.mk
+else
+    # use g++-4.8 for linux
+    if [ ${CXX} == "g++" ]; then
+        export CXX=g++-4.8
+    fi
 fi
 
 if [ ${TASK} == "python_test" ]; then

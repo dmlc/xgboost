@@ -112,7 +112,7 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
   }
   {
     SparsePage::Writer writer(name_shards, format_shards, 6);
-    std::unique_ptr<SparsePage> page;
+    std::shared_ptr<SparsePage> page;
     writer.Alloc(&page); page->Clear();
 
     MetaInfo info;
@@ -180,7 +180,7 @@ void SparsePageSource::Create(DMatrix* src,
   }
   {
     SparsePage::Writer writer(name_shards, format_shards, 6);
-    std::unique_ptr<SparsePage> page;
+    std::shared_ptr<SparsePage> page;
     writer.Alloc(&page); page->Clear();
 
     MetaInfo info = src->info();
