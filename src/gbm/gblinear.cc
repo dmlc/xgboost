@@ -176,7 +176,7 @@ class GBLinear : public GradientBooster {
     if (model.weight.size() == 0) {
       model.InitModel();
     }
-    CHECK_EQ(ntree_limit, 0)
+    CHECK_EQ(ntree_limit, 0U)
         << "GBLinear::Predict ntrees is only valid for gbtree predictor";
     std::vector<bst_float> &preds = *out_preds;
     const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;

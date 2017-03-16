@@ -243,7 +243,7 @@ class LearnerImpl : public Learner {
       CHECK_NE(header, "bs64")
           << "Base64 format is no longer supported in brick.";
       if (header == "binf") {
-        CHECK_EQ(fp.Read(&header[0], 4), 4);
+        CHECK_EQ(fp.Read(&header[0], 4), 4U);
       }
     }
     // use the peekable reader.

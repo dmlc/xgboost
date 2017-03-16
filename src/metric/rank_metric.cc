@@ -84,7 +84,7 @@ struct EvalAuc : public Metric {
   bst_float Eval(const std::vector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) const override {
-    CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
+    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.size(), info.labels.size())
         << "label size predict size not match";
     std::vector<unsigned> tgptr(2, 0);
@@ -166,7 +166,7 @@ struct EvalRankList : public Metric {
     std::vector<unsigned> tgptr(2, 0);
     tgptr[1] = static_cast<unsigned>(preds.size());
     const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
-    CHECK_NE(gptr.size(), 0) << "must specify group when constructing rank file";
+    CHECK_NE(gptr.size(), 0U) << "must specify group when constructing rank file";
     CHECK_EQ(gptr.back(), preds.size())
         << "EvalRanklist: group structure must match number of prediction";
     const bst_omp_uint ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);

@@ -128,7 +128,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
     }
     index.resize(row_ptr.back());
 
-    CHECK_GT(cut->cut.size(), 0);
+    CHECK_GT(cut->cut.size(), 0U);
     CHECK_EQ(cut->row_ptr.back(), cut->cut.size());
 
     omp_ulong bsize = static_cast<omp_ulong>(batch.size);
