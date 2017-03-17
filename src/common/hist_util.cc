@@ -140,7 +140,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
         if (it == cend) it = cend - 1;
         unsigned idx = static_cast<unsigned>(it - cut->cut.begin());
         index[ibegin + j] = idx;
-        hit_count_tloc_[tid * nbins + idx]++;
+        ++hit_count_tloc_[tid * nbins + idx];
       }
       std::sort(index.begin() + ibegin, index.begin() + iend);
     }
