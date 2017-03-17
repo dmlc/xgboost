@@ -50,7 +50,7 @@ class RowSetCollection {
   }
   // initialize node id 0->everything
   inline void Init() {
-    CHECK_EQ(elem_of_each_node_.size(), 0);
+    CHECK_EQ(elem_of_each_node_.size(), 0U);
     const bst_uint* begin = dmlc::BeginPtr(row_indices_);
     const bst_uint* end = dmlc::BeginPtr(row_indices_) + row_indices_.size();
     elem_of_each_node_.emplace_back(Elem(begin, end));

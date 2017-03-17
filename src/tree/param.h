@@ -204,7 +204,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   /*! \brief maximum sketch size */
   inline unsigned max_sketch_size() const {
     unsigned ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
-    CHECK_GT(ret, 0);
+    CHECK_GT(ret, 0U);
     return ret;
   }
 };

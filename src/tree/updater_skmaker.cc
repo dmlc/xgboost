@@ -257,7 +257,7 @@ class SketchMaker: public BaseMaker {
     }
   }
   inline void SyncNodeStats(void) {
-    CHECK_NE(qexpand.size(), 0);
+    CHECK_NE(qexpand.size(), 0U);
     std::vector<SKStats> tmp(qexpand.size());
     for (size_t i = 0; i < qexpand.size(); ++i) {
       tmp[i] = node_stats[qexpand[i]];

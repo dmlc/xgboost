@@ -385,7 +385,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
   src.CopyFrom(static_cast<std::shared_ptr<DMatrix>*>(handle)->get());
   data::SimpleCSRSource& ret = *source;
 
-  CHECK_EQ(src.info.group_ptr.size(), 0)
+  CHECK_EQ(src.info.group_ptr.size(), 0U)
       << "slice does not support group structure";
 
   ret.Clear();
