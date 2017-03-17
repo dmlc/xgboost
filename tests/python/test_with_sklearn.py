@@ -20,7 +20,9 @@ def test_binary_classification():
     try:
         kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
     except TypeError:  # sklearn.model_selection.KFold uses n_split
-        kf = KFold(y.shape[0], n_splits=2, shuffle=True, random_state=rng)
+        kf = KFold(
+            n_splits=2, shuffle=True, random_state=rng
+        ).split(y.shape[0])
     for train_index, test_index in kf:
         xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
         preds = xgb_model.predict(X[test_index])
