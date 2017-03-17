@@ -129,8 +129,8 @@ private[scala] class RabitWorkerHandler(host: String, worldSize: Int, tracker: A
         Try(decodeCommand(readBuffer)) match {
           case scala.util.Success(decodedCommand) =>
             tracker ! decodedCommand
-          case scala.util.Failure(th: java.nio.BufferOverflowException) =>
-            // BufferOverflowException would occur if the message to print has not arrived yet.
+          case scala.util.Failure(th: java.nio.BufferUnderflowException) =>
+            // BufferUnderflowException would occur if the message to print has not arrived yet.
             // Do nothing, wait for next Tcp.Received event
           case scala.util.Failure(th: Throwable) => throw th
         }

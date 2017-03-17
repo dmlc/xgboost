@@ -1,4 +1,4 @@
-#' Contruct xgb.DMatrix object
+#' Construct xgb.DMatrix object
 #' 
 #' Contruct xgb.DMatrix object from dense matrix, sparse matrix 
 #' or local file (that was created previously by saving an \code{xgb.DMatrix}).

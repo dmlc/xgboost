@@ -254,7 +254,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
 
   {
     SparsePage::Writer writer(name_shards, format_shards, 6);
-    std::unique_ptr<SparsePage> page;
+    std::shared_ptr<SparsePage> page;
     writer.Alloc(&page); page->Clear();
 
     double tstart = dmlc::GetTime();

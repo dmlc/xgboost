@@ -17,10 +17,9 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable
-
 import ml.dmlc.xgboost4j.scala.Booster
 import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
-import org.apache.spark.ml.param.{DoubleArrayParam, Param, ParamMap}
+import org.apache.spark.ml.param.{BooleanParam, DoubleArrayParam, Param, ParamMap}
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
@@ -43,7 +42,7 @@ class XGBoostClassificationModel private[spark](
   /**
    * whether to output raw margin
    */
-  final val outputMargin: Param[Boolean] = new Param[Boolean](this, "outputMargin", "whether to output untransformed margin value ")
+  final val outputMargin = new BooleanParam(this, "outputMargin", "whether to output untransformed margin value")
 
   setDefault(outputMargin, false)
 

@@ -57,26 +57,24 @@ public class XGBoost {
     return Booster.loadModel(in);
   }
 
-  /**
-   * Train a booster with given parameters.
-   *
-   * @param dtrain Data to be trained.
-   * @param params Booster params.
-   * @param round  Number of boosting iterations.
-   * @param watches a group of items to be evaluated during training, this allows user to watch
-   *               performance on the validation set.
-   * @param obj    customized objective (set to null if not used)
-   * @param eval   customized evaluation (set to null if not used)
-   * @return trained booster
-   * @throws XGBoostError native error
-   */
   public static Booster train(
-      DMatrix dtrain,
-      Map<String, Object> params,
-      int round,
-      Map<String, DMatrix> watches,
-      IObjective obj,
-      IEvaluation eval) throws XGBoostError {
+          DMatrix dtrain,
+          Map<String, Object> params,
+          int round,
+          Map<String, DMatrix> watches,
+          IObjective obj,
+          IEvaluation eval) throws XGBoostError {
+    return train(dtrain, params, round, watches, null, obj, eval);
+  }
+
+  public static Booster train(
+          DMatrix dtrain,
+          Map<String, Object> params,
+          int round,
+          Map<String, DMatrix> watches,
+          float[][] metrics,
+          IObjective obj,
+          IEvaluation eval) throws XGBoostError {
 
     //collect eval matrixs
     String[] evalNames;
@@ -94,7 +92,7 @@ public class XGBoost {
 
     //collect all data matrixs
     DMatrix[] allMats;
-    if (evalMats != null && evalMats.length > 0) {
+    if (evalMats.length > 0) {
       allMats = new DMatrix[evalMats.length + 1];
       allMats[0] = dtrain;
       System.arraycopy(evalMats, 0, allMats, 1, evalMats.length);
@@ -121,12 +119,20 @@ public class XGBoost {
       }
 
       //evaluation
-      if (evalMats != null && evalMats.length > 0) {
+      if (evalMats.length > 0) {
         String evalInfo;
         if (eval != null) {
           evalInfo = booster.evalSet(evalMats, evalNames, eval);
         } else {
-          evalInfo = booster.evalSet(evalMats, evalNames, iter);
+          if (metrics == null) {
+            evalInfo = booster.evalSet(evalMats, evalNames, iter);
+          } else {
+            float[] m = new float[evalMats.length];
+            evalInfo = booster.evalSet(evalMats, evalNames, iter, m);
+            for (int i = 0; i < m.length; i++) {
+              metrics[i][iter] = m[i];
+            }
+          }
         }
         if (Rabit.getRank() == 0) {
           Rabit.trackerPrint(evalInfo + '\n');

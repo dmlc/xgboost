@@ -55,7 +55,7 @@ class HistMaker: public BaseMaker {
                     const MetaInfo &info,
                     const bst_uint ridx) {
       unsigned i = std::upper_bound(cut, cut + size, fv) - cut;
-      CHECK_NE(size, 0) << "try insert into size=0";
+      CHECK_NE(size, 0U) << "try insert into size=0";
       CHECK_LT(i, size);
       data[i].Add(gpair, info, ridx);
     }
@@ -298,8 +298,15 @@ class CQHistMaker: public HistMaker<TStats> {
         hist.data[istart].Add(gstats);
       } else {
         while (istart < hist.size && !(fv < hist.cut[istart])) ++istart;
-        CHECK_NE(istart, hist.size);
-        hist.data[istart].Add(gstats);
+        if (istart != hist.size) {
+          hist.data[istart].Add(gstats);
+        } else {
+          LOG(INFO) << "fv=" << fv << ", hist.size=" << hist.size;
+          for (size_t i = 0; i < hist.size; ++i) {
+            LOG(INFO) << "hist[" << i << "]=" << hist.cut[i];
+          }
+          LOG(FATAL) << "fv=" << fv << ", hist.last=" << hist.cut[hist.size - 1];
+        }
       }
     }
   };
@@ -657,7 +664,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
       cached_cut_.clear();
     }
     if (cached_rptr_.size() == 0) {
-      CHECK_EQ(this->qexpand.size(), 1);
+      CHECK_EQ(this->qexpand.size(), 1U);
       CQHistMaker<TStats>::ResetPosAndPropose(gpair, p_fmat, fset, tree);
       cached_rptr_ = this->wspace.rptr;
       cached_cut_ = this->wspace.cut;

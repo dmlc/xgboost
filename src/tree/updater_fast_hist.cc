@@ -283,7 +283,7 @@ class FastHistMaker: public TreeUpdater {
         }
         builder_.Init(this->nthread, nbins);
 
-        CHECK_EQ(info.root_index.size(), 0);
+        CHECK_EQ(info.root_index.size(), 0U);
         std::vector<bst_uint>& row_indices = row_set_collection_.row_indices_;
         // mark subsample and build list of member rows
         if (param.subsample < 1.0f) {
@@ -313,7 +313,7 @@ class FastHistMaker: public TreeUpdater {
         }
         unsigned n = static_cast<unsigned>(param.colsample_bytree * feat_index.size());
         std::shuffle(feat_index.begin(), feat_index.end(), common::GlobalRandom());
-        CHECK_GT(n, 0)
+        CHECK_GT(n, 0U)
             << "colsample_bytree=" << param.colsample_bytree
             << " is too small that no feature can be included";
         feat_index.resize(n);
@@ -353,7 +353,7 @@ class FastHistMaker: public TreeUpdater {
             }
           }
         }
-        CHECK_GT(min_nbins_per_feature, 0);
+        CHECK_GT(min_nbins_per_feature, 0U);
       }
       {
         snode.reserve(256);

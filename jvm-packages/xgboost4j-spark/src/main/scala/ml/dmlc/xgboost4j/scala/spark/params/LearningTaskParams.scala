@@ -18,9 +18,14 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import scala.collection.immutable.HashSet
 
-import org.apache.spark.ml.param.{DoubleParam, Param, Params}
+import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
 
 trait LearningTaskParams extends Params {
+
+  /**
+   * number of tasks to learn
+   */
+  val numClasses = new IntParam(this, "num_class", "number of classes")
 
   /**
    * Specify the learning task and the corresponding learning objective.
@@ -48,7 +53,14 @@ trait LearningTaskParams extends Params {
     s" {${LearningTaskParams.supportedEvalMetrics.mkString(",")}}",
     (value: String) => LearningTaskParams.supportedEvalMetrics.contains(value))
 
-  setDefault(objective -> "reg:linear", baseScore -> 0.5)
+  /**
+    * group data specify each group sizes for ranking task. To correspond to partition of
+    * training data, it is nested.
+    */
+  val groupData = new Param[Seq[Seq[Int]]](this, "groupData", "group data specify each group size" +
+    " for ranking task. To correspond to partition of training data, it is nested.")
+
+  setDefault(objective -> "reg:linear", baseScore -> 0.5, numClasses -> 2, groupData -> null)
 }
 
 private[spark] object LearningTaskParams {
