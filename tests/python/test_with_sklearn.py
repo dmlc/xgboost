@@ -9,12 +9,20 @@ rng = np.random.RandomState(1994)
 def test_binary_classification():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_digits
-    from sklearn.cross_validation import KFold
+    try:
+        from sklearn.model_selection import KFold
+    except:
+        from sklearn.cross_validation import KFold
 
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
-    kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
+    try:
+        kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
+    except TypeError:  # sklearn.model_selection.KFold uses n_split
+        kf = KFold(
+            n_splits=2, shuffle=True, random_state=rng
+        ).split(np.arange(y.shape[0]))
     for train_index, test_index in kf:
         xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
         preds = xgb_model.predict(X[test_index])
@@ -27,7 +35,10 @@ def test_binary_classification():
 def test_multiclass_classification():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_iris
-    from sklearn.cross_validation import KFold
+    try:
+        from sklearn.cross_validation import KFold
+    except:
+        from sklearn.model_selection import KFold
 
     def check_pred(preds, labels):
         err = sum(1 for i in range(len(preds))
