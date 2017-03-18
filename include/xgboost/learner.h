@@ -188,9 +188,6 @@ inline void Learner::Predict(const SparseBatch::Inst& inst,
                              std::vector<bst_float>* out_preds,
                              unsigned ntree_limit) const {
   gbm_->Predict(inst, out_preds, ntree_limit);
-  if (out_preds->size() == 1) {
-    (*out_preds)[0] += base_score_;
-  }
   if (!output_margin) {
     obj_->PredTransform(out_preds);
   }

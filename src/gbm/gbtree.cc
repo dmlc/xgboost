@@ -246,7 +246,7 @@ class GBTree : public GradientBooster {
       new_trees.push_back(std::move(ret));
     } else {
       const int ngroup = mparam.num_output_group;
-      CHECK_EQ(gpair.size() % ngroup, 0)
+      CHECK_EQ(gpair.size() % ngroup, 0U)
           << "must have exactly ngroup*nrow gpairs";
       std::vector<bst_gpair> tmp(gpair.size() / ngroup);
       for (int gid = 0; gid < ngroup; ++gid) {

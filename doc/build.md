@@ -42,7 +42,7 @@ Our goal is to build the shared library:
 
 The minimal building requirement is
 
-- A recent c++ compiler supporting C++ 11 (g++-4.6 or higher)
+- A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
 
 We can edit `make/config.mk` to change the compile options, and then build by
 `make`. If everything goes well, we can go to the specific language installation section.
@@ -222,7 +222,7 @@ first follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compi
 
 ### Installing the development version
 
-Make sure you have installed git and a recent C++ compiler supporting C++11 (e.g., g++-4.6 or higher).
+Make sure you have installed git and a recent C++ compiler supporting C++11 (e.g., g++-4.8 or higher).
 On Windows, Rtools must be installed, and its bin directory has to be added to PATH during the installation.
 And see the previous subsection for an OSX tip.
 
