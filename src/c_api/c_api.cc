@@ -4,6 +4,7 @@
 #include <xgboost/learner.h>
 #include <xgboost/c_api.h>
 #include <xgboost/logging.h>
+#include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
 #include <cstdio>
 #include <vector>
@@ -13,7 +14,6 @@
 
 #include "./c_api_error.h"
 #include "../data/simple_csr_source.h"
-#include "../common/thread_local.h"
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
@@ -197,7 +197,7 @@ struct XGBAPIThreadLocalEntry {
 };
 
 // define the threadlocal store.
-typedef xgboost::common::ThreadLocalStore<XGBAPIThreadLocalEntry> XGBAPIThreadLocalStore;
+typedef dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry> XGBAPIThreadLocalStore;
 
 int XGDMatrixCreateFromFile(const char *fname,
                             int silent,
