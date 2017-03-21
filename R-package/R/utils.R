@@ -27,7 +27,7 @@ NVL <- function(x, val) {
 
 # Merges booster params with whatever is provided in ...
 # plus runs some checks
-check.booster.params <- function(params, ...) {
+check.booster.params <- function(params, column_names, ...) {
   if (typeof(params) != "list") 
     stop("params must be a list")
   
@@ -66,7 +66,6 @@ check.booster.params <- function(params, ...) {
   }
   
   # monotone_constraints parser
-  
   if (!is.null(params[['monotone_constraints']]) &&
       typeof(params[['monotone_constraints']]) != "character") {
         vec2str = paste(params[['monotone_constraints']], collapse = ',')
@@ -74,6 +73,30 @@ check.booster.params <- function(params, ...) {
         params[['monotone_constraints']] = vec2str
   }
   
+  # interaction constraints parser
+  if (!is.null(params[['int_constraints_list']])){
+    # check input class
+    temp.in_class <- unique(sapply(params[['int_constraints_list']], class))
+    if (length(temp.in_class) > 1) stop('invalid class specification for int_constraints_list')
+    if (is.null(column_names)) stop('require column names to set interaction constraints')
+
+    # initialise list
+    int.cont <- list()
+    length(int.cont) <- length(params[['int_constraints_list']])
+
+    # convert input to list of 1/0 vectors
+    for (i in 1:length(params[['int_constraints_list']])){
+      int.cont[[i]] <- as.integer(column_names %in% params[['int_constraints_list']][[i]])
+      if (all(params[['int_constraints_list']][[i]] %in% column_names) == F)
+        stop('unknown variable names in int_constraints_list')
+    }
+    
+    # recast parameter as string
+    params[['int_constraints_list']] <- as.vector(data.matrix(data.frame(int.cont)))
+    vec2str <- paste(params[['int_constraints_list']], collapse=',')
+    vec2str <- paste0('(', vec2str, ')')
+    params[['int_constraints_list']] <- vec2str
+  }
   return(params)
 }
 

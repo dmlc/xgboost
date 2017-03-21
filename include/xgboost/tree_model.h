@@ -394,11 +394,11 @@ class TreeModel {
     return param.num_nodes - param.num_roots - param.num_deleted;
   }
   /*! \return all parent features used in splits */
-  inline std::vector<unsigned> ParentSplits(int nid) {
+  inline std::vector<unsigned> ParentSplits(int nid) const {
     std::vector<unsigned> csplits;
     while (!nodes[nid].is_root()) {
       nid = nodes[nid].parent();
-      cplits.push_back(nodes[nid].split_index())
+      csplits.push_back(nodes[nid].split_index());
     }
     return csplits;
   }

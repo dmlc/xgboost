@@ -64,14 +64,6 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
           break;
         }
         case FeatureMap::kInteger: {
-<<<<<<< HEAD
-          fo << nid << ":[" << fmap.name(split_index) << "<"
-             // << int(float(cond)+1.0f)
-             << float(cond)
-             << "] yes=" << tree[nid].cleft()
-             << ",no=" << tree[nid].cright()
-             << ",missing=" << tree[nid].cdefault();
-=======
           if (format == "json") {
             fo << "{ \"nodeid\": " << nid
                << ", \"depth\": " << depth
@@ -82,12 +74,12 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
                << ", \"missing\": " << tree[nid].cdefault();
           } else {
             fo << nid << ":[" << fmap.name(split_index) << "<"
-               << int(float(cond)+1.0f)
+               //<< int(float(cond)+1.0f)
+               << float(cond)+0.5f
                << "] yes=" << tree[nid].cleft()
                << ",no=" << tree[nid].cright()
                << ",missing=" << tree[nid].cdefault();
           }
->>>>>>> refs/remotes/dmlc/master
           break;
         }
         case FeatureMap::kFloat:
@@ -153,6 +145,7 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
   std::stringstream fo("");
+  fo.precision(16);
   for (int i = 0; i < param.num_roots; ++i) {
     DumpRegTree(fo, *this, fmap, i, 0, false, with_stats, format);
   }

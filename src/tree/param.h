@@ -67,7 +67,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   // option to specify interaction constraints
   bool int_constraints_flag;
   // structure to record interaction constraints
-  std::vector<bool> int_constraints_list;
+  std::vector<int> int_constraints_list;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -148,7 +148,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(int_constraints_flag).set_default(false).describe(
         "Enforce interaction constraints");
     DMLC_DECLARE_FIELD(int_constraints_list)
-        .set_default(std::vector<bool>())
+        .set_default(std::vector<int>())
         .describe("Constraints for interaction");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
