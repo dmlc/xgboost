@@ -626,19 +626,19 @@ class FastHistMaker: public TreeUpdater {
                                              column.row_ind + column.len,
                                              rowset.begin[ibegin]);
 
-        if (p != column.row_ind + column.len) {
+        auto& left = row_split_tloc[tid].left;
+        auto& right = row_split_tloc[tid].right;
+        if (p != column.row_ind + column.len && *p <= rowset.begin[iend - 1]) {
           bst_omp_uint cursor = p - column.row_ind;
 
           for (bst_omp_uint i = ibegin; i < iend; ++i) {
-            auto& left = row_split_tloc[tid].left;
-            auto& right = row_split_tloc[tid].right;
-            bst_uint rid = rowset.begin[i];
+            const bst_uint rid = rowset.begin[i];
             while (cursor < column.len
                    && column.row_ind[cursor] < rid
                    && column.row_ind[cursor] <= rowset.begin[iend - 1]) {
               ++cursor;
             }
-            if (column.row_ind[cursor] == rid) {
+            if (cursor < column.len && column.row_ind[cursor] == rid) {
               const T rbin = column.index[cursor];
               if (rbin + column.index_base <= split_cond) {
                 left.push_back(rid);
@@ -653,6 +653,18 @@ class FastHistMaker: public TreeUpdater {
               } else {
                 right.push_back(rid);
               }
+            }
+          }
+        } else {  // all rows in [ibegin, iend) have missing values
+          if (default_left) {
+            for (bst_omp_uint i = ibegin; i < iend; ++i) {
+              const bst_uint rid = rowset.begin[i];
+              left.push_back(rid);
+            }
+          } else {
+            for (bst_omp_uint i = ibegin; i < iend; ++i) {
+              const bst_uint rid = rowset.begin[i];
+              right.push_back(rid);
             }
           }
         }
