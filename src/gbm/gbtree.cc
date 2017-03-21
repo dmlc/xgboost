@@ -486,25 +486,18 @@ class GBTree : public GradientBooster {
       CacheEntry& e = kv.second;
 
       if (e.predictions.size() == 0) {
-        const int num_group = mparam.num_output_group;
-        const size_t n = num_group * e.data->info().num_row;
-        const std::vector<bst_float>& base_margin = e.data->info().base_margin;
-        e.predictions.resize(n);
-        if (base_margin.size() != 0) {
-          CHECK_EQ(e.predictions.size(), n);
-          std::copy(base_margin.begin(), base_margin.end(), e.predictions.begin());
-        } else {
-          std::fill(e.predictions.begin(), e.predictions.end(), base_margin_);
-        }
-      }
-
-      if (mparam.num_output_group == 1 && updaters.size() > 0 && new_trees.size() == 1
-        && updaters.back()->UpdatePredictionCache(e.data.get(), &(e.predictions)) ) {
-        {}  // do nothing
-      } else {
         PredLoopInternal<GBTree>(
             e.data.get(), &(e.predictions),
-            old_ntree, trees.size(), false);
+            0, trees.size(), true);
+      } else {
+        if (mparam.num_output_group == 1 && updaters.size() > 0 && new_trees.size() == 1
+          && updaters.back()->UpdatePredictionCache(e.data.get(), &(e.predictions)) ) {
+          {}  // do nothing
+        } else {
+          PredLoopInternal<GBTree>(
+              e.data.get(), &(e.predictions),
+              old_ntree, trees.size(), false);
+        }
       }
     }
   }
