@@ -15,6 +15,32 @@ class TestFastHist(unittest.TestCase):
         except:
             from sklearn.cross_validation import train_test_split
 
+        # regression test --- hist must be same as exact on all-categorial data
+        dpath = 'demo/data/'
+        ag_dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        ag_dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        ag_param = {'max_depth': 2,
+                    'tree_method': 'exact',
+                    'eta': 1,
+                    'silent': 1,
+                    'objective': 'binary:logistic',
+                    'eval_metric': 'auc'}
+        ag_param2 = {'max_depth': 2,
+                     'tree_method': 'hist',
+                     'eta': 1,
+                     'silent': 1,
+                     'objective': 'binary:logistic',
+                     'eval_metric': 'auc'}
+        ag_res = {}
+        ag_res2 = {}
+
+        xgb.train(ag_param, ag_dtrain, 10, [(ag_dtrain, 'train'), (ag_dtest, 'test')],
+                  evals_result=ag_res)
+        xgb.train(ag_param2, ag_dtrain, 10, [(ag_dtrain, 'train'), (ag_dtest, 'test')],
+                  evals_result=ag_res2)
+        assert ag_res['train']['auc'] == ag_res2['train']['auc']
+        assert ag_res['test']['auc'] == ag_res2['test']['auc']
+
         digits = load_digits(2)
         X = digits['data']
         y = digits['target']
