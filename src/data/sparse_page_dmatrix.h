@@ -1,7 +1,7 @@
 /*!
  * Copyright 2015 by Contributors
- * \file simple_dmatrix.h
- * \brief In-memory version of DMatrix.
+ * \file sparse_page_dmatrix.h
+ * \brief External-memory version of DMatrix.
  * \author Tianqi Chen
  */
 #ifndef XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
