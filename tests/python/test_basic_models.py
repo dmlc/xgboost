@@ -12,7 +12,7 @@ rng = np.random.RandomState(1994)
 class TestModels(unittest.TestCase):
     def test_glm(self):
         param = {'silent': 1, 'objective': 'binary:logistic',
-                 'booster': 'gblinear', 'alpha': 0.0001, 'lambda': 1}
+                 'booster': 'gblinear', 'alpha': 0.0001, 'lambda': 1, 'nthread': 1}
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 4
         bst = xgb.train(param, dtrain, num_round, watchlist)
