@@ -10,15 +10,15 @@
 
 #define XGBOOST_TYPE_SWITCH(dtype, OP)        \
 switch (dtype) {                \
-  case xgboost::common::kUInt32 : {           \
+  case xgboost::common::uint32 : {           \
     typedef uint32_t DType;         \
     OP; break;              \
   }               \
-  case xgboost::common::kUInt16 : {           \
+  case xgboost::common::uint16 : {           \
     typedef uint16_t DType;         \
     OP; break;              \
   }               \
-  case xgboost::common::kUInt8 : {            \
+  case xgboost::common::uint8 : {            \
     typedef uint8_t DType;          \
     OP; break;              \
     default: LOG(FATAL) << "don't recognize type flag" << dtype;  \
@@ -35,9 +35,9 @@ namespace common {
 
 /*! \brief indicator of data type used for storing bin id's in a column. */
 enum DataType {
-  kUInt8 = 1,
-  kUInt16 = 2,
-  kUInt32 = 4
+  uint8 = 1,
+  uint16 = 2,
+  uint32 = 4
 };
 
 /*! \brief column type */
@@ -220,7 +220,7 @@ class ColumnMatrix {
   std::vector<uint32_t> row_ind_;
   std::vector<ColumnBoundary> boundary_;
 
-  size_t packing_factor_;
+  size_t packing_factor_;  // how many integers are stored in each slot of index_
 
   // index_base_[fid]: least bin id for feature fid
   std::vector<uint32_t> index_base_;

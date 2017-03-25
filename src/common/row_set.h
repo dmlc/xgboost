@@ -17,11 +17,14 @@ namespace common {
 /*! \brief collection of rowset */
 class RowSetCollection {
  public:
-  /*! \brief subset of rows */
+  /*! \brief data structure to store an instance set, a subset of
+   *  rows (instances) associated with a particular node in a decision
+   *  tree. */
   struct Elem {
     const bst_uint* begin;
     const bst_uint* end;
     int node_id;
+      // id of node associated with this instance set; -1 means uninitialized
     Elem(void)
         : begin(nullptr), end(nullptr), node_id(-1) {}
     Elem(const bst_uint* begin,
