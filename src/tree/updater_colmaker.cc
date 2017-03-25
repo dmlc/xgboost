@@ -792,9 +792,6 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
     // update position after the tree is pruned
     builder.UpdatePosition(dmat, *trees[0]);
   }
-  const int* GetLeafPosition() const override {
-    return builder.GetLeafPosition();
-  }
 
  private:
   struct Builder : public ColMaker<TStats, TConstraint>::Builder {
@@ -949,11 +946,6 @@ class TreeUpdaterSwitch : public TreeUpdater {
               const std::vector<RegTree*>& trees) override {
     CHECK(inner_ != nullptr);
     inner_->Update(gpair, data, trees);
-  }
-
-  const int* GetLeafPosition() const override {
-    CHECK(inner_ != nullptr);
-    return inner_->GetLeafPosition();
   }
 
  private:

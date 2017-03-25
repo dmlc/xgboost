@@ -35,9 +35,12 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int max_leaves;
   // if using histogram based algorithm, maximum number of bins per feature
   int max_bin;
+  enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };
+  int colmat_dtype;
   // growing policy
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
+  // flag to print out detailed breakdown of runtime
   int debug_verbose;
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
@@ -90,9 +93,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
-        .describe(
-            "Setting verbose flag with a positive value causes the updater "
-            "to print out *detailed* list of tasks and their runtime");
+        .describe("flag to print out detailed breakdown of runtime");
     DMLC_DECLARE_FIELD(max_depth)
         .set_lower_bound(0)
         .set_default(6)
@@ -111,6 +112,14 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
             "Tree growing policy. 0: favor splitting at nodes closest to the node, "
             "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
             "change. (cf. LightGBM)");
+    DMLC_DECLARE_FIELD(colmat_dtype)
+        .set_default(static_cast<int>(DataType::uint32))
+        .add_enum("uint8", static_cast<int>(DataType::uint8))
+        .add_enum("uint16", static_cast<int>(DataType::uint16))
+        .add_enum("uint32", static_cast<int>(DataType::uint32))
+        .describe("Integral data type to be used with columnar data storage."
+                  "May carry marginal performance implications. Reserved for "
+                  "advanced use");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)

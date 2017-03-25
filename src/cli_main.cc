@@ -155,6 +155,7 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
 DMLC_REGISTER_PARAMETER(CLIParam);
 
 void CLITrain(const CLIParam& param) {
+  const double tstart_data_load = dmlc::GetTime();
   if (rabit::IsDistributed()) {
     std::string pname = rabit::GetProcessorName();
     LOG(CONSOLE) << "start " << pname << ":" << rabit::GetRank();
@@ -192,6 +193,9 @@ void CLITrain(const CLIParam& param) {
       learner->Configure(param.cfg);
       learner->InitModel();
     }
+  }
+  if (param.silent == 0) {
+    LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";
   }
   // start training.
   const double start = dmlc::GetTime();
