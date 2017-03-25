@@ -604,6 +604,72 @@ class FastHistMaker: public TreeUpdater {
       }
     }
 
+    inline void ApplySplitSparseDataOld(const RowSetCollection::Elem rowset,
+                                        const GHistIndexMatrix& gmat,
+                                        std::vector<RowSetCollection::Split>* p_row_split_tloc,
+                                        bst_uint lower_bound,
+                                        bst_uint upper_bound,
+                                        bst_uint split_cond,
+                                        bool default_left) {
+      std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
+      const int K = 8;  // loop unrolling factor
+      const bst_omp_uint nrows = rowset.end - rowset.begin;
+      const bst_omp_uint rest = nrows % K;
+      #pragma omp parallel for num_threads(nthread) schedule(static)
+      for (bst_omp_uint i = 0; i < nrows - rest; i += K) {
+        bst_uint rid[K];
+        GHistIndexRow row[K];
+        const unsigned* p[K];
+        bst_uint tid = omp_get_thread_num();
+        auto& left = row_split_tloc[tid].left;
+        auto& right = row_split_tloc[tid].right;
+        for (int k = 0; k < K; ++k) {
+          rid[k] = rowset.begin[i + k];
+        }
+        for (int k = 0; k < K; ++k) {
+          row[k] = gmat[rid[k]];
+        }
+        for (int k = 0; k < K; ++k) {
+          p[k] = std::lower_bound(row[k].index, row[k].index + row[k].size, lower_bound);
+        }
+        for (int k = 0; k < K; ++k) {
+          if (p[k] != row[k].index + row[k].size && *p[k] < upper_bound) {
+            if (*p[k] <= split_cond) {
+              left.push_back(rid[k]);
+            } else {
+              right.push_back(rid[k]);
+            }
+          } else {
+            if (default_left) {
+              left.push_back(rid[k]);
+            } else {
+              right.push_back(rid[k]);
+            }
+          }
+        }
+      }
+      for (bst_omp_uint i = nrows - rest; i < nrows; ++i) {
+        const bst_uint rid = rowset.begin[i];
+        const auto row = gmat[rid];
+        const auto p = std::lower_bound(row.index, row.index + row.size, lower_bound);
+        auto& left = row_split_tloc[0].left;
+        auto& right = row_split_tloc[0].right;
+        if (p != row.index + row.size && *p < upper_bound) {
+          if (*p <= split_cond) {
+            left.push_back(rid);
+          } else {
+            right.push_back(rid);
+          }
+        } else {
+          if (default_left) {
+            left.push_back(rid);
+          } else {
+            right.push_back(rid);
+          }
+        }
+      }
+    }
+
     template<typename T>
     inline void ApplySplitSparseData(const RowSetCollection::Elem rowset,
                                     const GHistIndexMatrix& gmat,
