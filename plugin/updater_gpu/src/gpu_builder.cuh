@@ -19,6 +19,11 @@ class GPUBuilder {
   void Init(const TrainParam &param);
   ~GPUBuilder();
 
+  void UpdateParam(const TrainParam &param)
+  {
+	  this->param = param;
+  }
+
   void Update(const std::vector<bst_gpair> &gpair, DMatrix *p_fmat,
               RegTree *p_tree);
 
