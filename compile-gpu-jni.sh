@@ -7,9 +7,8 @@ find . -name "*.a" -delete
 rm -rf build
 mkdir build
 cd build
-cmake .. -DPLUGIN_UPDATER_GPU=ON -DCUB_DIRECTORY=../cub
-make -j1
-make -j1
+CC=gcc-5 CXX=g++-5 cmake .. -DPLUGIN_UPDATER_GPU=ON -DCUB_DIRECTORY=../cub -DCUDA_NVCC_FLAGS="--expt-extended-lambda -arch=sm_30"
+make -j10
 cd ..
 git checkout Makefile
 make jvm -j10
