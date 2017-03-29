@@ -16,6 +16,11 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.io.File
+
+import scala.collection.mutable.ListBuffer
+import scala.io.Source
+
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 
@@ -60,7 +65,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     }
     val trainingDF = buildTrainingDataframe()
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
-      round = round, nWorkers = numWorkers, useExternalMemory = false)
+      round = round, nWorkers = numWorkers)
     val testDF = trainingDF.sparkSession.createDataFrame(testSetItr.toList).toDF(
       "id", "features", "label")
     val predResultsFromDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF).
@@ -83,7 +88,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     val testItr = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     val trainingDF = buildTrainingDataframe()
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
-      round = 5, nWorkers = numWorkers, useExternalMemory = false)
+      round = 5, nWorkers = numWorkers)
     val testSetItr = testItr.zipWithIndex.map {
       case (instance: LabeledPoint, id: Int) =>
         (id, instance.features, instance.label)
@@ -183,5 +188,87 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(xgbEstimatorCopy.fromParamsToXGBParamMap("eval_metric") === "error")
     val xgbEstimatorCopy1 = xgbEstimator.copy(sparkParamMap.put(xgbEstimator.evalMetric, "logloss"))
     assert(xgbEstimatorCopy1.fromParamsToXGBParamMap("eval_metric") === "logloss")
+  }
+
+  test("fast histogram algorithm parameters are exposed correctly") {
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
+      "eval_metric" -> "error")
+    val testItr = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    val trainingDF = buildTrainingDataframe()
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
+      round = 10, nWorkers = math.min(2, numWorkers))
+    val error = new EvalError
+    import DataUtils._
+    val testSetDMatrix = new DMatrix(new JDMatrix(testItr, null))
+    assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix) < 0.1)
+  }
+
+  private def convertCSVPointToLabelPoint(valueArray: Array[String]): LabeledPoint = {
+    val intValueArray = new Array[Double](valueArray.length)
+    intValueArray(valueArray.length - 2) = {
+      if (valueArray(valueArray.length - 2) == "?") {
+        1
+      } else {
+        0
+      }
+    }
+    intValueArray(valueArray.length - 1) = valueArray(valueArray.length - 1).toDouble - 1
+    for (i <- 0 until intValueArray.length - 2) {
+      intValueArray(i) = valueArray(i).toDouble
+    }
+    LabeledPoint(intValueArray.last, new DenseVector(intValueArray.take(intValueArray.length - 1)))
+  }
+
+  private def loadCSVPoints(filePath: String, zeroBased: Boolean = false): List[LabeledPoint] = {
+    val file = Source.fromFile(new File(filePath))
+    val sampleList = new ListBuffer[LabeledPoint]
+    for (sample <- file.getLines()) {
+      sampleList += convertCSVPointToLabelPoint(sample.split(","))
+    }
+    sampleList.toList
+  }
+
+  test("multi_class classification test") {
+    val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "multi:softmax", "num_class" -> "6")
+    val testItr = loadCSVPoints(getClass.getResource("/dermatology.data").getFile).iterator
+    val trainingDF = buildTrainingDataframe()
+    XGBoost.trainWithDataFrame(trainingDF, paramMap,
+      round = 5, nWorkers = numWorkers)
+  }
+
+  test("test DF use nested groupData") {
+    val testItr = loadLabelPoints(getClass.getResource("/rank-demo.txt.test").getFile).iterator.
+      zipWithIndex.map { case (instance: LabeledPoint, id: Int) =>
+      (id, instance.features, instance.label)
+    }
+    val trainingDF = {
+      val rowList0 = loadLabelPoints(getClass.getResource("/rank-demo-0.txt.train").getFile)
+      val labeledPointsRDD0 = sc.parallelize(rowList0, numSlices = 1)
+      val rowList1 = loadLabelPoints(getClass.getResource("/rank-demo-1.txt.train").getFile)
+      val labeledPointsRDD1 = sc.parallelize(rowList1, numSlices = 1)
+      val labeledPointsRDD = labeledPointsRDD0.union(labeledPointsRDD1)
+      val sparkSession = SparkSession.builder().appName("XGBoostDFSuite").getOrCreate()
+      import sparkSession.implicits._
+      sparkSession.createDataset(labeledPointsRDD).toDF
+    }
+    val trainGroupData0: Seq[Int] = Source.fromFile(
+      getClass.getResource("/rank-demo-0.txt.train.group").getFile).getLines().map(_.toInt).toList
+    val trainGroupData1: Seq[Int] = Source.fromFile(
+      getClass.getResource("/rank-demo-1.txt.train.group").getFile).getLines().map(_.toInt).toList
+    val trainGroupData: Seq[Seq[Int]] = Seq(trainGroupData0, trainGroupData1)
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
+
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
+      round = 5, nWorkers = 2)
+    val testDF = trainingDF.sparkSession.createDataFrame(testItr.toList).toDF(
+      "id", "features", "label")
+    val predResultsFromDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF).
+      collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("features"))).toMap
+    assert(testDF.count() === predResultsFromDF.size)
   }
 }

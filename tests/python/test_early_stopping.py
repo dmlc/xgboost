@@ -11,7 +11,10 @@ class TestEarlyStopping(unittest.TestCase):
     def test_early_stopping_nonparallel(self):
         tm._skip_if_no_sklearn()
         from sklearn.datasets import load_digits
-        from sklearn.cross_validation import train_test_split
+        try:
+            from sklearn.model_selection import train_test_split
+        except:
+            from sklearn.cross_validation import train_test_split
 
         digits = load_digits(2)
         X = digits['data']

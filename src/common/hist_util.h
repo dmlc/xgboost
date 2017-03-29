@@ -102,18 +102,27 @@ struct GHistIndexMatrix {
   std::vector<unsigned> index;
   /*! \brief hit count of each index */
   std::vector<unsigned> hit_count;
-  /*! \brief optional remap index from outter row_id -> internal row_id*/
-  std::vector<unsigned> remap_index;
   /*! \brief The corresponding cuts */
   const HistCutMatrix* cut;
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat);
-  // build remap
-  void Remap();
   // get i-th row
   inline GHistIndexRow operator[](bst_uint i) const {
     return GHistIndexRow(&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]);
   }
+  inline void GetFeatureCounts(bst_uint* counts) const {
+    const unsigned nfeature = cut->row_ptr.size() - 1;
+    for (unsigned fid = 0; fid < nfeature; ++fid) {
+      const unsigned ibegin = cut->row_ptr[fid];
+      const unsigned iend = cut->row_ptr[fid + 1];
+      for (unsigned i = ibegin; i < iend; ++i) {
+        counts[fid] += hit_count[i];
+      }
+    }
+  }
+
+ private:
+  std::vector<unsigned> hit_count_tloc_;
 };
 
 /*!
@@ -189,13 +198,13 @@ class GHistBuilder {
   inline void Init(size_t nthread, size_t nbins) {
     nthread_ = nthread;
     nbins_ = nbins;
-    data_.resize(nthread * nbins, GHistEntry());
   }
 
   // construct a histogram via histogram aggregation
   void BuildHist(const std::vector<bst_gpair>& gpair,
                  const RowSetCollection::Elem row_indices,
                  const GHistIndexMatrix& gmat,
+                 const std::vector<bst_uint>& feat_set,
                  GHistRow hist);
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
@@ -206,6 +215,7 @@ class GHistBuilder {
   /*! \brief number of all bins over all features */
   size_t nbins_;
   std::vector<GHistEntry> data_;
+  std::vector<bst_gpair> stat_buf_;
 };
 
 

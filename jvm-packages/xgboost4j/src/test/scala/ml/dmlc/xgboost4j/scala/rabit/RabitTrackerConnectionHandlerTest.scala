@@ -188,9 +188,14 @@ class RabitTrackerConnectionHandlerTest
     // ResumeReading should be seen once state transitions
     connProbe.expectMsg(Tcp.ResumeReading)
 
-    val printCmd = WorkerTrackerPrint(0, 4, "print", "hello world!")
-    // 4 + 4 + 4 + 5 = 17
-    val (partialMessage, remainder) = printCmd.encode.splitAt(17)
+    val printCmd = WorkerTrackerPrint(0, 4, "0", "fragmented!")
+    // 4 (rank: Int) + 4 (worldSize: Int) + (4+1) (jobId: String) + (4+5) (command: String) = 22
+    val (partialMessage, remainder) = printCmd.encode.splitAt(22)
+
+    // make sure that the partialMessage in itself is a valid command
+    val partialMsgBuf = ByteBuffer.allocate(22).order(ByteOrder.nativeOrder())
+    partialMsgBuf.put(partialMessage.asByteBuffer)
+    RabitWorkerHandler.StructTrackerCommand.verify(partialMsgBuf) shouldBe true
 
     fsm ! Tcp.Received(partialMessage)
     fsm ! Tcp.Received(remainder)

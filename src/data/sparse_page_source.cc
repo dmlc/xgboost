@@ -18,7 +18,7 @@ SparsePageSource::SparsePageSource(const std::string& cache_info)
     : base_rowid_(0), page_(nullptr), clock_ptr_(0) {
   // read in the info files
   std::vector<std::string> cache_shards = common::Split(cache_info, ':');
-  CHECK_NE(cache_shards.size(), 0);
+  CHECK_NE(cache_shards.size(), 0U);
   {
     std::string name_info = cache_shards[0];
     std::unique_ptr<dmlc::Stream> finfo(dmlc::Stream::Create(name_info.c_str(), "r"));
@@ -85,7 +85,7 @@ const RowBatch& SparsePageSource::Value() const {
 
 bool SparsePageSource::CacheExist(const std::string& cache_info) {
   std::vector<std::string> cache_shards = common::Split(cache_info, ':');
-  CHECK_NE(cache_shards.size(), 0);
+  CHECK_NE(cache_shards.size(), 0U);
   {
     std::string name_info = cache_shards[0];
     std::unique_ptr<dmlc::Stream> finfo(dmlc::Stream::Create(name_info.c_str(), "r", true));
@@ -102,7 +102,7 @@ bool SparsePageSource::CacheExist(const std::string& cache_info) {
 void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
                               const std::string& cache_info) {
   std::vector<std::string> cache_shards = common::Split(cache_info, ':');
-  CHECK_NE(cache_shards.size(), 0);
+  CHECK_NE(cache_shards.size(), 0U);
   // read in the info files.
   std::string name_info = cache_shards[0];
   std::vector<std::string> name_shards, format_shards;
@@ -112,7 +112,7 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
   }
   {
     SparsePage::Writer writer(name_shards, format_shards, 6);
-    std::unique_ptr<SparsePage> page;
+    std::shared_ptr<SparsePage> page;
     writer.Alloc(&page); page->Clear();
 
     MetaInfo info;
@@ -170,7 +170,7 @@ void SparsePageSource::Create(dmlc::Parser<uint32_t>* src,
 void SparsePageSource::Create(DMatrix* src,
                               const std::string& cache_info) {
   std::vector<std::string> cache_shards = common::Split(cache_info, ':');
-  CHECK_NE(cache_shards.size(), 0);
+  CHECK_NE(cache_shards.size(), 0U);
   // read in the info files.
   std::string name_info = cache_shards[0];
   std::vector<std::string> name_shards, format_shards;
@@ -180,7 +180,7 @@ void SparsePageSource::Create(DMatrix* src,
   }
   {
     SparsePage::Writer writer(name_shards, format_shards, 6);
-    std::unique_ptr<SparsePage> page;
+    std::shared_ptr<SparsePage> page;
     writer.Alloc(&page); page->Clear();
 
     MetaInfo info = src->info();

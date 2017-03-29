@@ -8,6 +8,10 @@ This file records the changes in xgboost library in reverse chronological order.
   - Specialized some prediction routine
 * Automatically remove nan from input data when it is sparse.
   - This can solve some of user reported problem of istart != hist.size
+* Minor fixes
+  - Thread local variable is upgraded so it is automatically freed at thread exit.
+* Migrate to C++11
+  - The current master version now requires C++11 enabled compiled(g++4.8 or higher)
 
 ## v0.6 (2016.07.29)
 * Version 0.5 is skipped due to major improvements in the core

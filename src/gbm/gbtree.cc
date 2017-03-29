@@ -44,6 +44,8 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
   std::string updater_seq;
   /*! \brief type of boosting process to run */
   int process_type;
+  // flag to print out detailed breakdown of runtime
+  int debug_verbose;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
     DMLC_DECLARE_FIELD(num_parallel_tree)
@@ -60,6 +62,10 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
         .add_enum("update", kUpdate)
         .describe("Whether to run the normal boosting process that creates new trees,"\
                   " or to update the trees in an existing model.");
+    DMLC_DECLARE_FIELD(debug_verbose)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("flag to print out detailed breakdown of runtime");
     // add alias
     DMLC_DECLARE_ALIAS(updater_seq, updater);
   }
@@ -246,7 +252,7 @@ class GBTree : public GradientBooster {
       new_trees.push_back(std::move(ret));
     } else {
       const int ngroup = mparam.num_output_group;
-      CHECK_EQ(gpair.size() % ngroup, 0)
+      CHECK_EQ(gpair.size() % ngroup, 0U)
           << "must have exactly ngroup*nrow gpairs";
       std::vector<bst_gpair> tmp(gpair.size() / ngroup);
       for (int gid = 0; gid < ngroup; ++gid) {
@@ -260,8 +266,12 @@ class GBTree : public GradientBooster {
         new_trees.push_back(std::move(ret));
       }
     }
+    double tstart = dmlc::GetTime();
     for (int gid = 0; gid < mparam.num_output_group; ++gid) {
       this->CommitModel(std::move(new_trees[gid]), gid);
+    }
+    if (tparam.debug_verbose > 0) {
+      LOG(INFO) << "CommitModel(): " << dmlc::GetTime() - tstart << " sec";
     }
   }
 
@@ -474,14 +484,20 @@ class GBTree : public GradientBooster {
     // update cache entry
     for (auto &kv : cache_) {
       CacheEntry& e = kv.second;
+
       if (e.predictions.size() == 0) {
         PredLoopInternal<GBTree>(
             e.data.get(), &(e.predictions),
             0, trees.size(), true);
       } else {
-        PredLoopInternal<GBTree>(
-            e.data.get(), &(e.predictions),
-            old_ntree, trees.size(), false);
+        if (mparam.num_output_group == 1 && updaters.size() > 0 && new_trees.size() == 1
+          && updaters.back()->UpdatePredictionCache(e.data.get(), &(e.predictions)) ) {
+          {}  // do nothing
+        } else {
+          PredLoopInternal<GBTree>(
+              e.data.get(), &(e.predictions),
+              old_ntree, trees.size(), false);
+        }
       }
     }
   }

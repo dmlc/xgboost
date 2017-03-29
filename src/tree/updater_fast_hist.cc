@@ -18,6 +18,7 @@
 #include "../common/sync.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
+#include "../common/column_matrix.h"
 
 namespace xgboost {
 namespace tree {
@@ -30,6 +31,8 @@ using xgboost::common::HistCollection;
 using xgboost::common::RowSetCollection;
 using xgboost::common::GHistRow;
 using xgboost::common::GHistBuilder;
+using xgboost::common::ColumnMatrix;
+using xgboost::common::Column;
 
 DMLC_REGISTRY_FILE_TAG(updater_fast_hist);
 
@@ -38,6 +41,11 @@ template<typename TStats, typename TConstraint>
 class FastHistMaker: public TreeUpdater {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+    // initialize pruner
+    if (!pruner_) {
+      pruner_.reset(TreeUpdater::Create("prune"));
+    }
+    pruner_->Init(args);
     param.InitAllowUnknown(args);
     is_gmat_initialized_ = false;
   }
@@ -51,6 +59,7 @@ class FastHistMaker: public TreeUpdater {
       hmat_.Init(dmat, param.max_bin);
       gmat_.cut = &hmat_;
       gmat_.Init(dmat);
+      column_matrix_.Init(gmat_, static_cast<xgboost::common::DataType>(param.colmat_dtype));
       is_gmat_initialized_ = true;
       if (param.debug_verbose > 0) {
         LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
@@ -62,12 +71,21 @@ class FastHistMaker: public TreeUpdater {
     TConstraint::Init(&param, dmat->info().num_col);
     // build tree
     if (!builder_) {
-      builder_.reset(new Builder(param));
+      builder_.reset(new Builder(param, std::move(pruner_)));
     }
     for (size_t i = 0; i < trees.size(); ++i) {
-      builder_->Update(gmat_, gpair, dmat, trees[i]);
+      builder_->Update(gmat_, column_matrix_, gpair, dmat, trees[i]);
     }
     param.learning_rate = lr;
+  }
+
+  bool UpdatePredictionCache(const DMatrix* data,
+                             std::vector<bst_float>* out_preds) const override {
+    if (!builder_ || param.subsample < 1.0f) {
+      return false;
+    } else {
+      return builder_->UpdatePredictionCache(data, out_preds);
+    }
   }
 
  protected:
@@ -76,6 +94,8 @@ class FastHistMaker: public TreeUpdater {
   // data sketch
   HistCutMatrix hmat_;
   GHistIndexMatrix gmat_;
+  // column accessor
+  ColumnMatrix column_matrix_;
   bool is_gmat_initialized_;
 
   // data structure
@@ -115,17 +135,18 @@ class FastHistMaker: public TreeUpdater {
   struct Builder {
    public:
     // constructor
-    explicit Builder(const TrainParam& param) : param(param) {
-    }
+    explicit Builder(const TrainParam& param,
+                     std::unique_ptr<TreeUpdater> pruner)
+      : param(param), pruner_(std::move(pruner)),
+        p_last_tree_(nullptr), p_last_fmat_(nullptr) {}
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
+                        const ColumnMatrix& column_matrix,
                         const std::vector<bst_gpair>& gpair,
                         DMatrix* p_fmat,
                         RegTree* p_tree) {
       double gstart = dmlc::GetTime();
 
-      std::vector<int> feat_set(p_fmat->info().num_col);
-      std::iota(feat_set.begin(), feat_set.end(), 0);
       int num_leaves = 0;
       unsigned timestamp = 0;
 
@@ -138,14 +159,16 @@ class FastHistMaker: public TreeUpdater {
 
       tstart = dmlc::GetTime();
       this->InitData(gmat, gpair, *p_fmat, *p_tree);
+      std::vector<bst_uint> feat_set = feat_index;
       time_init_data = dmlc::GetTime() - tstart;
+
       // FIXME(hcho3): this code is broken when param.num_roots > 1. Please fix it
       CHECK_EQ(p_tree->param.num_roots, 1)
         << "tree_method=hist does not support multiple roots at this moment";
       for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
         tstart = dmlc::GetTime();
         hist_.AddHistRow(nid);
-        builder_.BuildHist(gpair, row_set_collection_[nid], gmat, hist_[nid]);
+        builder_.BuildHist(gpair, row_set_collection_[nid], gmat, feat_set, hist_[nid]);
         time_build_hist += dmlc::GetTime() - tstart;
 
         tstart = dmlc::GetTime();
@@ -171,7 +194,7 @@ class FastHistMaker: public TreeUpdater {
           (*p_tree)[nid].set_leaf(snode[nid].weight * param.learning_rate);
         } else {
           tstart = dmlc::GetTime();
-          this->ApplySplit(nid, gmat, hist_, *p_fmat, p_tree);
+          this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
           time_apply_split += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
@@ -180,10 +203,12 @@ class FastHistMaker: public TreeUpdater {
           hist_.AddHistRow(cleft);
           hist_.AddHistRow(cright);
           if (row_set_collection_[cleft].size() < row_set_collection_[cright].size()) {
-            builder_.BuildHist(gpair, row_set_collection_[cleft], gmat, hist_[cleft]);
+            builder_.BuildHist(gpair, row_set_collection_[cleft], gmat, feat_set,
+                               hist_[cleft]);
             builder_.SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
           } else {
-            builder_.BuildHist(gpair, row_set_collection_[cright], gmat, hist_[cright]);
+            builder_.BuildHist(gpair, row_set_collection_[cright], gmat, feat_set,
+                               hist_[cright]);
             builder_.SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
           }
           time_build_hist += dmlc::GetTime() - tstart;
@@ -225,32 +250,74 @@ class FastHistMaker: public TreeUpdater {
         snode[nid].stats.SetLeafVec(param, p_tree->leafvec(nid));
       }
 
+      pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
+
       if (param.debug_verbose > 0) {
         double total_time = dmlc::GetTime() - gstart;
         LOG(INFO) << "\nInitData:          "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << time_init_data
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_data
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_init_data / total_time * 100 << "%)\n"
                   << "InitNewNode:       "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << time_init_new_node
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_init_new_node
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_init_new_node / total_time * 100 << "%)\n"
-                  << "BuildHist:          "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << time_build_hist
+                  << "BuildHist:         "
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_build_hist
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_build_hist / total_time * 100 << "%)\n"
                   << "EvaluateSplit:     "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << time_evaluate_split
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_evaluate_split
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_evaluate_split / total_time * 100 << "%)\n"
                   << "ApplySplit:        "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << time_apply_split
+                  << std::fixed << std::setw(6) << std::setprecision(4) << time_apply_split
                   << " (" << std::fixed << std::setw(5) << std::setprecision(2)
                   << time_apply_split / total_time * 100 << "%)\n"
                   << "========================================\n"
                   << "Total:             "
-                  << std::fixed << std::setw(4) << std::setprecision(2) << total_time;
+                  << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
       }
+    }
+
+    inline bool UpdatePredictionCache(const DMatrix* data,
+                                      std::vector<bst_float>* p_out_preds) {
+      std::vector<bst_float>& out_preds = *p_out_preds;
+
+      // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
+      // conjunction with Update().
+      if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
+        return false;
+      }
+
+      if (leaf_value_cache_.empty()) {
+        leaf_value_cache_.resize(p_last_tree_->param.num_nodes,
+          std::numeric_limits<float>::infinity());
+      }
+
+      CHECK_GT(out_preds.size(), 0);
+
+      for (const RowSetCollection::Elem rowset : row_set_collection_) {
+        if (rowset.begin != nullptr && rowset.end != nullptr) {
+          int nid = rowset.node_id;
+          bst_float leaf_value;
+          // if a node is marked as deleted by the pruner, traverse upward to locate
+          // a non-deleted leaf.
+          if ((*p_last_tree_)[nid].is_deleted()) {
+            while ((*p_last_tree_)[nid].is_deleted()) {
+              nid = (*p_last_tree_)[nid].parent();
+            }
+            CHECK((*p_last_tree_)[nid].is_leaf());
+          }
+          leaf_value = (*p_last_tree_)[nid].leaf_value();
+
+          for (const bst_uint* it = rowset.begin; it < rowset.end; ++it) {
+            out_preds[*it] += leaf_value;
+          }
+        }
+      }
+
+      return true;
     }
 
    protected:
@@ -273,17 +340,20 @@ class FastHistMaker: public TreeUpdater {
       {
         // initialize the row set
         row_set_collection_.Clear();
+        // clear local prediction cache
+        leaf_value_cache_.clear();
         // initialize histogram collection
         size_t nbins = gmat.cut->row_ptr.back();
         hist_.Init(nbins);
 
+        // initialize histogram builder
         #pragma omp parallel
         {
           this->nthread = omp_get_num_threads();
         }
         builder_.Init(this->nthread, nbins);
 
-        CHECK_EQ(info.root_index.size(), 0);
+        CHECK_EQ(info.root_index.size(), 0U);
         std::vector<bst_uint>& row_indices = row_set_collection_.row_indices_;
         // mark subsample and build list of member rows
         if (param.subsample < 1.0f) {
@@ -305,15 +375,25 @@ class FastHistMaker: public TreeUpdater {
       }
 
       {
+        // store a pointer to the tree
+        p_last_tree_ = &tree;
+        // store a pointer to training data
+        p_last_fmat_ = &fmat;
         // initialize feature index
         unsigned ncol = static_cast<unsigned>(info.num_col);
         feat_index.clear();
-        for (unsigned i = 0; i < ncol; ++i) {
-          feat_index.push_back(i);
+        if (data_layout_ == kDenseDataOneBased) {
+          for (unsigned i = 1; i < ncol; ++i) {
+            feat_index.push_back(i);
+          }
+        } else {
+          for (unsigned i = 0; i < ncol; ++i) {
+            feat_index.push_back(i);
+          }
         }
         unsigned n = static_cast<unsigned>(param.colsample_bytree * feat_index.size());
         std::shuffle(feat_index.begin(), feat_index.end(), common::GlobalRandom());
-        CHECK_GT(n, 0)
+        CHECK_GT(n, 0U)
             << "colsample_bytree=" << param.colsample_bytree
             << " is too small that no feature can be included";
         feat_index.resize(n);
@@ -353,7 +433,7 @@ class FastHistMaker: public TreeUpdater {
             }
           }
         }
-        CHECK_GT(min_nbins_per_feature, 0);
+        CHECK_GT(min_nbins_per_feature, 0U);
       }
       {
         snode.reserve(256);
@@ -373,22 +453,48 @@ class FastHistMaker: public TreeUpdater {
                               const HistCollection& hist,
                               const DMatrix& fmat,
                               const RegTree& tree,
-                              const std::vector<int>& feat_set) {
+                              const std::vector<bst_uint>& feat_set) {
       // start enumeration
       const MetaInfo& info = fmat.info();
-      for (int fid : feat_set) {
+      const bst_omp_uint nfeature = feat_set.size();
+      const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread);
+      best_split_tloc_.resize(nthread);
+      #pragma omp parallel for schedule(static) num_threads(nthread)
+      for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
+        best_split_tloc_[tid] = snode[nid].best;
+      }
+      #pragma omp parallel for schedule(dynamic) num_threads(nthread)
+      for (bst_omp_uint i = 0; i < nfeature; ++i) {
+        const bst_uint fid = feat_set[i];
+        const unsigned tid = omp_get_thread_num();
         this->EnumerateSplit(-1, gmat, hist[nid], snode[nid], constraints_[nid], info,
-          &snode[nid].best, fid);
+          &best_split_tloc_[tid], fid);
         this->EnumerateSplit(+1, gmat, hist[nid], snode[nid], constraints_[nid], info,
-          &snode[nid].best, fid);
+          &best_split_tloc_[tid], fid);
+      }
+      for (unsigned tid = 0; tid < nthread; ++tid) {
+        snode[nid].best.Update(best_split_tloc_[tid]);
       }
     }
 
     inline void ApplySplit(int nid,
                            const GHistIndexMatrix& gmat,
+                           const ColumnMatrix& column_matrix,
                            const HistCollection& hist,
                            const DMatrix& fmat,
                            RegTree* p_tree) {
+      XGBOOST_TYPE_SWITCH(column_matrix.dtype, {
+        ApplySplit_<DType>(nid, gmat, column_matrix, hist, fmat, p_tree);
+      });
+    }
+
+    template <typename T>
+    inline void ApplySplit_(int nid,
+                            const GHistIndexMatrix& gmat,
+                            const ColumnMatrix& column_matrix,
+                            const HistCollection& hist,
+                            const DMatrix& fmat,
+                            RegTree* p_tree) {
       // TODO(hcho3): support feature sampling by levels
 
       /* 1. Create child nodes */
@@ -422,66 +528,89 @@ class FastHistMaker: public TreeUpdater {
       }
 
       const auto& rowset = row_set_collection_[nid];
-      if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
-        /* specialized code for dense data */
-        const size_t column_offset = (data_layout_ == kDenseDataOneBased) ? (fid - 1): fid;
-        ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column_offset, split_cond);
+
+      Column<T> column = column_matrix.GetColumn<T>(fid);
+      if (column.type == xgboost::common::kDenseColumn) {
+        ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column, split_cond,
+          default_left);
       } else {
-        ApplySplitSparseData(rowset, gmat, &row_split_tloc_, lower_bound, upper_bound,
-          split_cond, default_left);
+        ApplySplitSparseData(rowset, gmat, &row_split_tloc_, column, lower_bound,
+          upper_bound, split_cond, default_left);
       }
+
       row_set_collection_.AddSplit(
         nid, row_split_tloc_, (*p_tree)[nid].cleft(), (*p_tree)[nid].cright());
     }
 
+    template<typename T>
     inline void ApplySplitDenseData(const RowSetCollection::Elem rowset,
                                     const GHistIndexMatrix& gmat,
                                     std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                                    size_t column_offset,
-                                    bst_uint split_cond) {
+                                    const Column<T>& column,
+                                    bst_uint split_cond,
+                                    bool default_left) {
       std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
       const int K = 8;  // loop unrolling factor
       const bst_omp_uint nrows = rowset.end - rowset.begin;
       const bst_omp_uint rest = nrows % K;
+
       #pragma omp parallel for num_threads(nthread) schedule(static)
       for (bst_omp_uint i = 0; i < nrows - rest; i += K) {
-        bst_uint rid[K];
-        unsigned rbin[K];
-        bst_uint tid = omp_get_thread_num();
+        const bst_uint tid = omp_get_thread_num();
         auto& left = row_split_tloc[tid].left;
         auto& right = row_split_tloc[tid].right;
+        bst_uint rid[K];
+        T rbin[K];
         for (int k = 0; k < K; ++k) {
           rid[k] = rowset.begin[i + k];
         }
         for (int k = 0; k < K; ++k) {
-          rbin[k] = gmat[rid[k]].index[column_offset];
+          rbin[k] = column.index[rid[k]];
         }
         for (int k = 0; k < K; ++k) {
-          if (rbin[k] <= split_cond) {
-            left.push_back(rid[k]);
+          if (rbin[k] == std::numeric_limits<T>::max()) {  // missing value
+            if (default_left) {
+              left.push_back(rid[k]);
+            } else {
+              right.push_back(rid[k]);
+            }
           } else {
-            right.push_back(rid[k]);
+            if (rbin[k] + column.index_base <= split_cond) {
+              left.push_back(rid[k]);
+            } else {
+              right.push_back(rid[k]);
+            }
           }
         }
       }
       for (bst_omp_uint i = nrows - rest; i < nrows; ++i) {
+        auto& left = row_split_tloc[nthread-1].left;
+        auto& right = row_split_tloc[nthread-1].right;
         const bst_uint rid = rowset.begin[i];
-        const unsigned rbin = gmat[rid].index[column_offset];
-        if (rbin <= split_cond) {
-          row_split_tloc[0].left.push_back(rid);
+        const T rbin = column.index[rid];
+        if (rbin == std::numeric_limits<T>::max()) {  // missing value
+          if (default_left) {
+            left.push_back(rid);
+          } else {
+            right.push_back(rid);
+          }
         } else {
-          row_split_tloc[0].right.push_back(rid);
+          if (rbin + column.index_base <= split_cond) {
+            left.push_back(rid);
+          } else {
+            right.push_back(rid);
+          }
         }
       }
     }
 
-    inline void ApplySplitSparseData(const RowSetCollection::Elem rowset,
-                                     const GHistIndexMatrix& gmat,
-                                     std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                                     bst_uint lower_bound,
-                                     bst_uint upper_bound,
-                                     bst_uint split_cond,
-                                     bool default_left) {
+    inline void ApplySplitSparseDataOld(const RowSetCollection::Elem rowset,
+                                        const GHistIndexMatrix& gmat,
+                                        std::vector<RowSetCollection::Split>* p_row_split_tloc,
+                                        bst_uint lower_bound,
+                                        bst_uint upper_bound,
+                                        bst_uint split_cond,
+                                        bool default_left) {
       std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
       const int K = 8;  // loop unrolling factor
       const bst_omp_uint nrows = rowset.end - rowset.begin;
@@ -536,6 +665,73 @@ class FastHistMaker: public TreeUpdater {
             left.push_back(rid);
           } else {
             right.push_back(rid);
+          }
+        }
+      }
+    }
+
+    template<typename T>
+    inline void ApplySplitSparseData(const RowSetCollection::Elem rowset,
+                                    const GHistIndexMatrix& gmat,
+                                    std::vector<RowSetCollection::Split>* p_row_split_tloc,
+                                    const Column<T>& column,
+                                    bst_uint lower_bound,
+                                    bst_uint upper_bound,
+                                    bst_uint split_cond,
+                                    bool default_left) {
+      std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
+      const bst_omp_uint nrows = rowset.end - rowset.begin;
+
+      #pragma omp parallel num_threads(nthread)
+      {
+        const bst_uint tid = omp_get_thread_num();
+        const bst_omp_uint ibegin = tid * nrows / nthread;
+        const bst_omp_uint iend = (tid + 1) * nrows / nthread;
+        // search first nonzero row with index >= rowset[ibegin]
+        const uint32_t* p = std::lower_bound(column.row_ind,
+                                             column.row_ind + column.len,
+                                             rowset.begin[ibegin]);
+
+        auto& left = row_split_tloc[tid].left;
+        auto& right = row_split_tloc[tid].right;
+        if (p != column.row_ind + column.len && *p <= rowset.begin[iend - 1]) {
+          bst_omp_uint cursor = p - column.row_ind;
+
+          for (bst_omp_uint i = ibegin; i < iend; ++i) {
+            const bst_uint rid = rowset.begin[i];
+            while (cursor < column.len
+                   && column.row_ind[cursor] < rid
+                   && column.row_ind[cursor] <= rowset.begin[iend - 1]) {
+              ++cursor;
+            }
+            if (cursor < column.len && column.row_ind[cursor] == rid) {
+              const T rbin = column.index[cursor];
+              if (rbin + column.index_base <= split_cond) {
+                left.push_back(rid);
+              } else {
+                right.push_back(rid);
+              }
+              ++cursor;
+            } else {
+              // missing value
+              if (default_left) {
+                left.push_back(rid);
+              } else {
+                right.push_back(rid);
+              }
+            }
+          }
+        } else {  // all rows in [ibegin, iend) have missing values
+          if (default_left) {
+            for (bst_omp_uint i = ibegin; i < iend; ++i) {
+              const bst_uint rid = rowset.begin[i];
+              left.push_back(rid);
+            }
+          } else {
+            for (bst_omp_uint i = ibegin; i < iend; ++i) {
+              const bst_uint rid = rowset.begin[i];
+              right.push_back(rid);
+            }
           }
         }
       }
@@ -600,7 +796,7 @@ class FastHistMaker: public TreeUpdater {
                                const TConstraint& constraint,
                                const MetaInfo& info,
                                SplitEntry* p_best,
-                               int fid) {
+                               bst_uint fid) {
       CHECK(d_step == +1 || d_step == -1);
 
       // aliases
@@ -695,13 +891,23 @@ class FastHistMaker: public TreeUpdater {
     RowSetCollection row_set_collection_;
     // the temp space for split
     std::vector<RowSetCollection::Split> row_split_tloc_;
+    std::vector<SplitEntry> best_split_tloc_;
     /*! \brief TreeNode Data: statistics for each constructed node */
     std::vector<NodeEntry> snode;
     /*! \brief culmulative histogram of gradients. */
     HistCollection hist_;
+    /*! \brief feature with least # of bins. to be used for dense specialization
+               of InitNewNode() */
     size_t fid_least_bins_;
+    /*! \brief local prediction cache; maps node id to leaf value */
+    std::vector<float> leaf_value_cache_;
 
     GHistBuilder builder_;
+    std::unique_ptr<TreeUpdater> pruner_;
+
+    // back pointers to tree and data matrix
+    const RegTree* p_last_tree_;
+    const DMatrix* p_last_fmat_;
 
     // constraint value
     std::vector<TConstraint> constraints_;
@@ -716,6 +922,7 @@ class FastHistMaker: public TreeUpdater {
   };
 
   std::unique_ptr<Builder> builder_;
+  std::unique_ptr<TreeUpdater> pruner_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(FastHistMaker, "grow_fast_histmaker")

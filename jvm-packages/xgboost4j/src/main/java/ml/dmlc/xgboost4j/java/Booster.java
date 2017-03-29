@@ -181,6 +181,26 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
+   * evaluate with given dmatrixs.
+   *
+   * @param evalMatrixs dmatrixs for evaluation
+   * @param evalNames   name for eval dmatrixs, used for check results
+   * @param iter        current eval iteration
+   * @param metricsOut  output array containing the evaluation metrics for each evalMatrix
+   * @return eval information
+   * @throws XGBoostError native error
+   */
+  public String evalSet(DMatrix[] evalMatrixs, String[] evalNames, int iter, float[] metricsOut)
+          throws XGBoostError {
+    String stringFormat = evalSet(evalMatrixs, evalNames, iter);
+    String[] metricPairs = stringFormat.split("\t");
+    for (int i = 1; i < metricPairs.length; i++) {
+      metricsOut[i - 1] = Float.valueOf(metricPairs[i].split(":")[1]);
+    }
+    return stringFormat;
+  }
+
+  /**
    * evaluate with given customized Evaluation class
    *
    * @param evalMatrixs evaluation matrix

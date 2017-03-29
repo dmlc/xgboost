@@ -23,11 +23,11 @@ struct EvalMClassBase : public Metric {
   bst_float Eval(const std::vector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) const override {
-    CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
+    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK(preds.size() % info.labels.size() == 0)
         << "label and prediction size not match";
     const size_t nclass = preds.size() / info.labels.size();
-    CHECK_GE(nclass, 1)
+    CHECK_GE(nclass, 1U)
         << "mlogloss and merror are only used for multi-class classification,"
         << " use logloss for binary classification";
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());

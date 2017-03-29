@@ -22,7 +22,7 @@ else
     echo "Building multi-thread xgboost failed"
     echo "Start to build single-thread xgboost"
     make clean
-    make lib/libxgboost.so -j4 no_omp=1
+    make lib/libxgboost.so -j4 USE_OPENMP=0
     echo "Successfully build single-thread xgboost"
     echo "If you want multi-threaded version"
     echo "See additional instructions in doc/build.md"
