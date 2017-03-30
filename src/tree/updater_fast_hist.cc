@@ -687,50 +687,52 @@ class FastHistMaker: public TreeUpdater {
         const bst_uint tid = omp_get_thread_num();
         const bst_omp_uint ibegin = tid * nrows / nthread;
         const bst_omp_uint iend = (tid + 1) * nrows / nthread;
-        // search first nonzero row with index >= rowset[ibegin]
-        const uint32_t* p = std::lower_bound(column.row_ind,
-                                             column.row_ind + column.len,
-                                             rowset.begin[ibegin]);
+        if (ibegin < iend) {  // ensure that [ibegin, iend) is nonempty range
+          // search first nonzero row with index >= rowset[ibegin]
+          const uint32_t* p = std::lower_bound(column.row_ind,
+                                               column.row_ind + column.len,
+                                               rowset.begin[ibegin]);
 
-        auto& left = row_split_tloc[tid].left;
-        auto& right = row_split_tloc[tid].right;
-        if (p != column.row_ind + column.len && *p <= rowset.begin[iend - 1]) {
-          bst_omp_uint cursor = p - column.row_ind;
+          auto& left = row_split_tloc[tid].left;
+          auto& right = row_split_tloc[tid].right;
+          if (p != column.row_ind + column.len && *p <= rowset.begin[iend - 1]) {
+            bst_omp_uint cursor = p - column.row_ind;
 
-          for (bst_omp_uint i = ibegin; i < iend; ++i) {
-            const bst_uint rid = rowset.begin[i];
-            while (cursor < column.len
-                   && column.row_ind[cursor] < rid
-                   && column.row_ind[cursor] <= rowset.begin[iend - 1]) {
-              ++cursor;
-            }
-            if (cursor < column.len && column.row_ind[cursor] == rid) {
-              const T rbin = column.index[cursor];
-              if (rbin + column.index_base <= split_cond) {
-                left.push_back(rid);
-              } else {
-                right.push_back(rid);
+            for (bst_omp_uint i = ibegin; i < iend; ++i) {
+              const bst_uint rid = rowset.begin[i];
+              while (cursor < column.len
+                     && column.row_ind[cursor] < rid
+                     && column.row_ind[cursor] <= rowset.begin[iend - 1]) {
+                ++cursor;
               }
-              ++cursor;
+              if (cursor < column.len && column.row_ind[cursor] == rid) {
+                const T rbin = column.index[cursor];
+                if (rbin + column.index_base <= split_cond) {
+                  left.push_back(rid);
+                } else {
+                  right.push_back(rid);
+                }
+                ++cursor;
+              } else {
+                // missing value
+                if (default_left) {
+                  left.push_back(rid);
+                } else {
+                  right.push_back(rid);
+                }
+              }
+            }
+          } else {  // all rows in [ibegin, iend) have missing values
+            if (default_left) {
+              for (bst_omp_uint i = ibegin; i < iend; ++i) {
+                const bst_uint rid = rowset.begin[i];
+                left.push_back(rid);
+              }
             } else {
-              // missing value
-              if (default_left) {
-                left.push_back(rid);
-              } else {
+              for (bst_omp_uint i = ibegin; i < iend; ++i) {
+                const bst_uint rid = rowset.begin[i];
                 right.push_back(rid);
               }
-            }
-          }
-        } else {  // all rows in [ibegin, iend) have missing values
-          if (default_left) {
-            for (bst_omp_uint i = ibegin; i < iend; ++i) {
-              const bst_uint rid = rowset.begin[i];
-              left.push_back(rid);
-            }
-          } else {
-            for (bst_omp_uint i = ibegin; i < iend; ++i) {
-              const bst_uint rid = rowset.begin[i];
-              right.push_back(rid);
             }
           }
         }
