@@ -10,7 +10,7 @@ if [ ${TASK} == "lint" ]; then
 fi
 
 
-if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_lightweight_test" ]; then
+if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_lightweight_test" ] || [ ${TASK} == "python_omp_test" ] ; then
     # python2
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
         wget -O conda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
