@@ -43,23 +43,6 @@ if [ ${TASK} == "python_test" ]; then
     exit 0
 fi
 
-if [ ${TASK} == "python_omp_test" ]; then
-    make all || exit -1
-    source activate python3
-    echo "-------------------------------"
-    python --version
-    conda install numpy scipy nose
-    python -m pip install graphviz
-    python -m nose tests/python_omp_test.py || exit -1
-    source activate python2
-    echo "-------------------------------"
-    python --version
-    conda install numpy scipy nose
-    python -m pip install graphviz
-    python -m nose tests/python_omp_test.py || exit -1
-    exit 0
-fi
-
 if [ ${TASK} == "python_lightweight_test" ]; then
     make all || exit -1
     echo "-------------------------------"

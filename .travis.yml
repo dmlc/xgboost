@@ -17,7 +17,6 @@ env:
     - TASK=r_test
     # python package test
     - TASK=python_test
-    - OMP_NUM_THREADS=3 TASK=python_omp_test
     - TASK=python_lightweight_test
     # java package test
     - TASK=java_test
@@ -32,8 +31,6 @@ matrix:
       env: TASK=lint
     - os: osx
       env: TASK=cmake_test
-    - os: osx
-      env: OMP_NUM_THREADS=3 TASK=python_omp_test
     - os: linux
       env: TASK=r_test
     - os: osx

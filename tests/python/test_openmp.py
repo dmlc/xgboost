@@ -20,7 +20,8 @@ class TestOMP(unittest.TestCase):
                  'eval_metric': 'auc',
                  'max_depth': 0,
                  'max_leaves': 1024,
-                 'min_child_weight': 0}
+                 'min_child_weight': 0,
+                 'nthread': 3}
 
         watchlist = [(dtrain, 'train')]
         num_round = 1
