@@ -64,6 +64,7 @@ namespace xgboost {
  *  used for feature index and row index.
  */
 typedef uint32_t bst_uint;
+typedef int32_t bst_int;
 /*! \brief long integers */
 typedef uint64_t bst_ulong;  // NOLINT(*)
 /*! \brief float type, used for storing statistics */
