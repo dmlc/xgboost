@@ -375,6 +375,24 @@ class FastHistMaker: public TreeUpdater {
       }
 
       {
+        /* determine layout of data */
+        const auto nrow = info.num_row;
+        const auto ncol = info.num_col;
+        const auto nnz = info.num_nonzero;
+        // number of discrete bins for feature 0
+        const unsigned nbins_f0 = gmat.cut->row_ptr[1] - gmat.cut->row_ptr[0];
+        if (nrow * ncol == nnz) {
+          // dense data with zero-based indexing
+          data_layout_ = kDenseDataZeroBased;
+        } else if (nbins_f0 == 0 && nrow * (ncol - 1) == nnz) {
+          // dense data with one-based indexing
+          data_layout_ = kDenseDataOneBased;
+        } else {
+          // sparse data
+          data_layout_ = kSparseData;
+        }
+      }
+      {
         // store a pointer to the tree
         p_last_tree_ = &tree;
         // store a pointer to training data
@@ -397,24 +415,6 @@ class FastHistMaker: public TreeUpdater {
             << "colsample_bytree=" << param.colsample_bytree
             << " is too small that no feature can be included";
         feat_index.resize(n);
-      }
-      {
-        /* determine layout of data */
-        const auto nrow = info.num_row;
-        const auto ncol = info.num_col;
-        const auto nnz = info.num_nonzero;
-        // number of discrete bins for feature 0
-        const unsigned nbins_f0 = gmat.cut->row_ptr[1] - gmat.cut->row_ptr[0];
-        if (nrow * ncol == nnz) {
-          // dense data with zero-based indexing
-          data_layout_ = kDenseDataZeroBased;
-        } else if (nbins_f0 == 0 && nrow * (ncol - 1) == nnz) {
-          // dense data with one-based indexing
-          data_layout_ = kDenseDataOneBased;
-        } else {
-          // sparse data
-          data_layout_ = kSparseData;
-        }
       }
       if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
         /* specialized code for dense data:
