@@ -27,7 +27,7 @@ namespace xgboost {
  *  std::unique_ptr<Learner> learner(new Learner::Create(cache_mats));
  *  learner.Configure(configs);
  *
- *  for (int iter = 0; iter < max_iter; ++i) {
+ *  for (int iter = 0; iter < max_iter; ++iter) {
  *    learner->UpdateOneIter(iter, train_mat);
  *    LOG(INFO) << learner->EvalOneIter(iter, data_sets, data_names);
  *  }
@@ -106,7 +106,7 @@ class Learner : public rabit::Serializable {
    */
   virtual void Predict(DMatrix* data,
                        bool output_margin,
-                       std::vector<float> *out_preds,
+                       std::vector<bst_float> *out_preds,
                        unsigned ntree_limit = 0,
                        bool pred_leaf = false) const = 0;
   /*!
@@ -162,7 +162,7 @@ class Learner : public rabit::Serializable {
    */
   inline void Predict(const SparseBatch::Inst &inst,
                       bool output_margin,
-                      std::vector<float> *out_preds,
+                      std::vector<bst_float> *out_preds,
                       unsigned ntree_limit = 0) const;
   /*!
    * \brief Create a new instance of learner.
@@ -185,12 +185,9 @@ class Learner : public rabit::Serializable {
 // implementation of inline functions.
 inline void Learner::Predict(const SparseBatch::Inst& inst,
                              bool output_margin,
-                             std::vector<float>* out_preds,
+                             std::vector<bst_float>* out_preds,
                              unsigned ntree_limit) const {
   gbm_->Predict(inst, out_preds, ntree_limit);
-  if (out_preds->size() == 1) {
-    (*out_preds)[0] += base_score_;
-  }
   if (!output_margin) {
     obj_->PredTransform(out_preds);
   }

@@ -3,7 +3,7 @@ context('Test helper functions')
 require(xgboost)
 require(data.table)
 require(Matrix)
-require(vcd)
+require(vcd, quietly = TRUE)
 
 set.seed(1982)
 data(Arthritis)
@@ -15,10 +15,12 @@ sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df)
 label <- df[, ifelse(Improved == "Marked", 1, 0)]
 
 bst.Tree <- xgboost(data = sparse_matrix, label = label, max_depth = 9,
-               eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic", booster = "gbtree")
+                    eta = 1, nthread = 2, nrounds = 10, verbose = 0,
+                    objective = "binary:logistic", booster = "gbtree")
 
 bst.GLM <- xgboost(data = sparse_matrix, label = label,
-                   eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic", booster = "gblinear")
+                   eta = 1, nthread = 2, nrounds = 10, verbose = 0,
+                   objective = "binary:logistic", booster = "gblinear")
 
 feature.names <- colnames(sparse_matrix)
 
@@ -27,6 +29,11 @@ test_that("xgb.dump works", {
   expect_true(xgb.dump(bst.Tree, 'xgb.model.dump', with_stats = T))
   expect_true(file.exists('xgb.model.dump'))
   expect_gt(file.size('xgb.model.dump'), 8000)
+
+  # JSON format
+  dmp <- xgb.dump(bst.Tree, dump_format = "json")
+  expect_length(dmp, 1)
+  expect_length(grep('nodeid', strsplit(dmp, '\n')[[1]]), 162)
 })
 
 test_that("xgb.dump works for gblinear", {
@@ -38,6 +45,11 @@ test_that("xgb.dump works for gblinear", {
   d.sp <- xgb.dump(bst.GLM.sp)
   expect_length(d.sp, 14)
   expect_gt(sum(d.sp == "0"), 0)
+
+  # JSON format
+  dmp <- xgb.dump(bst.GLM.sp, dump_format = "json")
+  expect_length(dmp, 1)
+  expect_length(grep('\\d', strsplit(dmp, '\n')[[1]]), 11)
 })
 
 test_that("xgb-attribute functionality", {
@@ -73,17 +85,36 @@ test_that("xgb-attribute functionality", {
   expect_null(xgb.attributes(bst))
 })
 
-test_that("xgb-attribute numeric precision", {
-  # check that lossless conversion works with 17 digits
-  # numeric -> character -> numeric
-  X <- 10^runif(100, -20, 20)
-  X2X <- as.numeric(format(X, digits = 17))
-  expect_identical(X, X2X)
-  # retrieved attributes to be the same as written
-  for (x in X) {
-    xgb.attr(bst.Tree, "x") <- x
-    expect_identical(as.numeric(xgb.attr(bst.Tree, "x")), x)
-  }
+if (grepl('Windows', Sys.info()[['sysname']]) || grepl('Linux', Sys.info()[['sysname']]) || grepl('Darwin', Sys.info()[['sysname']])) {
+    test_that("xgb-attribute numeric precision", {
+      # check that lossless conversion works with 17 digits
+      # numeric -> character -> numeric
+      X <- 10^runif(100, -20, 20)
+      X2X <- as.numeric(format(X, digits = 17))
+      expect_identical(X, X2X)
+      # retrieved attributes to be the same as written
+      for (x in X) {
+        xgb.attr(bst.Tree, "x") <- x
+        expect_identical(as.numeric(xgb.attr(bst.Tree, "x")), x)
+        xgb.attributes(bst.Tree) <- list(a = "A", b = x)
+        expect_identical(as.numeric(xgb.attr(bst.Tree, "b")), x)
+      }
+    })
+}
+
+test_that("xgb.Booster serializing as R object works", {
+  saveRDS(bst.Tree, 'xgb.model.rds')
+  bst <- readRDS('xgb.model.rds')
+  dtrain <- xgb.DMatrix(sparse_matrix, label = label)
+  expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain))
+  expect_equal(xgb.dump(bst.Tree), xgb.dump(bst))
+  xgb.save(bst, 'xgb.model')
+  nil_ptr <- new("externalptr")
+  class(nil_ptr) <- "xgb.Booster.handle"
+  expect_true(identical(bst$handle, nil_ptr))
+  bst <- xgb.Booster.complete(bst)
+  expect_true(!identical(bst$handle, nil_ptr))
+  expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain))
 })
 
 test_that("xgb.model.dt.tree works with and without feature names", {
@@ -91,7 +122,17 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
   expect_equal(names.dt.trees, names(dt.tree))
   expect_equal(dim(dt.tree), c(162, 10))
-  expect_output(str(xgb.model.dt.tree(model = bst.Tree)), 'Feature.*\\"3\\"')
+  expect_output(str(dt.tree), 'Feature.*\\"Age\\"')
+  
+  dt.tree.0 <- xgb.model.dt.tree(model = bst.Tree)
+  expect_equal(dt.tree, dt.tree.0)
+  
+  # when model contains no feature names:
+  bst.Tree.x <- bst.Tree
+  bst.Tree.x$feature_names <- NULL
+  dt.tree.x <- xgb.model.dt.tree(model = bst.Tree.x)
+  expect_output(str(dt.tree.x), 'Feature.*\\"3\\"')
+  expect_equal(dt.tree[, -4, with=FALSE], dt.tree.x[, -4, with=FALSE])
 })
 
 test_that("xgb.model.dt.tree throws error for gblinear", {
@@ -102,7 +143,17 @@ test_that("xgb.importance works with and without feature names", {
   importance.Tree <- xgb.importance(feature_names = feature.names, model = bst.Tree)
   expect_equal(dim(importance.Tree), c(7, 4))
   expect_equal(colnames(importance.Tree), c("Feature", "Gain", "Cover", "Frequency"))
-  expect_output(str(xgb.importance(model = bst.Tree)), 'Feature.*\\"3\\"')
+  expect_output(str(importance.Tree), 'Feature.*\\"Age\\"')
+  
+  importance.Tree.0 <- xgb.importance(model = bst.Tree)
+  expect_equal(importance.Tree, importance.Tree.0)
+  
+  # when model contains no feature names:
+  bst.Tree.x <- bst.Tree
+  bst.Tree.x$feature_names <- NULL
+  importance.Tree.x <- xgb.importance(model = bst.Tree)
+  expect_equal(importance.Tree[, -1, with=FALSE], importance.Tree.x[, -1, with=FALSE])
+  
   imp2plot <- xgb.plot.importance(importance_matrix = importance.Tree)
   expect_equal(colnames(imp2plot), c("Feature", "Gain", "Cover", "Frequency", "Importance"))
   xgb.ggplot.importance(importance_matrix = importance.Tree)

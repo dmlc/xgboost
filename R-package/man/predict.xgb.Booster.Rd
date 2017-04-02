@@ -46,8 +46,8 @@ number of columns corresponding to the number of trees.
 Predicted values based on either xgboost model or model handle object.
 }
 \details{
-Note that \code{ntreelimit} is not necesserily equal to the number of boosting iterations
-and it is not necesserily equal to the number of trees in a model.
+Note that \code{ntreelimit} is not necessarily equal to the number of boosting iterations
+and it is not necessarily equal to the number of trees in a model.
 E.g., in a random forest-like model, \code{ntreelimit} would limit the number of trees.
 But for multiclass classification, there are multiple trees per iteration, 
 but \code{ntreelimit} limits the number of boosting iterations.
@@ -126,4 +126,3 @@ plot(err, type='l', ylim=c(0,0.1), xlab='#trees')
 \seealso{
 \code{\link{xgb.train}}.
 }
-

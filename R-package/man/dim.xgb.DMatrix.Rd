@@ -26,4 +26,3 @@ stopifnot(ncol(dtrain) == ncol(train$data))
 stopifnot(all(dim(dtrain) == dim(train$data)))
 
 }
-

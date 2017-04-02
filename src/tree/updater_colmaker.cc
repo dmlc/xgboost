@@ -53,9 +53,9 @@ class ColMaker: public TreeUpdater {
     /*! \brief extra statistics of data */
     TStats stats_extra;
     /*! \brief last feature value scanned */
-    float  last_fvalue;
+    bst_float last_fvalue;
     /*! \brief first feature value scanned */
-    float  first_fvalue;
+    bst_float first_fvalue;
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
@@ -69,7 +69,7 @@ class ColMaker: public TreeUpdater {
     /*! \brief loss of this node, without split */
     bst_float root_gain;
     /*! \brief weight calculated related to current data */
-    float weight;
+    bst_float weight;
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
@@ -81,7 +81,7 @@ class ColMaker: public TreeUpdater {
   struct Builder {
    public:
     // constructor
-    explicit Builder(const TrainParam& param) : param(param) {}
+    explicit Builder(const TrainParam& param) : param(param), nthread(omp_get_max_threads()) {}
     // update one tree, growing
     virtual void Update(const std::vector<bst_gpair>& gpair,
                         DMatrix* p_fmat,
@@ -161,17 +161,13 @@ class ColMaker: public TreeUpdater {
         }
         unsigned n = static_cast<unsigned>(param.colsample_bytree * feat_index.size());
         std::shuffle(feat_index.begin(), feat_index.end(), common::GlobalRandom());
-        CHECK_GT(n, 0)
+        CHECK_GT(n, 0U)
             << "colsample_bytree=" << param.colsample_bytree
             << " is too small that no feature can be included";
         feat_index.resize(n);
       }
       {
         // setup temp space for each thread
-        #pragma omp parallel
-        {
-          this->nthread = omp_get_num_threads();
-        }
         // reserve a small space
         stemp.clear();
         stemp.resize(this->nthread, std::vector<ThreadEntry>());
@@ -327,8 +323,7 @@ class ColMaker: public TreeUpdater {
         for (size_t j = 0; j < qexpand.size(); ++j) {
           temp[qexpand[j]].stats.Clear();
         }
-        nthread = omp_get_num_threads();
-        bst_uint step = (col.length + nthread - 1) / nthread;
+        bst_uint step = (col.length + this->nthread - 1) / this->nthread;
         bst_uint end = std::min(col.length, step * (tid + 1));
         for (bst_uint i = tid * step; i < end; ++i) {
           const bst_uint ridx = col[i].index;
@@ -340,7 +335,7 @@ class ColMaker: public TreeUpdater {
             if (qexpand[j] == nid) qid = j;
           }
           if (int_cont_fid[qid] == 0) continue;
-          const float fvalue = col[i].fvalue;
+          const bst_float fvalue = col[i].fvalue;
           if (temp[nid].stats.Empty()) {
             temp[nid].first_fvalue = fvalue;
           }
@@ -355,7 +350,7 @@ class ColMaker: public TreeUpdater {
         const int nid = qexpand[j];
         if (int_cont_fid[j] == 0) continue;  // check interaction constraints
         TStats sum(param), tmp(param), c(param);
-        for (int tid = 0; tid < nthread; ++tid) {
+        for (int tid = 0; tid < this->nthread; ++tid) {
           tmp = stemp[tid][nid].stats;
           stemp[tid][nid].stats = sum;
           sum.Add(tmp);
@@ -363,10 +358,10 @@ class ColMaker: public TreeUpdater {
             std::swap(stemp[tid - 1][nid].last_fvalue, stemp[tid][nid].first_fvalue);
           }
         }
-        for (int tid = 0; tid < nthread; ++tid) {
+        for (int tid = 0; tid < this->nthread; ++tid) {
           stemp[tid][nid].stats_extra = sum;
           ThreadEntry &e = stemp[tid][nid];
-          float fsplit;
+          bst_float fsplit;
           if (tid != 0) {
             if (stemp[tid - 1][nid].last_fvalue != e.first_fvalue) {
               fsplit = (stemp[tid - 1][nid].last_fvalue + e.first_fvalue) * 0.5f;
@@ -398,7 +393,7 @@ class ColMaker: public TreeUpdater {
         }
         if (need_backward) {
           tmp = sum;
-          ThreadEntry &e = stemp[nthread-1][nid];
+          ThreadEntry &e = stemp[this->nthread-1][nid];
           c.SetSubstract(snode[nid].stats, tmp);
           if (c.sum_hess >= param.min_child_weight &&
               tmp.sum_hess >= param.min_child_weight) {
@@ -414,8 +409,7 @@ class ColMaker: public TreeUpdater {
         TStats c(param), cright(param);
         const int tid = omp_get_thread_num();
         std::vector<ThreadEntry> &temp = stemp[tid];
-        nthread = static_cast<bst_uint>(omp_get_num_threads());
-        bst_uint step = (col.length + nthread - 1) / nthread;
+        bst_uint step = (col.length + this->nthread - 1) / this->nthread;
         bst_uint end = std::min(col.length, step * (tid + 1));
         for (bst_uint i = tid * step; i < end; ++i) {
           const bst_uint ridx = col[i].index;
@@ -427,7 +421,7 @@ class ColMaker: public TreeUpdater {
             if (qexpand[j] == nid) qid = j;
           }
           if (int_cont_fid[qid] == 0) continue;
-          const float fvalue = col[i].fvalue;
+          const bst_float fvalue = col[i].fvalue;
           // get the statistics of nid
           ThreadEntry &e = temp[nid];
           if (e.stats.Empty()) {
@@ -466,7 +460,7 @@ class ColMaker: public TreeUpdater {
     }
     // update enumeration solution
     inline void UpdateEnumeration(int nid, bst_gpair gstats,
-                                  float fvalue, int d_step, bst_uint fid,
+                                  bst_float fvalue, int d_step, bst_uint fid,
                                   TStats &c, std::vector<ThreadEntry> &temp) { // NOLINT(*)
       // get the statistics of nid
       ThreadEntry &e = temp[nid];
@@ -579,8 +573,8 @@ class ColMaker: public TreeUpdater {
             loss_chg = static_cast<bst_float>(
                 constraints_[nid].CalcSplitGain(param, fid, e.stats, c) - snode[nid].root_gain);
           }
-          const float gap = std::abs(e.last_fvalue) + rt_eps;
-          const float delta = d_step == +1 ? gap: -gap;
+          const bst_float gap = std::abs(e.last_fvalue) + rt_eps;
+          const bst_float delta = d_step == +1 ? gap: -gap;
           e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1);
         }
       }
@@ -618,7 +612,7 @@ class ColMaker: public TreeUpdater {
         }
         if (int_cont_fid[qid] == 0) continue;
         // start working
-        const float fvalue = it->fvalue;
+        const bst_float fvalue = it->fvalue;
         // get the statistics of nid
         ThreadEntry &e = temp[nid];
         // test if first hit, this is fine, because we set 0 during init
@@ -663,8 +657,8 @@ class ColMaker: public TreeUpdater {
             loss_chg = static_cast<bst_float>(
                 constraints_[nid].CalcSplitGain(param, fid, e.stats, c) - snode[nid].root_gain);
           }
-          const float gap = std::abs(e.last_fvalue) + rt_eps;
-          const float delta = d_step == +1 ? gap: -gap;
+          const bst_float gap = std::abs(e.last_fvalue) + rt_eps;
+          const bst_float delta = d_step == +1 ? gap: -gap;
           e.best.Update(loss_chg, fid, e.last_fvalue + delta, d_step == -1);
         }
       }
@@ -682,7 +676,7 @@ class ColMaker: public TreeUpdater {
       #endif
       int poption = param.parallel_option;
       if (poption == 2) {
-        poption = static_cast<int>(nsize) * 2 < nthread ? 1 : 0;
+        poption = static_cast<int>(nsize) * 2 < this->nthread ? 1 : 0;
       }
       if (poption == 0) {
         #pragma omp parallel for schedule(dynamic, batch_size)
@@ -717,7 +711,7 @@ class ColMaker: public TreeUpdater {
       if (param.colsample_bylevel != 1.0f) {
         std::shuffle(feat_set.begin(), feat_set.end(), common::GlobalRandom());
         unsigned n = static_cast<unsigned>(param.colsample_bylevel * feat_index.size());
-        CHECK_GT(n, 0)
+        CHECK_GT(n, 0U)
             << "colsample_bylevel is too small that no feature can be included";
         feat_set.resize(n);
       }
@@ -759,9 +753,8 @@ class ColMaker: public TreeUpdater {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
-        if (ridx >= position.size()) {
-          LOG(INFO) << "ridx exceed bound\n";
-        }
+        CHECK_LT(ridx, position.size())
+            << "ridx exceed bound " << "ridx="<<  ridx << " pos=" << position.size();
         const int nid = this->DecodePosition(ridx);
         if (tree[nid].is_leaf()) {
           // mark finish when it is not a fresh leaf
@@ -813,7 +806,7 @@ class ColMaker: public TreeUpdater {
           for (bst_omp_uint j = 0; j < ndata; ++j) {
             const bst_uint ridx = col[j].index;
             const int nid = this->DecodePosition(ridx);
-            const float fvalue = col[j].fvalue;
+            const bst_float fvalue = col[j].fvalue;
             // go back to parent, correct those who are not default
             if (!tree[nid].is_leaf() && tree[nid].split_index() == fid) {
               if (fvalue < tree[nid].split_cond()) {
@@ -843,7 +836,7 @@ class ColMaker: public TreeUpdater {
     //  --data fields--
     const TrainParam& param;
     // number of omp thread used during training
-    int nthread;
+    const int nthread;
     // Per feature: shuffle index of each feature index
     std::vector<bst_uint> feat_index;
     // Instance Data: current node position in the tree of each instance
@@ -876,16 +869,13 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {
     TStats::CheckInfo(dmat->info());
-    CHECK_EQ(trees.size(), 1) << "DistColMaker: only support one tree at a time";
+    CHECK_EQ(trees.size(), 1U) << "DistColMaker: only support one tree at a time";
     // build the tree
     builder.Update(gpair, dmat, trees[0]);
     //// prune the tree, note that pruner will sync the tree
     pruner->Update(gpair, dmat, trees);
     // update position after the tree is pruned
     builder.UpdatePosition(dmat, *trees[0]);
-  }
-  const int* GetLeafPosition() const override {
-    return builder.GetLeafPosition();
   }
 
  private:
@@ -949,7 +939,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
           #pragma omp parallel for schedule(static)
           for (bst_omp_uint j = 0; j < ndata; ++j) {
             const bst_uint ridx = col[j].index;
-            const float fvalue = col[j].fvalue;
+            const bst_float fvalue = col[j].fvalue;
             const int nid = this->DecodePosition(ridx);
             if (!tree[nid].is_leaf() && tree[nid].split_index() == fid) {
               if (fvalue < tree[nid].split_cond()) {
@@ -983,7 +973,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
       }
     }
     // synchronize the best solution of each node
-    virtual void SyncBestSolution(const std::vector<int> &qexpand) {
+    void SyncBestSolution(const std::vector<int> &qexpand) override {
       std::vector<SplitEntry> vec;
       for (size_t i = 0; i < qexpand.size(); ++i) {
         const int nid = qexpand[i];
@@ -1041,11 +1031,6 @@ class TreeUpdaterSwitch : public TreeUpdater {
               const std::vector<RegTree*>& trees) override {
     CHECK(inner_ != nullptr);
     inner_->Update(gpair, data, trees);
-  }
-
-  const int* GetLeafPosition() const override {
-    CHECK(inner_ != nullptr);
-    return inner_->GetLeafPosition();
   }
 
  private:

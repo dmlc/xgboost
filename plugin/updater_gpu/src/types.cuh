@@ -3,11 +3,12 @@
 */
 #pragma once
 #include <xgboost/base.h>
+#include <tuple>  // The linter is not very smart and thinks we need this
 
 namespace xgboost {
 namespace tree {
 
-typedef int32_t NodeIdT;
+typedef int16_t NodeIdT;
 
 // gpair type defined with device accessible functions
 struct gpu_gpair {
@@ -78,11 +79,13 @@ struct gpu_gpair {
   }
 };
 
-struct Item {
-  bst_uint instance_id;
-  float fvalue;
-  gpu_gpair gpair;
-};
+typedef thrust::device_vector<bst_uint>::iterator uint_iter;
+typedef thrust::device_vector<gpu_gpair>::iterator gpair_iter;
+typedef thrust::device_vector<float>::iterator float_iter;
+typedef thrust::device_vector<NodeIdT>::iterator node_id_iter;
+typedef thrust::permutation_iterator<gpair_iter, uint_iter> gpair_perm_iter;
+typedef thrust::tuple<gpair_perm_iter, float_iter, node_id_iter> ItemTuple;
+typedef thrust::zip_iterator<ItemTuple> ItemIter;
 
 struct GPUTrainingParam {
   // minimum amount of hessian(weight) allowed in a child

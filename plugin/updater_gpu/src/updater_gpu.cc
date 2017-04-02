@@ -27,6 +27,7 @@ template <typename TStats> class GPUMaker : public TreeUpdater {
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
+    builder.UpdateParam(param);
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
       builder.Update(gpair, dmat, trees[i]);

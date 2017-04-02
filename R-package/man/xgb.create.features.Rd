@@ -29,7 +29,7 @@ Joaquin Quinonero Candela)}
  
 International Workshop on Data Mining for Online Advertising (ADKDD) - August 24, 2014
 
-\url{https://research.facebook.com/publications/758569837499391/practical-lessons-from-predicting-clicks-on-ads-at-facebook/}.
+\url{https://research.fb.com/publications/practical-lessons-from-predicting-clicks-on-ads-at-facebook/}.
 
 Extract explaining the method:
 
@@ -68,7 +68,8 @@ nround = 4
 bst = xgb.train(params = param, data = dtrain, nrounds = nround, nthread = 2)
 
 # Model accuracy without new features
-accuracy.before <- sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.test$label) / length(agaricus.test$label)
+accuracy.before <- sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.test$label) /
+                   length(agaricus.test$label)
 
 # Convert previous features to one hot encoding
 new.features.train <- xgb.create.features(model = bst, agaricus.train$data)
@@ -81,10 +82,11 @@ watchlist <- list(train = new.dtrain)
 bst <- xgb.train(params = param, data = new.dtrain, nrounds = nround, nthread = 2)
 
 # Model accuracy with new features
-accuracy.after <- sum((predict(bst, new.dtest) >= 0.5) == agaricus.test$label) / length(agaricus.test$label)
+accuracy.after <- sum((predict(bst, new.dtest) >= 0.5) == agaricus.test$label) /
+                  length(agaricus.test$label)
 
 # Here the accuracy was already good and is now perfect.
-cat(paste("The accuracy was", accuracy.before, "before adding leaf features and it is now", accuracy.after, "!\\n"))
+cat(paste("The accuracy was", accuracy.before, "before adding leaf features and it is now",
+          accuracy.after, "!\\n"))
 
 }
-

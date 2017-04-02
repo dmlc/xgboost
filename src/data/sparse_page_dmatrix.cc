@@ -169,12 +169,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
       SparsePage *pcol) {
     pcol->Clear();
     pcol->min_index = buffered_rowset_[begin];
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-      nthread = std::max(nthread, std::max(omp_get_num_procs() / 2 - 1, 1));
-    }
+    const int nthread = std::max(omp_get_max_threads(), std::max(omp_get_num_procs() / 2 - 1, 1));
     common::ParallelGroupBuilder<SparseBatch::Entry>
     builder(&pcol->offset, &pcol->data);
     builder.InitBudget(info.num_col, nthread);
@@ -259,7 +254,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
 
   {
     SparsePage::Writer writer(name_shards, format_shards, 6);
-    std::unique_ptr<SparsePage> page;
+    std::shared_ptr<SparsePage> page;
     writer.Alloc(&page); page->Clear();
 
     double tstart = dmlc::GetTime();

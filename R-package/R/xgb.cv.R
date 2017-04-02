@@ -1,6 +1,6 @@
 #' Cross Validation
 #' 
-#' The cross valudation function of xgboost
+#' The cross validation function of xgboost
 #' 
 #' @param params the list of parameters. Commonly used ones are:
 #' \itemize{
@@ -16,10 +16,10 @@
 #'
 #'   See \code{\link{xgb.train}} for further details.
 #'   See also demo/ for walkthrough example in R.
-#' @param data takes an \code{xgb.DMatrix} or \code{Matrix} as the input.
+#' @param data takes an \code{xgb.DMatrix}, \code{matrix}, or \code{dgCMatrix} as the input.
 #' @param nrounds the max number of iterations
 #' @param nfold the original dataset is randomly partitioned into \code{nfold} equal size subsamples. 
-#' @param label vector of response values. Should be provided only when data is \code{DMatrix}.
+#' @param label vector of response values. Should be provided only when data is an R-matrix.
 #' @param missing is only used when input is a dense matrix. By default is set to NA, which means 
 #'        that NA values should be considered as 'missing' by the algorithm. 
 #'        Sometimes, 0 or other extreme value might be used to represent missing values.
@@ -129,10 +129,9 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   #if (is.null(params[['eval_metric']]) && is.null(feval))
   #  stop("Either 'eval_metric' or 'feval' must be provided for CV")
   
-  # Labels
-  if (class(data) == 'xgb.DMatrix')
-    labels <- getinfo(data, 'label')
-  if (is.null(labels))
+  # Check the labels
+  if ( (class(data) == 'xgb.DMatrix' && is.null(getinfo(data, 'label'))) ||
+       (class(data) != 'xgb.DMatrix' && is.null(label)))
     stop("Labels must be provided for CV either through xgb.DMatrix, or through 'label=' when 'data' is matrix")
   
   # CV folds
@@ -154,7 +153,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   params <- c(params, list(silent = 1))
   print_every_n <- max( as.integer(print_every_n), 1L)
   if (!has.callbacks(callbacks, 'cb.print.evaluation') && verbose) {
-    callbacks <- add.cb(callbacks, cb.print.evaluation(print_every_n))
+    callbacks <- add.cb(callbacks, cb.print.evaluation(print_every_n, showsd=showsd))
   }
   # evaluation log callback: always is on in CV
   evaluation_log <- list()
@@ -182,8 +181,8 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
   bst_folds <- lapply(1:length(folds), function(k) {
     dtest  <- slice(dall, folds[[k]])
     dtrain <- slice(dall, unlist(folds[-k]))
-    bst <- xgb.Booster(params, list(dtrain, dtest))
-    list(dtrain=dtrain, bst=bst, watchlist=list(train=dtrain, test=dtest), index=folds[[k]])
+    handle <- xgb.Booster.handle(params, list(dtrain, dtest))
+    list(dtrain=dtrain, bst=handle, watchlist=list(train=dtrain, test=dtest), index=folds[[k]])
   })
   # a "basket" to collect some results from callbacks
   basket <- list()

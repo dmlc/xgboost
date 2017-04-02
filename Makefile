@@ -31,27 +31,37 @@ include $(DMLC_CORE)/make/dmlc.mk
 # include the plugins
 include $(XGB_PLUGINS)
 
-# use customized config file
-ifndef CC
-export CC  = $(if $(shell which gcc-6),gcc-6,gcc)
-endif
-ifndef CXX
-export CXX = $(if $(shell which g++-6),g++-6,g++)
-endif
-
-# on Mac OS X, force brew gcc-6, since the Xcode c++ fails anyway
-# it is useful for pip install compiling-on-the-fly
+# set compiler defaults for OSX versus *nix
+# let people override either
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
-export CC = $(if $(shell which gcc-6),gcc-6,$(if $(shell which gcc-mp-6), gcc-mp-6, clang))
-export CXX = $(if $(shell which g++-6),g++-6,$(if $(shell which g++-mp-6),g++-mp-6, clang++))
+ifndef CC
+export CC = $(if $(shell which clang), clang, gcc)
+endif
+ifndef CXX
+export CXX = $(if $(shell which clang++), clang++, g++)
+endif
+else
+# linux defaults
+ifndef CC
+export CC = gcc
+endif
+ifndef CXX
+export CXX = g++
+endif
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
-export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
+export CFLAGS=  -std=c++11 -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
+
+ifeq ($(TEST_COVER), 1)
+	CFLAGS += -g -O0 -fprofile-arcs -ftest-coverage
+else
+	CFLAGS += -O3 -funroll-loops -msse2
+endif
 
 ifndef LINT_LANG
 	LINT_LANG= "all"
@@ -101,6 +111,7 @@ AMALGA_OBJ = amalgamation/xgboost-all0.o
 LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
 ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
 CLI_OBJ = build/cli_main.o
+include tests/cpp/xgboost_test.mk
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
@@ -145,8 +156,22 @@ lint: rcpplint
 pylint:
 	flake8 --ignore E501 python-package
 	flake8 --ignore E501 tests/python
+
+test: $(ALL_TEST)
+
+check: test
+	./tests/cpp/xgboost_test
+
+ifeq ($(TEST_COVER), 1)
+cover: check
+	@- $(foreach COV_OBJ, $(COVER_OBJ), \
+		gcov -pbcul -o $(shell dirname $(COV_OBJ)) $(COV_OBJ) > gcov.log || cat gcov.log; \
+	)
+endif
+
 clean:
 	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
+	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
 
 clean_all: clean
 	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROOTDIR)
@@ -192,8 +217,9 @@ Rpack:
 	cp -r dmlc-core/include xgboost/src/dmlc-core/include
 	cp -r dmlc-core/src xgboost/src/dmlc-core/src
 	cp ./LICENSE xgboost
-	cat R-package/src/Makevars|sed '2s/.*/PKGROOT=./' | sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars
-	cp xgboost/src/Makevars xgboost/src/Makevars.win
+	cat R-package/src/Makevars.in|sed '2s/.*/PKGROOT=./' | sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars.in
+	cp xgboost/src/Makevars.in xgboost/src/Makevars.win
+	sed -i -e 's/@OPENMP_CXXFLAGS@/$$\(SHLIB_OPENMP_CFLAGS\)/g' xgboost/src/Makevars.win
 
 Rbuild:
 	$(MAKE) Rpack

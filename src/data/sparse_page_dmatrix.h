@@ -1,7 +1,7 @@
 /*!
  * Copyright 2015 by Contributors
- * \file simple_dmatrix.h
- * \brief In-memory version of DMatrix.
+ * \file sparse_page_dmatrix.h
+ * \brief External-memory version of DMatrix.
  * \author Tianqi Chen
  */
 #ifndef XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
@@ -48,7 +48,7 @@ class SparsePageDMatrix : public DMatrix {
     return buffered_rowset_;
   }
 
-  size_t GetColSize(size_t cidx) const {
+  size_t GetColSize(size_t cidx) const override {
     return col_size_[cidx];
   }
 
@@ -111,7 +111,7 @@ class SparsePageDMatrix : public DMatrix {
     std::vector<SparseBatch::Inst> col_data_;
   };
   /*!
-   * \brief Try to intitialize column data.
+   * \brief Try to initialize column data.
    * \return true if data already exists, false if they do not.
    */
   bool TryInitColData();

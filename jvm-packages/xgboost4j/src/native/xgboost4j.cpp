@@ -94,6 +94,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
       long max_elem = cbatch.offset[cbatch.size];
       cbatch.index = (int*) jenv->GetIntArrayElements(jindex, 0);
       cbatch.value = jenv->GetFloatArrayElements(jvalue, 0);
+
       CHECK_EQ(jenv->GetArrayLength(jindex), max_elem)
           << "batch.index.length must equal batch.offset.back()";
       CHECK_EQ(jenv->GetArrayLength(jvalue), max_elem)
@@ -754,5 +755,18 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitVersionNumber
   (JNIEnv *jenv, jclass jcls, jintArray jout) {
   jint out = RabitVersionNumber();
   jenv->SetIntArrayRegion(jout, 0, 1, &out);
+  return 0;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    RabitAllreduce
+ * Signature: (Ljava/nio/ByteBuffer;III)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitAllreduce
+  (JNIEnv *jenv, jclass jcls, jobject jsendrecvbuf, jint jcount, jint jenum_dtype, jint jenum_op) {
+  void *ptr_sendrecvbuf = jenv->GetDirectBufferAddress(jsendrecvbuf);
+  RabitAllreduce(ptr_sendrecvbuf, (size_t) jcount, jenum_dtype, jenum_op, NULL, NULL);
+
   return 0;
 }

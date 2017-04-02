@@ -16,11 +16,10 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix, Rabit, RabitTracker, XGBoostError}
+import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, DMatrix => JDMatrix, RabitTracker => PyRabitTracker}
+import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
@@ -29,6 +28,25 @@ import org.apache.spark.ml.linalg.SparseVector
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 import org.apache.spark.{SparkContext, TaskContext}
+
+import scala.concurrent.duration.{Duration, MILLISECONDS}
+
+object TrackerConf {
+  def apply(): TrackerConf = TrackerConf(Duration.apply(0L, MILLISECONDS), "python")
+}
+
+/**
+  * Rabit tracker configurations.
+  * @param workerConnectionTimeout The timeout for all workers to connect to the tracker.
+  *                                Set timeout length to zero to disable timeout.
+  *                                Use a finite, non-zero timeout value to prevent tracker from
+  *                                hanging indefinitely (supported by "scala" implementation only.)
+  * @param trackerImpl Choice between "python" or "scala". The former utilizes the Java wrapper of
+  *                    the Python Rabit tracker (in dmlc_core), whereas the latter is implemented
+  *                    in Scala without Python components, and with full support of timeouts.
+  *                    The Scala implementation is currently experimental, use at your own risk.
+  */
+case class TrackerConf(workerConnectionTimeout: Duration, trackerImpl: String)
 
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
@@ -80,7 +98,7 @@ object XGBoost extends Serializable {
   private[spark] def buildDistributedBoosters(
       trainingSet: RDD[MLLabeledPoint],
       xgBoostConfMap: Map[String, Any],
-      rabitEnv: mutable.Map[String, String],
+      rabitEnv: java.util.Map[String, String],
       numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
       useExternalMemory: Boolean, missing: Float = Float.NaN): RDD[Booster] = {
     import DataUtils._
@@ -92,7 +110,7 @@ object XGBoost extends Serializable {
     partitionedTrainingSet.mapPartitions {
       trainingSamples =>
         rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
-        Rabit.init(rabitEnv.asJava)
+        Rabit.init(rabitEnv)
         var booster: Booster = null
         if (trainingSamples.hasNext) {
           val cacheFileName: String = {
@@ -105,6 +123,12 @@ object XGBoost extends Serializable {
           }
           val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
           val trainingSet = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
+          if (xgBoostConfMap.isDefinedAt("groupData")
+            && xgBoostConfMap.get("groupData").get != null) {
+            trainingSet.setGroup(
+              xgBoostConfMap.get("groupData").get.asInstanceOf[Seq[Seq[Int]]](
+                TaskContext.getPartitionId()).toArray)
+          }
           booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
             watches = new mutable.HashMap[String, DMatrix] {
               put("train", trainingSet)
@@ -211,9 +235,21 @@ object XGBoost extends Serializable {
     overridedParams
   }
 
-  private def startTracker(nWorkers: Int): RabitTracker = {
-    val tracker = new RabitTracker(nWorkers)
-    require(tracker.start(), "FAULT: Failed to start tracker")
+  private def startTracker(nWorkers: Int, trackerConf: TrackerConf): IRabitTracker = {
+    val tracker: IRabitTracker = trackerConf.trackerImpl match {
+      case "scala" => new RabitTracker(nWorkers)
+      case "python" => new PyRabitTracker(nWorkers)
+      case _ => new PyRabitTracker(nWorkers)
+    }
+
+    val connectionTimeout = if (trackerConf.workerConnectionTimeout.isFinite()) {
+      trackerConf.workerConnectionTimeout.toMillis
+    } else {
+      // 0 == Duration.Inf
+      0L
+    }
+
+    require(tracker.start(connectionTimeout), "FAULT: Failed to start tracker")
     tracker
   }
 
@@ -227,7 +263,7 @@ object XGBoost extends Serializable {
    * @param obj the user-defined objective function, null by default
    * @param eval the user-defined evaluation function, null by default
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
-   *                           true, the user may save the RAM cost for running XGBoost within Spark
+   *                          true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
@@ -243,19 +279,26 @@ object XGBoost extends Serializable {
         " you have to specify the objective type as classification or regression with a" +
         " customized objective function")
     }
-    val tracker = startTracker(nWorkers)
+    val trackerConf = params.get("tracker_conf") match {
+      case None => TrackerConf()
+      case Some(conf: TrackerConf) => conf
+      case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
+        "instance of TrackerConf.")
+    }
+    val tracker = startTracker(nWorkers, trackerConf)
     val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
     val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
-      tracker.getWorkerEnvs.asScala, nWorkers, round, obj, eval, useExternalMemory, missing)
+      tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
     val sparkJobThread = new Thread() {
       override def run() {
         // force the job
         boosters.foreachPartition(() => _)
       }
     }
+    sparkJobThread.setUncaughtExceptionHandler(tracker)
     sparkJobThread.start()
     val isClsTask = isClassificationTask(params)
-    val trackerReturnVal = tracker.waitFor()
+    val trackerReturnVal = tracker.waitFor(0L)
     logger.info(s"Rabit returns with exit code $trackerReturnVal")
     postTrackerReturnProcessing(trackerReturnVal, boosters, overridedConfMap, sparkJobThread,
       isClsTask)

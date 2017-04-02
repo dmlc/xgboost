@@ -26,13 +26,13 @@ xgb.cv(params = list(), data, nrounds, nfold, label = NULL, missing = NA,
   See \code{\link{xgb.train}} for further details.
   See also demo/ for walkthrough example in R.}
 
-\item{data}{takes an \code{xgb.DMatrix} or \code{Matrix} as the input.}
+\item{data}{takes an \code{xgb.DMatrix}, \code{matrix}, or \code{dgCMatrix} as the input.}
 
 \item{nrounds}{the max number of iterations}
 
 \item{nfold}{the original dataset is randomly partitioned into \code{nfold} equal size subsamples.}
 
-\item{label}{vector of response values. Should be provided only when data is \code{DMatrix}.}
+\item{label}{vector of response values. Should be provided only when data is an R-matrix.}
 
 \item{missing}{is only used when input is a dense matrix. By default is set to NA, which means 
 that NA values should be considered as 'missing' by the algorithm. 
@@ -118,7 +118,7 @@ An object of class \code{xgb.cv.synchronous} with the following elements:
 }
 }
 \description{
-The cross valudation function of xgboost
+The cross validation function of xgboost
 }
 \details{
 The original sample is randomly partitioned into \code{nfold} equal size subsamples. 
@@ -140,4 +140,3 @@ print(cv)
 print(cv, verbose=TRUE)
 
 }
-

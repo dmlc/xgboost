@@ -19,7 +19,7 @@ from .compat import STRING_TYPES, PY3, DataFrame, py_str, PANDAS_INSTALLED
 
 
 class XGBoostError(Exception):
-    """Error throwed by xgboost trainer."""
+    """Error thrown by xgboost trainer."""
     pass
 
 
@@ -387,7 +387,7 @@ class DMatrix(object):
             The field name of the information
 
         data: numpy array
-            The array ofdata to be set
+            The array of data to be set
         """
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -403,7 +403,7 @@ class DMatrix(object):
             The field name of the information
 
         data: numpy array
-            The array ofdata to be set
+            The array of data to be set
         """
         _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
                                               c_str(field),
@@ -762,7 +762,7 @@ class Booster(object):
                                                ctypes.byref(length),
                                                ctypes.byref(sarr)))
         attr_names = from_cstr_to_pystr(sarr, length)
-        res = {n: self.attr(n) for n in attr_names}
+        res = dict([(n, self.attr(n)) for n in attr_names])
         return res
 
     def set_attr(self, **kwargs):
@@ -864,23 +864,21 @@ class Booster(object):
         result: str
             Evaluation result string.
         """
-        if feval is None:
-            for d in evals:
-                if not isinstance(d[0], DMatrix):
-                    raise TypeError('expected DMatrix, got {}'.format(type(d[0]).__name__))
-                if not isinstance(d[1], STRING_TYPES):
-                    raise TypeError('expected string, got {}'.format(type(d[1]).__name__))
-                self._validate_features(d[0])
+        for d in evals:
+            if not isinstance(d[0], DMatrix):
+                raise TypeError('expected DMatrix, got {}'.format(type(d[0]).__name__))
+            if not isinstance(d[1], STRING_TYPES):
+                raise TypeError('expected string, got {}'.format(type(d[1]).__name__))
+            self._validate_features(d[0])
 
-            dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
-            evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
-            msg = ctypes.c_char_p()
-            _check_call(_LIB.XGBoosterEvalOneIter(self.handle, iteration,
-                                                  dmats, evnames, len(evals),
-                                                  ctypes.byref(msg)))
-            return msg.value
-        else:
-            res = '[%d]' % iteration
+        dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
+        evnames = c_array(ctypes.c_char_p, [c_str(d[1]) for d in evals])
+        msg = ctypes.c_char_p()
+        _check_call(_LIB.XGBoosterEvalOneIter(self.handle, iteration,
+                                              dmats, evnames, len(evals),
+                                              ctypes.byref(msg)))
+        res = msg.value.decode()
+        if feval is not None:
             for dmat, evname in evals:
                 feval_ret = feval(self.predict(dmat), dmat)
                 if isinstance(feval_ret, list):
@@ -889,7 +887,7 @@ class Booster(object):
                 else:
                     name, val = feval_ret
                     res += '\t%s-%s:%f' % (evname, name, val)
-            return res
+        return res
 
     def eval(self, data, name='eval', iteration=0):
         """Evaluate the model on mat.
@@ -982,11 +980,11 @@ class Booster(object):
 
     def save_raw(self):
         """
-        Save the model to a in memory buffer represetation
+        Save the model to a in memory buffer representation
 
         Returns
         -------
-        a in memory buffer represetation of the model
+        a in memory buffer representation of the model
         """
         length = ctypes.c_ulong()
         cptr = ctypes.POINTER(ctypes.c_char)()

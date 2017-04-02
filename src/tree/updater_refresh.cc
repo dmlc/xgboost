@@ -27,18 +27,14 @@ class TreeRefresher: public TreeUpdater {
   // update the tree, do pruning
   void Update(const std::vector<bst_gpair> &gpair,
               DMatrix *p_fmat,
-              const std::vector<RegTree*> &trees) {
+              const std::vector<RegTree*> &trees) override {
     if (trees.size() == 0) return;
     // number of threads
     // thread temporal space
     std::vector<std::vector<TStats> > stemp;
     std::vector<RegTree::FVec> fvec_temp;
     // setup temp space for each thread
-    int nthread;
-    #pragma omp parallel
-    {
-      nthread = omp_get_num_threads();
-    }
+    const int nthread = omp_get_max_threads();
     fvec_temp.resize(nthread, RegTree::FVec());
     stemp.resize(nthread, std::vector<TStats>());
     #pragma omp parallel
@@ -130,13 +126,15 @@ class TreeRefresher: public TreeUpdater {
   inline void Refresh(const TStats *gstats,
                       int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
-    tree.stat(nid).base_weight = static_cast<float>(gstats[nid].CalcWeight(param));
-    tree.stat(nid).sum_hess = static_cast<float>(gstats[nid].sum_hess);
+    tree.stat(nid).base_weight = static_cast<bst_float>(gstats[nid].CalcWeight(param));
+    tree.stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
     gstats[nid].SetLeafVec(param, tree.leafvec(nid));
     if (tree[nid].is_leaf()) {
-      tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
+      if (param.refresh_leaf) {
+        tree[nid].set_leaf(tree.stat(nid).base_weight * param.learning_rate);
+      }
     } else {
-      tree.stat(nid).loss_chg = static_cast<float>(
+      tree.stat(nid).loss_chg = static_cast<bst_float>(
           gstats[tree[nid].cleft()].CalcGain(param) +
           gstats[tree[nid].cright()].CalcGain(param) -
           gstats[nid].CalcGain(param));

@@ -1,4 +1,4 @@
-#' Contruct xgb.DMatrix object
+#' Construct xgb.DMatrix object
 #' 
 #' Contruct xgb.DMatrix object from dense matrix, sparse matrix 
 #' or local file (that was created previously by saving an \code{xgb.DMatrix}).
@@ -20,6 +20,9 @@
 xgb.DMatrix <- function(data, info = list(), missing = NA, ...) {
   cnames <- NULL
   if (typeof(data) == "character") {
+    if (length(data) > 1)
+      stop("'data' has class 'character' and length ", length(data),
+           ".\n  'data' accepts either a numeric matrix or a single filename.")
     handle <- .Call("XGDMatrixCreateFromFile_R", data, as.integer(FALSE),
                     PACKAGE = "xgboost")
   } else if (is.matrix(data)) {
@@ -31,18 +34,13 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, ...) {
                     PACKAGE = "xgboost")
     cnames <- colnames(data)
   } else {
-    stop(paste("xgb.DMatrix: does not support to construct from ",
-               typeof(data)))
+    stop("xgb.DMatrix does not support construction from ", typeof(data))
   }
   dmat <- handle
   attributes(dmat) <- list(.Dimnames = list(NULL, cnames), class = "xgb.DMatrix")
-  #dmat <- list(handle = handle, colnames = cnames)
-  #attr(dmat, 'class') <- "xgb.DMatrix"
 
   info <- append(info, list(...))
-  if (length(info) == 0)
-    return(dmat)
-  for (i in 1:length(info)) {
+  for (i in seq_along(info)) {
     p <- info[i]
     setinfo(dmat, names(p), p[[1]])
   }
@@ -70,11 +68,10 @@ xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
       dtrain <- xgb.DMatrix(data)
     } else if (inClass == "xgb.DMatrix") {
       dtrain <- data
-    } else if (inClass == "data.frame") {
-      stop("xgboost only support numerical matrix input,
-           use 'data.matrix' to transform the data.")
+    } else if ("data.frame" %in% inClass) {
+      stop("xgboost doesn't support data.frame as input. Convert it to matrix first.")
     } else {
-      stop("xgboost: Invalid input of data")
+      stop("xgboost: invalid input data")
     }
   }
   return (dtrain)
@@ -190,7 +187,7 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
   if (typeof(name) != "character" ||
       length(name) != 1 ||
       !name %in% c('label', 'weight', 'base_margin', 'nrow')) {
-    stop("getinfo: name must one of the following\n",
+    stop("getinfo: name must be one of the following\n",
          "    'label', 'weight', 'base_margin', 'nrow'")
   }
   if (name != "nrow"){
@@ -266,7 +263,7 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
           PACKAGE = "xgboost")
     return(TRUE)
   }
-  stop(paste("setinfo: unknown info name", name))
+  stop("setinfo: unknown info name ", name)
   return(FALSE)
 }
 

@@ -7,6 +7,8 @@
 #ifndef XGBOOST_TREE_PARAM_H_
 #define XGBOOST_TREE_PARAM_H_
 
+#include <dmlc/parameter.h>
+#include <xgboost/data.h>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -29,6 +31,17 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   float min_split_loss;
   // maximum depth of a tree
   int max_depth;
+  // maximum number of leaves
+  int max_leaves;
+  // if using histogram based algorithm, maximum number of bins per feature
+  int max_bin;
+  enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };
+  int colmat_dtype;
+  // growing policy
+  enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
+  int grow_policy;
+  // flag to print out detailed breakdown of runtime
+  int debug_verbose;
   //----- the rest parameters are less important ----
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;
@@ -62,6 +75,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool cache_opt;
   // whether to not print info during training.
   bool silent;
+  // whether refresh updater needs to update the leaf values
+  bool refresh_leaf;
   // auxiliary data structure
   std::vector<int> monotone_constraints;
   // option to specify interaction constraints
@@ -79,8 +94,36 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_default(0.0f)
         .describe(
             "Minimum loss reduction required to make a further partition.");
-    DMLC_DECLARE_FIELD(max_depth).set_lower_bound(0).set_default(6).describe(
-        "Maximum depth of the tree.");
+    DMLC_DECLARE_FIELD(debug_verbose)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("flag to print out detailed breakdown of runtime");
+    DMLC_DECLARE_FIELD(max_depth)
+        .set_lower_bound(0)
+        .set_default(6)
+        .describe(
+            "Maximum depth of the tree; 0 indicates no limit; a limit is required "
+            "for depthwise policy");
+    DMLC_DECLARE_FIELD(max_leaves).set_lower_bound(0).set_default(0).describe(
+        "Maximum number of leaves; 0 indicates no limit.");
+    DMLC_DECLARE_FIELD(max_bin).set_lower_bound(2).set_default(256).describe(
+        "if using histogram-based algorithm, maximum number of bins per feature");
+    DMLC_DECLARE_FIELD(grow_policy)
+        .set_default(kDepthWise)
+        .add_enum("depthwise", kDepthWise)
+        .add_enum("lossguide", kLossGuide)
+        .describe(
+            "Tree growing policy. 0: favor splitting at nodes closest to the node, "
+            "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
+            "change. (cf. LightGBM)");
+    DMLC_DECLARE_FIELD(colmat_dtype)
+        .set_default(static_cast<int>(DataType::uint32))
+        .add_enum("uint8", static_cast<int>(DataType::uint8))
+        .add_enum("uint16", static_cast<int>(DataType::uint16))
+        .add_enum("uint32", static_cast<int>(DataType::uint32))
+        .describe("Integral data type to be used with columnar data storage."
+                  "May carry marginal performance implications. Reserved for "
+                  "advanced use");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)
@@ -102,9 +145,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(max_delta_step)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
-        .describe(
-            "Maximum delta step we allow each tree's weight estimate to be. "
-            "If the value is set to 0, it means there is no constraint");
+        .describe("Maximum delta step we allow each tree's weight estimate to be. "\
+                  "If the value is set to 0, it means there is no constraint");
     DMLC_DECLARE_FIELD(subsample)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
@@ -116,8 +158,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(colsample_bytree)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
-        .describe(
-            "Subsample ratio of columns, resample on each tree construction.");
+        .describe("Subsample ratio of columns, resample on each tree construction.");
     DMLC_DECLARE_FIELD(opt_dense_col)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
@@ -129,8 +170,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(sketch_ratio)
         .set_lower_bound(0.0f)
         .set_default(2.0f)
-        .describe("EXP Param: Sketch accuracy related parameter of approximate "
-                  "algorithm.");
+        .describe("EXP Param: Sketch accuracy related parameter of approximate algorithm.");
     DMLC_DECLARE_FIELD(size_leaf_vector)
         .set_lower_bound(0)
         .set_default(0)
@@ -138,10 +178,15 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(parallel_option)
         .set_default(0)
         .describe("Different types of parallelization algorithm.");
-    DMLC_DECLARE_FIELD(cache_opt).set_default(true).describe(
-        "EXP Param: Cache aware optimization.");
-    DMLC_DECLARE_FIELD(silent).set_default(false).describe(
-        "Do not print information during trainig.");
+    DMLC_DECLARE_FIELD(cache_opt)
+        .set_default(true)
+        .describe("EXP Param: Cache aware optimization.");
+    DMLC_DECLARE_FIELD(silent)
+        .set_default(false)
+        .describe("Do not print information during trainig.");
+    DMLC_DECLARE_FIELD(refresh_leaf)
+        .set_default(true)
+        .describe("Whether the refresh updater needs to update leaf values.");
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
         .describe("Constraint of variable monotinicity");
@@ -177,7 +222,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   /*! \brief maximum sketch size */
   inline unsigned max_sketch_size() const {
     unsigned ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
-    CHECK_GT(ret, 0);
+    CHECK_GT(ret, 0U);
     return ret;
   }
 };
@@ -260,7 +305,7 @@ XGB_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
 }
 
 /*! \brief core statistics used for tree construction */
-struct GradStats {
+struct XGBOOST_ALIGNAS(16) GradStats {
   /*! \brief sum gradient statistics */
   double sum_grad;
   /*! \brief sum hessian statistics */
@@ -271,11 +316,11 @@ struct GradStats {
    */
   static const int kSimpleStats = 1;
   /*! \brief constructor, the object must be cleared during construction */
-  explicit GradStats(const TrainParam &param) { this->Clear(); }
+  explicit GradStats(const TrainParam& param) { this->Clear(); }
   /*! \brief clear the statistics */
   inline void Clear() { sum_grad = sum_hess = 0.0f; }
   /*! \brief check if necessary information is ready */
-  inline static void CheckInfo(const MetaInfo &info) {}
+  inline static void CheckInfo(const MetaInfo& info) {}
   /*!
    * \brief accumulate statistics
    * \param p the gradient pair
@@ -287,34 +332,37 @@ struct GradStats {
    * \param info the additional information
    * \param ridx instance index of this instance
    */
-  inline void Add(const std::vector<bst_gpair> &gpair, const MetaInfo &info,
+  inline void Add(const std::vector<bst_gpair>& gpair, const MetaInfo& info,
                   bst_uint ridx) {
-    const bst_gpair &b = gpair[ridx];
+    const bst_gpair& b = gpair[ridx];
     this->Add(b.grad, b.hess);
   }
   /*! \brief calculate leaf weight */
-  inline double CalcWeight(const TrainParam &param) const {
+  inline double CalcWeight(const TrainParam& param) const {
     return xgboost::tree::CalcWeight(param, sum_grad, sum_hess);
   }
   /*! \brief calculate gain of the solution */
-  inline double CalcGain(const TrainParam &param) const {
+  inline double CalcGain(const TrainParam& param) const {
     return xgboost::tree::CalcGain(param, sum_grad, sum_hess);
   }
   /*! \brief add statistics to the data */
-  inline void Add(const GradStats &b) { this->Add(b.sum_grad, b.sum_hess); }
+  inline void Add(const GradStats& b) {
+    sum_grad += b.sum_grad;
+    sum_hess += b.sum_hess;
+  }
   /*! \brief same as add, reduce is used in All Reduce */
-  inline static void Reduce(GradStats &a, const GradStats &b) { // NOLINT(*)
+  inline static void Reduce(GradStats& a, const GradStats& b) { // NOLINT(*)
     a.Add(b);
   }
   /*! \brief set current value to a - b */
-  inline void SetSubstract(const GradStats &a, const GradStats &b) {
+  inline void SetSubstract(const GradStats& a, const GradStats& b) {
     sum_grad = a.sum_grad - b.sum_grad;
     sum_hess = a.sum_hess - b.sum_hess;
   }
   /*! \return whether the statistics is not used yet */
   inline bool Empty() const { return sum_hess == 0.0; }
   /*! \brief set leaf vector value based on statistics */
-  inline void SetLeafVec(const TrainParam &param, bst_float *vec) const {}
+  inline void SetLeafVec(const TrainParam& param, bst_float* vec) const {}
   // constructor to allow inheritance
   GradStats() {}
   /*! \brief add statistics to the data */
@@ -415,7 +463,7 @@ struct SplitEntry {
   /*! \brief split index */
   unsigned sindex;
   /*! \brief split value */
-  float split_value;
+  bst_float split_value;
   /*! \brief constructor */
   SplitEntry() : loss_chg(0.0f), sindex(0), split_value(0.0f) {}
   /*!
@@ -459,7 +507,7 @@ struct SplitEntry {
    * \return whether the proposed split is better and can replace current split
    */
   inline bool Update(bst_float new_loss_chg, unsigned split_index,
-                     float new_split_value, bool default_left) {
+                     bst_float new_split_value, bool default_left) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
       if (default_left)

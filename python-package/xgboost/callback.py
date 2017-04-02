@@ -7,6 +7,15 @@ from . import rabit
 from .core import EarlyStopException
 
 
+def _get_callback_context(env):
+    """return whether the current callback context is cv or train"""
+    if env.model is not None and env.cvfolds is None:
+        context = 'train'
+    elif env.model is None and env.cvfolds is not None:
+        context = 'cv'
+    return context
+
+
 def _fmt_metric(value, show_stdv=True):
     """format metric string"""
     if len(value) == 2:
@@ -22,6 +31,9 @@ def _fmt_metric(value, show_stdv=True):
 
 def print_evaluation(period=1, show_stdv=True):
     """Create a callback that print evaluation result.
+
+    We print the evaluation results every ``period`` iterations
+    and on the first and the last iterations.
 
     Parameters
     ----------
@@ -41,7 +53,7 @@ def print_evaluation(period=1, show_stdv=True):
         if env.rank != 0 or len(env.evaluation_result_list) == 0 or period is False:
             return
         i = env.iteration
-        if (i % period == 0 or i + 1 == env.begin_iteration):
+        if (i % period == 0 or i + 1 == env.begin_iteration or i + 1 == env.end_iteration):
             msg = '\t'.join([_fmt_metric(x, show_stdv) for x in env.evaluation_result_list])
             rabit.tracker_print('[%d]\t%s\n' % (i, msg))
     return callback
@@ -67,7 +79,9 @@ def record_evaluation(eval_result):
     def init(env):
         """internal function"""
         for k, _ in env.evaluation_result_list:
-            key, metric = k.split('-')
+            pos = k.index('-')
+            key = k[:pos]
+            metric = k[pos + 1:]
             if key not in eval_result:
                 eval_result[key] = {}
             if metric not in eval_result[key]:
@@ -78,7 +92,9 @@ def record_evaluation(eval_result):
         if len(eval_result) == 0:
             init(env)
         for k, v in env.evaluation_result_list:
-            key, metric = k.split('-')
+            pos = k.index('-')
+            key = k[:pos]
+            metric = k[pos + 1:]
             eval_result[key][metric].append(v)
     return callback
 
@@ -103,16 +119,29 @@ def reset_learning_rate(learning_rates):
     callback : function
         The requested callback function.
     """
+    def get_learning_rate(i, n, learning_rates):
+        """helper providing the learning rate"""
+        if isinstance(learning_rates, list):
+            if len(learning_rates) != n:
+                raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
+            new_learning_rate = learning_rates[i]
+        else:
+            new_learning_rate = learning_rates(i, n)
+        return new_learning_rate
+
     def callback(env):
         """internal function"""
-        bst = env.model
-        i = env.iteration
-        if isinstance(learning_rates, list):
-            if len(learning_rates) != env.end_iteration:
-                raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
-            bst.set_param('learning_rate', learning_rates[i])
-        else:
-            bst.set_param('learning_rate', learning_rates(i, env.end_iteration))
+        context = _get_callback_context(env)
+
+        if context == 'train':
+            bst, i, n = env.model, env.iteration, env.end_iteration
+            bst.set_param('learning_rate', get_learning_rate(i, n, learning_rates))
+        elif context == 'cv':
+            i, n = env.iteration, env.end_iteration
+            for cvpack in env.cvfolds:
+                bst = cvpack.bst
+                bst.set_param('learning_rate', get_learning_rate(i, n, learning_rates))
+
     callback.before_iteration = True
     return callback
 

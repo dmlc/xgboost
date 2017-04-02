@@ -39,10 +39,28 @@
 #define XGBOOST_CUSTOMIZE_GLOBAL_PRNG  XGBOOST_STRICT_R_MODE
 #endif
 
+/*!
+ * \brief Check if alignas(*) keyword is supported. (g++ 4.8 or higher)
+ */
+#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 8
+#define XGBOOST_ALIGNAS(X) alignas(X)
+#else
+#define XGBOOST_ALIGNAS(X)
+#endif
+
+#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 8
+#include <parallel/algorithm>
+#define XGBOOST_PARALLEL_SORT(X, Y, Z) __gnu_parallel::sort((X), (Y), (Z))
+#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) __gnu_parallel::stable_sort((X), (Y), (Z))
+#else
+#define XGBOOST_PARALLEL_SORT(X, Y, Z) std::sort((X), (Y), (Z))
+#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
+#endif
+
 /*! \brief namespace of xgboo st*/
 namespace xgboost {
 /*!
- * \brief unsigned interger type used in boost,
+ * \brief unsigned integer type used in boost,
  *  used for feature index and row index.
  */
 typedef uint32_t bst_uint;
@@ -62,7 +80,7 @@ struct bst_gpair {
 };
 
 /*! \brief small eps gap for minimum split decision. */
-const float rt_eps = 1e-6f;
+const bst_float rt_eps = 1e-6f;
 
 /*! \brief define unsigned long for openmp loop */
 typedef dmlc::omp_ulong omp_ulong;

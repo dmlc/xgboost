@@ -16,7 +16,7 @@ class SparsePageRawFormat : public SparsePage::Format {
  public:
   bool Read(SparsePage* page, dmlc::SeekStream* fi) override {
     if (!fi->Read(&(page->offset))) return false;
-    CHECK_NE(page->offset.size(), 0) << "Invalid SparsePage file";
+    CHECK_NE(page->offset.size(), 0U) << "Invalid SparsePage file";
     page->data.resize(page->offset.back());
     if (page->data.size() != 0) {
       CHECK_EQ(fi->Read(dmlc::BeginPtr(page->data),

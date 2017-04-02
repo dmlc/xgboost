@@ -25,4 +25,3 @@ bst <- xgb.load(raw)
 pred <- predict(bst, test$data)
 
 }
-
