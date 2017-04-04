@@ -14,7 +14,7 @@ if __name__ == "__main__":
     set_start_method("forkserver")
 
     import numpy as np
-    from sklearn.grid_search import GridSearchCV
+    from sklearn.model_selection import GridSearchCV
     from sklearn.datasets import load_boston
     import xgboost as xgb
 

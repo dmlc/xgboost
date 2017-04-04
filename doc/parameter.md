@@ -184,15 +184,15 @@ Command Line Parameters
 -----------------------
 The following parameters are only used in the console version of xgboost
 * use_buffer [ default=1 ]
- -  Whether to create a binary buffer from text input. Doing so normally will speed up loading times
+  - Whether to create a binary buffer from text input. Doing so normally will speed up loading times
 * num_round
- - The number of rounds for boosting
+  - The number of rounds for boosting
 * data
   - The path of training data
 * test:data
   - The path of test data to do prediction
 * save_period [default=0]
- - the period to save the model, setting save_period=10 means that for every 10 rounds XGBoost will save the model, setting it to 0 means not saving any model during the training.
+  - the period to save the model, setting save_period=10 means that for every 10 rounds XGBoost will save the model, setting it to 0 means not saving any model during the training.
 * task [default=train] options: train, pred, eval, dump
   - train: training using data
   - pred: making prediction for test:data

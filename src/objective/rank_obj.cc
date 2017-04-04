@@ -312,7 +312,7 @@ class LambdaRankObjMAP : public LambdaRankObj {
 // register the objective functions
 DMLC_REGISTER_PARAMETER(LambdaRankParam);
 
-XGBOOST_REGISTER_OBJECTIVE(PairwieRankObj, "rank:pairwise")
+XGBOOST_REGISTER_OBJECTIVE(PairwiseRankObj, "rank:pairwise")
 .describe("Pairwise rank objective.")
 .set_body([]() { return new PairwiseRankObj(); });
 
