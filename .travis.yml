@@ -34,8 +34,6 @@ matrix:
     - os: linux
       env: TASK=r_test
     - os: osx
-      env: TASK=java_test
-    - os: osx
       env: TASK=python_lightweight_test
     - os: osx
       env: TASK=cpp_test
