@@ -275,6 +275,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
         outputStream.writeUTF("_cls_")
         saveGeneralModelParam(outputStream)
         outputStream.writeUTF(model.getRawPredictionCol)
+        outputStream.writeInt(model.numClasses)
         // threshold
         // threshold length
         if (!isDefined(model.thresholds)) {

@@ -353,6 +353,7 @@ object XGBoost extends Serializable {
     modelType match {
       case "_cls_" =>
         val rawPredictionCol = dataInStream.readUTF()
+        val numClasses = dataInStream.readInt()
         val thresholdLength = dataInStream.readInt()
         var thresholds: Array[Double] = null
         if (thresholdLength != -1) {
@@ -367,6 +368,7 @@ object XGBoost extends Serializable {
         if (thresholdLength != -1) {
           xgBoostModel.setThresholds(thresholds)
         }
+        xgBoostModel.asInstanceOf[XGBoostClassificationModel].numOfClasses = numClasses
         xgBoostModel
       case "_reg_" =>
         val xgBoostModel = new XGBoostRegressionModel(SXGBoost.loadModel(dataInStream))

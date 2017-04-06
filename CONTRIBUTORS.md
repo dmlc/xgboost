@@ -62,3 +62,5 @@ List of Contributors
 * [Alex Bain](https://github.com/convexquad)
 * [Baltazar Bieniek](https://github.com/bbieniek)
 * [Adam Pocock](https://github.com/Craigacp)
+* [Honglak Kim](https://github.com/hlkim131)
+* [Yongcheol Lee](https://github.com/yongcheol-lee)
