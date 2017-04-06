@@ -222,22 +222,22 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     LabeledPoint(intValueArray.last, new DenseVector(intValueArray.take(intValueArray.length - 1)))
   }
 
-  private def loadCSVPoints(filePath: String, zeroBased: Boolean = false): List[LabeledPoint] = {
+  private def loadCSVPoints(filePath: String, zeroBased: Boolean = false): Seq[LabeledPoint] = {
     val file = Source.fromFile(new File(filePath))
     val sampleList = new ListBuffer[LabeledPoint]
     for (sample <- file.getLines()) {
       sampleList += convertCSVPointToLabelPoint(sample.split(","))
     }
-    sampleList.toList
+    sampleList
   }
 
   test("multi_class classification test") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "multi:softmax", "num_class" -> "6")
-    val testItr = loadCSVPoints(getClass.getResource("/dermatology.data").getFile).iterator
-    val trainingDF = buildTrainingDataframe()
-    XGBoost.trainWithDataFrame(trainingDF, paramMap,
-      round = 5, nWorkers = numWorkers)
+    val trainingSet = loadCSVPoints(getClass.getResource("/dermatology.data").getFile)
+    val spark = SparkSession.builder().getOrCreate()
+    import spark.implicits._
+    XGBoost.trainWithDataFrame(trainingSet.toDF(), paramMap, round = 5, nWorkers = numWorkers)
   }
 
   test("test DF use nested groupData") {
