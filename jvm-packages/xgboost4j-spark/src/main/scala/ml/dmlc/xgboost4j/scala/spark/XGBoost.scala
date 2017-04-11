@@ -123,10 +123,8 @@ object XGBoost extends Serializable {
           }
           val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
           val trainingSet = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
-          if (xgBoostConfMap.isDefinedAt("groupData")
-            && xgBoostConfMap.get("groupData").get != null) {
-            trainingSet.setGroup(
-              xgBoostConfMap.get("groupData").get.asInstanceOf[Seq[Seq[Int]]](
+          if (xgBoostConfMap.contains("groupData") && xgBoostConfMap("groupData") != null) {
+            trainingSet.setGroup(xgBoostConfMap("groupData").asInstanceOf[Seq[Seq[Int]]](
                 TaskContext.getPartitionId()).toArray)
           }
           booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
@@ -309,7 +307,10 @@ object XGBoost extends Serializable {
       configMap: Map[String, Any], sparkJobThread: Thread, isClassificationTask: Boolean):
     XGBoostModel = {
     if (trackerReturnVal == 0) {
-      convertBoosterToXGBoostModel(distributedBoosters.first(), isClassificationTask)
+      val xgboostModel = convertBoosterToXGBoostModel(distributedBoosters.first(),
+        isClassificationTask)
+      distributedBoosters.unpersist(false)
+      xgboostModel
     } else {
       try {
         if (sparkJobThread.isAlive) {
