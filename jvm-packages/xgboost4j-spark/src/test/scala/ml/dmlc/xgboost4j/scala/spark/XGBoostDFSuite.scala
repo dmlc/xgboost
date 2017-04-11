@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.io.File
+import java.io.{File, FileNotFoundException}
 
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
@@ -35,6 +35,10 @@ import org.apache.spark.sql._
 class XGBoostDFSuite extends SharedSparkContext with Utils {
 
   private var trainingDF: DataFrame = null
+
+  after {
+    cleanExternalCache("XGBoostDFSuite")
+  }
 
   private def buildTrainingDataframe(sparkContext: Option[SparkContext] = None): DataFrame = {
     if (trainingDF == null) {
@@ -79,7 +83,6 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
         assert(predResultFromSeq(i)(j) === predResultsFromDF(i)(j + 1))
       }
     }
-    cleanExternalCache("XGBoostDFSuite")
   }
 
   test("test transformLeaf") {
@@ -125,7 +128,6 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(predictionDF.columns.contains("label") === true)
     assert(predictionDF.columns.contains("final_prediction") === true)
     predictionDF.show()
-    cleanExternalCache("XGBoostDFSuite")
   }
 
   test("test schema of XGBoostClassificationModel") {
@@ -164,7 +166,6 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(predictionDF.columns.contains("label") === true)
     assert(predictionDF.columns.contains("raw_prediction") === true)
     assert(predictionDF.columns.contains("final_prediction") === false)
-    cleanExternalCache("XGBoostDFSuite")
   }
 
   test("xgboost and spark parameters synchronize correctly") {
