@@ -261,7 +261,6 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
     mat.info.num_col = num_col;
   }
   mat.info.num_row = nindptr - 1;
-  LOG(INFO) << "num_row=" << mat.info.num_row;
   mat.info.num_nonzero = mat.row_data_.size();
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
