@@ -56,7 +56,7 @@ make -j4
 Run the following R script to install xgboost package from the root directory.
 
 ```r
-install.package('devtools') # if not installed
+install.packages('devtools') # if not installed
 setwd('C:/xgboost/')
 library(devtools)
 install('R-package')
