@@ -528,9 +528,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         """
         test_dmatrix = DMatrix(data, missing=self.missing)
         leaf_preds = self.booster().predict(test_dmatrix,
-                                             output_margin=output_margin,
-                                             ntree_limit=ntree_limit,
-                                             pred_leaf=True)
+                                            output_margin=output_margin,
+                                            ntree_limit=ntree_limit,
+                                            pred_leaf=True)
         return leaf_preds
 
     def evals_result(self):
