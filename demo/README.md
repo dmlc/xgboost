@@ -29,6 +29,7 @@ This is a list of short codes introducing different functionalities of xgboost p
   [python](guide-python/basic_walkthrough.py)
   [R](../R-package/demo/basic_walkthrough.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/basic_walkthrough.jl)
+  [PHP](https://github.com/bpachev/xgboost-php/blob/master/demo/titanic_demo.php)
 * Customize loss function, and evaluation metric
   [python](guide-python/custom_objective.py)
   [R](../R-package/demo/custom_objective.R)
@@ -111,7 +112,6 @@ Please send pull requests if you find ones that are missing here.
 - [Complete Guide to Parameter Tuning in XGBoost](http://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/) by Aarshay Jain
 - [Practical XGBoost in Python online course](http://education.parrotprediction.teachable.com/courses/practical-xgboost-in-python) by Parrot Prediction
 - [Spark and XGBoost using Scala](http://www.elenacuoco.com/2016/10/10/scala-spark-xgboost-classification/) by Elena Cuoco
-
 ## Usecases
 If you have particular usecase of xgboost that you would like to highlight.
 Send a PR to add a one sentence description:)
