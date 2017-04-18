@@ -41,7 +41,7 @@ xgboost(data = NULL, label = NULL, missing = NA, weight = NULL,
   \item \code{monotone_constraints} A numerical vector consists of \code{1}, \code{0} and \code{-1} with its length equals to the number of features in the training data. \code{1} is increasing, \code{-1} is decreasing and \code{0} is no constraint.
 }
 
-2.2. Parameter for Linear Booster
+2.2. Parameter for Tree and Linear Boosters
  
 \itemize{
   \item \code{lambda} L2 regularization term on weights. Default: 0
