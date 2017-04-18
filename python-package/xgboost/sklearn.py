@@ -112,7 +112,7 @@ class XGBModel(XGBModelBase):
     """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 silent=True, objective="reg:linear",
+                 num_boost_round=10, silent=True, objective="reg:linear",
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
@@ -122,6 +122,7 @@ class XGBModel(XGBModelBase):
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.n_estimators = n_estimators
+        self.num_boost_round = num_boost_round
         self.silent = silent
         self.objective = objective
 
@@ -250,7 +251,7 @@ class XGBModel(XGBModelBase):
                 params.update({'eval_metric': eval_metric})
 
         self._Booster = train(params, trainDmatrix,
-                              self.n_estimators, evals=evals,
+                              self.n_estimators, num_boost_round=self.num_boost_round, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose)
@@ -355,14 +356,14 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     """ + '\n'.join(XGBModel.__doc__.split('\n')[2:])
 
     def __init__(self, max_depth=3, learning_rate=0.1,
-                 n_estimators=100, silent=True,
+                 n_estimators=100, num_boost_round=10, silent=True,
                  objective="binary:logistic",
                  nthread=-1, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
                  base_score=0.5, seed=0, missing=None):
         super(XGBClassifier, self).__init__(max_depth, learning_rate,
-                                            n_estimators, silent, objective,
+                                            n_estimators, num_boost_round, silent, objective,
                                             nthread, gamma, min_child_weight,
                                             max_delta_step, subsample,
                                             colsample_bytree, colsample_bylevel,
@@ -458,7 +459,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                     missing=self.missing)
 
         self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
-                              evals=evals,
+                              num_boost_round=self.num_boost_round,  evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose)
