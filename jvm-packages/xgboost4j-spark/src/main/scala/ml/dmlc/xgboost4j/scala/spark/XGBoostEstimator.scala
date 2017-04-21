@@ -119,7 +119,7 @@ class XGBoostEstimator private[spark](
     val trainedModel = XGBoost.trainWithRDD(instances, derivedXGBoosterParamMap,
       $(round), $(nWorkers), $(customObj), $(customEval), $(useExternalMemory),
       $(missing)).setParent(this)
-    val returnedModel = copyValues(trainedModel)
+    val returnedModel = copyValues(trainedModel, extractParamMap())
     if (XGBoost.isClassificationTask(derivedXGBoosterParamMap)) {
       returnedModel.asInstanceOf[XGBoostClassificationModel].numOfClasses = $(numClasses)
     }
