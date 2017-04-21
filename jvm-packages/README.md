@@ -128,7 +128,7 @@ object SparkWithDataFrame {
       "eta" -> 0.1f,
       "max_depth" -> 2,
       "objective" -> "binary:logistic").toMap
-    val xgboostModel = XGBoost.trainWithDataset(
+    val xgboostModel = XGBoost.trainWithDataFrame(
       trainDF, paramMap, numRound, nWorkers = args(1).toInt, useExternalMemory = true)
     // xgboost-spark appends the column containing prediction results
     xgboostModel.transform(testDF).show()
