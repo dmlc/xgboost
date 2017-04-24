@@ -2,7 +2,7 @@
 % Please edit documentation in R/xgb.DMatrix.R
 \name{xgb.DMatrix}
 \alias{xgb.DMatrix}
-\title{Contruct xgb.DMatrix object}
+\title{Construct xgb.DMatrix object}
 \usage{
 xgb.DMatrix(data, info = list(), missing = NA, ...)
 }

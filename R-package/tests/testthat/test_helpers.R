@@ -133,6 +133,12 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   dt.tree.x <- xgb.model.dt.tree(model = bst.Tree.x)
   expect_output(str(dt.tree.x), 'Feature.*\\"3\\"')
   expect_equal(dt.tree[, -4, with=FALSE], dt.tree.x[, -4, with=FALSE])
+
+  # using integer node ID instead of character
+  dt.tree.int <- xgb.model.dt.tree(model = bst.Tree, use_int_id = TRUE)
+  expect_equal(as.integer(tstrsplit(dt.tree$Yes, '-')[[2]]), dt.tree.int$Yes)
+  expect_equal(as.integer(tstrsplit(dt.tree$No, '-')[[2]]), dt.tree.int$No)
+  expect_equal(as.integer(tstrsplit(dt.tree$Missing, '-')[[2]]), dt.tree.int$Missing)
 })
 
 test_that("xgb.model.dt.tree throws error for gblinear", {

@@ -14,6 +14,8 @@
 #'          It could be useful, e.g., in multiclass classification to get only
 #'          the trees of one certain class. IMPORTANT: the tree index in xgboost models
 #'          is zero-based (e.g., use \code{trees = 0:4} for first 5 trees).
+#' @param use_int_id a logical flag indicating whether nodes in columns "Yes", "No", "Missing" should be
+#'          represented as integers (when FALSE) or as "Tree-Node" character strings (when FALSE).
 #' @param ... currently not used.
 #'
 #' @return 
@@ -22,9 +24,9 @@
 #' The columns of the \code{data.table} are:
 #' 
 #' \itemize{
-#'  \item \code{Tree}: ID of a tree in a model (integer)
-#'  \item \code{Node}: integer ID of a node in a tree (integer)
-#'  \item \code{ID}: identifier of a node in a model (character)
+#'  \item \code{Tree}: integer ID of a tree in a model (zero-based index)
+#'  \item \code{Node}: integer ID of a node in a tree (zero-based index)
+#'  \item \code{ID}: character identifier of a node in a model (only when \code{use_int_id=FALSE})
 #'  \item \code{Feature}: for a branch node, it's a feature id or name (when available);
 #'              for a leaf note, it simply labels it as \code{'Leaf'}
 #'  \item \code{Split}: location of the split for a branch node (split condition is always "less than")
@@ -36,6 +38,10 @@
 #'                      or collected by a leaf during training.
 #' } 
 #' 
+#' When \code{use_int_id=FALSE}, columns "Yes", "No", and "Missing" point to model-wide node identifiers
+#' in the "ID" column. When \code{use_int_id=TRUE}, those columns point to node identifiers from 
+#' the corresponding trees in the "Node" column.
+#' 
 #' @examples
 #' # Basic use:
 #' 
@@ -45,8 +51,9 @@
 #'                eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
 #' 
 #' (dt <- xgb.model.dt.tree(colnames(agaricus.train$data), bst))
-#' # This bst has feature_names stored in it, so those would be used when 
-#' # the feature_names parameter is not provided:
+#' 
+#' # This bst model already has feature_names stored with it, so those would be used when 
+#' # feature_names is not set:
 #' (dt <- xgb.model.dt.tree(model = bst))
 #' 
 #' # How to match feature names of splits that are following a current 'Yes' branch:
@@ -55,7 +62,7 @@
 #'  
 #' @export
 xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
-                              trees = NULL, ...){
+                              trees = NULL, use_int_id = FALSE, ...){
   check.deprecation(...)
   
   if (class(model) != "xgb.Booster" & class(text) != "character") {
@@ -86,7 +93,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   
   position <- which(!is.na(stri_match_first_regex(text, "booster")))
   
-  add.tree.id <- function(x, i) paste(i, x, sep = "-")
+  add.tree.id <- function(node, tree) if (use_int_id) node else paste(tree, node, sep = "-")
   
   anynumber_regex <- "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
   
@@ -102,7 +109,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   td <- td[Tree %in% trees & !grepl('^booster', t)]
   
   td[, Node := stri_match_first_regex(t, "(\\d+):")[,2] %>% as.integer ]
-  td[, ID := add.tree.id(Node, Tree)]
+  if (!use_int_id) td[, ID := add.tree.id(Node, Tree)]
   td[, isLeaf := !is.na(stri_match_first_regex(t, "leaf"))]
 
   # parse branch lines
@@ -130,6 +137,10 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   # convert some columns to numeric
   numeric_cols <- c("Split", "Quality", "Cover")
   td[, (numeric_cols) := lapply(.SD, as.numeric), .SDcols=numeric_cols]
+  if (use_int_id) {
+    int_cols <- c("Yes", "No", "Missing")
+    td[, (int_cols) := lapply(.SD, as.integer), .SDcols=int_cols]
+  }
   
   td[, t := NULL]
   td[, isLeaf := NULL]
