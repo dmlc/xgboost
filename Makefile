@@ -145,7 +145,7 @@ jvm-packages/lib/libxgboost4j.so: jvm-packages/xgboost4j/src/native/xgboost4j.cp
 	$(CXX) $(CFLAGS) $(JAVAINCFLAGS) -shared -o $@ $(filter %.cpp %.o %.a, $^) $(LDFLAGS)
 
 xgboost: $(CLI_OBJ) $(ALL_DEP)
-	$(CXX) $(CFLAGS) -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
+	$(CXX) $(CFLAGS) -static -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
 
 rcpplint:
 	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
