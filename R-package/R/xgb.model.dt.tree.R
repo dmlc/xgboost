@@ -106,24 +106,26 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   td[, isLeaf := !is.na(stri_match_first_regex(t, "leaf"))]
 
   # parse branch lines
-  td[isLeaf==FALSE, c("Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover") := {
-    rx <- paste0("f(\\d+)<(", anynumber_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
-                 "gain=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
-    # skip some indices with spurious capture groups from anynumber_regex
-    xtr <- stri_match_first_regex(t, rx)[, c(2,3,5,6,7,8,10)]
-    xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
-    lapply(1:ncol(xtr), function(i) xtr[,i])
-  }]
+  rx <- paste0("f(\\d+)<(", anynumber_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
+               "gain=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
+  td[isLeaf==FALSE, 
+     c("Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover") := {
+      # skip some indices with spurious capture groups from anynumber_regex
+      xtr <- stri_match_first_regex(t, rx)[, c(2,3,5,6,7,8,10), drop=FALSE]
+      xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
+      lapply(1:ncol(xtr), function(i) xtr[,i])
+    }]
   # assign feature_names when available
   td[isLeaf==FALSE & !is.null(feature_names), 
      Feature := feature_names[as.numeric(Feature) + 1] ]
   
   # parse leaf lines
-  td[isLeaf==TRUE, c("Feature", "Quality", "Cover") := {
-    rx <- paste0("leaf=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
-    xtr <- stri_match_first_regex(t, rx)[, c(2,4)]
-    c("Leaf", lapply(1:ncol(xtr), function(i) xtr[,i]))
-  }]
+  td[isLeaf==TRUE,
+     c("Feature", "Quality", "Cover") := {
+      rx <- paste0("leaf=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
+      xtr <- stri_match_first_regex(t, rx)[, c(2,4)]
+      c("Leaf", lapply(1:ncol(xtr), function(i) xtr[,i]))
+    }]
   
   # convert some columns to numeric
   numeric_cols <- c("Split", "Quality", "Cover")

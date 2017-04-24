@@ -169,6 +169,17 @@ test_that("xgb.importance works with GLM model", {
   xgb.ggplot.importance(importance.GLM)
 })
 
+test_that("xgb.model.dt.tree and xgb.importance work with a single split model", {
+  bst1 <- xgboost(data = sparse_matrix, label = label, max_depth = 1,
+                  eta = 1, nthread = 2, nrounds = 1, verbose = 0,
+                  objective = "binary:logistic")
+  expect_error(dt <- xgb.model.dt.tree(model = bst1), regexp = NA) # no error
+  expect_equal(nrow(dt), 3)
+  expect_error(imp <- xgb.importance(model = bst1), regexp = NA) # no error
+  expect_equal(nrow(imp), 1)
+  expect_equal(imp$Gain, 1)
+})
+
 test_that("xgb.plot.tree works with and without feature names", {
   xgb.plot.tree(feature_names = feature.names, model = bst.Tree)
   xgb.plot.tree(model = bst.Tree)
