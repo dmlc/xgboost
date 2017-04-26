@@ -3,6 +3,7 @@ git submodule init
 git submodule update --recursive
 make clean
 find . -name "*.so" -delete
+find . -name "*.o" -delete
 find . -name "*.a" -delete
 rm -rf build
 mkdir build
