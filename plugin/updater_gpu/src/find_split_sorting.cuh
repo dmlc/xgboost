@@ -5,7 +5,8 @@
 #include <cub/cub.cuh>
 #include <xgboost/base.h>
 #include "device_helpers.cuh"
-#include "types_functions.cuh"
+#include "types.cuh"
+#include "common.cuh"
 
 namespace xgboost {
 namespace tree {

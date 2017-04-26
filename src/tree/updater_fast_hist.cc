@@ -375,6 +375,24 @@ class FastHistMaker: public TreeUpdater {
       }
 
       {
+        /* determine layout of data */
+        const auto nrow = info.num_row;
+        const auto ncol = info.num_col;
+        const auto nnz = info.num_nonzero;
+        // number of discrete bins for feature 0
+        const unsigned nbins_f0 = gmat.cut->row_ptr[1] - gmat.cut->row_ptr[0];
+        if (nrow * ncol == nnz) {
+          // dense data with zero-based indexing
+          data_layout_ = kDenseDataZeroBased;
+        } else if (nbins_f0 == 0 && nrow * (ncol - 1) == nnz) {
+          // dense data with one-based indexing
+          data_layout_ = kDenseDataOneBased;
+        } else {
+          // sparse data
+          data_layout_ = kSparseData;
+        }
+      }
+      {
         // store a pointer to the tree
         p_last_tree_ = &tree;
         // store a pointer to training data
@@ -397,24 +415,6 @@ class FastHistMaker: public TreeUpdater {
             << "colsample_bytree=" << param.colsample_bytree
             << " is too small that no feature can be included";
         feat_index.resize(n);
-      }
-      {
-        /* determine layout of data */
-        const auto nrow = info.num_row;
-        const auto ncol = info.num_col;
-        const auto nnz = info.num_nonzero;
-        // number of discrete bins for feature 0
-        const unsigned nbins_f0 = gmat.cut->row_ptr[1] - gmat.cut->row_ptr[0];
-        if (nrow * ncol == nnz) {
-          // dense data with zero-based indexing
-          data_layout_ = kDenseDataZeroBased;
-        } else if (nbins_f0 == 0 && nrow * (ncol - 1) == nnz) {
-          // dense data with one-based indexing
-          data_layout_ = kDenseDataOneBased;
-        } else {
-          // sparse data
-          data_layout_ = kSparseData;
-        }
       }
       if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
         /* specialized code for dense data:
@@ -520,11 +520,11 @@ class FastHistMaker: public TreeUpdater {
       const bst_float split_pt = (*p_tree)[nid].split_cond();
       const bst_uint lower_bound = gmat.cut->row_ptr[fid];
       const bst_uint upper_bound = gmat.cut->row_ptr[fid + 1];
-      // set the split condition correctly
-      bst_uint split_cond = 0;
-      // set the condition
+      bst_int split_cond = -1;
+      // convert floating-point split_pt into corresponding bin_id
+      // split_cond = -1 indicates that split_pt is less than all known cut points
       for (unsigned i = gmat.cut->row_ptr[fid]; i < gmat.cut->row_ptr[fid + 1]; ++i) {
-        if (split_pt == gmat.cut->cut[i]) split_cond = i;
+        if (split_pt == gmat.cut->cut[i]) split_cond = static_cast<bst_int>(i);
       }
 
       const auto& rowset = row_set_collection_[nid];
@@ -547,7 +547,7 @@ class FastHistMaker: public TreeUpdater {
                                     const GHistIndexMatrix& gmat,
                                     std::vector<RowSetCollection::Split>* p_row_split_tloc,
                                     const Column<T>& column,
-                                    bst_uint split_cond,
+                                    bst_int split_cond,
                                     bool default_left) {
       std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
       const int K = 8;  // loop unrolling factor
@@ -575,7 +575,7 @@ class FastHistMaker: public TreeUpdater {
               right.push_back(rid[k]);
             }
           } else {
-            if (rbin[k] + column.index_base <= split_cond) {
+            if (static_cast<bst_int>(rbin[k] + column.index_base) <= split_cond) {
               left.push_back(rid[k]);
             } else {
               right.push_back(rid[k]);
@@ -595,7 +595,7 @@ class FastHistMaker: public TreeUpdater {
             right.push_back(rid);
           }
         } else {
-          if (rbin + column.index_base <= split_cond) {
+          if (static_cast<bst_int>(rbin + column.index_base) <= split_cond) {
             left.push_back(rid);
           } else {
             right.push_back(rid);
@@ -609,7 +609,7 @@ class FastHistMaker: public TreeUpdater {
                                         std::vector<RowSetCollection::Split>* p_row_split_tloc,
                                         bst_uint lower_bound,
                                         bst_uint upper_bound,
-                                        bst_uint split_cond,
+                                        bst_int split_cond,
                                         bool default_left) {
       std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
       const int K = 8;  // loop unrolling factor
@@ -634,7 +634,7 @@ class FastHistMaker: public TreeUpdater {
         }
         for (int k = 0; k < K; ++k) {
           if (p[k] != row[k].index + row[k].size && *p[k] < upper_bound) {
-            if (*p[k] <= split_cond) {
+            if (static_cast<bst_int>(*p[k]) <= split_cond) {
               left.push_back(rid[k]);
             } else {
               right.push_back(rid[k]);
@@ -655,7 +655,7 @@ class FastHistMaker: public TreeUpdater {
         auto& left = row_split_tloc[0].left;
         auto& right = row_split_tloc[0].right;
         if (p != row.index + row.size && *p < upper_bound) {
-          if (*p <= split_cond) {
+          if (static_cast<bst_int>(*p) <= split_cond) {
             left.push_back(rid);
           } else {
             right.push_back(rid);
@@ -677,7 +677,7 @@ class FastHistMaker: public TreeUpdater {
                                     const Column<T>& column,
                                     bst_uint lower_bound,
                                     bst_uint upper_bound,
-                                    bst_uint split_cond,
+                                    bst_int split_cond,
                                     bool default_left) {
       std::vector<RowSetCollection::Split>& row_split_tloc = *p_row_split_tloc;
       const bst_omp_uint nrows = rowset.end - rowset.begin;
@@ -687,50 +687,52 @@ class FastHistMaker: public TreeUpdater {
         const bst_uint tid = omp_get_thread_num();
         const bst_omp_uint ibegin = tid * nrows / nthread;
         const bst_omp_uint iend = (tid + 1) * nrows / nthread;
-        // search first nonzero row with index >= rowset[ibegin]
-        const uint32_t* p = std::lower_bound(column.row_ind,
-                                             column.row_ind + column.len,
-                                             rowset.begin[ibegin]);
+        if (ibegin < iend) {  // ensure that [ibegin, iend) is nonempty range
+          // search first nonzero row with index >= rowset[ibegin]
+          const uint32_t* p = std::lower_bound(column.row_ind,
+                                               column.row_ind + column.len,
+                                               rowset.begin[ibegin]);
 
-        auto& left = row_split_tloc[tid].left;
-        auto& right = row_split_tloc[tid].right;
-        if (p != column.row_ind + column.len && *p <= rowset.begin[iend - 1]) {
-          bst_omp_uint cursor = p - column.row_ind;
+          auto& left = row_split_tloc[tid].left;
+          auto& right = row_split_tloc[tid].right;
+          if (p != column.row_ind + column.len && *p <= rowset.begin[iend - 1]) {
+            bst_omp_uint cursor = p - column.row_ind;
 
-          for (bst_omp_uint i = ibegin; i < iend; ++i) {
-            const bst_uint rid = rowset.begin[i];
-            while (cursor < column.len
-                   && column.row_ind[cursor] < rid
-                   && column.row_ind[cursor] <= rowset.begin[iend - 1]) {
-              ++cursor;
-            }
-            if (cursor < column.len && column.row_ind[cursor] == rid) {
-              const T rbin = column.index[cursor];
-              if (rbin + column.index_base <= split_cond) {
-                left.push_back(rid);
-              } else {
-                right.push_back(rid);
+            for (bst_omp_uint i = ibegin; i < iend; ++i) {
+              const bst_uint rid = rowset.begin[i];
+              while (cursor < column.len
+                     && column.row_ind[cursor] < rid
+                     && column.row_ind[cursor] <= rowset.begin[iend - 1]) {
+                ++cursor;
               }
-              ++cursor;
+              if (cursor < column.len && column.row_ind[cursor] == rid) {
+                const T rbin = column.index[cursor];
+                if (static_cast<bst_int>(rbin + column.index_base) <= split_cond) {
+                  left.push_back(rid);
+                } else {
+                  right.push_back(rid);
+                }
+                ++cursor;
+              } else {
+                // missing value
+                if (default_left) {
+                  left.push_back(rid);
+                } else {
+                  right.push_back(rid);
+                }
+              }
+            }
+          } else {  // all rows in [ibegin, iend) have missing values
+            if (default_left) {
+              for (bst_omp_uint i = ibegin; i < iend; ++i) {
+                const bst_uint rid = rowset.begin[i];
+                left.push_back(rid);
+              }
             } else {
-              // missing value
-              if (default_left) {
-                left.push_back(rid);
-              } else {
+              for (bst_omp_uint i = ibegin; i < iend; ++i) {
+                const bst_uint rid = rowset.begin[i];
                 right.push_back(rid);
               }
-            }
-          }
-        } else {  // all rows in [ibegin, iend) have missing values
-          if (default_left) {
-            for (bst_omp_uint i = ibegin; i < iend; ++i) {
-              const bst_uint rid = rowset.begin[i];
-              left.push_back(rid);
-            }
-          } else {
-            for (bst_omp_uint i = ibegin; i < iend; ++i) {
-              const bst_uint rid = rowset.begin[i];
-              right.push_back(rid);
             }
           }
         }

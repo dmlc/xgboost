@@ -1,6 +1,6 @@
 /*!
  * Copyright 2016 Rory mitchell
-*/
+ */
 #pragma once
 #include <xgboost/tree_updater.h>
 #include <vector>
@@ -19,10 +19,7 @@ class GPUBuilder {
   void Init(const TrainParam &param);
   ~GPUBuilder();
 
-  void UpdateParam(const TrainParam &param)
-  {
-	  this->param = param;
-  }
+  void UpdateParam(const TrainParam &param) { this->param = param; }
 
   void Update(const std::vector<bst_gpair> &gpair, DMatrix *p_fmat,
               RegTree *p_tree);
@@ -30,13 +27,11 @@ class GPUBuilder {
   void UpdateNodeId(int level);
 
  private:
-  void InitData(const std::vector<bst_gpair> &gpair, DMatrix &fmat, // NOLINT
+  void InitData(const std::vector<bst_gpair> &gpair, DMatrix &fmat,  // NOLINT
                 const RegTree &tree);
 
-  float GetSubsamplingRate(MetaInfo info);
   void Sort(int level);
   void InitFirstNode();
-  void CopyTree(RegTree &tree); // NOLINT
   void ColsampleTree();
 
   TrainParam param;

@@ -16,16 +16,35 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.io.{File, FileNotFoundException}
+
 import org.apache.spark.SparkConf
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.SparkSession
-
 import scala.concurrent.duration._
 
 case class Foobar(TARGET: Int, bar: Double, baz: Double)
 
 class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
+
+  override def afterAll(): Unit = {
+    super.afterAll()
+    delete(new File("./testxgbPipe"))
+    delete(new File("./test2xgbPipe"))
+  }
+
+  private def delete(f: File) {
+    if (f.isDirectory()) {
+      for (c <- f.listFiles()) {
+        delete(c)
+      }
+    }
+    if (!f.delete()) {
+      throw new FileNotFoundException("Failed to delete file: " + f)
+    }
+  }
+
   test("test sparks pipeline persistence of dataframe-based model") {
     //  maybe move to shared context, but requires session to import implicits.
     // what about introducing https://github.com/holdenk/spark-testing-base ?
