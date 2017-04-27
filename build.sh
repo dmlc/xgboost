@@ -9,6 +9,35 @@
 if make; then
     echo "Successfully build multi-thread xgboost"
 else
+
+    not_ready=0
+
+    if [[ ! -e ./rabit/Makefile ]]; then
+        echo ""
+        echo "Please clone the rabit repository into this directory."
+        echo "Here are the commands:"
+        echo "rm -rf rabit"
+        echo "git clone https://github.com/dmlc/rabit.git rabit"
+        not_ready=1
+    fi
+    
+    if [[ ! -e ./dmlc-core/Makefile ]]; then
+        echo ""
+        echo "Please clone the dmlc-core repository into this directory."
+        echo "Here are the commands:"
+        echo "rm -rf dmlc-core"
+        echo "git clone https://github.com/dmlc/dmlc-core.git dmlc-core"
+        not_ready=1
+    fi
+
+    if [[ "${not_ready}" == "1" ]]; then
+        echo ""
+        echo "Please fix the errors above and retry the build"
+        echo ""
+        exit 1
+    fi
+
+
     echo "-----------------------------"
     echo "Building multi-thread xgboost failed"
     echo "Start to build single-thread xgboost"
