@@ -32,7 +32,8 @@ else
 
     if [[ "${not_ready}" == "1" ]]; then
         echo ""
-        echo "Please fix the errors above and retry the build"
+        echo "Please fix the errors above and retry the build or reclone the repository with:"
+        echo "git clone --recursive https://github.com/dmlc/xgboost.git"
         echo ""
         exit 1
     fi
