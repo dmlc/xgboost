@@ -1,14 +1,17 @@
 #' Construct xgb.DMatrix object
 #' 
-#' Contruct xgb.DMatrix object from dense matrix, sparse matrix 
-#' or local file (that was created previously by saving an \code{xgb.DMatrix}).
+#' Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a local file.
+#' Supported input file formats are either a libsvm text file or a binary file that was created previously by
+#' \code{\link{xgb.DMatrix.save}}).
 #' 
-#' @param data a \code{matrix} object, a \code{dgCMatrix} object or a character representing a filename
-#' @param info a list of information of the xgb.DMatrix object
-#' @param missing Missing is only used when input is dense matrix, pick a float
-#'     value that represents missing value. Sometime a data use 0 or other extreme value to represents missing values.
-#
-#' @param ... other information to pass to \code{info}.
+#' @param data a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object, or a character 
+#'        string representing a filename.
+#' @param info a named list of additional information to store in the \code{xgb.DMatrix} object.
+#'        See \code{\link{setinfo}} for the specific allowed kinds of 
+#' @param missing a float value to represents missing values in data (used only when input is a dense matrix).
+#'        It is useful when a 0 or some other extreme value represents missing values in data.
+#' @param silent whether to suppress printing an informational message after loading from a file.
+#' @param ... the \code{info} data could be passed directly as parameters, without creating an \code{info} list.
 #' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -17,13 +20,13 @@
 #' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' @export
-xgb.DMatrix <- function(data, info = list(), missing = NA, ...) {
+xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, ...) {
   cnames <- NULL
   if (typeof(data) == "character") {
     if (length(data) > 1)
       stop("'data' has class 'character' and length ", length(data),
            ".\n  'data' accepts either a numeric matrix or a single filename.")
-    handle <- .Call("XGDMatrixCreateFromFile_R", data, as.integer(FALSE),
+    handle <- .Call("XGDMatrixCreateFromFile_R", data, as.integer(silent),
                     PACKAGE = "xgboost")
   } else if (is.matrix(data)) {
     handle <- .Call("XGDMatrixCreateFromMat_R", data, missing,
