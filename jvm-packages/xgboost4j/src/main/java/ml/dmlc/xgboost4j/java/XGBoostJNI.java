@@ -84,8 +84,8 @@ class XGBoostJNI {
 
   public final static native int XGBoosterGetModelRaw(long handle, byte[][] out_bytes);
 
-  public final static native int XGBoosterDumpModel(long handle, String fmap, int with_stats,
-                                                    String[][] out_strings);
+  public final static native int XGBoosterDumpModelEx(long handle, String fmap, int with_stats,
+                                                      String format, String[][] out_strings);
 
   public final static native int XGBoosterGetAttr(long handle, String key, String[] out_string);
   public final static native int XGBoosterSetAttr(long handle, String key, String value);
