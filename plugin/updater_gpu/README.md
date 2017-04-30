@@ -1,29 +1,25 @@
-# CUDA Accelerated Tree Construction Algorithm
-
-## Benchmarks
-
-[See here](http://dmlc.ml/2016/12/14/GPU-accelerated-xgboost.html) for performance benchmarks
-
+# CUDA Accelerated Tree Construction Algorithms
+This plugin adds GPU accelerated tree construction algorithms to XGBoost.
 ## Usage
-Specify the updater parameter as 'grow_gpu'. 
+Specify the 'updater' parameter as one of the following algorithms. 
+updater | Description
+--- | ---
+grow_gpu | The standard XGBoost tree construction algorithm. Performs exact search for splits. Slower and uses considerably more memory than 'grow_gpu_hist'
+grow_gpu_hist | Equivalent to the XGBoost fast histogram algorithm. Faster and uses considerably less memory. Splits may be less accurate.
+
+All algorithms currently use only a single GPU. The device ordinal can be selected using the 'gpu_id' parameter, which defaults to 0.
 
 This plugin currently works with the CLI version and python version.
 
 Python example:
 ```python
+param['gpu_id'] = 1
 param['updater'] = 'grow_gpu'
 ```
+## Benchmarks
 
-## Memory usage
-Device memory usage can be calculated as approximately:
-```
-bytes = (10 x n_rows) + (40 x n_rows x n_columns x column_density) + (64 x max_nodes) + (76 x max_nodes_level x n_columns)
-```
-The maximum number of nodes needed for a given tree depth d is 2<sup>d+1</sup> - 1. The maximum number of nodes on any given level is 2<sup>d</sup>.
+[See here](http://dmlc.ml/2016/12/14/GPU-accelerated-xgboost.html) for performance benchmarks of the 'grow_gpu' updater.
 
-Data is stored in a sparse format. For example, missing values produced by one hot encoding are not stored. If a one hot encoding separates a categorical variable into 5 columns the density of these columns is 1/5 = 0.2.
-
-A 4GB graphics card will process approximately 3.5 million rows of the well known Kaggle higgs dataset.
 
 ## Dependencies
 A CUDA capable GPU with at least compute capability >= 3.5 (the algorithm depends on shuffle and vote instructions introduced in Kepler).
@@ -57,6 +53,15 @@ On an linux cmake will generate a Makefile in the build directory. Invoking the 
 On Windows cmake will generate an xgboost.sln solution file in the build directory. Build this solution in release mode. This is also a good time to check it is being built as x64. If not make sure the cmake generator is set correctly.
 
 The build process generates an xgboost library and executable as normal but containing the GPU tree construction algorithm.
+
+## Changelog
+##### 2017/4/25
+* Add fast histogram algorithm
+* Fix Linux build
+* Add 'gpu_id' parameter
+
+## References
+[Mitchell, Rory, and Eibe Frank. Accelerating the XGBoost algorithm using GPU computing. No. e2911v1. PeerJ Preprints, 2017.](https://peerj.com/preprints/2911/)
 
 ## Author
 Rory Mitchell 
