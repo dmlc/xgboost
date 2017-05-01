@@ -122,7 +122,7 @@ struct Split {
   gpu_gpair right_sum;
 
   __host__ __device__ Split()
-      : loss_chg(-FLT_MAX), missing_left(true), fvalue(0) {}
+      : loss_chg(-FLT_MAX), missing_left(true), fvalue(0), findex(-1) {}
 
   __device__ void Update(float loss_chg_in, bool missing_left_in,
                          float fvalue_in, int findex_in, gpu_gpair left_sum_in,
