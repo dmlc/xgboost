@@ -61,8 +61,8 @@
 xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure = NULL, 
                                 rel_to_first = FALSE, left_margin = 10, cex = NULL, plot = TRUE, ...) {
   check.deprecation(...)
-  if (!"data.table" %in% class(importance_matrix))  {
-    stop("importance_matrix: Should be a data.table.")
+  if (!is.data.table(importance_matrix))  {
+    stop("importance_matrix: must be a data.table")
   }
 
   imp_names <- colnames(importance_matrix)
@@ -107,12 +107,12 @@ xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure 
     
     # reverse the order of rows to have the highest ranked at the top
     importance_matrix[nrow(importance_matrix):1,
-                      barplot(Importance, horiz=TRUE, border=NA, cex.names=cex,
-                              names.arg=Feature, las=1, ...)]
+                      barplot(Importance, horiz = TRUE, border = NA, cex.names = cex,
+                              names.arg = Feature, las = 1, ...)]
     grid(NULL, NA)
     # redraw over the grid
     importance_matrix[nrow(importance_matrix):1,
-                      barplot(Importance, horiz=TRUE, border=NA, add=TRUE)]
+                      barplot(Importance, horiz = TRUE, border = NA, add = TRUE)]
     par(op)
   }
   

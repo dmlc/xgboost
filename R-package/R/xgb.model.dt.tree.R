@@ -65,21 +65,21 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
                               trees = NULL, use_int_id = FALSE, ...){
   check.deprecation(...)
   
-  if (class(model) != "xgb.Booster" & class(text) != "character") {
-    stop("Either 'model' has to be an object of class xgb.Booster\n",
-         "  or 'text' has to be a character vector with the result of xgb.dump\n",
-         "  (or NULL if the model was provided).")
+  if (!inherits(model, "xgb.Booster") & !is.character(text)) {
+    stop("Either 'model' must be an object of class xgb.Booster\n",
+         "  or 'text' must be a character vector with the result of xgb.dump\n",
+         "  (or NULL if 'model' was provided).")
   }
   
   if (is.null(feature_names) && !is.null(model) && !is.null(model$feature_names))
     feature_names <- model$feature_names
   
-  if (!class(feature_names) %in% c("character", "NULL")) {
-    stop("feature_names: Has to be a character vector")
+  if (!(is.null(feature_names) || is.character(feature_names))) {
+    stop("feature_names: must be a character vector")
   }
   
-  if (!class(trees) %in% c("integer", "numeric", "NULL")) {
-    stop("trees: Has to be a vector of integers.")
+  if (!(is.null(trees) || is.numeric(trees))) {
+    stop("trees: must be a vector of integers.")
   }
   
   if (is.null(text)){
@@ -124,8 +124,11 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
       lapply(1:ncol(xtr), function(i) xtr[,i])
     }]
   # assign feature_names when available
-  td[isLeaf == FALSE & !is.null(feature_names), 
-     Feature := feature_names[as.numeric(Feature) + 1] ]
+  if (!is.null(feature_names)) {
+    if (length(feature_names) <= max(as.numeric(td$Feature), na.rm = TRUE))
+      stop("feature_names has less elements than there are features used in the model")
+    td[isLeaf == FALSE, Feature := feature_names[as.numeric(Feature) + 1] ]
+  }
   
   # parse leaf lines
   leaf_rx <- paste0("leaf=(", anynumber_regex, "),cover=(", anynumber_regex, ")")

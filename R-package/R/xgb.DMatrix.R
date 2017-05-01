@@ -32,7 +32,7 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, ...) 
     handle <- .Call("XGDMatrixCreateFromMat_R", data, missing,
                     PACKAGE = "xgboost")
     cnames <- colnames(data)
-  } else if (class(data) == "dgCMatrix") {
+  } else if (inherits(data, "dgCMatrix")) {
     handle <- .Call("XGDMatrixCreateFromCSC_R", data@p, data@i, data@x, nrow(data),
                     PACKAGE = "xgboost")
     cnames <- colnames(data)
@@ -54,10 +54,9 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, ...) 
 # get dmatrix from data, label
 # internal helper method
 xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
-  inClass <- class(data)
-  if ("dgCMatrix" %in% inClass || "matrix" %in% inClass ) {
+  if (inherits(data, "dgCMatrix") || is.matrix(data)) {
     if (is.null(label)) {
-      stop("xgboost: need label when data is a matrix")
+      stop("label must be provided when data is a matrix")
     }
     dtrain <- xgb.DMatrix(data, label = label, missing = missing)
     if (!is.null(weight)){
@@ -67,11 +66,11 @@ xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
     if (!is.null(label)) {
       warning("xgboost: label will be ignored.")
     }
-    if (inClass == "character") {
-      dtrain <- xgb.DMatrix(data)
-    } else if (inClass == "xgb.DMatrix") {
+    if (is.character(data)) {
+      dtrain <- xgb.DMatrix(data[1])
+    } else if (inherits(data, "xgb.DMatrix")) {
       dtrain <- data
-    } else if ("data.frame" %in% inClass) {
+    } else if (inherits(data, "data.frame")) {
       stop("xgboost doesn't support data.frame as input. Convert it to matrix first.")
     } else {
       stop("xgboost: invalid input data")
@@ -101,8 +100,8 @@ xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
 #' 
 #' @export
 dim.xgb.DMatrix <- function(x) {
-  c(.Call("XGDMatrixNumRow_R", x, PACKAGE="xgboost"),
-    .Call("XGDMatrixNumCol_R", x, PACKAGE="xgboost"))
+  c(.Call("XGDMatrixNumRow_R", x, PACKAGE = "xgboost"),
+    .Call("XGDMatrixNumCol_R", x, PACKAGE = "xgboost"))
 }
 
 
@@ -300,8 +299,8 @@ slice <- function(object, ...) UseMethod("slice")
 #' @rdname slice.xgb.DMatrix
 #' @export
 slice.xgb.DMatrix <- function(object, idxset, ...) {
-  if (class(object) != "xgb.DMatrix") {
-    stop("slice: first argument dtrain must be xgb.DMatrix")
+  if (!inherits(object, "xgb.DMatrix")) {
+    stop("object must be xgb.DMatrix")
   }
   ret <- .Call("XGDMatrixSliceDMatrix_R", object, idxset, PACKAGE = "xgboost")
 
@@ -320,7 +319,7 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 
 #' @rdname slice.xgb.DMatrix
 #' @export
-`[.xgb.DMatrix` <- function(object, idxset, colset=NULL) {
+`[.xgb.DMatrix` <- function(object, idxset, colset = NULL) {
   slice(object, idxset)
 }
 
@@ -344,7 +343,7 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 #' 
 #' @method print xgb.DMatrix
 #' @export
-print.xgb.DMatrix <- function(x, verbose=FALSE, ...) {
+print.xgb.DMatrix <- function(x, verbose = FALSE, ...) {
   cat('xgb.DMatrix  dim:', nrow(x), 'x', ncol(x), ' info: ')
   infos <- c()
   if(length(getinfo(x, 'label')) > 0) infos <- 'label'
@@ -356,7 +355,7 @@ print.xgb.DMatrix <- function(x, verbose=FALSE, ...) {
   cat('  colnames:')
   if (verbose & !is.null(cnames)) {
     cat("\n'")
-    cat(cnames, sep="','")
+    cat(cnames, sep = "','")
     cat("'")
   } else {
     if (is.null(cnames)) cat(' no')

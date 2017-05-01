@@ -39,19 +39,19 @@
 #' cat(xgb.dump(bst, with_stats = TRUE, dump_format='json'))
 #' 
 #' @export
-xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with_stats=FALSE,
+xgb.dump <- function(model, fname = NULL, fmap = "", with_stats=FALSE,
                      dump_format = c("text", "json"), ...) {
   check.deprecation(...)
   dump_format <- match.arg(dump_format)
-  if (class(model) != "xgb.Booster")
+  if (!inherits(model, "xgb.Booster"))
     stop("model: argument must be of type xgb.Booster")
-  if (!(class(fname) %in% c("character", "NULL") && length(fname) <= 1))
-    stop("fname: argument must be of type character (when provided)")
-  if (!(class(fmap) %in% c("character", "NULL") && length(fmap) <= 1))
-    stop("fmap: argument must be of type character (when provided)")
+  if (!(is.null(fname) || is.character(fname)))
+    stop("fname: argument must be a character string (when provided)")
+  if (!(is.null(fmap) || is.character(fmap)))
+    stop("fmap: argument must be a character string (when provided)")
   
   model <- xgb.Booster.complete(model)
-  model_dump <- .Call("XGBoosterDumpModel_R", model$handle, fmap, as.integer(with_stats),
+  model_dump <- .Call("XGBoosterDumpModel_R", model$handle, NVL(fmap, "")[1], as.integer(with_stats),
                       as.character(dump_format), PACKAGE = "xgboost")
 
   if (is.null(fname)) 
@@ -65,7 +65,7 @@ xgb.dump <- function(model = NULL, fname = NULL, fmap = "", with_stats=FALSE,
   if (is.null(fname)) {
     return(model_dump)
   } else {
-    writeLines(model_dump, fname)
+    writeLines(model_dump, fname[1])
     return(TRUE)
   }
 }
