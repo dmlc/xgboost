@@ -58,13 +58,13 @@ xgb.importance <- function(feature_names = NULL, model = NULL,
   if (!(is.null(data) && is.null(label) && is.null(target)))
     warning("xgb.importance: parameters 'data', 'label' and 'target' are deprecated")
   
-  if (class(model) != "xgb.Booster")
-    stop("Either 'model' has to be an object of class xgb.Booster")
+  if (!inherits(model, "xgb.Booster"))
+    stop("model: must be an object of class xgb.Booster")
   
   if (is.null(feature_names) && !is.null(model$feature_names))
     feature_names <- model$feature_names
   
-  if (!class(feature_names) %in% c("character", "NULL"))
+  if (!(is.null(feature_names) || is.character(feature_names)))
     stop("feature_names: Has to be a character vector")
 
   model_text_dump <- xgb.dump(model = model, with_stats = TRUE)
@@ -76,6 +76,8 @@ xgb.importance <- function(feature_names = NULL, model = NULL,
                as.numeric
     if(is.null(feature_names)) 
       feature_names <- seq(to = length(weights))
+    if (length(feature_names) != length(weights))
+      stop("feature_names has less elements than there are features used in the model")
     result <- data.table(Feature = feature_names, Weight = weights)[order(-abs(Weight))]
   } else { 
   # tree model

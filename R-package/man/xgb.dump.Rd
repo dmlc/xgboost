@@ -4,7 +4,7 @@
 \alias{xgb.dump}
 \title{Dump an xgboost model in text format.}
 \usage{
-xgb.dump(model = NULL, fname = NULL, fmap = "", with_stats = FALSE,
+xgb.dump(model, fname = NULL, fmap = "", with_stats = FALSE,
   dump_format = c("text", "json"), ...)
 }
 \arguments{
