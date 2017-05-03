@@ -387,4 +387,20 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val predResult1: Array[Array[Float]] = predRDD.collect()(0)
     assert(testRDD.count() === predResult1.length)
   }
+
+  test("test cross validation") {
+    val trainingRDD = buildTrainingRDD(sc)
+    val paramMap = Map("eta" -> "1", "max_depth" -> "0", "silent" -> "0",
+            "objective" -> "binary:logistic", "eval_metric" -> "error")
+    val nWorkers = math.min(numWorkers, 2)
+    val cvResult = XGBoost.crossValidateRDD(trainingRDD, paramMap, round = 10,
+      nWorkers = nWorkers)
+    assert(cvResult.length == nWorkers)
+    for (i <- 0 to nWorkers - 1) {
+      assert(cvResult(i).length == 10)
+      assert(cvResult(i)(0) contains "cv-test-error")
+      assert(cvResult(i)(0) contains "cv-train-error")
+    }
+  }
+
 }
