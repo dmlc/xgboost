@@ -68,12 +68,19 @@ SEXP XGDMatrixCreateFromMat_R(SEXP mat,
   SEXP dim = getAttrib(mat, R_DimSymbol);
   size_t nrow = static_cast<size_t>(INTEGER(dim)[0]);
   size_t ncol = static_cast<size_t>(INTEGER(dim)[1]);
-  double *din = REAL(mat);
+  const bool is_int = TYPEOF(mat) == INTSXP;
+  double *din;
+  int *iin;
+  if (is_int) {
+    iin = INTEGER(mat);
+  } else {
+    din = REAL(mat);
+  }
   std::vector<float> data(nrow * ncol);
   #pragma omp parallel for schedule(static)
   for (omp_ulong i = 0; i < nrow; ++i) {
     for (size_t j = 0; j < ncol; ++j) {
-      data[i * ncol +j] = din[i + nrow * j];
+      data[i * ncol +j] = is_int ? static_cast<float>(iin[i + nrow * j]) : din[i + nrow * j];
     }
   }
   DMatrixHandle handle;

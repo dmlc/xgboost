@@ -188,7 +188,7 @@ void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
     stat_buf_[i] = stat;
   }
 
-  #pragma omp parallel for num_threads(nthread) schedule(dynamic)
+  #pragma omp parallel for num_threads(nthread) schedule(guided)
   for (bst_omp_uint i = 0; i < nrows - rest; i += K) {
     const bst_omp_uint tid = omp_get_thread_num();
     const size_t off = tid * nbins_;

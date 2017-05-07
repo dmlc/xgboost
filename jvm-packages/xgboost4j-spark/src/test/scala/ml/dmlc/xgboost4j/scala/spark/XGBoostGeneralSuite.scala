@@ -352,12 +352,15 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
 
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
+      "objective" -> "rank:pairwise", "eval_metric" -> "ndcg", "groupData" -> trainGroupData)
 
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 1)
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1: Array[Array[Float]] = predRDD.collect()(0)
     assert(testRDD.count() === predResult1.length)
+
+    val avgMetric = xgBoostModel.eval(trainingRDD, "test", iter = 0, groupData = trainGroupData)
+    assert(avgMetric contains "ndcg")
   }
 
   test("test use nested groupData") {

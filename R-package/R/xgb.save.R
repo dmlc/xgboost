@@ -32,10 +32,11 @@
 xgb.save <- function(model, fname) {
   if (typeof(fname) != "character")
     stop("fname must be character")
-  if (class(model) != "xgb.Booster")
-    stop("the input must be xgb.Booster. Use xgb.DMatrix.save to save xgb.DMatrix object.")
-  
+  if (!inherits(model, "xgb.Booster")) {
+    stop("model must be xgb.Booster.",
+         if (inherits(model, "xgb.DMatrix")) " Use xgb.DMatrix.save to save an xgb.DMatrix object." else "")
+  }
   model <- xgb.Booster.complete(model, saveraw = FALSE)
-  .Call("XGBoosterSaveModel_R", model$handle, fname, PACKAGE = "xgboost")
+  .Call("XGBoosterSaveModel_R", model$handle, fname[1], PACKAGE = "xgboost")
   return(TRUE)
 }
