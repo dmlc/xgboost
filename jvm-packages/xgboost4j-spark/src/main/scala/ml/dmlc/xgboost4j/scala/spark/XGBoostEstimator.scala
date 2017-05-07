@@ -16,14 +16,20 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.util.concurrent.TimeUnit
+
 import scala.collection.mutable
 
-import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, GeneralParams, LearningTaskParams}
+import org.json4s.ext.EnumNameSerializer
+import ml.dmlc.xgboost4j.scala.spark.params._
+import org.json4s.DefaultFormats
+
+import org.apache.spark.BridgingUtils
 import org.apache.spark.ml.Predictor
 import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.ml.linalg.{Vector => MLVector}
 import org.apache.spark.ml.param._
-import org.apache.spark.ml.util.Identifiable
+import org.apache.spark.ml.util._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.sql.{Dataset, Row}
@@ -34,7 +40,7 @@ import org.apache.spark.sql.{Dataset, Row}
 class XGBoostEstimator private[spark](
   override val uid: String, xgboostParams: Map[String, Any])
   extends Predictor[MLVector, XGBoostEstimator, XGBoostModel]
-  with LearningTaskParams with GeneralParams with BoosterParams {
+  with LearningTaskParams with GeneralParams with BoosterParams with MLWritable {
 
   def this(xgboostParams: Map[String, Any]) =
     this(Identifiable.randomUID("XGBoostEstimator"), xgboostParams: Map[String, Any])
@@ -128,5 +134,35 @@ class XGBoostEstimator private[spark](
 
   override def copy(extra: ParamMap): XGBoostEstimator = {
     defaultCopy(extra).asInstanceOf[XGBoostEstimator]
+  }
+
+  override def write: MLWriter = new XGBoostEstimator.XGBoostEstimatorWriter(this)
+}
+
+object XGBoostEstimator extends MLReadable[XGBoostEstimator] {
+
+  override def read: MLReader[XGBoostEstimator] = new XGBoostEstimatorReader
+
+  override def load(path: String): XGBoostEstimator = super.load(path)
+
+  private[XGBoostEstimator] class XGBoostEstimatorWriter(instance: XGBoostEstimator)
+    extends MLWriter {
+    override protected def saveImpl(path: String): Unit = {
+      implicit val format = DefaultFormats
+      implicit val sc = super.sparkSession.sparkContext
+      DefaultXGBoostParamsWriter.saveMetadata(instance, path, sc)
+    }
+  }
+
+  private class XGBoostEstimatorReader extends MLReader[XGBoostEstimator] {
+
+    override def load(path: String): XGBoostEstimator = {
+      val metadata = DefaultXGBoostParamsReader.loadMetadata(path, sc)
+      val cls = BridgingUtils.classForName(metadata.className)
+      val instance =
+        cls.getConstructor(classOf[String]).newInstance(metadata.uid).asInstanceOf[Params]
+      DefaultXGBoostParamsReader.getAndSetParams(instance, metadata)
+      instance.asInstanceOf[XGBoostEstimator]
+    }
   }
 }

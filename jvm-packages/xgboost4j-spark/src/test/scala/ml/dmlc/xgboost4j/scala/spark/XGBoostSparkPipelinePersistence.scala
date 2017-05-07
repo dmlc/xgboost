@@ -22,7 +22,6 @@ import org.apache.spark.SparkConf
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.SparkSession
-import scala.concurrent.duration._
 
 case class Foobar(TARGET: Int, bar: Double, baz: Double)
 
@@ -30,51 +29,55 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
 
   override def afterAll(): Unit = {
     super.afterAll()
+    delete(new File("./testCVPipe"))
+    delete(new File("./testxgbEst"))
     delete(new File("./testxgbPipe"))
     delete(new File("./test2xgbPipe"))
   }
 
   private def delete(f: File) {
-    if (f.isDirectory()) {
-      for (c <- f.listFiles()) {
-        delete(c)
+    if (f.exists()) {
+      if (f.isDirectory()) {
+        for (c <- f.listFiles()) {
+          delete(c)
+        }
       }
-    }
-    if (!f.delete()) {
-      throw new FileNotFoundException("Failed to delete file: " + f)
+      if (!f.delete()) {
+        throw new FileNotFoundException("Failed to delete file: " + f)
+      }
     }
   }
 
-  test("test sparks pipeline persistence of dataframe-based model") {
+  test("test persistence of XGBoostEstimator") {
+    val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "multi:softmax", "num_class" -> "6")
+    val xgbEstimator = new XGBoostEstimator(paramMap)
+    xgbEstimator.write.overwrite().save("./testxgbEst")
+    val loadedxgbEstimator = XGBoostEstimator.read.load("./testxgbEst")
+    val loadedParamMap = loadedxgbEstimator.fromParamsToXGBParamMap
+    paramMap.foreach {
+      case (k, v) => assert(v == loadedParamMap(k).toString)
+    }
+  }
+
+  test("test persistence of XGBoostModel") {
     //  maybe move to shared context, but requires session to import implicits.
     // what about introducing https://github.com/holdenk/spark-testing-base ?
-    val conf: SparkConf = new SparkConf()
-      .setAppName("foo")
-      .setMaster("local[*]")
+    val conf = new SparkConf().setAppName("foo").setMaster("local[*]")
 
-    val spark: SparkSession = SparkSession
-      .builder()
-      .config(conf)
-      .getOrCreate()
+    val spark = SparkSession.builder().config(conf).getOrCreate()
 
     import spark.implicits._
     // maybe move to shared context, but requires session to import implicits
-
-    val df = Seq(Foobar(0, 0.5, 1), Foobar(1, 0.01, 0.8),
-      Foobar(0, 0.8, 0.5), Foobar(1, 8.4, 0.04))
+    val df = Seq(Foobar(0, 0.5, 1), Foobar(1, 0.01, 0.8), Foobar(0, 0.8, 0.5), Foobar(1, 8.4, 0.04))
       .toDS
-
     val vectorAssembler = new VectorAssembler()
       .setInputCols(df.columns
         .filter(!_.contains("TARGET")))
       .setOutputCol("features")
-
     val xgbEstimator = new XGBoostEstimator(Map("num_rounds" -> 10,
-      "tracker_conf" -> TrackerConf(1 minute, "scala")
-    ))
-      .setFeaturesCol("features")
-      .setLabelCol("TARGET")
-
+      "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala")
+    )).setFeaturesCol("features").setLabelCol("TARGET")
     // separate
     val predModel = xgbEstimator.fit(vectorAssembler.transform(df))
     predModel.write.overwrite.save("test2xgbPipe")

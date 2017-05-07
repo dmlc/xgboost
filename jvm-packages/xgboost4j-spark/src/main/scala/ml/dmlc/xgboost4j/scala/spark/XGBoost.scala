@@ -18,21 +18,22 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, DMatrix => JDMatrix, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
+
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.SparseVector
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 import org.apache.spark.{SparkContext, TaskContext}
-
-import scala.concurrent.duration.{Duration, MILLISECONDS}
+import scala.concurrent.duration.{Duration, FiniteDuration, MILLISECONDS}
 
 object TrackerConf {
-  def apply(): TrackerConf = TrackerConf(Duration.apply(0L, MILLISECONDS), "python")
+  def apply(): TrackerConf = TrackerConf(0L, "python")
 }
 
 /**
@@ -40,13 +41,14 @@ object TrackerConf {
   * @param workerConnectionTimeout The timeout for all workers to connect to the tracker.
   *                                Set timeout length to zero to disable timeout.
   *                                Use a finite, non-zero timeout value to prevent tracker from
-  *                                hanging indefinitely (supported by "scala" implementation only.)
+  *                                hanging indefinitely (in milliseconds)
+ *                                (supported by "scala" implementation only.)
   * @param trackerImpl Choice between "python" or "scala". The former utilizes the Java wrapper of
   *                    the Python Rabit tracker (in dmlc_core), whereas the latter is implemented
   *                    in Scala without Python components, and with full support of timeouts.
   *                    The Scala implementation is currently experimental, use at your own risk.
   */
-case class TrackerConf(workerConnectionTimeout: Duration, trackerImpl: String)
+case class TrackerConf(workerConnectionTimeout: Long, trackerImpl: String)
 
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
@@ -240,14 +242,7 @@ object XGBoost extends Serializable {
       case _ => new PyRabitTracker(nWorkers)
     }
 
-    val connectionTimeout = if (trackerConf.workerConnectionTimeout.isFinite()) {
-      trackerConf.workerConnectionTimeout.toMillis
-    } else {
-      // 0 == Duration.Inf
-      0L
-    }
-
-    require(tracker.start(connectionTimeout), "FAULT: Failed to start tracker")
+    require(tracker.start(trackerConf.workerConnectionTimeout), "FAULT: Failed to start tracker")
     tracker
   }
 

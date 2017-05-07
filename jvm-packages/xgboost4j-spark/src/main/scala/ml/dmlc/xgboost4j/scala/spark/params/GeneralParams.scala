@@ -20,8 +20,6 @@ import ml.dmlc.xgboost4j.scala.spark.TrackerConf
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import org.apache.spark.ml.param._
 
-import scala.concurrent.duration.{Duration, NANOSECONDS}
-
 trait GeneralParams extends Params {
 
   /**
@@ -58,13 +56,13 @@ trait GeneralParams extends Params {
   /**
    * customized objective function provided by user. default: null
    */
-  val customObj = new Param[ObjectiveTrait](this, "custom_obj", "customized objective function " +
+  val customObj = new CustomObjParam(this, "custom_obj", "customized objective function " +
     "provided by user")
 
   /**
    * customized evaluation function provided by user. default: null
    */
-  val customEval = new Param[EvalTrait](this, "custom_eval", "customized evaluation function " +
+  val customEval = new CustomEvalParam(this, "custom_eval", "customized evaluation function " +
     "provided by user")
 
   /**
@@ -99,7 +97,7 @@ trait GeneralParams extends Params {
     *        Note that zero timeout value means to wait indefinitely (equivalent to Duration.Inf).
     *        Ignored if the tracker implementation is "python".
     */
-  val trackerConf = new Param[TrackerConf](this, "tracker_conf", "Rabit tracker configurations")
+  val trackerConf = new TrackerConfParam(this, "tracker_conf", "Rabit tracker configurations")
 
   setDefault(round -> 1, nWorkers -> 1, numThreadPerTask -> 1,
     useExternalMemory -> false, silent -> 0,
