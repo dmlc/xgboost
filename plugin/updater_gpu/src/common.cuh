@@ -62,6 +62,25 @@ __host__ __device__ inline int n_nodes(int depth) {
 // Number of nodes at this level of the tree
 __host__ __device__ inline int n_nodes_level(int depth) { return 1 << depth; }
 
+// Whether a node is currently being processed at current depth
+__host__ __device__ inline bool is_active(int nidx, int depth) {
+  return nidx >= n_nodes(depth - 1);
+}
+
+__host__ __device__ inline int parent_nidx(int nidx) { return (nidx - 1) / 2; }
+
+__host__ __device__ inline int left_child_nidx(int nidx) {
+  return nidx * 2 + 1;
+}
+
+__host__ __device__ inline int right_child_nidx(int nidx) {
+  return nidx * 2 + 2;
+}
+
+__host__ __device__ inline bool is_left_child(int nidx) {
+  return nidx % 2 == 1;
+}
+
 enum NodeType {
   NODE = 0,
   LEAF = 1,
@@ -96,7 +115,7 @@ inline void dense2sparse_tree(RegTree* p_tree,
                               thrust::device_ptr<Node> nodes_begin,
                               thrust::device_ptr<Node> nodes_end,
                               const TrainParam& param) {
-  RegTree & tree = *p_tree;
+  RegTree& tree = *p_tree;
   thrust::host_vector<Node> h_nodes(nodes_begin, nodes_end);
   std::vector<NodeType> node_flags(h_nodes.size(), UNUSED);
   flag_nodes(h_nodes, &node_flags, 0, NODE);

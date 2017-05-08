@@ -80,7 +80,7 @@ class FastHistMaker: public TreeUpdater {
   }
 
   bool UpdatePredictionCache(const DMatrix* data,
-                             std::vector<bst_float>* out_preds) const override {
+                             std::vector<bst_float>* out_preds) override {
     if (!builder_ || param.subsample < 1.0f) {
       return false;
     } else {
