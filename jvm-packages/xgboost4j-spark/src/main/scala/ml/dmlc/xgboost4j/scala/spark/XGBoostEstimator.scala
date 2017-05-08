@@ -145,6 +145,10 @@ object XGBoostEstimator extends MLReadable[XGBoostEstimator] {
   private[XGBoostEstimator] class XGBoostEstimatorWriter(instance: XGBoostEstimator)
     extends MLWriter {
     override protected def saveImpl(path: String): Unit = {
+      require(instance.fromParamsToXGBParamMap.get("custom_eval") == null &&
+        instance.fromParamsToXGBParamMap.get("custom_obj") == null,
+        "we do not support persist XGBoostEstimator with customized evaluator and objective" +
+          " function for now")
       implicit val format = DefaultFormats
       implicit val sc = super.sparkSession.sparkContext
       DefaultXGBoostParamsWriter.saveMetadata(instance, path, sc)
