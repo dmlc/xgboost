@@ -28,6 +28,7 @@ import org.apache.spark.ml.linalg.SparseVector
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 import org.apache.spark.{SparkContext, TaskContext}
+import java.io.{DataInputStream, InputStream}
 
 import scala.concurrent.duration.{Duration, MILLISECONDS}
 
@@ -324,7 +325,7 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def loadGeneralModelParams(inputStream: FSDataInputStream): (String, String, String) = {
+  private def loadGeneralModelParams(inputStream: DataInputStream): (String, String, String) = {
     val featureCol = inputStream.readUTF()
     val labelCol = inputStream.readUTF()
     val predictionCol = inputStream.readUTF()
@@ -349,6 +350,15 @@ object XGBoost extends Serializable {
       XGBoostModel = {
     val path = new Path(modelPath)
     val dataInStream = path.getFileSystem(sparkContext.hadoopConfiguration).open(path)
+    try {
+      return loadModel(dataInStream)
+    } finally {
+      dataInStream.close()
+    }
+  }
+
+  def loadModel(inputStream: InputStream): XGBoostModel = {
+    val dataInStream = new DataInputStream(inputStream)
     val modelType = dataInStream.readUTF()
     val (featureCol, labelCol, predictionCol) = loadGeneralModelParams(dataInStream)
     modelType match {

@@ -21,8 +21,7 @@ import scala.collection.JavaConverters._
 import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, DefaultXGBoostParamsWriter}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
-import org.apache.hadoop.fs.{FSDataOutputStream, Path}
-
+import org.apache.hadoop.fs.Path
 import org.apache.spark.ml.PredictionModel
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
@@ -33,6 +32,7 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types.{ArrayType, FloatType}
 import org.apache.spark.{SparkContext, TaskContext}
 import org.json4s.DefaultFormats
+import java.io.{OutputStream, DataOutputStream}
 
 /**
  * the base class of [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
@@ -265,7 +265,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
     transformImpl(testSet)
   }
 
-  private def saveGeneralModelParam(outputStream: FSDataOutputStream): Unit = {
+  private def saveGeneralModelParam(outputStream: DataOutputStream): Unit = {
     outputStream.writeUTF(getFeaturesCol)
     outputStream.writeUTF(getLabelCol)
     outputStream.writeUTF(getPredictionCol)
@@ -278,32 +278,46 @@ abstract class XGBoostModel(protected var _booster: Booster)
    */
   def saveModelAsHadoopFile(modelPath: String)(implicit sc: SparkContext): Unit = {
     val path = new Path(modelPath)
+
     val outputStream = path.getFileSystem(sc.hadoopConfiguration).create(path)
+    try {
+      saveModel(outputStream)
+    } finally {
+      outputStream.close()
+    }
+  }
+
+  /**
+    * Save the model to an output stream.
+    *
+    * @param outputStream The stream to save model into
+    */
+  def saveModel(outputStream: OutputStream): Unit = {
+    val dataOutputStream = new DataOutputStream(outputStream)
     // output model type
     this match {
       case model: XGBoostClassificationModel =>
-        outputStream.writeUTF("_cls_")
-        saveGeneralModelParam(outputStream)
-        outputStream.writeUTF(model.getRawPredictionCol)
+        dataOutputStream.writeUTF("_cls_")
+        saveGeneralModelParam(dataOutputStream)
+        dataOutputStream.writeUTF(model.getRawPredictionCol)
         // threshold
         // threshold length
         if (!isDefined(model.thresholds)) {
-          outputStream.writeInt(-1)
+          dataOutputStream.writeInt(-1)
         } else {
           val thresholdLength = model.getThresholds.length
-          outputStream.writeInt(thresholdLength)
+          dataOutputStream.writeInt(thresholdLength)
           for (i <- 0 until thresholdLength) {
-            outputStream.writeDouble(model.getThresholds(i))
+            dataOutputStream.writeDouble(model.getThresholds(i))
           }
         }
       case model: XGBoostRegressionModel =>
-        outputStream.writeUTF("_reg_")
+        dataOutputStream.writeUTF("_reg_")
         // eventual prediction col
-        saveGeneralModelParam(outputStream)
+        saveGeneralModelParam(dataOutputStream)
     }
     // booster
-    _booster.saveModel(outputStream)
-    outputStream.close()
+    _booster.saveModel(dataOutputStream)
   }
 
   def booster: Booster = _booster
