@@ -166,9 +166,9 @@ class Booster private[xgboost4j](private var booster: JBooster)
    *                   Controls whether the split statistics are output.
    */
   @throws(classOf[XGBoostError])
-  def getModelDump(featureMap: String = null, withStats: Boolean = false)
+  def getModelDump(featureMap: String = null, withStats: Boolean = false, format: String = "text")
     : Array[String] = {
-    booster.getModelDump(featureMap, withStats)
+    booster.getModelDump(featureMap, withStats, format)
   }
 
   /**

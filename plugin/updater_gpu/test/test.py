@@ -160,7 +160,6 @@ class TestGPU(unittest.TestCase):
 
         param = {'objective': 'binary:logistic',
                  'updater': 'grow_gpu_hist',
-                 'grow_policy': 'depthwise',
                  'max_depth': 2,
                  'eval_metric': 'auc'}
         res = {}
@@ -216,6 +215,17 @@ class TestGPU(unittest.TestCase):
         assert self.non_decreasing(res['train']['auc'])
         assert res['train']['auc'][0] >= 0.85
 
+        # max_bin = 2048
+        param = {'objective': 'binary:logistic',
+                 'updater': 'grow_gpu_hist',
+                 'max_depth': 3,
+                 'eval_metric': 'auc',
+                 'max_bin': 2048
+                 }
+        res = {}
+        xgb.train(param, dtrain2, 10, [(dtrain2, 'train')], evals_result=res)
+        assert self.non_decreasing(res['train']['auc'])
+        assert res['train']['auc'][0] >= 0.85
 
     def non_decreasing(self, L):
             return all((x - y) < 0.001 for x, y in zip(L, L[1:]))

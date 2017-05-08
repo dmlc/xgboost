@@ -333,6 +333,11 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public String[] getModelDump(String featureMap, boolean withStats) throws XGBoostError {
+    return getModelDump(featureMap, withStats, "text");
+  }
+
+  public String[] getModelDump(String featureMap, boolean withStats, String format)
+         throws XGBoostError {
     int statsFlag = 0;
     if (featureMap == null) {
       featureMap = "";
@@ -340,9 +345,12 @@ public class Booster implements Serializable, KryoSerializable {
     if (withStats) {
       statsFlag = 1;
     }
+    if (format == null) {
+      format = "text";
+    }
     String[][] modelInfos = new String[1][];
     JNIErrorHandle.checkCall(
-            XGBoostJNI.XGBoosterDumpModel(handle, featureMap, statsFlag, modelInfos));
+            XGBoostJNI.XGBoosterDumpModelEx(handle, featureMap, statsFlag, format, modelInfos));
     return modelInfos[0];
   }
 
@@ -389,7 +397,8 @@ public class Booster implements Serializable, KryoSerializable {
       statsFlag = 1;
     }
     String[][] modelInfos = new String[1][];
-    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterDumpModel(handle, "", statsFlag, modelInfos));
+    JNIErrorHandle.checkCall(XGBoostJNI.XGBoosterDumpModelEx(handle, "", statsFlag, "text",
+            modelInfos));
     return modelInfos[0];
   }
 

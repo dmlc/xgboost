@@ -9,15 +9,11 @@
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
 #include <algorithm>
+#include <chrono>
 #include <ctime>
 #include <sstream>
 #include <string>
 #include <vector>
-#include "cusparse_v2.h"
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 // Uncomment to enable
 // #define DEVICE_TIMER
@@ -42,20 +38,6 @@ inline cudaError_t throw_on_cuda_error(cudaError_t code, const char *file,
   }
 
   return code;
-}
-#define safe_cusparse(ans) throw_on_cusparse_error((ans), __FILE__, __LINE__)
-
-inline cusparseStatus_t throw_on_cusparse_error(cusparseStatus_t status,
-                                                const char *file, int line) {
-  if (status != CUSPARSE_STATUS_SUCCESS) {
-    std::stringstream ss;
-    ss << "cusparse error: " << file << "(" << line << ")";
-    std::string error_text;
-    ss >> error_text;
-    throw error_text;
-  }
-
-  return status;
 }
 
 #define gpuErrchk(ans) \
@@ -153,40 +135,18 @@ struct DeviceTimer {
 };
 
 struct Timer {
-  volatile double start;
+  typedef std::chrono::high_resolution_clock ClockT;
+
+  typedef std::chrono::high_resolution_clock::time_point TimePointT;
+  TimePointT start;
   Timer() { reset(); }
 
-  double seconds_now() {
-#ifdef _WIN32
-    static LARGE_INTEGER s_frequency;
-    QueryPerformanceFrequency(&s_frequency);
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    return static_cast<double>(now.QuadPart) / s_frequency.QuadPart;
-#else
-    return 0;
-#endif
-  }
-
-  void reset() {
-#ifdef _WIN32
-    _ReadWriteBarrier();
-    start = seconds_now();
-#endif
-  }
-  double elapsed() {
-#ifdef _WIN32
-    _ReadWriteBarrier();
-    return seconds_now() - start;
-#else
-    return 0;
-#endif
-  }
+  void reset() { start = ClockT::now(); }
+  int64_t elapsed() const { return (ClockT::now() - start).count(); }
   void printElapsed(std::string label) {
-#ifdef TIMERS
     safe_cuda(cudaDeviceSynchronize());
-    printf("%s:\t %1.4fs\n", label.c_str(), elapsed());
-#endif
+    printf("%s:\t %lld\n", label.c_str(), elapsed());
+    reset();
   }
 };
 
