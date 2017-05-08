@@ -21,7 +21,6 @@ import scala.collection.mutable
 import ml.dmlc.xgboost4j.scala.spark.params._
 import org.json4s.DefaultFormats
 
-import org.apache.spark.BridgingUtils
 import org.apache.spark.ml.Predictor
 import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.ml.linalg.{Vector => MLVector}
@@ -145,8 +144,8 @@ object XGBoostEstimator extends MLReadable[XGBoostEstimator] {
   private[XGBoostEstimator] class XGBoostEstimatorWriter(instance: XGBoostEstimator)
     extends MLWriter {
     override protected def saveImpl(path: String): Unit = {
-      require(instance.fromParamsToXGBParamMap.get("custom_eval") == null &&
-        instance.fromParamsToXGBParamMap.get("custom_obj") == null,
+      require(instance.fromParamsToXGBParamMap("custom_eval") == null &&
+        instance.fromParamsToXGBParamMap("custom_obj") == null,
         "we do not support persist XGBoostEstimator with customized evaluator and objective" +
           " function for now")
       implicit val format = DefaultFormats
@@ -159,7 +158,7 @@ object XGBoostEstimator extends MLReadable[XGBoostEstimator] {
 
     override def load(path: String): XGBoostEstimator = {
       val metadata = DefaultXGBoostParamsReader.loadMetadata(path, sc)
-      val cls = BridgingUtils.classForName(metadata.className)
+      val cls = Utils.classForName(metadata.className)
       val instance =
         cls.getConstructor(classOf[String]).newInstance(metadata.uid).asInstanceOf[Params]
       DefaultXGBoostParamsReader.getAndSetParams(instance, metadata)
