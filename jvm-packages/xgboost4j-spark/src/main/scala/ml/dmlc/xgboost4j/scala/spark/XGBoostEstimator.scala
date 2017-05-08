@@ -16,11 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.util.concurrent.TimeUnit
-
 import scala.collection.mutable
 
-import org.json4s.ext.EnumNameSerializer
 import ml.dmlc.xgboost4j.scala.spark.params._
 import org.json4s.DefaultFormats
 

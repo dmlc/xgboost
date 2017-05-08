@@ -16,11 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark.params
 
-import java.util.concurrent.TimeUnit
-
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
-import org.json4s.ext.EnumNameSerializer
 import org.json4s.{DefaultFormats, Extraction, NoTypeHints}
 import org.json4s.jackson.JsonMethods.{compact, parse, render}
 
