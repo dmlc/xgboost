@@ -65,6 +65,8 @@ class XGBModel(XGBModelBase):
     objective : string or callable
         Specify the learning task and the corresponding learning objective or
         a custom objective function to be used (see note below).
+    objective_params : dictionary of key value pairs 
+        Specify the parameters of the objective fucntion.
     nthread : int
         Number of parallel threads used to run xgboost.
     gamma : float
@@ -112,7 +114,7 @@ class XGBModel(XGBModelBase):
     """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 silent=True, objective="reg:linear",
+                 silent=True, objective="reg:linear", objective_params={},
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
@@ -124,6 +126,7 @@ class XGBModel(XGBModelBase):
         self.n_estimators = n_estimators
         self.silent = silent
         self.objective = objective
+        self._objective_params = objective_params
 
         self.nthread = nthread
         self.gamma = gamma
@@ -170,6 +173,10 @@ class XGBModel(XGBModelBase):
             params['missing'] = None  # sklearn doesn't handle nan. see #4725
         if not params.get('eval_metric', True):
             del params['eval_metric']  # don't give as None param to Booster
+        
+        for k, v in self._objective_params.iteritems():
+            params[k] = v
+
         return params
 
     def get_xgb_params(self):
