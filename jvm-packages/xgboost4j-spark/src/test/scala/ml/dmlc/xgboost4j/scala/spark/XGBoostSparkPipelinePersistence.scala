@@ -18,21 +18,21 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.{File, FileNotFoundException}
 
+import scala.util.Random
+
 import org.apache.spark.SparkConf
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.SparkSession
 
-case class Foobar(TARGET: Int, bar: Double, baz: Double)
-
 class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
 
   override def afterAll(): Unit = {
     super.afterAll()
-    delete(new File("./testCVPipe"))
-    delete(new File("./testxgbEst"))
     delete(new File("./testxgbPipe"))
-    delete(new File("./test2xgbPipe"))
+    delete(new File("./testxgbEst"))
+    delete(new File("./testxgbModel"))
+    delete(new File("./test2xgbModel"))
   }
 
   private def delete(f: File) {
@@ -60,28 +60,42 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
     }
   }
 
-  test("test persistence of XGBoostModel") {
-    //  maybe move to shared context, but requires session to import implicits.
-    // what about introducing https://github.com/holdenk/spark-testing-base ?
+  test("test persistence of a complete pipeline") {
     val conf = new SparkConf().setAppName("foo").setMaster("local[*]")
-
     val spark = SparkSession.builder().config(conf).getOrCreate()
+    val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "multi:softmax", "num_class" -> "6")
+    val r = new Random(0)
+    val assembler = new VectorAssembler().setInputCols(Array("feature")).setOutputCol("features")
+    val xgbEstimator = new XGBoostEstimator(paramMap)
+    val pipeline = new Pipeline().setStages(Array(assembler, xgbEstimator))
+    pipeline.write.overwrite().save("testxgbPipe")
+    val loadedPipeline = Pipeline.read.load("testxgbPipe")
+    val loadedEstimator = loadedPipeline.getStages(1).asInstanceOf[XGBoostEstimator]
+    val loadedParamMap = loadedEstimator.fromParamsToXGBParamMap
+    paramMap.foreach {
+      case (k, v) => assert(v == loadedParamMap(k).toString)
+    }
+  }
 
-    import spark.implicits._
+  test("test persistence of XGBoostModel") {
+    val conf = new SparkConf().setAppName("foo").setMaster("local[*]")
+    val spark = SparkSession.builder().config(conf).getOrCreate()
+    val r = new Random(0)
     // maybe move to shared context, but requires session to import implicits
-    val df = Seq(Foobar(0, 0.5, 1), Foobar(1, 0.01, 0.8), Foobar(0, 0.8, 0.5), Foobar(1, 8.4, 0.04))
-      .toDS
+    val df = spark.createDataFrame(Seq.fill(10000)(r.nextInt(2)).map(i => (i, i))).
+      toDF("feature", "label")
     val vectorAssembler = new VectorAssembler()
       .setInputCols(df.columns
-        .filter(!_.contains("TARGET")))
+        .filter(!_.contains("label")))
       .setOutputCol("features")
     val xgbEstimator = new XGBoostEstimator(Map("num_rounds" -> 10,
       "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala")
-    )).setFeaturesCol("features").setLabelCol("TARGET")
+    )).setFeaturesCol("features").setLabelCol("label")
     // separate
     val predModel = xgbEstimator.fit(vectorAssembler.transform(df))
-    predModel.write.overwrite.save("test2xgbPipe")
-    val same2Model = XGBoostModel.load("test2xgbPipe")
+    predModel.write.overwrite.save("test2xgbModel")
+    val same2Model = XGBoostModel.load("test2xgbModel")
 
     assert(java.util.Arrays.equals(predModel.booster.toByteArray, same2Model.booster.toByteArray))
     val predParamMap = predModel.extractParamMap()
@@ -96,8 +110,8 @@ class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
 
     // chained
     val predictionModel = new Pipeline().setStages(Array(vectorAssembler, xgbEstimator)).fit(df)
-    predictionModel.write.overwrite.save("testxgbPipe")
-    val sameModel = PipelineModel.load("testxgbPipe")
+    predictionModel.write.overwrite.save("testxgbModel")
+    val sameModel = PipelineModel.load("testxgbModel")
 
     val predictionModelXGB = predictionModel.stages.collect { case xgb: XGBoostModel => xgb } head
     val sameModelXGB = sameModel.stages.collect { case xgb: XGBoostModel => xgb } head
