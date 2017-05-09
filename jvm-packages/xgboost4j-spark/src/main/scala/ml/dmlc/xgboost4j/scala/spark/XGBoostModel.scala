@@ -324,14 +324,13 @@ object XGBoostModel extends MLReadable[XGBoostModel] {
       implicit val format = DefaultFormats
       implicit val sc = super.sparkSession.sparkContext
       DefaultXGBoostParamsWriter.saveMetadata(instance, path, sc)
-
       val dataPath = new Path(path, "data").toString
       instance.saveModelAsHadoopFile(dataPath)
     }
   }
 
   private class XGBoostModelModelReader extends MLReader[XGBoostModel] {
-    private val className = classOf[XGBoostModel].getName
+
     override def load(path: String): XGBoostModel = {
       implicit val sc = super.sparkSession.sparkContext
       val dataPath = new Path(path, "data").toString
@@ -340,5 +339,4 @@ object XGBoostModel extends MLReadable[XGBoostModel] {
       XGBoost.loadModelFromHadoopFile(dataPath)
     }
   }
-
 }
