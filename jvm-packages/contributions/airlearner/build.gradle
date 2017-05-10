@@ -1,0 +1,87 @@
+apply plugin: 'wrapper'
+apply from: "libraries.gradle"
+
+// Needed for shadow.
+buildscript {
+    repositories {
+        jcenter()
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
+        classpath 'gradle.plugin.com.palantir.gradle.gitversion:gradle-git-version:0.5.2'
+        classpath group: 'org.github.ngbinh.scalastyle', name: 'gradle-scalastyle-plugin_2.10', version: '0.8.2'
+    }
+}
+
+allprojects {
+    apply plugin: 'java'
+    apply plugin: 'idea'
+    apply plugin: 'eclipse'
+    apply plugin: 'com.github.johnrengelman.shadow'
+    apply plugin: 'com.palantir.git-version'
+
+    repositories {
+        jcenter()
+        maven { url "http://repo.typesafe.com/typesafe/releases/" }
+        maven { url 'http://projectlombok.org/mavenrepo' }
+    }
+
+    configurations {
+        provided
+    }
+
+    group = 'com.airbnb.common.ml'
+
+    ext.publish = true
+    ext.dryRun = false
+
+    sourceSets {
+        main {
+            compileClasspath += configurations.provided
+        }
+        test {
+            compileClasspath += configurations.provided
+            runtimeClasspath += configurations.provided
+        }
+    }
+
+    compileJava {
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
+        options.setDeprecation true
+        options.encoding = 'UTF-8'
+    }
+
+    if (JavaVersion.current().isJava8Compatible()) {
+        tasks.withType(Javadoc) {
+            // disable the crazy super-strict doclint tool in Java 8
+            //noinspection SpellCheckingInspection
+            options.addStringOption('Xdoclint:none', '-quiet')
+        }
+    }
+
+    // Configure Idea plugin
+    idea {
+        module {
+            scopes.PROVIDED.plus += [configurations.provided]
+
+            downloadJavadoc = true
+        }
+    }
+}
+
+subprojects {
+    apply plugin: 'maven'
+
+    if (project.plugins.hasPlugin('java')) {
+        // manifest.mainAttributes(provider: 'gradle')
+        configurations {
+            published
+        }
+        dependencies {
+            testCompile 'junit:junit:4.7'
+        }
+    }
+}

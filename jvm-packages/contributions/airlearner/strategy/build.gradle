@@ -1,0 +1,53 @@
+// Includes 'scala' plugin
+apply from: "$rootDir/configs/scala210.gradle"
+apply from: "$rootDir/configs/version.gradle"
+apply plugin: 'com.jfrog.bintray'
+
+repositories {
+  mavenLocal()
+}
+
+dependencies {
+  compile 'com.typesafe:config:1.3.0'
+  compile project(':utils')
+
+  provided "org.apache.spark:spark-core_2.10:${sparkVersion}"
+  provided "org.apache.spark:spark-hive_2.10:${sparkVersion}"
+  provided "org.apache.spark:spark-mllib_2.10:${sparkVersion}"
+}
+
+bintray {
+  user = System.env.BINTRAY_USER ?: bintray_user
+  key = System.env.BINTRAY_KEY ?: bintray_key
+  configurations = ['published', 'archives']
+  publish = project.publish
+  dryRun = project.dryRun
+  override = true
+
+  pkg {
+    repo = 'aerosolve'
+    userOrg = 'airbnb'
+    name = 'Aerosolve-strategy'
+    desc = 'Aerosolve strategy model'
+    websiteUrl = 'https://github.com/dmlc/xgboost/tree/master/jvm-packages/contributions/airlearner'
+    issueTrackerUrl = 'https://github.com/dmlc/xgboost/issues'
+    vcsUrl = 'https://github.com/dmlc/xgboost.git'
+    licenses = ['Apache-2.0']
+    labels = ['machine learning', 'binary regression', 'spark', 'scala']
+    attributes= ['plat': ['linux', 'osx']]
+    publicDownloadNumbers = true
+  }
+
+}
+
+version '0.1'
+
+shadowJar {
+  zip64 = true
+}
+
+configurations {
+  // Spark seems to include this already. Including this sometimes creates a conflict.
+  testCompile.exclude module: 'jackson-databind'
+  testCompile.exclude group: 'org.apache.avro'
+}

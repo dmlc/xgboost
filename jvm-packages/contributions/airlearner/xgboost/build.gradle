@@ -1,0 +1,53 @@
+apply plugin: "scala"
+apply plugin: 'com.jfrog.bintray'
+
+apply from: "$rootDir/configs/version.gradle"
+apply from: "$rootDir/configs/scala210.gradle"
+
+repositories {
+    mavenLocal()
+}
+
+dependencies {
+    compile 'com.typesafe:config:1.3.0'
+
+    compile project(':utils')
+
+    provided "org.apache.spark:spark-core_2.10:${sparkVersion}"
+    provided "org.apache.spark:spark-hive_2.10:${sparkVersion}"
+    provided "org.apache.spark:spark-mllib_2.10:${sparkVersion}"
+
+    compile files('local-lib/xgboost4j-0.7.jar')
+}
+
+bintray {
+    user = System.env.BINTRAY_USER ?: bintray_user
+    key = System.env.BINTRAY_KEY ?: bintray_key
+    configurations = ['published', 'archives']
+    publish = project.publish
+    dryRun = project.dryRun
+    override = true
+
+    pkg {
+        repo = 'aerosolve'
+        userOrg = 'airbnb'
+        name = 'airlearner-xgboost'
+        desc = 'airlearner xgboost lib'
+        websiteUrl = 'https://github.com/dmlc/xgboost/tree/master/jvm-packages/contributions/airlearner'
+        issueTrackerUrl = 'https://github.com/dmlc/xgboost/issues'
+        vcsUrl = 'https://github.com/dmlc/xgboost.git'
+        licenses = ['Apache-2.0']
+        labels = ['machine learning', 'xgboost','spark', 'scala']
+        attributes= ['plat': ['linux', 'osx']]
+        publicDownloadNumbers = true
+    }
+}
+
+//can't use gitVersion() since it returns tag on general xgboost git repo
+version '0.1'
+
+shadowJar {
+    zip64 = true
+}
+
+
