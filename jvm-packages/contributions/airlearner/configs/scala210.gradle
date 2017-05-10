@@ -1,0 +1,92 @@
+/**
+ * This Gradle file sets up common build settings for Scala 2.10.x projects
+ */
+
+ext {
+  scala210Version = '2.10.6'
+}
+
+// Language support
+apply plugin: 'java'
+apply plugin: 'scala'
+// Tooling support
+apply plugin: 'scalaStyle'
+
+
+/**
+ * Include basic package dependencies that ALL Airbnb Scala projects will need.
+ * This should include no team or project specific code. That will only bloat other
+ * Scala projects.
+ *
+ * Additionally, don't include domain specific libraries such as Spark.
+ */
+dependencies {
+  compile libraries.scala_library_210
+
+  compile libraries.scala_logging_slf4j_210
+  compile "org.scala-lang.modules:scala-java8-compat_2.10:0.5.0"
+  compile "org.typelevel:cats_2.10:0.9.0"
+}
+
+
+/**
+ * Set standard Scala compilation options
+ */
+def getScalaCompileAdditionalParameters = {
+  def compileOptions = [
+    // Emit warning and location for usages of features that should be imported explicitly.
+    '-feature',
+    // Output messages about what the compiler is doing.
+    '-verbose',
+    // Enable recommended additional warnings.
+    '-Xlint',
+  ]
+  if (project.hasProperty('SkipWarning')) {
+    compileOptions << '-nowarn'
+  }
+  compileOptions
+}
+tasks.withType(ScalaCompile) {
+  // Target Java 1.8 level compatibility
+  sourceCompatibility = '1.8'
+  targetCompatibility = '1.8'
+
+  scalaCompileOptions.with {
+    deprecation = true
+    unchecked = true
+    optimize = true
+    debugLevel = 'vars'
+    additionalParameters = getScalaCompileAdditionalParameters()
+  }
+}
+
+
+/**
+ * Automated Scala style checking as part of the build check task
+ */
+check.dependsOn << ['scalaStyle']
+scalaStyle {
+  configLocation = "$rootDir/configs/scalastyle_config.xml"
+  source = 'src/main/scala'
+  testSource = 'src/test/scala'
+  includeTestSourceDirectory = true
+}
+
+
+/**
+ * Task: `repl`
+ *
+ * Will initiate a command-line Scala console that you can use
+ * to interact live with your project's code.
+ *
+ * Run with `gradlew repl --console plain --no-daemon`
+ */
+task repl(type: JavaExec) {
+  dependencies {
+    compile group: 'org.scala-lang', name: 'scala-compiler', version: scala210Version
+  }
+  main = 'scala.tools.nsc.MainGenericRunner'
+  classpath = sourceSets.main.runtimeClasspath
+  standardInput System.in
+  args '-usejavacp'
+}

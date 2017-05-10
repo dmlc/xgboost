@@ -1,0 +1,3 @@
+
+//  Specify this here to allow upgrade independent of Aerosolve
+ext.sparkVersion = '1.6.3'

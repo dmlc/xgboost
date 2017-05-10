@@ -1,0 +1,13 @@
+allprojects {
+
+    ext {
+        libraries = [
+                lombok : "org.projectlombok:lombok:1.16.8",
+                joda_time : "joda-time:joda-time:2.8.2",
+                scala_library_210: "org.scala-lang:scala-library:2.10.6",
+                scala_logging_slf4j_210 : "com.typesafe.scala-logging:scala-logging-slf4j_2.10:2.1.2",
+                slf4j_api : "org.slf4j:slf4j-api:1.7.9",
+                slf4j_simple : "org.slf4j:slf4j-simple:1.7.9",
+        ]
+    }
+}
