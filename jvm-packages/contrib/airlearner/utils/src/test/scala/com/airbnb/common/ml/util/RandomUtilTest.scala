@@ -4,12 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 
-class TestRandomUtil {
+class RandomUtilTest {
 
   @Test
   def evalSlice(): Unit = {
-    val list = List.range(1, 101)
-    val ratios = List(0.85, 0.1, 0.05)
+    val list = Seq.range(1, 101)
+    val ratios = Seq(0.85, 0.1, 0.05)
 
     val r = RandomUtil.slice(list, ratios)
 

@@ -4,19 +4,19 @@ import scala.util.Random
 
 
 object RandomUtil {
-  def randomDouble(bounds: List[Any], randomizer: Random): Double = {
+  def randomDouble(bounds: Seq[Any], randomizer: Random): Double = {
     val min = bounds.head.asInstanceOf[Double]
     val max = bounds.tail.head.asInstanceOf[Double]
     (randomizer.nextDouble * (max - min)) + min
   }
 
-  def randomInt(bounds: List[Any], randomizer: Random): Int = {
+  def randomInt(bounds: Seq[Any], randomizer: Random): Int = {
     val min = bounds.head.asInstanceOf[Int]
     val max = bounds.tail.head.asInstanceOf[Int]
     randomizer.nextInt(max - min) + min
   }
 
-  def randomNumber(bounds: List[Any], randomizer: Random): Any = {
+  def randomNumber(bounds: Seq[Any], randomizer: Random): Any = {
     if (bounds.head.isInstanceOf[Int]) {
       randomInt(bounds, randomizer)
     } else {
@@ -24,25 +24,25 @@ object RandomUtil {
     }
   }
 
-  def randomIndex(bounds: List[Any], randomizer: Random): Any = {
+  def randomIndex(bounds: Seq[Any], randomizer: Random): Any = {
     val index = randomizer.nextInt(bounds.length)
     bounds(index)
   }
 
-  def sample[T](list: Seq[T], ratios: List[Double]): List[Seq[T]]= {
-    val t = Random.shuffle(list)
+  def sample[T](items: Seq[T], ratios: Seq[Double]): Seq[Seq[T]]= {
+    val t = Random.shuffle(items)
     slice(t, ratios)
   }
 
-  def slice[T](list: Seq[T], ratios: List[Double]): List[Seq[T]]= {
-    val len = list.length
+  def slice[T](items: Seq[T], ratios: Seq[Double]): Seq[Seq[T]]= {
+    val len = items.length
     val start = ratios.scanLeft(0.0)(_ + _).take(ratios.length)
 
     start.zip(ratios).map{
       case (s:Double, size:Double) => {
         val startPos: Int = (s * len).toInt
         val endPos: Int = ((s + size)*len).toInt
-        list.slice(startPos, endPos)
+        items.slice(startPos, endPos)
       }
     }
   }
