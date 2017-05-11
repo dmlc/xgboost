@@ -1,0 +1,39 @@
+language: java
+jdk:
+  - oraclejdk8
+
+# this doesn't work yet: https://github.com/travis-ci/travis-ci/issues/4706
+#sudo: false
+#addons:
+#  apt:
+#    sources:
+#    - debian-sid
+#    packages:
+#    - thrift-compiler
+
+sudo: required
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install libboost-dev libboost-test-dev libboost-program-options-dev libevent-dev automake libtool flex bison pkg-config g++ libssl-dev
+  - wget https://archive.apache.org/dist/thrift/0.9.1/thrift-0.9.1.tar.gz
+  - tar xfz thrift-0.9.1.tar.gz
+  - cd thrift-0.9.1 && ./configure --without-cpp --without-c_glib --without-python --without-ruby --without-go --without-erlang --without-java && sudo make install && cd ..
+
+script:
+  - test "${TRAVIS_TAG}" || ./gradlew check # only run check on non-tag build because of flaky tests
+
+# publish artifacts to bintray on tag builds
+after_success:
+  - >
+      test "${TRAVIS_TAG}" &&
+      test "${TRAVIS_JDK_VERSION}" = 'oraclejdk8' &&
+      ./gradlew --info bintrayUpload &&
+      ./publish-notify.sh
+
+# environment variables for bintray credentials
+# https://docs.travis-ci.com/user/encryption-keys/
+env:
+  global:
+    - secure: "OVRD2esfT7qMaMpqddaROFSdWZD4HzE9mXxkOH0Kf/8oeyt1m4xEudaF1jB9G0tHIR+WeM/jaBLZv0BMr0Q6V+Goo73070kLy0MgQWGkqoDxjxXLHAqT853AZj5QhNM96+EG5Z5Dty+mYv4W5XRJob9QaWpKVPl3TC3g3ea+ehi2kzyzx98zcfPGfifB5G9yeFHn/mgIl55Y2RNOGVbtu4DInkb2tCn0J1uvJAykG8ANAYYajqA4rpGEq45xUwXBCYnmsn1M1ciqNHP6F/1HvBYSNcGHwVTT4bPChmQ1sqlNlHduPEAiQSCKxndU254Ppp88noIFUdDZA+A5zIaoTVjQ7/ufafxx21JgN3TSe47CCdz21Pl++TNlUP/N5K4rKfr53maN3TJdEc35ox4DqyhjXN4C20W2XCU+SIKnm2ODnFyfZrECnGfVY47f89L4YmapZ7TXmyjk+DHL5ZaaWeVIPgSlQFhb8870ZJ6ksfhAZbGmjk/BpvalAtzS6AjG/dUKQJWeB7KvSnuMkSUsZR3oznm6Bhr5bKf/CdgCuDSeYemYiQ5XsQidI2RuAZ4ljhOuvV6xIHr4zNFSl51O8AViWpm26PkG1x14e4GiHWFmv1uv5ztPUwajCB+UshN4ZPKEKe0IrW3sE7m236UEnVaXf8CnTuB8m9ifebY86+E="
+    - secure: "LAUAtJeLIQ72hmRx+uWEBQ8vRzDL9V3PgY7YF+ofNA0mCkEjlKkvaQjSS5iu1recGvcbqmW/C5BYhZIGRiyOC16au/0uzhIGmBicDnv2TWHzB1cZkYOEpLDAQUInTOv8qykaQtOg+9lDvfCoqMDYW1t9iPvL1sX4r2K67jJCtrOQexguKH67JPJCBX4cigXZpbvdlWZXmvmx3roaEDiuX3ir/nc9rFbvUjE0IqayNiaHsJNA40GMpntZGEuH3KKP4kGXIx7SzZXvCCgH+xYbAMjx2OFgKv/H1nNErE1c/+rUSyBDU6pkqOfvC1nvHdqNzc/B8E4FcP1OfE+IG3AbpG8714/bYrusFQ0t93EenbEuJPO2a0QrC4R10Em7GY5WAl8mo4Dpv8I06YcBKFEHaekXRDRXf99MPLkfTpl17bpuEYHVXJoEgxKqSPkNaCXh0CB9nU3T5HnDgy6jfB/8WNq8dyclc9i9+YRVgTS/SLKAVK4K+lKe8sGzthsFAbA8xIIaiNAYuKFvrUyI2pXLw38x23i8HR9HV7R22clJQLq5gzmqyaDs6omOyi6mJyfCSNYmrbFVq7els3AQKTVcgh/2tj4AXt+fA7S5cy9p/+FIRpRqJh9bJoEL94jMkroosuu0lY0QCadkLWRTdOcNgaYQOexvdYYt3AgjzG5ahXE="
+    - secure: "hL1dBrlWs9GX/px6cFji1rf7XXRrioiY+ZY4kQ3WP3V0FaWLxaV9l8boPUBP2NbHDm2eMhFO+DYqPWqo9T12PZuPUr6HyRQmHD9U4tpxobdImMx0Q3SkfGbCEHkYrcbLcm+YLfDaS1MfXgkf59WCY0IyIGo0fs5ZwPvTtGnkgniP8wa6NZ/fpaAjQX9TYzbwa+8Yl3cGFcv+Sw47edHQl/TaCLLtox/x8IywvpPMAqZWoved0KyyqxKU7HmK4ZzBAY2kNe8zHBT2gKEEXqQT4yscH51QezkWtDPbTStpXSOi9lIgkV22D0Ms3FwO9xKUe/Kp3MPP+fKijTwT1WFG7pxCIHCeIadvbxooCLN3Vmh0HN+VJr3wcsBL+sENwzIJWO3ugCBZ/RT0Dx22qUOm1nhdpThisIT4CUb/aPCIQiNCxpqhOZIgLFH19WS8o7VFpM2Tn5fCktZcfrmwbF2q0+EO4gDrC0NzNHfKIaLZdD5XmsrPGbPxhPfXhDOhXSJC4ELsq8L17d4PuBugPou3J9JSnuIuRVNcfzDcMmHk+K47519KlsCblOY83XSoWesbbE9YGZAihr9io6gibQIhJScb+dXN+VMARDDrc0shbRmCg8GUlM9tZxnyjkqqi1V+u0dB/P/yMWO4HscYdsKY23xDYFjOhryhDeV2dRbDTvI="
