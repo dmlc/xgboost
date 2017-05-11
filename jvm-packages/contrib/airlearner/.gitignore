@@ -1,1 +1,14 @@
+# Allow airlearner to control its own .gitignore (don't inherit parent .gitignore)
+!*
+
+# Ignore IDE settings
+.idea
+
+# Ignore Gradle build directory
 /.gradle
+
+# Ignore build artifacts
+build
+
+# Ignore generated files
+*.log
