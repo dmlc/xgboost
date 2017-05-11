@@ -1,7 +1,8 @@
-package com.airbnb.common.ml.test
+package com.airbnb.common.ml.util.testutil
 
 import org.apache.spark.SparkContext
-import org.junit.{After, Before}
+import org.junit.After
+import org.junit.Before
 
 
 trait TestWithSparkContext {

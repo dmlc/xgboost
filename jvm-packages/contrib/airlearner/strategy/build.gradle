@@ -14,6 +14,12 @@ dependencies {
   provided "org.apache.spark:spark-core_2.10:${sparkVersion}"
   provided "org.apache.spark:spark-hive_2.10:${sparkVersion}"
   provided "org.apache.spark:spark-mllib_2.10:${sparkVersion}"
+
+  ////////////////////
+  // Test-specific dependencies
+  ////////////////////
+  testCompile project(':utils')
+  testCompile project(':utils').sourceSets.test.output
 }
 
 bintray {
@@ -40,7 +46,7 @@ bintray {
 
 }
 
-version '0.1'
+version '0.2'
 
 shadowJar {
   zip64 = true

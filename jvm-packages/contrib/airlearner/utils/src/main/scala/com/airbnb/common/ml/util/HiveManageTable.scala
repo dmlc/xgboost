@@ -1,9 +1,10 @@
 package com.airbnb.common.ml.util
 
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{Row, SaveMode}
 
 trait HiveManageTable {
   def toRow(partition: String): Row
