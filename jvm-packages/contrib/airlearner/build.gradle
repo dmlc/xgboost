@@ -33,9 +33,9 @@ allprojects {
     }
 
     group = 'com.airbnb.common.ml'
-
+    version gitVersion()
     ext.publish = true
-    ext.dryRun = false
+    ext.dryRun = true
 
     sourceSets {
         main {

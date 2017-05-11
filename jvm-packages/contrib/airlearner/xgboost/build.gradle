@@ -43,9 +43,6 @@ bintray {
     }
 }
 
-//can't use gitVersion() since it returns tag on general xgboost git repo
-version '0.1'
-
 shadowJar {
     zip64 = true
 }

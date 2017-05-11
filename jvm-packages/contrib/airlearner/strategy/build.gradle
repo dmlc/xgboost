@@ -46,8 +46,6 @@ bintray {
 
 }
 
-version '0.2'
-
 shadowJar {
   zip64 = true
 }

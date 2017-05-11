@@ -31,8 +31,6 @@ bintray {
     }
 }
 
-version '0.3'
-
 dependencies {
     compile libraries.lombok
     compile libraries.slf4j_api
