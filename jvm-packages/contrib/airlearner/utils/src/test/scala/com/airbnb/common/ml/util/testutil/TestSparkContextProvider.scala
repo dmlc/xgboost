@@ -1,6 +1,7 @@
-package com.airbnb.common.ml.test
+package com.airbnb.common.ml.util.testutil
 
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.SparkConf
+import org.apache.spark.SparkContext
 
 
 object TestSparkContextProvider {

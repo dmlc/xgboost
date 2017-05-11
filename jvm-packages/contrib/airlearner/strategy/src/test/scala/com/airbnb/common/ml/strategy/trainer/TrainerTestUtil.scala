@@ -5,7 +5,8 @@ import org.apache.spark.sql.hive.HiveContext
 
 import com.airbnb.common.ml.strategy.config.TrainingOptions
 import com.airbnb.common.ml.strategy.data.BaseBinarySample
-import com.airbnb.common.ml.util.{ScalaLogging, TestUtil}
+import com.airbnb.common.ml.strategy.testutil.CSVUtil
+import com.airbnb.common.ml.util.ScalaLogging
 
 
 object TrainerTestUtil extends ScalaLogging {
@@ -76,9 +77,9 @@ object TrainerTestUtil extends ScalaLogging {
        trainer: BinaryRegressionTrainer[BaseBinarySample]
   ): Unit = {
     val options = TrainerTestUtil.getOptionsTanhv2()
-    val trainingExamples = TestUtil.parseCSVToRDD(
+    val trainingExamples = CSVUtil.parseCSVToRDD(
       training, TrainerTestUtil.parseKey, TrainerTestUtil.parseBaseData, sc)
-    val evalExamples = TestUtil.parseCSVToRDD(
+    val evalExamples = CSVUtil.parseCSVToRDD(
       eval, TrainerTestUtil.parseKey, TrainerTestUtil.parseBaseData, sc)
 
     val r = trainer.

@@ -4,8 +4,9 @@ import org.junit.Test
 
 import com.airbnb.common.ml.strategy.data.BaseBinarySample
 import com.airbnb.common.ml.strategy.params.BaseParam
-import com.airbnb.common.ml.test.TestWithHiveContext
-import com.airbnb.common.ml.util.{ScalaLogging, TestUtil}
+import com.airbnb.common.ml.strategy.testutil.CSVUtil
+import com.airbnb.common.ml.util.ScalaLogging
+import com.airbnb.common.ml.util.testutil.TestWithHiveContext
 
 
 class BaseBinaryRegressionTrainerTest
@@ -29,7 +30,7 @@ class BaseBinaryRegressionTrainerTest
         0.98, 1.0,
         0.65, 1.03,
         1.0))))
-    val trainingExamples = TestUtil.parseCSVToRDD(
+    val trainingExamples = CSVUtil.parseCSVToRDD(
       "/data/train.csv", TrainerTestUtil.parseKey, TrainerTestUtil.parseBaseData, sc)
 
     val result = trainer.getParamsFromPerModelOptions(

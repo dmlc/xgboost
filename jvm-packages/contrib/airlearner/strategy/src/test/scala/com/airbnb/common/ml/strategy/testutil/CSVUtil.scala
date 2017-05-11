@@ -1,21 +1,13 @@
-package com.airbnb.common.ml.util
+package com.airbnb.common.ml.strategy.testutil
 
 import java.io.InputStream
+
+import scala.reflect.ClassTag
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
-import scala.reflect.ClassTag
-
-object TestUtil {
-  def stringToOptionDouble(str: String): Option[Double] = {
-    if (str.length>0) {
-      Some(str.toDouble)
-    } else {
-      None
-    }
-  }
-
+object CSVUtil {
   def readCSVToLines(path: String): Iterator[Array[String]] = {
     val stream : InputStream = getClass.getResourceAsStream(path)
     val lines = scala.io.Source.fromInputStream( stream ).getLines.drop(1)

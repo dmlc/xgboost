@@ -1,4 +1,4 @@
-package com.airbnb.common.ml.test
+package com.airbnb.common.ml.util.testutil
 
 import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkContext
