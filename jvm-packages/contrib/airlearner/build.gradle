@@ -83,5 +83,20 @@ subprojects {
         dependencies {
             testCompile 'junit:junit:4.7'
         }
+
+        task sourceJar(type: Jar) {
+            from sourceSets.main.allSource
+            classifier = 'sources'
+        }
+        task javadocJar(type: Jar, dependsOn: javadoc) {
+            classifier = 'javadoc'
+            from javadoc.destinationDir
+        }
+
+        // Add the sourceJars to non-extractor modules
+        artifacts {
+            published sourceJar
+            published javadocJar
+        }
     }
 }
