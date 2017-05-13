@@ -130,12 +130,11 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj = NULL) {
   }
 
   if (is.null(obj)) {
-    .Call("XGBoosterUpdateOneIter_R", booster_handle, as.integer(iter), dtrain,
-          PACKAGE = "xgboost")
+    .Call(XGBoosterUpdateOneIter_R, booster_handle, as.integer(iter), dtrain)
   } else {
     pred <- predict(booster_handle, dtrain)
     gpair <- obj(pred, dtrain)
-    .Call("XGBoosterBoostOneIter_R", booster_handle, dtrain, gpair$grad, gpair$hess, PACKAGE = "xgboost")
+    .Call(XGBoosterBoostOneIter_R, booster_handle, dtrain, gpair$grad, gpair$hess)
   }
   return(TRUE)
 }
@@ -153,8 +152,7 @@ xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
   
   evnames <- names(watchlist)
   if (is.null(feval)) {
-    msg <- .Call("XGBoosterEvalOneIter_R", booster_handle, as.integer(iter), watchlist,
-                 as.list(evnames), PACKAGE = "xgboost")
+    msg <- .Call(XGBoosterEvalOneIter_R, booster_handle, as.integer(iter), watchlist, as.list(evnames))
     msg <- stri_split_regex(msg, '(\\s+|:|\\s+)')[[1]][-1]
     res <- as.numeric(msg[c(FALSE,TRUE)]) # even indices are the values
     names(res) <- msg[c(TRUE,FALSE)]      # odds are the names
