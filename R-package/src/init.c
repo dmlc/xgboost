@@ -1,6 +1,13 @@
+/* Copyright (c) 2015 by Contributors
+ * 
+ * This file was initially generated using the following R command:
+ * tools::package_native_routine_registration_skeleton('.', con = 'src/init.c', character_only = F)
+ * and edited to conform to xgboost C linter requirements. For details, see
+ * https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Registering-native-routines
+ */
 #include <R.h>
 #include <Rinternals.h>
-#include <stdlib.h> // for NULL
+#include <stdlib.h>
 #include <R_ext/Rdynload.h>
 
 /* FIXME: 
@@ -61,8 +68,7 @@ static const R_CallMethodDef CallEntries[] = {
   {NULL, NULL, 0}
 };
 
-void R_init_xgboost(DllInfo *dll)
-{
+void R_init_xgboost(DllInfo *dll) {
   R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);
 }
