@@ -158,3 +158,12 @@ Some additional consideration is needed when the core library version changes.
 E.g., after the core changes from 0.6 to 0.7, the R package development version would become 0.7.0.1, working towards
 a 0.7.1 CRAN release. The 0.7.0 would not be released to CRAN, unless it would require almost no additional development.
 
+### Registering native routines in R
+According to [R extension manual](https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Registering-native-routines),
+it is good practice to register native routines and to disable symbol search. When any changes or additions are made to the
+interface of C++ code in the R package, one has to re-generate the registration code by running in R:
+```
+setwd('R-package/')
+tools::package_native_routine_registration_skeleton('.', con = 'src/init.c', character_only = FALSE)
+```
+or properly edit the ```src/init.c``` file by hand.
