@@ -14,18 +14,19 @@ df[,ID := NULL]
 sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df)
 label <- df[, ifelse(Improved == "Marked", 1, 0)]
 
+nrounds <- 12
 bst.Tree <- xgboost(data = sparse_matrix, label = label, max_depth = 9,
-                    eta = 1, nthread = 2, nrounds = 10, verbose = 0,
+                    eta = 1, nthread = 2, nrounds = nrounds, verbose = 0,
                     objective = "binary:logistic", booster = "gbtree")
 
 bst.GLM <- xgboost(data = sparse_matrix, label = label,
-                   eta = 1, nthread = 2, nrounds = 10, verbose = 0,
+                   eta = 1, nthread = 2, nrounds = nrounds, verbose = 0,
                    objective = "binary:logistic", booster = "gblinear")
 
 feature.names <- colnames(sparse_matrix)
 
 test_that("xgb.dump works", {
-  expect_length(xgb.dump(bst.Tree), 172)
+  expect_length(xgb.dump(bst.Tree), 200)
   expect_true(xgb.dump(bst.Tree, 'xgb.model.dump', with_stats = T))
   expect_true(file.exists('xgb.model.dump'))
   expect_gt(file.size('xgb.model.dump'), 8000)
@@ -33,7 +34,7 @@ test_that("xgb.dump works", {
   # JSON format
   dmp <- xgb.dump(bst.Tree, dump_format = "json")
   expect_length(dmp, 1)
-  expect_length(grep('nodeid', strsplit(dmp, '\n')[[1]]), 162)
+  expect_length(grep('nodeid', strsplit(dmp, '\n')[[1]]), 188)
 })
 
 test_that("xgb.dump works for gblinear", {
@@ -52,13 +53,42 @@ test_that("xgb.dump works for gblinear", {
   expect_length(grep('\\d', strsplit(dmp, '\n')[[1]]), 11)
 })
 
+test_that("predict leafs works", {
+  # no error for gbtree
+  expect_error(pred_leaf <- predict(bst.Tree, sparse_matrix, predleaf = TRUE), regexp = NA)
+  expect_equal(dim(pred_leaf), c(nrow(sparse_matrix), nrounds))
+  # error for gblinear
+  expect_error(predict(bst.GLM, sparse_matrix, predleaf = TRUE))
+})
+
+test_that("predict feature contributions works", {
+  # gbtree binary classifier
+  expect_error(pred_contr <- predict(bst.Tree, sparse_matrix, predcontrib = TRUE), regexp = NA)
+  expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
+  expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
+  pred <- predict(bst.Tree, sparse_matrix, outputmargin = TRUE)
+  expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-6)
+  
+  # gblinear binary classifier
+  expect_error(pred_contr <- predict(bst.GLM, sparse_matrix, predcontrib = TRUE), regexp = NA)
+  expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
+  expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
+  pred <- predict(bst.GLM, sparse_matrix, outputmargin = TRUE)
+  expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-6)
+  # calculate linear terms by hand and compare
+  coefs <- xgb.dump(bst.GLM)
+  coefs <- as.numeric(c(coefs[5:length(coefs)], coefs[3])) # intercept is last
+  pred_contr_manual <- sweep(cbind(sparse_matrix, 1), 2, coefs, FUN="*")
+  expect_equal(as.numeric(pred_contr), as.numeric(pred_contr_manual), 1e-6)
+})
+
 test_that("xgb-attribute functionality", {
   val <- "my attribute value"
   list.val <- list(my_attr=val, a=123, b='ok')
   list.ch <- list.val[order(names(list.val))]
   list.ch <- lapply(list.ch, as.character)
   # note: iter is 0-index in xgb attributes
-  list.default <- list(niter = "9")
+  list.default <- list(niter = as.character(nrounds - 1))
   list.ch <- c(list.ch, list.default)
   # proper input:
   expect_error(xgb.attr(bst.Tree, NULL))
@@ -85,7 +115,9 @@ test_that("xgb-attribute functionality", {
   expect_null(xgb.attributes(bst))
 })
 
-if (grepl('Windows', Sys.info()[['sysname']]) || grepl('Linux', Sys.info()[['sysname']]) || grepl('Darwin', Sys.info()[['sysname']])) {
+if (grepl('Windows', Sys.info()[['sysname']]) ||
+    grepl('Linux', Sys.info()[['sysname']]) ||
+    grepl('Darwin', Sys.info()[['sysname']])) {
     test_that("xgb-attribute numeric precision", {
       # check that lossless conversion works with 17 digits
       # numeric -> character -> numeric
@@ -121,7 +153,7 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
   dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
   expect_equal(names.dt.trees, names(dt.tree))
-  expect_equal(dim(dt.tree), c(162, 10))
+  expect_equal(dim(dt.tree), c(188, 10))
   expect_output(str(dt.tree), 'Feature.*\\"Age\\"')
   
   dt.tree.0 <- xgb.model.dt.tree(model = bst.Tree)

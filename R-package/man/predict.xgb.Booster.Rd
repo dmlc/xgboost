@@ -7,7 +7,7 @@
 \usage{
 \method{predict}{xgb.Booster}(object, newdata, missing = NA,
   outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE,
-  reshape = FALSE, ...)
+  predcontrib = FALSE, reshape = FALSE, ...)
 
 \method{predict}{xgb.Booster.handle}(object, ...)
 }
@@ -28,6 +28,8 @@ It will use all the trees by default (\code{NULL} value).}
 
 \item{predleaf}{whether predict leaf index instead.}
 
+\item{predcontrib}{whether to return feature contributions to individual predictions instead (see Details).}
+
 \item{reshape}{whether to reshape the vector of predictions to a matrix form when there are several 
 prediction outputs per case. This option has no effect when \code{predleaf = TRUE}.}
 
@@ -41,6 +43,12 @@ the \code{reshape} value.
 
 When \code{predleaf = TRUE}, the output is a matrix object with the 
 number of columns corresponding to the number of trees.
+
+When \code{predcontrib = TRUE}, the output is a matrix object with (num_features + 1) * num_class 
+columns (num_class is considered to be 1 for binary classification). The "+ 1" column correspond
+to bias and is the last column in each (num_features + 1) columns block.
+The contribution values are on untransformed margin scale (e.g., for binary classification 
+it means that the contributions are in log-odds deviations from bias).
 }
 \description{
 Predicted values based on either xgboost model or model handle object.
@@ -57,7 +65,14 @@ since gblinear doesn't keep its boosting history.
 
 One possible practical applications of the \code{predleaf} option is to use the model 
 as a generator of new features which capture non-linearity and interactions, 
-e.g., as implemented in \code{\link{xgb.create.features}}.
+e.g., as implemented in \code{\link{xgb.create.features}}. 
+
+Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
+individual predictions. For "gblinear" booster, feature contributions are simply linear terms
+(feature_beta * feature_value). For "gbtree" booster, feature contribution is calculated 
+as a sum of average contribution of that feature split nodes across all trees to an 
+individual prediction, following the idea explained in 
+\url{http://blog.datadive.net/interpreting-random-forests/}.
 }
 \examples{
 ## binary classification:
@@ -68,11 +83,32 @@ train <- agaricus.train
 test <- agaricus.test
 
 bst <- xgboost(data = train$data, label = train$label, max_depth = 2, 
-               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+               eta = 0.5, nthread = 2, nrounds = 5, objective = "binary:logistic")
 # use all trees by default
 pred <- predict(bst, test$data)
 # use only the 1st tree
-pred <- predict(bst, test$data, ntreelimit = 1)
+pred1 <- predict(bst, test$data, ntreelimit = 1)
+
+# Predicting tree leafs:
+# the result is an nsamples X ntrees matrix
+pred_leaf <- predict(bst, test$data, predleaf = TRUE)
+str(pred_leaf)
+
+# Predicting feature contributions to predictions:
+# the result is an nsamples X (nfeatures + 1) matrix
+pred_contr <- predict(bst, test$data, predcontrib = TRUE)
+str(pred_contr)
+# verify that contributions' sums are equal to log-odds of predictions (up to foat precision):
+summary(rowSums(pred_contr) - qlogis(pred))
+# for the 1st record, let's inspect its features that had non-zero contribution to prediction:
+contr1 <- pred_contr[1,]
+contr1 <- contr1[-length(contr1)]    # drop BIAS
+contr1 <- contr1[contr1 != 0]        # drop non-contributing features
+contr1 <- contr1[order(abs(contr1))] # order by contribution magnitude
+old_mar <- par("mar")
+par(mar = old_mar + c(0,7,0,0))
+barplot(contr1, horiz = TRUE, las = 2, xlab = "contribution to prediction in log-odds")
+par(mar = old_mar)
 
 
 ## multiclass classification in iris dataset:

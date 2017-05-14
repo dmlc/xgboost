@@ -126,7 +126,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        logistic regression would result in predictions for log-odds instead of probabilities.
 #' @param ntreelimit limit the number of model's trees or boosting iterations used in prediction (see Details).
 #'        It will use all the trees by default (\code{NULL} value).
-#' @param predleaf whether predict leaf index instead. 
+#' @param predleaf whether predict leaf index instead.
+#' @param predcontrib whether to return feature contributions to individual predictions instead (see Details).
 #' @param reshape whether to reshape the vector of predictions to a matrix form when there are several 
 #'        prediction outputs per case. This option has no effect when \code{predleaf = TRUE}.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
@@ -145,6 +146,13 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' as a generator of new features which capture non-linearity and interactions, 
 #' e.g., as implemented in \code{\link{xgb.create.features}}. 
 #' 
+#' Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
+#' individual predictions. For "gblinear" booster, feature contributions are simply linear terms
+#' (feature_beta * feature_value). For "gbtree" booster, feature contribution is calculated 
+#' as a sum of average contribution of that feature split nodes across all trees to an 
+#' individual prediction, following the idea explained in 
+#' \url{http://blog.datadive.net/interpreting-random-forests/}.
+#' 
 #' @return 
 #' For regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
 #' For multiclass classification, either a \code{num_class * nrows(newdata)} vector or 
@@ -153,6 +161,12 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' 
 #' When \code{predleaf = TRUE}, the output is a matrix object with the 
 #' number of columns corresponding to the number of trees.
+#' 
+#' When \code{predcontrib = TRUE}, the output is a matrix object with (num_features + 1) * num_class 
+#' columns (num_class is considered to be 1 for binary classification). The "+ 1" column correspond
+#' to bias and is the last column in each (num_features + 1) columns block.
+#' The contribution values are on untransformed margin scale (e.g., for binary classification 
+#' it means that the contributions are in log-odds deviations from bias).
 #' 
 #' @seealso
 #' \code{\link{xgb.train}}.
@@ -166,11 +180,32 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' test <- agaricus.test
 #' 
 #' bst <- xgboost(data = train$data, label = train$label, max_depth = 2, 
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#'                eta = 0.5, nthread = 2, nrounds = 5, objective = "binary:logistic")
 #' # use all trees by default
 #' pred <- predict(bst, test$data)
 #' # use only the 1st tree
-#' pred <- predict(bst, test$data, ntreelimit = 1)
+#' pred1 <- predict(bst, test$data, ntreelimit = 1)
+#' 
+#' # Predicting tree leafs:
+#' # the result is an nsamples X ntrees matrix
+#' pred_leaf <- predict(bst, test$data, predleaf = TRUE)
+#' str(pred_leaf)
+#' 
+#' # Predicting feature contributions to predictions:
+#' # the result is an nsamples X (nfeatures + 1) matrix
+#' pred_contr <- predict(bst, test$data, predcontrib = TRUE)
+#' str(pred_contr)
+#' # verify that contributions' sums are equal to log-odds of predictions (up to foat precision):
+#' summary(rowSums(pred_contr) - qlogis(pred))
+#' # for the 1st record, let's inspect its features that had non-zero contribution to prediction:
+#' contr1 <- pred_contr[1,]
+#' contr1 <- contr1[-length(contr1)]    # drop BIAS
+#' contr1 <- contr1[contr1 != 0]        # drop non-contributing features
+#' contr1 <- contr1[order(abs(contr1))] # order by contribution magnitude
+#' old_mar <- par("mar")
+#' par(mar = old_mar + c(0,7,0,0))
+#' barplot(contr1, horiz = TRUE, las = 2, xlab = "contribution to prediction in log-odds")
+#' par(mar = old_mar)
 #' 
 #' 
 #' ## multiclass classification in iris dataset:
@@ -222,8 +257,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #' @rdname predict.xgb.Booster
 #' @export
-predict.xgb.Booster <- function(object, newdata, missing = NA,
-    outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE, reshape = FALSE, ...) {
+predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
+                                predleaf = FALSE, predcontrib = FALSE, reshape = FALSE, ...) {
 
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
@@ -235,7 +270,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA,
   if (ntreelimit < 0)
     stop("ntreelimit cannot be negative")
   
-  option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf)
+  option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf) + 4L * as.logical(predcontrib)
   
   ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1], as.integer(ntreelimit))
   
@@ -243,12 +278,20 @@ predict.xgb.Booster <- function(object, newdata, missing = NA,
     stop("prediction length ", length(ret)," is not multiple of nrows(newdata) ", nrow(newdata))
   npred_per_case <- length(ret) / nrow(newdata)
 
-  if (predleaf){
+  if (predleaf || predcontrib) {
     len <- nrow(newdata)
     ret <- if (length(ret) == len) {
       matrix(ret, ncol = 1)
     } else {
-      t(matrix(ret, ncol = len))
+      matrix(ret, nrow = len, byrow = TRUE)
+    }
+    if (predcontrib && !is.null(colnames(newdata))) {
+      ngroup <- npred_per_case / (ncol(newdata) + 1)
+      cnames <- c(colnames(newdata), "BIAS") %>% rep(ngroup)
+      if (ngroup > 1) {
+        cnames[ncol(newdata) * (1:ngroup)] <- paste0("BIAS_", 1:ngroup)
+      }
+      colnames(ret) <- cnames
     }
   } else if (reshape && npred_per_case > 1) {
     ret <- matrix(ret, ncol = length(ret) / nrow(newdata), byrow = TRUE)
