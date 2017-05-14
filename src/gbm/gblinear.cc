@@ -180,10 +180,6 @@ class GBLinear : public GradientBooster {
         << "GBLinear::Predict ntrees is only valid for gbtree predictor";
     std::vector<bst_float> &preds = *out_preds;
     const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
-    if (base_margin.size() != 0) {
-      CHECK_EQ(preds.size(), base_margin.size())
-          << "base_margin.size does not match with prediction size";
-    }
     preds.resize(0);
     // start collecting the prediction
     dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
