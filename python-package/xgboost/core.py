@@ -911,7 +911,8 @@ class Booster(object):
         self._validate_features(data)
         return self.eval_set([(data, name)], iteration)
 
-    def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False):
+    def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False,
+                pred_contribs=False):
         """
         Predict with data.
 
@@ -937,6 +938,12 @@ class Booster(object):
             Note that the leaf index of a tree is unique per tree, so you may find leaf 1
             in both tree 1 and tree 0.
 
+        pred_contribs : bool
+            When this option is on, the output will be a matrix of (nsample, nfeats+1)
+            with each record indicating the feature contributions of all trees. The sum of
+            all feature contributions is equal to the prediction. Note that the bias is added
+            as the final column, on top of the regular features.
+
         Returns
         -------
         prediction : numpy array
@@ -946,6 +953,8 @@ class Booster(object):
             option_mask |= 0x01
         if pred_leaf:
             option_mask |= 0x02
+        if pred_contribs:
+            option_mask |= 0x04
 
         self._validate_features(data)
 

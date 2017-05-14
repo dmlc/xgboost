@@ -2,7 +2,6 @@
  * Copyright 2016 Rory mitchell
  */
 #pragma once
-#include <cusparse.h>
 #include <thrust/device_vector.h>
 #include <xgboost/tree_updater.h>
 #include <cub/util_type.cuh>  // Need key value pair definition
@@ -63,12 +62,17 @@ class GPUHistBuilder {
               RegTree *p_tree);
   void BuildHist(int depth);
   void FindSplit(int depth);
+  void FindSplit256(int depth);
+  void FindSplit1024(int depth);
+  void FindSplitLarge(int depth);
   void InitFirstNode();
-  void UpdatePosition();
-  void UpdatePositionDense();
-  void UpdatePositionSparse();
+  void UpdatePosition(int depth);
+  void UpdatePositionDense(int depth);
+  void UpdatePositionSparse(int depth);
   void ColSampleTree();
   void ColSampleLevel();
+  bool UpdatePredictionCache(const DMatrix* data,
+    std::vector<bst_float>* p_out_preds);
 
   TrainParam param;
   GPUTrainingParam gpu_param;
@@ -78,6 +82,7 @@ class GPUHistBuilder {
   bool initialised;
   bool is_dense;
   DeviceGMat device_matrix;
+    const DMatrix* p_last_fmat_;
 
   dh::bulk_allocator ba;
   dh::CubMemory cub_mem;
@@ -96,6 +101,9 @@ class GPUHistBuilder {
   dh::dvec<gpu_gpair> device_gpair;
   dh::dvec<Node> nodes;
   dh::dvec<int> feature_flags;
+  dh::dvec<bool>  left_child_smallest;
+  dh::dvec<bst_float>  prediction_cache;
+  bool prediction_cache_initialised;
 
   std::vector<int> feature_set_tree;
   std::vector<int> feature_set_level;
