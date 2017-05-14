@@ -400,8 +400,11 @@ class LearnerImpl : public Learner {
                bool output_margin,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
-               bool pred_leaf) const override {
-    if (pred_leaf) {
+               bool pred_leaf,
+               bool pred_contribs) const override {
+    if (pred_contribs) {
+      gbm_->PredictContribution(data, out_preds, ntree_limit);
+    } else if (pred_leaf) {
       gbm_->PredictLeaf(data, out_preds, ntree_limit);
     } else {
       this->PredictRaw(data, out_preds, ntree_limit);

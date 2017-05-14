@@ -322,6 +322,14 @@ class GBTree : public GradientBooster {
     this->PredPath(p_fmat, out_preds, ntree_limit);
   }
 
+  void PredictContribution(DMatrix* p_fmat,
+                           std::vector<bst_float>* out_contribs,
+                           unsigned ntree_limit) override {
+    const int nthread = omp_get_max_threads();
+    InitThreadTemp(nthread);
+    this->PredContrib(p_fmat, out_contribs, ntree_limit);
+  }
+
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                      bool with_stats,
                                      std::string format) const override {
@@ -550,6 +558,62 @@ class GBTree : public GradientBooster {
           preds[ridx * ntree_limit + j] = static_cast<bst_float>(tid);
         }
         feats.Drop(batch[i]);
+      }
+    }
+  }
+  // predict contributions
+  inline void PredContrib(DMatrix *p_fmat,
+                          std::vector<bst_float> *out_contribs,
+                          unsigned ntree_limit) {
+    const MetaInfo& info = p_fmat->info();
+    // number of valid trees
+    ntree_limit *= mparam.num_output_group;
+    if (ntree_limit == 0 || ntree_limit > trees.size()) {
+      ntree_limit = static_cast<unsigned>(trees.size());
+    }
+    size_t ncolumns = mparam.num_feature + 1;
+    // allocate space for (number of features + bias) times the number of rows
+    std::vector<bst_float>& contribs = *out_contribs;
+    contribs.resize(info.num_row * ncolumns * mparam.num_output_group);
+    // make sure contributions is zeroed, we could be reusing a previously allocated one
+    std::fill(contribs.begin(), contribs.end(), 0);
+    // initialize tree node mean values
+    #pragma omp parallel for schedule(static)
+    for (bst_omp_uint i=0; i < ntree_limit; ++i) {
+      trees[i]->FillNodeMeanValues();
+    }
+    // start collecting the contributions
+    dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
+    const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
+    iter->BeforeFirst();
+    while (iter->Next()) {
+      const RowBatch& batch = iter->Value();
+      // parallel over local batch
+      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      #pragma omp parallel for schedule(static)
+      for (bst_omp_uint i = 0; i < nsize; ++i) {
+        size_t row_idx = static_cast<size_t>(batch.base_rowid + i);
+        unsigned root_id = info.GetRoot(row_idx);
+        RegTree::FVec &feats = thread_temp[omp_get_thread_num()];
+        // loop over all classes
+        for (int gid = 0; gid < mparam.num_output_group; ++gid) {
+          bst_float *p_contribs = &contribs[(row_idx * mparam.num_output_group + gid) * ncolumns];
+          feats.Fill(batch[i]);
+          // calculate contributions
+          for (unsigned j = 0; j < ntree_limit; ++j) {
+            if (tree_info[j] != gid) {
+              continue;
+            }
+            trees[j]->CalculateContributions(feats, root_id, p_contribs);
+          }
+          feats.Drop(batch[i]);
+          // add base margin to BIAS feature
+          if (base_margin.size() != 0) {
+            p_contribs[ncolumns - 1] += base_margin[row_idx * mparam.num_output_group + gid];
+          } else {
+            p_contribs[ncolumns - 1] += base_margin_;
+          }
+        }
       }
     }
   }
