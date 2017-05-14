@@ -109,8 +109,8 @@ class GradientBooster {
                            unsigned ntree_limit = 0) = 0;
 
   /*!
-   * \brief predict the feature contributions of each tree, the output will be nsample * (nfeats + 1) vector
-   *        this is only valid in gbtree predictor
+   * \brief feature contributions to individual predictions; the output will be a vector
+   *         of length (nfeats + 1) * num_output_group * nsample, arranged in that order
    * \param dmat feature matrix
    * \param out_contribs output vector to hold the contributions
    * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means

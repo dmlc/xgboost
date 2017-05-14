@@ -384,7 +384,7 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
  *          0:normal prediction
  *          1:output margin instead of transformed value
  *          2:output leaf index of trees instead of leaf value, note leaf index is unique per tree
- *          4:output feature contributions of all trees instead of predictions
+ *          4:output feature contributions to individual predictions
  * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
  *    when the parameter is set to 0, we will use all the trees
  * \param out_len used to store length of returning result
