@@ -6,15 +6,15 @@ xgb.Booster.handle <- function(params = list(), cachelist = list(), modelfile = 
     stop("cachelist must be a list of xgb.DMatrix objects")
   }
 
-  handle <- .Call("XGBoosterCreate_R", cachelist, PACKAGE = "xgboost")
+  handle <- .Call(XGBoosterCreate_R, cachelist)
   if (!is.null(modelfile)) {
     if (typeof(modelfile) == "character") {
-      .Call("XGBoosterLoadModel_R", handle, modelfile[1], PACKAGE = "xgboost")
+      .Call(XGBoosterLoadModel_R, handle, modelfile[1])
     } else if (typeof(modelfile) == "raw") {
-      .Call("XGBoosterLoadModelFromRaw_R", handle, modelfile, PACKAGE = "xgboost")
+      .Call(XGBoosterLoadModelFromRaw_R, handle, modelfile)
     } else if (inherits(modelfile, "xgb.Booster")) {
       bst <- xgb.Booster.complete(modelfile, saveraw = TRUE)
-      .Call("XGBoosterLoadModelFromRaw_R", handle, bst$raw, PACKAGE = "xgboost")
+      .Call(XGBoosterLoadModelFromRaw_R, handle, bst$raw)
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
     }
@@ -40,7 +40,7 @@ is.null.handle <- function(handle) {
   if (!identical(class(handle), "xgb.Booster.handle"))
     stop("argument type must be xgb.Booster.handle")
   
-  if (is.null(handle) || .Call("XGCheckNullPtr_R", handle, PACKAGE = "xgboost"))
+  if (is.null(handle) || .Call(XGCheckNullPtr_R, handle))
     return(TRUE)
   return(FALSE)
 }
@@ -237,8 +237,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA,
   
   option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf)
   
-  ret <- .Call("XGBoosterPredict_R", object$handle, newdata, option[1],
-               as.integer(ntreelimit), PACKAGE = "xgboost")
+  ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1], as.integer(ntreelimit))
   
   if (length(ret) %% nrow(newdata) != 0)
     stop("prediction length ", length(ret)," is not multiple of nrows(newdata) ", nrow(newdata))
@@ -338,7 +337,7 @@ predict.xgb.Booster.handle <- function(object, ...) {
 xgb.attr <- function(object, name) {
   if (is.null(name) || nchar(as.character(name[1])) == 0) stop("invalid attribute name")
   handle <- xgb.get.handle(object)
-  .Call("XGBoosterGetAttr_R", handle, as.character(name[1]), PACKAGE = "xgboost")
+  .Call(XGBoosterGetAttr_R, handle, as.character(name[1]))
 }
 
 #' @rdname xgb.attr
@@ -355,7 +354,7 @@ xgb.attr <- function(object, name) {
       value <- as.character(value[1])
     }
   }
-  .Call("XGBoosterSetAttr_R", handle, as.character(name[1]), value, PACKAGE = "xgboost")
+  .Call(XGBoosterSetAttr_R, handle, as.character(name[1]), value)
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)
   }
@@ -366,10 +365,10 @@ xgb.attr <- function(object, name) {
 #' @export
 xgb.attributes <- function(object) {
   handle <- xgb.get.handle(object)
-  attr_names <- .Call("XGBoosterGetAttrNames_R", handle, PACKAGE = "xgboost")
+  attr_names <- .Call(XGBoosterGetAttrNames_R, handle)
   if (is.null(attr_names)) return(NULL)
   res <- lapply(attr_names, function(x) {
-    .Call("XGBoosterGetAttr_R", handle, x, PACKAGE = "xgboost")
+    .Call(XGBoosterGetAttr_R, handle, x)
   })
   names(res) <- attr_names
   res
@@ -394,7 +393,7 @@ xgb.attributes <- function(object) {
   })
   handle <- xgb.get.handle(object)
   for (i in seq_along(a)) {
-    .Call("XGBoosterSetAttr_R", handle, names(a[i]), a[[i]], PACKAGE = "xgboost")
+    .Call(XGBoosterSetAttr_R, handle, names(a[i]), a[[i]])
   }
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)
@@ -435,7 +434,7 @@ xgb.attributes <- function(object) {
   p <- lapply(p, function(x) as.character(x)[1])
   handle <- xgb.get.handle(object)
   for (i in seq_along(p)) {
-    .Call("XGBoosterSetParam_R", handle, names(p[i]), p[[i]], PACKAGE = "xgboost")
+    .Call(XGBoosterSetParam_R, handle, names(p[i]), p[[i]])
   }
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)

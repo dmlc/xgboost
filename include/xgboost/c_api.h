@@ -2,10 +2,12 @@
  * Copyright (c) 2015 by Contributors
  * \file c_api.h
  * \author Tianqi Chen
- * \brief C API of XGBoost, used to interfacing with other languages.
+ * \brief C API of XGBoost, used for interfacing to other languages.
  */
 #ifndef XGBOOST_C_API_H_
 #define XGBOOST_C_API_H_
+
+#include <cstdint>
 
 #ifdef __cplusplus
 #define XGB_EXTERN_C extern "C"
@@ -62,7 +64,7 @@ typedef struct {
 /*!
  * \brief Callback to set the data to handle,
  * \param handle The handle to the callback.
- * \param batch The data content to be setted.
+ * \param batch The data content to be set.
  */
 XGB_EXTERN_C typedef int XGBCallbackSetData(
     DataHolderHandle handle, XGBoostBatchCSR batch);
