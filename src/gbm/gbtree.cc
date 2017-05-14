@@ -571,6 +571,7 @@ class GBTree : public GradientBooster {
     if (ntree_limit == 0 || ntree_limit > trees.size()) {
       ntree_limit = static_cast<unsigned>(trees.size());
     }
+    const int ngroup = mparam.num_output_group;
     size_t ncolumns = mparam.num_feature + 1;
     // allocate space for (number of features + bias) times the number of rows
     std::vector<bst_float>& contribs = *out_contribs;
@@ -584,7 +585,7 @@ class GBTree : public GradientBooster {
     }
     // start collecting the contributions
     dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
-    const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
+    const std::vector<bst_float>& base_margin = info.base_margin;
     iter->BeforeFirst();
     while (iter->Next()) {
       const RowBatch& batch = iter->Value();
@@ -596,8 +597,8 @@ class GBTree : public GradientBooster {
         unsigned root_id = info.GetRoot(row_idx);
         RegTree::FVec &feats = thread_temp[omp_get_thread_num()];
         // loop over all classes
-        for (int gid = 0; gid < mparam.num_output_group; ++gid) {
-          bst_float *p_contribs = &contribs[(row_idx * mparam.num_output_group + gid) * ncolumns];
+        for (int gid = 0; gid < ngroup; ++gid) {
+          bst_float *p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
           feats.Fill(batch[i]);
           // calculate contributions
           for (unsigned j = 0; j < ntree_limit; ++j) {
@@ -607,9 +608,9 @@ class GBTree : public GradientBooster {
             trees[j]->CalculateContributions(feats, root_id, p_contribs);
           }
           feats.Drop(batch[i]);
-          // add base margin to BIAS feature
+          // add base margin to BIAS
           if (base_margin.size() != 0) {
-            p_contribs[ncolumns - 1] += base_margin[row_idx * mparam.num_output_group + gid];
+            p_contribs[ncolumns - 1] += base_margin[row_idx * ngroup + gid];
           } else {
             p_contribs[ncolumns - 1] += base_margin_;
           }
