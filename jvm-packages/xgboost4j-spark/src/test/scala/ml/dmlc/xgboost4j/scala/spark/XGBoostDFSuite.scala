@@ -194,7 +194,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(xgbEstimatorCopy1.fromParamsToXGBParamMap("eval_metric") === "logloss")
   }
 
-  test("fast histogram algorithm parameters are exposed correctly") {
+  ignore("fast histogram algorithm parameters are exposed correctly") {
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",

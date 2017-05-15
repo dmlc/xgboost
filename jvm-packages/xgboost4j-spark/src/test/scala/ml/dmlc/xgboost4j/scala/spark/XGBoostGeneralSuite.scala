@@ -23,9 +23,12 @@ import scala.collection.mutable.ListBuffer
 import scala.io.Source
 import scala.util.Random
 import scala.concurrent.duration._
+
 import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
+import org.scalatest.Ignore
+
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.ml.linalg.{Vectors, Vector => SparkVector}
@@ -117,7 +120,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       testSetDMatrix) < 0.1)
   }
 
-  test("test with fast histo depthwise") {
+  ignore("test with fast histo depthwise") {
     val eval = new EvalError()
     val trainingRDD = buildTrainingRDD(sc)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
@@ -133,7 +136,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       testSetDMatrix) < 0.1)
   }
 
-  test("test with fast histo lossguide") {
+  ignore("test with fast histo lossguide") {
     val eval = new EvalError()
     val trainingRDD = buildTrainingRDD(sc)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
@@ -149,7 +152,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     assert(x < 0.1)
   }
 
-  test("test with fast histo lossguide with max bin") {
+  ignore("test with fast histo lossguide with max bin") {
     val eval = new EvalError()
     val trainingRDD = buildTrainingRDD(sc)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
@@ -166,7 +169,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     assert(x < 0.1)
   }
 
-  test("test with fast histo depthwidth with max depth") {
+  ignore("test with fast histo depthwidth with max depth") {
     val eval = new EvalError()
     val trainingRDD = buildTrainingRDD(sc)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
@@ -183,7 +186,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     assert(x < 0.1)
   }
 
-  test("test with fast histo depthwidth with max depth and max bin") {
+  ignore("test with fast histo depthwidth with max depth and max bin") {
     val eval = new EvalError()
     val trainingRDD = buildTrainingRDD(sc)
     val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
