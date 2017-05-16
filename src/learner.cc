@@ -45,15 +45,20 @@ struct LearnerModelParam
   int contain_extra_attrs;
   /*! \brief reserved field */
   int reserved[30];
+  /*! \brief Number of rounds for early stopping */
+  int early_stopping_round;
   /*! \brief constructor */
   LearnerModelParam() {
     std::memset(this, 0, sizeof(LearnerModelParam));
     base_score = 0.5f;
+    early_stopping_round = 0;
   }
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerModelParam) {
     DMLC_DECLARE_FIELD(base_score).set_default(0.5f)
         .describe("Global bias of the model.");
+    DMLC_DECLARE_FIELD(early_stopping_round).set_default(0)
+        .describe("Early stop round num..");
     DMLC_DECLARE_FIELD(num_feature).set_default(0)
         .describe("Number of features in training data,"\
                   " this parameter will be automatically detected by learner.");
@@ -227,11 +232,28 @@ class LearnerImpl : public Learner {
     if (obj_.get() != nullptr) {
       obj_->Configure(cfg_.begin(), cfg_.end());
     }
+    this->early_stopping_round_ = mparam.early_stopping_round;
   }
 
   void InitModel() override {
     this->LazyInitModel();
   }
+
+  void InitEarlyStopInfo(size_t size) override {
+    if (early_stopping_round_ <= 0) {
+      return;
+    }
+    for (size_t i = 0; i < size; ++i) {
+      best_iter_.emplace_back();
+      best_score_.emplace_back();
+
+      for (size_t i = 0; i < metrics_.size(); ++i) {
+        best_iter_.back().push_back(0);
+        best_score_.back().push_back(-std::numeric_limits<float>::infinity());
+      }
+    }
+  }
+
 
   void Load(dmlc::Stream* fi) override {
     // TODO(tqchen) mark deprecation of old format.
@@ -332,8 +354,14 @@ class LearnerImpl : public Learner {
 
   std::string EvalOneIter(int iter,
                           const std::vector<DMatrix*>& data_sets,
-                          const std::vector<std::string>& data_names) override {
+                          const std::vector<std::string>& data_names,
+                          bool* early_stopping) override {
     std::ostringstream os;
+
+    if (NULL != early_stopping) {
+        *early_stopping = false;
+    }
+
     os << '[' << iter << ']'
        << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0) {
@@ -342,9 +370,28 @@ class LearnerImpl : public Learner {
     for (size_t i = 0; i < data_sets.size(); ++i) {
       this->PredictRaw(data_sets[i], &preds_);
       obj_->EvalTransform(&preds_);
-      for (auto& ev : metrics_) {
-        os << '\t' << data_names[i] << '-' << ev->Name() << ':'
-           << ev->Eval(preds_, data_sets[i]->info(), tparam.dsplit == 2);
+      std::string data_name = data_names[i];
+      bool is_train_data =  (data_name == std::string("train"));
+
+      for (size_t j = 0; j < metrics_.size(); ++j) {
+        std::string metr_name = metrics_[j]->Name();
+        bst_float curr_score = metrics_[j]->Eval(preds_, data_sets[i]->info(),  tparam.dsplit == 2);
+        os  <<  "\t" << data_name << "-" << metr_name << ":"
+            << curr_score;
+
+        if (early_stopping_round_ > 0 && !is_train_data && NULL != early_stopping) {
+          if (curr_score > best_score_[i][j]) {
+            best_score_[i][j] = curr_score;
+            best_iter_[i][j] = iter;
+          } else if (iter - best_iter_[i][j] >= early_stopping_round_) {
+            *early_stopping = true;
+            os <<  "\nEarly stopping at iteration [" << iter
+               << "], the best iteration round is [" << iter - early_stopping_round_ << "]";
+            // remove the last trees
+            gbm_->ShrinkModel(early_stopping_round_);
+            return os.str();
+          }
+        }
       }
     }
     return os.str();
