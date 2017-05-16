@@ -266,6 +266,10 @@ object XGBoost extends Serializable {
       trainingData: RDD[MLLabeledPoint], params: Map[String, Any], round: Int,
       nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
       useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
+    if (params.contains("tree_method")) {
+      require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
+        " for now")
+    }
     require(nWorkers > 0, "you must specify more than 0 workers")
     if (obj != null) {
       require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
