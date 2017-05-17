@@ -112,7 +112,7 @@ class XGBModel(XGBModelBase):
     """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 silent=True, objective="reg:linear",
+                 silent=True, objective="reg:linear", booster='gbtree',
                  nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
@@ -124,6 +124,7 @@ class XGBModel(XGBModelBase):
         self.n_estimators = n_estimators
         self.silent = silent
         self.objective = objective
+        self.booster = booster
 
         self.nthread = nthread
         self.gamma = gamma
@@ -150,7 +151,7 @@ class XGBModel(XGBModelBase):
             state["_Booster"] = Booster(model_file=bst)
         self.__dict__.update(state)
 
-    def booster(self):
+    def get_booster(self):
         """Get the underlying xgboost Booster of this model.
 
         This will raise an exception when fit was not called
@@ -270,9 +271,9 @@ class XGBModel(XGBModelBase):
     def predict(self, data, output_margin=False, ntree_limit=0):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing)
-        return self.booster().predict(test_dmatrix,
-                                      output_margin=output_margin,
-                                      ntree_limit=ntree_limit)
+        return self.get_booster().predict(test_dmatrix,
+                                          output_margin=output_margin,
+                                          ntree_limit=ntree_limit)
 
     def apply(self, X, ntree_limit=0):
         """Return the predicted leaf every tree for each sample.
@@ -293,9 +294,9 @@ class XGBModel(XGBModelBase):
             ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
         """
         test_dmatrix = DMatrix(X, missing=self.missing)
-        return self.booster().predict(test_dmatrix,
-                                      pred_leaf=True,
-                                      ntree_limit=ntree_limit)
+        return self.get_booster().predict(test_dmatrix,
+                                          pred_leaf=True,
+                                          ntree_limit=ntree_limit)
 
     def evals_result(self):
         """Return the evaluation results.
@@ -341,7 +342,7 @@ class XGBModel(XGBModelBase):
         feature_importances_ : array of shape = [n_features]
 
         """
-        b = self.booster()
+        b = self.get_booster()
         fs = b.get_fscore()
         all_features = [fs.get(f, 0.) for f in b.feature_names]
         all_features = np.array(all_features, dtype=np.float32)
@@ -479,9 +480,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def predict(self, data, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing)
-        class_probs = self.booster().predict(test_dmatrix,
-                                             output_margin=output_margin,
-                                             ntree_limit=ntree_limit)
+        class_probs = self.get_booster().predict(test_dmatrix,
+                                                 output_margin=output_margin,
+                                                 ntree_limit=ntree_limit)
         if len(class_probs.shape) > 1:
             column_indexes = np.argmax(class_probs, axis=1)
         else:
@@ -491,9 +492,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def predict_proba(self, data, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing)
-        class_probs = self.booster().predict(test_dmatrix,
-                                             output_margin=output_margin,
-                                             ntree_limit=ntree_limit)
+        class_probs = self.get_booster().predict(test_dmatrix,
+                                                 output_margin=output_margin,
+                                                 ntree_limit=ntree_limit)
         if self.objective == "multi:softprob":
             return class_probs
         else:
