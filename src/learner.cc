@@ -361,7 +361,6 @@ class LearnerImpl : public Learner {
                           const std::vector<DMatrix*>& data_sets,
                           const std::vector<std::string>& data_names,
                           bool* early_stopping) override {
-                          const std::vector<std::string>& data_names) override {
     double tstart = dmlc::GetTime();
     std::ostringstream os;
 
