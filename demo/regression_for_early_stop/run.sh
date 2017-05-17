@@ -1,4 +1,4 @@
-rm  -rf ./result/*
+#!/bin/bash
 
 # train
 ../../xgboost ./conf/train.conf

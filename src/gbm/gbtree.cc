@@ -510,7 +510,7 @@ class GBTree : public GradientBooster {
     }
   }
 
-  // remove last shrink_tree_num trees when straining stop early
+  // remove last shrink_tree_num trees when training stop early
   void ShrinkModel(int shrink_tree_num) {
     for (int i = 0; i < shrink_tree_num; ++i) {
       trees.pop_back();
