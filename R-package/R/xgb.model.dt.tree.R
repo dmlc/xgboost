@@ -14,6 +14,8 @@
 #'          It could be useful, e.g., in multiclass classification to get only
 #'          the trees of one certain class. IMPORTANT: the tree index in xgboost models
 #'          is zero-based (e.g., use \code{trees = 0:4} for first 5 trees).
+#' @param use_int_id a logical flag indicating whether nodes in columns "Yes", "No", "Missing" should be
+#'          represented as integers (when FALSE) or as "Tree-Node" character strings (when FALSE).
 #' @param ... currently not used.
 #'
 #' @return 
@@ -22,9 +24,9 @@
 #' The columns of the \code{data.table} are:
 #' 
 #' \itemize{
-#'  \item \code{Tree}: ID of a tree in a model (integer)
-#'  \item \code{Node}: integer ID of a node in a tree (integer)
-#'  \item \code{ID}: identifier of a node in a model (character)
+#'  \item \code{Tree}: integer ID of a tree in a model (zero-based index)
+#'  \item \code{Node}: integer ID of a node in a tree (zero-based index)
+#'  \item \code{ID}: character identifier of a node in a model (only when \code{use_int_id=FALSE})
 #'  \item \code{Feature}: for a branch node, it's a feature id or name (when available);
 #'              for a leaf note, it simply labels it as \code{'Leaf'}
 #'  \item \code{Split}: location of the split for a branch node (split condition is always "less than")
@@ -36,6 +38,10 @@
 #'                      or collected by a leaf during training.
 #' } 
 #' 
+#' When \code{use_int_id=FALSE}, columns "Yes", "No", and "Missing" point to model-wide node identifiers
+#' in the "ID" column. When \code{use_int_id=TRUE}, those columns point to node identifiers from 
+#' the corresponding trees in the "Node" column.
+#' 
 #' @examples
 #' # Basic use:
 #' 
@@ -45,8 +51,9 @@
 #'                eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
 #' 
 #' (dt <- xgb.model.dt.tree(colnames(agaricus.train$data), bst))
-#' # This bst has feature_names stored in it, so those would be used when 
-#' # the feature_names parameter is not provided:
+#' 
+#' # This bst model already has feature_names stored with it, so those would be used when 
+#' # feature_names is not set:
 #' (dt <- xgb.model.dt.tree(model = bst))
 #' 
 #' # How to match feature names of splits that are following a current 'Yes' branch:
@@ -55,24 +62,24 @@
 #'  
 #' @export
 xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
-                              trees = NULL, ...){
+                              trees = NULL, use_int_id = FALSE, ...){
   check.deprecation(...)
   
-  if (class(model) != "xgb.Booster" & class(text) != "character") {
-    stop("Either 'model' has to be an object of class xgb.Booster\n",
-         "  or 'text' has to be a character vector with the result of xgb.dump\n",
-         "  (or NULL if the model was provided).")
+  if (!inherits(model, "xgb.Booster") & !is.character(text)) {
+    stop("Either 'model' must be an object of class xgb.Booster\n",
+         "  or 'text' must be a character vector with the result of xgb.dump\n",
+         "  (or NULL if 'model' was provided).")
   }
   
   if (is.null(feature_names) && !is.null(model) && !is.null(model$feature_names))
     feature_names <- model$feature_names
   
-  if (!class(feature_names) %in% c("character", "NULL")) {
-    stop("feature_names: Has to be a character vector")
+  if (!(is.null(feature_names) || is.character(feature_names))) {
+    stop("feature_names: must be a character vector")
   }
   
-  if (!class(trees) %in% c("integer", "numeric", "NULL")) {
-    stop("trees: Has to be a vector of integers.")
+  if (!(is.null(trees) || is.numeric(trees))) {
+    stop("trees: must be a vector of integers.")
   }
   
   if (is.null(text)){
@@ -86,11 +93,11 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   
   position <- which(!is.na(stri_match_first_regex(text, "booster")))
   
-  add.tree.id <- function(x, i) paste(i, x, sep = "-")
+  add.tree.id <- function(node, tree) if (use_int_id) node else paste(tree, node, sep = "-")
   
   anynumber_regex <- "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
   
-  td <- data.table(t=text)
+  td <- data.table(t = text)
   td[position, Tree := 1L]
   td[, Tree := cumsum(ifelse(is.na(Tree), 0L, Tree)) - 1L]
   
@@ -102,32 +109,43 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   td <- td[Tree %in% trees & !grepl('^booster', t)]
   
   td[, Node := stri_match_first_regex(t, "(\\d+):")[,2] %>% as.integer ]
-  td[, ID := add.tree.id(Node, Tree)]
+  if (!use_int_id) td[, ID := add.tree.id(Node, Tree)]
   td[, isLeaf := !is.na(stri_match_first_regex(t, "leaf"))]
 
   # parse branch lines
-  td[isLeaf==FALSE, c("Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover") := {
-    rx <- paste0("f(\\d+)<(", anynumber_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
-                 "gain=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
-    # skip some indices with spurious capture groups from anynumber_regex
-    xtr <- stri_match_first_regex(t, rx)[, c(2,3,5,6,7,8,10)]
-    xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
-    lapply(1:ncol(xtr), function(i) xtr[,i])
-  }]
+  branch_rx <- paste0("f(\\d+)<(", anynumber_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
+                      "gain=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
+  branch_cols <- c("Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
+  td[isLeaf == FALSE, 
+     (branch_cols) := {
+      # skip some indices with spurious capture groups from anynumber_regex
+      xtr <- stri_match_first_regex(t, branch_rx)[, c(2,3,5,6,7,8,10), drop = FALSE]
+      xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
+      lapply(1:ncol(xtr), function(i) xtr[,i])
+    }]
   # assign feature_names when available
-  td[isLeaf==FALSE & !is.null(feature_names), 
-     Feature := feature_names[as.numeric(Feature) + 1] ]
+  if (!is.null(feature_names)) {
+    if (length(feature_names) <= max(as.numeric(td$Feature), na.rm = TRUE))
+      stop("feature_names has less elements than there are features used in the model")
+    td[isLeaf == FALSE, Feature := feature_names[as.numeric(Feature) + 1] ]
+  }
   
   # parse leaf lines
-  td[isLeaf==TRUE, c("Feature", "Quality", "Cover") := {
-    rx <- paste0("leaf=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
-    xtr <- stri_match_first_regex(t, rx)[, c(2,4)]
-    c("Leaf", lapply(1:ncol(xtr), function(i) xtr[,i]))
-  }]
+  leaf_rx <- paste0("leaf=(", anynumber_regex, "),cover=(", anynumber_regex, ")")
+  leaf_cols <- c("Feature", "Quality", "Cover")
+  td[isLeaf == TRUE,
+     (leaf_cols) := {
+      xtr <- stri_match_first_regex(t, leaf_rx)[, c(2,4)]
+      c("Leaf", lapply(1:ncol(xtr), function(i) xtr[,i]))
+    }]
   
   # convert some columns to numeric
   numeric_cols <- c("Split", "Quality", "Cover")
-  td[, (numeric_cols) := lapply(.SD, as.numeric), .SDcols=numeric_cols]
+  td[, (numeric_cols) := lapply(.SD, as.numeric), .SDcols = numeric_cols]
+  if (use_int_id) {
+    int_cols <- c("Yes", "No", "Missing")
+    td[, (int_cols) := lapply(.SD, as.integer), .SDcols = int_cols]
+  }
   
   td[, t := NULL]
   td[, isLeaf := NULL]

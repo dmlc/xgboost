@@ -133,6 +133,12 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   dt.tree.x <- xgb.model.dt.tree(model = bst.Tree.x)
   expect_output(str(dt.tree.x), 'Feature.*\\"3\\"')
   expect_equal(dt.tree[, -4, with=FALSE], dt.tree.x[, -4, with=FALSE])
+
+  # using integer node ID instead of character
+  dt.tree.int <- xgb.model.dt.tree(model = bst.Tree, use_int_id = TRUE)
+  expect_equal(as.integer(tstrsplit(dt.tree$Yes, '-')[[2]]), dt.tree.int$Yes)
+  expect_equal(as.integer(tstrsplit(dt.tree$No, '-')[[2]]), dt.tree.int$No)
+  expect_equal(as.integer(tstrsplit(dt.tree$Missing, '-')[[2]]), dt.tree.int$Missing)
 })
 
 test_that("xgb.model.dt.tree throws error for gblinear", {
@@ -167,6 +173,17 @@ test_that("xgb.importance works with GLM model", {
   imp2plot <- xgb.plot.importance(importance.GLM)
   expect_equal(colnames(imp2plot), c("Feature", "Weight", "Importance"))
   xgb.ggplot.importance(importance.GLM)
+})
+
+test_that("xgb.model.dt.tree and xgb.importance work with a single split model", {
+  bst1 <- xgboost(data = sparse_matrix, label = label, max_depth = 1,
+                  eta = 1, nthread = 2, nrounds = 1, verbose = 0,
+                  objective = "binary:logistic")
+  expect_error(dt <- xgb.model.dt.tree(model = bst1), regexp = NA) # no error
+  expect_equal(nrow(dt), 3)
+  expect_error(imp <- xgb.importance(model = bst1), regexp = NA) # no error
+  expect_equal(nrow(imp), 1)
+  expect_equal(imp$Gain, 1)
 })
 
 test_that("xgb.plot.tree works with and without feature names", {

@@ -6,6 +6,7 @@
  */
 #include <xgboost/logging.h>
 #include <xgboost/learner.h>
+#include <dmlc/timer.h>
 #include <dmlc/io.h>
 #include <algorithm>
 #include <vector>
@@ -43,8 +44,10 @@ struct LearnerModelParam
   int num_class;
   /*! \brief Model contain additional properties */
   int contain_extra_attrs;
+  /*! \brief Model contain eval metrics */
+  int contain_eval_metrics;
   /*! \brief reserved field */
-  int reserved[30];
+  int reserved[29];
   /*! \brief Number of rounds for early stopping */
   int early_stopping_round;
   /*! \brief constructor */
@@ -88,6 +91,8 @@ struct LearnerTrainParam
   // number of threads to use if OpenMP is enabled
   // if equals 0, use system default
   int nthread;
+  // flag to print out detailed breakdown of runtime
+  int debug_verbose;
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
     DMLC_DECLARE_FIELD(seed).set_default(0)
@@ -114,6 +119,10 @@ struct LearnerTrainParam
         .describe("maximum row per batch.");
     DMLC_DECLARE_FIELD(nthread).set_default(0)
         .describe("Number of threads to use.");
+    DMLC_DECLARE_FIELD(debug_verbose)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("flag to print out detailed breakdown of runtime");
   }
 };
 
@@ -145,6 +154,7 @@ class LearnerImpl : public Learner {
         };
         if (std::all_of(metrics_.begin(), metrics_.end(), dup_check)) {
           metrics_.emplace_back(Metric::Create(kv.second));
+          mparam.contain_eval_metrics = 1;
         }
       } else {
         cfg_[kv.first] = kv.second;
@@ -175,28 +185,9 @@ class LearnerImpl : public Learner {
 
     if (tparam.tree_method == 3) {
       /* histogram-based algorithm */
-      if (cfg_.count("updater") == 0) {
-        LOG(CONSOLE) << "Tree method is selected to be \'hist\', "
-                     << "which uses histogram aggregation for faster training. "
-                     << "Using default sequence of updaters: grow_fast_histmaker,prune";
-        cfg_["updater"] = "grow_fast_histmaker,prune";
-      } else {
-        const std::string first_str = "grow_fast_histmaker";
-        if (first_str.length() <= cfg_["updater"].length()
-          && std::equal(first_str.begin(), first_str.end(), cfg_["updater"].begin())) {
-          // updater sequence starts with "grow_fast_histmaker"
-          LOG(CONSOLE) << "Tree method is selected to be \'hist\', "
-                       << "which uses histogram aggregation for faster training. "
-                       << "Using custom sequence of updaters: " << cfg_["updater"];
-        } else {
-          // updater sequence does not start with "grow_fast_histmaker"
-          LOG(CONSOLE) << "Tree method is selected to be \'hist\', but the given "
-                       << "sequence of updaters is not compatible; "
-                       << "grow_fast_histmaker must run first. "
-                       << "Using default sequence of updaters: grow_fast_histmaker,prune";
-          cfg_["updater"] = "grow_fast_histmaker,prune";
-        }
-      }
+      LOG(CONSOLE) << "Tree method is selected to be \'hist\', which uses a single updater "
+                   << "grow_fast_histmaker.";
+      cfg_["updater"] = "grow_fast_histmaker";
     } else if (cfg_.count("updater") == 0) {
       if (tparam.dsplit == 1) {
         cfg_["updater"] = "distcol";
@@ -307,6 +298,13 @@ class LearnerImpl : public Learner {
         fi->Read(&max_delta_step);
         cfg_["max_delta_step"] = max_delta_step;
     }
+    if (mparam.contain_eval_metrics != 0) {
+      std::vector<std::string> metr;
+      fi->Read(&metr);
+      for (auto name : metr) {
+        metrics_.emplace_back(Metric::Create(name));
+      }
+    }
     cfg_["num_class"] = common::ToString(mparam.num_class);
     cfg_["num_feature"] = common::ToString(mparam.num_feature);
     obj_->Configure(cfg_.begin(), cfg_.end());
@@ -327,6 +325,13 @@ class LearnerImpl : public Learner {
         std::map<std::string, std::string>::const_iterator it = cfg_.find("max_delta_step");
         if (it != cfg_.end())
             fo->Write(it->second);
+    }
+    if (mparam.contain_eval_metrics != 0) {
+      std::vector<std::string> metr;
+      for (auto& ev : metrics_) {
+        metr.emplace_back(ev->Name());
+      }
+      fo->Write(metr);
     }
   }
 
@@ -356,6 +361,8 @@ class LearnerImpl : public Learner {
                           const std::vector<DMatrix*>& data_sets,
                           const std::vector<std::string>& data_names,
                           bool* early_stopping) override {
+                          const std::vector<std::string>& data_names) override {
+    double tstart = dmlc::GetTime();
     std::ostringstream os;
 
     if (NULL != early_stopping) {
@@ -393,6 +400,10 @@ class LearnerImpl : public Learner {
           }
         }
       }
+    }
+
+    if (tparam.debug_verbose > 0) {
+      LOG(INFO) << "EvalOneIter(): " << dmlc::GetTime() - tstart << " sec";
     }
     return os.str();
   }
@@ -437,8 +448,11 @@ class LearnerImpl : public Learner {
                bool output_margin,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
-               bool pred_leaf) const override {
-    if (pred_leaf) {
+               bool pred_leaf,
+               bool pred_contribs) const override {
+    if (pred_contribs) {
+      gbm_->PredictContribution(data, out_preds, ntree_limit);
+    } else if (pred_leaf) {
       gbm_->PredictLeaf(data, out_preds, ntree_limit);
     } else {
       this->PredictRaw(data, out_preds, ntree_limit);

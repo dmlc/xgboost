@@ -2,10 +2,12 @@
  * Copyright (c) 2015 by Contributors
  * \file c_api.h
  * \author Tianqi Chen
- * \brief C API of XGBoost, used to interfacing with other languages.
+ * \brief C API of XGBoost, used for interfacing to other languages.
  */
 #ifndef XGBOOST_C_API_H_
 #define XGBOOST_C_API_H_
+
+#include <cstdint>
 
 #ifdef __cplusplus
 #define XGB_EXTERN_C extern "C"
@@ -62,7 +64,7 @@ typedef struct {
 /*!
  * \brief Callback to set the data to handle,
  * \param handle The handle to the callback.
- * \param batch The data content to be setted.
+ * \param batch The data content to be set.
  */
 XGB_EXTERN_C typedef int XGBCallbackSetData(
     DataHolderHandle handle, XGBoostBatchCSR batch);
@@ -382,6 +384,7 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
  *          0:normal prediction
  *          1:output margin instead of transformed value
  *          2:output leaf index of trees instead of leaf value, note leaf index is unique per tree
+ *          4:output feature contributions of all trees instead of predictions
  * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
  *    when the parameter is set to 0, we will use all the trees
  * \param out_len used to store length of returning result

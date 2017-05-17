@@ -18,15 +18,18 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
+import scala.util.Random
 
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 
 import org.apache.spark.SparkContext
-import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
-import org.apache.spark.ml.feature.LabeledPoint
+import org.apache.spark.ml.Pipeline
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+import org.apache.spark.ml.feature.{LabeledPoint, VectorAssembler}
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
@@ -35,6 +38,10 @@ import org.apache.spark.sql._
 class XGBoostDFSuite extends SharedSparkContext with Utils {
 
   private var trainingDF: DataFrame = null
+
+  after {
+    cleanExternalCache("XGBoostDFSuite")
+  }
 
   private def buildTrainingDataframe(sparkContext: Option[SparkContext] = None): DataFrame = {
     if (trainingDF == null) {
@@ -79,7 +86,6 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
         assert(predResultFromSeq(i)(j) === predResultsFromDF(i)(j + 1))
       }
     }
-    cleanExternalCache("XGBoostDFSuite")
   }
 
   test("test transformLeaf") {
@@ -125,7 +131,6 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(predictionDF.columns.contains("label") === true)
     assert(predictionDF.columns.contains("final_prediction") === true)
     predictionDF.show()
-    cleanExternalCache("XGBoostDFSuite")
   }
 
   test("test schema of XGBoostClassificationModel") {
@@ -164,7 +169,6 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(predictionDF.columns.contains("label") === true)
     assert(predictionDF.columns.contains("raw_prediction") === true)
     assert(predictionDF.columns.contains("final_prediction") === false)
-    cleanExternalCache("XGBoostDFSuite")
   }
 
   test("xgboost and spark parameters synchronize correctly") {
@@ -190,7 +194,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(xgbEstimatorCopy1.fromParamsToXGBParamMap("eval_metric") === "logloss")
   }
 
-  test("fast histogram algorithm parameters are exposed correctly") {
+  ignore("fast histogram algorithm parameters are exposed correctly") {
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
@@ -222,22 +226,22 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     LabeledPoint(intValueArray.last, new DenseVector(intValueArray.take(intValueArray.length - 1)))
   }
 
-  private def loadCSVPoints(filePath: String, zeroBased: Boolean = false): List[LabeledPoint] = {
+  private def loadCSVPoints(filePath: String, zeroBased: Boolean = false): Seq[LabeledPoint] = {
     val file = Source.fromFile(new File(filePath))
     val sampleList = new ListBuffer[LabeledPoint]
     for (sample <- file.getLines()) {
       sampleList += convertCSVPointToLabelPoint(sample.split(","))
     }
-    sampleList.toList
+    sampleList
   }
 
   test("multi_class classification test") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "multi:softmax", "num_class" -> "6")
-    val testItr = loadCSVPoints(getClass.getResource("/dermatology.data").getFile).iterator
-    val trainingDF = buildTrainingDataframe()
-    XGBoost.trainWithDataFrame(trainingDF, paramMap,
-      round = 5, nWorkers = numWorkers)
+    val trainingSet = loadCSVPoints(getClass.getResource("/dermatology.data").getFile)
+    val spark = SparkSession.builder().getOrCreate()
+    import spark.implicits._
+    XGBoost.trainWithDataFrame(trainingSet.toDF(), paramMap, round = 5, nWorkers = numWorkers)
   }
 
   test("test DF use nested groupData") {
@@ -270,5 +274,17 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     val predResultsFromDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF).
       collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("features"))).toMap
     assert(testDF.count() === predResultsFromDF.size)
+  }
+
+  test("params of estimator and produced model are coordinated correctly") {
+    val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "multi:softmax", "num_class" -> "6")
+    val trainingSet = loadCSVPoints(getClass.getResource("/dermatology.data").getFile)
+    val spark = SparkSession.builder().getOrCreate()
+    import spark.implicits._
+    val model =
+      XGBoost.trainWithDataFrame(trainingSet.toDF(), paramMap, round = 5, nWorkers = numWorkers)
+    assert(model.get[Double](model.eta).get == 0.1)
+    assert(model.get[Int](model.maxDepth).get == 6)
   }
 }

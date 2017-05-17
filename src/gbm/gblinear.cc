@@ -226,6 +226,11 @@ class GBLinear : public GradientBooster {
                    unsigned ntree_limit) override {
     LOG(FATAL) << "gblinear does not support predict leaf index";
   }
+  void PredictContribution(DMatrix* p_fmat,
+                           std::vector<bst_float>* out_contribs,
+                           unsigned ntree_limit) override {
+    LOG(FATAL) << "gblinear does not support predict contributions";
+  }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                      bool with_stats,

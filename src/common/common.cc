@@ -3,8 +3,8 @@
  * \file common.cc
  * \brief Enable all kinds of global variables in common.
  */
+#include <dmlc/thread_local.h>
 #include "./random.h"
-#include "./thread_local.h"
 
 namespace xgboost {
 namespace common {
@@ -14,7 +14,7 @@ struct RandomThreadLocalEntry {
   GlobalRandomEngine engine;
 };
 
-typedef ThreadLocalStore<RandomThreadLocalEntry> RandomThreadLocalStore;
+typedef dmlc::ThreadLocalStore<RandomThreadLocalEntry> RandomThreadLocalStore;
 
 GlobalRandomEngine& GlobalRandom() {
   return RandomThreadLocalStore::Get()->engine;

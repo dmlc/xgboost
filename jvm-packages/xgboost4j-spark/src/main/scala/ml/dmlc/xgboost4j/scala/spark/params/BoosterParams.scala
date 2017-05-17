@@ -18,11 +18,9 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import scala.collection.immutable.HashSet
 
-import ml.dmlc.xgboost4j.scala.spark.XGBoostEstimator
 import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
 
 trait BoosterParams extends Params {
-  this: XGBoostEstimator =>
 
   /**
    * Booster to use, options: {'gbtree', 'gblinear', 'dart'}

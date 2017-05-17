@@ -31,20 +31,24 @@ include $(DMLC_CORE)/make/dmlc.mk
 # include the plugins
 include $(XGB_PLUGINS)
 
-# use customized config file
-ifndef CC
-export CC  = $(if $(shell which gcc-6),gcc-6,gcc)
-endif
-ifndef CXX
-export CXX = $(if $(shell which g++-6),g++-6,g++)
-endif
-
-# on Mac OS X, force brew gcc-6, since the Xcode c++ fails anyway
-# it is useful for pip install compiling-on-the-fly
+# set compiler defaults for OSX versus *nix
+# let people override either
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
-export CC = $(if $(shell which gcc-6),gcc-6,$(if $(shell which gcc-mp-6), gcc-mp-6, clang))
-export CXX = $(if $(shell which g++-6),g++-6,$(if $(shell which g++-mp-6),g++-mp-6, clang++))
+ifndef CC
+export CC = $(if $(shell which clang), clang, gcc)
+endif
+ifndef CXX
+export CXX = $(if $(shell which clang++), clang++, g++)
+endif
+else
+# linux defaults
+ifndef CC
+export CC = gcc
+endif
+ifndef CXX
+export CXX = g++
+endif
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)

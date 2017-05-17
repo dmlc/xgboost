@@ -110,12 +110,14 @@ class Learner : public rabit::Serializable {
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
+   * \param pred_contribs whether to only predict the feature contributions of all trees
    */
   virtual void Predict(DMatrix* data,
                        bool output_margin,
                        std::vector<bst_float> *out_preds,
                        unsigned ntree_limit = 0,
-                       bool pred_leaf = false) const = 0;
+                       bool pred_leaf = false,
+                       bool pred_contribs = false) const = 0;
   /*!
    * \brief Set additional attribute to the Booster.
    *  The property will be saved along the booster.
@@ -201,9 +203,6 @@ inline void Learner::Predict(const SparseBatch::Inst& inst,
                              std::vector<bst_float>* out_preds,
                              unsigned ntree_limit) const {
   gbm_->Predict(inst, out_preds, ntree_limit);
-  if (out_preds->size() == 1) {
-    (*out_preds)[0] += base_score_;
-  }
   if (!output_margin) {
     obj_->PredTransform(out_preds);
   }
