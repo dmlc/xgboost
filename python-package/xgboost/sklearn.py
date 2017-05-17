@@ -65,6 +65,8 @@ class XGBModel(XGBModelBase):
     objective : string or callable
         Specify the learning task and the corresponding learning objective or
         a custom objective function to be used (see note below).
+    booster: string
+        Specify which booster to use: gbtree, gblinear or dart.
     nthread : int
         Number of parallel threads used to run xgboost.
     gamma : float
