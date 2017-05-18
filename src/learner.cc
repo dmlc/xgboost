@@ -360,12 +360,12 @@ class LearnerImpl : public Learner {
   std::string EvalOneIter(int iter,
                           const std::vector<DMatrix*>& data_sets,
                           const std::vector<std::string>& data_names,
-                          bool* early_stop) override {
+                          bool* early_stopping) override {
     double tstart = dmlc::GetTime();
     std::ostringstream os;
 
-    if (NULL != early_stop) {
-        *early_stop= false;
+    if (NULL != early_stopping) {
+        *early_stopping = false;
     }
 
     os << '[' << iter << ']'
@@ -385,14 +385,14 @@ class LearnerImpl : public Learner {
         os  << "\t" << data_name << "-" << metr_name << ":"
             << curr_score;
 
-        if (early_stopping_round_ > 0 && !is_train_data && NULL != early_stop) {
+        if (early_stopping_round_ > 0 && !is_train_data && NULL != early_stopping) {
           if (curr_score > best_score_[i][j]) {
             best_score_[i][j] = curr_score;
             best_iter_[i][j] = iter;
           } else if (iter - best_iter_[i][j] >= early_stopping_round_) {
-            *early_stop = true;
-            os << "\nEarly stopping at iteration [" << iter
-               << "], the best iteration round is [" << iter - early_stopping_round_ << "]";
+            *early_stopping = true;
+            os << "\n\nEarly stopping at iteration [" << iter
+               << "], the best iteration round is [" << iter - early_stopping_round_ << "]\n";
             // remove the last trees
             gbm_->ShrinkModel(early_stopping_round_);
             return os.str();

@@ -95,13 +95,13 @@ class Learner : public rabit::Serializable {
    * \param iter iteration number
    * \param data_sets datasets to be evaluated.
    * \param data_names name of each dataset
-   * \param early_stop early stop flag
+   * \param early_stopping early stop flag
    * \return a string corresponding to the evaluation result
    */
   virtual std::string EvalOneIter(int iter,
                                   const std::vector<DMatrix*>& data_sets,
                                   const std::vector<std::string>& data_names,
-                                  bool *early_stop = NULL) = 0;
+                                  bool *early_stopping = NULL) = 0;
   /*!
    * \brief get prediction given the model.
    * \param data input data
