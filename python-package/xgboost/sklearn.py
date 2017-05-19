@@ -13,7 +13,7 @@ from .training import train
 from .compat import (SKLEARN_INSTALLED, XGBModelBase,
                      XGBClassifierBase, XGBRegressorBase, XGBLabelEncoder)
 
-warnings.simplefilter('always',DeprecationWarning)
+warnings.simplefilter('always', DeprecationWarning)
 
 
 def _objective_decorator(func):
@@ -148,19 +148,19 @@ class XGBModel(XGBModelBase):
         self.missing = missing if missing is not None else np.nan
         self._Booster = None
         if seed:
-            warnings.warn('The seed parameter is deprecated as of version .6.'  
-                          'Please use random_state instead as seed will disappear in future versions.'
-                          'seed is deprecated and will no longer be available in the future.', DeprecationWarning)
+            warnings.warn('The seed parameter is deprecated as of version .6.'
+                          'Please use random_state instead.'
+                          'seed is deprecated.', DeprecationWarning)
             self.seed = seed
             self.random_state = seed
         else:
             self.seed = random_state
             self.random_state = random_state
-            
+
         if nthread:
-            warnings.warn('The nthread parameter is deprecated as of version .6.'  
-                          'Please use n_jobs instead as nthread will disappear in future versions.'
-                          'nthread is deprecated and will no longer be available in the future.', DeprecationWarning)
+            warnings.warn('The nthread parameter is deprecated as of version .6.'
+                          'Please use n_jobs instead.'
+                          'nthread is deprecated.', DeprecationWarning)
             self.nthread = nthread
             self.n_jobs = nthread
         else:
@@ -395,7 +395,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             max_delta_step, subsample,
                                             colsample_bytree, colsample_bylevel,
                                             reg_alpha, reg_lambda,
-                                            scale_pos_weight, base_score, random_state, seed, missing)
+                                            scale_pos_weight, base_score, 
+                                            random_state, seed, missing)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
