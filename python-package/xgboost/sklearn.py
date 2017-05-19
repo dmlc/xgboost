@@ -72,6 +72,8 @@ class XGBModel(XGBModelBase):
         Specify which booster to use: gbtree, gblinear or dart.
     nthread : int
         Number of parallel threads used to run xgboost.
+    n_jobs : int
+        Number of parallel threads used to run xgboost.  (replaces nthread)
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf node of the tree.
     min_child_weight : int
@@ -90,13 +92,12 @@ class XGBModel(XGBModelBase):
         L2 regularization term on weights
     scale_pos_weight : float
         Balancing of positive and negative weights.
-
     base_score:
         The initial prediction score of all instances, global bias.
     seed : int
         Random number seed.
     random_state : int
-        Random number seed. 
+        Random number seed.  (replaces seed)
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
