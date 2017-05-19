@@ -2,11 +2,11 @@
  * Copyright 2016 Rory mitchell
 */
 #pragma once
-#include <cub/cub.cuh>
 #include <xgboost/base.h>
+#include <cub/cub.cuh>
+#include "common.cuh"
 #include "device_helpers.cuh"
 #include "types.cuh"
-#include "common.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -48,19 +48,8 @@ struct GpairTupleCallbackOp {
   }
 };
 
-struct GpairCallbackOp {
-  // Running prefix
-  gpu_gpair running_total;
-  // Constructor
-  __device__ GpairCallbackOp() : running_total(gpu_gpair()) {}
-  __device__ gpu_gpair operator()(gpu_gpair block_aggregate) {
-    gpu_gpair old_prefix = running_total;
-    running_total += block_aggregate;
-    return old_prefix;
-  }
-};
-
-template <int BLOCK_THREADS> struct ReduceEnactorSorting {
+template <int BLOCK_THREADS>
+struct ReduceEnactorSorting {
   typedef cub::BlockScan<ScanTuple, BLOCK_THREADS> GpairScanT;
   struct _TempStorage {
     typename GpairScanT::TempStorage gpair_scan;
@@ -82,13 +71,15 @@ template <int BLOCK_THREADS> struct ReduceEnactorSorting {
   const int level;
 
   __device__ __forceinline__
-  ReduceEnactorSorting(TempStorage &temp_storage, // NOLINT
+  ReduceEnactorSorting(TempStorage &temp_storage,  // NOLINT
                        gpu_gpair *d_block_node_sums, int *d_block_node_offsets,
                        ItemIter item_iter, const int level)
       : temp_storage(temp_storage.Alias()),
         d_block_node_sums(d_block_node_sums),
-        d_block_node_offsets(d_block_node_offsets), item_iter(item_iter),
-        callback_op(), level(level) {}
+        d_block_node_offsets(d_block_node_offsets),
+        item_iter(item_iter),
+        callback_op(),
+        level(level) {}
 
   __device__ __forceinline__ void LoadTile(const bst_uint &offset,
                                            const bst_uint &num_remaining) {
@@ -102,7 +93,7 @@ template <int BLOCK_THREADS> struct ReduceEnactorSorting {
       // Prevent overflow
       const int level_begin = (1 << level) - 1;
       node_id_adjusted =
-          max(static_cast<int>(node_id) - level_begin, -1); // NOLINT
+          max(static_cast<int>(node_id) - level_begin, -1);  // NOLINT
     }
   }
 
@@ -175,15 +166,18 @@ struct FindSplitEnactorSorting {
   const int level;
 
   __device__ __forceinline__ FindSplitEnactorSorting(
-      TempStorage &temp_storage, gpu_gpair *d_block_node_sums, // NOLINT
+      TempStorage &temp_storage, gpu_gpair *d_block_node_sums,  // NOLINT
       int *d_block_node_offsets, const ItemIter item_iter, const Node *d_nodes,
       const GPUTrainingParam &param, Split *d_split_candidates_out,
       const int level)
       : temp_storage(temp_storage.Alias()),
         d_block_node_sums(d_block_node_sums),
-        d_block_node_offsets(d_block_node_offsets), item_iter(item_iter),
-        d_nodes(d_nodes), d_split_candidates_out(d_split_candidates_out),
-        level(level), param(param) {}
+        d_block_node_offsets(d_block_node_offsets),
+        item_iter(item_iter),
+        d_nodes(d_nodes),
+        d_split_candidates_out(d_split_candidates_out),
+        level(level),
+        param(param) {}
 
   __device__ __forceinline__ void LoadTile(NodeIdT node_id_adjusted,
                                            const bst_uint &node_begin,
@@ -254,9 +248,9 @@ struct FindSplitEnactorSorting {
     return fvalue != left_fvalue;
   }
 
-  __device__ __forceinline__ void
-  EvaluateSplits(const NodeIdT &node_id_adjusted, const bst_uint &node_begin,
-                 const bst_uint &offset, const bst_uint &num_remaining) {
+  __device__ __forceinline__ void EvaluateSplits(
+      const NodeIdT &node_id_adjusted, const bst_uint &node_begin,
+      const bst_uint &offset, const bst_uint &num_remaining) {
     bool thread_active = LeftmostFvalue() && threadIdx.x < num_remaining &&
                          node_id_adjusted >= 0 && node_id >= 0;
 
@@ -289,10 +283,10 @@ struct FindSplitEnactorSorting {
     }
   }
 
-  __device__ __forceinline__ void
-  ProcessTile(const NodeIdT &node_id_adjusted, const bst_uint &node_begin,
-              const bst_uint &offset, const bst_uint &num_remaining,
-              GpairCallbackOp &callback_op) { // NOLINT
+  __device__ __forceinline__ void ProcessTile(
+      const NodeIdT &node_id_adjusted, const bst_uint &node_begin,
+      const bst_uint &offset, const bst_uint &num_remaining,
+      GpairCallbackOp &callback_op) {  // NOLINT
     LoadTile(node_id_adjusted, node_begin, offset, num_remaining);
 
     // Scan gpair
@@ -304,8 +298,8 @@ struct FindSplitEnactorSorting {
     EvaluateSplits(node_id_adjusted, node_begin, offset, num_remaining);
   }
 
-  __device__ __forceinline__ void
-  WriteBestSplit(const NodeIdT &node_id_adjusted) {
+  __device__ __forceinline__ void WriteBestSplit(
+      const NodeIdT &node_id_adjusted) {
     if (threadIdx.x < 32) {
       bool active = threadIdx.x < N_WARPS;
       float warp_loss =
@@ -370,7 +364,6 @@ __global__ __launch_bounds__(1024, 1) void find_split_candidates_sorted_kernel(
     const Node *d_nodes, bst_uint num_items, const int num_features,
     const int *d_feature_offsets, gpu_gpair *d_node_sums, int *d_node_offsets,
     const GPUTrainingParam param, const int *d_feature_flags, const int level) {
-
   if (num_items <= 0 || d_feature_flags[blockIdx.x] != 1) {
     return;
   }
@@ -400,7 +393,7 @@ __global__ __launch_bounds__(1024, 1) void find_split_candidates_sorted_kernel(
       .ProcessFeature(segment_begin, segment_end);
 }
 
-void find_split_candidates_sorted(GPUData * data, const int level) {
+void find_split_candidates_sorted(GPUData *data, const int level) {
   const int BLOCK_THREADS = 512;
 
   CHECK(BLOCK_THREADS / 32 < 32) << "Too many active warps.";
@@ -410,9 +403,9 @@ void find_split_candidates_sorted(GPUData * data, const int level) {
   find_split_candidates_sorted_kernel<
       BLOCK_THREADS><<<grid_size, BLOCK_THREADS>>>(
       data->items_iter, data->split_candidates.data(), data->nodes.data(),
-        data->fvalues.size(), data->n_features,
-      data->foffsets.data(), data->node_sums.data(), data->node_offsets.data(),
-        data->param, data->feature_flags.data(), level);
+      data->fvalues.size(), data->n_features, data->foffsets.data(),
+      data->node_sums.data(), data->node_offsets.data(), data->param,
+      data->feature_flags.data(), level);
 
   dh::safe_cuda(cudaGetLastError());
   dh::safe_cuda(cudaDeviceSynchronize());

@@ -62,17 +62,16 @@ class GPUHistBuilder {
               RegTree *p_tree);
   void BuildHist(int depth);
   void FindSplit(int depth);
-  void FindSplit256(int depth);
-  void FindSplit1024(int depth);
-  void FindSplitLarge(int depth);
+  template <int BLOCK_THREADS>
+  void FindSplitSpecialize(int depth);
   void InitFirstNode();
   void UpdatePosition(int depth);
   void UpdatePositionDense(int depth);
   void UpdatePositionSparse(int depth);
   void ColSampleTree();
   void ColSampleLevel();
-  bool UpdatePredictionCache(const DMatrix* data,
-    std::vector<bst_float>* p_out_preds);
+  bool UpdatePredictionCache(const DMatrix *data,
+                             std::vector<bst_float> *p_out_preds);
 
   TrainParam param;
   GPUTrainingParam gpu_param;
@@ -82,7 +81,7 @@ class GPUHistBuilder {
   bool initialised;
   bool is_dense;
   DeviceGMat device_matrix;
-    const DMatrix* p_last_fmat_;
+  const DMatrix *p_last_fmat_;
 
   dh::bulk_allocator ba;
   dh::CubMemory cub_mem;
@@ -101,8 +100,8 @@ class GPUHistBuilder {
   dh::dvec<gpu_gpair> device_gpair;
   dh::dvec<Node> nodes;
   dh::dvec<int> feature_flags;
-  dh::dvec<bool>  left_child_smallest;
-  dh::dvec<bst_float>  prediction_cache;
+  dh::dvec<bool> left_child_smallest;
+  dh::dvec<bst_float> prediction_cache;
   bool prediction_cache_initialised;
 
   std::vector<int> feature_set_tree;
