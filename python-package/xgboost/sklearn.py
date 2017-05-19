@@ -71,7 +71,7 @@ class XGBModel(XGBModelBase):
     booster: string
         Specify which booster to use: gbtree, gblinear or dart.
     nthread : int
-        Number of parallel threads used to run xgboost.
+        Number of parallel threads used to run xgboost.  (Deprecated, please use n_jobs)
     n_jobs : int
         Number of parallel threads used to run xgboost.  (replaces nthread)
     gamma : float
@@ -95,7 +95,7 @@ class XGBModel(XGBModelBase):
     base_score:
         The initial prediction score of all instances, global bias.
     seed : int
-        Random number seed.
+        Random number seed.  (Deprecated, please use random_state)
     random_state : int
         Random number seed.  (replaces seed)
     missing : float, optional
@@ -395,7 +395,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             max_delta_step, subsample,
                                             colsample_bytree, colsample_bylevel,
                                             reg_alpha, reg_lambda,
-                                            scale_pos_weight, base_score, 
+                                            scale_pos_weight, base_score,
                                             random_state, seed, missing)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,

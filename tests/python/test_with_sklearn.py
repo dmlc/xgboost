@@ -344,7 +344,8 @@ def test_seed_deprecation():
     with warnings.catch_warnings(record=True) as w:
         xgb.XGBClassifier(seed=1)
         assert w[0].category == DeprecationWarning
-   
+
+
 def test_sklearn_n_jobs():
     tm._skip_if_no_sklearn()
     
