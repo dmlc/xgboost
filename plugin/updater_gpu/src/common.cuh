@@ -168,5 +168,17 @@ inline std::vector<int> col_sample(std::vector<int> features, float colsample) {
 
   return features;
 }
+struct GpairCallbackOp {
+  // Running prefix
+  gpu_gpair running_total;
+  // Constructor
+  __device__ GpairCallbackOp() : running_total(gpu_gpair()) {}
+  __device__ gpu_gpair operator()(gpu_gpair block_aggregate) {
+    gpu_gpair old_prefix = running_total;
+    running_total += block_aggregate;
+    return old_prefix;
+  }
+};
+
 }  // namespace tree
 }  // namespace xgboost
