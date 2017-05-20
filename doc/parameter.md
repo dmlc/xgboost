@@ -95,6 +95,9 @@ Parameters for Tree Booster
     - 'default': the normal boosting process which creates new trees.
     - 'update': starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updater plugins is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updater plugins could be meaningfully used with this process type: 'refresh', 'prune'. With 'update', one cannot use updater plugins that create new nrees.
 
+* early_stopping_round, [default=0]
+  - The number of trees for check early stopping condition. If you have a validation set, you can use early stopping to find the optimal number of boosting rounds. Early stopping requires at least one evaluation in eval_metric. If there's more than one, it will be used for all, not just for the last one, which is diffrent from the useage in Python-package. 
+
 Additional parameters for Dart Booster
 --------------------------------------
 * sample_type [default="uniform"]
