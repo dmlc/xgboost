@@ -27,7 +27,7 @@ head(pred_with_leaf)
 create.new.tree.features <- function(model, original.features){
   pred_with_leaf <- predict(model, original.features, predleaf = TRUE)
   cols <- list()
-  for(i in 1:length(trees)){
+  for(i in 1:model$niter){
     # max is not the real max but it s not important for the purpose of adding features
     leaf.id <- sort(unique(pred_with_leaf[,i]))
     cols[[i]] <- factor(x = pred_with_leaf[,i], level = leaf.id)
