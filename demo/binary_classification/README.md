@@ -97,15 +97,15 @@ lambda_bias = 0.01
 #### Get Predictions
 After training, we can use the output model to get the prediction of the test data:
 ```
-../../xgboost mushroom.conf task=pred model_in=0003.model
+../../xgboost mushroom.conf task=pred model_in=0002.model
 ```
 For binary classification, the output predictions are probability confidence scores in [0,1], corresponds to the probability of the label to be positive.
 
 #### Dump Model
 This is a preliminary feature, so far only tree model support text dump. XGBoost can display the tree models in text files and we can scan the model in an easy way:
 ```
-../../xgboost mushroom.conf task=dump model_in=0003.model name_dump=dump.raw.txt
-../../xgboost mushroom.conf task=dump model_in=0003.model fmap=featmap.txt name_dump=dump.nice.txt
+../../xgboost mushroom.conf task=dump model_in=0002.model name_dump=dump.raw.txt
+../../xgboost mushroom.conf task=dump model_in=0002.model fmap=featmap.txt name_dump=dump.nice.txt
 ```
 
 In this demo, the tree boosters obtained will be printed in dump.raw.txt and dump.nice.txt, and the latter one is easier to understand because of usage of feature mapping featmap.txt

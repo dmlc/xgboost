@@ -4,6 +4,7 @@
 #include <xgboost/learner.h>
 #include <xgboost/c_api.h>
 #include <xgboost/logging.h>
+#include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
 #include <cstdio>
 #include <vector>
@@ -13,7 +14,6 @@
 
 #include "./c_api_error.h"
 #include "../data/simple_csr_source.h"
-#include "../common/thread_local.h"
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
@@ -197,7 +197,7 @@ struct XGBAPIThreadLocalEntry {
 };
 
 // define the threadlocal store.
-typedef xgboost::common::ThreadLocalStore<XGBAPIThreadLocalEntry> XGBAPIThreadLocalStore;
+typedef dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry> XGBAPIThreadLocalStore;
 
 int XGDMatrixCreateFromFile(const char *fname,
                             int silent,
@@ -261,7 +261,6 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
     mat.info.num_col = num_col;
   }
   mat.info.num_row = nindptr - 1;
-  LOG(INFO) << "num_row=" << mat.info.num_row;
   mat.info.num_nonzero = mat.row_data_.size();
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
@@ -412,6 +411,9 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
     }
     if (src.info.weights.size() != 0) {
       ret.info.weights.push_back(src.info.weights[ridx]);
+    }
+    if (src.info.base_margin.size() != 0) {
+      ret.info.base_margin.push_back(src.info.base_margin[ridx]);
     }
     if (src.info.root_index.size() != 0) {
       ret.info.root_index.push_back(src.info.root_index[ridx]);
@@ -620,7 +622,8 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
       static_cast<std::shared_ptr<DMatrix>*>(dmat)->get(),
       (option_mask & 1) != 0,
       &preds, ntree_limit,
-      (option_mask & 2) != 0);
+      (option_mask & 2) != 0,
+      (option_mask & 4) != 0);
   *out_result = dmlc::BeginPtr(preds);
   *len = static_cast<xgboost::bst_ulong>(preds.size());
   API_END();

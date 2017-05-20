@@ -1,22 +1,19 @@
 /*!
  * Copyright 2016 Rory mitchell
-*/
+ */
 #pragma once
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 #include <thrust/device_vector.h>
+#include <thrust/random.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
-#include <thrust/random.h>
 #include <algorithm>
+#include <chrono>
 #include <ctime>
 #include <sstream>
 #include <string>
 #include <vector>
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 // Uncomment to enable
 // #define DEVICE_TIMER
@@ -30,7 +27,8 @@ namespace dh {
 
 #define safe_cuda(ans) throw_on_cuda_error((ans), __FILE__, __LINE__)
 
-cudaError_t throw_on_cuda_error(cudaError_t code, const char *file, int line) {
+inline cudaError_t throw_on_cuda_error(cudaError_t code, const char *file,
+                                       int line) {
   if (code != cudaSuccess) {
     std::stringstream ss;
     ss << file << "(" << line << ")";
@@ -42,15 +40,14 @@ cudaError_t throw_on_cuda_error(cudaError_t code, const char *file, int line) {
   return code;
 }
 
-#define gpuErrchk(ans)                                                         \
+#define gpuErrchk(ans) \
   { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line,
                       bool abort = true) {
   if (code != cudaSuccess) {
     fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file,
             line);
-    if (abort)
-      exit(code);
+    if (abort) exit(code);
   }
 }
 
@@ -119,10 +116,10 @@ struct DeviceTimer {
 #endif
 
 #ifdef DEVICE_TIMER
-  __device__ DeviceTimer(DeviceTimerGlobal &GTimer, int slot) // NOLINT
+  __device__ DeviceTimer(DeviceTimerGlobal &GTimer, int slot)  // NOLINT
       : GTimer(GTimer), start(clock()), slot(slot) {}
 #else
-  __device__ DeviceTimer(DeviceTimerGlobal &GTimer, int slot) {} // NOLINT
+  __device__ DeviceTimer(DeviceTimerGlobal &GTimer, int slot) {}  // NOLINT
 #endif
 
   __device__ void End() {
@@ -138,40 +135,18 @@ struct DeviceTimer {
 };
 
 struct Timer {
-  volatile double start;
+  typedef std::chrono::high_resolution_clock ClockT;
+
+  typedef std::chrono::high_resolution_clock::time_point TimePointT;
+  TimePointT start;
   Timer() { reset(); }
 
-  double seconds_now() {
-#ifdef _WIN32
-    static LARGE_INTEGER s_frequency;
-    QueryPerformanceFrequency(&s_frequency);
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    return static_cast<double>(now.QuadPart) / s_frequency.QuadPart;
-#else
-    return 0;
-#endif
-  }
-
-  void reset() {
-#ifdef _WIN32
-    _ReadWriteBarrier();
-    start = seconds_now();
-#endif
-  }
-  double elapsed() {
-#ifdef _WIN32
-    _ReadWriteBarrier();
-    return seconds_now() - start;
-#else
-    return 0;
-#endif
-  }
+  void reset() { start = ClockT::now(); }
+  int64_t elapsed() const { return (ClockT::now() - start).count(); }
   void printElapsed(std::string label) {
-#ifdef TIMERS
     safe_cuda(cudaDeviceSynchronize());
-    printf("%s:\t %1.4fs\n", label.c_str(), elapsed());
-#endif
+    printf("%s:\t %lld\n", label.c_str(), elapsed());
+    reset();
   }
 };
 
@@ -224,20 +199,21 @@ class range {
   iterator end_;
 };
 
-template <typename T> __device__ range grid_stride_range(T begin, T end) {
+template <typename T>
+__device__ range grid_stride_range(T begin, T end) {
   begin += blockDim.x * blockIdx.x + threadIdx.x;
   range r(begin, end);
   r.step(gridDim.x * blockDim.x);
   return r;
 }
 
-template <typename T> __device__ range block_stride_range(T begin, T end) {
+template <typename T>
+__device__ range block_stride_range(T begin, T end) {
   begin += threadIdx.x;
   range r(begin, end);
   r.step(blockDim.x);
   return r;
 }
-
 
 // Threadblock iterates over range, filling with value
 template <typename IterT, typename ValueT>
@@ -253,7 +229,8 @@ __device__ void block_fill(IterT begin, size_t n, ValueT value) {
 
 class bulk_allocator;
 
-template <typename T> class dvec {
+template <typename T>
+class dvec {
   friend bulk_allocator;
 
  private:
@@ -302,7 +279,8 @@ template <typename T> class dvec {
     return thrust::device_pointer_cast(_ptr + size());
   }
 
-  template <typename T2> dvec &operator=(const std::vector<T2> &other) {
+  template <typename T2>
+  dvec &operator=(const std::vector<T2> &other) {
     if (other.size() != size()) {
       throw std::runtime_error(
           "Cannot copy assign vector to dvec, sizes are different");
@@ -331,7 +309,8 @@ class bulk_allocator {
 
   const size_t align = 256;
 
-  template <typename SizeT> size_t align_round_up(SizeT n) {
+  template <typename SizeT>
+  size_t align_round_up(SizeT n) {
     if (n % align == 0) {
       return n;
     } else {
@@ -357,7 +336,7 @@ class bulk_allocator {
   template <typename T, typename SizeT, typename... Args>
   void allocate_dvec(char *ptr, dvec<T> *first_vec, SizeT first_size,
                      Args... args) {
-    first_vec->external_allocate(static_cast<void*>(ptr), first_size);
+    first_vec->external_allocate(static_cast<void *>(ptr), first_size);
     ptr += align_round_up(first_size * sizeof(T));
     allocate_dvec(ptr, args...);
   }
@@ -366,14 +345,15 @@ class bulk_allocator {
   bulk_allocator() : _size(0), d_ptr(NULL) {}
 
   ~bulk_allocator() {
-    if (!d_ptr == NULL) {
+    if (!(d_ptr == nullptr)) {
       safe_cuda(cudaFree(d_ptr));
     }
   }
 
   size_t size() { return _size; }
 
-  template <typename... Args> void allocate(Args... args) {
+  template <typename... Args>
+  void allocate(Args... args) {
     if (d_ptr != NULL) {
       throw std::runtime_error("Bulk allocator already allocated");
     }
@@ -393,14 +373,19 @@ struct CubMemory {
 
   CubMemory() : d_temp_storage(NULL), temp_storage_bytes(0) {}
 
-  ~CubMemory() {
+  ~CubMemory() { Free(); }
+  void Free() {
     if (d_temp_storage != NULL) {
       safe_cuda(cudaFree(d_temp_storage));
     }
   }
 
-  void Allocate() {
-    safe_cuda(cudaMalloc(&d_temp_storage, temp_storage_bytes));
+  void LazyAllocate(size_t n_bytes) {
+    if (n_bytes > temp_storage_bytes) {
+      Free();
+      safe_cuda(cudaMalloc(&d_temp_storage, n_bytes));
+      temp_storage_bytes = n_bytes;
+    }
   }
 
   bool IsAllocated() { return d_temp_storage != NULL; }
@@ -453,47 +438,58 @@ void print(char *label, const thrust::device_vector<T> &v,
   std::cout << "\n";
 }
 
-template <typename T1, typename T2> T1 div_round_up(const T1 a, const T2 b) {
+template <typename T1, typename T2>
+T1 div_round_up(const T1 a, const T2 b) {
   return static_cast<T1>(ceil(static_cast<double>(a) / b));
 }
 
-template <typename T> thrust::device_ptr<T> dptr(T *d_ptr) {
+template <typename T>
+thrust::device_ptr<T> dptr(T *d_ptr) {
   return thrust::device_pointer_cast(d_ptr);
 }
 
-template <typename T> T *raw(thrust::device_vector<T> &v) { //  NOLINT
+template <typename T>
+T *raw(thrust::device_vector<T> &v) {  //  NOLINT
   return raw_pointer_cast(v.data());
 }
 
-template <typename T> size_t size_bytes(const thrust::device_vector<T> &v) {
+template <typename T>
+const T *raw(const thrust::device_vector<T> &v) {  //  NOLINT
+  return raw_pointer_cast(v.data());
+}
+
+template <typename T>
+size_t size_bytes(const thrust::device_vector<T> &v) {
   return sizeof(T) * v.size();
 }
 /*
  * Kernel launcher
  */
 
-template <typename L> __global__ void launch_n_kernel(size_t n, L lambda) {
+template <typename L>
+__global__ void launch_n_kernel(size_t n, L lambda) {
   for (auto i : grid_stride_range(static_cast<size_t>(0), n)) {
     lambda(i);
   }
 }
 
-template <typename L, int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256>
+template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
 inline void launch_n(size_t n, L lambda) {
   const int GRID_SIZE = div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS);
-
+#if defined(__CUDACC__)
   launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(n, lambda);
+#endif
 }
 
 /*
- * Random 
+ * Random
  */
 
 struct BernoulliRng {
   float p;
   int seed;
 
-  __host__ __device__ BernoulliRng(float p, int seed):p(p),  seed(seed) {}
+  __host__ __device__ BernoulliRng(float p, int seed) : p(p), seed(seed) {}
 
   __host__ __device__ bool operator()(const int i) const {
     thrust::default_random_engine rng(seed);
@@ -503,6 +499,5 @@ struct BernoulliRng {
     return dist(rng) <= p;
   }
 };
-
 
 }  // namespace dh

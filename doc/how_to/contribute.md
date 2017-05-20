@@ -120,6 +120,7 @@ R Package
 make rcpplint
 ```
 - When needed, you can disable the linter warning of certain line with ```// NOLINT(*)``` comments.
+- We use [roxygen](https://cran.r-project.org/web/packages/roxygen2/vignettes/roxygen2.html) for documenting the R package.
 
 ### Rmarkdown Vignettes
 Rmarkdown vignettes are placed in [R-package/vignettes](../R-package/vignettes)
@@ -143,3 +144,21 @@ make the-markdown-to-make.md
 make html
 ```
 The reason we do this is to avoid exploded repo size due to generated images sizes.
+
+### R package versioning
+Since version 0.6.4.3, we have adopted a versioning system that uses an ```x.y.z``` (or ```core_major.core_minor.cran_release```)
+format for CRAN releases and an ```x.y.z.p``` (or ```core_major.core_minor.cran_release.patch```) format for development patch versions.
+This approach is similar to the one described in Yihui Xie's
+[blog post on R Package Versioning](https://yihui.name/en/2013/06/r-package-versioning/),
+except we need an additional field to accomodate the ```x.y``` core library version.
+
+Each new CRAN release bumps up the 3rd field, while developments in-between CRAN releases
+would be marked by an additional 4th field on the top of an existing CRAN release version.
+Some additional consideration is needed when the core library version changes.
+E.g., after the core changes from 0.6 to 0.7, the R package development version would become 0.7.0.1, working towards
+a 0.7.1 CRAN release. The 0.7.0 would not be released to CRAN, unless it would require almost no additional development.
+
+### Registering native routines in R
+According to [R extension manual](https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Registering-native-routines),
+it is good practice to register native routines and to disable symbol search. When any changes or additions are made to the
+C++ interface of the R package, please make corresponding changes in ```src/init.c``` as well.

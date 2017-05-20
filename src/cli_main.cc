@@ -155,6 +155,7 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
 DMLC_REGISTER_PARAMETER(CLIParam);
 
 void CLITrain(const CLIParam& param) {
+  const double tstart_data_load = dmlc::GetTime();
   if (rabit::IsDistributed()) {
     std::string pname = rabit::GetProcessorName();
     LOG(CONSOLE) << "start " << pname << ":" << rabit::GetRank();
@@ -193,9 +194,18 @@ void CLITrain(const CLIParam& param) {
       learner->InitModel();
     }
   }
+
+  if (param.silent == 0) {
+    LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";
+  }
+
+  // initialize the status info for checking whether it is suitable for early stop
+  learner->InitEarlyStopInfo(eval_data_names.size());
+
   // start training.
   const double start = dmlc::GetTime();
-  for (int i = version / 2; i < param.num_round; ++i) {
+  bool early_stopping = false;
+  for (int i = version / 2; (i < param.num_round) && !early_stopping; ++i) {
     double elapsed = dmlc::GetTime() - start;
     if (version % 2 == 0) {
       if (param.silent == 0) {
@@ -210,7 +220,7 @@ void CLITrain(const CLIParam& param) {
       version += 1;
     }
     CHECK_EQ(version, rabit::VersionNumber());
-    std::string res = learner->EvalOneIter(i, eval_datasets, eval_data_names);
+    std::string res = learner->EvalOneIter(i, eval_datasets, eval_data_names, &early_stopping);
     if (rabit::IsDistributed()) {
       if (rabit::GetRank() == 0) {
         LOG(TRACKER) << res;

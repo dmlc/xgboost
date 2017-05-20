@@ -45,14 +45,20 @@ class TreeUpdater {
   virtual void Update(const std::vector<bst_gpair>& gpair,
                       DMatrix* data,
                       const std::vector<RegTree*>& trees) = 0;
+
   /*!
-   * \brief this is simply a function for optimizing performance
-   * this function asks the updater to return the leaf position of each instance in the previous performed update.
-   * if it is cached in the updater, if it is not available, return nullptr
-   * \return array of leaf position of each instance in the last updated tree
+   * \brief determines whether updater has enough knowledge about a given dataset
+   *        to quickly update prediction cache its training data and performs the
+   *        update if possible.
+   * \param data: data matrix
+   * \param out_preds: prediction cache to be updated
+   * \return boolean indicating whether updater has capability to update
+   *         the prediction cache. If true, the prediction cache will have been
+   *         updated by the time this function returns.
    */
-  virtual const int* GetLeafPosition() const {
-    return nullptr;
+  virtual bool UpdatePredictionCache(const DMatrix* data,
+                                     std::vector<bst_float>* out_preds) {
+    return false;
   }
   /*!
    * \brief Create a tree updater given name

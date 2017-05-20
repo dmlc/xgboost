@@ -6,6 +6,8 @@ os:
   - linux
   - osx
 
+osx_image: xcode8
+
 # Use Build Matrix to do lint and build seperately
 env:
   matrix:

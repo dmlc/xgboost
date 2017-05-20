@@ -59,6 +59,11 @@ class Learner : public rabit::Serializable {
    */
   virtual void InitModel() = 0;
   /*!
+   * \brief Initialize the status info for checking whether it is suitable for early stop.
+   * \param size The size of data for meric
+   */
+  virtual void InitEarlyStopInfo(size_t size) = 0;
+  /*!
    * \brief load model from stream
    * \param fi input stream.
    */
@@ -90,11 +95,13 @@ class Learner : public rabit::Serializable {
    * \param iter iteration number
    * \param data_sets datasets to be evaluated.
    * \param data_names name of each dataset
+   * \param early_stopping early stop flag
    * \return a string corresponding to the evaluation result
    */
   virtual std::string EvalOneIter(int iter,
                                   const std::vector<DMatrix*>& data_sets,
-                                  const std::vector<std::string>& data_names) = 0;
+                                  const std::vector<std::string>& data_names,
+                                  bool *early_stopping = NULL) = 0;
   /*!
    * \brief get prediction given the model.
    * \param data input data
@@ -103,12 +110,14 @@ class Learner : public rabit::Serializable {
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
+   * \param pred_contribs whether to only predict the feature contributions of all trees
    */
   virtual void Predict(DMatrix* data,
                        bool output_margin,
                        std::vector<bst_float> *out_preds,
                        unsigned ntree_limit = 0,
-                       bool pred_leaf = false) const = 0;
+                       bool pred_leaf = false,
+                       bool pred_contribs = false) const = 0;
   /*!
    * \brief Set additional attribute to the Booster.
    *  The property will be saved along the booster.
@@ -180,6 +189,12 @@ class Learner : public rabit::Serializable {
   std::unique_ptr<GradientBooster> gbm_;
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;
+  /*! \brief Number of rounds for early stopping */
+  int early_stopping_round_;
+  /*! \brief Best iteration(s) for early stopping */
+  std::vector<std::vector<int>> best_iter_;
+  /*! \brief Best score(s) for early stopping */
+  std::vector<std::vector<float>> best_score_;
 };
 
 // implementation of inline functions.
@@ -188,9 +203,6 @@ inline void Learner::Predict(const SparseBatch::Inst& inst,
                              std::vector<bst_float>* out_preds,
                              unsigned ntree_limit) const {
   gbm_->Predict(inst, out_preds, ntree_limit);
-  if (out_preds->size() == 1) {
-    (*out_preds)[0] += base_score_;
-  }
   if (!output_margin) {
     obj_->PredTransform(out_preds);
   }

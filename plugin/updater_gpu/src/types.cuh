@@ -1,8 +1,11 @@
 /*!
  * Copyright 2016 Rory mitchell
-*/
+ */
 #pragma once
+#include <thrust/device_vector.h>
 #include <xgboost/base.h>
+#include <xgboost/tree_model.h>
+#include <cfloat>
 #include <tuple>  // The linter is not very smart and thinks we need this
 
 namespace xgboost {
@@ -104,8 +107,10 @@ struct GPUTrainingParam {
   __host__ __device__ GPUTrainingParam(float min_child_weight_in,
                                        float reg_lambda_in, float reg_alpha_in,
                                        float max_delta_step_in)
-      : min_child_weight(min_child_weight_in), reg_lambda(reg_lambda_in),
-        reg_alpha(reg_alpha_in), max_delta_step(max_delta_step_in) {}
+      : min_child_weight(min_child_weight_in),
+        reg_lambda(reg_lambda_in),
+        reg_alpha(reg_alpha_in),
+        max_delta_step(max_delta_step_in) {}
 };
 
 struct Split {
@@ -117,14 +122,15 @@ struct Split {
   gpu_gpair right_sum;
 
   __host__ __device__ Split()
-      : loss_chg(-FLT_MAX), missing_left(true), fvalue(0) {}
+      : loss_chg(-FLT_MAX), missing_left(true), fvalue(0), findex(-1) {}
 
   __device__ void Update(float loss_chg_in, bool missing_left_in,
                          float fvalue_in, int findex_in, gpu_gpair left_sum_in,
                          gpu_gpair right_sum_in,
                          const GPUTrainingParam &param) {
-    if (loss_chg_in > loss_chg && left_sum_in.hess() > param.min_child_weight &&
-        right_sum_in.hess() > param.min_child_weight) {
+    if (loss_chg_in > loss_chg &&
+        left_sum_in.hess() >= param.min_child_weight &&
+        right_sum_in.hess() >= param.min_child_weight) {
       loss_chg = loss_chg_in;
       missing_left = missing_left_in;
       fvalue = fvalue_in;
@@ -135,7 +141,7 @@ struct Split {
   }
 
   // Does not check minimum weight
-  __device__ void Update(Split &s) { // NOLINT
+  __device__ void Update(Split &s) {  // NOLINT
     if (s.loss_chg > loss_chg) {
       loss_chg = s.loss_chg;
       missing_left = s.missing_left;
@@ -146,7 +152,7 @@ struct Split {
     }
   }
 
-  __device__ void Print() {
+  __host__ __device__ void Print() {
     printf("Loss: %1.4f\n", loss_chg);
     printf("Missing left: %d\n", missing_left);
     printf("fvalue: %1.4f\n", fvalue);
@@ -160,7 +166,7 @@ struct Split {
 
 struct split_reduce_op {
   template <typename T>
-  __device__ __forceinline__ T operator()(T &a, T b) { // NOLINT
+  __device__ __forceinline__ T operator()(T &a, T b) {  // NOLINT
     b.Update(a);
     return b;
   }
@@ -184,5 +190,6 @@ struct Node {
 
   __host__ __device__ bool IsLeaf() { return split.loss_chg == -FLT_MAX; }
 };
+
 }  // namespace tree
 }  // namespace xgboost

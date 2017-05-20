@@ -35,18 +35,18 @@
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-scala${flink.suffix}</artifactId>
-            <version>0.10.2</version>
+            <artifactId>flink-scala_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-clients${flink.suffix}</artifactId>
-            <version>0.10.2</version>
+            <artifactId>flink-clients_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-ml${flink.suffix}</artifactId>
-            <version>0.10.2</version>
+            <artifactId>flink-ml_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
         </dependency>
     </dependencies>
 

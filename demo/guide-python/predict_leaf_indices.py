@@ -1,5 +1,4 @@
 #!/usr/bin/python
-import numpy as np
 import xgboost as xgb
 
 ### load data in do training
@@ -12,9 +11,9 @@ bst = xgb.train(param, dtrain, num_round, watchlist)
 
 print ('start testing predict the leaf indices')
 ### predict using first 2 tree
-leafindex = bst.predict(dtest, ntree_limit=2, pred_leaf = True)
-print leafindex.shape
-print leafindex
+leafindex = bst.predict(dtest, ntree_limit=2, pred_leaf=True)
+print(leafindex.shape)
+print(leafindex)
 ### predict all trees
 leafindex = bst.predict(dtest, pred_leaf = True)
-print leafindex.shape
+print(leafindex.shape)

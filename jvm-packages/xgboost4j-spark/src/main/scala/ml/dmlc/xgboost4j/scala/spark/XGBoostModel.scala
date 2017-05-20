@@ -17,10 +17,12 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.JavaConverters._
+
 import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
-import ml.dmlc.xgboost4j.scala.spark.params.DefaultXGBoostParamsWriter
+import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, DefaultXGBoostParamsWriter}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
 import org.apache.hadoop.fs.{FSDataOutputStream, Path}
+
 import org.apache.spark.ml.PredictionModel
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
@@ -36,13 +38,15 @@ import org.json4s.DefaultFormats
  * the base class of [[XGBoostClassificationModel]] and [[XGBoostRegressionModel]]
  */
 abstract class XGBoostModel(protected var _booster: Booster)
-  extends PredictionModel[MLVector, XGBoostModel] with Serializable with Params with MLWritable {
+  extends PredictionModel[MLVector, XGBoostModel] with BoosterParams with Serializable
+    with Params with MLWritable {
 
   def setLabelCol(name: String): XGBoostModel = set(labelCol, name)
 
   // scalastyle:off
 
-  final val useExternalMemory = new BooleanParam(this, "use_external_memory", "whether to use external memory for prediction")
+  final val useExternalMemory = new BooleanParam(this, "use_external_memory",
+    "whether to use external memory for prediction")
 
   setDefault(useExternalMemory, false)
 
@@ -83,10 +87,13 @@ abstract class XGBoostModel(protected var _booster: Booster)
    * @param evalFunc the customized evaluation function, null by default to use the default metric
    *             of model
    * @param iter the current iteration, -1 to be null to use customized evaluation functions
+   * @param groupData group data specify each group size for ranking task. Top level corresponds
+   *             to partition id, second level is the group sizes.
    * @return the average metric over all partitions
    */
   def eval(evalDataset: RDD[MLLabeledPoint], evalName: String, evalFunc: EvalTrait = null,
-           iter: Int = -1, useExternalCache: Boolean = false): String = {
+           iter: Int = -1, useExternalCache: Boolean = false,
+           groupData: Seq[Seq[Int]] = null): String = {
     require(evalFunc != null || iter != -1, "you have to specify the value of either eval or iter")
     val broadcastBooster = evalDataset.sparkContext.broadcast(_booster)
     val broadcastUseExternalCache = evalDataset.sparkContext.broadcast($(useExternalMemory))
@@ -106,6 +113,9 @@ abstract class XGBoostModel(protected var _booster: Booster)
           }
           import DataUtils._
           val dMatrix = new DMatrix(labeledPointsPartition, cacheFileName)
+          if (groupData != null) {
+            dMatrix.setGroup(groupData(TaskContext.getPartitionId()).toArray)
+          }
           (evalFunc, iter) match {
             case (null, _) => {
               val predStr = broadcastBooster.value.evalSet(Array(dMatrix), Array(evalName), iter)
@@ -314,14 +324,13 @@ object XGBoostModel extends MLReadable[XGBoostModel] {
       implicit val format = DefaultFormats
       implicit val sc = super.sparkSession.sparkContext
       DefaultXGBoostParamsWriter.saveMetadata(instance, path, sc)
-
       val dataPath = new Path(path, "data").toString
       instance.saveModelAsHadoopFile(dataPath)
     }
   }
 
   private class XGBoostModelModelReader extends MLReader[XGBoostModel] {
-    private val className = classOf[XGBoostModel].getName
+
     override def load(path: String): XGBoostModel = {
       implicit val sc = super.sparkSession.sparkContext
       val dataPath = new Path(path, "data").toString
@@ -330,5 +339,4 @@ object XGBoostModel extends MLReadable[XGBoostModel] {
       XGBoost.loadModelFromHadoopFile(dataPath)
     }
   }
-
 }

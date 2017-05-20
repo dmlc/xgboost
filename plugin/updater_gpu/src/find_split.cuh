@@ -9,7 +9,7 @@
 #include "find_split_multiscan.cuh"
 #include "find_split_sorting.cuh"
 #include "gpu_data.cuh"
-#include "types_functions.cuh"
+#include "types.cuh"
 
 namespace xgboost {
 namespace tree {

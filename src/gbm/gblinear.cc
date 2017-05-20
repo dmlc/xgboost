@@ -102,6 +102,9 @@ class GBLinear : public GradientBooster {
   void Save(dmlc::Stream* fo) const override {
     model.Save(fo);
   }
+  void ShrinkModel(int shrink_tree_num) {
+      return;
+  }
   void DoBoost(DMatrix *p_fmat,
                std::vector<bst_gpair> *in_gpair,
                ObjFunction* obj) override {
@@ -222,6 +225,11 @@ class GBLinear : public GradientBooster {
                    std::vector<bst_float> *out_preds,
                    unsigned ntree_limit) override {
     LOG(FATAL) << "gblinear does not support predict leaf index";
+  }
+  void PredictContribution(DMatrix* p_fmat,
+                           std::vector<bst_float>* out_contribs,
+                           unsigned ntree_limit) override {
+    LOG(FATAL) << "gblinear does not support predict contributions";
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,

@@ -623,17 +623,18 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetModelR
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterDumpModel
+ * Method:    XGBoosterDumpModelEx
  * Signature: (JLjava/lang/String;I)[Ljava/lang/String;
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterDumpModel
-  (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring jfmap, jint jwith_stats, jobjectArray jout) {
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterDumpModelEx
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring jfmap, jint jwith_stats, jstring jformat, jobjectArray jout) {
   BoosterHandle handle = (BoosterHandle) jhandle;
   const char *fmap = jenv->GetStringUTFChars(jfmap, 0);
+  const char *format = jenv->GetStringUTFChars(jformat, 0);
   bst_ulong len = 0;
   char **result;
 
-  int ret = XGBoosterDumpModel(handle, fmap, jwith_stats, &len, (const char ***) &result);
+  int ret = XGBoosterDumpModelEx(handle, fmap, jwith_stats, format, &len, (const char ***) &result);
 
   jsize jlen = (jsize) len;
   jobjectArray jinfos = jenv->NewObjectArray(jlen, jenv->FindClass("java/lang/String"), jenv->NewStringUTF(""));

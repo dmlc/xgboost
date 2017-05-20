@@ -1,6 +1,6 @@
 # XGBoost How To
 
-This page contains guidelines to use and develop mxnets.
+This page contains guidelines to use and develop XGBoost.
 
 ## Installation
 - [How to Install XGBoost](../build.md)

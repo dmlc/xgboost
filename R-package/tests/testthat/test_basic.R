@@ -189,3 +189,36 @@ test_that("xgb.cv works", {
   expect_false(is.null(cv$callbacks))
   expect_false(is.null(cv$call))
 })
+
+test_that("train and predict with non-strict classes", {
+  # standard dense matrix input
+  train_dense <- as.matrix(train$data)
+  bst <- xgboost(data = train_dense, label = train$label, max_depth = 2,
+                 eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic", verbose = 0)
+  pr0 <- predict(bst, train_dense)
+  
+  # dense matrix-like input of non-matrix class
+  class(train_dense) <- 'shmatrix'
+  expect_true(is.matrix(train_dense))
+  expect_error(
+    bst <- xgboost(data = train_dense, label = train$label, max_depth = 2,
+                   eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic", verbose = 0)
+    , regexp = NA)
+  expect_error(pr <- predict(bst, train_dense), regexp = NA)
+  expect_equal(pr0, pr)
+  
+  # dense matrix-like input of non-matrix class with some inheritance
+  class(train_dense) <- c('pphmatrix','shmatrix')
+  expect_true(is.matrix(train_dense))
+  expect_error(
+    bst <- xgboost(data = train_dense, label = train$label, max_depth = 2,
+                   eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic", verbose = 0)
+    , regexp = NA)
+  expect_error(pr <- predict(bst, train_dense), regexp = NA)
+  expect_equal(pr0, pr)
+  
+  # when someone inhertis from xgb.Booster, it should still be possible to use it as xgb.Booster
+  class(bst) <- c('super.Booster', 'xgb.Booster')
+  expect_error(pr <- predict(bst, train_dense), regexp = NA)
+  expect_equal(pr0, pr)
+})

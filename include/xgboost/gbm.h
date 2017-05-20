@@ -107,6 +107,19 @@ class GradientBooster {
   virtual void PredictLeaf(DMatrix* dmat,
                            std::vector<bst_float>* out_preds,
                            unsigned ntree_limit = 0) = 0;
+
+  /*!
+   * \brief predict the feature contributions of each tree, the output will be nsample * (nfeats + 1) vector
+   *        this is only valid in gbtree predictor
+   * \param dmat feature matrix
+   * \param out_contribs output vector to hold the contributions
+   * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
+   *    we do not limit number of trees
+   */
+  virtual void PredictContribution(DMatrix* dmat,
+                           std::vector<bst_float>* out_contribs,
+                           unsigned ntree_limit = 0) = 0;
+
   /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
@@ -128,6 +141,11 @@ class GradientBooster {
       const std::string& name,
       const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
       bst_float base_margin);
+  /*!
+   * \brief shrink the model when training stop early
+   * \param shrink_tree_num num of trees for shrink
+   */
+  virtual void ShrinkModel(int shrink_tree_num) = 0;
 };
 
 // implementing configure.

@@ -1,20 +1,20 @@
-# Construct an internal xgboost Booster and return a handle to it
+# Construct an internal xgboost Booster and return a handle to it.
 # internal utility function
 xgb.Booster.handle <- function(params = list(), cachelist = list(), modelfile = NULL) {
   if (typeof(cachelist) != "list" ||
-      any(sapply(cachelist, class) != 'xgb.DMatrix')) {
-    stop("xgb.Booster only accepts list of DMatrix as cachelist")
+      !all(sapply(cachelist, inherits, 'xgb.DMatrix'))) {
+    stop("cachelist must be a list of xgb.DMatrix objects")
   }
 
-  handle <- .Call("XGBoosterCreate_R", cachelist, PACKAGE = "xgboost")
+  handle <- .Call(XGBoosterCreate_R, cachelist)
   if (!is.null(modelfile)) {
     if (typeof(modelfile) == "character") {
-      .Call("XGBoosterLoadModel_R", handle, modelfile, PACKAGE = "xgboost")
+      .Call(XGBoosterLoadModel_R, handle, modelfile[1])
     } else if (typeof(modelfile) == "raw") {
-      .Call("XGBoosterLoadModelFromRaw_R", handle, modelfile, PACKAGE = "xgboost")
-    } else if (class(modelfile) == "xgb.Booster") {
-      bst <- xgb.Booster.complete(modelfile, saveraw=TRUE)
-      .Call("XGBoosterLoadModelFromRaw_R", handle, bst$raw, PACKAGE = "xgboost")
+      .Call(XGBoosterLoadModelFromRaw_R, handle, modelfile)
+    } else if (inherits(modelfile, "xgb.Booster")) {
+      bst <- xgb.Booster.complete(modelfile, saveraw = TRUE)
+      .Call(XGBoosterLoadModelFromRaw_R, handle, bst$raw)
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
     }
@@ -37,10 +37,10 @@ xgb.handleToBooster <- function(handle, raw = NULL) {
 # Check whether xgb.Booster.handle is null
 # internal utility function
 is.null.handle <- function(handle) {
-  if (class(handle) != "xgb.Booster.handle")
+  if (!identical(class(handle), "xgb.Booster.handle"))
     stop("argument type must be xgb.Booster.handle")
   
-  if (is.null(handle) || .Call("XGCheckNullPtr_R", handle, PACKAGE="xgboost"))
+  if (is.null(handle) || .Call(XGCheckNullPtr_R, handle))
     return(TRUE)
   return(FALSE)
 }
@@ -78,8 +78,8 @@ xgb.get.handle <- function(object) {
 #' its handle (pointer) to an internal xgboost model would be invalid. The majority of xgboost methods 
 #' should still work for such a model object since those methods would be using 
 #' \code{xgb.Booster.complete} internally. However, one might find it to be more efficient to call the  
-#' \code{xgb.Booster.complete} function once after loading a model as an R-object. That which would
-#' prevent further reconstruction (potentially, multiple times) of an internal booster model.
+#' \code{xgb.Booster.complete} function explicitely once after loading a model as an R-object.
+#' That would prevent further repeated implicit reconstruction of an internal booster model.
 #' 
 #' @return 
 #' An object of \code{xgb.Booster} class.
@@ -94,13 +94,14 @@ xgb.get.handle <- function(object) {
 #' bst1 <- readRDS("xgb.model.rds")
 #' # the handle is invalid:
 #' print(bst1$handle)
+#' 
 #' bst1 <- xgb.Booster.complete(bst1)
 #' # now the handle points to a valid internal booster model:
 #' print(bst1$handle)
 #' 
 #' @export
 xgb.Booster.complete <- function(object, saveraw = TRUE) {
-  if (class(object) != "xgb.Booster")
+  if (!inherits(object, "xgb.Booster"))
     stop("argument type must be xgb.Booster")
   
   if (is.null.handle(object$handle)) {
@@ -225,7 +226,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA,
     outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE, reshape = FALSE, ...) {
 
   object <- xgb.Booster.complete(object, saveraw = FALSE)
-  if (class(newdata) != "xgb.DMatrix")
+  if (!inherits(newdata, "xgb.DMatrix"))
     newdata <- xgb.DMatrix(newdata, missing = missing)
   if (is.null(ntreelimit))
     ntreelimit <- NVL(object$best_ntreelimit, 0)
@@ -236,8 +237,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA,
   
   option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf)
   
-  ret <- .Call("XGBoosterPredict_R", object$handle, newdata, option[1],
-               as.integer(ntreelimit), PACKAGE = "xgboost")
+  ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1], as.integer(ntreelimit))
   
   if (length(ret) %% nrow(newdata) != 0)
     stop("prediction length ", length(ret)," is not multiple of nrows(newdata) ", nrow(newdata))
@@ -337,7 +337,7 @@ predict.xgb.Booster.handle <- function(object, ...) {
 xgb.attr <- function(object, name) {
   if (is.null(name) || nchar(as.character(name[1])) == 0) stop("invalid attribute name")
   handle <- xgb.get.handle(object)
-  .Call("XGBoosterGetAttr_R", handle, as.character(name[1]), PACKAGE="xgboost")
+  .Call(XGBoosterGetAttr_R, handle, as.character(name[1]))
 }
 
 #' @rdname xgb.attr
@@ -354,7 +354,7 @@ xgb.attr <- function(object, name) {
       value <- as.character(value[1])
     }
   }
-  .Call("XGBoosterSetAttr_R", handle, as.character(name[1]), value, PACKAGE="xgboost")
+  .Call(XGBoosterSetAttr_R, handle, as.character(name[1]), value)
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)
   }
@@ -365,10 +365,10 @@ xgb.attr <- function(object, name) {
 #' @export
 xgb.attributes <- function(object) {
   handle <- xgb.get.handle(object)
-  attr_names <- .Call("XGBoosterGetAttrNames_R", handle, PACKAGE="xgboost")
+  attr_names <- .Call(XGBoosterGetAttrNames_R, handle)
   if (is.null(attr_names)) return(NULL)
   res <- lapply(attr_names, function(x) {
-    .Call("XGBoosterGetAttr_R", handle, x, PACKAGE="xgboost")
+    .Call(XGBoosterGetAttr_R, handle, x)
   })
   names(res) <- attr_names
   res
@@ -393,7 +393,7 @@ xgb.attributes <- function(object) {
   })
   handle <- xgb.get.handle(object)
   for (i in seq_along(a)) {
-    .Call("XGBoosterSetAttr_R", handle, names(a[i]), a[[i]], PACKAGE="xgboost")
+    .Call(XGBoosterSetAttr_R, handle, names(a[i]), a[[i]])
   }
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)
@@ -434,7 +434,7 @@ xgb.attributes <- function(object) {
   p <- lapply(p, function(x) as.character(x)[1])
   handle <- xgb.get.handle(object)
   for (i in seq_along(p)) {
-    .Call("XGBoosterSetParam_R", handle, names(p[i]), p[[i]], PACKAGE = "xgboost")
+    .Call(XGBoosterSetParam_R, handle, names(p[i]), p[[i]])
   }
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)
@@ -442,8 +442,8 @@ xgb.attributes <- function(object) {
   object
 }
 
-# Extract # of trees in a model
-# TODO: either add a getter to C-interface, or simply set an 'ntree' attribute after each iteration
+# Extract the number of trees in a model.
+# TODO: either add a getter to C-interface, or simply set an 'ntree' attribute after each iteration.
 # internal utility function
 xgb.ntree <- function(bst) {
   length(grep('^booster', xgb.dump(bst)))
@@ -470,7 +470,7 @@ xgb.ntree <- function(bst) {
 #'
 #' @method print xgb.Booster 
 #' @export
-print.xgb.Booster <- function(x, verbose=FALSE, ...) {
+print.xgb.Booster <- function(x, verbose = FALSE, ...) {
   cat('##### xgb.Booster\n')
   
   valid_handle <- is.null.handle(x$handle)
@@ -479,7 +479,7 @@ print.xgb.Booster <- function(x, verbose=FALSE, ...) {
 
   cat('raw: ')
   if (!is.null(x$raw)) {
-    cat(format(object.size(x$raw), units="auto"), '\n')
+    cat(format(object.size(x$raw), units = "auto"), '\n')
   } else {
     cat('NULL\n')
   }
@@ -493,7 +493,7 @@ print.xgb.Booster <- function(x, verbose=FALSE, ...) {
     cat( '  ', 
          paste(names(x$params),
                paste0('"', unlist(x$params), '"'),
-               sep=' = ', collapse=', '), '\n', sep='')
+               sep = ' = ', collapse = ', '), '\n', sep = '')
   }
   # TODO: need an interface to access all the xgboosts parameters
 
@@ -505,9 +505,9 @@ print.xgb.Booster <- function(x, verbose=FALSE, ...) {
     if (verbose) {
       cat( paste(paste0('  ',names(attrs)),
                  paste0('"', unlist(attrs), '"'),
-                 sep=' = ', collapse='\n'), '\n', sep='')
+                 sep = ' = ', collapse = '\n'), '\n', sep = '')
     } else {
-      cat('  ', paste(names(attrs), collapse=', '), '\n', sep='')
+      cat('  ', paste(names(attrs), collapse = ', '), '\n', sep = '')
     }
   }
   
@@ -522,16 +522,16 @@ print.xgb.Booster <- function(x, verbose=FALSE, ...) {
   if (!is.null(x$feature_names))
     cat('# of features:', length(x$feature_names), '\n')
   
-  cat('niter: ', x$niter, '\n', sep='')
+  cat('niter: ', x$niter, '\n', sep = '')
   # TODO: uncomment when faster xgb.ntree is implemented
   #cat('ntree: ', xgb.ntree(x), '\n', sep='')
   
   for (n in setdiff(names(x), c('handle', 'raw', 'call', 'params', 'callbacks',
                                 'evaluation_log','niter','feature_names'))) {
     if (is.atomic(x[[n]])) {
-      cat(n, ':', x[[n]], '\n', sep=' ')
+      cat(n, ':', x[[n]], '\n', sep = ' ')
     } else {
-      cat(n, ':\n\t', sep=' ')
+      cat(n, ':\n\t', sep = ' ')
       print(x[[n]])
     }
   }
