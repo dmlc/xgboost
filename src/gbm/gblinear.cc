@@ -269,6 +269,7 @@ class GBLinear : public GradientBooster {
                                      std::string format) const override {
     const int ngroup = model.param.num_output_group;
     const unsigned nfeature = model.param.num_feature;
+
     std::stringstream fo("");
     if (format == "json") {
       fo << "  { \"bias\": [" << std::endl;
@@ -278,8 +279,8 @@ class GBLinear : public GradientBooster {
       }
       fo << std::endl << "    ]," << std::endl
          << "    \"weight\": [" << std::endl;
-      for (int gid = 0; gid < ngroup; ++gid) {
-        for (unsigned i = 0; i < nfeature; ++i) {
+      for (unsigned i = 0; i < nfeature; ++i) {
+        for (int gid = 0; gid < ngroup; ++gid) {
           if (i != 0 || gid != 0) fo << "," << std::endl;
           fo << "      " << model[i][gid];
         }
@@ -291,8 +292,8 @@ class GBLinear : public GradientBooster {
         fo << model.bias()[gid] << std::endl;
       }
       fo << "weight:\n";
-      for (int gid = 0; gid < ngroup; ++gid) {
-        for (unsigned i = 0; i < nfeature; ++i) {
+      for (unsigned i = 0; i < nfeature; ++i) {
+        for (int gid = 0; gid < ngroup; ++gid) {
           fo << model[i][gid] << std::endl;
         }
       }
