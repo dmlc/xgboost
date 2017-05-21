@@ -510,6 +510,15 @@ class GBTree : public GradientBooster {
     }
   }
 
+  // remove last shrink_tree_num trees when training stop early
+  void ShrinkModel(int shrink_tree_num) override {
+    for (int i = 0; i < shrink_tree_num; ++i) {
+      trees.pop_back();
+      tree_info.pop_back();
+    }
+    mparam.num_trees -= shrink_tree_num;
+  }
+
   // make a prediction for a single instance
   inline bst_float PredValue(const RowBatch::Inst &inst,
                              int bst_group,
