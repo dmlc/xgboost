@@ -20,7 +20,7 @@ bst.Tree <- xgboost(data = sparse_matrix, label = label, max_depth = 9,
                     objective = "binary:logistic", booster = "gbtree")
 
 bst.GLM <- xgboost(data = sparse_matrix, label = label,
-                   eta = 1, nthread = 2, nrounds = nrounds, verbose = 0,
+                   eta = 1, nthread = 1, nrounds = nrounds, verbose = 0,
                    objective = "binary:logistic", booster = "gblinear")
 
 feature.names <- colnames(sparse_matrix)
@@ -74,12 +74,44 @@ test_that("predict feature contributions works", {
   expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
   expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
   pred <- predict(bst.GLM, sparse_matrix, outputmargin = TRUE)
-  expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-6)
-  # calculate linear terms by hand and compare
-  coefs <- xgb.dump(bst.GLM)
-  coefs <- as.numeric(c(coefs[5:length(coefs)], coefs[3])) # intercept is last
+  expect_lt(max(abs(rowSums(pred_contr) - pred)), 2e-6)
+  # manual calculation of linear terms
+  coefs <- xgb.dump(bst.GLM)[-c(1,2,4)] %>% as.numeric
+  coefs <- c(coefs[-1], coefs[1]) # intercept must be the last
   pred_contr_manual <- sweep(cbind(sparse_matrix, 1), 2, coefs, FUN="*")
-  expect_equal(as.numeric(pred_contr), as.numeric(pred_contr_manual), 1e-6)
+  expect_equal(as.numeric(pred_contr), as.numeric(pred_contr_manual), 2e-6)
+
+  # gbtree multiclass  
+  lb <- as.numeric(iris$Species) - 1
+  bst <- xgboost(data = as.matrix(iris[, -5]), label = lb, verbose = 0,
+                 max_depth = 3, eta = 0.5, nthread = 2, nrounds = 5,
+                 objective = "multi:softprob", num_class = 3)
+  pred <- predict(bst, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
+  pred_contr <- predict(bst, as.matrix(iris[, -5]), predcontrib = TRUE)
+  expect_is(pred_contr, "list")
+  expect_length(pred_contr, 3)
+  for (g in seq_along(pred_contr)) {
+    expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "BIAS"))
+    expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), 2e-6)
+  }
+
+  # gblinear multiclass (set base_score = 0, which is base margin in multiclass)
+  bst <- xgboost(data = as.matrix(iris[, -5]), label = lb, verbose = 0,
+                 booster = "gblinear", eta = 0.1, nthread = 1, nrounds = 10,
+                 objective = "multi:softprob", num_class = 3, base_score = 0)
+  pred <- predict(bst, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
+  pred_contr <- predict(bst, as.matrix(iris[, -5]), predcontrib = TRUE)
+  expect_length(pred_contr, 3)
+  coefs_all <- xgb.dump(bst)[-c(1,2,6)] %>% as.numeric
+  for (g in seq_along(pred_contr)) {
+    expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "BIAS"))
+    expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), 2e-6)
+    # manual calculation of linear terms
+    coefs <- coefs_all[seq(g, length(coefs_all), by = 3)]
+    coefs <- c(coefs[-1], coefs[1]) # intercept needs to be the last
+    pred_contr_manual <- sweep(as.matrix(cbind(iris[,-5], 1)), 2, coefs, FUN="*")
+    expect_equal(as.numeric(pred_contr[[g]]), as.numeric(pred_contr_manual), 2e-6)
+  }
 })
 
 test_that("xgb-attribute functionality", {

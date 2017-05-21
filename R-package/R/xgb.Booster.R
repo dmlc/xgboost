@@ -136,20 +136,20 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' Note that \code{ntreelimit} is not necessarily equal to the number of boosting iterations
 #' and it is not necessarily equal to the number of trees in a model.
 #' E.g., in a random forest-like model, \code{ntreelimit} would limit the number of trees.
-#' But for multiclass classification, there are multiple trees per iteration, 
-#' but \code{ntreelimit} limits the number of boosting iterations.
+#' But for multiclass classification, while there are multiple trees per iteration, 
+#' \code{ntreelimit} limits the number of boosting iterations.
 #' 
 #' Also note that \code{ntreelimit} would currently do nothing for predictions from gblinear, 
-#' since gblinear doesn't keep its boosting history. 
+#' since gblinear doesn't keep its boosting history.
 #' 
 #' One possible practical applications of the \code{predleaf} option is to use the model 
 #' as a generator of new features which capture non-linearity and interactions, 
-#' e.g., as implemented in \code{\link{xgb.create.features}}. 
+#' e.g., as implemented in \code{\link{xgb.create.features}}.
 #' 
 #' Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
 #' individual predictions. For "gblinear" booster, feature contributions are simply linear terms
 #' (feature_beta * feature_value). For "gbtree" booster, feature contribution is calculated 
-#' as a sum of average contribution of that feature split nodes across all trees to an 
+#' as a sum of average contribution of that feature's split nodes across all trees to an 
 #' individual prediction, following the idea explained in 
 #' \url{http://blog.datadive.net/interpreting-random-forests/}.
 #' 
@@ -162,11 +162,11 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' When \code{predleaf = TRUE}, the output is a matrix object with the 
 #' number of columns corresponding to the number of trees.
 #' 
-#' When \code{predcontrib = TRUE}, the output is a matrix object with (num_features + 1) * num_class 
-#' columns (num_class is considered to be 1 for binary classification). The "+ 1" column correspond
-#' to bias and is the last column in each (num_features + 1) columns block.
-#' The contribution values are on untransformed margin scale (e.g., for binary classification 
-#' it means that the contributions are in log-odds deviations from bias).
+#' When \code{predcontrib = TRUE} and it is not a multiclass setting, the output is a matrix object with
+#' \code{num_features + 1} columns. The last "+ 1" column in a matrix corresponds to bias.
+#' For a multiclass case, a list of \code{num_class} elements is returned, where each element is
+#' such a matrix. The contribution values are on the scale of untransformed margin 
+#' (e.g., for binary classification would mean that the contributions are log-odds deviations from bias).
 #' 
 #' @seealso
 #' \code{\link{xgb.train}}.
@@ -274,27 +274,36 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   
   ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1], as.integer(ntreelimit))
   
-  if (length(ret) %% nrow(newdata) != 0)
-    stop("prediction length ", length(ret)," is not multiple of nrows(newdata) ", nrow(newdata))
-  npred_per_case <- length(ret) / nrow(newdata)
-
-  if (predleaf || predcontrib) {
-    len <- nrow(newdata)
-    ret <- if (length(ret) == len) {
+  n_ret <- length(ret)
+  n_row <- nrow(newdata)
+  npred_per_case <- n_ret / n_row
+  
+  if (n_ret %% n_row != 0)
+    stop("prediction length ", n_ret, " is not multiple of nrows(newdata) ", n_row)
+  
+  if (predleaf) {
+    ret <- if (n_ret == n_row) {
       matrix(ret, ncol = 1)
     } else {
-      matrix(ret, nrow = len, byrow = TRUE)
+      matrix(ret, nrow = n_row, byrow = TRUE)
     }
-    if (predcontrib && !is.null(colnames(newdata))) {
-      ngroup <- npred_per_case / (ncol(newdata) + 1)
-      cnames <- c(colnames(newdata), "BIAS") %>% rep(ngroup)
-      if (ngroup > 1) {
-        cnames[ncol(newdata) * (1:ngroup)] <- paste0("BIAS_", 1:ngroup)
-      }
-      colnames(ret) <- cnames
+  } else if (predcontrib) {
+    n_col1 <- ncol(newdata) + 1
+    n_group <- npred_per_case / n_col1
+    dnames <- list(NULL, c(colnames(newdata), "BIAS"))
+    ret <- if (n_ret == n_row) {
+      matrix(ret, ncol = 1, dimnames = dnames)
+    } else if (n_group == 1) {
+      matrix(ret, nrow = n_row, byrow = TRUE, dimnames = dnames)
+    } else {
+      grp_mask <- rep(1:n_col1, n_row) +
+        rep((0:(n_row - 1)) * n_col1 * n_group, each = n_col1)
+      lapply(1:n_group, function(g) {
+        matrix(ret[grp_mask + n_col1 * (g - 1)], nrow = n_row, byrow = TRUE, dimnames = dnames)
+      })
     }
   } else if (reshape && npred_per_case > 1) {
-    ret <- matrix(ret, ncol = length(ret) / nrow(newdata), byrow = TRUE)
+    ret <- matrix(ret, nrow = n_row, byrow = TRUE)
   }
   return(ret)
 }
