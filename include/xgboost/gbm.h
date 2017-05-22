@@ -141,6 +141,11 @@ class GradientBooster {
       const std::string& name,
       const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
       bst_float base_margin);
+  /*!
+   * \brief shrink the model when training stop early
+   * \param shrink_tree_num num of trees for shrink
+   */
+  virtual void ShrinkModel(int shrink_tree_num) = 0;
 };
 
 // implementing configure.

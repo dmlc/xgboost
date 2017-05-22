@@ -48,15 +48,20 @@ struct LearnerModelParam
   int contain_eval_metrics;
   /*! \brief reserved field */
   int reserved[29];
+  /*! \brief Number of rounds for early stopping */
+  int early_stopping_round;
   /*! \brief constructor */
   LearnerModelParam() {
     std::memset(this, 0, sizeof(LearnerModelParam));
     base_score = 0.5f;
+    early_stopping_round = 0;
   }
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerModelParam) {
     DMLC_DECLARE_FIELD(base_score).set_default(0.5f)
         .describe("Global bias of the model.");
+    DMLC_DECLARE_FIELD(early_stopping_round).set_default(0)
+        .describe("Early stop round num..");
     DMLC_DECLARE_FIELD(num_feature).set_default(0)
         .describe("Number of features in training data,"\
                   " this parameter will be automatically detected by learner.");
@@ -218,10 +223,60 @@ class LearnerImpl : public Learner {
     if (obj_.get() != nullptr) {
       obj_->Configure(cfg_.begin(), cfg_.end());
     }
+    this->early_stopping_round_ = mparam.early_stopping_round;
   }
 
   void InitModel() override {
     this->LazyInitModel();
+  }
+
+  void InitEvalStateOnce(size_t eval_datasets_size) override {
+    // won't init state info
+    if (early_stopping_round_ <= 0 || best_iter_.size() != 0) {
+      return;
+    }
+
+    std::set<std::string> maximize_metrics;
+    maximize_metrics.insert("auc");
+    maximize_metrics.insert("map");
+    maximize_metrics.insert("ndcg");
+
+    std::set<std::string> maximize_at_n_metrics;
+    maximize_at_n_metrics.insert("auc@");
+    maximize_at_n_metrics.insert("map@");
+    maximize_at_n_metrics.insert("ndcg@");
+
+    for (auto& metric : metrics_) {
+      std::string metr_name = metric->Name();
+      bool maximize = false;
+
+      if (maximize_metrics.find(metr_name) != maximize_metrics.end()) {
+        maximize = true;
+      } else {
+        for (auto& prefix : maximize_at_n_metrics) {
+          if (0 == metr_name.compare(0, prefix.length(), prefix)) {
+            maximize = true;
+            break;
+          }
+        }
+      }
+      metric_maximize_.push_back(maximize);
+    }
+
+    for (size_t i = 0; i < eval_datasets_size; ++i) {
+      best_iter_.emplace_back();
+      best_score_.emplace_back();
+
+      for (size_t j = 0; j < metrics_.size(); ++j) {
+        std::string metr_name = metrics_[i]->Name();
+        best_iter_.back().push_back(0);
+        if (metric_maximize_[j]) {
+          best_score_.back().push_back(-std::numeric_limits<float>::infinity());
+        } else {
+          best_score_.back().push_back(std::numeric_limits<float>::infinity());
+        }
+      }
+    }
   }
 
   void Load(dmlc::Stream* fi) override {
@@ -345,12 +400,26 @@ class LearnerImpl : public Learner {
     if (metrics_.size() == 0) {
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric()));
     }
+
+    this->InitEvalStateOnce(data_sets.size());
+
     for (size_t i = 0; i < data_sets.size(); ++i) {
       this->PredictRaw(data_sets[i], &preds_);
       obj_->EvalTransform(&preds_);
-      for (auto& ev : metrics_) {
-        os << '\t' << data_names[i] << '-' << ev->Name() << ':'
-           << ev->Eval(preds_, data_sets[i]->info(), tparam.dsplit == 2);
+      for (size_t j = 0; j < metrics_.size(); ++j) {
+        bst_float curr_score = metrics_[j]->Eval(preds_, data_sets[i]->info(),  tparam.dsplit == 2);
+        os  << "\t" << data_names[i] << "-" << metrics_[j]->Name() << ":"
+            << curr_score;
+
+        if (early_stopping_round_ > 0) {
+          if (curr_score > best_score_[i][j] && metric_maximize_[j]) {
+            best_score_[i][j] = curr_score;
+            best_iter_[i][j] = iter;
+          } else if (curr_score < best_score_[i][j] && !metric_maximize_[j]) {
+            best_score_[i][j] = curr_score;
+            best_iter_[i][j] = iter;
+          }
+        }
       }
     }
 
@@ -358,6 +427,44 @@ class LearnerImpl : public Learner {
       LOG(INFO) << "EvalOneIter(): " << dmlc::GetTime() - tstart << " sec";
     }
     return os.str();
+  }
+
+  bool CheckEarlyStopping(int iter,
+                          const std::vector<DMatrix*>& data_sets,
+                          const std::vector<std::string>& data_names) override {
+    std::ostringstream os;
+
+    if (early_stopping_round_ <= 0) {
+      return false;
+    }
+
+    // The last metric is used for early stopping, consistent with Python API
+    size_t metric_index = metrics_.size() - 1;
+
+    for (size_t i = 0; i < data_sets.size(); ++i) {
+      if (data_names[i] == std::string("train")) {
+        continue;
+      }
+
+      if (iter - best_iter_[i][metric_index] >= early_stopping_round_) {
+        os << "\n\nEarly stopping at iteration [" << iter
+           << "], the best iteration round is [" << iter - early_stopping_round_
+           << "] metric name is [" << metrics_[metric_index]->Name() << "]\n";
+
+        if (rabit::IsDistributed()) {
+          if (rabit::GetRank() == 0) {
+            LOG(TRACKER) << os.str();
+          }
+        } else {
+          LOG(CONSOLE) << os.str();
+        }
+
+        // remove the last trees
+        gbm_->ShrinkModel(early_stopping_round_);
+        return true;
+      }
+    }
+    return false;
   }
 
   void SetAttr(const std::string& key, const std::string& value) override {
