@@ -4,6 +4,9 @@ XGBoost Change Log
 This file records the changes in xgboost library in reverse chronological order.
 
 ## in progress version
+* Updated Sklearn API
+  - Updated to allow use of all XGBoost parameters via **kwargs.
+  - Updated nthread to n_jobs and seed to random_state (as per Sklearn convention).
 * Refactored gbm to allow more friendly cache strategy
   - Specialized some prediction routine
 * Automatically remove nan from input data when it is sparse.
