@@ -101,6 +101,10 @@ class XGBModel(XGBModelBase):
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
+    updater : string
+        A comma separated string defining the sequence of tree updaters to run, providing
+        a modular way to construct and to modify the trees. This paramater can be used to
+        provide gpu support with the option 'grow_gpu'. Defaults to 'grow_colmaker,prune'.
 
     Note
     ----
@@ -124,7 +128,8 @@ class XGBModel(XGBModelBase):
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, random_state=0, seed=None, missing=None):
+                 base_score=0.5, random_state=0, seed=None, missing=None,
+                 updater="grow_colmaker,prune"):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
@@ -146,6 +151,7 @@ class XGBModel(XGBModelBase):
         self.scale_pos_weight = scale_pos_weight
         self.base_score = base_score
         self.missing = missing if missing is not None else np.nan
+        self.updater = updater
         self._Booster = None
         if seed:
             warnings.warn('The seed parameter is deprecated as of version .6.'
@@ -388,7 +394,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, random_state=0, seed=None, missing=None):
+                 base_score=0.5, random_state=0, seed=None, missing=None, updater="grow_colmaker,prune"):
         super(XGBClassifier, self).__init__(max_depth, learning_rate,
                                             n_estimators, silent, objective, booster,
                                             n_jobs, nthread, gamma, min_child_weight,
@@ -396,7 +402,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             colsample_bytree, colsample_bylevel,
                                             reg_alpha, reg_lambda,
                                             scale_pos_weight, base_score,
-                                            random_state, seed, missing)
+                                            random_state, seed, missing, updater)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):

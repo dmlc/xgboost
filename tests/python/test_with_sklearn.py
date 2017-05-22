@@ -363,3 +363,8 @@ def test_nthread_deprecation():
     with warnings.catch_warnings(record=True) as w:
         xgb.XGBClassifier(nthread=1)
         assert w[0].category == DeprecationWarning
+
+def test_updater_param():
+    tm._skip_if_no_sklearn
+    clf = xgb.XGBClassifier(updater='grow_gpu')
+    assert clf.get_params()['updater'] == 'grow_gpu'
