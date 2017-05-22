@@ -395,7 +395,6 @@ class LearnerImpl : public Learner {
                           const std::vector<std::string>& data_names) override {
     double tstart = dmlc::GetTime();
     std::ostringstream os;
-
     os << '[' << iter << ']'
        << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0) {
@@ -407,12 +406,9 @@ class LearnerImpl : public Learner {
     for (size_t i = 0; i < data_sets.size(); ++i) {
       this->PredictRaw(data_sets[i], &preds_);
       obj_->EvalTransform(&preds_);
-      std::string data_name = data_names[i];
-
       for (size_t j = 0; j < metrics_.size(); ++j) {
-        std::string metr_name = metrics_[j]->Name();
         bst_float curr_score = metrics_[j]->Eval(preds_, data_sets[i]->info(),  tparam.dsplit == 2);
-        os  << "\t" << data_name << "-" << metr_name << ":"
+        os  << "\t" << data_names[i] << "-" << metrics_[j]->Name() << ":"
             << curr_score;
 
         if (early_stopping_round_ > 0) {
@@ -442,33 +438,32 @@ class LearnerImpl : public Learner {
       return false;
     }
 
+	// The last metric is used for early stopping, consistent with Python API
+	size_t metric_index = metrics_.size() - 1;
+
     for (size_t i = 0; i < data_sets.size(); ++i) {
       if (data_names[i] == std::string("train")) {
         continue;
       }
 
-      for (size_t j = 0; j < metrics_.size(); ++j) {
-        std::string metr_name = metrics_[j]->Name();
-        if (iter - best_iter_[i][j] >= early_stopping_round_) {
-          os << "\n\nEarly stopping at iteration [" << iter
-             //<< "], the best iteration round is [" << iter - early_stopping_round_ << "]\n";
-             << "], the best iteration round is [" << iter - early_stopping_round_ 
-             << "] metric name is [" << metr_name << "]\n";
+      if (iter - best_iter_[i][metric_index] >= early_stopping_round_) {
+        os << "\n\nEarly stopping at iteration [" << iter
+           << "], the best iteration round is [" << iter - early_stopping_round_ 
+           << "] metric name is [" << metrics_[metric_index]->Name() << "]\n";
 
-          if (rabit::IsDistributed()) {
-            if (rabit::GetRank() == 0) {
-              LOG(TRACKER) << os.str();
-            }
-          } else {
-            LOG(CONSOLE) << os.str();
+        if (rabit::IsDistributed()) {
+          if (rabit::GetRank() == 0) {
+            LOG(TRACKER) << os.str();
           }
-
-          // remove the last trees
-          gbm_->ShrinkModel(early_stopping_round_);
-          return true;
-          }
+        } else {
+          LOG(CONSOLE) << os.str();
         }
+
+        // remove the last trees
+        gbm_->ShrinkModel(early_stopping_round_);
+        return true;
       }
+    }
     return false;
   }
 
