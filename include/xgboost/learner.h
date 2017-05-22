@@ -60,7 +60,7 @@ class Learner : public rabit::Serializable {
   virtual void InitModel() = 0;
   /*!
    * \brief Initialize the state of evaluation only once
-   * \param size The size of eval_data_sets
+   * \param eval_datasets_size The size of eval_data_sets
    */
   virtual void InitEvalStateOnce(size_t eval_datasets_size) = 0;
   /*!
