@@ -3,7 +3,6 @@
 # Basically, it first try to make with OpenMP, if fails, disable OpenMP and make it again.
 # This will automatically make xgboost for MAC users who don't have OpenMP support.
 # In most cases, type make will give what you want.
-
 # See additional instruction in doc/build.md
 
 if make; then
@@ -11,10 +10,10 @@ if make; then
 else
     echo "-----------------------------"
     echo "Building multi-thread xgboost failed"
-    echo "Start to build single-thread xgboost"
-    make clean_all
-    make config=make/minimum.mk
-    echo "Successfully build single-thread xgboost"
-    echo "If you want multi-threaded version"
-    echo "See additional instructions in doc/build.md"
+#    echo "Start to build single-thread xgboost"
+#    make clean_all
+#    make config=make/minimum.mk
+#    echo "Successfully build single-thread xgboost"
+#    echo "If you want multi-threaded version"
+#    echo "See additional instructions in doc/build.md"
 fi
