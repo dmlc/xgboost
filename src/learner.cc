@@ -230,21 +230,54 @@ class LearnerImpl : public Learner {
     this->LazyInitModel();
   }
 
-  void InitEarlyStopInfo(size_t size) override {
-    if (early_stopping_round_ <= 0) {
+  void InitEvalStateOnce(size_t eval_datasets_size) override {
+    // won't init state info
+    if (early_stopping_round_ <= 0 || best_iter_.size() != 0 ) {
       return;
     }
-    for (size_t i = 0; i < size; ++i) {
+
+    std::set<std::string> maximize_metrics;
+    maximize_metrics.insert("auc");
+    maximize_metrics.insert("map");
+    maximize_metrics.insert("ndcg");
+
+    std::set<std::string> maximize_at_n_metrics;
+    maximize_at_n_metrics.insert("auc@");
+    maximize_at_n_metrics.insert("map@");
+    maximize_at_n_metrics.insert("ndcg@");
+
+    for (auto& metric : metrics_) {
+      std::string metr_name = metric->Name();
+      bool maximize = false;
+
+      if (maximize_metrics.find(metr_name) != maximize_metrics.end()) {
+        maximize = true;
+      } else {
+        for (auto& prefix : maximize_at_n_metrics) {
+          if (0 == metr_name.compare(0, prefix.length(), prefix)) {
+            maximize = true;
+            break;
+          }
+        }
+      }
+      metric_maximize_.push_back(maximize);
+    }
+
+    for (size_t i = 0; i < eval_datasets_size; ++i) {
       best_iter_.emplace_back();
       best_score_.emplace_back();
 
-      for (size_t i = 0; i < metrics_.size(); ++i) {
+      for (size_t j = 0; j < metrics_.size(); ++ j) {
+        std::string metr_name = metrics_[i]->Name();
         best_iter_.back().push_back(0);
-        best_score_.back().push_back(-std::numeric_limits<float>::infinity());
+        if (metric_maximize_[j]) {
+          best_score_.back().push_back(-std::numeric_limits<float>::infinity());
+        } else {
+          best_score_.back().push_back(std::numeric_limits<float>::infinity());
+        }
       }
     }
   }
-
 
   void Load(dmlc::Stream* fi) override {
     // TODO(tqchen) mark deprecation of old format.
@@ -359,25 +392,22 @@ class LearnerImpl : public Learner {
 
   std::string EvalOneIter(int iter,
                           const std::vector<DMatrix*>& data_sets,
-                          const std::vector<std::string>& data_names,
-                          bool* early_stopping) override {
+                          const std::vector<std::string>& data_names) override {
     double tstart = dmlc::GetTime();
     std::ostringstream os;
-
-    if (NULL != early_stopping) {
-        *early_stopping = false;
-    }
 
     os << '[' << iter << ']'
        << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0) {
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric()));
     }
+
+    this->InitEvalStateOnce(data_sets.size());
+
     for (size_t i = 0; i < data_sets.size(); ++i) {
       this->PredictRaw(data_sets[i], &preds_);
       obj_->EvalTransform(&preds_);
       std::string data_name = data_names[i];
-      bool is_train_data =  (data_name == std::string("train"));
 
       for (size_t j = 0; j < metrics_.size(); ++j) {
         std::string metr_name = metrics_[j]->Name();
@@ -385,17 +415,13 @@ class LearnerImpl : public Learner {
         os  << "\t" << data_name << "-" << metr_name << ":"
             << curr_score;
 
-        if (early_stopping_round_ > 0 && !is_train_data && NULL != early_stopping) {
-          if (curr_score > best_score_[i][j]) {
+        if (early_stopping_round_ > 0) {
+          if (curr_score > best_score_[i][j] && metric_maximize_[j]) {
             best_score_[i][j] = curr_score;
             best_iter_[i][j] = iter;
-          } else if (iter - best_iter_[i][j] >= early_stopping_round_) {
-            *early_stopping = true;
-            os << "\n\nEarly stopping at iteration [" << iter
-               << "], the best iteration round is [" << iter - early_stopping_round_ << "]\n";
-            // remove the last trees
-            gbm_->ShrinkModel(early_stopping_round_);
-            return os.str();
+          } else if (curr_score < best_score_[i][j] && !metric_maximize_[j]) {
+            best_score_[i][j] = curr_score;
+            best_iter_[i][j] = iter;
           }
         }
       }
@@ -405,6 +431,45 @@ class LearnerImpl : public Learner {
       LOG(INFO) << "EvalOneIter(): " << dmlc::GetTime() - tstart << " sec";
     }
     return os.str();
+  }
+
+  bool CheckEarlyStopping(int iter,
+                          const std::vector<DMatrix*>& data_sets,
+                          const std::vector<std::string>& data_names) override {
+    std::ostringstream os;
+
+    if (early_stopping_round_ <= 0) {
+      return false;
+    }
+
+    for (size_t i = 0; i < data_sets.size(); ++i) {
+      if (data_names[i] == std::string("train")) {
+        continue;
+      }
+
+      for (size_t j = 0; j < metrics_.size(); ++j) {
+        std::string metr_name = metrics_[j]->Name();
+        if (iter - best_iter_[i][j] >= early_stopping_round_) {
+          os << "\n\nEarly stopping at iteration [" << iter
+             //<< "], the best iteration round is [" << iter - early_stopping_round_ << "]\n";
+             << "], the best iteration round is [" << iter - early_stopping_round_ 
+             << "] metric name is [" << metr_name << "]\n";
+
+          if (rabit::IsDistributed()) {
+            if (rabit::GetRank() == 0) {
+              LOG(TRACKER) << os.str();
+            }
+          } else {
+            LOG(CONSOLE) << os.str();
+          }
+
+          // remove the last trees
+          gbm_->ShrinkModel(early_stopping_round_);
+          return true;
+          }
+        }
+      }
+    return false;
   }
 
   void SetAttr(const std::string& key, const std::string& value) override {

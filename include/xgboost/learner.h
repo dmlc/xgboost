@@ -59,10 +59,10 @@ class Learner : public rabit::Serializable {
    */
   virtual void InitModel() = 0;
   /*!
-   * \brief Initialize the status info for checking whether it is suitable for early stop.
-   * \param size The size of data for meric
+   * \brief Initialize the state of evaluation only once
+   * \param size The size of eval_data_sets
    */
-  virtual void InitEarlyStopInfo(size_t size) = 0;
+  virtual void InitEvalStateOnce(size_t eval_datasets_size) = 0;
   /*!
    * \brief load model from stream
    * \param fi input stream.
@@ -95,13 +95,22 @@ class Learner : public rabit::Serializable {
    * \param iter iteration number
    * \param data_sets datasets to be evaluated.
    * \param data_names name of each dataset
-   * \param early_stopping early stop flag
    * \return a string corresponding to the evaluation result
    */
   virtual std::string EvalOneIter(int iter,
                                   const std::vector<DMatrix*>& data_sets,
-                                  const std::vector<std::string>& data_names,
-                                  bool *early_stopping = NULL) = 0;
+                                  const std::vector<std::string>& data_names) = 0;
+  /*!
+   * \brief Check the early stopping condition corresponding evaluation result
+   * \param iter iteration number
+   * \param data_sets datasets to be evaluated.
+   * \param data_names name of each dataset
+   * \return Whether the model should be stop early
+   */
+  virtual bool CheckEarlyStopping(int iter,
+                          const std::vector<DMatrix*>& data_sets,
+                          const std::vector<std::string>& data_names) = 0;
+
   /*!
    * \brief get prediction given the model.
    * \param data input data
@@ -195,6 +204,8 @@ class Learner : public rabit::Serializable {
   std::vector<std::vector<int>> best_iter_;
   /*! \brief Best score(s) for early stopping */
   std::vector<std::vector<float>> best_score_;
+  /*! \brief Whether to maximize evaluation */
+  std::vector<bool> metric_maximize_;
 };
 
 // implementation of inline functions.
