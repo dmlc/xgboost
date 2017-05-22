@@ -12,10 +12,14 @@ This file records the changes in xgboost library in reverse chronological order.
   - Thread local variable is upgraded so it is automatically freed at thread exit.
 * Migrate to C++11
   - The current master version now requires C++11 enabled compiled(g++4.8 or higher)
+* New functionality
+  - Ability to adjust tree model's statistics to a new dataset without changing tree structures.
+  - Extracting feature contributions to individual predictions.
 * R package:
   - New parameters:
     - `silent` in `xgb.DMatrix()`
     - `use_int_id` in `xgb.model.dt.tree()`
+    - `predcontrib` in `predict()`
   - Default value of the `save_period` parameter in `xgboost()` changed to NULL (consistent with `xgb.train()`).
 
 ## v0.6 (2016.07.29)
