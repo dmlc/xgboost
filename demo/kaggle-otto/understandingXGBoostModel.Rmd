@@ -1,7 +1,7 @@
 ---
 title: "Understanding XGBoost Model on Otto Dataset"
 author: "Michaël Benesty"
-output: 
+output:
   rmarkdown::html_vignette:
     css: ../../R-package/vignettes/vignette.css
     number_sections: yes
@@ -16,7 +16,7 @@ Introduction
 While XGBoost is known for its fast speed and accurate predictive power, it also comes with various functions to help you understand the model.
 The purpose of this RMarkdown document is to demonstrate how easily we can leverage the functions already implemented in **XGBoost R** package. Of course, everything showed below can be applied to the dataset you may have to manipulate at work or wherever!
 
-First we will prepare the **Otto** dataset and train a model, then we will generate two vizualisations to get a clue of what is important to the model, finally, we will see how we can leverage these information.
+First we will prepare the **Otto** dataset and train a model, then we will generate two visualisations to get a clue of what is important to the model, finally, we will see how we can leverage these information.
 
 Preparation of the data
 =======================
@@ -45,7 +45,7 @@ dim(train)
 train[1:6,1:5, with =F]
 
 # Test dataset dimensions
-dim(train)
+dim(test)
 
 # Test content
 test[1:6,1:5, with =F]
@@ -54,7 +54,7 @@ test[1:6,1:5, with =F]
 
 Each *column* represents a feature measured by an `integer`. Each *row* is an **Otto** product.
 
-Obviously the first column (`ID`) doesn't contain any useful information. 
+Obviously the first column (`ID`) doesn't contain any useful information.
 
 To let the algorithm focus on real stuff, we will delete it.
 
@@ -124,7 +124,7 @@ param <- list("objective" = "multi:softprob",
 cv.nround <- 5
 cv.nfold <- 3
 
-bst.cv = xgb.cv(param=param, data = trainMatrix, label = y, 
+bst.cv = xgb.cv(param=param, data = trainMatrix, label = y,
                 nfold = cv.nfold, nrounds = cv.nround)
 ```
 > As we can see the error rate is low on the test dataset (for a 5mn trained model).
@@ -144,7 +144,7 @@ Feature importance
 
 So far, we have built a model made of **`r nround`** trees.
 
-To build a tree, the dataset is divided recursively several times. At the end of the process, you get groups of observations (here, these observations are properties regarding **Otto** products). 
+To build a tree, the dataset is divided recursively several times. At the end of the process, you get groups of observations (here, these observations are properties regarding **Otto** products).
 
 Each division operation is called a *split*.
 
@@ -152,13 +152,13 @@ Each group at each division level is called a branch and the deepest level is ca
 
 In the final model, these *leafs* are supposed to be as pure as possible for each tree, meaning in our case that each *leaf* should be made of one class of **Otto** product only (of course it is not true, but that's what we try to achieve in a minimum of splits).
 
-**Not all *splits* are equally important**. Basically the first *split* of a tree will have more impact on the purity that, for instance, the deepest *split*. Intuitively, we understand that the first *split* makes most of the work, and the following *splits* focus on smaller parts of the dataset which have been missclassified by the first *tree*.
+**Not all *splits* are equally important**. Basically the first *split* of a tree will have more impact on the purity that, for instance, the deepest *split*. Intuitively, we understand that the first *split* makes most of the work, and the following *splits* focus on smaller parts of the dataset which have been misclassified by the first *tree*.
 
-In the same way, in Boosting we try to optimize the missclassification at each round (it is called the *loss*). So the first *tree* will do the big work and the following trees will focus on the remaining, on the parts not correctly learned by the previous *trees*.
+In the same way, in Boosting we try to optimize the misclassification at each round (it is called the *loss*). So the first *tree* will do the big work and the following trees will focus on the remaining, on the parts not correctly learned by the previous *trees*.
 
 The improvement brought by each *split* can be measured, it is the *gain*.
 
-Each *split* is done on one feature only at one value. 
+Each *split* is done on one feature only at one value.
 
 Let's see what the model looks like.
 
@@ -168,7 +168,7 @@ model[1:10]
 ```
 > For convenience, we are displaying the first 10 lines of the model only.
 
-Clearly, it is not easy to understand what it means. 
+Clearly, it is not easy to understand what it means.
 
 Basically each line represents a *branch*, there is the *tree* ID, the feature ID, the point where it *splits*, and information regarding the next *branches* (left, right, when the row for this feature is N/A).
 
@@ -200,7 +200,7 @@ This function gives a color to each bar. These colors represent groups of featur
 
 From here you can take several actions. For instance you can remove the less important feature (feature selection process), or go deeper in the interaction between the most important features and labels.
 
-Or you can just reason about why these features are so importat (in **Otto** challenge we can't go this way because there is not enough information).
+Or you can just reason about why these features are so important (in **Otto** challenge we can't go this way because there is not enough information).
 
 Tree graph
 ----------
@@ -217,7 +217,7 @@ xgb.plot.tree(feature_names = names, model = bst, n_first_tree = 2)
 
 We are just displaying the first two trees here.
 
-On simple models the first two trees may be enough. Here, it might not be the case. We can see from the size of the trees that the intersaction between features is complicated. 
+On simple models the first two trees may be enough. Here, it might not be the case. We can see from the size of the trees that the interaction between features is complicated.
 Besides, **XGBoost** generate `k` trees at each round for a `k`-classification problem. Therefore the two trees illustrated here are trying to classify data into different classes.
 
 Going deeper
@@ -226,6 +226,6 @@ Going deeper
 There are 4 documents you may also be interested in:
 
 * [xgboostPresentation.Rmd](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd): general presentation
-* [discoverYourData.Rmd](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/discoverYourData.Rmd): explaining feature analysus
+* [discoverYourData.Rmd](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/discoverYourData.Rmd): explaining feature analysis
 * [Feature Importance Analysis with XGBoost in Tax audit](http://fr.slideshare.net/MichaelBENESTY/feature-importance-analysis-with-xgboost-in-tax-audit): use case
 * [The Elements of Statistical Learning](http://statweb.stanford.edu/~tibs/ElemStatLearn/): very good book to have a good understanding of the model

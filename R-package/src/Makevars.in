@@ -1,0 +1,18 @@
+# package root
+PKGROOT=../../
+ENABLE_STD_THREAD=1
+# _*_ mode: Makefile; _*_
+
+CXX_STD = CXX11
+
+XGB_RFLAGS = -DXGBOOST_STRICT_R_MODE=1 -DDMLC_LOG_BEFORE_THROW=0\
+           -DDMLC_ENABLE_STD_THREAD=$(ENABLE_STD_THREAD) -DDMLC_DISABLE_STDIN=1\
+           -DDMLC_LOG_CUSTOMIZE=1 -DXGBOOST_CUSTOMIZE_LOGGER=1\
+           -DRABIT_CUSTOMIZE_MSG_ -DRABIT_STRICT_CXX98_
+
+PKG_CPPFLAGS=  -I$(PKGROOT)/include -I$(PKGROOT)/dmlc-core/include -I$(PKGROOT)/rabit/include -I$(PKGROOT) $(XGB_RFLAGS)
+PKG_CXXFLAGS= @OPENMP_CXXFLAGS@ $(SHLIB_PTHREAD_FLAGS)
+PKG_LIBS = @OPENMP_CXXFLAGS@ $(SHLIB_PTHREAD_FLAGS)
+OBJECTS= ./xgboost_R.o ./xgboost_custom.o ./xgboost_assert.o ./init.o\
+         $(PKGROOT)/amalgamation/xgboost-all0.o $(PKGROOT)/amalgamation/dmlc-minimum0.o\
+         $(PKGROOT)/rabit/src/engine_empty.o $(PKGROOT)/rabit/src/c_api.o

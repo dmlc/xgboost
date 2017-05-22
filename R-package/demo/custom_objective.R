@@ -8,7 +8,6 @@ dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 # note: for customized objective function, we leave objective as default
 # note: what we are getting is margin value in prediction
 # you must know what you are doing
-param <- list(max.depth=2,eta=1,nthread = 2, silent=1)
 watchlist <- list(eval = dtest, train = dtrain)
 num_round <- 2
 
@@ -33,10 +32,13 @@ evalerror <- function(preds, dtrain) {
   err <- as.numeric(sum(labels != (preds > 0)))/length(labels)
   return(list(metric = "error", value = err))
 }
+
+param <- list(max_depth=2, eta=1, nthread = 2, silent=1, 
+              objective=logregobj, eval_metric=evalerror)
 print ('start training with user customized objective')
 # training with customized objective, we can also do step by step training
 # simply look at xgboost.py's implementation of train
-bst <- xgb.train(param, dtrain, num_round, watchlist, logregobj, evalerror)
+bst <- xgb.train(param, dtrain, num_round, watchlist)
 
 #
 # there can be cases where you want additional information 
@@ -55,8 +57,9 @@ logregobjattr <- function(preds, dtrain) {
   hess <- preds * (1 - preds)
   return(list(grad = grad, hess = hess))
 }
-
+param <- list(max_depth=2, eta=1, nthread = 2, silent=1, 
+              objective=logregobjattr, eval_metric=evalerror)
 print ('start training with user customized objective, with additional attributes in DMatrix')
 # training with customized objective, we can also do step by step training
 # simply look at xgboost.py's implementation of train
-bst <- xgb.train(param, dtrain, num_round, watchlist, logregobjattr, evalerror)
+bst <- xgb.train(param, dtrain, num_round, watchlist)

@@ -1,86 +1,25 @@
-#' eXtreme Gradient Boosting (Tree) library
-#' 
-#' A simple interface for training xgboost model. Look at \code{\link{xgb.train}} function for a more advanced interface.
-#' 
-#' @param data takes \code{matrix}, \code{dgCMatrix}, local data file or 
-#'   \code{xgb.DMatrix}. 
-#' @param label the response variable. User should not set this field,
-#'    if data is local data file or  \code{xgb.DMatrix}. 
-#' @param params the list of parameters.
-#' 
-#' Commonly used ones are:
-#' \itemize{
-#'   \item \code{objective} objective function, common ones are
-#'   \itemize{
-#'     \item \code{reg:linear} linear regression
-#'     \item \code{binary:logistic} logistic regression for classification
-#'   }
-#'   \item \code{eta} step size of each boosting step
-#'   \item \code{max.depth} maximum depth of the tree
-#'   \item \code{nthread} number of thread used in training, if not set, all threads are used
-#' }
-#'   
-#'   Look at \code{\link{xgb.train}} for a more complete list of parameters or \url{https://github.com/dmlc/xgboost/wiki/Parameters} for the full list.
-#'   
-#'   See also \code{demo/} for walkthrough example in R.
-#' 
-#' @param nrounds the max number of iterations
-#' @param verbose If 0, xgboost will stay silent. If 1, xgboost will print 
-#'   information of performance. If 2, xgboost will print information of both
-#'   performance and construction progress information
-#' @param printEveryN Print every N progress messages when \code{verbose>0}. Default is 1 which means all messages are printed.
-#' @param missing Missing is only used when input is dense matrix, pick a float 
-#'     value that represents missing value. Sometimes a data use 0 or other extreme value to represents missing values.
-#' @param early_stop_round If \code{NULL}, the early stopping function is not triggered. 
-#'     If set to an integer \code{k}, training with a validation set will stop if the performance 
-#'     keeps getting worse consecutively for \code{k} rounds.
-#' @param early.stop.round An alternative of \code{early_stop_round}.
-#' @param maximize If \code{feval} and \code{early_stop_round} are set, then \code{maximize} must be set as well.
-#'     \code{maximize=TRUE} means the larger the evaluation score the better.
-#' @param ... other parameters to pass to \code{params}.
-#' 
-#' @details 
-#' This is the modeling function for Xgboost.
-#' 
-#' Parallelization is automatically enabled if \code{OpenMP} is present.
-#' 
-#' Number of threads can also be manually specified via \code{nthread} parameter.
-#' 
-#' @examples
-#' data(agaricus.train, package='xgboost')
-#' data(agaricus.test, package='xgboost')
-#' train <- agaricus.train
-#' test <- agaricus.test
-#' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
-#'                eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
-#' pred <- predict(bst, test$data)
-#' 
+# Simple interface for training an xgboost model that wraps \code{xgb.train}.
+# Its documentation is combined with xgb.train.
+#
+#' @rdname xgb.train
 #' @export
-#' 
-xgboost <- function(data = NULL, label = NULL, missing = NULL, params = list(), nrounds, 
-                    verbose = 1, printEveryN=1L, early_stop_round = NULL, early.stop.round = NULL,
-                    maximize = NULL, ...) {
-  if (is.null(missing)) {
-    dtrain <- xgb.get.DMatrix(data, label)
-  } else {
-    dtrain <- xgb.get.DMatrix(data, label, missing)
-  }
-    
-  params <- append(params, list(...))
-  
-  if (verbose > 0) {
-    watchlist <- list(train = dtrain)
-  } else {
-    watchlist <- list()
-  }
-  
-  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, printEveryN=printEveryN,
-                   early_stop_round = early_stop_round,
-                   early.stop.round = early.stop.round)
-  
-  return(bst)
-} 
+xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
+                    params = list(), nrounds,
+                    verbose = 1, print_every_n = 1L, 
+                    early_stopping_rounds = NULL, maximize = NULL, 
+                    save_period = NULL, save_name = "xgboost.model",
+                    xgb_model = NULL, callbacks = list(), ...) {
 
+  dtrain <- xgb.get.DMatrix(data, label, missing, weight)
+
+  watchlist <- list(train = dtrain)
+
+  bst <- xgb.train(params, dtrain, nrounds, watchlist, verbose = verbose, print_every_n = print_every_n,
+                   early_stopping_rounds = early_stopping_rounds, maximize = maximize,
+                   save_period = save_period, save_name = save_name,
+                   xgb_model = xgb_model, callbacks = callbacks, ...)
+  return(bst)
+}
 
 #' Training part from Mushroom Data Set
 #' 
@@ -134,4 +73,37 @@ NULL
 #' @usage data(agaricus.test)
 #' @format A list containing a label vector, and a dgCMatrix object with 1611 
 #' rows and 126 variables
+NULL
+
+# Various imports
+#' @importClassesFrom Matrix dgCMatrix dgeMatrix
+#' @importFrom Matrix cBind
+#' @importFrom Matrix colSums
+#' @importFrom Matrix sparse.model.matrix
+#' @importFrom Matrix sparseVector
+#' @importFrom data.table data.table
+#' @importFrom data.table is.data.table
+#' @importFrom data.table as.data.table
+#' @importFrom data.table :=
+#' @importFrom data.table rbindlist
+#' @importFrom data.table setkey
+#' @importFrom data.table setkeyv
+#' @importFrom data.table setnames
+#' @importFrom magrittr %>%
+#' @importFrom stringi stri_detect_regex
+#' @importFrom stringi stri_match_first_regex
+#' @importFrom stringi stri_replace_first_regex
+#' @importFrom stringi stri_replace_all_regex
+#' @importFrom stringi stri_split_regex
+#' @importFrom utils object.size str tail
+#' @importFrom stats predict
+#' @importFrom stats median
+#' @importFrom utils head
+#' @importFrom graphics barplot
+#' @importFrom graphics grid
+#' @importFrom graphics par
+#' @importFrom graphics title
+#' 
+#' @import methods
+#' @useDynLib xgboost, .registration = TRUE
 NULL

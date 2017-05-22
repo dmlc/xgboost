@@ -44,7 +44,7 @@ param['nthread'] = 16
 plst = list(param.items())+[('eval_metric', 'ams@0.15')]
 
 watchlist = [ (xgmat,'train') ]
-# boost 120 tres
+# boost 120 trees
 num_round = 120
 print ('loading data end, start to boost trees')
 bst = xgb.train( plst, xgmat, num_round, watchlist );

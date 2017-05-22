@@ -1,4 +1,5 @@
 basic_walkthrough               Basic feature walkthrough
+caret_wrapper                   Use xgboost to train in caret library
 custom_objective                Cutomize loss function, and evaluation metric
 boost_from_prediction           Boosting from existing prediction
 predict_first_ntree             Predicting using first n trees
@@ -8,3 +9,4 @@ create_sparse_matrix            Create Sparse Matrix
 predict_leaf_indices            Predicting the corresponding leaves
 early_stopping                  Early Stop in training
 poisson_regression              Poisson Regression on count data
+tweedie_regression              Tweddie Regression

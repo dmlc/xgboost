@@ -1,0 +1,86 @@
+# disable sudo for container build.
+sudo: false
+
+# Enabling test on Linux and OS X
+os:
+  - linux
+  - osx
+
+osx_image: xcode8
+
+# Use Build Matrix to do lint and build seperately
+env:
+  matrix:
+    # code lint
+    - TASK=lint
+    # r package test
+    - TASK=r_test
+    # python package test
+    - TASK=python_test
+    - TASK=python_lightweight_test
+    # java package test
+    - TASK=java_test
+    # cmake test
+    - TASK=cmake_test
+    # c++ test
+    - TASK=cpp_test
+
+matrix:
+  exclude:
+    - os: osx
+      env: TASK=lint
+    - os: osx
+      env: TASK=cmake_test
+    - os: linux
+      env: TASK=r_test
+    - os: osx
+      env: TASK=java_test
+    - os: osx
+      env: TASK=python_lightweight_test
+    - os: osx
+      env: TASK=cpp_test
+
+# dependent apt packages
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - doxygen
+      - wget
+      - libcurl4-openssl-dev
+      - unzip
+      - graphviz
+      - gcc-4.8
+      - g++-4.8
+
+before_install:
+  - source dmlc-core/scripts/travis/travis_setup_env.sh
+  - export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package
+  - echo "MAVEN_OPTS='-Xmx2048m -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc
+
+install:
+  - source tests/travis/setup.sh
+
+script:
+  - tests/travis/run_test.sh
+
+cache:
+  directories:
+    - ${HOME}/.cache/usr
+    - ${HOME}/.cache/pip
+
+before_cache:
+  - dmlc-core/scripts/travis/travis_before_cache.sh
+
+after_failure:
+  - tests/travis/travis_after_failure.sh
+
+after_success:
+  - tree build
+  - bash <(curl -s https://codecov.io/bash) -a '-o src/ src/*.c'
+
+notifications:
+  email:
+    on_success: change
+    on_failure: always

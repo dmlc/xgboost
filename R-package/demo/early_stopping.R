@@ -7,7 +7,7 @@ dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 # note: for customized objective function, we leave objective as default
 # note: what we are getting is margin value in prediction
 # you must know what you are doing
-param <- list(max.depth=2,eta=1,nthread = 2, silent=1)
+param <- list(max_depth=2, eta=1, nthread = 2, silent=1)
 watchlist <- list(eval = dtest)
 num_round <- 20
 # user define objective function, given prediction, return gradient and second order gradient
@@ -31,9 +31,10 @@ evalerror <- function(preds, dtrain) {
   return(list(metric = "error", value = err))
 }
 print ('start training with early Stopping setting')
-# training with customized objective, we can also do step by step training
-# simply look at xgboost.py's implementation of train
-bst <- xgb.train(param, dtrain, num_round, watchlist, logregobj, evalerror, maximize = FALSE,
-                 early.stop.round = 3)
-bst <- xgb.cv(param, dtrain, num_round, nfold=5, obj=logregobj, feval = evalerror,
-              maximize = FALSE, early.stop.round = 3)
+
+bst <- xgb.train(param, dtrain, num_round, watchlist, 
+                 objective = logregobj, eval_metric = evalerror, maximize = FALSE,
+                 early_stopping_round = 3)
+bst <- xgb.cv(param, dtrain, num_round, nfold = 5, 
+              objective = logregobj, eval_metric = evalerror,
+              maximize = FALSE, early_stopping_rounds = 3)

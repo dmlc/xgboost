@@ -1,18 +1,20 @@
 Package: xgboost
 Type: Package
-Title: eXtreme Gradient Boosting
-Version: 0.4-0
-Date: 2015-05-11
-Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>, Michael Benesty <michael@benesty.fr>
+Title: Extreme Gradient Boosting
+Version: 0.6.4.5
+Date: 2017-01-04
+Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>,
+    Michael Benesty <michael@benesty.fr>, Vadim Khotilovich <khotilovich@gmail.com>,
+    Yuan Tang <terrytangyuan@gmail.com>
 Maintainer: Tong He <hetong007@gmail.com>
-Description: Xgboost is short for eXtreme Gradient Boosting, which is an 
-    efficient and scalable implementation of gradient boosting framework. 
-    This package is an R wrapper of xgboost. The package includes efficient 
-    linear model solver and tree learning algorithms. The package can automatically 
-    do parallel computation with OpenMP, and it can be more than 10 times faster
-    than existing gradient boosting packages such as gbm. It supports various
-    objective functions, including regression, classification and ranking. The
-    package is made to be extensible, so that users are also allowed to define
+Description: Extreme Gradient Boosting, which is an efficient implementation
+    of the gradient boosting framework from Chen & Guestrin (2016) <doi:10.1145/2939672.2939785>.
+    This package is its R interface. The package includes efficient linear 
+    model solver and tree learning algorithms. The package can automatically 
+    do parallel computation on a single machine which could be more than 10 
+    times faster than existing gradient boosting packages. It supports
+    various objective functions, including regression, classification and ranking.
+    The package is made to be extensible, so that users are also allowed to define
     their own objectives easily.
 License: Apache License (== 2.0) | file LICENSE
 URL: https://github.com/dmlc/xgboost
@@ -20,15 +22,19 @@ BugReports: https://github.com/dmlc/xgboost/issues
 VignetteBuilder: knitr
 Suggests:
     knitr,
-    ggplot2 (>= 1.0.0),
-    DiagrammeR (>= 0.6),
+    rmarkdown,
+    ggplot2 (>= 1.0.1),
+    DiagrammeR (>= 0.9.0),
     Ckmeans.1d.dp (>= 3.3.1),
-    vcd (>= 1.3)
+    vcd (>= 1.3),
+    testthat,
+    igraph (>= 1.0.1)
 Depends:
-    R (>= 2.10)
+    R (>= 3.3.0)
 Imports:
     Matrix (>= 1.1-0),
     methods,
-    data.table (>= 1.9.4),
+    data.table (>= 1.9.6),
     magrittr (>= 1.5),
-    stringr (>= 0.6.2)
+    stringi (>= 0.5.2)
+RoxygenNote: 6.0.1

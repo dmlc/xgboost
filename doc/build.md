@@ -1,97 +1,282 @@
-Build XGBoost
-====
-* Run ```bash build.sh``` (you can also type make)
-* If you have C++11 compiler, it is recommended to type ```make cxx11=1```
-  - C++11 is not used by default
-* If your compiler does not come with OpenMP support, it will fire an warning telling you that the code will compile into single thread mode, and you will get single thread xgboost
-* You may get a error: -lgomp is not found
-  - You can type ```make no_omp=1```, this will get you single thread xgboost
-  - Alternatively, you can upgrade your compiler to compile multi-thread version
-* Windows(VS 2010): see [../windows](../windows) folder
-  - In principle, you put all the cpp files in the Makefile to the project, and build
-* OS X with multi-threading support: see [next section](#openmp-for-os-x)
+Installation Guide
+==================
 
-Build XGBoost in OS X with OpenMP
-====
-Here is the complete solution to use OpenMp-enabled compilers to install XGBoost.
+This page gives instructions on how to build and install the xgboost package from
+scratch on various systems. It consists of two steps:
 
-1. Obtain gcc with openmp support by `brew install gcc --without-multilib` **or** clang with openmp by `brew install clang-omp`. The clang one is recommended because the first method requires us compiling gcc inside the machine (more than an hour in mine)! (BTW, `brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.)
+1. First build the shared library from the C++ codes (`libxgboost.so` for linux/osx and `libxgboost.dll` for windows).
+   - Exception: for R-package installation please directly refer to the R package section.
+2. Then install the language packages (e.g. Python Package).
 
-2. **if plaing to use clang-omp** in step 3 and/or 4, change line 9 in `xgboost/src/utils/omp.h` to 
+***Important*** the newest version of xgboost uses submodule to maintain packages. So when you clone the repo, remember to use the recursive option as follows.
+```bash
+git clone --recursive https://github.com/dmlc/xgboost
+```
+For windows users who use github tools, you can open the git shell, and type the following command.
+```bash
+git submodule init
+git submodule update
+```
 
-  ```C++
-  #include <libiomp/omp.h> /* instead of #include <omp.h> */` 
-  ```
+Please refer to [Trouble Shooting Section](#trouble-shooting) first if you had any problem
+during installation. If the instructions do not work for you, please feel free
+to ask questions at [xgboost/issues](https://github.com/dmlc/xgboost/issues), or
+even better to send pull request if you can fix the problem.
 
-  to make it work, otherwise the following steps would show `src/tree/../utils/omp.h:9:10: error: 'omp.h' file not found...`
+## Contents
+- [Build the Shared Library](#build-the-shared-library)
+  - [Building on Ubuntu/Debian](#building-on-ubuntu-debian)
+  - [Building on OSX](#building-on-osx)
+  - [Building on Windows](#building-on-windows)
+  - [Windows Binaries](#windows-binaries)
+  - [Customized Building](#customized-building)
+- [Python Package Installation](#python-package-installation)
+- [R Package Installation](#r-package-installation)
+- [Trouble Shooting](#trouble-shooting)
+
+## Build the Shared Library
+
+Our goal is to build the shared library:
+- On Linux/OSX the target library is `libxgboost.so`
+- On Windows the target library is `libxgboost.dll`
+
+The minimal building requirement is
+
+- A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
+
+We can edit `make/config.mk` to change the compile options, and then build by
+`make`. If everything goes well, we can go to the specific language installation section.
+
+### Building on Ubuntu/Debian
+
+On Ubuntu, one builds xgboost by
+
+```bash
+git clone --recursive https://github.com/dmlc/xgboost
+cd xgboost; make -j4
+```
+
+### Building on OSX
+
+On OSX, one builds xgboost by
+
+```bash
+git clone --recursive https://github.com/dmlc/xgboost
+cd xgboost; cp make/minimum.mk ./config.mk; make -j4
+```
+
+This builds xgboost without multi-threading, because by default clang in OSX does not come with open-mp.
+See the following paragraph for OpenMP enabled xgboost.
+
+
+Here is the complete solution to use OpenMP-enabled compilers to install XGBoost.
+Obtain gcc-6.x.x with openmp support by `brew install gcc --without-multilib`. (`brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.). Installation of `gcc` can take a while (~ 30 minutes)
+
+Now, clone the repository
+
+```bash
+git clone --recursive https://github.com/dmlc/xgboost
+```
+
+and build using the following commands
+
+```bash
+cd xgboost; cp make/config.mk ./config.mk; make -j4
+```
+
+NOTE:
+If you use OSX El Capitan, brew installs gcc the latest version gcc-6. So you may need to modify Makefile#L46 and change gcc-5 to gcc-6. After that change gcc-5/g++-5 to gcc-6/g++-6 in make/config.mk then build using the following commands
+
+```bash
+cd xgboost; cp make/config.mk ./config.mk; make -j4
+```
+
+### Building on Windows
+You need to first clone the xgboost repo with recursive option clone the submodules.
+If you are using github tools, you can open the git-shell, and type the following command.
+We recommend using [Git for Windows](https://git-for-windows.github.io/)
+because it brings a standard bash shell. This will highly ease the installation process.
+
+```bash
+git submodule init
+git submodule update
+```
+
+XGBoost support both build by MSVC or MinGW. Here is how you can build xgboost library using MinGW.
+
+After installing [Git for Windows](https://git-for-windows.github.io/), you should have a shortcut `Git Bash`.
+All the following steps are in the `Git Bash`.
+
+In MinGW, `make` command comes with the name `mingw32-make`. You can add the following line into the `.bashrc` file.
+
+```bash
+alias make='mingw32-make'
+```
+
+To build with MinGW
+
+```bash
+cp make/mingw64.mk config.mk; make -j4
+```
+
+To build with Visual Studio 2013 use cmake. Make sure you have a recent version of cmake added to your path and then from the xgboost directory:
+
+```bash
+mkdir build
+cd build
+cmake .. -G"Visual Studio 12 2013 Win64"
+```
+
+This specifies an out of source build using the MSVC 12 64 bit generator. Open the .sln file in the build directory and build with Visual Studio. To use the Python module you can copy libxgboost.dll into python-package\xgboost.
+
+Other versions of Visual Studio may work but are untested.
+
+### Windows Binaries
+Unofficial windows binaries and instructions on how to use them are hosted on [Guido Tapia's blog](http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/)
+
+### Customized Building
+
+The configuration of xgboost can be modified by ```config.mk```
+- modify configuration on various distributed filesystem such as HDFS/Amazon S3/...
+- First copy [make/config.mk](../make/config.mk) to the project root, on which
+  any local modification will be ignored by git, then modify the according flags.
 
 
 
-3. Set the `Makefile` correctly for compiling cpp version xgboost then python version xgboost.
+## Python Package Installation
 
-  ```Makefile
-  export CC  = gcc-4.9
-  export CXX = g++-4.9
-  ```
+The python package is located at [python-package](../python-package).
+There are several ways to install the package:
 
-  Or
+1. Install system-widely, which requires root permission
 
-  ```Makefile
-  export CC = clang-omp
-  export CXX = clang-omp++
-  ```
+   ```bash
+   cd python-package; sudo python setup.py install
+   ```
 
-  Remember to change `header` if using clang-omp. 
-  
-  Then `cd xgboost` then `bash build.sh` to compile XGBoost. And go to `wrapper` sub-folder to install python version.
+   You will however need Python `distutils` module for this to
+   work. It is often part of the core python package or it can be installed using your
+   package manager, e.g. in Debian use
 
-4. Set the `Makevars` file in highest piority for R. 
+   ```bash
+   sudo apt-get install python-setuptools
+   ```
 
-  The point is, there are three `Makevars` inside the machine: `~/.R/Makevars`, `xgboost/R-package/src/Makevars`, and `/usr/local/Cellar/r/3.2.0/R.framework/Resources/etc/Makeconf` (the last one obtained by runing `file.path(R.home("etc"), "Makeconf")` in R), and `SHLIB_OPENMP_CXXFLAGS` is not set by default!! After trying, it seems that the first one has highest piority (surprise!).
+   *NOTE: If you recompiled xgboost, then you need to reinstall it again to
+    make the new library take effect*
 
-  So, **add** or **change** `~/.R/Makevars` to the following lines:
+2. Only set the environment variable `PYTHONPATH` to tell python where to find
+   the library. For example, assume we cloned `xgboost` on the home directory
+   `~`. then we can added the following line in `~/.bashrc`.
+    It is ***recommended for developers*** who may change the codes. The changes will be immediately reflected once you pulled the code and rebuild the project (no need to call ```setup``` again)
 
-  ```Makefile
-  CC=gcc-4.9
-  CXX=g++-4.9
-  SHLIB_OPENMP_CFLAGS = -fopenmp
-  SHLIB_OPENMP_CXXFLAGS = -fopenmp
-  SHLIB_OPENMP_FCFLAGS = -fopenmp
-  SHLIB_OPENMP_FFLAGS = -fopenmp
-  ```
+    ```bash
+    export PYTHONPATH=~/xgboost/python-package
+    ```
 
-  Or
+3. Install only for the current user.
 
-  ```Makefile
-  CC=clang-omp
-  CXX=clang-omp++
-  SHLIB_OPENMP_CFLAGS = -fopenmp
-  SHLIB_OPENMP_CXXFLAGS = -fopenmp
-  SHLIB_OPENMP_FCFLAGS = -fopenmp
-  SHLIB_OPENMP_FFLAGS = -fopenmp
-  ```
+    ```bash
+    cd python-package; python setup.py develop --user
+    ```
 
-  Again, remember to change `header` if using clang-omp.
+4. If you are installing the latest xgboost version which requires compilation, add MinGW to the system PATH:
 
-  Then inside R, run 
+    ```python
+    import os
+    os.environ['PATH'] = os.environ['PATH'] + ';C:\\Program Files\\mingw-w64\\x86_64-5.3.0-posix-seh-rt_v4-rev0\\mingw64\\bin'
+    ```
+
+## R Package Installation
+
+### Installing pre-packaged version
+
+You can install xgboost from CRAN just like any other R package:
+
+```r
+install.packages("xgboost")
+```
+
+Or you can install it from our weekly updated drat repo:
+
+```r
+install.packages("drat", repos="https://cran.rstudio.com")
+drat:::addRepo("dmlc")
+install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
+```
+
+For OSX users, single threaded version will be installed. To install multi-threaded version,
+first follow [Building on OSX](#building-on-osx) to get the OpenMP enabled compiler, then:
+
+- Set the `Makevars` file in highest piority for R.
+
+  The point is, there are three `Makevars` : `~/.R/Makevars`, `xgboost/R-package/src/Makevars`, and `/usr/local/Cellar/r/3.2.0/R.framework/Resources/etc/Makeconf` (the last one obtained by running `file.path(R.home("etc"), "Makeconf")` in R), and `SHLIB_OPENMP_CXXFLAGS` is not set by default!! After trying, it seems that the first one has highest piority (surprise!).
+
+  Then inside R, run
 
   ```R
-  install.packages('xgboost/R-package/', repos=NULL, type='source')
-  ```
-  
-  Or
-  
-  ```R
-  devtools::install_local('xgboost/', subdir = 'R-package') # you may use devtools
+  install.packages("drat", repos="https://cran.rstudio.com")
+  drat:::addRepo("dmlc")
+  install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
   ```
 
+### Installing the development version
 
-Build with HDFS and S3 Support
-=====
-* To build xgboost use with HDFS/S3 support and distributed learnig. It is recommended to build with dmlc, with the following steps
-  - ```git clone https://github.com/dmlc/dmlc-core```
-  - Follow instruction in dmlc-core/make/config.mk to compile libdmlc.a
-  - In root folder of xgboost, type ```make dmlc=dmlc-core```
-* This will allow xgboost to directly load data and save model from/to hdfs and s3
-  - Simply replace the filename with prefix s3:// or hdfs://
-* This xgboost that can be used for distributed learning
+Make sure you have installed git and a recent C++ compiler supporting C++11 (e.g., g++-4.8 or higher).
+On Windows, Rtools must be installed, and its bin directory has to be added to PATH during the installation.
+And see the previous subsection for an OSX tip.
+
+Due to the use of git-submodules, `devtools::install_github` can no longer be used to install the latest version of R package.
+Thus, one has to run git to check out the code first:
+
+```bash
+git clone --recursive https://github.com/dmlc/xgboost
+cd xgboost
+git submodule init
+git submodule update
+cd R-package
+R CMD INSTALL .
+```
+
+If the last line fails because of "R: command not found", it means that R was not set up to run from command line.
+In this case, just start R as you would normally do and run the following:
+
+```r
+setwd('wherever/you/cloned/it/xgboost/R-package/')
+install.packages('.', repos = NULL, type="source")
+```
+
+If all fails, try [building the shared library](#build-the-shared-library) to see whether a problem is specific to R package or not.
+
+
+## Trouble Shooting
+
+1. **Compile failed after `git pull`**
+
+   Please first update the submodules, clean all and recompile:
+
+   ```bash
+   git submodule update && make clean_all && make -j4
+   ```
+
+2. **Compile failed after `config.mk` is modified**
+
+   Need to clean all first:
+
+    ```bash
+    make clean_all && make -j4
+    ```
+
+
+3. **Makefile: dmlc-core/make/dmlc.mk: No such file or directory**
+
+   We need to recursively clone the submodule, you can do:
+
+    ```bash
+    git submodule init
+    git submodule update
+    ```
+    Alternatively, do another clone
+    ```bash
+    git clone https://github.com/dmlc/xgboost --recursive
+    ```

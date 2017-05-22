@@ -1,57 +1,125 @@
-#' Plot feature importance bar graph
-#' 
-#' Read a data.table containing feature importance details and plot it.
-#' 
-#' @importFrom magrittr %>%
-#' @param importance_matrix a \code{data.table} returned by the \code{xgb.importance} function.
-#' @param numberOfClusters a \code{numeric} vector containing the min and the max range of the possible number of clusters of bars.
+#' Plot feature importance as a bar graph
 #'
-#' @return A \code{ggplot2} bar graph representing each feature by a horizontal bar. Longer is the bar, more important is the feature. Features are classified by importance and clustered by importance. The group is represented through the color of the bar.
+#' Represents previously calculated feature importance as a bar graph.
+#' \code{xgb.plot.importance} uses base R graphics, while \code{xgb.ggplot.importance} uses the ggplot backend.
 #'
-#' @details 
-#' The purpose of this function is to easily represent the importance of each feature of a model.
-#' The function return a ggplot graph, therefore each of its characteristic can be overriden (to customize it).
-#' In particular you may want to override the title of the graph. To do so, add \code{+ ggtitle("A GRAPH NAME")} next to the value returned by this function. 
-#'   
+#' @param importance_matrix a \code{data.table} returned by \code{\link{xgb.importance}}.
+#' @param top_n maximal number of top features to include into the plot.
+#' @param measure the name of importance measure to plot. 
+#'        When \code{NULL}, 'Gain' would be used for trees and 'Weight' would be used for gblinear.
+#' @param rel_to_first whether importance values should be represented as relative to the highest ranked feature.
+#'        See Details.
+#' @param left_margin (base R barplot) allows to adjust the left margin size to fit feature names.
+#'        When it is NULL, the existing \code{par('mar')} is used.
+#' @param cex (base R barplot) passed as \code{cex.names} parameter to \code{barplot}.
+#' @param plot (base R barplot) whether a barplot should be produced. 
+#'        If FALSE, only a data.table is returned.
+#' @param n_clusters (ggplot only) a \code{numeric} vector containing the min and the max range 
+#'        of the possible number of clusters of bars.
+#' @param ... other parameters passed to \code{barplot} (except horiz, border, cex.names, names.arg, and las).
+#'
+#' @details
+#' The graph represents each feature as a horizontal bar of length proportional to the importance of a feature.
+#' Features are shown ranked in a decreasing importance order.
+#' It works for importances from both \code{gblinear} and \code{gbtree} models.
+#' 
+#' When \code{rel_to_first = FALSE}, the values would be plotted as they were in \code{importance_matrix}.
+#' For gbtree model, that would mean being normalized to the total of 1 
+#' ("what is feature's importance contribution relative to the whole model?").
+#' For linear models, \code{rel_to_first = FALSE} would show actual values of the coefficients.
+#' Setting \code{rel_to_first = TRUE} allows to see the picture from the perspective of 
+#' "what is feature's importance contribution relative to the most important feature?"
+#' 
+#' The ggplot-backend method also performs 1-D custering of the importance values, 
+#' with bar colors coresponding to different clusters that have somewhat similar importance values.
+#' 
+#' @return
+#' The \code{xgb.plot.importance} function creates a \code{barplot} (when \code{plot=TRUE})
+#' and silently returns a processed data.table with \code{n_top} features sorted by importance.
+#' 
+#' The \code{xgb.ggplot.importance} function returns a ggplot graph which could be customized afterwards.
+#' E.g., to change the title of the graph, add \code{+ ggtitle("A GRAPH NAME")} to the result.
+#'
+#' @seealso
+#' \code{\link[graphics]{barplot}}.
+#' 
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train)
+#'
+#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 3,
+#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#'
+#' importance_matrix <- xgb.importance(colnames(agaricus.train$data), model = bst)
 #' 
-#' #Both dataset are list with two items, a sparse matrix and labels 
-#' #(labels = outcome column which will be learned). 
-#' #Each column of the sparse Matrix is a feature in one hot encoding format.
-#' train <- agaricus.train
+#' xgb.plot.importance(importance_matrix, rel_to_first = TRUE, xlab = "Relative importance")
 #' 
-#' bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
-#'                eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
-#' 
-#' #train$data@@Dimnames[[2]] represents the column names of the sparse matrix.
-#' importance_matrix <- xgb.importance(train$data@@Dimnames[[2]], model = bst)
-#' xgb.plot.importance(importance_matrix)
-#' 
+#' (gg <- xgb.ggplot.importance(importance_matrix, measure = "Frequency", rel_to_first = TRUE))
+#' gg + ggplot2::ylab("Frequency")
+#'
+#' @rdname xgb.plot.importance
 #' @export
-xgb.plot.importance <- function(importance_matrix = NULL, numberOfClusters = c(1:10)){
-  if (!"data.table" %in% class(importance_matrix))  {     
-    stop("importance_matrix: Should be a data.table.")
-  }
-  if (!require(ggplot2, quietly = TRUE)) {
-    stop("ggplot2 package is required for plotting the importance", call. = FALSE)
-  }
-  if (!requireNamespace("Ckmeans.1d.dp", quietly = TRUE)) {
-    stop("Ckmeans.1d.dp package is required for plotting the importance", call. = FALSE)
+xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure = NULL, 
+                                rel_to_first = FALSE, left_margin = 10, cex = NULL, plot = TRUE, ...) {
+  check.deprecation(...)
+  if (!is.data.table(importance_matrix))  {
+    stop("importance_matrix: must be a data.table")
   }
 
-  # To avoid issues in clustering when co-occurences are used
-  importance_matrix <- importance_matrix[, .(Gain = sum(Gain)), by = Feature]
+  imp_names <- colnames(importance_matrix)
+  if (is.null(measure)) {
+    if (all(c("Feature", "Gain") %in% imp_names)) {
+      measure <- "Gain"
+    } else if (all(c("Feature", "Weight") %in% imp_names)) {
+      measure <- "Weight"
+    } else {
+      stop("Importance matrix column names are not as expected!")
+    }
+  } else {
+    if (!measure %in% imp_names)
+      stop("Invalid `measure`")
+    if (!"Feature" %in% imp_names)
+      stop("Importance matrix column names are not as expected!")
+  }
   
-  clusters <- suppressWarnings(Ckmeans.1d.dp::Ckmeans.1d.dp(importance_matrix[,Gain], numberOfClusters))
-  importance_matrix[,"Cluster":=clusters$cluster %>% as.character]
+  # also aggregate, just in case when the values were not yet summed up by feature
+  importance_matrix <- importance_matrix[, Importance := sum(get(measure)), by = Feature]
+  
+  # make sure it's ordered
+  importance_matrix <- importance_matrix[order(-abs(Importance))]
+  
+  if (!is.null(top_n)) {
+    top_n <- min(top_n, nrow(importance_matrix))
+    importance_matrix <- head(importance_matrix, top_n)
+  }
+  if (rel_to_first) {
+    importance_matrix[, Importance := Importance/max(abs(Importance))]
+  }
+  if (is.null(cex)) {
+    cex <- 2.5/log2(1 + nrow(importance_matrix))
+  }
+  
+  if (plot) {
+    op <- par(no.readonly = TRUE)
+    mar <- op$mar
+    if (!is.null(left_margin))
+      mar[2] <- left_margin
+    par(mar = mar)
     
-  plot <- ggplot(importance_matrix, aes(x=reorder(Feature, Gain), y = Gain, width= 0.05), environment = environment())+  geom_bar(aes(fill=Cluster), stat="identity", position="identity") + coord_flip() + xlab("Features") + ylab("Gain") + ggtitle("Feature importance") + theme(plot.title = element_text(lineheight=.9, face="bold"), panel.grid.major.y = element_blank() )
+    # reverse the order of rows to have the highest ranked at the top
+    importance_matrix[nrow(importance_matrix):1,
+                      barplot(Importance, horiz = TRUE, border = NA, cex.names = cex,
+                              names.arg = Feature, las = 1, ...)]
+    grid(NULL, NA)
+    # redraw over the grid
+    importance_matrix[nrow(importance_matrix):1,
+                      barplot(Importance, horiz = TRUE, border = NA, add = TRUE)]
+    par(op)
+  }
   
-  return(plot)  
+  invisible(importance_matrix)
 }
 
 # Avoid error messages during CRAN check.
 # The reason is that these variables are never declared
 # They are mainly column names inferred by Data.table...
-globalVariables(c("Feature", "Gain", "Cluster", "ggplot", "aes", "geom_bar", "coord_flip", "xlab", "ylab", "ggtitle", "theme", "element_blank", "element_text"))
+globalVariables(c("Feature", "Importance"))
