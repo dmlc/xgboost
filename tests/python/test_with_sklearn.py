@@ -341,7 +341,7 @@ def test_sklearn_random_state():
 
 def test_seed_deprecation():
     tm._skip_if_no_sklearn()
-
+    warnings.simplefilter("always")
     with warnings.catch_warnings(record=True) as w:
         xgb.XGBClassifier(seed=1)
         assert w[0].category == DeprecationWarning
@@ -359,7 +359,7 @@ def test_sklearn_n_jobs():
 
 def test_nthread_deprecation():
     tm._skip_if_no_sklearn()
-
+    warnings.simplefilter("always")
     with warnings.catch_warnings(record=True) as w:
         xgb.XGBClassifier(nthread=1)
         assert w[0].category == DeprecationWarning
