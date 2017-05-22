@@ -65,4 +65,4 @@ List of Contributors
 * [Adam Pocock](https://github.com/Craigacp)
 * [Rory Mitchell](https://github.com/RAMitchell)
   - Rory is the author of the GPU plugin and also contributed the cmake build system and windows continuous integration
-* [Gideon Whitehead] (https://github.com/gaw89)
+* [Gideon Whitehead](https://github.com/gaw89)
