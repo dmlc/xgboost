@@ -73,3 +73,25 @@ test_that("updating the model works", {
   expect_gt(sum(abs(tr1[Feature != 'Leaf']$Quality - tr1ut[Feature != 'Leaf']$Quality)), 100)
   expect_lt(sum(tr1ut$Cover) / sum(tr1$Cover), 0.5)
 })
+
+test_that("updating works for multiclass & multitree", {
+  dtr <- xgb.DMatrix(as.matrix(iris[, -5]), label = as.numeric(iris$Species) - 1)
+  watchlist <- list(train = dtr)
+  p0 <- list(max_depth = 2, eta = 0.5, nthread = 2, subsample = 0.6,
+             objective = "multi:softprob", num_class = 3, num_parallel_tree = 2,
+             base_score = 0)
+  set.seed(121)
+  bst0 <- xgb.train(p0, dtr, 5, watchlist, verbose = 0)
+  tr0 <- xgb.model.dt.tree(model = bst0)
+  
+  # run update process for an original model with subsampling
+  p0u <- modifyList(p0, list(process_type='update', updater='refresh', refresh_leaf=FALSE))
+  bst0u <- xgb.train(p0u, dtr, nrounds = bst0$niter, watchlist, xgb_model = bst0, verbose = 0)
+  tr0u <- xgb.model.dt.tree(model = bst0u)
+  
+  # should be the same evaluation but different gains and larger cover
+  expect_equal(bst0$evaluation_log, bst0u$evaluation_log)
+  expect_equal(tr0[Feature == 'Leaf']$Quality, tr0u[Feature == 'Leaf']$Quality)
+  expect_gt(sum(abs(tr0[Feature != 'Leaf']$Quality - tr0u[Feature != 'Leaf']$Quality)), 100)
+  expect_gt(sum(tr0u$Cover) / sum(tr0$Cover), 1.5)
+})
