@@ -60,7 +60,7 @@ class Learner : public rabit::Serializable {
   virtual void InitModel() = 0;
   /*!
    * \brief Initialize the state of evaluation only once
-   * \param size The size of eval_data_sets
+   * \param eval_datasets_size The size of eval_data_sets
    */
   virtual void InitEvalStateOnce(size_t eval_datasets_size) = 0;
   /*!
@@ -119,7 +119,7 @@ class Learner : public rabit::Serializable {
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
-   * \param pred_contribs whether to only predict the feature contributions of all trees
+   * \param pred_contribs whether to only predict the feature contributions
    */
   virtual void Predict(DMatrix* data,
                        bool output_margin,

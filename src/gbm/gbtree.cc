@@ -246,12 +246,12 @@ class GBTree : public GradientBooster {
                ObjFunction* obj) override {
     const std::vector<bst_gpair>& gpair = *in_gpair;
     std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
-    if (mparam.num_output_group == 1) {
+    const int ngroup = mparam.num_output_group;
+    if (ngroup == 1) {
       std::vector<std::unique_ptr<RegTree> > ret;
       BoostNewTrees(gpair, p_fmat, 0, &ret);
       new_trees.push_back(std::move(ret));
     } else {
-      const int ngroup = mparam.num_output_group;
       CHECK_EQ(gpair.size() % ngroup, 0U)
           << "must have exactly ngroup*nrow gpairs";
       std::vector<bst_gpair> tmp(gpair.size() / ngroup);
@@ -267,7 +267,7 @@ class GBTree : public GradientBooster {
       }
     }
     double tstart = dmlc::GetTime();
-    for (int gid = 0; gid < mparam.num_output_group; ++gid) {
+    for (int gid = 0; gid < ngroup; ++gid) {
       this->CommitModel(std::move(new_trees[gid]), gid);
     }
     if (tparam.debug_verbose > 0) {
@@ -468,7 +468,8 @@ class GBTree : public GradientBooster {
       } else if (tparam.process_type == kUpdate) {
         CHECK_LT(trees.size(), trees_to_update.size());
         // move an existing tree from trees_to_update
-        auto t = std::move(trees_to_update[trees.size()]);
+        auto t = std::move(trees_to_update[trees.size() +
+                           bst_group * tparam.num_parallel_tree + i]);
         new_trees.push_back(t.get());
         ret->push_back(std::move(t));
       }
@@ -580,6 +581,7 @@ class GBTree : public GradientBooster {
     if (ntree_limit == 0 || ntree_limit > trees.size()) {
       ntree_limit = static_cast<unsigned>(trees.size());
     }
+    const int ngroup = mparam.num_output_group;
     size_t ncolumns = mparam.num_feature + 1;
     // allocate space for (number of features + bias) times the number of rows
     std::vector<bst_float>& contribs = *out_contribs;
@@ -593,7 +595,7 @@ class GBTree : public GradientBooster {
     }
     // start collecting the contributions
     dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
-    const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
+    const std::vector<bst_float>& base_margin = info.base_margin;
     iter->BeforeFirst();
     while (iter->Next()) {
       const RowBatch& batch = iter->Value();
@@ -605,8 +607,8 @@ class GBTree : public GradientBooster {
         unsigned root_id = info.GetRoot(row_idx);
         RegTree::FVec &feats = thread_temp[omp_get_thread_num()];
         // loop over all classes
-        for (int gid = 0; gid < mparam.num_output_group; ++gid) {
-          bst_float *p_contribs = &contribs[(row_idx * mparam.num_output_group + gid) * ncolumns];
+        for (int gid = 0; gid < ngroup; ++gid) {
+          bst_float *p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
           feats.Fill(batch[i]);
           // calculate contributions
           for (unsigned j = 0; j < ntree_limit; ++j) {
@@ -616,9 +618,9 @@ class GBTree : public GradientBooster {
             trees[j]->CalculateContributions(feats, root_id, p_contribs);
           }
           feats.Drop(batch[i]);
-          // add base margin to BIAS feature
+          // add base margin to BIAS
           if (base_margin.size() != 0) {
-            p_contribs[ncolumns - 1] += base_margin[row_idx * mparam.num_output_group + gid];
+            p_contribs[ncolumns - 1] += base_margin[row_idx * ngroup + gid];
           } else {
             p_contribs[ncolumns - 1] += base_margin_;
           }

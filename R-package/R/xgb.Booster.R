@@ -126,7 +126,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        logistic regression would result in predictions for log-odds instead of probabilities.
 #' @param ntreelimit limit the number of model's trees or boosting iterations used in prediction (see Details).
 #'        It will use all the trees by default (\code{NULL} value).
-#' @param predleaf whether predict leaf index instead. 
+#' @param predleaf whether predict leaf index instead.
+#' @param predcontrib whether to return feature contributions to individual predictions instead (see Details).
 #' @param reshape whether to reshape the vector of predictions to a matrix form when there are several 
 #'        prediction outputs per case. This option has no effect when \code{predleaf = TRUE}.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
@@ -135,15 +136,22 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' Note that \code{ntreelimit} is not necessarily equal to the number of boosting iterations
 #' and it is not necessarily equal to the number of trees in a model.
 #' E.g., in a random forest-like model, \code{ntreelimit} would limit the number of trees.
-#' But for multiclass classification, there are multiple trees per iteration, 
-#' but \code{ntreelimit} limits the number of boosting iterations.
+#' But for multiclass classification, while there are multiple trees per iteration, 
+#' \code{ntreelimit} limits the number of boosting iterations.
 #' 
 #' Also note that \code{ntreelimit} would currently do nothing for predictions from gblinear, 
-#' since gblinear doesn't keep its boosting history. 
+#' since gblinear doesn't keep its boosting history.
 #' 
 #' One possible practical applications of the \code{predleaf} option is to use the model 
 #' as a generator of new features which capture non-linearity and interactions, 
-#' e.g., as implemented in \code{\link{xgb.create.features}}. 
+#' e.g., as implemented in \code{\link{xgb.create.features}}.
+#' 
+#' Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
+#' individual predictions. For "gblinear" booster, feature contributions are simply linear terms
+#' (feature_beta * feature_value). For "gbtree" booster, feature contribution is calculated 
+#' as a sum of average contribution of that feature's split nodes across all trees to an 
+#' individual prediction, following the idea explained in 
+#' \url{http://blog.datadive.net/interpreting-random-forests/}.
 #' 
 #' @return 
 #' For regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
@@ -153,6 +161,12 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' 
 #' When \code{predleaf = TRUE}, the output is a matrix object with the 
 #' number of columns corresponding to the number of trees.
+#' 
+#' When \code{predcontrib = TRUE} and it is not a multiclass setting, the output is a matrix object with
+#' \code{num_features + 1} columns. The last "+ 1" column in a matrix corresponds to bias.
+#' For a multiclass case, a list of \code{num_class} elements is returned, where each element is
+#' such a matrix. The contribution values are on the scale of untransformed margin 
+#' (e.g., for binary classification would mean that the contributions are log-odds deviations from bias).
 #' 
 #' @seealso
 #' \code{\link{xgb.train}}.
@@ -166,11 +180,32 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' test <- agaricus.test
 #' 
 #' bst <- xgboost(data = train$data, label = train$label, max_depth = 2, 
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#'                eta = 0.5, nthread = 2, nrounds = 5, objective = "binary:logistic")
 #' # use all trees by default
 #' pred <- predict(bst, test$data)
 #' # use only the 1st tree
-#' pred <- predict(bst, test$data, ntreelimit = 1)
+#' pred1 <- predict(bst, test$data, ntreelimit = 1)
+#' 
+#' # Predicting tree leafs:
+#' # the result is an nsamples X ntrees matrix
+#' pred_leaf <- predict(bst, test$data, predleaf = TRUE)
+#' str(pred_leaf)
+#' 
+#' # Predicting feature contributions to predictions:
+#' # the result is an nsamples X (nfeatures + 1) matrix
+#' pred_contr <- predict(bst, test$data, predcontrib = TRUE)
+#' str(pred_contr)
+#' # verify that contributions' sums are equal to log-odds of predictions (up to foat precision):
+#' summary(rowSums(pred_contr) - qlogis(pred))
+#' # for the 1st record, let's inspect its features that had non-zero contribution to prediction:
+#' contr1 <- pred_contr[1,]
+#' contr1 <- contr1[-length(contr1)]    # drop BIAS
+#' contr1 <- contr1[contr1 != 0]        # drop non-contributing features
+#' contr1 <- contr1[order(abs(contr1))] # order by contribution magnitude
+#' old_mar <- par("mar")
+#' par(mar = old_mar + c(0,7,0,0))
+#' barplot(contr1, horiz = TRUE, las = 2, xlab = "contribution to prediction in log-odds")
+#' par(mar = old_mar)
 #' 
 #' 
 #' ## multiclass classification in iris dataset:
@@ -222,8 +257,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #' @rdname predict.xgb.Booster
 #' @export
-predict.xgb.Booster <- function(object, newdata, missing = NA,
-    outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE, reshape = FALSE, ...) {
+predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
+                                predleaf = FALSE, predcontrib = FALSE, reshape = FALSE, ...) {
 
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
@@ -235,23 +270,40 @@ predict.xgb.Booster <- function(object, newdata, missing = NA,
   if (ntreelimit < 0)
     stop("ntreelimit cannot be negative")
   
-  option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf)
+  option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf) + 4L * as.logical(predcontrib)
   
   ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1], as.integer(ntreelimit))
   
-  if (length(ret) %% nrow(newdata) != 0)
-    stop("prediction length ", length(ret)," is not multiple of nrows(newdata) ", nrow(newdata))
-  npred_per_case <- length(ret) / nrow(newdata)
-
-  if (predleaf){
-    len <- nrow(newdata)
-    ret <- if (length(ret) == len) {
+  n_ret <- length(ret)
+  n_row <- nrow(newdata)
+  npred_per_case <- n_ret / n_row
+  
+  if (n_ret %% n_row != 0)
+    stop("prediction length ", n_ret, " is not multiple of nrows(newdata) ", n_row)
+  
+  if (predleaf) {
+    ret <- if (n_ret == n_row) {
       matrix(ret, ncol = 1)
     } else {
-      t(matrix(ret, ncol = len))
+      matrix(ret, nrow = n_row, byrow = TRUE)
+    }
+  } else if (predcontrib) {
+    n_col1 <- ncol(newdata) + 1
+    n_group <- npred_per_case / n_col1
+    dnames <- list(NULL, c(colnames(newdata), "BIAS"))
+    ret <- if (n_ret == n_row) {
+      matrix(ret, ncol = 1, dimnames = dnames)
+    } else if (n_group == 1) {
+      matrix(ret, nrow = n_row, byrow = TRUE, dimnames = dnames)
+    } else {
+      grp_mask <- rep(1:n_col1, n_row) +
+        rep((0:(n_row - 1)) * n_col1 * n_group, each = n_col1)
+      lapply(1:n_group, function(g) {
+        matrix(ret[grp_mask + n_col1 * (g - 1)], nrow = n_row, byrow = TRUE, dimnames = dnames)
+      })
     }
   } else if (reshape && npred_per_case > 1) {
-    ret <- matrix(ret, ncol = length(ret) / nrow(newdata), byrow = TRUE)
+    ret <- matrix(ret, nrow = n_row, byrow = TRUE)
   }
   return(ret)
 }
