@@ -103,7 +103,9 @@ class XGBModel(XGBModelBase):
         None, defaults to np.nan.
     **kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
-        be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.md
+        be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.md.
+        Attempting to set a parameter via the constructor args and **kwargs dict simultaneously
+        will result in a TypeError.
 
     Note
     ----
@@ -195,7 +197,7 @@ class XGBModel(XGBModelBase):
     def get_params(self, deep=False):
         """Get parameter.s"""
         params = super(XGBModel, self).get_params(deep=deep)
-        if isinstance(self.kwargs,dict):
+        if isinstance(self.kwargs, dict): # if kwargs is a dict, update params accordingly
             params.update(self.kwargs)
         if params['missing'] is np.nan:
             params['missing'] = None  # sklearn doesn't handle nan. see #4725

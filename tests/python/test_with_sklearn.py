@@ -3,6 +3,7 @@ import random
 import xgboost as xgb
 import testing as tm
 import warnings
+from nose.tools import raises
 
 rng = np.random.RandomState(1994)
 
@@ -368,7 +369,16 @@ def test_nthread_deprecation():
 def test_kwargs():
     tm._skip_if_no_sklearn()
 
-    params = {'updater':'grow_gpu','subsample':.5}
-    clf = xgb.XGBClassifier(**params)
+    params = {'updater':'grow_gpu', 'subsample':.5, 'n_jobs':-1}
+    clf = xgb.XGBClassifier(n_estimators=1000, **params)
     assert clf.get_params()['updater'] == 'grow_gpu'
     assert clf.get_params()['subsample'] == .5
+    assert clf.get_params()['n_estimators'] == 1000
+    
+
+@raises(TypeError)
+def test_kwargs_error():
+    tm._skip_if_no_sklearn()
+
+    params = {'updater':'grow_gpu', 'subsample':.5, 'n_jobs':-1}
+    clf = xgb.XGBClassifier(n_jobs=1000, **params)
