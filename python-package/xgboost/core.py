@@ -273,9 +273,9 @@ class DMatrix(object):
             except:
                 raise TypeError('can not initialize DMatrix from {}'.format(type(data).__name__))
         if label is not None:
-            if data.shape[0] != label.shape[0]:
+            if data.shape[0] != np.array(label).shape[0]:
                 raise ValueError('length mismatch: {} for data vs {} for label'.format(
-                    data.shape[0], label.shape[0]))
+                    data.shape[0], np.array(label).shape[0]))
             self.set_label(label)
         if weight is not None:
             self.set_weight(weight)
