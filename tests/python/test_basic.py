@@ -86,7 +86,8 @@ class TestBasic(unittest.TestCase):
         self.assertRaises(ValueError, xgb.DMatrix, data,
                           feature_names=list('abcdef'))
         # different length labels
-        self.assertRaises(ValueError, xgb.DMatrix(data,label=[1,2]))
+        with self.assertRaises(ValueError):
+            xgb.DMatrix(np.random.randn(5,5),[1,2])
         # contains duplicates
         self.assertRaises(ValueError, xgb.DMatrix, data,
                           feature_names=['a', 'b', 'c', 'd', 'd'])
