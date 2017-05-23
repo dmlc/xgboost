@@ -106,9 +106,9 @@ class XGBModel(XGBModelBase):
         be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.md.
         Attempting to set a parameter via the constructor args and **kwargs dict simultaneously
         will result in a TypeError.
-        Note: 
+        Note:
             **kwargs is unsupported by Sklearn.  We do not guarantee that parameters passed via
-            this argument will interact properly with Sklearn.  
+            this argument will interact properly with Sklearn.
 
     Note
     ----
