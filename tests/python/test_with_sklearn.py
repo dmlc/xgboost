@@ -369,7 +369,7 @@ def test_nthread_deprecation():
 def test_kwargs():
     tm._skip_if_no_sklearn()
 
-    params = {'updater':'grow_gpu', 'subsample':.5, 'n_jobs':-1}
+    params = {'updater': 'grow_gpu', 'subsample': .5, 'n_jobs': -1}
     clf = xgb.XGBClassifier(n_estimators=1000, **params)
     assert clf.get_params()['updater'] == 'grow_gpu'
     assert clf.get_params()['subsample'] == .5
@@ -380,5 +380,6 @@ def test_kwargs():
 def test_kwargs_error():
     tm._skip_if_no_sklearn()
 
-    params = {'updater':'grow_gpu', 'subsample':.5, 'n_jobs':-1}
+    params = {'updater': 'grow_gpu', 'subsample': .5, 'n_jobs': -1}
     clf = xgb.XGBClassifier(n_jobs=1000, **params)
+    assert isinstance(clf, xgb.XGBClassifier)
