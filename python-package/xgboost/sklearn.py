@@ -197,7 +197,7 @@ class XGBModel(XGBModelBase):
     def get_params(self, deep=False):
         """Get parameter.s"""
         params = super(XGBModel, self).get_params(deep=deep)
-        if isinstance(self.kwargs, dict): # if kwargs is a dict, update params accordingly
+        if isinstance(self.kwargs, dict):  # if kwargs is a dict, update params accordingly
             params.update(self.kwargs)
         if params['missing'] is np.nan:
             params['missing'] = None  # sklearn doesn't handle nan. see #4725
