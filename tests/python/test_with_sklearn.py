@@ -385,7 +385,7 @@ def test_kwargs_error():
     assert isinstance(clf, xgb.XGBClassifier)
 
 
-def test_hist_params(self):
+def test_hist_params():
     tm._skip_if_no_sklearn()
 
     params = {'tree_method': 'hist',
@@ -404,7 +404,7 @@ def test_hist_params(self):
     assert xgb_params['max_bin'] == 128
 
 
-def test_hist_default_params(self):
+def test_hist_default_params():
     tm._skip_if_no_sklearn()
 
     xgb_model = xgb.XGBClassifier()
