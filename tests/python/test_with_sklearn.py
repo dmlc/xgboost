@@ -388,11 +388,12 @@ def test_kwargs_error():
 def test_hist_params():
     tm._skip_if_no_sklearn()
 
-    params = {'tree_method': 'hist',
-              'grow_policy': 'lossguide',
-              'max_depth': 0,
-              'max_leaves': 8,
-              'max_bin': 128
+    params = {
+        'tree_method': 'hist',
+        'grow_policy': 'lossguide',
+        'max_depth': 0,
+        'max_leaves': 8,
+        'max_bin': 128
     }
 
     xgb_model = xgb.XGBClassifier(**params)
