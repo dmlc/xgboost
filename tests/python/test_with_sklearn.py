@@ -383,3 +383,34 @@ def test_kwargs_error():
     params = {'updater': 'grow_gpu', 'subsample': .5, 'n_jobs': -1}
     clf = xgb.XGBClassifier(n_jobs=1000, **params)
     assert isinstance(clf, xgb.XGBClassifier)
+
+
+def test_hist_params(self):
+    tm._skip_if_no_sklearn()
+
+    params = {'tree_method': 'hist',
+              'grow_policy': 'lossguide',
+              'max_depth': 0,
+              'max_leaves': 8,
+              'max_bin': 128
+    }
+
+    xgb_model = xgb.XGBClassifier(**params)
+    xgb_params = xgb_model.get_xgb_params()
+    assert xgb_params['tree_method'] == 'hist'
+    assert xgb_params['grow_policy'] == 'lossguide'
+    assert xgb_params['max_depth'] == 0
+    assert xgb_params['max_leaves'] == 8
+    assert xgb_params['max_bin'] == 128
+
+
+def test_hist_default_params(self):
+    tm._skip_if_no_sklearn()
+
+    xgb_model = xgb.XGBClassifier()
+    xgb_params = xgb_model.get_xgb_params()
+    assert xgb_params['tree_method'] == 'auto'
+    assert xgb_params['grow_policy'] == 'depthwise'
+    assert xgb_params['max_depth'] == 3
+    assert xgb_params['max_leaves'] == 0
+    assert xgb_params['max_bin'] == 256
