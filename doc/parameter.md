@@ -32,8 +32,8 @@ Parameters for Tree Booster
   - minimum loss reduction required to make a further partition on a leaf node of the tree. The larger, the more conservative the algorithm will be.
   - range: [0,∞]
 * max_depth [default=6]
-  - maximum depth of a tree, increase this value will make the model more complex / likely to be overfitting.
-  - range: [1,∞]
+  - maximum depth of a tree, increase this value will make the model more complex / likely to be overfitting. 0 indicates no limit, limit is required for depth-wise grow policy.
+  - range: [0,∞]
 * min_child_weight [default=1]
   - minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be.
   - range: [0,∞]
@@ -56,7 +56,7 @@ Parameters for Tree Booster
 * tree_method, string [default='auto']
   - The tree construction algorithm used in XGBoost(see description in the [reference paper](http://arxiv.org/abs/1603.02754))
   - Distributed and external memory version only support approximate algorithm.
-  - Choices: {'auto', 'exact', 'approx'}
+  - Choices: {'auto', 'exact', 'approx', 'hist'}
     - 'auto': Use heuristic to choose faster one.
       - For small to medium dataset, exact greedy will be used.
       - For very large-dataset, approximate algorithm will be chosen.
@@ -64,6 +64,7 @@ Parameters for Tree Booster
         user will get a message when approximate algorithm is chosen to notify this choice.
     - 'exact': Exact greedy algorithm.
     - 'approx': Approximate greedy algorithm using sketching and histogram.
+    - 'hist': Fast histogram optimized approximate greedy algorithm. It uses some performance improvements such as bins caching.
 * sketch_eps, [default=0.03]
   - This is only used for approximate greedy algorithm.
   - This roughly translated into ```O(1 / sketch_eps)``` number of bins.
@@ -94,6 +95,18 @@ Parameters for Tree Booster
   - Choices: {'default', 'update'}
     - 'default': the normal boosting process which creates new trees.
     - 'update': starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updater plugins is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updater plugins could be meaningfully used with this process type: 'refresh', 'prune'. With 'update', one cannot use updater plugins that create new nrees.
+* grow_policy, string [default='depthwise']
+  - Controls a way new nodes are added to the tree.
+  - Currently supported only if `tree_method` is set to 'hist'.
+  - Choices: {'depthwise', 'lossguide'}
+    - 'depthwise': split at nodes closest to the root.
+    - 'lossguide': split at nodes with highest loss change.
+* max_leaves, [default=0]
+  - Maximum number of nodes to be added. Only relevant for the 'lossguide' grow policy.
+* max_bins, [default=256]
+  - This is only used if 'hist' is specified as `tree_method`.
+  - Maximum number of discrete bins to bucket continuous features.
+  - Increasing this number improves the optimality of splits at the cost of higher computation time.
 
 Additional parameters for Dart Booster
 --------------------------------------
