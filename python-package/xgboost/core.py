@@ -848,7 +848,7 @@ class Booster(object):
 
     def eval_set(self, evals, iteration=0, feval=None):
         # pylint: disable=invalid-name
-        """Evaluate  a set of data.
+        """Evaluate a set of data.
 
         Parameters
         ----------
