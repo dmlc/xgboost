@@ -259,6 +259,34 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixCreateFrom2DMat
+ * Signature: ([FIIF)J
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFrom2DMat
+  (JNIEnv *jenv, jclass jcls, jobjectArray jdata, jint jnrow, jint jncol, jfloat jmiss, jlongArray jout) {
+
+  jfloat *data = new jfloat[jnrow*jncol];
+  for(int i=0; i<jnrow; ++i){
+    jfloatArray oneDim= (jfloatArray)jenv->GetObjectArrayElement(jdata, i);
+    jfloat* element= jenv->GetFloatArrayElements(oneDim, 0);
+    for(int j=0; j<jncol; ++j) {
+      data[i*jncol + j] = element[j];
+    }
+    jenv->ReleaseFloatArrayElements(oneDim, element, 0);
+    jenv->DeleteLocalRef(oneDim);
+  }
+
+  // OLD
+  DMatrixHandle result;
+  bst_ulong nrow = (bst_ulong)jnrow;
+  bst_ulong ncol = (bst_ulong)jncol;
+  jint ret = (jint) XGDMatrixCreateFromMat((float const *)data, nrow, ncol, jmiss, &result);
+  setHandle(jenv, jout, result);
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGDMatrixSliceDMatrix
  * Signature: (J[I)J
  */
