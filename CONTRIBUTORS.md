@@ -9,14 +9,14 @@ Committers are people who have made substantial contribution to the project and 
   - Tianqi is a PhD working on large-scale machine learning, he is the creator of the project.
 * [Tong He](https://github.com/hetong007), Simon Fraser University
   - Tong is a master student working on data mining, he is the maintainer of xgboost R package.
-* [Vadim Khotilovich](https://github.com/khotilov)  
+* [Vadim Khotilovich](https://github.com/khotilov)
   - Vadim contributes many improvements in R and core packages.
 * [Bing Xu](https://github.com/antinucleon)
   - Bing is the original creator of xgboost python package and currently the maintainer of [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl).
 * [Michael Benesty](https://github.com/pommedeterresautee)
   - Micheal is a lawyer, data scientist in France, he is the creator of xgboost interactive analysis module in R.
 * [Yuan Tang](https://github.com/terrytangyuan)
-  - Yuan is a data scientist in Chicago, US. He contributed mostly in R and Python packages. 
+  - Yuan is a data scientist in Chicago, US. He contributed mostly in R and Python packages.
 
 Become a Committer
 ------------------
@@ -66,3 +66,4 @@ List of Contributors
 * [Rory Mitchell](https://github.com/RAMitchell)
   - Rory is the author of the GPU plugin and also contributed the cmake build system and windows continuous integration
 * [Gideon Whitehead](https://github.com/gaw89)
+* [Yi-Lin Juang](https://github.com/frankyjuang)
