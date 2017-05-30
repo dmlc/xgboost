@@ -2,6 +2,11 @@ cmake_minimum_required (VERSION 3.5)
 project (xgboost)
 find_package(OpenMP)
 
+option(PLUGIN_UPDATER_GPU "Build GPU accelerated tree construction plugin")
+if(PLUGIN_UPDATER_GPU)
+    find_package(CUDA REQUIRED)
+endif()
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
 if(NOT MSVC)
@@ -91,34 +96,29 @@ else()
     set(CMAKE_SHARED_LIBRARY_PREFIX "")
 endif()
 
-option(PLUGIN_UPDATER_GPU "Build GPU accelerated tree construction plugin")
-
 if(PLUGIN_UPDATER_GPU)
-	#Find cub
-	set(CUB_DIRECTORY "" CACHE PATH "CUB 1.5.4 directory")
-	include_directories(${CUB_DIRECTORY})
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;-arch=compute_35;-lineinfo;")
+    #Find cub
+    set(CUB_DIRECTORY "cub/" CACHE PATH "CUB 1.5.4 directory")
+    include_directories(${CUB_DIRECTORY})
+    #Find googletest
+    set(GTEST_DIRECTORY "googletest" CACHE PATH "Googletest directory")
+    include_directories(${GTEST_DIRECTORY}/googletest/include)
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;-arch=compute_60;-lineinfo;")
     if(NOT MSVC)
         set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
     endif()
-    set(SOURCES ${SOURCES} 
-        plugin/updater_gpu/src/updater_gpu.cc
+    set(SOURCES ${SOURCES}
+        plugin/updater_gpu/src/updater_gpu.cu
     )
-    find_package(CUDA QUIET REQUIRED)
-	file(GLOB_RECURSE CUDA_SOURCES "plugin/updater_gpu/src/*")
-    cuda_add_library(updater_gpu STATIC 
-        ${CUDA_SOURCES}
+    set(SOURCES ${SOURCES}
+        plugin/updater_gpu/src/gpu_hist_builder.cu
     )
+    cuda_add_executable(xgboost ${SOURCES})
+    cuda_add_library(libxgboost SHARED ${SOURCES})
+else()
+    add_executable(xgboost ${SOURCES})
+    add_library(libxgboost SHARED ${SOURCES})
 endif()
 
-add_executable(xgboost ${SOURCES})
-add_library(libxgboost SHARED ${SOURCES})
 target_link_libraries(xgboost dmlccore rabit)
 target_link_libraries(libxgboost dmlccore rabit)
-
-
-if(PLUGIN_UPDATER_GPU)
-    target_link_libraries(xgboost updater_gpu)
-    target_link_libraries(libxgboost updater_gpu)
-endif()
-

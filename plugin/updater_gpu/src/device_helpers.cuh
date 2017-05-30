@@ -2,8 +2,6 @@
  * Copyright 2016 Rory mitchell
  */
 #pragma once
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
 #include <thrust/device_vector.h>
 #include <thrust/random.h>
 #include <thrust/system/cuda/error.h>
@@ -20,6 +18,9 @@
 // #define TIMERS
 
 namespace dh {
+
+#define HOST_DEV_INLINE  __host__ __device__ __forceinline__
+#define DEV_INLINE       __device__ __forceinline__
 
 /*
  * Error handling  functions
@@ -145,7 +146,7 @@ struct Timer {
   int64_t elapsed() const { return (ClockT::now() - start).count(); }
   void printElapsed(std::string label) {
     safe_cuda(cudaDeviceSynchronize());
-    printf("%s:\t %lld\n", label.c_str(), elapsed());
+    printf("%s:\t %lld\n", label.c_str(), (long long)elapsed());
     reset();
   }
 };
@@ -228,10 +229,12 @@ __device__ void block_fill(IterT begin, size_t n, ValueT value) {
  */
 
 class bulk_allocator;
+template <typename T> class dvec2;
 
 template <typename T>
 class dvec {
   friend bulk_allocator;
+  friend class dvec2<T>;
 
  private:
   T *_ptr;
@@ -241,15 +244,17 @@ class dvec {
     if (!empty()) {
       throw std::runtime_error("Tried to allocate dvec but already allocated");
     }
-
     _ptr = static_cast<T *>(ptr);
     _size = size;
   }
 
  public:
   dvec() : _ptr(NULL), _size(0) {}
+
   size_t size() const { return _size; }
+
   bool empty() const { return _ptr == NULL || _size == 0; }
+
   T *data() { return _ptr; }
 
   std::vector<T> as_vector() const {
@@ -265,11 +270,9 @@ class dvec {
 
   void print() {
     auto h_vector = this->as_vector();
-
     for (auto e : h_vector) {
       std::cout << e << " ";
     }
-
     std::cout << "\n";
   }
 
@@ -285,9 +288,7 @@ class dvec {
       throw std::runtime_error(
           "Cannot copy assign vector to dvec, sizes are different");
     }
-
     thrust::copy(other.begin(), other.end(), this->tbegin());
-
     return *this;
   }
 
@@ -296,36 +297,74 @@ class dvec {
       throw std::runtime_error(
           "Cannot copy assign dvec to dvec, sizes are different");
     }
-
     thrust::copy(other.tbegin(), other.tend(), this->tbegin());
-
     return *this;
   }
+};
+
+/**
+ * @class dvec2 device_helpers.cuh
+ * @brief wrapper for storing 2 dvec's which are needed for cub::DoubleBuffer
+ */
+template <typename T>
+class dvec2 {
+  friend bulk_allocator;
+
+ private:
+  dvec<T> _d1, _d2;
+  cub::DoubleBuffer<T> _buff;
+
+  void external_allocate(void *ptr1, void *ptr2, size_t size) {
+    if (!empty()) {
+      throw std::runtime_error("Tried to allocate dvec2 but already allocated");
+    }
+    _d1.external_allocate(ptr1, size);
+    _d2.external_allocate(ptr2, size);
+    _buff.d_buffers[0] = static_cast<T *>(ptr1);
+    _buff.d_buffers[1] = static_cast<T *>(ptr2);
+    _buff.selector = 0;
+  }
+
+ public:
+  dvec2() : _d1(), _d2(), _buff() {}
+
+  size_t size() const { return _d1.size(); }
+
+  bool empty() const { return _d1.empty() || _d2.empty(); }
+
+  cub::DoubleBuffer<T> &buff() { return _buff; }
+
+  dvec<T> &d1() { return _d1; }
+
+  dvec<T> &d2() { return _d2; }
+
+  T *current() { return _buff.Current(); }
+
+  dvec<T> &current_dvec() { return _buff.selector == 0? d1() : d2(); }
+
+  T *other() { return _buff.Alternate(); }
 };
 
 class bulk_allocator {
   char *d_ptr;
   size_t _size;
 
-  const size_t align = 256;
+  const int align = 256;
 
   template <typename SizeT>
   size_t align_round_up(SizeT n) {
-    if (n % align == 0) {
-      return n;
-    } else {
-      return n + align - (n % align);
-    }
+    n = (n + align - 1) / align;
+    return n * align;
   }
 
   template <typename T, typename SizeT>
   size_t get_size_bytes(dvec<T> *first_vec, SizeT first_size) {
-    return align_round_up(first_size * sizeof(T));
+    return align_round_up<SizeT>(first_size * sizeof(T));
   }
 
   template <typename T, typename SizeT, typename... Args>
   size_t get_size_bytes(dvec<T> *first_vec, SizeT first_size, Args... args) {
-    return align_round_up(first_size * sizeof(T)) + get_size_bytes(args...);
+    return get_size_bytes<T,SizeT>(first_vec, first_size) + get_size_bytes(args...);
   }
 
   template <typename T, typename SizeT>
@@ -336,8 +375,34 @@ class bulk_allocator {
   template <typename T, typename SizeT, typename... Args>
   void allocate_dvec(char *ptr, dvec<T> *first_vec, SizeT first_size,
                      Args... args) {
-    first_vec->external_allocate(static_cast<void *>(ptr), first_size);
+    allocate_dvec<T,SizeT>(ptr, first_vec, first_size);
     ptr += align_round_up(first_size * sizeof(T));
+    allocate_dvec(ptr, args...);
+  }
+
+  template <typename T, typename SizeT>
+  size_t get_size_bytes(dvec2<T> *first_vec, SizeT first_size) {
+    return 2 * align_round_up(first_size * sizeof(T));
+  }
+
+  template <typename T, typename SizeT, typename... Args>
+  size_t get_size_bytes(dvec2<T> *first_vec, SizeT first_size, Args... args) {
+      return get_size_bytes<T,SizeT>(first_vec, first_size) + get_size_bytes(args...);
+  }
+
+  template <typename T, typename SizeT>
+  void allocate_dvec(char *ptr, dvec2<T> *first_vec, SizeT first_size) {
+    first_vec->external_allocate
+        (static_cast<void *>(ptr),
+         static_cast<void *>(ptr+align_round_up(first_size * sizeof(T))),
+         first_size);
+  }
+
+  template <typename T, typename SizeT, typename... Args>
+  void allocate_dvec(char *ptr, dvec2<T> *first_vec, SizeT first_size,
+                     Args... args) {
+    allocate_dvec<T,SizeT>(ptr, first_vec, first_size);
+    ptr += (align_round_up(first_size * sizeof(T)) * 2);
     allocate_dvec(ptr, args...);
   }
 
@@ -357,11 +422,8 @@ class bulk_allocator {
     if (d_ptr != NULL) {
       throw std::runtime_error("Bulk allocator already allocated");
     }
-
     _size = get_size_bytes(args...);
-
     safe_cuda(cudaMalloc(&d_ptr, _size));
-
     allocate_dvec(d_ptr, args...);
   }
 };
@@ -374,6 +436,7 @@ struct CubMemory {
   CubMemory() : d_temp_storage(NULL), temp_storage_bytes(0) {}
 
   ~CubMemory() { Free(); }
+
   void Free() {
     if (d_temp_storage != NULL) {
       safe_cuda(cudaFree(d_temp_storage));
@@ -394,13 +457,13 @@ struct CubMemory {
 inline size_t available_memory() {
   size_t device_free = 0;
   size_t device_total = 0;
-  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
+  safe_cuda(cudaMemGetInfo(&device_free, &device_total));
   return device_free;
 }
 
 inline std::string device_name() {
   cudaDeviceProp prop;
-  dh::safe_cuda(cudaGetDeviceProperties(&prop, 0));
+  safe_cuda(cudaGetDeviceProperties(&prop, 0));
   return std::string(prop.name);
 }
 
@@ -430,7 +493,6 @@ template <typename T>
 void print(char *label, const thrust::device_vector<T> &v,
            const char *format = "%d ", int max = 10) {
   thrust::host_vector<T> h_v = v;
-
   std::cout << label << ":\n";
   for (int i = 0; i < std::min(static_cast<int>(h_v.size()), max); i++) {
     printf(format, h_v[i]);
@@ -495,9 +557,21 @@ struct BernoulliRng {
     thrust::default_random_engine rng(seed);
     thrust::uniform_real_distribution<float> dist;
     rng.discard(i);
-
     return dist(rng) <= p;
   }
 };
+
+/**
+ * @brief Helper macro to measure timing on GPU
+ * @param call the GPU call
+ * @param name name used to track later
+ * @param stream cuda stream where to measure time
+ */
+#define TIMEIT(call, name)                  \
+  do {                                      \
+    dh::Timer t1234;                        \
+    call;                                   \
+    t1234.printElapsed(name);               \
+  } while(0)
 
 }  // namespace dh

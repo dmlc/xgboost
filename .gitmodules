@@ -4,3 +4,9 @@
 [submodule "rabit"]
 	path = rabit
 	url = https://github.com/dmlc/rabit
+[submodule "googletest"]
+	path = googletest
+	url = https://github.com/google/googletest
+[submodule "cub"]
+	path = cub
+	url = https://github.com/NVlabs/cub

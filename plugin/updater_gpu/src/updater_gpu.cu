@@ -6,7 +6,7 @@
 #include "../../src/common/random.h"
 #include "../../src/common/sync.h"
 #include "../../src/tree/param.h"
-#include "gpu_builder.cuh"
+#include "exact/gpu_builder.cuh"
 #include "gpu_hist_builder.cuh"
 
 namespace xgboost {
@@ -45,7 +45,7 @@ class GPUMaker : public TreeUpdater {
  protected:
   // training parameter
   TrainParam param;
-  GPUBuilder builder;
+  exact::GPUBuilder<short int> builder;
 };
 
 template <typename TStats>
