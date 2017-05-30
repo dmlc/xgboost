@@ -458,4 +458,3 @@ def test_validation_weights_xgbclassifier():
     # check that the logloss in the test set is actually different when using weights
     # than when not using them
     assert all((logloss_with_weights[i] != logloss_without_weights[i] for i in [0, 1]))
-
