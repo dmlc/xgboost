@@ -12,6 +12,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <cub/cub.cuh>
 
 // Uncomment to enable
 // #define DEVICE_TIMER

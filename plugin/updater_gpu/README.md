@@ -69,12 +69,12 @@ From the command line on Windows or Linux starting from the xgboost directory:
 ```bash
 $ mkdir build
 $ cd build
-$ cmake .. -DPLUGIN_UPDATER_GPU=ON -DCUB_DIRECTORY=<MY_CUB_DIRECTORY>
+$ cmake .. -DPLUGIN_UPDATER_GPU=ON
 ```
 
 On Windows you may also need to specify your generator as 64 bit, so the cmake command becomes:
 ```bash
-$ cmake .. -G"Visual Studio 12 2013 Win64" -DPLUGIN_UPDATER_GPU=ON -DCUB_DIRECTORY=<MY_CUB_DIRECTORY>
+$ cmake .. -G"Visual Studio 12 2013 Win64" -DPLUGIN_UPDATER_GPU=ON
 ```
 You may also  be able to use a later version of visual studio depending on whether the CUDA toolkit supports it.
 
