@@ -2,28 +2,30 @@ Contributors of DMLC/XGBoost
 ============================
 XGBoost has been developed and used by a group of active community. Everyone is more than welcomed to is a great way to make the project better and more accessible to more users.
 
-Comitters
----------
+Committers
+----------
 Committers are people who have made substantial contribution to the project and granted write access to the project.
 * [Tianqi Chen](https://github.com/tqchen), University of Washington
   - Tianqi is a PhD working on large-scale machine learning, he is the creator of the project.
 * [Tong He](https://github.com/hetong007), Simon Fraser University
   - Tong is a master student working on data mining, he is the maintainer of xgboost R package.
+* [Vadim Khotilovich](https://github.com/khotilov)
+  - Vadim contributes many improvements in R and core packages.
 * [Bing Xu](https://github.com/antinucleon)
   - Bing is the original creator of xgboost python package and currently the maintainer of [XGBoost.jl](https://github.com/antinucleon/XGBoost.jl).
 * [Michael Benesty](https://github.com/pommedeterresautee)
   - Micheal is a lawyer, data scientist in France, he is the creator of xgboost interactive analysis module in R.
 * [Yuan Tang](https://github.com/terrytangyuan)
-  - Yuan is a data scientist in Chicago, US. He contributed mostly in R and Python packages. 
+  - Yuan is a data scientist in Chicago, US. He contributed mostly in R and Python packages.
 
-Become a Comitter
------------------
-XGBoost is a opensource project and we are actively looking for new comitters who are willing to help maintaining and lead the project.
+Become a Committer
+------------------
+XGBoost is a opensource project and we are actively looking for new committers who are willing to help maintaining and lead the project.
 Committers comes from contributors who:
 * Made substantial contribution to the project.
 * Willing to spent time on maintaining and lead the project.
 
-New committers will be proposed by current comitter memembers, with support from more than two of current comitters.
+New committers will be proposed by current committer members, with support from more than two of current committers.
 
 List of Contributors
 --------------------
@@ -37,14 +39,13 @@ List of Contributors
   - Zygmunt is the master behind the early stopping feature frequently used by kagglers.
 * [Ajinkya Kale](https://github.com/ajkl)
 * [Boliang Chen](https://github.com/cblsjtu)
-* [Vadim Khotilovich](https://github.com/khotilov)
 * [Yangqing Men](https://github.com/yanqingmen)
   - Yangqing is the creator of xgboost java package.
 * [Engpeng Yao](https://github.com/yepyao)
 * [Giulio](https://github.com/giuliohome)
   - Giulio is the creator of windows project of xgboost
 * [Jamie Hall](https://github.com/nerdcha)
-  - Jamie is the initial creator of xgboost sklearn modue.
+  - Jamie is the initial creator of xgboost sklearn module.
 * [Yen-Ying Lee](https://github.com/white1033)
 * [Masaaki Horikoshi](https://github.com/sinhrks)
   - Masaaki is the initial creator of xgboost python plotting module.
@@ -59,3 +60,10 @@ List of Contributors
 * [Sam Thomson](https://github.com/sammthomson)
 * [ganesh-krishnan](https://github.com/ganesh-krishnan)
 * [Damien Carol](https://github.com/damiencarol)
+* [Alex Bain](https://github.com/convexquad)
+* [Baltazar Bieniek](https://github.com/bbieniek)
+* [Adam Pocock](https://github.com/Craigacp)
+* [Rory Mitchell](https://github.com/RAMitchell)
+  - Rory is the author of the GPU plugin and also contributed the cmake build system and windows continuous integration
+* [Gideon Whitehead](https://github.com/gaw89)
+* [Yi-Lin Juang](https://github.com/frankyjuang)

@@ -43,22 +43,22 @@ class SparsePageSource : public DataSource {
   /*!
    * \brief Create source by taking data from parser.
    * \param src source parser.
-   * \param cache_prefix The cache_prefix of cache file location.
+   * \param cache_info The cache_info of cache file location.
    */
   static void Create(dmlc::Parser<uint32_t>* src,
-                     const std::string& cache_prefix);
+                     const std::string& cache_info);
   /*!
    * \brief Create source cache by copy content from DMatrix.
-   * \param cache_prefix The cache_prefix of cache file location.
+   * \param cache_info The cache_info of cache file location.
    */
   static void Create(DMatrix* src,
-                     const std::string& cache_prefix);
+                     const std::string& cache_info);
   /*!
    * \brief Check if the cache file already exists.
-   * \param cache_prefix The cache prefix of files.
+   * \param cache_info The cache prefix of files.
    * \return Whether cache file already exists.
    */
-  static bool CacheExist(const std::string& cache_prefix);
+  static bool CacheExist(const std::string& cache_info);
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
   /*! \brief magic number used to identify Page */
@@ -71,14 +71,14 @@ class SparsePageSource : public DataSource {
   RowBatch batch_;
   /*! \brief page currently on hold. */
   SparsePage *page_;
-  /*! \brief The cache predix of the dataset. */
-  std::string cache_prefix_;
+  /*! \brief internal clock ptr */
+  size_t clock_ptr_;
   /*! \brief file pointer to the row blob file. */
-  std::unique_ptr<dmlc::SeekStream> fi_;
+  std::vector<std::unique_ptr<dmlc::SeekStream> > files_;
   /*! \brief Sparse page format file. */
-  std::unique_ptr<SparsePage::Format> format_;
+  std::vector<std::unique_ptr<SparsePage::Format> > formats_;
   /*! \brief internal prefetcher. */
-  dmlc::ThreadedIter<SparsePage> prefetcher_;
+  std::vector<std::unique_ptr<dmlc::ThreadedIter<SparsePage> > > prefetchers_;
 };
 }  // namespace data
 }  // namespace xgboost

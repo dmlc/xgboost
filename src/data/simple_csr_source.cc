@@ -41,8 +41,12 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
     if (batch.weight != nullptr) {
       info.weights.insert(info.weights.end(), batch.weight, batch.weight + batch.size);
     }
-    row_data_.reserve(row_data_.size() + batch.offset[batch.size] - batch.offset[0]);
-    CHECK(batch.index != nullptr);
+    // Remove the assertion on batch.index, which can be null in the case that the data in this
+    // batch is entirely sparse. Although it's true that this indicates a likely issue with the
+    // user's data workflows, passing XGBoost entirely sparse data should not cause it to fail.
+    // See https://github.com/dmlc/xgboost/issues/1827 for complete detail.
+    // CHECK(batch.index != nullptr);
+
     // update information
     this->info.num_row += batch.size;
     // copy the data over
@@ -54,9 +58,8 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
                                     static_cast<uint64_t>(index + 1));
     }
     size_t top = row_ptr_.size();
-    row_ptr_.resize(top + batch.size);
     for (size_t i = 0; i < batch.size; ++i) {
-      row_ptr_[top + i] = row_ptr_[top - 1] + batch.offset[i + 1] - batch.offset[0];
+      row_ptr_.push_back(row_ptr_[top - 1] + batch.offset[i + 1] - batch.offset[0]);
     }
   }
   this->info.num_nonzero = static_cast<uint64_t>(row_data_.size());

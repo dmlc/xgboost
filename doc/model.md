@@ -10,17 +10,17 @@ We think this explanation is cleaner, more formal, and motivates the variant use
 
 Elements of Supervised Learning
 -------------------------------
-XGBoost is used for supervised learning problems, where we use the training data ``$ x_i $`` to predict a target variable ``$ y_i $``.
+XGBoost is used for supervised learning problems, where we use the training data (with multiple features) ``$ x_i $`` to predict a target variable ``$ y_i $``.
 Before we dive into trees, let us start by reviewing the basic elements in supervised learning.
 
 ### Model and Parameters
 The ***model*** in supervised learning usually refers to the mathematical structure of how to make the prediction ``$ y_i $`` given ``$ x_i $``.
-For example, a common model is a *linear model*, where the prediction is given by ``$ \hat{y}_i = \sum_j w_j x_{ij} $``, a linear combination of weighted input features.
-The prediction value can have different interpretations, depending on the task.
+For example, a common model is a *linear model*, where the prediction is given by ``$ \hat{y}_i = \sum_j \theta_j x_{ij} $``, a linear combination of weighted input features.
+The prediction value can have different interpretations, depending on the task, i.e., regression or classification.
 For example, it can be logistic transformed to get the probability of positive class in logistic regression, and it can also be used as a ranking score when we want to rank the outputs.
 
-The ***parameters*** are the undetermined part that we need to learn from data. In linear regression problems, the parameters are the coefficients ``$ w $``.
-Usually we will use ``$ \Theta $`` to denote the parameters.
+The ***parameters*** are the undetermined part that we need to learn from data. In linear regression problems, the parameters are the coefficients ``$ \theta $``.
+Usually we will use ``$ \theta $`` to denote the parameters (there are many parameters in a model, our definition here is sloppy).
 
 ### Objective Function : Training Loss + Regularization
 
@@ -31,14 +31,14 @@ to measure the performance of the model given a certain set of parameters.
 A very important fact about objective functions is they ***must always*** contain two parts: training loss and regularization.
 
 ```math
-Obj(\Theta) = L(\Theta) + \Omega(\Theta)
+Obj(\Theta) = L(\theta) + \Omega(\Theta)
 ```
 
 where ``$ L $`` is the training loss function, and ``$ \Omega $`` is the regularization term. The training loss measures how *predictive* our model is on training data.
 For example, a commonly used training loss is mean squared error.
 
 ```math
-L(\Theta) = \sum_i (y_i-\hat{y}_i)^2
+L(\theta) = \sum_i (y_i-\hat{y}_i)^2
 ```
 Another commonly used loss function is logistic loss for logistic regression
 
@@ -51,13 +51,13 @@ This sounds a bit abstract, so let us consider the following problem in the foll
 on the upper left corner of the image.
 Which solution among the three do you think is the best fit?
 
-![Step function](img/step_fit.png)
+![Step function](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/step_fit.png)
 
-The answer is already marked as red. Please think if it is reasonable to you visually. The general principle is we want a ***simple*** and ***predictive*** model.
+The correct answer is marked in red. Please consider if this visually seems a reasonable fit to you. The general principle is we want both a ***simple*** and ***predictive*** model.
 The tradeoff between the two is also referred as bias-variance tradeoff in machine learning.
 
 
-### Why introduce the general principle
+### Why introduce the general principle?
 The elements introduced above form the basic elements of supervised learning, and they are naturally the building blocks of machine learning toolkits.
 For example, you should be able to describe the differences and commonalities between boosted trees and random forests.
 Understanding the process in a formalized way also helps us to understand the objective that we are learning and the reason behind the heuristics such as
@@ -70,19 +70,19 @@ To begin with, let us first learn about the ***model*** of xgboost: tree ensembl
 The tree ensemble model is a set of classification and regression trees (CART). Here's a simple example of a CART
 that classifies whether someone will like computer games.
 
-![CART](img/cart.png)
+![CART](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/cart.png)
 
-We classify the members of a family into different leaves, and assign them the score on corresponding leaf.
+We classify the members of a family into different leaves, and assign them the score on the corresponding leaf.
 A CART is a bit different from decision trees, where the leaf only contains decision values. In CART, a real score
 is associated with each of the leaves, which gives us richer interpretations that go beyond classification.
-This also makes the unified optimization step easier, as we will see in later part of this tutorial.
+This also makes the unified optimization step easier, as we will see in a later part of this tutorial.
 
 Usually, a single tree is not strong enough to be used in practice. What is actually used is the so-called
-tree ensemble model, that sums the prediction of multiple trees together.
+tree ensemble model, which sums the prediction of multiple trees together.
 
-![TwoCART](img/twocart.png)
+![TwoCART](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/twocart.png)
 
-Here is an example of tree ensemble of two trees. The prediction scores of each individual tree are summed up to get the final score.
+Here is an example of a tree ensemble of two trees. The prediction scores of each individual tree are summed up to get the final score.
 If you look at the example, an important fact is that the two trees try to *complement* each other.
 Mathematically, we can write our model in the form
 
@@ -93,30 +93,30 @@ Mathematically, we can write our model in the form
 where ``$ K $`` is the number of trees, ``$ f $`` is a function in the functional space ``$ \mathcal{F} $``, and ``$ \mathcal{F} $`` is the set of all possible CARTs. Therefore our objective to optimize can be written as
 
 ```math
-obj(\Theta) = \sum_i^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \Omega(f_k)
+\text{obj}(\theta) = \sum_i^n l(y_i, \hat{y}_i) + \sum_{k=1}^K \Omega(f_k)
 ```
 Now here comes the question, what is the *model* for random forests? It is exactly tree ensembles! So random forests and boosted trees are not different in terms of model,
 the difference is how we train them. This means if you write a predictive service of tree ensembles, you only need to write one of them and they should directly work
-for both random forests and boosted trees. One example of why elements of supervised learning rocks.
+for both random forests and boosted trees. One example of why elements of supervised learning rock.
 
 Tree Boosting
 -------------
 After introducing the model, let us begin with the real training part. How should we learn the trees?
 The answer is, as is always for all supervised learning models: *define an objective function, and optimize it*!
 
-Assume we have the following objective function (remember it always need to contain training loss, and regularization)
+Assume we have the following objective function (remember it always needs to contain training loss and regularization)
 ```math
-Obj = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i) \\
+\text{obj} = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i) \\
 ```
 
 ### Additive Training
 
-First thing we want to ask is what are the ***parameters*** of trees.
-You can find what we need to learn are those functions ``$f_i$``, with each containing the structure
+First thing we want to ask is what are the ***parameters*** of trees?
+You can find that what we need to learn are those functions ``$f_i$``, with each containing the structure
 of the tree and the leaf scores. This is much harder than traditional optimization problem where you can take the gradient and go.
 It is not easy to train all the trees at once.
-Instead, we use an additive strategy: fix what we have learned, add one new tree at a time.
-We note the prediction value at step ``$t$`` by ``$ \hat{y}_i^{(t)}$``, so we have
+Instead, we use an additive strategy: fix what we have learned, and add one new tree at a time.
+We write the prediction value at step ``$t$`` as ``$ \hat{y}_i^{(t)}$``, so we have
 
 ```math
 \hat{y}_i^{(0)} &= 0\\
@@ -129,23 +129,23 @@ We note the prediction value at step ``$t$`` by ``$ \hat{y}_i^{(t)}$``, so we ha
 It remains to ask, which tree do we want at each step?  A natural thing is to add the one that optimizes our objective.
 
 ```math
-Obj^{(t)} & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i) \\
+\text{obj}^{(t)} & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\Omega(f_i) \\
           & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)) + \Omega(f_t) + constant
 ```
 
 If we  consider using MSE as our loss function, it becomes the following form.
 
 ```math
-Obj^{(t)} & = \sum_{i=1}^n (y_i - (\hat{y}_i^{(t-1)} + f_t(x_i)))^2 + \sum_{i=1}^t\Omega(f_i) \\
+\text{obj}^{(t)} & = \sum_{i=1}^n (y_i - (\hat{y}_i^{(t-1)} + f_t(x_i)))^2 + \sum_{i=1}^t\Omega(f_i) \\
           & = \sum_{i=1}^n [2(\hat{y}_i^{(t-1)} - y_i)f_t(x_i) + f_t(x_i)^2] + \Omega(f_t) + constant
 ```
 
-The form of MSE is friendly, with a first order term (usually called residual) and a quadratic term.
+The form of MSE is friendly, with a first order term (usually called the residual) and a quadratic term.
 For other losses of interest (for example, logistic loss), it is not so easy to get such a nice form.
 So in the general case, we take the Taylor expansion of the loss function up to the second order
 
 ```math
-Obj^{(t)} = \sum_{i=1}^n [l(y_i, \hat{y}_i^{(t-1)}) + g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i)] + \Omega(f_t) + constant
+\text{obj}^{(t)} = \sum_{i=1}^n [l(y_i, \hat{y}_i^{(t-1)}) + g_i f_t(x_i) + \frac{1}{2} h_i f_t^2(x_i)] + \Omega(f_t) + constant
 ```
 where the ``$g_i$`` and ``$h_i$`` are defined as
 
@@ -162,18 +162,18 @@ After we remove all the constants, the specific objective at step ``$t$`` become
 
 This becomes our optimization goal for the new tree. One important advantage of this definition is that
 it only depends on ``$g_i$`` and ``$h_i$``. This is how xgboost can support custom loss functions.
-We can optimize every loss function, including logistic regression, weighted logistic regression, using exactly
+We can optimize every loss function, including logistic regression and weighted logistic regression, using exactly
 the same solver that takes ``$g_i$`` and ``$h_i$`` as input!
 
 ### Model Complexity
 We have introduced the training step, but wait, there is one important thing, the ***regularization***!
-We need to define the complexity of the tree ``$\Omega(f)$``. In order to do so, let us first refine the definition of the tree a tree ``$ f(x) $`` as
+We need to define the complexity of the tree ``$\Omega(f)$``. In order to do so, let us first refine the definition of the tree ``$ f(x) $`` as
 
 ```math
 f_t(x) = w_{q(x)}, w \in R^T, q:R^d\rightarrow \{1,2,\cdots,T\} .
 ```
 
-Here ``$ w $`` is the vector of scores on leaves, ``$ q $`` is a function assigning each data point to the corresponding leaf and``$ T $`` is the number of leaves.
+Here ``$ w $`` is the vector of scores on leaves, ``$ q $`` is a function assigning each data point to the corresponding leaf, and``$ T $`` is the number of leaves.
 In XGBoost, we define the complexity as
 
 ```math
@@ -197,18 +197,18 @@ Notice that in the second line we have changed the index of the summation becaus
 We could further compress the expression by defining ``$ G_j = \sum_{i\in I_j} g_i $`` and ``$ H_j = \sum_{i\in I_j} h_i $``:
 
 ```math
-Obj^{(t)} = \sum^T_{j=1} [G_jw_j + \frac{1}{2} (H_j+\lambda) w_j^2] +\gamma T
+\text{obj}^{(t)} = \sum^T_{j=1} [G_jw_j + \frac{1}{2} (H_j+\lambda) w_j^2] +\gamma T
 ```
 
-In this equation ``$ w_j $`` are independent to each other, the form ``$ G_jw_j+\frac{1}{2}(H_j+\lambda)w_j^2 $`` is quadratic and the best ``$ w_j $`` for a given structure ``$q(x)$`` and the best objective reduction we can get is:
+In this equation ``$ w_j $`` are independent with respect to each other, the form ``$ G_jw_j+\frac{1}{2}(H_j+\lambda)w_j^2 $`` is quadratic and the best ``$ w_j $`` for a given structure ``$q(x)$`` and the best objective reduction we can get is:
 
 ```math
 w_j^\ast = -\frac{G_j}{H_j+\lambda}\\
-Obj^\ast = -\frac{1}{2} \sum_{j=1}^T \frac{G_j^2}{H_j+\lambda} + \gamma T
+\text{obj}^\ast = -\frac{1}{2} \sum_{j=1}^T \frac{G_j^2}{H_j+\lambda} + \gamma T
 ```
 The last equation measures ***how good*** a tree structure ``$q(x)$`` is.
 
-![Structure Score](img/struct_score.png)
+![Structure Score](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/struct_score.png)
 
 If all this sounds a bit complicated, let's take a look at the picture, and see how the scores can be calculated.
 Basically, for a given tree structure, we push the statistics ``$g_i$`` and ``$h_i$`` to the leaves they belong to,
@@ -217,7 +217,7 @@ This score is like the impurity measure in a decision tree, except that it also 
 
 ### Learn the tree structure
 Now that we have a way to measure how good a tree is, ideally we would enumerate all possible trees and pick the best one.
-In practice it is intractable, so we will try to optimize one level of the tree at a time.
+In practice this is intractable, so we will try to optimize one level of the tree at a time.
 Specifically we try to split a leaf into two leaves, and the score it gains is
 
 ```math
@@ -228,9 +228,9 @@ We can see an important fact here: if the gain is smaller than ``$\gamma$``, we 
 models! By using the principles of supervised learning, we can naturally come up with the reason these techniques work :)
 
 For real valued data, we usually want to search for an optimal split. To efficiently do so, we place all the instances in sorted order, like the following picture.
-![Best split](img/split_find.png)
+![Best split](https://raw.githubusercontent.com/dmlc/web-data/master/xgboost/model/split_find.png)
 
-Then a left to right scan is sufficient to calculate the structure score of all possible split solutions, and we can find the best split efficiently.
+A left to right scan is sufficient to calculate the structure score of all possible split solutions, and we can find the best split efficiently.
 
 Final words on XGBoost
 ----------------------

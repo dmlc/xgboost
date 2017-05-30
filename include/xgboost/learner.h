@@ -8,7 +8,7 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
-#include <rabit.h>
+#include <rabit/rabit.h>
 #include <utility>
 #include <string>
 #include <vector>
@@ -19,7 +19,7 @@
 
 namespace xgboost {
 /*!
- * \brief Learner class that do trainig and prediction.
+ * \brief Learner class that does training and prediction.
  *  This is the user facing module of xgboost training.
  *  The Load/Save function corresponds to the model used in python/R.
  *  \code
@@ -27,7 +27,7 @@ namespace xgboost {
  *  std::unique_ptr<Learner> learner(new Learner::Create(cache_mats));
  *  learner.Configure(configs);
  *
- *  for (int iter = 0; iter < max_iter; ++i) {
+ *  for (int iter = 0; iter < max_iter; ++iter) {
  *    learner->UpdateOneIter(iter, train_mat);
  *    LOG(INFO) << learner->EvalOneIter(iter, data_sets, data_names);
  *  }
@@ -103,23 +103,54 @@ class Learner : public rabit::Serializable {
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
+   * \param pred_contribs whether to only predict the feature contributions
    */
   virtual void Predict(DMatrix* data,
                        bool output_margin,
-                       std::vector<float> *out_preds,
+                       std::vector<bst_float> *out_preds,
                        unsigned ntree_limit = 0,
-                       bool pred_leaf = false) const = 0;
+                       bool pred_leaf = false,
+                       bool pred_contribs = false) const = 0;
+  /*!
+   * \brief Set additional attribute to the Booster.
+   *  The property will be saved along the booster.
+   * \param key The key of the property.
+   * \param value The value of the property.
+   */
+  virtual void SetAttr(const std::string& key, const std::string& value) = 0;
+  /*!
+   * \brief Get attribute from the booster.
+   *  The property will be saved along the booster.
+   * \param key The key of the attribute.
+   * \param out The output value.
+   * \return Whether the key exists among booster's attributes.
+   */
+  virtual bool GetAttr(const std::string& key, std::string* out) const = 0;
+  /*!
+   * \brief Delete an attribute from the booster.
+   * \param key The key of the attribute.
+   * \return Whether the key was found among booster's attributes.
+   */
+  virtual bool DelAttr(const std::string& key) = 0;
+  /*!
+   * \brief Get a vector of attribute names from the booster.
+   * \return vector of attribute name strings.
+   */
+  virtual std::vector<std::string> GetAttrNames() const = 0;
   /*!
    * \return whether the model allow lazy checkpoint in rabit.
    */
   bool AllowLazyCheckPoint() const;
   /*!
-   * \brief dump the model in text format
+   * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
-   * \param option extra option of the dump model
+   * \param with_stats extra statistics while dumping model
+   * \param format the format to dump the model in
    * \return a vector of dump for boosters.
    */
-  std::vector<std::string> Dump2Text(const FeatureMap& fmap, int option) const;
+  std::vector<std::string> DumpModel(const FeatureMap& fmap,
+                                     bool with_stats,
+                                     std::string format) const;
   /*!
    * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually
@@ -133,21 +164,21 @@ class Learner : public rabit::Serializable {
    */
   inline void Predict(const SparseBatch::Inst &inst,
                       bool output_margin,
-                      std::vector<float> *out_preds,
+                      std::vector<bst_float> *out_preds,
                       unsigned ntree_limit = 0) const;
   /*!
    * \brief Create a new instance of learner.
    * \param cache_data The matrix to cache the prediction.
    * \return Created learner.
    */
-  static Learner* Create(const std::vector<DMatrix*>& cache_data);
+  static Learner* Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data);
 
  protected:
   /*! \brief internal base score of the model */
   bst_float base_score_;
   /*! \brief objective function */
   std::unique_ptr<ObjFunction> obj_;
-  /*! \brief The gradient boosted used by the model*/
+  /*! \brief The gradient booster used by the model*/
   std::unique_ptr<GradientBooster> gbm_;
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;
@@ -156,12 +187,9 @@ class Learner : public rabit::Serializable {
 // implementation of inline functions.
 inline void Learner::Predict(const SparseBatch::Inst& inst,
                              bool output_margin,
-                             std::vector<float>* out_preds,
+                             std::vector<bst_float>* out_preds,
                              unsigned ntree_limit) const {
   gbm_->Predict(inst, out_preds, ntree_limit);
-  if (out_preds->size() == 1) {
-    (*out_preds)[0] += base_score_;
-  }
   if (!output_margin) {
     obj_->PredTransform(out_preds);
   }

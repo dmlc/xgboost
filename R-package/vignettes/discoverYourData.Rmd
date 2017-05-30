@@ -5,7 +5,7 @@ output:
     css: vignette.css
     number_sections: yes
     toc: yes
-author: Tianqi Chen, Tong He, Michaël Benesty
+author: Tianqi Chen, Tong He, Michaël Benesty, Yuan Tang
 vignette: >
   %\VignetteIndexEntry{Discover your data}
   %\VignetteEngine{knitr::rmarkdown}
@@ -18,11 +18,11 @@ Understand your dataset with XGBoost
 Introduction
 ------------
 
-The purpose of this Vignette is to show you how to use **Xgboost** to discover and understand your own dataset better.
+The purpose of this vignette is to show you how to use **Xgboost** to discover and understand your own dataset better.
 
-This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
+This vignette is not about predicting anything (see [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
 
-Pacakge loading:
+Package loading:
 
 ```{r libLoading, results='hold', message=F, warning=F}
 require(xgboost)
@@ -36,7 +36,7 @@ if (!require('vcd')) install.packages('vcd')
 Preparation of the dataset
 --------------------------
 
-### Numeric VS categorical variables
+### Numeric v.s. categorical variables
 
 
 **Xgboost** manages only `numeric` vectors.
@@ -66,9 +66,9 @@ data(Arthritis)
 df <- data.table(Arthritis, keep.rownames = F)
 ```
 
-> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `panda` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **Xgboost** **R** package use `data.table`.
+> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `Pandas` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **Xgboost** **R** package use `data.table`.
 
-The first thing we want to do is to have a look to the first lines of the `data.table`:
+The first thing we want to do is to have a look to the first few lines of the `data.table`:
 
 ```{r}
 head(df)
@@ -103,9 +103,9 @@ Therefore, 20 is not closer to 30 than 60. To make it short, the distance betwee
 head(df[,AgeDiscret := as.factor(round(Age/10,0))])
 ```
 
-##### Random split in two groups
+##### Random split into two groups
 
-Following is an even stronger simplification of the real age with an arbitrary split at 30 years old. I choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (you may already have an idea of how well it will work...).
+Following is an even stronger simplification of the real age with an arbitrary split at 30 years old. We choose this value **based on nothing**. We will see later if simplifying the information based on arbitrary values is a good strategy (you may already have an idea of how well it will work...).
 
 ```{r}
 head(df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))])
@@ -134,23 +134,24 @@ levels(df[,Treatment])
 ```
 
 
-#### One-hot encoding
+#### Encoding categorical features
 
 Next step, we will transform the categorical data to dummy variables.
-This is the [one-hot encoding](http://en.wikipedia.org/wiki/One-hot) step.
+Several encoding methods exist, e.g., [one-hot encoding](http://en.wikipedia.org/wiki/One-hot) is a common approach.
+We will use the [dummy contrast coding](http://www.ats.ucla.edu/stat/r/library/contrast_coding.htm#dummy) which is popular because it producess "full rank" encoding (also see [this blog post by Max Kuhn](http://appliedpredictivemodeling.com/blog/2013/10/23/the-basics-of-encoding-categorical-data-for-predictive-models)).
 
-The purpose is to transform each value of each *categorical* feature in a *binary* feature `{0, 1}`.
+The purpose is to transform each value of each *categorical* feature into a *binary* feature `{0, 1}`.
 
-For example, the column `Treatment` will be replaced by two columns, `Placebo`, and `Treated`. Each of them will be *binary*. Therefore, an observation which has the value `Placebo` in column `Treatment` before the transformation will have after the transformation the value `1` in the new column `Placebo` and the value `0` in the new column `Treated`. The column `Treatment` will disappear during the one-hot encoding.
+For example, the column `Treatment` will be replaced by two columns, `TreatmentPlacebo`, and `TreatmentTreated`. Each of them will be *binary*. Therefore, an observation which has the value `Placebo` in column `Treatment` before the transformation will have after the transformation the value `1` in the new column `TreatmentPlacebo` and the value `0` in the new column `TreatmentTreated`. The column `TreatmentPlacebo` will disappear during the contrast encoding, as it would be absorbed into a common constant intercept column.
 
 Column `Improved` is excluded because it will be our `label` column, the one we want to predict.
 
 ```{r, warning=FALSE,message=FALSE}
-sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df)
+sparse_matrix <- sparse.model.matrix(Improved ~ ., data = df)[,-1]
 head(sparse_matrix)
 ```
 
-> Formulae `Improved~.-1` used above means transform all *categorical* features but column `Improved` to binary values. The `-1` is here to remove the first column which is full of `1` (this column is generated by the conversion). For more information, you can type `?sparse.model.matrix` in the console.
+> Formula `Improved ~ .` used above means transform all *categorical* features but column `Improved` to binary values. The `-1` column selection removes the intercept column which is full of `1` (this column is generated by the conversion). For more information, you can type `?sparse.model.matrix` in the console.
 
 Create the output `numeric` vector (not as a sparse `Matrix`):
 
@@ -168,8 +169,8 @@ Build the model
 The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
 
 ```{r}
-bst <- xgboost(data = sparse_matrix, label = output_vector, max.depth = 4,
-               eta = 1, nthread = 2, nround = 10,objective = "binary:logistic")
+bst <- xgboost(data = sparse_matrix, label = output_vector, max_depth = 4,
+               eta = 1, nthread = 2, nrounds = 10,objective = "binary:logistic")
 
 ```
 
@@ -179,7 +180,7 @@ A model which fits too well may [overfit](http://en.wikipedia.org/wiki/Overfitti
 
 > Here you can see the numbers decrease until line 7 and then increase.
 >
-> It probably means we are overfitting. To fix that I should reduce the number of rounds to `nround = 4`. I will let things like that because I don't really care for the purpose of this example :-)
+> It probably means we are overfitting. To fix that I should reduce the number of rounds to `nrounds = 4`. I will let things like that because I don't really care for the purpose of this example :-)
 
 Feature importance
 ------------------
@@ -189,10 +190,10 @@ Feature importance
 
 ### Build the feature importance data.table
 
-In the code below, `sparse_matrix@Dimnames[[2]]` represents the column names of the sparse matrix. These names are the original values of the features (remember, each binary column == one value of one *categorical* feature).
+Remember, each binary column corresponds to a single value of one of *categorical* features.
 
 ```{r}
-importance <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = bst)
+importance <- xgb.importance(feature_names = colnames(sparse_matrix), model = bst)
 head(importance)
 ```
 
@@ -215,7 +216,7 @@ One simple solution is to count the co-occurrences of a feature and a class of t
 For that purpose we will execute the same function as above but using two more parameters, `data` and `label`.
 
 ```{r}
-importanceRaw <- xgb.importance(feature_names = sparse_matrix@Dimnames[[2]], model = bst, data = sparse_matrix, label = output_vector)
+importanceRaw <- xgb.importance(feature_names = colnames(sparse_matrix), model = bst, data = sparse_matrix, label = output_vector)
 
 # Cleaning for better display
 importanceClean <- importanceRaw[,`:=`(Cover=NULL, Frequency=NULL)]
@@ -241,7 +242,7 @@ Therefore, according to our findings, getting a placebo doesn't seem to help but
 All these things are nice, but it would be even better to plot the results.
 
 ```{r, fig.width=8, fig.height=5, fig.align='center'}
-xgb.plot.importance(importance_matrix = importanceRaw)
+xgb.plot.importance(importance_matrix = importance)
 ```
 
 Feature have automatically been divided in 2 clusters: the interesting features... and the others.
@@ -317,8 +318,6 @@ In boosting, when a specific link between feature and outcome have been learned 
 
 If you want to try Random Forests™ algorithm, you can tweak Xgboost parameters!
 
-**Warning**: this is still an experimental parameter.
-
 For instance, to compute a model with 1000 trees, with a 0.5 factor on sampling rows and columns:
 
 ```{r, warning=FALSE, message=FALSE}
@@ -328,10 +327,10 @@ train <- agaricus.train
 test <- agaricus.test
 
 #Random Forest™ - 1000 trees
-bst <- xgboost(data = train$data, label = train$label, max.depth = 4, num_parallel_tree = 1000, subsample = 0.5, colsample_bytree =0.5, nround = 1, objective = "binary:logistic")
+bst <- xgboost(data = train$data, label = train$label, max_depth = 4, num_parallel_tree = 1000, subsample = 0.5, colsample_bytree =0.5, nrounds = 1, objective = "binary:logistic")
 
 #Boosting - 3 rounds
-bst <- xgboost(data = train$data, label = train$label, max.depth = 4, nround = 3, objective = "binary:logistic")
+bst <- xgboost(data = train$data, label = train$label, max_depth = 4, nrounds = 3, objective = "binary:logistic")
 ```
 
 > Note that the parameter `round` is set to `1`.

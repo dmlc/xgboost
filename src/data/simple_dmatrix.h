@@ -40,11 +40,11 @@ class SimpleDMatrix : public DMatrix {
     return col_size_.size() != 0;
   }
 
-  const std::vector<bst_uint>& buffered_rowset() const override {
+  const RowSet& buffered_rowset() const override {
     return buffered_rowset_;
   }
 
-  size_t GetColSize(size_t cidx) const {
+  size_t GetColSize(size_t cidx) const override {
     return col_size_[cidx];
   }
 
@@ -96,7 +96,7 @@ class SimpleDMatrix : public DMatrix {
   // column iterator
   ColBatchIter col_iter_;
   // list of row index that are buffered.
-  std::vector<bst_uint> buffered_rowset_;
+  RowSet buffered_rowset_;
   /*! \brief sizeof column data */
   std::vector<size_t> col_size_;
 
@@ -110,7 +110,7 @@ class SimpleDMatrix : public DMatrix {
                      size_t max_row_perbatch);
 
   void MakeColPage(const RowBatch& batch,
-                   const bst_uint* ridx,
+                   size_t buffer_begin,
                    const std::vector<bool>& enabled,
                    SparsePage* pcol);
 };

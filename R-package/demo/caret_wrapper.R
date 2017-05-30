@@ -24,7 +24,7 @@ df[,ID:=NULL]
 #-------------Basic Training using XGBoost in caret Library-----------------
 # Set up control parameters for caret::train
 # Here we use 10-fold cross-validation, repeating twice, and using random search for tuning hyper-parameters.
-fitControl <- trainControl(method = "cv", number = 10, repeats = 2, search = "random")
+fitControl <- trainControl(method = "repeatedcv", number = 10, repeats = 2, search = "random")
 # train a xgbTree model using caret::train
 model <- train(factor(Improved)~., data = df, method = "xgbTree", trControl = fitControl)
 

@@ -1,15 +1,21 @@
 import xgboost as xgb
+import testing as tm
 import numpy as np
-from sklearn.datasets import load_digits
-from sklearn.cross_validation import KFold, train_test_split
-from sklearn.metrics import mean_squared_error
 import unittest
 
 rng = np.random.RandomState(1994)
 
 
 class TestEarlyStopping(unittest.TestCase):
+
     def test_early_stopping_nonparallel(self):
+        tm._skip_if_no_sklearn()
+        from sklearn.datasets import load_digits
+        try:
+            from sklearn.model_selection import train_test_split
+        except:
+            from sklearn.cross_validation import train_test_split
+
         digits = load_digits(2)
         X = digits['data']
         y = digits['target']
@@ -29,21 +35,23 @@ class TestEarlyStopping(unittest.TestCase):
                  eval_set=[(X_test, y_test)])
         assert clf3.best_score == 1
 
-        # TODO: parallel test for early stopping
-        # TODO: comment out for now. Will re-visit later
-
     def evalerror(self, preds, dtrain):
+        tm._skip_if_no_sklearn()
+        from sklearn.metrics import mean_squared_error
+
         labels = dtrain.get_label()
         return 'rmse', mean_squared_error(labels, preds)
 
     def test_cv_early_stopping(self):
+        tm._skip_if_no_sklearn()
+        from sklearn.datasets import load_digits
+
         digits = load_digits(2)
         X = digits['data']
         y = digits['target']
         dm = xgb.DMatrix(X, label=y)
         params = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
 
-        import pandas as pd
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, early_stopping_rounds=10)
         assert cv.shape[0] == 10
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, early_stopping_rounds=5)

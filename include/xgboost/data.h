@@ -65,7 +65,7 @@ struct MetaInfo {
    * \param i Instance index.
    * \return The weight.
    */
-  inline float GetWeight(size_t i) const {
+  inline bst_float GetWeight(size_t i) const {
     return weights.size() != 0 ?  weights[i] : 1.0f;
   }
   /*!
@@ -127,6 +127,7 @@ struct SparseBatch {
     /*! \brief length of the instance */
     bst_uint length;
     /*! \brief constructor */
+    Inst() : data(0), length(0) {}
     Inst(const Entry *data, bst_uint length) : data(data), length(length) {}
     /*! \brief get i-th pair in the sparse vector*/
     inline const Entry& operator[](size_t i) const {
@@ -184,13 +185,48 @@ class DataSource : public dmlc::DataIter<RowBatch> {
 };
 
 /*!
+ * \brief A vector-like structure to represent set of rows.
+ * But saves the memory when all rows are in the set (common case in xgb)
+ */
+struct RowSet {
+ public:
+  /*! \return i-th row index */
+  inline bst_uint operator[](size_t i) const;
+  /*! \return the size of the set. */
+  inline size_t size() const;
+  /*! \brief push the index back to the set */
+  inline void push_back(bst_uint i);
+  /*! \brief clear the set */
+  inline void clear();
+  /*!
+   * \brief save rowset to file.
+   * \param fo The file to be saved.
+   */
+  inline void Save(dmlc::Stream* fo) const;
+  /*!
+   * \brief Load rowset from file.
+   * \param fi The file to be loaded.
+   * \return if read is successful.
+   */
+  inline bool Load(dmlc::Stream* fi);
+  /*! \brief constructor */
+  RowSet() : size_(0) {}
+
+ private:
+  /*! \brief The internal data structure of size */
+  uint64_t size_;
+  /*! \brief The internal data structure of row set if not all*/
+  std::vector<bst_uint> rows_;
+};
+
+/*!
  * \brief Internal data structured used by XGBoost during training.
  *  There are two ways to create a customized DMatrix that reads in user defined-format.
  *
  *  - Provide a dmlc::Parser and pass into the DMatrix::Create
  *  - Alternatively, if data can be represented by an URL, define a new dmlc::Parser and register by DMLC_REGISTER_DATA_PARSER;
  *      - This works best for user defined data input source, such as data-base, filesystem.
- *  - Provdie a DataSource, that can be passed to DMatrix::Create
+ *  - Provide a DataSource, that can be passed to DMatrix::Create
  *      This can be used to re-use inmemory data structure into DMatrix.
  */
 class DMatrix {
@@ -218,7 +254,7 @@ class DMatrix {
    * \brief check if column access is supported, if not, initialize column access.
    * \param enabled whether certain feature should be included in column access.
    * \param subsample subsample ratio when generating column access.
-   * \param max_row_perbatch auxilary information, maximum row used in each column batch.
+   * \param max_row_perbatch auxiliary information, maximum row used in each column batch.
    *         this is a hint information that can be ignored by the implementation.
    * \return Number of column blocks in the column access.
    */
@@ -235,7 +271,7 @@ class DMatrix {
   /*! \brief get column density */
   virtual float GetColDensity(size_t cidx) const = 0;
   /*! \return reference of buffered rowset, in column access */
-  virtual const std::vector<bst_uint>& buffered_rowset() const = 0;
+  virtual const RowSet& buffered_rowset() const = 0;
   /*! \brief virtual destructor */
   virtual ~DMatrix() {}
   /*!
@@ -269,7 +305,7 @@ class DMatrix {
   static DMatrix* Create(std::unique_ptr<DataSource>&& source,
                          const std::string& cache_prefix = "");
   /*!
-   * \brief Create a DMatrix by loaidng data from parser.
+   * \brief Create a DMatrix by loading data from parser.
    *  Parser can later be deleted after the DMatrix i created.
    * \param parser The input data parser
    * \param cache_prefix The path to prefix of temporary cache file of the DMatrix when used in external memory mode.
@@ -290,9 +326,48 @@ class DMatrix {
   LearnerImpl* cache_learner_ptr_;
 };
 
+// implementation of inline functions
+inline bst_uint RowSet::operator[](size_t i) const {
+  return rows_.size() == 0 ? i : rows_[i];
+}
+
+inline size_t RowSet::size() const {
+  return size_;
+}
+
+inline void RowSet::clear() {
+  rows_.clear(); size_ = 0;
+}
+
+inline void RowSet::push_back(bst_uint i) {
+  if (rows_.size() == 0) {
+    if (i == size_) {
+      ++size_; return;
+    } else {
+      rows_.resize(size_);
+      for (size_t i = 0; i < size_; ++i) {
+        rows_[i] = static_cast<bst_uint>(i);
+      }
+    }
+  }
+  rows_.push_back(i);
+  ++size_;
+}
+
+inline void RowSet::Save(dmlc::Stream* fo) const {
+  fo->Write(rows_);
+  fo->Write(&size_, sizeof(size_));
+}
+
+inline bool RowSet::Load(dmlc::Stream* fi) {
+  if (!fi->Read(&rows_)) return false;
+  if (rows_.size() != 0) return true;
+  return fi->Read(&size_, sizeof(size_)) == sizeof(size_);
+}
 }  // namespace xgboost
 
 namespace dmlc {
 DMLC_DECLARE_TRAITS(is_pod, xgboost::SparseBatch::Entry, true);
+DMLC_DECLARE_TRAITS(has_saveload, xgboost::RowSet, true);
 }
 #endif  // XGBOOST_DATA_H_

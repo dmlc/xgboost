@@ -3,11 +3,11 @@
 #
 #  If you want to change the configuration, please use the following
 #  steps. Assume you are on the root directory of xgboost.
-#  First copy the this file so that any local changes will be ignored by git
+#  First copy this file so that any local changes will be ignored by git
 #
 #  $ cp make/config.mk .
 #
-#  Next modify the according entries, and then compile by
+#  Next modify the according entries in the copied file and then compile by
 #
 #  $ make
 #
@@ -46,6 +46,15 @@ LIB_RABIT = librabit.a
 
 # path to libjvm.so
 LIBJVM=$(JAVA_HOME)/jre/lib/amd64/server
+
+# whether to test with coverage measurement or not. (only used for `make cover`)
+# measured with gcov and html report generated with lcov if it is installed.
+# this disables optimization to ensure coverage information is correct
+TEST_COVER = 0
+
+# path to gtest library (only used when $BUILD_TEST=1)
+# there should be an include path in $GTEST_PATH/include and library in $GTEST_PATH/lib
+GTEST_PATH =
 
 # List of additional plugins, checkout plugin folder.
 # uncomment the following lines to include these plugins

@@ -10,7 +10,7 @@ data(agaricus.test, package='xgboost')
 dtrain <- xgb.DMatrix(data = agaricus.train$data, label = agaricus.train$label)
 dtest <- xgb.DMatrix(data = agaricus.test$data, label = agaricus.test$label)
 
-param <- list(max.depth=2, eta=1, silent=1, objective='binary:logistic')
+param <- list(max_depth=2, eta=1, silent=1, objective='binary:logistic')
 nround = 4
 
 # training the model for two rounds

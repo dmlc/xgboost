@@ -1,17 +1,120 @@
 # coding: utf-8
 # pylint: disable=too-many-locals, too-many-arguments, invalid-name
-# pylint: disable=too-many-branches
+# pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
 from __future__ import absolute_import
 
-import sys
-import re
+import warnings
 import numpy as np
-from .core import Booster, STRING_TYPES
+from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv, EarlyStopException
+from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
+from . import rabit
+from . import callback
+
+
+def _train_internal(params, dtrain,
+                    num_boost_round=10, evals=(),
+                    obj=None, feval=None,
+                    xgb_model=None, callbacks=None):
+    """internal training function"""
+    callbacks = [] if callbacks is None else callbacks
+    evals = list(evals)
+    if isinstance(params, dict) \
+            and 'eval_metric' in params \
+            and isinstance(params['eval_metric'], list):
+        params = dict((k, v) for k, v in params.items())
+        eval_metrics = params['eval_metric']
+        params.pop("eval_metric", None)
+        params = list(params.items())
+        for eval_metric in eval_metrics:
+            params += [('eval_metric', eval_metric)]
+
+    bst = Booster(params, [dtrain] + [d[0] for d in evals])
+    nboost = 0
+    num_parallel_tree = 1
+
+    if xgb_model is not None:
+        if not isinstance(xgb_model, STRING_TYPES):
+            xgb_model = xgb_model.save_raw()
+        bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
+        nboost = len(bst.get_dump())
+
+    _params = dict(params) if isinstance(params, list) else params
+
+    if 'num_parallel_tree' in _params:
+        num_parallel_tree = _params['num_parallel_tree']
+        nboost //= num_parallel_tree
+    if 'num_class' in _params:
+        nboost //= _params['num_class']
+
+    # Distributed code: Load the checkpoint from rabit.
+    version = bst.load_rabit_checkpoint()
+    assert(rabit.get_world_size() != 1 or version == 0)
+    rank = rabit.get_rank()
+    start_iteration = int(version / 2)
+    nboost += start_iteration
+
+    callbacks_before_iter = [
+        cb for cb in callbacks if cb.__dict__.get('before_iteration', False)]
+    callbacks_after_iter = [
+        cb for cb in callbacks if not cb.__dict__.get('before_iteration', False)]
+
+    for i in range(start_iteration, num_boost_round):
+        for cb in callbacks_before_iter:
+            cb(CallbackEnv(model=bst,
+                           cvfolds=None,
+                           iteration=i,
+                           begin_iteration=start_iteration,
+                           end_iteration=num_boost_round,
+                           rank=rank,
+                           evaluation_result_list=None))
+        # Distributed code: need to resume to this point.
+        # Skip the first update if it is a recovery step.
+        if version % 2 == 0:
+            bst.update(dtrain, i, obj)
+            bst.save_rabit_checkpoint()
+            version += 1
+
+        assert(rabit.get_world_size() == 1 or version == rabit.version_number())
+
+        nboost += 1
+        evaluation_result_list = []
+        # check evaluation result.
+        if len(evals) != 0:
+            bst_eval_set = bst.eval_set(evals, i, feval)
+            if isinstance(bst_eval_set, STRING_TYPES):
+                msg = bst_eval_set
+            else:
+                msg = bst_eval_set.decode()
+            res = [x.split(':') for x in msg.split()]
+            evaluation_result_list = [(k, float(v)) for k, v in res[1:]]
+        try:
+            for cb in callbacks_after_iter:
+                cb(CallbackEnv(model=bst,
+                               cvfolds=None,
+                               iteration=i,
+                               begin_iteration=start_iteration,
+                               end_iteration=num_boost_round,
+                               rank=rank,
+                               evaluation_result_list=evaluation_result_list))
+        except EarlyStopException:
+            break
+        # do checkpoint after evaluation, in case evaluation also updates booster.
+        bst.save_rabit_checkpoint()
+        version += 1
+
+    if bst.attr('best_score') is not None:
+        bst.best_score = float(bst.attr('best_score'))
+        bst.best_iteration = int(bst.attr('best_iteration'))
+    else:
+        bst.best_iteration = nboost - 1
+    bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
+    return bst
+
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
-          verbose_eval=True, learning_rates=None, xgb_model=None):
+          verbose_eval=True, xgb_model=None, callbacks=None, learning_rates=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -23,7 +126,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         Data to be trained.
     num_boost_round: int
         Number of boosting iterations.
-    watchlist (evals): list of pairs (DMatrix, string)
+    evals: list of pairs (DMatrix, string)
         List of items to be evaluated during training, this allows user to watch
         performance on the validation set.
     obj : function
@@ -45,7 +148,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     evals_result: dict
         This dictionary stores the evaluation results of all the items in watchlist.
         Example: with a watchlist containing [(dtest,'eval'), (dtrain,'train')] and
-        and a paramater containing ('eval_metric', 'logloss')
+        a parameter containing ('eval_metric': 'logloss')
         Returns: {'train': {'logloss': ['0.48253', '0.35953']},
                   'eval': {'logloss': ['0.480385', '0.357756']}}
     verbose_eval : bool or int
@@ -57,190 +160,48 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         / the boosting stage found by using `early_stopping_rounds` is also printed.
         Example: with verbose_eval=4 and at least one item in evals, an evaluation metric
         is printed every 4 boosting stages, instead of every boosting stage.
-    learning_rates: list or function
+    learning_rates: list or function (deprecated - use callback API instead)
         List of learning rate for each boosting round
         or a customized function that calculates eta in terms of
         current number of round and the total number of boosting round (e.g. yields
         learning rate decay)
-        - list l: eta = l[boosting round]
-        - function f: eta = f(boosting round, num_boost_round)
     xgb_model : file name of stored xgb model or 'Booster' instance
         Xgb model to be loaded before training (allows training continuation).
+    callbacks : list of callback functions
+        List of callback functions that are applied at end of each iteration.
+        It is possible to use predefined callbacks by using xgb.callback module.
+        Example: [xgb.callback.reset_learning_rate(custom_rates)]
 
     Returns
     -------
     booster : a trained booster model
     """
-    evals = list(evals)
-    if isinstance(params, dict) \
-            and 'eval_metric' in params \
-            and isinstance(params['eval_metric'], list):
-        params = dict((k, v) for k, v in params.items())
-        eval_metrics = params['eval_metric']
-        params.pop("eval_metric", None)
-        params = list(params.items())
-        for eval_metric in eval_metrics:
-            params += [('eval_metric', eval_metric)]
+    callbacks = [] if callbacks is None else callbacks
 
-    bst = Booster(params, [dtrain] + [d[0] for d in evals])
-    nboost = 0
-    num_parallel_tree = 1
-
-    if isinstance(verbose_eval, bool):
-        verbose_eval_every_line = False
+    # Most of legacy advanced options becomes callbacks
+    if isinstance(verbose_eval, bool) and verbose_eval:
+        callbacks.append(callback.print_evaluation())
     else:
         if isinstance(verbose_eval, int):
-            verbose_eval_every_line = verbose_eval
-            verbose_eval = True if verbose_eval_every_line > 0 else False
+            callbacks.append(callback.print_evaluation(verbose_eval))
 
-    if xgb_model is not None:
-        if not isinstance(xgb_model, STRING_TYPES):
-            xgb_model = xgb_model.save_raw()
-        bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
-        nboost = len(bst.get_dump())
-    else:
-        bst = Booster(params, [dtrain] + [d[0] for d in evals])
-
-    _params = dict(params) if isinstance(params, list) else params
-    if 'num_parallel_tree' in _params:
-        num_parallel_tree = _params['num_parallel_tree']
-        nboost //= num_parallel_tree
-    if 'num_class' in _params:
-        nboost //= _params['num_class']
-
+    if early_stopping_rounds is not None:
+        callbacks.append(callback.early_stop(early_stopping_rounds,
+                                             maximize=maximize,
+                                             verbose=bool(verbose_eval)))
     if evals_result is not None:
-        if not isinstance(evals_result, dict):
-            raise TypeError('evals_result has to be a dictionary')
-        else:
-            evals_name = [d[1] for d in evals]
-            evals_result.clear()
-            evals_result.update(dict([(key, {}) for key in evals_name]))
+        callbacks.append(callback.record_evaluation(evals_result))
 
-    if not early_stopping_rounds:
-        for i in range(nboost, nboost + num_boost_round):
-            bst.update(dtrain, i, obj)
-            nboost += 1
-            if len(evals) != 0:
-                bst_eval_set = bst.eval_set(evals, i, feval)
-                if isinstance(bst_eval_set, STRING_TYPES):
-                    msg = bst_eval_set
-                else:
-                    msg = bst_eval_set.decode()
+    if learning_rates is not None:
+        warnings.warn("learning_rates parameter is deprecated - use callback API instead",
+                      DeprecationWarning)
+        callbacks.append(callback.reset_learning_rate(learning_rates))
 
-                if verbose_eval:
-                    if verbose_eval_every_line:
-                        if i % verbose_eval_every_line == 0 or i == num_boost_round - 1:
-                            sys.stderr.write(msg + '\n')
-                    else:
-                        sys.stderr.write(msg + '\n')
-
-                if evals_result is not None:
-                    res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
-                    for key in evals_name:
-                        evals_idx = evals_name.index(key)
-                        res_per_eval = len(res) // len(evals_name)
-                        for r in range(res_per_eval):
-                            res_item = res[(evals_idx*res_per_eval) + r]
-                            res_key = res_item[0]
-                            res_val = res_item[1]
-                            if res_key in evals_result[key]:
-                                evals_result[key][res_key].append(res_val)
-                            else:
-                                evals_result[key][res_key] = [res_val]
-        bst.best_iteration = (nboost - 1)
-        bst.best_ntree_limit = nboost * num_parallel_tree
-        return bst
-
-    else:
-        # early stopping
-        if len(evals) < 1:
-            raise ValueError('For early stopping you need at least one set in evals.')
-
-        if verbose_eval:
-            sys.stderr.write("Will train until {} error hasn't decreased in {} rounds.\n".format(\
-                evals[-1][1], early_stopping_rounds))
-
-        # is params a list of tuples? are we using multiple eval metrics?
-        if isinstance(params, list):
-            if len(params) != len(dict(params).items()):
-                params = dict(params)
-                sys.stderr.write("Multiple eval metrics have been passed: " \
-                "'{0}' will be used for early stopping.\n\n".format(params['eval_metric']))
-            else:
-                params = dict(params)
-
-        # either minimize loss or maximize AUC/MAP/NDCG
-        maximize_score = False
-        if 'eval_metric' in params:
-            maximize_metrics = ('auc', 'map', 'ndcg')
-            if any(params['eval_metric'].startswith(x) for x in maximize_metrics):
-                maximize_score = True
-        if feval is not None:
-            maximize_score = maximize
-
-        if maximize_score:
-            best_score = 0.0
-        else:
-            best_score = float('inf')
-
-        best_msg = ''
-        best_score_i = (nboost - 1)
-
-        if isinstance(learning_rates, list) and len(learning_rates) != num_boost_round:
-            raise ValueError("Length of list 'learning_rates' has to equal 'num_boost_round'.")
-
-        for i in range(nboost, nboost + num_boost_round):
-            if learning_rates is not None:
-                if isinstance(learning_rates, list):
-                    bst.set_param({'eta': learning_rates[i]})
-                else:
-                    bst.set_param({'eta': learning_rates(i, num_boost_round)})
-            bst.update(dtrain, i, obj)
-            nboost += 1
-            bst_eval_set = bst.eval_set(evals, i, feval)
-
-            if isinstance(bst_eval_set, STRING_TYPES):
-                msg = bst_eval_set
-            else:
-                msg = bst_eval_set.decode()
-
-            if verbose_eval:
-                if verbose_eval_every_line:
-                    if i % verbose_eval_every_line == 0 or i == num_boost_round - 1:
-                        sys.stderr.write(msg + '\n')
-                else:
-                    sys.stderr.write(msg + '\n')
-
-            if evals_result is not None:
-                res = re.findall("([0-9a-zA-Z@]+[-]*):-?([0-9.]+).", msg)
-                for key in evals_name:
-                    evals_idx = evals_name.index(key)
-                    res_per_eval = len(res) // len(evals_name)
-                    for r in range(res_per_eval):
-                        res_item = res[(evals_idx*res_per_eval) + r]
-                        res_key = res_item[0]
-                        res_val = res_item[1]
-                        if res_key in evals_result[key]:
-                            evals_result[key][res_key].append(res_val)
-                        else:
-                            evals_result[key][res_key] = [res_val]
-
-            score = float(msg.rsplit(':', 1)[1])
-            if (maximize_score and score > best_score) or \
-                    (not maximize_score and score < best_score):
-                best_score = score
-                best_score_i = (nboost - 1)
-                best_msg = msg
-            elif i - best_score_i >= early_stopping_rounds:
-                if verbose_eval:
-                    sys.stderr.write("Stopping. Best iteration:\n{}\n\n".format(best_msg))
-                bst.best_score = best_score
-                bst.best_iteration = best_score_i
-                break
-        bst.best_score = best_score
-        bst.best_iteration = best_score_i
-        bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
-        return bst
+    return _train_internal(params, dtrain,
+                           num_boost_round=num_boost_round,
+                           evals=evals,
+                           obj=obj, feval=feval,
+                           xgb_model=xgb_model, callbacks=callbacks)
 
 
 class CVPack(object):
@@ -261,15 +222,28 @@ class CVPack(object):
         return self.bst.eval_set(self.watchlist, iteration, feval)
 
 
-def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None):
+def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
+            folds=None, shuffle=True):
     """
     Make an n-fold list of CVPack from random indices.
     """
     evals = list(evals)
     np.random.seed(seed)
-    randidx = np.random.permutation(dall.num_row())
-    kstep = len(randidx) / nfold
-    idset = [randidx[(i * kstep): min(len(randidx), (i + 1) * kstep)] for i in range(nfold)]
+
+    if stratified is False and folds is None:
+        if shuffle is True:
+            idx = np.random.permutation(dall.num_row())
+        else:
+            idx = np.arange(dall.num_row())
+        kstep = int(len(idx) / nfold)
+        idset = [idx[(i * kstep): min(len(idx), (i + 1) * kstep)] for i in range(nfold)]
+    elif folds is not None and isinstance(folds, list):
+        idset = [x[1] for x in folds]
+        nfold = len(idset)
+    else:
+        sfk = XGBStratifiedKFold(n_splits=nfold, shuffle=True, random_state=seed)
+        idset = [x[1] for x in sfk.split(X=dall.get_label(), y=dall.get_label())]
+
     ret = []
     for k in range(nfold):
         dtrain = dall.slice(np.concatenate([idset[i] for i in range(nfold) if k != i]))
@@ -283,14 +257,15 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None):
         ret.append(CVPack(dtrain, dtest, plst))
     return ret
 
-def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
+
+def aggcv(rlist):
     # pylint: disable=invalid-name
     """
     Aggregate cross-validation results.
-    
-    If show_progress is true, progress is displayed in every call. If
-    show_progress is an integer, progress will only be displayed every
-    `show_progress` trees, tracked via trial.
+
+    If verbose_eval is true, progress is displayed in every call. If
+    verbose_eval is an integer, progress will only be displayed every
+    `verbose_eval` trees, tracked via trial.
     """
     cvmap = {}
     idx = rlist[0].split()[0]
@@ -304,52 +279,23 @@ def aggcv(rlist, show_stdv=True, show_progress=None, as_pandas=True, trial=0):
             if k not in cvmap:
                 cvmap[k] = []
             cvmap[k].append(float(v))
-
     msg = idx
-
-    if show_stdv:
-        fmt = '\tcv-{0}:{1}+{2}'
-    else:
-        fmt = '\tcv-{0}:{1}'
-
-    index = []
     results = []
-    for k, v in sorted(cvmap.items(), key=lambda x: x[0]):
+    for k, v in sorted(cvmap.items(), key=lambda x: (x[0].startswith('test'), x[0])):
         v = np.array(v)
         if not isinstance(msg, STRING_TYPES):
             msg = msg.decode()
         mean, std = np.mean(v), np.std(v)
-        msg += fmt.format(k, mean, std)
-
-        index.extend([k + '-mean', k + '-std'])
-        results.extend([mean, std])
-
-    if as_pandas:
-        try:
-            import pandas as pd
-            results = pd.Series(results, index=index)
-        except ImportError:
-            if show_progress is None:
-                show_progress = True
-    else:
-        # if show_progress is default (None),
-        # result will be np.ndarray as it can't hold column name
-        if show_progress is None:
-            show_progress = True
-
-    if (isinstance(show_progress, int) and show_progress > 0 and trial % show_progress == 0) or \
-            (isinstance(show_progress, bool) and show_progress):
-        sys.stderr.write(msg + '\n')
-        sys.stderr.flush()
-
+        results.extend([(k, mean, std)])
     return results
 
 
-def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
-       obj=None, feval=None, maximize=False, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, show_progress=None, show_stdv=True, seed=0):
+def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
+       metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
+       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
+       seed=0, callbacks=None, shuffle=True):
     # pylint: disable = invalid-name
-    """Cross-validation with given paramaters.
+    """Cross-validation with given parameters.
 
     Parameters
     ----------
@@ -361,6 +307,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         Number of boosting iterations.
     nfold : int
         Number of folds in CV.
+    stratified : bool
+        Perform stratified sampling.
+    folds : a KFold or StratifiedKFold instance
+        Sklearn KFolds or StratifiedKFolds.
     metrics : string or list of strings
         Evaluation metrics to be watched in CV.
     obj : function
@@ -379,21 +329,30 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
     as_pandas : bool, default True
         Return pd.DataFrame when pandas is installed.
         If False or pandas is not installed, return np.ndarray
-    show_progress : bool, int, or None, default None
+    verbose_eval : bool, int, or None, default None
         Whether to display the progress. If None, progress will be displayed
-        when np.ndarray is returned. If True, progress will be displayed at 
-        boosting stage. If an integer is given, progress will be displayed 
-        at every given `show_progress` boosting stage. 
+        when np.ndarray is returned. If True, progress will be displayed at
+        boosting stage. If an integer is given, progress will be displayed
+        at every given `verbose_eval` boosting stage.
     show_stdv : bool, default True
         Whether to display the standard deviation in progress.
         Results are not affected, and always contains std.
     seed : int
         Seed used to generate the folds (passed to numpy.random.seed).
+    callbacks : list of callback functions
+        List of callback functions that are applied at end of each iteration.
+        It is possible to use predefined callbacks by using xgb.callback module.
+        Example: [xgb.callback.reset_learning_rate(custom_rates)]
+     shuffle : bool
+        Shuffle data before creating folds.
 
     Returns
     -------
     evaluation history : list(string)
     """
+    if stratified is True and not SKLEARN_INSTALLED:
+        raise XGBoostError('sklearn needs to be installed in order to use stratified cv')
+
     if isinstance(metrics, str):
         metrics = [metrics]
 
@@ -403,7 +362,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
         if 'eval_metric' in params:
             params['eval_metric'] = _metrics
     else:
-        params= dict((k, v) for k, v in params.items())
+        params = dict((k, v) for k, v in params.items())
 
     if len(metrics) == 0 and 'eval_metric' in params:
         if isinstance(params['eval_metric'], list):
@@ -413,56 +372,65 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, metrics=(),
 
     params.pop("eval_metric", None)
 
+    results = {}
+    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc,
+                      stratified, folds, shuffle)
+
+    # setup callbacks
+    callbacks = [] if callbacks is None else callbacks
     if early_stopping_rounds is not None:
-        if len(metrics) > 1:
-            raise ValueError('Check your params. '\
-                                     'Early stopping works with single eval metric only.')
+        callbacks.append(callback.early_stop(early_stopping_rounds,
+                                             maximize=maximize,
+                                             verbose=False))
 
-        sys.stderr.write("Will train until cv error hasn't decreased in {} rounds.\n".format(\
-            early_stopping_rounds))
+    if isinstance(verbose_eval, bool) and verbose_eval:
+        callbacks.append(callback.print_evaluation(show_stdv=show_stdv))
+    else:
+        if isinstance(verbose_eval, int):
+            callbacks.append(callback.print_evaluation(verbose_eval, show_stdv=show_stdv))
 
-        maximize_score = False
-        if len(metrics) == 1:
-            maximize_metrics = ('auc', 'map', 'ndcg')
-            if any(metrics[0].startswith(x) for x in maximize_metrics):
-                maximize_score = True
-        if feval is not None:
-            maximize_score = maximize
+    callbacks_before_iter = [
+        cb for cb in callbacks if cb.__dict__.get('before_iteration', False)]
+    callbacks_after_iter = [
+        cb for cb in callbacks if not cb.__dict__.get('before_iteration', False)]
 
-        if maximize_score:
-            best_score = 0.0
-        else:
-            best_score = float('inf')
-
-    best_score_i = 0
-    results = []
-    cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc)
     for i in range(num_boost_round):
+        for cb in callbacks_before_iter:
+            cb(CallbackEnv(model=None,
+                           cvfolds=cvfolds,
+                           iteration=i,
+                           begin_iteration=0,
+                           end_iteration=num_boost_round,
+                           rank=0,
+                           evaluation_result_list=None))
         for fold in cvfolds:
             fold.update(i, obj)
-        res = aggcv([f.eval(i, feval) for f in cvfolds],
-                    show_stdv=show_stdv, show_progress=show_progress,
-                    as_pandas=as_pandas, trial=i)
-        results.append(res)
+        res = aggcv([f.eval(i, feval) for f in cvfolds])
 
-        if early_stopping_rounds is not None:
-            score = res[0]
-            if (maximize_score and score > best_score) or \
-                    (not maximize_score and score < best_score):
-                best_score = score
-                best_score_i = i
-            elif i - best_score_i >= early_stopping_rounds:
-                results = results[:best_score_i+1]
-                sys.stderr.write("Stopping. Best iteration:\n[{}] cv-mean:{}\tcv-std:{}\n".
-                                 format(best_score_i, results[-1][0], results[-1][1]))
-                break
+        for key, mean, std in res:
+            if key + '-mean' not in results:
+                results[key + '-mean'] = []
+            if key + '-std' not in results:
+                results[key + '-std'] = []
+            results[key + '-mean'].append(mean)
+            results[key + '-std'].append(std)
+        try:
+            for cb in callbacks_after_iter:
+                cb(CallbackEnv(model=None,
+                               cvfolds=cvfolds,
+                               iteration=i,
+                               begin_iteration=0,
+                               end_iteration=num_boost_round,
+                               rank=0,
+                               evaluation_result_list=res))
+        except EarlyStopException as e:
+            for k in results.keys():
+                results[k] = results[k][:(e.best_iteration + 1)]
+            break
     if as_pandas:
         try:
             import pandas as pd
-            results = pd.DataFrame(results)
+            results = pd.DataFrame.from_dict(results)
         except ImportError:
-            results = np.array(results)
-    else:
-        results = np.array(results)
-
+            pass
     return results

@@ -8,6 +8,6 @@
 #ifndef XGBOOST_COMMON_SYNC_H_
 #define XGBOOST_COMMON_SYNC_H_
 
-#include <rabit.h>
+#include <rabit/rabit.h>
 
 #endif  // XGBOOST_COMMON_SYNC_H_

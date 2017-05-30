@@ -15,14 +15,14 @@ oldpath=`pwd`
 cd ./xgboost/
 #remove the pre-compiled .so and trigger the system's on-the-fly compiling
 make clean
-if make python; then
+if make lib/libxgboost.so -j4; then
     echo "Successfully build multi-thread xgboost"
 else
     echo "-----------------------------"
     echo "Building multi-thread xgboost failed"
     echo "Start to build single-thread xgboost"
     make clean
-    make python no_omp=1
+    make lib/libxgboost.so -j4 USE_OPENMP=0
     echo "Successfully build single-thread xgboost"
     echo "If you want multi-threaded version"
     echo "See additional instructions in doc/build.md"

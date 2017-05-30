@@ -2,12 +2,9 @@
 #' 
 #' May improve the learning by adding new features to the training data based on the decision trees from a previously learned model.
 #' 
-#' @importFrom magrittr %>%
-#' @importFrom Matrix cBind
-#' @importFrom Matrix sparse.model.matrix
-#' 
 #' @param model decision tree boosting model learned on the original data
-#' @param training.data original data (usually provided as a \code{dgCMatrix} matrix)
+#' @param data original data (usually provided as a \code{dgCMatrix} matrix)
+#' @param ... currently not used
 #' 
 #' @return \code{dgCMatrix} matrix including both the original data and the new features.
 #'
@@ -17,15 +14,15 @@
 #' \strong{Practical Lessons from Predicting Clicks on Ads at Facebook}
 #' 
 #' \emph{(Xinran He, Junfeng Pan, Ou Jin, Tianbing Xu, Bo Liu, Tao Xu, Yan, xin Shi, Antoine Atallah, Ralf Herbrich, Stuart Bowers, 
-#' Joaquin Quiñonero Candela)}
+#' Joaquin Quinonero Candela)}
 #'  
 #' International Workshop on Data Mining for Online Advertising (ADKDD) - August 24, 2014
 #' 
-#' \url{https://research.facebook.com/publications/758569837499391/practical-lessons-from-predicting-clicks-on-ads-at-facebook/}.
+#' \url{https://research.fb.com/publications/practical-lessons-from-predicting-clicks-on-ads-at-facebook/}.
 #' 
 #' Extract explaining the method:
 #' 
-#' "\emph{We found that boosted decision trees are a powerful and very
+#' "We found that boosted decision trees are a powerful and very
 #' convenient way to implement non-linear and tuple transformations
 #' of the kind we just described. We treat each individual
 #' tree as a categorical feature that takes as value the
@@ -46,7 +43,7 @@
 #' based transformation as a supervised feature encoding that
 #' converts a real-valued vector into a compact binary-valued
 #' vector. A traversal from root node to a leaf node represents
-#' a rule on certain features.}"
+#' a rule on certain features."
 #' 
 #' @examples
 #' data(agaricus.train, package='xgboost')
@@ -54,13 +51,14 @@
 #' dtrain <- xgb.DMatrix(data = agaricus.train$data, label = agaricus.train$label)
 #' dtest <- xgb.DMatrix(data = agaricus.test$data, label = agaricus.test$label)
 #'
-#' param <- list(max.depth=2, eta=1, silent=1, objective='binary:logistic')
+#' param <- list(max_depth=2, eta=1, silent=1, objective='binary:logistic')
 #' nround = 4
 #'
 #' bst = xgb.train(params = param, data = dtrain, nrounds = nround, nthread = 2)
 #' 
 #' # Model accuracy without new features
-#' accuracy.before <- sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.test$label) / length(agaricus.test$label)
+#' accuracy.before <- sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.test$label) /
+#'                    length(agaricus.test$label)
 #' 
 #' # Convert previous features to one hot encoding
 #' new.features.train <- xgb.create.features(model = bst, agaricus.train$data)
@@ -73,19 +71,17 @@
 #' bst <- xgb.train(params = param, data = new.dtrain, nrounds = nround, nthread = 2)
 #' 
 #' # Model accuracy with new features
-#' accuracy.after <- sum((predict(bst, new.dtest) >= 0.5) == agaricus.test$label) / length(agaricus.test$label)
+#' accuracy.after <- sum((predict(bst, new.dtest) >= 0.5) == agaricus.test$label) /
+#'                   length(agaricus.test$label)
 #' 
 #' # Here the accuracy was already good and is now perfect.
-#' cat(paste("The accuracy was", accuracy.before, "before adding leaf features and it is now", accuracy.after, "!\n"))
+#' cat(paste("The accuracy was", accuracy.before, "before adding leaf features and it is now",
+#'           accuracy.after, "!\n"))
 #' 
 #' @export
-xgb.create.features <- function(model, training.data){
-  pred_with_leaf = predict(model, training.data, predleaf = TRUE)
-  cols <- list()
-  for(i in 1:length(trees)){
-    # max is not the real max but it s not important for the purpose of adding features
-    leaf.id <- sort(unique(pred_with_leaf[,i]))
-    cols[[i]] <- factor(x = pred_with_leaf[,i], level = leaf.id)
-  }
-  cBind(training.data, sparse.model.matrix( ~ . -1, as.data.frame(cols)))
+xgb.create.features <- function(model, data, ...){
+  check.deprecation(...)
+  pred_with_leaf <- predict(model, data, predleaf = TRUE)
+  cols <- lapply(as.data.frame(pred_with_leaf), factor)
+  cBind(data, sparse.model.matrix( ~ . -1, cols))
 }

@@ -1,16 +1,3 @@
----
-title: "Understand your dataset with Xgboost"
-output:
-  rmarkdown::html_vignette:
-    css: vignette.css
-    number_sections: yes
-    toc: yes
-author: Tianqi Chen, Tong He, Michaël Benesty
-vignette: >
-  %\VignetteIndexEntry{Discover your data}
-  %\VignetteEngine{knitr::rmarkdown}
-  \usepackage[utf8]{inputenc}
----
 
 Understand your dataset with XGBoost
 ====================================
@@ -68,7 +55,7 @@ data(Arthritis)
 df <- data.table(Arthritis, keep.rownames = F)
 ```
 
-> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `panda` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **Xgboost** **R** package use `data.table`.
+> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `Pandas` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **Xgboost** **R** package use `data.table`.
 
 The first thing we want to do is to have a look to the first lines of the `data.table`:
 
@@ -430,14 +417,14 @@ The case studied here is not enough complex to show that. Check [Kaggle website]
 
 Moreover, you can notice that even if we have added some not useful new features highly correlated with other features, the boosting tree algorithm have been able to choose the best one, which in this case is the Age.
 
-Linear model may not be that smart in this scenario.
+Linear models may not be that smart in this scenario.
 
 Special Note: What about Random Forests™?
 -----------------------------------------
 
 As you may know, [Random Forests™](http://en.wikipedia.org/wiki/Random_forest) algorithm is cousin with boosting and both are part of the [ensemble learning](http://en.wikipedia.org/wiki/Ensemble_learning) family.
 
-Both trains several decision trees for one dataset. The *main* difference is that in Random Forests™, trees are independent and in boosting, the tree `N+1` focus its learning on the loss (<=> what has not been well modeled by the tree `N`).
+Both train several decision trees for one dataset. The *main* difference is that in Random Forests™, trees are independent and in boosting, the tree `N+1` focus its learning on the loss (<=> what has not been well modeled by the tree `N`).
 
 This difference have an impact on a corner case in feature importance analysis: the *correlated features*.
 

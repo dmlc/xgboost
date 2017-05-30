@@ -11,12 +11,15 @@ DMLC_REGISTRY_ENABLE(::xgboost::GradientBoosterReg);
 }  // namespace dmlc
 
 namespace xgboost {
-GradientBooster* GradientBooster::Create(const std::string& name) {
+GradientBooster* GradientBooster::Create(
+    const std::string& name,
+    const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
+    bst_float base_margin) {
   auto *e = ::dmlc::Registry< ::xgboost::GradientBoosterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown gbm type " << name;
   }
-  return (e->body)();
+  return (e->body)(cache_mats, base_margin);
 }
 }  // namespace xgboost
 

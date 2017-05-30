@@ -27,7 +27,7 @@ namespace xgboost {
 
 enum CLITask {
   kTrain = 0,
-  kDump2Text = 1,
+  kDumpModel = 1,
   kPredict = 2
 };
 
@@ -62,6 +62,8 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
   bool pred_margin;
   /*! \brief whether dump statistics along with model */
   int dump_stats;
+  /*! \brief what format to dump the model in */
+  std::string dump_format;
   /*! \brief name of feature map */
   std::string name_fmap;
   /*! \brief name of dump file */
@@ -78,7 +80,7 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
     // NOTE: declare everything except eval_data_paths.
     DMLC_DECLARE_FIELD(task).set_default(kTrain)
         .add_enum("train", kTrain)
-        .add_enum("dump", kDump2Text)
+        .add_enum("dump", kDumpModel)
         .add_enum("pred", kPredict)
         .describe("Task to be performed by the CLI program.");
     DMLC_DECLARE_FIELD(silent).set_default(0).set_range(0, 2)
@@ -112,6 +114,8 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
         .describe("Whether to predict margin value instead of probability.");
     DMLC_DECLARE_FIELD(dump_stats).set_default(false)
         .describe("Whether dump the model statistics.");
+    DMLC_DECLARE_FIELD(dump_format).set_default("text")
+        .describe("What format to dump the model in.");
     DMLC_DECLARE_FIELD(name_fmap).set_default("NULL")
         .describe("Name of the feature map file.");
     DMLC_DECLARE_FIELD(name_dump).set_default("dump.txt")
@@ -151,21 +155,24 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
 DMLC_REGISTER_PARAMETER(CLIParam);
 
 void CLITrain(const CLIParam& param) {
+  const double tstart_data_load = dmlc::GetTime();
   if (rabit::IsDistributed()) {
     std::string pname = rabit::GetProcessorName();
     LOG(CONSOLE) << "start " << pname << ":" << rabit::GetRank();
   }
   // load in data.
-  std::unique_ptr<DMatrix> dtrain(
+  std::shared_ptr<DMatrix> dtrain(
       DMatrix::Load(param.train_path, param.silent != 0, param.dsplit == 2));
-  std::vector<std::unique_ptr<DMatrix> > deval;
-  std::vector<DMatrix*> cache_mats, eval_datasets;
-  cache_mats.push_back(dtrain.get());
+  std::vector<std::shared_ptr<DMatrix> > deval;
+  std::vector<std::shared_ptr<DMatrix> > cache_mats;
+  std::vector<DMatrix*> eval_datasets;
+  cache_mats.push_back(dtrain);
   for (size_t i = 0; i < param.eval_data_names.size(); ++i) {
     deval.emplace_back(
-        DMatrix::Load(param.eval_data_paths[i], param.silent != 0, param.dsplit == 2));
+        std::shared_ptr<DMatrix>(DMatrix::Load(param.eval_data_paths[i],
+                                               param.silent != 0, param.dsplit == 2)));
     eval_datasets.push_back(deval.back().get());
-    cache_mats.push_back(deval.back().get());
+    cache_mats.push_back(deval.back());
   }
   std::vector<std::string> eval_data_names = param.eval_data_names;
   if (param.eval_train) {
@@ -174,17 +181,21 @@ void CLITrain(const CLIParam& param) {
   }
   // initialize the learner.
   std::unique_ptr<Learner> learner(Learner::Create(cache_mats));
-  learner->Configure(param.cfg);
   int version = rabit::LoadCheckPoint(learner.get());
   if (version == 0) {
-    // initializ the model if needed.
+    // initialize the model if needed.
     if (param.model_in != "NULL") {
       std::unique_ptr<dmlc::Stream> fi(
           dmlc::Stream::Create(param.model_in.c_str(), "r"));
       learner->Load(fi.get());
+      learner->Configure(param.cfg);
     } else {
+      learner->Configure(param.cfg);
       learner->InitModel();
     }
+  }
+  if (param.silent == 0) {
+    LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";
   }
   // start training.
   const double start = dmlc::GetTime();
@@ -213,7 +224,9 @@ void CLITrain(const CLIParam& param) {
         LOG(CONSOLE) << res;
       }
     }
-    if (param.save_period != 0 && (i + 1) % param.save_period == 0) {
+    if (param.save_period != 0 &&
+        (i + 1) % param.save_period == 0 &&
+        rabit::GetRank() == 0) {
       std::ostringstream os;
       os << param.model_dir << '/'
          << std::setfill('0') << std::setw(4)
@@ -233,7 +246,8 @@ void CLITrain(const CLIParam& param) {
   }
   // always save final round
   if ((param.save_period == 0 || param.num_round % param.save_period != 0) &&
-      param.model_out != "NONE") {
+      param.model_out != "NONE" &&
+      rabit::GetRank() == 0) {
     std::ostringstream os;
     if (param.model_out == "NULL") {
       os << param.model_dir << '/'
@@ -253,7 +267,7 @@ void CLITrain(const CLIParam& param) {
   }
 }
 
-void CLIDump2Text(const CLIParam& param) {
+void CLIDumpModel(const CLIParam& param) {
   FeatureMap fmap;
   if (param.name_fmap != "NULL") {
     std::unique_ptr<dmlc::Stream> fs(
@@ -263,19 +277,30 @@ void CLIDump2Text(const CLIParam& param) {
   }
   // load model
   CHECK_NE(param.model_in, "NULL")
-      << "Must specifiy model_in for dump";
+      << "Must specify model_in for dump";
   std::unique_ptr<Learner> learner(Learner::Create({}));
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
+  learner->Configure(param.cfg);
   learner->Load(fi.get());
   // dump data
-  std::vector<std::string> dump = learner->Dump2Text(fmap, param.dump_stats);
+  std::vector<std::string> dump = learner->DumpModel(
+      fmap, param.dump_stats, param.dump_format);
   std::unique_ptr<dmlc::Stream> fo(
       dmlc::Stream::Create(param.name_dump.c_str(), "w"));
   dmlc::ostream os(fo.get());
-  for (size_t i = 0; i < dump.size(); ++i) {
-    os << "booster[" << i << "]:\n";
-    os << dump[i];
+  if (param.dump_format == "json") {
+    os << "[" << std::endl;
+    for (size_t i = 0; i < dump.size(); ++i) {
+      if (i != 0) os << "," << std::endl;
+      os << dump[i];  // Dump the previously generated JSON here
+    }
+    os << std::endl << "]" << std::endl;
+  } else {
+    for (size_t i = 0; i < dump.size(); ++i) {
+      os << "booster[" << i << "]:\n";
+      os << dump[i];
+    }
   }
   // force flush before fo destruct.
   os.set_stream(nullptr);
@@ -289,16 +314,17 @@ void CLIPredict(const CLIParam& param) {
       DMatrix::Load(param.test_path, param.silent != 0, param.dsplit == 2));
   // load model
   CHECK_NE(param.model_in, "NULL")
-      << "Must specifiy model_in for dump";
+      << "Must specify model_in for predict";
   std::unique_ptr<Learner> learner(Learner::Create({}));
   std::unique_ptr<dmlc::Stream> fi(
       dmlc::Stream::Create(param.model_in.c_str(), "r"));
+  learner->Configure(param.cfg);
   learner->Load(fi.get());
 
   if (param.silent == 0) {
     LOG(CONSOLE) << "start prediction...";
   }
-  std::vector<float> preds;
+  std::vector<bst_float> preds;
   learner->Predict(dtest.get(), param.pred_margin, &preds, param.ntree_limit);
   if (param.silent == 0) {
     LOG(CONSOLE) << "writing prediction to " << param.name_pred;
@@ -306,7 +332,7 @@ void CLIPredict(const CLIParam& param) {
   std::unique_ptr<dmlc::Stream> fo(
       dmlc::Stream::Create(param.name_pred.c_str(), "w"));
   dmlc::ostream os(fo.get());
-  for (float p : preds) {
+  for (bst_float p : preds) {
     os << p << '\n';
   }
   // force flush before fo destruct.
@@ -318,6 +344,7 @@ int CLIRunTask(int argc, char *argv[]) {
     printf("Usage: <config>\n");
     return 0;
   }
+  rabit::Init(argc, argv);
 
   std::vector<std::pair<std::string, std::string> > cfg;
   cfg.push_back(std::make_pair("seed", "0"));
@@ -336,10 +363,9 @@ int CLIRunTask(int argc, char *argv[]) {
   CLIParam param;
   param.Configure(cfg);
 
-  rabit::Init(argc, argv);
   switch (param.task) {
     case kTrain: CLITrain(param); break;
-    case kDump2Text: CLIDump2Text(param); break;
+    case kDumpModel: CLIDumpModel(param); break;
     case kPredict: CLIPredict(param); break;
   }
   rabit::Finalize();

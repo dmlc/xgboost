@@ -31,19 +31,37 @@ include $(DMLC_CORE)/make/dmlc.mk
 # include the plugins
 include $(XGB_PLUGINS)
 
-# use customized config file
+# set compiler defaults for OSX versus *nix
+# let people override either
+OS := $(shell uname)
+ifeq ($(OS), Darwin)
 ifndef CC
-export CC  = $(if $(shell which gcc-5),gcc-5,gcc)
+export CC = $(if $(shell which clang), clang, gcc)
 endif
 ifndef CXX
-export CXX = $(if $(shell which g++-5),g++-5,g++)
+export CXX = $(if $(shell which clang++), clang++, g++)
+endif
+else
+# linux defaults
+ifndef CC
+export CC = gcc
+endif
+ifndef CXX
+export CXX = g++
+endif
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
-export CFLAGS=  -std=c++0x -Wall -O3 -msse2  -Wno-unknown-pragmas -funroll-loops -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
+export CFLAGS=  -std=c++11 -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
+
+ifeq ($(TEST_COVER), 1)
+	CFLAGS += -g -O0 -fprofile-arcs -ftest-coverage
+else
+	CFLAGS += -O3 -funroll-loops -msse2
+endif
 
 ifndef LINT_LANG
 	LINT_LANG= "all"
@@ -54,6 +72,7 @@ ifneq ($(UNAME), Windows)
 	XGBOOST_DYLIB = lib/libxgboost.so
 else
 	XGBOOST_DYLIB = lib/libxgboost.dll
+	JAVAINCFLAGS += -I${JAVA_HOME}/include/win32
 endif
 
 ifeq ($(UNAME), Linux)
@@ -73,18 +92,18 @@ endif
 
 
 # specify tensor path
-.PHONY: clean all lint clean_all doxygen rcpplint Rpack Rbuild Rcheck java
+.PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck java pylint
 
 
 all: lib/libxgboost.a $(XGBOOST_DYLIB) xgboost
 
-$(DMLC_CORE)/libdmlc.a:
-	+ cd $(DMLC_CORE); make libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
+$(DMLC_CORE)/libdmlc.a: $(wildcard $(DMLC_CORE)/src/*.cc $(DMLC_CORE)/src/*/*.cc)
+	+ cd $(DMLC_CORE); $(MAKE) libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
-$(RABIT)/lib/$(LIB_RABIT):
-	+ cd $(RABIT); make lib/$(LIB_RABIT); cd $(ROOTDIR)
+$(RABIT)/lib/$(LIB_RABIT): $(wildcard $(RABIT)/src/*.cc)
+	+ cd $(RABIT); $(MAKE) lib/$(LIB_RABIT); cd $(ROOTDIR)
 
-java: java/libxgboost4j.so
+jvm: jvm-packages/lib/libxgboost4j.so
 
 SRC = $(wildcard src/*.cc src/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC)) $(PLUGIN_OBJS)
@@ -92,20 +111,21 @@ AMALGA_OBJ = amalgamation/xgboost-all0.o
 LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
 ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
 CLI_OBJ = build/cli_main.o
+include tests/cpp/xgboost_test.mk
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
-	$(CXX) -c $(CFLAGS) -c $< -o $@
+	$(CXX) -c $(CFLAGS) $< -o $@
 
 build_plugin/%.o: plugin/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build_plugin/$*.o $< >build_plugin/$*.d
-	$(CXX) -c $(CFLAGS) -c $< -o $@
+	$(CXX) -c $(CFLAGS) $< -o $@
 
 # The should be equivalent to $(ALL_OBJ)  except for build/cli_main.o
 amalgamation/xgboost-all0.o: amalgamation/xgboost-all0.cc
-	$(CXX) -c $(CFLAGS) -c $< -o $@
+	$(CXX) -c $(CFLAGS) $< -o $@
 
 # Equivalent to lib/libxgboost_all.so
 lib/libxgboost_all.so: $(AMALGA_OBJ) $(LIB_DEP)
@@ -118,9 +138,10 @@ lib/libxgboost.a: $(ALL_DEP)
 
 lib/libxgboost.dll lib/libxgboost.so: $(ALL_DEP)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %a,  $^) $(LDFLAGS)
 
-java/libxgboost4j.so: java/xgboost4j_wrapper.cpp $(ALL_DEP)
+jvm-packages/lib/libxgboost4j.so: jvm-packages/xgboost4j/src/native/xgboost4j.cpp $(ALL_DEP)
+	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(JAVAINCFLAGS) -shared -o $@ $(filter %.cpp %.o %.a, $^) $(LDFLAGS)
 
 xgboost: $(CLI_OBJ) $(ALL_DEP)
@@ -130,21 +151,55 @@ rcpplint:
 	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
 
 lint: rcpplint
-	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src plugin
+	python2 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} include src plugin python-package
+
+pylint:
+	flake8 --ignore E501 python-package
+	flake8 --ignore E501 tests/python
+
+test: $(ALL_TEST)
+
+check: test
+	./tests/cpp/xgboost_test
+
+ifeq ($(TEST_COVER), 1)
+cover: check
+	@- $(foreach COV_OBJ, $(COVER_OBJ), \
+		gcov -pbcul -o $(shell dirname $(COV_OBJ)) $(COV_OBJ) > gcov.log || cat gcov.log; \
+	)
+endif
 
 clean:
 	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
+	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
 
 clean_all: clean
-	cd $(DMLC_CORE); make clean; cd $(ROODIR)
-	cd $(RABIT); make clean; cd $(ROODIR)
+	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROOTDIR)
+	cd $(RABIT); $(MAKE) clean; cd $(ROOTDIR)
 
 doxygen:
 	doxygen doc/Doxyfile
 
+# create standalone python tar file.
+pypack: ${XGBOOST_DYLIB}
+	cp ${XGBOOST_DYLIB} python-package/xgboost
+	cd python-package; tar cf xgboost.tar xgboost; cd ..
+
+# create pip installation pack for PyPI
+pippack:
+	$(MAKE) clean_all
+	rm -rf xgboost-python
+	cp -r python-package xgboost-python
+	cp -r Makefile xgboost-python/xgboost/
+	cp -r make xgboost-python/xgboost/
+	cp -r src xgboost-python/xgboost/
+	cp -r include xgboost-python/xgboost/
+	cp -r dmlc-core xgboost-python/xgboost/
+	cp -r rabit xgboost-python/xgboost/
+
 # Script to make a clean installable R package.
 Rpack:
-	make clean_all
+	$(MAKE) clean_all
 	rm -rf xgboost xgboost*.tar.gz
 	cp -r R-package xgboost
 	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
@@ -162,16 +217,17 @@ Rpack:
 	cp -r dmlc-core/include xgboost/src/dmlc-core/include
 	cp -r dmlc-core/src xgboost/src/dmlc-core/src
 	cp ./LICENSE xgboost
-	cat R-package/src/Makevars|sed '2s/.*/PKGROOT=./' | sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars
-	cp xgboost/src/Makevars xgboost/src/Makevars.win
+	cat R-package/src/Makevars.in|sed '2s/.*/PKGROOT=./' | sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars.in
+	cp xgboost/src/Makevars.in xgboost/src/Makevars.win
+	sed -i -e 's/@OPENMP_CXXFLAGS@/$$\(SHLIB_OPENMP_CFLAGS\)/g' xgboost/src/Makevars.win
 
 Rbuild:
-	make Rpack
+	$(MAKE) Rpack
 	R CMD build --no-build-vignettes xgboost
 	rm -rf xgboost
 
 Rcheck:
-	make Rbuild
+	$(MAKE) Rbuild
 	R CMD check  xgboost*.tar.gz
 
 -include build/*.d

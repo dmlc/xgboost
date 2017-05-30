@@ -1,9 +1,6 @@
 import xgboost as xgb
+import testing as tm
 import numpy as np
-from sklearn.cross_validation import KFold, train_test_split
-from sklearn.metrics import mean_squared_error
-from sklearn.grid_search import GridSearchCV
-from sklearn.datasets import load_iris, load_digits, load_boston
 import unittest
 
 rng = np.random.RandomState(1337)
@@ -43,16 +40,29 @@ class TestEvalMetrics(unittest.TestCase):
         return [('error', float(sum(labels != (preds > 0.0))) / len(labels))]
 
     def evalerror_03(self, preds, dtrain):
+        tm._skip_if_no_sklearn()
+        from sklearn.metrics import mean_squared_error
+
         labels = dtrain.get_label()
         return [('rmse', mean_squared_error(labels, preds)),
                 ('error', float(sum(labels != (preds > 0.0))) / len(labels))]
 
     def evalerror_04(self, preds, dtrain):
+        tm._skip_if_no_sklearn()
+        from sklearn.metrics import mean_squared_error
+
         labels = dtrain.get_label()
         return [('error', float(sum(labels != (preds > 0.0))) / len(labels)),
                 ('rmse', mean_squared_error(labels, preds))]
 
     def test_eval_metrics(self):
+        tm._skip_if_no_sklearn()
+        try:
+            from sklearn.model_selection import train_test_split
+        except:
+            from sklearn.cross_validation import train_test_split
+        from sklearn.datasets import load_digits
+
         digits = load_digits(2)
         X = digits['data']
         y = digits['target']

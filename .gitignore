@@ -20,8 +20,9 @@
 *buffer
 *model
 *pyc
-*train
-*test
+*.train
+*.test
+*.tar
 *group
 *rar
 *vali
@@ -70,3 +71,24 @@ config.mk
 xgboost
 *.data
 build_plugin
+dmlc-core
+.idea
+recommonmark/
+tags
+*.iml
+*.class
+target
+*.swp
+
+# cpp tests and gcov generated files
+*.gcov
+*.gcda
+*.gcno
+build_tests
+/tests/cpp/xgboost_test
+
+.DS_Store
+lib/
+
+# spark
+metastore_db

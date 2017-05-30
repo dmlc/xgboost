@@ -7,22 +7,34 @@
 xgb.save(model, fname)
 }
 \arguments{
-\item{model}{the model object.}
+\item{model}{model object of \code{xgb.Booster} class.}
 
-\item{fname}{the name of the binary file.}
+\item{fname}{name of the file to write.}
 }
 \description{
-Save xgboost model from xgboost or xgb.train
+Save xgboost model to a file in binary format.
+}
+\details{
+This methods allows to save a model in an xgboost-internal binary format which is universal 
+among the various xgboost interfaces. In R, the saved model file could be read-in later
+using either the \code{\link{xgb.load}} function or the \code{xgb_model} parameter 
+of \code{\link{xgb.train}}.
+
+Note: a model can also be saved as an R-object (e.g., by using \code{\link[base]{readRDS}} 
+or \code{\link[base]{save}}). However, it would then only be compatible with R, and 
+corresponding R-methods would need to be used to load it.
 }
 \examples{
 data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 train <- agaricus.train
 test <- agaricus.test
-bst <- xgboost(data = train$data, label = train$label, max.depth = 2, 
-               eta = 1, nthread = 2, nround = 2,objective = "binary:logistic")
+bst <- xgboost(data = train$data, label = train$label, max_depth = 2, 
+               eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
 xgb.save(bst, 'xgb.model')
 bst <- xgb.load('xgb.model')
 pred <- predict(bst, test$data)
 }
-
+\seealso{
+\code{\link{xgb.load}}, \code{\link{xgb.Booster.complete}}.
+}

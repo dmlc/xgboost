@@ -83,13 +83,8 @@ void SimpleDMatrix::MakeOneBatch(const std::vector<bool>& enabled,
   // clear rowset
   buffered_rowset_.clear();
   // bit map
-  int nthread;
+  const int nthread = omp_get_max_threads();
   std::vector<bool> bmap;
-  #pragma omp parallel
-  {
-    nthread = omp_get_num_threads();
-  }
-
   pcol->Clear();
   common::ParallelGroupBuilder<SparseBatch::Entry>
       builder(&pcol->offset, &pcol->data);
@@ -184,9 +179,7 @@ void SimpleDMatrix::MakeManyBatch(const std::vector<bool>& enabled,
       }
       if (tmp.Size() >= max_row_perbatch) {
         std::unique_ptr<SparsePage> page(new SparsePage());
-        this->MakeColPage(tmp.GetRowBatch(0),
-                          dmlc::BeginPtr(buffered_rowset_) + btop,
-                          enabled, page.get());
+        this->MakeColPage(tmp.GetRowBatch(0), btop, enabled, page.get());
         col_iter_.cpages_.push_back(std::move(page));
         btop = buffered_rowset_.size();
         tmp.Clear();
@@ -196,27 +189,17 @@ void SimpleDMatrix::MakeManyBatch(const std::vector<bool>& enabled,
 
   if (tmp.Size() != 0) {
     std::unique_ptr<SparsePage> page(new SparsePage());
-    this->MakeColPage(tmp.GetRowBatch(0),
-                      dmlc::BeginPtr(buffered_rowset_) + btop,
-                      enabled, page.get());
+    this->MakeColPage(tmp.GetRowBatch(0), btop, enabled, page.get());
     col_iter_.cpages_.push_back(std::move(page));
   }
 }
 
 // make column page from subset of rowbatchs
 void SimpleDMatrix::MakeColPage(const RowBatch& batch,
-                                const bst_uint* ridx,
+                                size_t buffer_begin,
                                 const std::vector<bool>& enabled,
                                 SparsePage* pcol) {
-  int nthread;
-  #pragma omp parallel
-  {
-    nthread = omp_get_num_threads();
-    int max_nthread = std::max(omp_get_num_procs() / 2 - 2, 1);
-    if (nthread > max_nthread) {
-      nthread = max_nthread;
-    }
-  }
+  const int nthread = std::min(omp_get_max_threads(), std::max(omp_get_num_procs() / 2 - 2, 1));
   pcol->Clear();
   common::ParallelGroupBuilder<SparseBatch::Entry>
       builder(&pcol->offset, &pcol->data);
@@ -240,9 +223,10 @@ void SimpleDMatrix::MakeColPage(const RowBatch& batch,
     RowBatch::Inst inst = batch[i];
     for (bst_uint j = 0; j < inst.length; ++j) {
       const SparseBatch::Entry &e = inst[j];
-      builder.Push(e.index,
-                   SparseBatch::Entry(ridx[i], e.fvalue),
-                   tid);
+      builder.Push(
+          e.index,
+          SparseBatch::Entry(buffered_rowset_[i + buffer_begin], e.fvalue),
+          tid);
     }
   }
   CHECK_EQ(pcol->Size(), info().num_col);

@@ -9,6 +9,7 @@
 #include "./sparse_batch_page.h"
 #include "./simple_dmatrix.h"
 #include "./simple_csr_source.h"
+#include "../common/common.h"
 #include "../common/io.h"
 
 #if DMLC_ENABLE_STD_THREAD
@@ -76,12 +77,12 @@ inline bool MetaTryLoadGroup(const std::string& fname,
 
 // try to load weight information from file, if exists
 inline bool MetaTryLoadFloatInfo(const std::string& fname,
-                                 std::vector<float>* data) {
+                                 std::vector<bst_float>* data) {
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
   if (fi.get() == nullptr) return false;
   dmlc::istream is(fi.get());
   data->clear();
-  float value;
+  bst_float value;
   while (is >> value) {
     data->push_back(value);
   }
@@ -124,6 +125,14 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     base_margin.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, base_margin.begin()));
+  } else if (!std::strcmp(key, "group")) {
+    group_ptr.resize(num + 1);
+    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                       std::copy(cast_dptr, cast_dptr + num, group_ptr.begin() + 1));
+    group_ptr[0] = 0;
+    for (size_t i = 1; i < group_ptr.size(); ++i) {
+      group_ptr[i] = group_ptr[i - 1] + group_ptr[i];
+    }
   }
 }
 
@@ -141,7 +150,21 @@ DMatrix* DMatrix::Load(const std::string& uri,
         << "Only one `#` is allowed in file path for cache file specification.";
     if (load_row_split) {
       std::ostringstream os;
-      os << cache_file << ".r" << rabit::GetRank();
+      std::vector<std::string> cache_shards = common::Split(cache_file, ':');
+      for (size_t i = 0; i < cache_shards.size(); ++i) {
+        size_t pos = cache_shards[i].rfind('.');
+        if (pos == std::string::npos) {
+          os << cache_shards[i]
+             << ".r" << rabit::GetRank()
+             << "-" <<  rabit::GetWorldSize();
+        } else {
+          os << cache_shards[i].substr(0, pos)
+             << ".r" << rabit::GetRank()
+             << "-" <<  rabit::GetWorldSize()
+             << cache_shards[i].substr(pos, cache_shards[i].length());
+        }
+        if (i + 1 != cache_shards.size()) os << ':';
+      }
       cache_file = os.str();
     }
   } else {
@@ -154,12 +177,14 @@ DMatrix* DMatrix::Load(const std::string& uri,
   } else {
     // test option to load in part
     npart = dmlc::GetEnv("XGBOOST_TEST_NPART", 1);
-    if (npart != 1) {
-      LOG(CONSOLE) << "Partial load option on npart=" << npart;
-    }
+  }
+
+  if (npart != 1) {
+    LOG(CONSOLE) << "Load part of data " << partid
+                 << " of " << npart << " parts";
   }
   // legacy handling of binary data loading
-  if (file_format == "auto" && !load_row_split) {
+  if (file_format == "auto" && npart == 1) {
     int magic;
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
     if (fi.get() != nullptr) {
@@ -178,10 +203,8 @@ DMatrix* DMatrix::Load(const std::string& uri,
     }
   }
 
-  std::string ftype = file_format;
-  if (file_format == "auto") ftype = "libsvm";
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
-      dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, ftype.c_str()));
+      dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
   DMatrix* dmat = DMatrix::Create(parser.get(), cache_file);
   if (!silent) {
     LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
@@ -197,6 +220,10 @@ DMatrix* DMatrix::Load(const std::string& uri,
     if (MetaTryLoadFloatInfo(fname + ".base_margin", &info.base_margin) && !silent) {
       LOG(CONSOLE) << info.base_margin.size()
                    << " base_margin are loaded from " << fname << ".base_margin";
+    }
+    if (MetaTryLoadFloatInfo(fname + ".weight", &info.weights) && !silent) {
+      LOG(CONSOLE) << info.weights.size()
+                   << " weights are loaded from " << fname << ".weight";
     }
   }
   return dmat;

@@ -9,7 +9,7 @@ You have find XGBoost R Package!
 Get Started
 -----------
 * Checkout the [Installation Guide](../build.md) contains instructions to install xgboost, and [Tutorials](#tutorials) for examples on how to use xgboost for various tasks.
-* Please visit [walk through example](demo).
+* Please visit [walk through example](../../R-package/demo).
 
 Tutorials
 ---------

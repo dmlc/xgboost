@@ -106,7 +106,7 @@ class TreeModel {
       return cleft_ == -1;
     }
     /*! \return get leaf value of leaf node */
-    inline float leaf_value() const {
+    inline bst_float leaf_value() const {
       return (this->info_).leaf_value;
     }
     /*! \return get split condition of the node */
@@ -154,7 +154,7 @@ class TreeModel {
      * \param right right index, could be used to store
      *        additional information
      */
-    inline void set_leaf(float value, int right = -1) {
+    inline void set_leaf(bst_float value, int right = -1) {
       (this->info_).leaf_value = value;
       this->cleft_ = -1;
       this->cright_ = right;
@@ -171,7 +171,7 @@ class TreeModel {
      *        we have split condition
      */
     union Info{
-      float leaf_value;
+      bst_float leaf_value;
       TSplitCond split_cond;
     };
     // pointer to parent, highest bit is used to
@@ -230,7 +230,7 @@ class TreeModel {
    * \param rid node id of the node
    * \param value new leaf value
    */
-  inline void ChangeToLeaf(int rid, float value) {
+  inline void ChangeToLeaf(int rid, bst_float value) {
     CHECK(nodes[nodes[rid].cleft() ].is_leaf());
     CHECK(nodes[nodes[rid].cright()].is_leaf());
     this->DeleteNode(nodes[rid].cleft());
@@ -242,7 +242,7 @@ class TreeModel {
    * \param rid node id of the node
    * \param value new leaf value
    */
-  inline void CollapseToLeaf(int rid, float value) {
+  inline void CollapseToLeaf(int rid, bst_float value) {
     if (nodes[rid].is_leaf()) return;
     if (!nodes[nodes[rid].cleft() ].is_leaf()) {
       CollapseToLeaf(nodes[rid].cleft(), 0.0f);
@@ -338,7 +338,7 @@ class TreeModel {
   }
   /*!
    * \brief add child nodes to node
-   * \param nid node id to add childs
+   * \param nid node id to add children to
    */
   inline void AddChilds(int nid) {
     int pleft  = this->AllocNode();
@@ -398,11 +398,11 @@ class TreeModel {
 /*! \brief node statistics used in regression tree */
 struct RTreeNodeStat {
   /*! \brief loss change caused by current split */
-  float loss_chg;
+  bst_float loss_chg;
   /*! \brief sum of hessian values, used to measure coverage of data */
-  float sum_hess;
+  bst_float sum_hess;
   /*! \brief weight of current node */
-  float base_weight;
+  bst_float base_weight;
   /*! \brief number of child that is leaf node known up to now */
   int leaf_child_cnt;
 };
@@ -426,20 +426,25 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
     inline void Init(size_t size);
     /*!
      * \brief fill the vector with sparse vector
-     * \param inst The sparse instance to fil.
+     * \param inst The sparse instance to fill.
      */
     inline void Fill(const RowBatch::Inst& inst);
     /*!
      * \brief drop the trace after fill, must be called after fill.
-     * \param inst The sparse instanc to drop.
+     * \param inst The sparse instance to drop.
      */
     inline void Drop(const RowBatch::Inst& inst);
+    /*!
+     * \brief returns the size of the feature vector
+     * \return the size of the feature vector
+     */
+    inline size_t size() const;
     /*!
      * \brief get ith value
      * \param i feature index.
      * \return the i-th feature value
      */
-    inline float fvalue(size_t i) const;
+    inline bst_float fvalue(size_t i) const;
     /*!
      * \brief check whether i-th entry is missing
      * \param i feature index.
@@ -453,7 +458,7 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
      *  when flag == -1, this indicate the value is missing
      */
     union Entry {
-      float fvalue;
+      bst_float fvalue;
       int flag;
     };
     std::vector<Entry> data;
@@ -471,21 +476,41 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    * \param root_id starting root index of the instance
    * \return the leaf index of the given feature
    */
-  inline float Predict(const FVec& feat, unsigned root_id = 0) const;
+  inline bst_float Predict(const FVec& feat, unsigned root_id = 0) const;
+  /*!
+   * \brief calculate the feature contributions for the given root
+   * \param feat dense feature vector, if the feature is missing the field is set to NaN
+   * \param root_id starting root index of the instance
+   * \param out_contribs output vector to hold the contributions
+   */
+  inline void CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+                                     bst_float *out_contribs) const;
   /*!
    * \brief get next position of the tree given current pid
    * \param pid Current node id.
    * \param fvalue feature value if not missing.
    * \param is_unknown Whether current required feature is missing.
    */
-  inline int GetNext(int pid, float fvalue, bool is_unknown) const;
+  inline int GetNext(int pid, bst_float fvalue, bool is_unknown) const;
   /*!
-   * \brief dump model to text string
-   * \param fmap feature map of feature types
+   * \brief dump the model in the requested format as a text string
+   * \param fmap feature map that may help give interpretations of feature
    * \param with_stats whether dump out statistics as well
+   * \param format the format to dump the model in
    * \return the string of dumped model
    */
-  std::string Dump2Text(const FeatureMap& fmap, bool with_stats) const;
+  std::string DumpModel(const FeatureMap& fmap,
+                        bool with_stats,
+                        std::string format) const;
+  /*!
+   * \brief calculate the mean value for each node, required for feature contributions
+   */
+  inline void FillNodeMeanValues();
+
+ private:
+  inline bst_float FillNodeMeanValue(int nid);
+
+  std::vector<bst_float> node_mean_values;
 };
 
 // implementations of inline functions
@@ -510,7 +535,11 @@ inline void RegTree::FVec::Drop(const RowBatch::Inst& inst) {
   }
 }
 
-inline float RegTree::FVec::fvalue(size_t i) const {
+inline size_t RegTree::FVec::size() const {
+  return data.size();
+}
+
+inline bst_float RegTree::FVec::fvalue(size_t i) const {
   return data[i].fvalue;
 }
 
@@ -527,14 +556,66 @@ inline int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) co
   return pid;
 }
 
-inline float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) const {
+inline bst_float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) const {
   int pid = this->GetLeafIndex(feat, root_id);
   return (*this)[pid].leaf_value();
 }
 
+inline void RegTree::FillNodeMeanValues() {
+  size_t num_nodes = this->param.num_nodes;
+  if (this->node_mean_values.size() == num_nodes) {
+    return;
+  }
+  this->node_mean_values.resize(num_nodes);
+  for (int root_id = 0; root_id < param.num_roots; ++root_id) {
+    this->FillNodeMeanValue(root_id);
+  }
+}
+
+inline bst_float RegTree::FillNodeMeanValue(int nid) {
+  bst_float result;
+  auto& node = (*this)[nid];
+  if (node.is_leaf()) {
+    result = node.leaf_value();
+  } else {
+    result  = this->FillNodeMeanValue(node.cleft()) * this->stat(node.cleft()).sum_hess;
+    result += this->FillNodeMeanValue(node.cright()) * this->stat(node.cright()).sum_hess;
+    result /= this->stat(nid).sum_hess;
+  }
+  this->node_mean_values[nid] = result;
+  return result;
+}
+
+inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+                                            bst_float *out_contribs) const {
+  CHECK_GT(this->node_mean_values.size(), 0);
+  // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
+  bst_float node_value;
+  unsigned split_index;
+  int pid = static_cast<int>(root_id);
+  // update bias value
+  node_value = this->node_mean_values[pid];
+  out_contribs[feat.size()] += node_value;
+  if ((*this)[pid].is_leaf()) {
+    // nothing to do anymore
+    return;
+  }
+  while (!(*this)[pid].is_leaf()) {
+    split_index = (*this)[pid].split_index();
+    pid = this->GetNext(pid, feat.fvalue(split_index), feat.is_missing(split_index));
+    bst_float new_value = this->node_mean_values[pid];
+    // update feature weight
+    out_contribs[split_index] += new_value - node_value;
+    node_value = new_value;
+  }
+  bst_float leaf_value = (*this)[pid].leaf_value();
+  // update leaf feature weight
+  out_contribs[split_index] += leaf_value - node_value;
+}
+
 /*! \brief get next position of the tree given current pid */
-inline int RegTree::GetNext(int pid, float fvalue, bool is_unknown) const {
-  float split_value = (*this)[pid].split_cond();
+inline int RegTree::GetNext(int pid, bst_float fvalue, bool is_unknown) const {
+  bst_float split_value = (*this)[pid].split_cond();
   if (is_unknown) {
     return (*this)[pid].cdefault();
   } else {

@@ -1,17 +1,3 @@
----
-title: "Xgboost presentation"
-output:
-  rmarkdown::html_vignette:
-    css: vignette.css
-    number_sections: yes
-    toc: yes
-bibliography: xgboost.bib
-author: Tianqi Chen, Tong He, Michaël Benesty
-vignette: >
-  %\VignetteIndexEntry{Xgboost presentation}
-  %\VignetteEngine{knitr::rmarkdown}
-  \usepackage[utf8]{inputenc}
----
 
 XGBoost R Tutorial
 ==================
@@ -49,19 +35,26 @@ It has several features:
 ### Github version
 
 
-For up-to-date version (highly recommended), install from *Github*:
+For weekly updated version (highly recommended), install from *Github*:
 
 
 ```r
-devtools::install_git('git://github.com/dmlc/xgboost', subdir='R-package')
+install.packages("drat", repos="https://cran.rstudio.com")
+drat:::addRepo("dmlc")
+install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
 ```
 
-> *Windows* user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
+> *Windows* user will need to install [Rtools](http://cran.r-project.org/bin/windows/Rtools/) first.
 
-Cran version
-------------
+### CRAN version
 
-As of 2015-03-13, ‘xgboost’ was removed from the CRAN repository.
+
+The version 0.4-2 is on CRAN, and you can install it by:
+
+
+```r
+install.packages("xgboost")
+```
 
 Formerly available versions can be obtained from the CRAN [archive](http://cran.r-project.org/src/contrib/Archive/xgboost)
 
@@ -115,11 +108,16 @@ str(train)
 
 ```
 ## List of 2
-##  $ data :
-```
-
-```
-## Error in str.default(obj, ...): could not find function "is"
+##  $ data :Formal class 'dgCMatrix' [package "Matrix"] with 6 slots
+##   .. ..@ i       : int [1:143286] 2 6 8 11 18 20 21 24 28 32 ...
+##   .. ..@ p       : int [1:127] 0 369 372 3306 5845 6489 6513 8380 8384 10991 ...
+##   .. ..@ Dim     : int [1:2] 6513 126
+##   .. ..@ Dimnames:List of 2
+##   .. .. ..$ : NULL
+##   .. .. ..$ : chr [1:126] "cap-shape=bell" "cap-shape=conical" "cap-shape=convex" "cap-shape=flat" ...
+##   .. ..@ x       : num [1:143286] 1 1 1 1 1 1 1 1 1 1 ...
+##   .. ..@ factors : list()
+##  $ label: num [1:6513] 1 0 0 1 0 0 0 1 0 0 ...
 ```
 
 `label` is the outcome of our dataset meaning it is the binary *classification* we will try to predict.
@@ -206,7 +204,8 @@ bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth
 ```
 
 ```
-## Error in as.vector(data): no method for coercing this S4 class to a vector
+## [0]	train-error:0.046522
+## [1]	train-error:0.022263
 ```
 
 ##### xgb.DMatrix
@@ -254,9 +253,9 @@ bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, o
 ```
 
 ```
-## [11:43:20] ../..//amalgamation/../src/tree/updater_prune.cc:74: tree pruning end, 1 roots, 6 extra nodes, 0 pruned nodes, max_depth=2
+## [11:41:01] amalgamation/../src/tree/updater_prune.cc:74: tree pruning end, 1 roots, 6 extra nodes, 0 pruned nodes, max_depth=2
 ## [0]	train-error:0.046522
-## [11:43:20] ../..//amalgamation/../src/tree/updater_prune.cc:74: tree pruning end, 1 roots, 4 extra nodes, 0 pruned nodes, max_depth=2
+## [11:41:01] amalgamation/../src/tree/updater_prune.cc:74: tree pruning end, 1 roots, 4 extra nodes, 0 pruned nodes, max_depth=2
 ## [1]	train-error:0.022263
 ```
 
@@ -412,8 +411,8 @@ bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nthread = 2, nr
 ```
 
 ```
-## [0]	train-error:0.019499	train-logloss:0.176561	test-error:0.018001	test-logloss:0.173835
-## [1]	train-error:0.004760	train-logloss:0.068214	test-error:0.003104	test-logloss:0.065493
+## [0]	train-error:0.024720	train-logloss:0.184616	test-error:0.022967	test-logloss:0.184234
+## [1]	train-error:0.004146	train-logloss:0.069885	test-error:0.003724	test-logloss:0.068081
 ```
 
 In this specific case, *linear boosting* gets sligtly better performance metrics than decision trees based algorithm.
@@ -442,7 +441,7 @@ dtrain2 <- xgb.DMatrix("dtrain.buffer")
 ```
 
 ```
-## [11:43:20] 6513x126 matrix with 143286 entries loaded from dtrain.buffer
+## [11:41:01] 6513x126 matrix with 143286 entries loaded from dtrain.buffer
 ```
 
 ```r

@@ -16,6 +16,13 @@
 #include <cstring>
 #include <string>
 #include <utility>
+#include <memory>
+#include <functional>
+
+#if DMLC_ENABLE_STD_THREAD
+#include <dmlc/concurrency.h>
+#include <thread>
+#endif
 
 namespace xgboost {
 namespace data {
@@ -26,6 +33,8 @@ class SparsePage {
  public:
   /*! \brief Format of the sparse page. */
   class Format;
+  /*! \brief Writer to write the sparse page to files. */
+  class Writer;
   /*! \brief minimum index of all index, used as hint for compression. */
   bst_uint min_index;
   /*! \brief offset of the segments */
@@ -170,6 +179,53 @@ class SparsePage::Format {
    */
   static std::pair<std::string, std::string> DecideFormat(const std::string& cache_prefix);
 };
+
+#if DMLC_ENABLE_STD_THREAD
+/*!
+ * \brief A threaded writer to write sparse batch page to sharded files.
+ */
+class SparsePage::Writer {
+ public:
+  /*!
+   * \brief constructor
+   * \param name_shards name of shard files.
+   * \param format_shards format of each shard.
+   * \param extra_buffer_capacity Extra buffer capacity before block.
+   */
+  explicit Writer(
+      const std::vector<std::string>& name_shards,
+      const std::vector<std::string>& format_shards,
+      size_t extra_buffer_capacity);
+  /*! \brief destructor, will close the files automatically */
+  ~Writer();
+  /*!
+   * \brief Push a write job to the writer.
+   * This function won't block,
+   * writing is done by another thread inside writer.
+   * \param page The page to be written
+   */
+  void PushWrite(std::shared_ptr<SparsePage>&& page);
+  /*!
+   * \brief Allocate a page to store results.
+   *  This function can block when the writer is too slow and buffer pages
+   *  have not yet been recycled.
+   * \param out_page Used to store the allocated pages.
+   */
+  void Alloc(std::shared_ptr<SparsePage>* out_page);
+
+ private:
+  /*! \brief number of allocated pages */
+  size_t num_free_buffer_;
+  /*! \brief clock_pointer */
+  size_t clock_ptr_;
+  /*! \brief writer threads */
+  std::vector<std::unique_ptr<std::thread> > workers_;
+  /*! \brief recycler queue */
+  dmlc::ConcurrentBlockingQueue<std::shared_ptr<SparsePage> > qrecycle_;
+  /*! \brief worker threads */
+  std::vector<dmlc::ConcurrentBlockingQueue<std::shared_ptr<SparsePage> > > qworkers_;
+};
+#endif  // DMLC_ENABLE_STD_THREAD
 
 /*!
  * \brief Registry entry for sparse page format.

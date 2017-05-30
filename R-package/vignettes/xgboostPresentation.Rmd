@@ -49,20 +49,26 @@ It has several features:
 ### Github version
 
 
-For up-to-date version (highly recommended), install from *Github*:
+For weekly updated version (highly recommended), install from *Github*:
 
 ```{r installGithub, eval=FALSE}
-devtools::install_git('git://github.com/dmlc/xgboost', subdir='R-package')
+install.packages("drat", repos="https://cran.rstudio.com")
+drat:::addRepo("dmlc")
+install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
 ```
 
-> *Windows* user will need to install [RTools](http://cran.r-project.org/bin/windows/Rtools/) first.
+> *Windows* user will need to install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) first.
 
-Cran version
-------------
+### CRAN version
 
-As of 2015-03-13, ‘xgboost’ was removed from the CRAN repository.
 
-Formerly available versions can be obtained from the CRAN [archive](http://cran.r-project.org/src/contrib/Archive/xgboost)
+The version 0.4-2 is on CRAN, and you can install it by:
+
+```{r, eval=FALSE}
+install.packages("xgboost")
+```
+
+Formerly available versions can be obtained from the CRAN [archive](https://cran.r-project.org/src/contrib/Archive/xgboost)
 
 ## Learning
 
@@ -101,7 +107,7 @@ train <- agaricus.train
 test <- agaricus.test
 ```
 
-> In the real world, it would be up to you to make this division between `train` and `test` data. The way to do it is out of the purpose of this article, however `caret` package may [help](http://topepo.github.io/caret/splitting.html).
+> In the real world, it would be up to you to make this division between `train` and `test` data. The way to do it is out of the purpose of this article, however `caret` package may [help](http://topepo.github.io/caret/data-splitting.html).
 
 Each variable is a `list` containing two things, `label` and `data`:
 
@@ -141,12 +147,12 @@ In a *sparse* matrix, cells containing `0` are not stored in memory. Therefore, 
 We will train decision tree model using the following parameters:
 
 * `objective = "binary:logistic"`: we will train a binary classification model ;
-* `max.deph = 2`: the trees won't be deep, because our case is very simple ;
+* `max_depth = 2`: the trees won't be deep, because our case is very simple ;
 * `nthread = 2`: the number of cpu threads we are going to use;
-* `nround = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
+* `nrounds = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
 
 ```{r trainingSparse, message=F, warning=F}
-bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+bstSparse <- xgboost(data = train$data, label = train$label, max_depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 ```
 
 > More complex the relationship between your features and your `label` is, more passes you need.
@@ -158,7 +164,7 @@ bstSparse <- xgboost(data = train$data, label = train$label, max.depth = 2, eta 
 Alternatively, you can put your dataset in a *dense* matrix, i.e. a basic **R** matrix.
 
 ```{r trainingDense, message=F, warning=F}
-bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max_depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 ```
 
 ##### xgb.DMatrix
@@ -167,7 +173,7 @@ bstDense <- xgboost(data = as.matrix(train$data), label = train$label, max.depth
 
 ```{r trainingDmatrix, message=F, warning=F}
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
-bstDMatrix <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic")
+bstDMatrix <- xgboost(data = dtrain, max_depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 ```
 
 ##### Verbose option
@@ -178,17 +184,17 @@ One of the simplest way to see the training progress is to set the `verbose` opt
 
 ```{r trainingVerbose0, message=T, warning=F}
 # verbose = 0, no message
-bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic", verbose = 0)
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic", verbose = 0)
 ```
 
 ```{r trainingVerbose1, message=T, warning=F}
 # verbose = 1, print evaluation metric
-bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic", verbose = 1)
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic", verbose = 1)
 ```
 
 ```{r trainingVerbose2, message=T, warning=F}
 # verbose = 2, also print information about tree
-bst <- xgboost(data = dtrain, max.depth = 2, eta = 1, nthread = 2, nround = 2, objective = "binary:logistic", verbose = 2)
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic", verbose = 2)
 ```
 
 ## Basic prediction using XGBoost
@@ -281,22 +287,22 @@ For the purpose of this example, we use `watchlist` parameter. It is a list of `
 ```{r watchlist, message=F, warning=F}
 watchlist <- list(train=dtrain, test=dtest)
 
-bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nround=2, watchlist=watchlist, objective = "binary:logistic")
+bst <- xgb.train(data=dtrain, max_depth=2, eta=1, nthread = 2, nrounds=2, watchlist=watchlist, objective = "binary:logistic")
 ```
 
-**XGBoost** has computed at each round the same average error metric than seen above (we set `nround` to 2, that is why we have two lines). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset.
+**XGBoost** has computed at each round the same average error metric than seen above (we set `nrounds` to 2, that is why we have two lines). Obviously, the `train-error` number is related to the training dataset (the one the algorithm learns from) and the `test-error` number to the test dataset.
 
 Both training and test error related metrics are very similar, and in some way, it makes sense: what we have learned from the training dataset matches the observations from the test dataset.
 
-If with your own dataset you have not such results, you should think about how you divided your dataset in training and test. May be there is something to fix. Again, `caret` package may [help](http://topepo.github.io/caret/splitting.html).
+If with your own dataset you have not such results, you should think about how you divided your dataset in training and test. May be there is something to fix. Again, `caret` package may [help](http://topepo.github.io/caret/data-splitting.html).
 
 For a better understanding of the learning progression, you may want to have some specific metric or even use multiple evaluation metrics.
 
 ```{r watchlist2, message=F, warning=F}
-bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
+bst <- xgb.train(data=dtrain, max_depth=2, eta=1, nthread = 2, nrounds=2, watchlist=watchlist, eval_metric = "error", eval_metric = "logloss", objective = "binary:logistic")
 ```
 
-> `eval.metric` allows us to monitor two new metrics for each round, `logloss` and `error`.
+> `eval_metric` allows us to monitor two new metrics for each round, `logloss` and `error`.
 
 ### Linear boosting
 
@@ -304,7 +310,7 @@ bst <- xgb.train(data=dtrain, max.depth=2, eta=1, nthread = 2, nround=2, watchli
 Until now, all the learnings we have performed were based on boosting trees. **XGBoost** implements a second algorithm, based on linear boosting. The only difference with previous command is `booster = "gblinear"` parameter (and removing `eta` parameter).
 
 ```{r linearBoosting, message=F, warning=F}
-bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nthread = 2, nround=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
+bst <- xgb.train(data=dtrain, booster = "gblinear", max_depth=2, nthread = 2, nrounds=2, watchlist=watchlist, eval_metric = "error", eval_metric = "logloss", objective = "binary:logistic")
 ```
 
 In this specific case, *linear boosting* gets sligtly better performance metrics than decision trees based algorithm.
@@ -322,7 +328,7 @@ Like saving models, `xgb.DMatrix` object (which groups both dataset and outcome)
 xgb.DMatrix.save(dtrain, "dtrain.buffer")
 # to load it in, simply call xgb.DMatrix
 dtrain2 <- xgb.DMatrix("dtrain.buffer")
-bst <- xgb.train(data=dtrain2, max.depth=2, eta=1, nthread = 2, nround=2, watchlist=watchlist, objective = "binary:logistic")
+bst <- xgb.train(data=dtrain2, max_depth=2, eta=1, nthread = 2, nrounds=2, watchlist=watchlist, objective = "binary:logistic")
 ```
 
 ```{r DMatrixDel, include=FALSE}
@@ -357,7 +363,7 @@ xgb.plot.importance(importance_matrix = importance_matrix)
 You can dump the tree you learned using `xgb.dump` into a text file.
 
 ```{r dump, message=T, warning=F}
-xgb.dump(bst, with.stats = T)
+xgb.dump(bst, with_stats = T)
 ```
 
 You can plot the trees from your model using ```xgb.plot.tree``

@@ -11,8 +11,8 @@ watchlist <- list(eval = dtest, train = dtrain)
 #
 print('start running example to start from a initial prediction')
 # train xgboost for 1 round
-param <- list(max.depth=2,eta=1,nthread = 2, silent=1,objective='binary:logistic')
-bst <- xgb.train( param, dtrain, 1, watchlist )
+param <- list(max_depth=2, eta=1, nthread = 2, silent=1, objective='binary:logistic')
+bst <- xgb.train(param, dtrain, 1, watchlist)
 # Note: we need the margin value instead of transformed prediction in set_base_margin
 # do predict with output_margin=TRUE, will always give you margin values before logistic transformation
 ptrain <- predict(bst, dtrain, outputmargin=TRUE)

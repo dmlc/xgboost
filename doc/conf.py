@@ -35,7 +35,7 @@ for mod_name in MOCK_MODULES:
 # General information about the project.
 project = u'xgboost'
 author = u'%s developers' % project
-copyright = u'2015, %s' % author
+copyright = u'2016, %s' % author
 github_doc_root = 'https://github.com/dmlc/xgboost/tree/master/doc/'
 
 # add markdown parser
@@ -117,10 +117,11 @@ todo_include_todos = False
 
 # -- Options for HTML output ----------------------------------------------
 
+html_theme_path = ['_static']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 # html_theme = 'alabaster'
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'xgboost-theme'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
