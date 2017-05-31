@@ -45,7 +45,7 @@ class GPUMaker : public TreeUpdater {
  protected:
   // training parameter
   TrainParam param;
-  exact::GPUBuilder<short int> builder;
+  exact::GPUBuilder<int16_t> builder;
 };
 
 template <typename TStats>

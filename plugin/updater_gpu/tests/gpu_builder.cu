@@ -296,7 +296,7 @@ void testDense2Sparse() {
 }
 
 TEST(CudaGPUBuilderTest, Dense2SparseInt16) {
-  testDense2Sparse<short int>();
+  testDense2Sparse<int16_t>();
 }
 
 TEST(CudaGPUBuilderTest, Dense2SparseInt32) {
