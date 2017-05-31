@@ -62,10 +62,10 @@ void argMaxTest(ArgMaxByKeyAlgo algo) {
   scans[0] = gpu_gpair();
   vals[0] = 0.f;
   colIds[0] = 0;
-  for (int i=1;i<nVals;++i) {
+  for (int i = 1; i < nVals; ++i) {
     scans[i].g = scans[i-1].g + (0.1f * 2.f);
     scans[i].h = scans[i-1].h + (0.1f * 2.f);
-    vals[i] = (float)i * 0.1f;
+    vals[i] = static_cast<float>(i) * 0.1f;
     colIds[i] = 0;
   }
   float* dVals;
@@ -116,11 +116,11 @@ void argMaxTest(ArgMaxByKeyAlgo algo) {
 }
 
 TEST(ArgMaxByKey, testOneColGmem) {
-  argMaxTest<short int>(ABK_GMEM);
+  argMaxTest<int16_t>(ABK_GMEM);
 }
 
 TEST(ArgMaxByKey, testOneColSmem) {
-  argMaxTest<short int>(ABK_SMEM);
+  argMaxTest<int16_t>(ABK_SMEM);
 }
 
 }  // namespace exact

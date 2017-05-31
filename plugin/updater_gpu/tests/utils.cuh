@@ -206,14 +206,14 @@ protected:
 std::shared_ptr<DMatrix> generateData(const std::string& file);
 
 std::shared_ptr<DMatrix> preparePluginInputs(const std::string& file,
-                                             std::vector<bst_gpair>& gpair);
+                                             std::vector<bst_gpair> *gpair);
 
 template <typename node_id_t>
 std::shared_ptr<DMatrix> setupGPUBuilder(const std::string& file,
-                                         GPUBuilder<node_id_t>& builder,
+                                         GPUBuilder<node_id_t> &builder,
                                          int max_depth=1) {
   std::vector<bst_gpair> gpair;
-  std::shared_ptr<DMatrix> dm = preparePluginInputs(file, gpair);
+  std::shared_ptr<DMatrix> dm = preparePluginInputs(file, &gpair);
   TrainParam p;
   RegTree tree;
   p.min_split_loss = 0.f;

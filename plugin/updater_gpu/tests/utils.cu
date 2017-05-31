@@ -25,12 +25,13 @@ std::shared_ptr<DMatrix> generateData(const std::string& file) {
   return data;
 }
 
-std::shared_ptr<DMatrix> preparePluginInputs(const std::string& file,
-                                             std::vector<bst_gpair>& gpair) {
+std::shared_ptr<DMatrix> preparePluginInputs(const std::string &file,
+                                             std::vector<bst_gpair> *gpair) {
   std::shared_ptr<DMatrix> dm = generateData(file);
-  gpair.reserve(dm->info().num_row);
-  for (int i=0;i<dm->info().num_row;++i) {
-    gpair.push_back(bst_gpair(1.f+(float)(i%10), 0.5f+(float)(i%10)));
+  gpair->reserve(dm->info().num_row);
+  for (int i = 0; i < dm->info().num_row; ++i) {
+    gpair->push_back(bst_gpair(1.f+static_cast<float>(i%10),
+                               0.5f+static_cast<float>(i%10)));
   }
   return dm;
 }

@@ -40,7 +40,7 @@ void testSmallData() {
   // column counts
   int* tmpOff = new int[builder.nCols+1];
   updateHostPtr<int>(tmpOff, builder.colOffsets.data(), builder.nCols+1);
-  for (int i=0;i<15;++i) {
+  for (int i = 0; i < 15; ++i) {
     EXPECT_EQ(smallColSizes[i], tmpOff[i+1]-tmpOff[i]);
   }
   float* tmpVal = new float[builder.nVals];
@@ -69,7 +69,7 @@ void testSmallData() {
   updateHostPtr<int>(colIds, builder.colIds.data(), builder.nVals);
   std::vector<int> colSizeCopy(smallColSizes);
   int colIdxCurr = 0;
-  for (int i=0;i<builder.nVals;++i) {
+  for (int i = 0; i < builder.nVals; ++i) {
     while (colSizeCopy[colIdxCurr] == 0) {
       ++colIdxCurr;
     }
@@ -80,7 +80,7 @@ void testSmallData() {
 }
 
 TEST(CudaGPUBuilderTest, SetupOneTimeDataSmallInt16) {
-  testSmallData<short int>();
+  testSmallData<int16_t>();
 }
 
 TEST(CudaGPUBuilderTest, SetupOneTimeDataSmallInt32) {
@@ -99,9 +99,9 @@ void testLargeData() {
   ASSERT_TRUE(builder.allocated);
   int* tmpOff = new int[builder.nCols+1];
   updateHostPtr<int>(tmpOff, builder.colOffsets.data(), builder.nCols+1);
-  EXPECT_EQ(0, tmpOff[1]-tmpOff[0]); // 1st col
-  EXPECT_EQ(83, tmpOff[2]-tmpOff[1]); // 2nd col
-  EXPECT_EQ(1, tmpOff[3]-tmpOff[2]); // 3rd col
+  EXPECT_EQ(0, tmpOff[1]-tmpOff[0]);   // 1st col
+  EXPECT_EQ(83, tmpOff[2]-tmpOff[1]);  // 2nd col
+  EXPECT_EQ(1, tmpOff[3]-tmpOff[2]);   // 3rd col
   float* tmpVal = new float[builder.nVals];
   updateHostPtr<float>(tmpVal, builder.vals.current(), builder.nVals);
   int* tmpInst = new int[builder.nVals];
@@ -129,7 +129,7 @@ void testLargeData() {
 }
 
 TEST(CudaGPUBuilderTest, SetupOneTimeDataLargeInt16) {
-  testLargeData<short int>();
+  testLargeData<int16_t>();
 }
 
 TEST(CudaGPUBuilderTest, SetupOneTimeDataLargeInt32) {
@@ -137,7 +137,7 @@ TEST(CudaGPUBuilderTest, SetupOneTimeDataLargeInt32) {
 }
 
 int getColId(int* offsets, int id, int nCols) {
-  for (int i=1;i<=nCols;++i) {
+  for (int i = 1; i <= nCols; ++i) {
     if (id < offsets[i]) {
       return (i-1);
     }
@@ -155,7 +155,7 @@ void testAllocate() {
   ASSERT_EQ(2, builder.maxLeaves);
   Node<node_id_t>* n = new Node<node_id_t>[builder.maxNodes];
   updateHostPtr<Node<node_id_t> >(n, builder.nodes.data(), builder.maxNodes);
-  for (int i=0;i<builder.maxNodes;++i) {
+  for (int i = 0; i < builder.maxNodes; ++i) {
     if (i == 0) {
       EXPECT_FALSE(n[i].isLeaf());
       EXPECT_FALSE(n[i].isUnused());
@@ -167,7 +167,7 @@ void testAllocate() {
   gpu_gpair sum;
   sum.g = 0.f;
   sum.h = 0.f;
-  for (int i=0;i<builder.maxNodes;++i) {
+  for (int i = 0; i < builder.maxNodes; ++i) {
     if (!n[i].isUnused()) {
       sum += n[i].gradSum;
     }
@@ -180,7 +180,7 @@ void testAllocate() {
   updateHostPtr<node_id_t>(assigns, builder.nodeAssigns.current(),
                            builder.nVals);
   updateHostPtr<int>(offsets, builder.colOffsets.data(), builder.nCols+1);
-  for (int i=0;i<builder.nVals;++i) {
+  for (int i = 0; i < builder.nVals; ++i) {
     EXPECT_EQ((node_id_t)0, assigns[i]);
   }
   delete [] n;
@@ -189,7 +189,7 @@ void testAllocate() {
 }
 
 TEST(CudaGPUBuilderTest, AllocateNodeDataInt16) {
-  testAllocate<short int>();
+  testAllocate<int16_t>();
 }
 
 TEST(CudaGPUBuilderTest, AllocateNodeDataInt32) {
@@ -197,16 +197,16 @@ TEST(CudaGPUBuilderTest, AllocateNodeDataInt32) {
 }
 
 template <typename node_id_t>
-void assign(Node<node_id_t>& n, float g, float h, float sc, float wt,
+void assign(Node<node_id_t> *n, float g, float h, float sc, float wt,
             DefaultDirection d, float th, int c, int i) {
-  n.gradSum.g = g;
-  n.gradSum.h = h;
-  n.score = sc;
-  n.weight = wt;
-  n.dir = d;
-  n.threshold = th;
-  n.colIdx = c;
-  n.id = (node_id_t)i;
+  n->gradSum.g = g;
+  n->gradSum.h = h;
+  n->score = sc;
+  n->weight = wt;
+  n->dir = d;
+  n->threshold = th;
+  n->colIdx = c;
+  n->id = (node_id_t)i;
 }
 
 template <typename node_id_t>
@@ -218,13 +218,13 @@ void testMarkLeaves() {
   ASSERT_EQ(15, builder.maxNodes);
   ASSERT_EQ(8, builder.maxLeaves);
   Node<node_id_t>* hNodes = new Node<node_id_t>[builder.maxNodes];
-  assign<node_id_t>(hNodes[0], 2.f, 1.f, .75f, 0.5f, LeftDir, 0.25f, 0, 0);
-  assign<node_id_t>(hNodes[1], 2.f, 1.f, .75f, 0.5f, RightDir, 0.5f, 1, 1);
-  assign<node_id_t>(hNodes[2], 2.f, 1.f, .75f, 0.5f, LeftDir, 0.75f, 2, 2);
-  assign<node_id_t>(hNodes[3], 2.f, 1.f, .75f, 0.5f, RightDir, 1.f, 3, 3);
-  assign<node_id_t>(hNodes[4], 2.f, 1.f, .75f, 0.5f, LeftDir, 1.25f, 4, 4);
+  assign<node_id_t>(&hNodes[0], 2.f, 1.f, .75f, 0.5f, LeftDir, 0.25f, 0, 0);
+  assign<node_id_t>(&hNodes[1], 2.f, 1.f, .75f, 0.5f, RightDir, 0.5f, 1, 1);
+  assign<node_id_t>(&hNodes[2], 2.f, 1.f, .75f, 0.5f, LeftDir, 0.75f, 2, 2);
+  assign<node_id_t>(&hNodes[3], 2.f, 1.f, .75f, 0.5f, RightDir, 1.f, 3, 3);
+  assign<node_id_t>(&hNodes[4], 2.f, 1.f, .75f, 0.5f, LeftDir, 1.25f, 4, 4);
   hNodes[5] = Node<node_id_t>();
-  assign<node_id_t>(hNodes[6], 2.f, 1.f, .75f, 0.5f, LeftDir, 1.75f, 6, 6);
+  assign<node_id_t>(&hNodes[6], 2.f, 1.f, .75f, 0.5f, LeftDir, 1.75f, 6, 6);
   hNodes[7] = Node<node_id_t>();
   hNodes[8] = Node<node_id_t>();
   hNodes[9] = Node<node_id_t>();
@@ -237,14 +237,14 @@ void testMarkLeaves() {
   builder.markLeaves();
   Node<node_id_t>* outNodes = new Node<node_id_t>[builder.maxNodes];
   updateHostPtr<Node<node_id_t> >(outNodes, builder.nodes.data(), builder.maxNodes);
-  for (int i=0;i<builder.maxNodes;++i) {
+  for (int i = 0; i < builder.maxNodes; ++i) {
     if ((i >= 7) || (i == 5)) {
       EXPECT_TRUE(outNodes[i].isUnused());
     } else {
       EXPECT_FALSE(outNodes[i].isUnused());
     }
   }
-  for (int i=0;i<builder.maxNodes;++i) {
+  for (int i = 0; i < builder.maxNodes; ++i) {
     if ((i == 3) || (i == 4) || (i == 6)) {
       EXPECT_TRUE(outNodes[i].isLeaf());
     } else {
@@ -256,7 +256,7 @@ void testMarkLeaves() {
 }
 
 TEST(CudaGPUBuilderTest, MarkLeavesInt16) {
-  testMarkLeaves<short int>();
+  testMarkLeaves<int16_t>();
 }
 
 TEST(CudaGPUBuilderTest, MarkLeavesInt32) {
@@ -272,14 +272,14 @@ void testDense2Sparse() {
   ASSERT_EQ(15, builder.maxNodes);
   ASSERT_EQ(8, builder.maxLeaves);
   Node<node_id_t>* hNodes = new Node<node_id_t>[builder.maxNodes];
-  assign<node_id_t>(hNodes[0], 2.f, 1.f, .75f, 0.5f, LeftDir, 0.25f, 0, 0);
-  assign<node_id_t>(hNodes[1], 2.f, 1.f, .75f, 0.5f, RightDir, 0.5f, 1, 1);
-  assign<node_id_t>(hNodes[2], 2.f, 1.f, .75f, 0.5f, LeftDir, 0.75f, 2, 2);
-  assign<node_id_t>(hNodes[3], 2.f, 1.f, .75f, 0.5f, RightDir, 1.f, 3, 3);
-  assign<node_id_t>(hNodes[4], 2.f, 1.f, .75f, 0.5f, LeftDir, 1.25f, 4, 4);
+  assign<node_id_t>(&hNodes[0], 2.f, 1.f, .75f, 0.5f, LeftDir, 0.25f, 0, 0);
+  assign<node_id_t>(&hNodes[1], 2.f, 1.f, .75f, 0.5f, RightDir, 0.5f, 1, 1);
+  assign<node_id_t>(&hNodes[2], 2.f, 1.f, .75f, 0.5f, LeftDir, 0.75f, 2, 2);
+  assign<node_id_t>(&hNodes[3], 2.f, 1.f, .75f, 0.5f, RightDir, 1.f, 3, 3);
+  assign<node_id_t>(&hNodes[4], 2.f, 1.f, .75f, 0.5f, LeftDir, 1.25f, 4, 4);
   hNodes[5] = Node<node_id_t>();
-  assign<node_id_t>(hNodes[6], 2.f, 1.f, .75f, 0.5f, LeftDir, 1.75f, 6, 6);
-  assign<node_id_t>(hNodes[7], 2.f, 1.f, .75f, 0.5f, LeftDir, 1.75f, 7, 7);
+  assign<node_id_t>(&hNodes[6], 2.f, 1.f, .75f, 0.5f, LeftDir, 1.75f, 6, 6);
+  assign<node_id_t>(&hNodes[7], 2.f, 1.f, .75f, 0.5f, LeftDir, 1.75f, 7, 7);
   hNodes[8] = Node<node_id_t>();
   hNodes[9] = Node<node_id_t>();
   hNodes[10] = Node<node_id_t>();

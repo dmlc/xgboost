@@ -3,9 +3,9 @@
  */
 #include <xgboost/tree_updater.h>
 #include <vector>
-#include "../../src/common/random.h"
-#include "../../src/common/sync.h"
-#include "../../src/tree/param.h"
+#include "../../../src/common/random.h"
+#include "../../../src/common/sync.h"
+#include "../../../src/tree/param.h"
 #include "exact/gpu_builder.cuh"
 #include "gpu_hist_builder.cuh"
 

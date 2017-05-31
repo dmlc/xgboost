@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include "../../../src/tree/param.h"
+#include "../../../../src/tree/param.h"
 #include "../common.cuh"
 #include "node.cuh"
 #include "loss_functions.cuh"

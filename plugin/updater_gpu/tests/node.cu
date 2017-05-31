@@ -32,7 +32,7 @@ TEST(Split, Test) {
 }
 
 TEST(Node, Test) {
-  Node<short int> n;
+  Node<int16_t> n;
   EXPECT_TRUE(n.isUnused());
   EXPECT_FALSE(n.isLeaf());
   EXPECT_TRUE(n.isDefaultLeft());

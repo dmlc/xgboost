@@ -54,7 +54,7 @@ TEST_COVER = 0
 
 # path to gtest library (only used when $BUILD_TEST=1)
 # there should be an include path in $GTEST_PATH/include and library in $GTEST_PATH/lib
-GTEST_PATH ?= googletest/googletest
+GTEST_PATH ?= 
 
 # path to cub library (only used when $CUDA_ENABLED=1)
 # this should point to the cub project root folder

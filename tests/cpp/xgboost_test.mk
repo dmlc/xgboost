@@ -5,10 +5,6 @@ UNITTEST=$(UTEST_ROOT)/xgboost_test
 UNITTEST_SRC=$(wildcard $(UTEST_ROOT)/*.cc $(UTEST_ROOT)/*/*.cc)
 UNITTEST_OBJ=$(patsubst $(UTEST_ROOT)%.cc, $(UTEST_OBJ_ROOT)%.o, $(UNITTEST_SRC))
 
-# compile googletest source files as well
-UNITTEST_GTEST_SRC = $(GTEST_PATH)/src/gtest-all.cc
-UNITTEST_OBJ += $(patsubst %.cc, $(UTEST_OBJ_ROOT)/%.o, $(UNITTEST_GTEST_SRC))
-
 # for if and when we add cuda source files into xgboost core
 UNITTEST_CU_SRC=$(wildcard $(UTEST_ROOT)/*.cu $(UTEST_ROOT)/*/*.cu)
 UNITTEST_OBJ += $(patsubst $(UTEST_ROOT)%.cu, $(UTEST_OBJ_ROOT)%.o, $(UNITTEST_CU_SRC))
@@ -24,7 +20,7 @@ GTEST_LIB=$(GTEST_PATH)/lib/
 GTEST_INC=$(GTEST_PATH)/include/
 
 UNITTEST_CFLAGS=$(CFLAGS)
-UNITTEST_LDFLAGS=$(LDFLAGS)
+UNITTEST_LDFLAGS=$(LDFLAGS) -L$(GTEST_LIB) -lgtest
 UNITTEST_DEPS=lib/libxgboost.a $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
 
 COVER_OBJ=$(patsubst %.o, %.gcda, $(ALL_OBJ)) $(patsubst %.o, %.gcda, $(UNITTEST_OBJ))

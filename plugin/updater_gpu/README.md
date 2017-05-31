@@ -91,15 +91,10 @@ Now, some of the code-base inside gpu plugins have googletest unit-tests inside 
 They can be enabled run along with other unit-tests inside '<xgboostRoot>/tests/cpp' using:
 ```bash
 # make sure CUDA SDK bin directory is in the 'PATH' env variable
-$ make PLUGIN_UPDATER_GPU=ON test
-```
-
-There's also a handy makefile to verify all of these builds and unit-tests. (currently only verified to work on linux)
-The test system should have CUDA SDK installed already for this purpose.
-```bash
-# make sure CUDA SDK bin directory is in the 'PATH' env variable
-$ cd <xgboostRoot>
-$ make -f make/check_all_builds.sh
+# below 2 commands need only be executed once
+$ source ./dmlc-core/scripts/travis/travis_setup_env.sh
+$ make -f dmlc-core/scripts/packages.mk gtest
+$ make PLUGIN_UPDATER_GPU=ON GTEST_PATH=${CACHE_PREFIX} test
 ```
 
 ## Changelog

@@ -36,13 +36,13 @@ class ReduceScanByKey: public Generator<node_id_t> {
     hScans = new gpu_gpair[outSize];
     allocateOnGpu<gpu_gpair>(dScans, outSize);
     gpu_gpair* buckets = new gpu_gpair[nSegments];
-    for (int i=0;i<nSegments;i++) {
+    for (int i = 0; i < nSegments; i++) {
       buckets[i] = gpu_gpair();
     }
-    for (int i=0;i<nSegments;i++) {
+    for (int i = 0; i < nSegments; i++) {
       hSums[i] = gpu_gpair();
     }
-    for (size_t i=0;i<this->size;i++) {
+    for (size_t i = 0; i < this->size; i++) {
       if (this->hKeys[i] >= 0 && this->hKeys[i] < nSegments) {
         node_id_t key = abs2uniqKey<node_id_t>(i, this->hKeys,
                                                this->hColIds, 0,
@@ -50,7 +50,7 @@ class ReduceScanByKey: public Generator<node_id_t> {
         hSums[key] += this->hVals[i];
       }
     }
-    for (int i=0;i<this->size;++i) {
+    for (int i = 0; i < this->size; ++i) {
       node_id_t key = abs2uniqKey<node_id_t>(i, this->hKeys,
                                              this->hColIds, 0,
                                              this->nKeys);
@@ -61,7 +61,7 @@ class ReduceScanByKey: public Generator<node_id_t> {
     // are nicely aligned! (need not be the case in real datasets)
     hOffsets = new int[this->nCols];
     size_t off = 0;
-    for (int i=0;i<this->nCols;++i,off+=this->nRows) {
+    for (int i = 0; i < this->nCols; ++i, off+=this->nRows) {
       hOffsets[i] = off;
     }
     allocateAndUpdateOnGpu<int>(dOffsets, hOffsets, this->nCols);
@@ -90,7 +90,7 @@ class ReduceScanByKey: public Generator<node_id_t> {
     dh::safe_cuda(cudaFree(tmpScans));
     dh::safe_cuda(cudaFree(tmpKeys));
     this->compare(hSums, dSums, nSegments);
-    this->compare(hScans, dScans, outSize);     
+    this->compare(hScans, dScans, outSize);
   }
 
  private:
@@ -105,7 +105,7 @@ class ReduceScanByKey: public Generator<node_id_t> {
 };
 
 TEST(ReduceScanByKey, testInt16) {
-  ReduceScanByKey<short int>(32, 512, 32, "ReduceScanByKey").run();
+  ReduceScanByKey<int16_t>(32, 512, 32, "ReduceScanByKey").run();
 }
 
 TEST(ReduceScanByKey, testInt32) {

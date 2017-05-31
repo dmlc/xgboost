@@ -93,15 +93,17 @@ endif
 # for using GPUs
 COMPUTE ?= 60 35
 NVCC = nvcc
-CUDA_ROOT = $(shell dirname $(shell dirname $(shell which $(NVCC))))
 INCLUDES = -Iinclude -I$(DMLC_CORE)/include -I$(RABIT)/include
-INCLUDES += $(if $(CUDA_ROOT),-I$(CUDA_ROOT)/include,)
 INCLUDES += -I$(CUB_PATH)
 INCLUDES += -I$(GTEST_PATH)/include
 CODE = $(foreach ver,$(COMPUTE),-gencode arch=compute_$(ver),code=sm_$(ver))
 NVCC_FLAGS = --std=c++11 $(CODE) $(INCLUDES) -lineinfo --expt-extended-lambda
 NVCC_FLAGS += -Xcompiler=$(OPENMP_OPTION) -Xcompiler=-fPIC
-LDFLAGS += $(if $(CUDA_ROOT),-L$(CUDA_ROOT)/lib64 -lcudart,)
+ifeq ($(PLUGIN_UPDATER_GPU),ON)
+  CUDA_ROOT = $(shell dirname $(shell dirname $(shell which $(NVCC))))
+  INCLUDES += -I$(CUDA_ROOT)/include
+  LDFLAGS += -L$(CUDA_ROOT)/lib64 -lcudart
+endif
 
 # specify tensor path
 .PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck java pylint
