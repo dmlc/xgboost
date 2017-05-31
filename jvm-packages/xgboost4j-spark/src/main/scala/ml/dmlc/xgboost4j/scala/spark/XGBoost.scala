@@ -97,6 +97,27 @@ object XGBoost extends Serializable {
     }
   }
 
+  private def repartitionDataWithoutWeight(trainingData: RDD[(String, MLLabeledPoint)],
+      numWorkers: Int):
+      RDD[(String, MLLabeledPoint)] = {
+    if (numWorkers != trainingData.partitions.length) {
+      logger.info(s"repartitioning training set to $numWorkers partitions")
+      trainingData.repartition(numWorkers)
+    } else {
+      trainingData
+    }
+  }
+
+  private def repartitionDataWithWeight(trainingData: RDD[(String, Float, MLLabeledPoint)],
+      numWorkers: Int):
+      RDD[(String, Float, MLLabeledPoint)] = {
+    if (numWorkers != trainingData.partitions.length) {
+      logger.info(s"repartitioning training set to $numWorkers partitions")
+      trainingData.repartition(numWorkers)
+    } else {
+      trainingData
+    }
+  }
   private[spark] def buildDistributedBoosters(
       trainingSet: RDD[MLLabeledPoint],
       xgBoostConfMap: Map[String, Any],
@@ -143,6 +164,154 @@ object XGBoost extends Serializable {
     }.cache()
   }
 
+  private[spark] def buildDistributedBoostersWithoutWeight(
+      trainingSet: RDD[MLLabeledPoint],
+      validationSet: RDD[MLLabeledPoint],
+      xgBoostConfMap: Map[String, Any],
+      rabitEnv: java.util.Map[String, String],
+      numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
+      useExternalMemory: Boolean, missing: Float = Float.NaN): RDD[Booster] = {
+    import DataUtils._
+    val trainingSet1 = trainingSet.map{ x => ("train", x) }
+    val trainingSet2 = validationSet.map{ x => ("validation", x) }
+    val trainingSetNew = trainingSet1.union(trainingSet2)
+    val partitionedTrainingSet = repartitionDataWithoutWeight(trainingSetNew, numWorkers)
+    val appName = partitionedTrainingSet.context.appName
+    // to workaround the empty partitions in training dataset,
+    // this might not be the best efficient implementation, see
+    // (https://github.com/dmlc/xgboost/issues/1277)
+    partitionedTrainingSet.mapPartitions {
+      dataSamples =>
+        val (dataSamples1, dataSamples2) = dataSamples.duplicate
+        val trainingSamples = dataSamples1.
+          filter(x => x._1 =="train").map(x => x._2)
+        val validationSamples = dataSamples2.
+          filter(x => x._1 =="validation").map(x => x._2)
+        rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
+        Rabit.init(rabitEnv)
+        var booster: Booster = null
+        if (trainingSamples.hasNext) {
+          val cacheFileName: String = {
+            if (useExternalMemory) {
+              s"$appName-${TaskContext.get().stageId()}-" +
+                s"dtrain_cache-${TaskContext.getPartitionId()}"
+            } else {
+              null
+            }
+          }
+          val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
+          val trainingSet = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
+          if (xgBoostConfMap.contains("groupData") && xgBoostConfMap("groupData") != null) {
+            trainingSet.setGroup(xgBoostConfMap("groupData").asInstanceOf[Seq[Seq[Int]]](
+                TaskContext.getPartitionId()).toArray)
+          }
+          val watches = new mutable.HashMap[String, DMatrix]()
+          logger.info(s"trainingSamples")
+          watches += "train" -> trainingSet
+          if (validationSamples.hasNext) {
+            val cacheFileNameV: String = {
+              if (useExternalMemory) {
+                s"$appName-${TaskContext.get().stageId()}-" +
+                  s"dvalid_cache-${TaskContext.getPartitionId()}"
+              } else {
+                null
+              }
+            }
+            val partitionItrV = fromDenseToSparseLabeledPoints(validationSamples, missing)
+            val validationSet = new DMatrix(new JDMatrix(partitionItrV, cacheFileNameV))
+            if (xgBoostConfMap.contains("groupData") && xgBoostConfMap("groupData") != null) {
+            validationSet.setGroup(xgBoostConfMap("groupData").asInstanceOf[Seq[Seq[Int]]](
+                TaskContext.getPartitionId()).toArray)
+            }
+            logger.info(s"validationSamples")
+            watches += "validation" -> validationSet
+          }
+          booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
+            watches.toMap, obj, eval)
+          Rabit.shutdown()
+        } else {
+          Rabit.shutdown()
+          throw new XGBoostError(s"detect the empty partition in training dataset, partition ID:" +
+            s" ${TaskContext.getPartitionId().toString}")
+        }
+        Iterator(booster)
+    }.cache()
+  }
+
+
+  private[spark] def buildDistributedBoostersWithWeight(
+      trainingSet: RDD[(Float, MLLabeledPoint)],
+      validationSet: RDD[(Float, MLLabeledPoint)],
+      xgBoostConfMap: Map[String, Any],
+      rabitEnv: java.util.Map[String, String],
+      numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
+      useExternalMemory: Boolean, missing: Float = Float.NaN): RDD[Booster] = {
+    import DataUtils._
+    val trainingSet1 = trainingSet.map{ x => ("train", x._1, x._2) }
+    val trainingSet2 = validationSet.map{ x => ("validation", x._1, x._2) }
+    val trainingSetNew = trainingSet1.union(trainingSet2)
+    val partitionedTrainingSet = repartitionDataWithWeight(trainingSetNew, numWorkers)
+    val appName = partitionedTrainingSet.context.appName
+    // to workaround the empty partitions in training dataset,
+    // this might not be the best efficient implementation, see
+    // (https://github.com/dmlc/xgboost/issues/1277)
+    partitionedTrainingSet.mapPartitions {
+      dataSamples =>
+        val (s1, s2) = dataSamples.duplicate
+        val (dataSamples1, dataSamples2) = s1.duplicate
+        val (dataSamples3, dataSamples4) = s2.duplicate
+        val trainingSamples = dataSamples1.
+          filter(x => x._1 =="train").map(x => x._3)
+        val validationSamples = dataSamples2.
+          filter(x => x._1 =="validation").map(x => x._3)
+        val trainingWeight = dataSamples3.
+          filter(x => x._1 =="train").map(x => x._2)
+        val validationWeight = dataSamples4.
+          filter(x => x._1 =="validation").map(x => x._2)
+        rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
+        Rabit.init(rabitEnv)
+        var booster: Booster = null
+        if (trainingSamples.hasNext) {
+          val cacheFileName: String = {
+            if (useExternalMemory) {
+              s"$appName-${TaskContext.get().stageId()}-" +
+                s"dtrain_cache-${TaskContext.getPartitionId()}"
+            } else {
+              null
+            }
+          }
+          val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
+          val trainingSet = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
+          trainingSet.setWeight(trainingWeight.toArray)
+          val watches = new mutable.HashMap[String, DMatrix]()
+          logger.info(s"trainingSamples")
+          watches += "train" -> trainingSet
+          if (validationSamples.hasNext) {
+            val cacheFileNameV: String = {
+              if (useExternalMemory) {
+                s"$appName-${TaskContext.get().stageId()}-" +
+                  s"dvalid_cache-${TaskContext.getPartitionId()}"
+              } else {
+                null
+              }
+            }
+            val partitionItrV = fromDenseToSparseLabeledPoints(validationSamples, missing)
+            val validationSet = new DMatrix(new JDMatrix(partitionItrV, cacheFileNameV))
+            validationSet.setWeight(validationWeight.toArray)
+            logger.info(s"validationSamples")
+            watches += "validation" -> validationSet
+          }
+          booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
+            watches.toMap, obj, eval)
+          Rabit.shutdown()
+        } else {
+          Rabit.shutdown()
+          throw new XGBoostError(s"detect the empty partition in training dataset, partition ID:" +
+            s" ${TaskContext.getPartitionId().toString}")
+        }
+        Iterator(booster)
+    }.cache()
+  }
   /**
    * train XGBoost model with the DataFrame-represented data
    * @param trainingData the trainingset represented as DataFrame
@@ -286,6 +455,114 @@ object XGBoost extends Serializable {
     val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
     val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
       tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
+    val sparkJobThread = new Thread() {
+      override def run() {
+        // force the job
+        boosters.foreachPartition(() => _)
+      }
+    }
+    sparkJobThread.setUncaughtExceptionHandler(tracker)
+    sparkJobThread.start()
+    val isClsTask = isClassificationTask(params)
+    val trackerReturnVal = tracker.waitFor(0L)
+    logger.info(s"Rabit returns with exit code $trackerReturnVal")
+    postTrackerReturnProcessing(trackerReturnVal, boosters, overridedConfMap, sparkJobThread,
+      isClsTask)
+  }
+
+  /**
+   * various of train()
+   * @param trainingData the trainingset represented as RDD
+   * @param validationData the trainingset represented as RDD
+   * @param params Map containing the configuration entries
+   * @param round the number of iterations
+   * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
+   *                 workers equals to the partition number of trainingData RDD
+   * @param obj the user-defined objective function, null by default
+   * @param eval the user-defined evaluation function, null by default
+   * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
+   *                          true, the user may save the RAM cost for running XGBoost within Spark
+   * @param missing the value represented the missing value in the dataset
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
+   * @return XGBoostModel when successful training
+   */
+  @throws(classOf[XGBoostError])
+  def trainAndValidWithWeightRDD(
+      trainingData: RDD[(Float, MLLabeledPoint)], validationData: RDD[(Float, MLLabeledPoint)],
+      params: Map[String, Any], round: Int,
+      nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
+      useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
+    require(nWorkers > 0, "you must specify more than 0 workers")
+    if (obj != null) {
+      require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
+        " you have to specify the objective type as classification or regression with a" +
+        " customized objective function")
+    }
+    val trackerConf = params.get("tracker_conf") match {
+      case None => TrackerConf()
+      case Some(conf: TrackerConf) => conf
+      case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
+        "instance of TrackerConf.")
+    }
+    val tracker = startTracker(nWorkers, trackerConf)
+    val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
+    val boosters = buildDistributedBoostersWithWeight(trainingData, validationData,
+      overridedConfMap, tracker.getWorkerEnvs, nWorkers, round, obj,
+      eval, useExternalMemory, missing)
+    val sparkJobThread = new Thread() {
+      override def run() {
+        // force the job
+        boosters.foreachPartition(() => _)
+      }
+    }
+    sparkJobThread.setUncaughtExceptionHandler(tracker)
+    sparkJobThread.start()
+    val isClsTask = isClassificationTask(params)
+    val trackerReturnVal = tracker.waitFor(0L)
+    logger.info(s"Rabit returns with exit code $trackerReturnVal")
+    postTrackerReturnProcessing(trackerReturnVal, boosters, overridedConfMap, sparkJobThread,
+      isClsTask)
+  }
+
+  /**
+   * various of train()
+   * @param trainingData the trainingset represented as RDD
+   * @param validationData the trainingset represented as RDD
+   * @param params Map containing the configuration entries
+   * @param round the number of iterations
+   * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
+   *                 workers equals to the partition number of trainingData RDD
+   * @param obj the user-defined objective function, null by default
+   * @param eval the user-defined evaluation function, null by default
+   * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
+   *                          true, the user may save the RAM cost for running XGBoost within Spark
+   * @param missing the value represented the missing value in the dataset
+   * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
+   * @return XGBoostModel when successful training
+   */
+  @throws(classOf[XGBoostError])
+  def trainAndValidWithoutWeightRDD(
+      trainingData: RDD[MLLabeledPoint], validationData: RDD[MLLabeledPoint],
+      params: Map[String, Any], round: Int,
+      nWorkers: Int, obj: ObjectiveTrait = null, eval: EvalTrait = null,
+      useExternalMemory: Boolean = false, missing: Float = Float.NaN): XGBoostModel = {
+    require(nWorkers > 0, "you must specify more than 0 workers")
+    if (obj != null) {
+      require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
+        " you have to specify the objective type as classification or regression with a" +
+        " customized objective function")
+    }
+    val trackerConf = params.get("tracker_conf") match {
+      case None => TrackerConf()
+      case Some(conf: TrackerConf) => conf
+      case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
+        "instance of TrackerConf.")
+    }
+    val tracker = startTracker(nWorkers, trackerConf)
+    val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
+    val boosters = buildDistributedBoostersWithoutWeight(trainingData, validationData,
+      overridedConfMap, tracker.getWorkerEnvs, nWorkers, round, obj,
+      eval, useExternalMemory, missing)
     val sparkJobThread = new Thread() {
       override def run() {
         // force the job

@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>ml.dmlc</groupId>
+    <groupId>com.expedia</groupId>
     <artifactId>xgboost-jvm</artifactId>
-    <version>0.7</version>
+    <version>0.7.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -18,7 +18,28 @@
         <spark.version>2.1.0</spark.version>
         <scala.version>2.11.8</scala.version>
         <scala.binary.version>2.11</scala.binary.version>
+        <maven-scm-plugin.version>1.9.4</maven-scm-plugin.version>
+        <maven-source-plugin.version>2.2.1</maven-source-plugin.version>
+        <maven-jar-plugin.version>2.2</maven-jar-plugin.version>
+        <maven-release-plugin.version>2.5.2</maven-release-plugin.version>
+
+        <!-- Following properties are for release. -->
+        <buildType>sandbox</buildType>
+        <buildNumber>0</buildNumber>
+        <buildBranch>local</buildBranch>
+        <changeNumber>local</changeNumber>
+        <depotInfo>none</depotInfo>
+        <buildTime>${maven.build.timestamp}</buildTime>
+
+        <mvn.distribution.repository.expedia-releases.url>http://nexuslab.alm/nexus/content/repositories/releases/</mvn.distribution.repository.expedia-releases.url>
+        <mvn.repository.expedia-releases.url>http://nexuslab.alm/nexus/content/groups/public</mvn.repository.expedia-releases.url>
     </properties>
+    <scm>
+        <developerConnection>scm:git:https://github.com/ExpediaInc/xgboost.git</developerConnection>
+        <connection>scm:git:https://github.com/ExpediaInc/xgboost.git</connection>
+        <tag>HEAD</tag>
+        <url>scm:git:https://github.com/ExpediaInc/xgboost.git</url>
+    </scm>
     <repositories>
         <repository>
             <id>central_maven</id>
@@ -45,8 +66,89 @@
             <!--<scala.binary.version>2.11</scala.binary.version>-->
             <!--</properties>-->
         </profile>
+        <profile>
+            <id>expedia-release</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <repositories>
+                <repository>
+                    <id>expedia</id>
+                    <name>Expedia</name>
+                    <url>
+                        ${mvn.repository.expedia-releases.url}
+                    </url>
+                    <releases>
+                        <enabled>true</enabled>
+                        <updatePolicy>always</updatePolicy>
+                    </releases>
+                    <snapshots>
+                        <enabled>false</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>
+            <distributionManagement>
+                <repository>
+                    <id>releases</id>
+                    <name>Internal Releases</name>
+                    <url>${mvn.distribution.repository.expedia-releases.url}</url>
+                </repository>
+            </distributionManagement>
+        </profile>
     </profiles>
     <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-scm-plugin</artifactId>
+                    <version>${maven-scm-plugin.version}</version>
+                    <configuration>
+                        <tag>${project.artifactId}-${project.version}</tag>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>${maven-jar-plugin.version}</version>
+                    <configuration>
+                        <useDefaultManifestFile>true</useDefaultManifestFile>
+
+                        <archive>
+                            <index>true</index>
+                            <manifest>
+                                <addClasspath>true</addClasspath>
+                            </manifest>
+                            <manifestEntries>
+                                <scm-url>${project.scm.url}</scm-url>
+                                <scm-tag>${project.scm.tag}</scm-tag>
+                                <Application-Name>${project.name}</Application-Name>
+                                <Application-Version>${project.version}</Application-Version>
+                                <Application-Description>${project.description}</Application-Description>
+                                <Implementation-Title>${project.name}</Implementation-Title>
+                                <Implementation-Version>${changeNumber}</Implementation-Version>
+                                <Implementation-Vendor>Expedia</Implementation-Vendor>
+                                <Built-By>${user.name}</Built-By>
+                                <Build-Jdk>${java.version}</Build-Jdk>
+                                <Build-Time>${buildTime}</Build-Time>
+                                <Build>${buildType}</Build>
+                                <Branch>${buildBranch}</Branch>
+                                <Depot>${depotInfo}</Depot>
+                            </manifestEntries>
+                        </archive>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-release-plugin</artifactId>
+                    <version>${maven-release-plugin.version}</version>
+                    <configuration>
+                        <autoVersionSubmodules>true</autoVersionSubmodules>
+                        <scmCommentPrefix>[maven-release-plugin] :</scmCommentPrefix>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.scalastyle</groupId>
@@ -214,6 +316,10 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
