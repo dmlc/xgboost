@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+set -e -x
+
 echo "build java wrapper"
 
 # cd to script's directory
