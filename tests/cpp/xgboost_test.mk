@@ -14,7 +14,7 @@ UNITTEST_CU_SRC=$(wildcard $(UTEST_ROOT)/*.cu $(UTEST_ROOT)/*/*.cu)
 UNITTEST_OBJ += $(patsubst $(UTEST_ROOT)%.cu, $(UTEST_OBJ_ROOT)%.o, $(UNITTEST_CU_SRC))
 
 # tests from grow_gpu plugin (only if CUDA path is enabled!)
-ifeq ($(PLUGIN_UPDATER_GPU),1)
+ifeq ($(PLUGIN_UPDATER_GPU),ON)
   GPU_PLUGIN_FOLDER = plugin/updater_gpu
   UNITTEST_CU_PLUGIN_SRC = $(wildcard $(GPU_PLUGIN_FOLDER)/tests/*.cu)
   UNITTEST_OBJ += $(patsubst %.cu, $(UTEST_OBJ_ROOT)/%.o, $(UNITTEST_CU_PLUGIN_SRC))

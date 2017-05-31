@@ -67,11 +67,7 @@ CUB_PATH ?= cub
 # XGB_PLUGINS += plugin/example/plugin.mk
 
 # plugin to build tree on GPUs using CUDA
-PLUGIN_UPDATER_GPU ?= 0
-# make sure 'nvcc' is in the PATH!
-ifeq ($(PLUGIN_UPDATER_GPU),1)
-  PLUGIN_UPDATER_GPU = $(if $(shell which nvcc),1,0)
-endif
-ifeq ($(PLUGIN_UPDATER_GPU),1)
+PLUGIN_UPDATER_GPU ?= OFF
+ifeq ($(PLUGIN_UPDATER_GPU),ON)
   XGB_PLUGINS += plugin/updater_gpu/plugin.mk
 endif
