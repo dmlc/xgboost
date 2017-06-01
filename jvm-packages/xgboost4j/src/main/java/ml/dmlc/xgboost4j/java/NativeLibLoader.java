@@ -21,6 +21,9 @@ import java.lang.reflect.Field;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import static ml.dmlc.xgboost4j.java.NativeLibrary.nativeLibrary;
+import static ml.dmlc.xgboost4j.java.NativeLibraryLoaderChain.loaderChain;
+
 
 /**
  * class to load native library
@@ -35,12 +38,29 @@ class NativeLibLoader {
   private static final String nativeResourcePath = "/lib/";
   private static final String[] libNames = new String[]{"xgboost4j"};
 
+  // Safe path in case we need to switch to original code path
+  private static final boolean ORIGINAL_LOAD_PATH = Boolean.valueOf(
+      System.getProperty("sys.xgboost.jni.original", "false"));
+
+  private static final NativeLibraryLoaderChain loader = loaderChain(
+      nativeLibrary("xgboost4j_gpu"),
+      nativeLibrary("xgboost4j")
+  );
+
   public static synchronized void initXGBoost() throws IOException {
-    if (!initialized) {
-      for (String libName : libNames) {
-        smartLoad(libName);
+    if (ORIGINAL_LOAD_PATH) {
+      if (!initialized) {
+        for (String libName : libNames) {
+          smartLoad(libName);
+        }
+        initialized = true;
       }
-      initialized = true;
+    } else {
+      if (!loader.isLoaded()) {
+        // patch classloader class
+        addNativeDir(nativePath);
+        loader.load();
+      }
     }
   }
 
