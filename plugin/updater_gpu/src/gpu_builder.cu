@@ -30,9 +30,10 @@ void GPUBuilder::Init(const TrainParam& param_in) {
   param = param_in;
   CHECK(param.max_depth < 16) << "Tree depth too large.";
 
-  dh::safe_cuda(cudaSetDevice(param.gpu_id));
+  int device_idx = param.gpu_id % dh::n_visible_devices();
+  dh::safe_cuda(cudaSetDevice(device_idx));
   if (!param.silent) {
-    LOG(CONSOLE) << "Device: [" << param.gpu_id << "] " << dh::device_name();
+    LOG(CONSOLE) << "Device: [" << device_idx << "] " << dh::device_name();
   }
 }
 

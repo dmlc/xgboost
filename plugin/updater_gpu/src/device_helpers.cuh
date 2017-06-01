@@ -51,6 +51,14 @@ inline void gpuAssert(cudaError_t code, const char *file, int line,
   }
 }
 
+
+inline int n_visible_devices() {
+  int n_visgpus = 0;
+  cudaGetDeviceCount(&n_visgpus);
+  return n_visgpus;
+}
+  
+
 /*
  *  Timers
  */
