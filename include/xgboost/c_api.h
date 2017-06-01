@@ -7,16 +7,16 @@
 #ifndef XGBOOST_C_API_H_
 #define XGBOOST_C_API_H_
 
-#include <cstdint>
-
 #ifdef __cplusplus
 #define XGB_EXTERN_C extern "C"
+#include <cstdio>
+#else
+#define XGB_EXTERN_C
+#include <stdio.h>
+#include <stdint.h>
 #endif
 
 // XGBoost C API will include APIs in Rabit C API
-XGB_EXTERN_C {
-#include <stdio.h>
-}
 #include <rabit/c_api.h>
 
 #if defined(_MSC_VER) || defined(_WIN32)
