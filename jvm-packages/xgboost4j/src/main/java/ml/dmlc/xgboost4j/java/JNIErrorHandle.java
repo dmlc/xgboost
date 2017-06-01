@@ -25,7 +25,7 @@ import org.apache.commons.logging.LogFactory;
  */
 class JNIErrorHandle {
 
-  private static final Log logger = LogFactory.getLog(DMatrix.class);
+  private static final Log logger = LogFactory.getLog(JNIErrorHandle.class);
 
   //load native library
   static {
