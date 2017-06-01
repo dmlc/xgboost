@@ -11,6 +11,7 @@
 #define RABIT_EXTERN_C extern "C"
 #include <cstdio>
 #else
+#define RABIT_EXTERN_C
 #include <stdio.h>
 #endif
 
