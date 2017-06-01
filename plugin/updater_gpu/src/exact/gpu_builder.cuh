@@ -1,3 +1,7 @@
+/*!
+ * Copyright 2016 Rory Mitchell
+ */
+
 /*
  * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
  *
