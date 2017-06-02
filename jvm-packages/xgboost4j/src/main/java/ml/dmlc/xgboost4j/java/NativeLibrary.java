@@ -116,7 +116,7 @@ public class NativeLibrary implements Loadable {
   }
 
   private void extractAndLoad(String ...libPaths) throws IOException {
-    IOException lastException = null;
+    Throwable lastException = null;
     for (String libPath : libPaths) {
       try {
         lastException = null;
@@ -126,7 +126,7 @@ public class NativeLibrary implements Loadable {
         // Perfect loaded, break the cycle
         logger.info("Loaded library from " + libPath + " (" + temp.getAbsolutePath() + ")");
         break;
-      } catch (IOException e) {
+      } catch (IOException | UnsatisfiedLinkError e) {
         logger.warn("Cannot load library from path " + libPath);
         lastException = e;
       }
