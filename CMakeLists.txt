@@ -50,12 +50,12 @@ if(MSVC)
 endif()
 
 include_directories (
-    ${PROJECT_SOURCE_DIR}/include 
+    ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/dmlc-core/include
-    ${PROJECT_SOURCE_DIR}/rabit/include 
-    )
+    ${PROJECT_SOURCE_DIR}/rabit/include
+)
 
-file(GLOB SOURCES 
+file(GLOB SOURCES
     src/c_api/*.cc
     src/common/*.cc
     src/data/*.cc
@@ -73,7 +73,7 @@ set(RABIT_SOURCES
     rabit/src/c_api.cc
 )
 
-add_subdirectory(dmlc-core) 
+add_subdirectory(dmlc-core)
 
 add_library(rabit STATIC ${RABIT_SOURCES})
 
@@ -91,6 +91,8 @@ else()
     set(CMAKE_SHARED_LIBRARY_PREFIX "")
 endif()
 
+set(LINK_LIBRARIES dmlccore rabit)
+
 option(PLUGIN_UPDATER_GPU "Build GPU accelerated tree construction plugin")
 
 if(PLUGIN_UPDATER_GPU)
@@ -101,24 +103,37 @@ if(PLUGIN_UPDATER_GPU)
     if(NOT MSVC)
         set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
     endif()
-    set(SOURCES ${SOURCES} 
+    set(SOURCES ${SOURCES}
         plugin/updater_gpu/src/updater_gpu.cc
     )
     find_package(CUDA QUIET REQUIRED)
 	file(GLOB_RECURSE CUDA_SOURCES "plugin/updater_gpu/src/*")
-    cuda_add_library(updater_gpu STATIC 
+    cuda_add_library(updater_gpu STATIC
         ${CUDA_SOURCES}
     )
+
+    set(LINK_LIBRARIES ${LINK_LIBRARIES} updater_gpu)
 endif()
 
-add_executable(xgboost ${SOURCES})
-add_library(libxgboost SHARED ${SOURCES})
-target_link_libraries(xgboost dmlccore rabit)
-target_link_libraries(libxgboost dmlccore rabit)
+add_library(objxgboost OBJECT ${SOURCES})
+set_target_properties(${objxgboost} PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
+add_library(libxgboost SHARED $<TARGET_OBJECTS:objxgboost>)
+add_executable(xgboost $<TARGET_OBJECTS:objxgboost>)
+target_link_libraries(xgboost ${LINK_LIBRARIES})
+target_link_libraries(libxgboost ${LINK_LIBRARIES})
 
-if(PLUGIN_UPDATER_GPU)
-    target_link_libraries(xgboost updater_gpu)
-    target_link_libraries(libxgboost updater_gpu)
+option(JVM_BINDINGS "Build JVM bindings" OFF)
+
+if(JVM_BINDINGS)
+    find_package(JNI QUIET REQUIRED)
+
+    set(SOURCES ${SOURCES}
+        jvm-packages/xgboost4j/src/native/xgboost4j.cpp
+    )
+
+    include_directories(${JNI_INCLUDE_DIRS} jvm-packages/xgboost4j/src/native)
+
+    add_library(libxgboost4j SHARED $<TARGET_OBJECTS:objxgboost>)
+    target_link_libraries(libxgboost4j ${JNI_LIBRARIES} ${LINK_LIBRARIES})
 endif()
-
