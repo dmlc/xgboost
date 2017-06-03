@@ -222,7 +222,6 @@ class XGBModel(XGBModelBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
 
@@ -259,6 +258,55 @@ class XGBModel(XGBModelBase):
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         """
+        return self._fit(X, y, sample_weight=sample_weight, eval_set=eval_set,
+                         eval_metric=eval_metric, early_stopping_rounds=early_stopping_rounds,
+                         verbose=verbose, continue_training=False)
+
+    def partial_fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
+                    early_stopping_rounds=None, verbose=True):
+        """
+        Fit the gradient boosting model. This method allows for minibatch learning.
+
+        Parameters
+        ----------
+        X : array_like
+            Feature matrix
+        y : array_like
+            Labels
+        sample_weight : array_like
+            instance weights
+        eval_set : list, optional
+            A list of (X, y) tuple pairs to use as a validation set for
+            early-stopping
+        eval_metric : str, callable, optional
+            If a str, should be a built-in evaluation metric to use. See
+            doc/parameter.md. If callable, a custom evaluation metric. The call
+            signature is func(y_predicted, y_true) where y_true will be a
+            DMatrix object such that you may need to call the get_label
+            method. It must return a str, value pair where the str is a name
+            for the evaluation and value is the value of the evaluation
+            function. This objective is always minimized.
+        early_stopping_rounds : int
+            Activates early stopping. Validation error needs to decrease at
+            least every <early_stopping_rounds> round(s) to continue training.
+            Requires at least one item in evals.  If there's more than one,
+            will use the last. Returns the model from the last iteration
+            (not the best one). If early stopping occurs, the model will
+            have three additional fields: bst.best_score, bst.best_iteration
+            and bst.best_ntree_limit.
+            (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
+            and/or num_class appears in the parameters)
+        verbose : bool
+            If `verbose` and an evaluation set is used, writes the evaluation
+            metric measured on the validation set to stderr.
+        """
+        return self._fit(X, y, sample_weight=sample_weight, eval_set=eval_set,
+                         eval_metric=eval_metric, early_stopping_rounds=early_stopping_rounds,
+                         verbose=verbose, continue_training=True)
+
+    def _fit(self, X, y, sample_weight, eval_set, eval_metric,
+             early_stopping_rounds, verbose, continue_training):
+        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         if sample_weight is not None:
             trainDmatrix = DMatrix(X, label=y, weight=sample_weight, missing=self.missing)
         else:
@@ -287,11 +335,12 @@ class XGBModel(XGBModelBase):
             else:
                 params.update({'eval_metric': eval_metric})
 
+        xgb_model = self._Booster if continue_training else None
         self._Booster = train(params, trainDmatrix,
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose)
+                              verbose_eval=verbose, xgb_model=xgb_model)
 
         if evals_result:
             for val in evals_result.items():
@@ -410,7 +459,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
-        # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
 
@@ -447,6 +495,55 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         """
+        return self._fit(X, y, sample_weight=sample_weight, eval_set=eval_set,
+                         eval_metric=eval_metric, early_stopping_rounds=early_stopping_rounds,
+                         verbose=verbose, continue_training=False)
+
+    def partial_fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
+                    early_stopping_rounds=None, verbose=True):
+        """
+        Fit gradient boosting classifier. This method allows minibatch learning.
+
+        Parameters
+        ----------
+        X : array_like
+            Feature matrix
+        y : array_like
+            Labels
+        sample_weight : array_like
+            Weight for each instance
+        eval_set : list, optional
+            A list of (X, y) pairs to use as a validation set for
+            early-stopping
+        eval_metric : str, callable, optional
+            If a str, should be a built-in evaluation metric to use. See
+            doc/parameter.md. If callable, a custom evaluation metric. The call
+            signature is func(y_predicted, y_true) where y_true will be a
+            DMatrix object such that you may need to call the get_label
+            method. It must return a str, value pair where the str is a name
+            for the evaluation and value is the value of the evaluation
+            function. This objective is always minimized.
+        early_stopping_rounds : int, optional
+            Activates early stopping. Validation error needs to decrease at
+            least every <early_stopping_rounds> round(s) to continue training.
+            Requires at least one item in evals.  If there's more than one,
+            will use the last. Returns the model from the last iteration
+            (not the best one). If early stopping occurs, the model will
+            have three additional fields: bst.best_score, bst.best_iteration
+            and bst.best_ntree_limit.
+            (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
+            and/or num_class appears in the parameters)
+        verbose : bool
+            If `verbose` and an evaluation set is used, writes the evaluation
+            metric measured on the validation set to stderr.
+        """
+        return self._fit(X, y, sample_weight=sample_weight, eval_set=eval_set,
+                         eval_metric=eval_metric, early_stopping_rounds=early_stopping_rounds,
+                         verbose=verbose, continue_training=True)
+
+    def _fit(self, X, y, sample_weight, eval_set, eval_metric,
+             early_stopping_rounds, verbose, continue_training):
+        # pylint: disable = attribute-defined-outside-init,arguments-differ
         evals_result = {}
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
@@ -496,11 +593,12 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             train_dmatrix = DMatrix(X, label=training_labels,
                                     missing=self.missing)
 
+        xgb_model = self._Booster if continue_training else None
         self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose)
+                              verbose_eval=verbose, xgb_model=xgb_model)
 
         self.objective = xgb_options["objective"]
         if evals_result:
