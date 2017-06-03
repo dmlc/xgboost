@@ -45,7 +45,10 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
+      - george-edison55-precise-backports
     packages:
+      - cmake
+      - cmake-data
       - doxygen
       - wget
       - libcurl4-openssl-dev
