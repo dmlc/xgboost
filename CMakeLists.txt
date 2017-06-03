@@ -128,12 +128,12 @@ option(JVM_BINDINGS "Build JVM bindings" OFF)
 if(JVM_BINDINGS)
     find_package(JNI QUIET REQUIRED)
 
-    set(SOURCES ${SOURCES}
-        jvm-packages/xgboost4j/src/native/xgboost4j.cpp
-    )
-
     include_directories(${JNI_INCLUDE_DIRS} jvm-packages/xgboost4j/src/native)
 
-    add_library(libxgboost4j SHARED $<TARGET_OBJECTS:objxgboost>)
-    target_link_libraries(libxgboost4j ${JNI_LIBRARIES} ${LINK_LIBRARIES})
+    add_library(libxgboost4j SHARED
+        $<TARGET_OBJECTS:objxgboost>
+        jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
+    target_link_libraries(libxgboost4j
+        ${LINK_LIBRARIES}
+        ${JNI_LIBRARIES})
 endif()

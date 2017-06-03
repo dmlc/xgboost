@@ -32,7 +32,7 @@ if [ ! -d "$libPath" ]; then
 fi
 
 rm -f xgboost4j/src/main/resources/lib/libxgboost4j.${dl}
-mv ../lib/libxgboost4j.${dl} xgboost4j/src/main/resources/lib/libxgboost4j.${dl}
+cp ../lib/libxgboost4j.${dl} xgboost4j/src/main/resources/lib/libxgboost4j.${dl}
 # copy python to native resources
 cp ../dmlc-core/tracker/dmlc_tracker/tracker.py xgboost4j/src/main/resources/tracker.py
 # copy test data files
