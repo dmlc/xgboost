@@ -24,11 +24,7 @@
 // helper functions
 // set handle
 void setHandle(JNIEnv *jenv, jlongArray jhandle, void* handle) {
-#ifdef __APPLE__
-  jlong out = (long) handle;
-#else
-  int64_t out = (int64_t) handle;
-#endif
+  jlong out = (jlong) handle;
   jenv->SetLongArrayRegion(jhandle, 0, 1, &out);
 }
 
@@ -76,7 +72,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
         batch, jenv->GetFieldID(batchClass, "featureValue", "[F"));
       XGBoostBatchCSR cbatch;
       cbatch.size = jenv->GetArrayLength(joffset) - 1;
-      cbatch.offset = reinterpret_cast<long *>(
+      cbatch.offset = reinterpret_cast<jlong *>(
           jenv->GetLongArrayElements(joffset, 0));
       if (jlabel != nullptr) {
         cbatch.label = jenv->GetFloatArrayElements(jlabel, 0);
