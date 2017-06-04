@@ -65,7 +65,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @return The created Booster.
    * @throws XGBoostError
    */
-  static Booster loadModel(String modelPath) throws XGBoostError {
+  public static Booster loadModel(String modelPath) throws XGBoostError {
     if (modelPath == null) {
       throw new NullPointerException("modelPath : null");
     }
@@ -84,7 +84,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError
    * @throws IOException
    */
-  static Booster loadModel(InputStream in) throws XGBoostError, IOException {
+  public static Booster loadModel(InputStream in) throws XGBoostError, IOException {
     int size;
     byte[] buf = new byte[1<<20];
     ByteArrayOutputStream os = new ByteArrayOutputStream();
