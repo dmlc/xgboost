@@ -383,3 +383,12 @@ def test_kwargs_error():
     params = {'updater': 'grow_gpu', 'subsample': .5, 'n_jobs': -1}
     clf = xgb.XGBClassifier(n_jobs=1000, **params)
     assert isinstance(clf, xgb.XGBClassifier)
+
+
+def test_sklearn_clone():
+    tm._skip_if_no_sklearn()
+    from sklearn.base import clone
+
+    clf = xgb.XGBClassifier(n_jobs=2, nthread=3)
+    clf.n_jobs = -1
+    _ = clone(clf)
