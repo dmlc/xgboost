@@ -36,7 +36,7 @@ void setHandle(JNIEnv *jenv, jlongArray jhandle, void* handle) {
 static JavaVM* global_jvm = nullptr;
 
 // overrides JNI on load
-jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
   global_jvm = vm;
   return JNI_VERSION_1_6;
 }
