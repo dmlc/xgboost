@@ -334,17 +334,17 @@ def test_sklearn_random_state():
     tm._skip_if_no_sklearn()
 
     clf = xgb.XGBClassifier(random_state=402)
-    assert clf.get_params()['seed'] == 402
+    assert clf.get_xgb_params()['seed'] == 402
 
     clf = xgb.XGBClassifier(seed=401)
-    assert clf.get_params()['seed'] == 401
+    assert clf.get_xgb_params()['seed'] == 401
 
 
 def test_seed_deprecation():
     tm._skip_if_no_sklearn()
     warnings.simplefilter("always")
     with warnings.catch_warnings(record=True) as w:
-        xgb.XGBClassifier(seed=1)
+        xgb.XGBClassifier(seed=1).get_xgb_params()
         assert w[0].category == DeprecationWarning
 
 
@@ -352,17 +352,17 @@ def test_sklearn_n_jobs():
     tm._skip_if_no_sklearn()
 
     clf = xgb.XGBClassifier(n_jobs=1)
-    assert clf.get_params()['nthread'] == 1
+    assert clf.get_xgb_params()['nthread'] == 1
 
     clf = xgb.XGBClassifier(nthread=2)
-    assert clf.get_params()['nthread'] == 2
+    assert clf.get_xgb_params()['nthread'] == 2
 
 
 def test_nthread_deprecation():
     tm._skip_if_no_sklearn()
     warnings.simplefilter("always")
     with warnings.catch_warnings(record=True) as w:
-        xgb.XGBClassifier(nthread=1)
+        xgb.XGBClassifier(nthread=1).get_xgb_params()
         assert w[0].category == DeprecationWarning
 
 
@@ -391,4 +391,4 @@ def test_sklearn_clone():
 
     clf = xgb.XGBClassifier(n_jobs=2, nthread=3)
     clf.n_jobs = -1
-    _ = clone(clf)
+    clone(clf)
