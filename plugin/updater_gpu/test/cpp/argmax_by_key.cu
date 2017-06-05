@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 #include "gtest/gtest.h"
-#include "../src/exact/argmax_by_key.cuh"
-#include "../src/exact/gradients.cuh"
-#include "../src/exact/node.cuh"
-#include "../src/exact/loss_functions.cuh"
+#include "../../src/exact/argmax_by_key.cuh"
+#include "../../src/exact/gradients.cuh"
+#include "../../src/exact/node.cuh"
+#include "../../src/exact/loss_functions.cuh"
 #include "utils.cuh"
 
 

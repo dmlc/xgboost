@@ -182,7 +182,7 @@ pylint:
 	flake8 --ignore E501 tests/python
 
 test: $(ALL_TEST)
-	./plugin/updater_gpu/tests/generate_data.sh
+	./plugin/updater_gpu/test/cpp/generate_data.sh
 	$(ALL_TEST)
 
 check: test

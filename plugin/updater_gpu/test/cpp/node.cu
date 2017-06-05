@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 #include "gtest/gtest.h"
-#include "../src/exact/node.cuh"
+#include "../../src/exact/node.cuh"
 
 
 namespace xgboost {

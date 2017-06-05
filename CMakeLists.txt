@@ -111,22 +111,19 @@ if(PLUGIN_UPDATER_GPU)
     if(NOT MSVC)
       set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
     endif()
-    set(SOURCES ${SOURCES}
+    set(CUDA_SOURCES
       plugin/updater_gpu/src/updater_gpu.cu
-    )
-    set(SOURCES ${SOURCES}
       plugin/updater_gpu/src/gpu_hist_builder.cu
     )
-    set(BUILD_SHARED_LIBS ON)
-    cuda_add_executable(xgboost ${SOURCES})
-    cuda_add_library(libxgboost ${SOURCES})
-else()
-    # TODO: I couldn't successfully add cuda sources into this generator expression!
-    add_library(objxgboost OBJECT ${SOURCES})
-    set_target_properties(${objxgboost} PROPERTIES POSITION_INDEPENDENT_CODE 1)
-    add_library(libxgboost SHARED $<TARGET_OBJECTS:objxgboost>)
-    add_executable(xgboost $<TARGET_OBJECTS:objxgboost>)
+    cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
+    set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CUDA_LIBRARIES})
 endif()
+
+add_library(objxgboost OBJECT ${SOURCES})
+set_target_properties(${objxgboost} PROPERTIES POSITION_INDEPENDENT_CODE 1)
+
+add_library(libxgboost SHARED $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
+add_executable(xgboost $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
 
 target_link_libraries(xgboost ${LINK_LIBRARIES})
 target_link_libraries(libxgboost ${LINK_LIBRARIES})

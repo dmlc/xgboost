@@ -16,13 +16,13 @@
 #pragma once
 
 #include <random>
-#include "../src/exact/gradients.cuh"
+#include "../../src/exact/gradients.cuh"
 #include <memory>
 #include <string>
 #include <xgboost/data.h>
 #include "gtest/gtest.h"
-#include "../src/exact/gpu_builder.cuh"
-#include "../src/device_helpers.cuh"
+#include "../../src/exact/gpu_builder.cuh"
+#include "../../src/device_helpers.cuh"
 #include <vector>
 #include <stdlib.h>
 

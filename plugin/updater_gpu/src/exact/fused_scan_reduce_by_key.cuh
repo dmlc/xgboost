@@ -111,7 +111,7 @@ __global__ void cubScanByKeyL2(gpu_gpair* mScans, int* mKeys, int mLength) {
   typedef cub::BlockScan<Pair, BLKSIZE, cub::BLOCK_SCAN_WARP_SCANS> BlockScan;
   Pair threadData;
   __shared__ typename BlockScan::TempStorage temp_storage;
-  for (int i=threadIdx.x;i<mLength;i+=BLKSIZE-1) {
+  for (int i = threadIdx.x; i < mLength; i += BLKSIZE-1) {
     threadData.key   =  mKeys[i];
     threadData.value = mScans[i];
     BlockScan(temp_storage).InclusiveScan(threadData, threadData,

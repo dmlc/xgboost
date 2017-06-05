@@ -17,7 +17,6 @@
 
 #include "../../../../src/tree/param.h"
 #include "xgboost/tree_updater.h"
-#include "gtest/gtest_prod.h"
 #include "cub/cub.cuh"
 #include "../common.cuh"
 #include <vector>
@@ -50,7 +49,7 @@ __global__ void assignColIds(int* colIds, const int* colOffsets) {
   int myId = blockIdx.x;
   int start = colOffsets[myId];
   int end = colOffsets[myId+1];
-  for (int id=start+threadIdx.x;id<end;id+=blockDim.x) {
+  for (int id = start+threadIdx.x; id < end; id += blockDim.x) {
     colIds[id] = myId;
   }
 }
@@ -86,7 +85,7 @@ __global__ void assignNodeIds(node_id_t* nodeIdsPerInst, int* nodeLocations,
                               const float* vals, int nVals, int nCols) {
   int id = threadIdx.x + (blockIdx.x * blockDim.x);
   const int stride = blockDim.x * gridDim.x;
-  for (;id<nVals;id+=stride) {
+  for (; id < nVals; id += stride) {
     // fusing generation of indices for node locations
     nodeLocations[id] = id;
     // using nodeIds here since the previous kernel would have updated
@@ -155,7 +154,7 @@ class GPUBuilder {
     if (!allocated) {
       setupOneTimeData(*hMat);
     }
-    for (int i=0;i<param.max_depth;++i) {
+    for (int i = 0; i < param.max_depth; ++i) {
       if (i == 0) {
         // make sure to start on a fresh tree with sorted values!
         vals.current_dvec() = vals_cached;
@@ -246,6 +245,7 @@ private:
   }
 
   void setupOneTimeData(DMatrix& hMat) {
+    size_t free_memory = dh::available_memory();
     if (!hMat.SingleColBlock()) {
       throw std::runtime_error("exact::GPUBuilder - must have 1 column block");
     }
@@ -255,6 +255,11 @@ private:
     allocateAllData((int)offset.size());
     transferAndSortData(fval, fId, offset);
     allocated = true;
+    if (!param.silent) {
+      const int mb_size = 1048576;
+      LOG(CONSOLE) << "Allocated " << ba.size() / mb_size << "/"
+                   << free_memory / mb_size << " MB on " << dh::device_name();
+    }
   }
 
   void convertToCsc(DMatrix& hMat, std::vector<float>& fval,
@@ -361,7 +366,7 @@ private:
   void dense2sparse(RegTree &tree) {
     std::vector<Node<node_id_t> > hNodes = nodes.as_vector();
     int nodeId = 0;
-    for (int i=0;i<maxNodes;++i) {
+    for (int i = 0; i < maxNodes; ++i) {
       const Node<node_id_t>& n = hNodes[i];
       if ((i != 0) && hNodes[i].isLeaf()) {
         tree[nodeId].set_leaf(n.weight * param.learning_rate);

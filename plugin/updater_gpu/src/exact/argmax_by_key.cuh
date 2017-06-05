@@ -109,7 +109,7 @@ __global__ void atomicArgMaxByKeyGmem(Split* nodeSplits,
                                       const TrainParam param) {
   int id = threadIdx.x + (blockIdx.x * blockDim.x);
   const int stride = blockDim.x * gridDim.x;
-  for (;id<len;id+=stride) {
+  for (; id < len; id += stride) {
     argMaxWithAtomics(id, nodeSplits, gradScans, gradSums, vals, colIds,
                       nodeAssigns, nodes, nUniqKeys, nodeStart, len, param);
   }
@@ -129,18 +129,18 @@ __global__ void atomicArgMaxByKeySmem(Split* nodeSplits,
   int tid = threadIdx.x;
   Split defVal;
   #pragma unroll 1
-  for (int i=tid;i<nUniqKeys;i+=blockDim.x) {
+  for (int i = tid; i < nUniqKeys; i += blockDim.x) {
     sNodeSplits[i] = defVal;
   }
   __syncthreads();
   int id = tid + (blockIdx.x * blockDim.x);
   const int stride = blockDim.x * gridDim.x;
-  for (;id<len;id+=stride) {
+  for (; id < len; id += stride) {
     argMaxWithAtomics(id, sNodeSplits, gradScans, gradSums, vals, colIds,
                       nodeAssigns, nodes, nUniqKeys, nodeStart, len, param);
   }
   __syncthreads();
-  for (int i=tid;i<nUniqKeys;i+=blockDim.x) {
+  for (int i = tid; i < nUniqKeys; i += blockDim.x) {
     Split s = sNodeSplits[i];
     atomicArgMax(nodeSplits+i, s);
   }

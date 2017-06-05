@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 #include "gtest/gtest.h"
-#include "../src/exact/fused_scan_reduce_by_key.cuh"
-#include "../src/exact/node.cuh"
+#include "../../src/exact/fused_scan_reduce_by_key.cuh"
+#include "../../src/exact/node.cuh"
 #include "utils.cuh"
 
 

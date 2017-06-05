@@ -15,8 +15,8 @@
  */
 #include "gtest/gtest.h"
 #include "utils.cuh"
-#include "../src/exact/gpu_builder.cuh"
-#include "../src/exact/node.cuh"
+#include "../../src/exact/gpu_builder.cuh"
+#include "../../src/exact/node.cuh"
 
 
 namespace xgboost {
@@ -30,7 +30,7 @@ template <typename node_id_t>
 void testSmallData() {
   GPUBuilder<node_id_t> builder;
   std::shared_ptr<DMatrix> dm =
-      setupGPUBuilder<node_id_t>("plugin/updater_gpu/tests/data/small.sample.libsvm",
+      setupGPUBuilder<node_id_t>("plugin/updater_gpu/test/cpp/data/small.sample.libsvm",
                               builder, 1);
   // data dimensions
   ASSERT_EQ(60, builder.nVals);
@@ -91,7 +91,7 @@ template <typename node_id_t>
 void testLargeData() {
   GPUBuilder<node_id_t> builder;
   std::shared_ptr<DMatrix> dm =
-      setupGPUBuilder<node_id_t>("plugin/updater_gpu/tests/data/sample.libsvm",
+      setupGPUBuilder<node_id_t>("plugin/updater_gpu/test/cpp/data/sample.libsvm",
                               builder, 1);
   ASSERT_EQ(35442, builder.nVals);
   ASSERT_EQ(1611, builder.nRows);
@@ -149,7 +149,7 @@ template <typename node_id_t>
 void testAllocate() {
   GPUBuilder<node_id_t> builder;
   std::shared_ptr<DMatrix> dm =
-      setupGPUBuilder<node_id_t>("plugin/updater_gpu/tests/data/small.sample.libsvm",
+      setupGPUBuilder<node_id_t>("plugin/updater_gpu/test/cpp/data/small.sample.libsvm",
                               builder, 1);
   ASSERT_EQ(3, builder.maxNodes);
   ASSERT_EQ(2, builder.maxLeaves);
@@ -213,7 +213,7 @@ template <typename node_id_t>
 void testMarkLeaves() {
   GPUBuilder<node_id_t> builder;
   std::shared_ptr<DMatrix> dm =
-      setupGPUBuilder<node_id_t>("plugin/updater_gpu/tests/data/small.sample.libsvm",
+      setupGPUBuilder<node_id_t>("plugin/updater_gpu/test/cpp/data/small.sample.libsvm",
                                              builder, 3);
   ASSERT_EQ(15, builder.maxNodes);
   ASSERT_EQ(8, builder.maxLeaves);
@@ -267,7 +267,7 @@ template <typename node_id_t>
 void testDense2Sparse() {
   GPUBuilder<node_id_t> builder;
   std::shared_ptr<DMatrix> dm =
-      setupGPUBuilder<node_id_t>("plugin/updater_gpu/tests/data/small.sample.libsvm",
+      setupGPUBuilder<node_id_t>("plugin/updater_gpu/test/cpp/data/small.sample.libsvm",
                               builder, 3);
   ASSERT_EQ(15, builder.maxNodes);
   ASSERT_EQ(8, builder.maxLeaves);
