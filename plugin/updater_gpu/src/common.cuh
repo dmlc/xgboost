@@ -7,6 +7,11 @@
 #include "../../../src/tree/param.h"
 #include "device_helpers.cuh"
 #include "types.cuh"
+#include <string>
+#include <stdexcept>
+#include <cstdio>
+#include "cub/cub.cuh"
+#include "device_helpers.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -179,6 +184,96 @@ struct GpairCallbackOp {
     return old_prefix;
   }
 };
+
+/**
+ * @brief Helper function to sort the pairs using cub's segmented RadixSortPairs
+ * @param tmp_mem cub temporary memory info
+ * @param keys keys double-buffer array
+ * @param vals the values double-buffer array
+ * @param nVals number of elements in the array
+ * @param nSegs number of segments
+ * @param offsets the segments
+ */
+template <typename T1, typename T2>
+void segmentedSort(dh::CubMemory &tmp_mem, dh::dvec2<T1> &keys, dh::dvec2<T2> &vals,
+                   int nVals, int nSegs, dh::dvec<int> &offsets, int start=0,
+                   int end=sizeof(T1)*8) {
+  size_t tmpSize;
+  dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
+                    NULL, tmpSize, keys.buff(), vals.buff(), nVals, nSegs,
+                    offsets.data(), offsets.data()+1, start, end));
+  tmp_mem.LazyAllocate(tmpSize);
+  dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
+                    tmp_mem.d_temp_storage, tmpSize, keys.buff(), vals.buff(),
+                    nVals, nSegs, offsets.data(), offsets.data()+1, start, end));
+}
+
+/**
+ * @brief Helper function to perform device-wide sum-reduction
+ * @param tmp_mem cub temporary memory info
+ * @param in the input array to be reduced
+ * @param out the output reduced value
+ * @param nVals number of elements in the input array
+ */
+template <typename T>
+void sumReduction(dh::CubMemory &tmp_mem, dh::dvec<T> &in, dh::dvec<T> &out,
+                  int nVals) {
+  size_t tmpSize;
+  dh::safe_cuda(cub::DeviceReduce::Sum(NULL, tmpSize, in.data(), out.data(),
+                                       nVals));
+  tmp_mem.LazyAllocate(tmpSize);
+  dh::safe_cuda(cub::DeviceReduce::Sum(tmp_mem.d_temp_storage, tmpSize,
+                                       in.data(), out.data(), nVals));
+}
+
+/**
+ * @brief Fill a given constant value across all elements in the buffer
+ * @param out the buffer to be filled
+ * @param len number of elements i the buffer
+ * @param def default value to be filled
+ */
+template <typename T, int BlkDim=256, int ItemsPerThread=4>
+void fillConst(T* out, int len, T def) {
+  dh::launch_n<ItemsPerThread,BlkDim>(len, [=] __device__(int i) { out[i] = def; });
+}
+
+/**
+ * @brief gather elements
+ * @param out1 output gathered array for the first buffer
+ * @param in1 first input buffer
+ * @param out2 output gathered array for the second buffer
+ * @param in2 second input buffer
+ * @param instId gather indices
+ * @param nVals length of the buffers
+ */
+template <typename T1, typename T2, int BlkDim=256, int ItemsPerThread=4>
+void gather(T1* out1, const T1* in1, T2* out2, const T2* in2, const int* instId,
+            int nVals) {
+  dh::launch_n<ItemsPerThread,BlkDim>
+      (nVals, [=] __device__(int i) {
+                  int iid = instId[i];
+                  T1 v1 = in1[iid];
+                  T2 v2 = in2[iid];
+                  out1[i] = v1;
+                  out2[i] = v2;
+              });
+}
+
+/**
+ * @brief gather elements
+ * @param out output gathered array
+ * @param in input buffer
+ * @param instId gather indices
+ * @param nVals length of the buffers
+ */
+template <typename T, int BlkDim=256, int ItemsPerThread=4>
+void gather(T* out, const T* in, const int* instId, int nVals) {
+  dh::launch_n<ItemsPerThread,BlkDim>
+      (nVals, [=] __device__(int i) {
+                  int iid = instId[i];
+                  out[i] = in[iid];
+              });
+}
 
 }  // namespace tree
 }  // namespace xgboost

@@ -49,7 +49,7 @@ TEST(Objective, LogisticRegressionBasic) {
   std::vector<xgboost::bst_float> preds = {0, 0.1, 0.5, 0.9, 1};
   std::vector<xgboost::bst_float> out_preds = {0.5, 0.524, 0.622, 0.710, 0.731};
   obj->PredTransform(&preds);
-  for (int i = 0; i < preds.size(); ++i) {
+  for (int i = 0; i < static_cast<int>(preds.size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01);
   }
 }
@@ -97,7 +97,7 @@ TEST(Objective, PoissonRegressionBasic) {
   std::vector<xgboost::bst_float> preds = {0, 0.1, 0.5, 0.9, 1};
   std::vector<xgboost::bst_float> out_preds = {1, 1.10, 1.64, 2.45, 2.71};
   obj->PredTransform(&preds);
-  for (int i = 0; i < preds.size(); ++i) {
+  for (int i = 0; i < static_cast<int>(preds.size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01);
   }
 }
@@ -132,7 +132,7 @@ TEST(Objective, GammaRegressionBasic) {
   std::vector<xgboost::bst_float> preds = {0, 0.1, 0.5, 0.9, 1};
   std::vector<xgboost::bst_float> out_preds = {1, 1.10, 1.64, 2.45, 2.71};
   obj->PredTransform(&preds);
-  for (int i = 0; i < preds.size(); ++i) {
+  for (int i = 0; i < static_cast<int>(preds.size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01);
   }
 }
@@ -168,7 +168,7 @@ TEST(Objective, TweedieRegressionBasic) {
   std::vector<xgboost::bst_float> preds = {0, 0.1, 0.5, 0.9, 1};
   std::vector<xgboost::bst_float> out_preds = {1, 1.10, 1.64, 2.45, 2.71};
   obj->PredTransform(&preds);
-  for (int i = 0; i < preds.size(); ++i) {
+  for (int i = 0; i < static_cast<int>(preds.size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01);
   }
 }

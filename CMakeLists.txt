@@ -2,10 +2,15 @@ cmake_minimum_required (VERSION 3.2)
 project (xgboost)
 find_package(OpenMP)
 
+option(PLUGIN_UPDATER_GPU "Build GPU accelerated tree construction plugin")
+if(PLUGIN_UPDATER_GPU)
+  find_package(CUDA REQUIRED)
+endif()
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
 if(NOT MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -O3 -funroll-loops -msse2 -D_MWAITXINTRIN_H_INCLUDED -D_FORCE_INLINES")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -O3 -funroll-loops -msse2 -D_MWAITXINTRIN_H_INCLUDED -D_FORCE_INLINES")
 endif()
 
 
@@ -21,13 +26,15 @@ else()
   CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
   CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
 
+  set(STD_FLAG "")
   if(COMPILER_SUPPORTS_CXX11)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+    set(STD_FLAG "-std=c++11")
   elseif(COMPILER_SUPPORTS_CXX0X)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+    set(STD_FLAG "-std=c++0x")
   else()
     message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
   endif()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${STD_FLAG}")
 endif()
 
 #Make sure we are using the static runtime
@@ -93,33 +100,33 @@ endif()
 
 set(LINK_LIBRARIES dmlccore rabit)
 
-option(PLUGIN_UPDATER_GPU "Build GPU accelerated tree construction plugin")
-
 if(PLUGIN_UPDATER_GPU)
-	#Find cub
-	set(CUB_DIRECTORY "" CACHE PATH "CUB 1.5.4 directory")
-	include_directories(${CUB_DIRECTORY})
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;-arch=compute_35;-lineinfo;")
+    #Find cub
+    set(CUB_DIRECTORY "cub/" CACHE PATH "CUB 1.5.4 directory")
+    include_directories(${CUB_DIRECTORY})
+    #Find googletest
+    set(GTEST_DIRECTORY "${CACHE_PREFIX}" CACHE PATH "Googletest directory")
+    include_directories(${GTEST_DIRECTORY}/include)
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;-arch=compute_60;-lineinfo;")
     if(NOT MSVC)
-        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
+      set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
     endif()
-    set(SOURCES ${SOURCES}
-        plugin/updater_gpu/src/updater_gpu.cc
+    set(CUDA_SOURCES
+      plugin/updater_gpu/src/updater_gpu.cu
+      plugin/updater_gpu/src/gpu_hist_builder.cu
     )
-    find_package(CUDA QUIET REQUIRED)
-	file(GLOB_RECURSE CUDA_SOURCES "plugin/updater_gpu/src/*")
-    cuda_add_library(updater_gpu STATIC
-        ${CUDA_SOURCES}
-    )
-
-    set(LINK_LIBRARIES ${LINK_LIBRARIES} updater_gpu)
+    cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
+    set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CUDA_LIBRARIES})
+else()
+    set(CUDA_OBJS "")
 endif()
 
 add_library(objxgboost OBJECT ${SOURCES})
 set_target_properties(${objxgboost} PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
-add_library(libxgboost SHARED $<TARGET_OBJECTS:objxgboost>)
-add_executable(xgboost $<TARGET_OBJECTS:objxgboost>)
+add_library(libxgboost SHARED $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
+add_executable(xgboost $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
+
 target_link_libraries(xgboost ${LINK_LIBRARIES})
 target_link_libraries(libxgboost ${LINK_LIBRARIES})
 
@@ -132,6 +139,7 @@ if(JVM_BINDINGS)
 
     add_library(libxgboost4j SHARED
         $<TARGET_OBJECTS:objxgboost>
+        ${CUDA_OBJS}
         jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
     target_link_libraries(libxgboost4j
         ${LINK_LIBRARIES}

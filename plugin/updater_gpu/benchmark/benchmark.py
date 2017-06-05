@@ -42,7 +42,7 @@ args = parser.parse_args()
 
 if 'grow_gpu_hist' in args.algorithm:
     run_benchmark(args, args.algorithm, 'grow_fast_histmaker')
-if 'grow_gpu ' in args.algorithm:
+if 'grow_gpu' in args.algorithm:
     run_benchmark(args, args.algorithm, 'grow_colmaker')
 if 'all' in args.algorithm:
     run_benchmark(args, 'grow_gpu', 'grow_colmaker')

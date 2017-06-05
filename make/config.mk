@@ -54,10 +54,20 @@ TEST_COVER = 0
 
 # path to gtest library (only used when $BUILD_TEST=1)
 # there should be an include path in $GTEST_PATH/include and library in $GTEST_PATH/lib
-GTEST_PATH =
+GTEST_PATH ?= 
+
+# path to cub library (only used when $CUDA_ENABLED=1)
+# this should point to the cub project root folder
+CUB_PATH ?= cub
 
 # List of additional plugins, checkout plugin folder.
 # uncomment the following lines to include these plugins
 # you can also add your own plugin like this
 #
 # XGB_PLUGINS += plugin/example/plugin.mk
+
+# plugin to build tree on GPUs using CUDA
+PLUGIN_UPDATER_GPU ?= OFF
+ifeq ($(PLUGIN_UPDATER_GPU),ON)
+  XGB_PLUGINS += plugin/updater_gpu/plugin.mk
+endif

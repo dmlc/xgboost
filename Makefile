@@ -53,7 +53,7 @@ endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
 export CFLAGS=  -std=c++11 -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
-CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
+CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include -I$(GTEST_PATH)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
 
@@ -84,12 +84,28 @@ ifeq ($(UNAME), Darwin)
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/darwin
 endif
 
+OPENMP_FLAGS =
 ifeq ($(USE_OPENMP), 1)
-	CFLAGS += -fopenmp
+	OPENMP_FLAGS = -fopenmp
 else
-	CFLAGS += -DDISABLE_OPENMP
+	OPENMP_FLAGS = -DDISABLE_OPENMP
 endif
+CFLAGS += $(OPENMP_FLAGS)
 
+# for using GPUs
+COMPUTE ?= 60 35
+NVCC = nvcc
+INCLUDES = -Iinclude -I$(DMLC_CORE)/include -I$(RABIT)/include
+INCLUDES += -I$(CUB_PATH)
+INCLUDES += -I$(GTEST_PATH)/include
+CODE = $(foreach ver,$(COMPUTE),-gencode arch=compute_$(ver),code=sm_$(ver))
+NVCC_FLAGS = --std=c++11 $(CODE) $(INCLUDES) -lineinfo --expt-extended-lambda
+NVCC_FLAGS += -Xcompiler=$(OPENMP_FLAGS) -Xcompiler=-fPIC
+ifeq ($(PLUGIN_UPDATER_GPU),ON)
+  CUDA_ROOT = $(shell dirname $(shell dirname $(shell which $(NVCC))))
+  INCLUDES += -I$(CUDA_ROOT)/include
+  LDFLAGS += -L$(CUDA_ROOT)/lib64 -lcudart
+endif
 
 # specify tensor path
 .PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck java pylint
@@ -113,10 +129,20 @@ ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
 CLI_OBJ = build/cli_main.o
 include tests/cpp/xgboost_test.mk
 
+# order of this rule matters wrt %.cc rule below!
+build/%.o: src/%.cu
+	@mkdir -p $(@D)
+	$(NVCC) -c $(NVCC_FLAGS) $< -o $@
+
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) $< -o $@
+
+# order of this rule matters wrt %.cc rule below!
+build_plugin/%.o: plugin/%.cu
+	@mkdir -p $(@D)
+	$(NVCC) -c $(NVCC_FLAGS) $< -o $@
 
 build_plugin/%.o: plugin/%.cc
 	@mkdir -p $(@D)
@@ -158,6 +184,8 @@ pylint:
 	flake8 --ignore E501 tests/python
 
 test: $(ALL_TEST)
+	./plugin/updater_gpu/test/cpp/generate_data.sh
+	$(ALL_TEST)
 
 check: test
 	./tests/cpp/xgboost_test
