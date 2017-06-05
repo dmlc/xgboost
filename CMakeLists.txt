@@ -117,6 +117,8 @@ if(PLUGIN_UPDATER_GPU)
     )
     cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
     set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CUDA_LIBRARIES})
+else()
+    set(CUDA_OBJS "")
 endif()
 
 add_library(objxgboost OBJECT ${SOURCES})
@@ -137,6 +139,7 @@ if(JVM_BINDINGS)
 
     add_library(libxgboost4j SHARED
         $<TARGET_OBJECTS:objxgboost>
+        ${CUDA_OBJS}
         jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
     target_link_libraries(libxgboost4j
         ${LINK_LIBRARIES}
