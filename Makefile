@@ -84,11 +84,13 @@ ifeq ($(UNAME), Darwin)
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/darwin
 endif
 
+OPENMP_FLAGS =
 ifeq ($(USE_OPENMP), 1)
-	CFLAGS += -fopenmp
+	OPENMP_FLAGS = -fopenmp
 else
-	CFLAGS += -DDISABLE_OPENMP
+	OPENMP_FLAGS = -DDISABLE_OPENMP
 endif
+CFLAGS += $(OPENMP_FLAGS)
 
 # for using GPUs
 COMPUTE ?= 60 35
@@ -98,7 +100,7 @@ INCLUDES += -I$(CUB_PATH)
 INCLUDES += -I$(GTEST_PATH)/include
 CODE = $(foreach ver,$(COMPUTE),-gencode arch=compute_$(ver),code=sm_$(ver))
 NVCC_FLAGS = --std=c++11 $(CODE) $(INCLUDES) -lineinfo --expt-extended-lambda
-NVCC_FLAGS += -Xcompiler=$(OPENMP_OPTION) -Xcompiler=-fPIC
+NVCC_FLAGS += -Xcompiler=$(OPENMP_FLAGS) -Xcompiler=-fPIC
 ifeq ($(PLUGIN_UPDATER_GPU),ON)
   CUDA_ROOT = $(shell dirname $(shell dirname $(shell which $(NVCC))))
   INCLUDES += -I$(CUDA_ROOT)/include

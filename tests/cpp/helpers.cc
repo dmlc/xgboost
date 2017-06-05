@@ -40,7 +40,7 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
   obj->GetGradient(preds, info, 1, &gpair);
 
   ASSERT_EQ(gpair.size(), preds.size());
-  for (int i = 0; i < gpair.size(); ++i) {
+  for (int i = 0; i < static_cast<int>(gpair.size()); ++i) {
     EXPECT_NEAR(gpair[i].grad, out_grad[i], 0.01)
       << "Unexpected grad for pred=" << preds[i] << " label=" << labels[i]
       << " weight=" << weights[i];

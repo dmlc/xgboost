@@ -177,7 +177,7 @@ private:
   friend void testAllocate<node_id_t>();
   friend void testMarkLeaves<node_id_t>();
   friend void testDense2Sparse<node_id_t>();
-  friend std::shared_ptr<xgboost::DMatrix> setupGPUBuilder(
+  friend std::shared_ptr<xgboost::DMatrix> setupGPUBuilder<node_id_t>(
       const std::string& file, GPUBuilder<node_id_t>& builder);
 
   TrainParam param;

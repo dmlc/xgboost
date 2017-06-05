@@ -62,7 +62,7 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
     num_col_batch += 1;
     EXPECT_EQ(col_iter->Value().size, dmat->info().num_col)
       << "Expected batch size = number of cells as #batches is 1.";
-    for (int i = 0; i < col_iter->Value().size; ++i) {
+    for (int i = 0; i < static_cast<int>(col_iter->Value().size); ++i) {
       EXPECT_EQ(col_iter->Value()[i].length, dmat->GetColSize(i))
         << "Expected length of each colbatch = colsize as #batches is 1.";
     }
@@ -106,7 +106,7 @@ TEST(SimpleDMatrix, ColAccessWithBatches) {
     num_col_batch += 1;
     EXPECT_EQ(col_iter->Value().size, dmat->info().num_col)
       << "Expected batch size = num_cols as max_row_perbatch is 1.";
-    for (int i = 0; i < col_iter->Value().size; ++i) {
+    for (int i = 0; i < static_cast<int>(col_iter->Value().size); ++i) {
       EXPECT_LE(col_iter->Value()[i].length, 1)
         << "Expected length of each colbatch <=1 as max_row_perbatch is 1.";
     }
