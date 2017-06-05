@@ -9,8 +9,15 @@ from contextlib import contextmanager
 from subprocess import check_output
 
 
-#: Enable of your compiler supports OpenMP.
-USE_OMP = "ON"
+CONFIG = {
+    "USE_OPENMP": "ON",
+    "USE_HDFS": "OFF",
+    "USE_AZURE": "OFF",
+    "USE_S3": "OFF",
+
+    "PLUGIN_UPDATER_GPU": "OFF",
+    "JVM_BINDINGS": "ON"
+}
 
 
 @contextmanager
@@ -54,7 +61,8 @@ def normpath(path):
 
 if __name__ == "__main__":
     if sys.platform == "darwin":
-        USE_OMP = "OFF"
+        # Enable of your compiler supports OpenMP.
+        CONFIG["USE_OPENMP"] = "OFF"
         os.environ["JAVA_HOME"] = check_output(
             "/usr/libexec/java_home").strip().decode()
 
@@ -64,12 +72,12 @@ if __name__ == "__main__":
         with cd("build"):
             if sys.platform == "win32":
                 # Force x64 build on Windows.
-                maybe_generator = '-G"Visual Studio 14 Win64"'
+                maybe_generator = ' -G"Visual Studio 14 Win64"'
             else:
                 maybe_generator = ""
 
-            run("cmake .. -DJVM_BINDINGS:BOOL=ON -DUSE_OPENMP:BOOL={0} {1}"
-                .format(USE_OMP, maybe_generator))
+            args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
+            run("cmake .. " + " ".join(args) + maybe_generator)
             run("cmake --build .")
 
         with cd("demo/regression"):
