@@ -33,7 +33,7 @@ void MetaInfo::Clear() {
 }
 
 void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
-  int version = kVersion;
+  int32_t version = kVersion;
   fo->Write(&version, sizeof(version));
   fo->Write(&num_row, sizeof(num_row));
   fo->Write(&num_col, sizeof(num_col));
