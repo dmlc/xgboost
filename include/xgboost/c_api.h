@@ -541,6 +541,11 @@ XGB_DLL int XGBoosterSetAttr(BoosterHandle handle,
 XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
                                   bst_ulong* out_len,
                                   const char*** out);
+/*!
+* \brief Free memory used by the thread local store.
+* \return 0 when success, -1 when failure happens
+*/
+XGB_DLL int XGBThreadLocalStoreFree();
 
 // --- Distributed training API----
 // NOTE: functions in rabit/c_api.h will be also available in libxgboost.so
