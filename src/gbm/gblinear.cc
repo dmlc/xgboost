@@ -102,6 +102,9 @@ class GBLinear : public GradientBooster {
   void Save(dmlc::Stream* fo) const override {
     model.Save(fo);
   }
+  void ShrinkModel(int shrink_tree_num) {
+      return;
+  }
   void DoBoost(DMatrix *p_fmat,
                std::vector<bst_gpair> *in_gpair,
                ObjFunction* obj) override {
