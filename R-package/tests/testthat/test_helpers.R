@@ -14,6 +14,7 @@ df[,ID := NULL]
 sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df)
 label <- df[, ifelse(Improved == "Marked", 1, 0)]
 
+# binary
 nrounds <- 12
 bst.Tree <- xgboost(data = sparse_matrix, label = label, max_depth = 9,
                     eta = 1, nthread = 2, nrounds = nrounds, verbose = 0,
@@ -24,6 +25,18 @@ bst.GLM <- xgboost(data = sparse_matrix, label = label,
                    objective = "binary:logistic", booster = "gblinear")
 
 feature.names <- colnames(sparse_matrix)
+
+# multiclass
+mlabel <- as.numeric(iris$Species) - 1
+nclass <- 3
+mbst.Tree <- xgboost(data = as.matrix(iris[, -5]), label = mlabel, verbose = 0,
+                     max_depth = 3, eta = 0.5, nthread = 2, nrounds = nrounds,
+                     objective = "multi:softprob", num_class = nclass, base_score = 0)
+
+mbst.GLM <- xgboost(data = as.matrix(iris[, -5]), label = mlabel, verbose = 0,
+                    booster = "gblinear", eta = 0.1, nthread = 1, nrounds = nrounds,
+                    objective = "multi:softprob", num_class = nclass, base_score = 0)
+
 
 test_that("xgb.dump works", {
   expect_length(xgb.dump(bst.Tree), 200)
@@ -82,12 +95,8 @@ test_that("predict feature contributions works", {
   expect_equal(as.numeric(pred_contr), as.numeric(pred_contr_manual), 2e-6)
 
   # gbtree multiclass  
-  lb <- as.numeric(iris$Species) - 1
-  bst <- xgboost(data = as.matrix(iris[, -5]), label = lb, verbose = 0,
-                 max_depth = 3, eta = 0.5, nthread = 2, nrounds = 5,
-                 objective = "multi:softprob", num_class = 3)
-  pred <- predict(bst, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
-  pred_contr <- predict(bst, as.matrix(iris[, -5]), predcontrib = TRUE)
+  pred <- predict(mbst.Tree, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
+  pred_contr <- predict(mbst.Tree, as.matrix(iris[, -5]), predcontrib = TRUE)
   expect_is(pred_contr, "list")
   expect_length(pred_contr, 3)
   for (g in seq_along(pred_contr)) {
@@ -96,19 +105,15 @@ test_that("predict feature contributions works", {
   }
 
   # gblinear multiclass (set base_score = 0, which is base margin in multiclass)
-  bst <- xgboost(data = as.matrix(iris[, -5]), label = lb, verbose = 0,
-                 booster = "gblinear", eta = 0.1, nthread = 1, nrounds = 10,
-                 objective = "multi:softprob", num_class = 3, base_score = 0)
-  pred <- predict(bst, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
-  pred_contr <- predict(bst, as.matrix(iris[, -5]), predcontrib = TRUE)
+  pred <- predict(mbst.GLM, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
+  pred_contr <- predict(mbst.GLM, as.matrix(iris[, -5]), predcontrib = TRUE)
   expect_length(pred_contr, 3)
-  coefs_all <- xgb.dump(bst)[-c(1,2,6)] %>% as.numeric
+  coefs_all <- xgb.dump(mbst.GLM)[-c(1,2,6)] %>% as.numeric %>% matrix(ncol = 3, byrow = TRUE)
   for (g in seq_along(pred_contr)) {
     expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "BIAS"))
     expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), 2e-6)
     # manual calculation of linear terms
-    coefs <- coefs_all[seq(g, length(coefs_all), by = 3)]
-    coefs <- c(coefs[-1], coefs[1]) # intercept needs to be the last
+    coefs <- c(coefs_all[-1, g], coefs_all[1, g]) # intercept needs to be the last
     pred_contr_manual <- sweep(as.matrix(cbind(iris[,-5], 1)), 2, coefs, FUN="*")
     expect_equal(as.numeric(pred_contr[[g]]), as.numeric(pred_contr_manual), 2e-6)
   }
@@ -227,6 +232,11 @@ test_that("xgb.importance works with and without feature names", {
   imp2plot <- xgb.plot.importance(importance_matrix = importance.Tree)
   expect_equal(colnames(imp2plot), c("Feature", "Gain", "Cover", "Frequency", "Importance"))
   xgb.ggplot.importance(importance_matrix = importance.Tree)
+  
+  # for multiclass
+  imp.Tree <- xgb.importance(model = mbst.Tree)
+  expect_equal(dim(imp.Tree), c(4, 4))
+  xgb.importance(model = mbst.Tree, trees = seq(from=0, by=nclass, length.out=nrounds))
 })
 
 test_that("xgb.importance works with GLM model", {
@@ -237,6 +247,11 @@ test_that("xgb.importance works with GLM model", {
   imp2plot <- xgb.plot.importance(importance.GLM)
   expect_equal(colnames(imp2plot), c("Feature", "Weight", "Importance"))
   xgb.ggplot.importance(importance.GLM)
+  
+  # for multiclass
+  imp.GLM <- xgb.importance(model = mbst.GLM)
+  expect_equal(dim(imp.GLM), c(12, 3))
+  expect_equal(imp.GLM$Class, rep(0:2, each=4))
 })
 
 test_that("xgb.model.dt.tree and xgb.importance work with a single split model", {
