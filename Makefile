@@ -93,12 +93,12 @@ endif
 CFLAGS += $(OPENMP_FLAGS)
 
 # for using GPUs
-COMPUTE ?= 60 35
+GPU_COMPUTE_VER ?= 50 52 60 61
 NVCC = nvcc
 INCLUDES = -Iinclude -I$(DMLC_CORE)/include -I$(RABIT)/include
 INCLUDES += -I$(CUB_PATH)
 INCLUDES += -I$(GTEST_PATH)/include
-CODE = $(foreach ver,$(COMPUTE),-gencode arch=compute_$(ver),code=sm_$(ver))
+CODE = $(foreach ver,$(GPU_COMPUTE_VER),-gencode arch=compute_$(ver),code=sm_$(ver))
 NVCC_FLAGS = --std=c++11 $(CODE) $(INCLUDES) -lineinfo --expt-extended-lambda
 NVCC_FLAGS += -Xcompiler=$(OPENMP_FLAGS) -Xcompiler=-fPIC
 ifeq ($(PLUGIN_UPDATER_GPU),ON)

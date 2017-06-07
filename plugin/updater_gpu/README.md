@@ -78,11 +78,23 @@ $ cmake .. -G"Visual Studio 12 2013 Win64" -DPLUGIN_UPDATER_GPU=ON
 You may also  be able to use a later version of visual studio depending on whether the CUDA toolkit supports it.
 cmake will generate an xgboost.sln solution file in the build directory. Build this solution in release mode. This is also a good time to check it is being built as x64. If not make sure the cmake generator is set correctly.
 
+In case you want to build only for a specific GPU(s), for eg. GP100 and GP102,
+whose compute capability are 60 and 61 respectively:
+```bash
+$ cmake .. -DPLUGIN_UPDATER_GPU=ON -DGPU_COMPUTE_VER="60;61"
+```
+By default, the versions will include support for all GPUs in Maxwell and Pascal architectures.
+
 ### Using make
 Now, it also supports the usual 'make' flow to build gpu-enabled tree construction plugins. It's currently only tested on Linux. From the xgboost directory
 ```bash
 # make sure CUDA SDK bin directory is in the 'PATH' env variable
 $ make PLUGIN_UPDATER_GPU=ON
+```
+
+Similar to cmake, if you want to build only for a specific GPU(s):
+```bash
+$ make PLUGIN_UPDATER_GPU=ON GPU_COMPUTE_VER="60 61"
 ```
 
 ### For Developers!
