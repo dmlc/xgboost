@@ -11,97 +11,7 @@
     <artifactId>xgboost4j</artifactId>
     <version>0.7</version>
     <packaging>jar</packaging>
-    <profiles>
-        <profile>
-            <id>NotWindows</id>
-            <activation>
-                <os>
-                    <family>!windows</family>
-                </os>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>2.10.3</version>
-                        <configuration>
-                            <show>protected</show>
-                            <nohelp>true</nohelp>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-assembly-plugin</artifactId>
-                        <configuration>
-                            <skipAssembly>false</skipAssembly>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <artifactId>exec-maven-plugin</artifactId>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <version>1.6.0</version>
-                        <executions>
-                            <execution><!-- Run our version calculation script -->
-                                <id>native</id>
-                                <phase>generate-sources</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>create_jni.sh</executable>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>Windows</id>
-            <activation>
-                <os>
-                    <family>windows</family>
-                </os>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>2.10.3</version>
-                        <configuration>
-                            <show>protected</show>
-                            <nohelp>true</nohelp>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-assembly-plugin</artifactId>
-                        <configuration>
-                            <skipAssembly>false</skipAssembly>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <artifactId>exec-maven-plugin</artifactId>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <executions>
-                            <execution><!-- Run our version calculation script -->
-                                <id>native</id>
-                                <phase>generate-sources</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>create_jni.bat</executable>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
+
     <dependencies>
         <dependency>
             <groupId>junit</groupId>
@@ -122,4 +32,45 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+      <plugins>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-javadoc-plugin</artifactId>
+              <version>2.10.3</version>
+              <configuration>
+                  <show>protected</show>
+                  <nohelp>true</nohelp>
+              </configuration>
+          </plugin>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-assembly-plugin</artifactId>
+              <configuration>
+                  <skipAssembly>false</skipAssembly>
+              </configuration>
+          </plugin>
+          <plugin>
+              <artifactId>exec-maven-plugin</artifactId>
+              <groupId>org.codehaus.mojo</groupId>
+              <executions>
+                  <execution>
+                      <id>native</id>
+                      <phase>generate-sources</phase>
+                      <goals>
+                          <goal>exec</goal>
+                      </goals>
+                      <configuration>
+                          <executable>python</executable>
+                          <arguments>
+                            <argument>create_jni.py</argument>
+                          </arguments>
+                          <workingDirectory>${user.dir}</workingDirectory>
+                      </configuration>
+                  </execution>
+              </executions>
+          </plugin>
+      </plugins>
+    </build>
 </project>
