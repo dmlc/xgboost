@@ -448,6 +448,11 @@ class DMatrix(object):
         weight : array like
             Weight for each data point
         """
+        weight_mean = np.abs(weight).mean()
+        if weight_mean > 0:
+            weight /= weight_mean
+        else:
+            raise ValueError('sample weights too small, can not rescale')
         self.set_float_info('weight', weight)
 
     def set_base_margin(self, margin):
