@@ -194,12 +194,15 @@ void CLITrain(const CLIParam& param) {
       learner->InitModel();
     }
   }
+
   if (param.silent == 0) {
     LOG(INFO) << "Loading data: " << dmlc::GetTime() - tstart_data_load << " sec";
   }
+
   // start training.
   const double start = dmlc::GetTime();
-  for (int i = version / 2; i < param.num_round; ++i) {
+  bool is_early_stopping_met = false;
+  for (int i = version / 2; (i < param.num_round) && !is_early_stopping_met; ++i) {
     double elapsed = dmlc::GetTime() - start;
     if (version % 2 == 0) {
       if (param.silent == 0) {
@@ -224,6 +227,9 @@ void CLITrain(const CLIParam& param) {
         LOG(CONSOLE) << res;
       }
     }
+
+    is_early_stopping_met = learner->CheckEarlyStopping(i, eval_datasets, eval_data_names);
+
     if (param.save_period != 0 &&
         (i + 1) % param.save_period == 0 &&
         rabit::GetRank() == 0) {

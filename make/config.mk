@@ -17,9 +17,9 @@
 #----------------------------------------------------
 
 # choice of compiler, by default use system preference.
-# export CC = gcc
-# export CXX = g++
-# export MPICXX = mpicxx
+export CC = gcc-mp-4.8
+export CXX = g++-mp-4.8
+ export MPICXX = mpicxx-openmpi-gcc48
 
 # the additional link flags you want to add
 ADD_LDFLAGS =

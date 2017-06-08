@@ -36,18 +36,20 @@ include $(XGB_PLUGINS)
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
 ifndef CC
-export CC = $(if $(shell which clang), clang, gcc)
+#export CC = $(if $(shell which clang), clang, gcc)
+export CC = gcc-mp-4.8
 endif
 ifndef CXX
-export CXX = $(if $(shell which clang++), clang++, g++)
+#export CXX = $(if $(shell which clang++), clang++, g++)
+export CXX = g++-mp-4.8
 endif
 else
 # linux defaults
 ifndef CC
-export CC = gcc
+export CC = gcc-mp-4.8
 endif
 ifndef CXX
-export CXX = g++
+export CXX = g++-mp-4.8
 endif
 endif
 

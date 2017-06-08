@@ -31,7 +31,7 @@ num_round <- 2
 test_that("custom objective works", {
   bst <- xgb.train(param, dtrain, num_round, watchlist)
   expect_equal(class(bst), "xgb.Booster")
-  expect_equal(length(bst$raw), 1094)
+  expect_equal(length(bst$raw), 1098)
   expect_false(is.null(bst$evaluation_log))
   expect_false(is.null(bst$evaluation_log$eval_error))
   expect_lt(bst$evaluation_log[num_round, eval_error], 0.03)
@@ -58,5 +58,5 @@ test_that("custom objective using DMatrix attr works", {
   param$objective = logregobjattr
   bst <- xgb.train(param, dtrain, num_round, watchlist)
   expect_equal(class(bst), "xgb.Booster")
-  expect_equal(length(bst$raw), 1094)
+  expect_equal(length(bst$raw), 1098)
 })
