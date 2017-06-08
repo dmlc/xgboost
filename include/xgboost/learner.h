@@ -59,6 +59,11 @@ class Learner : public rabit::Serializable {
    */
   virtual void InitModel() = 0;
   /*!
+   * \brief Initialize the state of evaluation only once
+   * \param eval_datasets_size The size of eval_data_sets
+   */
+  virtual void InitEvalStateOnce(size_t eval_datasets_size) = 0;
+  /*!
    * \brief load model from stream
    * \param fi input stream.
    */
@@ -95,6 +100,17 @@ class Learner : public rabit::Serializable {
   virtual std::string EvalOneIter(int iter,
                                   const std::vector<DMatrix*>& data_sets,
                                   const std::vector<std::string>& data_names) = 0;
+  /*!
+   * \brief Check the early stopping condition corresponding evaluation result
+   * \param iter iteration number
+   * \param data_sets datasets to be evaluated.
+   * \param data_names name of each dataset
+   * \return Whether the model should be stop early
+   */
+  virtual bool CheckEarlyStopping(int iter,
+                          const std::vector<DMatrix*>& data_sets,
+                          const std::vector<std::string>& data_names) = 0;
+
   /*!
    * \brief get prediction given the model.
    * \param data input data
@@ -182,6 +198,14 @@ class Learner : public rabit::Serializable {
   std::unique_ptr<GradientBooster> gbm_;
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;
+  /*! \brief Number of rounds for early stopping */
+  int early_stopping_round_;
+  /*! \brief Best iteration(s) for early stopping */
+  std::vector<std::vector<int>> best_iter_;
+  /*! \brief Best score(s) for early stopping */
+  std::vector<std::vector<float>> best_score_;
+  /*! \brief Whether to maximize evaluation */
+  std::vector<bool> metric_maximize_;
 };
 
 // implementation of inline functions.

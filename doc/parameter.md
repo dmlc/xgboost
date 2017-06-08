@@ -108,6 +108,11 @@ Parameters for Tree Booster
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
 
+* early_stopping_round, [default=0]
+  - The model will train until the validation score stops improving. If you have a validation set, you can use early stopping to find the optimal number of boosting rounds. Early stopping requires at least one evaluation in eval_metric. If there are multiple evaluation metrics, it will be apply to the last one, as same as used in Python.
+    - 0: means normal mode, won't stop early during training
+    - n: training will stop if validation error didn't decrease at least every n round. (where n > 0)
+
 Additional parameters for Dart Booster
 --------------------------------------
 * sample_type [default="uniform"]
