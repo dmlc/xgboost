@@ -58,7 +58,8 @@ class XGBModel(XGBModelBase):
     Parameters
     ----------
     max_depth : int
-        Maximum tree depth for base learners.
+        Maximum tree depth for base learners; 0 indicates no limit; a limit is required
+        for depth-wise grow policy.
     learning_rate : float
         Boosting learning rate (xgb's "eta")
     n_estimators : int
@@ -101,6 +102,16 @@ class XGBModel(XGBModelBase):
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
+    tree_method : string
+        The tree construction algorithm used in XGBoost: auto, exact, approx or hist.
+    grow_policy : string
+        Tree growing policy.
+        depthwise : favor splitting at nodes closest to the node.
+        lossguide : favor splitting at nodes with highest loss change. (cf. LightGBM)
+    max_bin : int
+        If using histogram-based algorithm, maximum number of bins per feature.
+    max_leaves : int
+        Maximum number of leaves. 0 indicates no limit.
     **kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
         be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.md.
@@ -132,7 +143,8 @@ class XGBModel(XGBModelBase):
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
+                 base_score=0.5, random_state=0, seed=None, missing=None, tree_method='auto',
+                 grow_policy='depthwise', max_bin=256, max_leaves=0, **kwargs):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
@@ -153,6 +165,10 @@ class XGBModel(XGBModelBase):
         self.scale_pos_weight = scale_pos_weight
         self.base_score = base_score
         self.missing = missing if missing is not None else np.nan
+        self.tree_method = tree_method
+        self.grow_policy = grow_policy
+        self.max_bin = max_bin
+        self.max_leaves = max_leaves
         self.kwargs = kwargs
         self._Booster = None
         if seed:
@@ -398,7 +414,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
+                 base_score=0.5, random_state=0, seed=None, missing=None, tree_method='auto',
+                 grow_policy='depthwise', max_bin=256, max_leaves=0, **kwargs):
         super(XGBClassifier, self).__init__(max_depth, learning_rate,
                                             n_estimators, silent, objective, booster,
                                             n_jobs, nthread, gamma, min_child_weight,
@@ -406,7 +423,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             colsample_bytree, colsample_bylevel,
                                             reg_alpha, reg_lambda,
                                             scale_pos_weight, base_score,
-                                            random_state, seed, missing, **kwargs)
+                                            random_state, seed, missing, tree_method,
+                                            grow_policy, max_bin, max_leaves, **kwargs)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
