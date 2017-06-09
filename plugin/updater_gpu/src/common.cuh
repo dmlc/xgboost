@@ -1,5 +1,5 @@
 /*!
- * Copyright 2016 Rory mitchell
+ * Copyright 2017 XGBoost contributors
  */
 #pragma once
 #include <vector>
@@ -147,7 +147,8 @@ inline void dense2sparse_tree(RegTree* p_tree,
 }
 
 // Set gradient pair to 0 with p = 1 - subsample
-inline void subsample_gpair(dh::dvec<gpu_gpair>* p_gpair, float subsample) {
+inline void subsample_gpair(dh::dvec<gpu_gpair>* p_gpair, float subsample,
+                            int offset) {
   if (subsample == 1.0) {
     return;
   }
@@ -157,11 +158,17 @@ inline void subsample_gpair(dh::dvec<gpu_gpair>* p_gpair, float subsample) {
   auto d_gpair = gpair.data();
   dh::BernoulliRng rng(subsample, common::GlobalRandom()());
 
-  dh::launch_n(gpair.size(), [=] __device__(int i) {
-    if (!rng(i)) {
+  dh::launch_n(gpair.device_idx(), gpair.size(), [=] __device__(int i) {
+    if (!rng(i + offset)) {
       d_gpair[i] = gpu_gpair();
     }
   });
+}
+
+// Set gradient pair to 0 with p = 1 - subsample
+inline void subsample_gpair(dh::dvec<gpu_gpair>* p_gpair, float subsample) {
+  int offset = 0;
+  subsample_gpair(p_gpair, subsample, offset);
 }
 
 inline std::vector<int> col_sample(std::vector<int> features, float colsample) {
@@ -233,8 +240,8 @@ void sumReduction(dh::CubMemory &tmp_mem, dh::dvec<T> &in, dh::dvec<T> &out,
  * @param def default value to be filled
  */
 template <typename T, int BlkDim=256, int ItemsPerThread=4>
-void fillConst(T* out, int len, T def) {
-  dh::launch_n<ItemsPerThread,BlkDim>(len, [=] __device__(int i) { out[i] = def; });
+void fillConst(int device_idx, T* out, int len, T def) {
+  dh::launch_n<ItemsPerThread,BlkDim>(device_idx, len, [=] __device__(int i) { out[i] = def; });
 }
 
 /**
@@ -247,10 +254,10 @@ void fillConst(T* out, int len, T def) {
  * @param nVals length of the buffers
  */
 template <typename T1, typename T2, int BlkDim=256, int ItemsPerThread=4>
-void gather(T1* out1, const T1* in1, T2* out2, const T2* in2, const int* instId,
+void gather(int device_idx, T1* out1, const T1* in1, T2* out2, const T2* in2, const int* instId,
             int nVals) {
   dh::launch_n<ItemsPerThread,BlkDim>
-      (nVals, [=] __device__(int i) {
+    (device_idx, nVals, [=] __device__(int i) {
                   int iid = instId[i];
                   T1 v1 = in1[iid];
                   T2 v2 = in2[iid];
@@ -267,9 +274,9 @@ void gather(T1* out1, const T1* in1, T2* out2, const T2* in2, const int* instId,
  * @param nVals length of the buffers
  */
 template <typename T, int BlkDim=256, int ItemsPerThread=4>
-void gather(T* out, const T* in, const int* instId, int nVals) {
+void gather(int device_idx, T* out, const T* in, const int* instId, int nVals) {
   dh::launch_n<ItemsPerThread,BlkDim>
-      (nVals, [=] __device__(int i) {
+    (device_idx, nVals, [=] __device__(int i) {
                   int iid = instId[i];
                   out[i] = in[iid];
               });

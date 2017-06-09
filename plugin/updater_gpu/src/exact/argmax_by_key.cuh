@@ -168,7 +168,7 @@ void argMaxByKey(Split* nodeSplits, const gpu_gpair* gradScans,
                  const node_id_t* nodeAssigns, const Node<node_id_t>* nodes, int nUniqKeys,
                  node_id_t nodeStart, int len, const TrainParam param,
                  ArgMaxByKeyAlgo algo) {
-  fillConst<Split,BLKDIM,ITEMS_PER_THREAD>(nodeSplits, nUniqKeys, Split());
+  fillConst<Split,BLKDIM,ITEMS_PER_THREAD>(param.gpu_id, nodeSplits, nUniqKeys, Split());
   int nBlks = dh::div_round_up(len, ITEMS_PER_THREAD*BLKDIM);
   switch(algo) {
   case ABK_GMEM:

@@ -24,7 +24,11 @@
 // helper functions
 // set handle
 void setHandle(JNIEnv *jenv, jlongArray jhandle, void* handle) {
-  jlong out = (jlong) handle;
+#ifdef __APPLE__
+  jlong out = (long) handle;
+#else
+  int64_t out = (int64_t) handle;
+#endif
   jenv->SetLongArrayRegion(jhandle, 0, 1, &out);
 }
 
@@ -32,7 +36,7 @@ void setHandle(JNIEnv *jenv, jlongArray jhandle, void* handle) {
 static JavaVM* global_jvm = nullptr;
 
 // overrides JNI on load
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+jint JNI_OnLoad(JavaVM *vm, void *reserved) {
   global_jvm = vm;
   return JNI_VERSION_1_6;
 }
@@ -72,7 +76,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
         batch, jenv->GetFieldID(batchClass, "featureValue", "[F"));
       XGBoostBatchCSR cbatch;
       cbatch.size = jenv->GetArrayLength(joffset) - 1;
-      cbatch.offset = reinterpret_cast<jlong *>(
+      cbatch.offset = reinterpret_cast<long *>(
           jenv->GetLongArrayElements(joffset, 0));
       if (jlabel != nullptr) {
         cbatch.label = jenv->GetFloatArrayElements(jlabel, 0);
