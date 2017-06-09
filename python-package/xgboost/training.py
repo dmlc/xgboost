@@ -315,8 +315,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         Evaluation metrics to be watched in CV.
     obj : function
         Custom objective function.
-    feval : function
-        Custom evaluation function.
+    feval : function or list of functions
+        Custom evaluation function(s).
     maximize : bool
         Whether to maximize feval.
     early_stopping_rounds: int
@@ -405,7 +405,16 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                            evaluation_result_list=None))
         for fold in cvfolds:
             fold.update(i, obj)
-        res = aggcv([f.eval(i, feval) for f in cvfolds])
+
+        if callable(feval):
+            res = aggcv([f.eval(i, feval) for f in cvfolds])
+        elif isinstance(feval, list):
+            if not all([callable(f) for f in feval]):
+                raise XGBoostError('A list of callables is required for eval parameter')
+            else:
+                res = aggcv([f.eval(i, fun) for f in cvfolds for fun in feval])
+        else:
+            XGBoostError('Invalid type for eval parameter')
 
         for key, mean, std in res:
             if key + '-mean' not in results:
