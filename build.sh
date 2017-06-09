@@ -14,7 +14,11 @@ else
     echo "Start to build single-thread xgboost"
     make clean_all
     make config=make/minimum.mk
-    echo "Successfully build single-thread xgboost"
-    echo "If you want multi-threaded version"
-    echo "See additional instructions in doc/build.md"
+    if [ $? -eq 0 ] ;then
+      echo "Successfully build single-thread xgboost"
+      echo "If you want multi-threaded version"
+      echo "See additional instructions in doc/build.md"
+    else
+      echo "Failed to build single-thread xgboost"
+    fi
 fi
