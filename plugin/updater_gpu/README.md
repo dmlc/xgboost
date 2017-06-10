@@ -49,7 +49,7 @@ Training time time on 1000000 rows x 50 columns with 500 boosting iterations on 
 ## Test
 To run tests:
 ```bash
-$ python -m nose test/python/
+$ python -m nose tests/python/
 ```
 ## Dependencies
 A CUDA capable GPU with at least compute capability >= 3.5 (the algorithm depends on shuffle and vote instructions introduced in Kepler).
