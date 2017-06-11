@@ -1,5 +1,5 @@
 /*!
- * Copyright 2016 Rory mitchell
+ * Copyright 2017 XGBoost contributors
  */
 #pragma once
 #include <thrust/device_vector.h>
@@ -12,11 +12,20 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <numeric>
 #include <cub/cub.cuh>
+
+#ifndef NCCL
+#define NCCL 1
+#endif
+
+#if (NCCL)
+#include "nccl.h"
+#endif
 
 // Uncomment to enable
 // #define DEVICE_TIMER
-// #define TIMERS
+#define TIMERS
 
 namespace dh {
 
@@ -42,6 +51,22 @@ inline cudaError_t throw_on_cuda_error(cudaError_t code, const char *file,
   return code;
 }
 
+#define safe_nccl(ans) throw_on_nccl_error((ans), __FILE__, __LINE__)
+
+#if (NCCL)
+inline ncclResult_t throw_on_nccl_error(ncclResult_t code, const char *file,
+                                        int line) {
+  if (code != ncclSuccess) {
+    std::stringstream ss;
+    ss << "NCCL failure :" << ncclGetErrorString(code) << " ";
+    ss << file << "(" << line << ")";
+    throw std::runtime_error(ss.str());
+  }
+
+  return code;
+}
+#endif
+
 #define gpuErrchk(ans) \
   { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line,
@@ -52,6 +77,55 @@ inline void gpuAssert(cudaError_t code, const char *file, int line,
     if (abort) exit(code);
   }
 }
+
+inline int n_visible_devices() {
+  int n_visgpus = 0;
+
+  cudaGetDeviceCount(&n_visgpus);
+
+  return n_visgpus;
+}
+
+inline int n_devices_all(int n_gpus) {
+  if (NCCL == 0 && n_gpus > 1 || NCCL == 0 && n_gpus != 0) {
+    if (n_gpus != 1 && n_gpus != 0) {
+      fprintf(stderr, "NCCL=0, so forcing n_gpus=1\n");
+      fflush(stderr);
+    }
+    n_gpus = 1;
+  }
+  int n_devices_visible = dh::n_visible_devices();
+  int n_devices = n_gpus < 0 ? n_devices_visible : n_gpus;
+  return (n_devices);
+}
+inline int n_devices(int n_gpus, int num_rows) {
+  int n_devices = dh::n_devices_all(n_gpus);
+  // fix-up device number to be limited by number of rows
+  n_devices = n_devices > num_rows ? num_rows : n_devices;
+  return (n_devices);
+}
+
+// if n_devices=-1, then use all visible devices
+inline void synchronize_n_devices(int n_devices, std::vector<int> dList) {
+  for (int d_idx = 0; d_idx < n_devices; d_idx++) {
+    int device_idx = dList[d_idx];
+    safe_cuda(cudaSetDevice(device_idx));
+    safe_cuda(cudaDeviceSynchronize());
+  }
+}
+inline void synchronize_all() {
+  for (int device_idx = 0; device_idx < n_visible_devices(); device_idx++) {
+    safe_cuda(cudaSetDevice(device_idx));
+    safe_cuda(cudaDeviceSynchronize());
+  }
+}
+
+inline std::string device_name(int device_idx) {
+  cudaDeviceProp prop;
+  dh::safe_cuda(cudaGetDeviceProperties(&prop, device_idx));
+  return std::string(prop.name);
+}
+
 
 /*
  *  Timers
@@ -119,7 +193,9 @@ struct DeviceTimer {
 
 #ifdef DEVICE_TIMER
   __device__ DeviceTimer(DeviceTimerGlobal &GTimer, int slot)  // NOLINT
-      : GTimer(GTimer), start(clock()), slot(slot) {}
+      : GTimer(GTimer),
+        start(clock()),
+        slot(slot) {}
 #else
   __device__ DeviceTimer(DeviceTimerGlobal &GTimer, int slot) {}  // NOLINT
 #endif
@@ -146,8 +222,8 @@ struct Timer {
   void reset() { start = ClockT::now(); }
   int64_t elapsed() const { return (ClockT::now() - start).count(); }
   void printElapsed(std::string label) {
-    safe_cuda(cudaDeviceSynchronize());
-    printf("%s:\t %lld\n", label.c_str(), (long long)elapsed());
+    //    synchronize_n_devices(n_devices, dList);
+    printf("%s:\t %lld\n", label.c_str(), elapsed());
     reset();
   }
 };
@@ -229,43 +305,47 @@ __device__ void block_fill(IterT begin, size_t n, ValueT value) {
  * Memory
  */
 
+enum memory_type { DEVICE, DEVICE_MANAGED };
+
+template <memory_type MemoryT>
 class bulk_allocator;
 template <typename T> class dvec2;
 
 template <typename T>
 class dvec {
-  friend bulk_allocator;
-  friend class dvec2<T>;
-
+ friend class dvec2<T>;
  private:
   T *_ptr;
   size_t _size;
+  int _device_idx;
 
-  void external_allocate(void *ptr, size_t size) {
+ public:
+  void external_allocate(int device_idx, void *ptr, size_t size) {
     if (!empty()) {
       throw std::runtime_error("Tried to allocate dvec but already allocated");
     }
     _ptr = static_cast<T *>(ptr);
     _size = size;
+    _device_idx = device_idx;
   }
 
- public:
-  dvec() : _ptr(NULL), _size(0) {}
-
+  dvec() : _ptr(NULL), _size(0), _device_idx(0) {}
   size_t size() const { return _size; }
-
+  int device_idx() const { return _device_idx; }
   bool empty() const { return _ptr == NULL || _size == 0; }
 
   T *data() { return _ptr; }
 
   std::vector<T> as_vector() const {
     std::vector<T> h_vector(size());
+    safe_cuda(cudaSetDevice(_device_idx));
     safe_cuda(cudaMemcpy(h_vector.data(), _ptr, size() * sizeof(T),
                          cudaMemcpyDeviceToHost));
     return h_vector;
   }
 
   void fill(T value) {
+    safe_cuda(cudaSetDevice(_device_idx));
     thrust::fill_n(thrust::device_pointer_cast(_ptr), size(), value);
   }
 
@@ -285,11 +365,7 @@ class dvec {
 
   template <typename T2>
   dvec &operator=(const std::vector<T2> &other) {
-    if (other.size() != size()) {
-      throw std::runtime_error(
-          "Cannot copy assign vector to dvec, sizes are different");
-    }
-    thrust::copy(other.begin(), other.end(), this->tbegin());
+    this->copy(other.begin(), other.end());
     return *this;
   }
 
@@ -298,8 +374,24 @@ class dvec {
       throw std::runtime_error(
           "Cannot copy assign dvec to dvec, sizes are different");
     }
-    thrust::copy(other.tbegin(), other.tend(), this->tbegin());
+    safe_cuda(cudaSetDevice(this->device_idx()));
+    if (other.device_idx() == this->device_idx()) {
+      thrust::copy(other.tbegin(), other.tend(), this->tbegin());
+    } else {
+      throw std::runtime_error("Cannot copy to/from different devices");
+    }
+
     return *this;
+  }
+
+  template <typename IterT>
+  void copy(IterT begin, IterT end) {
+    safe_cuda(cudaSetDevice(this->device_idx()));
+    if (end - begin != size()) {
+      throw std::runtime_error(
+          "Cannot copy assign vector to dvec, sizes are different");
+    }
+    thrust::copy(begin, end, this->tbegin());
   }
 };
 
@@ -309,34 +401,34 @@ class dvec {
  */
 template <typename T>
 class dvec2 {
-  friend bulk_allocator;
 
  private:
   dvec<T> _d1, _d2;
   cub::DoubleBuffer<T> _buff;
+  int _device_idx;
 
-  void external_allocate(void *ptr1, void *ptr2, size_t size) {
+
+ public:
+  void external_allocate(int device_idx, void *ptr1, void *ptr2, size_t size) {
     if (!empty()) {
       throw std::runtime_error("Tried to allocate dvec2 but already allocated");
     }
-    _d1.external_allocate(ptr1, size);
-    _d2.external_allocate(ptr2, size);
+    _d1.external_allocate(_device_idx, ptr1, size);
+    _d2.external_allocate(_device_idx, ptr2, size);
     _buff.d_buffers[0] = static_cast<T *>(ptr1);
     _buff.d_buffers[1] = static_cast<T *>(ptr2);
     _buff.selector = 0;
+    _device_idx = device_idx;
   }
-
- public:
-  dvec2() : _d1(), _d2(), _buff() {}
+  dvec2() : _d1(), _d2(), _buff(), _device_idx(0) {}
 
   size_t size() const { return _d1.size(); }
-
+  int device_idx() const { return _device_idx; }
   bool empty() const { return _d1.empty() || _d2.empty(); }
 
   cub::DoubleBuffer<T> &buff() { return _buff; }
 
   dvec<T> &d1() { return _d1; }
-
   dvec<T> &d2() { return _d2; }
 
   T *current() { return _buff.Current(); }
@@ -346,9 +438,11 @@ class dvec2 {
   T *other() { return _buff.Alternate(); }
 };
 
+template <memory_type MemoryT>
 class bulk_allocator {
-  char *d_ptr;
-  size_t _size;
+  std::vector<char *> d_ptr;
+  std::vector<size_t> _size;
+  std::vector<int> _device_idx;
 
   const int align = 256;
 
@@ -369,18 +463,32 @@ class bulk_allocator {
   }
 
   template <typename T, typename SizeT>
-  void allocate_dvec(char *ptr, dvec<T> *first_vec, SizeT first_size) {
-    first_vec->external_allocate(static_cast<void *>(ptr), first_size);
+  void allocate_dvec(int device_idx, char *ptr, dvec<T> *first_vec,
+                     SizeT first_size) {
+    first_vec->external_allocate(device_idx, static_cast<void *>(ptr),
+                                 first_size);
   }
 
   template <typename T, typename SizeT, typename... Args>
-  void allocate_dvec(char *ptr, dvec<T> *first_vec, SizeT first_size,
-                     Args... args) {
-    allocate_dvec<T,SizeT>(ptr, first_vec, first_size);
+  void allocate_dvec(int device_idx, char *ptr, dvec<T> *first_vec,
+                     SizeT first_size, Args... args) {
+    first_vec->external_allocate(device_idx, static_cast<void *>(ptr),
+                                 first_size);
     ptr += align_round_up(first_size * sizeof(T));
-    allocate_dvec(ptr, args...);
+    allocate_dvec(device_idx, ptr, args...);
   }
 
+  //    template <memory_type MemoryT>
+  char *allocate_device(int device_idx, size_t bytes, memory_type t) {
+    char *ptr;
+    if (t == memory_type::DEVICE) {
+      safe_cuda(cudaSetDevice(device_idx));
+      safe_cuda(cudaMalloc(&ptr, bytes));
+    } else {
+      safe_cuda(cudaMallocManaged(&ptr, bytes));
+    }
+    return ptr;
+  }
   template <typename T, typename SizeT>
   size_t get_size_bytes(dvec2<T> *first_vec, SizeT first_size) {
     return 2 * align_round_up(first_size * sizeof(T));
@@ -392,40 +500,46 @@ class bulk_allocator {
   }
 
   template <typename T, typename SizeT>
-  void allocate_dvec(char *ptr, dvec2<T> *first_vec, SizeT first_size) {
-    first_vec->external_allocate
-        (static_cast<void *>(ptr),
+  void allocate_dvec(int device_idx, char *ptr, dvec2<T> *first_vec, SizeT first_size) {
+    first_vec->external_allocate(device_idx, static_cast<void *>(ptr),
          static_cast<void *>(ptr+align_round_up(first_size * sizeof(T))),
          first_size);
   }
 
   template <typename T, typename SizeT, typename... Args>
-  void allocate_dvec(char *ptr, dvec2<T> *first_vec, SizeT first_size,
+  void allocate_dvec(int device_idx, char *ptr, dvec2<T> *first_vec, SizeT first_size,
                      Args... args) {
-    allocate_dvec<T,SizeT>(ptr, first_vec, first_size);
+    allocate_dvec<T,SizeT>(device_idx, ptr, first_vec, first_size);
     ptr += (align_round_up(first_size * sizeof(T)) * 2);
-    allocate_dvec(ptr, args...);
+    allocate_dvec(device_idx, ptr, args...);
   }
 
  public:
-  bulk_allocator() : _size(0), d_ptr(NULL) {}
-
   ~bulk_allocator() {
-    if (!(d_ptr == nullptr)) {
-      safe_cuda(cudaFree(d_ptr));
+    for (int i = 0; i < d_ptr.size(); i++) {
+      if (!(d_ptr[i] == nullptr)) {
+        safe_cuda(cudaSetDevice(_device_idx[i]));
+        safe_cuda(cudaFree(d_ptr[i]));
+      }
     }
   }
 
-  size_t size() { return _size; }
+  // returns sum of bytes for all allocations
+  size_t size() {
+    return std::accumulate(_size.begin(), _size.end(), static_cast<size_t>(0));
+  }
 
   template <typename... Args>
-  void allocate(Args... args) {
-    if (d_ptr != NULL) {
-      throw std::runtime_error("Bulk allocator already allocated");
-    }
-    _size = get_size_bytes(args...);
-    safe_cuda(cudaMalloc(&d_ptr, _size));
-    allocate_dvec(d_ptr, args...);
+  void allocate(int device_idx, Args... args) {
+    size_t size = get_size_bytes(args...);
+
+    char *ptr = allocate_device(device_idx, size, MemoryT);
+
+    allocate_dvec(device_idx, ptr, args...);
+
+    d_ptr.push_back(ptr);
+    _size.push_back(size);
+    _device_idx.push_back(device_idx);
   }
 };
 
@@ -455,17 +569,12 @@ struct CubMemory {
   bool IsAllocated() { return d_temp_storage != NULL; }
 };
 
-inline size_t available_memory() {
+inline size_t available_memory(int device_idx) {
   size_t device_free = 0;
   size_t device_total = 0;
-  safe_cuda(cudaMemGetInfo(&device_free, &device_total));
+  safe_cuda(cudaSetDevice(device_idx));
+  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
   return device_free;
-}
-
-inline std::string device_name() {
-  cudaDeviceProp prop;
-  safe_cuda(cudaGetDeviceProperties(&prop, 0));
-  return std::string(prop.name);
 }
 
 /*
@@ -481,7 +590,7 @@ void print(const thrust::device_vector<T> &v, size_t max_items = 10) {
   std::cout << "\n";
 }
 
-template <typename T>
+template <typename T, memory_type MemoryT>
 void print(const dvec<T> &v, size_t max_items = 10) {
   std::vector<T> h = v.as_vector();
   for (int i = 0; i < std::min(max_items, h.size()); i++) {
@@ -530,17 +639,46 @@ size_t size_bytes(const thrust::device_vector<T> &v) {
  */
 
 template <typename L>
-__global__ void launch_n_kernel(size_t n, L lambda) {
-  for (auto i : grid_stride_range(static_cast<size_t>(0), n)) {
+__global__ void launch_n_kernel(size_t begin, size_t end, L lambda) {
+  for (auto i : grid_stride_range(begin, end)) {
     lambda(i);
+  }
+}
+template <typename L>
+__global__ void launch_n_kernel(int device_idx, size_t begin, size_t end,
+                                L lambda) {
+  for (auto i : grid_stride_range(begin, end)) {
+    lambda(i, device_idx);
   }
 }
 
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void launch_n(size_t n, L lambda) {
+inline void launch_n(int device_idx, size_t n, L lambda) {
+  safe_cuda(cudaSetDevice(device_idx));
   const int GRID_SIZE = div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS);
 #if defined(__CUDACC__)
-  launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(n, lambda);
+  launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
+                                                lambda);
+#endif
+}
+
+// if n_devices=-1, then use all visible devices
+template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
+inline void multi_launch_n(size_t n, int n_devices, L lambda) {
+  n_devices = n_devices < 0 ? n_visible_devices() : n_devices;
+  CHECK_LE(n_devices, n_visible_devices()) << "Number of devices requested "
+                                              "needs to be less than equal to "
+                                              "number of visible devices.";
+  const int GRID_SIZE = div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS);
+#if defined(__CUDACC__)
+  n_devices = n_devices > n ? n : n_devices;
+  for (int device_idx = 0; device_idx < n_devices; device_idx++) {
+    safe_cuda(cudaSetDevice(device_idx));
+    size_t begin = (n / n_devices) * device_idx;
+    size_t end = std::min((n / n_devices) * (device_idx + 1), n);
+    launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(device_idx, begin, end,
+                                                  lambda);
+  }
 #endif
 }
 

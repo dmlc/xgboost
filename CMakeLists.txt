@@ -94,40 +94,58 @@ if(MSVC)
 else()
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
+    #Prevent shared library being called liblibxgboost.so on Linux
+    set(CMAKE_SHARED_LIBRARY_PREFIX "")
 endif()
 
 set(LINK_LIBRARIES dmlccore rabit)
 
 if(PLUGIN_UPDATER_GPU)
-    #Find cub
-    set(CUB_DIRECTORY "cub/" CACHE PATH "CUB 1.5.4 directory")
-    include_directories(${CUB_DIRECTORY})
+    # nccl
+    set(LINK_LIBRARIES ${LINK_LIBRARIES} nccl)
+    add_subdirectory(nccl)
+    set(NCCL_DIRECTORY ${PROJECT_SOURCE_DIR}/nccl)
+    include_directories(${NCCL_DIRECTORY}/src)
+    set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CUDA_LIBRARIES})
+
+	#Find cub
+	set(CUB_DIRECTORY ${PROJECT_SOURCE_DIR}/cub/)
+	include_directories(${CUB_DIRECTORY})
+
     #Find googletest
     set(GTEST_DIRECTORY "${CACHE_PREFIX}" CACHE PATH "Googletest directory")
     include_directories(${GTEST_DIRECTORY}/include)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;-arch=compute_60;-lineinfo;")
-    if(NOT MSVC)
-      set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
-    endif()
+
+    # plugin
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-lineinfo;--expt-extended-lambda")
     set(CUDA_SOURCES
       plugin/updater_gpu/src/updater_gpu.cu
       plugin/updater_gpu/src/gpu_hist_builder.cu
-    )
-    cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
-    set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CUDA_LIBRARIES})
+      )
+    include(${PROJECT_SOURCE_DIR}/cmake/Utils.cmake)
+    include(${PROJECT_SOURCE_DIR}/cmake/Cuda.cmake)
+    # use below for forcing specific arch
+    #cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS} -arch=compute_52)
+    # use below for auto-detect, but gpu_grow currently doesn't work with 61
+    xgboost_cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
+    if(MSVC)
+    else()
+      cuda_add_library(updater_gpu STATIC ${CUDA_SOURCES})
+      set(LINK_LIBRARIES ${LINK_LIBRARIES} updater_gpu)
+    endif()
 else()
     set(CUDA_OBJS "")
+    set(updater_gpu "")
 endif()
 
 add_library(objxgboost OBJECT ${SOURCES})
 set_target_properties(${objxgboost} PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
-add_executable(runxgboost $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
-set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
-target_link_libraries(runxgboost ${LINK_LIBRARIES})
+add_library(libxgboost SHARED $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
+add_executable(xgboost $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
 
-add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
 target_link_libraries(xgboost ${LINK_LIBRARIES})
+target_link_libraries(libxgboost ${LINK_LIBRARIES})
 
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 
@@ -136,11 +154,11 @@ if(JVM_BINDINGS)
 
     include_directories(${JNI_INCLUDE_DIRS} jvm-packages/xgboost4j/src/native)
 
-    add_library(xgboost4j SHARED
+    add_library(libxgboost4j SHARED
         $<TARGET_OBJECTS:objxgboost>
         ${CUDA_OBJS}
         jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
-    target_link_libraries(xgboost4j
+    target_link_libraries(libxgboost4j
         ${LINK_LIBRARIES}
         ${JNI_LIBRARIES})
 endif()

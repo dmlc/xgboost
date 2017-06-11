@@ -21,7 +21,8 @@ struct GPUData {
   int n_features;
   int n_instances;
 
-  dh::bulk_allocator ba;
+  dh::bulk_allocator<dh::memory_type::DEVICE> ba;
+  // dh::bulk_allocator<int> ba;
   GPUTrainingParam param;
 
   dh::dvec<float> fvalues;
@@ -72,24 +73,25 @@ struct GPUData {
         n_features, foffsets.data(), foffsets.data() + 1);
 
     // Allocate memory
-    size_t free_memory = dh::available_memory();
-    ba.allocate(&fvalues, in_fvalues.size(), &fvalues_temp, in_fvalues.size(),
-                &fvalues_cached, in_fvalues.size(), &foffsets,
-                in_foffsets.size(), &instance_id, in_instance_id.size(),
-                &instance_id_temp, in_instance_id.size(), &instance_id_cached,
-                in_instance_id.size(), &feature_id, in_feature_id.size(),
-                &node_id, in_fvalues.size(), &node_id_temp, in_fvalues.size(),
-                &node_id_instance, n_instances, &gpair, n_instances, &nodes,
-                max_nodes, &split_candidates, max_nodes_level * n_features,
-                &node_sums, max_nodes_level * n_features, &node_offsets,
-                max_nodes_level * n_features, &sort_index_in, in_fvalues.size(),
-                &sort_index_out, in_fvalues.size(), &cub_mem, cub_mem_size,
-                &feature_flags, n_features, &feature_set, n_features);
+    size_t free_memory = dh::available_memory(param_in.gpu_id);
+    ba.allocate(param_in.gpu_id,
+                &fvalues, in_fvalues.size(), &fvalues_temp,
+        in_fvalues.size(), &fvalues_cached, in_fvalues.size(), &foffsets,
+        in_foffsets.size(), &instance_id, in_instance_id.size(),
+        &instance_id_temp, in_instance_id.size(), &instance_id_cached,
+        in_instance_id.size(), &feature_id, in_feature_id.size(), &node_id,
+        in_fvalues.size(), &node_id_temp, in_fvalues.size(), &node_id_instance,
+        n_instances, &gpair, n_instances, &nodes, max_nodes, &split_candidates,
+        max_nodes_level * n_features, &node_sums, max_nodes_level * n_features,
+        &node_offsets, max_nodes_level * n_features, &sort_index_in,
+        in_fvalues.size(), &sort_index_out, in_fvalues.size(), &cub_mem,
+        cub_mem_size, &feature_flags, n_features, &feature_set, n_features);
 
     if (!param_in.silent) {
       const int mb_size = 1048576;
       LOG(CONSOLE) << "Allocated " << ba.size() / mb_size << "/"
-                   << free_memory / mb_size << " MB on " << dh::device_name();
+                   << free_memory / mb_size << " MB on "
+                   << dh::device_name(param_in.gpu_id);
     }
 
     fvalues_cached = in_fvalues;
@@ -134,9 +136,10 @@ struct GPUData {
     auto d_node_id_instance = node_id_instance.data();
     auto d_instance_id = instance_id.data();
 
-    dh::launch_n(fvalues.size(), [=] __device__(bst_uint i) {
-      d_node_id[i] = d_node_id_instance[d_instance_id[i]];
-    });
+    dh::launch_n(node_id.device_idx(), fvalues.size(),
+                 [=] __device__(bst_uint i) {
+                   d_node_id[i] = d_node_id_instance[d_instance_id[i]];
+                 });
   }
 };
 }  // namespace tree
