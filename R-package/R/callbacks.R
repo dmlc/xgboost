@@ -127,7 +127,7 @@ cb.evaluation.log <- function() {
       # rearrange col order from _mean,_mean,...,_std,_std,...
       # to be _mean,_std,_mean,_std,...
       len <- length(mnames)
-      means <- mnames[1:(len/2)]
+      means <- mnames[seq_len(len/2)]
       stds <- mnames[(len/2 + 1):len]
       cnames <- numeric(len)
       cnames[c(TRUE, FALSE)] <- means
@@ -320,7 +320,7 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
     
     metric_name <<- eval_names[metric_idx]
     
-    # maximixe is usually NULL when not set in xgb.train and built-in metrics
+    # maximize is usually NULL when not set in xgb.train and built-in metrics
     if (is.null(maximize))
       maximize <<- ifelse(grepl('(_auc|_map|_ndcg)', metric_name), TRUE, FALSE)
 
@@ -597,7 +597,7 @@ has.callbacks <- function(cb_list, query_names) {
     return(FALSE)
   if (!is.list(cb_list) ||
       any(sapply(cb_list, class) != 'function')) {
-    stop('`cb_list`` must be a list of callback functions')
+    stop('`cb_list` must be a list of callback functions')
   }
   cb_names <- callback.names(cb_list)
   if (!is.character(cb_names) ||

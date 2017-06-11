@@ -115,7 +115,7 @@ xgb.importance <- function(feature_names = NULL, model = NULL, trees = NULL,
     } else {
       data.table(Feature = rep(feature_names, each = num_class),
                  Weight = weights,
-                 Class = 0:(num_class - 1))[order(Class, -abs(Weight))]
+                 Class = seq_len(num_class) - 1)[order(Class, -abs(Weight))]
     }
   } else { 
   # tree model

@@ -251,7 +251,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     stop("second argument dtrain must be xgb.DMatrix")
   if (length(watchlist) > 0) {
     if (typeof(watchlist) != "list" ||
-        !all(sapply(watchlist, inherits, 'xgb.DMatrix')))
+        !all(vapply(watchlist, inherits, logical(1), what = 'xgb.DMatrix')))
       stop("watchlist must be a list of xgb.DMatrix elements")
     evnames <- names(watchlist)
     if (is.null(evnames) || any(evnames == ""))
