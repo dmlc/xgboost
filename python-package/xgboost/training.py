@@ -406,15 +406,14 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         for fold in cvfolds:
             fold.update(i, obj)
 
-        if callable(feval):
-            res = aggcv([f.eval(i, feval) for f in cvfolds])
-        elif isinstance(feval, list):
+        res = []
+        if isinstance(feval, list):
             if not all([callable(f) for f in feval]):
                 raise XGBoostError('A list of callables is required for eval parameter')
             else:
                 res = aggcv([f.eval(i, fun) for f in cvfolds for fun in feval])
         else:
-            XGBoostError('Invalid type for eval parameter')
+            res = aggcv([f.eval(i, feval) for f in cvfolds])
 
         for key, mean, std in res:
             if key + '-mean' not in results:
