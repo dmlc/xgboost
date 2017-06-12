@@ -90,12 +90,27 @@ Visual studio community 2015, supported by cuda toolkit (http://docs.nvidia.com/
 
 ### For Developers!
 
+In case you want to build only for a specific GPU(s), for eg. GP100 and GP102,
+whose compute capability are 60 and 61 respectively:
+```bash
+$ cmake .. -DPLUGIN_UPDATER_GPU=ON -DGPU_COMPUTE_VER="60;61"
+```
+By default, the versions will include support for all GPUs in Maxwell and Pascal architectures.
+
 ### Using make
 Now, it also supports the usual 'make' flow to build gpu-enabled tree construction plugins. It's currently only tested on Linux. From the xgboost directory
 ```bash
 # make sure CUDA SDK bin directory is in the 'PATH' env variable
 $ make PLUGIN_UPDATER_GPU=ON
 ```
+
+Similar to cmake, if you want to build only for a specific GPU(s):
+```bash
+$ make PLUGIN_UPDATER_GPU=ON GPU_COMPUTE_VER="60 61"
+```
+
+### For Developers!
+
 Now, some of the code-base inside gpu plugins have googletest unit-tests inside 'tests/'.
 They can be enabled run along with other unit-tests inside '<xgboostRoot>/tests/cpp' using:
 ```bash
@@ -131,19 +146,11 @@ $ make PLUGIN_UPDATER_GPU=ON GTEST_PATH=${CACHE_PREFIX} test
 [Mitchell, Rory, and Eibe Frank. Accelerating the XGBoost algorithm using GPU computing. No. e2911v1. PeerJ Preprints, 2017.](https://peerj.com/preprints/2911/)
 
 ## Author
-<<<<<<< HEAD
-Rory Mitchell,
-Jonathan C. McKinney,
-Shankara Rao Thejaswi Nanditale,
-Vinay Deshpande,
-and the rest of the H2O.ai and NVIDIA team.
-=======
 Rory Mitchell
 Jonathan C. McKinney
 Shankara Rao Thejaswi Nanditale
 Vinay Deshpande
 ... and the rest of the H2O.ai and NVIDIA team.
->>>>>>> d2fbbdf4a39fa1f0af5cbd59a7912cf5caade34e
 
 Please report bugs to the xgboost/issues page.
 
