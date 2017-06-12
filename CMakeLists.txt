@@ -128,20 +128,10 @@ if(PLUGIN_UPDATER_GPU)
       plugin/updater_gpu/src/updater_gpu.cu
       plugin/updater_gpu/src/gpu_hist_builder.cu
       )
-    include(${PROJECT_SOURCE_DIR}/cmake/Utils.cmake)
-    include(${PROJECT_SOURCE_DIR}/cmake/Cuda.cmake)
     # use below for forcing specific arch
-    #cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS} -arch=compute_52)
-    # use below for auto-detect, but gpu_grow currently doesn't work with 61
-    xgboost_cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
-    if(MSVC)
-    else()
-      cuda_add_library(updater_gpu STATIC ${CUDA_SOURCES})
-      set(LINK_LIBRARIES ${LINK_LIBRARIES} updater_gpu)
-    endif()
+    cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
 else()
     set(CUDA_OBJS "")
-    set(updater_gpu "")
 endif()
 
 add_library(objxgboost OBJECT ${SOURCES})
