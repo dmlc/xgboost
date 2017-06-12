@@ -139,7 +139,7 @@ public class RabitTracker implements IRabitTracker {
     }
   }
 
-  private void stop() {
+  public void stop() {
     if (trackerProcess.get() != null) {
       trackerProcess.get().destroy();
     }
