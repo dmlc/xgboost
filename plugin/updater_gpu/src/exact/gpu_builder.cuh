@@ -208,7 +208,7 @@ private:
   dh::dvec<gpu_gpair> tmpScanGradBuff;
   dh::dvec<int> tmpScanKeyBuff;
   dh::dvec<int> colIds;
-  dh::bulk_allocator ba;
+  dh::bulk_allocator<dh::memory_type::DEVICE> ba;
 
   void findSplit(int level, node_id_t nodeStart, int nNodes) {
     reduceScanByKey(gradSums.data(), gradScans.data(), gradsInst.data(),
@@ -226,7 +226,8 @@ private:
 
   void allocateAllData(int offsetSize) {
     int tmpBuffSize = scanTempBufferSize(nVals);
-    ba.allocate(&vals, nVals,
+    ba.allocate(param.gpu_id,
+                &vals, nVals,
                 &vals_cached, nVals,
                 &instIds, nVals,
                 &instIds_cached, nVals,
@@ -245,7 +246,7 @@ private:
   }
 
   void setupOneTimeData(DMatrix& hMat) {
-    size_t free_memory = dh::available_memory();
+    size_t free_memory = dh::available_memory(param.gpu_id);
     if (!hMat.SingleColBlock()) {
       throw std::runtime_error("exact::GPUBuilder - must have 1 column block");
     }
@@ -258,7 +259,7 @@ private:
     if (!param.silent) {
       const int mb_size = 1048576;
       LOG(CONSOLE) << "Allocated " << ba.size() / mb_size << "/"
-                   << free_memory / mb_size << " MB on " << dh::device_name();
+                   << free_memory / mb_size << " MB on " << dh::device_name(param.gpu_id);
     }
   }
 
@@ -340,7 +341,7 @@ private:
                                       colOffsets.data(), vals.current(),
                                       nVals, nCols);
       // gather the node assignments across all other columns too
-      gather<node_id_t>(nodeAssigns.current(), nodeAssignsPerInst.data(),
+      gather<node_id_t>(param.gpu_id, nodeAssigns.current(), nodeAssignsPerInst.data(),
                         instIds.current(), nVals);
       sortKeys(level);
     }
@@ -351,7 +352,7 @@ private:
     // but we don't need more than level+1 bits for sorting!
     segmentedSort(tmp_mem, nodeAssigns, nodeLocations, nVals, nCols, colOffsets,
                   0, level+1);
-    gather<float,int>(vals.other(), vals.current(), instIds.other(),
+    gather<float,int>(param.gpu_id, vals.other(), vals.current(), instIds.other(),
                       instIds.current(), nodeLocations.current(), nVals);
     vals.buff().selector ^= 1;
     instIds.buff().selector ^= 1;

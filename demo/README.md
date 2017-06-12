@@ -95,6 +95,7 @@ Please send pull requests if you find ones that are missing here.
 
 ## Tutorials
 
+- [Machine Learning with XGBoost on Qubole Spark Cluster](https://www.qubole.com/blog/machine-learning-xgboost-qubole-spark-cluster/)
 - [XGBoost Official RMarkdown Tutorials](https://xgboost.readthedocs.org/en/latest/R-package/index.html#tutorials)
 - [An Introduction to XGBoost R Package](http://dmlc.ml/rstats/2016/03/10/xgboost.html) by Tong He
 - [Open Source Tools & Data Science Competitions](http://www.slideshare.net/odsc/owen-zhangopen-sourcetoolsanddscompetitions1) by Owen Zhang - XGBoost parameter tuning tips

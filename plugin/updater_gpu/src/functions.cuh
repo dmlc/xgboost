@@ -2,14 +2,10 @@
  * Copyright 2016 Rory mitchell
 */
 #pragma once
-#include "types.cuh"
-#include "../../../src/tree/param.h"
 #include "../../../src/common/random.h"
-
+#include "../../../src/tree/param.h"
+#include "types.cuh"
 
 namespace xgboost {
-namespace tree {
-
-
-}  // namespace tree
+namespace tree {}  // namespace tree
 }  // namespace xgboost

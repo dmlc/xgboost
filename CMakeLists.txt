@@ -103,12 +103,19 @@ endif()
 set(LINK_LIBRARIES dmlccore rabit)
 
 if(PLUGIN_UPDATER_GPU)
+    # nccl
+    set(LINK_LIBRARIES ${LINK_LIBRARIES} nccl)
+    add_subdirectory(nccl)
+    set(NCCL_DIRECTORY ${PROJECT_SOURCE_DIR}/nccl)
+    include_directories(${NCCL_DIRECTORY}/src)
+    set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CUDA_LIBRARIES})
     #Find cub
-    set(CUB_DIRECTORY "cub/" CACHE PATH "CUB 1.5.4 directory")
+    set(CUB_DIRECTORY ${PROJECT_SOURCE_DIR}/cub/)
     include_directories(${CUB_DIRECTORY})
     #Find googletest
     set(GTEST_DIRECTORY "${CACHE_PREFIX}" CACHE PATH "Googletest directory")
     include_directories(${GTEST_DIRECTORY}/include)
+    #gencode flags
     set(GENCODE_FLAGS "")
     foreach(ver ${GPU_COMPUTE_VER})
       set(GENCODE_FLAGS "${GENCODE_FLAGS}-gencode arch=compute_${ver},code=sm_${ver};")
@@ -120,11 +127,21 @@ if(PLUGIN_UPDATER_GPU)
     set(CUDA_SOURCES
       plugin/updater_gpu/src/updater_gpu.cu
       plugin/updater_gpu/src/gpu_hist_builder.cu
-    )
-    cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
-    set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CUDA_LIBRARIES})
+      )
+    include(${PROJECT_SOURCE_DIR}/cmake/Utils.cmake)
+    include(${PROJECT_SOURCE_DIR}/cmake/Cuda.cmake)
+    # use below for forcing specific arch
+    #cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS} -arch=compute_52)
+    # use below for auto-detect, but gpu_grow currently doesn't work with 61
+    xgboost_cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
+    if(MSVC)
+    else()
+      cuda_add_library(updater_gpu STATIC ${CUDA_SOURCES})
+      set(LINK_LIBRARIES ${LINK_LIBRARIES} updater_gpu)
+    endif()
 else()
     set(CUDA_OBJS "")
+    set(updater_gpu "")
 endif()
 
 add_library(objxgboost OBJECT ${SOURCES})

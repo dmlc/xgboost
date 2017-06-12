@@ -1,5 +1,5 @@
 /*!
- * Copyright 2016 Rory mitchell
+ * Copyright 2017 XGBoost contributors
  */
 #pragma once
 #include <thrust/device_vector.h>

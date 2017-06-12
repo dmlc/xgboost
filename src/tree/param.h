@@ -81,6 +81,8 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   std::vector<int> monotone_constraints;
   // gpu to use for single gpu algorithms
   int gpu_id;
+  // number of GPUs to use
+  int n_gpus;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -192,6 +194,10 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .set_lower_bound(0)
         .set_default(0)
         .describe("gpu to use for single gpu algorithms");
+    DMLC_DECLARE_FIELD(n_gpus)
+        .set_lower_bound(-1)
+        .set_default(-1)
+        .describe("Number of GPUs to use for multi-gpu algorithms: -1=use all GPUs");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
