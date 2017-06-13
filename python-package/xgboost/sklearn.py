@@ -183,7 +183,7 @@ class XGBModel(XGBModelBase):
         return xgb_params
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, continue=False, verbose=True):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
@@ -217,6 +217,9 @@ class XGBModel(XGBModelBase):
             and bst.best_ntree_limit.
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
+        continue: bool
+            If `continue` is True, continue training based on current model. Otherwise
+            train the model from initial status. Default is False.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -253,6 +256,7 @@ class XGBModel(XGBModelBase):
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
+                              xgb_model=self.booster() if continue else None,
                               verbose_eval=verbose)
 
         if evals_result:
