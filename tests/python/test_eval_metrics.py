@@ -32,7 +32,8 @@ class TestEvalMetrics(unittest.TestCase):
 
     xgb_params_05 = {
         'silent': 1,
-        'nthread': 1
+        'nthread': 1,
+        'eval_metric': ['error']
     }
 
     def evalerror_01(self, preds, dtrain):
@@ -129,14 +130,10 @@ class TestEvalMetrics(unittest.TestCase):
         def _auc(preds, train):
             return 'auc', roc_auc_score(train.get_label(), preds)
 
-        results = xgb.cv(self.xgb_params_05, d_matrix, stratified=True, feval=[_gini, _auc])
+        _, results = xgb.cv(self.xgb_params_05, d_matrix, stratified=True, feval=[_gini, _auc], feval_apart=True)
 
-        assert 'train-gini-mean' in results.columns
-        assert 'train-gini-std' in results.columns
-        assert 'test-gini-mean' in results.columns
-        assert 'test-gini-std' in results.columns
-
-        assert 'train-auc-mean' in results.columns
-        assert 'train-auc-std' in results.columns
-        assert 'test-auc-mean' in results.columns
-        assert 'test-auc-std' in results.columns
+        assert len(results.columns) == 4
+        assert 'train-gini' in results.columns
+        assert 'test-gini' in results.columns
+        assert 'train-auc' in results.columns
+        assert 'test-auc' in results.columns
