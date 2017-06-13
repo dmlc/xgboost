@@ -86,8 +86,9 @@ def _train_internal(params, dtrain,
                 msg = bst_eval_set
             else:
                 msg = bst_eval_set.decode()
-            res = [x.split(':') for x in msg.split()]
-            evaluation_result_list = [(k, float(v)) for k, v in res[1:]]
+            msg_eval = msg.split("\t")
+            res = [x.split(':') for x in msg_eval[1:]]
+            evaluation_result_list = [(k, float(v)) for k, v in res]
         try:
             for cb in callbacks_after_iter:
                 cb(CallbackEnv(model=bst,
