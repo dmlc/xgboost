@@ -243,6 +243,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
   mat.row_ptr_.resize(1);
   mat.row_ptr_[0] = 0;
   size_t num_column = 0;
+
   for (size_t i = 1; i < nindptr; ++i) {
     for (size_t j = indptr[i - 1]; j < indptr[i]; ++j) {
       if (!common::CheckNAN(data[j])) {

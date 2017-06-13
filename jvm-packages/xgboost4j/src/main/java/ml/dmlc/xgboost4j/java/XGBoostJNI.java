@@ -35,8 +35,14 @@ class XGBoostJNI {
   public final static native int XGDMatrixCreateFromCSREx(long[] indptr, int[] indices, float[] data,
                                                         int shapeParam, long[] out);
 
+  public final static native int XGDMatrixCreateFrom2DCSREx(long[][] indptr, int[][] indices, float[][] data,
+                                                          int shapeParam, int shapeParam2, long ndata, long[] out);
+
   public final static native int XGDMatrixCreateFromCSCEx(long[] colptr, int[] indices, float[] data,
                                                           int shapeParam, long[] out);
+
+  public final static native int XGDMatrixCreateFrom2DCSCEx(long[][] colptr, int[][] indices, float[][] data,
+                                                          int shapeParam, int shapeParam2, long ndata, long[] out);
 
   public final static native int XGDMatrixCreateFromMat(float[] data, int nrow, int ncol,
                                                         float missing, long[] out);

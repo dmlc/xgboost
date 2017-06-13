@@ -32,6 +32,54 @@ void setHandle(JNIEnv *jenv, jlongArray jhandle, void* handle) {
   jenv->SetLongArrayRegion(jhandle, 0, 1, &out);
 }
 
+jlong* flatten_long(JNIEnv *jenv, jobjectArray jdata, jlong total, jboolean *isCopy) {
+  jlong* flatten = new jlong[total];
+  jsize jnrow = jenv->GetArrayLength(jdata);
+  jlong added = 0;
+  for(int i=0; i<jnrow; ++i){
+    jlongArray oneDim= (jlongArray)jenv->GetObjectArrayElement(jdata, i);
+    jsize size = jenv->GetArrayLength(oneDim);
+    jlong* element= jenv->GetLongArrayElements(oneDim, isCopy);
+    memcpy( &flatten[added], &element[0], size * sizeof( jlong ) );
+    jenv->ReleaseLongArrayElements(oneDim, element, 0);
+    jenv->DeleteLocalRef(oneDim);
+    added += size;
+  }
+  return flatten;
+}
+
+jint* flatten_int(JNIEnv *jenv, jobjectArray jdata, jlong total, jboolean *isCopy) {
+  jint* flatten = new jint[total];
+  jsize jnrow = jenv->GetArrayLength(jdata);
+  jlong added = 0;
+  for(int i=0; i<jnrow; ++i){
+    jintArray oneDim= (jintArray)jenv->GetObjectArrayElement(jdata, i);
+    jsize size = jenv->GetArrayLength(oneDim);
+    jint* element= jenv->GetIntArrayElements(oneDim, isCopy);
+    memcpy( &flatten[added], &element[0], size * sizeof( jint ) );
+    jenv->ReleaseIntArrayElements(oneDim, element, 0);
+    jenv->DeleteLocalRef(oneDim);
+    added += size;
+  }
+  return flatten;
+}
+
+jfloat* flatten_float(JNIEnv *jenv, jobjectArray jdata, jlong total, jboolean *isCopy) {
+  jfloat* flatten = new jfloat[total];
+  jsize jnrow = jenv->GetArrayLength(jdata);
+  jlong added = 0;
+  for(int i=0; i<jnrow; ++i){
+    jfloatArray oneDim= (jfloatArray)jenv->GetObjectArrayElement(jdata, i);
+    jsize size = jenv->GetArrayLength(oneDim);
+    jfloat* element= jenv->GetFloatArrayElements(oneDim, isCopy);
+    memcpy( &flatten[added], &element[0], size * sizeof( jfloat ) );
+    jenv->ReleaseFloatArrayElements(oneDim, element, 0);
+    jenv->DeleteLocalRef(oneDim);
+    added += size;
+  }
+  return flatten;
+}
+
 // global JVM
 static JavaVM* global_jvm = nullptr;
 
@@ -216,6 +264,29 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixCreateFrom2DCSREx
+ * Signature: ([J[J[F)J
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFrom2DCSREx
+  (JNIEnv *jenv, jclass jcls, jobjectArray jindptr, jobjectArray jindices, jobjectArray jdata, jint jcol, jint jrows, jlong total, jlongArray jout) {
+  DMatrixHandle result;
+
+  jlong* indptr = flatten_long(jenv, jindptr, jrows, 0);
+  jint* indices = flatten_int(jenv, jindices, total, 0);
+  jfloat* data = flatten_float(jenv, jdata, total, 0);
+
+  bst_ulong nindptr = (bst_ulong)jrows;
+  bst_ulong nelem = (bst_ulong)total;
+
+  jint ret = (jint) XGDMatrixCreateFromCSREx((size_t const *)indptr, (unsigned int const *)indices, (float const *)data, nindptr, nelem, jcol, &result);
+
+  setHandle(jenv, jout, result);
+
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGDMatrixCreateFromCSCEx
  * Signature: ([J[J[F)J
  */
@@ -234,6 +305,30 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
   jenv->ReleaseLongArrayElements(jindptr, indptr, 0);
   jenv->ReleaseIntArrayElements(jindices, indices, 0);
   jenv->ReleaseFloatArrayElements(jdata, data, 0);
+
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixCreateFrom2DCSCEx
+ * Signature: ([J[J[F)J
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFrom2DCSCEx
+  (JNIEnv *jenv, jclass jcls, jobjectArray jindptr, jobjectArray jindices, jobjectArray jdata, jint jrow, jint jcol, jlong total, jlongArray jout) {
+  DMatrixHandle result;
+
+  bst_ulong nindptr = (bst_ulong)jenv->GetArrayLength(jindptr);
+  bst_ulong nelem = (bst_ulong)jenv->GetArrayLength(jdata);
+
+  jlong* indptr = flatten_long(jenv, jindptr, jcol, NULL);
+
+  jint* indices = flatten_int(jenv, jindices, total, 0);
+
+  jfloat* data = flatten_float(jenv, jdata, total, NULL);
+
+  jint ret = (jint) XGDMatrixCreateFromCSCEx((size_t const *)indptr, (unsigned int const *)indices, (float const *)data, nindptr, nelem, jrow, &result);
+  setHandle(jenv, jout, result);
 
   return ret;
 }
@@ -265,16 +360,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFrom2DMat
   (JNIEnv *jenv, jclass jcls, jobjectArray jdata, jint jnrow, jint jncol, jfloat jmiss, jlongArray jout) {
 
-  jfloat *data = new jfloat[jnrow*jncol];
-  for(int i=0; i<jnrow; ++i){
-    jfloatArray oneDim= (jfloatArray)jenv->GetObjectArrayElement(jdata, i);
-    jfloat* element= jenv->GetFloatArrayElements(oneDim, 0);
-    for(int j=0; j<jncol; ++j) {
-      data[i*jncol + j] = element[j];
-    }
-    jenv->ReleaseFloatArrayElements(oneDim, element, 0);
-    jenv->DeleteLocalRef(oneDim);
-  }
+  jfloat *data = flatten_float(jenv, jdata, jnrow*jncol, 0);
 
   // OLD
   DMatrixHandle result;
