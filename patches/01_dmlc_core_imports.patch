@@ -1,0 +1,30 @@
+diff --git i/include/dmlc/omp.h w/include/dmlc/omp.h
+index bcc283c..568afd7 100644
+--- i/include/dmlc/omp.h
++++ w/include/dmlc/omp.h
+@@ -15,11 +15,20 @@
+                 "Use OpenMP-enabled compiler to get benefit of multi-threading.")
+ #endif
+ //! \cond Doxygen_Suppress
+-inline int omp_get_thread_num() { return 0; }
+-inline int omp_get_num_threads() { return 1; }
+-inline int omp_get_max_threads() { return 1; }
+-inline int omp_get_num_procs() { return 1; }
+-inline void omp_set_num_threads(int nthread) {}
++#ifdef __cplusplus
++extern "C" {
++# define __GOMP_NOTHROW throw ()
++#else
++# define __GOMP_NOTHROW __attribute__((__nothrow__))
++#endif
++inline int omp_get_thread_num() __GOMP_NOTHROW { return 0; }
++inline int omp_get_num_threads() __GOMP_NOTHROW { return 1; }
++inline int omp_get_max_threads() __GOMP_NOTHROW { return 1; }
++inline int omp_get_num_procs() __GOMP_NOTHROW { return 1; }
++inline void omp_set_num_threads(int nthread) __GOMP_NOTHROW {}
++#ifdef __cplusplus
++}
++#endif
+ #endif
+ // loop variable used in openmp
+ namespace dmlc {

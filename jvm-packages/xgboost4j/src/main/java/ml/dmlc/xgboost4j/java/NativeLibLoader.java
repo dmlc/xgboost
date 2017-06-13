@@ -21,13 +21,16 @@ import java.lang.reflect.Field;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import static ml.dmlc.xgboost4j.java.NativeLibrary.nativeLibrary;
+import static ml.dmlc.xgboost4j.java.NativeLibraryLoaderChain.loaderChain;
+
 
 /**
  * class to load native library
  *
  * @author hzx
  */
-class NativeLibLoader {
+public class NativeLibLoader {
   private static final Log logger = LogFactory.getLog(NativeLibLoader.class);
 
   private static boolean initialized = false;
@@ -35,12 +38,62 @@ class NativeLibLoader {
   private static final String nativeResourcePath = "/lib/";
   private static final String[] libNames = new String[]{"xgboost4j"};
 
+  /** Default empty suffix for library which marks minimal binary lib. */
+  public static final String MINIMAL_LIB_SUFFIX = "";
+
+  // Safe path in case we need to switch to original code path
+  private static final boolean ORIGINAL_LOAD_PATH = Boolean.valueOf(
+      System.getProperty("sys.xgboost.jni.original", "false"));
+
+  private static final NativeLibraryLoaderChain loader = loaderChain(
+      nativeLibrary("xgboost4j_gpu"),
+      nativeLibrary("xgboost4j")
+  );
+
   public static synchronized void initXGBoost() throws IOException {
-    if (!initialized) {
-      for (String libName : libNames) {
-        smartLoad(libName);
+    if (ORIGINAL_LOAD_PATH) {
+      if (!initialized) {
+        for (String libName : libNames) {
+          smartLoad(libName);
+        }
+        initialized = true;
       }
-      initialized = true;
+    } else {
+      if (!loader.isLoaded()) {
+        // patch classloader class
+        addNativeDir(nativePath);
+        loader.load();
+      }
+    }
+  }
+
+  /**
+   * Full name of loaded library.
+   * @return  library name (e.g., 'xgboost4j_gpu`), never returns null.
+   * @throws IOException  if no library was found or library loading fails
+   */
+  public static synchronized String getLoadedLibraryName() throws IOException {
+    initXGBoost();
+    if (loader.getSuccesfullyLoaded() != null) {
+      return loader.getSuccesfullyLoaded().getName();
+    } else {
+      throw new IOException("No binary library found!");
+    }
+  }
+
+  /**
+   * Returns suffix of library which marks binary version (gpu, omp)
+   *
+   * @return  library suffix or {@link #MINIMAL_LIB_SUFFIX}
+   * @throws IOException  if no library was found or library loading fails
+   */
+  public static synchronized String getLoadedLibrarySuffix() throws IOException {
+    String libName = getLoadedLibraryName();
+    int lastIndex = -1;
+    if (libName != null && (lastIndex = libName.lastIndexOf('_')) >= 0) {
+      return libName.substring(lastIndex + 1);
+    } else {
+      return MINIMAL_LIB_SUFFIX;
     }
   }
 
