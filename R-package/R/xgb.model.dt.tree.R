@@ -91,7 +91,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
     stop("Non-tree model detected! This function can only be used with tree models.")
   }
   
-  position <- !is.na(stri_match_first_regex(text, "booster"))
+  position <- which(!is.na(stri_match_first_regex(text, "booster")))
   
   add.tree.id <- function(node, tree) if (use_int_id) node else paste(tree, node, sep = "-")
   

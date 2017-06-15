@@ -322,7 +322,7 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
     
     # maximize is usually NULL when not set in xgb.train and built-in metrics
     if (is.null(maximize))
-      maximize <<- ifelse(grepl('(_auc|_map|_ndcg)', metric_name), TRUE, FALSE)
+      maximize <<- grepl('(_auc|_map|_ndcg)', metric_name)
 
     if (verbose && NVL(env$rank, 0) == 0)
       cat("Will train until ", metric_name, " hasn't improved in ", 
