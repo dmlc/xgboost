@@ -65,7 +65,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
                               trees = NULL, use_int_id = FALSE, ...){
   check.deprecation(...)
   
-  if (!inherits(model, "xgb.Booster") & !is.character(text)) {
+  if (!inherits(model, "xgb.Booster") && !is.character(text)) {
     stop("Either 'model' must be an object of class xgb.Booster\n",
          "  or 'text' must be a character vector with the result of xgb.dump\n",
          "  (or NULL if 'model' was provided).")
@@ -121,7 +121,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
       # skip some indices with spurious capture groups from anynumber_regex
       xtr <- stri_match_first_regex(t, branch_rx)[, c(2,3,5,6,7,8,10), drop = FALSE]
       xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
-      lapply(1:ncol(xtr), function(i) xtr[,i])
+      lapply(seq_len(ncol(xtr)), function(i) xtr[,i])
     }]
   # assign feature_names when available
   if (!is.null(feature_names)) {
@@ -136,7 +136,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   td[isLeaf == TRUE,
      (leaf_cols) := {
       xtr <- stri_match_first_regex(t, leaf_rx)[, c(2,4)]
-      c("Leaf", lapply(1:ncol(xtr), function(i) xtr[,i]))
+      c("Leaf", lapply(seq_len(ncol(xtr)), function(i) xtr[,i]))
     }]
   
   # convert some columns to numeric

@@ -2,7 +2,7 @@
 # internal utility function
 xgb.Booster.handle <- function(params = list(), cachelist = list(), modelfile = NULL) {
   if (typeof(cachelist) != "list" ||
-      !all(sapply(cachelist, inherits, 'xgb.DMatrix'))) {
+      !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
     stop("cachelist must be a list of xgb.DMatrix objects")
   }
 
@@ -296,9 +296,9 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     } else if (n_group == 1) {
       matrix(ret, nrow = n_row, byrow = TRUE, dimnames = dnames)
     } else {
-      grp_mask <- rep(1:n_col1, n_row) +
-        rep((0:(n_row - 1)) * n_col1 * n_group, each = n_col1)
-      lapply(1:n_group, function(g) {
+      grp_mask <- rep(seq_len(n_col1), n_row) +
+        rep((seq_len(n_row) - 1) * n_col1 * n_group, each = n_col1)
+      lapply(seq_len(n_group), function(g) {
         matrix(ret[grp_mask + n_col1 * (g - 1)], nrow = n_row, byrow = TRUE, dimnames = dnames)
       })
     }

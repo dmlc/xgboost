@@ -305,7 +305,7 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
   ind <- which(len == nr)
   if (length(ind) > 0) {
     nms <- names(attr_list)[ind]
-    for (i in 1:length(ind)) {
+    for (i in seq_along(ind)) {
       attr(ret, nms[i]) <- attr(object, nms[i])[idxset]
     }
   }
