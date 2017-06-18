@@ -1,0 +1,26 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+  config.vm.define "linux64" do |linux64|
+    linux64.vm.box = "envimation/ubuntu-xenial"
+  end
+
+  config.vm.provider "virtualbox" do |v|
+    v.memory = 2048
+    v.cpus = 4
+    v.customize ["modifyvm", :id, "--nictype1", "virtio" ]
+  end
+
+  config.vm.provision :shell, path: "build.sh"
+	config.vm.synced_folder "../../jvm-packages/", "/jvm-packages/xgboost4j/target/"
+	config.vm.synced_folder "../xgboost4j/target", "/jvm-packages/xgboost4j/target/"
+  config.vm.synced_folder "../xgboost4j-example/target", "/jvm-packages/xgboost4j-example/target/"
+  config.vm.synced_folder "../xgboost4j-spark/target", "/jvm-packages/xgboost4j-spark/target/"
+  config.vm.synced_folder "../xgboost4j-flink/target", "/jvm-packages/xgboost4j-flink/target/"
+  config.vm.boot_timeout = 1200
+end
