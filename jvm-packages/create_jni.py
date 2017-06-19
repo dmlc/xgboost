@@ -119,8 +119,10 @@ if __name__ == "__main__":
         # mismatch on older distributions, most notably CentOS6.
         libraries = dict(iter_libraries())
         for name in ["c", "stdc++"]:
-            cp(libraries[find_library(name)],
-               "xgboost4j/src/main/resources/lib")
+            path = libraries[find_library(name)]
+            path_wo_version, _version = os.path.splitext(
+                os.path.basename(path))
+            cp(path, "xgboost4j/src/main/resources/lib/" + path_wo_version)
 
     print("copying pure-Python tracker")
     cp("../dmlc-core/tracker/dmlc_tracker/tracker.py",
