@@ -62,7 +62,12 @@ def cp(source, target):
 
 def normpath(path):
     """Normalize UNIX path to a native path."""
-    return os.path.join(*path.split("/"))
+    is_abs = os.path.isabs(path)
+    normalized = os.path.join(*path.split("/"))
+    if os.path.isabs(path):
+        return os.path.abspath("/") + normalized
+    else:
+        return normalized
 
 
 def iter_libraries():
