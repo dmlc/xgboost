@@ -5,6 +5,7 @@
 # In most cases, type make will give what you want.
 
 # See additional instruction in doc/build.md
+set -e
 
 if make; then
     echo "Successfully build multi-thread xgboost"
