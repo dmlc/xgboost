@@ -33,7 +33,9 @@ class NativeLibLoader {
   private static boolean initialized = false;
   private static final String nativePath = "../../lib/";
   private static final String nativeResourcePath = "/lib/";
-  private static final String[] libNames = new String[]{"xgboost4j"};
+  private static final String[] libNames = System.getProperty("os.name").equals("Linux")
+          ? new String[]{"xgboost4j", "c", "stdc++"}
+          : new String[]{"xgboost4j"};
 
   public static synchronized void initXGBoost() throws IOException {
     if (!initialized) {
@@ -174,9 +176,12 @@ class NativeLibLoader {
           return;
         }
       }
+
+      // The order here is important. We override libc/libstdc++ on Linux,
+      // therefore libPath should come first.
       String[] tmp = new String[paths.length + 1];
-      System.arraycopy(paths, 0, tmp, 0, paths.length);
-      tmp[paths.length] = libPath;
+      tmp[0] = libPath;
+      System.arraycopy(paths, 0, tmp, 1, paths.length);
       field.set(null, tmp);
     } catch (IllegalAccessException e) {
       logger.error(e.getMessage());

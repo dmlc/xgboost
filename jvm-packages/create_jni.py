@@ -2,11 +2,17 @@
 import errno
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
 from contextlib import contextmanager
-from subprocess import check_output
+from ctypes.util import find_library
+
+
+# Monkey-patch the API inconsistency between Python2.X and 3.X.
+if sys.platform.startswith("linux"):
+    sys.platform = "linux"
 
 
 CONFIG = {
@@ -59,11 +65,21 @@ def normpath(path):
     return os.path.join(*path.split("/"))
 
 
+def iter_libraries():
+    assert sys.platform.startswith("linux")
+    lines = iter(
+        subprocess.check_output("ldconfig -p", shell=True).splitlines())
+    next(lines)  # Skip header.
+    for line in lines:
+        [(name, path)] = re.findall(r"\t(\S+) \(.+\) => (\S+)", line.decode())
+        yield name, path
+
+
 if __name__ == "__main__":
     if sys.platform == "darwin":
         # Enable of your compiler supports OpenMP.
         CONFIG["USE_OPENMP"] = "OFF"
-        os.environ["JAVA_HOME"] = check_output(
+        os.environ["JAVA_HOME"] = subprocess.check_output(
             "/usr/libexec/java_home").strip().decode()
 
     print("building Java wrapper")
@@ -88,10 +104,18 @@ if __name__ == "__main__":
     library_name = {
         "win32": "xgboost4j.dll",
         "darwin": "libxgboost4j.dylib",
-        "linux2": "libxgboost4j.so"
+        "linux": "libxgboost4j.so"
     }[sys.platform]
     maybe_makedirs("xgboost4j/src/main/resources/lib")
     cp("../lib/" + library_name, "xgboost4j/src/main/resources/lib")
+
+    if sys.platform == "linux":
+        # Include libc on Linux to compensate for possible ABI version
+        # mismatch on older distributions, most notably CentOS6.
+        libraries = dict(iter_libraries())
+        for name in ["c", "stdc++"]:
+            cp(libraries[find_library(name)],
+               "xgboost4j/src/main/resources/lib")
 
     print("copying pure-Python tracker")
     cp("../dmlc-core/tracker/dmlc_tracker/tracker.py",
