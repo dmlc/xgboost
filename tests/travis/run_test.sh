@@ -81,7 +81,6 @@ fi
 
 if [ ${TASK} == "java_test" ]; then
     set -e
-    make jvm-packages
     cd jvm-packages
     mvn clean install -DskipTests=true
     mvn test
