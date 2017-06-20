@@ -13,6 +13,7 @@ configuration:
         - Release
 
 install:
+        - SET PATH=;%PATH%
         - git submodule update --init --recursive
 
 before_build:
@@ -24,5 +25,6 @@ before_build:
         - cmake .. -G"Visual Studio 14 2015 Win64"
 
 build_script:
+        - cd %APPVEYOR_BUILD_FOLDER%
         - if "%target%" == "native" msbuild %solution_name%
         - if "%target%" == "jvm" cd jvm-packages && C:\Python36-x64\python create_jni.py
