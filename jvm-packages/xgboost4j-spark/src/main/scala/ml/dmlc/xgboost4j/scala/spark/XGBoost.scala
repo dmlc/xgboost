@@ -125,15 +125,19 @@ object XGBoost extends Serializable {
           }
           val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
           val trainingSet = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
-          if (xgBoostConfMap.contains("groupData") && xgBoostConfMap("groupData") != null) {
-            trainingSet.setGroup(xgBoostConfMap("groupData").asInstanceOf[Seq[Seq[Int]]](
-                TaskContext.getPartitionId()).toArray)
+          try {
+            if (xgBoostConfMap.contains("groupData") && xgBoostConfMap("groupData") != null) {
+              trainingSet.setGroup(xgBoostConfMap("groupData").asInstanceOf[Seq[Seq[Int]]](
+                  TaskContext.getPartitionId()).toArray)
+            }
+            booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
+              watches = new mutable.HashMap[String, DMatrix] {
+                put("train", trainingSet)
+              }.toMap, obj, eval)
+            Rabit.shutdown()
+          } finally {
+            trainingSet.delete()
           }
-          booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
-            watches = new mutable.HashMap[String, DMatrix] {
-              put("train", trainingSet)
-            }.toMap, obj, eval)
-          Rabit.shutdown()
         } else {
           Rabit.shutdown()
           throw new XGBoostError(s"detect the empty partition in training dataset, partition ID:" +
