@@ -96,8 +96,6 @@ if(MSVC)
 else()
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
-    #Prevent shared library being called liblibxgboost.so on Linux
-    set(CMAKE_SHARED_LIBRARY_PREFIX "")
 endif()
 
 set(LINK_LIBRARIES dmlccore rabit)
@@ -137,11 +135,12 @@ endif()
 add_library(objxgboost OBJECT ${SOURCES})
 set_target_properties(${objxgboost} PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
-add_library(libxgboost SHARED $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
-add_executable(xgboost $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
+add_executable(runxgboost $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
+set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
+target_link_libraries(runxgboost ${LINK_LIBRARIES})
 
+add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
 target_link_libraries(xgboost ${LINK_LIBRARIES})
-target_link_libraries(libxgboost ${LINK_LIBRARIES})
 
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 
@@ -150,11 +149,11 @@ if(JVM_BINDINGS)
 
     include_directories(${JNI_INCLUDE_DIRS} jvm-packages/xgboost4j/src/native)
 
-    add_library(libxgboost4j SHARED
+    add_library(xgboost4j SHARED
         $<TARGET_OBJECTS:objxgboost>
         ${CUDA_OBJS}
         jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
-    target_link_libraries(libxgboost4j
+    target_link_libraries(xgboost4j
         ${LINK_LIBRARIES}
-        ${JNI_LIBRARIES})
+        ${JAVA_JVM_LIBRARY})
 endif()
