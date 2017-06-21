@@ -155,5 +155,5 @@ if(JVM_BINDINGS)
         jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
     target_link_libraries(xgboost4j
         ${LINK_LIBRARIES}
-        ${JNI_LIBRARIES})
+        ${JAVA_JVM_LIBRARY})
 endif()
