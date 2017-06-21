@@ -949,9 +949,9 @@ class Booster(object):
 
         pred_contribs : bool
             When this option is on, the output will be a matrix of (nsample, nfeats+1)
-            with each record indicating the feature contributions of all trees. The sum of
-            all feature contributions is equal to the prediction. Note that the bias is added
-            as the final column, on top of the regular features.
+            with each record indicating the feature contributions (SHAP values) for that
+            prediction. The sum of all feature contributions is equal to the prediction.
+            Note that the bias is added as the final column, on top of the regular features.
 
         Returns
         -------

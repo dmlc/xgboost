@@ -14,6 +14,7 @@
 #include <string>
 #include <cstring>
 #include <algorithm>
+#include <tuple>
 #include "./base.h"
 #include "./data.h"
 #include "./logging.h"
@@ -478,13 +479,25 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    */
   inline bst_float Predict(const FVec& feat, unsigned root_id = 0) const;
   /*!
-   * \brief calculate the feature contributions for the given root
+   * \brief calculate the feature contributions (SHAP values https://arxiv.org/abs/1706.06060) for the given root
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
    * \param root_id starting root index of the instance
    * \param out_contribs output vector to hold the contributions
    */
   inline void CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
                                      bst_float *out_contribs) const;
+  inline void TreeShap(const RegTree::FVec& feat, bst_float *phi,
+                       unsigned node_index, unsigned unique_depth, unsigned num_fixed,
+                       const std::tuple<unsigned,unsigned> *parent_feature_mask,
+                       bst_float expectation_weight) const;
+  /*!
+   * \brief calculate the approximate feature contributions for the given root
+   * \param feat dense feature vector, if the feature is missing the field is set to NaN
+   * \param root_id starting root index of the instance
+   * \param out_contribs output vector to hold the contributions
+   */
+  inline void CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
+                                    bst_float *out_contribs) const;
   /*!
    * \brief get next position of the tree given current pid
    * \param pid Current node id.
@@ -586,7 +599,7 @@ inline bst_float RegTree::FillNodeMeanValue(int nid) {
   return result;
 }
 
-inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+inline void RegTree::CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
                                             bst_float *out_contribs) const {
   CHECK_GT(this->node_mean_values.size(), 0);
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
@@ -611,6 +624,107 @@ inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned 
   bst_float leaf_value = (*this)[pid].leaf_value();
   // update leaf feature weight
   out_contribs[split_index] += leaf_value - node_value;
+}
+
+// used by _compute_weight
+inline unsigned _seq_prod(unsigned a, unsigned b) {
+  unsigned out = 1.0;
+  for (unsigned i = a; i <= b; ++i) out *= i;
+  return out;
+}
+
+inline bst_float _compute_weight(unsigned num_fixed, unsigned num_integrated) {
+  if (num_fixed > num_integrated) {
+    return static_cast<bst_float>(_seq_prod(2, num_integrated))/_seq_prod(num_fixed+1, num_fixed+num_integrated+1);
+  } else {
+    return static_cast<bst_float>(_seq_prod(2, num_fixed))/_seq_prod(num_integrated+1, num_fixed+num_integrated+1);
+  }
+}
+
+inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
+                              unsigned node_index, unsigned unique_depth, unsigned num_fixed,
+                              const std::tuple<unsigned,unsigned> *parent_feature_mask,
+                              bst_float expectation_weight) const {
+
+  // allocate a feature_mask array on the stack, the tuples are (node_index, node_mask)
+  std::tuple<unsigned,unsigned> feature_mask[unique_depth+1];
+  if (unique_depth > 0) std::copy(parent_feature_mask, parent_feature_mask+unique_depth, feature_mask);
+
+  unsigned new_num_fixed = num_fixed;
+  const auto node = (*this)[node_index];
+  const unsigned split_index = node.split_index();
+
+  // if we are a leaf we update the SHAP values for all nodes that were split on
+  if (node.is_leaf()) {
+    for (unsigned i = 0; i < unique_depth; ++i) {
+      const auto ind = std::get<0>(feature_mask[i]);
+      if (std::get<1>(feature_mask[i]) == 1) {
+        const bst_float shapley_weight = _compute_weight(num_fixed-1, unique_depth-num_fixed);
+        phi[ind] += shapley_weight*node.leaf_value()*expectation_weight;
+      } else {
+        const bst_float shapley_weight = _compute_weight(num_fixed, unique_depth-num_fixed-1);
+        phi[ind] -= shapley_weight*node.leaf_value()*expectation_weight;
+      }
+    }
+
+  // if we are an internal node we recurse, tracking our weights and mask
+  } else {
+    unsigned mask_value = 2;
+    unsigned mask_index = unique_depth;
+    for (unsigned i = 0; i < unique_depth; ++i) {
+      if (std::get<0>(feature_mask[i]) == split_index) {
+        mask_value = std::get<1>(feature_mask[i]);
+        mask_index = i;
+        break;
+      }
+    }
+    if (mask_value == 2) {
+      feature_mask[unique_depth] = std::make_tuple(split_index,0);
+      unique_depth += 1;
+      new_num_fixed += 1;
+    }
+
+    // propagate our missing mask down each branch if we are not already fixed to non-missing
+    if (mask_value != 1) {
+      std::get<1>(feature_mask[mask_index]) = 0;
+      const bst_float w = this->stat(node_index).sum_hess;
+      const bst_float left_weight = expectation_weight * this->stat(node.cleft()).sum_hess / w;
+      TreeShap(feat, phi, node.cleft(), unique_depth, num_fixed, feature_mask, left_weight);
+      const bst_float right_weight = expectation_weight * this->stat(node.cright()).sum_hess / w;
+      TreeShap(feat, phi, node.cright(), unique_depth, num_fixed, feature_mask, right_weight);
+    }
+
+    // propagate our non-missing mask down each branch if we are not already fixed to missing
+    if (mask_value != 0) {
+      std::get<1>(feature_mask[mask_index]) = 1;
+      if (feat.is_missing(split_index)) {
+        TreeShap(feat, phi, node.cdefault(), unique_depth, new_num_fixed, feature_mask, expectation_weight);
+      } else if (feat.fvalue(split_index) < node.split_cond()) {
+        TreeShap(feat, phi, node.cleft(), unique_depth, new_num_fixed, feature_mask, expectation_weight);
+      } else {
+        TreeShap(feat, phi, node.cright(), unique_depth, new_num_fixed, feature_mask, expectation_weight);
+      }
+    }
+  }
+}
+
+inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+                                            bst_float *out_contribs) const {
+
+  // find the expected value of the tree's predictions
+  bst_float base_value = 0.0;
+  bst_float total_cover = 0;
+  for (unsigned i = 0; i < (*this).param.num_nodes; ++i) {
+    const auto node = (*this)[i];
+    if (node.is_leaf()) {
+      const auto cover = this->stat(i).sum_hess;
+      base_value += cover*node.leaf_value();
+      total_cover += cover;
+    }
+  }
+  out_contribs[feat.size()] += base_value / total_cover;
+
+  TreeShap(feat, out_contribs, root_id, 0, 0, NULL, 1.0);
 }
 
 /*! \brief get next position of the tree given current pid */
