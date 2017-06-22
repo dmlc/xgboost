@@ -141,7 +141,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public void update(DMatrix dtrain, IObjective obj) throws XGBoostError {
-    float[][] predicts = this.predict(dtrain, true, 0, false);
+    float[][] predicts = this.predict(dtrain, true, 0, false, false);
     List<float[]> gradients = obj.getGradient(predicts, dtrain);
     boost(dtrain, gradients.get(0), gradients.get(1));
   }
