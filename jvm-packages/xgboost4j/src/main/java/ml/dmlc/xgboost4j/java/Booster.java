@@ -275,11 +275,11 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Predict feature contributions given the data
+   * Output feature contributions toward predictions of given data
    *
    * @param data The input data.
    * @param treeLimit Number of trees to include, 0 means all trees.
-   * @return The leaf indices of the instance.
+   * @return The feature contributions and bias.
    * @throws XGBoostError
    */
   public float[][] predictContrib(DMatrix data, int treeLimit) throws XGBoostError {
