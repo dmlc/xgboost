@@ -580,7 +580,7 @@ class GBTree : public GradientBooster {
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
     // initialize tree node mean values
-    #pragma omp parallel for schedule(static)
+    // #pragma omp parallel for schedule(static)
     // for (bst_omp_uint i=0; i < ntree_limit; ++i) {
     //   trees[i]->FillNodeMeanValues(); // Only needed if using CalculateContributionsApprox
     // }
