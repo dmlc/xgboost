@@ -38,6 +38,17 @@ class XGBoostJNI {
     }
   }
 
+  /**
+   * Check the return code of the JNI call.
+   *
+   * @throws XGBoostError if the call failed.
+   */
+  static void checkCall(int ret) throws XGBoostError {
+    if (ret != 0) {
+      throw new XGBoostError(XGBGetLastError());
+    }
+  }
+
   public final static native String XGBGetLastError();
 
   public final static native int XGDMatrixCreateFromFile(String fname, int silent, long[] out);
@@ -117,4 +128,4 @@ class XGBoostJNI {
   // This JNI function does not support the callback function for data preparation yet.
   final static native int RabitAllreduce(ByteBuffer sendrecvbuf, int count,
                                                 int enum_dtype, int enum_op);
-}                                                                             
+}
