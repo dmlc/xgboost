@@ -196,7 +196,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe("gpu to use for single gpu algorithms");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_lower_bound(-1)
-        .set_default(-1)
+        .set_default(1)
         .describe("Number of GPUs to use for multi-gpu algorithms: -1=use all GPUs");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);

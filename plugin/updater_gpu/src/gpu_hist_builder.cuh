@@ -121,8 +121,8 @@ class GPUHistBuilder {
   std::vector<dh::dvec<float>> fidx_min_map;
   std::vector<dh::dvec<int>> feature_segments;
   std::vector<dh::dvec<bst_float>> prediction_cache;
-  std::vector<dh::dvec<NodeIdT>> position;
-  std::vector<dh::dvec<NodeIdT>> position_tmp;
+  std::vector<dh::dvec<int>> position;
+  std::vector<dh::dvec<int>> position_tmp;
   std::vector<DeviceGMat> device_matrix;
   std::vector<dh::dvec<gpu_gpair>> device_gpair;
   std::vector<dh::dvec<int>> gidx_feature_map;

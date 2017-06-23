@@ -21,7 +21,7 @@ n_gpus | &#10006; | &#10004; |
 
 The device ordinal can be selected using the 'gpu_id' parameter, which defaults to 0.
 
-Multiple GPUs can be used with the grow_gpu_hist parameter using the n_gpus parameter, which defaults to -1 (indicating use all visible GPUs).  If gpu_id is specified as non-zero, the gpu device order is mod(gpu_id + i) % n_visible_devices for i=0 to n_gpus-1.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.  For example, when n_features * n_bins * 2^depth divided by time of each round/iteration becomes comparable to the real PCI 16x bus bandwidth of order 4GB/s to 10GB/s, then AllReduce will dominant code speed and multiple GPUs become ineffective at increasing performance.  Also, CPU overhead between GPU calls can limit usefulness of multiple GPUs.
+Multiple GPUs can be used with the grow_gpu_hist parameter using the n_gpus parameter. which defaults to 1. If this is set to -1 all available GPUs will be used.  If gpu_id is specified as non-zero, the gpu device order is mod(gpu_id + i) % n_visible_devices for i=0 to n_gpus-1.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.  For example, when n_features * n_bins * 2^depth divided by time of each round/iteration becomes comparable to the real PCI 16x bus bandwidth of order 4GB/s to 10GB/s, then AllReduce will dominant code speed and multiple GPUs become ineffective at increasing performance.  Also, CPU overhead between GPU calls can limit usefulness of multiple GPUs.
 
 This plugin currently works with the CLI version and python version.
 
