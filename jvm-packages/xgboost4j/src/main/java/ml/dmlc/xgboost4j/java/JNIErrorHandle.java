@@ -15,28 +15,10 @@
  */
 package ml.dmlc.xgboost4j.java;
 
-import java.io.IOException;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
 /**
  * Error handle for Xgboost.
  */
 class JNIErrorHandle {
-
-  private static final Log logger = LogFactory.getLog(DMatrix.class);
-
-  //load native library
-  static {
-    try {
-      NativeLibLoader.initXGBoost();
-    } catch (IOException ex) {
-      logger.error("load native library failed.");
-      logger.error(ex);
-    }
-  }
-
   /**
    * Check the return value of C API.
    *
@@ -48,5 +30,4 @@ class JNIErrorHandle {
       throw new XGBoostError(XGBoostJNI.XGBGetLastError());
     }
   }
-
 }

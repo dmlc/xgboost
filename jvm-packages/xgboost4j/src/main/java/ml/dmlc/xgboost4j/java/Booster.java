@@ -35,16 +35,6 @@ public class Booster implements Serializable, KryoSerializable {
   // handle to the booster.
   private long handle = 0;
 
-  //load native library
-  static {
-    try {
-      NativeLibLoader.initXGBoost();
-    } catch (IOException ex) {
-      logger.error("load native library failed.");
-      logger.error(ex);
-    }
-  }
-
   /**
    * Create a new Booster with empty stage.
    *

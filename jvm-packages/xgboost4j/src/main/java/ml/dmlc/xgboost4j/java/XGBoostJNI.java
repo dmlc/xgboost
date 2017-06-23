@@ -15,8 +15,10 @@
  */
 package ml.dmlc.xgboost4j.java;
 
-
 import java.nio.ByteBuffer;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 /**
  * xgboost JNI functions
@@ -25,6 +27,17 @@ import java.nio.ByteBuffer;
  * @author hzx
  */
 class XGBoostJNI {
+  private static final Log logger = LogFactory.getLog(DMatrix.class);
+
+  static {
+    try {
+      NativeLibLoader.initXGBoost();
+    } catch (Exception ex) {
+      logger.error("Failed to load native library", ex);
+      throw new RuntimeException(ex);
+    }
+  }
+
   public final static native String XGBGetLastError();
 
   public final static native int XGDMatrixCreateFromFile(String fname, int silent, long[] out);

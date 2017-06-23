@@ -15,11 +15,7 @@
  */
 package ml.dmlc.xgboost4j.java;
 
-import java.io.IOException;
 import java.util.Iterator;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 
 import ml.dmlc.xgboost4j.LabeledPoint;
 
@@ -29,18 +25,7 @@ import ml.dmlc.xgboost4j.LabeledPoint;
  * @author hzx
  */
 public class DMatrix {
-  private static final Log logger = LogFactory.getLog(DMatrix.class);
   protected long handle = 0;
-
-  //load native library
-  static {
-    try {
-      NativeLibLoader.initXGBoost();
-    } catch (IOException ex) {
-      logger.error("load native library failed.");
-      logger.error(ex);
-    }
-  }
 
   /**
    * sparse matrix type (CSR or CSC)
