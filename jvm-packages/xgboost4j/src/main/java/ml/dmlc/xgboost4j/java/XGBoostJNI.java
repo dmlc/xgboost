@@ -15,8 +15,10 @@
  */
 package ml.dmlc.xgboost4j.java;
 
-
 import java.nio.ByteBuffer;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 /**
  * xgboost JNI functions
@@ -25,6 +27,28 @@ import java.nio.ByteBuffer;
  * @author hzx
  */
 class XGBoostJNI {
+  private static final Log logger = LogFactory.getLog(DMatrix.class);
+
+  static {
+    try {
+      NativeLibLoader.initXGBoost();
+    } catch (Exception ex) {
+      logger.error("Failed to load native library", ex);
+      throw new RuntimeException(ex);
+    }
+  }
+
+  /**
+   * Check the return code of the JNI call.
+   *
+   * @throws XGBoostError if the call failed.
+   */
+  static void checkCall(int ret) throws XGBoostError {
+    if (ret != 0) {
+      throw new XGBoostError(XGBGetLastError());
+    }
+  }
+
   public final static native String XGBGetLastError();
 
   public final static native int XGDMatrixCreateFromFile(String fname, int silent, long[] out);
@@ -104,4 +128,4 @@ class XGBoostJNI {
   // This JNI function does not support the callback function for data preparation yet.
   final static native int RabitAllreduce(ByteBuffer sendrecvbuf, int count,
                                                 int enum_dtype, int enum_op);
-}                                                                             
+}
