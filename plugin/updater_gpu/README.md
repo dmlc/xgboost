@@ -1,16 +1,16 @@
 # CUDA Accelerated Tree Construction Algorithms
 This plugin adds GPU accelerated tree construction algorithms to XGBoost.
 ## Usage
-Specify the 'updater' parameter as one of the following algorithms. 
+Specify the 'tree_method' parameter as one of the following algorithms. 
 
 ### Algorithms
-| updater | Description |
+| tree_method | Description |
 | --- | --- |
-grow_gpu | The standard XGBoost tree construction algorithm. Performs exact search for splits. Slower and uses considerably more memory than 'grow_gpu_hist' |
-grow_gpu_hist | Equivalent to the XGBoost fast histogram algorithm. Faster and uses considerably less memory. Splits may be less accurate. |
+gpu_exact | The standard XGBoost tree construction algorithm. Performs exact search for splits. Slower and uses considerably more memory than 'gpu_hist' |
+gpu_hist | Equivalent to the XGBoost fast histogram algorithm. Faster and uses considerably less memory. Splits may be less accurate. |
 
 ### Supported parameters 
-| parameter | grow_gpu | grow_gpu_hist |
+| parameter | gpu_exact | gpu_hist |
 | --- | --- | --- |
 subsample | &#10004; | &#10004; |
 colsample_bytree | &#10004; | &#10004;|
@@ -29,7 +29,7 @@ Python example:
 ```python
 param['gpu_id'] = 1
 param['max_bin'] = 16
-param['updater'] = 'grow_gpu_hist'
+param['tree_method'] = 'gpu_hist'
 ```
 ## Benchmarks
 To run benchmarks on synthetic data for binary classification:
@@ -39,18 +39,18 @@ $ python benchmark/benchmark.py
 
 Training time time on 1000000 rows x 50 columns with 500 boosting iterations on i7-6700K CPU @ 4.00GHz and Pascal Titan X.
 
-| Updater | Time (s) |
+| tree_method | Time (s) |
 | --- | --- |
-| grow_gpu_hist | 11.09 |
-| grow_fast_histmaker (histogram XGBoost - CPU) | 41.75 |
-| grow_gpu | 193.90 |
-| grow_colmaker (standard XGBoost - CPU) | 720.12 |
+| gpu_hist | 11.09 |
+| hist (histogram XGBoost - CPU) | 41.75 |
+| gpu_exact | 193.90 |
+| exact (standard XGBoost - CPU) | 720.12 |
 
 
-[See here](http://dmlc.ml/2016/12/14/GPU-accelerated-xgboost.html) for additional performance benchmarks of the 'grow_gpu' updater.
+[See here](http://dmlc.ml/2016/12/14/GPU-accelerated-xgboost.html) for additional performance benchmarks of the 'gpu_exact' tree_method.
 
 ## Test
-To run tests:
+To run tests:Will
 ```bash
 $ python -m nose test/python/
 ```
@@ -122,6 +122,13 @@ $ make PLUGIN_UPDATER_GPU=ON GTEST_PATH=${CACHE_PREFIX} test
 ```
 
 ## Changelog
+##### 2017/6/26
+
+* Change API to use tree_method parameter
+* Increase required cmake version to 3.5
+* Add compute arch 3.5 to default archs
+* Set default n_gpus to 1
+
 ##### 2017/6/5
 
 * Multi-GPU support for histogram method using NVIDIA NCCL.

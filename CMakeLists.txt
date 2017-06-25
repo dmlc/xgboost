@@ -3,9 +3,10 @@ project (xgboost)
 find_package(OpenMP)
 
 option(PLUGIN_UPDATER_GPU "Build GPU accelerated tree construction plugin")
-set(GPU_COMPUTE_VER 50;52;60;61 CACHE STRING
+set(GPU_COMPUTE_VER 35;50;52;60;61 CACHE STRING
     "Space separated list of compute versions to be built against")
 if(PLUGIN_UPDATER_GPU)
+  cmake_minimum_required (VERSION 3.5)
   find_package(CUDA REQUIRED)
 endif()
 
