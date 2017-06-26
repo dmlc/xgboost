@@ -253,7 +253,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     val predRDD = xgBoostModel.predict(testRDD)
-    val predResult1 = predRDD.collect()(0)
+    val predResult1 = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
     import DataUtils._
     val predResult2 = xgBoostModel.booster.predict(new DMatrix(testSet.iterator))
@@ -359,7 +359,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 1)
     val predRDD = xgBoostModel.predict(testRDD)
-    val predResult1: Array[Array[Float]] = predRDD.collect()(0)
+    val predResult1: Array[Array[Float]] = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
 
     val avgMetric = xgBoostModel.eval(trainingRDD, "test", iter = 0, groupData = trainGroupData)
@@ -387,7 +387,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 2)
     val predRDD = xgBoostModel.predict(testRDD)
-    val predResult1: Array[Array[Float]] = predRDD.collect()(0)
+    val predResult1: Array[Array[Float]] = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
   }
 }
