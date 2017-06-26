@@ -59,19 +59,18 @@ abstract class XGBoostModel(protected var _booster: Booster)
    *
    * @param testSet test set represented as RDD
    */
-  def predictLeaves(testSet: RDD[MLVector]): RDD[Array[Array[Float]]] = {
+  def predictLeaves(testSet: RDD[MLVector]): RDD[Array[Float]] = {
     import DataUtils._
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
     testSet.mapPartitions { testSamples =>
       val rabitEnv = Map("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv.asJava)
-      if (testSamples.hasNext) {
+      if (testSamples.nonEmpty) {
         val dMatrix = new DMatrix(new JDMatrix(testSamples, null))
         try {
-          val res = broadcastBooster.value.predictLeaf(dMatrix)
-          Rabit.shutdown()
-          Iterator(res)
+          broadcastBooster.value.predictLeaf(dMatrix).iterator
         } finally {
+          Rabit.shutdown()
           dMatrix.delete()
         }
       } else {
@@ -151,7 +150,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
    * @param testSet test set represented as RDD
    * @param missingValue the specified value to represent the missing value
    */
-  def predict(testSet: RDD[MLDenseVector], missingValue: Float): RDD[Array[Array[Float]]] = {
+  def predict(testSet: RDD[MLDenseVector], missingValue: Float): RDD[Array[Float]] = {
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
     testSet.mapPartitions { testSamples =>
       val sampleArray = testSamples.toList
@@ -169,7 +168,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
         }
         val dMatrix = new DMatrix(flatSampleArray, numRows, numColumns, missingValue)
         try {
-          Iterator(broadcastBooster.value.predict(dMatrix))
+          broadcastBooster.value.predict(dMatrix).iterator
         } finally {
           Rabit.shutdown()
           dMatrix.delete()
@@ -188,7 +187,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
   def predict(
       testSet: RDD[MLVector],
       useExternalCache: Boolean = false,
-      outputMargin: Boolean = false): RDD[Array[Array[Float]]] = {
+      outputMargin: Boolean = false): RDD[Array[Float]] = {
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
     val appName = testSet.context.appName
     testSet.mapPartitions { testSamples =>
@@ -205,7 +204,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
         }
         val dMatrix = new DMatrix(new JDMatrix(testSamples, cacheFileName))
         try {
-          Iterator(broadcastBooster.value.predict(dMatrix))
+          broadcastBooster.value.predict(dMatrix).iterator
         } finally {
           Rabit.shutdown()
           dMatrix.delete()
