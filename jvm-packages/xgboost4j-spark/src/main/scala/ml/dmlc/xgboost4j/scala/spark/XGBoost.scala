@@ -79,7 +79,7 @@ object XGBoost extends Serializable {
 
   private[spark] def buildDistributedBoosters(
       trainingSet: RDD[MLLabeledPoint],
-      xgBoostConfMap: Map[String, Any],
+      params: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
       numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
       useExternalMemory: Boolean, missing: Float = Float.NaN): RDD[Booster] = {
@@ -119,14 +119,12 @@ object XGBoost extends Serializable {
       val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
       val trainingMatrix = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
       try {
-        if (xgBoostConfMap.contains("groupData") && xgBoostConfMap("groupData") != null) {
-          trainingMatrix.setGroup(xgBoostConfMap("groupData").asInstanceOf[Seq[Seq[Int]]](
+        if (params.contains("groupData") && params("groupData") != null) {
+          trainingMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
             TaskContext.getPartitionId()).toArray)
         }
-        booster = SXGBoost.train(trainingMatrix, xgBoostConfMap, round,
-          watches = new mutable.HashMap[String, DMatrix] {
-            put("train", trainingMatrix)
-          }.toMap, obj, eval)
+        booster = SXGBoost.train(trainingMatrix, params, round,
+          watches = Map("train" -> trainingMatrix), obj, eval)
       } finally {
         Rabit.shutdown()
         trainingMatrix.delete()
@@ -179,8 +177,8 @@ object XGBoost extends Serializable {
       fit(trainingData)
   }
 
-  private[spark] def isClassificationTask(paramsMap: Map[String, Any]): Boolean = {
-    val objective = paramsMap.getOrElse("objective", paramsMap.getOrElse("obj_type", null))
+  private[spark] def isClassificationTask(params: Map[String, Any]): Boolean = {
+    val objective = params.getOrElse("objective", params.getOrElse("obj_type", null))
     objective != null && {
       val objStr = objective.toString
       objStr == "classification" || (!objStr.startsWith("reg:") && objStr != "count:poisson" &&
@@ -211,7 +209,7 @@ object XGBoost extends Serializable {
     trainWithRDD(trainingData, params, round, nWorkers, obj, eval, useExternalMemory, missing)
   }
 
-  private def overrideParamMapAccordingtoTaskCPUs(
+  private def overrideParamsAccordingToTaskCPUs(
       params: Map[String, Any],
       sc: SparkContext): Map[String, Any] = {
     val coresPerTask = sc.getConf.get("spark.task.cpus", "1").toInt
@@ -276,8 +274,8 @@ object XGBoost extends Serializable {
     }
     val tracker = startTracker(nWorkers, trackerConf)
     try {
-      val overridedConfMap = overrideParamMapAccordingtoTaskCPUs(params, trainingData.sparkContext)
-      val boosters = buildDistributedBoosters(trainingData, overridedConfMap,
+      val overriddenParams = overrideParamsAccordingToTaskCPUs(params, trainingData.sparkContext)
+      val boosters = buildDistributedBoosters(trainingData, overriddenParams,
         tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
       val sparkJobThread = new Thread() {
         override def run() {
@@ -290,7 +288,7 @@ object XGBoost extends Serializable {
       val isClsTask = isClassificationTask(params)
       val trackerReturnVal = tracker.waitFor(0L)
       logger.info(s"Rabit returns with exit code $trackerReturnVal")
-      postTrackerReturnProcessing(trackerReturnVal, boosters, overridedConfMap, sparkJobThread,
+      postTrackerReturnProcessing(trackerReturnVal, boosters, overriddenParams, sparkJobThread,
         isClsTask)
     } finally {
       tracker.stop()
@@ -299,7 +297,7 @@ object XGBoost extends Serializable {
 
   private def postTrackerReturnProcessing(
       trackerReturnVal: Int, distributedBoosters: RDD[Booster],
-      configMap: Map[String, Any], sparkJobThread: Thread, isClassificationTask: Boolean):
+      params: Map[String, Any], sparkJobThread: Thread, isClassificationTask: Boolean):
     XGBoostModel = {
     if (trackerReturnVal == 0) {
       val xgboostModel = XGBoostModel(distributedBoosters.first(), isClassificationTask)
