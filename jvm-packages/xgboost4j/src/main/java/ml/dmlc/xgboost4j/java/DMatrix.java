@@ -171,26 +171,19 @@ public class DMatrix {
   }
 
   /**
-   * if specified, xgboost will start from this init margin
-   * can be used to specify initial prediction to boost from
+   * Set base margin (initial prediction).
    *
-   * @param baseMargin base margin
-   * @throws XGBoostError native error
+   * The margin must have the same number of elements as the number of
+   * rows in this matrix.
    */
   public void setBaseMargin(float[] baseMargin) throws XGBoostError {
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "base_margin", baseMargin));
-  }
+    if (baseMargin.length != rowNum()) {
+      throw new IllegalArgumentException(String.format(
+              "base margin must have exactly %s elements, got %s",
+              rowNum(), baseMargin.length));
+    }
 
-  /**
-   * if specified, xgboost will start from this init margin
-   * can be used to specify initial prediction to boost from
-   *
-   * @param baseMargin base margin
-   * @throws XGBoostError native error
-   */
-  public void setBaseMargin(float[][] baseMargin) throws XGBoostError {
-    float[] flattenMargin = flatten(baseMargin);
-    setBaseMargin(flattenMargin);
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "base_margin", baseMargin));
   }
 
   /**
@@ -236,10 +229,7 @@ public class DMatrix {
   }
 
   /**
-   * get base margin of the DMatrix
-   *
-   * @return base margin
-   * @throws XGBoostError native error
+   * Get base margin of the DMatrix.
    */
   public float[] getBaseMargin() throws XGBoostError {
     return getFloatInfo("base_margin");
@@ -284,22 +274,6 @@ public class DMatrix {
    */
   public long getHandle() {
     return handle;
-  }
-
-  /**
-   * flatten a mat to array
-   */
-  private static float[] flatten(float[][] mat) {
-    int size = 0;
-    for (float[] array : mat) size += array.length;
-    float[] result = new float[size];
-    int pos = 0;
-    for (float[] ar : mat) {
-      System.arraycopy(ar, 0, result, pos, ar.length);
-      pos += ar.length;
-    }
-
-    return result;
   }
 
   @Override
