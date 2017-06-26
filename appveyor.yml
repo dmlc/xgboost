@@ -27,4 +27,4 @@ before_build:
 build_script:
         - cd %APPVEYOR_BUILD_FOLDER%
         - if "%target%" == "native" msbuild %solution_name%
-        - if "%target%" == "jvm" cd jvm-packages && C:\Python36-x64\python create_jni.py
+        - if "%target%" == "jvm" cd jvm-packages && mvn test -pl :xgboost4j
