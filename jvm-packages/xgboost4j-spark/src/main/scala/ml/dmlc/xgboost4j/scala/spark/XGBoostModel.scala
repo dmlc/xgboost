@@ -331,6 +331,13 @@ abstract class XGBoostModel(protected var _booster: Booster)
 }
 
 object XGBoostModel extends MLReadable[XGBoostModel] {
+  private[spark] def apply(booster: Booster, isClassification: Boolean): XGBoostModel = {
+    if (!isClassification) {
+      new XGBoostRegressionModel(booster)
+    } else {
+      new XGBoostClassificationModel(booster)
+    }
+  }
 
   override def read: MLReader[XGBoostModel] = new XGBoostModelModelReader
 

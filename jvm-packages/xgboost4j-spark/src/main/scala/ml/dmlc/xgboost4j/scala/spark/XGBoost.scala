@@ -53,15 +53,6 @@ case class TrackerConf(workerConnectionTimeout: Long, trackerImpl: String)
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
-  private def convertBoosterToXGBoostModel(booster: Booster, isClassification: Boolean):
-      XGBoostModel = {
-    if (!isClassification) {
-      new XGBoostRegressionModel(booster)
-    } else {
-      new XGBoostClassificationModel(booster)
-    }
-  }
-
   private def fromDenseToSparseLabeledPoints(
       denseLabeledPoints: Iterator[MLLabeledPoint],
       missing: Float): Iterator[MLLabeledPoint] = {
@@ -310,8 +301,7 @@ object XGBoost extends Serializable {
       configMap: Map[String, Any], sparkJobThread: Thread, isClassificationTask: Boolean):
     XGBoostModel = {
     if (trackerReturnVal == 0) {
-      val xgboostModel = convertBoosterToXGBoostModel(distributedBoosters.first(),
-        isClassificationTask)
+      val xgboostModel = XGBoostModel(distributedBoosters.first(), isClassificationTask)
       distributedBoosters.unpersist(false)
       xgboostModel
     } else {
