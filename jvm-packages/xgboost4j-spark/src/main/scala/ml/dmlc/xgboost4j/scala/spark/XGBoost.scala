@@ -96,41 +96,42 @@ object XGBoost extends Serializable {
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    partitionedTrainingSet.mapPartitions {
-      trainingSamples =>
-        rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
-        Rabit.init(rabitEnv)
-        var booster: Booster = null
-        if (trainingSamples.hasNext) {
-          val cacheFileName: String = {
-            if (useExternalMemory) {
-              s"$appName-${TaskContext.get().stageId()}-" +
-                s"dtrain_cache-${TaskContext.getPartitionId()}"
-            } else {
-              null
-            }
-          }
-          val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
-          val trainingSet = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
-          try {
-            if (xgBoostConfMap.contains("groupData") && xgBoostConfMap("groupData") != null) {
-              trainingSet.setGroup(xgBoostConfMap("groupData").asInstanceOf[Seq[Seq[Int]]](
-                  TaskContext.getPartitionId()).toArray)
-            }
-            booster = SXGBoost.train(trainingSet, xgBoostConfMap, round,
-              watches = new mutable.HashMap[String, DMatrix] {
-                put("train", trainingSet)
-              }.toMap, obj, eval)
-            Rabit.shutdown()
-          } finally {
-            trainingSet.delete()
-          }
+    partitionedTrainingSet.mapPartitions { trainingSamples =>
+      if (!trainingSamples.hasNext) {
+        throw new XGBoostError(
+          s"detected an empty partition in the training data, partition ID:" +
+          s" ${TaskContext.getPartitionId()}")
+      }
+
+      var booster: Booster = null
+      val cacheFileName: String = {
+        if (useExternalMemory) {
+          s"$appName-${TaskContext.get().stageId()}-" +
+            s"dtrain_cache-${TaskContext.getPartitionId()}"
         } else {
-          Rabit.shutdown()
-          throw new XGBoostError(s"detect the empty partition in training dataset, partition ID:" +
-            s" ${TaskContext.getPartitionId().toString}")
+          null
         }
-        Iterator(booster)
+      }
+
+      rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
+      Rabit.init(rabitEnv)
+
+      val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
+      val trainingMatrix = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
+      try {
+        if (xgBoostConfMap.contains("groupData") && xgBoostConfMap("groupData") != null) {
+          trainingMatrix.setGroup(xgBoostConfMap("groupData").asInstanceOf[Seq[Seq[Int]]](
+            TaskContext.getPartitionId()).toArray)
+        }
+        booster = SXGBoost.train(trainingMatrix, xgBoostConfMap, round,
+          watches = new mutable.HashMap[String, DMatrix] {
+            put("train", trainingMatrix)
+          }.toMap, obj, eval)
+      } finally {
+        Rabit.shutdown()
+        trainingMatrix.delete()
+      }
+      Iterator(booster)
     }.cache()
   }
 
