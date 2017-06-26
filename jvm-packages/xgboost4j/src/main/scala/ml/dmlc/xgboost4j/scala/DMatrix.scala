@@ -127,7 +127,7 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   def setBaseMargin(baseMargin: Array[Float]): Unit = {
     jDMatrix.setBaseMargin(baseMargin)
   }
-  
+
   /**
    * Set group sizes of DMatrix (used for ranking)
    *
