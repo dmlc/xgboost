@@ -66,22 +66,21 @@ object XGBoost extends Serializable {
       denseLabeledPoints: Iterator[MLLabeledPoint],
       missing: Float): Iterator[MLLabeledPoint] = {
     if (!missing.isNaN) {
-      val sparseLabeledPoints = new ListBuffer[MLLabeledPoint]
-      for (labelPoint <- denseLabeledPoints) {
-        val dVector = labelPoint.features.toDense
-        val indices = new ListBuffer[Int]
-        val values = new ListBuffer[Double]
-        for (i <- dVector.values.indices) {
-          if (dVector.values(i) != missing) {
+      denseLabeledPoints.map { case MLLabeledPoint(label, features) =>
+        val dFeatures = features.toDense
+        val indices = new mutable.ArrayBuilder.ofInt()
+        val values = new mutable.ArrayBuilder.ofDouble()
+        for (i <- dFeatures.values.indices) {
+          if (dFeatures.values(i) != missing) {
             indices += i
-            values += dVector.values(i)
+            values += dFeatures.values(i)
           }
         }
-        val sparseVector = new SparseVector(dVector.values.length, indices.toArray,
-          values.toArray)
-        sparseLabeledPoints += MLLabeledPoint(labelPoint.label, sparseVector)
+
+        val sFeatures = new SparseVector(dFeatures.values.length, indices.result(),
+          values.result())
+        MLLabeledPoint(label, sFeatures)
       }
-      sparseLabeledPoints.iterator
     } else {
       denseLabeledPoints
     }
