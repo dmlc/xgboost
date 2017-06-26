@@ -86,16 +86,6 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def repartitionData(trainingData: RDD[MLLabeledPoint], numWorkers: Int):
-      RDD[MLLabeledPoint] = {
-    if (numWorkers != trainingData.partitions.length) {
-      logger.info(s"repartitioning training set to $numWorkers partitions")
-      trainingData.repartition(numWorkers)
-    } else {
-      trainingData
-    }
-  }
-
   private[spark] def buildDistributedBoosters(
       trainingSet: RDD[MLLabeledPoint],
       xgBoostConfMap: Map[String, Any],
@@ -103,7 +93,14 @@ object XGBoost extends Serializable {
       numWorkers: Int, round: Int, obj: ObjectiveTrait, eval: EvalTrait,
       useExternalMemory: Boolean, missing: Float = Float.NaN): RDD[Booster] = {
     import DataUtils._
-    val partitionedTrainingSet = repartitionData(trainingSet, numWorkers)
+
+    val partitionedTrainingSet = if (trainingSet.getNumPartitions != numWorkers) {
+      logger.info(s"repartitioning training set to $numWorkers partitions")
+      trainingSet.repartition(numWorkers)
+    } else {
+      trainingSet
+    }
+
     val appName = partitionedTrainingSet.context.appName
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
