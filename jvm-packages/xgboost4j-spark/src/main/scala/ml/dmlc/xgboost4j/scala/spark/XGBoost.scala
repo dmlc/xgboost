@@ -209,6 +209,7 @@ object XGBoost extends Serializable {
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
+  @deprecated("Use XGBoost.trainWithRDD instead.")
   def train(
       trainingData: RDD[MLLabeledPoint],
       params: Map[String, Any],
