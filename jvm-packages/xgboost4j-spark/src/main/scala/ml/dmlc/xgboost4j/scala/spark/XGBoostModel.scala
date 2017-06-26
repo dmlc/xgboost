@@ -183,13 +183,16 @@ abstract class XGBoostModel(protected var _booster: Booster)
    *
    * @param testSet test set represented as RDD
    * @param useExternalCache whether to use external cache for the test set
+   * @param outputMargin whether to output raw untransformed margin value
    */
-  def predict(testSet: RDD[MLVector], useExternalCache: Boolean = false):
-      RDD[Array[Float]] = {
+  def predict(
+      testSet: RDD[MLVector],
+      useExternalCache: Boolean = false,
+      outputMargin: Boolean = false): RDD[Array[Float]] = {
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
     val appName = testSet.context.appName
     testSet.mapPartitions { testSamples =>
-      if (testSamples.hasNext) {
+      if (testSamples.nonEmpty) {
         import DataUtils._
         val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
         Rabit.init(rabitEnv.asJava)
@@ -202,7 +205,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
         }
         val dMatrix = new DMatrix(new JDMatrix(testSamples, cacheFileName))
         try {
-          broadcastBooster.value.predict(dMatrix).iterator
+          broadcastBooster.value.predict(dMatrix, outputMargin).iterator
         } finally {
           Rabit.shutdown()
           dMatrix.delete()
