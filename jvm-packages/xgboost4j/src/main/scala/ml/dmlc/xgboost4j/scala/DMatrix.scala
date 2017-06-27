@@ -129,11 +129,11 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   }
 
   /**
-    * if specified, xgboost will start from this init margin
-    * can be used to specify initial prediction to boost from
-    *
-    * @param baseMargin base margin
-    */
+   * if specified, xgboost will start from this init margin
+   * can be used to specify initial prediction to boost from
+   *
+   * @param baseMargin base margin
+   */
   @throws(classOf[XGBoostError])
   def setBaseMargin(baseMargin: Array[Array[Float]]): Unit = {
     jDMatrix.setBaseMargin(baseMargin)

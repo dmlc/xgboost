@@ -65,7 +65,6 @@ object XGBoost extends Serializable {
             values += dFeatures.values(i)
           }
         }
-
         val sFeatures = new SparseVector(dFeatures.values.length, indices.result(),
           values.result())
         MLLabeledPoint(label, sFeatures)
@@ -94,9 +93,7 @@ object XGBoost extends Serializable {
     } else {
       trainingSet
     }
-
     val partitionedBaseMargin = baseMargin.repartition(partitionedTrainingSet.getNumPartitions)
-
     val appName = partitionedTrainingSet.context.appName
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
@@ -107,17 +104,14 @@ object XGBoost extends Serializable {
           s"detected an empty partition in the training data, partition ID:" +
               s" ${TaskContext.getPartitionId()}")
       }
-
       val cacheFileName = if (useExternalMemory) {
         s"$appName-${TaskContext.get().stageId()}-" +
             s"dtrain_cache-${TaskContext.getPartitionId()}"
       } else {
         null
       }
-
       rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv)
-
       val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
       val trainingMatrix = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
       try {
