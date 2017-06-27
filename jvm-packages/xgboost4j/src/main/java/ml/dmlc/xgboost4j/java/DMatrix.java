@@ -187,6 +187,13 @@ public class DMatrix {
   }
 
   /**
+   * Set base margin (initial prediction).
+   */
+  public void setBaseMargin(float[][] baseMargin) throws XGBoostError {
+    setBaseMargin(flatten(baseMargin));
+  }
+
+  /**
    * Set group sizes of DMatrix (used for ranking)
    *
    * @param group group size as array
@@ -274,6 +281,22 @@ public class DMatrix {
    */
   public long getHandle() {
     return handle;
+  }
+
+  /**
+   * flatten a mat to array
+   */
+  private static float[] flatten(float[][] mat) {
+    int size = 0;
+    for (float[] array : mat) size += array.length;
+    float[] result = new float[size];
+    int pos = 0;
+    for (float[] ar : mat) {
+      System.arraycopy(ar, 0, result, pos, ar.length);
+      pos += ar.length;
+    }
+
+    return result;
   }
 
   @Override
