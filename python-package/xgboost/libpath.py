@@ -24,7 +24,7 @@ def find_lib_path():
     dll_path = [curr_path, os.path.join(curr_path, '../../lib/'),
                 os.path.join(curr_path, './lib/'),
                 os.path.join(sys.prefix, 'xgboost')]
-    if os.name == 'nt':
+    if sys.platform == 'win32':
         if platform.architecture()[0] == '64bit':
             dll_path.append(os.path.join(curr_path, '../../windows/x64/Release/'))
             # hack for pip installation when copy all parent source directory here
@@ -33,8 +33,7 @@ def find_lib_path():
             dll_path.append(os.path.join(curr_path, '../../windows/Release/'))
             # hack for pip installation when copy all parent source directory here
             dll_path.append(os.path.join(curr_path, './windows/Release/'))
-        dll_path = [os.path.join(p, 'libxgboost.dll') for p in dll_path]
-    else:
+        dll_path = [os.path.join(p, 'xgboost.dll') for p in dll_path]
         dll_path = [os.path.join(p, 'libxgboost.so') for p in dll_path]
     lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
 
