@@ -14,11 +14,6 @@
 #include <limits>
 #include <vector>
 
-#ifdef __NVCC__
-#define XGB_DEVICE __host__ __device__
-#else
-#define XGB_DEVICE
-#endif
 
 namespace xgboost {
 namespace tree {
@@ -234,7 +229,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
 
 // functions for L1 cost
 template <typename T1, typename T2>
-XGB_DEVICE inline static T1 ThresholdL1(T1 w, T2 lambda) {
+XGBOOST_DEVICE inline static T1 ThresholdL1(T1 w, T2 lambda) {
   if (w > +lambda)
     return w - lambda;
   if (w < -lambda)
@@ -243,18 +238,18 @@ XGB_DEVICE inline static T1 ThresholdL1(T1 w, T2 lambda) {
 }
 
 template <typename T>
-XGB_DEVICE inline static T Sqr(T a) { return a * a; }
+XGBOOST_DEVICE inline static T Sqr(T a) { return a * a; }
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
-XGB_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad,
+XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad,
                                         T sum_hess, T w) {
   return -(2.0 * sum_grad * w + (sum_hess + p.reg_lambda) * Sqr(w));
 }
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
-XGB_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
+XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
   if (sum_hess < p.min_child_weight)
     return 0.0;
   if (p.max_delta_step == 0.0f) {
@@ -276,7 +271,7 @@ XGB_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
 }
 // calculate cost of loss function with four statistics
 template <typename TrainingParams, typename T>
-XGB_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess,
+XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess,
                              T test_grad, T test_hess) {
   T w = CalcWeight(sum_grad, sum_hess);
   T ret = test_grad * w + 0.5 * (test_hess + p.reg_lambda) * Sqr(w);
@@ -288,7 +283,7 @@ XGB_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess,
 }
 // calculate weight given the statistics
 template <typename TrainingParams, typename T>
-XGB_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
+XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
                                T sum_hess) {
   if (sum_hess < p.min_child_weight)
     return 0.0;

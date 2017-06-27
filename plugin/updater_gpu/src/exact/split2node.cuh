@@ -16,8 +16,6 @@
 #pragma once
 
 #include "../../../../src/tree/param.h"
-#include "gradients.cuh"
-#include "loss_functions.cuh"
 #include "node.cuh"
 
 namespace xgboost {
@@ -37,11 +35,11 @@ namespace exact {
  */
 template <typename node_id_t>
 DEV_INLINE void updateOneChildNode(Node<node_id_t>* nodes, int nid,
-                                   const gpu_gpair& grad,
+                                   const bst_gpair& grad,
                                    const TrainParam& param) {
   nodes[nid].gradSum = grad;
-  nodes[nid].score = CalcGain(param, grad.g, grad.h);
-  nodes[nid].weight = CalcWeight(param, grad.g, grad.h);
+  nodes[nid].score = CalcGain(param, grad.grad, grad.hess);
+  nodes[nid].weight = CalcWeight(param, grad.grad, grad.hess);
   nodes[nid].id = nid;
 }
 
@@ -56,7 +54,7 @@ DEV_INLINE void updateOneChildNode(Node<node_id_t>* nodes, int nid,
  */
 template <typename node_id_t>
 DEV_INLINE void updateChildNodes(Node<node_id_t>* nodes, int pid,
-                                 const gpu_gpair& gradL, const gpu_gpair& gradR,
+                                 const bst_gpair& gradL, const bst_gpair& gradR,
                                  const TrainParam& param) {
   int childId = (pid * 2) + 1;
   updateOneChildNode(nodes, childId, gradL, param);
@@ -66,15 +64,15 @@ DEV_INLINE void updateChildNodes(Node<node_id_t>* nodes, int pid,
 template <typename node_id_t>
 DEV_INLINE void updateNodeAndChildren(Node<node_id_t>* nodes, const Split& s,
                                       const Node<node_id_t>& n, int absNodeId,
-                                      int colId, const gpu_gpair& gradScan,
-                                      const gpu_gpair& colSum, float thresh,
+                                      int colId, const bst_gpair& gradScan,
+                                      const bst_gpair& colSum, float thresh,
                                       const TrainParam& param) {
   bool missingLeft = true;
   // get the default direction for the current node
-  gpu_gpair missing = n.gradSum - colSum;
+  bst_gpair missing = n.gradSum - colSum;
   loss_chg_missing(gradScan, missing, n.gradSum, n.score, param, missingLeft);
   // get the score/weight/id/gradSum for left and right child nodes
-  gpu_gpair lGradSum, rGradSum;
+  bst_gpair lGradSum, rGradSum;
   if (missingLeft) {
     lGradSum = gradScan + n.gradSum - colSum;
   } else {
@@ -90,8 +88,8 @@ DEV_INLINE void updateNodeAndChildren(Node<node_id_t>* nodes, const Split& s,
 
 template <typename node_id_t, int BLKDIM = 256>
 __global__ void split2nodeKernel(
-    Node<node_id_t>* nodes, const Split* nodeSplits, const gpu_gpair* gradScans,
-    const gpu_gpair* gradSums, const float* vals, const int* colIds,
+    Node<node_id_t>* nodes, const Split* nodeSplits, const bst_gpair* gradScans,
+    const bst_gpair* gradSums, const float* vals, const int* colIds,
     const int* colOffsets, const node_id_t* nodeAssigns, int nUniqKeys,
     node_id_t nodeStart, int nCols, const TrainParam param) {
   int uid = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -132,7 +130,7 @@ __global__ void split2nodeKernel(
  */
 template <typename node_id_t, int BLKDIM = 256>
 void split2node(Node<node_id_t>* nodes, const Split* nodeSplits,
-                const gpu_gpair* gradScans, const gpu_gpair* gradSums,
+                const bst_gpair* gradScans, const bst_gpair* gradSums,
                 const float* vals, const int* colIds, const int* colOffsets,
                 const node_id_t* nodeAssigns, int nUniqKeys,
                 node_id_t nodeStart, int nCols, const TrainParam param) {

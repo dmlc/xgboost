@@ -15,33 +15,29 @@
 
 namespace xgboost {
 namespace tree {
-// When we split on a value which has no left neighbour, define its left
-// neighbour as having left_fvalue = current_fvalue - FVALUE_EPS
-// This produces a split value slightly lower than the current instance
-#define FVALUE_EPS 0.0001
 
 __device__ inline float device_calc_loss_chg(const GPUTrainingParam& param,
-                                             const gpu_gpair& scan,
-                                             const gpu_gpair& missing,
-                                             const gpu_gpair& parent_sum,
+                                             const bst_gpair& scan,
+                                             const bst_gpair& missing,
+                                             const bst_gpair& parent_sum,
                                              const float& parent_gain,
                                              bool missing_left) {
-  gpu_gpair left = scan;
+  bst_gpair left = scan;
 
   if (missing_left) {
     left += missing;
   }
 
-  gpu_gpair right = parent_sum - left;
+  bst_gpair right = parent_sum - left;
 
-  float left_gain = CalcGain(param, left.grad(), left.hess());
-  float right_gain = CalcGain(param, right.grad(), right.hess());
+  float left_gain = CalcGain(param, left.grad, left.hess);
+  float right_gain = CalcGain(param, right.grad, right.hess);
   return left_gain + right_gain - parent_gain;
 }
 
-__device__ float inline loss_chg_missing(const gpu_gpair& scan,
-                                         const gpu_gpair& missing,
-                                         const gpu_gpair& parent_sum,
+__device__ float inline loss_chg_missing(const bst_gpair& scan,
+                                         const bst_gpair& missing,
+                                         const bst_gpair& parent_sum,
                                          const float& parent_gain,
                                          const GPUTrainingParam& param,
                                          bool& missing_left_out) {  // NOLINT
@@ -134,39 +130,39 @@ inline void dense2sparse_tree(RegTree* p_tree,
       tree[nid].set_split(n.split.findex, n.split.fvalue, n.split.missing_left);
       tree.stat(nid).loss_chg = n.split.loss_chg;
       tree.stat(nid).base_weight = n.weight;
-      tree.stat(nid).sum_hess = n.sum_gradients.hess();
+      tree.stat(nid).sum_hess = n.sum_gradients.hess;
       tree[tree[nid].cleft()].set_leaf(0);
       tree[tree[nid].cright()].set_leaf(0);
       nid++;
     } else if (flag == LEAF) {
       tree[nid].set_leaf(n.weight * param.learning_rate);
-      tree.stat(nid).sum_hess = n.sum_gradients.hess();
+      tree.stat(nid).sum_hess = n.sum_gradients.hess;
       nid++;
     }
   }
 }
 
 // Set gradient pair to 0 with p = 1 - subsample
-inline void subsample_gpair(dh::dvec<gpu_gpair>* p_gpair, float subsample,
+inline void subsample_gpair(dh::dvec<bst_gpair>* p_gpair, float subsample,
                             int offset) {
   if (subsample == 1.0) {
     return;
   }
 
-  dh::dvec<gpu_gpair>& gpair = *p_gpair;
+  dh::dvec<bst_gpair>& gpair = *p_gpair;
 
   auto d_gpair = gpair.data();
   dh::BernoulliRng rng(subsample, common::GlobalRandom()());
 
   dh::launch_n(gpair.device_idx(), gpair.size(), [=] __device__(int i) {
     if (!rng(i + offset)) {
-      d_gpair[i] = gpu_gpair();
+      d_gpair[i] = bst_gpair();
     }
   });
 }
 
 // Set gradient pair to 0 with p = 1 - subsample
-inline void subsample_gpair(dh::dvec<gpu_gpair>* p_gpair, float subsample) {
+inline void subsample_gpair(dh::dvec<bst_gpair>* p_gpair, float subsample) {
   int offset = 0;
   subsample_gpair(p_gpair, subsample, offset);
 }
@@ -182,11 +178,11 @@ inline std::vector<int> col_sample(std::vector<int> features, float colsample) {
 }
 struct GpairCallbackOp {
   // Running prefix
-  gpu_gpair running_total;
+  bst_gpair running_total;
   // Constructor
-  __device__ GpairCallbackOp() : running_total(gpu_gpair()) {}
-  __device__ gpu_gpair operator()(gpu_gpair block_aggregate) {
-    gpu_gpair old_prefix = running_total;
+  __device__ GpairCallbackOp() : running_total(bst_gpair()) {}
+  __device__ bst_gpair operator()(bst_gpair block_aggregate) {
+    bst_gpair old_prefix = running_total;
     running_total += block_aggregate;
     return old_prefix;
   }

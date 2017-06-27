@@ -19,13 +19,11 @@
 #include <vector>
 #include "../../../../src/tree/param.h"
 #include "../common.cuh"
-#include "argmax_by_key.cuh"
-#include "cub/cub.cuh"
-#include "fused_scan_reduce_by_key.cuh"
-#include "gradients.cuh"
-#include "loss_functions.cuh"
+#include <vector>
 #include "node.cuh"
 #include "split2node.cuh"
+#include "argmax_by_key.cuh"
+#include "fused_scan_reduce_by_key.cuh"
 #include "xgboost/tree_updater.h"
 
 namespace xgboost {
@@ -33,13 +31,13 @@ namespace tree {
 namespace exact {
 
 template <typename node_id_t>
-__global__ void initRootNode(Node<node_id_t>* nodes, const gpu_gpair* sums,
+__global__ void initRootNode(Node<node_id_t>* nodes, const bst_gpair* sums,
                              const TrainParam param) {
   // gradients already evaluated inside transferGrads
   Node<node_id_t> n;
   n.gradSum = sums[0];
-  n.score = CalcGain(param, n.gradSum.g, n.gradSum.h);
-  n.weight = CalcWeight(param, n.gradSum.g, n.gradSum.h);
+  n.score = CalcGain(param, n.gradSum.grad , n.gradSum.hess);
+  n.weight = CalcWeight(param, n.gradSum.grad , n.gradSum.hess);
   n.id = 0;
   nodes[0] = n;
 }
@@ -198,13 +196,13 @@ class GPUBuilder {
   dh::dvec<int> instIds_cached;
   /** column offsets for these feature values */
   dh::dvec<int> colOffsets;
-  dh::dvec<gpu_gpair> gradsInst;
+  dh::dvec<bst_gpair> gradsInst;
   dh::dvec2<node_id_t> nodeAssigns;
   dh::dvec2<int> nodeLocations;
   dh::dvec<Node<node_id_t>> nodes;
   dh::dvec<node_id_t> nodeAssignsPerInst;
-  dh::dvec<gpu_gpair> gradSums;
-  dh::dvec<gpu_gpair> gradScans;
+  dh::dvec<bst_gpair> gradSums;
+  dh::dvec<bst_gpair> gradScans;
   dh::dvec<Split> nodeSplits;
   int nVals;
   int nRows;
@@ -212,7 +210,7 @@ class GPUBuilder {
   int maxNodes;
   int maxLeaves;
   dh::CubMemory tmp_mem;
-  dh::dvec<gpu_gpair> tmpScanGradBuff;
+  dh::dvec<bst_gpair> tmpScanGradBuff;
   dh::dvec<int> tmpScanKeyBuff;
   dh::dvec<int> colIds;
   dh::bulk_allocator<dh::memory_type::DEVICE> ba;
@@ -310,10 +308,10 @@ class GPUBuilder {
   void transferGrads(const std::vector<bst_gpair>& gpair) {
     // HACK
     dh::safe_cuda(cudaMemcpy(gradsInst.data(), &(gpair[0]),
-                             sizeof(gpu_gpair) * nRows,
+                             sizeof(bst_gpair) * nRows,
                              cudaMemcpyHostToDevice));
     // evaluate the full-grad reduction for the root node
-    sumReduction<gpu_gpair>(tmp_mem, gradsInst, gradSums, nRows);
+    sumReduction<bst_gpair>(tmp_mem, gradsInst, gradSums, nRows);
   }
 
   void initNodeData(int level, node_id_t nodeStart, int nNodes) {
@@ -371,13 +369,13 @@ class GPUBuilder {
       const Node<node_id_t>& n = hNodes[i];
       if ((i != 0) && hNodes[i].isLeaf()) {
         tree[nodeId].set_leaf(n.weight * param.learning_rate);
-        tree.stat(nodeId).sum_hess = n.gradSum.h;
+        tree.stat(nodeId).sum_hess = n.gradSum.hess;
         ++nodeId;
       } else if (!hNodes[i].isUnused()) {
         tree.AddChilds(nodeId);
         tree[nodeId].set_split(n.colIdx, n.threshold, n.dir == LeftDir);
         tree.stat(nodeId).loss_chg = n.score;
-        tree.stat(nodeId).sum_hess = n.gradSum.h;
+        tree.stat(nodeId).sum_hess = n.gradSum.hess;
         tree.stat(nodeId).base_weight = n.weight;
         tree[tree[nodeId].cleft()].set_leaf(0);
         tree[tree[nodeId].cright()].set_leaf(0);

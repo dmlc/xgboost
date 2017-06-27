@@ -16,7 +16,6 @@
 #pragma once
 
 #include "../common.cuh"
-#include "gradients.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -24,11 +23,11 @@ namespace exact {
 
 /**
  * @struct Pair fused_scan_reduce_by_key.cuh
- * @brief Pair used for key basd scan operations on gpu_gpair
+ * @brief Pair used for key basd scan operations on bst_gpair
  */
 struct Pair {
   int key;
-  gpu_gpair value;
+  bst_gpair value;
 };
 
 /** define a key that's not used at all in the entire boosting process */
@@ -61,15 +60,27 @@ struct AddByKey {
   }
 };
 
+/**
+* @brief Gradient value getter function
+* @param id the index into the vals or instIds array to which to fetch
+* @param vals the gradient value buffer
+* @param instIds instance index buffer
+* @return the expected gradient value
+*/
+HOST_DEV_INLINE bst_gpair get(int id, const bst_gpair* vals, const int* instIds) {
+  id = instIds[id];
+  return vals[id];
+}
+
 template <typename node_id_t, int BLKDIM_L1L3>
-__global__ void cubScanByKeyL1(gpu_gpair* scans, const gpu_gpair* vals,
-                               const int* instIds, gpu_gpair* mScans,
+__global__ void cubScanByKeyL1(bst_gpair* scans, const bst_gpair* vals,
+                               const int* instIds, bst_gpair* mScans,
                                int* mKeys, const node_id_t* keys, int nUniqKeys,
                                const int* colIds, node_id_t nodeStart,
                                const int size) {
-  Pair rootPair = {NONE_KEY, gpu_gpair(0.f, 0.f)};
+  Pair rootPair = {NONE_KEY, bst_gpair(0.f, 0.f)};
   int myKey;
-  gpu_gpair myValue;
+  bst_gpair myValue;
   typedef cub::BlockScan<Pair, BLKDIM_L1L3> BlockScan;
   __shared__ typename BlockScan::TempStorage temp_storage;
   Pair threadData;
@@ -98,14 +109,14 @@ __global__ void cubScanByKeyL1(gpu_gpair* scans, const gpu_gpair* vals,
   }
   if (threadIdx.x == BLKDIM_L1L3 - 1) {
     threadData.value =
-        (myKey == previousKey) ? threadData.value : gpu_gpair(0.0f, 0.0f);
+        (myKey == previousKey) ? threadData.value : bst_gpair(0.0f, 0.0f);
     mKeys[blockIdx.x] = myKey;
     mScans[blockIdx.x] = threadData.value + myValue;
   }
 }
 
 template <int BLKSIZE>
-__global__ void cubScanByKeyL2(gpu_gpair* mScans, int* mKeys, int mLength) {
+__global__ void cubScanByKeyL2(bst_gpair* mScans, int* mKeys, int mLength) {
   typedef cub::BlockScan<Pair, BLKSIZE, cub::BLOCK_SCAN_WARP_SCANS> BlockScan;
   Pair threadData;
   __shared__ typename BlockScan::TempStorage temp_storage;
@@ -119,9 +130,9 @@ __global__ void cubScanByKeyL2(gpu_gpair* mScans, int* mKeys, int mLength) {
 }
 
 template <typename node_id_t, int BLKDIM_L1L3>
-__global__ void cubScanByKeyL3(gpu_gpair* sums, gpu_gpair* scans,
-                               const gpu_gpair* vals, const int* instIds,
-                               const gpu_gpair* mScans, const int* mKeys,
+__global__ void cubScanByKeyL3(bst_gpair* sums, bst_gpair* scans,
+                               const bst_gpair* vals, const int* instIds,
+                               const bst_gpair* mScans, const int* mKeys,
                                const node_id_t* keys, int nUniqKeys,
                                const int* colIds, node_id_t nodeStart,
                                const int size) {
@@ -130,19 +141,19 @@ __global__ void cubScanByKeyL3(gpu_gpair* sums, gpu_gpair* scans,
   // to avoid the following warning from nvcc:
   //   __shared__ memory variable with non-empty constructor or destructor
   //     (potential race between threads)
-  __shared__ char gradBuff[sizeof(gpu_gpair)];
+  __shared__ char gradBuff[sizeof(bst_gpair)];
   __shared__ int s_mKeys;
-  gpu_gpair* s_mScans = (gpu_gpair*)gradBuff;
+  bst_gpair* s_mScans = (bst_gpair*)gradBuff;
   if (tid >= size) return;
   // cache block-wide partial scan info
   if (relId == 0) {
     s_mKeys = (blockIdx.x > 0) ? mKeys[blockIdx.x - 1] : NONE_KEY;
-    s_mScans[0] = (blockIdx.x > 0) ? mScans[blockIdx.x - 1] : gpu_gpair();
+    s_mScans[0] = (blockIdx.x > 0) ? mScans[blockIdx.x - 1] : bst_gpair();
   }
   int myKey = abs2uniqKey(tid, keys, colIds, nodeStart, nUniqKeys);
   int previousKey = tid == 0 ? NONE_KEY : abs2uniqKey(tid - 1, keys, colIds,
                                                       nodeStart, nUniqKeys);
-  gpu_gpair myValue = scans[tid];
+  bst_gpair myValue = scans[tid];
   __syncthreads();
   if (blockIdx.x > 0 && s_mKeys == previousKey) {
     myValue += s_mScans[0];
@@ -152,7 +163,7 @@ __global__ void cubScanByKeyL3(gpu_gpair* sums, gpu_gpair* scans,
   }
   if ((previousKey != myKey) && (previousKey >= 0)) {
     sums[previousKey] = myValue;
-    myValue = gpu_gpair(0.0f, 0.0f);
+    myValue = bst_gpair(0.0f, 0.0f);
   }
   scans[tid] = myValue;
 }
@@ -178,12 +189,12 @@ __global__ void cubScanByKeyL3(gpu_gpair* sums, gpu_gpair* scans,
  * @param nodeStart index of the leftmost node in the current level
  */
 template <typename node_id_t, int BLKDIM_L1L3 = 256, int BLKDIM_L2 = 512>
-void reduceScanByKey(gpu_gpair* sums, gpu_gpair* scans, const gpu_gpair* vals,
+void reduceScanByKey(bst_gpair* sums, bst_gpair* scans, const bst_gpair* vals,
                      const int* instIds, const node_id_t* keys, int size,
-                     int nUniqKeys, int nCols, gpu_gpair* tmpScans,
+                     int nUniqKeys, int nCols, bst_gpair* tmpScans,
                      int* tmpKeys, const int* colIds, node_id_t nodeStart) {
   int nBlks = dh::div_round_up(size, BLKDIM_L1L3);
-  cudaMemset(sums, 0, nUniqKeys * nCols * sizeof(gpu_gpair));
+  cudaMemset(sums, 0, nUniqKeys * nCols * sizeof(bst_gpair));
   cubScanByKeyL1<node_id_t, BLKDIM_L1L3><<<nBlks, BLKDIM_L1L3>>>(
       scans, vals, instIds, tmpScans, tmpKeys, keys, nUniqKeys, colIds,
       nodeStart, size);
