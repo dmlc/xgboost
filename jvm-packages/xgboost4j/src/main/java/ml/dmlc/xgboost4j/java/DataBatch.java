@@ -70,9 +70,7 @@ class DataBatch {
         rowOffset[i] = offset;
         label[i] = labeledPoint.label;
         if (labeledPoint.indices != null) {
-          System.arraycopy(
-                  labeledPoint.indices, 0,
-                  featureIndex, offset,
+          System.arraycopy(labeledPoint.indices, 0, featureIndex, offset,
                   labeledPoint.indices.length);
         } else {
           for (int j = 0; j < labeledPoint.values.length; j++) {

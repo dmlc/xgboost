@@ -102,17 +102,17 @@ object XGBoost extends Serializable {
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
     partitionedTrainingSet.zipPartitions(partitionedBaseMargin) { (trainingSamples, baseMargin) =>
+      if (trainingSamples.isEmpty) {
+        throw new XGBoostError(
+          s"detected an empty partition in the training data, partition ID:" +
+              s" ${TaskContext.getPartitionId()}")
+      }
+
       val cacheFileName = if (useExternalMemory) {
         s"$appName-${TaskContext.get().stageId()}-" +
             s"dtrain_cache-${TaskContext.getPartitionId()}"
       } else {
         null
-      }
-
-      if (!trainingSamples.hasNext) {
-        throw new XGBoostError(
-          s"detected an empty partition in the training data, partition ID:" +
-              s" ${TaskContext.getPartitionId()}")
       }
 
       rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
@@ -125,11 +125,9 @@ object XGBoost extends Serializable {
           trainingMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
             TaskContext.getPartitionId()).toArray)
         }
-
         if (baseMargin.nonEmpty) {
           trainingMatrix.setBaseMargin(baseMargin.toArray)
         }
-
         val booster = SXGBoost.train(trainingMatrix, params, round,
           watches = Map("train" -> trainingMatrix), obj, eval)
         Iterator(booster)
