@@ -67,12 +67,15 @@ ifndef LINT_LANG
 	LINT_LANG= "all"
 endif
 
-ifneq ($(UNAME), Windows)
-	CFLAGS += -fPIC
-	XGBOOST_DYLIB = lib/libxgboost.so
-else
+ifeq ($(UNAME), Windows)
 	XGBOOST_DYLIB = lib/libxgboost.dll
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/win32
+else ifeq ($(UNAME), Darwin)
+	XGBOOST_DYLIB = lib/libxgboost.dylib
+	CFLAGS += -fPIC
+else
+	XGBOOST_DYLIB = lib/libxgboost.so
+	CFLAGS += -fPIC
 endif
 
 ifeq ($(UNAME), Linux)
@@ -162,7 +165,7 @@ lib/libxgboost.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-lib/libxgboost.dll lib/libxgboost.so: $(ALL_DEP)
+lib/libxgboost.dll lib/libxgboost.so lib/libxgboost.dylib: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %a,  $^) $(LDFLAGS)
 
