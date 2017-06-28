@@ -135,8 +135,7 @@ class Booster private[xgboost4j](private var booster: JBooster)
    * @throws XGBoostError native error
    */
   @throws(classOf[XGBoostError])
-  def predictLeaf(data: DMatrix, treeLimit: Int = 0)
-    : Array[Array[Float]] = {
+  def predictLeaf(data: DMatrix, treeLimit: Int = 0) : Array[Array[Float]] = {
     booster.predictLeaf(data.jDMatrix, treeLimit)
   }
 
@@ -149,8 +148,7 @@ class Booster private[xgboost4j](private var booster: JBooster)
     * @throws XGBoostError native error
     */
   @throws(classOf[XGBoostError])
-  def predictContrib(data: DMatrix, treeLimit: Int = 0)
-  : Array[Array[Float]] = {
+  def predictContrib(data: DMatrix, treeLimit: Int = 0) : Array[Array[Float]] = {
     booster.predictContrib(data.jDMatrix, treeLimit)
   }
 
