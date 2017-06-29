@@ -143,6 +143,20 @@ target_link_libraries(runxgboost ${LINK_LIBRARIES})
 add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
 target_link_libraries(xgboost ${LINK_LIBRARIES})
 
+# install
+install(TARGETS xgboost libxgboost
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
+
+install(DIRECTORY include/xgboost DESTINATION include
+        FILES_MATCHING PATTERN "*.h")
+install(DIRECTORY rabit/include/rabit DESTINATION include
+        FILES_MATCHING PATTERN "*.h")
+install(DIRECTORY dmlc-core/include/dmlc DESTINATION include
+        FILES_MATCHING PATTERN "*.h")
+
+
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 
 if(JVM_BINDINGS)
