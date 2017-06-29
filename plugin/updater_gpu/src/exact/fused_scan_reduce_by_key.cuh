@@ -18,7 +18,6 @@
 #include "../common.cuh"
 #include "gradients.cuh"
 
-
 namespace xgboost {
 namespace tree {
 namespace exact {
@@ -41,7 +40,7 @@ static const int NONE_KEY = -100;
  * @param tmpKeys keys buffer
  * @param size number of elements that will be scanned
  */
-template <int BLKDIM_L1L3=256>
+template <int BLKDIM_L1L3 = 256>
 int scanTempBufferSize(int size) {
   int nBlks = dh::div_round_up(size, BLKDIM_L1L3);
   return nBlks;
@@ -49,7 +48,7 @@ int scanTempBufferSize(int size) {
 
 struct AddByKey {
   template <typename T>
-  HOST_DEV_INLINE T operator()(const T &first, const T &second) const {
+  HOST_DEV_INLINE T operator()(const T& first, const T& second) const {
     T result;
     if (first.key == second.key) {
       result.key = first.key;
@@ -74,7 +73,7 @@ __global__ void cubScanByKeyL1(gpu_gpair* scans, const gpu_gpair* vals,
   typedef cub::BlockScan<Pair, BLKDIM_L1L3> BlockScan;
   __shared__ typename BlockScan::TempStorage temp_storage;
   Pair threadData;
-  int tid = blockIdx.x*BLKDIM_L1L3 + threadIdx.x;
+  int tid = blockIdx.x * BLKDIM_L1L3 + threadIdx.x;
   if (tid < size) {
     myKey = abs2uniqKey(tid, keys, colIds, nodeStart, nUniqKeys);
     myValue = get(tid, vals, instIds);
@@ -82,7 +81,7 @@ __global__ void cubScanByKeyL1(gpu_gpair* scans, const gpu_gpair* vals,
     myKey = NONE_KEY;
     myValue = 0.f;
   }
-  threadData.key   = myKey;
+  threadData.key = myKey;
   threadData.value = myValue;
   // get previous key, especially needed for the last thread in this block
   // in order to pass on the partial scan values.
@@ -90,18 +89,17 @@ __global__ void cubScanByKeyL1(gpu_gpair* scans, const gpu_gpair* vals,
   // else, the result of this shuffle operation will be undefined
   int previousKey = __shfl_up(myKey, 1);
   // Collectively compute the block-wide exclusive prefix sum
-  BlockScan(temp_storage).ExclusiveScan(threadData, threadData, rootPair,
-                                        AddByKey());
+  BlockScan(temp_storage)
+      .ExclusiveScan(threadData, threadData, rootPair, AddByKey());
   if (tid < size) {
     scans[tid] = threadData.value;
   } else {
     return;
   }
   if (threadIdx.x == BLKDIM_L1L3 - 1) {
-    threadData.value = (myKey == previousKey)? 
-                        threadData.value :
-                        gpu_gpair(0.0f, 0.0f);
-    mKeys[blockIdx.x]  = myKey;
+    threadData.value =
+        (myKey == previousKey) ? threadData.value : gpu_gpair(0.0f, 0.0f);
+    mKeys[blockIdx.x] = myKey;
     mScans[blockIdx.x] = threadData.value + myValue;
   }
 }
@@ -111,11 +109,10 @@ __global__ void cubScanByKeyL2(gpu_gpair* mScans, int* mKeys, int mLength) {
   typedef cub::BlockScan<Pair, BLKSIZE, cub::BLOCK_SCAN_WARP_SCANS> BlockScan;
   Pair threadData;
   __shared__ typename BlockScan::TempStorage temp_storage;
-  for (int i = threadIdx.x; i < mLength; i += BLKSIZE-1) {
-    threadData.key   =  mKeys[i];
+  for (int i = threadIdx.x; i < mLength; i += BLKSIZE - 1) {
+    threadData.key = mKeys[i];
     threadData.value = mScans[i];
-    BlockScan(temp_storage).InclusiveScan(threadData, threadData,
-                                          AddByKey());
+    BlockScan(temp_storage).InclusiveScan(threadData, threadData, AddByKey());
     mScans[i] = threadData.value;
     __syncthreads();
   }
@@ -136,15 +133,14 @@ __global__ void cubScanByKeyL3(gpu_gpair* sums, gpu_gpair* scans,
   __shared__ char gradBuff[sizeof(gpu_gpair)];
   __shared__ int s_mKeys;
   gpu_gpair* s_mScans = (gpu_gpair*)gradBuff;
-  if(tid >= size)
-    return;
+  if (tid >= size) return;
   // cache block-wide partial scan info
   if (relId == 0) {
-    s_mKeys = (blockIdx.x > 0)? mKeys[blockIdx.x-1] : NONE_KEY;
-    s_mScans[0] = (blockIdx.x > 0)? mScans[blockIdx.x-1] : gpu_gpair();
+    s_mKeys = (blockIdx.x > 0) ? mKeys[blockIdx.x - 1] : NONE_KEY;
+    s_mScans[0] = (blockIdx.x > 0) ? mScans[blockIdx.x - 1] : gpu_gpair();
   }
   int myKey = abs2uniqKey(tid, keys, colIds, nodeStart, nUniqKeys);
-  int previousKey = tid == 0 ? NONE_KEY : abs2uniqKey(tid-1, keys, colIds,
+  int previousKey = tid == 0 ? NONE_KEY : abs2uniqKey(tid - 1, keys, colIds,
                                                       nodeStart, nUniqKeys);
   gpu_gpair myValue = scans[tid];
   __syncthreads();
@@ -162,9 +158,11 @@ __global__ void cubScanByKeyL3(gpu_gpair* sums, gpu_gpair* scans,
 }
 
 /**
- * @brief Performs fused reduce and scan by key functionality. It is assumed that
+ * @brief Performs fused reduce and scan by key functionality. It is assumed
+ * that
  *  the keys occur contiguously!
- * @param sums the output gradient reductions for each element performed key-wise
+ * @param sums the output gradient reductions for each element performed
+ * key-wise
  * @param scans the output gradient scans for each element performed key-wise
  * @param vals the gradients evaluated for each observation.
  * @param instIds instance ids for each element
@@ -179,20 +177,20 @@ __global__ void cubScanByKeyL3(gpu_gpair* sums, gpu_gpair* scans,
  * @param colIds column indices for each element in the array
  * @param nodeStart index of the leftmost node in the current level
  */
-template <typename node_id_t, int BLKDIM_L1L3=256, int BLKDIM_L2=512>
+template <typename node_id_t, int BLKDIM_L1L3 = 256, int BLKDIM_L2 = 512>
 void reduceScanByKey(gpu_gpair* sums, gpu_gpair* scans, const gpu_gpair* vals,
                      const int* instIds, const node_id_t* keys, int size,
                      int nUniqKeys, int nCols, gpu_gpair* tmpScans,
                      int* tmpKeys, const int* colIds, node_id_t nodeStart) {
   int nBlks = dh::div_round_up(size, BLKDIM_L1L3);
-  cudaMemset(sums, 0, nUniqKeys*nCols*sizeof(gpu_gpair));
-  cubScanByKeyL1<node_id_t,BLKDIM_L1L3><<<nBlks, BLKDIM_L1L3>>>
-      (scans, vals, instIds, tmpScans, tmpKeys, keys, nUniqKeys, colIds,
-       nodeStart, size);
+  cudaMemset(sums, 0, nUniqKeys * nCols * sizeof(gpu_gpair));
+  cubScanByKeyL1<node_id_t, BLKDIM_L1L3><<<nBlks, BLKDIM_L1L3>>>(
+      scans, vals, instIds, tmpScans, tmpKeys, keys, nUniqKeys, colIds,
+      nodeStart, size);
   cubScanByKeyL2<BLKDIM_L2><<<1, BLKDIM_L2>>>(tmpScans, tmpKeys, nBlks);
-  cubScanByKeyL3<node_id_t,BLKDIM_L1L3><<<nBlks, BLKDIM_L1L3>>>
-      (sums, scans, vals, instIds, tmpScans, tmpKeys, keys, nUniqKeys, colIds,
-       nodeStart, size);
+  cubScanByKeyL3<node_id_t, BLKDIM_L1L3><<<nBlks, BLKDIM_L1L3>>>(
+      sums, scans, vals, instIds, tmpScans, tmpKeys, keys, nUniqKeys, colIds,
+      nodeStart, size);
 }
 
 }  // namespace exact

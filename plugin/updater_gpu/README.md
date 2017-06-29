@@ -63,6 +63,22 @@ submodule: The plugin also depends on CUB 1.6.4 - https://nvlabs.github.io/cub/ 
 
 submodule: NVIDIA NCCL from https://github.com/NVIDIA/nccl with windows port allowed by git@github.com:h2oai/nccl.git
 
+## Download full repo + full submodules for your choice (or empty) path <mypath>
+
+git clone --recursive https://github.com/dmlc/xgboost.git <mypath>
+
+## Download with shallow submodules for much quicker download:
+
+git 2.9.0+ (assumes only HEAD used for all submodules, but not true currently for dmlc-core and rabbit)
+
+git clone --recursive --shallow-submodules https://github.com/dmlc/xgboost.git <mypath>
+
+git 2.9.0-: (only cub is shallow, as largest repo)
+
+git clone https://github.com/dmlc/xgboost.git <mypath>
+cd <mypath>
+bash plugin/updater/gpu/gitshallow_submodules.sh
+
 ## Build
 
 From the command line on Linux starting from the xgboost directory:
@@ -84,11 +100,17 @@ $ mkdir build
 $ cd build
 $ cmake .. -G"Visual Studio 14 2015 Win64" -DPLUGIN_UPDATER_GPU=ON
 ```
-Cmake will generate an xgboost.sln solution file in the build directory. Build this solution in release mode as a x64 build.
+Cmake will create an xgboost.sln solution file in the build directory. Build this solution in release mode as a x64 build.
 
 Visual studio community 2015, supported by cuda toolkit (http://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/#axzz4isREr2nS), can be downloaded from: https://my.visualstudio.com/Downloads?q=Visual%20Studio%20Community%202015 .  You may also be able to use a later version of visual studio depending on whether the CUDA toolkit supports it.  Note that Mingw cannot be used with cuda.
 
+### For other nccl libraries
+
+On some systems, nccl libraries are specific to a particular system (IBM Power or nvidia-docker) and can enable use of nvlink (between GPUs or even between GPUs and system memory).  In that case, one wants to avoid the static nccl library by changing "STATIC" to "SHARED" in nccl/CMakeLists.txt and deleting the shared nccl library created (so that the system one is used).
+
 ### For Developers!
+
+
 
 In case you want to build only for a specific GPU(s), for eg. GP100 and GP102,
 whose compute capability are 60 and 61 respectively:
@@ -101,12 +123,12 @@ By default, the versions will include support for all GPUs in Maxwell and Pascal
 Now, it also supports the usual 'make' flow to build gpu-enabled tree construction plugins. It's currently only tested on Linux. From the xgboost directory
 ```bash
 # make sure CUDA SDK bin directory is in the 'PATH' env variable
-$ make PLUGIN_UPDATER_GPU=ON
+$ make -j PLUGIN_UPDATER_GPU=ON
 ```
 
 Similar to cmake, if you want to build only for a specific GPU(s):
 ```bash
-$ make PLUGIN_UPDATER_GPU=ON GPU_COMPUTE_VER="60 61"
+$ make -j PLUGIN_UPDATER_GPU=ON GPU_COMPUTE_VER="60 61"
 ```
 
 ### For Developers!

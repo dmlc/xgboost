@@ -17,8 +17,8 @@
 
 #include "../../../../src/tree/param.h"
 #include "../common.cuh"
-#include "node.cuh"
 #include "loss_functions.cuh"
+#include "node.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -45,7 +45,7 @@ HOST_DEV_INLINE Split maxSplit(Split a, Split b) {
     out.index = b.index;
   } else if (a.score == b.score) {
     out.score = a.score;
-    out.index = (a.index < b.index)? a.index : b.index;
+    out.index = (a.index < b.index) ? a.index : b.index;
   } else {
     out.score = a.score;
     out.index = a.index;
@@ -54,7 +54,7 @@ HOST_DEV_INLINE Split maxSplit(Split a, Split b) {
 }
 
 DEV_INLINE void atomicArgMax(Split* address, Split val) {
-  unsigned long long* intAddress = (unsigned long long*) address;
+  unsigned long long* intAddress = (unsigned long long*)address;
   unsigned long long old = *intAddress;
   unsigned long long assumed;
   do {
@@ -65,23 +65,19 @@ DEV_INLINE void atomicArgMax(Split* address, Split val) {
 }
 
 template <typename node_id_t>
-DEV_INLINE void argMaxWithAtomics(int id, Split* nodeSplits,
-                                  const gpu_gpair* gradScans,
-                                  const gpu_gpair* gradSums, const float* vals,
-                                  const int* colIds,
-                                  const node_id_t* nodeAssigns,
-                                  const Node<node_id_t>* nodes, int nUniqKeys,
-                                  node_id_t nodeStart, int len,
-                                  const TrainParam &param) {
+DEV_INLINE void argMaxWithAtomics(
+    int id, Split* nodeSplits, const gpu_gpair* gradScans,
+    const gpu_gpair* gradSums, const float* vals, const int* colIds,
+    const node_id_t* nodeAssigns, const Node<node_id_t>* nodes, int nUniqKeys,
+    node_id_t nodeStart, int len, const TrainParam& param) {
   int nodeId = nodeAssigns[id];
   ///@todo: this is really a bad check! but will be fixed when we move
   ///   to key-based reduction
-  if ((id == 0) || !((nodeId == nodeAssigns[id-1]) &&
-                     (colIds[id] == colIds[id-1]) &&
-                     (vals[id] == vals[id-1]))) {
+  if ((id == 0) ||
+      !((nodeId == nodeAssigns[id - 1]) && (colIds[id] == colIds[id - 1]) &&
+        (vals[id] == vals[id - 1]))) {
     if (nodeId != UNUSED_NODE) {
-      int sumId = abs2uniqKey(id, nodeAssigns, colIds, nodeStart,
-                              nUniqKeys);
+      int sumId = abs2uniqKey(id, nodeAssigns, colIds, nodeStart, nUniqKeys);
       gpu_gpair colSum = gradSums[sumId];
       int uid = nodeId - nodeStart;
       Node<node_id_t> n = nodes[nodeId];
@@ -90,23 +86,20 @@ DEV_INLINE void argMaxWithAtomics(int id, Split* nodeSplits,
       bool tmp;
       Split s;
       gpu_gpair missing = parentSum - colSum;
-      s.score = loss_chg_missing(gradScans[id], missing, parentSum,
-                                 parentGain, param, tmp);
+      s.score = loss_chg_missing(gradScans[id], missing, parentSum, parentGain,
+                                 param, tmp);
       s.index = id;
-      atomicArgMax(nodeSplits+uid, s);
-    } // end if nodeId != UNUSED_NODE
-  } // end if id == 0 ...
+      atomicArgMax(nodeSplits + uid, s);
+    }  // end if nodeId != UNUSED_NODE
+  }    // end if id == 0 ...
 }
 
 template <typename node_id_t>
-__global__ void atomicArgMaxByKeyGmem(Split* nodeSplits,
-                                      const gpu_gpair* gradScans,
-                                      const gpu_gpair* gradSums,
-                                      const float* vals, const int* colIds,
-                                      const node_id_t* nodeAssigns,
-                                      const Node<node_id_t>* nodes, int nUniqKeys,
-                                      node_id_t nodeStart, int len,
-                                      const TrainParam param) {
+__global__ void atomicArgMaxByKeyGmem(
+    Split* nodeSplits, const gpu_gpair* gradScans, const gpu_gpair* gradSums,
+    const float* vals, const int* colIds, const node_id_t* nodeAssigns,
+    const Node<node_id_t>* nodes, int nUniqKeys, node_id_t nodeStart, int len,
+    const TrainParam param) {
   int id = threadIdx.x + (blockIdx.x * blockDim.x);
   const int stride = blockDim.x * gridDim.x;
   for (; id < len; id += stride) {
@@ -116,19 +109,16 @@ __global__ void atomicArgMaxByKeyGmem(Split* nodeSplits,
 }
 
 template <typename node_id_t>
-__global__ void atomicArgMaxByKeySmem(Split* nodeSplits,
-                                      const gpu_gpair* gradScans,
-                                      const gpu_gpair* gradSums,
-                                      const float* vals, const int* colIds,
-                                      const node_id_t* nodeAssigns,
-                                      const Node<node_id_t>* nodes, int nUniqKeys,
-                                      node_id_t nodeStart, int len,
-                                      const TrainParam param) {
+__global__ void atomicArgMaxByKeySmem(
+    Split* nodeSplits, const gpu_gpair* gradScans, const gpu_gpair* gradSums,
+    const float* vals, const int* colIds, const node_id_t* nodeAssigns,
+    const Node<node_id_t>* nodes, int nUniqKeys, node_id_t nodeStart, int len,
+    const TrainParam param) {
   extern __shared__ char sArr[];
   Split* sNodeSplits = (Split*)sArr;
   int tid = threadIdx.x;
   Split defVal;
-  #pragma unroll 1
+#pragma unroll 1
   for (int i = tid; i < nUniqKeys; i += blockDim.x) {
     sNodeSplits[i] = defVal;
   }
@@ -142,7 +132,7 @@ __global__ void atomicArgMaxByKeySmem(Split* nodeSplits,
   __syncthreads();
   for (int i = tid; i < nUniqKeys; i += blockDim.x) {
     Split s = sNodeSplits[i];
-    atomicArgMax(nodeSplits+i, s);
+    atomicArgMax(nodeSplits + i, s);
   }
 }
 
@@ -162,28 +152,30 @@ __global__ void atomicArgMaxByKeySmem(Split* nodeSplits,
  * @param param training parameters
  * @param algo which algorithm to use for argmax_by_key
  */
-template <typename node_id_t, int BLKDIM=256, int ITEMS_PER_THREAD=4>
+template <typename node_id_t, int BLKDIM = 256, int ITEMS_PER_THREAD = 4>
 void argMaxByKey(Split* nodeSplits, const gpu_gpair* gradScans,
-                 const gpu_gpair* gradSums, const float* vals, const int* colIds,
-                 const node_id_t* nodeAssigns, const Node<node_id_t>* nodes, int nUniqKeys,
+                 const gpu_gpair* gradSums, const float* vals,
+                 const int* colIds, const node_id_t* nodeAssigns,
+                 const Node<node_id_t>* nodes, int nUniqKeys,
                  node_id_t nodeStart, int len, const TrainParam param,
                  ArgMaxByKeyAlgo algo) {
-  fillConst<Split,BLKDIM,ITEMS_PER_THREAD>(param.gpu_id, nodeSplits, nUniqKeys, Split());
-  int nBlks = dh::div_round_up(len, ITEMS_PER_THREAD*BLKDIM);
-  switch(algo) {
-  case ABK_GMEM:
-    atomicArgMaxByKeyGmem<node_id_t><<<nBlks,BLKDIM>>>
-        (nodeSplits, gradScans, gradSums, vals, colIds, nodeAssigns, nodes,
-         nUniqKeys, nodeStart, len, param);
-    break;
-  case ABK_SMEM:
-    atomicArgMaxByKeySmem<node_id_t>
-        <<<nBlks,BLKDIM,sizeof(Split)*nUniqKeys>>>
-        (nodeSplits, gradScans, gradSums, vals, colIds, nodeAssigns, nodes,
-         nUniqKeys, nodeStart, len, param);
-    break;
-  default:
-    throw std::runtime_error("argMaxByKey: Bad algo passed!");
+  fillConst<Split, BLKDIM, ITEMS_PER_THREAD>(dh::get_device_idx(param.gpu_id),
+                                             nodeSplits, nUniqKeys, Split());
+  int nBlks = dh::div_round_up(len, ITEMS_PER_THREAD * BLKDIM);
+  switch (algo) {
+    case ABK_GMEM:
+      atomicArgMaxByKeyGmem<node_id_t><<<nBlks, BLKDIM>>>(
+          nodeSplits, gradScans, gradSums, vals, colIds, nodeAssigns, nodes,
+          nUniqKeys, nodeStart, len, param);
+      break;
+    case ABK_SMEM:
+      atomicArgMaxByKeySmem<
+          node_id_t><<<nBlks, BLKDIM, sizeof(Split) * nUniqKeys>>>(
+          nodeSplits, gradScans, gradSums, vals, colIds, nodeAssigns, nodes,
+          nUniqKeys, nodeStart, len, param);
+      break;
+    default:
+      throw std::runtime_error("argMaxByKey: Bad algo passed!");
   };
 }
 

@@ -409,11 +409,11 @@ class FastHistMaker: public TreeUpdater {
             feat_index.push_back(i);
           }
         }
-        unsigned n = static_cast<unsigned>(param.colsample_bytree * feat_index.size());
+        unsigned n = std::max(static_cast<unsigned>(1),
+                              static_cast<unsigned>(param.colsample_bytree * feat_index.size()));
         std::shuffle(feat_index.begin(), feat_index.end(), common::GlobalRandom());
-        CHECK_GT(n, 0U)
-            << "colsample_bytree=" << param.colsample_bytree
-            << " is too small that no feature can be included";
+        CHECK_GT(param.colsample_bytree, 0U)
+            << "colsample_bytree cannot be zero.";
         feat_index.resize(n);
       }
       if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
