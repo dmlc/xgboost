@@ -171,26 +171,26 @@ public class DMatrix {
   }
 
   /**
-   * if specified, xgboost will start from this init margin
-   * can be used to specify initial prediction to boost from
+   * Set base margin (initial prediction).
    *
-   * @param baseMargin base margin
-   * @throws XGBoostError native error
+   * The margin must have the same number of elements as the number of
+   * rows in this matrix.
    */
   public void setBaseMargin(float[] baseMargin) throws XGBoostError {
+    if (baseMargin.length != rowNum()) {
+      throw new IllegalArgumentException(String.format(
+              "base margin must have exactly %s elements, got %s",
+              rowNum(), baseMargin.length));
+    }
+
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "base_margin", baseMargin));
   }
 
   /**
-   * if specified, xgboost will start from this init margin
-   * can be used to specify initial prediction to boost from
-   *
-   * @param baseMargin base margin
-   * @throws XGBoostError native error
+   * Set base margin (initial prediction).
    */
   public void setBaseMargin(float[][] baseMargin) throws XGBoostError {
-    float[] flattenMargin = flatten(baseMargin);
-    setBaseMargin(flattenMargin);
+    setBaseMargin(flatten(baseMargin));
   }
 
   /**
@@ -236,10 +236,7 @@ public class DMatrix {
   }
 
   /**
-   * get base margin of the DMatrix
-   *
-   * @return base margin
-   * @throws XGBoostError native error
+   * Get base margin of the DMatrix.
    */
   public float[] getBaseMargin() throws XGBoostError {
     return getFloatInfo("base_margin");

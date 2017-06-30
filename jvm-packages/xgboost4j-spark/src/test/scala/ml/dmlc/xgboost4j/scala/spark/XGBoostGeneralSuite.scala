@@ -17,17 +17,15 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.nio.file.Files
-import java.util.concurrent.{BlockingQueue, LinkedBlockingDeque}
+import java.util.concurrent.LinkedBlockingDeque
 
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
 import scala.util.Random
-import scala.concurrent.duration._
 
-import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix, RabitTracker => PyRabitTracker}
+import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
-import org.scalatest.Ignore
 
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.LabeledPoint
@@ -83,7 +81,8 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
         "objective" -> "binary:logistic").toMap,
       new java.util.HashMap[String, String](),
-      numWorkers = 2, round = 5, eval = null, obj = null, useExternalMemory = true)
+      numWorkers = 2, round = 5, eval = null, obj = null, useExternalMemory = true,
+      missing = Float.NaN, baseMargin = null)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === 2)
     cleanExternalCache("XGBoostSuite")
@@ -390,4 +389,30 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val predResult1: Array[Array[Float]] = predRDD.collect()(0)
     assert(testRDD.count() === predResult1.length)
   }
+
+    test("test use base margin") {
+      val trainSet = loadLabelPoints(getClass.getResource("/rank-demo-0.txt.train").getFile)
+      val trainRDD = sc.parallelize(trainSet, numSlices = 1)
+
+      val testSet = loadLabelPoints(getClass.getResource("/rank-demo.txt.test").getFile)
+      val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
+
+      val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+        "objective" -> "rank:pairwise")
+
+      val trainMargin = {
+        XGBoost.trainWithRDD(trainRDD, paramMap, round = 1, nWorkers = 2)
+            .predict(trainRDD.map(_.features), outputMargin = true)
+            .flatMap { _.flatten.iterator }
+      }
+
+      val xgBoostModel = XGBoost.trainWithRDD(
+        trainRDD,
+        paramMap,
+        round = 1,
+        nWorkers = 2,
+        baseMargin = trainMargin)
+
+      assert(testRDD.count() === xgBoostModel.predict(testRDD).first().length)
+    }
 }

@@ -125,16 +125,15 @@ abstract class XGBoostModel(protected var _booster: Booster)
               case (null, _) => {
                 val predStr = broadcastBooster.value.evalSet(Array(dMatrix), Array(evalName), iter)
                 val Array(evName, predNumeric) = predStr.split(":")
-                Rabit.shutdown()
                 Iterator(Some(evName, predNumeric.toFloat))
               }
               case _ => {
                 val predictions = broadcastBooster.value.predict(dMatrix)
-                Rabit.shutdown()
                 Iterator(Some((evalName, evalFunc.eval(predictions, dMatrix))))
               }
             }
           } finally {
+            Rabit.shutdown()
             dMatrix.delete()
           }
         } else {
@@ -170,10 +169,9 @@ abstract class XGBoostModel(protected var _booster: Booster)
         }
         val dMatrix = new DMatrix(flatSampleArray, numRows, numColumns, missingValue)
         try {
-          val res = broadcastBooster.value.predict(dMatrix)
-          Rabit.shutdown()
-          Iterator(res)
+          Iterator(broadcastBooster.value.predict(dMatrix))
         } finally {
+          Rabit.shutdown()
           dMatrix.delete()
         }
       }
@@ -185,13 +183,16 @@ abstract class XGBoostModel(protected var _booster: Booster)
    *
    * @param testSet test set represented as RDD
    * @param useExternalCache whether to use external cache for the test set
+   * @param outputMargin whether to output raw untransformed margin value
    */
-  def predict(testSet: RDD[MLVector], useExternalCache: Boolean = false):
-      RDD[Array[Array[Float]]] = {
+  def predict(
+      testSet: RDD[MLVector],
+      useExternalCache: Boolean = false,
+      outputMargin: Boolean = false): RDD[Array[Array[Float]]] = {
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
     val appName = testSet.context.appName
     testSet.mapPartitions { testSamples =>
-      if (testSamples.hasNext) {
+      if (testSamples.nonEmpty) {
         import DataUtils._
         val rabitEnv = Array("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
         Rabit.init(rabitEnv.asJava)
@@ -204,10 +205,9 @@ abstract class XGBoostModel(protected var _booster: Booster)
         }
         val dMatrix = new DMatrix(new JDMatrix(testSamples, cacheFileName))
         try {
-          val res = broadcastBooster.value.predict(dMatrix)
-          Rabit.shutdown()
-          Iterator(res)
+          Iterator(broadcastBooster.value.predict(dMatrix))
         } finally {
+          Rabit.shutdown()
           dMatrix.delete()
         }
       } else {
@@ -334,6 +334,13 @@ abstract class XGBoostModel(protected var _booster: Booster)
 }
 
 object XGBoostModel extends MLReadable[XGBoostModel] {
+  private[spark] def apply(booster: Booster, isClassification: Boolean): XGBoostModel = {
+    if (!isClassification) {
+      new XGBoostRegressionModel(booster)
+    } else {
+      new XGBoostClassificationModel(booster)
+    }
+  }
 
   override def read: MLReader[XGBoostModel] = new XGBoostModelModelReader
 

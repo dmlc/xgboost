@@ -22,19 +22,22 @@ import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FunSuite}
 trait SharedSparkContext extends FunSuite with BeforeAndAfter with BeforeAndAfterAll
   with Serializable {
 
-  @transient protected implicit var sc: SparkContext = null
+  @transient protected implicit var sc: SparkContext = _
 
   override def beforeAll() {
-    // build SparkContext
-    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoostSuite").
-      set("spark.driver.memory", "512m")
+    val sparkConf = new SparkConf()
+      .setMaster("local[*]")
+      .setAppName("XGBoostSuite")
+      .set("spark.driver.memory", "512m")
+      .set("spark.ui.enabled", "false")
+
     sc = new SparkContext(sparkConf)
-    sc.setLogLevel("ERROR")
   }
 
   override def afterAll() {
     if (sc != null) {
       sc.stop()
+      sc = null
     }
   }
 }
