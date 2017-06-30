@@ -93,7 +93,9 @@ object XGBoost extends Serializable {
     } else {
       trainingSet
     }
-    val partitionedBaseMargin = baseMargin.repartition(partitionedTrainingSet.getNumPartitions)
+    val partitionedBaseMargin = Option(baseMargin)
+        .getOrElse(trainingSet.sparkContext.emptyRDD)
+        .repartition(partitionedTrainingSet.getNumPartitions)
     val appName = partitionedTrainingSet.context.appName
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
@@ -291,7 +293,7 @@ object XGBoost extends Serializable {
       val overriddenParams = overrideParamsAccordingToTaskCPUs(params, trainingData.sparkContext)
       val boosters = buildDistributedBoosters(trainingData, overriddenParams,
         tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing,
-        Option(baseMargin).getOrElse(trainingData.sparkContext.emptyRDD))
+        baseMargin)
       val sparkJobThread = new Thread() {
         override def run() {
           // force the job
