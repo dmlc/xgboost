@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION, Xgboost contributors.  All rights reserved.
+ * Copyright (c) 2017, NVIDIA CORPORATION, Xgboost contributors.  All rights
+ * reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,17 +19,13 @@
 #include "../common.cuh"
 #include "gradients.cuh"
 
-
 namespace xgboost {
 namespace tree {
 namespace exact {
 
-HOST_DEV_INLINE float device_calc_loss_chg(const TrainParam &param,
-                                           const gpu_gpair &scan,
-                                           const gpu_gpair &missing,
-                                           const gpu_gpair &parent_sum,
-                                           const float &parent_gain,
-                                           bool missing_left) {
+HOST_DEV_INLINE float device_calc_loss_chg(
+    const TrainParam &param, const gpu_gpair &scan, const gpu_gpair &missing,
+    const gpu_gpair &parent_sum, const float &parent_gain, bool missing_left) {
   gpu_gpair left = scan;
   if (missing_left) {
     left += missing;

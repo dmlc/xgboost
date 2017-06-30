@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION, Xgboost contributors.  All rights reserved.
+ * Copyright (c) 2017, NVIDIA CORPORATION, Xgboost contributors.  All rights
+ * reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +18,6 @@
 
 #include "../common.cuh"
 
-
 namespace xgboost {
 namespace tree {
 namespace exact {
@@ -32,9 +32,9 @@ struct gpu_gpair {
   /** the 'h_i' as it appears in the xgboost paper */
   float h;
 
-  HOST_DEV_INLINE gpu_gpair(): g(0.f), h(0.f) {}
-  HOST_DEV_INLINE gpu_gpair(const float& _g, const float& _h): g(_g), h(_h) {}
-  HOST_DEV_INLINE gpu_gpair(const gpu_gpair& a): g(a.g), h(a.h) {}
+  HOST_DEV_INLINE gpu_gpair() : g(0.f), h(0.f) {}
+  HOST_DEV_INLINE gpu_gpair(const float& _g, const float& _h) : g(_g), h(_h) {}
+  HOST_DEV_INLINE gpu_gpair(const gpu_gpair& a) : g(a.g), h(a.h) {}
 
   /**
    * @brief Checks whether the hessian is more than the defined weight
@@ -60,19 +60,18 @@ struct gpu_gpair {
 
   HOST_DEV_INLINE friend gpu_gpair operator+(const gpu_gpair& a,
                                              const gpu_gpair& b) {
-    return gpu_gpair(a.g+b.g, a.h+b.h);
+    return gpu_gpair(a.g + b.g, a.h + b.h);
   }
 
   HOST_DEV_INLINE friend gpu_gpair operator-(const gpu_gpair& a,
                                              const gpu_gpair& b) {
-    return gpu_gpair(a.g-b.g, a.h-b.h);
+    return gpu_gpair(a.g - b.g, a.h - b.h);
   }
 
   HOST_DEV_INLINE gpu_gpair(int value) {
     *this = gpu_gpair((float)value, (float)value);
   }
 };
-
 
 /**
  * @brief Gradient value getter function
@@ -81,7 +80,8 @@ struct gpu_gpair {
  * @param instIds instance index buffer
  * @return the expected gradient value
  */
-HOST_DEV_INLINE gpu_gpair get(int id, const gpu_gpair* vals, const int* instIds) {
+HOST_DEV_INLINE gpu_gpair get(int id, const gpu_gpair* vals,
+                              const int* instIds) {
   id = instIds[id];
   return vals[id];
 }

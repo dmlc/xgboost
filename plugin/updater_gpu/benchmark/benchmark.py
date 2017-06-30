@@ -16,6 +16,8 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     param = {'objective': 'binary:logistic',
              'max_depth': 6,
              'silent': 1,
+             'n_gpus': 1,
+             'gpu_id': 0,
              'eval_metric': 'auc'}
 
     param['tree_method'] = gpu_algorithm
@@ -41,9 +43,9 @@ args = parser.parse_args()
 
 if 'gpu_hist' in args.algorithm:
     run_benchmark(args, args.algorithm, 'hist')
-if 'gpu_exact' in args.algorithm:
+elif 'gpu_exact' in args.algorithm:
     run_benchmark(args, args.algorithm, 'exact')
-if 'all' in args.algorithm:
+elif 'all' in args.algorithm:
     run_benchmark(args, 'gpu_exact', 'exact')
     run_benchmark(args, 'gpu_hist', 'hist')
 

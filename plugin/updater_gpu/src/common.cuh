@@ -2,16 +2,16 @@
  * Copyright 2017 XGBoost contributors
  */
 #pragma once
+#include <cstdio>
+#include <stdexcept>
+#include <string>
 #include <vector>
 #include "../../../src/common/random.h"
 #include "../../../src/tree/param.h"
-#include "device_helpers.cuh"
-#include "types.cuh"
-#include <string>
-#include <stdexcept>
-#include <cstdio>
 #include "cub/cub.cuh"
 #include "device_helpers.cuh"
+#include "device_helpers.cuh"
+#include "types.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -172,8 +172,8 @@ inline void subsample_gpair(dh::dvec<gpu_gpair>* p_gpair, float subsample) {
 }
 
 inline std::vector<int> col_sample(std::vector<int> features, float colsample) {
-  int n = colsample * features.size();
-  CHECK_GT(n, 0);
+  CHECK_GT(features.size(), 0);
+  int n = std::max(1,static_cast<int>(colsample * features.size()));
 
   std::shuffle(features.begin(), features.end(), common::GlobalRandom());
   features.resize(n);
@@ -202,17 +202,18 @@ struct GpairCallbackOp {
  * @param offsets the segments
  */
 template <typename T1, typename T2>
-void segmentedSort(dh::CubMemory &tmp_mem, dh::dvec2<T1> &keys, dh::dvec2<T2> &vals,
-                   int nVals, int nSegs, dh::dvec<int> &offsets, int start=0,
-                   int end=sizeof(T1)*8) {
+void segmentedSort(dh::CubMemory& tmp_mem, dh::dvec2<T1>& keys,
+                   dh::dvec2<T2>& vals, int nVals, int nSegs,
+                   dh::dvec<int>& offsets, int start = 0,
+                   int end = sizeof(T1) * 8) {
   size_t tmpSize;
   dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
-                    NULL, tmpSize, keys.buff(), vals.buff(), nVals, nSegs,
-                    offsets.data(), offsets.data()+1, start, end));
+      NULL, tmpSize, keys.buff(), vals.buff(), nVals, nSegs, offsets.data(),
+      offsets.data() + 1, start, end));
   tmp_mem.LazyAllocate(tmpSize);
   dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
-                    tmp_mem.d_temp_storage, tmpSize, keys.buff(), vals.buff(),
-                    nVals, nSegs, offsets.data(), offsets.data()+1, start, end));
+      tmp_mem.d_temp_storage, tmpSize, keys.buff(), vals.buff(), nVals, nSegs,
+      offsets.data(), offsets.data() + 1, start, end));
 }
 
 /**
@@ -223,11 +224,11 @@ void segmentedSort(dh::CubMemory &tmp_mem, dh::dvec2<T1> &keys, dh::dvec2<T2> &v
  * @param nVals number of elements in the input array
  */
 template <typename T>
-void sumReduction(dh::CubMemory &tmp_mem, dh::dvec<T> &in, dh::dvec<T> &out,
+void sumReduction(dh::CubMemory& tmp_mem, dh::dvec<T>& in, dh::dvec<T>& out,
                   int nVals) {
   size_t tmpSize;
-  dh::safe_cuda(cub::DeviceReduce::Sum(NULL, tmpSize, in.data(), out.data(),
-                                       nVals));
+  dh::safe_cuda(
+      cub::DeviceReduce::Sum(NULL, tmpSize, in.data(), out.data(), nVals));
   tmp_mem.LazyAllocate(tmpSize);
   dh::safe_cuda(cub::DeviceReduce::Sum(tmp_mem.d_temp_storage, tmpSize,
                                        in.data(), out.data(), nVals));
@@ -239,9 +240,10 @@ void sumReduction(dh::CubMemory &tmp_mem, dh::dvec<T> &in, dh::dvec<T> &out,
  * @param len number of elements i the buffer
  * @param def default value to be filled
  */
-template <typename T, int BlkDim=256, int ItemsPerThread=4>
+template <typename T, int BlkDim = 256, int ItemsPerThread = 4>
 void fillConst(int device_idx, T* out, int len, T def) {
-  dh::launch_n<ItemsPerThread,BlkDim>(device_idx, len, [=] __device__(int i) { out[i] = def; });
+  dh::launch_n<ItemsPerThread, BlkDim>(device_idx, len,
+                                       [=] __device__(int i) { out[i] = def; });
 }
 
 /**
@@ -253,17 +255,17 @@ void fillConst(int device_idx, T* out, int len, T def) {
  * @param instId gather indices
  * @param nVals length of the buffers
  */
-template <typename T1, typename T2, int BlkDim=256, int ItemsPerThread=4>
-void gather(int device_idx, T1* out1, const T1* in1, T2* out2, const T2* in2, const int* instId,
-            int nVals) {
-  dh::launch_n<ItemsPerThread,BlkDim>
-    (device_idx, nVals, [=] __device__(int i) {
-                  int iid = instId[i];
-                  T1 v1 = in1[iid];
-                  T2 v2 = in2[iid];
-                  out1[i] = v1;
-                  out2[i] = v2;
-              });
+template <typename T1, typename T2, int BlkDim = 256, int ItemsPerThread = 4>
+void gather(int device_idx, T1* out1, const T1* in1, T2* out2, const T2* in2,
+            const int* instId, int nVals) {
+  dh::launch_n<ItemsPerThread, BlkDim>(device_idx, nVals,
+                                       [=] __device__(int i) {
+                                         int iid = instId[i];
+                                         T1 v1 = in1[iid];
+                                         T2 v2 = in2[iid];
+                                         out1[i] = v1;
+                                         out2[i] = v2;
+                                       });
 }
 
 /**
@@ -273,13 +275,13 @@ void gather(int device_idx, T1* out1, const T1* in1, T2* out2, const T2* in2, co
  * @param instId gather indices
  * @param nVals length of the buffers
  */
-template <typename T, int BlkDim=256, int ItemsPerThread=4>
+template <typename T, int BlkDim = 256, int ItemsPerThread = 4>
 void gather(int device_idx, T* out, const T* in, const int* instId, int nVals) {
-  dh::launch_n<ItemsPerThread,BlkDim>
-    (device_idx, nVals, [=] __device__(int i) {
-                  int iid = instId[i];
-                  out[i] = in[iid];
-              });
+  dh::launch_n<ItemsPerThread, BlkDim>(device_idx, nVals,
+                                       [=] __device__(int i) {
+                                         int iid = instId[i];
+                                         out[i] = in[iid];
+                                       });
 }
 
 }  // namespace tree
