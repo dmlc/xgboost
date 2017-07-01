@@ -17,8 +17,8 @@
 
 #include "../../../../src/tree/param.h"
 #include "../common.cuh"
-#include "loss_functions.cuh"
 #include "node.cuh"
+#include "../types.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -66,10 +66,10 @@ DEV_INLINE void atomicArgMax(Split* address, Split val) {
 
 template <typename node_id_t>
 DEV_INLINE void argMaxWithAtomics(
-    int id, Split* nodeSplits, const gpu_gpair* gradScans,
-    const gpu_gpair* gradSums, const float* vals, const int* colIds,
+    int id, Split* nodeSplits, const bst_gpair* gradScans,
+    const bst_gpair* gradSums, const float* vals, const int* colIds,
     const node_id_t* nodeAssigns, const Node<node_id_t>* nodes, int nUniqKeys,
-    node_id_t nodeStart, int len, const TrainParam& param) {
+    node_id_t nodeStart, int len, const  GPUTrainingParam& param) {
   int nodeId = nodeAssigns[id];
   ///@todo: this is really a bad check! but will be fixed when we move
   ///   to key-based reduction
@@ -78,14 +78,14 @@ DEV_INLINE void argMaxWithAtomics(
         (vals[id] == vals[id - 1]))) {
     if (nodeId != UNUSED_NODE) {
       int sumId = abs2uniqKey(id, nodeAssigns, colIds, nodeStart, nUniqKeys);
-      gpu_gpair colSum = gradSums[sumId];
+      bst_gpair colSum = gradSums[sumId];
       int uid = nodeId - nodeStart;
       Node<node_id_t> n = nodes[nodeId];
-      gpu_gpair parentSum = n.gradSum;
+      bst_gpair parentSum = n.gradSum;
       float parentGain = n.score;
       bool tmp;
       Split s;
-      gpu_gpair missing = parentSum - colSum;
+      bst_gpair missing = parentSum - colSum;
       s.score = loss_chg_missing(gradScans[id], missing, parentSum, parentGain,
                                  param, tmp);
       s.index = id;
@@ -96,7 +96,7 @@ DEV_INLINE void argMaxWithAtomics(
 
 template <typename node_id_t>
 __global__ void atomicArgMaxByKeyGmem(
-    Split* nodeSplits, const gpu_gpair* gradScans, const gpu_gpair* gradSums,
+    Split* nodeSplits, const bst_gpair* gradScans, const bst_gpair* gradSums,
     const float* vals, const int* colIds, const node_id_t* nodeAssigns,
     const Node<node_id_t>* nodes, int nUniqKeys, node_id_t nodeStart, int len,
     const TrainParam param) {
@@ -104,13 +104,13 @@ __global__ void atomicArgMaxByKeyGmem(
   const int stride = blockDim.x * gridDim.x;
   for (; id < len; id += stride) {
     argMaxWithAtomics(id, nodeSplits, gradScans, gradSums, vals, colIds,
-                      nodeAssigns, nodes, nUniqKeys, nodeStart, len, param);
+                      nodeAssigns, nodes, nUniqKeys, nodeStart, len,  GPUTrainingParam(param));
   }
 }
 
 template <typename node_id_t>
 __global__ void atomicArgMaxByKeySmem(
-    Split* nodeSplits, const gpu_gpair* gradScans, const gpu_gpair* gradSums,
+    Split* nodeSplits, const bst_gpair* gradScans, const bst_gpair* gradSums,
     const float* vals, const int* colIds, const node_id_t* nodeAssigns,
     const Node<node_id_t>* nodes, int nUniqKeys, node_id_t nodeStart, int len,
     const TrainParam param) {
@@ -153,8 +153,8 @@ __global__ void atomicArgMaxByKeySmem(
  * @param algo which algorithm to use for argmax_by_key
  */
 template <typename node_id_t, int BLKDIM = 256, int ITEMS_PER_THREAD = 4>
-void argMaxByKey(Split* nodeSplits, const gpu_gpair* gradScans,
-                 const gpu_gpair* gradSums, const float* vals,
+void argMaxByKey(Split* nodeSplits, const bst_gpair* gradScans,
+                 const bst_gpair* gradSums, const float* vals,
                  const int* colIds, const node_id_t* nodeAssigns,
                  const Node<node_id_t>* nodes, int nUniqKeys,
                  node_id_t nodeStart, int len, const TrainParam param,

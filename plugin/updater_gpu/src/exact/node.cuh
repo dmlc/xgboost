@@ -17,7 +17,6 @@
 #pragma once
 
 #include "../common.cuh"
-#include "gradients.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -67,7 +66,7 @@ template <typename node_id_t>
 class Node {
  public:
   /** sum of gradients across all training samples part of this node */
-  gpu_gpair gradSum;
+  bst_gpair gradSum;
   /** the optimal score for this node */
   float score;
   /** weightage for this node */

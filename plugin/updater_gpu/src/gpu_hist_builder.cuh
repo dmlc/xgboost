@@ -31,16 +31,16 @@ struct DeviceGMat {
 };
 
 struct HistBuilder {
-  gpu_gpair *d_hist;
+  bst_gpair *d_hist;
   int n_bins;
-  __host__ __device__ HistBuilder(gpu_gpair *ptr, int n_bins);
-  __device__ void Add(gpu_gpair gpair, int gidx, int nidx) const;
-  __device__ gpu_gpair Get(int gidx, int nidx) const;
+  __host__ __device__ HistBuilder(bst_gpair *ptr, int n_bins);
+  __device__ void Add(bst_gpair gpair, int gidx, int nidx) const;
+  __device__ bst_gpair Get(int gidx, int nidx) const;
 };
 
 struct DeviceHist {
   int n_bins;
-  dh::dvec<gpu_gpair> data;
+  dh::dvec<bst_gpair> data;
 
   void Init(int max_depth);
 
@@ -48,7 +48,7 @@ struct DeviceHist {
 
   HistBuilder GetBuilder();
 
-  gpu_gpair *GetLevelPtr(int depth);
+  bst_gpair *GetLevelPtr(int depth);
 
   int LevelSize(int depth);
 };
@@ -61,8 +61,6 @@ class GPUHistBuilder {
 
   void UpdateParam(const TrainParam &param) {
     this->param = param;
-    this->gpu_param = GPUTrainingParam(param.min_child_weight, param.reg_lambda,
-                                       param.reg_alpha, param.max_delta_step);
   }
 
   void InitData(const std::vector<bst_gpair> &gpair, DMatrix &fmat,  // NOLINT
@@ -85,7 +83,6 @@ class GPUHistBuilder {
                              std::vector<bst_float> *p_out_preds);
 
   TrainParam param;
-  GPUTrainingParam gpu_param;
   common::HistCutMatrix hmat_;
   common::GHistIndexMatrix gmat_;
   MetaInfo *info;
@@ -124,7 +121,7 @@ class GPUHistBuilder {
   std::vector<dh::dvec<int>> position;
   std::vector<dh::dvec<int>> position_tmp;
   std::vector<DeviceGMat> device_matrix;
-  std::vector<dh::dvec<gpu_gpair>> device_gpair;
+  std::vector<dh::dvec<bst_gpair>> device_gpair;
   std::vector<dh::dvec<int>> gidx_feature_map;
   std::vector<dh::dvec<float>> gidx_fvalue_map;
 
