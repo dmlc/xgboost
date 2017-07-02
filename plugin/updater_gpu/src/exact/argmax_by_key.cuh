@@ -60,7 +60,7 @@ DEV_INLINE void atomicArgMax(Split* address, Split val) {
   do {
     assumed = old;
     Split res = maxSplit(val, *(Split*)&assumed);
-    old = atomicCAS(intAddress, assumed, *(unsigned long long*)&res);
+    old = atomicCAS(intAddress, assumed, *(uint64_t*)&res);
   } while (assumed != old);
 }
 
@@ -115,7 +115,7 @@ __global__ void atomicArgMaxByKeySmem(
     const Node<node_id_t>* nodes, int nUniqKeys, node_id_t nodeStart, int len,
     const TrainParam param) {
   extern __shared__ char sArr[];
-  Split* sNodeSplits = (Split*)sArr;
+  Split* sNodeSplits = reinterpret_cast<Split*>(sArr);
   int tid = threadIdx.x;
   Split defVal;
 #pragma unroll 1
@@ -176,7 +176,7 @@ void argMaxByKey(Split* nodeSplits, const bst_gpair* gradScans,
       break;
     default:
       throw std::runtime_error("argMaxByKey: Bad algo passed!");
-  };
+  }
 }
 
 }  // namespace exact

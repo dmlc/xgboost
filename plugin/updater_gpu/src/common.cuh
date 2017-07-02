@@ -10,7 +10,6 @@
 #include "../../../src/tree/param.h"
 #include "cub/cub.cuh"
 #include "device_helpers.cuh"
-#include "device_helpers.cuh"
 #include "types.cuh"
 
 namespace xgboost {
@@ -169,7 +168,7 @@ inline void subsample_gpair(dh::dvec<bst_gpair>* p_gpair, float subsample) {
 
 inline std::vector<int> col_sample(std::vector<int> features, float colsample) {
   CHECK_GT(features.size(), 0);
-  int n = std::max(1,static_cast<int>(colsample * features.size()));
+  int n = std::max(1, static_cast<int>(colsample * features.size()));
 
   std::shuffle(features.begin(), features.end(), common::GlobalRandom());
   features.resize(n);
@@ -198,17 +197,17 @@ struct GpairCallbackOp {
  * @param offsets the segments
  */
 template <typename T1, typename T2>
-void segmentedSort(dh::CubMemory& tmp_mem, dh::dvec2<T1>& keys,
-                   dh::dvec2<T2>& vals, int nVals, int nSegs,
-                   dh::dvec<int>& offsets, int start = 0,
+void segmentedSort(dh::CubMemory* tmp_mem, dh::dvec2<T1>* keys,
+                   dh::dvec2<T2>* vals, int nVals, int nSegs,
+                   const dh::dvec<int>& offsets, int start = 0,
                    int end = sizeof(T1) * 8) {
   size_t tmpSize;
   dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
-      NULL, tmpSize, keys.buff(), vals.buff(), nVals, nSegs, offsets.data(),
+      NULL, tmpSize, keys->buff(), vals->buff(), nVals, nSegs, offsets.data(),
       offsets.data() + 1, start, end));
-  tmp_mem.LazyAllocate(tmpSize);
+  tmp_mem->LazyAllocate(tmpSize);
   dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
-      tmp_mem.d_temp_storage, tmpSize, keys.buff(), vals.buff(), nVals, nSegs,
+      tmp_mem->d_temp_storage, tmpSize, keys->buff(), vals->buff(), nVals, nSegs,
       offsets.data(), offsets.data() + 1, start, end));
 }
 

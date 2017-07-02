@@ -16,14 +16,14 @@
  */
 #pragma once
 
+#include <string>
 #include <vector>
 #include "../../../../src/tree/param.h"
 #include "../common.cuh"
-#include <vector>
-#include "node.cuh"
-#include "split2node.cuh"
 #include "argmax_by_key.cuh"
 #include "fused_scan_reduce_by_key.cuh"
+#include "node.cuh"
+#include "split2node.cuh"
 #include "xgboost/tree_updater.h"
 
 namespace xgboost {
@@ -36,8 +36,8 @@ __global__ void initRootNode(Node<node_id_t>* nodes, const bst_gpair* sums,
   // gradients already evaluated inside transferGrads
   Node<node_id_t> n;
   n.gradSum = sums[0];
-  n.score = CalcGain(param, n.gradSum.grad , n.gradSum.hess);
-  n.weight = CalcWeight(param, n.gradSum.grad , n.gradSum.hess);
+  n.score = CalcGain(param, n.gradSum.grad, n.gradSum.hess);
+  n.weight = CalcWeight(param, n.gradSum.grad, n.gradSum.hess);
   n.id = 0;
   nodes[0] = n;
 }
@@ -173,7 +173,7 @@ class GPUBuilder {
     }
     // mark all the used nodes with unused children as leaf nodes
     markLeaves();
-    dense2sparse(*hTree);
+    dense2sparse(hTree);
   }
 
  private:
@@ -299,7 +299,8 @@ class GPUBuilder {
     vals.current_dvec() = fval;
     instIds.current_dvec() = fId;
     colOffsets = offset;
-    segmentedSort<float, int>(tmp_mem, vals, instIds, nVals, nCols, colOffsets);
+    segmentedSort<float, int>(&tmp_mem, &vals, &instIds, nVals, nCols,
+                              colOffsets);
     vals_cached = vals.current_dvec();
     instIds_cached = instIds.current_dvec();
     assignColIds<node_id_t><<<nCols, 512>>>(colIds.data(), colOffsets.data());
@@ -347,8 +348,8 @@ class GPUBuilder {
   void sortKeys(int level) {
     // segmented-sort the arrays based on node-id's
     // but we don't need more than level+1 bits for sorting!
-    segmentedSort(tmp_mem, nodeAssigns, nodeLocations, nVals, nCols, colOffsets,
-                  0, level + 1);
+    segmentedSort(&tmp_mem, &nodeAssigns, &nodeLocations, nVals, nCols,
+                  colOffsets, 0, level + 1);
     gather<float, int>(dh::get_device_idx(param.gpu_id), vals.other(),
                        vals.current(), instIds.other(), instIds.current(),
                        nodeLocations.current(), nVals);
@@ -362,7 +363,8 @@ class GPUBuilder {
     markLeavesKernel<<<nBlks, BlkDim>>>(nodes.data(), maxNodes);
   }
 
-  void dense2sparse(RegTree& tree) {
+  void dense2sparse(RegTree* p_tree) {
+    RegTree& tree = *p_tree;
     std::vector<Node<node_id_t>> hNodes = nodes.as_vector();
     int nodeId = 0;
     for (int i = 0; i < maxNodes; ++i) {

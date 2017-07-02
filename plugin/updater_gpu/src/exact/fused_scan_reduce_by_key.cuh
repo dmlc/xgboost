@@ -143,7 +143,7 @@ __global__ void cubScanByKeyL3(bst_gpair* sums, bst_gpair* scans,
   //     (potential race between threads)
   __shared__ char gradBuff[sizeof(bst_gpair)];
   __shared__ int s_mKeys;
-  bst_gpair* s_mScans = (bst_gpair*)gradBuff;
+  bst_gpair* s_mScans = reinterpret_cast<bst_gpair*>(gradBuff);
   if (tid >= size) return;
   // cache block-wide partial scan info
   if (relId == 0) {

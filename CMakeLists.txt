@@ -80,10 +80,7 @@ set(RABIT_SOURCES
     rabit/src/c_api.cc
 )
 
-set(NCCL_SOURCES
-    nccl/src/*.cu
-)
-set(UPDATER_GPU_SOURCES
+file(GLOB CUDA_SOURCES
     plugin/updater_gpu/src/*.cu
     plugin/updater_gpu/src/exact/*.cu
 )
@@ -110,7 +107,6 @@ if(PLUGIN_UPDATER_GPU)
   find_package(CUDA REQUIRED)
   
   # nccl
-  set(LINK_LIBRARIES ${LINK_LIBRARIES} nccl)
   add_subdirectory(nccl)
   set(NCCL_DIRECTORY ${PROJECT_SOURCE_DIR}/nccl)
   include_directories(${NCCL_DIRECTORY}/src)
@@ -135,14 +131,11 @@ if(PLUGIN_UPDATER_GPU)
   if(NOT MSVC)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
   endif()
-  set(CUDA_SOURCES
-    plugin/updater_gpu/src/updater_gpu.cu
-    plugin/updater_gpu/src/gpu_hist_builder.cu
-    )
-  # use below for forcing specific arch
-  cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
-  
 
+  cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
+  target_link_libraries(gpuxgboost nccl)
+  list(APPEND LINK_LIBRARIES gpuxgboost) 
+  list(APPEND SOURCES plugin/updater_gpu/src/register_updater_gpu.cc) 
 else()
   set(CUDA_OBJS "")
 endif()
@@ -150,12 +143,15 @@ endif()
 add_library(objxgboost OBJECT ${SOURCES})
 set_target_properties(${objxgboost} PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
-add_executable(runxgboost $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
+add_executable(runxgboost $<TARGET_OBJECTS:objxgboost>)
 set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
 target_link_libraries(runxgboost ${LINK_LIBRARIES})
 
-add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
+add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
 target_link_libraries(xgboost ${LINK_LIBRARIES})
+
+#Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
+add_dependencies(xgboost runxgboost)
 
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 
@@ -166,7 +162,6 @@ if(JVM_BINDINGS)
 
     add_library(xgboost4j SHARED
         $<TARGET_OBJECTS:objxgboost>
-        ${CUDA_OBJS}
         jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
     target_link_libraries(xgboost4j
         ${LINK_LIBRARIES}
