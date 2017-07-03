@@ -252,7 +252,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     val predRDD = xgBoostModel.predict(testRDD)
-    val predResult1 = predRDD.collect()(0)
+    val predResult1 = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
     import DataUtils._
     val predResult2 = xgBoostModel.booster.predict(new DMatrix(testSet.iterator))
@@ -273,14 +273,11 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   test("test prediction functionality with empty partition") {
     def buildEmptyRDD(sparkContext: Option[SparkContext] = None): RDD[SparkVector] = {
-      val sampleList = new ListBuffer[SparkVector]
-      sparkContext.getOrElse(sc).parallelize(sampleList, numWorkers)
+      sparkContext.getOrElse(sc).parallelize(List[SparkVector](), numWorkers)
     }
 
     val trainingRDD = buildTrainingRDD(sc)
     val testRDD = buildEmptyRDD()
-    val tempDir = Files.createTempDirectory("xgboosttest-")
-    val tempFile = Files.createTempFile(tempDir, "", "")
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
@@ -358,7 +355,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 1)
     val predRDD = xgBoostModel.predict(testRDD)
-    val predResult1: Array[Array[Float]] = predRDD.collect()(0)
+    val predResult1: Array[Array[Float]] = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
 
     val avgMetric = xgBoostModel.eval(trainingRDD, "test", iter = 0, groupData = trainGroupData)
@@ -386,7 +383,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 2)
     val predRDD = xgBoostModel.predict(testRDD)
-    val predResult1: Array[Array[Float]] = predRDD.collect()(0)
+    val predResult1: Array[Array[Float]] = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
   }
 
@@ -403,7 +400,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       val trainMargin = {
         XGBoost.trainWithRDD(trainRDD, paramMap, round = 1, nWorkers = 2)
             .predict(trainRDD.map(_.features), outputMargin = true)
-            .flatMap { _.flatten.iterator }
+            .map { case Array(m) => m }
       }
 
       val xgBoostModel = XGBoost.trainWithRDD(
@@ -413,6 +410,6 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
         nWorkers = 2,
         baseMargin = trainMargin)
 
-      assert(testRDD.count() === xgBoostModel.predict(testRDD).first().length)
+      assert(testRDD.count() === xgBoostModel.predict(testRDD).count())
     }
 }
