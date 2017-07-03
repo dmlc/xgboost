@@ -23,7 +23,7 @@ void DeviceGMat::Init(int device_idx, const common::GHistIndexMatrix& gmat,
   CHECK_EQ(gidx.size(), end - begin) << "gidx must be externally allocated";
   CHECK_EQ(ridx.size(), end - begin) << "ridx must be externally allocated";
 
-  thrust::copy(&gmat.index[begin], &gmat.index[end], gidx.tbegin());
+  thrust::copy(gmat.index.data() + begin, gmat.index.data() + end, gidx.tbegin());
   thrust::device_vector<int> row_ptr = gmat.row_ptr;
 
   auto counting = thrust::make_counting_iterator(begin);
@@ -77,7 +77,6 @@ GPUHistBuilder::GPUHistBuilder()
       prediction_cache_initialised(false) {}
 
 GPUHistBuilder::~GPUHistBuilder() {
-#if (NCCL)
   if (initialised) {
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
       ncclCommDestroy(comms[d_idx]);
@@ -92,7 +91,6 @@ GPUHistBuilder::~GPUHistBuilder() {
       }
     }
   }
-#endif
 }
 
 void GPUHistBuilder::Init(const TrainParam& param) {
@@ -103,7 +101,7 @@ void GPUHistBuilder::Init(const TrainParam& param) {
 
   CHECK(param.n_gpus != 0) << "Must have at least one device";
   int n_devices_all = dh::n_devices_all(param.n_gpus);
-  for (int device_idx = 0; device_idx < n_devices; device_idx++) {
+  for (int device_idx = 0; device_idx < n_devices_all; device_idx++) {
     if (!param.silent) {
       size_t free_memory = dh::available_memory(device_idx);
       const int mb_size = 1048576;
@@ -129,7 +127,6 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
       dList[d_idx] = device_idx;
     }
 
-#if (NCCL)
     // initialize nccl
 
     comms.resize(n_devices);
@@ -173,7 +170,6 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
                                                      // process)
     }
 
-#endif
 
     CHECK(fmat.SingleColBlock()) << "grow_gpu_hist: must have single column "
                                     "block. Try setting 'tree_method' "
@@ -376,7 +372,6 @@ void GPUHistBuilder::BuildHist(int depth) {
 
 //  time.printElapsed("Add Time");
 
-#if (NCCL)
   // (in-place) reduce each element of histogram (for only current level) across
   // multiple gpus
   // TODO(JCM): use out of place with pre-allocated buffer, but then have to
@@ -398,9 +393,7 @@ void GPUHistBuilder::BuildHist(int depth) {
     dh::safe_cuda(cudaSetDevice(device_idx));
     dh::safe_cuda(cudaStreamSynchronize(*(streams[d_idx])));
   }
-#else
 // if no NCCL, then presume only 1 GPU, then already correct
-#endif
 
   //  time.printElapsed("Reduce-Add Time");
 
@@ -626,13 +619,12 @@ void GPUHistBuilder::LaunchFindSplit(int depth) {
 
   int dosimuljob = 1;
 
-#if (NCCL)
   int simuljob = 1;  // whether to do job on single GPU and broadcast (0) or to
                      // do same job on each GPU (1) (could make user parameter,
                      // but too fine-grained maybe)
   int findsplit_shardongpus = 0;  // too expensive generally, disable for now
 
-  if (NCCL && findsplit_shardongpus) {
+  if (findsplit_shardongpus) {
     dosimuljob = 0;
     // use power of 2 for split finder because nodes are power of 2 (broadcast
     // result to remaining devices)
@@ -739,7 +731,7 @@ void GPUHistBuilder::LaunchFindSplit(int depth) {
         dh::safe_cuda(cudaStreamSynchronize(*(streams[d_idx])));
       }
     }
-  } else if (simuljob == 0 && NCCL == 1) {
+  } else if (simuljob == 0) {
     dosimuljob = 0;
     int num_nodes_device = n_nodes_level(depth);
     const int GRID_SIZE = num_nodes_device;
@@ -792,7 +784,6 @@ void GPUHistBuilder::LaunchFindSplit(int depth) {
   } else {
     dosimuljob = 1;
   }
-#endif
 
   if (dosimuljob) {  // if no NCCL or simuljob==1, do this
     int num_nodes_device = n_nodes_level(depth);

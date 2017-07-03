@@ -6,6 +6,7 @@
 #include <thrust/random.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
+#include "nccl.h"
 #include <algorithm>
 #include <chrono>
 #include <ctime>
@@ -15,13 +16,6 @@
 #include <string>
 #include <vector>
 
-#ifndef NCCL
-#define NCCL 1
-#endif
-
-#if (NCCL)
-#include "nccl.h"
-#endif
 
 // Uncomment to enable
 // #define DEVICE_TIMER
@@ -53,7 +47,6 @@ inline cudaError_t throw_on_cuda_error(cudaError_t code, const char *file,
 
 #define safe_nccl(ans) throw_on_nccl_error((ans), __FILE__, __LINE__)
 
-#if (NCCL)
 inline ncclResult_t throw_on_nccl_error(ncclResult_t code, const char *file,
                                         int line) {
   if (code != ncclSuccess) {
@@ -65,7 +58,6 @@ inline ncclResult_t throw_on_nccl_error(ncclResult_t code, const char *file,
 
   return code;
 }
-#endif
 
 #define gpuErrchk(ans) \
   { gpuAssert((ans), __FILE__, __LINE__); }
@@ -87,13 +79,6 @@ inline int n_visible_devices() {
 }
 
 inline int n_devices_all(int n_gpus) {
-  if (NCCL == 0 && n_gpus > 1 || NCCL == 0 && n_gpus != 0) {
-    if (n_gpus != 1 && n_gpus != 0) {
-      fprintf(stderr, "NCCL=0, so forcing n_gpus=1\n");
-      fflush(stderr);
-    }
-    n_gpus = 1;
-  }
   int n_devices_visible = dh::n_visible_devices();
   int n_devices = n_gpus < 0 ? n_devices_visible : n_gpus;
   return (n_devices);
@@ -343,6 +328,8 @@ class dvec {
   bool empty() const { return _ptr == NULL || _size == 0; }
 
   T *data() { return _ptr; }
+
+  const T *data() const { return _ptr; }
 
   std::vector<T> as_vector() const {
     std::vector<T> h_vector(size());
