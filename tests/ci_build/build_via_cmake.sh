@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
+make clean
 mkdir build
 cd build
-cmake .. -DPLUGIN_UPDATER_GPU=ON
+cmake .. "$@"
 make

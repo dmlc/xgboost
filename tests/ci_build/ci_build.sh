@@ -83,29 +83,33 @@ DOCKER_IMG_NAME=$(echo "${DOCKER_IMG_NAME}" | sed -e 's/=/_/g' -e 's/,/-/g')
 # Convert to all lower-case, as per requirement of Docker image names
 DOCKER_IMG_NAME=$(echo "${DOCKER_IMG_NAME}" | tr '[:upper:]' '[:lower:]')
 
-# skip with_the_same_user for non-linux
-uname=`uname`
-if [[ "$uname" == "Linux" ]]; then
-    PRE_COMMAND="tests/ci_build/with_the_same_user"
-else
-    PRE_COMMAND=""
+# Bash on Ubuntu on Windows
+UBUNTU_ON_WINDOWS=$([ -e /proc/version ] && grep -l Microsoft /proc/version || echo "")
+# MSYS, Git Bash, etc.
+MSYS=$([ -e /proc/version ] && grep -l MINGW /proc/version || echo "")
+
+if [[ -z "$UBUNTU_ON_WINDOWS" ]] && [[ -z "$MSYS" ]]; then
+    USER_IDS="-e CI_BUILD_UID=$( id -u ) -e CI_BUILD_GID=$( id -g ) -e CI_BUILD_USER=$( id -un ) -e CI_BUILD_GROUP=$( id -gn ) -e CI_BUILD_HOME=${WORKSPACE}"
 fi
 
 # Print arguments.
-echo "WORKSPACE: ${WORKSPACE}"
-echo "CI_DOCKER_EXTRA_PARAMS: ${CI_DOCKER_EXTRA_PARAMS[@]}"
-echo "COMMAND: ${COMMAND[@]}"
-echo "CONTAINER_TYPE: ${CONTAINER_TYPE}"
-echo "BUILD_TAG: ${BUILD_TAG}"
-echo "NODE_NAME: ${NODE_NAME}"
-echo "DOCKER CONTAINER NAME: ${DOCKER_IMG_NAME}"
-echo "PRE_COMMAND: ${PRE_COMMAND}"
-echo ""
+cat <<EOF
+   WORKSPACE: ${WORKSPACE}
+   CI_DOCKER_EXTRA_PARAMS: ${CI_DOCKER_EXTRA_PARAMS[*]}
+   COMMAND: ${COMMAND[*]}
+   CONTAINER_TYPE: ${CONTAINER_TYPE}
+   BUILD_TAG: ${BUILD_TAG}
+   NODE_NAME: ${NODE_NAME}
+   DOCKER CONTAINER NAME: ${DOCKER_IMG_NAME}
+   USER_IDS: ${USER_IDS}
+EOF
 
 
 # Build the docker container.
 echo "Building container (${DOCKER_IMG_NAME})..."
-docker build -t ${DOCKER_IMG_NAME} \
+# --pull should be default
+docker build \
+    -t "${DOCKER_IMG_NAME}" \
     -f "${DOCKERFILE_PATH}" "${DOCKER_CONTEXT_PATH}"
 
 # Check docker build status
@@ -116,20 +120,16 @@ fi
 
 
 # Run the command inside the container.
-echo "Running '${COMMAND[@]}' inside ${DOCKER_IMG_NAME}..."
+echo "Running '${COMMAND[*]}' inside ${DOCKER_IMG_NAME}..."
 
 # By default we cleanup - remove the container once it finish running (--rm)
 # and share the PID namespace (--pid=host) so the process inside does not have
 # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
 ${DOCKER_BINARY} run --rm --pid=host \
-    -v ${WORKSPACE}:/workspace \
+    -v "${WORKSPACE}":/workspace \
     -w /workspace \
-    -e "CI_BUILD_HOME=${WORKSPACE}" \
-    -e "CI_BUILD_USER=$(id -u -n)" \
-    -e "CI_BUILD_UID=$(id -u)" \
-    -e "CI_BUILD_GROUP=$(id -g -n)" \
-    -e "CI_BUILD_GID=$(id -g)" \
-    ${CI_DOCKER_EXTRA_PARAMS[@]} \
-    ${DOCKER_IMG_NAME} \
-    ${PRE_COMMAND} \
-    ${COMMAND[@]}
+    ${USER_IDS} \
+    "${CI_DOCKER_EXTRA_PARAMS[@]}" \
+    "${DOCKER_IMG_NAME}" \
+    "${COMMAND[@]}"
+
