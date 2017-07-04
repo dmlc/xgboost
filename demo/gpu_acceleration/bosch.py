@@ -24,8 +24,7 @@ param['eval_metric'] = 'auc'
 param['max_depth'] = 5
 param['eta'] = 0.3
 param['silent'] = 0
-param['updater'] = 'grow_gpu'
-#param['updater'] = 'grow_colmaker'
+param['tree_method'] = 'gpu_exact'
 
 num_round = 20
 

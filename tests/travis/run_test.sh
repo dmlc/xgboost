@@ -81,10 +81,9 @@ fi
 
 if [ ${TASK} == "java_test" ]; then
     set -e
-    make jvm-packages
     cd jvm-packages
-    mvn clean install -DskipTests=true
-    mvn test
+    mvn -q clean install -DskipTests -Dmaven.test.skip
+    mvn -q test
 fi
 
 if [ ${TASK} == "cmake_test" ]; then

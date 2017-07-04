@@ -3,10 +3,8 @@ project (xgboost)
 find_package(OpenMP)
 
 option(PLUGIN_UPDATER_GPU "Build GPU accelerated tree construction plugin")
-set(GPU_COMPUTE_VER 50;52;60;61 CACHE STRING
-    "Space separated list of compute versions to be built against")
 if(PLUGIN_UPDATER_GPU)
-  find_package(CUDA REQUIRED)
+  cmake_minimum_required (VERSION 3.5)
 endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
@@ -82,6 +80,11 @@ set(RABIT_SOURCES
     rabit/src/c_api.cc
 )
 
+file(GLOB CUDA_SOURCES
+    plugin/updater_gpu/src/*.cu
+    plugin/updater_gpu/src/exact/*.cu
+)
+
 add_subdirectory(dmlc-core)
 
 add_library(rabit STATIC ${RABIT_SOURCES})
@@ -96,52 +99,59 @@ if(MSVC)
 else()
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
-    #Prevent shared library being called liblibxgboost.so on Linux
-    set(CMAKE_SHARED_LIBRARY_PREFIX "")
 endif()
 
 set(LINK_LIBRARIES dmlccore rabit)
 
 if(PLUGIN_UPDATER_GPU)
-    # nccl
-    set(LINK_LIBRARIES ${LINK_LIBRARIES} nccl)
-    add_subdirectory(nccl)
-    set(NCCL_DIRECTORY ${PROJECT_SOURCE_DIR}/nccl)
-    include_directories(${NCCL_DIRECTORY}/src)
-    set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CUDA_LIBRARIES})
-    #Find cub
-    set(CUB_DIRECTORY ${PROJECT_SOURCE_DIR}/cub/)
-    include_directories(${CUB_DIRECTORY})
-    #Find googletest
-    set(GTEST_DIRECTORY "${CACHE_PREFIX}" CACHE PATH "Googletest directory")
-    include_directories(${GTEST_DIRECTORY}/include)
-    #gencode flags
-    set(GENCODE_FLAGS "")
-    foreach(ver ${GPU_COMPUTE_VER})
-      set(GENCODE_FLAGS "${GENCODE_FLAGS}-gencode arch=compute_${ver},code=sm_${ver};")
-    endforeach()
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;${GENCODE_FLAGS};-lineinfo;")
-    if(NOT MSVC)
-      set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
-    endif()
-    set(CUDA_SOURCES
-      plugin/updater_gpu/src/updater_gpu.cu
-      plugin/updater_gpu/src/gpu_hist_builder.cu
-      )
-    # use below for forcing specific arch
-    cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
+  find_package(CUDA REQUIRED)
+  
+  # nccl
+  add_subdirectory(nccl)
+  set(NCCL_DIRECTORY ${PROJECT_SOURCE_DIR}/nccl)
+  include_directories(${NCCL_DIRECTORY}/src)
+
+  #Find cub
+  set(CUB_DIRECTORY ${PROJECT_SOURCE_DIR}/cub/)
+  include_directories(${CUB_DIRECTORY})
+
+  #Find googletest
+  set(GTEST_DIRECTORY "${CACHE_PREFIX}" CACHE PATH "Googletest directory")
+  include_directories(${GTEST_DIRECTORY}/include)
+
+  #gencode flags
+  set(GPU_COMPUTE_VER 35;50;52;60;61 CACHE STRING
+    "Space separated list of compute versions to be built against")
+  
+  set(GENCODE_FLAGS "")
+  foreach(ver ${GPU_COMPUTE_VER})
+    set(GENCODE_FLAGS "${GENCODE_FLAGS}-gencode arch=compute_${ver},code=sm_${ver};")
+  endforeach()
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;${GENCODE_FLAGS};-lineinfo;")
+  if(NOT MSVC)
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
+  endif()
+
+  cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
+  target_link_libraries(gpuxgboost nccl)
+  list(APPEND LINK_LIBRARIES gpuxgboost) 
+  list(APPEND SOURCES plugin/updater_gpu/src/register_updater_gpu.cc) 
 else()
-    set(CUDA_OBJS "")
+  set(CUDA_OBJS "")
 endif()
 
 add_library(objxgboost OBJECT ${SOURCES})
 set_target_properties(${objxgboost} PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
-add_library(libxgboost SHARED $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
-add_executable(xgboost $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
+add_executable(runxgboost $<TARGET_OBJECTS:objxgboost>)
+set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
+target_link_libraries(runxgboost ${LINK_LIBRARIES})
 
+add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
 target_link_libraries(xgboost ${LINK_LIBRARIES})
-target_link_libraries(libxgboost ${LINK_LIBRARIES})
+
+#Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
+add_dependencies(xgboost runxgboost)
 
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 
@@ -150,11 +160,10 @@ if(JVM_BINDINGS)
 
     include_directories(${JNI_INCLUDE_DIRS} jvm-packages/xgboost4j/src/native)
 
-    add_library(libxgboost4j SHARED
+    add_library(xgboost4j SHARED
         $<TARGET_OBJECTS:objxgboost>
-        ${CUDA_OBJS}
         jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
-    target_link_libraries(libxgboost4j
+    target_link_libraries(xgboost4j
         ${LINK_LIBRARIES}
-        ${JNI_LIBRARIES})
+        ${JAVA_JVM_LIBRARY})
 endif()

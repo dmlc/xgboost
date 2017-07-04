@@ -3,8 +3,8 @@ Contribute to XGBoost
 XGBoost has been developed and used by a group of active community members.
 Everyone is more than welcome to contribute. It is a way to make the project better and more accessible to more users.
 
-- Please add your name to [CONTRIBUTORS.md](../CONTRIBUTORS.md) after your patch has been merged.
-- Please also update [NEWS.md](../NEWS.md) to add note on your changes to the API or added a new document.
+- Please add your name to [CONTRIBUTORS.md](../../CONTRIBUTORS.md) after your patch has been merged.
+- Please also update [NEWS.md](../../NEWS.md) to add note on your changes to the API or added a new document.
 
 Guidelines
 ----------

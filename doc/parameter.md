@@ -155,17 +155,17 @@ Learning Task Parameters
 ------------------------
 Specify the learning task and the corresponding learning objective. The objective options are below:
 * objective [ default=reg:linear ]
- - "reg:linear" --linear regression
- - "reg:logistic" --logistic regression
- - "binary:logistic" --logistic regression for binary classification, output probability
- - "binary:logitraw" --logistic regression for binary classification, output score before logistic transformation
- - "count:poisson" --poisson regression for count data, output mean of poisson distribution
-   - max_delta_step is set to 0.7 by default in poisson regression (used to safeguard optimization)
- - "multi:softmax" --set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
- - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
- - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
- - "reg:gamma" --gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be [gamma-distributed](https://en.wikipedia.org/wiki/Gamma_distribution#Applications)
- - "reg:tweedie" --Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be [Tweedie-distributed](https://en.wikipedia.org/wiki/Tweedie_distribution#Applications).
+  - "reg:linear" --linear regression
+  - "reg:logistic" --logistic regression
+  - "binary:logistic" --logistic regression for binary classification, output probability
+  - "binary:logitraw" --logistic regression for binary classification, output score before logistic transformation
+  - "count:poisson" --poisson regression for count data, output mean of poisson distribution
+    - max_delta_step is set to 0.7 by default in poisson regression (used to safeguard optimization)
+  - "multi:softmax" --set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
+  - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
+  - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
+  - "reg:gamma" --gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be [gamma-distributed](https://en.wikipedia.org/wiki/Gamma_distribution#Applications)
+  - "reg:tweedie" --Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be [Tweedie-distributed](https://en.wikipedia.org/wiki/Tweedie_distribution#Applications).
 * base_score [ default=0.5 ]
   - the initial prediction score of all instances, global bias
   - for sufficient number of iterations, changing this value will not have too much effect.
@@ -179,7 +179,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - "error": Binary classification error rate. It is calculated as #(wrong cases)/#(all cases). For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
     - "error@t": a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
     - "merror": Multiclass classification error rate. It is calculated as #(wrong cases)/#(all cases).
-    - "mlogloss": [Multiclass logloss](https://www.kaggle.com/wiki/MultiClassLogLoss)
+    - "mlogloss": [Multiclass logloss](https://www.kaggle.com/wiki/LogLoss)
     - "auc": [Area under the curve](http://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_curve) for ranking evaluation.
     - "ndcg":[Normalized Discounted Cumulative Gain](http://en.wikipedia.org/wiki/NDCG)
     - "map":[Mean average precision](http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision)

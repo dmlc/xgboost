@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION, Xgboost contributors.  All rights reserved.
+ * Copyright (c) 2017, NVIDIA CORPORATION, Xgboost contributors.  All rights
+ * reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +16,7 @@
  */
 #pragma once
 
-#include "gradients.cuh"
 #include "../common.cuh"
-
 
 namespace xgboost {
 namespace tree {
@@ -34,10 +33,8 @@ enum DefaultDirection {
   RightDir
 };
 
-
 /** used to assign default id to a Node */
 static const int UNUSED_NODE = -1;
-
 
 /**
  * @struct Split node.cuh
@@ -49,7 +46,7 @@ struct Split {
   /** index where to split in the DMatrix */
   int index;
 
-  HOST_DEV_INLINE Split(): score(-FLT_MAX), index(INT_MAX) {}
+  HOST_DEV_INLINE Split() : score(-FLT_MAX), index(INT_MAX) {}
 
   /**
    * @brief Whether the split info is valid to be used to create a new child
@@ -61,7 +58,6 @@ struct Split {
   }
 };
 
-
 /**
  * @struct Node node.cuh
  * @brief Abstraction of a node in the decision tree
@@ -70,7 +66,7 @@ template <typename node_id_t>
 class Node {
  public:
   /** sum of gradients across all training samples part of this node */
-  gpu_gpair gradSum;
+  bst_gpair gradSum;
   /** the optimal score for this node */
   float score;
   /** weightage for this node */
@@ -84,9 +80,14 @@ class Node {
   /** node id (used as key for reduce/scan) */
   node_id_t id;
 
-  HOST_DEV_INLINE Node(): gradSum(), score(-FLT_MAX), weight(-FLT_MAX),
-                          dir(LeftDir), threshold(0.f), colIdx(UNUSED_NODE),
-                          id(UNUSED_NODE) {}
+  HOST_DEV_INLINE Node()
+      : gradSum(),
+        score(-FLT_MAX),
+        weight(-FLT_MAX),
+        dir(LeftDir),
+        threshold(0.f),
+        colIdx(UNUSED_NODE),
+        id(UNUSED_NODE) {}
 
   /** Tells whether this node is part of the decision tree */
   HOST_DEV_INLINE bool isUnused() const { return (id == UNUSED_NODE); }
@@ -100,7 +101,6 @@ class Node {
   HOST_DEV_INLINE bool isDefaultLeft() const { return (dir == LeftDir); }
 };
 
-
 /**
  * @struct Segment node.cuh
  * @brief Space inefficient, but super easy to implement structure to define
@@ -112,14 +112,13 @@ struct Segment {
   /** end index of the segment */
   int end;
 
-  HOST_DEV_INLINE Segment(): start(-1), end(-1) {}
+  HOST_DEV_INLINE Segment() : start(-1), end(-1) {}
 
   /** Checks whether the current structure defines a valid segment */
   HOST_DEV_INLINE bool isValid() const {
     return !((start == -1) || (end == -1));
   }
 };
-
 
 /**
  * @enum NodeType node.cuh
@@ -133,7 +132,6 @@ enum NodeType {
   /** unused node */
   UNUSED
 };
-
 
 /**
  * @brief Absolute BFS order IDs to col-wise unique IDs based on user input
