@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
             run("cmake .. " + " ".join(args) + maybe_generator)
-            run("cmake --build .")
+            run("cmake --build . --config Release")
 
         with cd("demo/regression"):
             run(sys.executable + " mapfeat.py")
