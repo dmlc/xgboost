@@ -26,6 +26,13 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   float min_split_loss;
   // maximum depth of a tree
   int max_depth;
+  // maximum number of leaves
+  int max_leaves;
+  // if using histogram based algorithm, maximum number of bins per feature
+  int max_bin;
+  // growing policy
+  enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
+  int grow_policy;
   // flag to print out detailed breakdown of runtime
   int debug_verbose;
   //----- the rest parameters are less important ----
@@ -90,6 +97,18 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
         .describe(
             "Maximum depth of the tree; 0 indicates no limit; a limit is required "
             "for depthwise policy");
+    DMLC_DECLARE_FIELD(max_leaves).set_lower_bound(0).set_default(0).describe(
+        "Maximum number of leaves; 0 indicates no limit.");
+    DMLC_DECLARE_FIELD(max_bin).set_lower_bound(2).set_default(256).describe(
+        "if using histogram-based algorithm, maximum number of bins per feature");
+    DMLC_DECLARE_FIELD(grow_policy)
+        .set_default(kDepthWise)
+        .add_enum("depthwise", kDepthWise)
+        .add_enum("lossguide", kLossGuide)
+        .describe(
+            "Tree growing policy. 0: favor splitting at nodes closest to the node, "
+            "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
+            "change. (cf. LightGBM)");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)

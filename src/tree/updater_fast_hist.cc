@@ -39,13 +39,6 @@ DMLC_REGISTRY_FILE_TAG(updater_fast_hist);
 
 /*! \brief training parameters for histogram-based training */
 struct FastHistParam : public dmlc::Parameter<FastHistParam> {
-  // maximum number of leaves
-  int max_leaves;
-  // maximum number of bins per feature
-  int max_bin;
-  // growing policy
-  enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
-  int grow_policy;
   // integral data type to be used with columnar data storage
   enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };
   int colmat_dtype;
@@ -61,18 +54,6 @@ struct FastHistParam : public dmlc::Parameter<FastHistParam> {
 
   // declare the parameters
   DMLC_DECLARE_PARAMETER(FastHistParam) {
-    DMLC_DECLARE_FIELD(max_leaves).set_lower_bound(0).set_default(0).describe(
-        "Maximum number of leaves; 0 indicates no limit.");
-    DMLC_DECLARE_FIELD(max_bin).set_lower_bound(2).set_default(256).describe(
-        "if using histogram-based algorithm, maximum number of bins per feature");
-    DMLC_DECLARE_FIELD(grow_policy)
-        .set_default(kDepthWise)
-        .add_enum("depthwise", kDepthWise)
-        .add_enum("lossguide", kLossGuide)
-        .describe(
-            "Tree growing policy. 0: favor splitting at nodes closest to the node, "
-            "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
-            "change. (cf. LightGBM)");
     DMLC_DECLARE_FIELD(colmat_dtype)
         .set_default(static_cast<int>(DataType::uint32))
         .add_enum("uint8", static_cast<int>(DataType::uint8))
@@ -117,7 +98,7 @@ class FastHistMaker: public TreeUpdater {
     TStats::CheckInfo(dmat->info());
     if (is_gmat_initialized_ == false) {
       double tstart = dmlc::GetTime();
-      hmat_.Init(dmat, fhparam.max_bin);
+      hmat_.Init(dmat, param.max_bin);
       gmat_.cut = &hmat_;
       gmat_.Init(dmat);
       column_matrix_.Init(gmat_,
@@ -263,7 +244,7 @@ class FastHistMaker: public TreeUpdater {
         qexpand_->pop();
         if (candidate.loss_chg <= rt_eps
             || (param.max_depth > 0 && candidate.depth == param.max_depth)
-            || (fhparam.max_leaves > 0 && num_leaves == fhparam.max_leaves) ) {
+            || (param.max_leaves > 0 && num_leaves == param.max_leaves) ) {
           (*p_tree)[nid].set_leaf(snode[nid].weight * param.learning_rate);
         } else {
           tstart = dmlc::GetTime();
@@ -416,10 +397,10 @@ class FastHistMaker: public TreeUpdater {
                          const RegTree& tree) {
       CHECK_EQ(tree.param.num_nodes, tree.param.num_roots)
           << "ColMakerHist: can only grow new tree";
-      CHECK((param.max_depth > 0 || fhparam.max_leaves > 0))
+      CHECK((param.max_depth > 0 || param.max_leaves > 0))
           << "max_depth or max_leaves cannot be both 0 (unlimited); "
           << "at least one should be a positive quantity.";
-      if (fhparam.grow_policy == FastHistParam::kDepthWise) {
+      if (param.grow_policy == TrainParam::kDepthWise) {
         CHECK(param.max_depth > 0) << "max_depth cannot be 0 (unlimited) "
           << "when grow_policy is depthwise.";
       }
@@ -528,7 +509,7 @@ class FastHistMaker: public TreeUpdater {
         snode.clear();
       }
       {
-        if (fhparam.grow_policy == FastHistParam::kLossGuide) {
+        if (param.grow_policy == TrainParam::kLossGuide) {
           qexpand_.reset(new ExpandQueue(loss_guide));
         } else {
           qexpand_.reset(new ExpandQueue(depth_wise));
