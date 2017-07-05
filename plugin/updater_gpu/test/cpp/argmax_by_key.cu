@@ -13,11 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "../../src/exact/argmax_by_key.cuh"
-#include "../../src/exact/gradients.cuh"
 #include "../../src/exact/node.cuh"
-#include "../../src/exact/loss_functions.cuh"
 #include "utils.cuh"
 
 
@@ -56,26 +54,26 @@ void argMaxTest(ArgMaxByKeyAlgo algo) {
   const int nVals = 1024;
   const int level = 0;
   const int nKeys = 1 << level;
-  gpu_gpair* scans = new gpu_gpair[nVals];
+  bst_gpair* scans = new bst_gpair[nVals];
   float* vals = new float[nVals];
   int* colIds = new int[nVals];
-  scans[0] = gpu_gpair();
+  scans[0] = bst_gpair();
   vals[0] = 0.f;
   colIds[0] = 0;
   for (int i = 1; i < nVals; ++i) {
-    scans[i].g = scans[i-1].g + (0.1f * 2.f);
-    scans[i].h = scans[i-1].h + (0.1f * 2.f);
+    scans[i].grad = scans[i-1].grad + (0.1f * 2.f);
+    scans[i].hess = scans[i-1].hess + (0.1f * 2.f);
     vals[i] = static_cast<float>(i) * 0.1f;
     colIds[i] = 0;
   }
   float* dVals;
   allocateAndUpdateOnGpu<float>(dVals, vals, nVals);
-  gpu_gpair* dScans;
-  allocateAndUpdateOnGpu<gpu_gpair>(dScans, scans, nVals);
-  gpu_gpair* sums = new gpu_gpair[nKeys];
-  sums[0].g = sums[0].h = (0.1f * 2.f * nVals);
-  gpu_gpair* dSums;
-  allocateAndUpdateOnGpu<gpu_gpair>(dSums, sums, nKeys);
+  bst_gpair* dScans;
+  allocateAndUpdateOnGpu<bst_gpair>(dScans, scans, nVals);
+  bst_gpair* sums = new bst_gpair[nKeys];
+  sums[0].grad = sums[0].hess = (0.1f * 2.f * nVals);
+  bst_gpair* dSums;
+  allocateAndUpdateOnGpu<bst_gpair>(dSums, sums, nKeys);
   int* dColIds;
   allocateAndUpdateOnGpu<int>(dColIds, colIds, nVals);
   Split* splits = new Split[nKeys];
@@ -93,7 +91,7 @@ void argMaxTest(ArgMaxByKeyAlgo algo) {
   param.reg_alpha = 0.f;
   param.reg_lambda = 2.f;
   param.max_delta_step = 0.f;
-  nodes[0].score = CalcGain(param, sums[0].g, sums[0].h);
+  nodes[0].score = CalcGain(param, sums[0].grad, sums[0].hess);
   Node<node_id_t>* dNodes;
   allocateAndUpdateOnGpu<Node<node_id_t> >(dNodes, nodes, nKeys);
   argMaxByKey<node_id_t>(dSplits, dScans, dSums, dVals, dColIds, dNodeAssigns,

@@ -47,20 +47,20 @@ void testSmallData() {
   updateHostPtr<float>(tmpVal, builder.vals.current(), builder.nVals);
   int* tmpInst = new int[builder.nVals];
   updateHostPtr<int>(tmpInst, builder.instIds.current(), builder.nVals);
-  gpu_gpair* tmpGrad = new gpu_gpair[builder.nRows];
-  updateHostPtr<gpu_gpair>(tmpGrad, builder.gradsInst.data(), builder.nRows);
+  bst_gpair* tmpGrad = new bst_gpair[builder.nRows];
+  updateHostPtr<bst_gpair>(tmpGrad, builder.gradsInst.data(), builder.nRows);
   EXPECT_EQ(0, tmpInst[0]);
   EXPECT_FLOAT_EQ(1.f, tmpVal[0]);
-  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[0]%10), get(0, tmpGrad, tmpInst).g);
-  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[0]%10), get(0, tmpGrad, tmpInst).h);
+  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[0]%10), get(0, tmpGrad, tmpInst).grad);
+  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[0]%10), get(0, tmpGrad, tmpInst).hess);
   EXPECT_EQ(2, tmpInst[1]);
   EXPECT_FLOAT_EQ(1.f, tmpVal[1]);
-  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[1]%10), get(1, tmpGrad, tmpInst).g);
-  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[1]%10), get(1, tmpGrad, tmpInst).h);
+  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[1]%10), get(1, tmpGrad, tmpInst).grad);
+  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[1]%10), get(1, tmpGrad, tmpInst).hess);
   EXPECT_EQ(7, tmpInst[2]);
   EXPECT_FLOAT_EQ(1.f, tmpVal[2]);
-  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[2]%10), get(2, tmpGrad, tmpInst).g);
-  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[2]%10), get(2, tmpGrad, tmpInst).h);
+  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[2]%10), get(2, tmpGrad, tmpInst).grad);
+  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[2]%10), get(2, tmpGrad, tmpInst).hess);
   delete [] tmpGrad;
   delete [] tmpOff;
   delete [] tmpInst;
@@ -106,22 +106,22 @@ void testLargeData() {
   updateHostPtr<float>(tmpVal, builder.vals.current(), builder.nVals);
   int* tmpInst = new int[builder.nVals];
   updateHostPtr<int>(tmpInst, builder.instIds.current(), builder.nVals);
-  gpu_gpair* tmpGrad = new gpu_gpair[builder.nRows];
-  updateHostPtr<gpu_gpair>(tmpGrad, builder.gradsInst.data(), builder.nRows);
+  bst_gpair* tmpGrad = new bst_gpair[builder.nRows];
+  updateHostPtr<bst_gpair>(tmpGrad, builder.gradsInst.data(), builder.nRows);
   // the order of observations is messed up before the convertToCsc call!
   // hence, the instance IDs have been manually checked and put here.
   EXPECT_EQ(1164, tmpInst[0]);
   EXPECT_FLOAT_EQ(1.f, tmpVal[0]);
-  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[0]%10), get(0, tmpGrad, tmpInst).g);
-  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[0]%10), get(0, tmpGrad, tmpInst).h);
+  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[0]%10), get(0, tmpGrad, tmpInst).grad);
+  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[0]%10), get(0, tmpGrad, tmpInst).hess);
   EXPECT_EQ(1435, tmpInst[1]);
   EXPECT_FLOAT_EQ(1.f, tmpVal[1]);
-  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[1]%10), get(1, tmpGrad, tmpInst).g);
-  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[1]%10), get(1, tmpGrad, tmpInst).h);
+  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[1]%10), get(1, tmpGrad, tmpInst).grad);
+  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[1]%10), get(1, tmpGrad, tmpInst).hess);
   EXPECT_EQ(1421, tmpInst[2]);
   EXPECT_FLOAT_EQ(1.f, tmpVal[2]);
-  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[2]%10), get(2, tmpGrad, tmpInst).g);
-  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[2]%10), get(2, tmpGrad, tmpInst).h);
+  EXPECT_FLOAT_EQ(1.f+(float)(tmpInst[2]%10), get(2, tmpGrad, tmpInst).grad);
+  EXPECT_FLOAT_EQ(.5f+(float)(tmpInst[2]%10), get(2, tmpGrad, tmpInst).hess);
   delete [] tmpGrad;
   delete [] tmpOff;
   delete [] tmpInst;
@@ -164,17 +164,17 @@ void testAllocate() {
       EXPECT_FALSE(n[i].isUnused());
     }
   }
-  gpu_gpair sum;
-  sum.g = 0.f;
-  sum.h = 0.f;
+  bst_gpair sum;
+  sum.grad = 0.f;
+  sum.hess = 0.f;
   for (int i = 0; i < builder.maxNodes; ++i) {
     if (!n[i].isUnused()) {
       sum += n[i].gradSum;
     }
   }
   // law of conservation of gradients! :)
-  EXPECT_FLOAT_EQ(2.f*n[0].gradSum.g, sum.g);
-  EXPECT_FLOAT_EQ(2.f*n[0].gradSum.h, sum.h);
+  EXPECT_FLOAT_EQ(2.f*n[0].gradSum.grad, sum.grad);
+  EXPECT_FLOAT_EQ(2.f*n[0].gradSum.hess, sum.hess);
   node_id_t* assigns = new node_id_t[builder.nVals];
   int* offsets = new int[builder.nCols+1];
   updateHostPtr<node_id_t>(assigns, builder.nodeAssigns.current(),
@@ -199,8 +199,8 @@ TEST(CudaGPUBuilderTest, AllocateNodeDataInt32) {
 template <typename node_id_t>
 void assign(Node<node_id_t> *n, float g, float h, float sc, float wt,
             DefaultDirection d, float th, int c, int i) {
-  n->gradSum.g = g;
-  n->gradSum.h = h;
+  n->gradSum.grad = g;
+  n->gradSum.hess = h;
   n->score = sc;
   n->weight = wt;
   n->dir = d;
@@ -290,7 +290,7 @@ void testDense2Sparse() {
   updateDevicePtr<Node<node_id_t> >(builder.nodes.data(), hNodes, builder.maxNodes);
   builder.markLeaves();
   RegTree tree;
-  builder.dense2sparse(tree);
+  builder.dense2sparse(&tree);
   EXPECT_EQ(9, tree.param.num_nodes);
   delete [] hNodes;
 }

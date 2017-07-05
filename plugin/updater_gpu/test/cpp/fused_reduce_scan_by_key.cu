@@ -31,16 +31,16 @@ class ReduceScanByKey: public Generator<node_id_t> {
     hSums(nullptr), dSums(nullptr), hScans(nullptr), dScans(nullptr),
     outSize(this->size), nSegments(this->nKeys*this->nCols),
     hOffsets(nullptr), dOffsets(nullptr) {
-    hSums = new gpu_gpair[nSegments];
-    allocateOnGpu<gpu_gpair>(dSums, nSegments);
-    hScans = new gpu_gpair[outSize];
-    allocateOnGpu<gpu_gpair>(dScans, outSize);
-    gpu_gpair* buckets = new gpu_gpair[nSegments];
+    hSums = new bst_gpair[nSegments];
+    allocateOnGpu<bst_gpair>(dSums, nSegments);
+    hScans = new bst_gpair[outSize];
+    allocateOnGpu<bst_gpair>(dScans, outSize);
+    bst_gpair* buckets = new bst_gpair[nSegments];
     for (int i = 0; i < nSegments; i++) {
-      buckets[i] = gpu_gpair();
+      buckets[i] = bst_gpair();
     }
     for (int i = 0; i < nSegments; i++) {
-      hSums[i] = gpu_gpair();
+      hSums[i] = bst_gpair();
     }
     for (size_t i = 0; i < this->size; i++) {
       if (this->hKeys[i] >= 0 && this->hKeys[i] < nSegments) {
@@ -77,10 +77,10 @@ class ReduceScanByKey: public Generator<node_id_t> {
   }
 
   void run() {
-    gpu_gpair* tmpScans;
+    bst_gpair* tmpScans;
     int* tmpKeys;
     int tmpSize = scanTempBufferSize(this->size);
-    allocateOnGpu<gpu_gpair>(tmpScans, tmpSize);
+    allocateOnGpu<bst_gpair>(tmpScans, tmpSize);
     allocateOnGpu<int>(tmpKeys, tmpSize);
     TIMEIT(reduceScanByKey<node_id_t>
            (dSums, dScans, this->dVals, this->dInstIds, this->dKeys,
@@ -94,10 +94,10 @@ class ReduceScanByKey: public Generator<node_id_t> {
   }
 
  private:
-  gpu_gpair* hSums;
-  gpu_gpair* dSums;
-  gpu_gpair* hScans;
-  gpu_gpair* dScans;
+  bst_gpair* hSums;
+  bst_gpair* dSums;
+  bst_gpair* hScans;
+  bst_gpair* dScans;
   int outSize;
   int nSegments;
   int* hOffsets;

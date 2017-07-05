@@ -9,8 +9,10 @@ msvc_use_static_runtime()
 # Options
 option(PLUGIN_UPDATER_GPU "Build GPU accelerated tree construction plugin")
 option(JVM_BINDINGS "Build JVM bindings" OFF)
+option(GOOGLE_TEST "Build google tests" OFF)
 set(GPU_COMPUTE_VER 35;50;52;60;61 CACHE STRING
   "Space separated list of compute versions to be built against")
+
 
 # Compiler flags
 set(CMAKE_CXX_STANDARD 11)
@@ -33,10 +35,12 @@ include_directories (
     ${PROJECT_SOURCE_DIR}/rabit/include
 )
 
-file(GLOB_RECURSE SOURCES
+file(GLOB_RECURSE SOURCES 
     src/*.cc
     src/*.h
 )
+# Only add main function for executable target
+list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/src/cli_main.cc)
 
 # TODO: Create rabit cmakelists.txt
 set(RABIT_SOURCES
@@ -83,7 +87,7 @@ add_library(rabit STATIC ${RABIT_SOURCES})
 add_library(objxgboost OBJECT ${SOURCES})
 
 # Executable
-add_executable(runxgboost $<TARGET_OBJECTS:objxgboost>)
+add_executable(runxgboost $<TARGET_OBJECTS:objxgboost> src/cli_main.cc)
 set_target_properties(runxgboost PROPERTIES 
   OUTPUT_NAME xgboost 
 )
@@ -111,6 +115,30 @@ if(JVM_BINDINGS)
     target_link_libraries(xgboost4j
         ${LINK_LIBRARIES}
         ${JAVA_JVM_LIBRARY})
+endif()
+
+# Test
+if(GOOGLE_TEST)
+  enable_testing()
+  find_package(GTest REQUIRED)
+
+  file(GLOB_RECURSE TEST_SOURCES "tests/cpp/*.cc")
+  auto_source_group("${TEST_SOURCES}")
+  include_directories(${GTEST_INCLUDE_DIRS})
+
+  if(PLUGIN_UPDATER_GPU)
+    file(GLOB_RECURSE CUDA_TEST_SOURCES "plugin/updater_gpu/test/cpp/*.cu")
+    set(CUDA_VERBOSE_BUILD ON)
+    cuda_compile(CUDA_TEST_OBJS ${CUDA_TEST_SOURCES})
+  else()
+    set(CUDA_TEST_OBJS "")
+  endif()
+
+  add_executable(testxgboost ${TEST_SOURCES} ${CUDA_TEST_OBJS} $<TARGET_OBJECTS:objxgboost>)
+  set_output_directory(testxgboost ${PROJECT_SOURCE_DIR})
+  target_link_libraries(testxgboost ${GTEST_BOTH_LIBRARIES} ${LINK_LIBRARIES})
+
+  add_test(TestXGBoost testxgboost)
 endif()
 
 # Group sources
