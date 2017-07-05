@@ -68,7 +68,9 @@ class ColumnMatrix {
   }
 
   // construct column matrix from GHistIndexMatrix
-  inline void Init(const GHistIndexMatrix& gmat, DataType dtype) {
+  inline void Init(const GHistIndexMatrix& gmat,
+                   DataType dtype,
+                   double sparse_threshold) {
     this->dtype = dtype;
     /* if dtype is smaller than uint32_t, multiple bin_id's will be stored in each
        slot of internal buffer. */
@@ -93,7 +95,7 @@ class ColumnMatrix {
     gmat.GetFeatureCounts(&feature_counts_[0]);
     // classify features
     for (uint32_t fid = 0; fid < nfeature; ++fid) {
-      if (static_cast<double>(feature_counts_[fid]) < 0.5*nrow) {
+      if (static_cast<double>(feature_counts_[fid]) < sparse_threshold * nrow) {
         type_[fid] = kSparseColumn;
       } else {
         type_[fid] = kDenseColumn;

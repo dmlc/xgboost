@@ -25,6 +25,7 @@ namespace tree {
 
 using xgboost::common::HistCutMatrix;
 using xgboost::common::GHistIndexMatrix;
+using xgboost::common::GHistIndexBlockMatrix;
 using xgboost::common::GHistIndexRow;
 using xgboost::common::GHistEntry;
 using xgboost::common::HistCollection;
@@ -35,6 +36,65 @@ using xgboost::common::ColumnMatrix;
 using xgboost::common::Column;
 
 DMLC_REGISTRY_FILE_TAG(updater_fast_hist);
+
+/*! \brief training parameters for histogram-based training */
+struct FastHistParam : public dmlc::Parameter<FastHistParam> {
+  // maximum number of leaves
+  int max_leaves;
+  // maximum number of bins per feature
+  int max_bin;
+  // growing policy
+  enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
+  int grow_policy;
+  // integral data type to be used with columnar data storage
+  enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };
+  int colmat_dtype;
+  // percentage threshold for treating a feature as sparse
+  // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse 
+  double sparse_threshold;
+  // use feature grouping? (default yes)
+  int enable_feature_grouping;
+  // when grouping features, how many "conflicts" to allow.
+  // conflict is when an instance has nonzero values for two or more features
+  // default is 0, meaning features should be strictly complementary
+  double max_conflict_rate;
+
+  // declare the parameters
+  DMLC_DECLARE_PARAMETER(FastHistParam) {
+    DMLC_DECLARE_FIELD(max_leaves).set_lower_bound(0).set_default(0).describe(
+        "Maximum number of leaves; 0 indicates no limit.");
+    DMLC_DECLARE_FIELD(max_bin).set_lower_bound(2).set_default(256).describe(
+        "if using histogram-based algorithm, maximum number of bins per feature");
+    DMLC_DECLARE_FIELD(grow_policy)
+        .set_default(kDepthWise)
+        .add_enum("depthwise", kDepthWise)
+        .add_enum("lossguide", kLossGuide)
+        .describe(
+            "Tree growing policy. 0: favor splitting at nodes closest to the node, "
+            "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
+            "change. (cf. LightGBM)");
+    DMLC_DECLARE_FIELD(colmat_dtype)
+        .set_default(static_cast<int>(DataType::uint32))
+        .add_enum("uint8", static_cast<int>(DataType::uint8))
+        .add_enum("uint16", static_cast<int>(DataType::uint16))
+        .add_enum("uint32", static_cast<int>(DataType::uint32))
+        .describe("Integral data type to be used with columnar data storage."
+                  "May carry marginal performance implications. Reserved for "
+                  "advanced use");
+    DMLC_DECLARE_FIELD(sparse_threshold)
+        .set_range(0, 1.0).set_default(0.2)
+        .describe("percentage threshold for treating a feature as sparse");
+    DMLC_DECLARE_FIELD(enable_feature_grouping).set_lower_bound(0).set_default(1)
+        .describe("if >0, enable feature grouping to ameliorate work imbalance "
+                  "among worker threads");
+    DMLC_DECLARE_FIELD(max_conflict_rate)
+        .set_range(0, 1.0).set_default(0)
+        .describe("when grouping features, how many \"conflicts\" to allow."
+       "conflict is when an instance has nonzero values for two or more features."
+       "default is 0, meaning features should be strictly complementary.");
+  }
+};
+DMLC_REGISTER_PARAMETER(FastHistParam);
 
 /*! \brief construct a tree using quantized feature values */
 template<typename TStats, typename TConstraint>
@@ -47,6 +107,7 @@ class FastHistMaker: public TreeUpdater {
     }
     pruner_->Init(args);
     param.InitAllowUnknown(args);
+    fhparam.InitAllowUnknown(args);
     is_gmat_initialized_ = false;
   }
 
@@ -56,10 +117,16 @@ class FastHistMaker: public TreeUpdater {
     TStats::CheckInfo(dmat->info());
     if (is_gmat_initialized_ == false) {
       double tstart = dmlc::GetTime();
-      hmat_.Init(dmat, param.max_bin);
+      hmat_.Init(dmat, fhparam.max_bin);
       gmat_.cut = &hmat_;
       gmat_.Init(dmat);
-      column_matrix_.Init(gmat_, static_cast<xgboost::common::DataType>(param.colmat_dtype));
+      column_matrix_.Init(gmat_,
+              static_cast<xgboost::common::DataType>(fhparam.colmat_dtype),
+              fhparam.sparse_threshold);
+      if (fhparam.enable_feature_grouping > 0) {
+        gmatb_.Init(gmat_, column_matrix_,
+                    fhparam.max_conflict_rate, fhparam.sparse_threshold);
+      }
       is_gmat_initialized_ = true;
       if (param.debug_verbose > 0) {
         LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
@@ -71,10 +138,10 @@ class FastHistMaker: public TreeUpdater {
     TConstraint::Init(&param, dmat->info().num_col);
     // build tree
     if (!builder_) {
-      builder_.reset(new Builder(param, std::move(pruner_)));
+      builder_.reset(new Builder(param, fhparam, std::move(pruner_)));
     }
     for (size_t i = 0; i < trees.size(); ++i) {
-      builder_->Update(gmat_, column_matrix_, gpair, dmat, trees[i]);
+      builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, trees[i]);
     }
     param.learning_rate = lr;
   }
@@ -91,9 +158,13 @@ class FastHistMaker: public TreeUpdater {
  protected:
   // training parameter
   TrainParam param;
+  FastHistParam fhparam;
   // data sketch
   HistCutMatrix hmat_;
+  // quantized data matrix
   GHistIndexMatrix gmat_;
+  // (optional) data matrix with feature grouping
+  GHistIndexBlockMatrix gmatb_;
   // column accessor
   ColumnMatrix column_matrix_;
   bool is_gmat_initialized_;
@@ -136,11 +207,13 @@ class FastHistMaker: public TreeUpdater {
    public:
     // constructor
     explicit Builder(const TrainParam& param,
+                     const FastHistParam& fhparam,
                      std::unique_ptr<TreeUpdater> pruner)
-      : param(param), pruner_(std::move(pruner)),
+      : param(param), fhparam(fhparam), pruner_(std::move(pruner)),
         p_last_tree_(nullptr), p_last_fmat_(nullptr) {}
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
+                        const GHistIndexBlockMatrix& gmatb,
                         const ColumnMatrix& column_matrix,
                         const std::vector<bst_gpair>& gpair,
                         DMatrix* p_fmat,
@@ -168,7 +241,7 @@ class FastHistMaker: public TreeUpdater {
       for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
         tstart = dmlc::GetTime();
         hist_.AddHistRow(nid);
-        builder_.BuildHist(gpair, row_set_collection_[nid], gmat, feat_set, hist_[nid]);
+        BuildHist(gpair, row_set_collection_[nid], gmat, gmatb, feat_set, hist_[nid]);
         time_build_hist += dmlc::GetTime() - tstart;
 
         tstart = dmlc::GetTime();
@@ -190,7 +263,7 @@ class FastHistMaker: public TreeUpdater {
         qexpand_->pop();
         if (candidate.loss_chg <= rt_eps
             || (param.max_depth > 0 && candidate.depth == param.max_depth)
-            || (param.max_leaves > 0 && num_leaves == param.max_leaves) ) {
+            || (fhparam.max_leaves > 0 && num_leaves == fhparam.max_leaves) ) {
           (*p_tree)[nid].set_leaf(snode[nid].weight * param.learning_rate);
         } else {
           tstart = dmlc::GetTime();
@@ -203,13 +276,11 @@ class FastHistMaker: public TreeUpdater {
           hist_.AddHistRow(cleft);
           hist_.AddHistRow(cright);
           if (row_set_collection_[cleft].size() < row_set_collection_[cright].size()) {
-            builder_.BuildHist(gpair, row_set_collection_[cleft], gmat, feat_set,
-                               hist_[cleft]);
-            builder_.SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
+            BuildHist(gpair, row_set_collection_[cleft], gmat, gmatb, feat_set, hist_[cleft]);
+            SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
           } else {
-            builder_.BuildHist(gpair, row_set_collection_[cright], gmat, feat_set,
-                               hist_[cright]);
-            builder_.SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
+            BuildHist(gpair, row_set_collection_[cright], gmat, gmatb, feat_set, hist_[cright]);
+            SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
           }
           time_build_hist += dmlc::GetTime() - tstart;
 
@@ -280,6 +351,23 @@ class FastHistMaker: public TreeUpdater {
       }
     }
 
+    inline void BuildHist(const std::vector<bst_gpair>& gpair,
+                          const RowSetCollection::Elem row_indices,
+                          const GHistIndexMatrix& gmat,
+                          const GHistIndexBlockMatrix& gmatb,
+                          const std::vector<bst_uint>& feat_set,
+                          GHistRow hist) {
+      if (fhparam.enable_feature_grouping > 0) {
+        hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, feat_set, hist);
+      } else {
+        hist_builder_.BuildHist(gpair, row_indices, gmat, feat_set, hist);
+      }
+    }
+
+    inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
+      hist_builder_.SubtractionTrick(self, sibling, parent);
+    }
+
     inline bool UpdatePredictionCache(const DMatrix* data,
                                       std::vector<bst_float>* p_out_preds) {
       std::vector<bst_float>& out_preds = *p_out_preds;
@@ -328,10 +416,10 @@ class FastHistMaker: public TreeUpdater {
                          const RegTree& tree) {
       CHECK_EQ(tree.param.num_nodes, tree.param.num_roots)
           << "ColMakerHist: can only grow new tree";
-      CHECK((param.max_depth > 0 || param.max_leaves > 0))
+      CHECK((param.max_depth > 0 || fhparam.max_leaves > 0))
           << "max_depth or max_leaves cannot be both 0 (unlimited); "
           << "at least one should be a positive quantity.";
-      if (param.grow_policy == TrainParam::kDepthWise) {
+      if (fhparam.grow_policy == FastHistParam::kDepthWise) {
         CHECK(param.max_depth > 0) << "max_depth cannot be 0 (unlimited) "
           << "when grow_policy is depthwise.";
       }
@@ -351,7 +439,7 @@ class FastHistMaker: public TreeUpdater {
         {
           this->nthread = omp_get_num_threads();
         }
-        builder_.Init(this->nthread, nbins);
+        hist_builder_.Init(this->nthread, nbins);
 
         CHECK_EQ(info.root_index.size(), 0U);
         std::vector<bst_uint>& row_indices = row_set_collection_.row_indices_;
@@ -440,7 +528,7 @@ class FastHistMaker: public TreeUpdater {
         snode.clear();
       }
       {
-        if (param.grow_policy == TrainParam::kLossGuide) {
+        if (fhparam.grow_policy == FastHistParam::kLossGuide) {
           qexpand_.reset(new ExpandQueue(loss_guide));
         } else {
           qexpand_.reset(new ExpandQueue(depth_wise));
@@ -885,6 +973,7 @@ class FastHistMaker: public TreeUpdater {
 
     //  --data fields--
     const TrainParam& param;
+    const FastHistParam& fhparam;
     // number of omp thread used during training
     int nthread;
     // Per feature: shuffle index of each feature index
@@ -904,7 +993,7 @@ class FastHistMaker: public TreeUpdater {
     /*! \brief local prediction cache; maps node id to leaf value */
     std::vector<float> leaf_value_cache_;
 
-    GHistBuilder builder_;
+    GHistBuilder hist_builder_;
     std::unique_ptr<TreeUpdater> pruner_;
 
     // back pointers to tree and data matrix
