@@ -5,6 +5,7 @@
  * \author Philip Cho, Tianqi Chen
  */
 #include <dmlc/omp.h>
+#include <numeric>
 #include <vector>
 #include "./sync.h"
 #include "./random.h"
