@@ -43,7 +43,7 @@ struct FastHistParam : public dmlc::Parameter<FastHistParam> {
   enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };
   int colmat_dtype;
   // percentage threshold for treating a feature as sparse
-  // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse 
+  // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse
   double sparse_threshold;
   // use feature grouping? (default yes)
   int enable_feature_grouping;
