@@ -13,6 +13,7 @@
 #include <iomanip>
 #include <numeric>
 #include "./param.h"
+#include "./fast_hist_param.h"
 #include "../common/random.h"
 #include "../common/bitmap.h"
 #include "../common/sync.h"
@@ -37,44 +38,6 @@ using xgboost::common::Column;
 
 DMLC_REGISTRY_FILE_TAG(updater_fast_hist);
 
-/*! \brief training parameters for histogram-based training */
-struct FastHistParam : public dmlc::Parameter<FastHistParam> {
-  // integral data type to be used with columnar data storage
-  enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };
-  int colmat_dtype;
-  // percentage threshold for treating a feature as sparse
-  // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse
-  double sparse_threshold;
-  // use feature grouping? (default yes)
-  int enable_feature_grouping;
-  // when grouping features, how many "conflicts" to allow.
-  // conflict is when an instance has nonzero values for two or more features
-  // default is 0, meaning features should be strictly complementary
-  double max_conflict_rate;
-
-  // declare the parameters
-  DMLC_DECLARE_PARAMETER(FastHistParam) {
-    DMLC_DECLARE_FIELD(colmat_dtype)
-        .set_default(static_cast<int>(DataType::uint32))
-        .add_enum("uint8", static_cast<int>(DataType::uint8))
-        .add_enum("uint16", static_cast<int>(DataType::uint16))
-        .add_enum("uint32", static_cast<int>(DataType::uint32))
-        .describe("Integral data type to be used with columnar data storage."
-                  "May carry marginal performance implications. Reserved for "
-                  "advanced use");
-    DMLC_DECLARE_FIELD(sparse_threshold)
-        .set_range(0, 1.0).set_default(0.2)
-        .describe("percentage threshold for treating a feature as sparse");
-    DMLC_DECLARE_FIELD(enable_feature_grouping).set_lower_bound(0).set_default(1)
-        .describe("if >0, enable feature grouping to ameliorate work imbalance "
-                  "among worker threads");
-    DMLC_DECLARE_FIELD(max_conflict_rate)
-        .set_range(0, 1.0).set_default(0)
-        .describe("when grouping features, how many \"conflicts\" to allow."
-       "conflict is when an instance has nonzero values for two or more features."
-       "default is 0, meaning features should be strictly complementary.");
-  }
-};
 DMLC_REGISTER_PARAMETER(FastHistParam);
 
 /*! \brief construct a tree using quantized feature values */
@@ -101,12 +64,9 @@ class FastHistMaker: public TreeUpdater {
       hmat_.Init(dmat, param.max_bin);
       gmat_.cut = &hmat_;
       gmat_.Init(dmat);
-      column_matrix_.Init(gmat_,
-              static_cast<xgboost::common::DataType>(fhparam.colmat_dtype),
-              fhparam.sparse_threshold);
+      column_matrix_.Init(gmat_, fhparam);
       if (fhparam.enable_feature_grouping > 0) {
-        gmatb_.Init(gmat_, column_matrix_,
-                    fhparam.max_conflict_rate, fhparam.sparse_threshold);
+        gmatb_.Init(gmat_, column_matrix_, fhparam);
       }
       is_gmat_initialized_ = true;
       if (param.debug_verbose > 0) {

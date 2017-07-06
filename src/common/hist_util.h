@@ -11,6 +11,9 @@
 #include <limits>
 #include <vector>
 #include "row_set.h"
+#include "../tree/fast_hist_param.h"
+
+using xgboost::tree::FastHistParam;
 
 namespace xgboost {
 namespace common {
@@ -148,8 +151,7 @@ class GHistIndexBlockMatrix {
  public:
   void Init(const GHistIndexMatrix& gmat,
             const ColumnMatrix& colmat,
-            double max_conflict_rate,
-            double sparse_threshold);
+            const FastHistParam& param);
 
   inline GHistIndexBlock operator[](bst_uint i) const {
     return GHistIndexBlock(blocks[i].row_ptr_begin, blocks[i].index_begin);

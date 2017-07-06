@@ -206,9 +206,7 @@ FindGroups_(const std::vector<unsigned>& feature_list,
             const std::vector<bst_uint>& feature_nnz,
             const ColumnMatrix& colmat,
             unsigned nrow,
-            unsigned max_conflict_cnt) {
-  const unsigned max_search_group = 100;
-
+            const FastHistParam& param) {
   /* Goal: Bundle features together that has little or no "overlap", i.e.
            only a few data points should have nonzero values for
            member features.
@@ -218,6 +216,8 @@ FindGroups_(const std::vector<unsigned>& feature_list,
   std::vector<std::vector<bool>> conflict_marks;
   std::vector<unsigned> group_nnz;
   std::vector<unsigned> group_conflict_cnt;
+  const unsigned max_conflict_cnt
+    = static_cast<unsigned>(param.max_conflict_rate * nrow);
 
   for (auto fid : feature_list) {
     const Column<T>& column = colmat.GetColumn<T>(fid);
@@ -233,8 +233,8 @@ FindGroups_(const std::vector<unsigned>& feature_list,
       }
     }
     std::shuffle(search_groups.begin(), search_groups.end(), common::GlobalRandom());
-    if (search_groups.size() > max_search_group) {
-      search_groups.resize(max_search_group);
+    if (param.max_search_group > 0 && search_groups.size() > param.max_search_group) {
+      search_groups.resize(param.max_search_group);
     }
 
     // examine each candidate group: is it okay to insert fid?
@@ -270,9 +270,9 @@ FindGroups(const std::vector<unsigned>& feature_list,
            const std::vector<bst_uint>& feature_nnz,
            const ColumnMatrix& colmat,
            unsigned nrow,
-           unsigned max_conflict_cnt) {
+           const FastHistParam& param) {
   XGBOOST_TYPE_SWITCH(colmat.dtype, {
-    return FindGroups_<DType>(feature_list, feature_nnz, colmat, nrow, max_conflict_cnt);
+    return FindGroups_<DType>(feature_list, feature_nnz, colmat, nrow, param);
   });
   return std::vector<std::vector<unsigned>>();  // to avoid warning message
 }
@@ -280,12 +280,9 @@ FindGroups(const std::vector<unsigned>& feature_list,
 inline std::vector<std::vector<unsigned>>
 FastFeatureGrouping(const GHistIndexMatrix& gmat,
                     const ColumnMatrix& colmat,
-                    double max_conflict_rate,
-                    double sparse_threshold) {
+                    const FastHistParam& param) {
   const size_t nrow = gmat.row_ptr.size() - 1;
   const size_t nfeature = gmat.cut->row_ptr.size() - 1;
-  const unsigned max_conflict_cnt
-    = static_cast<unsigned>(max_conflict_rate * nrow);
 
   std::vector<unsigned> feature_list(nfeature);
   std::iota(feature_list.begin(), feature_list.end(), 0);
@@ -299,8 +296,8 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
     return feature_nnz[a] > feature_nnz[b];
   });
 
-  auto groups_alt1 = FindGroups(feature_list, feature_nnz, colmat, nrow, max_conflict_cnt);
-  auto groups_alt2 = FindGroups(features_by_nnz, feature_nnz, colmat, nrow, max_conflict_cnt);
+  auto groups_alt1 = FindGroups(feature_list, feature_nnz, colmat, nrow, param);
+  auto groups_alt2 = FindGroups(features_by_nnz, feature_nnz, colmat, nrow, param);
   auto& groups = (groups_alt1.size() > groups_alt2.size()) ? groups_alt2 : groups_alt1;
 
   // take apart small, sparse groups, as it won't help speed
@@ -316,7 +313,7 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
         }
         double nnz_rate = static_cast<double>(nnz) / nrow;
         // take apart small sparse group, due it will not gain on speed
-        if (nnz_rate <= sparse_threshold) {
+        if (nnz_rate <= param.sparse_threshold) {
           for (auto fid : group) {
             ret.emplace_back();
             ret.back().push_back(fid);
@@ -337,16 +334,14 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
 
 void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
                                  const ColumnMatrix& colmat,
-                                 double max_conflict_rate,
-                                 double sparse_threshold) {
+                                 const FastHistParam& param) {
   cut = gmat.cut;
 
   const size_t nrow = gmat.row_ptr.size() - 1;
   const size_t nbins = gmat.cut->row_ptr.back();
 
   /* step 1: form feature groups */
-  auto groups = FastFeatureGrouping(gmat, colmat, max_conflict_rate,
-                                    sparse_threshold);
+  auto groups = FastFeatureGrouping(gmat, colmat, param);
   const size_t nblock = groups.size();
 
   /* step 2: build a new CSR matrix for each feature group */
