@@ -16,7 +16,6 @@
 #pragma once
 
 #include <random>
-#include "../../src/exact/gradients.cuh"
 #include <memory>
 #include <string>
 #include <xgboost/data.h>
@@ -95,8 +94,8 @@ protected:
   int size;
   T* hKeys;
   T* dKeys;
-  gpu_gpair* hVals;
-  gpu_gpair* dVals;
+  bst_gpair* hVals;
+  bst_gpair* dVals;
   std::string testName;
   int* dColIds;
   int* hColIds;
@@ -132,17 +131,17 @@ protected:
     }
   }
 
-  void compare(gpu_gpair* exp, gpu_gpair* dAct, size_t len) {
-    gpu_gpair* act = new gpu_gpair[len];
-    updateHostPtr<gpu_gpair>(act, dAct, len);
+  void compare(bst_gpair* exp, bst_gpair* dAct, size_t len) {
+    bst_gpair* act = new bst_gpair[len];
+    updateHostPtr<bst_gpair>(act, dAct, len);
     for (size_t i=0;i<len;++i) {
       bool isSmall;
-      float ratioG = diffRatio(exp[i].g, act[i].g, isSmall);
-      float ratioH = diffRatio(exp[i].h, act[i].h, isSmall);
+      float ratioG = diffRatio(exp[i].grad, act[i].grad, isSmall);
+      float ratioH = diffRatio(exp[i].hess, act[i].hess, isSmall);
       float thresh = isSmall? SuperSmallThresh : Thresh;
       if ((ratioG >= Thresh) || (ratioH >= Thresh)) {
         printf("(exp) %f %f -> (act) %f %f : rG=%f rH=%f th=%f @%lu\n",
-               exp[i].g, exp[i].h, act[i].g, act[i].h, ratioG, ratioH,
+               exp[i].grad, exp[i].hess, act[i].grad, act[i].hess, ratioG, ratioH,
                thresh, i);
       }
       ASSERT_TRUE(ratioG < thresh);
@@ -168,12 +167,12 @@ protected:
   }
 
   void generateVals() {
-    hVals = new gpu_gpair[size];
+    hVals = new bst_gpair[size];
     for (size_t i=0;i<size;++i) {
-      hVals[i].g = randVal(-1.f, 1.f);
-      hVals[i].h = randVal(-1.f, 1.f);
+      hVals[i].grad = randVal(-1.f, 1.f);
+      hVals[i].hess = randVal(-1.f, 1.f);
     }
-    allocateAndUpdateOnGpu<gpu_gpair>(dVals, hVals, size);
+    allocateAndUpdateOnGpu<bst_gpair>(dVals, hVals, size);
   }
 
   void sortKeyValues() {
@@ -186,7 +185,7 @@ protected:
     dh::safe_cuda(cub::DeviceRadixSort::SortPairs(tmpStorage, tmpSize, dKeys,
                                                dKeys, dVals, dVals, size));
     dh::safe_cuda(cudaFree(storage));
-    updateHostPtr<gpu_gpair>(hVals, dVals, size);
+    updateHostPtr<bst_gpair>(hVals, dVals, size);
     updateHostPtr<T>(hKeys, dKeys, size);
   }
 

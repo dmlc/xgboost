@@ -20,9 +20,9 @@ before_build:
         - mkdir build2013
         - mkdir build2015
         - cd build2013
-        - cmake .. -G"Visual Studio 12 2013 Win64"
+        - cmake .. -G"Visual Studio 12 2013 Win64" -DCMAKE_CONFIGURATION_TYPES="Release;Debug;" 
         - cd ../build2015
-        - cmake .. -G"Visual Studio 14 2015 Win64"
+        - cmake .. -G"Visual Studio 14 2015 Win64" -DCMAKE_CONFIGURATION_TYPES="Release;Debug;" 
 
 build_script:
         - cd %APPVEYOR_BUILD_FOLDER%
