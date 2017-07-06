@@ -184,7 +184,7 @@ static unsigned GetConflictCount(const std::vector<bool>& mark,
 }
 
 template <typename T>
-static inline void
+inline void
 MarkUsed(std::vector<bool>* p_mark, const Column<T>& column) {
   std::vector<bool>& mark = *p_mark;
   if (column.type == xgboost::common::kDenseColumn) {
@@ -201,7 +201,7 @@ MarkUsed(std::vector<bool>* p_mark, const Column<T>& column) {
 }
 
 template <typename T>
-static inline std::vector<std::vector<unsigned>>
+inline std::vector<std::vector<unsigned>>
 FindGroups_(const std::vector<unsigned>& feature_list,
             const std::vector<bst_uint>& feature_nnz,
             const ColumnMatrix& colmat,
@@ -265,7 +265,7 @@ FindGroups_(const std::vector<unsigned>& feature_list,
   return groups;
 }
 
-static inline std::vector<std::vector<unsigned>>
+inline std::vector<std::vector<unsigned>>
 FindGroups(const std::vector<unsigned>& feature_list,
            const std::vector<bst_uint>& feature_nnz,
            const ColumnMatrix& colmat,
@@ -277,7 +277,7 @@ FindGroups(const std::vector<unsigned>& feature_list,
   return std::vector<std::vector<unsigned>>();  // to avoid warning message
 }
 
-static inline std::vector<std::vector<unsigned>>
+inline std::vector<std::vector<unsigned>>
 FastFeatureGrouping(const GHistIndexMatrix& gmat,
                     const ColumnMatrix& colmat,
                     double max_conflict_rate,
