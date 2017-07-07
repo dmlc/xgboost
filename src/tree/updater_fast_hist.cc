@@ -13,6 +13,7 @@
 #include <iomanip>
 #include <numeric>
 #include "./param.h"
+#include "./fast_hist_param.h"
 #include "../common/random.h"
 #include "../common/bitmap.h"
 #include "../common/sync.h"
@@ -25,6 +26,7 @@ namespace tree {
 
 using xgboost::common::HistCutMatrix;
 using xgboost::common::GHistIndexMatrix;
+using xgboost::common::GHistIndexBlockMatrix;
 using xgboost::common::GHistIndexRow;
 using xgboost::common::GHistEntry;
 using xgboost::common::HistCollection;
@@ -35,6 +37,8 @@ using xgboost::common::ColumnMatrix;
 using xgboost::common::Column;
 
 DMLC_REGISTRY_FILE_TAG(updater_fast_hist);
+
+DMLC_REGISTER_PARAMETER(FastHistParam);
 
 /*! \brief construct a tree using quantized feature values */
 template<typename TStats, typename TConstraint>
@@ -47,6 +51,7 @@ class FastHistMaker: public TreeUpdater {
     }
     pruner_->Init(args);
     param.InitAllowUnknown(args);
+    fhparam.InitAllowUnknown(args);
     is_gmat_initialized_ = false;
   }
 
@@ -59,7 +64,10 @@ class FastHistMaker: public TreeUpdater {
       hmat_.Init(dmat, param.max_bin);
       gmat_.cut = &hmat_;
       gmat_.Init(dmat);
-      column_matrix_.Init(gmat_, static_cast<xgboost::common::DataType>(param.colmat_dtype));
+      column_matrix_.Init(gmat_, fhparam);
+      if (fhparam.enable_feature_grouping > 0) {
+        gmatb_.Init(gmat_, column_matrix_, fhparam);
+      }
       is_gmat_initialized_ = true;
       if (param.debug_verbose > 0) {
         LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
@@ -71,10 +79,10 @@ class FastHistMaker: public TreeUpdater {
     TConstraint::Init(&param, dmat->info().num_col);
     // build tree
     if (!builder_) {
-      builder_.reset(new Builder(param, std::move(pruner_)));
+      builder_.reset(new Builder(param, fhparam, std::move(pruner_)));
     }
     for (size_t i = 0; i < trees.size(); ++i) {
-      builder_->Update(gmat_, column_matrix_, gpair, dmat, trees[i]);
+      builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, trees[i]);
     }
     param.learning_rate = lr;
   }
@@ -91,9 +99,13 @@ class FastHistMaker: public TreeUpdater {
  protected:
   // training parameter
   TrainParam param;
+  FastHistParam fhparam;
   // data sketch
   HistCutMatrix hmat_;
+  // quantized data matrix
   GHistIndexMatrix gmat_;
+  // (optional) data matrix with feature grouping
+  GHistIndexBlockMatrix gmatb_;
   // column accessor
   ColumnMatrix column_matrix_;
   bool is_gmat_initialized_;
@@ -136,11 +148,13 @@ class FastHistMaker: public TreeUpdater {
    public:
     // constructor
     explicit Builder(const TrainParam& param,
+                     const FastHistParam& fhparam,
                      std::unique_ptr<TreeUpdater> pruner)
-      : param(param), pruner_(std::move(pruner)),
+      : param(param), fhparam(fhparam), pruner_(std::move(pruner)),
         p_last_tree_(nullptr), p_last_fmat_(nullptr) {}
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
+                        const GHistIndexBlockMatrix& gmatb,
                         const ColumnMatrix& column_matrix,
                         const std::vector<bst_gpair>& gpair,
                         DMatrix* p_fmat,
@@ -168,7 +182,7 @@ class FastHistMaker: public TreeUpdater {
       for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
         tstart = dmlc::GetTime();
         hist_.AddHistRow(nid);
-        builder_.BuildHist(gpair, row_set_collection_[nid], gmat, feat_set, hist_[nid]);
+        BuildHist(gpair, row_set_collection_[nid], gmat, gmatb, feat_set, hist_[nid]);
         time_build_hist += dmlc::GetTime() - tstart;
 
         tstart = dmlc::GetTime();
@@ -203,13 +217,11 @@ class FastHistMaker: public TreeUpdater {
           hist_.AddHistRow(cleft);
           hist_.AddHistRow(cright);
           if (row_set_collection_[cleft].size() < row_set_collection_[cright].size()) {
-            builder_.BuildHist(gpair, row_set_collection_[cleft], gmat, feat_set,
-                               hist_[cleft]);
-            builder_.SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
+            BuildHist(gpair, row_set_collection_[cleft], gmat, gmatb, feat_set, hist_[cleft]);
+            SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
           } else {
-            builder_.BuildHist(gpair, row_set_collection_[cright], gmat, feat_set,
-                               hist_[cright]);
-            builder_.SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
+            BuildHist(gpair, row_set_collection_[cright], gmat, gmatb, feat_set, hist_[cright]);
+            SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
           }
           time_build_hist += dmlc::GetTime() - tstart;
 
@@ -278,6 +290,23 @@ class FastHistMaker: public TreeUpdater {
                   << "Total:             "
                   << std::fixed << std::setw(6) << std::setprecision(4) << total_time;
       }
+    }
+
+    inline void BuildHist(const std::vector<bst_gpair>& gpair,
+                          const RowSetCollection::Elem row_indices,
+                          const GHistIndexMatrix& gmat,
+                          const GHistIndexBlockMatrix& gmatb,
+                          const std::vector<bst_uint>& feat_set,
+                          GHistRow hist) {
+      if (fhparam.enable_feature_grouping > 0) {
+        hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, feat_set, hist);
+      } else {
+        hist_builder_.BuildHist(gpair, row_indices, gmat, feat_set, hist);
+      }
+    }
+
+    inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
+      hist_builder_.SubtractionTrick(self, sibling, parent);
     }
 
     inline bool UpdatePredictionCache(const DMatrix* data,
@@ -351,7 +380,7 @@ class FastHistMaker: public TreeUpdater {
         {
           this->nthread = omp_get_num_threads();
         }
-        builder_.Init(this->nthread, nbins);
+        hist_builder_.Init(this->nthread, nbins);
 
         CHECK_EQ(info.root_index.size(), 0U);
         std::vector<bst_uint>& row_indices = row_set_collection_.row_indices_;
@@ -885,6 +914,7 @@ class FastHistMaker: public TreeUpdater {
 
     //  --data fields--
     const TrainParam& param;
+    const FastHistParam& fhparam;
     // number of omp thread used during training
     int nthread;
     // Per feature: shuffle index of each feature index
@@ -904,7 +934,7 @@ class FastHistMaker: public TreeUpdater {
     /*! \brief local prediction cache; maps node id to leaf value */
     std::vector<float> leaf_value_cache_;
 
-    GHistBuilder builder_;
+    GHistBuilder hist_builder_;
     std::unique_ptr<TreeUpdater> pruner_;
 
     // back pointers to tree and data matrix
