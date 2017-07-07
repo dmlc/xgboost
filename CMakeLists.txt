@@ -62,7 +62,6 @@ set(LINK_LIBRARIES dmlccore rabit)
 if(PLUGIN_UPDATER_GPU)
   find_package(CUDA 7.5 REQUIRED)
   cmake_minimum_required(VERSION 3.5)
-  add_subdirectory(nccl)
   
   include_directories(
     nccl/src
@@ -76,6 +75,7 @@ if(PLUGIN_UPDATER_GPU)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC; -std=c++11")
   endif()
 
+  add_subdirectory(nccl)
   cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
   target_link_libraries(gpuxgboost nccl)
   list(APPEND LINK_LIBRARIES gpuxgboost) 
@@ -128,7 +128,6 @@ if(GOOGLE_TEST)
 
   if(PLUGIN_UPDATER_GPU)
     file(GLOB_RECURSE CUDA_TEST_SOURCES "plugin/updater_gpu/test/cpp/*.cu")
-    set(CUDA_VERBOSE_BUILD ON)
     cuda_compile(CUDA_TEST_OBJS ${CUDA_TEST_SOURCES})
   else()
     set(CUDA_TEST_OBJS "")
