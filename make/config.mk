@@ -39,6 +39,16 @@ USE_S3 = 0
 # whether use Azure blob support during compile
 USE_AZURE = 0
 
+#----------------------------
+# Settings for power and arm arch
+#----------------------------
+ARCH := $(shell uname -a)
+ifneq (,$(filter $(ARCH), armv6l armv7l powerpc64le ppc64le aarch64))
+	USE_SSE=0
+else
+	USE_SSE=1
+endif
+
 # Rabit library version,
 # - librabit.a Normal distributed version.
 # - librabit_empty.a Non distributed mock version,
