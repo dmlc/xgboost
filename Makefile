@@ -29,7 +29,9 @@ endif
 include $(DMLC_CORE)/make/dmlc.mk
 
 # include the plugins
+ifdef XGB_PLUGINS
 include $(XGB_PLUGINS)
+endif
 
 # set compiler defaults for OSX versus *nix
 # let people override either
@@ -70,12 +72,14 @@ endif
 ifeq ($(UNAME), Windows)
 	XGBOOST_DYLIB = lib/libxgboost.dll
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/win32
-else ifeq ($(UNAME), Darwin)
+else
+ifeq ($(UNAME), Darwin)
 	XGBOOST_DYLIB = lib/libxgboost.dylib
 	CFLAGS += -fPIC
 else
 	XGBOOST_DYLIB = lib/libxgboost.so
 	CFLAGS += -fPIC
+endif
 endif
 
 ifeq ($(UNAME), Linux)
