@@ -324,7 +324,7 @@ class FastHistMaker: public TreeUpdater {
           std::numeric_limits<float>::infinity());
       }
 
-      CHECK_GT(out_preds.size(), 0);
+      CHECK_GT(out_preds.size(), 0U);
 
       for (const RowSetCollection::Elem rowset : row_set_collection_) {
         if (rowset.begin != nullptr && rowset.end != nullptr) {
