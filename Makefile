@@ -29,7 +29,9 @@ endif
 include $(DMLC_CORE)/make/dmlc.mk
 
 # include the plugins
+ifdef XGB_PLUGINS
 include $(XGB_PLUGINS)
+endif
 
 # set compiler defaults for OSX versus *nix
 # let people override either
