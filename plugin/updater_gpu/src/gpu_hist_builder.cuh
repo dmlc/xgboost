@@ -8,26 +8,20 @@
 #include <vector>
 #include "../../src/common/hist_util.h"
 #include "../../src/tree/param.h"
+#include "../../src/common/compressed_iterator.h"
 #include "device_helpers.cuh"
 #include "types.cuh"
-
-#ifndef NCCL
-#define NCCL 1
-#endif
-
-#if (NCCL)
 #include "nccl.h"
-#endif
 
 namespace xgboost {
-
 namespace tree {
 
 struct DeviceGMat {
-  dh::dvec<int> gidx;
-  dh::dvec<int> ridx;
+  dh::dvec<common::compressed_byte_t> gidx_buffer;
+  common::CompressedIterator<int > gidx;
+  dh::dvec<int> row_ptr;
   void Init(int device_idx, const common::GHistIndexMatrix &gmat,
-            bst_uint begin, bst_uint end);
+            bst_uint begin, bst_uint end, bst_uint row_begin, bst_uint row_end,int n_bins);
 };
 
 struct HistBuilder {
@@ -95,7 +89,6 @@ class GPUHistBuilder {
   dh::bulk_allocator<dh::memory_type::DEVICE> ba;
   //  dh::bulk_allocator<dh::memory_type::DEVICE_MANAGED> ba; // can't be used
   //  with NCCL
-  dh::CubMemory cub_mem;
 
   std::vector<int> feature_set_tree;
   std::vector<int> feature_set_level;
@@ -108,6 +101,7 @@ class GPUHistBuilder {
   std::vector<int> device_row_segments;
   std::vector<int> device_element_segments;
 
+  std::vector<dh::CubMemory> temp_memory;
   std::vector<DeviceHist> hist_vec;
   std::vector<dh::dvec<Node>> nodes;
   std::vector<dh::dvec<Node>> nodes_temp;
@@ -126,10 +120,8 @@ class GPUHistBuilder {
   std::vector<dh::dvec<float>> gidx_fvalue_map;
 
   std::vector<cudaStream_t *> streams;
-#if (NCCL)
   std::vector<ncclComm_t> comms;
   std::vector<std::vector<ncclComm_t>> find_split_comms;
-#endif
 };
 }  // namespace tree
 }  // namespace xgboost

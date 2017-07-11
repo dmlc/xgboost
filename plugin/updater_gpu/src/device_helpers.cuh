@@ -2,11 +2,13 @@
  * Copyright 2017 XGBoost contributors
  */
 #pragma once
+#include <dmlc/logging.h>
+#include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
 #include <thrust/random.h>
 #include <thrust/system/cuda/error.h>
+#include <thrust/system/cuda/execution_policy.h>
 #include <thrust/system_error.h>
-#include "nccl.h"
 #include <algorithm>
 #include <chrono>
 #include <ctime>
@@ -15,7 +17,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
+#include "nccl.h"
 
 // Uncomment to enable
 // #define DEVICE_TIMER
@@ -120,87 +122,6 @@ inline int get_device_idx(int gpu_id) {
 /*
  *  Timers
  */
-
-#define MAX_WARPS 32  // Maximum number of warps to time
-#define MAX_SLOTS 10
-#define TIMER_BLOCKID 0  // Block to time
-struct DeviceTimerGlobal {
-#ifdef DEVICE_TIMER
-
-  clock_t total_clocks[MAX_SLOTS][MAX_WARPS];
-  int64_t count[MAX_SLOTS][MAX_WARPS];
-
-#endif
-
-  // Clear device memory. Call at start of kernel.
-  __device__ void Init() {
-#ifdef DEVICE_TIMER
-    if (blockIdx.x == TIMER_BLOCKID && threadIdx.x < MAX_WARPS) {
-      for (int SLOT = 0; SLOT < MAX_SLOTS; SLOT++) {
-        total_clocks[SLOT][threadIdx.x] = 0;
-        count[SLOT][threadIdx.x] = 0;
-      }
-    }
-#endif
-  }
-
-  void HostPrint() {
-#ifdef DEVICE_TIMER
-    DeviceTimerGlobal h_timer;
-    safe_cuda(
-        cudaMemcpyFromSymbol(&h_timer, (*this), sizeof(DeviceTimerGlobal)));
-
-    for (int SLOT = 0; SLOT < MAX_SLOTS; SLOT++) {
-      if (h_timer.count[SLOT][0] == 0) {
-        continue;
-      }
-
-      clock_t sum_clocks = 0;
-      int64_t sum_count = 0;
-
-      for (int WARP = 0; WARP < MAX_WARPS; WARP++) {
-        if (h_timer.count[SLOT][WARP] == 0) {
-          continue;
-        }
-
-        sum_clocks += h_timer.total_clocks[SLOT][WARP];
-        sum_count += h_timer.count[SLOT][WARP];
-      }
-
-      printf("Slot %d: %d clocks per call, called %d times.\n", SLOT,
-             sum_clocks / sum_count, h_timer.count[SLOT][0]);
-    }
-#endif
-  }
-};
-
-struct DeviceTimer {
-#ifdef DEVICE_TIMER
-  clock_t start;
-  int slot;
-  DeviceTimerGlobal &GTimer;
-#endif
-
-#ifdef DEVICE_TIMER
-  __device__ DeviceTimer(DeviceTimerGlobal &GTimer, int slot)  // NOLINT
-      : GTimer(GTimer),
-        start(clock()),
-        slot(slot) {}
-#else
-  __device__ DeviceTimer(DeviceTimerGlobal &GTimer, int slot) {}  // NOLINT
-#endif
-
-  __device__ void End() {
-#ifdef DEVICE_TIMER
-    int warp_id = threadIdx.x / 32;
-    int lane_id = threadIdx.x % 32;
-    if (blockIdx.x == TIMER_BLOCKID && lane_id == 0) {
-      GTimer.count[slot][warp_id] += 1;
-      GTimer.total_clocks[slot][warp_id] += clock() - start;
-    }
-#endif
-  }
-};
 
 struct Timer {
   typedef std::chrono::high_resolution_clock ClockT;
@@ -549,22 +470,35 @@ struct CubMemory {
   void *d_temp_storage;
   size_t temp_storage_bytes;
 
+  // Thrust
+  typedef char value_type;
+
   CubMemory() : d_temp_storage(NULL), temp_storage_bytes(0) {}
 
   ~CubMemory() { Free(); }
 
   void Free() {
-    if (d_temp_storage != NULL) {
+    if (this->IsAllocated()) {
       safe_cuda(cudaFree(d_temp_storage));
     }
   }
 
-  void LazyAllocate(size_t n_bytes) {
-    if (n_bytes > temp_storage_bytes) {
+  void LazyAllocate(size_t num_bytes) {
+    if (num_bytes > temp_storage_bytes) {
       Free();
-      safe_cuda(cudaMalloc(&d_temp_storage, n_bytes));
-      temp_storage_bytes = n_bytes;
+      safe_cuda(cudaMalloc(&d_temp_storage, num_bytes));
+      temp_storage_bytes = num_bytes;
     }
+  }
+  // Thrust
+  char *allocate(std::ptrdiff_t num_bytes) {
+    LazyAllocate(num_bytes);
+    return reinterpret_cast<char *>(d_temp_storage);
+  }
+
+  // Thrust
+  void deallocate(char *ptr, size_t n) {
+    // Do nothing
   }
 
   bool IsAllocated() { return d_temp_storage != NULL; }
@@ -591,7 +525,7 @@ void print(const thrust::device_vector<T> &v, size_t max_items = 10) {
   std::cout << "\n";
 }
 
-template <typename T, memory_type MemoryT>
+template <typename T>
 void print(const dvec<T> &v, size_t max_items = 10) {
   std::vector<T> h = v.as_vector();
   for (int i = 0; i < std::min(max_items, h.size()); i++) {
@@ -713,5 +647,119 @@ struct BernoulliRng {
     call;                     \
     t1234.printElapsed(name); \
   } while (0)
+
+// Load balancing search
+
+template <typename func_t>
+class LauncherItr {
+ public:
+  int idx;
+  func_t f;
+  XGBOOST_DEVICE LauncherItr() : idx(0) {}
+  XGBOOST_DEVICE LauncherItr(int idx, func_t f) : idx(idx), f(f) {}
+  XGBOOST_DEVICE LauncherItr &operator=(int output) {
+    f(idx, output);
+    return *this;
+  }
+};
+
+template <typename func_t>
+
+/**
+ * \class DiscardLambdaItr
+ *
+ * \brief Thrust compatible iterator type - discards algorithm output and
+ *        launches device lambda with the index of the output and the algorithm output as arguments.
+ *
+ * \author  Rory
+ * \date  7/9/2017
+ */
+
+class DiscardLambdaItr {
+ public:
+  // Required iterator traits
+  typedef DiscardLambdaItr self_type;  ///< My own type
+  typedef ptrdiff_t
+      difference_type;  ///< Type to express the result of subtracting
+                        /// one iterator from another
+  typedef LauncherItr<func_t>
+      value_type;  ///< The type of the element the iterator can point to
+  typedef value_type *pointer;   ///< The type of a pointer to an element the
+                                 /// iterator can point to
+  typedef value_type reference;  ///< The type of a reference to an element the
+                                 /// iterator can point to
+  typedef typename thrust::detail::iterator_facade_category<
+      thrust::any_system_tag, thrust::random_access_traversal_tag, value_type,
+      reference>::type iterator_category;  ///< The iterator category
+ private:
+  difference_type offset;
+  func_t f;
+
+ public:
+  XGBOOST_DEVICE DiscardLambdaItr(func_t f) : offset(0), f(f) {}
+  XGBOOST_DEVICE DiscardLambdaItr(difference_type offset, func_t f)
+      : offset(offset), f(f) {}
+
+  XGBOOST_DEVICE self_type operator+(const int &b) const {
+    return DiscardLambdaItr(offset + b, f);
+  }
+  XGBOOST_DEVICE self_type operator++() {
+    offset++;
+    return *this;
+  }
+  XGBOOST_DEVICE self_type operator++(int) {
+    self_type retval = *this;
+    offset++;
+    return retval;
+  }
+  XGBOOST_DEVICE self_type &operator+=(const int &b) {
+    offset += b;
+    return *this;
+  }
+  XGBOOST_DEVICE reference operator*() const {
+    return LauncherItr<func_t>(offset, f);
+  }
+
+  XGBOOST_DEVICE reference operator[](int idx) {
+    self_type offset = (*this) + idx;
+    return *offset;
+  }
+};
+
+/**
+ * \fn  template <typename func_t, typename segments_t> void TransformLbs(int device_idx, dh::CubMemory *temp_memory, int count, thrust::device_ptr<segments_t> segments, int num_segments, func_t f)
+ *
+ * \brief Load balancing search function. Reads a CSR type matrix description and allows a function
+ *        to be executed on each element. Search 'modern GPU load balancing search for more
+ *        information'.
+ *
+ * \author  Rory
+ * \date  7/9/2017
+ *
+ * \tparam  segments_t  Type of the segments t.
+ * \param           device_idx    Zero-based index of the device.
+ * \param [in,out]  temp_memory   Temporary memory allocator.
+ * \param           count         Number of elements.
+ * \param           segments      Device pointed to segments.
+ * \param           num_segments  Number of segments.
+ * \param           f             Lambda to be executed on matrix elements.
+ */
+
+template <typename func_t, typename segments_t>
+void TransformLbs(int device_idx, dh::CubMemory *temp_memory, int count,
+                  thrust::device_ptr<segments_t> segments, int num_segments,
+                  func_t f) {
+  safe_cuda(cudaSetDevice(device_idx));
+  auto counting = thrust::make_counting_iterator(0);
+
+  auto f_wrapper = [=] __device__(int idx, int upper_bound) {
+    f(idx, upper_bound - 1);
+  };
+
+  DiscardLambdaItr<decltype(f_wrapper)> itr(f_wrapper);
+
+  thrust::upper_bound(thrust::cuda::par(*temp_memory), segments,
+                      segments + num_segments, counting, counting + count, itr);
+}
 
 }  // namespace dh

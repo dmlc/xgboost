@@ -15,7 +15,7 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
 
     param = {'objective': 'binary:logistic',
              'max_depth': 6,
-             'silent': 1,
+             'silent': 0,
              'n_gpus': 1,
              'gpu_id': 0,
              'eval_metric': 'auc'}
@@ -26,6 +26,7 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     xgb.train(param, dtrain, args.iterations)
     print ("Time: %s seconds" % (str(time.time() - tmp)))
 
+    param['silent'] = 1
     param['tree_method'] = cpu_algorithm
     print("Training with '%s'" % param['tree_method'])
     tmp = time.time()

@@ -144,8 +144,10 @@ $ make PLUGIN_UPDATER_GPU=ON GTEST_PATH=${CACHE_PREFIX} test
 ```
 
 ## Changelog
-##### 2017/6/26
+##### 2017/7/10
+* Memory performance improved 4x for gpu_hist
 
+##### 2017/6/26
 * Change API to use tree_method parameter
 * Increase required cmake version to 3.5
 * Add compute arch 3.5 to default archs
