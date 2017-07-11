@@ -29,7 +29,7 @@ class XGBoostConfigureSuite extends FunSuite with Utils {
     val customSparkContext = new SparkContext(sparkConf)
     customSparkContext.setLogLevel("ERROR")
     // start another app
-    val trainingRDD = buildTrainingRDD(customSparkContext)
+    val trainingRDD = customSparkContext.parallelize(Agaricus.train)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic", "nthread" -> 6)
     intercept[IllegalArgumentException] {
@@ -45,7 +45,7 @@ class XGBoostConfigureSuite extends FunSuite with Utils {
     sparkConf.registerKryoClasses(Array(classOf[Booster]))
     val customSparkContext = new SparkContext(sparkConf)
     customSparkContext.setLogLevel("ERROR")
-    val trainingRDD = buildTrainingRDD(customSparkContext)
+    val trainingRDD = customSparkContext.parallelize(Agaricus.train)
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(Agaricus.test.iterator, null))
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",

@@ -74,7 +74,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
   }
 
   test("build RDD containing boosters with the specified worker number") {
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     val boosterRDD = XGBoost.buildDistributedBoosters(
       trainingRDD,
       List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
@@ -89,7 +89,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   test("training with external memory cache") {
     val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(Agaricus.test.iterator, null))
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
@@ -104,7 +104,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   test("training with Scala-implemented Rabit tracker") {
     val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(Agaricus.test.iterator, null))
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
@@ -118,7 +118,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   ignore("test with fast histo depthwise") {
     val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(Agaricus.test.iterator, null))
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "1",
@@ -133,7 +133,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   ignore("test with fast histo lossguide") {
     val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(Agaricus.test.iterator, null))
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "1",
@@ -148,7 +148,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   ignore("test with fast histo lossguide with max bin") {
     val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(Agaricus.test.iterator, null))
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
@@ -164,7 +164,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   ignore("test with fast histo depthwidth with max depth") {
     val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(Agaricus.test.iterator, null))
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
@@ -180,7 +180,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   ignore("test with fast histo depthwidth with max depth and max bin") {
     val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(Agaricus.test.iterator, null))
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
@@ -233,7 +233,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
   }
 
   test("test consistency of prediction functions with RDD") {
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     val testSet = Agaricus.test
     val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
     val testCollection = testRDD.collect()
@@ -254,7 +254,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
   }
 
   test("test eval functions with RDD") {
-    val trainingRDD = buildTrainingRDD(sc).cache()
+    val trainingRDD = sc.parallelize(Agaricus.train).cache()
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5, nWorkers = numWorkers)
@@ -268,7 +268,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       sparkContext.getOrElse(sc).parallelize(List[SparkVector](), numWorkers)
     }
 
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     val testRDD = buildEmptyRDD()
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
@@ -278,7 +278,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   test("test model consistency after save and load") {
     val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     import DataUtils._
     val testSetDMatrix = new DMatrix(new JDMatrix(Agaricus.test.iterator, null))
     val tempDir = Files.createTempDirectory("xgboosttest-")
@@ -299,7 +299,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
   test("test save and load of different types of models") {
     val tempDir = Files.createTempDirectory("xgboosttest-")
     val tempFile = Files.createTempFile(tempDir, "", "")
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Agaricus.train)
     var paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear")
     // validate regression model

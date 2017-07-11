@@ -35,8 +35,4 @@ trait Utils extends Serializable {
       file.delete()
     }
   }
-
-  protected def buildTrainingRDD(sparkContext: SparkContext): RDD[LabeledPoint] = {
-    sparkContext.parallelize(Agaricus.train, numWorkers)
-  }
 }
