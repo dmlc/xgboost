@@ -39,7 +39,6 @@ class XGBoostConfigureSuite extends FunSuite with Utils {
   }
 
   test("kryoSerializer test") {
-    labeledPointsRDD = null
     val eval = new EvalError()
     val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoostSuite")
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
@@ -47,9 +46,8 @@ class XGBoostConfigureSuite extends FunSuite with Utils {
     val customSparkContext = new SparkContext(sparkConf)
     customSparkContext.setLogLevel("ERROR")
     val trainingRDD = buildTrainingRDD(customSparkContext)
-    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val testSetDMatrix = new DMatrix(new JDMatrix(Agaricus.test.iterator, null))
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
