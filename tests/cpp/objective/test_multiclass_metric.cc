@@ -10,9 +10,9 @@ TEST(Metric, MultiClassError) {
   EXPECT_NEAR(GetMetricEval(
     metric, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}), 0, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1},
+                            {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
                             {0, 1, 2}),
-              0.666, 0.001);
+              0.666f, 0.001f);
 }
 
 TEST(Metric, MultiClassLogLoss) {
@@ -22,7 +22,7 @@ TEST(Metric, MultiClassLogLoss) {
   EXPECT_NEAR(GetMetricEval(
     metric, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {0, 1, 2}), 0, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1},
+                            {0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f},
                             {0, 1, 2}),
-              2.302, 0.001);
+              2.302f, 0.001f);
 }

@@ -11,6 +11,9 @@
 #include <limits>
 #include <vector>
 #include "row_set.h"
+#include "../tree/fast_hist_param.h"
+
+using xgboost::tree::FastHistParam;
 
 namespace xgboost {
 namespace common {
@@ -23,6 +26,10 @@ struct GHistEntry {
   double sum_hess;
 
   GHistEntry() : sum_grad(0), sum_hess(0) {}
+
+  inline void Clear() {
+    sum_grad = sum_hess = 0;
+  }
 
   /*! \brief add a bst_gpair to the sum */
   inline void Add(const bst_gpair& e) {
@@ -125,6 +132,48 @@ struct GHistIndexMatrix {
   std::vector<unsigned> hit_count_tloc_;
 };
 
+struct GHistIndexBlock {
+  const unsigned* row_ptr;
+  const unsigned* index;
+
+  inline GHistIndexBlock(const unsigned* row_ptr, const unsigned* index)
+    : row_ptr(row_ptr), index(index) {}
+
+  // get i-th row
+  inline GHistIndexRow operator[](bst_uint i) const {
+    return GHistIndexRow(&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]);
+  }
+};
+
+class ColumnMatrix;
+
+class GHistIndexBlockMatrix {
+ public:
+  void Init(const GHistIndexMatrix& gmat,
+            const ColumnMatrix& colmat,
+            const FastHistParam& param);
+
+  inline GHistIndexBlock operator[](bst_uint i) const {
+    return GHistIndexBlock(blocks[i].row_ptr_begin, blocks[i].index_begin);
+  }
+
+  inline unsigned GetNumBlock() const {
+    return blocks.size();
+  }
+
+ private:
+  std::vector<unsigned> row_ptr;
+  std::vector<unsigned> index;
+  const HistCutMatrix* cut;
+  struct Block {
+    const unsigned* row_ptr_begin;
+    const unsigned* row_ptr_end;
+    const unsigned* index_begin;
+    const unsigned* index_end;
+  };
+  std::vector<Block> blocks;
+};
+
 /*!
  * \brief histogram of graident statistics for a single node.
  *  Consists of multiple GHistEntry's, each entry showing total graident statistics 
@@ -206,6 +255,12 @@ class GHistBuilder {
                  const GHistIndexMatrix& gmat,
                  const std::vector<bst_uint>& feat_set,
                  GHistRow hist);
+  // same, with feature grouping
+  void BuildBlockHist(const std::vector<bst_gpair>& gpair,
+                      const RowSetCollection::Elem row_indices,
+                      const GHistIndexBlockMatrix& gmatb,
+                      const std::vector<bst_uint>& feat_set,
+                      GHistRow hist);
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
@@ -215,7 +270,6 @@ class GHistBuilder {
   /*! \brief number of all bins over all features */
   size_t nbins_;
   std::vector<GHistEntry> data_;
-  std::vector<bst_gpair> stat_buf_;
 };
 
 

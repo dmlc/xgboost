@@ -12,7 +12,7 @@ subset = 0.4
 n_rows = 1183747;
 train_rows = int(n_rows * subset)
 random.seed(random_seed)
-skip = sorted(random.sample(xrange(1,n_rows + 1),n_rows-train_rows))
+skip = sorted(random.sample(range(1,n_rows + 1),n_rows-train_rows))
 data = pd.read_csv("../data/train_numeric.csv", index_col=0, dtype=np.float32, skiprows=skip)
 y = data['Response'].values
 del data['Response']
@@ -28,9 +28,9 @@ param['tree_method'] = 'gpu_exact'
 
 num_round = 20
 
-cv = StratifiedKFold(y, n_folds=5)
+skf = StratifiedKFold(n_splits=5)
 
-for i, (train, test) in enumerate(cv):
+for i, (train, test) in enumerate(skf.split(X, y)):
     dtrain = xgb.DMatrix(X[train], label=y[train])
     tmp = time.time()
     bst = xgb.train(param, dtrain, num_round)
