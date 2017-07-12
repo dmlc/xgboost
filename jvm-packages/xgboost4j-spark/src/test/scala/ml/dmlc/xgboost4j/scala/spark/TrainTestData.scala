@@ -22,7 +22,7 @@ import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{Vectors => MLVectors}
 
 trait TrainTestData {
-  private def getResourceLines(resource: String): Iterator[String] = {
+  protected def getResourceLines(resource: String): Iterator[String] = {
     require(resource.startsWith("/"), "resource must start with /")
     val is = getClass.getResourceAsStream(resource)
     if (is == null) {
@@ -30,10 +30,6 @@ trait TrainTestData {
     }
 
     Source.fromInputStream(is).getLines()
-  }
-
-  protected def getGroups(resource: String): Seq[Int] = {
-    getResourceLines(resource).map(_.toInt).toSeq
   }
 
   protected def getLabeledPoints(resource: String, zeroBased: Boolean): Seq[MLLabeledPoint] = {
@@ -51,24 +47,28 @@ trait TrainTestData {
       }
 
       MLLabeledPoint(label, MLVectors.dense(values))
-    }.toSeq
+    }.toList
   }
 }
 
-object Agaricus extends TrainTestData {
+object Classification extends TrainTestData {
   val train: Seq[MLLabeledPoint] = getLabeledPoints("/agaricus.txt.train", zeroBased = false)
   val test: Seq[MLLabeledPoint] = getLabeledPoints("/agaricus.txt.test", zeroBased = false)
 }
 
-object Machine extends TrainTestData {
+object Regression extends TrainTestData {
   val train: Seq[MLLabeledPoint] = getLabeledPoints("/machine.txt.train", zeroBased = true)
   val test: Seq[MLLabeledPoint] = getLabeledPoints("/machine.txt.test", zeroBased = true)
 }
 
-object RankDemo extends TrainTestData {
+object Ranking extends TrainTestData {
   val train0: Seq[MLLabeledPoint] = getLabeledPoints("/rank-demo-0.txt.train", zeroBased = false)
   val train1: Seq[MLLabeledPoint] = getLabeledPoints("/rank-demo-1.txt.train", zeroBased = false)
   val trainGroup0: Seq[Int] = getGroups("/rank-demo-0.txt.train.group")
   val trainGroup1: Seq[Int] = getGroups("/rank-demo-1.txt.train.group")
   val test: Seq[MLLabeledPoint] = getLabeledPoints("/rank-demo.txt.test", zeroBased = false)
+
+  private def getGroups(resource: String): Seq[Int] = {
+    getResourceLines(resource).map(_.toInt).toList
+  }
 }

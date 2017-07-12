@@ -18,14 +18,6 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 
-import scala.collection.mutable.ListBuffer
-import scala.io.Source
-
-import org.apache.spark.SparkContext
-import org.apache.spark.ml.feature.LabeledPoint
-import org.apache.spark.ml.linalg.{DenseVector, Vector => SparkVector}
-import org.apache.spark.rdd.RDD
-
 trait Utils extends Serializable {
   protected val numWorkers: Int = Runtime.getRuntime.availableProcessors()
 
