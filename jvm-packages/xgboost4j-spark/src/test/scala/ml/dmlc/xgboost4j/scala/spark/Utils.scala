@@ -18,73 +18,13 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 
-import scala.collection.mutable.ListBuffer
-import scala.io.Source
-
-import org.apache.spark.SparkContext
-import org.apache.spark.ml.feature.LabeledPoint
-import org.apache.spark.ml.linalg.{DenseVector, Vector => SparkVector}
-import org.apache.spark.rdd.RDD
-
 trait Utils extends Serializable {
-  protected val numWorkers = Runtime.getRuntime().availableProcessors()
-
-  protected var labeledPointsRDD: RDD[LabeledPoint] = null
+  protected val numWorkers: Int = Runtime.getRuntime.availableProcessors()
 
   protected def cleanExternalCache(prefix: String): Unit = {
     val dir = new File(".")
     for (file <- dir.listFiles() if file.getName.startsWith(prefix)) {
       file.delete()
     }
-  }
-
-  protected def loadLabelPoints(filePath: String, zeroBased: Boolean = false):
-      List[LabeledPoint] = {
-    val file = Source.fromFile(new File(filePath))
-    val sampleList = new ListBuffer[LabeledPoint]
-    for (sample <- file.getLines()) {
-      sampleList += fromColValueStringToLabeledPoint(sample, zeroBased)
-    }
-    sampleList.toList
-  }
-
-  protected def loadLabelAndVector(filePath: String, zeroBased: Boolean = false):
-      List[(Double, SparkVector)] = {
-    val file = Source.fromFile(new File(filePath))
-    val sampleList = new ListBuffer[(Double, SparkVector)]
-    for (sample <- file.getLines()) {
-      sampleList += fromColValueStringToLabelAndVector(sample, zeroBased)
-    }
-    sampleList.toList
-  }
-
-  protected def fromColValueStringToLabelAndVector(line: String, zeroBased: Boolean):
-      (Double, SparkVector) = {
-    val labelAndFeatures = line.split(" ")
-    val label = labelAndFeatures(0).toDouble
-    val features = labelAndFeatures.tail
-    val denseFeature = new Array[Double](126)
-    for (feature <- features) {
-      val idAndValue = feature.split(":")
-      if (!zeroBased) {
-        denseFeature(idAndValue(0).toInt - 1) = idAndValue(1).toDouble
-      } else {
-        denseFeature(idAndValue(0).toInt) = idAndValue(1).toDouble
-      }
-    }
-    (label, new DenseVector(denseFeature))
-  }
-
-  protected def fromColValueStringToLabeledPoint(line: String, zeroBased: Boolean): LabeledPoint = {
-    val (label, sv) = fromColValueStringToLabelAndVector(line, zeroBased)
-    LabeledPoint(label, sv)
-  }
-
-  protected def buildTrainingRDD(sparkContext: SparkContext): RDD[LabeledPoint] = {
-    if (labeledPointsRDD == null) {
-      val sampleList = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile)
-      labeledPointsRDD = sparkContext.parallelize(sampleList, numWorkers)
-    }
-    labeledPointsRDD
   }
 }

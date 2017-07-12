@@ -45,8 +45,8 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
 
   private def buildTrainingDataframe(sparkContext: Option[SparkContext] = None): DataFrame = {
     if (trainingDF == null) {
-      val rowList = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile)
-      val labeledPointsRDD = sparkContext.getOrElse(sc).parallelize(rowList, numWorkers)
+      val labeledPointsRDD = sparkContext.getOrElse(sc)
+          .parallelize(Classification.train, numWorkers)
       val sparkSession = SparkSession.builder().appName("XGBoostDFSuite").getOrCreate()
       import sparkSession.implicits._
       trainingDF = sparkSession.createDataset(labeledPointsRDD).toDF
@@ -57,10 +57,8 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("test consistency and order preservation of dataframe-based model") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val trainingItr = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile).
-      iterator
-    val (testItr, auxTestItr) =
-      loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator.duplicate
+    val trainingItr = Classification.train.iterator
+    val (testItr, auxTestItr) = Classification.test.iterator.duplicate
     import DataUtils._
     val round = 5
     val trainDMatrix = new DMatrix(new JDMatrix(trainingItr, null))
@@ -91,7 +89,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("test transformLeaf") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val testItr = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    val testItr = Classification.test.iterator
     val trainingDF = buildTrainingDataframe()
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers)
@@ -107,15 +105,10 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("test schema of XGBoostRegressionModel") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear")
-    val testItr = loadLabelPoints(getClass.getResource("/machine.txt.test").getFile,
-      zeroBased = true).iterator.
-      zipWithIndex.map { case (instance: LabeledPoint, id: Int) =>
-      (id, instance.features, instance.label)
-    }
+    val testItr = Regression.test.iterator.zipWithIndex
+        .map { case (instance: LabeledPoint, id: Int) => (id, instance.features, instance.label) }
     val trainingDF = {
-      val rowList = loadLabelPoints(getClass.getResource("/machine.txt.train").getFile,
-        zeroBased = true)
-      val labeledPointsRDD = sc.parallelize(rowList, numWorkers)
+      val labeledPointsRDD = sc.parallelize(Regression.train, numWorkers)
       val sparkSession = SparkSession.builder().appName("XGBoostDFSuite").getOrCreate()
       import sparkSession.implicits._
       sparkSession.createDataset(labeledPointsRDD).toDF
@@ -136,7 +129,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("test schema of XGBoostClassificationModel") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val testItr = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator.
+    val testItr = Classification.test.iterator.
       zipWithIndex.map { case (instance: LabeledPoint, id: Int) =>
       (id, instance.features, instance.label)
     }
@@ -199,7 +192,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
       "eval_metric" -> "error")
-    val testItr = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+    val testItr = Classification.test.iterator
     val trainingDF = buildTrainingDataframe()
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 10, nWorkers = math.min(2, numWorkers))
@@ -245,25 +238,17 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   }
 
   test("test DF use nested groupData") {
-    val testItr = loadLabelPoints(getClass.getResource("/rank-demo.txt.test").getFile).iterator.
-      zipWithIndex.map { case (instance: LabeledPoint, id: Int) =>
-      (id, instance.features, instance.label)
-    }
+    val testItr = Ranking.test.iterator.zipWithIndex
+        .map { case (instance: LabeledPoint, id: Int) => (id, instance.features, instance.label) }
     val trainingDF = {
-      val rowList0 = loadLabelPoints(getClass.getResource("/rank-demo-0.txt.train").getFile)
-      val labeledPointsRDD0 = sc.parallelize(rowList0, numSlices = 1)
-      val rowList1 = loadLabelPoints(getClass.getResource("/rank-demo-1.txt.train").getFile)
-      val labeledPointsRDD1 = sc.parallelize(rowList1, numSlices = 1)
+      val labeledPointsRDD0 = sc.parallelize(Ranking.train0, numSlices = 1)
+      val labeledPointsRDD1 = sc.parallelize(Ranking.train1, numSlices = 1)
       val labeledPointsRDD = labeledPointsRDD0.union(labeledPointsRDD1)
       val sparkSession = SparkSession.builder().appName("XGBoostDFSuite").getOrCreate()
       import sparkSession.implicits._
       sparkSession.createDataset(labeledPointsRDD).toDF
     }
-    val trainGroupData0: Seq[Int] = Source.fromFile(
-      getClass.getResource("/rank-demo-0.txt.train.group").getFile).getLines().map(_.toInt).toList
-    val trainGroupData1: Seq[Int] = Source.fromFile(
-      getClass.getResource("/rank-demo-1.txt.train.group").getFile).getLines().map(_.toInt).toList
-    val trainGroupData: Seq[Seq[Int]] = Seq(trainGroupData0, trainGroupData1)
+    val trainGroupData: Seq[Seq[Int]] = Seq(Ranking.trainGroup0, Ranking.trainGroup1)
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
 
