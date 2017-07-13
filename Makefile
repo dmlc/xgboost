@@ -19,7 +19,15 @@ export LDFLAGS= -Llib -Wl,-rpath=/usr/local/lib/gcc6
 endif
 
 export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -std=c++0x
-export CFLAGS = -O3 -msse2 $(WARNFLAGS)
+export CFLAGS = -O3 $(WARNFLAGS)
+
+ifndef USE_SSE
+	USE_SSE = 1
+endif
+
+ifeq ($(USE_SSE), 1)
+	CFLAGS += -msse2
+endif
 
 ifndef WITH_FPIC
 	WITH_FPIC = 1
