@@ -16,28 +16,30 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.SparkContext
+import org.apache.spark.sql.SparkSession
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FunSuite}
 
 trait SharedSparkContext extends FunSuite with BeforeAndAfter with BeforeAndAfterAll
   with Serializable {
 
-  @transient protected implicit var sc: SparkContext = _
+  @transient protected var sparkSession: SparkSession = _
+
+  implicit def sc: SparkContext = sparkSession.sparkContext
 
   override def beforeAll() {
-    val sparkConf = new SparkConf()
-      .setMaster("local[*]")
-      .setAppName("XGBoostSuite")
-      .set("spark.driver.memory", "512m")
-      .set("spark.ui.enabled", "false")
-
-    sc = new SparkContext(sparkConf)
+    sparkSession = SparkSession.builder()
+        .master("local[*]")
+        .appName("XGBoostSuite")
+        .config("spark.driver.memory", "512m")
+        .config("spark.ui.enabled", false)
+        .getOrCreate()
   }
 
   override def afterAll() {
-    if (sc != null) {
-      sc.stop()
-      sc = null
+    if (sparkSession != null) {
+      sparkSession.stop()
+      sparkSession = null
     }
   }
 }
