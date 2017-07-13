@@ -25,11 +25,6 @@ import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 
 class XGBoostDFSuite extends SharedSparkContext with Utils {
-
-  after {
-    cleanExternalCache("XGBoostDFSuite")
-  }
-
   private def buildTestDataFrame(test: Seq[MLLabeledPoint]): DataFrame = {
     val it = test.iterator.zipWithIndex.map {
       case (instance: MLLabeledPoint, id: Int) =>

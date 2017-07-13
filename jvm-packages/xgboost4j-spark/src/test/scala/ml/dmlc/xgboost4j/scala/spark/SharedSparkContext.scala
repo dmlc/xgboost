@@ -16,6 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.io.File
+
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FunSuite}
@@ -39,7 +41,15 @@ trait SharedSparkContext extends FunSuite with BeforeAndAfter with BeforeAndAfte
   override def afterAll() {
     if (sparkSession != null) {
       sparkSession.stop()
+      cleanExternalCache(sparkSession.sparkContext.appName)
       sparkSession = null
+    }
+  }
+
+  private def cleanExternalCache(prefix: String): Unit = {
+    val dir = new File(".")
+    for (file <- dir.listFiles() if file.getName.startsWith(prefix)) {
+      file.delete()
     }
   }
 }

@@ -84,7 +84,6 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       missing = Float.NaN, baseMargin = null)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === 2)
-    cleanExternalCache("XGBoostSuite")
   }
 
   test("training with external memory cache") {
@@ -98,8 +97,6 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       nWorkers = numWorkers, useExternalMemory = true)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
-    // clean
-    cleanExternalCache("XGBoostSuite")
   }
 
   test("training with Scala-implemented Rabit tracker") {
@@ -228,8 +225,6 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers,
       useExternalMemory = true)
     xgBoostModel.predict(testRDD.map(_.features.toDense), missingValue = -0.1f).collect()
-    // clean
-    cleanExternalCache("XGBoostSuite")
   }
 
   test("test consistency of prediction functions with RDD") {

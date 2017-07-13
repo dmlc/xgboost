@@ -16,15 +16,6 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.io.File
-
 trait Utils extends Serializable {
   protected val numWorkers: Int = Runtime.getRuntime.availableProcessors()
-
-  protected def cleanExternalCache(prefix: String): Unit = {
-    val dir = new File(".")
-    for (file <- dir.listFiles() if file.getName.startsWith(prefix)) {
-      file.delete()
-    }
-  }
 }
