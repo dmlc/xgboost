@@ -22,7 +22,7 @@ import java.util.concurrent.LinkedBlockingDeque
 import scala.collection.mutable.ListBuffer
 import scala.util.Random
 
-import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
+import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 
@@ -90,7 +90,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val eval = new EvalError()
     val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(Classification.test.iterator, null))
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
@@ -103,7 +103,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val eval = new EvalError()
     val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(Classification.test.iterator, null))
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic",
       "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala")).toMap
@@ -117,7 +117,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val eval = new EvalError()
     val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(Classification.test.iterator, null))
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "eval_metric" -> "error")
@@ -132,7 +132,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val eval = new EvalError()
     val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(Classification.test.iterator, null))
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "1",
             "objective" -> "binary:logistic", "tree_method" -> "hist",
             "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "error")
@@ -147,7 +147,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val eval = new EvalError()
     val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(Classification.test.iterator, null))
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
             "objective" -> "binary:logistic", "tree_method" -> "hist",
             "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
@@ -163,7 +163,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val eval = new EvalError()
     val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(Classification.test.iterator, null))
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
@@ -179,7 +179,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val eval = new EvalError()
     val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(Classification.test.iterator, null))
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
             "objective" -> "binary:logistic", "tree_method" -> "hist",
             "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
@@ -275,7 +275,7 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
     val eval = new EvalError()
     val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(Classification.test.iterator, null))
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val tempDir = Files.createTempDirectory("xgboosttest-")
     val tempFile = Files.createTempFile(tempDir, "", "")
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",

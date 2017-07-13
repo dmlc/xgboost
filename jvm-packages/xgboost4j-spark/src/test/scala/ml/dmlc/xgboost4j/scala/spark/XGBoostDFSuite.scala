@@ -16,7 +16,6 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
@@ -50,8 +49,8 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     val testItr = Classification.test.iterator
     import DataUtils._
     val round = 5
-    val trainDMatrix = new DMatrix(new JDMatrix(trainingItr, null))
-    val testDMatrix = new DMatrix(new JDMatrix(testItr, null))
+    val trainDMatrix = new DMatrix(trainingItr)
+    val testDMatrix = new DMatrix(testItr)
     val xgboostModel = ScalaXGBoost.train(trainDMatrix, paramMap, round)
     val predResultFromSeq = xgboostModel.predict(testDMatrix)
     val trainingDF = buildTrainDataFrame(Classification.train)
@@ -164,7 +163,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
       round = 10, nWorkers = math.min(2, numWorkers))
     val error = new EvalError
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(testItr, null))
+    val testSetDMatrix = new DMatrix(testItr)
     assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
   }

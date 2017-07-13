@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable
 
-import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, DMatrix => JDMatrix, RabitTracker => PyRabitTracker}
+import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.commons.logging.LogFactory
@@ -115,7 +115,7 @@ object XGBoost extends Serializable {
       rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv)
       val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
-      val trainingMatrix = new DMatrix(new JDMatrix(partitionItr, cacheFileName))
+      val trainingMatrix = new DMatrix(partitionItr, cacheFileName)
       try {
         if (params.contains("groupData") && params("groupData") != null) {
           trainingMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](

@@ -16,8 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
+
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.FunSuite
 
@@ -47,7 +47,7 @@ class XGBoostConfigureSuite extends FunSuite with Utils {
     customSparkContext.setLogLevel("ERROR")
     val trainingRDD = customSparkContext.parallelize(Classification.train)
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(Classification.test.iterator, null))
+    val testSetDMatrix = new DMatrix(Classification.test.iterator, null)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
