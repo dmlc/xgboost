@@ -1,4 +1,4 @@
-FROM nvidia/cuda:8.0-devel-ubuntu14.04
+FROM ubuntu:14.04
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
