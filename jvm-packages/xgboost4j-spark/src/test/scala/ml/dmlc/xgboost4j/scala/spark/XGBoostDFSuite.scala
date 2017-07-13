@@ -16,11 +16,6 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.io.File
-
-import scala.collection.mutable.ListBuffer
-import scala.io.Source
-
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 
@@ -179,32 +174,11 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
       testSetDMatrix) < 0.1)
   }
 
-  private def convertCSVPointToLabelPoint(rawValues: Array[String]): MLLabeledPoint = {
-    val values = new Array[Double](rawValues.length)
-    values(rawValues.length - 2) = if (rawValues(rawValues.length - 2) == "?") 1 else 0
-    values(rawValues.length - 1) = rawValues(rawValues.length - 1).toDouble - 1
-    for (i <- 0 until values.length - 2) {
-      values(i) = rawValues(i).toDouble
-    }
-    MLLabeledPoint(values.last, new DenseVector(values.take(values.length - 1)))
-  }
-
-  private def loadCSVPoints(filePath: String, zeroBased: Boolean = false): Seq[MLLabeledPoint] = {
-    val file = Source.fromFile(new File(filePath))
-    val sampleList = new ListBuffer[MLLabeledPoint]
-    for (sample <- file.getLines()) {
-      sampleList += convertCSVPointToLabelPoint(sample.split(","))
-    }
-    sampleList
-  }
-
   test("multi_class classification test") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "multi:softmax", "num_class" -> "6")
-    val trainingSet = loadCSVPoints(getClass.getResource("/dermatology.data").getFile)
-    val spark = SparkSession.builder().getOrCreate()
-    import spark.implicits._
-    XGBoost.trainWithDataFrame(trainingSet.toDF(), paramMap, round = 5, nWorkers = numWorkers)
+    val trainingDF = buildTrainDataFrame(MultiClassification.train)
+    XGBoost.trainWithDataFrame(trainingDF.toDF(), paramMap, round = 5, nWorkers = numWorkers)
   }
 
   test("test DF use nested groupData") {
@@ -225,11 +199,8 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("params of estimator and produced model are coordinated correctly") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "multi:softmax", "num_class" -> "6")
-    val trainingSet = loadCSVPoints(getClass.getResource("/dermatology.data").getFile)
-    val spark = SparkSession.builder().getOrCreate()
-    import spark.implicits._
-    val model =
-      XGBoost.trainWithDataFrame(trainingSet.toDF(), paramMap, round = 5, nWorkers = numWorkers)
+    val trainingDF = buildTrainDataFrame(MultiClassification.train)
+    val model = XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5, nWorkers = numWorkers)
     assert(model.get[Double](model.eta).get == 0.1)
     assert(model.get[Int](model.maxDepth).get == 6)
   }

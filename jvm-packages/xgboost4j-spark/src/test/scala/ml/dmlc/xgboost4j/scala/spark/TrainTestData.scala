@@ -56,6 +56,25 @@ object Classification extends TrainTestData {
   val test: Seq[MLLabeledPoint] = getLabeledPoints("/agaricus.txt.test", zeroBased = false)
 }
 
+object MultiClassification extends TrainTestData {
+  val train: Seq[MLLabeledPoint] = getLabeledPoints("/dermatology.data")
+
+  private def getLabeledPoints(resource: String): Seq[MLLabeledPoint] = {
+    getResourceLines(resource).map { line =>
+      val featuresAndLabel = line.split(",")
+      val label = featuresAndLabel.last.toDouble - 1
+      val values = new Array[Double](featuresAndLabel.length - 1)
+      values(values.length - 1) =
+          if (featuresAndLabel(featuresAndLabel.length - 2) == "?") 1 else 0
+      for (i <- 0 until values.length - 2) {
+        values(i) = featuresAndLabel(i).toDouble
+      }
+
+      MLLabeledPoint(label, MLVectors.dense(values.take(values.length - 1)))
+    }.toList
+  }
+}
+
 object Regression extends TrainTestData {
   val train: Seq[MLLabeledPoint] = getLabeledPoints("/machine.txt.train", zeroBased = true)
   val test: Seq[MLLabeledPoint] = getLabeledPoints("/machine.txt.test", zeroBased = true)
