@@ -193,29 +193,19 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
 
   test("test with dense vectors containing missing value") {
     def buildDenseRDD(): RDD[LabeledPoint] = {
-      val nrow = 100
-      val ncol = 5
-      val data0 = Array.ofDim[Double](nrow, ncol)
-      // put random nums
-      for (r <- 0 until nrow; c <- 0 until ncol) {
-        data0(r)(c) = {
-          if (c == ncol - 1) {
-            -0.1
-          } else {
-            Random.nextDouble()
-          }
+      val numRows = 100
+      val numCols = 5
+
+      val labeledPoints = (0 until numRows).map { _ =>
+        val label = Random.nextDouble()
+        val values = Array.tabulate[Double](numCols) { c =>
+          if (c == numCols - 1) -0.1 else Random.nextDouble()
         }
+
+        LabeledPoint(label, Vectors.dense(values))
       }
-      // create label
-      val label0 = new Array[Double](nrow)
-      for (i <- label0.indices) {
-        label0(i) = Random.nextDouble()
-      }
-      val points = new ListBuffer[LabeledPoint]
-      for (r <- 0 until nrow) {
-        points += LabeledPoint(label0(r), Vectors.dense(data0(r)))
-      }
-      sc.parallelize(points)
+
+      sc.parallelize(labeledPoints)
     }
 
     val trainingRDD = buildDenseRDD().repartition(4)
