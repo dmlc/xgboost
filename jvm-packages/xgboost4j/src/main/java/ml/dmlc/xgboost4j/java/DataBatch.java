@@ -55,7 +55,7 @@ class DataBatch {
       while (base.hasNext() && batch.size() < batchSize) {
         LabeledPoint labeledPoint = base.next();
         batch.add(labeledPoint);
-        numElem += labeledPoint.values.length;
+        numElem += labeledPoint.values().length;
         numRows++;
       }
 
@@ -68,18 +68,19 @@ class DataBatch {
       for (int i = 0; i < batch.size(); i++) {
         LabeledPoint labeledPoint = batch.get(i);
         rowOffset[i] = offset;
-        label[i] = labeledPoint.label;
-        if (labeledPoint.indices != null) {
-          System.arraycopy(labeledPoint.indices, 0, featureIndex, offset,
-                  labeledPoint.indices.length);
+        label[i] = labeledPoint.label();
+        if (labeledPoint.indices() != null) {
+          System.arraycopy(labeledPoint.indices(), 0, featureIndex, offset,
+                  labeledPoint.indices().length);
         } else {
-          for (int j = 0; j < labeledPoint.values.length; j++) {
+          for (int j = 0; j < labeledPoint.values().length; j++) {
             featureIndex[offset + j] = j;
           }
         }
 
-        System.arraycopy(labeledPoint.values, 0, featureValue, offset, labeledPoint.values.length);
-        offset += labeledPoint.values.length;
+        System.arraycopy(labeledPoint.values(), 0, featureValue, offset,
+                labeledPoint.values().length);
+        offset += labeledPoint.values().length;
       }
 
       rowOffset[batch.size()] = offset;

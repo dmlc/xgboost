@@ -19,6 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.LabeledPoint
+
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 
@@ -33,11 +34,10 @@ object DataUtils extends Serializable {
       Iterator[LabeledPoint] = {
     for (p <- sps) yield {
       p.features match {
-        case denseFeature: DenseVector =>
-          LabeledPoint.fromDenseVector(p.label.toFloat, denseFeature.values.map(_.toFloat))
-        case sparseFeature: SparseVector =>
-          LabeledPoint.fromSparseVector(p.label.toFloat, sparseFeature.indices,
-            sparseFeature.values.map(_.toFloat))
+        case v: DenseVector =>
+          LabeledPoint(p.label.toFloat, null, v.values.map(_.toFloat))
+        case v: SparseVector =>
+          LabeledPoint(p.label.toFloat, v.indices, v.values.map(_.toFloat))
       }
     }
   }
@@ -51,11 +51,10 @@ object DataUtils extends Serializable {
     : Iterator[LabeledPoint] = {
     for (p <- sps) yield {
       p match {
-        case denseFeature: DenseVector =>
-          LabeledPoint.fromDenseVector(0.0f, denseFeature.values.map(_.toFloat))
-        case sparseFeature: SparseVector =>
-          LabeledPoint.fromSparseVector(0.0f, sparseFeature.indices,
-            sparseFeature.values.map(_.toFloat))
+        case v: DenseVector =>
+          LabeledPoint(0.0f, null, v.values.map(_.toFloat))
+        case v: SparseVector =>
+          LabeledPoint(0.0f, v.indices, v.values.map(_.toFloat))
       }
     }
   }
