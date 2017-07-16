@@ -24,22 +24,17 @@ import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 
 class XGBoostDFSuite extends SharedSparkContext with Utils {
-  private def buildTestDataFrame(test: Seq[MLLabeledPoint]): DataFrame = {
-    val it = test.iterator.zipWithIndex.map {
-      case (instance: MLLabeledPoint, id: Int) =>
-        (id, instance.features, instance.label)
-    }
-
-    sparkSession.createDataFrame(it.toList).toDF("id", "features", "label")
-  }
-
-  private def buildTrainDataFrame(
-      train: Seq[MLLabeledPoint],
+  private def buildDataFrame(
+      instances: Seq[MLLabeledPoint],
       numPartitions: Int = numWorkers
   ): DataFrame = {
-    val ss = sparkSession
-    import ss.implicits._
-    sparkSession.createDataset(sc.parallelize(train, numPartitions)).toDF
+    val it = instances.iterator.zipWithIndex
+        .map { case (instance: MLLabeledPoint, id: Int) =>
+          (id, instance.label, instance.features)
+        }
+
+    sparkSession.createDataFrame(sc.parallelize(it.toList, numPartitions))
+        .toDF("id", "label", "features")
   }
 
   test("test consistency and order preservation of dataframe-based model") {
@@ -53,10 +48,10 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     val testDMatrix = new DMatrix(testItr)
     val xgboostModel = ScalaXGBoost.train(trainDMatrix, paramMap, round)
     val predResultFromSeq = xgboostModel.predict(testDMatrix)
-    val trainingDF = buildTrainDataFrame(Classification.train)
+    val trainingDF = buildDataFrame(Classification.train)
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = round, nWorkers = numWorkers)
-    val testDF = buildTestDataFrame(Classification.test)
+    val testDF = buildDataFrame(Classification.test)
     val predResultsFromDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF).
       collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probabilities"))).toMap
     assert(testDF.count() === predResultsFromDF.size)
@@ -73,21 +68,21 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("test transformLeaf") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val trainingDF = buildTrainDataFrame(Classification.train)
+    val trainingDF = buildDataFrame(Classification.train)
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers)
-    val testDF = buildTestDataFrame(Classification.test)
+    val testDF = buildDataFrame(Classification.test)
     xgBoostModelWithDF.transformLeaf(testDF).show()
   }
 
   test("test schema of XGBoostRegressionModel") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear")
-    val trainingDF = buildTrainDataFrame(Regression.train)
+    val trainingDF = buildDataFrame(Regression.train)
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = true)
     xgBoostModelWithDF.setPredictionCol("final_prediction")
-    val testDF = buildTestDataFrame(Regression.test)
+    val testDF = buildDataFrame(Regression.test)
     val predictionDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF)
     assert(predictionDF.columns.contains("id"))
     assert(predictionDF.columns.contains("features"))
@@ -99,12 +94,12 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("test schema of XGBoostClassificationModel") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val trainingDF = buildTrainDataFrame(Classification.train)
+    val trainingDF = buildDataFrame(Classification.train)
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = true)
     xgBoostModelWithDF.asInstanceOf[XGBoostClassificationModel].setRawPredictionCol(
       "raw_prediction").setPredictionCol("final_prediction")
-    val testDF = buildTestDataFrame(Classification.test)
+    val testDF = buildDataFrame(Classification.test)
     var predictionDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF)
     assert(predictionDF.columns.contains("id"))
     assert(predictionDF.columns.contains("features"))
@@ -158,7 +153,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
       "eval_metric" -> "error")
     val testItr = Classification.test.iterator
-    val trainingDF = buildTrainDataFrame(Classification.train)
+    val trainingDF = buildDataFrame(Classification.train)
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 10, nWorkers = math.min(2, numWorkers))
     val error = new EvalError
@@ -171,20 +166,20 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("multi_class classification test") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "multi:softmax", "num_class" -> "6")
-    val trainingDF = buildTrainDataFrame(MultiClassification.train)
+    val trainingDF = buildDataFrame(MultiClassification.train)
     XGBoost.trainWithDataFrame(trainingDF.toDF(), paramMap, round = 5, nWorkers = numWorkers)
   }
 
   test("test DF use nested groupData") {
-    val trainingDF = buildTrainDataFrame(Ranking.train0, 1)
-        .union(buildTrainDataFrame(Ranking.train1, 1))
+    val trainingDF = buildDataFrame(Ranking.train0, 1)
+        .union(buildDataFrame(Ranking.train1, 1))
     val trainGroupData: Seq[Seq[Int]] = Seq(Ranking.trainGroup0, Ranking.trainGroup1)
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
 
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = 2)
-    val testDF = buildTestDataFrame(Ranking.test)
+    val testDF = buildDataFrame(Ranking.test)
     val predResultsFromDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF).
       collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("features"))).toMap
     assert(testDF.count() === predResultsFromDF.size)
@@ -193,7 +188,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
   test("params of estimator and produced model are coordinated correctly") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "multi:softmax", "num_class" -> "6")
-    val trainingDF = buildTrainDataFrame(MultiClassification.train)
+    val trainingDF = buildDataFrame(MultiClassification.train)
     val model = XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5, nWorkers = numWorkers)
     assert(model.get[Double](model.eta).get == 0.1)
     assert(model.get[Int](model.maxDepth).get == 6)
