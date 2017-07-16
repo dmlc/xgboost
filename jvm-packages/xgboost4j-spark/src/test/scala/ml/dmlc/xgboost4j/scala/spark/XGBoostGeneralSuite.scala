@@ -81,7 +81,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
         "objective" -> "binary:logistic").toMap,
       new java.util.HashMap[String, String](),
       numWorkers = 2, round = 5, eval = null, obj = null, useExternalMemory = true,
-      missing = Float.NaN, baseMargin = null)
+      missing = Float.NaN)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === 2)
   }
@@ -348,27 +348,29 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(testRDD.count() === predResult1.length)
   }
 
-    test("test use base margin") {
-      import DataUtils._
-      val trainRDD = sc.parallelize(Ranking.train0, numSlices = 1)
-      val testRDD = sc.parallelize(Ranking.test, numSlices = 1).map(_.features)
+  test("test use base margin") {
+    import DataUtils._
+    val trainRDD = sc.parallelize(Classification.train, numSlices = 2)
+    val testRDD = sc.parallelize(Classification.test, numSlices = 2).map(_.features)
 
-      val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-        "objective" -> "rank:pairwise")
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic")
 
-      val trainMargin = {
-        XGBoost.trainWithRDD(trainRDD, paramMap, round = 1, nWorkers = 2)
-            .predict(trainRDD.map(_.features), outputMargin = true)
-            .map { case Array(m) => m }
-      }
-
-      val xgBoostModel = XGBoost.trainWithRDD(
-        trainRDD,
-        paramMap,
-        round = 1,
-        nWorkers = 2,
-        baseMargin = trainMargin)
-
-      assert(testRDD.count() === xgBoostModel.predict(testRDD).count())
+    val trainWithMarginRDD = {
+      XGBoost.trainWithRDD(trainRDD, paramMap, round = 1, nWorkers = 2)
+          .predict(trainRDD.map(_.features), outputMargin = true)
+          .zip(trainRDD)
+          .map { case (Array(baseMargin), labeledPoint) =>
+            labeledPoint.copy(baseMargin = baseMargin)
+          }
     }
+
+    val xgBoostModel = XGBoost.trainWithRDD(
+      trainWithMarginRDD,
+      paramMap,
+      round = 1,
+      nWorkers = 2)
+
+    assert(testRDD.count() === xgBoostModel.predict(testRDD).count())
+  }
 }
