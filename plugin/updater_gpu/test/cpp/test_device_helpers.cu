@@ -7,22 +7,72 @@
 #include "../../src/device_helpers.cuh"
 #include "gtest/gtest.h"
 
-static const std::vector<int> gidx = {0, 2, 5, 1, 3, 6, 0, 2, 0, 7};
-static const std::vector<int> row_ptr = {0, 3, 6, 8, 10};
-static const std::vector<int> lbs_seg_output = {0, 0, 0, 1, 1, 1, 2, 2, 3, 3};
+void CreateTestData(xgboost::bst_uint num_rows, int max_row_size,
+                    thrust::host_vector<int> *row_ptr,
+                    thrust::host_vector<xgboost::bst_uint> *rows) {
+  row_ptr->resize(num_rows + 1);
+  int sum = 0;
+  for (int i = 0; i <= num_rows; i++) {
+    (*row_ptr)[i] = sum;
+    sum += rand() % max_row_size;  // NOLINT
 
-thrust::device_vector<int> test_lbs() {
-  thrust::device_vector<int> device_gidx = gidx;
-  thrust::device_vector<int> device_row_ptr = row_ptr;
-  thrust::device_vector<int> device_output_row(gidx.size(), 0);
-  auto d_output_row = device_output_row.data();
-  dh::CubMemory temp_memory;
-  dh::TransformLbs(
-      0, &temp_memory, gidx.size(), device_row_ptr.data(), row_ptr.size() - 1,
-      [=] __device__(int idx, int ridx) { d_output_row[idx] = ridx; });
-
-  dh::safe_cuda(cudaDeviceSynchronize());
-  return device_output_row;
+    if (i < num_rows) {
+      for (int j = (*row_ptr)[i]; j < sum; j++) {
+        (*rows).push_back(i);
+      }
+    }
+  }
 }
 
-TEST(lbs, Test) { ASSERT_TRUE(test_lbs() == lbs_seg_output); }
+void SpeedTest() {
+  int num_rows = 1000000;
+  int max_row_size = 100;
+  dh::CubMemory temp_memory;
+  thrust::host_vector<int> h_row_ptr;
+  thrust::host_vector<xgboost::bst_uint> h_rows;
+  CreateTestData(num_rows, max_row_size, &h_row_ptr, &h_rows);
+  thrust::device_vector<int> row_ptr = h_row_ptr;
+  thrust::device_vector<int> output_row(h_rows.size());
+  auto d_output_row = output_row.data();
+
+  dh::Timer t;
+  dh::TransformLbs(
+      0, &temp_memory, h_rows.size(), dh::raw(row_ptr), row_ptr.size() - 1,
+      [=] __device__(size_t idx, size_t ridx) { d_output_row[idx] = ridx; });
+
+  dh::safe_cuda(cudaDeviceSynchronize());
+  double time = t.elapsedSeconds();
+  const int mb_size = 1048576;
+  size_t size = (sizeof(int) * h_rows.size()) / mb_size;
+  printf("size: %llumb, time: %fs, bandwidth: %fmb/s\n", size, time,
+         size / time);
+}
+
+void TestLbs() {
+  srand(17);
+  dh::CubMemory temp_memory;
+
+  std::vector<int> test_rows = {4, 100, 1000};
+  std::vector<int> test_max_row_sizes = {4, 100, 1300};
+
+  for (auto num_rows : test_rows) {
+    for (auto max_row_size : test_max_row_sizes) {
+      thrust::host_vector<int> h_row_ptr;
+      thrust::host_vector<xgboost::bst_uint> h_rows;
+      CreateTestData(num_rows, max_row_size, &h_row_ptr, &h_rows);
+      thrust::device_vector<size_t> row_ptr = h_row_ptr;
+      thrust::device_vector<int> output_row(h_rows.size());
+      auto d_output_row = output_row.data();
+
+      dh::TransformLbs(0, &temp_memory, h_rows.size(), dh::raw(row_ptr),
+                       row_ptr.size() - 1,
+                       [=] __device__(size_t idx, size_t ridx) {
+                         d_output_row[idx] = ridx;
+                       });
+
+      dh::safe_cuda(cudaDeviceSynchronize());
+      ASSERT_TRUE(h_rows == output_row);
+    }
+  }
+}
+TEST(cub_lbs, Test) { TestLbs(); }
