@@ -17,20 +17,21 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
-import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
-import org.apache.spark.ml.linalg.DenseVector
+import org.apache.spark.ml.linalg.{DenseVector, Vectors}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
 
 class XGBoostDFSuite extends FunSuite with PerTest {
   private def buildDataFrame(
-      instances: Seq[MLLabeledPoint],
+      labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
-    val it = instances.iterator.zipWithIndex
-        .map { case (instance: MLLabeledPoint, id: Int) =>
-          (id, instance.label, instance.features)
+    import DataUtils._
+    val it = labeledPoints.iterator.zipWithIndex
+        .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
+          (id, labeledPoint.label, labeledPoint.features)
         }
 
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
@@ -42,7 +43,6 @@ class XGBoostDFSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic")
     val trainingItr = Classification.train.iterator
     val testItr = Classification.test.iterator
-    import DataUtils._
     val round = 5
     val trainDMatrix = new DMatrix(trainingItr)
     val testDMatrix = new DMatrix(testItr)
@@ -157,7 +157,6 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 10, nWorkers = math.min(2, numWorkers))
     val error = new EvalError
-    import DataUtils._
     val testSetDMatrix = new DMatrix(testItr)
     assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)

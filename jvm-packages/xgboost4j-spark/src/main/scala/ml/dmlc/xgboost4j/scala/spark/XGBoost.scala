@@ -21,11 +21,10 @@ import scala.collection.mutable
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
-
-import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
-import org.apache.spark.ml.linalg.SparseVector
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 import org.apache.spark.{SparkContext, TaskContext}
@@ -52,22 +51,18 @@ object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
   private def fromDenseToSparseLabeledPoints(
-      denseLabeledPoints: Iterator[MLLabeledPoint],
-      missing: Float): Iterator[MLLabeledPoint] = {
+      denseLabeledPoints: Iterator[XGBLabeledPoint],
+      missing: Float): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
-      denseLabeledPoints.map { case MLLabeledPoint(label, features) =>
-        val dFeatures = features.toDense
-        val indices = new mutable.ArrayBuilder.ofInt()
-        val values = new mutable.ArrayBuilder.ofDouble()
-        for (i <- dFeatures.values.indices) {
-          if (dFeatures.values(i) != missing) {
-            indices += i
-            values += dFeatures.values(i)
-          }
+      denseLabeledPoints.map { labeledPoint =>
+        val indicesBuilder = new mutable.ArrayBuilder.ofInt()
+        val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
+        for ((value, i) <- labeledPoint.values.zipWithIndex if value != missing) {
+          indicesBuilder += (if (labeledPoint.indices == null) i else labeledPoint.indices(i))
+          valuesBuilder += value
         }
-        val sFeatures = new SparseVector(dFeatures.values.length, indices.result(),
-          values.result())
-        MLLabeledPoint(label, sFeatures)
+
+        labeledPoint.copy(indices = indicesBuilder.result(), values = valuesBuilder.result())
       }
     } else {
       denseLabeledPoints
@@ -75,7 +70,7 @@ object XGBoost extends Serializable {
   }
 
   private[spark] def buildDistributedBoosters(
-      trainingSet: RDD[MLLabeledPoint],
+      trainingSet: RDD[XGBLabeledPoint],
       params: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
       numWorkers: Int,
@@ -85,8 +80,6 @@ object XGBoost extends Serializable {
       useExternalMemory: Boolean,
       missing: Float,
       baseMargin: RDD[Float]): RDD[Booster] = {
-    import DataUtils._
-
     val partitionedTrainingSet = if (trainingSet.getNumPartitions != numWorkers) {
       logger.info(s"repartitioning training set to $numWorkers partitions")
       trainingSet.repartition(numWorkers)
@@ -117,6 +110,7 @@ object XGBoost extends Serializable {
       val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
       val trainingMatrix = new DMatrix(partitionItr, cacheFileName)
       try {
+        // TODO: use group attribute from the points.
         if (params.contains("groupData") && params("groupData") != null) {
           trainingMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
             TaskContext.getPartitionId()).toArray)
@@ -205,7 +199,7 @@ object XGBoost extends Serializable {
    */
   @deprecated("Use XGBoost.trainWithRDD instead.")
   def train(
-      trainingData: RDD[MLLabeledPoint],
+      trainingData: RDD[XGBLabeledPoint],
       params: Map[String, Any],
       round: Int,
       nWorkers: Int,
@@ -263,7 +257,7 @@ object XGBoost extends Serializable {
    */
   @throws(classOf[XGBoostError])
   def trainWithRDD(
-      trainingData: RDD[MLLabeledPoint],
+      trainingData: RDD[XGBLabeledPoint],
       params: Map[String, Any],
       round: Int,
       nWorkers: Int,

@@ -18,6 +18,8 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 
+import org.apache.spark.rdd.RDD
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SparkSession
 import org.scalatest.FunSuite
 
@@ -37,7 +39,6 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
   }
 
   test("kryoSerializer test") {
-    import DataUtils._
     // TODO write an isolated test for Booster.
     val trainingRDD = sc.parallelize(Classification.train)
     val testSetDMatrix = new DMatrix(Classification.test.iterator, null)

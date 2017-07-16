@@ -19,23 +19,23 @@ package ml.dmlc.xgboost4j.scala.spark
 import scala.collection.mutable
 
 import ml.dmlc.xgboost4j.scala.spark.params._
-import org.json4s.DefaultFormats
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 import org.apache.spark.ml.Predictor
-import org.apache.spark.ml.feature.LabeledPoint
-import org.apache.spark.ml.linalg.{Vector => MLVector}
+import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.util._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.sql.{Dataset, Row}
+import org.json4s.DefaultFormats
 
 /**
  * XGBoost Estimator to produce a XGBoost model
  */
 class XGBoostEstimator private[spark](
   override val uid: String, xgboostParams: Map[String, Any])
-  extends Predictor[MLVector, XGBoostEstimator, XGBoostModel]
+  extends Predictor[Vector, XGBoostEstimator, XGBoostModel]
   with LearningTaskParams with GeneralParams with BoosterParams with MLWritable {
 
   def this(xgboostParams: Map[String, Any]) =
@@ -113,8 +113,10 @@ class XGBoostEstimator private[spark](
   override def train(trainingSet: Dataset[_]): XGBoostModel = {
     val instances = trainingSet.select(
       col($(featuresCol)), col($(labelCol)).cast(DoubleType)).rdd.map {
-      case Row(feature: MLVector, label: Double) =>
-        LabeledPoint(label, feature)
+      case Row(feature: SparseVector, label: Double) =>
+        XGBLabeledPoint(label.toFloat, feature.indices, feature.values.map(_.toFloat))
+      case Row(feature: DenseVector, label: Double) =>
+        XGBLabeledPoint(label.toFloat, null, feature.values.map(_.toFloat))
     }
     transformSchema(trainingSet.schema, logging = true)
     val derivedXGBoosterParamMap = fromParamsToXGBParamMap
