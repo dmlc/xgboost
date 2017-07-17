@@ -19,8 +19,8 @@ namespace xgboost {
 namespace tree {
 
 void DeviceGMat::Init(int device_idx, const common::GHistIndexMatrix& gmat,
-                      bst_uint element_begin, bst_uint element_end,
-                      bst_uint row_begin, bst_uint row_end, int n_bins) {
+                      bst_ulong element_begin, bst_ulong element_end,
+                      bst_ulong row_begin, bst_ulong row_end, int n_bins) {
   dh::safe_cuda(cudaSetDevice(device_idx));
   CHECK(gidx_buffer.size()) << "gidx_buffer must be externally allocated";
   CHECK_EQ(row_ptr.size(), (row_end - row_begin) + 1)
@@ -31,15 +31,15 @@ void DeviceGMat::Init(int device_idx, const common::GHistIndexMatrix& gmat,
   cbw.Write(host_buffer.data(), gmat.index.begin() + element_begin,
             gmat.index.begin() + element_end);
   gidx_buffer = host_buffer;
-  gidx = common::CompressedIterator<int>(gidx_buffer.data(), n_bins);
+  gidx = common::CompressedIterator<uint32_t>(gidx_buffer.data(), n_bins);
 
   // row_ptr
   thrust::copy(gmat.row_ptr.data() + row_begin,
                gmat.row_ptr.data() + row_end + 1, row_ptr.tbegin());
   // normalise row_ptr
-  bst_uint start = gmat.row_ptr[row_begin];
+  size_t start = gmat.row_ptr[row_begin];
   thrust::transform(row_ptr.tbegin(), row_ptr.tend(), row_ptr.tbegin(),
-                    [=] __device__(int val) { return val - start; });
+                    [=] __device__(size_t val) { return val - start; });
 }
 
 void DeviceHist::Init(int n_bins_in) {
@@ -193,7 +193,7 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
     device_row_segments.push_back(0);
     device_element_segments.push_back(0);
     bst_uint offset = 0;
-    size_t shard_size = std::ceil(static_cast<double>(num_rows) / n_devices);
+    bst_uint shard_size = std::ceil(static_cast<double>(num_rows) / n_devices);
     for (int d_idx = 0; d_idx < n_devices; d_idx++) {
       int device_idx = dList[d_idx];
       offset += shard_size;
@@ -261,7 +261,7 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
       int device_idx = dList[d_idx];
       bst_uint num_rows_segment =
           device_row_segments[d_idx + 1] - device_row_segments[d_idx];
-      bst_uint num_elements_segment =
+      bst_ulong num_elements_segment =
           device_element_segments[d_idx + 1] - device_element_segments[d_idx];
       ba.allocate(
           device_idx, &(hist_vec[d_idx].data),
@@ -360,7 +360,7 @@ void GPUHistBuilder::BuildHist(int depth) {
     auto hist_builder = hist_vec[d_idx].GetBuilder();
     dh::TransformLbs(
         device_idx, &temp_memory[d_idx], end - begin, d_row_ptr,
-        row_end - row_begin, [=] __device__(int local_idx, int local_ridx) {
+        row_end - row_begin, [=] __device__(size_t local_idx, int local_ridx) {
           int nidx = d_position[local_ridx];  // OPTMARK: latency
           if (!is_active(nidx, depth)) return;
 
@@ -606,7 +606,11 @@ __global__ void find_split_kernel(
 }
 
 #define MIN_BLOCK_THREADS 32
-#define MAX_BLOCK_THREADS 1024  // hard-coded maximum block size
+#define CHUNK_BLOCK_THREADS 32
+// MAX_BLOCK_THREADS of 1024 is hard-coded maximum block size due
+// to CUDA compatibility 35 and above requirement
+// for Maximum number of threads per block
+#define MAX_BLOCK_THREADS 1024
 
 void GPUHistBuilder::FindSplit(int depth) {
   // Specialised based on max_bins
@@ -622,7 +626,7 @@ void GPUHistBuilder::FindSplitSpecialize(int depth) {
   if (param.max_bin <= BLOCK_THREADS) {
     LaunchFindSplit<BLOCK_THREADS>(depth);
   } else {
-    this->FindSplitSpecialize<BLOCK_THREADS + 32>(depth);
+    this->FindSplitSpecialize<BLOCK_THREADS + CHUNK_BLOCK_THREADS>(depth);
   }
 }
 
@@ -885,7 +889,7 @@ void GPUHistBuilder::UpdatePositionDense(int depth) {
     size_t begin = device_row_segments[d_idx];
     size_t end = device_row_segments[d_idx + 1];
 
-    dh::launch_n(device_idx, end - begin, [=] __device__(int local_idx) {
+    dh::launch_n(device_idx, end - begin, [=] __device__(size_t local_idx) {
       int pos = d_position[local_idx];
       if (!is_active(pos, depth)) {
         return;
@@ -896,7 +900,8 @@ void GPUHistBuilder::UpdatePositionDense(int depth) {
         return;
       }
 
-      int gidx = d_gidx[local_idx * n_columns + node.split.findex];
+      int gidx = d_gidx[local_idx *
+                        static_cast<size_t>(n_columns) + static_cast<size_t>(node.split.findex)];
 
       float fvalue = d_gidx_fvalue_map[gidx];
 
@@ -955,7 +960,7 @@ void GPUHistBuilder::UpdatePositionSparse(int depth) {
 
     dh::TransformLbs(
         device_idx, &temp_memory[d_idx], element_end - element_begin, d_row_ptr,
-        row_end - row_begin, [=] __device__(int local_idx, int local_ridx) {
+        row_end - row_begin, [=] __device__(size_t local_idx, int local_ridx) {
           int pos = d_position[local_ridx];
           if (!is_active(pos, depth)) {
             return;
@@ -1065,25 +1070,13 @@ void GPUHistBuilder::Update(const std::vector<bst_gpair>& gpair,
   this->InitData(gpair, *p_fmat, *p_tree);
   this->InitFirstNode(gpair);
   this->ColSampleTree();
-  //  long long int elapsed=0;
   for (int depth = 0; depth < param.max_depth; depth++) {
     this->ColSampleLevel();
 
-    //    dh::Timer time;
     this->BuildHist(depth);
-    //    elapsed+=time.elapsed();
-    //    printf("depth=%d\n",depth);
-    //    time.printElapsed("BH Time");
-
-    //    dh::Timer timesplit;
     this->FindSplit(depth);
-    //    timesplit.printElapsed("FS Time");
-
-    //    dh::Timer timeupdatepos;
     this->UpdatePosition(depth);
-    //    timeupdatepos.printElapsed("UP Time");
   }
-  //  printf("Total BuildHist Time=%lld\n",elapsed);
 
   // done with multi-GPU, pass back result from master to tree on host
   int master_device = dList[0];

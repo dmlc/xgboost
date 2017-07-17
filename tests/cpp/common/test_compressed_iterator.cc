@@ -1,5 +1,6 @@
 #include "../../../src/common/compressed_iterator.h"
 #include "gtest/gtest.h"
+#include <algorithm>
 
 namespace xgboost {
 namespace common {

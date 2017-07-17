@@ -18,10 +18,10 @@ namespace tree {
 
 struct DeviceGMat {
   dh::dvec<common::compressed_byte_t> gidx_buffer;
-  common::CompressedIterator<int > gidx;
-  dh::dvec<int> row_ptr;
+  common::CompressedIterator<uint32_t> gidx;
+  dh::dvec<size_t> row_ptr;
   void Init(int device_idx, const common::GHistIndexMatrix &gmat,
-            bst_uint begin, bst_uint end, bst_uint row_begin, bst_uint row_end,int n_bins);
+            bst_ulong element_begin, bst_ulong element_end, bst_ulong row_begin, bst_ulong row_end,int n_bins);
 };
 
 struct HistBuilder {
@@ -99,7 +99,7 @@ class GPUHistBuilder {
   // below vectors are for each devices used
   std::vector<int> dList;
   std::vector<int> device_row_segments;
-  std::vector<int> device_element_segments;
+  std::vector<size_t> device_element_segments;
 
   std::vector<dh::CubMemory> temp_memory;
   std::vector<DeviceHist> hist_vec;
