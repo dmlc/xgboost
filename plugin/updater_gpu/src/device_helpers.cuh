@@ -441,7 +441,7 @@ class bulk_allocator {
 
  public:
   ~bulk_allocator() {
-    for (int i = 0; i < d_ptr.size(); i++) {
+    for (size_t i = 0; i < d_ptr.size(); i++) {
       if (!(d_ptr[i] == nullptr)) {
         safe_cuda(cudaSetDevice(_device_idx[i]));
         safe_cuda(cudaFree(d_ptr[i]));
@@ -522,7 +522,7 @@ inline size_t available_memory(int device_idx) {
 template <typename T>
 void print(const thrust::device_vector<T> &v, size_t max_items = 10) {
   thrust::host_vector<T> h = v;
-  for (int i = 0; i < std::min(max_items, h.size()); i++) {
+  for (size_t i = 0; i < std::min(max_items, h.size()); i++) {
     std::cout << " " << h[i];
   }
   std::cout << "\n";
@@ -531,7 +531,7 @@ void print(const thrust::device_vector<T> &v, size_t max_items = 10) {
 template <typename T>
 void print(const dvec<T> &v, size_t max_items = 10) {
   std::vector<T> h = v.as_vector();
-  for (int i = 0; i < std::min(max_items, h.size()); i++) {
+  for (size_t i = 0; i < std::min(max_items, h.size()); i++) {
     std::cout << " " << h[i];
   }
   std::cout << "\n";
@@ -539,10 +539,10 @@ void print(const dvec<T> &v, size_t max_items = 10) {
 
 template <typename T>
 void print(char *label, const thrust::device_vector<T> &v,
-           const char *format = "%d ", int max = 10) {
+           const char *format = "%d ", size_t max = 10) {
   thrust::host_vector<T> h_v = v;
   std::cout << label << ":\n";
-  for (int i = 0; i < std::min(static_cast<int>(h_v.size()), max); i++) {
+  for (size_t i = 0; i < std::min(static_cast<size_t>(h_v.size()), max); i++) {
     printf(format, h_v[i]);
   }
   std::cout << "\n";
@@ -593,6 +593,7 @@ __global__ void launch_n_kernel(int device_idx, size_t begin, size_t end,
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
 inline void launch_n(int device_idx, size_t n, L lambda) {
   safe_cuda(cudaSetDevice(device_idx));
+  // TODO: Template on n so GRID_SIZE always fits into int.
   const int GRID_SIZE = div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS);
 #if defined(__CUDACC__)
   launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
@@ -607,6 +608,7 @@ inline void multi_launch_n(size_t n, int n_devices, L lambda) {
   CHECK_LE(n_devices, n_visible_devices()) << "Number of devices requested "
                                               "needs to be less than equal to "
                                               "number of visible devices.";
+  // TODO: Template on n so GRID_SIZE always fits into int.
   const int GRID_SIZE = div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS);
 #if defined(__CUDACC__)
   n_devices = n_devices > n ? n : n_devices;

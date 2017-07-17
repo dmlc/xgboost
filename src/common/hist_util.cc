@@ -16,7 +16,7 @@
 namespace xgboost {
 namespace common {
 
-void HistCutMatrix::Init(DMatrix* p_fmat, size_t max_num_bins) {
+void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
   typedef common::WXQuantileSketch<bst_float, bst_float> WXQSketch;
   const MetaInfo& info = p_fmat->info();
 
@@ -44,7 +44,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, size_t max_num_bins) {
       unsigned begin = std::min(nstep * tid, ncol);
       unsigned end = std::min(nstep * (tid + 1), ncol);
       for (size_t i = 0; i < batch.size; ++i) { // NOLINT(*)
-        bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+        size_t ridx = batch.base_rowid + i;
         RowBatch::Inst inst = batch[i];
         for (bst_uint j = 0; j < inst.length; ++j) {
           if (inst[j].index >= begin && inst[j].index < end) {
@@ -108,7 +108,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
   dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
 
   const int nthread = omp_get_max_threads();
-  const unsigned nbins = cut->row_ptr.back();
+  const uint32_t nbins = cut->row_ptr.back();
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
 
@@ -116,7 +116,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
   row_ptr.push_back(0);
   while (iter->Next()) {
     const RowBatch& batch = iter->Value();
-    size_t rbegin = row_ptr.size() - 1;
+    const size_t rbegin = row_ptr.size() - 1;
     for (size_t i = 0; i < batch.size; ++i) {
       row_ptr.push_back(batch[i].length + row_ptr.back());
     }
@@ -140,7 +140,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
         CHECK(cbegin != cend);
         auto it = std::upper_bound(cbegin, cend, inst[j].fvalue);
         if (it == cend) it = cend - 1;
-        unsigned idx = static_cast<unsigned>(it - cut->cut.begin());
+        uint32_t idx = static_cast<uint32_t>(it - cut->cut.begin());
         index[ibegin + j] = idx;
         ++hit_count_tloc_[tid * nbins + idx];
       }
@@ -148,7 +148,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
     }
 
     #pragma omp parallel for num_threads(nthread) schedule(static)
-    for (omp_ulong idx = 0; idx < nbins; ++idx) {
+    for (bst_omp_uint idx = 0; idx < nbins; ++idx) {
       for (int tid = 0; tid < nthread; ++tid) {
         hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
       }
@@ -157,10 +157,10 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
 }
 
 template <typename T>
-static unsigned GetConflictCount(const std::vector<bool>& mark,
-                                 const Column<T>& column,
-                                 unsigned max_cnt) {
-  unsigned ret = 0;
+static size_t GetConflictCount(const std::vector<bool>& mark,
+                               const Column<T>& column,
+                               size_t max_cnt) {
+  size_t ret = 0;
   if (column.type == xgboost::common::kDenseColumn) {
     for (size_t i = 0; i < column.len; ++i) {
       if (column.index[i] != std::numeric_limits<T>::max() && mark[i]) {
@@ -203,9 +203,9 @@ MarkUsed(std::vector<bool>* p_mark, const Column<T>& column) {
 template <typename T>
 inline std::vector<std::vector<unsigned>>
 FindGroups_(const std::vector<unsigned>& feature_list,
-            const std::vector<bst_uint>& feature_nnz,
+            const std::vector<size_t>& feature_nnz,
             const ColumnMatrix& colmat,
-            unsigned nrow,
+            size_t nrow,
             const FastHistParam& param) {
   /* Goal: Bundle features together that has little or no "overlap", i.e.
            only a few data points should have nonzero values for
@@ -214,10 +214,10 @@ FindGroups_(const std::vector<unsigned>& feature_list,
 
   std::vector<std::vector<unsigned>> groups;
   std::vector<std::vector<bool>> conflict_marks;
-  std::vector<unsigned> group_nnz;
-  std::vector<unsigned> group_conflict_cnt;
-  const unsigned max_conflict_cnt
-    = static_cast<unsigned>(param.max_conflict_rate * nrow);
+  std::vector<size_t> group_nnz;
+  std::vector<size_t> group_conflict_cnt;
+  const size_t max_conflict_cnt
+    = static_cast<size_t>(param.max_conflict_rate * nrow);
 
   for (auto fid : feature_list) {
     const Column<T>& column = colmat.GetColumn<T>(fid);
@@ -239,8 +239,8 @@ FindGroups_(const std::vector<unsigned>& feature_list,
 
     // examine each candidate group: is it okay to insert fid?
     for (auto gid : search_groups) {
-      const unsigned rest_max_cnt = max_conflict_cnt - group_conflict_cnt[gid];
-      const unsigned cnt = GetConflictCount(conflict_marks[gid], column, rest_max_cnt);
+      const size_t rest_max_cnt = max_conflict_cnt - group_conflict_cnt[gid];
+      const size_t cnt = GetConflictCount(conflict_marks[gid], column, rest_max_cnt);
       if (cnt <= rest_max_cnt) {
         need_new_group = false;
         groups[gid].push_back(fid);
@@ -267,9 +267,9 @@ FindGroups_(const std::vector<unsigned>& feature_list,
 
 inline std::vector<std::vector<unsigned>>
 FindGroups(const std::vector<unsigned>& feature_list,
-           const std::vector<bst_uint>& feature_nnz,
+           const std::vector<size_t>& feature_nnz,
            const ColumnMatrix& colmat,
-           unsigned nrow,
+           size_t nrow,
            const FastHistParam& param) {
   XGBOOST_TYPE_SWITCH(colmat.dtype, {
     return FindGroups_<DType>(feature_list, feature_nnz, colmat, nrow, param);
@@ -288,11 +288,11 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
   std::iota(feature_list.begin(), feature_list.end(), 0);
 
   // sort features by nonzero counts, descending order
-  std::vector<bst_uint> feature_nnz(nfeature);
+  std::vector<size_t> feature_nnz(nfeature);
   std::vector<unsigned> features_by_nnz(feature_list);
   gmat.GetFeatureCounts(&feature_nnz[0]);
   std::sort(features_by_nnz.begin(), features_by_nnz.end(),
-            [&feature_nnz](int a, int b) {
+            [&feature_nnz](unsigned a, unsigned b) {
     return feature_nnz[a] > feature_nnz[b];
   });
 
@@ -307,7 +307,7 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
       if (group.size() <= 1 || group.size() >= 5) {
         ret.push_back(group);  // keep singleton groups and large (5+) groups
       } else {
-        unsigned nnz = 0;
+        size_t nnz = 0;
         for (auto fid : group) {
           nnz += feature_nnz[fid];
         }
@@ -338,37 +338,37 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   cut = gmat.cut;
 
   const size_t nrow = gmat.row_ptr.size() - 1;
-  const size_t nbins = gmat.cut->row_ptr.back();
+  const uint32_t nbins = gmat.cut->row_ptr.back();
 
   /* step 1: form feature groups */
   auto groups = FastFeatureGrouping(gmat, colmat, param);
-  const size_t nblock = groups.size();
+  const uint32_t nblock = static_cast<uint32_t>(groups.size());
 
   /* step 2: build a new CSR matrix for each feature group */
-  std::vector<unsigned> bin2block(nbins);  // lookup table [bin id] => [block id]
-  for (size_t group_id = 0; group_id < nblock; ++group_id) {
+  std::vector<uint32_t> bin2block(nbins);  // lookup table [bin id] => [block id]
+  for (uint32_t group_id = 0; group_id < nblock; ++group_id) {
     for (auto& fid : groups[group_id]) {
-      const unsigned bin_begin = gmat.cut->row_ptr[fid];
-      const unsigned bin_end = gmat.cut->row_ptr[fid + 1];
-      for (unsigned bin_id = bin_begin; bin_id < bin_end; ++bin_id) {
+      const uint32_t bin_begin = gmat.cut->row_ptr[fid];
+      const uint32_t bin_end = gmat.cut->row_ptr[fid + 1];
+      for (uint32_t bin_id = bin_begin; bin_id < bin_end; ++bin_id) {
         bin2block[bin_id] = group_id;
       }
     }
   }
-  std::vector<std::vector<unsigned>> index_temp(nblock);
-  std::vector<std::vector<unsigned>> row_ptr_temp(nblock);
-  for (size_t block_id = 0; block_id < nblock; ++block_id) {
+  std::vector<std::vector<uint32_t>> index_temp(nblock);
+  std::vector<std::vector<size_t>> row_ptr_temp(nblock);
+  for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
     row_ptr_temp[block_id].push_back(0);
   }
   for (size_t rid = 0; rid < nrow; ++rid) {
-    const size_t ibegin = static_cast<size_t>(gmat.row_ptr[rid]);
-    const size_t iend = static_cast<size_t>(gmat.row_ptr[rid + 1]);
+    const size_t ibegin = gmat.row_ptr[rid];
+    const size_t iend = gmat.row_ptr[rid + 1];
     for (size_t j = ibegin; j < iend; ++j) {
-      const size_t bin_id = gmat.index[j];
-      const size_t block_id = bin2block[bin_id];
+      const uint32_t bin_id = gmat.index[j];
+      const uint32_t block_id = bin2block[bin_id];
       index_temp[block_id].push_back(bin_id);
     }
-    for (size_t block_id = 0; block_id < nblock; ++block_id) {
+    for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
       row_ptr_temp[block_id].push_back(index_temp[block_id].size());
     }
   }
@@ -378,7 +378,7 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   std::vector<size_t> row_ptr_blk_ptr;
   index_blk_ptr.push_back(0);
   row_ptr_blk_ptr.push_back(0);
-  for (size_t block_id = 0; block_id < nblock; ++block_id) {
+  for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
     index.insert(index.end(), index_temp[block_id].begin(), index_temp[block_id].end());
     row_ptr.insert(row_ptr.end(), row_ptr_temp[block_id].begin(), row_ptr_temp[block_id].end());
     index_blk_ptr.push_back(index.size());
@@ -386,7 +386,7 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   }
 
   // save shortcut for each block
-  for (size_t block_id = 0; block_id < nblock; ++block_id) {
+  for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
     Block blk;
     blk.index_begin = &index[index_blk_ptr[block_id]];
     blk.row_ptr_begin = &row_ptr[row_ptr_blk_ptr[block_id]];
@@ -406,14 +406,14 @@ void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
 
   const int K = 8;  // loop unrolling factor
   const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
-  const bst_omp_uint nrows = row_indices.end - row_indices.begin;
-  const bst_omp_uint rest = nrows % K;
+  const size_t nrows = row_indices.end - row_indices.begin;
+  const size_t rest = nrows % K;
 
   #pragma omp parallel for num_threads(nthread) schedule(guided)
   for (bst_omp_uint i = 0; i < nrows - rest; i += K) {
     const bst_omp_uint tid = omp_get_thread_num();
     const size_t off = tid * nbins_;
-    bst_uint rid[K];
+    size_t rid[K];
     size_t ibegin[K];
     size_t iend[K];
     bst_gpair stat[K];
@@ -421,32 +421,32 @@ void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
       rid[k] = row_indices.begin[i + k];
     }
     for (int k = 0; k < K; ++k) {
-      ibegin[k] = static_cast<size_t>(gmat.row_ptr[rid[k]]);
-      iend[k] = static_cast<size_t>(gmat.row_ptr[rid[k] + 1]);
+      ibegin[k] = gmat.row_ptr[rid[k]];
+      iend[k] = gmat.row_ptr[rid[k] + 1];
     }
     for (int k = 0; k < K; ++k) {
       stat[k] = gpair[rid[k]];
     }
     for (int k = 0; k < K; ++k) {
       for (size_t j = ibegin[k]; j < iend[k]; ++j) {
-        const size_t bin = gmat.index[j];
+        const uint32_t bin = gmat.index[j];
         data_[off + bin].Add(stat[k]);
       }
     }
   }
   for (bst_omp_uint i = nrows - rest; i < nrows; ++i) {
-    const bst_uint rid = row_indices.begin[i];
-    const size_t ibegin = static_cast<size_t>(gmat.row_ptr[rid]);
-    const size_t iend = static_cast<size_t>(gmat.row_ptr[rid + 1]);
+    const size_t rid = row_indices.begin[i];
+    const size_t ibegin = gmat.row_ptr[rid];
+    const size_t iend = gmat.row_ptr[rid + 1];
     const bst_gpair stat = gpair[rid];
     for (size_t j = ibegin; j < iend; ++j) {
-      const size_t bin = gmat.index[j];
+      const uint32_t bin = gmat.index[j];
       data_[bin].Add(stat);
     }
   }
 
   /* reduction */
-  const bst_omp_uint nbins = static_cast<bst_omp_uint>(nbins_);
+  const uint32_t nbins = nbins_;
   #pragma omp parallel for num_threads(nthread) schedule(static)
   for (bst_omp_uint bin_id = 0; bin_id < nbins; ++bin_id) {
     for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
@@ -462,16 +462,16 @@ void GHistBuilder::BuildBlockHist(const std::vector<bst_gpair>& gpair,
                                   GHistRow hist) {
   const int K = 8;  // loop unrolling factor
   const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
-  const bst_omp_uint nblock = gmatb.GetNumBlock();
-  const bst_omp_uint nrows = row_indices.end - row_indices.begin;
-  const bst_omp_uint rest = nrows % K;
+  const uint32_t nblock = gmatb.GetNumBlock();
+  const size_t nrows = row_indices.end - row_indices.begin;
+  const size_t rest = nrows % K;
 
   #pragma omp parallel for num_threads(nthread) schedule(guided)
   for (bst_omp_uint bid = 0; bid < nblock; ++bid) {
     auto gmat = gmatb[bid];
 
-    for (bst_omp_uint i = 0; i < nrows - rest; i += K) {
-      bst_uint rid[K];
+    for (size_t i = 0; i < nrows - rest; i += K) {
+      size_t rid[K];
       size_t ibegin[K];
       size_t iend[K];
       bst_gpair stat[K];
@@ -479,26 +479,26 @@ void GHistBuilder::BuildBlockHist(const std::vector<bst_gpair>& gpair,
         rid[k] = row_indices.begin[i + k];
       }
       for (int k = 0; k < K; ++k) {
-        ibegin[k] = static_cast<size_t>(gmat.row_ptr[rid[k]]);
-        iend[k] = static_cast<size_t>(gmat.row_ptr[rid[k] + 1]);
+        ibegin[k] = gmat.row_ptr[rid[k]];
+        iend[k] = gmat.row_ptr[rid[k] + 1];
       }
       for (int k = 0; k < K; ++k) {
         stat[k] = gpair[rid[k]];
       }
       for (int k = 0; k < K; ++k) {
         for (size_t j = ibegin[k]; j < iend[k]; ++j) {
-          const size_t bin = gmat.index[j];
+          const uint32_t bin = gmat.index[j];
           hist.begin[bin].Add(stat[k]);
         }
       }
     }
     for (bst_omp_uint i = nrows - rest; i < nrows; ++i) {
-      const bst_uint rid = row_indices.begin[i];
-      const size_t ibegin = static_cast<size_t>(gmat.row_ptr[rid]);
-      const size_t iend = static_cast<size_t>(gmat.row_ptr[rid + 1]);
+      const size_t rid = row_indices.begin[i];
+      const size_t ibegin = gmat.row_ptr[rid];
+      const size_t iend = gmat.row_ptr[rid + 1];
       const bst_gpair stat = gpair[rid];
       for (size_t j = ibegin; j < iend; ++j) {
-        const size_t bin = gmat.index[j];
+        const uint32_t bin = gmat.index[j];
         hist.begin[bin].Add(stat);
       }
     }
@@ -507,9 +507,9 @@ void GHistBuilder::BuildBlockHist(const std::vector<bst_gpair>& gpair,
 
 void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
   const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
-  const bst_omp_uint nbins = static_cast<bst_omp_uint>(nbins_);
+  const uint32_t nbins = static_cast<bst_omp_uint>(nbins_);
   const int K = 8;  // loop unrolling factor
-  const bst_omp_uint rest = nbins % K;
+  const uint32_t rest = nbins % K;
   #pragma omp parallel for num_threads(nthread) schedule(static)
   for (bst_omp_uint bin_id = 0; bin_id < nbins - rest; bin_id += K) {
     GHistEntry pb[K];
@@ -524,7 +524,7 @@ void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow pa
       self.begin[bin_id + k].SetSubtract(pb[k], sb[k]);
     }
   }
-  for (bst_omp_uint bin_id = nbins - rest; bin_id < nbins; ++bin_id) {
+  for (uint32_t bin_id = nbins - rest; bin_id < nbins; ++bin_id) {
     self.begin[bin_id].SetSubtract(parent.begin[bin_id], sibling.begin[bin_id]);
   }
 }

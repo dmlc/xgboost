@@ -46,11 +46,11 @@ static int SymbolBits(int num_symbols) {
 
 class CompressedBufferWriter {
  private:
-  int symbol_bits_;
+  size_t symbol_bits_;
   size_t offset_;
 
  public:
-  explicit CompressedBufferWriter(int num_symbols) : offset_(0) {
+  explicit CompressedBufferWriter(size_t num_symbols) : offset_(0) {
     symbol_bits_ = detail::SymbolBits(num_symbols);
   }
 
@@ -70,9 +70,9 @@ class CompressedBufferWriter {
    * \return  The calculated buffer size.
    */
 
-  static size_t CalculateBufferSize(int num_elements, int num_symbols) {
+  static size_t CalculateBufferSize(size_t num_elements, size_t num_symbols) {
     const int bits_per_byte = 8;
-    int compressed_size = std::ceil(
+    size_t compressed_size = std::ceil(
         static_cast<double>(detail::SymbolBits(num_symbols) * num_elements) /
         bits_per_byte);
     return compressed_size + detail::padding;
@@ -82,10 +82,10 @@ class CompressedBufferWriter {
   void WriteSymbol(compressed_byte_t *buffer, T symbol, size_t offset) {
     const int bits_per_byte = 8;
 
-    for (int i = 0; i < symbol_bits_; i++) {
+    for (size_t i = 0; i < symbol_bits_; i++) {
       size_t byte_idx = ((offset + 1) * symbol_bits_ - (i + 1)) / bits_per_byte;
       byte_idx += detail::padding;
-      int bit_idx =
+      size_t bit_idx =
           ((bits_per_byte + i) - ((offset + 1) * symbol_bits_)) % bits_per_byte;
 
       if (detail::CheckBit(symbol, i)) {
@@ -100,14 +100,14 @@ class CompressedBufferWriter {
     uint64_t tmp = 0;
     int stored_bits = 0;
     const int max_stored_bits = 64 - symbol_bits_;
-    int buffer_position = detail::padding;
-    const int num_symbols = input_end - input_begin;
-    for (int i = 0; i < num_symbols; i++) {
+    size_t buffer_position = detail::padding;
+    const size_t num_symbols = input_end - input_begin;
+    for (size_t i = 0; i < num_symbols; i++) {
       typename std::iterator_traits<iter_t>::value_type symbol = input_begin[i];
       if (stored_bits > max_stored_bits) {
         // Eject only full bytes
-        int tmp_bytes = stored_bits / 8;
-        for (int j = 0; j < tmp_bytes; j++) {
+        size_t tmp_bytes = stored_bits / 8;
+        for (size_t j = 0; j < tmp_bytes; j++) {
           buffer[buffer_position] = tmp >> (stored_bits - (j + 1) * 8);
           buffer_position++;
         }
@@ -121,8 +121,8 @@ class CompressedBufferWriter {
     }
 
     // Eject all bytes
-    int tmp_bytes = std::ceil(static_cast<float>(stored_bits) / 8);
-    for (int j = 0; j < tmp_bytes; j++) {
+    size_t tmp_bytes = std::ceil(static_cast<float>(stored_bits) / 8);
+    for (size_t j = 0; j < tmp_bytes; j++) {
       int shift_bits = stored_bits - (j + 1) * 8;
       if (shift_bits >= 0) {
         buffer[buffer_position] = tmp >> shift_bits;
@@ -159,7 +159,7 @@ class CompressedIterator {
                                  /// iterator can point to
  private:
   compressed_byte_t *buffer_;
-  int symbol_bits_;
+  size_t symbol_bits_;
   size_t offset_;
 
  public:
@@ -189,7 +189,7 @@ class CompressedIterator {
     return static_cast<T>(tmp & mask);
   }
 
-  XGBOOST_DEVICE reference operator[](int idx) const {
+  XGBOOST_DEVICE reference operator[](size_t idx) const {
     self_type offset = (*this);
     offset.offset_ += idx;
     return *offset;
