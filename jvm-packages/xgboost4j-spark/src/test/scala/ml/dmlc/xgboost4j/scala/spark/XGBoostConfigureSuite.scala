@@ -22,7 +22,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SparkSession
 import org.scalatest.FunSuite
 
-class XGBoostConfigureSuite extends FunSuite with PerTestSparkSession with Utils {
+class XGBoostConfigureSuite extends FunSuite with PerTestSparkSession {
   override def sparkSessionBuilder: SparkSession.Builder = super.sparkSessionBuilder
       .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
       .config("spark.kryo.classesToRegister", classOf[Booster].getName)

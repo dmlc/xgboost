@@ -23,6 +23,8 @@ import org.apache.spark.sql.SparkSession
 import org.scalatest.{BeforeAndAfterEach, Suite}
 
 trait PerTestSparkSession extends BeforeAndAfterEach { self: Suite =>
+  // This is unrelated to Spark and is here just for convenience.
+  protected val numWorkers: Int = Runtime.getRuntime.availableProcessors()
 
   @transient private var currentSession: SparkSession = _
 
