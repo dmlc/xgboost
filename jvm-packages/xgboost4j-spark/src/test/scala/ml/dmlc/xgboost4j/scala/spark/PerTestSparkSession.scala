@@ -37,6 +37,8 @@ trait PerTestSparkSession extends BeforeAndAfterEach { self: Suite =>
       .config("spark.ui.enabled", false)
       .config("spark.driver.memory", "512m")
 
+  override def beforeEach(): Unit = getOrCreateSession
+
   override def afterEach() {
     synchronized {
       if (currentSession != null) {
