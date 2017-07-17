@@ -27,8 +27,7 @@ import org.scalatest.FunSuite
 class XGBoostDFSuite extends FunSuite with PerTestSparkSession {
   private def buildDataFrame(
       instances: Seq[MLLabeledPoint],
-      numPartitions: Int = numWorkers
-  ): DataFrame = {
+      numPartitions: Int = numWorkers): DataFrame = {
     val it = instances.iterator.zipWithIndex
         .map { case (instance: MLLabeledPoint, id: Int) =>
           (id, instance.label, instance.features)

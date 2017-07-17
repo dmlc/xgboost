@@ -18,7 +18,6 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 
-import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SparkSession
 import org.scalatest.FunSuite
 
