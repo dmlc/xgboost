@@ -22,8 +22,9 @@ import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
+import org.scalatest.FunSuite
 
-class XGBoostDFSuite extends SharedSparkContext with Utils {
+class XGBoostDFSuite extends FunSuite with PerTestSparkSession with Utils {
   private def buildDataFrame(
       instances: Seq[MLLabeledPoint],
       numPartitions: Int = numWorkers
@@ -33,7 +34,7 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
           (id, instance.label, instance.features)
         }
 
-    sparkSession.createDataFrame(sc.parallelize(it.toList, numPartitions))
+    ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
         .toDF("id", "label", "features")
   }
 

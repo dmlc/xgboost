@@ -221,7 +221,7 @@ object XGBoost extends Serializable {
   private def overrideParamsAccordingToTaskCPUs(
       params: Map[String, Any],
       sc: SparkContext): Map[String, Any] = {
-    val coresPerTask = sc.getConf.get("spark.task.cpus", "1").toInt
+    val coresPerTask = sc.getConf.getInt("spark.task.cpus", 1)
     var overridedParams = params
     if (overridedParams.contains("nthread")) {
       val nThread = overridedParams("nthread").toString.toInt

@@ -30,8 +30,9 @@ import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.LabeledPoint
 import org.apache.spark.ml.linalg.{Vectors, Vector => SparkVector}
 import org.apache.spark.rdd.RDD
+import org.scalatest.FunSuite
 
-class XGBoostGeneralSuite extends SharedSparkContext with Utils {
+class XGBoostGeneralSuite extends FunSuite with PerTestSparkSession with Utils {
   test("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
     val vectorLength = 100
     val rdd = sc.parallelize(
