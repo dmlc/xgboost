@@ -16,43 +16,36 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-import org.apache.spark.{SparkConf, SparkContext}
+
+import org.apache.spark.sql.SparkSession
 import org.scalatest.FunSuite
 
-class XGBoostConfigureSuite extends FunSuite with Utils {
+class XGBoostConfigureSuite extends FunSuite with PerTest {
+  override def sparkSessionBuilder: SparkSession.Builder = super.sparkSessionBuilder
+      .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      .config("spark.kryo.classesToRegister", classOf[Booster].getName)
 
-  test("nthread configuration must be equal to spark.task.cpus") {
-    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoostSuite").
-      set("spark.task.cpus", "4")
-    val customSparkContext = new SparkContext(sparkConf)
-    customSparkContext.setLogLevel("ERROR")
-    // start another app
-    val trainingRDD = customSparkContext.parallelize(Classification.train)
+  test("nthread configuration must be no larger than spark.task.cpus") {
+    val trainingRDD = sc.parallelize(Classification.train)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
-      "objective" -> "binary:logistic", "nthread" -> 6)
+      "objective" -> "binary:logistic",
+      "nthread" -> (sc.getConf.getInt("spark.task.cpus", 1) + 1))
     intercept[IllegalArgumentException] {
       XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     }
-    customSparkContext.stop()
   }
 
   test("kryoSerializer test") {
-    val eval = new EvalError()
-    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("XGBoostSuite")
-      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-    sparkConf.registerKryoClasses(Array(classOf[Booster]))
-    val customSparkContext = new SparkContext(sparkConf)
-    customSparkContext.setLogLevel("ERROR")
-    val trainingRDD = customSparkContext.parallelize(Classification.train)
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(Classification.test.iterator, null))
+    // TODO write an isolated test for Booster.
+    val trainingRDD = sc.parallelize(Classification.train)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator, null)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+    val eval = new EvalError()
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
-    customSparkContext.stop()
   }
 }

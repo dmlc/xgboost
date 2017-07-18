@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.JavaConverters._
 
-import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix}
+import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, DefaultXGBoostParamsWriter}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
 import org.apache.hadoop.fs.{FSDataOutputStream, Path}
@@ -66,7 +66,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
       val rabitEnv = Map("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv.asJava)
       if (testSamples.nonEmpty) {
-        val dMatrix = new DMatrix(new JDMatrix(testSamples, null))
+        val dMatrix = new DMatrix(testSamples)
         try {
           broadcastBooster.value.predictLeaf(dMatrix).iterator
         } finally {
@@ -202,7 +202,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
             null
           }
         }
-        val dMatrix = new DMatrix(new JDMatrix(testSamples, cacheFileName))
+        val dMatrix = new DMatrix(testSamples, cacheFileName)
         try {
           broadcastBooster.value.predict(dMatrix).iterator
         } finally {
