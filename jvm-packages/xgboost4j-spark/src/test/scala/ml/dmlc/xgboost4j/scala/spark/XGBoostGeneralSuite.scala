@@ -32,7 +32,7 @@ import org.apache.spark.ml.linalg.{Vectors, Vector => SparkVector}
 import org.apache.spark.rdd.RDD
 import org.scalatest.FunSuite
 
-class XGBoostGeneralSuite extends FunSuite with PerTestSparkSession {
+class XGBoostGeneralSuite extends FunSuite with PerTest {
   test("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
     val vectorLength = 100
     val rdd = sc.parallelize(

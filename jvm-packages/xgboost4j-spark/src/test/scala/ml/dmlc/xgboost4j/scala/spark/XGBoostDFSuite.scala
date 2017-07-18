@@ -24,7 +24,7 @@ import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
 
-class XGBoostDFSuite extends FunSuite with PerTestSparkSession {
+class XGBoostDFSuite extends FunSuite with PerTest {
   private def buildDataFrame(
       instances: Seq[MLLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {

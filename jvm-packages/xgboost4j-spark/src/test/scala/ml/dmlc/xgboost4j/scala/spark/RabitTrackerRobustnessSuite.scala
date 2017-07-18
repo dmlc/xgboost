@@ -23,7 +23,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.FunSuite
 
 
-class RabitTrackerRobustnessSuite extends FunSuite with PerTestSparkSession {
+class RabitTrackerRobustnessSuite extends FunSuite with PerTest {
   test("test Java RabitTracker wrapper's exception handling: it should not hang forever.") {
     /*
       Deliberately create new instances of SparkContext in each unit test to avoid reusing the

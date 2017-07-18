@@ -26,7 +26,7 @@ import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.SparkSession
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
-class XGBoostSparkPipelinePersistence extends FunSuite with PerTestSparkSession
+class XGBoostSparkPipelinePersistence extends FunSuite with PerTest
     with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {

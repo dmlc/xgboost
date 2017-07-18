@@ -20,10 +20,9 @@ import java.io.File
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
-import org.scalatest.{BeforeAndAfterEach, Suite}
+import org.scalatest.{BeforeAndAfterEach, FunSuite}
 
-trait PerTestSparkSession extends BeforeAndAfterEach { self: Suite =>
-  // This is unrelated to Spark and is here just for convenience.
+trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
   protected val numWorkers: Int = Runtime.getRuntime.availableProcessors()
 
   @transient private var currentSession: SparkSession = _
@@ -54,7 +53,6 @@ trait PerTestSparkSession extends BeforeAndAfterEach { self: Suite =>
       currentSession = sparkSessionBuilder.getOrCreate()
       currentSession.sparkContext.setLogLevel("ERROR")
     }
-
     currentSession
   }
 

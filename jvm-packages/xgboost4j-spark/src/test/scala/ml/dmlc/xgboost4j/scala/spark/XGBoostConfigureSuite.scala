@@ -21,7 +21,7 @@ import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 import org.apache.spark.sql.SparkSession
 import org.scalatest.FunSuite
 
-class XGBoostConfigureSuite extends FunSuite with PerTestSparkSession {
+class XGBoostConfigureSuite extends FunSuite with PerTest {
   override def sparkSessionBuilder: SparkSession.Builder = super.sparkSessionBuilder
       .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
       .config("spark.kryo.classesToRegister", classOf[Booster].getName)
