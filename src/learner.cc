@@ -517,7 +517,7 @@ class LearnerImpl : public Learner {
                          unsigned ntree_limit = 0) const {
     CHECK(gbm_.get() != nullptr)
         << "Predict must happen after Load or InitModel";
-    gbm_->Predict(data, out_preds, ntree_limit);
+    gbm_->PredictBatch(data, out_preds, ntree_limit);
   }
   // model parameter
   LearnerModelParam mparam;

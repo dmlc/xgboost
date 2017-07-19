@@ -9,6 +9,7 @@
 #include <dmlc/timer.h>
 #include <xgboost/logging.h>
 #include <xgboost/gbm.h>
+#include <xgboost/predictor.h>
 #include <xgboost/tree_updater.h>
 
 #include <vector>
@@ -203,6 +204,8 @@ class GBTree : public GradientBooster {
       trees.clear();
       mparam.num_trees = 0;
     }
+
+    predictor = std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
   }
 
   void Load(dmlc::Stream* fi) override {
@@ -275,7 +278,7 @@ class GBTree : public GradientBooster {
     }
   }
 
-  void Predict(DMatrix* p_fmat,
+  void PredictBatch(DMatrix* p_fmat,
                std::vector<bst_float>* out_preds,
                unsigned ntree_limit) override {
     if (ntree_limit == 0 ||
@@ -290,44 +293,35 @@ class GBTree : public GradientBooster {
         }
       }
     }
-    PredLoopInternal<GBTree>(p_fmat, out_preds, 0, ntree_limit, true);
+
+    predictor->PredictBatch(p_fmat, mparam.num_feature, out_preds,
+                            mparam.num_output_group, trees, tree_info,
+                            base_margin_, true, 0, ntree_limit);
   }
 
-  void Predict(const SparseBatch::Inst& inst,
+  void PredictInstance(const SparseBatch::Inst& inst,
                std::vector<bst_float>* out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
-    if (thread_temp.size() == 0) {
-      thread_temp.resize(1, RegTree::FVec());
-      thread_temp[0].Init(mparam.num_feature);
-    }
-    ntree_limit *= mparam.num_output_group;
-    if (ntree_limit == 0 || ntree_limit > trees.size()) {
-      ntree_limit = static_cast<unsigned>(trees.size());
-    }
-    out_preds->resize(mparam.num_output_group * (mparam.size_leaf_vector+1));
-    // loop over output groups
-    for (int gid = 0; gid < mparam.num_output_group; ++gid) {
-      (*out_preds)[gid] =
-          PredValue(inst, gid, root_index,
-                    &thread_temp[0], 0, ntree_limit) + base_margin_;
-    }
+    predictor->PredictInstance(inst, out_preds, mparam.num_output_group,
+                               mparam.size_leaf_vector, mparam.num_feature,
+                               trees, tree_info, base_margin_, ntree_limit,
+                               root_index);
   }
 
   void PredictLeaf(DMatrix* p_fmat,
                    std::vector<bst_float>* out_preds,
                    unsigned ntree_limit) override {
-    const int nthread = omp_get_max_threads();
-    InitThreadTemp(nthread);
-    this->PredPath(p_fmat, out_preds, ntree_limit);
+    predictor->PredictLeaf(p_fmat, out_preds, trees, mparam.num_feature,
+                           mparam.num_output_group, ntree_limit);
   }
 
   void PredictContribution(DMatrix* p_fmat,
                            std::vector<bst_float>* out_contribs,
                            unsigned ntree_limit) override {
-    const int nthread = omp_get_max_threads();
-    InitThreadTemp(nthread);
-    this->PredContrib(p_fmat, out_contribs, ntree_limit);
+    predictor->PredictContribution(p_fmat, out_contribs, trees, tree_info,
+                                   mparam.num_output_group, mparam.num_feature,
+                                   base_margin_, ntree_limit);
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
@@ -341,6 +335,176 @@ class GBTree : public GradientBooster {
   }
 
  protected:
+  // initialize updater before using them
+  inline void InitUpdater() {
+    if (updaters.size() != 0) return;
+    std::string tval = tparam.updater_seq;
+    std::vector<std::string> ups = common::Split(tval, ',');
+    for (const std::string& pstr : ups) {
+      std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str()));
+      up->Init(this->cfg);
+      updaters.push_back(std::move(up));
+    }
+  }
+  // do group specific group
+  inline void
+  BoostNewTrees(const std::vector<bst_gpair> &gpair,
+                DMatrix *p_fmat,
+                int bst_group,
+                std::vector<std::unique_ptr<RegTree> >* ret) {
+    this->InitUpdater();
+    std::vector<RegTree*> new_trees;
+    ret->clear();
+    // create the trees
+    for (int i = 0; i < tparam.num_parallel_tree; ++i) {
+      if (tparam.process_type == kDefault) {
+        // create new tree
+        std::unique_ptr<RegTree> ptr(new RegTree());
+        ptr->param.InitAllowUnknown(this->cfg);
+        ptr->InitModel();
+        new_trees.push_back(ptr.get());
+        ret->push_back(std::move(ptr));
+      } else if (tparam.process_type == kUpdate) {
+        CHECK_LT(trees.size(), trees_to_update.size());
+        // move an existing tree from trees_to_update
+        auto t = std::move(trees_to_update[trees.size() +
+                           bst_group * tparam.num_parallel_tree + i]);
+        new_trees.push_back(t.get());
+        ret->push_back(std::move(t));
+      }
+    }
+    // update the trees
+    for (auto& up : updaters) {
+      up->Update(gpair, p_fmat, new_trees);
+    }
+  }
+  // commit new trees all at once
+  virtual void
+  CommitModel(std::vector<std::unique_ptr<RegTree> >&& new_trees,
+              int bst_group) {
+    size_t old_ntree = trees.size();
+    for (size_t i = 0; i < new_trees.size(); ++i) {
+      trees.push_back(std::move(new_trees[i]));
+      tree_info.push_back(bst_group);
+    }
+    mparam.num_trees += static_cast<int>(new_trees.size());
+
+    // update cache entry
+    for (auto &kv : cache_) {
+      CacheEntry& e = kv.second;
+
+      if (e.predictions.size() == 0) {
+        predictor->PredictBatch(e.data.get(), mparam.num_feature,
+                                &(e.predictions), mparam.num_output_group,
+                                trees, tree_info, base_margin_, true, 0);
+      } else {
+        if (mparam.num_output_group == 1 && updaters.size() > 0 && new_trees.size() == 1
+          && updaters.back()->UpdatePredictionCache(e.data.get(), &(e.predictions)) ) {
+          {}  // do nothing
+        } else {
+          predictor->PredictBatch(e.data.get(), mparam.num_feature,
+                                  &(e.predictions), mparam.num_output_group,
+                                  trees, tree_info, base_margin_, false,
+                                  old_ntree);
+        }
+      }
+    }
+  }
+
+  // init thread buffers
+  inline void InitThreadTemp(int nthread) {
+    int prev_thread_temp_size = thread_temp.size();
+    if (prev_thread_temp_size < nthread) {
+      thread_temp.resize(nthread, RegTree::FVec());
+      for (int i = prev_thread_temp_size; i < nthread; ++i) {
+        thread_temp[i].Init(mparam.num_feature);
+      }
+    }
+  }
+  // --- data structure ---
+  // base margin
+  bst_float base_margin_;
+  // training parameter
+  GBTreeTrainParam tparam;
+  // model parameter
+  GBTreeModelParam mparam;
+  /*! \brief vector of trees stored in the model */
+  std::vector<std::unique_ptr<RegTree> > trees;
+  /*! \brief for the update process, a place to keep the initial trees */
+  std::vector<std::unique_ptr<RegTree> > trees_to_update;
+  /*! \brief some information indicator of the tree, reserved */
+  std::vector<int> tree_info;
+  // ----training fields----
+  std::unordered_map<DMatrix*, CacheEntry> cache_;
+  // configurations for tree
+  std::vector<std::pair<std::string, std::string> > cfg;
+  // temporal storage for per thread
+  std::vector<RegTree::FVec> thread_temp;
+  // the updaters that can be applied to each of tree
+  std::vector<std::unique_ptr<TreeUpdater> > updaters;
+
+  std::unique_ptr<Predictor> predictor;
+};
+
+// dart
+class Dart : public GBTree {
+ public:
+  explicit Dart(bst_float base_margin) : GBTree(base_margin) {}
+
+  void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
+    GBTree::Configure(cfg);
+    if (trees.size() == 0) {
+      dparam.InitAllowUnknown(cfg);
+    }
+  }
+
+  void Load(dmlc::Stream* fi) override {
+    GBTree::Load(fi);
+    weight_drop.resize(mparam.num_trees);
+    if (mparam.num_trees != 0) {
+      fi->Read(&weight_drop);
+    }
+  }
+
+  void Save(dmlc::Stream* fo) const override {
+    GBTree::Save(fo);
+    if (weight_drop.size() != 0) {
+      fo->Write(weight_drop);
+    }
+  }
+
+  // predict the leaf scores with dropout if ntree_limit = 0
+  void PredictBatch(DMatrix* p_fmat,
+               std::vector<bst_float>* out_preds,
+               unsigned ntree_limit) override {
+    DropTrees(ntree_limit);
+    PredLoopInternal<Dart>(p_fmat, out_preds, 0, ntree_limit, true);
+  }
+
+  void PredictInstance(const SparseBatch::Inst& inst,
+               std::vector<bst_float>* out_preds,
+               unsigned ntree_limit,
+               unsigned root_index) override {
+    DropTrees(1);
+    if (thread_temp.size() == 0) {
+      thread_temp.resize(1, RegTree::FVec());
+      thread_temp[0].Init(mparam.num_feature);
+    }
+    out_preds->resize(mparam.num_output_group);
+    ntree_limit *= mparam.num_output_group;
+    if (ntree_limit == 0 || ntree_limit > trees.size()) {
+      ntree_limit = static_cast<unsigned>(trees.size());
+    }
+    // loop over output groups
+    for (int gid = 0; gid < mparam.num_output_group; ++gid) {
+      (*out_preds)[gid]
+          = PredValue(inst, gid, root_index,
+                      &thread_temp[0], 0, ntree_limit) + base_margin_;
+    }
+  }
+
+ protected:
+  friend class GBTree;
   // internal prediction loop
   // add predictions to out_preds
   template<typename Derived>
@@ -436,281 +600,6 @@ class GBTree : public GradientBooster {
       }
     }
   }
-  // initialize updater before using them
-  inline void InitUpdater() {
-    if (updaters.size() != 0) return;
-    std::string tval = tparam.updater_seq;
-    std::vector<std::string> ups = common::Split(tval, ',');
-    for (const std::string& pstr : ups) {
-      std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(pstr.c_str()));
-      up->Init(this->cfg);
-      updaters.push_back(std::move(up));
-    }
-  }
-  // do group specific group
-  inline void
-  BoostNewTrees(const std::vector<bst_gpair> &gpair,
-                DMatrix *p_fmat,
-                int bst_group,
-                std::vector<std::unique_ptr<RegTree> >* ret) {
-    this->InitUpdater();
-    std::vector<RegTree*> new_trees;
-    ret->clear();
-    // create the trees
-    for (int i = 0; i < tparam.num_parallel_tree; ++i) {
-      if (tparam.process_type == kDefault) {
-        // create new tree
-        std::unique_ptr<RegTree> ptr(new RegTree());
-        ptr->param.InitAllowUnknown(this->cfg);
-        ptr->InitModel();
-        new_trees.push_back(ptr.get());
-        ret->push_back(std::move(ptr));
-      } else if (tparam.process_type == kUpdate) {
-        CHECK_LT(trees.size(), trees_to_update.size());
-        // move an existing tree from trees_to_update
-        auto t = std::move(trees_to_update[trees.size() +
-                           bst_group * tparam.num_parallel_tree + i]);
-        new_trees.push_back(t.get());
-        ret->push_back(std::move(t));
-      }
-    }
-    // update the trees
-    for (auto& up : updaters) {
-      up->Update(gpair, p_fmat, new_trees);
-    }
-  }
-  // commit new trees all at once
-  virtual void
-  CommitModel(std::vector<std::unique_ptr<RegTree> >&& new_trees,
-              int bst_group) {
-    size_t old_ntree = trees.size();
-    for (size_t i = 0; i < new_trees.size(); ++i) {
-      trees.push_back(std::move(new_trees[i]));
-      tree_info.push_back(bst_group);
-    }
-    mparam.num_trees += static_cast<int>(new_trees.size());
-
-    // update cache entry
-    for (auto &kv : cache_) {
-      CacheEntry& e = kv.second;
-
-      if (e.predictions.size() == 0) {
-        PredLoopInternal<GBTree>(
-            e.data.get(), &(e.predictions),
-            0, trees.size(), true);
-      } else {
-        if (mparam.num_output_group == 1 && updaters.size() > 0 && new_trees.size() == 1
-          && updaters.back()->UpdatePredictionCache(e.data.get(), &(e.predictions)) ) {
-          {}  // do nothing
-        } else {
-          PredLoopInternal<GBTree>(
-              e.data.get(), &(e.predictions),
-              old_ntree, trees.size(), false);
-        }
-      }
-    }
-  }
-
-  // make a prediction for a single instance
-  inline bst_float PredValue(const RowBatch::Inst &inst,
-                             int bst_group,
-                             unsigned root_index,
-                             RegTree::FVec *p_feats,
-                             unsigned tree_begin,
-                             unsigned tree_end) {
-    bst_float psum = 0.0f;
-    p_feats->Fill(inst);
-    for (size_t i = tree_begin; i < tree_end; ++i) {
-      if (tree_info[i] == bst_group) {
-        int tid = trees[i]->GetLeafIndex(*p_feats, root_index);
-        psum += (*trees[i])[tid].leaf_value();
-      }
-    }
-    p_feats->Drop(inst);
-    return psum;
-  }
-  // predict independent leaf index
-  inline void PredPath(DMatrix *p_fmat,
-                       std::vector<bst_float> *out_preds,
-                       unsigned ntree_limit) {
-    const MetaInfo& info = p_fmat->info();
-    // number of valid trees
-    ntree_limit *= mparam.num_output_group;
-    if (ntree_limit == 0 || ntree_limit > trees.size()) {
-      ntree_limit = static_cast<unsigned>(trees.size());
-    }
-    std::vector<bst_float>& preds = *out_preds;
-    preds.resize(info.num_row * ntree_limit);
-    // start collecting the prediction
-    dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      const RowBatch& batch = iter->Value();
-      // parallel over local batch
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
-        const int tid = omp_get_thread_num();
-        size_t ridx = static_cast<size_t>(batch.base_rowid + i);
-        RegTree::FVec &feats = thread_temp[tid];
-        feats.Fill(batch[i]);
-        for (unsigned j = 0; j < ntree_limit; ++j) {
-          int tid = trees[j]->GetLeafIndex(feats, info.GetRoot(ridx));
-          preds[ridx * ntree_limit + j] = static_cast<bst_float>(tid);
-        }
-        feats.Drop(batch[i]);
-      }
-    }
-  }
-  // predict contributions
-  inline void PredContrib(DMatrix *p_fmat,
-                          std::vector<bst_float> *out_contribs,
-                          unsigned ntree_limit) {
-    const MetaInfo& info = p_fmat->info();
-    // number of valid trees
-    ntree_limit *= mparam.num_output_group;
-    if (ntree_limit == 0 || ntree_limit > trees.size()) {
-      ntree_limit = static_cast<unsigned>(trees.size());
-    }
-    const int ngroup = mparam.num_output_group;
-    size_t ncolumns = mparam.num_feature + 1;
-    // allocate space for (number of features + bias) times the number of rows
-    std::vector<bst_float>& contribs = *out_contribs;
-    contribs.resize(info.num_row * ncolumns * mparam.num_output_group);
-    // make sure contributions is zeroed, we could be reusing a previously allocated one
-    std::fill(contribs.begin(), contribs.end(), 0);
-    // initialize tree node mean values
-    #pragma omp parallel for schedule(static)
-    for (bst_omp_uint i=0; i < ntree_limit; ++i) {
-      trees[i]->FillNodeMeanValues();
-    }
-    // start collecting the contributions
-    dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
-    const std::vector<bst_float>& base_margin = info.base_margin;
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      const RowBatch& batch = iter->Value();
-      // parallel over local batch
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
-        size_t row_idx = static_cast<size_t>(batch.base_rowid + i);
-        unsigned root_id = info.GetRoot(row_idx);
-        RegTree::FVec &feats = thread_temp[omp_get_thread_num()];
-        // loop over all classes
-        for (int gid = 0; gid < ngroup; ++gid) {
-          bst_float *p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
-          feats.Fill(batch[i]);
-          // calculate contributions
-          for (unsigned j = 0; j < ntree_limit; ++j) {
-            if (tree_info[j] != gid) {
-              continue;
-            }
-            trees[j]->CalculateContributions(feats, root_id, p_contribs);
-          }
-          feats.Drop(batch[i]);
-          // add base margin to BIAS
-          if (base_margin.size() != 0) {
-            p_contribs[ncolumns - 1] += base_margin[row_idx * ngroup + gid];
-          } else {
-            p_contribs[ncolumns - 1] += base_margin_;
-          }
-        }
-      }
-    }
-  }
-  // init thread buffers
-  inline void InitThreadTemp(int nthread) {
-    int prev_thread_temp_size = thread_temp.size();
-    if (prev_thread_temp_size < nthread) {
-      thread_temp.resize(nthread, RegTree::FVec());
-      for (int i = prev_thread_temp_size; i < nthread; ++i) {
-        thread_temp[i].Init(mparam.num_feature);
-      }
-    }
-  }
-  // --- data structure ---
-  // base margin
-  bst_float base_margin_;
-  // training parameter
-  GBTreeTrainParam tparam;
-  // model parameter
-  GBTreeModelParam mparam;
-  /*! \brief vector of trees stored in the model */
-  std::vector<std::unique_ptr<RegTree> > trees;
-  /*! \brief for the update process, a place to keep the initial trees */
-  std::vector<std::unique_ptr<RegTree> > trees_to_update;
-  /*! \brief some information indicator of the tree, reserved */
-  std::vector<int> tree_info;
-  // ----training fields----
-  std::unordered_map<DMatrix*, CacheEntry> cache_;
-  // configurations for tree
-  std::vector<std::pair<std::string, std::string> > cfg;
-  // temporal storage for per thread
-  std::vector<RegTree::FVec> thread_temp;
-  // the updaters that can be applied to each of tree
-  std::vector<std::unique_ptr<TreeUpdater> > updaters;
-};
-
-// dart
-class Dart : public GBTree {
- public:
-  explicit Dart(bst_float base_margin) : GBTree(base_margin) {}
-
-  void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
-    GBTree::Configure(cfg);
-    if (trees.size() == 0) {
-      dparam.InitAllowUnknown(cfg);
-    }
-  }
-
-  void Load(dmlc::Stream* fi) override {
-    GBTree::Load(fi);
-    weight_drop.resize(mparam.num_trees);
-    if (mparam.num_trees != 0) {
-      fi->Read(&weight_drop);
-    }
-  }
-
-  void Save(dmlc::Stream* fo) const override {
-    GBTree::Save(fo);
-    if (weight_drop.size() != 0) {
-      fo->Write(weight_drop);
-    }
-  }
-
-  // predict the leaf scores with dropout if ntree_limit = 0
-  void Predict(DMatrix* p_fmat,
-               std::vector<bst_float>* out_preds,
-               unsigned ntree_limit) override {
-    DropTrees(ntree_limit);
-    PredLoopInternal<Dart>(p_fmat, out_preds, 0, ntree_limit, true);
-  }
-
-  void Predict(const SparseBatch::Inst& inst,
-               std::vector<bst_float>* out_preds,
-               unsigned ntree_limit,
-               unsigned root_index) override {
-    DropTrees(1);
-    if (thread_temp.size() == 0) {
-      thread_temp.resize(1, RegTree::FVec());
-      thread_temp[0].Init(mparam.num_feature);
-    }
-    out_preds->resize(mparam.num_output_group);
-    ntree_limit *= mparam.num_output_group;
-    if (ntree_limit == 0 || ntree_limit > trees.size()) {
-      ntree_limit = static_cast<unsigned>(trees.size());
-    }
-    // loop over output groups
-    for (int gid = 0; gid < mparam.num_output_group; ++gid) {
-      (*out_preds)[gid]
-          = PredValue(inst, gid, root_index,
-                      &thread_temp[0], 0, ntree_limit) + base_margin_;
-    }
-  }
-
- protected:
-  friend class GBTree;
   // commit new trees all at once
   void CommitModel(std::vector<std::unique_ptr<RegTree> >&& new_trees,
                    int bst_group) override {
