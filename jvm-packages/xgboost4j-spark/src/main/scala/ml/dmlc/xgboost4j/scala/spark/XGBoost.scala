@@ -153,9 +153,12 @@ object XGBoost extends Serializable {
    * @param missing the value represented the missing value in the dataset
    * @param featureCol the name of input column, "features" as default value
    * @param labelCol the name of output column, "label" as default value
+   * @param baseMarginCol the name of the column with the initial prediction,
+   *                      "baseMargin as default value
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
+  // scalastyle:off
   @throws(classOf[XGBoostError])
   def trainWithDataFrame(
       trainingData: Dataset[_],
@@ -167,7 +170,8 @@ object XGBoost extends Serializable {
       useExternalMemory: Boolean = false,
       missing: Float = Float.NaN,
       featureCol: String = "features",
-      labelCol: String = "label"): XGBoostModel = {
+      labelCol: String = "label",
+      baseMarginCol: String = "baseMargin"): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
     val estimator = new XGBoostEstimator(params)
     // assigning general parameters
@@ -179,9 +183,11 @@ object XGBoost extends Serializable {
       set(estimator.customEval, eval).
       set(estimator.missing, missing).
       setFeaturesCol(featureCol).
+      set(estimator.baseMarginCol, baseMarginCol).
       setLabelCol(labelCol).
       fit(trainingData)
   }
+  // scalastyle:on
 
   private[spark] def isClassificationTask(params: Map[String, Any]): Boolean = {
     val objective = params.getOrElse("objective", params.getOrElse("obj_type", null))

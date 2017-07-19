@@ -26,7 +26,7 @@ import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.util._
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.DoubleType
+import org.apache.spark.sql.types.FloatType
 import org.apache.spark.sql.{Dataset, Row}
 import org.json4s.DefaultFormats
 
@@ -107,16 +107,29 @@ class XGBoostEstimator private[spark](
     }
   }
 
+  private def ensureColumns(trainingSet: Dataset[_]): Dataset[_] = {
+    if (trainingSet.columns.contains($(baseMarginCol))) {
+      trainingSet
+    } else {
+      trainingSet.withColumn($(baseMarginCol), lit(Float.NaN))
+    }
+  }
+
   /**
    * produce a XGBoostModel by fitting the given dataset
    */
   override def train(trainingSet: Dataset[_]): XGBoostModel = {
-    val instances = trainingSet.select(
-      col($(featuresCol)), col($(labelCol)).cast(DoubleType)).rdd.map {
-      case Row(feature: SparseVector, label: Double) =>
-        XGBLabeledPoint(label.toFloat, feature.indices, feature.values.map(_.toFloat))
-      case Row(feature: DenseVector, label: Double) =>
-        XGBLabeledPoint(label.toFloat, null, feature.values.map(_.toFloat))
+    val instances = ensureColumns(trainingSet).select(
+      col($(featuresCol)),
+      col($(labelCol)).cast(FloatType),
+      col($(baseMarginCol)).cast(FloatType)
+    ).rdd.map { case Row(features: Vector, label: Float, baseMargin: Float) =>
+      val (indices, values) = features match {
+        case v: SparseVector => (v.indices, v.values.map(_.toFloat))
+        case v: DenseVector => (null, v.values.map(_.toFloat))
+      }
+
+      XGBLabeledPoint(label.toFloat, indices, values, baseMargin = baseMargin)
     }
     transformSchema(trainingSet.schema, logging = true)
     val derivedXGBoosterParamMap = fromParamsToXGBParamMap
