@@ -27,7 +27,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
-import org.apache.spark.{SparkContext, TaskContext}
+import org.apache.spark.{SparkContext, SparkEnv, TaskContext}
 
 object TrackerConf {
   def apply(): TrackerConf = TrackerConf(0L, "python")
@@ -61,12 +61,26 @@ object XGBoost extends Serializable {
           indicesBuilder += (if (labeledPoint.indices == null) i else labeledPoint.indices(i))
           valuesBuilder += value
         }
-
         labeledPoint.copy(indices = indicesBuilder.result(), values = valuesBuilder.result())
       }
     } else {
       denseLabeledPoints
     }
+  }
+
+  private def fromBaseMarginsToArray(baseMargins: Iterator[Float]): Option[Array[Float]] = {
+    val builder = new mutable.ArrayBuilder.ofFloat()
+    while (baseMargins.hasNext) {
+      val baseMargin = baseMargins.next()
+      if (baseMargin.isNaN) {
+        // This assumes that if there is a NaN, then all base margins
+        // are unspecified. See [[LabeledPoint.baseMargin]].
+        return None
+      }
+      builder += baseMargin
+    }
+
+    Some(builder.result())
   }
 
   private[spark] def buildDistributedBoosters(
@@ -85,12 +99,12 @@ object XGBoost extends Serializable {
     } else {
       trainingSet
     }
+    val partitionedBaseMargin = partitionedTrainingSet.map(_.baseMargin)
     val appName = partitionedTrainingSet.context.appName
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    partitionedTrainingSet.mapPartitions { it =>
-      val trainingPoints = fromDenseToSparseLabeledPoints(it, missing).toList
+    partitionedTrainingSet.zipPartitions(partitionedBaseMargin) { (trainingPoints, baseMargins) =>
       if (trainingPoints.isEmpty) {
         throw new XGBoostError(
           s"detected an empty partition in the training data, partition ID:" +
@@ -104,16 +118,17 @@ object XGBoost extends Serializable {
       }
       rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv)
-      val trainingMatrix = new DMatrix(trainingPoints.iterator, cacheFileName)
+      val trainingMatrix = new DMatrix(
+        fromDenseToSparseLabeledPoints(trainingPoints, missing), cacheFileName)
       try {
         // TODO: use group attribute from the points.
         if (params.contains("groupData") && params("groupData") != null) {
           trainingMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
             TaskContext.getPartitionId()).toArray)
         }
-        if (trainingPoints.forall(!_.baseMargin.isNaN)) {
-          trainingMatrix.setBaseMargin(trainingPoints.map(_.baseMargin).toArray)
-        }
+
+        fromBaseMarginsToArray(baseMargins).foreach(trainingMatrix.setBaseMargin)
+
         val booster = SXGBoost.train(trainingMatrix, params, round,
           watches = Map("train" -> trainingMatrix), obj, eval)
         Iterator(booster)
