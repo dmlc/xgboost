@@ -18,11 +18,11 @@ rng = np.random.RandomState(1994)
 # "realistic" size based upon http://stat-computing.org/dataexpo/2009/ , which has been processed to one-hot encode categoricalsxsy
 cols = 31
 # reduced to fit onto 1 gpu but still be large
-rows2 = 5000 # medium
-#rows2 = 4032 # fake large for testing
+rows3 = 5000 # small
+rows2 = 4360032 # medium
 rows1 = 42360032 # large
-#rows2 = 152360032 # can do this for multi-gpu test (very large)
-rowslist = [rows1, rows2]
+#rows1 = 152360032 # can do this for multi-gpu test (very large)
+rowslist = [rows1, rows2, rows3]
 
 
 class TestGPU(unittest.TestCase):
@@ -46,9 +46,9 @@ class TestGPU(unittest.TestCase):
             Xtest, ytest = make_classification(rowstest, n_features=cols, random_state=8)
             
             eprint("Starting DMatrix(X,y)")
-            ag_dtrain = xgb.DMatrix(X,y)
+            ag_dtrain = xgb.DMatrix(X,y,nthread=0)
             eprint("Starting DMatrix(Xtest,ytest)")
-            ag_dtest = xgb.DMatrix(Xtest,ytest)
+            ag_dtest = xgb.DMatrix(Xtest,ytest,nthread=0)
 
     
     
@@ -60,20 +60,21 @@ class TestGPU(unittest.TestCase):
             # regression test --- hist must be same as exact on all-categorial data
             ag_param = {'max_depth': max_depth,
                         'tree_method': 'exact',
-                        #'nthread': 1,
+                        'nthread': 0,
                         'eta': 1,
                         'silent': 0,
                         'objective': 'binary:logistic',
                         'eval_metric': 'auc'}
             ag_paramb = {'max_depth': max_depth,
                         'tree_method': 'hist',
-                        #'nthread': 1,
+                        'nthread': 0,
                         'eta': 1,
                         'silent': 0,
                         'objective': 'binary:logistic',
                         'eval_metric': 'auc'}
             ag_param2 = {'max_depth': max_depth,
                          'tree_method': 'gpu_hist',
+                         'nthread': 0,
                          'eta': 1,
                          'silent': 0,
                          'n_gpus': 1,
@@ -82,6 +83,7 @@ class TestGPU(unittest.TestCase):
                          'eval_metric': 'auc'}
             ag_param3 = {'max_depth': max_depth,
                          'tree_method': 'gpu_hist',
+                         'nthread': 0,
                          'eta': 1,
                          'silent': 0,
                          'n_gpus': -1,
@@ -90,6 +92,7 @@ class TestGPU(unittest.TestCase):
                          'eval_metric': 'auc'}
             #ag_param4 = {'max_depth': max_depth,
             #             'tree_method': 'gpu_exact',
+            #             'nthread': 0,
             #             'eta': 1,
             #             'silent': 0,
             #             'n_gpus': 1,
