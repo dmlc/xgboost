@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, exec-used
+# pylint: disable=invalid-name, exec-used, no-self-use, missing-docstring
 """Setup xgboost package."""
 from __future__ import absolute_import
 import sys
