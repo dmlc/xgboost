@@ -1,9 +1,16 @@
+/*!
+ * Copyright by Contributors
+ * \file predictor.h
+ * \brief Interface of predictor,
+ *  performs predictions for a gradient booster.
+ */
 #pragma once
 #include <xgboost/base.h>
 #include <xgboost/tree_model.h>
 #include <functional>
 #include <memory>
 #include <vector>
+#include <string>
 
 namespace xgboost {
 class DMatrix;
@@ -64,7 +71,7 @@ class Predictor {
    * for gbtree, but not for gblinear
    */
   virtual void PredictLeaf(DMatrix* dmat, std::vector<bst_float>* out_preds,
-                           std::vector<std::unique_ptr<RegTree>>& trees,
+                           const std::vector<std::unique_ptr<RegTree>>& trees,
                            int num_features, int num_output_group,
                            unsigned ntree_limit = 0) = 0;
 
@@ -78,8 +85,8 @@ class Predictor {
    */
   virtual void PredictContribution(DMatrix* dmat,
                                    std::vector<bst_float>* out_contribs,
-                                   std::vector<std::unique_ptr<RegTree>>& trees,
-                                   std::vector<int>& tree_info,
+                                   const std::vector<std::unique_ptr<RegTree>>& trees,
+                                   const std::vector<int>& tree_info,
                                    int num_output_group, int num_feature,
                                    float default_base_margin,
                                    unsigned ntree_limit = 0) = 0;

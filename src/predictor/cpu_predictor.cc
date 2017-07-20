@@ -1,3 +1,6 @@
+/*!
+ * Copyright by Contributors 2017
+ */
 #include <xgboost/predictor.h>
 #include <xgboost/tree_model.h>
 #include "dmlc/logging.h"
@@ -133,7 +136,7 @@ class CPUPredictor : public Predictor {
     }
   }
   void PredictLeaf(DMatrix* p_fmat, std::vector<bst_float>* out_preds,
-                   std::vector<std::unique_ptr<RegTree>>& trees,
+                   const std::vector<std::unique_ptr<RegTree>>& trees,
                    int num_features, int num_output_group,
                    unsigned ntree_limit) override {
     const int nthread = omp_get_max_threads();
@@ -170,8 +173,8 @@ class CPUPredictor : public Predictor {
 
   void PredictContribution(DMatrix* p_fmat,
                            std::vector<bst_float>* out_contribs,
-                           std::vector<std::unique_ptr<RegTree>>& trees,
-                           std::vector<int>& tree_info, int num_output_group,
+                           const std::vector<std::unique_ptr<RegTree>>& trees,
+                           const std::vector<int>& tree_info, int num_output_group,
                            int num_feature, float default_base_margin,
                            unsigned ntree_limit) override {
     const int nthread = omp_get_max_threads();
