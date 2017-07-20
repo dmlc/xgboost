@@ -29,31 +29,16 @@ class TestGPU(unittest.TestCase):
     def test_large(self):
         eprint("Starting test for large data")
         tm._skip_if_no_sklearn()
-        from sklearn.datasets import load_digits
-        try:
-            from sklearn.model_selection import train_test_split
-        except:
-            from sklearn.cross_validation import train_test_split
-
 
         for rows in rowslist:
             
             eprint("Creating train data rows=%d cols=%d" % (rows,cols))
-            X, y = make_classification(rows, n_features=cols, random_state=7)
-            rowstest = int(rows*0.2)
-            eprint("Creating test data rows=%d cols=%d" % (rowstest,cols))
-            # note the new random state.  if chose same as train random state, exact methods can memorize and do very well on test even for random data, while hist cannot                     
-            Xtest, ytest = make_classification(rowstest, n_features=cols, random_state=8)
-            
+            np.random.seed(7)
+            X = np.random.rand(rows, cols)
+            y = np.random.rand(rows)
             eprint("Starting DMatrix(X,y)")
             ag_dtrain = xgb.DMatrix(X,y,nthread=0)
-            eprint("Starting DMatrix(Xtest,ytest)")
-            ag_dtest = xgb.DMatrix(Xtest,ytest,nthread=0)
 
-    
-    
-            
-    
             max_depth=6
             max_bin=1024
                 
@@ -90,21 +75,11 @@ class TestGPU(unittest.TestCase):
                          'objective': 'binary:logistic',
                          'max_bin': max_bin,
                          'eval_metric': 'auc'}
-            #ag_param4 = {'max_depth': max_depth,
-            #             'tree_method': 'gpu_exact',
-            #             'nthread': 0,
-            #             'eta': 1,
-            #             'silent': 0,
-            #             'n_gpus': 1,
-            #             'objective': 'binary:logistic',
-            #             'max_bin': max_bin,
-            #             'eval_metric': 'auc'}
             ag_res = {}
             ag_resb = {}
             ag_res2 = {}
             ag_res3 = {}
-            #ag_res4 = {}
-    
+
             num_rounds = 1
             
             eprint("normal updater")
@@ -119,19 +94,10 @@ class TestGPU(unittest.TestCase):
             eprint("gpu_hist updater all gpus")
             xgb.train(ag_param3, ag_dtrain, num_rounds, [(ag_dtrain, 'train'), (ag_dtest, 'test')],
                       evals_result=ag_res3)
-            #eprint("gpu_exact updater")
-            #xgb.train(ag_param4, ag_dtrain, num_rounds, [(ag_dtrain, 'train'), (ag_dtest, 'test')],
-            #          evals_result=ag_res4)
-    
+
             assert np.fabs(ag_res['train']['auc'][0] - ag_resb['train']['auc'][0])<0.001
             assert np.fabs(ag_res['train']['auc'][0] - ag_res2['train']['auc'][0])<0.001
             assert np.fabs(ag_res['train']['auc'][0] - ag_res3['train']['auc'][0])<0.001
-            #assert np.fabs(ag_res['train']['auc'][0] - ag_res4['train']['auc'][0])<0.001
-    
-            assert np.fabs(ag_res['test']['auc'][0] - ag_resb['test']['auc'][0])<0.01
-            assert np.fabs(ag_res['test']['auc'][0] - ag_res2['test']['auc'][0])<0.01
-            assert np.fabs(ag_res['test']['auc'][0] - ag_res3['test']['auc'][0])<0.01
-            #assert np.fabs(ag_res['test']['auc'][0] - ag_res4['test']['auc'][0])<0.01
-    
+
     
     

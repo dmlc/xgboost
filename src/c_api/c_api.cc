@@ -470,10 +470,9 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
       for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
         if (common::CheckNAN(data[ncol*i + j]) && !nan_missing) {
           badnan[ithread] = 1;
-        } else {
-          if (nan_missing || data[ncol*i + j] != missing) {
-            ++nelem;
-          }
+        } else if (common::CheckNAN(data[ncol * i + j])) {
+        } else if (nan_missing || data[ncol * i + j] != missing) {
+          ++nelem;
         }
       }
       mat.row_ptr_[i+1] = nelem;
@@ -495,12 +494,11 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
     for (omp_ulong i = 0; i < nrow; ++i) {
       xgboost::bst_ulong matj = 0;
       for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
-        if (common::CheckNAN(data[ncol*i + j]) && !nan_missing) {
-        } else {
-          if (nan_missing || data[ncol*i + j] != missing) {
-            mat.row_data_[mat.row_ptr_[i] + matj] = RowBatch::Entry(j, data[ncol*i + j]);
-            ++matj;
-          }
+        if (common::CheckNAN(data[ncol * i + j])) {
+        } else if (nan_missing || data[ncol * i + j] != missing) {
+          mat.row_data_[mat.row_ptr_[i] + matj] =
+              RowBatch::Entry(j, data[ncol * i + j]);
+          ++matj;
         }
       }
     }
