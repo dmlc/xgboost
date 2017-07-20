@@ -820,7 +820,6 @@ class Booster(object):
         """
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
-        self._validate_features(dtrain)
 
         if fobj is None:
             _check_call(_LIB.XGBoosterUpdateOneIter(self.handle, ctypes.c_int(iteration),
@@ -847,7 +846,6 @@ class Booster(object):
             raise ValueError('grad / hess length mismatch: {} / {}'.format(len(grad), len(hess)))
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
-        self._validate_features(dtrain)
 
         _check_call(_LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
                                                c_array(ctypes.c_float, grad),
@@ -921,7 +919,7 @@ class Booster(object):
         return self.eval_set([(data, name)], iteration)
 
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False,
-                pred_contribs=False):
+                pred_contribs=False, valid_feat=False):
         """
         Predict with data.
 
@@ -953,6 +951,9 @@ class Booster(object):
             all feature contributions is equal to the prediction. Note that the bias is added
             as the final column, on top of the regular features.
 
+        valid_feat : bool
+            If columns should be validated prior to prediction.
+
         Returns
         -------
         prediction : numpy array
@@ -965,7 +966,8 @@ class Booster(object):
         if pred_contribs:
             option_mask |= 0x04
 
-        self._validate_features(data)
+        if valid_feat:
+            self._validate_features(data)
 
         length = c_bst_ulong()
         preds = ctypes.POINTER(ctypes.c_float)()
