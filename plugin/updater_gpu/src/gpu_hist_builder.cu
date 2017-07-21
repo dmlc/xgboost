@@ -343,8 +343,6 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
 }
 
 void GPUHistBuilder::BuildHist(int depth) {
-  //  dh::Timer time;
-
   for (int d_idx = 0; d_idx < n_devices; d_idx++) {
     int device_idx = dList[d_idx];
     size_t begin = device_element_segments[d_idx];
@@ -1070,9 +1068,9 @@ void GPUHistBuilder::Update(const std::vector<bst_gpair>& gpair,
   this->InitData(gpair, *p_fmat, *p_tree);
   this->InitFirstNode(gpair);
   this->ColSampleTree();
+
   for (int depth = 0; depth < param.max_depth; depth++) {
     this->ColSampleLevel();
-
     this->BuildHist(depth);
     this->FindSplit(depth);
     this->UpdatePosition(depth);

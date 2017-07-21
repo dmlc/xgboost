@@ -5,13 +5,18 @@ import numpy as np
 from sklearn.datasets import make_classification
 import time
 
-n = 1000000
-num_rounds = 500
-
 def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     print("Generating dataset: {} rows * {} columns".format(args.rows,args.columns))
+    tmp = time.time()
     X, y = make_classification(args.rows, n_features=args.columns, random_state=7)
-    dtrain = xgb.DMatrix(X, y)
+    print ("Generate Time: %s seconds" % (str(time.time() - tmp)))
+    tmp = time.time()
+    print ("DMatrix Start")
+    # omp way
+    dtrain = xgb.DMatrix(X, y, nthread=-1)
+    # non-omp way
+    #dtrain = xgb.DMatrix(X, y)
+    print ("DMatrix Time: %s seconds" % (str(time.time() - tmp)))
 
     param = {'objective': 'binary:logistic',
              'max_depth': 6,
@@ -24,7 +29,7 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     print("Training with '%s'" % param['tree_method'])
     tmp = time.time()
     xgb.train(param, dtrain, args.iterations)
-    print ("Time: %s seconds" % (str(time.time() - tmp)))
+    print ("Train Time: %s seconds" % (str(time.time() - tmp)))
 
     param['silent'] = 1
     param['tree_method'] = cpu_algorithm
