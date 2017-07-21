@@ -14,11 +14,6 @@
 #include <limits>
 #include <vector>
 
-#ifdef __NVCC__
-#define XGB_DEVICE __host__ __device__
-#else
-#define XGB_DEVICE
-#endif
 
 namespace xgboost {
 namespace tree {
@@ -35,8 +30,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int max_leaves;
   // if using histogram based algorithm, maximum number of bins per feature
   int max_bin;
-  enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };
-  int colmat_dtype;
   // growing policy
   enum TreeGrowPolicy { kDepthWise = 0, kLossGuide = 1 };
   int grow_policy;
@@ -79,6 +72,10 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool refresh_leaf;
   // auxiliary data structure
   std::vector<int> monotone_constraints;
+  // gpu to use for single gpu algorithms
+  int gpu_id;
+  // number of GPUs to use
+  int n_gpus;
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
@@ -112,14 +109,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
             "Tree growing policy. 0: favor splitting at nodes closest to the node, "
             "i.e. grow depth-wise. 1: favor splitting at nodes with highest loss "
             "change. (cf. LightGBM)");
-    DMLC_DECLARE_FIELD(colmat_dtype)
-        .set_default(static_cast<int>(DataType::uint32))
-        .add_enum("uint8", static_cast<int>(DataType::uint8))
-        .add_enum("uint16", static_cast<int>(DataType::uint16))
-        .add_enum("uint32", static_cast<int>(DataType::uint32))
-        .describe("Integral data type to be used with columnar data storage."
-                  "May carry marginal performance implications. Reserved for "
-                  "advanced use");
     DMLC_DECLARE_FIELD(min_child_weight)
         .set_lower_bound(0.0f)
         .set_default(1.0f)
@@ -186,6 +175,14 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
         .describe("Constraint of variable monotonicity");
+    DMLC_DECLARE_FIELD(gpu_id)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("gpu to use for single gpu algorithms");
+    DMLC_DECLARE_FIELD(n_gpus)
+        .set_lower_bound(-1)
+        .set_default(1)
+        .describe("Number of GPUs to use for multi-gpu algorithms: -1=use all GPUs");
     // add alias of parameters
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
@@ -222,7 +219,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
 
 // functions for L1 cost
 template <typename T1, typename T2>
-XGB_DEVICE inline static T1 ThresholdL1(T1 w, T2 lambda) {
+XGBOOST_DEVICE inline static T1 ThresholdL1(T1 w, T2 lambda) {
   if (w > +lambda)
     return w - lambda;
   if (w < -lambda)
@@ -231,18 +228,18 @@ XGB_DEVICE inline static T1 ThresholdL1(T1 w, T2 lambda) {
 }
 
 template <typename T>
-XGB_DEVICE inline static T Sqr(T a) { return a * a; }
+XGBOOST_DEVICE inline static T Sqr(T a) { return a * a; }
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
-XGB_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad,
+XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad,
                                         T sum_hess, T w) {
   return -(2.0 * sum_grad * w + (sum_hess + p.reg_lambda) * Sqr(w));
 }
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
-XGB_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
+XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
   if (sum_hess < p.min_child_weight)
     return 0.0;
   if (p.max_delta_step == 0.0f) {
@@ -264,7 +261,7 @@ XGB_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
 }
 // calculate cost of loss function with four statistics
 template <typename TrainingParams, typename T>
-XGB_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess,
+XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess,
                              T test_grad, T test_hess) {
   T w = CalcWeight(sum_grad, sum_hess);
   T ret = test_grad * w + 0.5 * (test_hess + p.reg_lambda) * Sqr(w);
@@ -276,7 +273,7 @@ XGB_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess,
 }
 // calculate weight given the statistics
 template <typename TrainingParams, typename T>
-XGB_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
+XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
                                T sum_hess) {
   if (sum_hess < p.min_child_weight)
     return 0.0;

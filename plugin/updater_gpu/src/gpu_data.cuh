@@ -1,14 +1,15 @@
 /*!
  * Copyright 2016 Rory mitchell
-*/
+ */
 #pragma once
-#include <cub/cub.cuh>
-#include <xgboost/logging.h>
 #include <thrust/sequence.h>
+#include <xgboost/logging.h>
+#include <cub/cub.cuh>
 #include <vector>
-#include "device_helpers.cuh"
 #include "../../src/tree/param.h"
-#include "types_functions.cuh"
+#include "common.cuh"
+#include "device_helpers.cuh"
+#include "types.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -20,7 +21,8 @@ struct GPUData {
   int n_features;
   int n_instances;
 
-  dh::bulk_allocator ba;
+  dh::bulk_allocator<dh::memory_type::DEVICE> ba;
+  // dh::bulk_allocator<int> ba;
   GPUTrainingParam param;
 
   dh::dvec<float> fvalues;
@@ -67,29 +69,30 @@ struct GPUData {
     cub::DoubleBuffer<int> db_value;
 
     cub::DeviceSegmentedRadixSort::SortPairs(
-        cub_mem.data(), cub_mem_size, db_key,
-        db_value, in_fvalues.size(), n_features,
-        foffsets.data(), foffsets.data() + 1);
+        cub_mem.data(), cub_mem_size, db_key, db_value, in_fvalues.size(),
+        n_features, foffsets.data(), foffsets.data() + 1);
 
     // Allocate memory
-    size_t free_memory = dh::available_memory();
-    ba.allocate(&fvalues, in_fvalues.size(), &fvalues_temp, in_fvalues.size(),
-                &fvalues_cached, in_fvalues.size(), &foffsets,
-                in_foffsets.size(), &instance_id, in_instance_id.size(),
-                &instance_id_temp, in_instance_id.size(), &instance_id_cached,
-                in_instance_id.size(), &feature_id, in_feature_id.size(),
-                &node_id, in_fvalues.size(), &node_id_temp, in_fvalues.size(),
-                &node_id_instance, n_instances, &gpair, n_instances, &nodes,
-                max_nodes, &split_candidates, max_nodes_level * n_features,
-                &node_sums, max_nodes_level * n_features, &node_offsets,
-                max_nodes_level * n_features, &sort_index_in, in_fvalues.size(),
-                &sort_index_out, in_fvalues.size(), &cub_mem, cub_mem_size,
-                &feature_flags, n_features, &feature_set, n_features);
+    size_t free_memory =
+        dh::available_memory(dh::get_device_idx(param_in.gpu_id));
+    ba.allocate(
+        dh::get_device_idx(param_in.gpu_id), &fvalues, in_fvalues.size(),
+        &fvalues_temp, in_fvalues.size(), &fvalues_cached, in_fvalues.size(),
+        &foffsets, in_foffsets.size(), &instance_id, in_instance_id.size(),
+        &instance_id_temp, in_instance_id.size(), &instance_id_cached,
+        in_instance_id.size(), &feature_id, in_feature_id.size(), &node_id,
+        in_fvalues.size(), &node_id_temp, in_fvalues.size(), &node_id_instance,
+        n_instances, &gpair, n_instances, &nodes, max_nodes, &split_candidates,
+        max_nodes_level * n_features, &node_sums, max_nodes_level * n_features,
+        &node_offsets, max_nodes_level * n_features, &sort_index_in,
+        in_fvalues.size(), &sort_index_out, in_fvalues.size(), &cub_mem,
+        cub_mem_size, &feature_flags, n_features, &feature_set, n_features);
 
     if (!param_in.silent) {
       const int mb_size = 1048576;
       LOG(CONSOLE) << "Allocated " << ba.size() / mb_size << "/"
-                   << free_memory / mb_size << " MB on " << dh::device_name();
+                   << free_memory / mb_size << " MB on "
+                   << dh::device_name(dh::get_device_idx(param_in.gpu_id));
     }
 
     fvalues_cached = in_fvalues;
@@ -100,7 +103,6 @@ struct GPUData {
     param = GPUTrainingParam(param_in.min_child_weight, param_in.reg_lambda,
                              param_in.reg_alpha, param_in.max_delta_step);
 
-
     allocated = true;
 
     this->Reset(in_gpair, param_in.subsample);
@@ -109,33 +111,16 @@ struct GPUData {
         thrust::make_permutation_iterator(gpair.tbegin(), instance_id.tbegin()),
         fvalues.tbegin(), node_id.tbegin()));
 
-
     dh::safe_cuda(cudaGetLastError());
   }
 
   ~GPUData() {}
 
-  // Set gradient pair to 0 with p = 1 - subsample
-  void MarkSubsample(float  subsample) {
-    if (subsample == 1.0) {
-      return;
-    }
-
-    auto d_gpair = gpair.data();
-    dh::BernoulliRng rng(subsample, common::GlobalRandom()());
-
-    dh::launch_n(n_instances, [=] __device__(int i) {
-        if (!rng(i)) {
-          d_gpair[i] = gpu_gpair();
-        }
-    });
-  }
-
   // Reset memory for new boosting iteration
   void Reset(const std::vector<bst_gpair> &in_gpair, float subsample) {
     CHECK(allocated);
     gpair = in_gpair;
-    this->MarkSubsample(subsample);
+    subsample_gpair(&gpair, subsample);
     instance_id = instance_id_cached;
     fvalues = fvalues_cached;
     nodes.fill(Node());
@@ -152,10 +137,10 @@ struct GPUData {
     auto d_node_id_instance = node_id_instance.data();
     auto d_instance_id = instance_id.data();
 
-    dh::launch_n(fvalues.size(), [=] __device__(bst_uint i) {
-      // Item item = d_items[i];
-      d_node_id[i] = d_node_id_instance[d_instance_id[i]];
-    });
+    dh::launch_n(node_id.device_idx(), fvalues.size(),
+                 [=] __device__(bst_uint i) {
+                   d_node_id[i] = d_node_id_instance[d_instance_id[i]];
+                 });
   }
 };
 }  // namespace tree

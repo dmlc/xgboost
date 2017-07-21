@@ -29,6 +29,9 @@ switch (dtype) {                \
 #include <limits>
 #include <vector>
 #include "hist_util.h"
+#include "../tree/fast_hist_param.h"
+
+using xgboost::tree::FastHistParam;
 
 namespace xgboost {
 namespace common {
@@ -54,7 +57,7 @@ class Column {
   ColumnType type;
   const T* index;
   uint32_t index_base;
-  const uint32_t* row_ind;
+  const size_t* row_ind;
   size_t len;
 };
 
@@ -63,19 +66,20 @@ class Column {
 class ColumnMatrix {
  public:
   // get number of features
-  inline uint32_t GetNumFeature() const {
-    return type_.size();
+  inline bst_uint GetNumFeature() const {
+    return static_cast<bst_uint>(type_.size());
   }
 
   // construct column matrix from GHistIndexMatrix
-  inline void Init(const GHistIndexMatrix& gmat, DataType dtype) {
-    this->dtype = dtype;
+  inline void Init(const GHistIndexMatrix& gmat,
+                   const FastHistParam& param) {
+    this->dtype = static_cast<DataType>(param.colmat_dtype);
     /* if dtype is smaller than uint32_t, multiple bin_id's will be stored in each
        slot of internal buffer. */
     packing_factor_ = sizeof(uint32_t) / static_cast<size_t>(this->dtype);
 
-    const uint32_t nfeature = gmat.cut->row_ptr.size() - 1;
-    const omp_ulong nrow = static_cast<omp_ulong>(gmat.row_ptr.size() - 1);
+    const bst_uint nfeature = static_cast<bst_uint>(gmat.cut->row_ptr.size() - 1);
+    const size_t nrow = gmat.row_ptr.size() - 1;
 
     // identify type of each column
     feature_counts_.resize(nfeature);
@@ -86,14 +90,15 @@ class ColumnMatrix {
     XGBOOST_TYPE_SWITCH(this->dtype, {
       max_val = static_cast<uint32_t>(std::numeric_limits<DType>::max());
     });
-    for (uint32_t fid = 0; fid < nfeature; ++fid) {
+    for (bst_uint fid = 0; fid < nfeature; ++fid) {
       CHECK_LE(gmat.cut->row_ptr[fid + 1] - gmat.cut->row_ptr[fid], max_val);
     }
 
     gmat.GetFeatureCounts(&feature_counts_[0]);
     // classify features
-    for (uint32_t fid = 0; fid < nfeature; ++fid) {
-      if (static_cast<double>(feature_counts_[fid]) < 0.5*nrow) {
+    for (bst_uint fid = 0; fid < nfeature; ++fid) {
+      if (static_cast<double>(feature_counts_[fid])
+                 < param.sparse_threshold * nrow) {
         type_[fid] = kSparseColumn;
       } else {
         type_[fid] = kDenseColumn;
@@ -103,13 +108,13 @@ class ColumnMatrix {
     // want to compute storage boundary for each feature
     // using variants of prefix sum scan
     boundary_.resize(nfeature);
-    bst_uint accum_index_ = 0;
-    bst_uint accum_row_ind_ = 0;
-    for (uint32_t fid = 0; fid < nfeature; ++fid) {
+    size_t accum_index_ = 0;
+    size_t accum_row_ind_ = 0;
+    for (bst_uint fid = 0; fid < nfeature; ++fid) {
       boundary_[fid].index_begin = accum_index_;
       boundary_[fid].row_ind_begin = accum_row_ind_;
       if (type_[fid] == kDenseColumn) {
-        accum_index_ += nrow;
+        accum_index_ += static_cast<size_t>(nrow);
       } else {
         accum_index_ += feature_counts_[fid];
         accum_row_ind_ += feature_counts_[fid];
@@ -124,14 +129,14 @@ class ColumnMatrix {
 
     // store least bin id for each feature
     index_base_.resize(nfeature);
-    for (uint32_t fid = 0; fid < nfeature; ++fid) {
+    for (bst_uint fid = 0; fid < nfeature; ++fid) {
       index_base_[fid] = gmat.cut->row_ptr[fid];
     }
 
-    // fill index_ for dense columns
-    for (uint32_t fid = 0; fid < nfeature; ++fid) {
+    // pre-fill index_ for dense columns
+    for (bst_uint fid = 0; fid < nfeature; ++fid) {
       if (type_[fid] == kDenseColumn) {
-        const uint32_t ibegin = boundary_[fid].index_begin;
+        const size_t ibegin = boundary_[fid].index_begin;
         XGBOOST_TYPE_SWITCH(this->dtype, {
           const size_t block_offset = ibegin / packing_factor_;
           const size_t elem_offset = ibegin % packing_factor_;
@@ -145,15 +150,15 @@ class ColumnMatrix {
 
     // loop over all rows and fill column entries
     // num_nonzeros[fid] = how many nonzeros have this feature accumulated so far?
-    std::vector<uint32_t> num_nonzeros;
+    std::vector<size_t> num_nonzeros;
     num_nonzeros.resize(nfeature);
     std::fill(num_nonzeros.begin(), num_nonzeros.end(), 0);
-    for (uint32_t rid = 0; rid < nrow; ++rid) {
-      const size_t ibegin = static_cast<size_t>(gmat.row_ptr[rid]);
-      const size_t iend = static_cast<size_t>(gmat.row_ptr[rid + 1]);
+    for (size_t rid = 0; rid < nrow; ++rid) {
+      const size_t ibegin = gmat.row_ptr[rid];
+      const size_t iend = gmat.row_ptr[rid + 1];
       size_t fid = 0;
       for (size_t i = ibegin; i < iend; ++i) {
-        const size_t bin_id = gmat.index[i];
+        const uint32_t bin_id = gmat.index[i];
         while (bin_id >= gmat.cut->row_ptr[fid + 1]) {
           ++fid;
         }
@@ -162,14 +167,14 @@ class ColumnMatrix {
             const size_t block_offset = boundary_[fid].index_begin / packing_factor_;
             const size_t elem_offset = boundary_[fid].index_begin % packing_factor_;
             DType* begin = reinterpret_cast<DType*>(&index_[block_offset]) + elem_offset;
-            begin[rid] = bin_id - index_base_[fid];
+            begin[rid] = static_cast<DType>(bin_id - index_base_[fid]);
           });
         } else {
           XGBOOST_TYPE_SWITCH(this->dtype, {
             const size_t block_offset = boundary_[fid].index_begin / packing_factor_;
             const size_t elem_offset = boundary_[fid].index_begin % packing_factor_;
             DType* begin = reinterpret_cast<DType*>(&index_[block_offset]) + elem_offset;
-            begin[num_nonzeros[fid]] = bin_id - index_base_[fid];
+            begin[num_nonzeros[fid]] = static_cast<DType>(bin_id - index_base_[fid]);
           });
           row_ind_[boundary_[fid].row_ind_begin + num_nonzeros[fid]] = rid;
           ++num_nonzeros[fid];
@@ -208,16 +213,16 @@ class ColumnMatrix {
     // indicate where each column's index and row_ind is stored.
     // index_begin and index_end are logical offsets, so they should be converted to
     // actual offsets by scaling with packing_factor_
-    unsigned index_begin;
-    unsigned index_end;
-    unsigned row_ind_begin;
-    unsigned row_ind_end;
+    size_t index_begin;
+    size_t index_end;
+    size_t row_ind_begin;
+    size_t row_ind_end;
   };
 
-  std::vector<bst_uint> feature_counts_;
+  std::vector<size_t> feature_counts_;
   std::vector<ColumnType> type_;
   std::vector<uint32_t> index_;  // index_: may store smaller integers; needs padding
-  std::vector<uint32_t> row_ind_;
+  std::vector<size_t> row_ind_;
   std::vector<ColumnBoundary> boundary_;
 
   size_t packing_factor_;  // how many integers are stored in each slot of index_

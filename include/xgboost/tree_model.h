@@ -435,6 +435,11 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
      */
     inline void Drop(const RowBatch::Inst& inst);
     /*!
+     * \brief returns the size of the feature vector
+     * \return the size of the feature vector
+     */
+    inline size_t size() const;
+    /*!
      * \brief get ith value
      * \param i feature index.
      * \return the i-th feature value
@@ -473,6 +478,14 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    */
   inline bst_float Predict(const FVec& feat, unsigned root_id = 0) const;
   /*!
+   * \brief calculate the feature contributions for the given root
+   * \param feat dense feature vector, if the feature is missing the field is set to NaN
+   * \param root_id starting root index of the instance
+   * \param out_contribs output vector to hold the contributions
+   */
+  inline void CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+                                     bst_float *out_contribs) const;
+  /*!
    * \brief get next position of the tree given current pid
    * \param pid Current node id.
    * \param fvalue feature value if not missing.
@@ -489,6 +502,15 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
   std::string DumpModel(const FeatureMap& fmap,
                         bool with_stats,
                         std::string format) const;
+  /*!
+   * \brief calculate the mean value for each node, required for feature contributions
+   */
+  inline void FillNodeMeanValues();
+
+ private:
+  inline bst_float FillNodeMeanValue(int nid);
+
+  std::vector<bst_float> node_mean_values;
 };
 
 // implementations of inline functions
@@ -513,6 +535,10 @@ inline void RegTree::FVec::Drop(const RowBatch::Inst& inst) {
   }
 }
 
+inline size_t RegTree::FVec::size() const {
+  return data.size();
+}
+
 inline bst_float RegTree::FVec::fvalue(size_t i) const {
   return data[i].fvalue;
 }
@@ -533,6 +559,58 @@ inline int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) co
 inline bst_float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) const {
   int pid = this->GetLeafIndex(feat, root_id);
   return (*this)[pid].leaf_value();
+}
+
+inline void RegTree::FillNodeMeanValues() {
+  size_t num_nodes = this->param.num_nodes;
+  if (this->node_mean_values.size() == num_nodes) {
+    return;
+  }
+  this->node_mean_values.resize(num_nodes);
+  for (int root_id = 0; root_id < param.num_roots; ++root_id) {
+    this->FillNodeMeanValue(root_id);
+  }
+}
+
+inline bst_float RegTree::FillNodeMeanValue(int nid) {
+  bst_float result;
+  auto& node = (*this)[nid];
+  if (node.is_leaf()) {
+    result = node.leaf_value();
+  } else {
+    result  = this->FillNodeMeanValue(node.cleft()) * this->stat(node.cleft()).sum_hess;
+    result += this->FillNodeMeanValue(node.cright()) * this->stat(node.cright()).sum_hess;
+    result /= this->stat(nid).sum_hess;
+  }
+  this->node_mean_values[nid] = result;
+  return result;
+}
+
+inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+                                            bst_float *out_contribs) const {
+  CHECK_GT(this->node_mean_values.size(), 0U);
+  // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
+  bst_float node_value;
+  unsigned split_index;
+  int pid = static_cast<int>(root_id);
+  // update bias value
+  node_value = this->node_mean_values[pid];
+  out_contribs[feat.size()] += node_value;
+  if ((*this)[pid].is_leaf()) {
+    // nothing to do anymore
+    return;
+  }
+  while (!(*this)[pid].is_leaf()) {
+    split_index = (*this)[pid].split_index();
+    pid = this->GetNext(pid, feat.fvalue(split_index), feat.is_missing(split_index));
+    bst_float new_value = this->node_mean_values[pid];
+    // update feature weight
+    out_contribs[split_index] += new_value - node_value;
+    node_value = new_value;
+  }
+  bst_float leaf_value = (*this)[pid].leaf_value();
+  // update leaf feature weight
+  out_contribs[split_index] += leaf_value - node_value;
 }
 
 /*! \brief get next position of the tree given current pid */

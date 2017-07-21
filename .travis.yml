@@ -34,8 +34,6 @@ matrix:
     - os: linux
       env: TASK=r_test
     - os: osx
-      env: TASK=java_test
-    - os: osx
       env: TASK=python_lightweight_test
     - os: osx
       env: TASK=cpp_test
@@ -45,7 +43,10 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
+      - george-edison55-precise-backports
     packages:
+      - cmake
+      - cmake-data
       - doxygen
       - wget
       - libcurl4-openssl-dev

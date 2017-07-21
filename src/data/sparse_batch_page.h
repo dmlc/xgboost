@@ -17,14 +17,11 @@
 #include <string>
 #include <utility>
 #include <memory>
+#include <functional>
 
 #if DMLC_ENABLE_STD_THREAD
 #include <dmlc/concurrency.h>
 #include <thread>
-#endif
-
-#ifdef _MSC_VER
-#include <functional>
 #endif
 
 namespace xgboost {

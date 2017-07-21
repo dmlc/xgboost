@@ -1,20 +1,20 @@
-# Construct an internal xgboost Booster and return a handle to it
+# Construct an internal xgboost Booster and return a handle to it.
 # internal utility function
 xgb.Booster.handle <- function(params = list(), cachelist = list(), modelfile = NULL) {
   if (typeof(cachelist) != "list" ||
-      any(sapply(cachelist, class) != 'xgb.DMatrix')) {
-    stop("xgb.Booster only accepts list of DMatrix as cachelist")
+      !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
+    stop("cachelist must be a list of xgb.DMatrix objects")
   }
 
-  handle <- .Call("XGBoosterCreate_R", cachelist, PACKAGE = "xgboost")
+  handle <- .Call(XGBoosterCreate_R, cachelist)
   if (!is.null(modelfile)) {
     if (typeof(modelfile) == "character") {
-      .Call("XGBoosterLoadModel_R", handle, modelfile, PACKAGE = "xgboost")
+      .Call(XGBoosterLoadModel_R, handle, modelfile[1])
     } else if (typeof(modelfile) == "raw") {
-      .Call("XGBoosterLoadModelFromRaw_R", handle, modelfile, PACKAGE = "xgboost")
-    } else if (class(modelfile) == "xgb.Booster") {
-      bst <- xgb.Booster.complete(modelfile, saveraw=TRUE)
-      .Call("XGBoosterLoadModelFromRaw_R", handle, bst$raw, PACKAGE = "xgboost")
+      .Call(XGBoosterLoadModelFromRaw_R, handle, modelfile)
+    } else if (inherits(modelfile, "xgb.Booster")) {
+      bst <- xgb.Booster.complete(modelfile, saveraw = TRUE)
+      .Call(XGBoosterLoadModelFromRaw_R, handle, bst$raw)
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
     }
@@ -37,10 +37,10 @@ xgb.handleToBooster <- function(handle, raw = NULL) {
 # Check whether xgb.Booster.handle is null
 # internal utility function
 is.null.handle <- function(handle) {
-  if (class(handle) != "xgb.Booster.handle")
+  if (!identical(class(handle), "xgb.Booster.handle"))
     stop("argument type must be xgb.Booster.handle")
   
-  if (is.null(handle) || .Call("XGCheckNullPtr_R", handle, PACKAGE="xgboost"))
+  if (is.null(handle) || .Call(XGCheckNullPtr_R, handle))
     return(TRUE)
   return(FALSE)
 }
@@ -78,8 +78,8 @@ xgb.get.handle <- function(object) {
 #' its handle (pointer) to an internal xgboost model would be invalid. The majority of xgboost methods 
 #' should still work for such a model object since those methods would be using 
 #' \code{xgb.Booster.complete} internally. However, one might find it to be more efficient to call the  
-#' \code{xgb.Booster.complete} function once after loading a model as an R-object. That which would
-#' prevent further reconstruction (potentially, multiple times) of an internal booster model.
+#' \code{xgb.Booster.complete} function explicitely once after loading a model as an R-object.
+#' That would prevent further repeated implicit reconstruction of an internal booster model.
 #' 
 #' @return 
 #' An object of \code{xgb.Booster} class.
@@ -94,13 +94,14 @@ xgb.get.handle <- function(object) {
 #' bst1 <- readRDS("xgb.model.rds")
 #' # the handle is invalid:
 #' print(bst1$handle)
+#' 
 #' bst1 <- xgb.Booster.complete(bst1)
 #' # now the handle points to a valid internal booster model:
 #' print(bst1$handle)
 #' 
 #' @export
 xgb.Booster.complete <- function(object, saveraw = TRUE) {
-  if (class(object) != "xgb.Booster")
+  if (!inherits(object, "xgb.Booster"))
     stop("argument type must be xgb.Booster")
   
   if (is.null.handle(object$handle)) {
@@ -125,7 +126,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        logistic regression would result in predictions for log-odds instead of probabilities.
 #' @param ntreelimit limit the number of model's trees or boosting iterations used in prediction (see Details).
 #'        It will use all the trees by default (\code{NULL} value).
-#' @param predleaf whether predict leaf index instead. 
+#' @param predleaf whether predict leaf index instead.
+#' @param predcontrib whether to return feature contributions to individual predictions instead (see Details).
 #' @param reshape whether to reshape the vector of predictions to a matrix form when there are several 
 #'        prediction outputs per case. This option has no effect when \code{predleaf = TRUE}.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
@@ -134,15 +136,22 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' Note that \code{ntreelimit} is not necessarily equal to the number of boosting iterations
 #' and it is not necessarily equal to the number of trees in a model.
 #' E.g., in a random forest-like model, \code{ntreelimit} would limit the number of trees.
-#' But for multiclass classification, there are multiple trees per iteration, 
-#' but \code{ntreelimit} limits the number of boosting iterations.
+#' But for multiclass classification, while there are multiple trees per iteration, 
+#' \code{ntreelimit} limits the number of boosting iterations.
 #' 
 #' Also note that \code{ntreelimit} would currently do nothing for predictions from gblinear, 
-#' since gblinear doesn't keep its boosting history. 
+#' since gblinear doesn't keep its boosting history.
 #' 
 #' One possible practical applications of the \code{predleaf} option is to use the model 
 #' as a generator of new features which capture non-linearity and interactions, 
-#' e.g., as implemented in \code{\link{xgb.create.features}}. 
+#' e.g., as implemented in \code{\link{xgb.create.features}}.
+#' 
+#' Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
+#' individual predictions. For "gblinear" booster, feature contributions are simply linear terms
+#' (feature_beta * feature_value). For "gbtree" booster, feature contribution is calculated 
+#' as a sum of average contribution of that feature's split nodes across all trees to an 
+#' individual prediction, following the idea explained in 
+#' \url{http://blog.datadive.net/interpreting-random-forests/}.
 #' 
 #' @return 
 #' For regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
@@ -152,6 +161,12 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' 
 #' When \code{predleaf = TRUE}, the output is a matrix object with the 
 #' number of columns corresponding to the number of trees.
+#' 
+#' When \code{predcontrib = TRUE} and it is not a multiclass setting, the output is a matrix object with
+#' \code{num_features + 1} columns. The last "+ 1" column in a matrix corresponds to bias.
+#' For a multiclass case, a list of \code{num_class} elements is returned, where each element is
+#' such a matrix. The contribution values are on the scale of untransformed margin 
+#' (e.g., for binary classification would mean that the contributions are log-odds deviations from bias).
 #' 
 #' @seealso
 #' \code{\link{xgb.train}}.
@@ -165,11 +180,32 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' test <- agaricus.test
 #' 
 #' bst <- xgboost(data = train$data, label = train$label, max_depth = 2, 
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#'                eta = 0.5, nthread = 2, nrounds = 5, objective = "binary:logistic")
 #' # use all trees by default
 #' pred <- predict(bst, test$data)
 #' # use only the 1st tree
-#' pred <- predict(bst, test$data, ntreelimit = 1)
+#' pred1 <- predict(bst, test$data, ntreelimit = 1)
+#' 
+#' # Predicting tree leafs:
+#' # the result is an nsamples X ntrees matrix
+#' pred_leaf <- predict(bst, test$data, predleaf = TRUE)
+#' str(pred_leaf)
+#' 
+#' # Predicting feature contributions to predictions:
+#' # the result is an nsamples X (nfeatures + 1) matrix
+#' pred_contr <- predict(bst, test$data, predcontrib = TRUE)
+#' str(pred_contr)
+#' # verify that contributions' sums are equal to log-odds of predictions (up to foat precision):
+#' summary(rowSums(pred_contr) - qlogis(pred))
+#' # for the 1st record, let's inspect its features that had non-zero contribution to prediction:
+#' contr1 <- pred_contr[1,]
+#' contr1 <- contr1[-length(contr1)]    # drop BIAS
+#' contr1 <- contr1[contr1 != 0]        # drop non-contributing features
+#' contr1 <- contr1[order(abs(contr1))] # order by contribution magnitude
+#' old_mar <- par("mar")
+#' par(mar = old_mar + c(0,7,0,0))
+#' barplot(contr1, horiz = TRUE, las = 2, xlab = "contribution to prediction in log-odds")
+#' par(mar = old_mar)
 #' 
 #' 
 #' ## multiclass classification in iris dataset:
@@ -221,11 +257,11 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #' @rdname predict.xgb.Booster
 #' @export
-predict.xgb.Booster <- function(object, newdata, missing = NA,
-    outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE, reshape = FALSE, ...) {
+predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
+                                predleaf = FALSE, predcontrib = FALSE, reshape = FALSE, ...) {
 
   object <- xgb.Booster.complete(object, saveraw = FALSE)
-  if (class(newdata) != "xgb.DMatrix")
+  if (!inherits(newdata, "xgb.DMatrix"))
     newdata <- xgb.DMatrix(newdata, missing = missing)
   if (is.null(ntreelimit))
     ntreelimit <- NVL(object$best_ntreelimit, 0)
@@ -234,24 +270,40 @@ predict.xgb.Booster <- function(object, newdata, missing = NA,
   if (ntreelimit < 0)
     stop("ntreelimit cannot be negative")
   
-  option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf)
+  option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf) + 4L * as.logical(predcontrib)
   
-  ret <- .Call("XGBoosterPredict_R", object$handle, newdata, option[1],
-               as.integer(ntreelimit), PACKAGE = "xgboost")
+  ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1], as.integer(ntreelimit))
   
-  if (length(ret) %% nrow(newdata) != 0)
-    stop("prediction length ", length(ret)," is not multiple of nrows(newdata) ", nrow(newdata))
-  npred_per_case <- length(ret) / nrow(newdata)
-
-  if (predleaf){
-    len <- nrow(newdata)
-    ret <- if (length(ret) == len) {
+  n_ret <- length(ret)
+  n_row <- nrow(newdata)
+  npred_per_case <- n_ret / n_row
+  
+  if (n_ret %% n_row != 0)
+    stop("prediction length ", n_ret, " is not multiple of nrows(newdata) ", n_row)
+  
+  if (predleaf) {
+    ret <- if (n_ret == n_row) {
       matrix(ret, ncol = 1)
     } else {
-      t(matrix(ret, ncol = len))
+      matrix(ret, nrow = n_row, byrow = TRUE)
+    }
+  } else if (predcontrib) {
+    n_col1 <- ncol(newdata) + 1
+    n_group <- npred_per_case / n_col1
+    dnames <- list(NULL, c(colnames(newdata), "BIAS"))
+    ret <- if (n_ret == n_row) {
+      matrix(ret, ncol = 1, dimnames = dnames)
+    } else if (n_group == 1) {
+      matrix(ret, nrow = n_row, byrow = TRUE, dimnames = dnames)
+    } else {
+      grp_mask <- rep(seq_len(n_col1), n_row) +
+        rep((seq_len(n_row) - 1) * n_col1 * n_group, each = n_col1)
+      lapply(seq_len(n_group), function(g) {
+        matrix(ret[grp_mask + n_col1 * (g - 1)], nrow = n_row, byrow = TRUE, dimnames = dnames)
+      })
     }
   } else if (reshape && npred_per_case > 1) {
-    ret <- matrix(ret, ncol = length(ret) / nrow(newdata), byrow = TRUE)
+    ret <- matrix(ret, nrow = n_row, byrow = TRUE)
   }
   return(ret)
 }
@@ -337,7 +389,7 @@ predict.xgb.Booster.handle <- function(object, ...) {
 xgb.attr <- function(object, name) {
   if (is.null(name) || nchar(as.character(name[1])) == 0) stop("invalid attribute name")
   handle <- xgb.get.handle(object)
-  .Call("XGBoosterGetAttr_R", handle, as.character(name[1]), PACKAGE="xgboost")
+  .Call(XGBoosterGetAttr_R, handle, as.character(name[1]))
 }
 
 #' @rdname xgb.attr
@@ -354,7 +406,7 @@ xgb.attr <- function(object, name) {
       value <- as.character(value[1])
     }
   }
-  .Call("XGBoosterSetAttr_R", handle, as.character(name[1]), value, PACKAGE="xgboost")
+  .Call(XGBoosterSetAttr_R, handle, as.character(name[1]), value)
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)
   }
@@ -365,10 +417,10 @@ xgb.attr <- function(object, name) {
 #' @export
 xgb.attributes <- function(object) {
   handle <- xgb.get.handle(object)
-  attr_names <- .Call("XGBoosterGetAttrNames_R", handle, PACKAGE="xgboost")
+  attr_names <- .Call(XGBoosterGetAttrNames_R, handle)
   if (is.null(attr_names)) return(NULL)
   res <- lapply(attr_names, function(x) {
-    .Call("XGBoosterGetAttr_R", handle, x, PACKAGE="xgboost")
+    .Call(XGBoosterGetAttr_R, handle, x)
   })
   names(res) <- attr_names
   res
@@ -393,7 +445,7 @@ xgb.attributes <- function(object) {
   })
   handle <- xgb.get.handle(object)
   for (i in seq_along(a)) {
-    .Call("XGBoosterSetAttr_R", handle, names(a[i]), a[[i]], PACKAGE="xgboost")
+    .Call(XGBoosterSetAttr_R, handle, names(a[i]), a[[i]])
   }
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)
@@ -434,7 +486,7 @@ xgb.attributes <- function(object) {
   p <- lapply(p, function(x) as.character(x)[1])
   handle <- xgb.get.handle(object)
   for (i in seq_along(p)) {
-    .Call("XGBoosterSetParam_R", handle, names(p[i]), p[[i]], PACKAGE = "xgboost")
+    .Call(XGBoosterSetParam_R, handle, names(p[i]), p[[i]])
   }
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)
@@ -442,8 +494,8 @@ xgb.attributes <- function(object) {
   object
 }
 
-# Extract # of trees in a model
-# TODO: either add a getter to C-interface, or simply set an 'ntree' attribute after each iteration
+# Extract the number of trees in a model.
+# TODO: either add a getter to C-interface, or simply set an 'ntree' attribute after each iteration.
 # internal utility function
 xgb.ntree <- function(bst) {
   length(grep('^booster', xgb.dump(bst)))
@@ -470,7 +522,7 @@ xgb.ntree <- function(bst) {
 #'
 #' @method print xgb.Booster 
 #' @export
-print.xgb.Booster <- function(x, verbose=FALSE, ...) {
+print.xgb.Booster <- function(x, verbose = FALSE, ...) {
   cat('##### xgb.Booster\n')
   
   valid_handle <- is.null.handle(x$handle)
@@ -479,7 +531,7 @@ print.xgb.Booster <- function(x, verbose=FALSE, ...) {
 
   cat('raw: ')
   if (!is.null(x$raw)) {
-    cat(format(object.size(x$raw), units="auto"), '\n')
+    cat(format(object.size(x$raw), units = "auto"), '\n')
   } else {
     cat('NULL\n')
   }
@@ -493,7 +545,7 @@ print.xgb.Booster <- function(x, verbose=FALSE, ...) {
     cat( '  ', 
          paste(names(x$params),
                paste0('"', unlist(x$params), '"'),
-               sep=' = ', collapse=', '), '\n', sep='')
+               sep = ' = ', collapse = ', '), '\n', sep = '')
   }
   # TODO: need an interface to access all the xgboosts parameters
 
@@ -505,9 +557,9 @@ print.xgb.Booster <- function(x, verbose=FALSE, ...) {
     if (verbose) {
       cat( paste(paste0('  ',names(attrs)),
                  paste0('"', unlist(attrs), '"'),
-                 sep=' = ', collapse='\n'), '\n', sep='')
+                 sep = ' = ', collapse = '\n'), '\n', sep = '')
     } else {
-      cat('  ', paste(names(attrs), collapse=', '), '\n', sep='')
+      cat('  ', paste(names(attrs), collapse = ', '), '\n', sep = '')
     }
   }
   
@@ -522,16 +574,16 @@ print.xgb.Booster <- function(x, verbose=FALSE, ...) {
   if (!is.null(x$feature_names))
     cat('# of features:', length(x$feature_names), '\n')
   
-  cat('niter: ', x$niter, '\n', sep='')
+  cat('niter: ', x$niter, '\n', sep = '')
   # TODO: uncomment when faster xgb.ntree is implemented
   #cat('ntree: ', xgb.ntree(x), '\n', sep='')
   
   for (n in setdiff(names(x), c('handle', 'raw', 'call', 'params', 'callbacks',
                                 'evaluation_log','niter','feature_names'))) {
     if (is.atomic(x[[n]])) {
-      cat(n, ':', x[[n]], '\n', sep=' ')
+      cat(n, ':', x[[n]], '\n', sep = ' ')
     } else {
-      cat(n, ':\n\t', sep=' ')
+      cat(n, ':\n\t', sep = ' ')
       print(x[[n]])
     }
   }

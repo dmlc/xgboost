@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
  * brokers connections between workers.
  */
 public interface IRabitTracker extends Thread.UncaughtExceptionHandler {
-  public enum TrackerStatus {
+  enum TrackerStatus {
     SUCCESS(0), INTERRUPTED(1), TIMEOUT(2), FAILURE(3);
 
     private int statusCode;
@@ -38,6 +38,7 @@ public interface IRabitTracker extends Thread.UncaughtExceptionHandler {
 
   Map<String, String> getWorkerEnvs();
   boolean start(long workerConnectionTimeout);
+  void stop();
   // taskExecutionTimeout has no effect in current version of XGBoost.
   int waitFor(long taskExecutionTimeout);
 }

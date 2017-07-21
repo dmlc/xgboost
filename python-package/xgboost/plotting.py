@@ -59,7 +59,7 @@ def plot_importance(booster, ax=None, height=0.2,
         raise ImportError('You must install matplotlib to plot importance')
 
     if isinstance(booster, XGBModel):
-        importance = booster.booster().get_score(importance_type=importance_type)
+        importance = booster.get_booster().get_score(importance_type=importance_type)
     elif isinstance(booster, Booster):
         importance = booster.get_score(importance_type=importance_type)
     elif isinstance(booster, dict):
@@ -196,7 +196,7 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir='UT',
         raise ValueError('booster must be Booster or XGBModel instance')
 
     if isinstance(booster, XGBModel):
-        booster = booster.booster()
+        booster = booster.get_booster()
 
     tree = booster.get_dump(fmap=fmap)[num_trees]
     tree = tree.split()

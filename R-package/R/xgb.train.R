@@ -233,7 +233,7 @@
 #' @rdname xgb.train
 #' @export
 xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
-                      obj = NULL, feval = NULL, verbose = 1, print_every_n=1L,
+                      obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,
                       early_stopping_rounds = NULL, maximize = NULL,
                       save_period = NULL, save_name = "xgboost.model", 
                       xgb_model = NULL, callbacks = list(), ...) {
@@ -247,11 +247,11 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   
   # data & watchlist checks
   dtrain <- data
-  if (class(dtrain) != "xgb.DMatrix") 
+  if (!inherits(dtrain, "xgb.DMatrix")) 
     stop("second argument dtrain must be xgb.DMatrix")
   if (length(watchlist) > 0) {
     if (typeof(watchlist) != "list" ||
-        !all(sapply(watchlist, class) == "xgb.DMatrix"))
+        !all(vapply(watchlist, inherits, logical(1), what = 'xgb.DMatrix')))
       stop("watchlist must be a list of xgb.DMatrix elements")
     evnames <- names(watchlist)
     if (is.null(evnames) || any(evnames == ""))
@@ -281,7 +281,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   if (!is.null(early_stopping_rounds) &&
       !has.callbacks(callbacks, 'cb.early.stop')) {
     callbacks <- add.cb(callbacks, cb.early.stop(early_stopping_rounds, 
-                                                 maximize=maximize, verbose=verbose))
+                                                 maximize = maximize, verbose = verbose))
   }
   # Sort the callbacks into categories
   cb <- categorize.callbacks(callbacks)
@@ -332,7 +332,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
     if (stop_condition) break
   }
-  for (f in cb$finalize) f(finalize=TRUE)
+  for (f in cb$finalize) f(finalize = TRUE)
   
   bst <- xgb.Booster.complete(bst, saveraw = TRUE)
   
@@ -343,7 +343,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   if (length(evaluation_log) > 0 &&
       nrow(evaluation_log) > 0) {
     # include the previous compatible history when available
-    if (class(xgb_model) == 'xgb.Booster' &&
+    if (inherits(xgb_model, 'xgb.Booster') &&
         !is_update &&
         !is.null(xgb_model$evaluation_log) &&
         all.equal(colnames(evaluation_log),

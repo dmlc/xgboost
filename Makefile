@@ -29,7 +29,9 @@ endif
 include $(DMLC_CORE)/make/dmlc.mk
 
 # include the plugins
+ifdef XGB_PLUGINS
 include $(XGB_PLUGINS)
+endif
 
 # set compiler defaults for OSX versus *nix
 # let people override either
@@ -53,7 +55,7 @@ endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
 export CFLAGS=  -std=c++11 -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
-CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include
+CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include -I$(GTEST_PATH)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
 
@@ -67,12 +69,17 @@ ifndef LINT_LANG
 	LINT_LANG= "all"
 endif
 
-ifneq ($(UNAME), Windows)
-	CFLAGS += -fPIC
-	XGBOOST_DYLIB = lib/libxgboost.so
-else
+ifeq ($(UNAME), Windows)
 	XGBOOST_DYLIB = lib/libxgboost.dll
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/win32
+else
+ifeq ($(UNAME), Darwin)
+	XGBOOST_DYLIB = lib/libxgboost.dylib
+	CFLAGS += -fPIC
+else
+	XGBOOST_DYLIB = lib/libxgboost.so
+	CFLAGS += -fPIC
+endif
 endif
 
 ifeq ($(UNAME), Linux)
@@ -84,16 +91,31 @@ ifeq ($(UNAME), Darwin)
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/darwin
 endif
 
+OPENMP_FLAGS =
 ifeq ($(USE_OPENMP), 1)
-	CFLAGS += -fopenmp
+	OPENMP_FLAGS = -fopenmp
 else
-	CFLAGS += -DDISABLE_OPENMP
+	OPENMP_FLAGS = -DDISABLE_OPENMP
 endif
+CFLAGS += $(OPENMP_FLAGS)
 
+# for using GPUs
+GPU_COMPUTE_VER ?= 35 50 52 60 61
+NVCC = nvcc
+INCLUDES = -Iinclude -I$(DMLC_CORE)/include -I$(RABIT)/include
+INCLUDES += -I$(CUB_PATH)
+INCLUDES += -I$(GTEST_PATH)/include
+CODE = $(foreach ver,$(GPU_COMPUTE_VER),-gencode arch=compute_$(ver),code=sm_$(ver))
+NVCC_FLAGS = --std=c++11 $(CODE) $(INCLUDES) -lineinfo --expt-extended-lambda
+NVCC_FLAGS += -Xcompiler=$(OPENMP_FLAGS) -Xcompiler=-fPIC
+ifeq ($(PLUGIN_UPDATER_GPU),ON)
+  CUDA_ROOT = $(shell dirname $(shell dirname $(shell which $(NVCC))))
+  INCLUDES += -I$(CUDA_ROOT)/include -Inccl/src/
+  LDFLAGS += -L$(CUDA_ROOT)/lib64 -lcudart  -lcudadevrt -Lnccl/build/lib/ -lnccl_static -lm -ldl -lrt
+endif
 
 # specify tensor path
 .PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck java pylint
-
 
 all: lib/libxgboost.a $(XGBOOST_DYLIB) xgboost
 
@@ -113,15 +135,30 @@ ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
 CLI_OBJ = build/cli_main.o
 include tests/cpp/xgboost_test.mk
 
+# order of this rule matters wrt %.cc rule below!
+build/%.o: src/%.cu
+	@mkdir -p $(@D)
+	$(NVCC) -c $(NVCC_FLAGS) $< -o $@
+
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) $< -o $@
 
+# order of this rule matters wrt %.cc rule below!
+build_plugin/%.o: plugin/%.cu build_nccl
+	@mkdir -p $(@D)
+	$(NVCC) -c $(NVCC_FLAGS) $< -o $@
+
 build_plugin/%.o: plugin/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build_plugin/$*.o $< >build_plugin/$*.d
 	$(CXX) -c $(CFLAGS) $< -o $@
+
+build_nccl:
+	@mkdir -p build/include
+	cd build/include ; ln -sf ../../nccl/src/nccl.h .
+	cd nccl ; make -j ; cd ..
 
 # The should be equivalent to $(ALL_OBJ)  except for build/cli_main.o
 amalgamation/xgboost-all0.o: amalgamation/xgboost-all0.cc
@@ -136,13 +173,14 @@ lib/libxgboost.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-lib/libxgboost.dll lib/libxgboost.so: $(ALL_DEP)
+lib/libxgboost.dll lib/libxgboost.so lib/libxgboost.dylib: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %a,  $^) $(LDFLAGS)
 
 jvm-packages/lib/libxgboost4j.so: jvm-packages/xgboost4j/src/native/xgboost4j.cpp $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(JAVAINCFLAGS) -shared -o $@ $(filter %.cpp %.o %.a, $^) $(LDFLAGS)
+
 
 xgboost: $(CLI_OBJ) $(ALL_DEP)
 	$(CXX) $(CFLAGS) -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
@@ -158,6 +196,8 @@ pylint:
 	flake8 --ignore E501 tests/python
 
 test: $(ALL_TEST)
+	./plugin/updater_gpu/test/cpp/generate_data.sh
+	$(ALL_TEST)
 
 check: test
 	./tests/cpp/xgboost_test

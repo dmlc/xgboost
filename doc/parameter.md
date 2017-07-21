@@ -32,8 +32,8 @@ Parameters for Tree Booster
   - minimum loss reduction required to make a further partition on a leaf node of the tree. The larger, the more conservative the algorithm will be.
   - range: [0,∞]
 * max_depth [default=6]
-  - maximum depth of a tree, increase this value will make the model more complex / likely to be overfitting.
-  - range: [1,∞]
+  - maximum depth of a tree, increase this value will make the model more complex / likely to be overfitting. 0 indicates no limit, limit is required for depth-wise grow policy.
+  - range: [0,∞]
 * min_child_weight [default=1]
   - minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight, then the building process will give up further partitioning. In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node. The larger, the more conservative the algorithm will be.
   - range: [0,∞]
@@ -56,7 +56,7 @@ Parameters for Tree Booster
 * tree_method, string [default='auto']
   - The tree construction algorithm used in XGBoost(see description in the [reference paper](http://arxiv.org/abs/1603.02754))
   - Distributed and external memory version only support approximate algorithm.
-  - Choices: {'auto', 'exact', 'approx'}
+  - Choices: {'auto', 'exact', 'approx', 'hist'}
     - 'auto': Use heuristic to choose faster one.
       - For small to medium dataset, exact greedy will be used.
       - For very large-dataset, approximate algorithm will be chosen.
@@ -64,6 +64,7 @@ Parameters for Tree Booster
         user will get a message when approximate algorithm is chosen to notify this choice.
     - 'exact': Exact greedy algorithm.
     - 'approx': Approximate greedy algorithm using sketching and histogram.
+    - 'hist': Fast histogram optimized approximate greedy algorithm. It uses some performance improvements such as bins caching.
 * sketch_eps, [default=0.03]
   - This is only used for approximate greedy algorithm.
   - This roughly translated into ```O(1 / sketch_eps)``` number of bins.
@@ -94,6 +95,18 @@ Parameters for Tree Booster
   - Choices: {'default', 'update'}
     - 'default': the normal boosting process which creates new trees.
     - 'update': starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updater plugins is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updater plugins could be meaningfully used with this process type: 'refresh', 'prune'. With 'update', one cannot use updater plugins that create new nrees.
+* grow_policy, string [default='depthwise']
+  - Controls a way new nodes are added to the tree.
+  - Currently supported only if `tree_method` is set to 'hist'.
+  - Choices: {'depthwise', 'lossguide'}
+    - 'depthwise': split at nodes closest to the root.
+    - 'lossguide': split at nodes with highest loss change.
+* max_leaves, [default=0]
+  - Maximum number of nodes to be added. Only relevant for the 'lossguide' grow policy.
+* max_bins, [default=256]
+  - This is only used if 'hist' is specified as `tree_method`.
+  - Maximum number of discrete bins to bucket continuous features.
+  - Increasing this number improves the optimality of splits at the cost of higher computation time.
 
 Additional parameters for Dart Booster
 --------------------------------------
@@ -142,17 +155,17 @@ Learning Task Parameters
 ------------------------
 Specify the learning task and the corresponding learning objective. The objective options are below:
 * objective [ default=reg:linear ]
- - "reg:linear" --linear regression
- - "reg:logistic" --logistic regression
- - "binary:logistic" --logistic regression for binary classification, output probability
- - "binary:logitraw" --logistic regression for binary classification, output score before logistic transformation
- - "count:poisson" --poisson regression for count data, output mean of poisson distribution
-   - max_delta_step is set to 0.7 by default in poisson regression (used to safeguard optimization)
- - "multi:softmax" --set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
- - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
- - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
- - "reg:gamma" --gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be [gamma-distributed](https://en.wikipedia.org/wiki/Gamma_distribution#Applications)
- - "reg:tweedie" --Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be [Tweedie-distributed](https://en.wikipedia.org/wiki/Tweedie_distribution#Applications).
+  - "reg:linear" --linear regression
+  - "reg:logistic" --logistic regression
+  - "binary:logistic" --logistic regression for binary classification, output probability
+  - "binary:logitraw" --logistic regression for binary classification, output score before logistic transformation
+  - "count:poisson" --poisson regression for count data, output mean of poisson distribution
+    - max_delta_step is set to 0.7 by default in poisson regression (used to safeguard optimization)
+  - "multi:softmax" --set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
+  - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
+  - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
+  - "reg:gamma" --gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be [gamma-distributed](https://en.wikipedia.org/wiki/Gamma_distribution#Applications)
+  - "reg:tweedie" --Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be [Tweedie-distributed](https://en.wikipedia.org/wiki/Tweedie_distribution#Applications).
 * base_score [ default=0.5 ]
   - the initial prediction score of all instances, global bias
   - for sufficient number of iterations, changing this value will not have too much effect.
@@ -166,7 +179,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - "error": Binary classification error rate. It is calculated as #(wrong cases)/#(all cases). For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
     - "error@t": a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
     - "merror": Multiclass classification error rate. It is calculated as #(wrong cases)/#(all cases).
-    - "mlogloss": [Multiclass logloss](https://www.kaggle.com/wiki/MultiClassLogLoss)
+    - "mlogloss": [Multiclass logloss](https://www.kaggle.com/wiki/LogLoss)
     - "auc": [Area under the curve](http://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_curve) for ranking evaluation.
     - "ndcg":[Normalized Discounted Cumulative Gain](http://en.wikipedia.org/wiki/NDCG)
     - "map":[Mean average precision](http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision)

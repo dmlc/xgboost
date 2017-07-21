@@ -41,6 +41,15 @@ Linux platform (also Mac OS X in general)
 **Trouble 4**: I tried `python setup.py install` but it says `setuptools` import fail.
 **Solution 4**: Please make sure you have [setuptools](https://pypi.python.org/pypi/setuptools) before installing the python package.
 
+**Trouble 5**:  I see the same error message in **Trouble 0** when install from `pip install xgboost`.
+**Solution 5**: The compilation process uses too many processes to run `make` and the box runs out or RAM. To solve this, there are two alternatives:
+* Add more RAM.
+* Run `make` with just one process: 
+```
+git clone --recursive https://github.com/dmlc/xgboost
+cd xgboost; make -j1
+```
+
 Mac OS X (specific)
 ------------
 Most of the troubles and solutions are the same with that in the Linux platform. Mac has the following specific problems.

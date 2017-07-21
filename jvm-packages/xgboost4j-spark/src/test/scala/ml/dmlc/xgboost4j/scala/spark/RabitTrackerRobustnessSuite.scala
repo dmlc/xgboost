@@ -23,7 +23,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.FunSuite
 
 
-class RabitTrackerRobustnessSuite extends FunSuite with Utils {
+class RabitTrackerRobustnessSuite extends FunSuite with PerTest {
   test("test Java RabitTracker wrapper's exception handling: it should not hang forever.") {
     /*
       Deliberately create new instances of SparkContext in each unit test to avoid reusing the
@@ -33,12 +33,7 @@ class RabitTrackerRobustnessSuite extends FunSuite with Utils {
       tests on a reentrant thread will crash the entire Spark application, an undesired side-effect
       that should be avoided.
      */
-    val sparkConf = new SparkConf().setMaster("local[*]")
-      .setAppName("XGBoostSuite").set("spark.driver.memory", "512m")
-    implicit val sparkContext = new SparkContext(sparkConf)
-    sparkContext.setLogLevel("ERROR")
-
-    val rdd = sparkContext.parallelize(1 to numWorkers, numWorkers).cache()
+    val rdd = sc.parallelize(1 to numWorkers, numWorkers).cache()
 
     val tracker = new PyRabitTracker(numWorkers)
     tracker.start(0)
@@ -90,16 +85,10 @@ class RabitTrackerRobustnessSuite extends FunSuite with Utils {
     sparkThread.setUncaughtExceptionHandler(tracker)
     sparkThread.start()
     assert(tracker.waitFor(0) != 0)
-    sparkContext.stop()
   }
 
   test("test Scala RabitTracker's exception handling: it should not hang forever.") {
-    val sparkConf = new SparkConf().setMaster("local[*]")
-      .setAppName("XGBoostSuite").set("spark.driver.memory", "512m")
-    implicit val sparkContext = new SparkContext(sparkConf)
-    sparkContext.setLogLevel("ERROR")
-
-    val rdd = sparkContext.parallelize(1 to numWorkers, numWorkers).cache()
+    val rdd = sc.parallelize(1 to numWorkers, numWorkers).cache()
 
     val tracker = new ScalaRabitTracker(numWorkers)
     tracker.start(0)
@@ -127,16 +116,10 @@ class RabitTrackerRobustnessSuite extends FunSuite with Utils {
     sparkThread.setUncaughtExceptionHandler(tracker)
     sparkThread.start()
     assert(tracker.waitFor(0L) == TrackerStatus.FAILURE.getStatusCode)
-    sparkContext.stop()
   }
 
   test("test Scala RabitTracker's workerConnectionTimeout") {
-    val sparkConf = new SparkConf().setMaster("local[*]")
-      .setAppName("XGBoostSuite").set("spark.driver.memory", "512m")
-    implicit val sparkContext = new SparkContext(sparkConf)
-    sparkContext.setLogLevel("ERROR")
-
-    val rdd = sparkContext.parallelize(1 to numWorkers, numWorkers).cache()
+    val rdd = sc.parallelize(1 to numWorkers, numWorkers).cache()
 
     val tracker = new ScalaRabitTracker(numWorkers)
     tracker.start(500)
@@ -164,6 +147,5 @@ class RabitTrackerRobustnessSuite extends FunSuite with Utils {
     sparkThread.start()
     // should fail due to connection timeout
     assert(tracker.waitFor(0L) == TrackerStatus.FAILURE.getStatusCode)
-    sparkContext.stop()
   }
 }

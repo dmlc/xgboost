@@ -232,6 +232,16 @@ public class BoosterImplTest {
   }
 
   @Test
+  public void testDumpModelJson() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+    String[] dump = booster.getModelDump("", false, "json");
+    TestCase.assertEquals("  { \"nodeid\":", dump[0].substring(0, 13));
+  }
+
+  @Test
   public void testFastHistoDepthwiseMaxDepth() throws XGBoostError {
     DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");

@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import numpy as np
+import warnings
 from .core import Booster, DMatrix, XGBoostError
 from .training import train
 
@@ -11,6 +12,8 @@ from .training import train
 # Re-define the classes on .compat to guarantee the behavior without scikit-learn
 from .compat import (SKLEARN_INSTALLED, XGBModelBase,
                      XGBClassifierBase, XGBRegressorBase, XGBLabelEncoder)
+
+warnings.simplefilter('always', DeprecationWarning)
 
 
 def _objective_decorator(func):
@@ -65,8 +68,12 @@ class XGBModel(XGBModelBase):
     objective : string or callable
         Specify the learning task and the corresponding learning objective or
         a custom objective function to be used (see note below).
+    booster: string
+        Specify which booster to use: gbtree, gblinear or dart.
     nthread : int
-        Number of parallel threads used to run xgboost.
+        Number of parallel threads used to run xgboost.  (Deprecated, please use n_jobs)
+    n_jobs : int
+        Number of parallel threads used to run xgboost.  (replaces nthread)
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf node of the tree.
     min_child_weight : int
@@ -85,14 +92,23 @@ class XGBModel(XGBModelBase):
         L2 regularization term on weights
     scale_pos_weight : float
         Balancing of positive and negative weights.
-
     base_score:
         The initial prediction score of all instances, global bias.
     seed : int
-        Random number seed.
+        Random number seed.  (Deprecated, please use random_state)
+    random_state : int
+        Random number seed.  (replaces seed)
     missing : float, optional
         Value in the data which needs to be present as a missing value. If
         None, defaults to np.nan.
+    **kwargs : dict, optional
+        Keyword arguments for XGBoost Booster object.  Full documentation of parameters can
+        be found here: https://github.com/dmlc/xgboost/blob/master/doc/parameter.md.
+        Attempting to set a parameter via the constructor args and **kwargs dict simultaneously
+        will result in a TypeError.
+        Note:
+            **kwargs is unsupported by Sklearn.  We do not guarantee that parameters passed via
+            this argument will interact properly with Sklearn.
 
     Note
     ----
@@ -112,11 +128,11 @@ class XGBModel(XGBModelBase):
     """
 
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100,
-                 silent=True, objective="reg:linear",
-                 nthread=-1, gamma=0, min_child_weight=1, max_delta_step=0,
+                 silent=True, objective="reg:linear", booster='gbtree',
+                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, seed=0, missing=None):
+                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
@@ -124,7 +140,7 @@ class XGBModel(XGBModelBase):
         self.n_estimators = n_estimators
         self.silent = silent
         self.objective = objective
-
+        self.booster = booster
         self.nthread = nthread
         self.gamma = gamma
         self.min_child_weight = min_child_weight
@@ -135,11 +151,14 @@ class XGBModel(XGBModelBase):
         self.reg_alpha = reg_alpha
         self.reg_lambda = reg_lambda
         self.scale_pos_weight = scale_pos_weight
-
         self.base_score = base_score
-        self.seed = seed
         self.missing = missing if missing is not None else np.nan
+        self.kwargs = kwargs
         self._Booster = None
+        self.seed = seed
+        self.random_state = random_state
+        self.nthread = nthread
+        self.n_jobs = n_jobs
 
     def __setstate__(self, state):
         # backward compatibility code
@@ -150,7 +169,7 @@ class XGBModel(XGBModelBase):
             state["_Booster"] = Booster(model_file=bst)
         self.__dict__.update(state)
 
-    def booster(self):
+    def get_booster(self):
         """Get the underlying xgboost Booster of this model.
 
         This will raise an exception when fit was not called
@@ -166,6 +185,8 @@ class XGBModel(XGBModelBase):
     def get_params(self, deep=False):
         """Get parameter.s"""
         params = super(XGBModel, self).get_params(deep=deep)
+        if isinstance(self.kwargs, dict):  # if kwargs is a dict, update params accordingly
+            params.update(self.kwargs)
         if params['missing'] is np.nan:
             params['missing'] = None  # sklearn doesn't handle nan. see #4725
         if not params.get('eval_metric', True):
@@ -175,10 +196,24 @@ class XGBModel(XGBModelBase):
     def get_xgb_params(self):
         """Get xgboost type parameters."""
         xgb_params = self.get_params()
+        random_state = xgb_params.pop('random_state')
+        if xgb_params['seed'] is not None:
+            warnings.warn('The seed parameter is deprecated as of version .6.'
+                          'Please use random_state instead.'
+                          'seed is deprecated.', DeprecationWarning)
+        else:
+            xgb_params['seed'] = random_state
+        n_jobs = xgb_params.pop('n_jobs')
+        if xgb_params['nthread'] is not None:
+            warnings.warn('The nthread parameter is deprecated as of version .6.'
+                          'Please use n_jobs instead.'
+                          'nthread is deprecated.', DeprecationWarning)
+        else:
+            xgb_params['nthread'] = n_jobs
 
         xgb_params['silent'] = 1 if self.silent else 0
 
-        if self.nthread <= 0:
+        if xgb_params['nthread'] <= 0:
             xgb_params.pop('nthread', None)
         return xgb_params
 
@@ -270,9 +305,9 @@ class XGBModel(XGBModelBase):
     def predict(self, data, output_margin=False, ntree_limit=0):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing)
-        return self.booster().predict(test_dmatrix,
-                                      output_margin=output_margin,
-                                      ntree_limit=ntree_limit)
+        return self.get_booster().predict(test_dmatrix,
+                                          output_margin=output_margin,
+                                          ntree_limit=ntree_limit)
 
     def apply(self, X, ntree_limit=0):
         """Return the predicted leaf every tree for each sample.
@@ -293,9 +328,9 @@ class XGBModel(XGBModelBase):
             ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
         """
         test_dmatrix = DMatrix(X, missing=self.missing)
-        return self.booster().predict(test_dmatrix,
-                                      pred_leaf=True,
-                                      ntree_limit=ntree_limit)
+        return self.get_booster().predict(test_dmatrix,
+                                          pred_leaf=True,
+                                          ntree_limit=ntree_limit)
 
     def evals_result(self):
         """Return the evaluation results.
@@ -341,7 +376,7 @@ class XGBModel(XGBModelBase):
         feature_importances_ : array of shape = [n_features]
 
         """
-        b = self.booster()
+        b = self.get_booster()
         fs = b.get_fscore()
         all_features = [fs.get(f, 0.) for f in b.feature_names]
         all_features = np.array(all_features, dtype=np.float32)
@@ -356,18 +391,19 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def __init__(self, max_depth=3, learning_rate=0.1,
                  n_estimators=100, silent=True,
-                 objective="binary:logistic",
-                 nthread=-1, gamma=0, min_child_weight=1,
+                 objective="binary:logistic", booster='gbtree',
+                 n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, seed=0, missing=None):
+                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
         super(XGBClassifier, self).__init__(max_depth, learning_rate,
-                                            n_estimators, silent, objective,
-                                            nthread, gamma, min_child_weight,
+                                            n_estimators, silent, objective, booster,
+                                            n_jobs, nthread, gamma, min_child_weight,
                                             max_delta_step, subsample,
                                             colsample_bytree, colsample_bylevel,
                                             reg_alpha, reg_lambda,
-                                            scale_pos_weight, base_score, seed, missing)
+                                            scale_pos_weight, base_score,
+                                            random_state, seed, missing, **kwargs)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True):
@@ -479,9 +515,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def predict(self, data, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing)
-        class_probs = self.booster().predict(test_dmatrix,
-                                             output_margin=output_margin,
-                                             ntree_limit=ntree_limit)
+        class_probs = self.get_booster().predict(test_dmatrix,
+                                                 output_margin=output_margin,
+                                                 ntree_limit=ntree_limit)
         if len(class_probs.shape) > 1:
             column_indexes = np.argmax(class_probs, axis=1)
         else:
@@ -491,9 +527,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def predict_proba(self, data, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing)
-        class_probs = self.booster().predict(test_dmatrix,
-                                             output_margin=output_margin,
-                                             ntree_limit=ntree_limit)
+        class_probs = self.get_booster().predict(test_dmatrix,
+                                                 output_margin=output_margin,
+                                                 ntree_limit=ntree_limit)
         if self.objective == "multi:softprob":
             return class_probs
         else:

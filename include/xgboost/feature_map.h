@@ -63,7 +63,7 @@ class FeatureMap {
     return names_[idx].c_str();
   }
   /*! \return type of specific feature */
-  const Type type(size_t idx) const {
+  Type type(size_t idx) const {
     CHECK_LT(idx, names_.size()) << "FeatureMap feature index exceed bound";
     return types_[idx];
   }

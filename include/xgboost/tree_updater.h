@@ -9,16 +9,13 @@
 #define XGBOOST_TREE_UPDATER_H_
 
 #include <dmlc/registry.h>
+#include <functional>
 #include <vector>
 #include <utility>
 #include <string>
 #include "./base.h"
 #include "./data.h"
 #include "./tree_model.h"
-
-#ifdef _MSC_VER
-#include <functional>
-#endif
 
 namespace xgboost {
 /*!
@@ -57,7 +54,7 @@ class TreeUpdater {
    *         updated by the time this function returns.
    */
   virtual bool UpdatePredictionCache(const DMatrix* data,
-                                     std::vector<bst_float>* out_preds) const {
+                                     std::vector<bst_float>* out_preds) {
     return false;
   }
   /*!

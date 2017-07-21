@@ -12,7 +12,7 @@ xgb.train(params = list(), data, nrounds, watchlist = list(), obj = NULL,
 
 xgboost(data = NULL, label = NULL, missing = NA, weight = NULL,
   params = list(), nrounds, verbose = 1, print_every_n = 1L,
-  early_stopping_rounds = NULL, maximize = NULL, save_period = 0,
+  early_stopping_rounds = NULL, maximize = NULL, save_period = NULL,
   save_name = "xgboost.model", xgb_model = NULL, callbacks = list(), ...)
 }
 \arguments{
