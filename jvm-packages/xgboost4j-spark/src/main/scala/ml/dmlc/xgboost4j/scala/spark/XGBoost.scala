@@ -331,8 +331,13 @@ object XGBoost extends Serializable {
       val isClsTask = isClassificationTask(params)
       val trackerReturnVal = tracker.waitFor(0L)
       logger.info(s"Rabit returns with exit code $trackerReturnVal")
-      postTrackerReturnProcessing(trackerReturnVal, boosters, overriddenParams, sparkJobThread,
-        isClsTask)
+      val model = postTrackerReturnProcessing(trackerReturnVal, boosters, overriddenParams,
+        sparkJobThread, isClsTask)
+      if (isClsTask){
+        model.asInstanceOf[XGBoostClassificationModel].numOfClasses =
+          params.getOrElse("num_class", "2").toString.toInt
+      }
+      model
     } finally {
       tracker.stop()
     }
