@@ -190,10 +190,12 @@ class TestModels(unittest.TestCase):
 
         bst = xgb.train([], dm1)
         bst.predict(dm1)  # success
-        self.assertRaises(ValueError, bst.predict, dm2)
+        with self.assertRaises(ValueError):
+            bst.predict(dm2, valid_feat=True)
         bst.predict(dm1)  # success
 
         bst = xgb.train([], dm2)
         bst.predict(dm2)  # success
-        self.assertRaises(ValueError, bst.predict, dm1)
+        with self.assertRaises(ValueError):
+            bst.predict(dm1 valid_feat=True)
         bst.predict(dm2)  # success
