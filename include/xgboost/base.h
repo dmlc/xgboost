@@ -43,13 +43,13 @@
 /*!
  * \brief Check if alignas(*) keyword is supported. (g++ 4.8 or higher)
  */
-#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 8
+#if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4)
 #define XGBOOST_ALIGNAS(X) alignas(X)
 #else
 #define XGBOOST_ALIGNAS(X)
 #endif
 
-#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 8 && \
+#if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4) && \
     !defined(__CUDACC__)
 #include <parallel/algorithm>
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) __gnu_parallel::sort((X), (Y), (Z))
