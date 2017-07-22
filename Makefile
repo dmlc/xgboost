@@ -73,7 +73,7 @@ ifndef LINT_LANG
 endif
 
 ifeq ($(UNAME), Windows)
-	XGBOOST_DYLIB = lib/libxgboost.dll
+	XGBOOST_DYLIB = lib/xgboost.dll
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/win32
 else
 ifeq ($(UNAME), Darwin)
@@ -176,7 +176,7 @@ lib/libxgboost.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-lib/libxgboost.dll lib/libxgboost.so lib/libxgboost.dylib: $(ALL_DEP)
+lib/xgboost.dll lib/libxgboost.so lib/libxgboost.dylib: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %a,  $^) $(LDFLAGS)
 
@@ -213,7 +213,7 @@ cover: check
 endif
 
 clean:
-	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
+	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o #xgboost
 	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
 
 clean_all: clean
