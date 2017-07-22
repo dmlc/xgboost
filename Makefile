@@ -62,7 +62,10 @@ export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
 ifeq ($(TEST_COVER), 1)
 	CFLAGS += -g -O0 -fprofile-arcs -ftest-coverage
 else
-	CFLAGS += -O3 -funroll-loops -msse2
+	CFLAGS += -O3 -funroll-loops
+ifeq ($(USE_SSE), 1)
+	CFLAGS += -msse2
+endif
 endif
 
 ifndef LINT_LANG
@@ -123,7 +126,7 @@ $(DMLC_CORE)/libdmlc.a: $(wildcard $(DMLC_CORE)/src/*.cc $(DMLC_CORE)/src/*/*.cc
 	+ cd $(DMLC_CORE); $(MAKE) libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
 $(RABIT)/lib/$(LIB_RABIT): $(wildcard $(RABIT)/src/*.cc)
-	+ cd $(RABIT); $(MAKE) lib/$(LIB_RABIT); cd $(ROOTDIR)
+	+ cd $(RABIT); $(MAKE) lib/$(LIB_RABIT) USE_SSE=$(USE_SSE); cd $(ROOTDIR)
 
 jvm: jvm-packages/lib/libxgboost4j.so
 
