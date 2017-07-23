@@ -22,15 +22,18 @@ platform:
 install:
     - git submodule update --init --recursive
     # MinGW
-    - set PATH=C:\msys64\mingw64\bin\;C:\msys64\usr\bin\;%PATH%
+    - set PATH=C:\msys64\mingw64\bin;C:\msys64\usr\bin;%PATH%
     - gcc -v
     - ls -l C:\
     # Miniconda2
     - set PATH=;C:\Miniconda-x64;C:\Miniconda-x64\Scripts;%PATH%
     - where python
     - python --version
-    # do python build only for mingw
-    - if /i "%target%" == "mingw" conda install -y numpy scipy pandas matplotlib nose scikit-learn graphviz python-graphviz
+    # do python build for mingw and one of the msvc jobs
+    - set DO_PYTHON=off
+    - if /i "%target%" == "mingw" set DO_PYTHON=on
+    - if /i "%target%_%ver%_%configuration%" == "msvc_2015_Release" set DO_PYTHON=on
+    - if /i "%DO_PYTHON%" == "on" conda install -y numpy scipy pandas matplotlib nose scikit-learn graphviz python-graphviz
 
 build_script:
     - cd %APPVEYOR_BUILD_FOLDER%
@@ -44,12 +47,14 @@ build_script:
         mkdir build_mingw &&
         cd build_mingw &&
         cmake .. -G"%generator%" &&
-        make -j2 &&
-        cd ../python-package &&
+        make -j2
+      )
+    - if /i "%DO_PYTHON%" == "on" (
+        cd %APPVEYOR_BUILD_FOLDER%\python-package &&
         python setup.py install
       )
     - if /i "%target%" == "jvm" cd jvm-packages && mvn test -pl :xgboost4j
 
 test_script:
     - cd %APPVEYOR_BUILD_FOLDER%
-    - if /i "%target%" == "mingw" python -m nose tests/python
+    - if /i "%DO_PYTHON%" == "on" python -m nose tests/python
