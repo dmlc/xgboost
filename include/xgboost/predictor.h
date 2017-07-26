@@ -6,15 +6,22 @@
  */
 #pragma once
 #include <xgboost/base.h>
-#include <xgboost/tree_model.h>
 #include <functional>
 #include <memory>
-#include <string>
 #include <vector>
+#include <string>
+#include "../../src/gbm/gbtree_model.h"
 
+// Forward declarations
 namespace xgboost {
 class DMatrix;
+class TreeUpdater;
 }
+namespace xgboost {
+namespace gbm {
+struct GBTreeModel;
+}
+}  // namespace xgboost
 
 namespace xgboost {
 
@@ -22,7 +29,7 @@ namespace xgboost {
  * \class Predictor
  *
  * \brief Performs prediction on individual training instances or batches of
- * instances.
+ * instances for GBTree.
  *
  */
 
@@ -30,139 +37,104 @@ class Predictor {
  public:
   virtual ~Predictor() {}
 
+  void InitCache(const std::vector<std::shared_ptr<DMatrix> > &cache);
+
   /**
-   * \fn  virtual void Predictor::PredictBatch( DMatrix* dmat, int num_feature,
-   * std::vector<bst_float>* out_preds, int num_output_group, const
-   * std::vector<std::unique_ptr<RegTree>>& trees, const std::vector<int>&
-   * tree_info, float default_base_margin, bool init_out_predictions, int
-   * tree_begin, unsigned ntree_limit = 0) = 0;
+   * \fn  virtual void Predictor::PredictBatch( DMatrix* dmat, std::vector<bst_float>* out_preds, const gbm::GBTreeModel &model, int tree_begin, unsigned ntree_limit = 0) = 0;
    *
    * \brief Generate batch predictions for a given feature matrix.
    *
-   *
-   * \param [in,out]  dmat                  Feature matrix
-   * \param           num_feature           Number of features.
-   * \param [in,out]  out_preds             The outUt preds.
-   * \param           num_output_group      Number of output groups.
-   * \param           trees                 Trees to make predictions from.
-   * \param           tree_info             Information about tree group.
-   * \param           default_base_margin   The default base margin.
-   * \param           init_out_predictions  True to init out predictions.
-   * \param           tree_begin            The tree begin index.
-   * \param           ntree_limit           (Optional) The ntree limit. 0 means
-   * do not limit trees.
+   * \param [in,out]  dmat        Feature matrix.
+   * \param [in,out]  out_preds   The output preds.
+   * \param           model       The model to predict from.
+   * \param           tree_begin  The tree begin index.
+   * \param           ntree_limit (Optional) The ntree limit. 0 means do not limit trees.
    */
 
   virtual void PredictBatch(
-      DMatrix* dmat, int num_feature, std::vector<bst_float>* out_preds,
-      int num_output_group, const std::vector<std::unique_ptr<RegTree>>& trees,
-      const std::vector<int>& tree_info, float default_base_margin,
-      bool init_out_predictions, int tree_begin, unsigned ntree_limit = 0) = 0;
-
-  /*!
-   *
-   * \param inst the instance you want to predict
-   * \param out_preds output vector to hold the predictions
-   * \param ntree_limit limit the number of trees used in prediction
-   * \param root_index the root index
-   * \sa Predict
-   */
+      DMatrix* dmat, std::vector<bst_float>* out_preds, const gbm::GBTreeModel &model,
+      int tree_begin, unsigned ntree_limit = 0) = 0;
 
   /**
-   * \fn  virtual void Predictor::PredictInstance( const SparseBatch::Inst&
-   * inst, std::vector<bst_float>* out_preds, int num_output_group, int
-   * size_leaf_vector, int num_feature, const
-   * std::vector<std::unique_ptr<RegTree>>& trees, const std::vector<int>&
-   * tree_info, float default_base_margin, unsigned ntree_limit = 0, unsigned
-   * root_index = 0) = 0;
+   * \fn  virtual void Predictor::UpdatePredictionCache( const gbm::GBTreeModel &model, std::vector<std::unique_ptr<TreeUpdater> >* updaters, int num_new_trees) = 0;
    *
-   * \brief online prediction function, predict score for one instance at a time
-   * NOTE: use the batch prediction interface if possible, batch prediction is
-   * usually more efficient than online prediction This function is NOT
-   * threadsafe, make sure you only call from one thread.
+   * \brief Update the internal prediction cache using newly added trees. Will use the tree updater
+   *        to do this if possible.
    *
-   * \param           inst                The instance to predict.
-   * \param [in,out]  out_preds           The output preds.
-   * \param           num_output_group    Number of output groups.
-   * \param           size_leaf_vector    The size leaf vector.
-   * \param           num_feature         Number of features.
-   * \param           trees               Trees to make predictions from.
-   * \param           tree_info           Information about tree group.
-   * \param           default_base_margin The default base margin.
-   * \param           ntree_limit         (Optional) The ntree limit.
-   * \param           root_index          (Optional) Zero-based index of the
-   * root.
+   * \param           model         The model.
+   * \param [in,out]  updaters      The updater sequence for gradient boosting.
+   * \param           num_new_trees Number of new trees.
+   */
+
+  virtual void UpdatePredictionCache(
+      const gbm::GBTreeModel &model, std::vector<std::unique_ptr<TreeUpdater> >* updaters,
+      int num_new_trees) = 0;
+
+  /**
+   * \fn  virtual void Predictor::PredictInstance( const SparseBatch::Inst& inst, std::vector<bst_float>* out_preds, const gbm::GBTreeModel& model, unsigned ntree_limit = 0, unsigned root_index = 0) = 0;
+   *
+   * \brief online prediction function, predict score for one instance at a time NOTE: use the batch
+   *        prediction interface if possible, batch prediction is usually more efficient than online
+   *        prediction This function is NOT threadsafe, make sure you only call from one thread.
+   *
+   * \param           inst        The instance to predict.
+   * \param [in,out]  out_preds   The output preds.
+   * \param           model       The model to predict from
+   * \param           ntree_limit (Optional) The ntree limit.
+   * \param           root_index  (Optional) Zero-based index of the root.
    */
 
   virtual void PredictInstance(
-      const SparseBatch::Inst& inst, std::vector<bst_float>* out_preds,
-      int num_output_group, int size_leaf_vector, int num_feature,
-      const std::vector<std::unique_ptr<RegTree>>& trees,
-      const std::vector<int>& tree_info, float default_base_margin,
-      unsigned ntree_limit = 0, unsigned root_index = 0) = 0;
-  /*!
-   */
+    const SparseBatch::Inst& inst, std::vector<bst_float>* out_preds,
+    const gbm::GBTreeModel& model, unsigned ntree_limit = 0, unsigned root_index = 0) = 0;
 
   /**
-   * \fn  virtual void Predictor::PredictLeaf(DMatrix* dmat,
-   * std::vector<bst_float>* out_preds, const
-   * std::vector<std::unique_ptr<RegTree>>& trees, int num_features, int
-   * num_output_group, unsigned ntree_limit = 0) = 0;
+   * \fn  virtual void Predictor::PredictLeaf(DMatrix* dmat, std::vector<bst_float>* out_preds, const gbm::GBTreeModel& model, unsigned ntree_limit = 0) = 0;
    *
-   * \brief predict the leaf index of each tree, the output will be nsample *
-   * ntree vector this is only valid in gbtree predictor.
+   * \brief predict the leaf index of each tree, the output will be nsample * ntree vector this is
+   *        only valid in gbtree predictor.
    *
-   * \param [in,out]  dmat              The input feature matrix.
-   * \param [in,out]  out_preds         The output preds.
-   * \param           trees             Trees to make predictions from.
-   * \param           num_features      Number of features.
-   * \param           num_output_group  Number of output groups.
-   * \param           ntree_limit       (Optional) The ntree limit.
+   * \param [in,out]  dmat        The input feature matrix.
+   * \param [in,out]  out_preds   The output preds.
+   * \param           model       Model to make predictions from.
+   * \param           ntree_limit (Optional) The ntree limit.
    */
 
   virtual void PredictLeaf(DMatrix* dmat, std::vector<bst_float>* out_preds,
-                           const std::vector<std::unique_ptr<RegTree>>& trees,
-                           int num_features, int num_output_group,
-                           unsigned ntree_limit = 0) = 0;
+                           const gbm::GBTreeModel& model, unsigned ntree_limit = 0) = 0;
 
   /**
-   * \fn  virtual void Predictor::PredictContribution(DMatrix* dmat,
-   * std::vector<bst_float>* out_contribs, const
-   * std::vector<std::unique_ptr<RegTree>>& trees, const std::vector<int>&
-   * tree_info, int num_output_group, int num_feature, float
-   * default_base_margin, unsigned ntree_limit = 0) = 0;
+   * \fn  virtual void Predictor::PredictContribution( DMatrix* dmat, std::vector<bst_float>* out_contribs, const gbm::GBTreeModel& model, unsigned ntree_limit = 0) = 0;
    *
-   * \brief feature contributions to individual predictions; the output will be
-   * a vector of length (nfeats + 1) * num_output_group * nsample, arranged in
-   * that order
+   * \brief feature contributions to individual predictions; the output will be a vector of length
+   *        (nfeats + 1) * num_output_group * nsample, arranged in that order.
    *
-   * \param [in,out]  dmat              The input feature matrix.
-   * \param [in,out]  out_contribs        The output feature contribs.
-   * \param           trees               Trees to make predictions from.
-   * \param           tree_info           Information about tree group.
-   * \param           num_output_group    Number of output groups.
-   * \param           num_feature         Number of features.
-   * \param           default_base_margin The default base margin.
-   * \param           ntree_limit         (Optional) The ntree limit.
+   * \param [in,out]  dmat          The input feature matrix.
+   * \param [in,out]  out_contribs  The output feature contribs.
+   * \param           model         Model to make predictions from.
+   * \param           ntree_limit   (Optional) The ntree limit.
    */
 
   virtual void PredictContribution(
-      DMatrix* dmat, std::vector<bst_float>* out_contribs,
-      const std::vector<std::unique_ptr<RegTree>>& trees,
-      const std::vector<int>& tree_info, int num_output_group, int num_feature,
-      float default_base_margin, unsigned ntree_limit = 0) = 0;
+    DMatrix* dmat, std::vector<bst_float>* out_contribs,
+    const gbm::GBTreeModel& model, unsigned ntree_limit = 0) = 0;
 
   /**
    * \fn  static Predictor* Predictor::Create(std::string name);
    *
    * \brief Creates a new Predictor*.
    *
-   * \param name  The name.
-   *
-   * \return  Null if it fails, else a pointer to a Predictor.
    */
 
   static Predictor* Create(std::string name);
+
+ protected:
+  struct PredictionCacheEntry {
+    std::shared_ptr<DMatrix> data;
+    std::vector<bst_float> predictions;
+  };
+
+  std::unordered_map<DMatrix*, PredictionCacheEntry> cache_;
 };
 
 /*!
