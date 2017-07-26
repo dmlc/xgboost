@@ -27,7 +27,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
-import org.apache.spark.{SparkContext, SparkEnv, TaskContext}
+import org.apache.spark.{SparkContext, TaskContext}
 
 object TrackerConf {
   def apply(): TrackerConf = TrackerConf(0L, "python")
@@ -79,7 +79,6 @@ object XGBoost extends Serializable {
       }
       builder += baseMargin
     }
-
     Some(builder.result())
   }
 
@@ -126,9 +125,7 @@ object XGBoost extends Serializable {
           trainingMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
             TaskContext.getPartitionId()).toArray)
         }
-
         fromBaseMarginsToArray(baseMargins).foreach(trainingMatrix.setBaseMargin)
-
         val booster = SXGBoost.train(trainingMatrix, params, round,
           watches = Map("train" -> trainingMatrix), obj, eval)
         Iterator(booster)
