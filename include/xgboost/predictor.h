@@ -28,21 +28,31 @@ namespace xgboost {
 /**
  * \class Predictor
  *
- * \brief Performs prediction on individual training instances or batches of
- * instances for GBTree.
- *
+ * \brief Performs prediction on individual training instances or batches of instances for GBTree.
+ *        The predictor also manages a prediction cache associated with input matrices. If possible,
+ *        it will use previously calculated predictions instead of calculating new predictions.
+ *        Prediction functions all take a GBTreeModel and a DMatrix as input and output a vector of
+ *        predictions. The predictor does not modify any state of the model itself.
  */
 
 class Predictor {
  public:
   virtual ~Predictor() {}
 
+  /**
+   * \fn  void Predictor::InitCache(const std::vector<std::shared_ptr<DMatrix> > &cache);
+   *
+   * \brief Register input matrices in prediction cache.
+   *
+   * \param cache Vector of DMatrix's to be used in prediction.
+   */
+
   void InitCache(const std::vector<std::shared_ptr<DMatrix> > &cache);
 
   /**
    * \fn  virtual void Predictor::PredictBatch( DMatrix* dmat, std::vector<bst_float>* out_preds, const gbm::GBTreeModel &model, int tree_begin, unsigned ntree_limit = 0) = 0;
    *
-   * \brief Generate batch predictions for a given feature matrix.
+   * \brief Generate batch predictions for a given feature matrix. May use cached predictions if available instead of calculating from scratch.
    *
    * \param [in,out]  dmat        Feature matrix.
    * \param [in,out]  out_preds   The output preds.
@@ -59,7 +69,7 @@ class Predictor {
    * \fn  virtual void Predictor::UpdatePredictionCache( const gbm::GBTreeModel &model, std::vector<std::unique_ptr<TreeUpdater> >* updaters, int num_new_trees) = 0;
    *
    * \brief Update the internal prediction cache using newly added trees. Will use the tree updater
-   *        to do this if possible.
+   *        to do this if possible. Should be called as a part of the tree boosting process to facilitate the look up of predictions at a later time.
    *
    * \param           model         The model.
    * \param [in,out]  updaters      The updater sequence for gradient boosting.
@@ -129,10 +139,21 @@ class Predictor {
   static Predictor* Create(std::string name);
 
  protected:
+  /**
+   * \struct  PredictionCacheEntry
+   *
+   * \brief Contains pointer to input matrix and associated cached predictions.
+   */
+
   struct PredictionCacheEntry {
     std::shared_ptr<DMatrix> data;
     std::vector<bst_float> predictions;
   };
+
+  /**
+   * \brief Map of matrices and associated cached predictions to facilitate storing and looking up
+   *        predictions.
+   */
 
   std::unordered_map<DMatrix*, PredictionCacheEntry> cache_;
 };
