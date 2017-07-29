@@ -38,6 +38,7 @@ include_directories (
 file(GLOB_RECURSE SOURCES 
     src/*.cc
     src/*.h
+    include/*.h
 )
 # Only add main function for executable target
 list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/src/cli_main.cc)

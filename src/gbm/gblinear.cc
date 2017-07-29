@@ -170,7 +170,7 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  void Predict(DMatrix *p_fmat,
+  void PredictBatch(DMatrix *p_fmat,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit) override {
     if (model.weight.size() == 0) {
@@ -205,7 +205,7 @@ class GBLinear : public GradientBooster {
     }
   }
   // add base margin
-  void Predict(const SparseBatch::Inst &inst,
+  void PredictInstance(const SparseBatch::Inst &inst,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
