@@ -6,6 +6,8 @@
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <cub/cub.cuh>
+#include <string>
+#include <sstream>
 #include <algorithm>
 #include <functional>
 #include <future>
@@ -160,7 +162,13 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
       dh::safe_cuda(cudaGetDeviceProperties(&prop, cudaDev));
       // printf("#   Rank %2d uses device %2d [0x%02x] %s\n", rank, cudaDev,
       //             prop.pciBusID, prop.name);
-      fflush(stdout);
+      // cudaDriverGetVersion(&driverVersion);
+      // cudaRuntimeGetVersion(&runtimeVersion);
+      std::ostringstream oss;
+      oss << "CUDA Capability Major/Minor version number: "
+          << prop.major << "." << prop.minor << " is insufficient.  Need >=3.5.";
+      int failed = prop.major < 3 ||  prop.major == 3 && prop.minor < 5;
+      dh::gpu_check(oss.str(), failed);
     }
 
     // local find_split group of comms for each case of reduced number of GPUs
