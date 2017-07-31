@@ -364,30 +364,4 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val predResult1: Array[Array[Float]] = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
   }
-
-  test("test use base margin") {
-    import DataUtils._
-    val trainRDD = sc.parallelize(Classification.train, numSlices = 2)
-    val testRDD = sc.parallelize(Classification.test, numSlices = 2).map(_.features)
-
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic")
-
-    val trainWithMarginRDD = {
-      XGBoost.trainDistributed(trainRDD, paramMap, round = 1, nWorkers = 2)
-          .predict(trainRDD.map(_.features), outputMargin = true)
-          .zip(trainRDD)
-          .map { case (Array(baseMargin), labeledPoint) =>
-            labeledPoint.copy(baseMargin = baseMargin)
-          }
-    }
-
-    val xgBoostModel = XGBoost.trainDistributed(
-      trainWithMarginRDD,
-      paramMap,
-      round = 1,
-      nWorkers = 2)
-
-    assert(testRDD.count() === xgBoostModel.predict(testRDD).count())
-  }
 }

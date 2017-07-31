@@ -197,17 +197,20 @@ class XGBoostDFSuite extends FunSuite with PerTest {
   test("test use base margin") {
     import DataUtils._
     val trainingDf = buildDataFrame(Classification.train)
-    val trainingDfWithMargin = trainingDf.withColumn("baseMargin", functions.rand())
+    val trainingDfWithMargin = trainingDf.withColumn("margin", functions.rand())
     val testRDD = sc.parallelize(Classification.test.map(_.features))
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic")
+      "objective" -> "binary:logistic", "baseMarginCol" -> "margin")
 
-    def trainPredict(df: Dataset[_]): RDD[Array[Float]] = {
-      XGBoost.trainWithDataFrame(df, paramMap, round = 1, numWorkers).predict(testRDD)
+    def trainPredict(df: Dataset[_]): Array[Float] = {
+      XGBoost.trainWithDataFrame(df, paramMap, round = 1, numWorkers)
+          .predict(testRDD)
+          .map { case Array(p) => p }
+          .collect()
     }
 
     val pred = trainPredict(trainingDf)
     val predWithMargin = trainPredict(trainingDfWithMargin)
-    assert(pred.count() == predWithMargin.count())
+    assert((pred, predWithMargin).zipped.exists { case (p, pwm) => p !== pwm })
   }
 }
