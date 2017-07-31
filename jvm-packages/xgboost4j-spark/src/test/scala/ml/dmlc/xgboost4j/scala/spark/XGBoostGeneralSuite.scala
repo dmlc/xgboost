@@ -27,6 +27,7 @@ import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 import org.apache.spark.SparkContext
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector, Vector => SparkVector}
 import org.apache.spark.rdd.RDD
 import org.scalatest.FunSuite
@@ -86,13 +87,29 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(boosterCount === 2)
   }
 
+  test("train with RDD[MLLabeledPoint]") {
+    import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map { labeledPoint =>
+      MLLabeledPoint(labeledPoint.label.toDouble, labeledPoint.features)
+    }
+
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
+    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic").toMap
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = numWorkers)
+    assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix) < 0.1)
+  }
+
   test("training with external memory cache") {
     val eval = new EvalError()
     val trainingRDD = sc.parallelize(Classification.train)
     val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, round = 5,
       nWorkers = numWorkers, useExternalMemory = true)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
@@ -105,7 +122,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic",
       "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala")).toMap
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, round = 5,
       nWorkers = numWorkers)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
@@ -119,7 +136,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "eval_metric" -> "error")
     // TODO: histogram algorithm seems to be very very sensitive to worker number
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, round = 5,
       nWorkers = math.min(numWorkers, 2))
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
@@ -132,7 +149,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "1",
             "objective" -> "binary:logistic", "tree_method" -> "hist",
             "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "error")
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, round = 5,
       nWorkers = math.min(numWorkers, 2))
     val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix)
@@ -147,7 +164,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
             "objective" -> "binary:logistic", "tree_method" -> "hist",
             "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
             "eval_metric" -> "error")
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, round = 5,
       nWorkers = math.min(numWorkers, 2))
     val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix)
@@ -162,7 +179,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
       "eval_metric" -> "error")
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 10,
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, round = 10,
       nWorkers = math.min(numWorkers, 2))
     val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix)
@@ -177,7 +194,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
             "objective" -> "binary:logistic", "tree_method" -> "hist",
             "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
             "eval_metric" -> "error")
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 10,
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, round = 10,
       nWorkers = math.min(numWorkers, 2))
     val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix)
@@ -206,7 +223,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val testRDD = buildDenseRDD().repartition(4).map(_.features.asInstanceOf[DenseVector])
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers,
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, 5, numWorkers,
       useExternalMemory = true)
     xgBoostModel.predict(testRDD, missingValue = -0.1f).collect()
   }
@@ -222,7 +239,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     }
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, 5, numWorkers)
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1 = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
@@ -236,7 +253,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val trainingRDD = sc.parallelize(Classification.train).cache()
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5, nWorkers = numWorkers)
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, round = 5, numWorkers)
     // Nan Zhu: deprecate it for now
     // xgBoostModel.eval(trainingRDD, "eval1", iter = 5, useExternalCache = false)
     xgBoostModel.eval(trainingRDD, "eval2", evalFunc = new EvalError, useExternalCache = false)
@@ -251,7 +268,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val testRDD = buildEmptyRDD()
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, 5, numWorkers)
     println(xgBoostModel.predict(testRDD).collect().length === 0)
   }
 
@@ -263,7 +280,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val tempFile = Files.createTempFile(tempDir, "", "")
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, 5, numWorkers)
     val evalResults = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix)
     assert(evalResults < 0.1)
@@ -281,7 +298,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     var paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear")
     // validate regression model
-    var xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+    var xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, round = 5,
       nWorkers = numWorkers, useExternalMemory = false)
     xgBoostModel.setFeaturesCol("feature_col")
     xgBoostModel.setLabelCol("label_col")
@@ -295,7 +312,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     // classification model
     paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic")
-    xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+    xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, round = 5,
       nWorkers = numWorkers, useExternalMemory = false)
     xgBoostModel.asInstanceOf[XGBoostClassificationModel].setRawPredictionCol("raw_col")
     xgBoostModel.asInstanceOf[XGBoostClassificationModel].setThresholds(Array(0.5, 0.5))
@@ -320,7 +337,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "rank:pairwise", "eval_metric" -> "ndcg", "groupData" -> trainGroupData)
 
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 1)
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, 5, nWorkers = 1)
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1: Array[Array[Float]] = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
@@ -342,7 +359,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
 
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 2)
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, 5, nWorkers = 2)
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1: Array[Array[Float]] = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
@@ -357,7 +374,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic")
 
     val trainWithMarginRDD = {
-      XGBoost.trainWithRDD(trainRDD, paramMap, round = 1, nWorkers = 2)
+      XGBoost.trainDistributed(trainRDD, paramMap, round = 1, nWorkers = 2)
           .predict(trainRDD.map(_.features), outputMargin = true)
           .zip(trainRDD)
           .map { case (Array(baseMargin), labeledPoint) =>
@@ -365,7 +382,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
           }
     }
 
-    val xgBoostModel = XGBoost.trainWithRDD(
+    val xgBoostModel = XGBoost.trainDistributed(
       trainWithMarginRDD,
       paramMap,
       round = 1,

@@ -16,10 +16,10 @@
 
 package ml.dmlc.xgboost4j.scala.example.spark
 
-import ml.dmlc.xgboost4j.scala.spark.{DataUtils, XGBoost}
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+import ml.dmlc.xgboost4j.scala.Booster
+import ml.dmlc.xgboost4j.scala.spark.XGBoost
 
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector}
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.{SparkConf, SparkContext}
@@ -41,7 +41,7 @@ object SparkWithRDD {
     // number of iterations
     val numRound = args(0).toInt
     val trainRDD = MLUtils.loadLibSVMFile(sc, inputTrainPath).map(lp =>
-      XGBLabeledPoint(lp.label.toFloat, null, lp.features.toArray.map(_.toFloat)))
+      MLLabeledPoint(lp.label, new MLDenseVector(lp.features.toArray)))
     val testSet = MLUtils.loadLibSVMFile(sc, inputTestPath)
         .map(lp => new MLDenseVector(lp.features.toArray))
     // training parameters

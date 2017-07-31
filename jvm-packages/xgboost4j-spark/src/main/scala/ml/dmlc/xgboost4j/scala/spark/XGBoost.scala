@@ -27,6 +27,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.{SparkContext, TaskContext}
 
 object TrackerConf {
@@ -206,7 +207,7 @@ object XGBoost extends Serializable {
    */
   @deprecated("Use XGBoost.trainWithRDD instead.")
   def train(
-      trainingData: RDD[XGBLabeledPoint],
+      trainingData: RDD[MLLabeledPoint],
       params: Map[String, Any],
       round: Int,
       nWorkers: Int,
@@ -262,6 +263,25 @@ object XGBoost extends Serializable {
    */
   @throws(classOf[XGBoostError])
   def trainWithRDD(
+      trainingData: RDD[MLLabeledPoint],
+      params: Map[String, Any],
+      round: Int,
+      nWorkers: Int,
+      obj: ObjectiveTrait = null,
+      eval: EvalTrait = null,
+      useExternalMemory: Boolean = false,
+      missing: Float = Float.NaN): XGBoostModel = {
+    import DataUtils._
+    val xgbTrainingData = trainingData.map { case MLLabeledPoint(label, features) =>
+      features.asXGB.copy(label = label.toFloat)
+    }
+    
+    trainDistributed(xgbTrainingData, params, round, nWorkers, obj, eval,
+      useExternalMemory, missing)
+  }
+
+  @throws(classOf[XGBoostError])
+  private[spark] def trainDistributed(
       trainingData: RDD[XGBLabeledPoint],
       params: Map[String, Any],
       round: Int,
@@ -272,19 +292,19 @@ object XGBoost extends Serializable {
       missing: Float = Float.NaN): XGBoostModel = {
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
-        " for now")
+          " for now")
     }
     require(nWorkers > 0, "you must specify more than 0 workers")
     if (obj != null) {
       require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
-        " you have to specify the objective type as classification or regression with a" +
-        " customized objective function")
+          " you have to specify the objective type as classification or regression with a" +
+          " customized objective function")
     }
     val trackerConf = params.get("tracker_conf") match {
       case None => TrackerConf()
       case Some(conf: TrackerConf) => conf
       case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
-        "instance of TrackerConf.")
+          "instance of TrackerConf.")
     }
     val tracker = startTracker(nWorkers, trackerConf)
     try {

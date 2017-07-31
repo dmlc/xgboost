@@ -34,7 +34,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic",
       "nthread" -> (sc.getConf.getInt("spark.task.cpus", 1) + 1))
     intercept[IllegalArgumentException] {
-      XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+      XGBoost.trainDistributed(trainingRDD, paramMap, 5, numWorkers)
     }
   }
 
@@ -44,7 +44,7 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
     val testSetDMatrix = new DMatrix(Classification.test.iterator, null)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+    val xgBoostModel = XGBoost.trainDistributed(trainingRDD, paramMap, 5, numWorkers)
     val eval = new EvalError()
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)

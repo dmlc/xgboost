@@ -133,7 +133,7 @@ class XGBoostEstimator private[spark](
     }
     transformSchema(trainingSet.schema, logging = true)
     val derivedXGBoosterParamMap = fromParamsToXGBParamMap
-    val trainedModel = XGBoost.trainWithRDD(instances, derivedXGBoosterParamMap,
+    val trainedModel = XGBoost.trainDistributed(instances, derivedXGBoosterParamMap,
       $(round), $(nWorkers), $(customObj), $(customEval), $(useExternalMemory),
       $(missing)).setParent(this)
     val returnedModel = copyValues(trainedModel, extractParamMap())
