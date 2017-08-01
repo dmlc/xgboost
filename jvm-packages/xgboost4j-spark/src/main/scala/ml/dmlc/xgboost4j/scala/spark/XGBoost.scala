@@ -275,7 +275,7 @@ object XGBoost extends Serializable {
     val xgbTrainingData = trainingData.map { case MLLabeledPoint(label, features) =>
       features.asXGB.copy(label = label.toFloat)
     }
-    
+
     trainDistributed(xgbTrainingData, params, round, nWorkers, obj, eval,
       useExternalMemory, missing)
   }
