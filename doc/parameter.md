@@ -103,7 +103,7 @@ Parameters for Tree Booster
     - 'lossguide': split at nodes with highest loss change.
 * max_leaves, [default=0]
   - Maximum number of nodes to be added. Only relevant for the 'lossguide' grow policy.
-* max_bins, [default=256]
+* max_bin, [default=256]
   - This is only used if 'hist' is specified as `tree_method`.
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
