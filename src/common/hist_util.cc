@@ -12,11 +12,12 @@
 #include "./column_matrix.h"
 #include "./hist_util.h"
 #include "./quantile.h"
+#include "./memory.h"
 
 namespace xgboost {
 namespace common {
 
-void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
+void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins, bool verbose) {
   typedef common::WXQuantileSketch<bst_float, bst_float> WXQSketch;
   const MetaInfo& info = p_fmat->info();
 
@@ -33,6 +34,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     s.Init(info.num_row, 1.0 / (max_num_bins * kFactor));
   }
 
+  LOG(INFO) << "Generating sketches...";
   dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
   iter->BeforeFirst();
   while (iter->Next()) {
@@ -55,51 +57,64 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     }
   }
 
-  // gather the histogram data
-  rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
-  std::vector<WXQSketch::SummaryContainer> summary_array;
-  summary_array.resize(sketchs.size());
-  for (size_t i = 0; i < sketchs.size(); ++i) {
-    WXQSketch::SummaryContainer out;
-    sketchs[i].GetSummary(&out);
-    summary_array[i].Reserve(max_num_bins * kFactor);
-    summary_array[i].SetPrune(out, max_num_bins * kFactor);
-  }
-  size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
-  sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
-
   this->min_val.resize(info.num_col);
   row_ptr.push_back(0);
-  for (size_t fid = 0; fid < summary_array.size(); ++fid) {
-    WXQSketch::SummaryContainer a;
-    a.Reserve(max_num_bins);
-    a.SetPrune(summary_array[fid], max_num_bins);
-    const bst_float mval = a.data[0].value;
-    this->min_val[fid] = mval - fabs(mval);
-    if (a.size > 1 && a.size <= 16) {
-      /* specialized code categorial / ordinal data -- use midpoints */
-      for (size_t i = 1; i < a.size; ++i) {
-        bst_float cpt = (a.data[i].value + a.data[i - 1].value) / 2.0;
-        if (i == 1 || cpt > cut.back()) {
-          cut.push_back(cpt);
+  // gather the histogram data
+  rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer;
+  const size_t bundle_size       // limit this task to 1GB
+    = std::min(GetSystemMemory() / 2,
+               static_cast<size_t>(1) * 1024 * 1024 * 1024)
+                / (max_num_bins * kFactor * 16);
+  for (size_t ibegin = 0; ibegin < sketchs.size(); ibegin += bundle_size) {
+    const size_t iend = std::min(ibegin + bundle_size, sketchs.size());
+    const size_t batch_size = iend - ibegin;
+
+    std::vector<WXQSketch::SummaryContainer> summary_array;
+    summary_array.resize(batch_size);
+    if (verbose) {
+      LOG(INFO) << "Computing quantiles for features ["
+                << ibegin << ", " << iend << ")...";
+    }
+    for (size_t i = ibegin; i < iend; ++i) {
+      WXQSketch::SummaryContainer out;
+      sketchs[i].GetSummary(&out);
+      summary_array[i - ibegin].Reserve(max_num_bins * kFactor);
+      summary_array[i - ibegin].SetPrune(out, max_num_bins * kFactor);
+    }
+    size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_num_bins * kFactor);
+    sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
+
+    for (size_t fid = ibegin; fid < iend; ++fid) {
+      WXQSketch::SummaryContainer a;
+      a.Reserve(max_num_bins);
+      a.SetPrune(summary_array[fid - ibegin], max_num_bins);
+      const bst_float mval = a.data[0].value;
+      this->min_val[fid] = mval - fabs(mval);
+      if (a.size > 1 && a.size <= 16) {
+        /* specialized code categorial / ordinal data -- use midpoints */
+        for (size_t i = 1; i < a.size; ++i) {
+          bst_float cpt = (a.data[i].value + a.data[i - 1].value) / 2.0;
+          if (i == 1 || cpt > cut.back()) {
+            cut.push_back(cpt);
+          }
+        }
+      } else {
+        for (size_t i = 2; i < a.size; ++i) {
+          bst_float cpt = a.data[i - 1].value;
+          if (i == 2 || cpt > cut.back()) {
+            cut.push_back(cpt);
+          }
         }
       }
-    } else {
-      for (size_t i = 2; i < a.size; ++i) {
-        bst_float cpt = a.data[i - 1].value;
-        if (i == 2 || cpt > cut.back()) {
-          cut.push_back(cpt);
-        }
+      // push a value that is greater than anything
+      if (a.size != 0) {
+        bst_float cpt = a.data[a.size - 1].value;
+        // this must be bigger than last value in a scale
+        bst_float last = cpt + fabs(cpt);
+        cut.push_back(last);
       }
+      row_ptr.push_back(cut.size());
     }
-    // push a value that is greater than anything
-    if (a.size != 0) {
-      bst_float cpt = a.data[a.size - 1].value;
-      // this must be bigger than last value in a scale
-      bst_float last = cpt + fabs(cpt);
-      cut.push_back(last);
-    }
-    row_ptr.push_back(cut.size());
   }
 }
 
@@ -296,8 +311,15 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
     return feature_nnz[a] > feature_nnz[b];
   });
 
-  auto groups_alt1 = FindGroups(feature_list, feature_nnz, colmat, nrow, param);
-  auto groups_alt2 = FindGroups(features_by_nnz, feature_nnz, colmat, nrow, param);
+  std::vector<std::vector<unsigned>> groups_alt1, groups_alt2;
+
+  #pragma omp parallel sections
+  {
+    #pragma omp section
+    groups_alt1 = FindGroups(feature_list, feature_nnz, colmat, nrow, param);
+    #pragma omp section
+    groups_alt2 = FindGroups(features_by_nnz, feature_nnz, colmat, nrow, param);
+  }
   auto& groups = (groups_alt1.size() > groups_alt2.size()) ? groups_alt2 : groups_alt1;
 
   // take apart small, sparse groups, as it won't help speed
@@ -338,6 +360,7 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   cut = gmat.cut;
 
   const size_t nrow = gmat.row_ptr.size() - 1;
+  const size_t nfeature = gmat.cut->row_ptr.size() - 1;
   const uint32_t nbins = gmat.cut->row_ptr.back();
 
   /* step 1: form feature groups */
@@ -355,10 +378,24 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
       }
     }
   }
+
+  std::vector<size_t> block_nnz(nblock, 0);
+  {
+    std::vector<size_t> feature_nnz(nfeature);
+    gmat.GetFeatureCounts(&feature_nnz[0]);
+    for (uint32_t group_id = 0; group_id < nblock; ++group_id) {
+      for (auto& fid : groups[group_id]) {
+        block_nnz[group_id] += feature_nnz[fid];
+      }
+    }
+  }
+
   std::vector<std::vector<uint32_t>> index_temp(nblock);
   std::vector<std::vector<size_t>> row_ptr_temp(nblock);
   for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
+    row_ptr_temp[block_id].reserve(nrow + 1);
     row_ptr_temp[block_id].push_back(0);
+    index_temp[block_id].reserve(block_nnz[block_id]);
   }
   for (size_t rid = 0; rid < nrow; ++rid) {
     const size_t ibegin = gmat.row_ptr[rid];
@@ -378,6 +415,16 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   std::vector<size_t> row_ptr_blk_ptr;
   index_blk_ptr.push_back(0);
   row_ptr_blk_ptr.push_back(0);
+
+  {
+    size_t tot = 0, tot2 = 0;
+    for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
+      tot += index_temp[block_id].size();
+      tot2 += row_ptr_temp[block_id].size();
+    }
+    index.reserve(tot);
+    row_ptr.reserve(tot2);
+  }
   for (uint32_t block_id = 0; block_id < nblock; ++block_id) {
     index.insert(index.end(), index_temp[block_id].begin(), index_temp[block_id].end());
     row_ptr.insert(row_ptr.end(), row_ptr_temp[block_id].begin(), row_ptr_temp[block_id].end());

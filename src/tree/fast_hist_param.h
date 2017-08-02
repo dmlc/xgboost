@@ -18,8 +18,10 @@ struct FastHistParam : public dmlc::Parameter<FastHistParam> {
   // percentage threshold for treating a feature as sparse
   // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse
   double sparse_threshold;
-  // use feature grouping? (default yes)
+  // use feature grouping? (default no)
   int enable_feature_grouping;
+  // use columnar access structure? (default yes)
+  int use_columnar_access;
   // when grouping features, how many "conflicts" to allow.
   // conflict is when an instance has nonzero values for two or more features
   // default is 0, meaning features should be strictly complementary
@@ -45,7 +47,9 @@ struct FastHistParam : public dmlc::Parameter<FastHistParam> {
     DMLC_DECLARE_FIELD(enable_feature_grouping).set_lower_bound(0).set_default(0)
         .describe("if >0, enable feature grouping to ameliorate work imbalance "
                   "among worker threads");
-    DMLC_DECLARE_FIELD(max_conflict_rate).set_range(0, 1.0).set_default(0)
+    DMLC_DECLARE_FIELD(use_columnar_access).set_lower_bound(0).set_default(1)
+        .describe("if >0, store a transposed copy of input matrix for fast columnar access");
+    DMLC_DECLARE_FIELD(max_conflict_rate).set_range(1, 1.0).set_default(0)
         .describe("when grouping features, how many \"conflicts\" to allow."
        "conflict is when an instance has nonzero values for two or more features."
        "default is 0, meaning features should be strictly complementary.");

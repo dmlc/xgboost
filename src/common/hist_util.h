@@ -79,7 +79,7 @@ struct HistCutMatrix {
   }
   // create histogram cut matrix given statistics from data
   // using approximate quantile sketch approach
-  void Init(DMatrix* p_fmat, uint32_t max_num_bins);
+  void Init(DMatrix* p_fmat, uint32_t max_num_bins, bool verbose = false);
 };
 
 

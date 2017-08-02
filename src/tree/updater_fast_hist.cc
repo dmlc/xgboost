@@ -60,17 +60,37 @@ class FastHistMaker: public TreeUpdater {
               const std::vector<RegTree*>& trees) override {
     TStats::CheckInfo(dmat->info());
     if (is_gmat_initialized_ == false) {
+      if (fhparam.use_columnar_access == 0) {
+        CHECK_EQ(fhparam.enable_feature_grouping, 0)
+          << "Feature grouping requires columnar access structure";
+      }
       double tstart = dmlc::GetTime();
-      hmat_.Init(dmat, static_cast<uint32_t>(param.max_bin));
+      hmat_.Init(dmat, static_cast<uint32_t>(param.max_bin), param.debug_verbose);
+      if (param.debug_verbose > 0) {
+        LOG(INFO) << "Quantizing data matrix entries into quantile indices...";
+      }
       gmat_.cut = &hmat_;
       gmat_.Init(dmat);
-      column_matrix_.Init(gmat_, fhparam);
+      if (param.debug_verbose > 0) {
+        LOG(INFO) << "Generating columnar access structure...";
+      }
+      if (fhparam.use_columnar_access > 0) {
+        column_matrix_.Init(gmat_, fhparam);
+      }
       if (fhparam.enable_feature_grouping > 0) {
+        if (param.debug_verbose > 0) {
+          LOG(INFO) << "Grouping features together...";
+        }
         gmatb_.Init(gmat_, column_matrix_, fhparam);
+        // free up memory by deleting gmat; only gmatb will be used
+        gmat_.row_ptr.clear();
+        gmat_.index.clear();
+        gmat_.hit_count.clear();
       }
       is_gmat_initialized_ = true;
       if (param.debug_verbose > 0) {
-        LOG(INFO) << "Generating gmat: " << dmlc::GetTime() - tstart << " sec";
+        LOG(INFO) << "Done initializing training: "
+                  << dmlc::GetTime() - tstart << " sec";
       }
     }
     // rescale learning rate according to size of trees
@@ -191,7 +211,8 @@ class FastHistMaker: public TreeUpdater {
           (*p_tree)[nid].set_leaf(snode[nid].weight * param.learning_rate);
         } else {
           tstart = dmlc::GetTime();
-          this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
+          this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree,
+                           fhparam.use_columnar_access);
           time_apply_split += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
@@ -494,19 +515,8 @@ class FastHistMaker: public TreeUpdater {
                            const ColumnMatrix& column_matrix,
                            const HistCollection& hist,
                            const DMatrix& fmat,
-                           RegTree* p_tree) {
-      XGBOOST_TYPE_SWITCH(column_matrix.dtype, {
-        ApplySplit_<DType>(nid, gmat, column_matrix, hist, fmat, p_tree);
-      });
-    }
-
-    template <typename T>
-    inline void ApplySplit_(int nid,
-                            const GHistIndexMatrix& gmat,
-                            const ColumnMatrix& column_matrix,
-                            const HistCollection& hist,
-                            const DMatrix& fmat,
-                            RegTree* p_tree) {
+                           RegTree* p_tree,
+                           bool use_columnar_access) {
       // TODO(hcho3): support feature sampling by levels
 
       /* 1. Create child nodes */
@@ -544,18 +554,38 @@ class FastHistMaker: public TreeUpdater {
       }
 
       const auto& rowset = row_set_collection_[nid];
-
-      Column<T> column = column_matrix.GetColumn<T>(fid);
-      if (column.type == xgboost::common::kDenseColumn) {
-        ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column, split_cond,
-          default_left);
+      if (use_columnar_access) {
+        XGBOOST_TYPE_SWITCH(column_matrix.dtype, {
+          ApplySplit_<DType>(rowset, gmat, &row_split_tloc_, column_matrix, fid, lower_bound,
+            upper_bound, split_cond, default_left);
+        });
       } else {
-        ApplySplitSparseData(rowset, gmat, &row_split_tloc_, column, lower_bound,
-          upper_bound, split_cond, default_left);
+        ApplySplitSparseDataOld(rowset, gmat, &row_split_tloc_, lower_bound, upper_bound,
+          split_cond, default_left);
       }
 
       row_set_collection_.AddSplit(
         nid, row_split_tloc_, (*p_tree)[nid].cleft(), (*p_tree)[nid].cright());
+    }
+
+    template <typename T>
+    inline void ApplySplit_(const RowSetCollection::Elem rowset,
+                            const GHistIndexMatrix& gmat,
+                            std::vector<RowSetCollection::Split>* p_row_split_tloc,
+                            const ColumnMatrix& column_matrix,
+                            bst_uint fid,
+                            bst_uint lower_bound,
+                            bst_uint upper_bound,
+                            bst_int split_cond,
+                            bool default_left) {
+      Column<T> column = column_matrix.GetColumn<T>(fid);
+      if (column.type == xgboost::common::kDenseColumn) {
+        ApplySplitDenseData(rowset, gmat, p_row_split_tloc, column, split_cond,
+          default_left);
+      } else {
+        ApplySplitSparseData(rowset, gmat, p_row_split_tloc, column, lower_bound,
+          upper_bound, split_cond, default_left);
+      }
     }
 
     template<typename T>
