@@ -9,6 +9,7 @@
 #include <dmlc/parameter.h>
 #include <xgboost/gbm.h>
 #include <xgboost/logging.h>
+#include <xgboost/parameter_wrapper.h>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -21,7 +22,7 @@ namespace gbm {
 DMLC_REGISTRY_FILE_TAG(gblinear);
 
 // model parameter
-struct GBLinearModelParam :public dmlc::Parameter<GBLinearModelParam> {
+struct GBLinearModelParam :public xgboost::TrackedParameter<GBLinearModelParam> {
   // number of feature dimension
   unsigned num_feature;
   // number of output group
@@ -41,7 +42,7 @@ struct GBLinearModelParam :public dmlc::Parameter<GBLinearModelParam> {
 };
 
 // training parameter
-struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
+struct GBLinearTrainParam : public xgboost::TrackedParameter<GBLinearTrainParam> {
   /*! \brief learning_rate */
   float learning_rate;
   /*! \brief regularization weight for L2 norm */

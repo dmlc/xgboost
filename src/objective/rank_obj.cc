@@ -7,6 +7,7 @@
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
+#include <xgboost/parameter_wrapper.h>
 #include <vector>
 #include <algorithm>
 #include <utility>
@@ -18,7 +19,7 @@ namespace obj {
 
 DMLC_REGISTRY_FILE_TAG(rank_obj);
 
-struct LambdaRankParam : public dmlc::Parameter<LambdaRankParam> {
+struct LambdaRankParam : public xgboost::TrackedParameter<LambdaRankParam> {
   int num_pairsample;
   float fix_list_weight;
   // declare parameters

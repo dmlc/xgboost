@@ -5,6 +5,7 @@
 #include <dmlc/parameter.h>
 #include <dmlc/io.h>
 #include <xgboost/tree_model.h>
+#include <xgboost/parameter_wrapper.h>
 #include <utility>
 #include <string>
 #include <vector>
@@ -12,7 +13,7 @@
 namespace xgboost {
 namespace gbm {
 /*! \brief model parameters */
-struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
+struct GBTreeModelParam : public xgboost::TrackedParameter<GBTreeModelParam> {
   /*! \brief number of trees */
   int num_trees;
   /*! \brief number of roots */

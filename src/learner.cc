@@ -8,6 +8,7 @@
 #include <dmlc/timer.h>
 #include <xgboost/learner.h>
 #include <xgboost/logging.h>
+#include <xgboost/parameter_wrapper.h>
 #include <algorithm>
 #include <iomanip>
 #include <limits>
@@ -32,7 +33,7 @@ std::vector<std::string> Learner::DumpModel(const FeatureMap& fmap,
 }
 
 /*! \brief training parameter for regression */
-struct LearnerModelParam : public dmlc::Parameter<LearnerModelParam> {
+struct LearnerModelParam : public xgboost::TrackedParameter<LearnerModelParam> {
   /* \brief global bias */
   bst_float base_score;
   /* \brief number of features  */
@@ -66,7 +67,7 @@ struct LearnerModelParam : public dmlc::Parameter<LearnerModelParam> {
   }
 };
 
-struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
+struct LearnerTrainParam : public xgboost::TrackedParameter<LearnerTrainParam> {
   // stored random seed
   int seed;
   // whether seed the PRNG each iteration
@@ -143,6 +144,14 @@ class LearnerImpl : public Learner {
     // boosted tree
     name_obj_ = "reg:linear";
     name_gbm_ = "gbtree";
+    unused_args_ = {};
+    std::vector<std::string> temp{"booster", "max_delta_step", "num_class",
+          "num_feature", "num_output_group", "objective", "updater"};
+    std::vector<std::string> temp2;
+    std::set_union(valid_args_.begin(), valid_args_.end(),
+                   temp.begin(), temp.end(), std::back_inserter(temp2));
+    valid_args_ = std::move(temp2);
+    unused_args_initialized_ = false;
   }
 
   void ConfigureUpdaters() {
@@ -341,6 +350,20 @@ class LearnerImpl : public Learner {
     this->PredictRaw(train, &preds_);
     obj_->GetGradient(preds_, train->info(), iter, &gpair_);
     gbm_->DoBoost(train, &gpair_, obj_.get());
+
+    if (iter == 0) {
+      std::vector<std::string> leftover_args;
+      std::set_difference(unused_args_.begin(), unused_args_.end(),
+                          valid_args_.begin(), valid_args_.end(),
+                          std::back_inserter(leftover_args));
+      if (!leftover_args.empty()) {
+        std::ostringstream oss;
+        for (const auto& e : leftover_args) {
+          oss << e << ", ";
+        }
+        LOG(INFO) << "\033[1;31mWarning: Unknown parameters found; they have been ignored\u001B[0m: " << oss.str();
+      }
+    }
   }
 
   void BoostOneIter(int iter, DMatrix* train,
@@ -547,4 +570,9 @@ Learner* Learner::Create(
     const std::vector<std::shared_ptr<DMatrix> >& cache_data) {
   return new LearnerImpl(cache_data);
 }
+
+std::vector<std::string> Learner::unused_args_;
+std::vector<std::string> Learner::valid_args_;
+bool Learner::unused_args_initialized_;
+
 }  // namespace xgboost
