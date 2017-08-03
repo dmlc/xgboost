@@ -16,6 +16,18 @@ endif
 
 ROOTDIR = $(CURDIR)
 
+# workarounds for some crazy old make versions seen in windows
+ifeq (NA, $(shell test ! -d "$(ROOTDIR)" && echo NA ))
+$(warning attempting to fix non-existing ROOTDIR [$(ROOTDIR)])
+ROOTDIR := $(shell pwd)
+$(warning new ROOTDIR [$(ROOTDIR)] $(shell test -d "$(ROOTDIR)" && echo " is OK" ))
+endif
+ifeq (NA, $(shell test ! -f "$(MAKE)" && echo NA ))
+$(warning attempting to fix non-existing MAKE $(MAKE))
+MAKE := $(shell which make)
+$(warning new MAKE [$(MAKE)] $(shell test -f "$(MAKE)" && echo " is OK" ))
+endif
+
 ifeq ($(OS), Windows_NT)
 	UNAME="Windows"
 else
@@ -215,6 +227,7 @@ endif
 clean:
 	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o #xgboost
 	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
+	cd R-package/src; $(RM) -rf rabit src include dmlc-core amalgamation *.so *.dll; cd $(ROOTDIR)
 
 clean_all: clean
 	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROOTDIR)
@@ -229,8 +242,7 @@ pypack: ${XGBOOST_DYLIB}
 	cd python-package; tar cf xgboost.tar xgboost; cd ..
 
 # create pip installation pack for PyPI
-pippack:
-	$(MAKE) clean_all
+pippack: clean_all
 	rm -rf xgboost-python
 	cp -r python-package xgboost-python
 	cp -r Makefile xgboost-python/xgboost/
@@ -241,8 +253,7 @@ pippack:
 	cp -r rabit xgboost-python/xgboost/
 
 # Script to make a clean installable R package.
-Rpack:
-	$(MAKE) clean_all
+Rpack: clean_all
 	rm -rf xgboost xgboost*.tar.gz
 	cp -r R-package xgboost
 	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
@@ -264,13 +275,11 @@ Rpack:
 	cp xgboost/src/Makevars.in xgboost/src/Makevars.win
 	sed -i -e 's/@OPENMP_CXXFLAGS@/$$\(SHLIB_OPENMP_CFLAGS\)/g' xgboost/src/Makevars.win
 
-Rbuild:
-	$(MAKE) Rpack
+Rbuild: Rpack
 	R CMD build --no-build-vignettes xgboost
 	rm -rf xgboost
 
-Rcheck:
-	$(MAKE) Rbuild
+Rcheck: Rbuild
 	R CMD check  xgboost*.tar.gz
 
 -include build/*.d
