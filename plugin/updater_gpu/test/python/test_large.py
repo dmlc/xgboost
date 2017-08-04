@@ -92,8 +92,6 @@ class TestGPU(unittest.TestCase):
             xgb.train(ag_param3, ag_dtrain, num_rounds, [(ag_dtrain, 'train')],
                       evals_result=ag_res3)
 
-            assert np.fabs(ag_resb['train']['auc'][0] - ag_res2['train']['auc'][0])<0.001
-            assert np.fabs(ag_resb['train']['auc'][0] - ag_res3['train']['auc'][0])<0.001
 
     
     
