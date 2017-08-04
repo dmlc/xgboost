@@ -104,6 +104,7 @@ GPUHistBuilder::~GPUHistBuilder() {
 
 void GPUHistBuilder::Init(const TrainParam& param) {
   CHECK(param.max_depth < 16) << "Tree depth too large.";
+  CHECK(param.max_depth  != 0) << "Tree depth cannot be 0.";
   CHECK(param.grow_policy != TrainParam::kLossGuide)
       << "Loss guided growth policy not supported. Use CPU algorithm.";
   this->param = param;
