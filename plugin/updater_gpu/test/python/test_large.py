@@ -82,9 +82,6 @@ class TestGPU(unittest.TestCase):
 
             num_rounds = 1
             
-            eprint("normal updater")
-            xgb.train(ag_param, ag_dtrain, num_rounds, [(ag_dtrain, 'train')],
-                      evals_result=ag_res)
             eprint("hist updater")
             xgb.train(ag_paramb, ag_dtrain, num_rounds, [(ag_dtrain, 'train')],
                       evals_result=ag_resb)
@@ -95,9 +92,8 @@ class TestGPU(unittest.TestCase):
             xgb.train(ag_param3, ag_dtrain, num_rounds, [(ag_dtrain, 'train')],
                       evals_result=ag_res3)
 
-            assert np.fabs(ag_res['train']['auc'][0] - ag_resb['train']['auc'][0])<0.001
-            assert np.fabs(ag_res['train']['auc'][0] - ag_res2['train']['auc'][0])<0.001
-            assert np.fabs(ag_res['train']['auc'][0] - ag_res3['train']['auc'][0])<0.001
+            assert np.fabs(ag_resb['train']['auc'][0] - ag_res2['train']['auc'][0])<0.001
+            assert np.fabs(ag_resb['train']['auc'][0] - ag_res3['train']['auc'][0])<0.001
 
     
     
