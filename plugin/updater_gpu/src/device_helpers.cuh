@@ -121,6 +121,20 @@ inline std::string device_name(int device_idx) {
   return std::string(prop.name);
 }
 
+/**
+ * \fn  inline int max_shared_memory(int device_idx)
+ *
+ * \brief Maximum shared memory per block on this device.
+ *
+ * \param device_idx  Zero-based index of the device.
+ */
+
+inline int max_shared_memory(int device_idx) {
+  cudaDeviceProp prop;
+  dh::safe_cuda(cudaGetDeviceProperties(&prop, device_idx));
+  return prop.sharedMemPerBlock;
+}
+
 // ensure gpu_id is correct, so not dependent upon user knowing details
 inline int get_device_idx(int gpu_id) {
   // protect against overrun for gpu_id
@@ -215,7 +229,7 @@ __device__ range block_stride_range(T begin, T end) {
   return r;
 }
 
-// Threadblock iterates over range, filling with value
+// Threadblock iterates over range, filling with value. Requires all threads in block to be active.
 template <typename IterT, typename ValueT>
 __device__ void block_fill(IterT begin, size_t n, ValueT value) {
   for (auto i : block_stride_range(static_cast<size_t>(0), n)) {

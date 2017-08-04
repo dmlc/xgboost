@@ -6,6 +6,7 @@
  */
 #pragma once
 #include <xgboost/base.h>
+#include <xgboost/data.h>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -14,14 +15,8 @@
 
 // Forward declarations
 namespace xgboost {
-class DMatrix;
 class TreeUpdater;
 }
-namespace xgboost {
-namespace gbm {
-struct GBTreeModel;
-}
-}  // namespace xgboost
 
 namespace xgboost {
 
@@ -40,14 +35,15 @@ class Predictor {
   virtual ~Predictor() {}
 
   /**
-   * \fn  void Predictor::InitCache(const std::vector<std::shared_ptr<DMatrix> > &cache);
+   * \fn  virtual void Predictor::Init(const std::vector<std::pair<std::string, std::string> >&cfg ,const std::vector<std::shared_ptr<DMatrix> > &cache);
    *
-   * \brief Register input matrices in prediction cache.
+   * \brief Configure and register input matrices in prediction cache.
    *
+   * \param cfg   The configuration.
    * \param cache Vector of DMatrix's to be used in prediction.
    */
 
-  void InitCache(const std::vector<std::shared_ptr<DMatrix> > &cache);
+  virtual void Init(const std::vector<std::pair<std::string, std::string> >&cfg ,const std::vector<std::shared_ptr<DMatrix> > &cache);
 
   /**
    * \fn  virtual void Predictor::PredictBatch( DMatrix* dmat, std::vector<bst_float>* out_preds, const gbm::GBTreeModel &model, int tree_begin, unsigned ntree_limit = 0) = 0;
@@ -139,6 +135,32 @@ class Predictor {
   static Predictor* Create(std::string name);
 
  protected:
+
+  /**
+   * \fn  bool PredictFromCache(DMatrix* dmat, std::vector<bst_float>*
+   * out_preds, const gbm::GBTreeModel& model, unsigned ntree_limit = 0)
+   *
+   * \brief Attempt to predict from cache.
+   *
+   * \return  True if it succeeds, false if it fails.
+   */
+   bool PredictFromCache(DMatrix* dmat, std::vector<bst_float>* out_preds,
+     const gbm::GBTreeModel& model,
+     unsigned ntree_limit = 0);
+
+   /**
+    * \fn void Predictor::InitOutPredictions(const MetaInfo& info, std::vector<bst_float>* out_preds, const gbm::GBTreeModel& model) const;
+    *
+    * \brief  Init out predictions according to base margin.
+    *
+    * \param          info      Dmatrix info possibly containing base margin.
+    * \param [in,out] out_preds The out preds.
+    * \param          model     The model.
+    */
+   void InitOutPredictions(const MetaInfo& info,
+     std::vector<bst_float>* out_preds,
+     const gbm::GBTreeModel& model) const;
+
   /**
    * \struct  PredictionCacheEntry
    *

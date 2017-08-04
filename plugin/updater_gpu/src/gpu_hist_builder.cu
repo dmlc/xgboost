@@ -210,9 +210,6 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
                                                      // process)
     }
 
-    CHECK(fmat.SingleColBlock()) << "grow_gpu_hist: must have single column "
-                                    "block. Try setting 'tree_method' "
-                                    "parameter to 'exact'";
     is_dense = info->num_nonzero == info->num_col * info->num_row;
     dh::Timer time0;
     hmat_.Init(&fmat, param.max_bin);
