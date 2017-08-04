@@ -9,6 +9,8 @@
 #define XGBOOST_LEARNER_H_
 
 #include <rabit/rabit.h>
+#include <algorithm>
+#include <iterator>
 #include <utility>
 #include <string>
 #include <vector>

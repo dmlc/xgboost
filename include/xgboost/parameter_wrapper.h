@@ -9,6 +9,11 @@
 #define XGBOOST_PARAMETER_WRAPPER_H_
 
 #include <xgboost/learner.h>
+#include <algorithm>
+#include <iterator>
+#include <utility>
+#include <string>
+#include <vector>
 
 namespace xgboost {
 

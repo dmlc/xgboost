@@ -9,6 +9,7 @@
 #include <xgboost/learner.h>
 #include <xgboost/logging.h>
 #include <xgboost/parameter_wrapper.h>
+#include <iterator>
 #include <algorithm>
 #include <iomanip>
 #include <limits>
@@ -361,7 +362,8 @@ class LearnerImpl : public Learner {
         for (const auto& e : leftover_args) {
           oss << e << ", ";
         }
-        LOG(INFO) << "\033[1;31mWarning: Unknown parameters found; they have been ignored\u001B[0m: " << oss.str();
+        LOG(INFO) << "\033[1;31mWarning: Unknown parameters found; "
+                  << "they have been ignored\u001B[0m: " << oss.str();
       }
     }
   }
