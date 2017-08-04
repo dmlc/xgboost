@@ -359,7 +359,7 @@ void GPUHistBuilder::BuildHist(int depth) {
     auto hist_builder = hist_vec[d_idx].GetBuilder();
     dh::TransformLbs(
         device_idx, &temp_memory[d_idx], end - begin, d_row_ptr,
-        row_end - row_begin, [=] __device__(size_t local_idx, int local_ridx) {
+        row_end - row_begin, is_dense, [=] __device__(size_t local_idx, int local_ridx) {
           int nidx = d_position[local_ridx];  // OPTMARK: latency
           if (!is_active(nidx, depth)) return;
 
@@ -959,7 +959,7 @@ void GPUHistBuilder::UpdatePositionSparse(int depth) {
 
     dh::TransformLbs(
         device_idx, &temp_memory[d_idx], element_end - element_begin, d_row_ptr,
-        row_end - row_begin, [=] __device__(size_t local_idx, int local_ridx) {
+        row_end - row_begin, is_dense, [=] __device__(size_t local_idx, int local_ridx) {
           int pos = d_position[local_ridx];
           if (!is_active(pos, depth)) {
             return;
