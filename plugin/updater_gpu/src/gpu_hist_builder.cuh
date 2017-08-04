@@ -25,16 +25,16 @@ struct DeviceGMat {
 };
 
 struct HistBuilder {
-  bst_gpair *d_hist;
+  bst_gpair_precise *d_hist;
   int n_bins;
-  __host__ __device__ HistBuilder(bst_gpair *ptr, int n_bins);
-  __device__ void Add(bst_gpair gpair, int gidx, int nidx) const;
-  __device__ bst_gpair Get(int gidx, int nidx) const;
+  __host__ __device__ HistBuilder(bst_gpair_precise *ptr, int n_bins);
+  __device__ void Add(bst_gpair_precise gpair, int gidx, int nidx) const;
+  __device__ bst_gpair_precise Get(int gidx, int nidx) const;
 };
 
 struct DeviceHist {
   int n_bins;
-  dh::dvec<bst_gpair> data;
+  dh::dvec<bst_gpair_precise> data;
 
   void Init(int max_depth);
 
@@ -42,7 +42,7 @@ struct DeviceHist {
 
   HistBuilder GetBuilder();
 
-  bst_gpair *GetLevelPtr(int depth);
+  bst_gpair_precise *GetLevelPtr(int depth);
 
   int LevelSize(int depth);
 };
