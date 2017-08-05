@@ -729,32 +729,8 @@ __global__ void LbsKernel(coordinate_t *d_coordinates,
   }
 }
 
-/**
- * \fn  template <typename func_t, typename segments_iter, typename offset_t>
- * void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
- * segments_iter segments, offset_t num_segments, func_t f)
- *
- * \brief Load balancing search function. Reads a CSR type matrix description
- * and allows a function to be executed on each element. Search 'modern GPU load
- * balancing search' for more information.
- *
- * \author  Rory
- * \date  7/9/2017
- *
- * \tparam  func_t        Type of the function t.
- * \tparam  segments_iter Type of the segments iterator.
- * \tparam  offset_t      Type of the offset.
- * \tparam  segments_t    Type of the segments t.
- * \param           device_idx    Zero-based index of the device.
- * \param [in,out]  temp_memory   Temporary memory allocator.
- * \param           count         Number of elements.
- * \param           segments      Device pointer to segments.
- * \param           num_segments  Number of segments.
- * \param           f             Lambda to be executed on matrix elements.
- */
-
 template <typename func_t, typename segments_iter, typename offset_t>
-void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
+void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
                   segments_iter segments, offset_t num_segments, func_t f) {
   typedef typename cub::CubVector<offset_t, 2>::Type coordinate_t;
   dh::safe_cuda(cudaSetDevice(device_idx));
@@ -775,4 +751,47 @@ void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
                                      num_segments);
 }
 
+template <typename func_t, typename offset_t>
+void DenseTransformLbs(int device_idx, offset_t count, offset_t num_segments, func_t f) {
+  CHECK(count % num_segments == 0) << "Data is not dense.";
+
+  launch_n(device_idx, count, [=]__device__(offset_t idx)
+  {
+    offset_t segment = idx / (count / num_segments);
+    f(idx, segment);
+  });
+}
+
+/**
+ * \fn  template <typename func_t, typename segments_iter, typename offset_t> void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count, segments_iter segments, offset_t num_segments, bool is_dense, func_t f)
+ *
+ * \brief Load balancing search function. Reads a CSR type matrix description and allows a function
+ *        to be executed on each element. Search 'modern GPU load balancing search' for more
+ *        information.
+ *
+ * \author  Rory
+ * \date  7/9/2017
+ *
+ * \tparam  func_t        Type of the function t.
+ * \tparam  segments_iter Type of the segments iterator.
+ * \tparam  offset_t      Type of the offset.
+ * \param           device_idx    Zero-based index of the device.
+ * \param [in,out]  temp_memory   Temporary memory allocator.
+ * \param           count         Number of elements.
+ * \param           segments      Device pointer to segments.
+ * \param           num_segments  Number of segments.
+ * \param           is_dense      True if this object is dense.
+ * \param           f             Lambda to be executed on matrix elements.
+ */
+
+template <typename func_t, typename segments_iter, typename offset_t>
+void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
+  segments_iter segments, offset_t num_segments, bool is_dense, func_t f) {
+  if (is_dense) {
+    DenseTransformLbs(device_idx, count, num_segments, f);
+  }
+  else {
+    SparseTransformLbs(device_idx, temp_memory, count, segments, num_segments, f);
+  }
+}
 }  // namespace dh

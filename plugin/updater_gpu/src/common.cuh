@@ -15,28 +15,30 @@
 namespace xgboost {
 namespace tree {
 
+template <typename gpair_t>
 __device__ inline float device_calc_loss_chg(const GPUTrainingParam& param,
-                                             const bst_gpair& scan,
-                                             const bst_gpair& missing,
-                                             const bst_gpair& parent_sum,
+                                             const gpair_t& scan,
+                                             const gpair_t& missing,
+                                             const gpair_t& parent_sum,
                                              const float& parent_gain,
                                              bool missing_left) {
-  bst_gpair left = scan;
+  gpair_t left = scan;
 
   if (missing_left) {
     left += missing;
   }
 
-  bst_gpair right = parent_sum - left;
+  gpair_t right = parent_sum - left;
 
   float left_gain = CalcGain(param, left.grad, left.hess);
   float right_gain = CalcGain(param, right.grad, right.hess);
   return left_gain + right_gain - parent_gain;
 }
 
-__device__ float inline loss_chg_missing(const bst_gpair& scan,
-                                         const bst_gpair& missing,
-                                         const bst_gpair& parent_sum,
+template <typename gpair_t>
+__device__ float inline loss_chg_missing(const gpair_t& scan,
+                                         const gpair_t& missing,
+                                         const gpair_t& parent_sum,
                                          const float& parent_gain,
                                          const GPUTrainingParam& param,
                                          bool& missing_left_out) {  // NOLINT
@@ -177,11 +179,11 @@ inline std::vector<int> col_sample(std::vector<int> features, float colsample) {
 }
 struct GpairCallbackOp {
   // Running prefix
-  bst_gpair running_total;
+  bst_gpair_precise running_total;
   // Constructor
-  __device__ GpairCallbackOp() : running_total(bst_gpair()) {}
-  __device__ bst_gpair operator()(bst_gpair block_aggregate) {
-    bst_gpair old_prefix = running_total;
+  __device__ GpairCallbackOp() : running_total(bst_gpair_precise()) {}
+  __device__ bst_gpair_precise operator()(bst_gpair_precise block_aggregate) {
+    bst_gpair_precise old_prefix = running_total;
     running_total += block_aggregate;
     return old_prefix;
   }
