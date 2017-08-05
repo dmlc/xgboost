@@ -502,12 +502,11 @@ __global__ void find_split_kernel(
 
     int begin = d_feature_segments[level_node_idx * n_features + fidx];
     int end = d_feature_segments[level_node_idx * n_features + fidx + 1];
-    int gidx = (begin - (level_node_idx * n_bins)) + threadIdx.x;
-    bool thread_active = threadIdx.x < end - begin;
 
     bst_gpair_precise feature_sum = bst_gpair_precise();
     for (int reduce_begin = begin; reduce_begin < end;
          reduce_begin += BLOCK_THREADS) {
+      bool thread_active = reduce_begin + threadIdx.x < end;
       // Scan histogram
       bst_gpair_precise bin = thread_active ? d_level_hist[reduce_begin + threadIdx.x]
                                     : bst_gpair_precise();
@@ -524,6 +523,7 @@ __global__ void find_split_kernel(
     GpairCallbackOp prefix_op = GpairCallbackOp();
     for (int scan_begin = begin; scan_begin < end;
          scan_begin += BLOCK_THREADS) {
+      bool thread_active = scan_begin + threadIdx.x < end;
       bst_gpair_precise bin =
           thread_active ? d_level_hist[scan_begin + threadIdx.x] : bst_gpair_precise();
 
@@ -557,6 +557,7 @@ __global__ void find_split_kernel(
       // Best thread updates split
       if (threadIdx.x == block_max.key) {
         float fvalue;
+        int gidx = (scan_begin - (level_node_idx * n_bins)) + threadIdx.x;
         if (threadIdx.x == 0 &&
             begin == scan_begin) {  // check at start of first tile
           fvalue = d_fidx_min_map[fidx];
