@@ -8,6 +8,7 @@
 #include <dmlc/parameter.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
+#include <xgboost/parameter_wrapper.h>
 #include <vector>
 #include <algorithm>
 #include <utility>
@@ -18,7 +19,7 @@ namespace obj {
 
 DMLC_REGISTRY_FILE_TAG(multiclass_obj);
 
-struct SoftmaxMultiClassParam : public dmlc::Parameter<SoftmaxMultiClassParam> {
+struct SoftmaxMultiClassParam : public xgboost::TrackedParameter<SoftmaxMultiClassParam> {
   int num_class;
   // declare parameters
   DMLC_DECLARE_PARAMETER(SoftmaxMultiClassParam) {

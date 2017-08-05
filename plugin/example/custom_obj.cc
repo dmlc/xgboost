@@ -7,6 +7,7 @@
 #include <xgboost/base.h>
 #include <dmlc/parameter.h>
 #include <xgboost/objective.h>
+#include <xgboost/parameter_wrapper.h>
 
 namespace xgboost {
 namespace obj {
@@ -15,7 +16,7 @@ namespace obj {
 // You do not have to use it.
 // see http://dmlc-core.readthedocs.org/en/latest/parameter.html
 // for introduction of this module.
-struct MyLogisticParam : public dmlc::Parameter<MyLogisticParam> {
+struct MyLogisticParam : public xgboost::TrackedParameter<MyLogisticParam> {
   float scale_neg_weight;
   // declare parameters
   DMLC_DECLARE_PARAMETER(MyLogisticParam) {

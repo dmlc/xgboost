@@ -12,6 +12,7 @@
 #include <xgboost/learner.h>
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
+#include <xgboost/parameter_wrapper.h>
 #include <dmlc/timer.h>
 #include <iomanip>
 #include <ctime>
@@ -31,7 +32,7 @@ enum CLITask {
   kPredict = 2
 };
 
-struct CLIParam : public dmlc::Parameter<CLIParam> {
+struct CLIParam : public xgboost::TrackedParameter<CLIParam> {
   /*! \brief the task name */
   int task;
   /*! \brief whether silent */
@@ -129,6 +130,7 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
   inline void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) {
     this->cfg = cfg;
     this->InitAllowUnknown(cfg);
+    std::vector<std::string> eval_data_str;
     for (const auto& kv : cfg) {
       if (!strncmp("eval[", kv.first.c_str(), 5)) {
         char evname[256];
@@ -136,8 +138,10 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
             << "must specify evaluation name for display";
         eval_data_names.push_back(std::string(evname));
         eval_data_paths.push_back(kv.second);
+        eval_data_str.push_back(kv.first);
       }
     }
+    Learner::RegisterValidArgs(eval_data_str);
     // constraint.
     if (name_pred == "stdout") {
       save_period = 0;

@@ -7,11 +7,13 @@
 #ifndef XGBOOST_TREE_FAST_HIST_PARAM_H_
 #define XGBOOST_TREE_FAST_HIST_PARAM_H_
 
+#include <xgboost/parameter_wrapper.h>
+
 namespace xgboost {
 namespace tree {
 
 /*! \brief training parameters for histogram-based training */
-struct FastHistParam : public dmlc::Parameter<FastHistParam> {
+struct FastHistParam : public xgboost::TrackedParameter<FastHistParam> {
   // integral data type to be used with columnar data storage
   enum class DataType { uint8 = 1, uint16 = 2, uint32 = 4 };
   int colmat_dtype;

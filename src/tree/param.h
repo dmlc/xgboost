@@ -9,6 +9,7 @@
 
 #include <dmlc/parameter.h>
 #include <xgboost/data.h>
+#include <xgboost/parameter_wrapper.h>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -19,7 +20,7 @@ namespace xgboost {
 namespace tree {
 
 /*! \brief training parameters for regression tree */
-struct TrainParam : public dmlc::Parameter<TrainParam> {
+struct TrainParam : public xgboost::TrackedParameter<TrainParam> {
   // learning step size for a time
   float learning_rate;
   // minimum loss change required for a split

@@ -9,6 +9,8 @@
 #define XGBOOST_LEARNER_H_
 
 #include <rabit/rabit.h>
+#include <algorithm>
+#include <iterator>
 #include <utility>
 #include <string>
 #include <vector>
@@ -173,6 +175,21 @@ class Learner : public rabit::Serializable {
    */
   static Learner* Create(const std::vector<std::shared_ptr<DMatrix> >& cache_data);
 
+  /*!
+   * \brief register a set of argument left unconsumed by a particular parameter structure.
+   * \param args list of un-used arguments
+   */
+  inline static void
+  RegisterUnusedArgs(const std::vector<std::string>& args);
+
+  /*!
+   * \brief register the list of all argument that are accepted by a particular
+   *        parameter structure.
+   * \param args list of valid arguments
+   */
+  inline static void
+  RegisterValidArgs(const std::vector<std::string>& args);
+
  protected:
   /*! \brief internal base score of the model */
   bst_float base_score_;
@@ -182,6 +199,12 @@ class Learner : public rabit::Serializable {
   std::unique_ptr<GradientBooster> gbm_;
   /*! \brief The evaluation metrics used to evaluate the model. */
   std::vector<std::unique_ptr<Metric> > metrics_;
+  /*! \brief list of arguments not used by any parameter structures */
+  static std::vector<std::string> unused_args_;
+  /*! \brief list of arguments accepted by all parameter structures */
+  static std::vector<std::string> valid_args_;
+  /*! \brief internal use flag */
+  static bool unused_args_initialized_;
 };
 
 // implementation of inline functions.
@@ -200,6 +223,33 @@ template<typename PairIter>
 inline void Learner::Configure(PairIter begin, PairIter end) {
   std::vector<std::pair<std::string, std::string> > vec(begin, end);
   this->Configure(vec);
+}
+
+// implementing argument tracking.
+inline void
+Learner::RegisterUnusedArgs(const std::vector<std::string>& args) {
+  std::vector<std::string> temp(args);
+  std::vector<std::string> v_intersection;
+  std::sort(temp.begin(), temp.end());
+  if (unused_args_initialized_) {
+    std::set_intersection(unused_args_.begin(), unused_args_.end(),
+                          temp.begin(), temp.end(),
+                          std::back_inserter(v_intersection));
+    unused_args_ = std::move(v_intersection);
+  } else {
+    unused_args_ = std::move(temp);
+    unused_args_initialized_ = true;
+  }
+}
+inline void
+Learner::RegisterValidArgs(const std::vector<std::string>& args) {
+  std::vector<std::string> temp(args);
+  std::vector<std::string> v_union;
+  std::sort(temp.begin(), temp.end());
+  std::set_union(valid_args_.begin(), valid_args_.end(),
+                 temp.begin(), temp.end(),
+                 std::back_inserter(v_union));
+  valid_args_ = std::move(v_union);
 }
 
 }  // namespace xgboost

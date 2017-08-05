@@ -9,6 +9,7 @@
 
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
+#include <xgboost/parameter_wrapper.h>
 #include <limits>
 #include <vector>
 #include <string>
@@ -22,7 +23,7 @@
 namespace xgboost {
 
 /*! \brief meta parameters of the tree */
-struct TreeParam : public dmlc::Parameter<TreeParam> {
+struct TreeParam : public xgboost::TrackedParameter<TreeParam> {
   /*! \brief number of start root */
   int num_roots;
   /*! \brief total number of nodes */

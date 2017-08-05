@@ -7,6 +7,7 @@
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
+#include <xgboost/parameter_wrapper.h>
 #include <vector>
 #include <algorithm>
 #include <utility>
@@ -66,7 +67,7 @@ struct LogisticRaw : public LogisticRegression {
   static const char* DefaultEvalMetric() { return "auc"; }
 };
 
-struct RegLossParam : public dmlc::Parameter<RegLossParam> {
+struct RegLossParam : public xgboost::TrackedParameter<RegLossParam> {
   float scale_pos_weight;
   // declare parameters
   DMLC_DECLARE_PARAMETER(RegLossParam) {
@@ -147,7 +148,7 @@ XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, "binary:logitraw")
 .set_body([]() { return new RegLossObj<LogisticRaw>(); });
 
 // declare parameter
-struct PoissonRegressionParam : public dmlc::Parameter<PoissonRegressionParam> {
+struct PoissonRegressionParam : public xgboost::TrackedParameter<PoissonRegressionParam> {
   float max_delta_step;
   DMLC_DECLARE_PARAMETER(PoissonRegressionParam) {
     DMLC_DECLARE_FIELD(max_delta_step).set_lower_bound(0.0f).set_default(0.7f)
@@ -274,7 +275,7 @@ XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
 .set_body([]() { return new GammaRegression(); });
 
 // declare parameter
-struct TweedieRegressionParam : public dmlc::Parameter<TweedieRegressionParam> {
+struct TweedieRegressionParam : public xgboost::TrackedParameter<TweedieRegressionParam> {
   float tweedie_variance_power;
   DMLC_DECLARE_PARAMETER(TweedieRegressionParam) {
     DMLC_DECLARE_FIELD(tweedie_variance_power).set_range(1.0f, 2.0f).set_default(1.5f)

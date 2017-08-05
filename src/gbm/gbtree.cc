@@ -33,7 +33,7 @@ enum TreeProcessType {
 };
 
 /*! \brief training parameters */
-struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
+struct GBTreeTrainParam : public xgboost::TrackedParameter<GBTreeTrainParam> {
   /*!
    * \brief number of parallel trees constructed each iteration
    *  use this option to support boosted random forest
@@ -71,7 +71,7 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
 };
 
 /*! \brief training parameters */
-struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
+struct DartTrainParam : public xgboost::TrackedParameter<DartTrainParam> {
   /*! \brief whether to not print info during training */
   bool silent;
   /*! \brief type of sampling algorithm */
