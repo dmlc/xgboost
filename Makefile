@@ -16,17 +16,19 @@ endif
 
 ROOTDIR = $(CURDIR)
 
-# workarounds for some crazy old make versions seen in windows
+# workarounds for some buggy old make & msys2 versions seen in windows
 ifeq (NA, $(shell test ! -d "$(ROOTDIR)" && echo NA ))
-$(warning attempting to fix non-existing ROOTDIR [$(ROOTDIR)])
-ROOTDIR := $(shell pwd)
-$(warning new ROOTDIR [$(ROOTDIR)] $(shell test -d "$(ROOTDIR)" && echo " is OK" ))
+        $(warning Attempting to fix non-existing ROOTDIR [$(ROOTDIR)])
+        ROOTDIR := $(shell pwd)
+        $(warning New ROOTDIR [$(ROOTDIR)] $(shell test -d "$(ROOTDIR)" && echo " is OK" ))
 endif
-ifeq (NA, $(shell test ! -f "$(MAKE)" && echo NA ))
-$(warning attempting to fix non-existing MAKE $(MAKE))
-MAKE := $(shell which make)
-$(warning new MAKE [$(MAKE)] $(shell test -f "$(MAKE)" && echo " is OK" ))
+MAKE_OK := $(shell "$(MAKE)" -v 2> /dev/null)
+ifndef MAKE_OK
+        $(warning Attempting to recover non-functional MAKE [$(MAKE)])
+        MAKE := $(shell which make 2> /dev/null)
+        MAKE_OK := $(shell "$(MAKE)" -v 2> /dev/null)
 endif
+$(warning MAKE [$(MAKE)] - $(if $(MAKE_OK),checked OK,PROBLEM))
 
 ifeq ($(OS), Windows_NT)
 	UNAME="Windows"
