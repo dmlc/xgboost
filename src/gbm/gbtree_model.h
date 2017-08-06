@@ -75,6 +75,7 @@ struct GBTreeModel {
       }
       trees.clear();
       param.num_trees = 0;
+      tree_info.clear();
     }
   }
 
