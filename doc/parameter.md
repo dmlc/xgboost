@@ -154,7 +154,7 @@ Parameters for Tweedie Regression
 Learning Task Parameters
 ------------------------
 Specify the learning task and the corresponding learning objective. The objective options are below:
-* objective [ default=reg:linear ]
+* objective [default=reg:linear]
   - "reg:linear" --linear regression
   - "reg:logistic" --logistic regression
   - "binary:logistic" --logistic regression for binary classification, output probability
@@ -166,10 +166,10 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
   - "reg:gamma" --gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be [gamma-distributed](https://en.wikipedia.org/wiki/Gamma_distribution#Applications)
   - "reg:tweedie" --Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be [Tweedie-distributed](https://en.wikipedia.org/wiki/Tweedie_distribution#Applications).
-* base_score [ default=0.5 ]
+* base_score [default=0.5]
   - the initial prediction score of all instances, global bias
   - for sufficient number of iterations, changing this value will not have too much effect.
-* eval_metric [ default according to objective ]
+* eval_metric [default according to objective]
   - evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and error for classification, mean average precision for ranking )
   - User can add multiple evaluation metrics, for python user, remember to pass the metrics in as list of parameters pairs instead of map, so that latter 'eval_metric' won't override previous one
   - The choices are listed below:
@@ -190,13 +190,13 @@ training repeatedly
   - "gamma-nloglik": negative log-likelihood for gamma regression
   - "gamma-deviance": residual deviance for gamma regression
   - "tweedie-nloglik": negative log-likelihood for Tweedie regression (at a specified value of the tweedie_variance_power parameter)
-* seed [ default=0 ]
- - random number seed.
+* seed [default=0]
+  - random number seed.
 
 Command Line Parameters
 -----------------------
 The following parameters are only used in the console version of xgboost
-* use_buffer [ default=1 ]
+* use_buffer [default=1]
   - Whether to create a binary buffer from text input. Doing so normally will speed up loading times
 * num_round
   - The number of rounds for boosting
