@@ -18,14 +18,20 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector, Vectors}
 
 object DataUtils extends Serializable {
   private[spark] implicit class XGBLabeledPointFeatures(
       val labeledPoint: XGBLabeledPoint
   ) extends AnyVal {
+    /** Converts the point to [[MLLabeledPoint]]. */
+    private[spark] def asML: MLLabeledPoint = {
+      MLLabeledPoint(labeledPoint.label, labeledPoint.features)
+    }
+
     /**
-     * Returns feature of the point as [Vector].
+     * Returns feature of the point as [[org.apache.spark.ml.linalg.Vector]].
      *
      * If the point is sparse, the dimensionality of the resulting sparse
      * vector would be [[Int.MaxValue]]. This is the only safe value, since
@@ -35,6 +41,15 @@ object DataUtils extends Serializable {
       Vectors.dense(labeledPoint.values.map(_.toDouble))
     } else {
       Vectors.sparse(Int.MaxValue, labeledPoint.indices, labeledPoint.values.map(_.toDouble))
+    }
+  }
+
+  private[spark] implicit class MLLabeledPointToXGBLabeledPoint(
+      val labeledPoint: MLLabeledPoint
+  ) extends AnyVal {
+    /** Converts an [[MLLabeledPoint]] to an [[XGBLabeledPoint]]. */
+    def asXGB: XGBLabeledPoint = {
+      labeledPoint.features.asXGB.copy(label = labeledPoint.label.toFloat)
     }
   }
 

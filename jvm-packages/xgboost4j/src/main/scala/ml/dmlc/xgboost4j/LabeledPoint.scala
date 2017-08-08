@@ -17,7 +17,7 @@
 package ml.dmlc.xgboost4j
 
 /** Labeled training data point. */
-case class LabeledPoint(
+private[xgboost4j] case class LabeledPoint(
     /** Label of this point. */
     label: Float,
     /** Feature indices of this point or `null` if the data is dense. */
@@ -35,7 +35,7 @@ case class LabeledPoint(
     "indices and values must have the same number of elements")
 
   def this(label: Float, indices: Array[Int], values: Array[Float]) = {
-    // XXX [[weight]] default duplicated to disambiguate the constructor call.
+    // [[weight]] default duplicated to disambiguate the constructor call.
     this(label, indices, values, 1.0f)
   }
 }

@@ -71,16 +71,22 @@ object XGBoost extends Serializable {
 
   private def fromBaseMarginsToArray(baseMargins: Iterator[Float]): Option[Array[Float]] = {
     val builder = new mutable.ArrayBuilder.ofFloat()
+    var nUndefined = 0
     while (baseMargins.hasNext) {
       val baseMargin = baseMargins.next()
       if (baseMargin.isNaN) {
-        // This assumes that if there is a NaN, then all base margins
-        // are unspecified. See [[LabeledPoint.baseMargin]].
-        return None
+        nUndefined += 1
       }
       builder += baseMargin
     }
-    Some(builder.result())
+    val result = builder.result()
+    if (nUndefined == result.length) {
+      Some(result)
+    } else {
+      throw new IllegalArgumentException(
+        s"Encountered a partition with $nUndefined NaN base margin values. " +
+            "If you want to specify base margin, ensure all values are non-NaN.")
+    }
   }
 
   private[spark] def buildDistributedBoosters(
@@ -275,7 +281,6 @@ object XGBoost extends Serializable {
     val xgbTrainingData = trainingData.map { case MLLabeledPoint(label, features) =>
       features.asXGB.copy(label = label.toFloat)
     }
-
     trainDistributed(xgbTrainingData, params, round, nWorkers, obj, eval,
       useExternalMemory, missing)
   }

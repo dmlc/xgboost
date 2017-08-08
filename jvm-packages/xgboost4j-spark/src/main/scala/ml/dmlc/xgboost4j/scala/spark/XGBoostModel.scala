@@ -21,11 +21,11 @@ import scala.collection.JavaConverters._
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, DefaultXGBoostParamsWriter}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
-import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 import org.apache.hadoop.fs.{FSDataOutputStream, Path}
 
 import org.apache.spark.ml.PredictionModel
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector, Vector => MLVector}
 import org.apache.spark.ml.param.{BooleanParam, ParamMap, Params}
 import org.apache.spark.ml.util._
@@ -95,7 +95,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
    *             to partition id, second level is the group sizes.
    * @return the average metric over all partitions
    */
-  def eval(evalDataset: RDD[XGBLabeledPoint], evalName: String, evalFunc: EvalTrait = null,
+  def eval(evalDataset: RDD[MLLabeledPoint], evalName: String, evalFunc: EvalTrait = null,
            iter: Int = -1, useExternalCache: Boolean = false,
            groupData: Seq[Seq[Int]] = null): String = {
     require(evalFunc != null || iter != -1, "you have to specify the value of either eval or iter")
@@ -104,6 +104,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
     val appName = evalDataset.context.appName
     val allEvalMetrics = evalDataset.mapPartitions {
       labeledPointsPartition =>
+        import DataUtils._
         if (labeledPointsPartition.hasNext) {
           val rabitEnv = Map("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
           Rabit.init(rabitEnv.asJava)
@@ -115,7 +116,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
               null
             }
           }
-          val dMatrix = new DMatrix(labeledPointsPartition, cacheFileName)
+          val dMatrix = new DMatrix(labeledPointsPartition.map(_.features.asXGB), cacheFileName)
           try {
             if (groupData != null) {
               dMatrix.setGroup(groupData(TaskContext.getPartitionId()).toArray)

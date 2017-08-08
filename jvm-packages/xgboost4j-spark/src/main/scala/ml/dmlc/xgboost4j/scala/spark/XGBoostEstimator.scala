@@ -128,7 +128,6 @@ class XGBoostEstimator private[spark](
         case v: SparseVector => (v.indices, v.values.map(_.toFloat))
         case v: DenseVector => (null, v.values.map(_.toFloat))
       }
-
       XGBLabeledPoint(label.toFloat, indices, values, baseMargin = baseMargin)
     }
     transformSchema(trainingSet.schema, logging = true)
