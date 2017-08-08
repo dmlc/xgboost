@@ -168,7 +168,7 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
       oss << "CUDA Capability Major/Minor version number: "
           << prop.major << "." << prop.minor << " is insufficient.  Need >=3.5.";
       int failed = prop.major < 3 ||  prop.major == 3 && prop.minor < 5;
-      dh::gpu_check(oss.str(), failed);
+      CHECK(failed == 0) << oss.str();
     }
 
     // local find_split group of comms for each case of reduced number of GPUs
@@ -614,7 +614,7 @@ __global__ void find_split_kernel(
 #define MIN_BLOCK_THREADS 32
 #define CHUNK_BLOCK_THREADS 32
 // MAX_BLOCK_THREADS of 1024 is hard-coded maximum block size due
-// to CUDA compatibility 35 and above requirement
+// to CUDA capability 35 and above requirement
 // for Maximum number of threads per block
 #define MAX_BLOCK_THREADS 1024
 

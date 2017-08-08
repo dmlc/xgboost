@@ -79,22 +79,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line,
   }
 }
 
-#define gpu_check(string, failed) GPU_check(string, failed, __FILE__, __LINE__)
-
-inline void GPU_check(std::string string, unsigned int failed, const char *file, int line,
-                       bool abort = true) {
-  if (failed) {
-    fprintf(stderr, "GPUassert: %d %s %d\n", failed, file, line);
-    std::cout << string << std::endl;
-    if (abort){
-      std::stringstream ss;
-      ss << file << "(" << line << ")";
-      std::string file_and_line;
-      ss >> file_and_line;
-      throw std::runtime_error(ss.str());
-    }
-  }
-}
 
 inline int n_visible_devices() {
   int n_visgpus = 0;
