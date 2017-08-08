@@ -408,6 +408,28 @@ struct RTreeNodeStat {
   int leaf_child_cnt;
 };
 
+// Used by TreeShap
+struct MaskElement {
+  unsigned index;
+  unsigned value;
+  MaskElement() {}
+  MaskElement(unsigned i, unsigned v) : index(i), value(v) {}
+};
+
+// Used by TreeShap
+// data we keep about our decision path
+// note that pweight is included for convenience and is not tied with the other attributes
+// the pweight of the i'th path element is the permuation weight of paths with i-1 ones in them
+struct PathElement {
+  int feature_index;
+  bst_float zero_fraction;
+  bst_float one_fraction;
+  bst_float pweight;
+  PathElement() {}
+  PathElement(int i, bst_float z, bst_float o, bst_float w) :
+    feature_index(i), zero_fraction(z), one_fraction(o), pweight(w) {}
+};
+
 /*!
  * \brief define regression tree to be the most common tree model.
  *  This is the data structure used in xgboost's major tree models.
@@ -486,10 +508,15 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    */
   inline void CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
                                      bst_float *out_contribs) const;
-  inline void TreeShap(const RegTree::FVec& feat, bst_float *phi,
+  inline void TreeShapSlow(const RegTree::FVec& feat, bst_float *phi,
                        unsigned node_index, unsigned unique_depth, unsigned num_fixed,
-                       const std::tuple<unsigned,unsigned> *parent_feature_mask,
+                       const MaskElement *parent_feature_mask,
                        bst_float expectation_weight) const;
+  inline void TreeShap(const RegTree::FVec& feat, bst_float *phi,
+                       unsigned node_index, unsigned unique_depth,
+                       const PathElement *parent_unique_path, bst_float parent_zero_fraction,
+                       bst_float parent_one_fraction, int parent_feature_index) const;
+
   /*!
    * \brief calculate the approximate feature contributions for the given root
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
@@ -626,6 +653,29 @@ inline void RegTree::CalculateContributionsApprox(const RegTree::FVec& feat, uns
   out_contribs[split_index] += leaf_value - node_value;
 }
 
+const bst_float shapley_weight[21][21] =
+{{1.0, 0.5, 0.333333333333333, 0.25, 0.2, 0.166666666666667, 0.142857142857143, 0.125, 0.111111111111111, 0.1, 0.090909090909091, 0.083333333333333, 0.076923076923077, 0.071428571428571, 0.066666666666667, 0.0625, 0.058823529411765, 0.055555555555556, 0.052631578947368, 0.05, 0.047619047619048},
+{0.5, 0.166666666666667, 0.083333333333333, 0.05, 0.033333333333333, 0.023809523809524, 0.017857142857143, 0.013888888888889, 0.011111111111111, 0.009090909090909, 0.007575757575758, 0.006410256410256, 0.005494505494505, 0.004761904761905, 0.004166666666667, 0.003676470588235, 0.003267973856209, 0.002923976608187, 0.002631578947368, 0.002380952380952, 0.002164502164502},
+{0.333333333333333, 0.083333333333333, 0.033333333333333, 0.016666666666667, 0.00952380952381, 0.005952380952381, 0.003968253968254, 0.002777777777778, 0.002020202020202, 0.001515151515152, 0.001165501165501, 0.000915750915751, 0.000732600732601, 0.000595238095238, 0.000490196078431, 0.000408496732026, 0.000343997248022, 0.000292397660819, 0.000250626566416, 0.00021645021645, 0.000188217579522},
+{0.25, 0.05, 0.016666666666667, 0.007142857142857, 0.003571428571429, 0.001984126984127, 0.001190476190476, 0.000757575757576, 0.000505050505051, 0.00034965034965, 0.00024975024975, 0.00018315018315, 0.000137362637363, 0.000105042016807, 8.1699346405e-5, 6.4499484004e-5, 5.1599587203e-5, 4.1771094403e-5, 3.4176349966e-5, 2.8232636928e-5, 2.352719744e-5},
+{0.2, 0.033333333333333, 0.00952380952381, 0.003571428571429, 0.001587301587302, 0.000793650793651, 0.0004329004329, 0.000252525252525, 0.0001554001554, 9.99000999e-5, 6.66000666e-5, 4.5787545788e-5, 3.2320620556e-5, 2.3342670401e-5, 1.7199862401e-5, 1.2899896801e-5, 9.828492801e-6, 7.594744437e-6, 5.943713038e-6, 4.705439488e-6, 3.76435159e-6},
+{0.166666666666667, 0.023809523809524, 0.005952380952381, 0.001984126984127, 0.000793650793651, 0.00036075036075, 0.000180375180375, 9.7125097125e-5, 5.55000555e-5, 3.33000333e-5, 2.0812520813e-5, 1.3466925232e-5, 8.977950154e-6, 6.142808e-6, 4.2999656e-6, 3.071404e-6, 2.233748364e-6, 1.651031399e-6, 1.238273549e-6, 9.41087898e-7, 7.23913767e-7},
+{0.142857142857143, 0.017857142857143, 0.003968253968254, 0.001190476190476, 0.0004329004329, 0.000180375180375, 8.325008325e-5, 4.1625041625e-5, 2.22000222e-5, 1.2487512488e-5, 7.345595581e-6, 4.488975077e-6, 2.835142154e-6, 1.8428424e-6, 1.2285616e-6, 8.37655636e-7, 5.82716964e-7, 4.1275785e-7, 2.97185652e-7, 2.1717413e-7, 1.60869726e-7},
+{0.125, 0.013888888888889, 0.002777777777778, 0.000757575757576, 0.000252525252525, 9.7125097125e-5, 4.1625041625e-5, 1.9425019425e-5, 9.712509713e-6, 5.141916907e-6, 2.856620504e-6, 1.653832923e-6, 9.92299754e-7, 6.142808e-7, 3.90905964e-7, 2.54938672e-7, 1.69959115e-7, 1.15572198e-7, 8.0011522e-8, 5.6304404e-8, 4.0217432e-8},
+{0.111111111111111, 0.011111111111111, 0.002020202020202, 0.000505050505051, 0.0001554001554, 5.55000555e-5, 2.22000222e-5, 9.712509713e-6, 4.570592806e-6, 2.285296403e-6, 1.20278758e-6, 6.61533169e-7, 3.78018954e-7, 2.23374836e-7, 1.35967292e-7, 8.4979557e-8, 5.4386917e-8, 3.5560676e-8, 2.3707118e-8, 1.6086973e-8, 1.1094464e-8},
+{0.1, 0.009090909090909, 0.001515151515152, 0.00034965034965, 9.99000999e-5, 3.33000333e-5, 1.2487512488e-5, 5.141916907e-6, 2.285296403e-6, 1.082508822e-6, 5.41254411e-7, 2.83514215e-7, 1.54644117e-7, 8.7407545e-8, 5.0987734e-8, 3.0592641e-8, 1.882624e-8, 1.1853559e-8, 7.620145e-9, 4.992509e-9, 3.328339e-9},
+{0.090909090909091, 0.007575757575758, 0.001165501165501, 0.00024975024975, 6.66000666e-5, 2.0812520813e-5, 7.345595581e-6, 2.856620504e-6, 1.20278758e-6, 5.41254411e-7, 2.57740196e-7, 1.28870098e-7, 6.7236573e-8, 3.641981e-8, 2.0395094e-8, 1.17664e-8, 6.972682e-9, 4.233414e-9, 2.627636e-9, 1.66417e-9, 1.073658e-9},
+{0.083333333333333, 0.006410256410256, 0.000915750915751, 0.00018315018315, 4.5787545788e-5, 1.3466925232e-5, 4.488975077e-6, 1.653832923e-6, 6.61533169e-7, 2.83514215e-7, 1.28870098e-7, 6.1633525e-8, 3.0816763e-8, 1.6024717e-8, 8.628694e-9, 4.793719e-9, 2.739268e-9, 1.605778e-9, 9.63467e-10, 5.90512e-10, 3.6907e-10},
+{0.076923076923077, 0.005494505494505, 0.000732600732601, 0.000137362637363, 3.2320620556e-5, 8.977950154e-6, 2.835142154e-6, 9.92299754e-7, 3.78018954e-7, 1.54644117e-7, 6.7236573e-8, 3.0816763e-8, 1.4792046e-8, 7.396023e-9, 3.834975e-9, 2.054451e-9, 1.13349e-9, 6.42311e-10, 3.72955e-10, 2.21442e-10, 1.34207e-10},
+{0.071428571428571, 0.004761904761905, 0.000595238095238, 0.000105042016807, 2.3342670401e-5, 6.142808e-6, 1.8428424e-6, 6.142808e-7, 2.23374836e-7, 8.7407545e-8, 3.641981e-8, 1.6024717e-8, 7.396023e-9, 3.561048e-9, 1.780524e-9, 9.20961e-10, 4.91179e-10, 2.69356e-10, 1.51513e-10, 8.7235e-11, 5.1315e-11},
+{0.066666666666667, 0.004166666666667, 0.000490196078431, 8.1699346405e-5, 1.7199862401e-5, 4.2999656e-6, 1.2285616e-6, 3.90905964e-7, 1.35967292e-7, 5.0987734e-8, 2.0395094e-8, 8.628694e-9, 3.834975e-9, 1.780524e-9, 8.59563e-10, 4.29782e-10, 2.21823e-10, 1.17843e-10, 6.4278e-11, 3.592e-11, 2.0526e-11},
+{0.0625, 0.003676470588235, 0.000408496732026, 6.4499484004e-5, 1.2899896801e-5, 3.071404e-6, 8.37655636e-7, 2.54938672e-7, 8.4979557e-8, 3.0592641e-8, 1.17664e-8, 4.793719e-9, 2.054451e-9, 9.20961e-10, 4.29782e-10, 2.07959e-10, 1.03979e-10, 5.3565e-11, 2.8358e-11, 1.5394e-11, 8.552e-12},
+{0.058823529411765, 0.003267973856209, 0.000343997248022, 5.1599587203e-5, 9.828492801e-6, 2.233748364e-6, 5.82716964e-7, 1.69959115e-7, 5.4386917e-8, 1.882624e-8, 6.972682e-9, 2.739268e-9, 1.13349e-9, 4.91179e-10, 2.21823e-10, 1.03979e-10, 5.0414e-11, 2.5207e-11, 1.2964e-11, 6.842e-12, 3.698e-12},
+{0.055555555555556, 0.002923976608187, 0.000292397660819, 4.1771094403e-5, 7.594744437e-6, 1.651031399e-6, 4.1275785e-7, 1.15572198e-7, 3.5560676e-8, 1.1853559e-8, 4.233414e-9, 1.605778e-9, 6.42311e-10, 2.69356e-10, 1.17843e-10, 5.3565e-11, 2.5207e-11, 1.2243e-11, 6.122e-12, 3.144e-12, 1.655e-12},
+{0.052631578947368, 0.002631578947368, 0.000250626566416, 3.4176349966e-5, 5.943713038e-6, 1.238273549e-6, 2.97185652e-7, 8.0011522e-8, 2.3707118e-8, 7.620145e-9, 2.627636e-9, 9.63467e-10, 3.72955e-10, 1.51513e-10, 6.4278e-11, 2.8358e-11, 1.2964e-11, 6.122e-12, 2.978e-12, 1.489e-12, 7.64e-13},
+{0.05, 0.002380952380952, 0.00021645021645, 2.8232636928e-5, 4.705439488e-6, 9.41087898e-7, 2.1717413e-7, 5.6304404e-8, 1.6086973e-8, 4.992509e-9, 1.66417e-9, 5.90512e-10, 2.21442e-10, 8.7235e-11, 3.592e-11, 1.5394e-11, 6.842e-12, 3.144e-12, 1.489e-12, 7.25e-13, 3.63e-13},
+{0.047619047619048, 0.002164502164502, 0.000188217579522, 2.352719744e-5, 3.76435159e-6, 7.23913767e-7, 1.60869726e-7, 4.0217432e-8, 1.1094464e-8, 3.328339e-9, 1.073658e-9, 3.6907e-10, 1.34207e-10, 5.1315e-11, 2.0526e-11, 8.552e-12, 3.698e-12, 1.655e-12, 7.64e-13, 3.63e-13, 1.77e-13}};
+
 // used by _compute_weight
 inline unsigned _seq_prod(unsigned a, unsigned b) {
   unsigned out = 1.0;
@@ -634,20 +684,22 @@ inline unsigned _seq_prod(unsigned a, unsigned b) {
 }
 
 inline bst_float _compute_weight(unsigned num_fixed, unsigned num_integrated) {
-  if (num_fixed > num_integrated) {
+  if (num_fixed <= 20 && num_integrated <= 20) {
+    return shapley_weight[num_fixed][num_integrated];
+  } else if (num_fixed > num_integrated) {
     return static_cast<bst_float>(_seq_prod(2, num_integrated))/_seq_prod(num_fixed+1, num_fixed+num_integrated+1);
   } else {
     return static_cast<bst_float>(_seq_prod(2, num_fixed))/_seq_prod(num_integrated+1, num_fixed+num_integrated+1);
   }
 }
 
-inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
+inline void RegTree::TreeShapSlow(const RegTree::FVec& feat, bst_float *phi,
                               unsigned node_index, unsigned unique_depth, unsigned num_fixed,
-                              const std::tuple<unsigned,unsigned> *parent_feature_mask,
+                              const MaskElement *parent_feature_mask,
                               bst_float expectation_weight) const {
 
   // allocate a feature_mask array on the stack, the tuples are (node_index, node_mask)
-  std::tuple<unsigned,unsigned> feature_mask[unique_depth+1];
+  MaskElement feature_mask[unique_depth+1];
   if (unique_depth > 0) std::copy(parent_feature_mask, parent_feature_mask+unique_depth, feature_mask);
 
   unsigned new_num_fixed = num_fixed;
@@ -657,8 +709,8 @@ inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
   // if we are a leaf we update the SHAP values for all nodes that were split on
   if (node.is_leaf()) {
     for (unsigned i = 0; i < unique_depth; ++i) {
-      const auto ind = std::get<0>(feature_mask[i]);
-      if (std::get<1>(feature_mask[i]) == 1) {
+      const auto ind = feature_mask[i].index;
+      if (feature_mask[i].value == 1) {
         const bst_float shapley_weight = _compute_weight(num_fixed-1, unique_depth-num_fixed);
         phi[ind] += shapley_weight*node.leaf_value()*expectation_weight;
       } else {
@@ -672,39 +724,156 @@ inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
     unsigned mask_value = 2;
     unsigned mask_index = unique_depth;
     for (unsigned i = 0; i < unique_depth; ++i) {
-      if (std::get<0>(feature_mask[i]) == split_index) {
-        mask_value = std::get<1>(feature_mask[i]);
+      if (feature_mask[i].index == split_index) {
+        mask_value = feature_mask[i].value;
         mask_index = i;
         break;
       }
     }
     if (mask_value == 2) {
-      feature_mask[unique_depth] = std::make_tuple(split_index,0);
+      feature_mask[unique_depth] = MaskElement(split_index,0);
       unique_depth += 1;
       new_num_fixed += 1;
     }
 
     // propagate our missing mask down each branch if we are not already fixed to non-missing
     if (mask_value != 1) {
-      std::get<1>(feature_mask[mask_index]) = 0;
+      feature_mask[mask_index].value = 0;
       const bst_float w = this->stat(node_index).sum_hess;
       const bst_float left_weight = expectation_weight * this->stat(node.cleft()).sum_hess / w;
-      TreeShap(feat, phi, node.cleft(), unique_depth, num_fixed, feature_mask, left_weight);
+      TreeShapSlow(feat, phi, node.cleft(), unique_depth, num_fixed, feature_mask, left_weight);
       const bst_float right_weight = expectation_weight * this->stat(node.cright()).sum_hess / w;
-      TreeShap(feat, phi, node.cright(), unique_depth, num_fixed, feature_mask, right_weight);
+      TreeShapSlow(feat, phi, node.cright(), unique_depth, num_fixed, feature_mask, right_weight);
     }
 
     // propagate our non-missing mask down each branch if we are not already fixed to missing
     if (mask_value != 0) {
-      std::get<1>(feature_mask[mask_index]) = 1;
+      feature_mask[mask_index].value = 1;
       if (feat.is_missing(split_index)) {
-        TreeShap(feat, phi, node.cdefault(), unique_depth, new_num_fixed, feature_mask, expectation_weight);
+        TreeShapSlow(feat, phi, node.cdefault(), unique_depth, new_num_fixed, feature_mask, expectation_weight);
       } else if (feat.fvalue(split_index) < node.split_cond()) {
-        TreeShap(feat, phi, node.cleft(), unique_depth, new_num_fixed, feature_mask, expectation_weight);
+        TreeShapSlow(feat, phi, node.cleft(), unique_depth, new_num_fixed, feature_mask, expectation_weight);
       } else {
-        TreeShap(feat, phi, node.cright(), unique_depth, new_num_fixed, feature_mask, expectation_weight);
+        TreeShapSlow(feat, phi, node.cright(), unique_depth, new_num_fixed, feature_mask, expectation_weight);
       }
     }
+  }
+}
+
+// extend our decision path with a fraction of one and zero extensions
+inline void ExtendPath(PathElement *unique_path, unsigned unique_depth,
+                        bst_float zero_fraction, bst_float one_fraction, int feature_index) {
+  unique_path[unique_depth].feature_index = feature_index;
+  unique_path[unique_depth].zero_fraction = zero_fraction;
+  unique_path[unique_depth].one_fraction = one_fraction;
+  unique_path[unique_depth].pweight = (unique_depth == 0 ? 1 : 0);
+  for (int i = unique_depth-1; i >= 0; i--) {
+    unique_path[i+1].pweight += one_fraction*unique_path[i].pweight*(i+1)/static_cast<bst_float>(unique_depth+1);
+    unique_path[i].pweight = zero_fraction*unique_path[i].pweight*(unique_depth-i)/static_cast<bst_float>(unique_depth+1);
+  }
+}
+
+// undo a previous extension of the decision path
+inline void UnwindPath(PathElement *unique_path, unsigned unique_depth, unsigned path_index) {
+  const bst_float one_fraction = unique_path[path_index].one_fraction;
+  const bst_float zero_fraction = unique_path[path_index].zero_fraction;
+  bst_float next_one_portion = unique_path[unique_depth].pweight;
+
+  for (int i = unique_depth-1; i >= 0; --i) {
+    if (one_fraction != 0) {
+      const bst_float tmp = unique_path[i].pweight;
+      unique_path[i].pweight = next_one_portion*(unique_depth+1)/static_cast<bst_float>((i+1)*one_fraction);
+      next_one_portion = tmp - unique_path[i].pweight*zero_fraction*(unique_depth-i)/static_cast<bst_float>(unique_depth+1);
+    } else {
+      unique_path[i].pweight = (unique_path[i].pweight*(unique_depth+1))/static_cast<bst_float>(zero_fraction*(unique_depth-i));
+    }
+  }
+
+  for (int i = path_index; i < unique_depth; ++i) {
+    unique_path[i].feature_index = unique_path[i+1].feature_index;
+    unique_path[i].zero_fraction = unique_path[i+1].zero_fraction;
+    unique_path[i].one_fraction = unique_path[i+1].one_fraction;
+  }
+}
+
+// determine what the total permuation weight would be if we unwound a previous extension in the decision path
+inline bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_depth, unsigned path_index) {
+  const bst_float one_fraction = unique_path[path_index].one_fraction;
+  const bst_float zero_fraction = unique_path[path_index].zero_fraction;
+  bst_float next_one_portion = unique_path[unique_depth].pweight;
+  bst_float total = 0;
+  for (int i = unique_depth-1; i >= 0; --i) {
+    if (one_fraction != 0) {
+      const bst_float tmp = next_one_portion*(unique_depth+1)/static_cast<bst_float>((i+1)*one_fraction);
+      total += tmp;
+      next_one_portion = unique_path[i].pweight - tmp*zero_fraction*((unique_depth-i)/static_cast<bst_float>(unique_depth+1));
+    } else {
+      total += (unique_path[i].pweight/zero_fraction)/((unique_depth-i)/static_cast<bst_float>(unique_depth+1));
+    }
+  }
+  return total;
+}
+
+// recursive computation of SHAP values for a decision tree
+inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
+                              unsigned node_index, unsigned unique_depth,
+                              const PathElement *parent_unique_path, bst_float parent_zero_fraction,
+                              bst_float parent_one_fraction, int parent_feature_index) const {
+  const auto node = (*this)[node_index];
+
+  // extend the unique path
+  PathElement unique_path[unique_depth+1];
+  if (unique_depth > 0) std::copy(parent_unique_path, parent_unique_path+unique_depth, unique_path);
+  ExtendPath(unique_path, unique_depth, parent_zero_fraction, parent_one_fraction, parent_feature_index);
+  const unsigned split_index = node.split_index();
+
+  // leaf node
+  if (node.is_leaf()) {
+    for (int i = 1; i <= unique_depth; ++i) {
+      const bst_float w = UnwoundPathSum(unique_path, unique_depth, i);
+      const PathElement &el = unique_path[i];
+      phi[el.feature_index] += w*(el.one_fraction-el.zero_fraction)*node.leaf_value();
+    }
+
+  // internal node
+  } else {
+    // find which branch is "hot" (meaning x would follow it)
+    unsigned hot_index = 0;
+    if (feat.is_missing(split_index)) {
+      hot_index = node.cdefault();
+    } else if (feat.fvalue(split_index) < node.split_cond()) {
+      hot_index = node.cleft();
+    } else {
+      hot_index = node.cright();
+    }
+    const unsigned cold_index = (hot_index == node.cleft() ? node.cright() : node.cleft());
+    const bst_float w = this->stat(node_index).sum_hess;
+    const bst_float hot_zero_fraction = this->stat(hot_index).sum_hess/w;
+    const bst_float cold_zero_fraction = this->stat(cold_index).sum_hess/w;
+    bst_float incoming_zero_fraction = 1;
+    bst_float incoming_one_fraction = 1;
+
+    // see if we have already split on this feature, if so we undo that split so we can redo it for this node
+    unsigned path_index = 0;
+    for (; path_index <= unique_depth; ++path_index) {
+      if (unique_path[path_index].feature_index == split_index) break;
+    }
+    if (path_index != unique_depth+1) {
+      incoming_zero_fraction = unique_path[path_index].zero_fraction;
+      incoming_one_fraction = unique_path[path_index].one_fraction;
+      UnwindPath(unique_path, unique_depth, path_index);
+      unique_depth -= 1;
+    }
+
+    TreeShap(
+      feat, phi, hot_index, unique_depth+1, unique_path,
+      hot_zero_fraction*incoming_zero_fraction, incoming_one_fraction, split_index
+    );
+
+    TreeShap(
+      feat, phi, cold_index, unique_depth+1, unique_path,
+      cold_zero_fraction*incoming_zero_fraction, 0, split_index
+    );
   }
 }
 
@@ -724,7 +893,9 @@ inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned 
   }
   out_contribs[feat.size()] += base_value / total_cover;
 
-  TreeShap(feat, out_contribs, root_id, 0, 0, NULL, 1.0);
+  //TreeShapSlow(feat, out_contribs, root_id, 0, 0, NULL, 1.0);
+
+  TreeShap(feat, out_contribs, root_id, 0, NULL, 1, 1, -1);
 }
 
 /*! \brief get next position of the tree given current pid */

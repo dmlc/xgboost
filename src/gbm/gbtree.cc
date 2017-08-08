@@ -580,10 +580,10 @@ class GBTree : public GradientBooster {
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
     // initialize tree node mean values
-    // #pragma omp parallel for schedule(static)
-    // for (bst_omp_uint i=0; i < ntree_limit; ++i) {
-    //   trees[i]->FillNodeMeanValues(); // Only needed if using CalculateContributionsApprox
-    // }
+    #pragma omp parallel for schedule(static)
+    for (bst_omp_uint i=0; i < ntree_limit; ++i) {
+      trees[i]->FillNodeMeanValues(); // Only needed if using CalculateContributionsApprox
+    }
     // start collecting the contributions
     dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
     const std::vector<bst_float>& base_margin = info.base_margin;
