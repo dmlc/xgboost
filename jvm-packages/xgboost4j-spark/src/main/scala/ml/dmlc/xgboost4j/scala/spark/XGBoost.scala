@@ -71,17 +71,21 @@ object XGBoost extends Serializable {
 
   private def fromBaseMarginsToArray(baseMargins: Iterator[Float]): Option[Array[Float]] = {
     val builder = new mutable.ArrayBuilder.ofFloat()
+    var nTotal = 0
     var nUndefined = 0
     while (baseMargins.hasNext) {
+      nTotal += 1
       val baseMargin = baseMargins.next()
       if (baseMargin.isNaN) {
-        nUndefined += 1
+        nUndefined += 1  // don't waste space for all-NaNs.
+      } else {
+        builder += baseMargin
       }
-      builder += baseMargin
     }
-    val result = builder.result()
-    if (nUndefined == result.length) {
-      Some(result)
+    if (nUndefined == nTotal) {
+      None
+    } else if (nUndefined == 0) {
+      Some(builder.result())
     } else {
       throw new IllegalArgumentException(
         s"Encountered a partition with $nUndefined NaN base margin values. " +
