@@ -75,6 +75,7 @@ struct GBTreeModel {
       }
       trees.clear();
       param.num_trees = 0;
+      tree_info.clear();
     }
   }
 
@@ -117,7 +118,6 @@ struct GBTreeModel {
   }
   void CommitModel(std::vector<std::unique_ptr<RegTree> >&& new_trees,
                    int bst_group) {
-    size_t old_ntree = trees.size();
     for (size_t i = 0; i < new_trees.size(); ++i) {
       trees.push_back(std::move(new_trees[i]));
       tree_info.push_back(bst_group);

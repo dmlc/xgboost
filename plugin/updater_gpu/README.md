@@ -27,7 +27,7 @@ This plugin currently works with the CLI version and python version.
 
 Python example:
 ```python
-param['gpu_id'] = 1
+param['gpu_id'] = 0
 param['max_bin'] = 16
 param['tree_method'] = 'gpu_hist'
 ```

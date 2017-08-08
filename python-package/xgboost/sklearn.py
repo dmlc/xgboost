@@ -183,7 +183,7 @@ class XGBModel(XGBModelBase):
         return self._Booster
 
     def get_params(self, deep=False):
-        """Get parameter.s"""
+        """Get parameters."""
         params = super(XGBModel, self).get_params(deep=deep)
         if isinstance(self.kwargs, dict):  # if kwargs is a dict, update params accordingly
             params.update(self.kwargs)

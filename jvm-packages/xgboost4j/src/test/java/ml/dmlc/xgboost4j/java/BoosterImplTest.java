@@ -222,7 +222,7 @@ public class BoosterImplTest {
         put("tree_method", "hist");
         put("grow_policy", "lossguide");
         put("max_leaves", 8);
-        put("max_bins", 16);
+        put("max_bin", 16);
         put("eval_metric", "auc");
       }
     };
