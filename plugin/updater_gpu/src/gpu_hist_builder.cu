@@ -157,11 +157,6 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
     totalcpuinittime = 0;
     totalgpuinittime = 0;
     timecpu.reset();
-    double report = timecpu.elapsedSeconds();
-    if (param.debug_verbose) {
-      printf("[GPU Plug-in] CPU Time at start %g secs\n", report);
-      fflush(stdout);
-    }
     totalgputime = 0;
 
     // set dList member
