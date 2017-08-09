@@ -224,7 +224,7 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
     totalcpuinittime += time0.elapsedSeconds();
     if (param.debug_verbose) {  // Only done once for each training session
       LOG(CONSOLE) <<  "[GPU Plug-in] CPU Time for hmat_.Init "
-                   << time0.elapsedSeconds() << " secs.";
+                   << time0.elapsedSeconds() << " sec";
       fflush(stdout);
     }
     time0.reset();
@@ -233,7 +233,7 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
     totalcpuinittime += time0.elapsedSeconds();
     if (param.debug_verbose) {  // Only done once for each training session
       LOG(CONSOLE) << "[GPU Plug-in] CPU Time for gmat_.cut "
-                   << time0.elapsedSeconds() << " secs.";
+                   << time0.elapsedSeconds() << " sec";
       fflush(stdout);
     }
     time0.reset();
@@ -242,14 +242,14 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
     totalcpuinittime += time0.elapsedSeconds();
     if (param.debug_verbose) {  // Only done once for each training session
       LOG(CONSOLE) << "[GPU Plug-in] CPU Time for gmat_.Init() "
-                   << time0.elapsedSeconds() << " secs.";
+                   << time0.elapsedSeconds() << " sec";
       fflush(stdout);
     }
     time0.reset();
 
     if (param.debug_verbose) {  // Only done once for each training session
       LOG(CONSOLE) << "[GPU Plug-in] CPU Time for hmat_.Init, gmat_.cut, gmat_.Init "
-                   << totalcpuinittime << " secs.";
+                   << totalcpuinittime << " sec";
       fflush(stdout);
     }
 
@@ -409,7 +409,7 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
     totalgputime = -totalcpuinittime;
     if (param.debug_verbose) {  // Only done once for each training session
       LOG(CONSOLE) << "[GPU Plug-in] Time for GPU operations during First Call to InitData() "
-                   << totalgpuinittime << " secs.";
+                   << totalgpuinittime << " sec";
       fflush(stdout);
     }
   }
@@ -1167,16 +1167,16 @@ void GPUHistBuilder::Update(const std::vector<bst_gpair>& gpair,
   if (param.debug_verbose) {
     LOG(CONSOLE) << "[GPU Plug-in] Cumulative GPU Time excluding initial time "
                  << (totalgputime - totalgpuinittime)
-                 << " secs.";
+                 << " sec";
     fflush(stdout);
   }
 
   if (param.debug_verbose) {
     LOG(CONSOLE) << "[GPU Plug-in] Cumulative CPU Time "
-                 << timecpu.elapsedSeconds() << " secs.";
+                 << timecpu.elapsedSeconds() << " sec";
     LOG(CONSOLE) << "[GPU Plug-in] Cumulative CPU Time excluding initial time "
                  << (timecpu.elapsedSeconds() -  totalcpuinittime - totalgputime)
-                 << " secs.";
+                 << " sec";
     fflush(stdout);
   }
 }
