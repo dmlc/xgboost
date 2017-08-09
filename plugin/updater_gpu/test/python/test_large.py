@@ -1,6 +1,7 @@
 from __future__ import print_function
 #pylint: skip-file
 import sys
+import time
 sys.path.append("../../tests/python")
 import xgboost as xgb
 import testing as tm
@@ -33,11 +34,16 @@ class TestGPU(unittest.TestCase):
         for rows in rowslist:
             
             eprint("Creating train data rows=%d cols=%d" % (rows,cols))
+            tmp = time.time()
             np.random.seed(7)
             X = np.random.rand(rows, cols)
             y = np.random.rand(rows)
+            print("Time to Create Data: %r" % (time.time() - tmp))
+
             eprint("Starting DMatrix(X,y)")
-            ag_dtrain = xgb.DMatrix(X,y,nthread=0)
+            tmp = time.time()
+            ag_dtrain = xgb.DMatrix(X,y,nthread=40)
+            print("Time to DMatrix: %r" % (time.time() - tmp))
 
             max_depth=6
             max_bin=1024
@@ -48,6 +54,7 @@ class TestGPU(unittest.TestCase):
                         'nthread': 0,
                         'eta': 1,
                         'silent': 0,
+                        'debug_verbose': 5,
                         'objective': 'binary:logistic',
                         'eval_metric': 'auc'}
             ag_paramb = {'max_depth': max_depth,
@@ -55,22 +62,25 @@ class TestGPU(unittest.TestCase):
                         'nthread': 0,
                         'eta': 1,
                         'silent': 0,
+                        'debug_verbose': 5,
                         'objective': 'binary:logistic',
                         'eval_metric': 'auc'}
             ag_param2 = {'max_depth': max_depth,
-                         'tree_method': 'gpu_hist',
-                         'nthread': 0,
-                         'eta': 1,
-                         'silent': 0,
-                         'n_gpus': 1,
-                         'objective': 'binary:logistic',
-                         'max_bin': max_bin,
-                         'eval_metric': 'auc'}
+                        'tree_method': 'gpu_hist',
+                        'nthread': 0,
+                        'eta': 1,
+                        'silent': 0,
+                        'debug_verbose': 5,
+                        'n_gpus': 1,
+                        'objective': 'binary:logistic',
+                        'max_bin': max_bin,
+                        'eval_metric': 'auc'}
             ag_param3 = {'max_depth': max_depth,
                          'tree_method': 'gpu_hist',
                          'nthread': 0,
                          'eta': 1,
                          'silent': 0,
+                         'debug_verbose': 5,
                          'n_gpus': -1,
                          'objective': 'binary:logistic',
                          'max_bin': max_bin,
@@ -81,16 +91,23 @@ class TestGPU(unittest.TestCase):
             ag_res3 = {}
 
             num_rounds = 1
-            
-            eprint("hist updater")
-            xgb.train(ag_paramb, ag_dtrain, num_rounds, [(ag_dtrain, 'train')],
-                      evals_result=ag_resb)
+            tmp = time.time()
+            #eprint("hist updater")
+            #xgb.train(ag_paramb, ag_dtrain, num_rounds, [(ag_dtrain, 'train')],
+            #          evals_result=ag_resb)
+            #print("Time to Train: %s seconds" % (str(time.time() - tmp)))
+
+            tmp = time.time()
             eprint("gpu_hist updater 1 gpu")
             xgb.train(ag_param2, ag_dtrain, num_rounds, [(ag_dtrain, 'train')],
                       evals_result=ag_res2)
+            print("Time to Train: %s seconds" % (str(time.time() - tmp)))
+
+            tmp = time.time()
             eprint("gpu_hist updater all gpus")
             xgb.train(ag_param3, ag_dtrain, num_rounds, [(ag_dtrain, 'train')],
                       evals_result=ag_res3)
+            print("Time to Train: %s seconds" % (str(time.time() - tmp)))
 
 
     

@@ -20,6 +20,11 @@
 namespace xgboost {
 namespace tree {
 
+  static double totalcpuinittime = 0;
+  static double totalgpuinittime = 0;
+  static dh::Timer timecpu;
+  static double totalgputime = 0;
+
 void DeviceGMat::Init(int device_idx, const common::GHistIndexMatrix& gmat,
                       bst_ulong element_begin, bst_ulong element_end,
                       bst_ulong row_begin, bst_ulong row_end, int n_bins) {
@@ -141,12 +146,25 @@ void GPUHistBuilder::Init(const TrainParam& param) {
 void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
                               DMatrix& fmat,  // NOLINT
                               const RegTree& tree) {
+  dh::Timer time1;
   // set member num_rows and n_devices for rest of GPUHistBuilder members
   info = &fmat.info();
   num_rows = info->num_row;
   n_devices = dh::n_devices(param.n_gpus, num_rows);
 
   if (!initialised) {
+
+    // reset static timers used across iterations
+    totalcpuinittime=0;
+    totalgpuinittime=0;
+    timecpu.reset();
+    double report = timecpu.elapsedSeconds();
+    if(param.debug_verbose){
+      printf("[GPU Plug-in] CPU Time at start %g secs\n", report);
+      fflush(stdout);
+    }
+    totalgputime=0;
+
     // set dList member
     dList.resize(n_devices);
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
@@ -207,9 +225,36 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
                                     "block. Try setting 'tree_method' "
                                     "parameter to 'exact'";
     is_dense = info->num_nonzero == info->num_col * info->num_row;
+    dh::Timer time0;
     hmat_.Init(&fmat, param.max_bin);
+    totalcpuinittime += time0.elapsedSeconds();
+    if(param.debug_verbose){ // Only done once for each training session
+      printf("[GPU Plug-in] CPU Time for hmat_.Init %g secs\n", time0.elapsedSeconds());
+      fflush(stdout);
+    }
+    time0.reset();
+
     gmat_.cut = &hmat_;
+    totalcpuinittime += time0.elapsedSeconds();
+    if(param.debug_verbose){ // Only done once for each training session
+      printf("[GPU Plug-in] CPU Time for gmat_.cut %g secs\n", time0.elapsedSeconds());
+      fflush(stdout);
+    }
+    time0.reset();
+    
     gmat_.Init(&fmat);
+    totalcpuinittime += time0.elapsedSeconds();
+    if(param.debug_verbose){ // Only done once for each training session
+      printf("[GPU Plug-in] CPU Time for gmat_.Init() %g secs\n", time0.elapsedSeconds());
+      fflush(stdout);
+    }
+    time0.reset();
+
+    if(param.debug_verbose){ // Only done once for each training session
+      printf("[GPU Plug-in] CPU Time for hmat_.Init, gmat_.cut, gmat_.Init %g secs\n", totalcpuinittime);
+      fflush(stdout);
+    }
+
     int n_bins = hmat_.row_ptr.back();
     int n_features = hmat_.row_ptr.size() - 1;
 
@@ -335,7 +380,6 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
       LOG(CONSOLE) << "Allocated " << ba.size() / mb_size << " MB";
     }
 
-    initialised = true;
   }
 
   // copy or init to do every iteration
@@ -363,7 +407,19 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
 
   dh::synchronize_n_devices(n_devices, dList);
 
+  if (!initialised) {
+    totalgpuinittime = time1.elapsedSeconds() - totalcpuinittime;
+    totalgputime = -totalcpuinittime;
+    if(param.debug_verbose){ // Only done once for each training session
+      printf("[GPU Plug-in] Time for GPU operations during First Call to InitData() %g secs\n", totalgpuinittime);
+      fflush(stdout);
+    }
+  }
+
+
   p_last_fmat_ = &fmat;
+
+  initialised = true;
 }
 
 void GPUHistBuilder::BuildHist(int depth) {
@@ -1090,6 +1146,9 @@ bool GPUHistBuilder::UpdatePredictionCache(
 
 void GPUHistBuilder::Update(const std::vector<bst_gpair>& gpair,
                             DMatrix* p_fmat, RegTree* p_tree) {
+
+  dh::Timer time0;
+
   this->InitData(gpair, *p_fmat, *p_tree);
   this->InitFirstNode(gpair);
   this->ColSampleTree();
@@ -1105,6 +1164,22 @@ void GPUHistBuilder::Update(const std::vector<bst_gpair>& gpair,
   int master_device = dList[0];
   dh::safe_cuda(cudaSetDevice(master_device));
   dense2sparse_tree(p_tree, nodes[0].tbegin(), nodes[0].tend(), param);
+
+  totalgputime += time0.elapsedSeconds();
+
+  if(param.debug_verbose){ // Only done once for each training session
+    printf("[GPU Plug-in] Cumulative GPU Time excluding initial time %g secs\n",(totalgputime - totalgpuinittime));
+    fflush(stdout);
+  }
+
+  if(param.debug_verbose){ // Only done once for each training session
+    printf("[GPU Plug-in] Cumulative CPU Time %g secs\n",timecpu.elapsedSeconds());
+    printf("[GPU Plug-in] Cumulative CPU Time excluding initial time %g secs\n",(timecpu.elapsedSeconds() -  totalcpuinittime - totalgputime));
+    fflush(stdout);
+  }
+  
+  
+  
 }
 }  // namespace tree
 }  // namespace xgboost
