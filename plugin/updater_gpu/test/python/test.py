@@ -32,7 +32,7 @@ class TestGPU(unittest.TestCase):
                     'nthread': 0,
                     'eta': 1,
                     'silent': 1,
-                    'debug_verbose': 5,
+                    'debug_verbose': 0,
                     'objective': 'binary:logistic',
                     'eval_metric': 'auc'}
         ag_param2 = {'max_depth': 2,
@@ -40,7 +40,7 @@ class TestGPU(unittest.TestCase):
                      'nthread': 0,
                      'eta': 1,
                      'silent': 1,
-                     'debug_verbose': 5,
+                     'debug_verbose': 0,
                      'objective': 'binary:logistic',
                      'eval_metric': 'auc'}
         ag_res = {}
@@ -65,7 +65,7 @@ class TestGPU(unittest.TestCase):
                  'nthread': 0,
                  'tree_method': 'gpu_exact',
                  'max_depth': 3,
-                 'debug_verbose': 5,
+                 'debug_verbose': 0,
                  'eval_metric': 'auc'}
         res = {}
         xgb.train(param, dtrain, num_rounds, [(dtrain, 'train'), (dtest, 'test')],
@@ -83,7 +83,7 @@ class TestGPU(unittest.TestCase):
                  'nthread': 0,
                  'tree_method': 'gpu_exact',
                  'max_depth': 2,
-                 'debug_verbose': 5,
+                 'debug_verbose': 0,
                  'eval_metric': 'auc'}
         res = {}
         xgb.train(param, dtrain2, num_rounds, [(dtrain2, 'train')], evals_result=res)
@@ -138,7 +138,7 @@ class TestGPU(unittest.TestCase):
                             'nthread': 0,
                             'eta': 1,
                             'silent': 1,
-                            'debug_verbose': 5,
+                            'debug_verbose': 0,
                             'objective': 'binary:logistic',
                             'eval_metric': 'auc'}
                 ag_param2 = {'max_depth': max_depth,
@@ -146,7 +146,7 @@ class TestGPU(unittest.TestCase):
                              'tree_method': 'gpu_hist',
                              'eta': 1,
                              'silent': 1,
-                             'debug_verbose': 5,
+                             'debug_verbose': 0,
                              'n_gpus': 1,
                              'objective': 'binary:logistic',
                              'max_bin': max_bin,
@@ -156,7 +156,7 @@ class TestGPU(unittest.TestCase):
                              'tree_method': 'gpu_hist',
                              'eta': 1,
                              'silent': 1,
-                             'debug_verbose': 5,
+                             'debug_verbose': 0,
                              'n_gpus': n_gpus,
                              'objective': 'binary:logistic',
                              'max_bin': max_bin,
@@ -194,7 +194,7 @@ class TestGPU(unittest.TestCase):
                          'max_depth': max_depth,
                          'n_gpus': 1,
                          'max_bin': max_bin,
-                         'debug_verbose': 5,
+                         'debug_verbose': 0,
                          'eval_metric': 'auc'}
                 res = {}
                 #eprint("digits: grow_gpu_hist updater 1 gpu");
@@ -208,7 +208,7 @@ class TestGPU(unittest.TestCase):
                           'max_depth': max_depth,
                           'n_gpus': n_gpus,
                           'max_bin': max_bin,
-                          'debug_verbose': 5,
+                          'debug_verbose': 0,
                           'eval_metric': 'auc'}
                 res2 = {}
                 #eprint("digits: grow_gpu_hist updater %d gpus" % (n_gpus));
@@ -232,7 +232,7 @@ class TestGPU(unittest.TestCase):
                          'max_depth': max_depth,
                          'n_gpus': n_gpus,
                          'max_bin': max_bin,
-                         'debug_verbose': 5,
+                         'debug_verbose': 0,
                          'eval_metric': 'auc'}
                 res = {}
                 xgb.train(param, dtrain2, num_rounds, [(dtrain2, 'train')], evals_result=res)
@@ -272,7 +272,7 @@ class TestGPU(unittest.TestCase):
                          'tree_method': 'gpu_hist',
                          'max_depth': max_depth,
                          'n_gpus': n_gpus,
-                         'debug_verbose': 5,
+                         'debug_verbose': 0,
                          'eval_metric': 'auc',
                          'max_bin': max_bin}
                 res = {}
@@ -291,7 +291,7 @@ class TestGPU(unittest.TestCase):
                          'colsample_bytree': 0.5,
                          'colsample_bylevel': 0.5,
                          'subsample': 0.5,
-                         'debug_verbose': 5,
+                         'debug_verbose': 0,
                          'max_bin': max_bin}
                 res = {}
                 xgb.train(param, dtrain2, num_rounds, [(dtrain2, 'train')], evals_result=res)
@@ -305,7 +305,7 @@ class TestGPU(unittest.TestCase):
                  'tree_method': 'gpu_hist',
                  'max_depth': 2,
                  'n_gpus': n_gpus,
-                 'debug_verbose': 5,
+                 'debug_verbose': 0,
                  'eval_metric': 'auc',
                  'max_bin': 2}
         res = {}
