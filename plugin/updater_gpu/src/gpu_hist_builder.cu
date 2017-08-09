@@ -20,10 +20,10 @@
 namespace xgboost {
 namespace tree {
 
-  static double totalcpuinittime = 0;
-  static double totalgpuinittime = 0;
-  static dh::Timer timecpu;
-  static double totalgputime = 0;
+  static double cpu_init_time = 0;
+  static double gpu_init_time = 0;
+  static dh::Timer cpu_time;
+  static double gpu_time = 0;
 
 void DeviceGMat::Init(int device_idx, const common::GHistIndexMatrix& gmat,
                       bst_ulong element_begin, bst_ulong element_end,
@@ -154,10 +154,10 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
 
   if (!initialised) {
     // reset static timers used across iterations
-    totalcpuinittime = 0;
-    totalgpuinittime = 0;
-    timecpu.reset();
-    totalgputime = 0;
+    cpu_init_time = 0;
+    gpu_init_time = 0;
+    cpu_time.reset();
+    gpu_time = 0;
 
     // set dList member
     dList.resize(n_devices);
@@ -221,7 +221,7 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
     is_dense = info->num_nonzero == info->num_col * info->num_row;
     dh::Timer time0;
     hmat_.Init(&fmat, param.max_bin);
-    totalcpuinittime += time0.elapsedSeconds();
+    cpu_init_time += time0.elapsedSeconds();
     if (param.debug_verbose) {  // Only done once for each training session
       LOG(CONSOLE) <<  "[GPU Plug-in] CPU Time for hmat_.Init "
                    << time0.elapsedSeconds() << " sec";
@@ -230,7 +230,7 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
     time0.reset();
 
     gmat_.cut = &hmat_;
-    totalcpuinittime += time0.elapsedSeconds();
+    cpu_init_time += time0.elapsedSeconds();
     if (param.debug_verbose) {  // Only done once for each training session
       LOG(CONSOLE) << "[GPU Plug-in] CPU Time for gmat_.cut "
                    << time0.elapsedSeconds() << " sec";
@@ -239,7 +239,7 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
     time0.reset();
 
     gmat_.Init(&fmat);
-    totalcpuinittime += time0.elapsedSeconds();
+    cpu_init_time += time0.elapsedSeconds();
     if (param.debug_verbose) {  // Only done once for each training session
       LOG(CONSOLE) << "[GPU Plug-in] CPU Time for gmat_.Init() "
                    << time0.elapsedSeconds() << " sec";
@@ -249,7 +249,7 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
 
     if (param.debug_verbose) {  // Only done once for each training session
       LOG(CONSOLE) << "[GPU Plug-in] CPU Time for hmat_.Init, gmat_.cut, gmat_.Init "
-                   << totalcpuinittime << " sec";
+                   << cpu_init_time << " sec";
       fflush(stdout);
     }
 
@@ -405,11 +405,11 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
   dh::synchronize_n_devices(n_devices, dList);
 
   if (!initialised) {
-    totalgpuinittime = time1.elapsedSeconds() - totalcpuinittime;
-    totalgputime = -totalcpuinittime;
+    gpu_init_time = time1.elapsedSeconds() - cpu_init_time;
+    gpu_time = -cpu_init_time;
     if (param.debug_verbose) {  // Only done once for each training session
       LOG(CONSOLE) << "[GPU Plug-in] Time for GPU operations during First Call to InitData() "
-                   << totalgpuinittime << " sec";
+                   << gpu_init_time << " sec";
       fflush(stdout);
     }
   }
@@ -1162,20 +1162,20 @@ void GPUHistBuilder::Update(const std::vector<bst_gpair>& gpair,
   dh::safe_cuda(cudaSetDevice(master_device));
   dense2sparse_tree(p_tree, nodes[0].tbegin(), nodes[0].tend(), param);
 
-  totalgputime += time0.elapsedSeconds();
+  gpu_time += time0.elapsedSeconds();
 
   if (param.debug_verbose) {
     LOG(CONSOLE) << "[GPU Plug-in] Cumulative GPU Time excluding initial time "
-                 << (totalgputime - totalgpuinittime)
+                 << (gpu_time - gpu_init_time)
                  << " sec";
     fflush(stdout);
   }
 
   if (param.debug_verbose) {
     LOG(CONSOLE) << "[GPU Plug-in] Cumulative CPU Time "
-                 << timecpu.elapsedSeconds() << " sec";
+                 << cpu_time.elapsedSeconds() << " sec";
     LOG(CONSOLE) << "[GPU Plug-in] Cumulative CPU Time excluding initial time "
-                 << (timecpu.elapsedSeconds() -  totalcpuinittime - totalgputime)
+                 << (cpu_time.elapsedSeconds() -  cpu_init_time - gpu_time)
                  << " sec";
     fflush(stdout);
   }
