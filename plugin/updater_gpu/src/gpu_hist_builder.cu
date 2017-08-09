@@ -20,11 +20,6 @@
 namespace xgboost {
 namespace tree {
 
-  static double cpu_init_time = 0;
-  static double gpu_init_time = 0;
-  static dh::Timer cpu_time;
-  static double gpu_time = 0;
-
 void DeviceGMat::Init(int device_idx, const common::GHistIndexMatrix& gmat,
                       bst_ulong element_begin, bst_ulong element_end,
                       bst_ulong row_begin, bst_ulong row_end, int n_bins) {
