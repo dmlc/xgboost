@@ -122,6 +122,13 @@ class GPUHistBuilder {
   std::vector<cudaStream_t *> streams;
   std::vector<ncclComm_t> comms;
   std::vector<std::vector<ncclComm_t>> find_split_comms;
+
+  double cpu_init_time;
+  double gpu_init_time;
+  dh::Timer cpu_time;
+  double gpu_time;
+  
+  
 };
 }  // namespace tree
 }  // namespace xgboost

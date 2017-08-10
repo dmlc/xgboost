@@ -6,6 +6,8 @@
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <cub/cub.cuh>
+#include <string>
+#include <sstream>
 #include <algorithm>
 #include <functional>
 #include <future>
@@ -130,7 +132,7 @@ void GPUHistBuilder::Init(const TrainParam& param) {
     if (!param.silent) {
       size_t free_memory = dh::available_memory(device_idx);
       const int mb_size = 1048576;
-      LOG(CONSOLE) << "Device: [" << device_idx << "] "
+      LOG(CONSOLE) << "[GPU Plug-in] Device: [" << device_idx << "] "
                    << dh::device_name(device_idx) << " with "
                    << free_memory / mb_size << " MB available device memory.";
     }
@@ -139,12 +141,19 @@ void GPUHistBuilder::Init(const TrainParam& param) {
 void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
                               DMatrix& fmat,  // NOLINT
                               const RegTree& tree) {
+  dh::Timer time1;
   // set member num_rows and n_devices for rest of GPUHistBuilder members
   info = &fmat.info();
   num_rows = info->num_row;
   n_devices = dh::n_devices(param.n_gpus, num_rows);
 
   if (!initialised) {
+    // reset static timers used across iterations
+    cpu_init_time = 0;
+    gpu_init_time = 0;
+    cpu_time.reset();
+    gpu_time = 0;
+
     // set dList member
     dList.resize(n_devices);
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
@@ -176,7 +185,13 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
       dh::safe_cuda(cudaGetDeviceProperties(&prop, cudaDev));
       // printf("#   Rank %2d uses device %2d [0x%02x] %s\n", rank, cudaDev,
       //             prop.pciBusID, prop.name);
-      fflush(stdout);
+      // cudaDriverGetVersion(&driverVersion);
+      // cudaRuntimeGetVersion(&runtimeVersion);
+      std::ostringstream oss;
+      oss << "CUDA Capability Major/Minor version number: "
+          << prop.major << "." << prop.minor << " is insufficient.  Need >=3.5.";
+      int failed = prop.major < 3 ||  prop.major == 3 && prop.minor < 5;
+      CHECK(failed == 0) << oss.str();
     }
 
     // local find_split group of comms for each case of reduced number of GPUs
@@ -199,9 +214,40 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
                                     "block. Try setting 'tree_method' "
                                     "parameter to 'exact'";
     is_dense = info->num_nonzero == info->num_col * info->num_row;
+    dh::Timer time0;
     hmat_.Init(&fmat, param.max_bin);
+    cpu_init_time += time0.elapsedSeconds();
+    if (param.debug_verbose) {  // Only done once for each training session
+      LOG(CONSOLE) <<  "[GPU Plug-in] CPU Time for hmat_.Init "
+                   << time0.elapsedSeconds() << " sec";
+      fflush(stdout);
+    }
+    time0.reset();
+
     gmat_.cut = &hmat_;
+    cpu_init_time += time0.elapsedSeconds();
+    if (param.debug_verbose) {  // Only done once for each training session
+      LOG(CONSOLE) << "[GPU Plug-in] CPU Time for gmat_.cut "
+                   << time0.elapsedSeconds() << " sec";
+      fflush(stdout);
+    }
+    time0.reset();
+
     gmat_.Init(&fmat);
+    cpu_init_time += time0.elapsedSeconds();
+    if (param.debug_verbose) {  // Only done once for each training session
+      LOG(CONSOLE) << "[GPU Plug-in] CPU Time for gmat_.Init() "
+                   << time0.elapsedSeconds() << " sec";
+      fflush(stdout);
+    }
+    time0.reset();
+
+    if (param.debug_verbose) {  // Only done once for each training session
+      LOG(CONSOLE) << "[GPU Plug-in] CPU Time for hmat_.Init, gmat_.cut, gmat_.Init "
+                   << cpu_init_time << " sec";
+      fflush(stdout);
+    }
+
     int n_bins = hmat_.row_ptr.back();
     int n_features = hmat_.row_ptr.size() - 1;
 
@@ -324,10 +370,8 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
 
     if (!param.silent) {
       const int mb_size = 1048576;
-      LOG(CONSOLE) << "Allocated " << ba.size() / mb_size << " MB";
+      LOG(CONSOLE) << "[GPU Plug-in] Allocated " << ba.size() / mb_size << " MB";
     }
-
-    initialised = true;
   }
 
   // copy or init to do every iteration
@@ -355,7 +399,20 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
 
   dh::synchronize_n_devices(n_devices, dList);
 
+  if (!initialised) {
+    gpu_init_time = time1.elapsedSeconds() - cpu_init_time;
+    gpu_time = -cpu_init_time;
+    if (param.debug_verbose) {  // Only done once for each training session
+      LOG(CONSOLE) << "[GPU Plug-in] Time for GPU operations during First Call to InitData() "
+                   << gpu_init_time << " sec";
+      fflush(stdout);
+    }
+  }
+
+
   p_last_fmat_ = &fmat;
+
+  initialised = true;
 }
 
 void GPUHistBuilder::BuildHist(int depth) {
@@ -623,7 +680,7 @@ __global__ void find_split_kernel(
 #define MIN_BLOCK_THREADS 32
 #define CHUNK_BLOCK_THREADS 32
 // MAX_BLOCK_THREADS of 1024 is hard-coded maximum block size due
-// to CUDA compatibility 35 and above requirement
+// to CUDA capability 35 and above requirement
 // for Maximum number of threads per block
 #define MAX_BLOCK_THREADS 1024
 
@@ -1082,6 +1139,8 @@ bool GPUHistBuilder::UpdatePredictionCache(
 
 void GPUHistBuilder::Update(const std::vector<bst_gpair>& gpair,
                             DMatrix* p_fmat, RegTree* p_tree) {
+  dh::Timer time0;
+
   this->InitData(gpair, *p_fmat, *p_tree);
   this->InitFirstNode(gpair);
   this->ColSampleTree();
@@ -1097,6 +1156,24 @@ void GPUHistBuilder::Update(const std::vector<bst_gpair>& gpair,
   int master_device = dList[0];
   dh::safe_cuda(cudaSetDevice(master_device));
   dense2sparse_tree(p_tree, nodes[0].tbegin(), nodes[0].tend(), param);
+
+  gpu_time += time0.elapsedSeconds();
+
+  if (param.debug_verbose) {
+    LOG(CONSOLE) << "[GPU Plug-in] Cumulative GPU Time excluding initial time "
+                 << (gpu_time - gpu_init_time)
+                 << " sec";
+    fflush(stdout);
+  }
+
+  if (param.debug_verbose) {
+    LOG(CONSOLE) << "[GPU Plug-in] Cumulative CPU Time "
+                 << cpu_time.elapsedSeconds() << " sec";
+    LOG(CONSOLE) << "[GPU Plug-in] Cumulative CPU Time excluding initial time "
+                 << (cpu_time.elapsedSeconds() -  cpu_init_time - gpu_time)
+                 << " sec";
+    fflush(stdout);
+  }
 }
 }  // namespace tree
 }  // namespace xgboost

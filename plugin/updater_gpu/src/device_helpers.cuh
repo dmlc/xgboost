@@ -63,14 +63,22 @@ inline ncclResult_t throw_on_nccl_error(ncclResult_t code, const char *file,
 
 #define gpuErrchk(ans) \
   { gpuAssert((ans), __FILE__, __LINE__); }
+
 inline void gpuAssert(cudaError_t code, const char *file, int line,
                       bool abort = true) {
   if (code != cudaSuccess) {
     fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file,
             line);
-    if (abort) exit(code);
+    if (abort){
+      std::stringstream ss;
+      ss << file << "(" << line << ")";
+      std::string file_and_line;
+      ss >> file_and_line;
+      throw thrust::system_error(code, thrust::cuda_category(), file_and_line);
+    }
   }
 }
+
 
 inline int n_visible_devices() {
   int n_visgpus = 0;
