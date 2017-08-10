@@ -77,7 +77,7 @@ class GradientBooster {
    * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
    *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
    */
-  virtual void Predict(DMatrix* dmat,
+  virtual void PredictBatch(DMatrix* dmat,
                        std::vector<bst_float>* out_preds,
                        unsigned ntree_limit = 0) = 0;
   /*!
@@ -92,7 +92,7 @@ class GradientBooster {
    * \param root_index the root index
    * \sa Predict
    */
-  virtual void Predict(const SparseBatch::Inst& inst,
+  virtual void PredictInstance(const SparseBatch::Inst& inst,
                        std::vector<bst_float>* out_preds,
                        unsigned ntree_limit = 0,
                        unsigned root_index = 0) = 0;

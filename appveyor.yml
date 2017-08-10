@@ -1,30 +1,60 @@
 environment:
-        matrix:
-                - target: native
-                  solution_name: C:/projects/xgboost/build2013/xgboost.sln
-                - target: native
-                  solution_name: C:/projects/xgboost/build2015/xgboost.sln
-                - target: jvm
-platform:
-        - x64
+    matrix:
+        - target: msvc
+          ver: 2013
+          generator: "Visual Studio 12 2013 Win64"
+          configuration: Release
+        - target: msvc
+          ver: 2015
+          generator: "Visual Studio 14 2015 Win64"
+          configuration: Debug
+        - target: msvc
+          ver: 2015
+          generator: "Visual Studio 14 2015 Win64"
+          configuration: Release
+        - target: mingw
+          generator: "Unix Makefiles"
+        - target: jvm
 
-configuration:
-        - Debug
-        - Release
+platform:
+    - x64
 
 install:
-        - SET PATH=;%PATH%
-        - git submodule update --init --recursive
-
-before_build:
-        - mkdir build2013
-        - mkdir build2015
-        - cd build2013
-        - cmake .. -G"Visual Studio 12 2013 Win64"
-        - cd ../build2015
-        - cmake .. -G"Visual Studio 14 2015 Win64"
+    - git submodule update --init --recursive
+    # MinGW
+    - set PATH=C:\msys64\mingw64\bin;C:\msys64\usr\bin;%PATH%
+    - gcc -v
+    - ls -l C:\
+    # Miniconda2
+    - set PATH=;C:\Miniconda-x64;C:\Miniconda-x64\Scripts;%PATH%
+    - where python
+    - python --version
+    # do python build for mingw and one of the msvc jobs
+    - set DO_PYTHON=off
+    - if /i "%target%" == "mingw" set DO_PYTHON=on
+    - if /i "%target%_%ver%_%configuration%" == "msvc_2015_Release" set DO_PYTHON=on
+    - if /i "%DO_PYTHON%" == "on" conda install -y numpy scipy pandas matplotlib nose scikit-learn graphviz python-graphviz
 
 build_script:
-        - cd %APPVEYOR_BUILD_FOLDER%
-        - if "%target%" == "native" msbuild %solution_name%
-        - if "%target%" == "jvm" cd jvm-packages && C:\Python36-x64\python create_jni.py
+    - cd %APPVEYOR_BUILD_FOLDER%
+    - if /i "%target%" == "msvc" (
+        mkdir build_msvc%ver% &&
+        cd build_msvc%ver% &&
+        cmake .. -G"%generator%" -DCMAKE_CONFIGURATION_TYPES="Release;Debug;" &&
+        msbuild xgboost.sln
+      )
+    - if /i "%target%" == "mingw" (
+        mkdir build_mingw &&
+        cd build_mingw &&
+        cmake .. -G"%generator%" &&
+        make -j2
+      )
+    - if /i "%DO_PYTHON%" == "on" (
+        cd %APPVEYOR_BUILD_FOLDER%\python-package &&
+        python setup.py install
+      )
+    - if /i "%target%" == "jvm" cd jvm-packages && mvn test -pl :xgboost4j
+
+test_script:
+    - cd %APPVEYOR_BUILD_FOLDER%
+    - if /i "%DO_PYTHON%" == "on" python -m nose tests/python

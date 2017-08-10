@@ -8,39 +8,33 @@
 #include <vector>
 #include "../../src/common/hist_util.h"
 #include "../../src/tree/param.h"
+#include "../../src/common/compressed_iterator.h"
 #include "device_helpers.cuh"
 #include "types.cuh"
-
-#ifndef NCCL
-#define NCCL 1
-#endif
-
-#if (NCCL)
 #include "nccl.h"
-#endif
 
 namespace xgboost {
-
 namespace tree {
 
 struct DeviceGMat {
-  dh::dvec<int> gidx;
-  dh::dvec<int> ridx;
+  dh::dvec<common::compressed_byte_t> gidx_buffer;
+  common::CompressedIterator<uint32_t> gidx;
+  dh::dvec<size_t> row_ptr;
   void Init(int device_idx, const common::GHistIndexMatrix &gmat,
-            bst_uint begin, bst_uint end);
+            bst_ulong element_begin, bst_ulong element_end, bst_ulong row_begin, bst_ulong row_end,int n_bins);
 };
 
 struct HistBuilder {
-  gpu_gpair *d_hist;
+  bst_gpair_precise *d_hist;
   int n_bins;
-  __host__ __device__ HistBuilder(gpu_gpair *ptr, int n_bins);
-  __device__ void Add(gpu_gpair gpair, int gidx, int nidx) const;
-  __device__ gpu_gpair Get(int gidx, int nidx) const;
+  __host__ __device__ HistBuilder(bst_gpair_precise *ptr, int n_bins);
+  __device__ void Add(bst_gpair_precise gpair, int gidx, int nidx) const;
+  __device__ bst_gpair_precise Get(int gidx, int nidx) const;
 };
 
 struct DeviceHist {
   int n_bins;
-  dh::dvec<gpu_gpair> data;
+  dh::dvec<bst_gpair_precise> data;
 
   void Init(int max_depth);
 
@@ -48,7 +42,7 @@ struct DeviceHist {
 
   HistBuilder GetBuilder();
 
-  gpu_gpair *GetLevelPtr(int depth);
+  bst_gpair_precise *GetLevelPtr(int depth);
 
   int LevelSize(int depth);
 };
@@ -61,8 +55,6 @@ class GPUHistBuilder {
 
   void UpdateParam(const TrainParam &param) {
     this->param = param;
-    this->gpu_param = GPUTrainingParam(param.min_child_weight, param.reg_lambda,
-                                       param.reg_alpha, param.max_delta_step);
   }
 
   void InitData(const std::vector<bst_gpair> &gpair, DMatrix &fmat,  // NOLINT
@@ -85,7 +77,6 @@ class GPUHistBuilder {
                              std::vector<bst_float> *p_out_preds);
 
   TrainParam param;
-  GPUTrainingParam gpu_param;
   common::HistCutMatrix hmat_;
   common::GHistIndexMatrix gmat_;
   MetaInfo *info;
@@ -98,7 +89,6 @@ class GPUHistBuilder {
   dh::bulk_allocator<dh::memory_type::DEVICE> ba;
   //  dh::bulk_allocator<dh::memory_type::DEVICE_MANAGED> ba; // can't be used
   //  with NCCL
-  dh::CubMemory cub_mem;
 
   std::vector<int> feature_set_tree;
   std::vector<int> feature_set_level;
@@ -109,8 +99,9 @@ class GPUHistBuilder {
   // below vectors are for each devices used
   std::vector<int> dList;
   std::vector<int> device_row_segments;
-  std::vector<int> device_element_segments;
+  std::vector<size_t> device_element_segments;
 
+  std::vector<dh::CubMemory> temp_memory;
   std::vector<DeviceHist> hist_vec;
   std::vector<dh::dvec<Node>> nodes;
   std::vector<dh::dvec<Node>> nodes_temp;
@@ -121,18 +112,23 @@ class GPUHistBuilder {
   std::vector<dh::dvec<float>> fidx_min_map;
   std::vector<dh::dvec<int>> feature_segments;
   std::vector<dh::dvec<bst_float>> prediction_cache;
-  std::vector<dh::dvec<NodeIdT>> position;
-  std::vector<dh::dvec<NodeIdT>> position_tmp;
+  std::vector<dh::dvec<int>> position;
+  std::vector<dh::dvec<int>> position_tmp;
   std::vector<DeviceGMat> device_matrix;
-  std::vector<dh::dvec<gpu_gpair>> device_gpair;
+  std::vector<dh::dvec<bst_gpair>> device_gpair;
   std::vector<dh::dvec<int>> gidx_feature_map;
   std::vector<dh::dvec<float>> gidx_fvalue_map;
 
   std::vector<cudaStream_t *> streams;
-#if (NCCL)
   std::vector<ncclComm_t> comms;
   std::vector<std::vector<ncclComm_t>> find_split_comms;
-#endif
+
+  double cpu_init_time;
+  double gpu_init_time;
+  dh::Timer cpu_time;
+  double gpu_time;
+  
+  
 };
 }  // namespace tree
 }  // namespace xgboost

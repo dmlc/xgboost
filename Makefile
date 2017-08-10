@@ -16,6 +16,20 @@ endif
 
 ROOTDIR = $(CURDIR)
 
+# workarounds for some buggy old make & msys2 versions seen in windows
+ifeq (NA, $(shell test ! -d "$(ROOTDIR)" && echo NA ))
+        $(warning Attempting to fix non-existing ROOTDIR [$(ROOTDIR)])
+        ROOTDIR := $(shell pwd)
+        $(warning New ROOTDIR [$(ROOTDIR)] $(shell test -d "$(ROOTDIR)" && echo " is OK" ))
+endif
+MAKE_OK := $(shell "$(MAKE)" -v 2> /dev/null)
+ifndef MAKE_OK
+        $(warning Attempting to recover non-functional MAKE [$(MAKE)])
+        MAKE := $(shell which make 2> /dev/null)
+        MAKE_OK := $(shell "$(MAKE)" -v 2> /dev/null)
+endif
+$(warning MAKE [$(MAKE)] - $(if $(MAKE_OK),checked OK,PROBLEM))
+
 ifeq ($(OS), Windows_NT)
 	UNAME="Windows"
 else
@@ -29,7 +43,9 @@ endif
 include $(DMLC_CORE)/make/dmlc.mk
 
 # include the plugins
+ifdef XGB_PLUGINS
 include $(XGB_PLUGINS)
+endif
 
 # set compiler defaults for OSX versus *nix
 # let people override either
@@ -60,19 +76,27 @@ export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
 ifeq ($(TEST_COVER), 1)
 	CFLAGS += -g -O0 -fprofile-arcs -ftest-coverage
 else
-	CFLAGS += -O3 -funroll-loops -msse2
+	CFLAGS += -O3 -funroll-loops
+ifeq ($(USE_SSE), 1)
+	CFLAGS += -msse2
+endif
 endif
 
 ifndef LINT_LANG
 	LINT_LANG= "all"
 endif
 
-ifneq ($(UNAME), Windows)
-	CFLAGS += -fPIC
-	XGBOOST_DYLIB = lib/libxgboost.so
-else
-	XGBOOST_DYLIB = lib/libxgboost.dll
+ifeq ($(UNAME), Windows)
+	XGBOOST_DYLIB = lib/xgboost.dll
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/win32
+else
+ifeq ($(UNAME), Darwin)
+	XGBOOST_DYLIB = lib/libxgboost.dylib
+	CFLAGS += -fPIC
+else
+	XGBOOST_DYLIB = lib/libxgboost.so
+	CFLAGS += -fPIC
+endif
 endif
 
 ifeq ($(UNAME), Linux)
@@ -93,7 +117,7 @@ endif
 CFLAGS += $(OPENMP_FLAGS)
 
 # for using GPUs
-GPU_COMPUTE_VER ?= 50 52 60 61
+GPU_COMPUTE_VER ?= 35 50 52 60 61
 NVCC = nvcc
 INCLUDES = -Iinclude -I$(DMLC_CORE)/include -I$(RABIT)/include
 INCLUDES += -I$(CUB_PATH)
@@ -103,13 +127,12 @@ NVCC_FLAGS = --std=c++11 $(CODE) $(INCLUDES) -lineinfo --expt-extended-lambda
 NVCC_FLAGS += -Xcompiler=$(OPENMP_FLAGS) -Xcompiler=-fPIC
 ifeq ($(PLUGIN_UPDATER_GPU),ON)
   CUDA_ROOT = $(shell dirname $(shell dirname $(shell which $(NVCC))))
-  INCLUDES += -I$(CUDA_ROOT)/include
-  LDFLAGS += -L$(CUDA_ROOT)/lib64 -lcudart
+  INCLUDES += -I$(CUDA_ROOT)/include -Inccl/src/
+  LDFLAGS += -L$(CUDA_ROOT)/lib64 -lcudart  -lcudadevrt -Lnccl/build/lib/ -lnccl_static -lm -ldl -lrt
 endif
 
 # specify tensor path
 .PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck java pylint
-
 
 all: lib/libxgboost.a $(XGBOOST_DYLIB) xgboost
 
@@ -117,7 +140,7 @@ $(DMLC_CORE)/libdmlc.a: $(wildcard $(DMLC_CORE)/src/*.cc $(DMLC_CORE)/src/*/*.cc
 	+ cd $(DMLC_CORE); $(MAKE) libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
 $(RABIT)/lib/$(LIB_RABIT): $(wildcard $(RABIT)/src/*.cc)
-	+ cd $(RABIT); $(MAKE) lib/$(LIB_RABIT); cd $(ROOTDIR)
+	+ cd $(RABIT); $(MAKE) lib/$(LIB_RABIT) USE_SSE=$(USE_SSE); cd $(ROOTDIR)
 
 jvm: jvm-packages/lib/libxgboost4j.so
 
@@ -140,7 +163,7 @@ build/%.o: src/%.cc
 	$(CXX) -c $(CFLAGS) $< -o $@
 
 # order of this rule matters wrt %.cc rule below!
-build_plugin/%.o: plugin/%.cu
+build_plugin/%.o: plugin/%.cu build_nccl
 	@mkdir -p $(@D)
 	$(NVCC) -c $(NVCC_FLAGS) $< -o $@
 
@@ -148,6 +171,11 @@ build_plugin/%.o: plugin/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build_plugin/$*.o $< >build_plugin/$*.d
 	$(CXX) -c $(CFLAGS) $< -o $@
+
+build_nccl:
+	@mkdir -p build/include
+	cd build/include ; ln -sf ../../nccl/src/nccl.h .
+	cd nccl ; make -j ; cd ..
 
 # The should be equivalent to $(ALL_OBJ)  except for build/cli_main.o
 amalgamation/xgboost-all0.o: amalgamation/xgboost-all0.cc
@@ -162,13 +190,14 @@ lib/libxgboost.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-lib/libxgboost.dll lib/libxgboost.so: $(ALL_DEP)
+lib/xgboost.dll lib/libxgboost.so lib/libxgboost.dylib: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %a,  $^) $(LDFLAGS)
 
 jvm-packages/lib/libxgboost4j.so: jvm-packages/xgboost4j/src/native/xgboost4j.cpp $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(JAVAINCFLAGS) -shared -o $@ $(filter %.cpp %.o %.a, $^) $(LDFLAGS)
+
 
 xgboost: $(CLI_OBJ) $(ALL_DEP)
 	$(CXX) $(CFLAGS) -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
@@ -198,8 +227,9 @@ cover: check
 endif
 
 clean:
-	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
+	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o #xgboost
 	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
+	cd R-package/src; $(RM) -rf rabit src include dmlc-core amalgamation *.so *.dll; cd $(ROOTDIR)
 
 clean_all: clean
 	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROOTDIR)
@@ -214,8 +244,7 @@ pypack: ${XGBOOST_DYLIB}
 	cd python-package; tar cf xgboost.tar xgboost; cd ..
 
 # create pip installation pack for PyPI
-pippack:
-	$(MAKE) clean_all
+pippack: clean_all
 	rm -rf xgboost-python
 	cp -r python-package xgboost-python
 	cp -r Makefile xgboost-python/xgboost/
@@ -226,8 +255,7 @@ pippack:
 	cp -r rabit xgboost-python/xgboost/
 
 # Script to make a clean installable R package.
-Rpack:
-	$(MAKE) clean_all
+Rpack: clean_all
 	rm -rf xgboost xgboost*.tar.gz
 	cp -r R-package xgboost
 	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
@@ -249,13 +277,11 @@ Rpack:
 	cp xgboost/src/Makevars.in xgboost/src/Makevars.win
 	sed -i -e 's/@OPENMP_CXXFLAGS@/$$\(SHLIB_OPENMP_CFLAGS\)/g' xgboost/src/Makevars.win
 
-Rbuild:
-	$(MAKE) Rpack
+Rbuild: Rpack
 	R CMD build --no-build-vignettes xgboost
 	rm -rf xgboost
 
-Rcheck:
-	$(MAKE) Rbuild
+Rcheck: Rbuild
 	R CMD check  xgboost*.tar.gz
 
 -include build/*.d

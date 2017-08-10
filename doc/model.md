@@ -173,7 +173,7 @@ We need to define the complexity of the tree ``$\Omega(f)$``. In order to do so,
 f_t(x) = w_{q(x)}, w \in R^T, q:R^d\rightarrow \{1,2,\cdots,T\} .
 ```
 
-Here ``$ w $`` is the vector of scores on leaves, ``$ q $`` is a function assigning each data point to the corresponding leaf, and``$ T $`` is the number of leaves.
+Here ``$ w $`` is the vector of scores on leaves, ``$ q $`` is a function assigning each data point to the corresponding leaf, and ``$ T $`` is the number of leaves.
 In XGBoost, we define the complexity as
 
 ```math

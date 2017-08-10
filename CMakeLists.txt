@@ -1,61 +1,32 @@
 cmake_minimum_required (VERSION 3.2)
-project (xgboost)
+project(xgboost)
+include(cmake/Utils.cmake)
 find_package(OpenMP)
 
+set_default_configuration_release()
+msvc_use_static_runtime()
+
+# Options
 option(PLUGIN_UPDATER_GPU "Build GPU accelerated tree construction plugin")
-set(GPU_COMPUTE_VER 50;52;60;61 CACHE STRING
-    "Space separated list of compute versions to be built against")
-if(PLUGIN_UPDATER_GPU)
-  find_package(CUDA REQUIRED)
-endif()
+option(JVM_BINDINGS "Build JVM bindings" OFF)
+option(GOOGLE_TEST "Build google tests" OFF)
+set(GPU_COMPUTE_VER 35;50;52;60;61 CACHE STRING
+  "Space separated list of compute versions to be built against")
 
+
+# Compiler flags
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-
-if(NOT MSVC)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -O3 -funroll-loops -msse2 -D_MWAITXINTRIN_H_INCLUDED -D_FORCE_INLINES")
-endif()
-
-
-# Make sure we are using C++11
-# Visual Studio 12.0 and newer supports enough c++11 to make this work
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
-  if(MSVC_VERSION LESS 1800)
-    message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
-  endif()
+  # Multithreaded compilation
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 else()
-  # GCC 4.6 with c++0x supports enough to make this work
-  include(CheckCXXCompilerFlag)
-  CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
-  CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
-
-  set(STD_FLAG "")
-  if(COMPILER_SUPPORTS_CXX11)
-    set(STD_FLAG "-std=c++11")
-  elseif(COMPILER_SUPPORTS_CXX0X)
-    set(STD_FLAG "-std=c++0x")
-  else()
-    message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
-  endif()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${STD_FLAG}")
-endif()
-
-#Make sure we are using the static runtime
-if(MSVC)
-    set(variables
-        CMAKE_C_FLAGS_DEBUG
-        CMAKE_C_FLAGS_MINSIZEREL
-        CMAKE_C_FLAGS_RELEASE
-        CMAKE_C_FLAGS_RELWITHDEBINFO
-        CMAKE_CXX_FLAGS_DEBUG
-        CMAKE_CXX_FLAGS_MINSIZEREL
-        CMAKE_CXX_FLAGS_RELEASE
-        CMAKE_CXX_FLAGS_RELWITHDEBINFO
-    )
-    foreach(variable ${variables})
-        if(${variable} MATCHES "/MD")
-            string(REGEX REPLACE "/MD" "/MT" ${variable} "${${variable}}")
-        endif()
-    endforeach()
+  # Correct error for GCC 5 and cuda
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_MWAITXINTRIN_H_INCLUDED -D_FORCE_INLINES")
+  # Performance
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops")
 endif()
 
 include_directories (
@@ -64,86 +35,91 @@ include_directories (
     ${PROJECT_SOURCE_DIR}/rabit/include
 )
 
-file(GLOB SOURCES
-    src/c_api/*.cc
-    src/common/*.cc
-    src/data/*.cc
-    src/gbm/*.cc
-    src/metric/*.cc
-    src/objective/*.cc
-    src/tree/*.cc
+file(GLOB_RECURSE SOURCES 
     src/*.cc
+    src/*.h
+    include/*.h
 )
+# Only add main function for executable target
+list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/src/cli_main.cc)
 
+
+# rabit
+# TODO: Create rabit cmakelists.txt
 set(RABIT_SOURCES
     rabit/src/allreduce_base.cc
     rabit/src/allreduce_robust.cc
     rabit/src/engine.cc
     rabit/src/c_api.cc
 )
-
-add_subdirectory(dmlc-core)
-
-add_library(rabit STATIC ${RABIT_SOURCES})
-
-#Set library output directories
-if(MSVC)
-    #With MSVC shared library is considered runtime
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR}/lib)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR}/lib)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${PROJECT_SOURCE_DIR}/lib)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${PROJECT_SOURCE_DIR}/lib)
+set(RABIT_EMPTY_SOURCES
+    rabit/src/engine_empty.cc
+    rabit/src/c_api.cc
+)
+if(MINGW)
+  # build a dummy rabit library
+  add_library(rabit STATIC ${RABIT_EMPTY_SOURCES})
 else()
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
+  add_library(rabit STATIC ${RABIT_SOURCES})
 endif()
 
+
+# dmlc-core
+add_subdirectory(dmlc-core)
 set(LINK_LIBRARIES dmlccore rabit)
 
+
+# GPU Plugin
+file(GLOB_RECURSE CUDA_SOURCES
+    plugin/updater_gpu/src/*.cu
+    plugin/updater_gpu/src/*.cuh
+)
 if(PLUGIN_UPDATER_GPU)
-    # nccl
-    set(LINK_LIBRARIES ${LINK_LIBRARIES} nccl)
-    add_subdirectory(nccl)
-    set(NCCL_DIRECTORY ${PROJECT_SOURCE_DIR}/nccl)
-    include_directories(${NCCL_DIRECTORY}/src)
-    set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CUDA_LIBRARIES})
-    #Find cub
-    set(CUB_DIRECTORY ${PROJECT_SOURCE_DIR}/cub/)
-    include_directories(${CUB_DIRECTORY})
-    #Find googletest
-    set(GTEST_DIRECTORY "${CACHE_PREFIX}" CACHE PATH "Googletest directory")
-    include_directories(${GTEST_DIRECTORY}/include)
-    #gencode flags
-    set(GENCODE_FLAGS "")
-    foreach(ver ${GPU_COMPUTE_VER})
-      set(GENCODE_FLAGS "${GENCODE_FLAGS}-gencode arch=compute_${ver},code=sm_${ver};")
-    endforeach()
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;${GENCODE_FLAGS};-lineinfo;")
-    if(NOT MSVC)
-      set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC")
-    endif()
-    set(CUDA_SOURCES
-      plugin/updater_gpu/src/updater_gpu.cu
-      plugin/updater_gpu/src/gpu_hist_builder.cu
-      )
-    # use below for forcing specific arch
-    cuda_compile(CUDA_OBJS ${CUDA_SOURCES} ${CUDA_NVCC_FLAGS})
-else()
-    set(CUDA_OBJS "")
+  find_package(CUDA 7.5 REQUIRED)
+  cmake_minimum_required(VERSION 3.5)
+  
+  include_directories(
+    nccl/src
+    cub
+  )
+
+  set(GENCODE_FLAGS "")
+  format_gencode_flags("${GPU_COMPUTE_VER}" GENCODE_FLAGS)
+  set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;${GENCODE_FLAGS};-lineinfo;")
+  if(NOT MSVC)
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC; -std=c++11")
+  endif()
+
+  add_subdirectory(nccl)
+  cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
+  target_link_libraries(gpuxgboost nccl)
+  list(APPEND LINK_LIBRARIES gpuxgboost) 
+  list(APPEND SOURCES plugin/updater_gpu/src/register_updater_gpu.cc) 
 endif()
 
 add_library(objxgboost OBJECT ${SOURCES})
-set_target_properties(${objxgboost} PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
-add_executable(runxgboost $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
-set_target_properties(runxgboost PROPERTIES OUTPUT_NAME xgboost)
+# Executable
+add_executable(runxgboost $<TARGET_OBJECTS:objxgboost> src/cli_main.cc)
+set_target_properties(runxgboost PROPERTIES 
+  OUTPUT_NAME xgboost 
+)
+set_output_directory(runxgboost ${PROJECT_SOURCE_DIR})
 target_link_libraries(runxgboost ${LINK_LIBRARIES})
 
-add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost> ${CUDA_OBJS})
+# Shared library
+add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
 target_link_libraries(xgboost ${LINK_LIBRARIES})
+set_output_directory(xgboost ${PROJECT_SOURCE_DIR}/lib)
+if(MINGW)
+  # remove the 'lib' prefix to conform to windows convention for shared library names
+  set_target_properties(xgboost PROPERTIES PREFIX "")
+endif()
 
-option(JVM_BINDINGS "Build JVM bindings" OFF)
+#Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
+add_dependencies(xgboost runxgboost)
 
+# JVM
 if(JVM_BINDINGS)
     find_package(JNI QUIET REQUIRED)
 
@@ -151,9 +127,35 @@ if(JVM_BINDINGS)
 
     add_library(xgboost4j SHARED
         $<TARGET_OBJECTS:objxgboost>
-        ${CUDA_OBJS}
         jvm-packages/xgboost4j/src/native/xgboost4j.cpp)
+    set_output_directory(xgboost4j ${PROJECT_SOURCE_DIR}/lib)
     target_link_libraries(xgboost4j
         ${LINK_LIBRARIES}
         ${JAVA_JVM_LIBRARY})
 endif()
+
+# Test
+if(GOOGLE_TEST)
+  enable_testing()
+  find_package(GTest REQUIRED)
+
+  file(GLOB_RECURSE TEST_SOURCES "tests/cpp/*.cc")
+  auto_source_group("${TEST_SOURCES}")
+  include_directories(${GTEST_INCLUDE_DIRS})
+
+  if(PLUGIN_UPDATER_GPU)
+    file(GLOB_RECURSE CUDA_TEST_SOURCES "plugin/updater_gpu/test/cpp/*.cu")
+    cuda_compile(CUDA_TEST_OBJS ${CUDA_TEST_SOURCES})
+  else()
+    set(CUDA_TEST_OBJS "")
+  endif()
+
+  add_executable(testxgboost ${TEST_SOURCES} ${CUDA_TEST_OBJS} $<TARGET_OBJECTS:objxgboost>)
+  set_output_directory(testxgboost ${PROJECT_SOURCE_DIR})
+  target_link_libraries(testxgboost ${GTEST_BOTH_LIBRARIES} ${LINK_LIBRARIES})
+
+  add_test(TestXGBoost testxgboost)
+endif()
+
+# Group sources
+auto_source_group("${SOURCES}")

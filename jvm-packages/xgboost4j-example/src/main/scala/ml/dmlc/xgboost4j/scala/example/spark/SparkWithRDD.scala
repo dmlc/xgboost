@@ -49,7 +49,7 @@ object SparkWithRDD {
       "eta" -> 0.1f,
       "max_depth" -> 2,
       "objective" -> "binary:logistic").toMap
-    val xgboostModel = XGBoost.train(trainRDD, paramMap, numRound, nWorkers = args(1).toInt,
+    val xgboostModel = XGBoost.trainWithRDD(trainRDD, paramMap, numRound, nWorkers = args(1).toInt,
       useExternalMemory = true)
     xgboostModel.booster.predict(new DMatrix(testSet))
     // save model to HDFS path

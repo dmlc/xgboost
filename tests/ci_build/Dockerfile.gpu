@@ -1,0 +1,49 @@
+FROM nvidia/cuda:8.0-devel-ubuntu14.04
+
+# Environment
+ENV DEBIAN_FRONTEND noninteractive
+
+# Install all basic requirements
+RUN \
+    apt-get update -q -y && \
+    apt-get -y dist-upgrade && \
+    apt-get -y --no-install-recommends  install \
+        build-essential \
+        wget \
+        unzip \
+        gfortran \
+        # BLAS
+        libatlas-base-dev \
+        # Python 2
+        python-setuptools \
+        python-pip \
+        python-dev \
+    && \
+    # CMake
+    wget http://www.cmake.org/files/v3.5/cmake-3.5.2.tar.gz && \
+    tar -xvzf cmake-3.5.2.tar.gz && \
+    cd cmake-3.5.2/ && ./configure && make && make install && cd ../ && \
+    # Clean up
+    rm -rf cmake-3.5.2/ && rm -rf cmake-3.5.2.tar.gz && \
+    apt-get clean && \
+    rm -rf /var/cache/apt/*
+
+
+# Install Python packages
+RUN pip install numpy nose scipy scikit-learn wheel
+
+ENV GOSU_VERSION 1.10
+
+# Install lightweight sudo (not bound to TTY)
+RUN set -ex; \
+    dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')" && \
+    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch" && \
+    chmod +x /usr/local/bin/gosu && \
+    gosu nobody true
+
+# Default entry-point to use if running locally
+# It will preserve attributes of created files
+COPY entrypoint.sh /scripts/
+
+WORKDIR /workspace
+ENTRYPOINT ["/scripts/entrypoint.sh"]

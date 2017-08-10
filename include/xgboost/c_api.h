@@ -207,6 +207,22 @@ XGB_DLL int XGDMatrixCreateFromMat(const float *data,
                                    float missing,
                                    DMatrixHandle *out);
 /*!
+ * \brief create matrix content from dense matrix
+ * \param data pointer to the data space
+ * \param nrow number of rows
+ * \param ncol number columns
+ * \param missing which value to represent missing value
+ * \param out created dmatrix
+ * \param nthread number of threads (up to maximum cores available, if <=0 use all cores)
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromMat_omp(const float *data,
+                                       bst_ulong nrow,
+                                       bst_ulong ncol,
+                                       float missing,
+                                       DMatrixHandle *out,
+                                       int nthread);
+/*!
  * \brief create a new dmatrix from sliced content of existing matrix
  * \param handle instance of data matrix to be sliced
  * \param idxset index set

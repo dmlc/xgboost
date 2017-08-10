@@ -73,11 +73,12 @@ struct GPUData {
         n_features, foffsets.data(), foffsets.data() + 1);
 
     // Allocate memory
-    size_t free_memory = dh::available_memory(param_in.gpu_id);
-    ba.allocate(param_in.gpu_id,
-                &fvalues, in_fvalues.size(), &fvalues_temp,
-        in_fvalues.size(), &fvalues_cached, in_fvalues.size(), &foffsets,
-        in_foffsets.size(), &instance_id, in_instance_id.size(),
+    size_t free_memory =
+        dh::available_memory(dh::get_device_idx(param_in.gpu_id));
+    ba.allocate(
+        dh::get_device_idx(param_in.gpu_id), &fvalues, in_fvalues.size(),
+        &fvalues_temp, in_fvalues.size(), &fvalues_cached, in_fvalues.size(),
+        &foffsets, in_foffsets.size(), &instance_id, in_instance_id.size(),
         &instance_id_temp, in_instance_id.size(), &instance_id_cached,
         in_instance_id.size(), &feature_id, in_feature_id.size(), &node_id,
         in_fvalues.size(), &node_id_temp, in_fvalues.size(), &node_id_instance,
@@ -91,7 +92,7 @@ struct GPUData {
       const int mb_size = 1048576;
       LOG(CONSOLE) << "Allocated " << ba.size() / mb_size << "/"
                    << free_memory / mb_size << " MB on "
-                   << dh::device_name(param_in.gpu_id);
+                   << dh::device_name(dh::get_device_idx(param_in.gpu_id));
     }
 
     fvalues_cached = in_fvalues;

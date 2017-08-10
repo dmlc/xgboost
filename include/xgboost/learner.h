@@ -190,7 +190,7 @@ inline void Learner::Predict(const SparseBatch::Inst& inst,
                              bool output_margin,
                              std::vector<bst_float>* out_preds,
                              unsigned ntree_limit) const {
-  gbm_->Predict(inst, out_preds, ntree_limit);
+  gbm_->PredictInstance(inst, out_preds, ntree_limit);
   if (!output_margin) {
     obj_->PredTransform(out_preds);
   }

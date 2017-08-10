@@ -624,7 +624,7 @@ inline bst_float RegTree::FillNodeMeanValue(int nid) {
 
 inline void RegTree::CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
                                             bst_float *out_contribs) const {
-  CHECK_GT(this->node_mean_values.size(), 0);
+  CHECK_GT(this->node_mean_values.size(), 0U);
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
   bst_float node_value;
   unsigned split_index;

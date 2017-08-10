@@ -224,7 +224,8 @@ class DMatrix(object):
 
     def __init__(self, data, label=None, missing=None,
                  weight=None, silent=False,
-                 feature_names=None, feature_types=None):
+                 feature_names=None, feature_types=None,
+                 nthread=None):
         """
         Data matrix used in XGBoost.
 
@@ -268,7 +269,7 @@ class DMatrix(object):
         elif isinstance(data, scipy.sparse.csc_matrix):
             self._init_from_csc(data)
         elif isinstance(data, np.ndarray):
-            self._init_from_npy2d(data, missing)
+            self._init_from_npy2d(data, missing, nthread)
         else:
             try:
                 csr = scipy.sparse.csr_matrix(data)
@@ -276,9 +277,15 @@ class DMatrix(object):
             except:
                 raise TypeError('can not initialize DMatrix from {}'.format(type(data).__name__))
         if label is not None:
-            self.set_label(label)
+            if isinstance(data, np.ndarray):
+                self.set_label_npy2d(label)
+            else:
+                self.set_label(label)
         if weight is not None:
-            self.set_weight(weight)
+            if isinstance(data, np.ndarray):
+                self.set_weight_npy2d(weight)
+            else:
+                self.set_weight(weight)
 
         self.feature_names = feature_names
         self.feature_types = feature_types
@@ -313,7 +320,7 @@ class DMatrix(object):
                                                   ctypes.c_size_t(csc.shape[0]),
                                                   ctypes.byref(self.handle)))
 
-    def _init_from_npy2d(self, mat, missing):
+    def _init_from_npy2d(self, mat, missing, nthread):
         """
         Initialize data from a 2-D numpy matrix.
 
@@ -333,11 +340,21 @@ class DMatrix(object):
         data = np.array(mat.reshape(mat.size), copy=False, dtype=np.float32)
         self.handle = ctypes.c_void_p()
         missing = missing if missing is not None else np.nan
-        _check_call(_LIB.XGDMatrixCreateFromMat(data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-                                                c_bst_ulong(mat.shape[0]),
-                                                c_bst_ulong(mat.shape[1]),
-                                                ctypes.c_float(missing),
-                                                ctypes.byref(self.handle)))
+        if nthread is None:
+            _check_call(_LIB.XGDMatrixCreateFromMat(
+                data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+                c_bst_ulong(mat.shape[0]),
+                c_bst_ulong(mat.shape[1]),
+                ctypes.c_float(missing),
+                ctypes.byref(self.handle)))
+        else:
+            _check_call(_LIB.XGDMatrixCreateFromMat_omp(
+                data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+                c_bst_ulong(mat.shape[0]),
+                c_bst_ulong(mat.shape[1]),
+                ctypes.c_float(missing),
+                ctypes.byref(self.handle),
+                nthread))
 
     def __del__(self):
         _check_call(_LIB.XGDMatrixFree(self.handle))
@@ -395,9 +412,29 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
+        c_data = c_array(ctypes.c_float, data)
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
-                                               c_array(ctypes.c_float, data),
+                                               c_data,
+                                               c_bst_ulong(len(data))))
+
+    def set_float_info_npy2d(self, field, data):
+        """Set float type property into the DMatrix
+           for numpy 2d array input
+
+        Parameters
+        ----------
+        field: str
+            The field name of the information
+
+        data: numpy array
+            The array of data to be set
+        """
+        data = np.array(data, copy=False, dtype=np.float32)
+        c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+        _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
+                                               c_str(field),
+                                               c_data,
                                                c_bst_ulong(len(data))))
 
     def set_uint_info(self, field, data):
@@ -440,6 +477,17 @@ class DMatrix(object):
         """
         self.set_float_info('label', label)
 
+    def set_label_npy2d(self, label):
+        """Set label of dmatrix
+
+        Parameters
+        ----------
+        label: array like
+            The label information to be set into DMatrix
+            from numpy 2D array
+        """
+        self.set_float_info_npy2d('label', label)
+
     def set_weight(self, weight):
         """ Set weight of each instance.
 
@@ -449,6 +497,17 @@ class DMatrix(object):
             Weight for each data point
         """
         self.set_float_info('weight', weight)
+
+    def set_weight_npy2d(self, weight):
+        """ Set weight of each instance
+            for numpy 2D array
+
+        Parameters
+        ----------
+        weight : array like
+            Weight for each data point in numpy 2D array
+        """
+        self.set_float_info_npy2d('weight', weight)
 
     def set_base_margin(self, margin):
         """ Set base margin of booster to start from.

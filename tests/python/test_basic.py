@@ -212,6 +212,23 @@ class TestBasic(unittest.TestCase):
         self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
                           model_file=u'不正なパス')
 
+    def test_dmatrix_numpy_init_omp(self):
+
+        rows = [1000, 11326, 15000]
+        cols = 50
+        for row in rows:
+            X = np.random.randn(row, cols)
+            y = np.random.randn(row).astype('f')
+            dm = xgb.DMatrix(X, y, nthread=0)
+            np.testing.assert_array_equal(dm.get_label(), y)
+            assert dm.num_row() == row
+            assert dm.num_col() == cols
+
+            dm = xgb.DMatrix(X, y, nthread=10)
+            np.testing.assert_array_equal(dm.get_label(), y)
+            assert dm.num_row() == row
+            assert dm.num_col() == cols
+
     def test_dmatrix_numpy_init(self):
         data = np.random.randn(5, 5)
         dm = xgb.DMatrix(data)

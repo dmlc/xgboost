@@ -21,14 +21,14 @@ class RowSetCollection {
    *  rows (instances) associated with a particular node in a decision
    *  tree. */
   struct Elem {
-    const bst_uint* begin;
-    const bst_uint* end;
+    const size_t* begin;
+    const size_t* end;
     int node_id;
       // id of node associated with this instance set; -1 means uninitialized
     Elem(void)
         : begin(nullptr), end(nullptr), node_id(-1) {}
-    Elem(const bst_uint* begin,
-         const bst_uint* end,
+    Elem(const size_t* begin,
+         const size_t* end,
          int node_id)
         : begin(begin), end(end), node_id(node_id) {}
 
@@ -38,8 +38,8 @@ class RowSetCollection {
   };
   /* \brief specifies how to split a rowset into two */
   struct Split {
-    std::vector<bst_uint> left;
-    std::vector<bst_uint> right;
+    std::vector<size_t> left;
+    std::vector<size_t> right;
   };
 
   inline std::vector<Elem>::const_iterator begin() const {
@@ -65,8 +65,8 @@ class RowSetCollection {
   // initialize node id 0->everything
   inline void Init() {
     CHECK_EQ(elem_of_each_node_.size(), 0U);
-    const bst_uint* begin = dmlc::BeginPtr(row_indices_);
-    const bst_uint* end = dmlc::BeginPtr(row_indices_) + row_indices_.size();
+    const size_t* begin = dmlc::BeginPtr(row_indices_);
+    const size_t* end = dmlc::BeginPtr(row_indices_) + row_indices_.size();
     elem_of_each_node_.emplace_back(Elem(begin, end, 0));
   }
   // split rowset into two
@@ -77,16 +77,15 @@ class RowSetCollection {
     const Elem e = elem_of_each_node_[node_id];
     const unsigned nthread = row_split_tloc.size();
     CHECK(e.begin != nullptr);
-    bst_uint* all_begin = dmlc::BeginPtr(row_indices_);
-    bst_uint* begin = all_begin + (e.begin - all_begin);
+    size_t* all_begin = dmlc::BeginPtr(row_indices_);
+    size_t* begin = all_begin + (e.begin - all_begin);
 
-    bst_uint* it = begin;
-    // TODO(hcho3): parallelize this section
+    size_t* it = begin;
     for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
       std::copy(row_split_tloc[tid].left.begin(), row_split_tloc[tid].left.end(), it);
       it += row_split_tloc[tid].left.size();
     }
-    bst_uint* split_pt = it;
+    size_t* split_pt = it;
     for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
       std::copy(row_split_tloc[tid].right.begin(), row_split_tloc[tid].right.end(), it);
       it += row_split_tloc[tid].right.size();
@@ -105,7 +104,7 @@ class RowSetCollection {
   }
 
   // stores the row indices in the set
-  std::vector<bst_uint> row_indices_;
+  std::vector<size_t> row_indices_;
 
  private:
   // vector: node_id -> elements
