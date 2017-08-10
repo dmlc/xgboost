@@ -776,7 +776,6 @@ inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
 
 inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
                                             bst_float *out_contribs) const {
-
   // find the expected value of the tree's predictions
   bst_float base_value = 0.0;
   bst_float total_cover = 0;
