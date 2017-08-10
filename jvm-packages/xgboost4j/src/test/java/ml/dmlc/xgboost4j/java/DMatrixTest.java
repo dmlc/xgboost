@@ -15,15 +15,11 @@
  */
 package ml.dmlc.xgboost4j.java;
 
-import java.awt.*;
 import java.util.Arrays;
 import java.util.Random;
 
 import junit.framework.TestCase;
 import ml.dmlc.xgboost4j.LabeledPoint;
-import ml.dmlc.xgboost4j.java.DMatrix;
-import ml.dmlc.xgboost4j.java.DataBatch;
-import ml.dmlc.xgboost4j.java.XGBoostError;
 import org.junit.Test;
 
 /**
@@ -41,10 +37,10 @@ public class DMatrixTest {
     int nrep = 3000;
     java.util.List<LabeledPoint> blist = new java.util.LinkedList<LabeledPoint>();
     for (int i = 0; i < nrep; ++i) {
-      LabeledPoint p = LabeledPoint.fromSparseVector(
+      LabeledPoint p = new LabeledPoint(
               0.1f + i, new int[]{0, 2, 3}, new float[]{3, 4, 5});
       blist.add(p);
-      labelall.add(p.label);
+      labelall.add(p.label());
     }
     DMatrix dmat = new DMatrix(blist.iterator(), null);
     // get label

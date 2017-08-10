@@ -21,6 +21,7 @@ import scala.collection.JavaConverters._
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.spark.params.{BoosterParams, DefaultXGBoostParamsWriter}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, EvalTrait}
+
 import org.apache.hadoop.fs.{FSDataOutputStream, Path}
 
 import org.apache.spark.ml.PredictionModel
@@ -66,7 +67,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
       val rabitEnv = Map("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv.asJava)
       if (testSamples.nonEmpty) {
-        val dMatrix = new DMatrix(testSamples)
+        val dMatrix = new DMatrix(testSamples.map(_.asXGB))
         try {
           broadcastBooster.value.predictLeaf(dMatrix).iterator
         } finally {
@@ -103,6 +104,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
     val appName = evalDataset.context.appName
     val allEvalMetrics = evalDataset.mapPartitions {
       labeledPointsPartition =>
+        import DataUtils._
         if (labeledPointsPartition.hasNext) {
           val rabitEnv = Map("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
           Rabit.init(rabitEnv.asJava)
@@ -114,8 +116,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
               null
             }
           }
-          import DataUtils._
-          val dMatrix = new DMatrix(labeledPointsPartition, cacheFileName)
+          val dMatrix = new DMatrix(labeledPointsPartition.map(_.features.asXGB), cacheFileName)
           try {
             if (groupData != null) {
               dMatrix.setGroup(groupData(TaskContext.getPartitionId()).toArray)
@@ -202,7 +203,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
             null
           }
         }
-        val dMatrix = new DMatrix(testSamples, cacheFileName)
+        val dMatrix = new DMatrix(testSamples.map(_.asXGB), cacheFileName)
         try {
           broadcastBooster.value.predict(dMatrix).iterator
         } finally {
@@ -250,7 +251,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
               null
             }
           }
-          val testDataset = new DMatrix(vectorIterator, cachePrefix)
+          val testDataset = new DMatrix(vectorIterator.map(_.asXGB), cachePrefix)
           try {
             val rawPredictResults = {
               if (!predLeaf) {

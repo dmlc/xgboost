@@ -21,13 +21,13 @@ import scala.collection.mutable
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
-
-import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
-import org.apache.spark.ml.linalg.SparseVector
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.{SparkContext, TaskContext}
 
 object TrackerConf {
@@ -52,30 +52,49 @@ object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
   private def fromDenseToSparseLabeledPoints(
-      denseLabeledPoints: Iterator[MLLabeledPoint],
-      missing: Float): Iterator[MLLabeledPoint] = {
+      denseLabeledPoints: Iterator[XGBLabeledPoint],
+      missing: Float): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
-      denseLabeledPoints.map { case MLLabeledPoint(label, features) =>
-        val dFeatures = features.toDense
-        val indices = new mutable.ArrayBuilder.ofInt()
-        val values = new mutable.ArrayBuilder.ofDouble()
-        for (i <- dFeatures.values.indices) {
-          if (dFeatures.values(i) != missing) {
-            indices += i
-            values += dFeatures.values(i)
-          }
+      denseLabeledPoints.map { labeledPoint =>
+        val indicesBuilder = new mutable.ArrayBuilder.ofInt()
+        val valuesBuilder = new mutable.ArrayBuilder.ofFloat()
+        for ((value, i) <- labeledPoint.values.zipWithIndex if value != missing) {
+          indicesBuilder += (if (labeledPoint.indices == null) i else labeledPoint.indices(i))
+          valuesBuilder += value
         }
-        val sFeatures = new SparseVector(dFeatures.values.length, indices.result(),
-          values.result())
-        MLLabeledPoint(label, sFeatures)
+        labeledPoint.copy(indices = indicesBuilder.result(), values = valuesBuilder.result())
       }
     } else {
       denseLabeledPoints
     }
   }
 
+  private def fromBaseMarginsToArray(baseMargins: Iterator[Float]): Option[Array[Float]] = {
+    val builder = new mutable.ArrayBuilder.ofFloat()
+    var nTotal = 0
+    var nUndefined = 0
+    while (baseMargins.hasNext) {
+      nTotal += 1
+      val baseMargin = baseMargins.next()
+      if (baseMargin.isNaN) {
+        nUndefined += 1  // don't waste space for all-NaNs.
+      } else {
+        builder += baseMargin
+      }
+    }
+    if (nUndefined == nTotal) {
+      None
+    } else if (nUndefined == 0) {
+      Some(builder.result())
+    } else {
+      throw new IllegalArgumentException(
+        s"Encountered a partition with $nUndefined NaN base margin values. " +
+            "If you want to specify base margin, ensure all values are non-NaN.")
+    }
+  }
+
   private[spark] def buildDistributedBoosters(
-      trainingSet: RDD[MLLabeledPoint],
+      trainingSet: RDD[XGBLabeledPoint],
       params: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
       numWorkers: Int,
@@ -83,25 +102,20 @@ object XGBoost extends Serializable {
       obj: ObjectiveTrait,
       eval: EvalTrait,
       useExternalMemory: Boolean,
-      missing: Float,
-      baseMargin: RDD[Float]): RDD[Booster] = {
-    import DataUtils._
-
+      missing: Float): RDD[Booster] = {
     val partitionedTrainingSet = if (trainingSet.getNumPartitions != numWorkers) {
       logger.info(s"repartitioning training set to $numWorkers partitions")
       trainingSet.repartition(numWorkers)
     } else {
       trainingSet
     }
-    val partitionedBaseMargin = Option(baseMargin)
-        .getOrElse(trainingSet.sparkContext.emptyRDD)
-        .repartition(partitionedTrainingSet.getNumPartitions)
+    val partitionedBaseMargin = partitionedTrainingSet.map(_.baseMargin)
     val appName = partitionedTrainingSet.context.appName
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    partitionedTrainingSet.zipPartitions(partitionedBaseMargin) { (trainingSamples, baseMargin) =>
-      if (trainingSamples.isEmpty) {
+    partitionedTrainingSet.zipPartitions(partitionedBaseMargin) { (trainingPoints, baseMargins) =>
+      if (trainingPoints.isEmpty) {
         throw new XGBoostError(
           s"detected an empty partition in the training data, partition ID:" +
               s" ${TaskContext.getPartitionId()}")
@@ -114,16 +128,15 @@ object XGBoost extends Serializable {
       }
       rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv)
-      val partitionItr = fromDenseToSparseLabeledPoints(trainingSamples, missing)
-      val trainingMatrix = new DMatrix(partitionItr, cacheFileName)
+      val trainingMatrix = new DMatrix(
+        fromDenseToSparseLabeledPoints(trainingPoints, missing), cacheFileName)
       try {
+        // TODO: use group attribute from the points.
         if (params.contains("groupData") && params("groupData") != null) {
           trainingMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
             TaskContext.getPartitionId()).toArray)
         }
-        if (baseMargin.nonEmpty) {
-          trainingMatrix.setBaseMargin(baseMargin.toArray)
-        }
+        fromBaseMarginsToArray(baseMargins).foreach(trainingMatrix.setBaseMargin)
         val booster = SXGBoost.train(trainingMatrix, params, round,
           watches = Map("train" -> trainingMatrix), obj, eval)
         Iterator(booster)
@@ -199,7 +212,6 @@ object XGBoost extends Serializable {
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                           true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
-   * @param baseMargin initial prediction for boosting.
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
@@ -212,10 +224,9 @@ object XGBoost extends Serializable {
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN,
-      baseMargin: RDD[Float] = null): XGBoostModel = {
+      missing: Float = Float.NaN): XGBoostModel = {
     trainWithRDD(trainingData, params, round, nWorkers, obj, eval, useExternalMemory,
-      missing, baseMargin)
+      missing)
   }
 
   private def overrideParamsAccordingToTaskCPUs(
@@ -257,7 +268,6 @@ object XGBoost extends Serializable {
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                          true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
-   * @param baseMargin initial prediction for boosting.
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
@@ -270,30 +280,46 @@ object XGBoost extends Serializable {
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN,
-      baseMargin: RDD[Float] = null): XGBoostModel = {
+      missing: Float = Float.NaN): XGBoostModel = {
+    import DataUtils._
+    val xgbTrainingData = trainingData.map { case MLLabeledPoint(label, features) =>
+      features.asXGB.copy(label = label.toFloat)
+    }
+    trainDistributed(xgbTrainingData, params, round, nWorkers, obj, eval,
+      useExternalMemory, missing)
+  }
+
+  @throws(classOf[XGBoostError])
+  private[spark] def trainDistributed(
+      trainingData: RDD[XGBLabeledPoint],
+      params: Map[String, Any],
+      round: Int,
+      nWorkers: Int,
+      obj: ObjectiveTrait = null,
+      eval: EvalTrait = null,
+      useExternalMemory: Boolean = false,
+      missing: Float = Float.NaN): XGBoostModel = {
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
-        " for now")
+          " for now")
     }
     require(nWorkers > 0, "you must specify more than 0 workers")
     if (obj != null) {
       require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
-        " you have to specify the objective type as classification or regression with a" +
-        " customized objective function")
+          " you have to specify the objective type as classification or regression with a" +
+          " customized objective function")
     }
     val trackerConf = params.get("tracker_conf") match {
       case None => TrackerConf()
       case Some(conf: TrackerConf) => conf
       case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
-        "instance of TrackerConf.")
+          "instance of TrackerConf.")
     }
     val tracker = startTracker(nWorkers, trackerConf)
     try {
       val overriddenParams = overrideParamsAccordingToTaskCPUs(params, trainingData.sparkContext)
       val boosters = buildDistributedBoosters(trainingData, overriddenParams,
-        tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing,
-        baseMargin)
+        tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
       val sparkJobThread = new Thread() {
         override def run() {
           // force the job

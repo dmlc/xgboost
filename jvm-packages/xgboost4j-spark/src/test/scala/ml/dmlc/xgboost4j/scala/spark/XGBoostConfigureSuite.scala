@@ -18,6 +18,8 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
 
+import org.apache.spark.rdd.RDD
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SparkSession
 import org.scalatest.FunSuite
 
@@ -27,19 +29,18 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
       .config("spark.kryo.classesToRegister", classOf[Booster].getName)
 
   test("nthread configuration must be no larger than spark.task.cpus") {
-    val trainingRDD = sc.parallelize(Classification.train)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic",
       "nthread" -> (sc.getConf.getInt("spark.task.cpus", 1) + 1))
     intercept[IllegalArgumentException] {
-      XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+      XGBoost.trainWithRDD(sc.parallelize(List()), paramMap, 5, numWorkers)
     }
   }
 
   test("kryoSerializer test") {
     import DataUtils._
     // TODO write an isolated test for Booster.
-    val trainingRDD = sc.parallelize(Classification.train)
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSetDMatrix = new DMatrix(Classification.test.iterator, null)
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")

@@ -17,20 +17,22 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
-import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
 
 class XGBoostDFSuite extends FunSuite with PerTest {
   private def buildDataFrame(
-      instances: Seq[MLLabeledPoint],
+      labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
-    val it = instances.iterator.zipWithIndex
-        .map { case (instance: MLLabeledPoint, id: Int) =>
-          (id, instance.label, instance.features)
+    import DataUtils._
+    val it = labeledPoints.iterator.zipWithIndex
+        .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
+          (id, labeledPoint.label, labeledPoint.features)
         }
 
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
@@ -42,7 +44,6 @@ class XGBoostDFSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic")
     val trainingItr = Classification.train.iterator
     val testItr = Classification.test.iterator
-    import DataUtils._
     val round = 5
     val trainDMatrix = new DMatrix(trainingItr)
     val testDMatrix = new DMatrix(testItr)
@@ -157,7 +158,6 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 10, nWorkers = math.min(2, numWorkers))
     val error = new EvalError
-    import DataUtils._
     val testSetDMatrix = new DMatrix(testItr)
     assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
@@ -192,5 +192,25 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val model = XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5, nWorkers = numWorkers)
     assert(model.get[Double](model.eta).get == 0.1)
     assert(model.get[Int](model.maxDepth).get == 6)
+  }
+
+  test("test use base margin") {
+    import DataUtils._
+    val trainingDf = buildDataFrame(Classification.train)
+    val trainingDfWithMargin = trainingDf.withColumn("margin", functions.rand())
+    val testRDD = sc.parallelize(Classification.test.map(_.features))
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "baseMarginCol" -> "margin")
+
+    def trainPredict(df: Dataset[_]): Array[Float] = {
+      XGBoost.trainWithDataFrame(df, paramMap, round = 1, numWorkers)
+          .predict(testRDD)
+          .map { case Array(p) => p }
+          .collect()
+    }
+
+    val pred = trainPredict(trainingDf)
+    val predWithMargin = trainPredict(trainingDfWithMargin)
+    assert((pred, predWithMargin).zipped.exists { case (p, pwm) => p !== pwm })
   }
 }

@@ -18,8 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.io.Source
 
-import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
-import org.apache.spark.ml.linalg.{Vectors => MLVectors}
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 trait TrainTestData {
   protected def getResourceLines(resource: String): Iterator[String] = {
@@ -32,60 +31,60 @@ trait TrainTestData {
     Source.fromInputStream(is).getLines()
   }
 
-  protected def getLabeledPoints(resource: String, zeroBased: Boolean): Seq[MLLabeledPoint] = {
+  protected def getLabeledPoints(resource: String, zeroBased: Boolean): Seq[XGBLabeledPoint] = {
     getResourceLines(resource).map { line =>
       val labelAndFeatures = line.split(" ")
-      val label = labelAndFeatures.head.toDouble
-      val values = new Array[Double](126)
+      val label = labelAndFeatures.head.toFloat
+      val values = new Array[Float](126)
       for (feature <- labelAndFeatures.tail) {
         val idAndValue = feature.split(":")
         if (!zeroBased) {
-          values(idAndValue(0).toInt - 1) = idAndValue(1).toDouble
+          values(idAndValue(0).toInt - 1) = idAndValue(1).toFloat
         } else {
-          values(idAndValue(0).toInt) = idAndValue(1).toDouble
+          values(idAndValue(0).toInt) = idAndValue(1).toFloat
         }
       }
 
-      MLLabeledPoint(label, MLVectors.dense(values))
+      XGBLabeledPoint(label, null, values)
     }.toList
   }
 }
 
 object Classification extends TrainTestData {
-  val train: Seq[MLLabeledPoint] = getLabeledPoints("/agaricus.txt.train", zeroBased = false)
-  val test: Seq[MLLabeledPoint] = getLabeledPoints("/agaricus.txt.test", zeroBased = false)
+  val train: Seq[XGBLabeledPoint] = getLabeledPoints("/agaricus.txt.train", zeroBased = false)
+  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/agaricus.txt.test", zeroBased = false)
 }
 
 object MultiClassification extends TrainTestData {
-  val train: Seq[MLLabeledPoint] = getLabeledPoints("/dermatology.data")
+  val train: Seq[XGBLabeledPoint] = getLabeledPoints("/dermatology.data")
 
-  private def getLabeledPoints(resource: String): Seq[MLLabeledPoint] = {
+  private def getLabeledPoints(resource: String): Seq[XGBLabeledPoint] = {
     getResourceLines(resource).map { line =>
       val featuresAndLabel = line.split(",")
-      val label = featuresAndLabel.last.toDouble - 1
-      val values = new Array[Double](featuresAndLabel.length - 1)
+      val label = featuresAndLabel.last.toFloat - 1
+      val values = new Array[Float](featuresAndLabel.length - 1)
       values(values.length - 1) =
           if (featuresAndLabel(featuresAndLabel.length - 2) == "?") 1 else 0
       for (i <- 0 until values.length - 2) {
-        values(i) = featuresAndLabel(i).toDouble
+        values(i) = featuresAndLabel(i).toFloat
       }
 
-      MLLabeledPoint(label, MLVectors.dense(values.take(values.length - 1)))
+      XGBLabeledPoint(label, null, values.take(values.length - 1))
     }.toList
   }
 }
 
 object Regression extends TrainTestData {
-  val train: Seq[MLLabeledPoint] = getLabeledPoints("/machine.txt.train", zeroBased = true)
-  val test: Seq[MLLabeledPoint] = getLabeledPoints("/machine.txt.test", zeroBased = true)
+  val train: Seq[XGBLabeledPoint] = getLabeledPoints("/machine.txt.train", zeroBased = true)
+  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/machine.txt.test", zeroBased = true)
 }
 
 object Ranking extends TrainTestData {
-  val train0: Seq[MLLabeledPoint] = getLabeledPoints("/rank-demo-0.txt.train", zeroBased = false)
-  val train1: Seq[MLLabeledPoint] = getLabeledPoints("/rank-demo-1.txt.train", zeroBased = false)
+  val train0: Seq[XGBLabeledPoint] = getLabeledPoints("/rank-demo-0.txt.train", zeroBased = false)
+  val train1: Seq[XGBLabeledPoint] = getLabeledPoints("/rank-demo-1.txt.train", zeroBased = false)
   val trainGroup0: Seq[Int] = getGroups("/rank-demo-0.txt.train.group")
   val trainGroup1: Seq[Int] = getGroups("/rank-demo-1.txt.train.group")
-  val test: Seq[MLLabeledPoint] = getLabeledPoints("/rank-demo.txt.test", zeroBased = false)
+  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/rank-demo.txt.test", zeroBased = false)
 
   private def getGroups(resource: String): Seq[Int] = {
     getResourceLines(resource).map(_.toInt).toList
