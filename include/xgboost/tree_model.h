@@ -501,7 +501,7 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    */
   inline bst_float Predict(const FVec& feat, unsigned root_id = 0) const;
   /*!
-   * \brief calculate the feature contributions (SHAP values https://arxiv.org/abs/1706.06060) for the given root
+   * \brief calculate the feature contributions (https://arxiv.org/abs/1706.06060) for the tree
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
    * \param root_id starting root index of the instance
    * \param out_contribs output vector to hold the contributions
@@ -510,7 +510,7 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
                                      bst_float *out_contribs) const;
   inline void TreeShap(const RegTree::FVec& feat, bst_float *phi,
                        unsigned node_index, unsigned unique_depth,
-                       const PathElement *parent_unique_path, bst_float parent_zero_fraction,
+                       PathElement *parent_unique_path, bst_float parent_zero_fraction,
                        bst_float parent_one_fraction, int parent_feature_index) const;
 
   /*!
@@ -657,8 +657,10 @@ inline void ExtendPath(PathElement *unique_path, unsigned unique_depth,
   unique_path[unique_depth].one_fraction = one_fraction;
   unique_path[unique_depth].pweight = (unique_depth == 0 ? 1 : 0);
   for (int i = unique_depth-1; i >= 0; i--) {
-    unique_path[i+1].pweight += one_fraction*unique_path[i].pweight*(i+1)/static_cast<bst_float>(unique_depth+1);
-    unique_path[i].pweight = zero_fraction*unique_path[i].pweight*(unique_depth-i)/static_cast<bst_float>(unique_depth+1);
+    unique_path[i+1].pweight += one_fraction*unique_path[i].pweight*(i+1)
+                                / static_cast<bst_float>(unique_depth+1);
+    unique_path[i].pweight = zero_fraction*unique_path[i].pweight*(unique_depth-i)
+                             / static_cast<bst_float>(unique_depth+1);
   }
 }
 
@@ -671,10 +673,13 @@ inline void UnwindPath(PathElement *unique_path, unsigned unique_depth, unsigned
   for (int i = unique_depth-1; i >= 0; --i) {
     if (one_fraction != 0) {
       const bst_float tmp = unique_path[i].pweight;
-      unique_path[i].pweight = next_one_portion*(unique_depth+1)/static_cast<bst_float>((i+1)*one_fraction);
-      next_one_portion = tmp - unique_path[i].pweight*zero_fraction*(unique_depth-i)/static_cast<bst_float>(unique_depth+1);
+      unique_path[i].pweight = next_one_portion*(unique_depth+1)
+                               / static_cast<bst_float>((i+1)*one_fraction);
+      next_one_portion = tmp - unique_path[i].pweight*zero_fraction*(unique_depth-i)
+                               / static_cast<bst_float>(unique_depth+1);
     } else {
-      unique_path[i].pweight = (unique_path[i].pweight*(unique_depth+1))/static_cast<bst_float>(zero_fraction*(unique_depth-i));
+      unique_path[i].pweight = (unique_path[i].pweight*(unique_depth+1))
+                               / static_cast<bst_float>(zero_fraction*(unique_depth-i));
     }
   }
 
@@ -685,19 +690,24 @@ inline void UnwindPath(PathElement *unique_path, unsigned unique_depth, unsigned
   }
 }
 
-// determine what the total permuation weight would be if we unwound a previous extension in the decision path
-inline bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_depth, unsigned path_index) {
+// determine what the total permuation weight would be if
+// we unwound a previous extension in the decision path
+inline bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_depth,
+                                unsigned path_index) {
   const bst_float one_fraction = unique_path[path_index].one_fraction;
   const bst_float zero_fraction = unique_path[path_index].zero_fraction;
   bst_float next_one_portion = unique_path[unique_depth].pweight;
   bst_float total = 0;
   for (int i = unique_depth-1; i >= 0; --i) {
     if (one_fraction != 0) {
-      const bst_float tmp = next_one_portion*(unique_depth+1)/static_cast<bst_float>((i+1)*one_fraction);
+      const bst_float tmp = next_one_portion*(unique_depth+1)
+                            / static_cast<bst_float>((i+1)*one_fraction);
       total += tmp;
-      next_one_portion = unique_path[i].pweight - tmp*zero_fraction*((unique_depth-i)/static_cast<bst_float>(unique_depth+1));
+      next_one_portion = unique_path[i].pweight - tmp*zero_fraction*((unique_depth-i)
+                         / static_cast<bst_float>(unique_depth+1));
     } else {
-      total += (unique_path[i].pweight/zero_fraction)/((unique_depth-i)/static_cast<bst_float>(unique_depth+1));
+      total += (unique_path[i].pweight/zero_fraction)/((unique_depth-i)
+               / static_cast<bst_float>(unique_depth+1));
     }
   }
   return total;
@@ -706,14 +716,15 @@ inline bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_
 // recursive computation of SHAP values for a decision tree
 inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
                               unsigned node_index, unsigned unique_depth,
-                              const PathElement *parent_unique_path, bst_float parent_zero_fraction,
+                              PathElement *parent_unique_path, bst_float parent_zero_fraction,
                               bst_float parent_one_fraction, int parent_feature_index) const {
   const auto node = (*this)[node_index];
 
   // extend the unique path
-  PathElement unique_path[unique_depth+1];
+  PathElement *unique_path = parent_unique_path + unique_depth;
   if (unique_depth > 0) std::copy(parent_unique_path, parent_unique_path+unique_depth, unique_path);
-  ExtendPath(unique_path, unique_depth, parent_zero_fraction, parent_one_fraction, parent_feature_index);
+  ExtendPath(unique_path, unique_depth, parent_zero_fraction,
+             parent_one_fraction, parent_feature_index);
   const unsigned split_index = node.split_index();
 
   // leaf node
@@ -742,7 +753,8 @@ inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
     bst_float incoming_zero_fraction = 1;
     bst_float incoming_one_fraction = 1;
 
-    // see if we have already split on this feature, if so we undo that split so we can redo it for this node
+    // see if we have already split on this feature,
+    // if so we undo that split so we can redo it for this node
     unsigned path_index = 0;
     for (; path_index <= unique_depth; ++path_index) {
       if (unique_path[path_index].feature_index == split_index) break;
@@ -754,15 +766,11 @@ inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
       unique_depth -= 1;
     }
 
-    TreeShap(
-      feat, phi, hot_index, unique_depth+1, unique_path,
-      hot_zero_fraction*incoming_zero_fraction, incoming_one_fraction, split_index
-    );
+    TreeShap(feat, phi, hot_index, unique_depth+1, unique_path,
+             hot_zero_fraction*incoming_zero_fraction, incoming_one_fraction, split_index);
 
-    TreeShap(
-      feat, phi, cold_index, unique_depth+1, unique_path,
-      cold_zero_fraction*incoming_zero_fraction, 0, split_index
-    );
+    TreeShap(feat, phi, cold_index, unique_depth+1, unique_path,
+             cold_zero_fraction*incoming_zero_fraction, 0, split_index);
   }
 }
 
@@ -782,7 +790,12 @@ inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned 
   }
   out_contribs[feat.size()] += base_value / total_cover;
 
-  TreeShap(feat, out_contribs, root_id, 0, NULL, 1, 1, -1);
+  // Preallocate space for the unique path data
+  const int maxd = this->MaxDepth(root_id)+1;
+  PathElement *unique_path_data = new PathElement[(maxd*(maxd+1))/2];
+
+  TreeShap(feat, out_contribs, root_id, 0, unique_path_data, 1, 1, -1);
+  delete[] unique_path_data;
 }
 
 /*! \brief get next position of the tree given current pid */

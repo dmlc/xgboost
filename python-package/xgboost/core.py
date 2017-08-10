@@ -1028,7 +1028,7 @@ class Booster(object):
             option_mask |= 0x04
         if approx_contribs:
             option_mask |= 0x08
-        
+
         self._validate_features(data)
 
         length = c_bst_ulong()
