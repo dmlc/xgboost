@@ -228,15 +228,8 @@ class GBTree : public GradientBooster {
 
   void PredictContribution(DMatrix* p_fmat,
                            std::vector<bst_float>* out_contribs,
-<<<<<<< HEAD
                            unsigned ntree_limit, bool approximate) override {
-    const int nthread = omp_get_max_threads();
-    InitThreadTemp(nthread);
-    this->PredContrib(p_fmat, out_contribs, ntree_limit, approximate);
-=======
-                           unsigned ntree_limit) override {
-    predictor->PredictContribution(p_fmat, out_contribs, model_, ntree_limit);
->>>>>>> dmlc/master
+    predictor->PredictContribution(p_fmat, out_contribs, model_, ntree_limit, approximate);
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
@@ -298,131 +291,6 @@ class GBTree : public GradientBooster {
     predictor->UpdatePredictionCache(model_, &updaters, new_trees.size());
   }
 
-<<<<<<< HEAD
-  // make a prediction for a single instance
-  inline bst_float PredValue(const RowBatch::Inst &inst,
-                             int bst_group,
-                             unsigned root_index,
-                             RegTree::FVec *p_feats,
-                             unsigned tree_begin,
-                             unsigned tree_end) {
-    bst_float psum = 0.0f;
-    p_feats->Fill(inst);
-    for (size_t i = tree_begin; i < tree_end; ++i) {
-      if (tree_info[i] == bst_group) {
-        int tid = trees[i]->GetLeafIndex(*p_feats, root_index);
-        psum += (*trees[i])[tid].leaf_value();
-      }
-    }
-    p_feats->Drop(inst);
-    return psum;
-  }
-  // predict independent leaf index
-  inline void PredPath(DMatrix *p_fmat,
-                       std::vector<bst_float> *out_preds,
-                       unsigned ntree_limit) {
-    const MetaInfo& info = p_fmat->info();
-    // number of valid trees
-    ntree_limit *= mparam.num_output_group;
-    if (ntree_limit == 0 || ntree_limit > trees.size()) {
-      ntree_limit = static_cast<unsigned>(trees.size());
-    }
-    std::vector<bst_float>& preds = *out_preds;
-    preds.resize(info.num_row * ntree_limit);
-    // start collecting the prediction
-    dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      const RowBatch& batch = iter->Value();
-      // parallel over local batch
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
-        const int tid = omp_get_thread_num();
-        size_t ridx = static_cast<size_t>(batch.base_rowid + i);
-        RegTree::FVec &feats = thread_temp[tid];
-        feats.Fill(batch[i]);
-        for (unsigned j = 0; j < ntree_limit; ++j) {
-          int tid = trees[j]->GetLeafIndex(feats, info.GetRoot(ridx));
-          preds[ridx * ntree_limit + j] = static_cast<bst_float>(tid);
-        }
-        feats.Drop(batch[i]);
-      }
-    }
-  }
-  // predict contributions
-  inline void PredContrib(DMatrix *p_fmat,
-                          std::vector<bst_float> *out_contribs,
-                          unsigned ntree_limit, bool approximate) {
-    const MetaInfo& info = p_fmat->info();
-    // number of valid trees
-    ntree_limit *= mparam.num_output_group;
-    if (ntree_limit == 0 || ntree_limit > trees.size()) {
-      ntree_limit = static_cast<unsigned>(trees.size());
-    }
-    const int ngroup = mparam.num_output_group;
-    size_t ncolumns = mparam.num_feature + 1;
-    // allocate space for (number of features + bias) times the number of rows
-    std::vector<bst_float>& contribs = *out_contribs;
-    contribs.resize(info.num_row * ncolumns * mparam.num_output_group);
-    // make sure contributions is zeroed, we could be reusing a previously allocated one
-    std::fill(contribs.begin(), contribs.end(), 0);
-    // initialize tree node mean values
-    #pragma omp parallel for schedule(static)
-    for (bst_omp_uint i=0; i < ntree_limit; ++i) {
-      trees[i]->FillNodeMeanValues(); // Only needed if using CalculateContributionsApprox
-    }
-    // start collecting the contributions
-    dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
-    const std::vector<bst_float>& base_margin = info.base_margin;
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      const RowBatch& batch = iter->Value();
-      // parallel over local batch
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
-        size_t row_idx = static_cast<size_t>(batch.base_rowid + i);
-        unsigned root_id = info.GetRoot(row_idx);
-        RegTree::FVec &feats = thread_temp[omp_get_thread_num()];
-        // loop over all classes
-        for (int gid = 0; gid < ngroup; ++gid) {
-          bst_float *p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
-          feats.Fill(batch[i]);
-          // calculate contributions
-          for (unsigned j = 0; j < ntree_limit; ++j) {
-            if (tree_info[j] != gid) {
-              continue;
-            }
-            if (!approximate) {
-              trees[j]->CalculateContributions(feats, root_id, p_contribs);
-            } else {
-              trees[j]->CalculateContributionsApprox(feats, root_id, p_contribs);
-            }
-          }
-          feats.Drop(batch[i]);
-          // add base margin to BIAS
-          if (base_margin.size() != 0) {
-            p_contribs[ncolumns - 1] += base_margin[row_idx * ngroup + gid];
-          } else {
-            p_contribs[ncolumns - 1] += base_margin_;
-          }
-        }
-      }
-    }
-  }
-  // init thread buffers
-  inline void InitThreadTemp(int nthread) {
-    int prev_thread_temp_size = thread_temp.size();
-    if (prev_thread_temp_size < nthread) {
-      thread_temp.resize(nthread, RegTree::FVec());
-      for (int i = prev_thread_temp_size; i < nthread; ++i) {
-        thread_temp[i].Init(mparam.num_feature);
-      }
-    }
-  }
-=======
->>>>>>> dmlc/master
   // --- data structure ---
   GBTreeModel model_;
   // training parameter

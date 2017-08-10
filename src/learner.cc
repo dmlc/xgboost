@@ -413,19 +413,9 @@ class LearnerImpl : public Learner {
                           ev->Eval(preds_, data->info(), tparam.dsplit == 2));
   }
 
-<<<<<<< HEAD
-  void Predict(DMatrix* data,
-               bool output_margin,
-               std::vector<bst_float> *out_preds,
-               unsigned ntree_limit,
-               bool pred_leaf,
-               bool pred_contribs,
-               bool approx_contribs) const override {
-=======
   void Predict(DMatrix* data, bool output_margin,
                std::vector<bst_float>* out_preds, unsigned ntree_limit,
-               bool pred_leaf, bool pred_contribs) const override {
->>>>>>> dmlc/master
+               bool pred_leaf, bool pred_contribs, bool approx_contribs) const override {
     if (pred_contribs) {
       gbm_->PredictContribution(data, out_preds, ntree_limit, approx_contribs);
     } else if (pred_leaf) {

@@ -127,7 +127,7 @@ class Predictor {
 
   virtual void PredictContribution(
     DMatrix* dmat, std::vector<bst_float>* out_contribs,
-    const gbm::GBTreeModel& model, unsigned ntree_limit = 0) = 0;
+    const gbm::GBTreeModel& model, unsigned ntree_limit = 0, bool approximate = false) = 0;
 
   /**
    * \fn  static Predictor* Predictor::Create(std::string name);
