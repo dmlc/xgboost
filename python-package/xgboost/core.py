@@ -921,7 +921,7 @@ class Booster(object):
         return self.eval_set([(data, name)], iteration)
 
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False,
-                pred_contribs=False):
+                pred_contribs=False, approx_contribs=False):
         """
         Predict with data.
 
@@ -953,6 +953,9 @@ class Booster(object):
             prediction. The sum of all feature contributions is equal to the prediction.
             Note that the bias is added as the final column, on top of the regular features.
 
+        approx_contribs : bool
+            Approximate the contributions of each feature
+
         Returns
         -------
         prediction : numpy array
@@ -964,7 +967,9 @@ class Booster(object):
             option_mask |= 0x02
         if pred_contribs:
             option_mask |= 0x04
-
+        if approx_contribs:
+            option_mask |= 0x08
+        
         self._validate_features(data)
 
         length = c_bst_ulong()

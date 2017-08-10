@@ -324,10 +324,10 @@ class GBTree : public GradientBooster {
 
   void PredictContribution(DMatrix* p_fmat,
                            std::vector<bst_float>* out_contribs,
-                           unsigned ntree_limit) override {
+                           unsigned ntree_limit, bool approximate) override {
     const int nthread = omp_get_max_threads();
     InitThreadTemp(nthread);
-    this->PredContrib(p_fmat, out_contribs, ntree_limit);
+    this->PredContrib(p_fmat, out_contribs, ntree_limit, approximate);
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
@@ -565,7 +565,7 @@ class GBTree : public GradientBooster {
   // predict contributions
   inline void PredContrib(DMatrix *p_fmat,
                           std::vector<bst_float> *out_contribs,
-                          unsigned ntree_limit) {
+                          unsigned ntree_limit, bool approximate) {
     const MetaInfo& info = p_fmat->info();
     // number of valid trees
     ntree_limit *= mparam.num_output_group;
@@ -606,7 +606,11 @@ class GBTree : public GradientBooster {
             if (tree_info[j] != gid) {
               continue;
             }
-            trees[j]->CalculateContributions(feats, root_id, p_contribs);
+            if (!approximate) {
+              trees[j]->CalculateContributions(feats, root_id, p_contribs);
+            } else {
+              trees[j]->CalculateContributionsApprox(feats, root_id, p_contribs);
+            }
           }
           feats.Drop(batch[i]);
           // add base margin to BIAS
