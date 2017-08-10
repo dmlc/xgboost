@@ -123,6 +123,7 @@ class Predictor {
    * \param [in,out]  out_contribs  The output feature contribs.
    * \param           model         Model to make predictions from.
    * \param           ntree_limit   (Optional) The ntree limit.
+   * \param           approximate   Use fast approximate algorithm.
    */
 
   virtual void PredictContribution(
