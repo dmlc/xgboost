@@ -104,7 +104,7 @@ class Learner : public rabit::Serializable {
    *   predictor, when it equals 0, this means we are using all the trees
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
    * \param pred_contribs whether to only predict the feature contributions
-   * \param pred_contribs whether to approximate the feature contributions for speed
+   * \param approx_contribs whether to approximate the feature contributions for speed
    */
   virtual void Predict(DMatrix* data,
                        bool output_margin,
