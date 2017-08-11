@@ -134,8 +134,7 @@ struct CacheEntry {
 // gradient boosted trees
 class GBTree : public GradientBooster {
  public:
-  explicit GBTree(bst_float base_margin)
-      : model_(base_margin){}
+  explicit GBTree(bst_float base_margin) : model_(base_margin) {}
 
   void InitCache(const std::vector<std::shared_ptr<DMatrix> > &cache) {
     cache_ = cache;
@@ -306,10 +305,8 @@ class GBTree : public GradientBooster {
   std::vector<std::pair<std::string, std::string> > cfg;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters;
-
-  //Cached matrices
+  // Cached matrices
   std::vector<std::shared_ptr<DMatrix>> cache_;
-
   std::unique_ptr<Predictor> predictor;
 };
 

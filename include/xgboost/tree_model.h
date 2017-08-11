@@ -273,10 +273,7 @@ class TreeModel {
   }
 
   /*! \brief get const reference to nodes */
-  inline const std::vector<Node>& GetNodes()const
-  {
-    return nodes;
-  }
+  inline const std::vector<Node>& GetNodes() const { return nodes; }
 
   /*! \brief get node statistics given nid */
   inline NodeStat& stat(int nid) {

@@ -1,3 +1,6 @@
+/*!
+ * Copyright by Contributors 2017
+ */
 #include <dmlc/parameter.h>
 #include <thrust/copy.h>
 #include <xgboost/data.h>
@@ -23,9 +26,8 @@ struct GPUPredictionParam : public dmlc::Parameter<GPUPredictionParam> {
         "Device ordinal for GPU prediction.");
     DMLC_DECLARE_FIELD(n_gpus).set_default(1).describe(
         "Number of devices to use for prediction (NOT IMPLEMENTED).");
-    DMLC_DECLARE_FIELD(silent)
-        .set_default(false)
-        .describe("Do not print information during trainig.");
+    DMLC_DECLARE_FIELD(silent).set_default(false).describe(
+        "Do not print information during trainig.");
   }
 };
 DMLC_REGISTER_PARAMETER(GPUPredictionParam);
@@ -52,7 +54,7 @@ struct DeviceMatrix {
   DeviceMatrix(DMatrix* dmat, int device_idx, bool silent) : p_mat(dmat) {
     dh::safe_cuda(cudaSetDevice(device_idx));
     auto info = dmat->info();
-    ba.allocate(device_idx, silent,&row_ptr, info.num_row + 1, &data,
+    ba.allocate(device_idx, silent, &row_ptr, info.num_row + 1, &data,
                 info.num_nonzero);
     auto iter = dmat->RowIterator();
     iter->BeforeFirst();
@@ -96,7 +98,7 @@ struct DevicePredictionNode {
   int right_child_idx;
   NodeValue val;
 
-  DevicePredictionNode(const RegTree::Node& n) {
+  explicit DevicePredictionNode(const RegTree::Node& n) {
     this->left_child_idx = n.cleft();
     this->right_child_idx = n.cright();
     this->fidx = n.split_index();
@@ -248,8 +250,7 @@ class GPUPredictor : public xgboost::Predictor {
   void DevicePredictInternal(DMatrix* dmat, std::vector<bst_float>* out_preds,
                              const gbm::GBTreeModel& model, int tree_begin,
                              int tree_end) {
-    if(tree_end - tree_begin == 0)
-    {
+    if (tree_end - tree_begin == 0) {
       return;
     }
 
@@ -257,8 +258,8 @@ class GPUPredictor : public xgboost::Predictor {
     if (this->device_matrix_cache_.find(dmat) ==
         this->device_matrix_cache_.end()) {
       this->device_matrix_cache_.emplace(
-          dmat,
-          std::unique_ptr<DeviceMatrix>(new DeviceMatrix(dmat, param.gpu_id, param.silent)));
+          dmat, std::unique_ptr<DeviceMatrix>(
+                    new DeviceMatrix(dmat, param.gpu_id, param.silent)));
     }
     DeviceMatrix* device_matrix = device_matrix_cache_.find(dmat)->second.get();
 
@@ -354,7 +355,7 @@ class GPUPredictor : public xgboost::Predictor {
 
       if (e.predictions.size() == 0) {
         cpu_predictor->PredictBatch(dmat, &(e.predictions), model, 0,
-          model.trees.size());
+                                    model.trees.size());
       } else if (model.param.num_output_group == 1 && updaters->size() > 0 &&
                  num_new_trees == 1 &&
                  updaters->back()->UpdatePredictionCache(e.data.get(),

@@ -8,7 +8,9 @@ namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::PredictorReg);
 }  // namespace dmlc
 namespace xgboost {
-void Predictor::Init(const std::vector<std::pair<std::string, std::string>>& cfg, const std::vector<std::shared_ptr<DMatrix> >& cache) {
+void Predictor::Init(
+    const std::vector<std::pair<std::string, std::string>>& cfg,
+    const std::vector<std::shared_ptr<DMatrix>>& cache) {
   for (const std::shared_ptr<DMatrix>& d : cache) {
     PredictionCacheEntry e;
     e.data = d;
@@ -34,19 +36,19 @@ bool Predictor::PredictFromCache(DMatrix* dmat,
 
   return false;
 }
-  void Predictor::InitOutPredictions(const MetaInfo& info,
-                          std::vector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const {
-    size_t n = model.param.num_output_group * info.num_row;
-    const std::vector<bst_float>& base_margin = info.base_margin;
-    out_preds->resize(n);
-    if (base_margin.size() != 0) {
-      CHECK_EQ(out_preds->size(), n);
-      std::copy(base_margin.begin(), base_margin.end(), out_preds->begin());
-    } else {
-      std::fill(out_preds->begin(), out_preds->end(), model.base_margin);
-    }
+void Predictor::InitOutPredictions(const MetaInfo& info,
+                                   std::vector<bst_float>* out_preds,
+                                   const gbm::GBTreeModel& model) const {
+  size_t n = model.param.num_output_group * info.num_row;
+  const std::vector<bst_float>& base_margin = info.base_margin;
+  out_preds->resize(n);
+  if (base_margin.size() != 0) {
+    CHECK_EQ(out_preds->size(), n);
+    std::copy(base_margin.begin(), base_margin.end(), out_preds->begin());
+  } else {
+    std::fill(out_preds->begin(), out_preds->end(), model.base_margin);
   }
+}
 Predictor* Predictor::Create(std::string name) {
   auto* e = ::dmlc::Registry<PredictorReg>::Get()->Find(name);
   if (e == nullptr) {
