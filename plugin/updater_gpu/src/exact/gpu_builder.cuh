@@ -232,7 +232,7 @@ class GPUBuilder {
 
   void allocateAllData(int offsetSize) {
     int tmpBuffSize = scanTempBufferSize(nVals);
-    ba.allocate(dh::get_device_idx(param.gpu_id), &vals, nVals, &vals_cached,
+    ba.allocate(dh::get_device_idx(param.gpu_id), param.silent, &vals, nVals, &vals_cached,
                 nVals, &instIds, nVals, &instIds_cached, nVals, &colOffsets,
                 offsetSize, &gradsInst, nRows, &nodeAssigns, nVals,
                 &nodeLocations, nVals, &nodes, maxNodes, &nodeAssignsPerInst,
@@ -252,12 +252,6 @@ class GPUBuilder {
     allocateAllData((int)offset.size());
     transferAndSortData(fval, fId, offset);
     allocated = true;
-    if (!param.silent) {
-      const int mb_size = 1048576;
-      LOG(CONSOLE) << "Allocated " << ba.size() / mb_size << "/"
-                   << free_memory / mb_size << " MB on "
-                   << dh::device_name(dh::get_device_idx(param.gpu_id));
-    }
   }
 
   void convertToCsc(DMatrix& hMat, std::vector<float>& fval,

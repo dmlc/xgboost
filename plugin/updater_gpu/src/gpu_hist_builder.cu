@@ -127,16 +127,6 @@ void GPUHistBuilder::Init(const TrainParam& param) {
   this->param = param;
 
   CHECK(param.n_gpus != 0) << "Must have at least one device";
-  int n_devices_all = dh::n_devices_all(param.n_gpus);
-  for (int device_idx = 0; device_idx < n_devices_all; device_idx++) {
-    if (!param.silent) {
-      size_t free_memory = dh::available_memory(device_idx);
-      const int mb_size = 1048576;
-      LOG(CONSOLE) << "[GPU Plug-in] Device: [" << device_idx << "] "
-                   << dh::device_name(device_idx) << " with "
-                   << free_memory / mb_size << " MB available device memory.";
-    }
-  }
 }
 void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
                               DMatrix& fmat,  // NOLINT
@@ -323,7 +313,8 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
       bst_ulong num_elements_segment =
           device_element_segments[d_idx + 1] - device_element_segments[d_idx];
       ba.allocate(
-          device_idx, &(hist_vec[d_idx].data),
+          device_idx, param.silent,
+        &(hist_vec[d_idx].data),
           n_nodes(param.max_depth - 1) * n_bins, &nodes[d_idx],
           n_nodes(param.max_depth), &nodes_temp[d_idx], max_num_nodes_device,
           &nodes_child_temp[d_idx], max_num_nodes_device,
@@ -363,11 +354,6 @@ void GPUHistBuilder::InitData(const std::vector<bst_gpair>& gpair,
                                         // after ba.allocate that sets device)
       feature_flags[d_idx].fill(1);  // init device object (assumes comes after
                                      // ba.allocate that sets device)
-    }
-
-    if (!param.silent) {
-      const int mb_size = 1048576;
-      LOG(CONSOLE) << "[GPU Plug-in] Allocated " << ba.size() / mb_size << " MB";
     }
   }
 

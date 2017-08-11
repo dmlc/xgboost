@@ -16,12 +16,16 @@ DMLC_REGISTRY_FILE_TAG(gpu_predictor);
 struct GPUPredictionParam : public dmlc::Parameter<GPUPredictionParam> {
   int gpu_id;
   int n_gpus;
+  bool silent;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GPUPredictionParam) {
     DMLC_DECLARE_FIELD(gpu_id).set_default(0).describe(
         "Device ordinal for GPU prediction.");
     DMLC_DECLARE_FIELD(n_gpus).set_default(1).describe(
         "Number of devices to use for prediction (NOT IMPLEMENTED).");
+    DMLC_DECLARE_FIELD(silent)
+        .set_default(false)
+        .describe("Do not print information during trainig.");
   }
 };
 DMLC_REGISTER_PARAMETER(GPUPredictionParam);
@@ -45,10 +49,10 @@ struct DeviceMatrix {
   dh::dvec<SparseBatch::Entry> data;
   thrust::device_vector<float> predictions;
 
-  DeviceMatrix(DMatrix* dmat, int device_idx) : p_mat(dmat) {
+  DeviceMatrix(DMatrix* dmat, int device_idx, bool silent) : p_mat(dmat) {
     dh::safe_cuda(cudaSetDevice(device_idx));
     auto info = dmat->info();
-    ba.allocate(device_idx, &row_ptr, info.num_row + 1, &data,
+    ba.allocate(device_idx, silent,&row_ptr, info.num_row + 1, &data,
                 info.num_nonzero);
     auto iter = dmat->RowIterator();
     iter->BeforeFirst();
@@ -254,7 +258,7 @@ class GPUPredictor : public xgboost::Predictor {
         this->device_matrix_cache_.end()) {
       this->device_matrix_cache_.emplace(
           dmat,
-          std::unique_ptr<DeviceMatrix>(new DeviceMatrix(dmat, param.gpu_id)));
+          std::unique_ptr<DeviceMatrix>(new DeviceMatrix(dmat, param.gpu_id, param.silent)));
     }
     DeviceMatrix* device_matrix = device_matrix_cache_.find(dmat)->second.get();
 
