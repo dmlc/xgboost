@@ -76,17 +76,18 @@ if __name__ == "__main__":
 
     print("building Java wrapper")
     with cd(".."):
-        maybe_makedirs("build")
-        with cd("build"):
-            if sys.platform == "win32":
-                # Force x64 build on Windows.
-                maybe_generator = ' -G"Visual Studio 14 Win64"'
-            else:
-                maybe_generator = ""
-
-            args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
-            run("cmake .. " + " ".join(args) + maybe_generator)
-            run("cmake --build . --config Release")
+        # maybe_makedirs("build")
+        # with cd("build"):
+        #     if sys.platform == "win32":
+        #         # Force x64 build on Windows.
+        #         maybe_generator = ' -G"Visual Studio 14 Win64"'
+        #     else:
+        #         maybe_generator = ""
+        #
+        #     args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
+        #     run("cmake3 .. " + " ".join(args) + maybe_generator)
+        #     run("cmake3 --build . --config Release")
+        run("make jvm")
 
         with cd("demo/regression"):
             run(sys.executable + " mapfeat.py")
@@ -99,7 +100,7 @@ if __name__ == "__main__":
         "linux": "libxgboost4j.so"
     }[sys.platform]
     maybe_makedirs("xgboost4j/src/main/resources/lib")
-    cp("../lib/" + library_name, "xgboost4j/src/main/resources/lib")
+    cp("lib/" + library_name, "xgboost4j/src/main/resources/lib")
 
     print("copying pure-Python tracker")
     cp("../dmlc-core/tracker/dmlc_tracker/tracker.py",
@@ -108,8 +109,8 @@ if __name__ == "__main__":
     print("copying train/test files")
     maybe_makedirs("xgboost4j-spark/src/test/resources")
     with cd("../demo/regression"):
-        run("{} mapfeat.py".format(sys.executable))
-        run("{} mknfold.py machine.txt 1".format(sys.executable))
+        run("{0} mapfeat.py".format(sys.executable))
+        run("{0} mknfold.py machine.txt 1".format(sys.executable))
 
     for file in glob.glob("../demo/regression/machine.txt.t*"):
         cp(file, "xgboost4j-spark/src/test/resources")

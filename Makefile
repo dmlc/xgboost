@@ -68,7 +68,7 @@ endif
 endif
 
 export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS) $(PLUGIN_LDFLAGS)
-export CFLAGS=  -std=c++11 -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
+export CFLAGS=  -std=c++11 -static-libstdc++ -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS) $(PLUGIN_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include -I$(GTEST_PATH)/include
 #java include path
 export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
@@ -88,13 +88,16 @@ endif
 
 ifeq ($(UNAME), Windows)
 	XGBOOST_DYLIB = lib/xgboost.dll
+	XGBOOST4J_DYLIB = lib/xgboost4j.dll
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/win32
 else
 ifeq ($(UNAME), Darwin)
 	XGBOOST_DYLIB = lib/libxgboost.dylib
+	XGBOOST4J_DYLIB = lib/xgboost4j.dylib
 	CFLAGS += -fPIC
 else
 	XGBOOST_DYLIB = lib/libxgboost.so
+	XGBOOST4J_DYLIB = lib/xgboost4j.dylib
 	CFLAGS += -fPIC
 endif
 endif
@@ -142,7 +145,7 @@ $(DMLC_CORE)/libdmlc.a: $(wildcard $(DMLC_CORE)/src/*.cc $(DMLC_CORE)/src/*/*.cc
 $(RABIT)/lib/$(LIB_RABIT): $(wildcard $(RABIT)/src/*.cc)
 	+ cd $(RABIT); $(MAKE) lib/$(LIB_RABIT) USE_SSE=$(USE_SSE); cd $(ROOTDIR)
 
-jvm: jvm-packages/lib/libxgboost4j.so
+jvm: jvm-packages/$(XGBOOST4J_DYLIB)
 
 SRC = $(wildcard src/*.cc src/*/*.cc)
 ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC)) $(PLUGIN_OBJS)
@@ -194,7 +197,7 @@ lib/xgboost.dll lib/libxgboost.so lib/libxgboost.dylib: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %a,  $^) $(LDFLAGS)
 
-jvm-packages/lib/libxgboost4j.so: jvm-packages/xgboost4j/src/native/xgboost4j.cpp $(ALL_DEP)
+jvm-packages/$(XGBOOST4J_DYLIB): jvm-packages/xgboost4j/src/native/xgboost4j.cpp $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) $(JAVAINCFLAGS) -shared -o $@ $(filter %.cpp %.o %.a, $^) $(LDFLAGS)
 
