@@ -98,7 +98,7 @@ struct DevicePredictionNode {
   int right_child_idx;
   NodeValue val;
 
-  explicit DevicePredictionNode(const RegTree::Node& n) {
+  DevicePredictionNode(const RegTree::Node& n) {  // NOLINT
     this->left_child_idx = n.cleft();
     this->right_child_idx = n.cright();
     this->fidx = n.split_index();
