@@ -61,7 +61,9 @@ Predictor* Predictor::Create(std::string name) {
 namespace xgboost {
 namespace predictor {
 // List of files that will be force linked in static links.
+#ifdef XGBOOST_USE_CUDA
 DMLC_REGISTRY_LINK_TAG(gpu_predictor);
+#endif
 DMLC_REGISTRY_LINK_TAG(cpu_predictor);
 }  // namespace predictor
 }  // namespace xgboost
