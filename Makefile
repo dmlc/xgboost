@@ -93,11 +93,11 @@ ifeq ($(UNAME), Windows)
 else
 ifeq ($(UNAME), Darwin)
 	XGBOOST_DYLIB = lib/libxgboost.dylib
-	XGBOOST4J_DYLIB = lib/xgboost4j.dylib
+	XGBOOST4J_DYLIB = lib/libxgboost4j.dylib
 	CFLAGS += -fPIC
 else
 	XGBOOST_DYLIB = lib/libxgboost.so
-	XGBOOST4J_DYLIB = lib/xgboost4j.dylib
+	XGBOOST4J_DYLIB = lib/libxgboost4j.dylib
 	CFLAGS += -fPIC
 endif
 endif
