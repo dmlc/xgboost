@@ -2,7 +2,7 @@
  * Copyright 2017 XGBoost contributors
  */
 #pragma once
-#include <dmlc/logging.h>
+#include <xgboost/logging.h>
 #include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
 #include <thrust/random.h>
@@ -121,6 +121,28 @@ inline std::string device_name(int device_idx) {
   return std::string(prop.name);
 }
 
+inline size_t available_memory(int device_idx) {
+  size_t device_free = 0;
+  size_t device_total = 0;
+  safe_cuda(cudaSetDevice(device_idx));
+  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
+  return device_free;
+}
+
+/**
+ * \fn  inline int max_shared_memory(int device_idx)
+ *
+ * \brief Maximum shared memory per block on this device.
+ *
+ * \param device_idx  Zero-based index of the device.
+ */
+
+inline int max_shared_memory(int device_idx) {
+  cudaDeviceProp prop;
+  dh::safe_cuda(cudaGetDeviceProperties(&prop, device_idx));
+  return prop.sharedMemPerBlock;
+}
+
 // ensure gpu_id is correct, so not dependent upon user knowing details
 inline int get_device_idx(int gpu_id) {
   // protect against overrun for gpu_id
@@ -215,7 +237,7 @@ __device__ range block_stride_range(T begin, T end) {
   return r;
 }
 
-// Threadblock iterates over range, filling with value
+// Threadblock iterates over range, filling with value. Requires all threads in block to be active.
 template <typename IterT, typename ValueT>
 __device__ void block_fill(IterT begin, size_t n, ValueT value) {
   for (auto i : block_stride_range(static_cast<size_t>(0), n)) {
@@ -463,7 +485,7 @@ class bulk_allocator {
   }
 
   template <typename... Args>
-  void allocate(int device_idx, Args... args) {
+  void allocate(int device_idx, bool silent ,Args... args) {
     size_t size = get_size_bytes(args...);
 
     char *ptr = allocate_device(device_idx, size, MemoryT);
@@ -473,6 +495,14 @@ class bulk_allocator {
     d_ptr.push_back(ptr);
     _size.push_back(size);
     _device_idx.push_back(device_idx);
+
+    if(!silent)
+    {
+      const int mb_size = 1048576;
+      LOG(CONSOLE) << "Allocated " << size / mb_size << "MB on [" << device_idx
+                   << "] " << device_name(device_idx) << ", "
+                   << available_memory(device_idx) / mb_size << "MB remaining.";
+    }
   }
 };
 
@@ -515,13 +545,6 @@ struct CubMemory {
   bool IsAllocated() { return d_temp_storage != NULL; }
 };
 
-inline size_t available_memory(int device_idx) {
-  size_t device_free = 0;
-  size_t device_total = 0;
-  safe_cuda(cudaSetDevice(device_idx));
-  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
-  return device_free;
-}
 
 /*
  *  Utility functions

@@ -1,4 +1,6 @@
 #include "./helpers.h"
+#include "xgboost/c_api.h"
+#include <random>
 
 std::string TempFileName() {
   return std::tmpnam(nullptr);
@@ -59,4 +61,24 @@ xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
   info.labels = labels;
   info.weights = weights;
   return metric->Eval(preds, info, false);
+}
+
+std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns,
+                                                float sparsity, int seed) {
+  const float missing_value = -1;
+  std::vector<float> test_data(rows * columns);
+  std::mt19937 gen(seed);
+  std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+  for (auto &e : test_data) {
+    if (dis(gen) < sparsity) {
+      e = missing_value;
+    } else {
+      e = dis(gen);
+    }
+  }
+
+  DMatrixHandle handle;
+  XGDMatrixCreateFromMat(test_data.data(), rows, columns, missing_value,
+                         &handle);
+  return *static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
 }

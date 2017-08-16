@@ -165,9 +165,19 @@ class LearnerImpl : public Learner {
                    << "grow_fast_histmaker.";
       cfg_["updater"] = "grow_fast_histmaker";
     } else if (tparam.tree_method == 4) {
-      cfg_["updater"] = "grow_gpu,prune";
+      if (cfg_.count("updater") == 0) {
+        cfg_["updater"] = "grow_gpu,prune";
+      }
+      if (cfg_.count("predictor") == 0) {
+        cfg_["predictor"] = "gpu_predictor";
+      }
     } else if (tparam.tree_method == 5) {
-      cfg_["updater"] = "grow_gpu_hist";
+      if (cfg_.count("updater") == 0) {
+        cfg_["updater"] = "grow_gpu_hist";
+      }
+      if (cfg_.count("predictor") == 0) {
+        cfg_["predictor"] = "gpu_predictor";
+      }
     }
   }
 

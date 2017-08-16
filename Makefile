@@ -129,6 +129,7 @@ ifeq ($(PLUGIN_UPDATER_GPU),ON)
   CUDA_ROOT = $(shell dirname $(shell dirname $(shell which $(NVCC))))
   INCLUDES += -I$(CUDA_ROOT)/include -Inccl/src/
   LDFLAGS += -L$(CUDA_ROOT)/lib64 -lcudart  -lcudadevrt -Lnccl/build/lib/ -lnccl_static -lm -ldl -lrt
+  CFLAGS += -DXGBOOST_USE_CUDA
 endif
 
 # specify tensor path

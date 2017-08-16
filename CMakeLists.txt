@@ -77,6 +77,8 @@ file(GLOB_RECURSE CUDA_SOURCES
 if(PLUGIN_UPDATER_GPU)
   find_package(CUDA 7.5 REQUIRED)
   cmake_minimum_required(VERSION 3.5)
+
+  add_definitions(-DXGBOOST_USE_CUDA)
   
   include_directories(
     nccl/src

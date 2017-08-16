@@ -109,6 +109,4 @@ class TestGPU(unittest.TestCase):
                       evals_result=ag_res3)
             print("Time to Train: %s seconds" % (str(time.time() - tmp)))
 
-
-    
     
