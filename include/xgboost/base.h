@@ -55,6 +55,10 @@
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) __gnu_parallel::sort((X), (Y), (Z))
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) \
   __gnu_parallel::stable_sort((X), (Y), (Z))
+#elif defined(_MSC_VER) && (!__INTEL_COMPILER)
+#include <ppl.h>
+#define XGBOOST_PARALLEL_SORT(X, Y, Z) concurrency::parallel_sort((X), (Y), (Z))
+#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
 #else
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) std::sort((X), (Y), (Z))
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
