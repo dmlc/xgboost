@@ -304,6 +304,8 @@ object XGBoost extends Serializable {
           " for now")
     }
     require(nWorkers > 0, "you must specify more than 0 workers")
+    require(nWorkers <= trainingData.sparkContext.defaultParallelism,
+      "nWorkers must be <= sparkContext.defaultParallelism, otherwise the application would hang forever")
     if (obj != null) {
       require(params.get("obj_type").isDefined, "parameter \"obj_type\" is not defined," +
           " you have to specify the objective type as classification or regression with a" +
