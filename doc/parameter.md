@@ -113,6 +113,7 @@ Parameters for Tree Booster
   - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
     - 'cpu_predictor': Multicore CPU prediction algorithm.
     - 'gpu_predictor': Prediction using GPU. Default for 'gpu_exact' and 'gpu_hist' tree method.
+
 Additional parameters for Dart Booster
 --------------------------------------
 * sample_type [default="uniform"]
