@@ -1253,7 +1253,7 @@ class Booster(object):
             self.feature_types = data.feature_types
         else:
             # Booster can't accept data with different feature names
-            if self.feature_names != data.feature_names:
+            if collections.Counter(self.feature_names) != collections.Counter(data.feature_names):
                 dat_missing = set(self.feature_names) - set(data.feature_names)
                 my_missing = set(data.feature_names) - set(self.feature_names)
 
