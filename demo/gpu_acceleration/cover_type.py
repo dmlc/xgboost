@@ -29,12 +29,12 @@ dtest = xgb.DMatrix(X_test, label=y_test)
 gpu_res = {} # Store accuracy result
 tmp = time.time()
 # Train model
-xgb.train(param, dtrain, numround, evals=[(dtest, 'test')], evals_result=gpu_res)
+xgb.train(param, dtrain, num_round, evals=[(dtest, 'test')], evals_result=gpu_res)
 print("GPU Training Time: %s seconds" % (str(time.time() - tmp)))
 
 # Repeat for CPU algorithm
 tmp = time.time()
 param['tree_method'] = 'hist'
 cpu_res = {}
-xgb.train(param, dtrain, numround, evals=[(dtest, 'test')], evals_result=cpu_res)
+xgb.train(param, dtrain, num_round, evals=[(dtest, 'test')], evals_result=cpu_res)
 print("CPU Training Time: %s seconds" % (str(time.time() - tmp)))
