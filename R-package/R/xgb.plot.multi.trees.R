@@ -7,9 +7,8 @@
 #' @param features_keep number of features to keep in each position of the multi trees.
 #' @param plot_width width in pixels of the graph to produce
 #' @param plot_height height in pixels of the graph to produce
+#' @param render a logical flag for whether the graph should be rendered (see Value).
 #' @param ... currently not used
-#' 
-#' @return Two graphs showing the distribution of the model deepness.
 #' 
 #' @details
 #' 
@@ -30,26 +29,46 @@
 #' This function is inspired by this blog post:
 #' \url{https://wellecks.wordpress.com/2015/02/21/peering-into-the-black-box-visualizing-lambdamart/}
 #'
+#' @return
+#' 
+#' When \code{render = TRUE}:
+#' returns a rendered graph object which is an \code{htmlwidget} of class \code{grViz}.
+#' Similar to ggplot objects, it needs to be printed to see it when not running from command line.
+#' 
+#' When \code{render = FALSE}:
+#' silently returns a graph object which is of DiagrammeR's class \code{dgr_graph}.
+#' This could be useful if one wants to modify some of the graph attributes
+#' before rendering the graph with \code{\link[DiagrammeR]{render_graph}}.
+#' 
 #' @examples
+#' 
 #' data(agaricus.train, package='xgboost')
 #'
 #' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 15,
-#'                  eta = 1, nthread = 2, nrounds = 30, objective = "binary:logistic",
-#'                  min_child_weight = 50)
+#'                eta = 1, nthread = 2, nrounds = 30, objective = "binary:logistic",
+#'                min_child_weight = 50)
 #'
-#' p <- xgb.plot.multi.trees(model = bst, feature_names = colnames(agaricus.train$data),
-#'                           features_keep = 3)
+#' p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
 #' print(p)
 #'
+#' \dontrun{
+#' # Below is an example of how to save this plot to a file.
+#' # Note that for `export_graph` to work, the DiagrammeRsvg and rsvg packages must also be installed.
+#' library(DiagrammeR)
+#' gr <- xgb.plot.multi.trees(model=bst, features_keep = 3, render=FALSE)
+#' export_graph(gr, 'tree.pdf', width=1500, height=600)
+#' }
+#' 
 #' @export
-xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5, plot_width = NULL, plot_height = NULL, ...){
+xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5, plot_width = NULL, plot_height = NULL,
+                                 render = TRUE, ...){
   check.deprecation(...)
   tree.matrix <- xgb.model.dt.tree(feature_names = feature_names, model = model)
   
   # first number of the path represents the tree, then the following numbers are related to the path to follow
   # root init
   root.nodes <- tree.matrix[stri_detect_regex(ID, "\\d+-0"), ID]
-  tree.matrix[ID %in% root.nodes, abs.node.position:=root.nodes]
+  tree.matrix[ID %in% root.nodes, abs.node.position := root.nodes]
   
   precedent.nodes <- root.nodes
   
@@ -64,8 +83,8 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
     precedent.nodes <- c(yes.nodes.abs.pos, no.nodes.abs.pos)
   }
   
-  tree.matrix[!is.na(Yes),Yes:= paste0(abs.node.position, "_0")]
-  tree.matrix[!is.na(No),No:= paste0(abs.node.position, "_1")]
+  tree.matrix[!is.na(Yes), Yes := paste0(abs.node.position, "_0")]
+  tree.matrix[!is.na(No), No := paste0(abs.node.position, "_1")]
   
   
   remove.tree <- . %>% stri_replace_first_regex(pattern = "^\\d+-", replacement = "")
@@ -120,7 +139,9 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
       attr_type = "edge",
       attr  = c("color", "arrowsize", "arrowhead", "fontname"),
       value = c("DimGray", "1.5", "vee", "Helvetica"))
-  
+
+  if (!render) return(invisible(graph))
+
   DiagrammeR::render_graph(graph, width = plot_width, height = plot_height)  
 }
 
