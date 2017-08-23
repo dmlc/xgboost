@@ -222,3 +222,22 @@ test_that("train and predict with non-strict classes", {
   expect_error(pr <- predict(bst, train_dense), regexp = NA)
   expect_equal(pr0, pr)
 })
+
+test_that("prediction for fully sparse final rows", {
+  x1 <- runif(1000)
+  x <- ifelse(x1 <= 0.2, as.numeric(NA), x1)
+  y <- as.numeric(x1 >= 0.9)
+  bst <- xgboost(data = matrix(x, ncol = 1), label = y, verbose = 0,
+                 objective = "binary:logistic", eval_metric = "logloss",
+                 nrounds = 1, max_depth = 1, eta = 1., lambda = 0, nthread = 1)
+
+  pr <- function(xcolumn) {
+    md <- matrix(as.numeric(xcolumn), ncol=1)
+    ms <- as(md, "dgCMatrix")
+    expect_equal(predict(bst, md), predict(bst, ms))
+  }
+  pr(0)
+  pr(NA)
+  pr(c(1,0,0))
+  pr(c(0,1,0))
+})

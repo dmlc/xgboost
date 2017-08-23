@@ -296,14 +296,20 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   common::ParallelGroupBuilder<RowBatch::Entry> builder(&mat.row_ptr_, &mat.row_data_);
   builder.InitBudget(0, nthread);
   size_t ncol = nindptr - 1;  // NOLINT(*)
+  size_t num_row_values = 0;
   #pragma omp parallel for schedule(static)
   for (omp_ulong i = 0; i < static_cast<omp_ulong>(ncol); ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
       if (!common::CheckNAN(data[j])) {
         builder.AddBudget(indices[j], tid);
+        num_row_values = std::max(num_row_values, static_cast<size_t>(indices[j] + 1));
       }
     }
+  }
+  // catch any rows at the end that contain only sparse values
+  if (num_row_values < num_row) {
+    builder.AddBudget(num_row - 1, 0);
   }
   builder.InitStorage();
   #pragma omp parallel for schedule(static)
