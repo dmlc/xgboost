@@ -392,3 +392,35 @@ def test_sklearn_clone():
     clf = xgb.XGBClassifier(n_jobs=2, nthread=3)
     clf.n_jobs = -1
     clone(clf)
+
+def test_callbacks_regressor():
+    n_estimators = 10
+    regressor = xgb.XGBRegressor(n_estimators=n_estimators, max_depth=2)
+
+    callback_log = []
+    def callback(callback_env):
+      callback_log.append(callback_env.iteration)
+
+    X = np.random.randn(100, 40)
+    y = np.random.randn(100)
+    regressor.fit(X=X, y=y, callbacks=[callback])
+
+    # Ensure the callback has been executed the correct number of times.
+    self.assertEqual(callback_log, list(range(n_estimators)))
+
+def test_callbacks_classifier():
+    n_estimators = 10
+    classifier = xgb.XGBClassifier(n_estimators=n_estimators, max_depth=2)
+
+    callback_log = []
+    def callback(callback_env):
+      callback_log.append(callback_env.iteration)
+
+    X = np.random.randn(100, 40)
+    # this is inclusive of low and exclusive of high, so binary labels.
+    y = np.random.randint(low=0, high=2, size=[100])
+    classifier.fit(X=X, y=y, callbacks=[callback])
+
+    # Ensure the callback has been executed the correct number of times.
+    self.assertEqual(callback_log, list(range(n_estimators)))
+
