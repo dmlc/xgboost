@@ -58,11 +58,11 @@ struct Split {
   }
 };
 
+typedef int node_id_t;
 /**
  * @struct Node node.cuh
  * @brief Abstraction of a node in the decision tree
  */
-template <typename node_id_t>
 class Node {
  public:
   /** sum of gradients across all training samples part of this node */
@@ -142,7 +142,7 @@ enum NodeType {
  * @param nKeys number of nodes at this level.
  * @return the uniq key
  */
-template <typename node_id_t>
+
 HOST_DEV_INLINE int abs2uniqKey(int tid, const node_id_t* abs,
                                 const int* colIds, node_id_t nodeStart,
                                 int nKeys) {

@@ -13,14 +13,14 @@ namespace tree {
 // Forward declare builder classes
 class GPUHistBuilder;
 namespace exact {
-template <typename node_id_t>
+
 class GPUBuilder;
 }
 
 class GPUMaker : public TreeUpdater {
  protected:
   TrainParam param;
-  std::unique_ptr<exact::GPUBuilder<int16_t>> builder;
+  std::unique_ptr<exact::GPUBuilder> builder;
 
  public:
   GPUMaker();

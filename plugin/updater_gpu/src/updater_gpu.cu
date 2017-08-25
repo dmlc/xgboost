@@ -15,7 +15,7 @@
 namespace xgboost {
 namespace tree {
 
-GPUMaker::GPUMaker() : builder(new exact::GPUBuilder<int16_t>()) {}
+GPUMaker::GPUMaker() : builder(new exact::GPUBuilder()) {}
 
 void GPUMaker::Init(
     const std::vector<std::pair<std::string, std::string>>& args) {

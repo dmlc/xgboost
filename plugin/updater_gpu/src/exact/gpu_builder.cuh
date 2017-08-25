@@ -30,11 +30,11 @@ namespace xgboost {
 namespace tree {
 namespace exact {
 
-template <typename node_id_t>
-__global__ void initRootNode(Node<node_id_t>* nodes, const bst_gpair* sums,
+
+__global__ void initRootNode(Node* nodes, const bst_gpair* sums,
                              const TrainParam param) {
   // gradients already evaluated inside transferGrads
-  Node<node_id_t> n;
+  Node n;
   n.gradSum = sums[0];
   n.score = CalcGain(param, n.gradSum.grad, n.gradSum.hess);
   n.weight = CalcWeight(param, n.gradSum.grad, n.gradSum.hess);
@@ -42,7 +42,7 @@ __global__ void initRootNode(Node<node_id_t>* nodes, const bst_gpair* sums,
   nodes[0] = n;
 }
 
-template <typename node_id_t>
+
 __global__ void assignColIds(int* colIds, const int* colOffsets) {
   int myId = blockIdx.x;
   int start = colOffsets[myId];
@@ -52,9 +52,9 @@ __global__ void assignColIds(int* colIds, const int* colOffsets) {
   }
 }
 
-template <typename node_id_t>
+
 __global__ void fillDefaultNodeIds(node_id_t* nodeIdsPerInst,
-                                   const Node<node_id_t>* nodes, int nRows) {
+                                   const Node* nodes, int nRows) {
   int id = threadIdx.x + (blockIdx.x * blockDim.x);
   if (id >= nRows) {
     return;
@@ -64,7 +64,7 @@ __global__ void fillDefaultNodeIds(node_id_t* nodeIdsPerInst,
   if (nId == UNUSED_NODE) {
     return;
   }
-  const Node<node_id_t> n = nodes[nId];
+  const Node n = nodes[nId];
   node_id_t result;
   if (n.isLeaf() || n.isUnused()) {
     result = UNUSED_NODE;
@@ -76,10 +76,10 @@ __global__ void fillDefaultNodeIds(node_id_t* nodeIdsPerInst,
   nodeIdsPerInst[id] = result;
 }
 
-template <typename node_id_t>
+
 __global__ void assignNodeIds(node_id_t* nodeIdsPerInst, int* nodeLocations,
                               const node_id_t* nodeIds, const int* instId,
-                              const Node<node_id_t>* nodes,
+                              const Node* nodes,
                               const int* colOffsets, const float* vals,
                               int nVals, int nCols) {
   int id = threadIdx.x + (blockIdx.x * blockDim.x);
@@ -92,7 +92,7 @@ __global__ void assignNodeIds(node_id_t* nodeIdsPerInst, int* nodeLocations,
     int nId = nodeIds[id];
     // if this element belongs to none of the currently active node-id's
     if (nId != UNUSED_NODE) {
-      const Node<node_id_t> n = nodes[nId];
+      const Node n = nodes[nId];
       int colId = n.colIdx;
       // printf("nid=%d colId=%d id=%d\n", nId, colId, id);
       int start = colOffsets[colId];
@@ -106,8 +106,8 @@ __global__ void assignNodeIds(node_id_t* nodeIdsPerInst, int* nodeLocations,
   }
 }
 
-template <typename node_id_t>
-__global__ void markLeavesKernel(Node<node_id_t>* nodes, int len) {
+
+__global__ void markLeavesKernel(Node* nodes, int len) {
   int id = (blockIdx.x * blockDim.x) + threadIdx.x;
   if ((id < len) && !nodes[id].isUnused()) {
     int lid = (id << 1) + 1;
@@ -121,24 +121,24 @@ __global__ void markLeavesKernel(Node<node_id_t>* nodes, int len) {
 }
 
 // unit test forward declaration for friend function access
-template <typename node_id_t>
+
 void testSmallData();
-template <typename node_id_t>
+
 void testLargeData();
-template <typename node_id_t>
+
 void testAllocate();
-template <typename node_id_t>
+
 void testMarkLeaves();
-template <typename node_id_t>
+
 void testDense2Sparse();
-template <typename node_id_t>
+
 class GPUBuilder;
-template <typename node_id_t>
+
 std::shared_ptr<xgboost::DMatrix> setupGPUBuilder(
     const std::string& file,
-    xgboost::tree::exact::GPUBuilder<node_id_t>& builder);
+    xgboost::tree::exact::GPUBuilder& builder);
 
-template <typename node_id_t>
+
 class GPUBuilder {
  public:
   GPUBuilder() : allocated(false) {}
@@ -177,13 +177,13 @@ class GPUBuilder {
   }
 
  private:
-  friend void testSmallData<node_id_t>();
-  friend void testLargeData<node_id_t>();
-  friend void testAllocate<node_id_t>();
-  friend void testMarkLeaves<node_id_t>();
-  friend void testDense2Sparse<node_id_t>();
-  friend std::shared_ptr<xgboost::DMatrix> setupGPUBuilder<node_id_t>(
-      const std::string& file, GPUBuilder<node_id_t>& builder);
+  friend void testSmallData();
+  friend void testLargeData();
+  friend void testAllocate();
+  friend void testMarkLeaves();
+  friend void testDense2Sparse();
+  friend std::shared_ptr<xgboost::DMatrix> setupGPUBuilder(
+      const std::string& file, GPUBuilder& builder);
 
   TrainParam param;
   /** whether we have initialized memory already (so as not to repeat!) */
@@ -199,8 +199,8 @@ class GPUBuilder {
   dh::dvec<bst_gpair> gradsInst;
   dh::dvec2<node_id_t> nodeAssigns;
   dh::dvec2<int> nodeLocations;
-  dh::dvec<Node<node_id_t>> nodes;
-  dh::dvec<node_id_t> nodeAssignsPerInst;
+  dh::dvec<Node> nodes;
+  dh::dvec<node_id_t>  nodeAssignsPerInst;
   dh::dvec<bst_gpair> gradSums;
   dh::dvec<bst_gpair> gradScans;
   dh::dvec<Split> nodeSplits;
@@ -297,7 +297,7 @@ class GPUBuilder {
                               colOffsets);
     vals_cached = vals.current_dvec();
     instIds_cached = instIds.current_dvec();
-    assignColIds<node_id_t><<<nCols, 512>>>(colIds.data(), colOffsets.data());
+    assignColIds<<<nCols, 512>>>(colIds.data(), colOffsets.data());
   }
 
   void transferGrads(const std::vector<bst_gpair>& gpair) {
@@ -312,7 +312,7 @@ class GPUBuilder {
   void initNodeData(int level, node_id_t nodeStart, int nNodes) {
     // all instances belong to root node at the beginning!
     if (level == 0) {
-      nodes.fill(Node<node_id_t>());
+      nodes.fill(Node());
       nodeAssigns.current_dvec().fill(0);
       nodeAssignsPerInst.fill(0);
       // for root node, just update the gradient/score/weight/id info
@@ -333,7 +333,7 @@ class GPUBuilder {
           nodeAssigns.current(), instIds.current(), nodes.data(),
           colOffsets.data(), vals.current(), nVals, nCols);
       // gather the node assignments across all other columns too
-      gather<node_id_t>(dh::get_device_idx(param.gpu_id), nodeAssigns.current(),
+      gather(dh::get_device_idx(param.gpu_id), nodeAssigns.current(),
                         nodeAssignsPerInst.data(), instIds.current(), nVals);
       sortKeys(level);
     }
@@ -359,10 +359,10 @@ class GPUBuilder {
 
   void dense2sparse(RegTree* p_tree) {
     RegTree& tree = *p_tree;
-    std::vector<Node<node_id_t>> hNodes = nodes.as_vector();
+    std::vector<Node> hNodes = nodes.as_vector();
     int nodeId = 0;
     for (int i = 0; i < maxNodes; ++i) {
-      const Node<node_id_t>& n = hNodes[i];
+      const Node& n = hNodes[i];
       if ((i != 0) && hNodes[i].isLeaf()) {
         tree[nodeId].set_leaf(n.weight * param.learning_rate);
         tree.stat(nodeId).sum_hess = n.gradSum.hess;

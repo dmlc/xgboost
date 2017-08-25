@@ -72,7 +72,7 @@ HOST_DEV_INLINE bst_gpair get(int id, const bst_gpair* vals, const int* instIds)
   return vals[id];
 }
 
-template <typename node_id_t, int BLKDIM_L1L3>
+template < int BLKDIM_L1L3>
 __global__ void cubScanByKeyL1(bst_gpair* scans, const bst_gpair* vals,
                                const int* instIds, bst_gpair* mScans,
                                int* mKeys, const node_id_t* keys, int nUniqKeys,
@@ -129,7 +129,7 @@ __global__ void cubScanByKeyL2(bst_gpair* mScans, int* mKeys, int mLength) {
   }
 }
 
-template <typename node_id_t, int BLKDIM_L1L3>
+template < int BLKDIM_L1L3>
 __global__ void cubScanByKeyL3(bst_gpair* sums, bst_gpair* scans,
                                const bst_gpair* vals, const int* instIds,
                                const bst_gpair* mScans, const int* mKeys,
@@ -188,18 +188,18 @@ __global__ void cubScanByKeyL3(bst_gpair* sums, bst_gpair* scans,
  * @param colIds column indices for each element in the array
  * @param nodeStart index of the leftmost node in the current level
  */
-template <typename node_id_t, int BLKDIM_L1L3 = 256, int BLKDIM_L2 = 512>
+template < int BLKDIM_L1L3 = 256, int BLKDIM_L2 = 512>
 void reduceScanByKey(bst_gpair* sums, bst_gpair* scans, const bst_gpair* vals,
                      const int* instIds, const node_id_t* keys, int size,
                      int nUniqKeys, int nCols, bst_gpair* tmpScans,
                      int* tmpKeys, const int* colIds, node_id_t nodeStart) {
   int nBlks = dh::div_round_up(size, BLKDIM_L1L3);
   cudaMemset(sums, 0, nUniqKeys * nCols * sizeof(bst_gpair));
-  cubScanByKeyL1<node_id_t, BLKDIM_L1L3><<<nBlks, BLKDIM_L1L3>>>(
+  cubScanByKeyL1<BLKDIM_L1L3><<<nBlks, BLKDIM_L1L3>>>(
       scans, vals, instIds, tmpScans, tmpKeys, keys, nUniqKeys, colIds,
       nodeStart, size);
   cubScanByKeyL2<BLKDIM_L2><<<1, BLKDIM_L2>>>(tmpScans, tmpKeys, nBlks);
-  cubScanByKeyL3<node_id_t, BLKDIM_L1L3><<<nBlks, BLKDIM_L1L3>>>(
+  cubScanByKeyL3<BLKDIM_L1L3><<<nBlks, BLKDIM_L1L3>>>(
       sums, scans, vals, instIds, tmpScans, tmpKeys, keys, nUniqKeys, colIds,
       nodeStart, size);
 }

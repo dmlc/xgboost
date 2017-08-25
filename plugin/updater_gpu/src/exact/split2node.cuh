@@ -33,8 +33,8 @@ namespace exact {
  * @param lambda lambda as in xgboost
  * @param maxStep max weight step update
  */
-template <typename node_id_t>
-DEV_INLINE void updateOneChildNode(Node<node_id_t>* nodes, int nid,
+
+DEV_INLINE void updateOneChildNode(Node* nodes, int nid,
                                    const bst_gpair& grad,
                                    const TrainParam& param) {
   nodes[nid].gradSum = grad;
@@ -52,8 +52,8 @@ DEV_INLINE void updateOneChildNode(Node<node_id_t>* nodes, int nid,
  * @param gradR gradient sum for the right child node
  * @param param the training parameter struct
  */
-template <typename node_id_t>
-DEV_INLINE void updateChildNodes(Node<node_id_t>* nodes, int pid,
+
+DEV_INLINE void updateChildNodes(Node* nodes, int pid,
                                  const bst_gpair& gradL, const bst_gpair& gradR,
                                  const TrainParam& param) {
   int childId = (pid * 2) + 1;
@@ -61,9 +61,9 @@ DEV_INLINE void updateChildNodes(Node<node_id_t>* nodes, int pid,
   updateOneChildNode(nodes, childId + 1, gradR, param);
 }
 
-template <typename node_id_t>
-DEV_INLINE void updateNodeAndChildren(Node<node_id_t>* nodes, const Split& s,
-                                      const Node<node_id_t>& n, int absNodeId,
+
+DEV_INLINE void updateNodeAndChildren(Node* nodes, const Split& s,
+                                      const Node& n, int absNodeId,
                                       int colId, const bst_gpair& gradScan,
                                       const bst_gpair& colSum, float thresh,
                                       const TrainParam& param) {
@@ -86,9 +86,9 @@ DEV_INLINE void updateNodeAndChildren(Node<node_id_t>* nodes, const Split& s,
   nodes[absNodeId].threshold = thresh;
 }
 
-template <typename node_id_t, int BLKDIM = 256>
+template < int BLKDIM = 256>
 __global__ void split2nodeKernel(
-    Node<node_id_t>* nodes, const Split* nodeSplits, const bst_gpair* gradScans,
+    Node* nodes, const Split* nodeSplits, const bst_gpair* gradScans,
     const bst_gpair* gradSums, const float* vals, const int* colIds,
     const int* colOffsets, const node_id_t* nodeAssigns, int nUniqKeys,
     node_id_t nodeStart, int nCols, const TrainParam param) {
@@ -128,8 +128,8 @@ __global__ void split2nodeKernel(
  * not
  * @param param the training parameter struct
  */
-template <typename node_id_t, int BLKDIM = 256>
-void split2node(Node<node_id_t>* nodes, const Split* nodeSplits,
+template < int BLKDIM = 256>
+void split2node(Node* nodes, const Split* nodeSplits,
                 const bst_gpair* gradScans, const bst_gpair* gradSums,
                 const float* vals, const int* colIds, const int* colOffsets,
                 const node_id_t* nodeAssigns, int nUniqKeys,
