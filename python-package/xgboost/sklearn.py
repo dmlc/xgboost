@@ -94,6 +94,9 @@ class XGBModel(XGBModelBase):
         Balancing of positive and negative weights.
     base_score:
         The initial prediction score of all instances, global bias.
+    num_parallel_tree : int
+        Number of parallel trees constructed during each iteration.
+        This option is used to support boosted random forest.
     seed : int
         Random number seed.  (Deprecated, please use random_state)
     random_state : int
@@ -132,7 +135,8 @@ class XGBModel(XGBModelBase):
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0,
                  subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
+                 base_score=0.5, num_parallel_tree=1, random_state=0, seed=None, missing=None,
+                 **kwargs):
         if not SKLEARN_INSTALLED:
             raise XGBoostError('sklearn needs to be installed in order to use this module')
         self.max_depth = max_depth
@@ -152,6 +156,7 @@ class XGBModel(XGBModelBase):
         self.reg_lambda = reg_lambda
         self.scale_pos_weight = scale_pos_weight
         self.base_score = base_score
+        self.num_parallel_tree = num_parallel_tree
         self.missing = missing if missing is not None else np.nan
         self.kwargs = kwargs
         self._Booster = None
@@ -395,14 +400,15 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1,
                  max_delta_step=0, subsample=1, colsample_bytree=1, colsample_bylevel=1,
                  reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-                 base_score=0.5, random_state=0, seed=None, missing=None, **kwargs):
+                 base_score=0.5, num_parallel_tree=1, random_state=0, seed=None, missing=None,
+                 **kwargs):
         super(XGBClassifier, self).__init__(max_depth, learning_rate,
                                             n_estimators, silent, objective, booster,
                                             n_jobs, nthread, gamma, min_child_weight,
                                             max_delta_step, subsample,
                                             colsample_bytree, colsample_bylevel,
                                             reg_alpha, reg_lambda,
-                                            scale_pos_weight, base_score,
+                                            scale_pos_weight, base_score, num_parallel_tree,
                                             random_state, seed, missing, **kwargs)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
