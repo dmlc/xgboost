@@ -7,92 +7,15 @@
 #include <vector>
 #include "../../../src/common/sync.h"
 #include "../../../src/tree/param.h"
-#include "common.cuh"
 #include "../../src/common/compressed_iterator.h"
 #include "../../src/common/hist_util.h"
+#include "common.cuh"
 #include "device_helpers.cuh"
 
 namespace xgboost {
 namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
-
-struct DeviceGMat {
-  dh::dvec<common::compressed_byte_t> gidx_buffer;
-  common::CompressedIterator<uint32_t> gidx;
-  dh::dvec<size_t> row_ptr;
-  void Init(int device_idx, const common::GHistIndexMatrix& gmat,
-            bst_ulong element_begin, bst_ulong element_end, bst_ulong row_begin,
-            bst_ulong row_end, int n_bins);
-};
-
-struct HistHelper {
-  bst_gpair_precise* d_hist;
-  int n_bins;
-  __host__ __device__ HistHelper(bst_gpair_precise* ptr, int n_bins);
-  __device__ void Add(bst_gpair_precise gpair, int gidx, int nidx) const;
-  __device__ bst_gpair_precise Get(int gidx, int nidx) const;
-};
-
-struct DeviceHist {
-  int n_bins;
-  dh::dvec<bst_gpair_precise> data;
-
-  void Init(int max_depth);
-
-  void Reset(int device_idx);
-
-  HistHelper GetBuilder();
-
-  bst_gpair_precise* GetLevelPtr(int depth);
-
-  int LevelSize(int depth);
-};
-
-void DeviceGMat::Init(int device_idx, const common::GHistIndexMatrix& gmat,
-                      bst_ulong element_begin, bst_ulong element_end,
-                      bst_ulong row_begin, bst_ulong row_end, int n_bins) {
-  dh::safe_cuda(cudaSetDevice(device_idx));
-  CHECK(gidx_buffer.size()) << "gidx_buffer must be externally allocated";
-  CHECK_EQ(row_ptr.size(), (row_end - row_begin) + 1)
-      << "row_ptr must be externally allocated";
-
-  common::CompressedBufferWriter cbw(n_bins);
-  std::vector<common::compressed_byte_t> host_buffer(gidx_buffer.size());
-  cbw.Write(host_buffer.data(), gmat.index.begin() + element_begin,
-            gmat.index.begin() + element_end);
-  gidx_buffer = host_buffer;
-  gidx = common::CompressedIterator<uint32_t>(gidx_buffer.data(), n_bins);
-
-  // row_ptr
-  thrust::copy(gmat.row_ptr.data() + row_begin,
-               gmat.row_ptr.data() + row_end + 1, row_ptr.tbegin());
-  // normalise row_ptr
-  size_t start = gmat.row_ptr[row_begin];
-  thrust::transform(row_ptr.tbegin(), row_ptr.tend(), row_ptr.tbegin(),
-                    [=] __device__(size_t val) { return val - start; });
-}
-
-void DeviceHist::Init(int n_bins_in) {
-  this->n_bins = n_bins_in;
-  CHECK(!data.empty()) << "DeviceHist must be externally allocated";
-}
-
-void DeviceHist::Reset(int device_idx) {
-  cudaSetDevice(device_idx);
-  data.fill(bst_gpair_precise());
-}
-
-bst_gpair_precise* DeviceHist::GetLevelPtr(int depth) {
-  return data.data() + n_nodes(depth - 1) * n_bins;
-}
-
-int DeviceHist::LevelSize(int depth) { return n_bins * n_nodes_level(depth); }
-
-HistHelper DeviceHist::GetBuilder() { return HistHelper(data.data(), n_bins); }
-
-HistHelper::HistHelper(bst_gpair_precise* ptr, int n_bins)
-    : d_hist(ptr), n_bins(n_bins) {}
 
 // Define double precision atomic add for older architectures
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
@@ -110,20 +33,77 @@ __device__ double atomicAdd(double* address, double val) {
 }
 #endif
 
-__device__ void HistHelper::Add(bst_gpair_precise gpair, int gidx,
-                                int nidx) const {
-  int hist_idx = nidx * n_bins + gidx;
-  atomicAdd(&(d_hist[hist_idx].grad), gpair.grad);  // OPTMARK: This and below
-                                                    // line lead to about 3X
-                                                    // slowdown due to memory
-                                                    // dependency and access
-                                                    // pattern issues.
-  atomicAdd(&(d_hist[hist_idx].hess), gpair.hess);
-}
+struct DeviceGMat {
+  dh::dvec<common::compressed_byte_t> gidx_buffer;
+  common::CompressedIterator<uint32_t> gidx;
+  dh::dvec<size_t> row_ptr;
+  void Init(int device_idx, const common::GHistIndexMatrix& gmat,
+            bst_ulong element_begin, bst_ulong element_end, bst_ulong row_begin,
+            bst_ulong row_end, int n_bins) {
+    dh::safe_cuda(cudaSetDevice(device_idx));
+    CHECK(gidx_buffer.size()) << "gidx_buffer must be externally allocated";
+    CHECK_EQ(row_ptr.size(), (row_end - row_begin) + 1)
+        << "row_ptr must be externally allocated";
 
-__device__ bst_gpair_precise HistHelper::Get(int gidx, int nidx) const {
-  return d_hist[nidx * n_bins + gidx];
-}
+    common::CompressedBufferWriter cbw(n_bins);
+    std::vector<common::compressed_byte_t> host_buffer(gidx_buffer.size());
+    cbw.Write(host_buffer.data(), gmat.index.begin() + element_begin,
+              gmat.index.begin() + element_end);
+    gidx_buffer = host_buffer;
+    gidx = common::CompressedIterator<uint32_t>(gidx_buffer.data(), n_bins);
+
+    // row_ptr
+    thrust::copy(gmat.row_ptr.data() + row_begin,
+                 gmat.row_ptr.data() + row_end + 1, row_ptr.tbegin());
+    // normalise row_ptr
+    size_t start = gmat.row_ptr[row_begin];
+    thrust::transform(row_ptr.tbegin(), row_ptr.tend(), row_ptr.tbegin(),
+                      [=] __device__(size_t val) { return val - start; });
+  }
+};
+
+struct HistHelper {
+  bst_gpair_precise* d_hist;
+  int n_bins;
+  __host__ __device__ HistHelper(bst_gpair_precise* ptr, int n_bins)
+      : d_hist(ptr), n_bins(n_bins) {}
+  __device__ void Add(bst_gpair_precise gpair, int gidx, int nidx) const {
+    int hist_idx = nidx * n_bins + gidx;
+    atomicAdd(&(d_hist[hist_idx].grad), gpair.grad);  // OPTMARK: This and below
+                                                      // line lead to about 3X
+                                                      // slowdown due to memory
+                                                      // dependency and access
+                                                      // pattern issues.
+    atomicAdd(&(d_hist[hist_idx].hess), gpair.hess);
+  }
+  __device__ bst_gpair_precise Get(int gidx, int nidx) const {
+    return d_hist[nidx * n_bins + gidx];
+  }
+};
+
+struct DeviceHist {
+  int n_bins;
+  dh::dvec<bst_gpair_precise> data;
+
+  void Init(int n_bins_in) {
+    this->n_bins = n_bins_in;
+    CHECK(!data.empty()) << "DeviceHist must be externally allocated";
+  }
+
+  void Reset(int device_idx) {
+    cudaSetDevice(device_idx);
+    data.fill(bst_gpair_precise());
+  }
+
+  HistHelper GetBuilder() { return HistHelper(data.data(), n_bins); }
+
+  bst_gpair_precise* GetLevelPtr(int depth) {
+    return data.data() + n_nodes(depth - 1) * n_bins;
+  }
+
+  int LevelSize(int depth) { return n_bins * n_nodes_level(depth); }
+};
+
 template <int BLOCK_THREADS>
 __global__ void find_split_kernel(
     const bst_gpair_precise* d_level_hist, int* d_feature_segments, int depth,
@@ -324,7 +304,7 @@ class GPUHistMaker : public TreeUpdater {
   TrainParam param;
   std::unique_ptr<GPUHistBuilder> builder;
 
-public:
+ public:
   class GPUHistBuilder {
    public:
     GPUHistBuilder()
@@ -768,141 +748,15 @@ public:
       bool colsample =
           param.colsample_bylevel < 1.0 || param.colsample_bytree < 1.0;
 
-      int dosimuljob = 1;
+      int num_nodes_device = n_nodes_level(depth);
+      const int GRID_SIZE = num_nodes_device;
 
-      int simuljob =
-          1;  // whether to do job on single GPU and broadcast (0) or to
-              // do same job on each GPU (1) (could make user parameter,
-              // but too fine-grained maybe)
-      int findsplit_shardongpus =
-          0;  // too expensive generally, disable for now
-
-      if (findsplit_shardongpus) {
-        dosimuljob = 0;
-        // use power of 2 for split finder because nodes are power of 2
-        // (broadcast result to remaining devices)
-        int find_split_n_devices =
-            std::pow(2, std::floor(std::log2(n_devices)));
-        find_split_n_devices =
-            std::min(n_nodes_level(depth), find_split_n_devices);
-        int num_nodes_device = n_nodes_level(depth) / find_split_n_devices;
-        int num_nodes_child_device =
-            n_nodes_level(depth + 1) / find_split_n_devices;
-        const int GRID_SIZE = num_nodes_device;
-
-        // NOTE: No need to scatter before gather as all devices have same copy
-        // of nodes, and within find_split_kernel() nodes_temp is given values
-        // from nodes
-
-        // for all nodes (split among devices) find best split per node
-        for (int d_idx = 0; d_idx < find_split_n_devices; d_idx++) {
-          int device_idx = dList[d_idx];
-          dh::safe_cuda(cudaSetDevice(device_idx));
-
-          int nodes_offset_device = d_idx * num_nodes_device;
-          find_split_kernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS>>>(
-              (const bst_gpair_precise*)(hist_vec[d_idx].GetLevelPtr(depth)),
-              feature_segments[d_idx].data(), depth, (info->num_col),
-              (hmat_.row_ptr.back()), nodes[d_idx].data(),
-              nodes_temp[d_idx].data(), nodes_child_temp[d_idx].data(),
-              nodes_offset_device, fidx_min_map[d_idx].data(),
-              gidx_fvalue_map[d_idx].data(), GPUTrainingParam(param),
-              left_child_smallest_temp[d_idx].data(), colsample,
-              feature_flags[d_idx].data());
-        }
-
-        // nccl only on devices that did split
-        dh::synchronize_n_devices(find_split_n_devices, dList);
-
-        for (int d_idx = 0; d_idx < find_split_n_devices; d_idx++) {
-          int device_idx = dList[d_idx];
-          dh::safe_cuda(cudaSetDevice(device_idx));
-
-          dh::safe_nccl(ncclAllGather(
-              reinterpret_cast<const void*>(nodes_temp[d_idx].data()),
-              num_nodes_device * sizeof(Node) / sizeof(char), ncclChar,
-              reinterpret_cast<void*>(nodes[d_idx].data() + n_nodes(depth - 1)),
-              find_split_comms[find_split_n_devices - 1][d_idx],
-              *(streams[d_idx])));
-
-          if (depth !=
-              param.max_depth) {  // don't copy over children nodes if no
-                                  // more nodes
-            dh::safe_nccl(ncclAllGather(
-                reinterpret_cast<const void*>(nodes_child_temp[d_idx].data()),
-                num_nodes_child_device * sizeof(Node) / sizeof(char), ncclChar,
-                reinterpret_cast<void*>(nodes[d_idx].data() + n_nodes(depth)),
-                find_split_comms[find_split_n_devices - 1][d_idx],
-                *(streams[d_idx])));  // Note offset by n_nodes(depth)
-            // for recvbuff for child nodes
-          }
-
-          dh::safe_nccl(ncclAllGather(
-              reinterpret_cast<const void*>(
-                  left_child_smallest_temp[d_idx].data()),
-              num_nodes_device * sizeof(bool) / sizeof(char), ncclChar,
-              reinterpret_cast<void*>(left_child_smallest[d_idx].data() +
-                                      n_nodes(depth - 1)),
-              find_split_comms[find_split_n_devices - 1][d_idx],
-              *(streams[d_idx])));
-        }
-
-        for (int d_idx = 0; d_idx < find_split_n_devices; d_idx++) {
-          int device_idx = dList[d_idx];
-          dh::safe_cuda(cudaSetDevice(device_idx));
-          dh::safe_cuda(cudaStreamSynchronize(*(streams[d_idx])));
-        }
-
-        if (n_devices > find_split_n_devices && n_devices > 1) {
-          // if n_devices==1, no need to Bcast
-          // if find_split_n_devices==1, this is just a copy operation, else it
-          // copies
-          // from master to all nodes in case extra devices not involved in
-          // split
-          for (int d_idx = 0; d_idx < n_devices; d_idx++) {
-            int device_idx = dList[d_idx];
-            dh::safe_cuda(cudaSetDevice(device_idx));
-
-            int master_device = dList[0];
-            dh::safe_nccl(ncclBcast(
-                reinterpret_cast<void*>(nodes[d_idx].data() +
-                                        n_nodes(depth - 1)),
-                n_nodes_level(depth) * sizeof(Node) / sizeof(char), ncclChar,
-                master_device, comms[d_idx], *(streams[d_idx])));
-
-            if (depth !=
-                param.max_depth) {  // don't copy over children nodes if no
-                                    // more nodes
-              dh::safe_nccl(ncclBcast(
-                  reinterpret_cast<void*>(nodes[d_idx].data() + n_nodes(depth)),
-                  n_nodes_level(depth + 1) * sizeof(Node) / sizeof(char),
-                  ncclChar, master_device, comms[d_idx], *(streams[d_idx])));
-            }
-
-            dh::safe_nccl(ncclBcast(
-                reinterpret_cast<void*>(left_child_smallest[d_idx].data() +
-                                        n_nodes(depth - 1)),
-                n_nodes_level(depth) * sizeof(bool) / sizeof(char), ncclChar,
-                master_device, comms[d_idx], *(streams[d_idx])));
-          }
-
-          for (int d_idx = 0; d_idx < n_devices; d_idx++) {
-            int device_idx = dList[d_idx];
-            dh::safe_cuda(cudaSetDevice(device_idx));
-            dh::safe_cuda(cudaStreamSynchronize(*(streams[d_idx])));
-          }
-        }
-      } else if (simuljob == 0) {
-        dosimuljob = 0;
-        int num_nodes_device = n_nodes_level(depth);
-        const int GRID_SIZE = num_nodes_device;
-
-        int d_idx = 0;
-        int master_device = dList[d_idx];
+      // all GPUs do same work
+      for (int d_idx = 0; d_idx < n_devices; d_idx++) {
         int device_idx = dList[d_idx];
         dh::safe_cuda(cudaSetDevice(device_idx));
 
-        int nodes_offset_device = d_idx * num_nodes_device;
+        int nodes_offset_device = 0;
         find_split_kernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS>>>(
             (const bst_gpair_precise*)(hist_vec[d_idx].GetLevelPtr(depth)),
             feature_segments[d_idx].data(), depth, (info->num_col),
@@ -911,61 +765,6 @@ public:
             gidx_fvalue_map[d_idx].data(), GPUTrainingParam(param),
             left_child_smallest[d_idx].data(), colsample,
             feature_flags[d_idx].data());
-
-        // broadcast result
-        for (int d_idx = 0; d_idx < n_devices; d_idx++) {
-          int device_idx = dList[d_idx];
-          dh::safe_cuda(cudaSetDevice(device_idx));
-
-          dh::safe_nccl(ncclBcast(
-              reinterpret_cast<void*>(nodes[d_idx].data() + n_nodes(depth - 1)),
-              n_nodes_level(depth) * sizeof(Node) / sizeof(char), ncclChar,
-              master_device, comms[d_idx], *(streams[d_idx])));
-
-          if (depth !=
-              param.max_depth) {  // don't copy over children nodes if no
-                                  // more nodes
-            dh::safe_nccl(ncclBcast(
-                reinterpret_cast<void*>(nodes[d_idx].data() + n_nodes(depth)),
-                n_nodes_level(depth + 1) * sizeof(Node) / sizeof(char),
-                ncclChar, master_device, comms[d_idx], *(streams[d_idx])));
-          }
-
-          dh::safe_nccl(ncclBcast(
-              reinterpret_cast<void*>(left_child_smallest[d_idx].data() +
-                                      n_nodes(depth - 1)),
-              n_nodes_level(depth) * sizeof(bool) / sizeof(char), ncclChar,
-              master_device, comms[d_idx], *(streams[d_idx])));
-        }
-
-        for (int d_idx = 0; d_idx < n_devices; d_idx++) {
-          int device_idx = dList[d_idx];
-          dh::safe_cuda(cudaSetDevice(device_idx));
-          dh::safe_cuda(cudaStreamSynchronize(*(streams[d_idx])));
-        }
-      } else {
-        dosimuljob = 1;
-      }
-
-      if (dosimuljob) {  // if no NCCL or simuljob==1, do this
-        int num_nodes_device = n_nodes_level(depth);
-        const int GRID_SIZE = num_nodes_device;
-
-        // all GPUs do same work
-        for (int d_idx = 0; d_idx < n_devices; d_idx++) {
-          int device_idx = dList[d_idx];
-          dh::safe_cuda(cudaSetDevice(device_idx));
-
-          int nodes_offset_device = 0;
-          find_split_kernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS>>>(
-              (const bst_gpair_precise*)(hist_vec[d_idx].GetLevelPtr(depth)),
-              feature_segments[d_idx].data(), depth, (info->num_col),
-              (hmat_.row_ptr.back()), nodes[d_idx].data(), NULL, NULL,
-              nodes_offset_device, fidx_min_map[d_idx].data(),
-              gidx_fvalue_map[d_idx].data(), GPUTrainingParam(param),
-              left_child_smallest[d_idx].data(), colsample,
-              feature_flags[d_idx].data());
-        }
       }
 
       // NOTE: No need to syncrhonize with host as all above pure P2P ops or
@@ -1295,7 +1094,6 @@ public:
     dh::Timer cpu_time;
     double gpu_time;
   };
-
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
