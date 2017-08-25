@@ -4,7 +4,7 @@ XGBoost R Package
 [![CRAN Downloads](http://cranlogs.r-pkg.org/badges/xgboost)](http://cran.rstudio.com/web/packages/xgboost/index.html)
 
 
-You have find XGBoost R Package!
+You have found the XGBoost R Package!
 
 Get Started
 -----------

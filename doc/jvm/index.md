@@ -3,7 +3,7 @@ XGBoost JVM Package
 [![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost)
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](../LICENSE)
 
-You have find XGBoost JVM Package!
+You have found the XGBoost JVM Package!
 
 Installation
 ------------
