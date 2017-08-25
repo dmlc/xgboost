@@ -5,7 +5,7 @@
 \title{Project all trees on one tree and plot it}
 \usage{
 xgb.plot.multi.trees(model, feature_names = NULL, features_keep = 5,
-  plot_width = NULL, plot_height = NULL, ...)
+  plot_width = NULL, plot_height = NULL, render = TRUE, ...)
 }
 \arguments{
 \item{model}{produced by the \code{xgb.train} function.}
@@ -18,10 +18,19 @@ xgb.plot.multi.trees(model, feature_names = NULL, features_keep = 5,
 
 \item{plot_height}{height in pixels of the graph to produce}
 
+\item{render}{a logical flag for whether the graph should be rendered (see Value).}
+
 \item{...}{currently not used}
 }
 \value{
-Two graphs showing the distribution of the model deepness.
+When \code{render = TRUE}:
+returns a rendered graph object which is an \code{htmlwidget} of class \code{grViz}.
+Similar to ggplot objects, it needs to be printed to see it when not running from command line.
+
+When \code{render = FALSE}:
+silently returns a graph object which is of DiagrammeR's class \code{dgr_graph}.
+This could be useful if one wants to modify some of the graph attributes
+before rendering the graph with \code{\link[DiagrammeR]{render_graph}}.
 }
 \description{
 Visualization of the ensemble of trees as a single collective unit.
@@ -45,14 +54,22 @@ This function is inspired by this blog post:
 \url{https://wellecks.wordpress.com/2015/02/21/peering-into-the-black-box-visualizing-lambdamart/}
 }
 \examples{
+
 data(agaricus.train, package='xgboost')
 
 bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 15,
-                 eta = 1, nthread = 2, nrounds = 30, objective = "binary:logistic",
-                 min_child_weight = 50)
+               eta = 1, nthread = 2, nrounds = 30, objective = "binary:logistic",
+               min_child_weight = 50)
 
-p <- xgb.plot.multi.trees(model = bst, feature_names = colnames(agaricus.train$data),
-                          features_keep = 3)
+p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
 print(p)
+
+\dontrun{
+# Below is an example of how to save this plot to a file.
+# Note that for `export_graph` to work, the DiagrammeRsvg and rsvg packages must also be installed.
+library(DiagrammeR)
+gr <- xgb.plot.multi.trees(model=bst, features_keep = 3, render=FALSE)
+export_graph(gr, 'tree.pdf', width=1500, height=600)
+}
 
 }
