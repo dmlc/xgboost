@@ -21,8 +21,8 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
+import org.apache.spark.sql.functions._
 import org.scalatest.FunSuite
 
 class XGBoostDFSuite extends FunSuite with PerTest {
@@ -212,5 +212,25 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val pred = trainPredict(trainingDf)
     val predWithMargin = trainPredict(trainingDfWithMargin)
     assert((pred, predWithMargin).zipped.exists { case (p, pwm) => p !== pwm })
+  }
+
+  test("test use weight") {
+    import DataUtils._
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "weightCol" -> "weight")
+
+    // We set the wight of the first instance to 1. All other instances to 0
+    val trainingDF = buildDataFrame(Regression.train)
+      .withColumn("weight", (col("id") === 0).cast("float"))
+
+    val model = XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5,
+      nWorkers = numWorkers, useExternalMemory = true)
+      .setPredictionCol("final_prediction")
+      .setExternalMemory(true)
+    val testRDD = sc.parallelize(Regression.test.map(_.features))
+    val predictions = model.predict(testRDD).collect().flatten
+
+    // Since there are only one training instance, all the predictions are the same.
+    assert(predictions.forall(_ == predictions.head))
   }
 }

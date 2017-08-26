@@ -16,6 +16,9 @@
 package ml.dmlc.xgboost4j.java;
 
 import java.util.Iterator;
+import java.util.List;
+
+import com.google.common.collect.ImmutableList;
 
 import ml.dmlc.xgboost4j.LabeledPoint;
 
@@ -46,12 +49,20 @@ public class DMatrix {
     if (iter == null) {
       throw new NullPointerException("iter: null");
     }
+    List<LabeledPoint> points = ImmutableList.copyOf(iter);
     // 32k as batch size
     int batchSize = 32 << 10;
-    Iterator<DataBatch> batchIter = new DataBatch.BatchIterator(iter, batchSize);
+    Iterator<DataBatch> batchIter = new DataBatch.BatchIterator(points.iterator(), batchSize);
     long[] out = new long[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(batchIter, cacheInfo, out));
     handle = out[0];
+
+    // Set weight
+    float[] weights = new float[points.size()];
+    for (int i = 0; i < points.size(); i++) {
+      weights[i] = points.get(i).weight();
+    }
+    setWeight(weights);
   }
 
   /**

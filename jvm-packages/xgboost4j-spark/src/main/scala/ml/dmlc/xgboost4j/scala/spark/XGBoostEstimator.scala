@@ -108,11 +108,14 @@ class XGBoostEstimator private[spark](
   }
 
   private def ensureColumns(trainingSet: Dataset[_]): Dataset[_] = {
-    if (trainingSet.columns.contains($(baseMarginCol))) {
-      trainingSet
-    } else {
-      trainingSet.withColumn($(baseMarginCol), lit(Float.NaN))
+    var newTrainingSet = trainingSet
+    if (!trainingSet.columns.contains($(baseMarginCol))) {
+      newTrainingSet = newTrainingSet.withColumn($(baseMarginCol), lit(Float.NaN))
     }
+    if (!trainingSet.columns.contains($(weightCol))) {
+      newTrainingSet = newTrainingSet.withColumn($(weightCol), lit(1.0))
+    }
+    newTrainingSet
   }
 
   /**
@@ -122,13 +125,14 @@ class XGBoostEstimator private[spark](
     val instances = ensureColumns(trainingSet).select(
       col($(featuresCol)),
       col($(labelCol)).cast(FloatType),
-      col($(baseMarginCol)).cast(FloatType)
-    ).rdd.map { case Row(features: Vector, label: Float, baseMargin: Float) =>
+      col($(baseMarginCol)).cast(FloatType),
+      col($(weightCol)).cast(FloatType)
+    ).rdd.map { case Row(features: Vector, label: Float, baseMargin: Float, weight: Float) =>
       val (indices, values) = features match {
         case v: SparseVector => (v.indices, v.values.map(_.toFloat))
         case v: DenseVector => (null, v.values.map(_.toFloat))
       }
-      XGBLabeledPoint(label.toFloat, indices, values, baseMargin = baseMargin)
+      XGBLabeledPoint(label.toFloat, indices, values, baseMargin = baseMargin, weight = weight)
     }
     transformSchema(trainingSet.schema, logging = true)
     val derivedXGBoosterParamMap = fromParamsToXGBParamMap
