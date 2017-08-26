@@ -18,14 +18,14 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.scalatest.FunSuite
+import org.apache.spark.sql.types.DataTypes
+import org.scalatest.{FunSuite, Matchers}
 
-class XGBoostDFSuite extends FunSuite with PerTest {
+class XGBoostDFSuite extends FunSuite with PerTest with Matchers {
   private def buildDataFrame(
       labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
@@ -219,9 +219,10 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear", "weightCol" -> "weight")
 
-    // We set the wight of the first instance to 1. All other instances to 0
+    // We set the wight of the first instance to 1. All other instance weights to 0.001
+    val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f}, DataTypes.FloatType)
     val trainingDF = buildDataFrame(Regression.train)
-      .withColumn("weight", (col("id") === 0).cast("float"))
+      .withColumn("weight", getWeightFromId(col("id")))
 
     val model = XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5,
       nWorkers = numWorkers, useExternalMemory = true)
@@ -230,7 +231,7 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val testRDD = sc.parallelize(Regression.test.map(_.features))
     val predictions = model.predict(testRDD).collect().flatten
 
-    // Since there are only one training instance, all the predictions are the same.
-    assert(predictions.forall(_ == predictions.head))
+    // The predictions heavily relies on the first training instance.
+    predictions.foreach(_ should equal (predictions.head +- 0.01f))
   }
 }
