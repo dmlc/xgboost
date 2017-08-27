@@ -23,9 +23,9 @@ import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.DataTypes
-import org.scalatest.{FunSuite, Matchers}
+import org.scalatest.FunSuite
 
-class XGBoostDFSuite extends FunSuite with PerTest with Matchers {
+class XGBoostDFSuite extends FunSuite with PerTest {
   private def buildDataFrame(
       labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
@@ -219,7 +219,6 @@ class XGBoostDFSuite extends FunSuite with PerTest with Matchers {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear", "weightCol" -> "weight")
 
-    // We set the wight of the first instance to 1. All other instance weights to 0.001
     val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f}, DataTypes.FloatType)
     val trainingDF = buildDataFrame(Regression.train)
       .withColumn("weight", getWeightFromId(col("id")))
@@ -231,7 +230,7 @@ class XGBoostDFSuite extends FunSuite with PerTest with Matchers {
     val testRDD = sc.parallelize(Regression.test.map(_.features))
     val predictions = model.predict(testRDD).collect().flatten
 
-    // The predictions heavily relies on the first training instance.
-    predictions.foreach(_ should equal (predictions.head +- 0.01f))
+    // The predictions heavily relies on the first training instance, and thus are very close.
+    predictions.foreach(pred => assert(math.abs(pred - predictions.head) <= 0.01f))
   }
 }
