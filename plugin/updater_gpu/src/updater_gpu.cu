@@ -4,7 +4,6 @@
 #include <xgboost/tree_updater.h>
 #include <utility>
 #include <vector>
-#include "../../../src/common/sync.h"
 #include "../../../src/tree/param.h"
 #include "fused_scan_reduce_by_key.cuh"
 
@@ -14,7 +13,7 @@ namespace tree {
 DMLC_REGISTRY_FILE_TAG(updater_gpu);
 
 /**
- * @struct ExactSplitCandidate node.cuh
+ * @struct ExactSplitCandidate 
  * @brief Abstraction of a possible split in the decision tree
  */
 struct ExactSplitCandidate {
