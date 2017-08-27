@@ -79,6 +79,10 @@ struct Split {
     }
   }
 
+  __device__ bool IsValid()const 
+  {
+    return loss_chg > 0.0f;
+  }
   //__host__ __device__ void Print() {
   //  printf("Loss: %1.4f\n", loss_chg);
   //  printf("Missing left: %d\n", missing_left);
@@ -99,23 +103,83 @@ struct split_reduce_op {
   }
 };
 
-struct Node {
+/**
+ * @enum DefaultDirection node.cuh
+ * @brief Default direction to be followed in case of missing values
+ */
+enum DefaultDirection {
+  /** move to left child */
+  LeftDir = 0,
+  /** move to right child */
+  RightDir
+};
+typedef int node_id_t;
+
+/** used to assign default id to a Node */
+static const int UNUSED_NODE = -1;
+
+
+struct DeviceDenseNode {
   bst_gpair sum_gradients;
   float root_gain;
   float weight;
 
-  Split split;
+  //Split split;
 
-  __host__ __device__ Node() : weight(0), root_gain(0) {}
+  //__host__ __device__ Node() : weight(0), root_gain(0) {}
 
-  __host__ __device__ Node(bst_gpair sum_gradients_in, float root_gain_in,
-                           float weight_in) {
-    sum_gradients = sum_gradients_in;
-    root_gain = root_gain_in;
-    weight = weight_in;
+  //__host__ __device__ Node(bst_gpair sum_gradients_in, float root_gain_in,
+  //                         float weight_in) {
+  //  sum_gradients = sum_gradients_in;
+  //  root_gain = root_gain_in;
+  //  weight = weight_in;
+  //}
+
+  /** default direction for missing values */
+  DefaultDirection dir;
+  /** threshold value for comparison */
+  float fvalue;
+  /** \brief The feature index. */
+  int fidx;
+  /** node id (used as key for reduce/scan) */
+  node_id_t idx;
+
+  //__host__ __device__ Node() : weight(0), root_gain(0) {}
+  HOST_DEV_INLINE DeviceDenseNode()
+      : sum_gradients(),
+        root_gain(-FLT_MAX),
+        weight(-FLT_MAX),
+        dir(LeftDir),
+        fvalue(0.f),
+        fidx(UNUSED_NODE),
+        idx(UNUSED_NODE) {}
+
+  HOST_DEV_INLINE DeviceDenseNode(bst_gpair sum_gradients,node_id_t nidx,const GPUTrainingParam &param)
+      : sum_gradients(sum_gradients),
+        dir(LeftDir),
+        fvalue(0.f),
+        fidx(UNUSED_NODE),
+        idx(nidx)
+  {
+    this->root_gain = CalcGain(param, sum_gradients.grad, sum_gradients.hess);
+    this->weight = CalcWeight(param, sum_gradients.grad, sum_gradients.hess);
   }
 
-  __host__ __device__ bool IsLeaf() { return split.loss_chg == -FLT_MAX; }
+  HOST_DEV_INLINE void  SetSplit(float fvalue,int fidx,DefaultDirection dir)
+  {
+    this->fvalue = fvalue;
+    this->fidx = fidx;
+    this->dir = dir;
+  }
+
+  //__host__ __device__ bool IsLeaf() { return split.loss_chg == -FLT_MAX; }
+  /** Tells whether this node is part of the decision tree */
+  HOST_DEV_INLINE bool IsUnused() const { return (idx == UNUSED_NODE); }
+  //__host__ __device__ bool IsLeaf() { return split.loss_chg == -FLT_MAX; }
+  /** Tells whether this node is a leaf of the decision tree */
+  HOST_DEV_INLINE bool IsLeaf() const {
+    return (!IsUnused() && (fidx == UNUSED_NODE));
+  }
 };
 
 }  // namespace tree

@@ -23,6 +23,7 @@
 #include "argmax_by_key.cuh"
 #include "fused_scan_reduce_by_key.cuh"
 #include "node.cuh"
+//#include "../types.cuh"
 #include "split2node.cuh"
 #include "xgboost/tree_updater.h"
 
@@ -31,14 +32,14 @@ namespace tree {
 namespace exact {
 
 
-__global__ void initRootNode(Node* nodes, const bst_gpair* sums,
+__global__ void initRootNode(DeviceDenseNode* nodes, const bst_gpair* sums,
                              const TrainParam param) {
   // gradients already evaluated inside transferGrads
-  Node n;
-  n.gradSum = sums[0];
-  n.score = CalcGain(param, n.gradSum.grad, n.gradSum.hess);
-  n.weight = CalcWeight(param, n.gradSum.grad, n.gradSum.hess);
-  n.id = 0;
+  DeviceDenseNode n;
+  n.sum_gradients = sums[0];
+  n.root_gain = CalcGain(param, n.sum_gradients.grad, n.sum_gradients.hess);
+  n.weight = CalcWeight(param, n.sum_gradients.grad, n.sum_gradients.hess);
+  n.idx = 0;
   nodes[0] = n;
 }
 
@@ -54,7 +55,7 @@ __global__ void assignColIds(int* colIds, const int* colOffsets) {
 
 
 __global__ void fillDefaultNodeIds(node_id_t* nodeIdsPerInst,
-                                   const Node* nodes, int nRows) {
+                                   const DeviceDenseNode* nodes, int nRows) {
   int id = threadIdx.x + (blockIdx.x * blockDim.x);
   if (id >= nRows) {
     return;
@@ -64,14 +65,14 @@ __global__ void fillDefaultNodeIds(node_id_t* nodeIdsPerInst,
   if (nId == UNUSED_NODE) {
     return;
   }
-  const Node n = nodes[nId];
+  const DeviceDenseNode n = nodes[nId];
   node_id_t result;
-  if (n.isLeaf() || n.isUnused()) {
+  if (n.IsLeaf() || n.IsUnused()) {
     result = UNUSED_NODE;
-  } else if (n.isDefaultLeft()) {
-    result = (2 * n.id) + 1;
+  } else if (n.dir == LeftDir) {
+    result = (2 * n.idx) + 1;
   } else {
-    result = (2 * n.id) + 2;
+    result = (2 * n.idx) + 2;
   }
   nodeIdsPerInst[id] = result;
 }
@@ -79,7 +80,7 @@ __global__ void fillDefaultNodeIds(node_id_t* nodeIdsPerInst,
 
 __global__ void assignNodeIds(node_id_t* nodeIdsPerInst, int* nodeLocations,
                               const node_id_t* nodeIds, const int* instId,
-                              const Node* nodes,
+                              const DeviceDenseNode* nodes,
                               const int* colOffsets, const float* vals,
                               int nVals, int nCols) {
   int id = threadIdx.x + (blockIdx.x * blockDim.x);
@@ -92,14 +93,14 @@ __global__ void assignNodeIds(node_id_t* nodeIdsPerInst, int* nodeLocations,
     int nId = nodeIds[id];
     // if this element belongs to none of the currently active node-id's
     if (nId != UNUSED_NODE) {
-      const Node n = nodes[nId];
-      int colId = n.colIdx;
+      const DeviceDenseNode n = nodes[nId];
+      int colId = n.fidx;
       // printf("nid=%d colId=%d id=%d\n", nId, colId, id);
       int start = colOffsets[colId];
       int end = colOffsets[colId + 1];
       ///@todo: too much wasteful threads!!
-      if ((id >= start) && (id < end) && !(n.isLeaf() || n.isUnused())) {
-        node_id_t result = (2 * n.id) + 1 + (vals[id] >= n.threshold);
+      if ((id >= start) && (id < end) && !(n.IsLeaf() || n.IsUnused())) {
+        node_id_t result = (2 * n.idx) + 1 + (vals[id] >= n.fvalue);
         nodeIdsPerInst[instId[id]] = result;
       }
     }
@@ -107,15 +108,15 @@ __global__ void assignNodeIds(node_id_t* nodeIdsPerInst, int* nodeLocations,
 }
 
 
-__global__ void markLeavesKernel(Node* nodes, int len) {
+__global__ void markLeavesKernel(DeviceDenseNode* nodes, int len) {
   int id = (blockIdx.x * blockDim.x) + threadIdx.x;
-  if ((id < len) && !nodes[id].isUnused()) {
+  if ((id < len) && !nodes[id].IsUnused()) {
     int lid = (id << 1) + 1;
     int rid = (id << 1) + 2;
     if ((lid >= len) || (rid >= len)) {
-      nodes[id].score = -FLT_MAX;  // bottom-most nodes
-    } else if (nodes[lid].isUnused() && nodes[rid].isUnused()) {
-      nodes[id].score = -FLT_MAX;  // unused child nodes
+      nodes[id].root_gain = -FLT_MAX;  // bottom-most nodes
+    } else if (nodes[lid].IsUnused() && nodes[rid].IsUnused()) {
+      nodes[id].root_gain = -FLT_MAX;  // unused child nodes
     }
   }
 }
@@ -199,7 +200,7 @@ class GPUBuilder {
   dh::dvec<bst_gpair> gradsInst;
   dh::dvec2<node_id_t> nodeAssigns;
   dh::dvec2<int> nodeLocations;
-  dh::dvec<Node> nodes;
+  dh::dvec<DeviceDenseNode> nodes;
   dh::dvec<node_id_t>  nodeAssignsPerInst;
   dh::dvec<bst_gpair> gradSums;
   dh::dvec<bst_gpair> gradScans;
@@ -312,7 +313,7 @@ class GPUBuilder {
   void initNodeData(int level, node_id_t nodeStart, int nNodes) {
     // all instances belong to root node at the beginning!
     if (level == 0) {
-      nodes.fill(Node());
+      nodes.fill(DeviceDenseNode());
       nodeAssigns.current_dvec().fill(0);
       nodeAssignsPerInst.fill(0);
       // for root node, just update the gradient/score/weight/id info
@@ -359,19 +360,19 @@ class GPUBuilder {
 
   void dense2sparse(RegTree* p_tree) {
     RegTree& tree = *p_tree;
-    std::vector<Node> hNodes = nodes.as_vector();
+    std::vector<DeviceDenseNode> hNodes = nodes.as_vector();
     int nodeId = 0;
     for (int i = 0; i < maxNodes; ++i) {
-      const Node& n = hNodes[i];
-      if ((i != 0) && hNodes[i].isLeaf()) {
+      const DeviceDenseNode& n = hNodes[i];
+      if ((i != 0) && hNodes[i].IsLeaf()) {
         tree[nodeId].set_leaf(n.weight * param.learning_rate);
-        tree.stat(nodeId).sum_hess = n.gradSum.hess;
+        tree.stat(nodeId).sum_hess = n.sum_gradients.hess;
         ++nodeId;
-      } else if (!hNodes[i].isUnused()) {
+      } else if (!hNodes[i].IsUnused()) {
         tree.AddChilds(nodeId);
-        tree[nodeId].set_split(n.colIdx, n.threshold, n.dir == LeftDir);
-        tree.stat(nodeId).loss_chg = n.score;
-        tree.stat(nodeId).sum_hess = n.gradSum.hess;
+        tree[nodeId].set_split(n.fidx, n.fvalue, n.dir == LeftDir);
+        tree.stat(nodeId).loss_chg = n.root_gain;
+        tree.stat(nodeId).sum_hess = n.sum_gradients.hess;
         tree.stat(nodeId).base_weight = n.weight;
         tree[tree[nodeId].cleft()].set_leaf(0);
         tree[tree[nodeId].cright()].set_leaf(0);

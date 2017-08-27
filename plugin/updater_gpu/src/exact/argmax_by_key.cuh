@@ -68,7 +68,7 @@ DEV_INLINE void atomicArgMax(Split* address, Split val) {
 DEV_INLINE void argMaxWithAtomics(
     int id, Split* nodeSplits, const bst_gpair* gradScans,
     const bst_gpair* gradSums, const float* vals, const int* colIds,
-    const node_id_t* nodeAssigns, const Node* nodes, int nUniqKeys,
+    const node_id_t* nodeAssigns, const DeviceDenseNode* nodes, int nUniqKeys,
     node_id_t nodeStart, int len, const  GPUTrainingParam& param) {
   int nodeId = nodeAssigns[id];
   ///@todo: this is really a bad check! but will be fixed when we move
@@ -80,9 +80,9 @@ DEV_INLINE void argMaxWithAtomics(
       int sumId = abs2uniqKey(id, nodeAssigns, colIds, nodeStart, nUniqKeys);
       bst_gpair colSum = gradSums[sumId];
       int uid = nodeId - nodeStart;
-      Node n = nodes[nodeId];
-      bst_gpair parentSum = n.gradSum;
-      float parentGain = n.score;
+      DeviceDenseNode n = nodes[nodeId];
+      bst_gpair parentSum = n.sum_gradients;
+      float parentGain = n.root_gain;
       bool tmp;
       Split s;
       bst_gpair missing = parentSum - colSum;
@@ -98,7 +98,7 @@ DEV_INLINE void argMaxWithAtomics(
 __global__ void atomicArgMaxByKeyGmem(
     Split* nodeSplits, const bst_gpair* gradScans, const bst_gpair* gradSums,
     const float* vals, const int* colIds, const node_id_t* nodeAssigns,
-    const Node* nodes, int nUniqKeys, node_id_t nodeStart, int len,
+    const DeviceDenseNode* nodes, int nUniqKeys, node_id_t nodeStart, int len,
     const TrainParam param) {
   int id = threadIdx.x + (blockIdx.x * blockDim.x);
   const int stride = blockDim.x * gridDim.x;
@@ -112,7 +112,7 @@ __global__ void atomicArgMaxByKeyGmem(
 __global__ void atomicArgMaxByKeySmem(
     Split* nodeSplits, const bst_gpair* gradScans, const bst_gpair* gradSums,
     const float* vals, const int* colIds, const node_id_t* nodeAssigns,
-    const Node* nodes, int nUniqKeys, node_id_t nodeStart, int len,
+    const DeviceDenseNode* nodes, int nUniqKeys, node_id_t nodeStart, int len,
     const TrainParam param) {
   extern __shared__ char sArr[];
   Split* sNodeSplits = reinterpret_cast<Split*>(sArr);
@@ -156,7 +156,7 @@ template < int BLKDIM = 256, int ITEMS_PER_THREAD = 4>
 void argMaxByKey(Split* nodeSplits, const bst_gpair* gradScans,
                  const bst_gpair* gradSums, const float* vals,
                  const int* colIds, const node_id_t* nodeAssigns,
-                 const Node* nodes, int nUniqKeys,
+                 const DeviceDenseNode* nodes, int nUniqKeys,
                  node_id_t nodeStart, int len, const TrainParam param,
                  ArgMaxByKeyAlgo algo) {
   fillConst<Split, BLKDIM, ITEMS_PER_THREAD>(dh::get_device_idx(param.gpu_id),

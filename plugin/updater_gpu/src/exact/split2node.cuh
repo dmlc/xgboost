@@ -34,13 +34,13 @@ namespace exact {
  * @param maxStep max weight step update
  */
 
-DEV_INLINE void updateOneChildNode(Node* nodes, int nid,
+DEV_INLINE void updateOneChildNode(DeviceDenseNode* nodes, int nid,
                                    const bst_gpair& grad,
                                    const TrainParam& param) {
-  nodes[nid].gradSum = grad;
-  nodes[nid].score = CalcGain(param, grad.grad, grad.hess);
+  nodes[nid].sum_gradients = grad;
+  nodes[nid].root_gain = CalcGain(param, grad.grad, grad.hess);
   nodes[nid].weight = CalcWeight(param, grad.grad, grad.hess);
-  nodes[nid].id = nid;
+  nodes[nid].idx = nid;
 }
 
 /**
@@ -53,7 +53,7 @@ DEV_INLINE void updateOneChildNode(Node* nodes, int nid,
  * @param param the training parameter struct
  */
 
-DEV_INLINE void updateChildNodes(Node* nodes, int pid,
+DEV_INLINE void updateChildNodes(DeviceDenseNode* nodes, int pid,
                                  const bst_gpair& gradL, const bst_gpair& gradR,
                                  const TrainParam& param) {
   int childId = (pid * 2) + 1;
@@ -62,33 +62,33 @@ DEV_INLINE void updateChildNodes(Node* nodes, int pid,
 }
 
 
-DEV_INLINE void updateNodeAndChildren(Node* nodes, const Split& s,
-                                      const Node& n, int absNodeId,
+DEV_INLINE void updateNodeAndChildren(DeviceDenseNode* nodes, const Split& s,
+                                      const DeviceDenseNode& n, int absNodeId,
                                       int colId, const bst_gpair& gradScan,
                                       const bst_gpair& colSum, float thresh,
                                       const TrainParam& param) {
   bool missingLeft = true;
   // get the default direction for the current node
-  bst_gpair missing = n.gradSum - colSum;
-  loss_chg_missing(gradScan, missing, n.gradSum, n.score, param, missingLeft);
+  bst_gpair missing = n.sum_gradients - colSum;
+  loss_chg_missing(gradScan, missing, n.sum_gradients, n.root_gain, param, missingLeft);
   // get the score/weight/id/gradSum for left and right child nodes
   bst_gpair lGradSum, rGradSum;
   if (missingLeft) {
-    lGradSum = gradScan + n.gradSum - colSum;
+    lGradSum = gradScan + n.sum_gradients - colSum;
   } else {
     lGradSum = gradScan;
   }
-  rGradSum = n.gradSum - lGradSum;
+  rGradSum = n.sum_gradients - lGradSum;
   updateChildNodes(nodes, absNodeId, lGradSum, rGradSum, param);
   // update default-dir, threshold and feature id for current node
   nodes[absNodeId].dir = missingLeft ? LeftDir : RightDir;
-  nodes[absNodeId].colIdx = colId;
-  nodes[absNodeId].threshold = thresh;
+  nodes[absNodeId].fidx = colId;
+  nodes[absNodeId].fvalue = thresh;
 }
 
 template < int BLKDIM = 256>
 __global__ void split2nodeKernel(
-    Node* nodes, const Split* nodeSplits, const bst_gpair* gradScans,
+    DeviceDenseNode* nodes, const Split* nodeSplits, const bst_gpair* gradScans,
     const bst_gpair* gradSums, const float* vals, const int* colIds,
     const int* colOffsets, const node_id_t* nodeAssigns, int nUniqKeys,
     node_id_t nodeStart, int nCols, const TrainParam param) {
@@ -107,7 +107,7 @@ __global__ void split2nodeKernel(
                           param);
   } else {
     // cannot be split further, so this node is a leaf!
-    nodes[absNodeId].score = -FLT_MAX;
+    nodes[absNodeId].root_gain = -FLT_MAX;
   }
 }
 
@@ -129,7 +129,7 @@ __global__ void split2nodeKernel(
  * @param param the training parameter struct
  */
 template < int BLKDIM = 256>
-void split2node(Node* nodes, const Split* nodeSplits,
+void split2node(DeviceDenseNode* nodes, const Split* nodeSplits,
                 const bst_gpair* gradScans, const bst_gpair* gradSums,
                 const float* vals, const int* colIds, const int* colOffsets,
                 const node_id_t* nodeAssigns, int nUniqKeys,

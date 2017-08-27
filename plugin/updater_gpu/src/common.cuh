@@ -16,12 +16,9 @@ namespace xgboost {
 namespace tree {
 
 template <typename gpair_t>
-__device__ inline float device_calc_loss_chg(const GPUTrainingParam& param,
-                                             const gpair_t& scan,
-                                             const gpair_t& missing,
-                                             const gpair_t& parent_sum,
-                                             const float& parent_gain,
-                                             bool missing_left) {
+__device__ inline float device_calc_loss_chg(
+    const GPUTrainingParam& param, const gpair_t& scan, const gpair_t& missing,
+    const gpair_t& parent_sum, const float& parent_gain, bool missing_left) {
   gpair_t left = scan;
 
   if (missing_left) {
@@ -83,59 +80,26 @@ __host__ __device__ inline bool is_left_child(int nidx) {
   return nidx % 2 == 1;
 }
 
-enum NodeType {
-  NODE = 0,
-  LEAF = 1,
-  UNUSED = 2,
-};
-
-// Recursively label node types
-inline void flag_nodes(const thrust::host_vector<Node>& nodes,
-                       std::vector<NodeType>* node_flags, int nid,
-                       NodeType type) {
-  if (nid >= nodes.size() || type == UNUSED) {
-    return;
-  }
-
-  const Node& n = nodes[nid];
-
-  // Current node and all children are valid
-  if (n.split.loss_chg > rt_eps) {
-    (*node_flags)[nid] = NODE;
-    flag_nodes(nodes, node_flags, nid * 2 + 1, NODE);
-    flag_nodes(nodes, node_flags, nid * 2 + 2, NODE);
-  } else {
-    // Current node is leaf, therefore is valid but all children are invalid
-    (*node_flags)[nid] = LEAF;
-    flag_nodes(nodes, node_flags, nid * 2 + 1, UNUSED);
-    flag_nodes(nodes, node_flags, nid * 2 + 2, UNUSED);
-  }
-}
-
 // Copy gpu dense representation of tree to xgboost sparse representation
 inline void dense2sparse_tree(RegTree* p_tree,
-                              thrust::device_ptr<Node> nodes_begin,
-                              thrust::device_ptr<Node> nodes_end,
+  const dh::dvec<DeviceDenseNode>& nodes,
                               const TrainParam& param) {
   RegTree& tree = *p_tree;
-  thrust::host_vector<Node> h_nodes(nodes_begin, nodes_end);
-  std::vector<NodeType> node_flags(h_nodes.size(), UNUSED);
-  flag_nodes(h_nodes, &node_flags, 0, NODE);
+  std::vector<DeviceDenseNode> h_nodes = nodes.as_vector();
 
   int nid = 0;
   for (int gpu_nid = 0; gpu_nid < h_nodes.size(); gpu_nid++) {
-    NodeType flag = node_flags[gpu_nid];
-    const Node& n = h_nodes[gpu_nid];
-    if (flag == NODE) {
+    const DeviceDenseNode& n = h_nodes[gpu_nid];
+    if (!n.IsUnused() && !n.IsLeaf()) {
       tree.AddChilds(nid);
-      tree[nid].set_split(n.split.findex, n.split.fvalue, n.split.missing_left);
-      tree.stat(nid).loss_chg = n.split.loss_chg;
+      tree[nid].set_split(n.fidx, n.fvalue, n.dir == LeftDir);
+      tree.stat(nid).loss_chg = n.root_gain;
       tree.stat(nid).base_weight = n.weight;
       tree.stat(nid).sum_hess = n.sum_gradients.hess;
       tree[tree[nid].cleft()].set_leaf(0);
       tree[tree[nid].cright()].set_leaf(0);
       nid++;
-    } else if (flag == LEAF) {
+    } else if (n.IsLeaf()) {
       tree[nid].set_leaf(n.weight * param.learning_rate);
       tree.stat(nid).sum_hess = n.sum_gradients.hess;
       nid++;
@@ -209,8 +173,8 @@ void segmentedSort(dh::CubMemory* tmp_mem, dh::dvec2<T1>* keys,
       offsets.data() + 1, start, end));
   tmp_mem->LazyAllocate(tmpSize);
   dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
-      tmp_mem->d_temp_storage, tmpSize, keys->buff(), vals->buff(), nVals, nSegs,
-      offsets.data(), offsets.data() + 1, start, end));
+      tmp_mem->d_temp_storage, tmpSize, keys->buff(), vals->buff(), nVals,
+      nSegs, offsets.data(), offsets.data() + 1, start, end));
 }
 
 /**
