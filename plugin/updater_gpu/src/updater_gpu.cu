@@ -6,12 +6,191 @@
 #include <vector>
 #include "../../../src/common/sync.h"
 #include "../../../src/tree/param.h"
-#include "exact/gpu_builder.cuh"
+#include "exact/fused_scan_reduce_by_key.cuh"
 
 namespace xgboost {
 namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu);
+
+/**
+ * @struct ExactSplitCandidate node.cuh
+ * @brief Abstraction of a possible split in the decision tree
+ */
+struct ExactSplitCandidate {
+  /** the optimal gain score for this node */
+  float score;
+  /** index where to split in the DMatrix */
+  int index;
+
+  HOST_DEV_INLINE ExactSplitCandidate() : score(-FLT_MAX), index(INT_MAX) {}
+
+  /**
+   * @brief Whether the split info is valid to be used to create a new child
+   * @param minSplitLoss minimum score above which decision to split is made
+   * @return true if splittable, else false
+   */
+  HOST_DEV_INLINE bool isSplittable(float minSplitLoss) const {
+    return ((score >= minSplitLoss) && (index != INT_MAX));
+  }
+};
+
+/**
+ * @enum ArgMaxByKeyAlgo best_split_evaluation.cuh
+ * @brief Help decide which algorithm to use for multi-argmax operation
+ */
+enum ArgMaxByKeyAlgo {
+  /** simplest, use gmem-atomics for all updates */
+  ABK_GMEM = 0,
+  /** use smem-atomics for updates (when number of keys are less) */
+  ABK_SMEM
+};
+
+/** max depth until which to use shared mem based atomics for argmax */
+static const int MAX_ABK_LEVELS = 3;
+
+HOST_DEV_INLINE ExactSplitCandidate maxSplit(ExactSplitCandidate a,
+                                             ExactSplitCandidate b) {
+  ExactSplitCandidate out;
+  if (a.score < b.score) {
+    out.score = b.score;
+    out.index = b.index;
+  } else if (a.score == b.score) {
+    out.score = a.score;
+    out.index = (a.index < b.index) ? a.index : b.index;
+  } else {
+    out.score = a.score;
+    out.index = a.index;
+  }
+  return out;
+}
+
+DEV_INLINE void atomicArgMax(ExactSplitCandidate* address,
+                             ExactSplitCandidate val) {
+  unsigned long long* intAddress = (unsigned long long*)address;
+  unsigned long long old = *intAddress;
+  unsigned long long assumed;
+  do {
+    assumed = old;
+    ExactSplitCandidate res = maxSplit(val, *(ExactSplitCandidate*)&assumed);
+    old = atomicCAS(intAddress, assumed, *(uint64_t*)&res);
+  } while (assumed != old);
+}
+
+DEV_INLINE void argMaxWithAtomics(
+    int id, ExactSplitCandidate* nodeSplits, const bst_gpair* gradScans,
+    const bst_gpair* gradSums, const float* vals, const int* colIds,
+    const node_id_t* nodeAssigns, const DeviceDenseNode* nodes, int nUniqKeys,
+    node_id_t nodeStart, int len, const GPUTrainingParam& param) {
+  int nodeId = nodeAssigns[id];
+  ///@todo: this is really a bad check! but will be fixed when we move
+  ///   to key-based reduction
+  if ((id == 0) ||
+      !((nodeId == nodeAssigns[id - 1]) && (colIds[id] == colIds[id - 1]) &&
+        (vals[id] == vals[id - 1]))) {
+    if (nodeId != UNUSED_NODE) {
+      int sumId = abs2uniqKey(id, nodeAssigns, colIds, nodeStart, nUniqKeys);
+      bst_gpair colSum = gradSums[sumId];
+      int uid = nodeId - nodeStart;
+      DeviceDenseNode n = nodes[nodeId];
+      bst_gpair parentSum = n.sum_gradients;
+      float parentGain = n.root_gain;
+      bool tmp;
+      ExactSplitCandidate s;
+      bst_gpair missing = parentSum - colSum;
+      s.score = loss_chg_missing(gradScans[id], missing, parentSum, parentGain,
+                                 param, tmp);
+      s.index = id;
+      atomicArgMax(nodeSplits + uid, s);
+    }  // end if nodeId != UNUSED_NODE
+  }    // end if id == 0 ...
+}
+
+__global__ void atomicArgMaxByKeyGmem(
+    ExactSplitCandidate* nodeSplits, const bst_gpair* gradScans,
+    const bst_gpair* gradSums, const float* vals, const int* colIds,
+    const node_id_t* nodeAssigns, const DeviceDenseNode* nodes, int nUniqKeys,
+    node_id_t nodeStart, int len, const TrainParam param) {
+  int id = threadIdx.x + (blockIdx.x * blockDim.x);
+  const int stride = blockDim.x * gridDim.x;
+  for (; id < len; id += stride) {
+    argMaxWithAtomics(id, nodeSplits, gradScans, gradSums, vals, colIds,
+                      nodeAssigns, nodes, nUniqKeys, nodeStart, len,
+                      GPUTrainingParam(param));
+  }
+}
+
+__global__ void atomicArgMaxByKeySmem(
+    ExactSplitCandidate* nodeSplits, const bst_gpair* gradScans,
+    const bst_gpair* gradSums, const float* vals, const int* colIds,
+    const node_id_t* nodeAssigns, const DeviceDenseNode* nodes, int nUniqKeys,
+    node_id_t nodeStart, int len, const TrainParam param) {
+  extern __shared__ char sArr[];
+  ExactSplitCandidate* sNodeSplits =
+      reinterpret_cast<ExactSplitCandidate*>(sArr);
+  int tid = threadIdx.x;
+  ExactSplitCandidate defVal;
+#pragma unroll 1
+  for (int i = tid; i < nUniqKeys; i += blockDim.x) {
+    sNodeSplits[i] = defVal;
+  }
+  __syncthreads();
+  int id = tid + (blockIdx.x * blockDim.x);
+  const int stride = blockDim.x * gridDim.x;
+  for (; id < len; id += stride) {
+    argMaxWithAtomics(id, sNodeSplits, gradScans, gradSums, vals, colIds,
+                      nodeAssigns, nodes, nUniqKeys, nodeStart, len, param);
+  }
+  __syncthreads();
+  for (int i = tid; i < nUniqKeys; i += blockDim.x) {
+    ExactSplitCandidate s = sNodeSplits[i];
+    atomicArgMax(nodeSplits + i, s);
+  }
+}
+
+/**
+ * @brief Performs argmax_by_key functionality but for cases when keys need not
+ *  occur contiguously
+ * @param nodeSplits will contain information on best split for each node
+ * @param gradScans exclusive sum on sorted segments for each col
+ * @param gradSums gradient sum for each column in DMatrix based on to node-ids
+ * @param vals feature values
+ * @param colIds column index for each element in the feature values array
+ * @param nodeAssigns node-id assignments to each element in DMatrix
+ * @param nodes pointer to all nodes for this tree in BFS order
+ * @param nUniqKeys number of unique node-ids in this level
+ * @param nodeStart start index of the node-ids in this level
+ * @param len number of elements
+ * @param param training parameters
+ * @param algo which algorithm to use for argmax_by_key
+ */
+template <int BLKDIM = 256, int ITEMS_PER_THREAD = 4>
+void argMaxByKey(ExactSplitCandidate* nodeSplits, const bst_gpair* gradScans,
+                 const bst_gpair* gradSums, const float* vals,
+                 const int* colIds, const node_id_t* nodeAssigns,
+                 const DeviceDenseNode* nodes, int nUniqKeys,
+                 node_id_t nodeStart, int len, const TrainParam param,
+                 ArgMaxByKeyAlgo algo) {
+  fillConst<ExactSplitCandidate, BLKDIM, ITEMS_PER_THREAD>(
+      dh::get_device_idx(param.gpu_id), nodeSplits, nUniqKeys,
+      ExactSplitCandidate());
+  int nBlks = dh::div_round_up(len, ITEMS_PER_THREAD * BLKDIM);
+  switch (algo) {
+    case ABK_GMEM:
+      atomicArgMaxByKeyGmem<<<nBlks, BLKDIM>>>(
+          nodeSplits, gradScans, gradSums, vals, colIds, nodeAssigns, nodes,
+          nUniqKeys, nodeStart, len, param);
+      break;
+    case ABK_SMEM:
+      atomicArgMaxByKeySmem<<<nBlks, BLKDIM,
+                              sizeof(ExactSplitCandidate) * nUniqKeys>>>(
+          nodeSplits, gradScans, gradSums, vals, colIds, nodeAssigns, nodes,
+          nUniqKeys, nodeStart, len, param);
+      break;
+    default:
+      throw std::runtime_error("argMaxByKey: Bad algo passed!");
+  }
+}
 
 __global__ void assignColIds(int* colIds, const int* colOffsets) {
   int myId = blockIdx.x;
@@ -107,7 +286,7 @@ class GPUMaker : public TreeUpdater {
   dh::dvec<node_id_t> nodeAssignsPerInst;
   dh::dvec<bst_gpair> gradSums;
   dh::dvec<bst_gpair> gradScans;
-  dh::dvec<Split> nodeSplits;
+  dh::dvec<ExactSplitCandidate> nodeSplits;
   int nVals;
   int nRows;
   int nCols;
@@ -169,6 +348,65 @@ class GPUMaker : public TreeUpdater {
     markLeaves();
     dense2sparse_tree(hTree, nodes, param);
   }
+    // split2node(nodes.data(), nodeSplits.data(), gradScans.data(),
+    //           gradSums.data(), vals.current(), colIds.data(),
+    //           colOffsets.data(), nodeAssigns.current(), nNodes, nodeStart,
+    //           nCols, param);
+
+//__global__ void split2nodeKernel(
+//    DeviceDenseNode* nodes, const ExactSplitCandidate* nodeSplits,
+//    const bst_gpair* gradScans, const bst_gpair* gradSums, const float* vals,
+//    const int* colIds, const int* colOffsets, const node_id_t* nodeAssigns,
+//    int nUniqKeys, node_id_t nodeStart, int nCols, const TrainParam param) {
+
+  void split2node(int nNodes, node_id_t nodeStart) {
+    auto d_nodes = nodes.data();
+    auto d_gradScans = gradScans.data();
+    auto d_gradSums = gradSums.data();
+    auto d_nodeAssigns = nodeAssigns.current();
+    auto d_colIds = colIds.data();
+    auto d_vals = vals.current();
+    auto d_nodeSplits = nodeSplits.data();
+    int nUniqKeys = nNodes;
+    float min_split_loss = param.min_split_loss;
+    auto gpu_param = GPUTrainingParam(param);
+
+    dh::launch_n(param.gpu_id, nNodes, [=] __device__(int uid) {
+      int absNodeId = uid + nodeStart;
+      ExactSplitCandidate s = d_nodeSplits[uid];
+      if (s.isSplittable(min_split_loss)) {
+        int idx = s.index;
+        int nodeInstId =
+            abs2uniqKey(idx, d_nodeAssigns, d_colIds, nodeStart, nUniqKeys);
+        bool missingLeft = true;
+        const DeviceDenseNode& n = d_nodes[absNodeId];
+        bst_gpair gradScan = d_gradScans[idx];
+        bst_gpair gradSum = d_gradSums[nodeInstId];
+        float thresh = d_vals[idx];
+        int colId = d_colIds[idx];
+        // get the default direction for the current node
+        bst_gpair missing = n.sum_gradients - gradSum;
+        loss_chg_missing(gradScan, missing, n.sum_gradients, n.root_gain, gpu_param,
+                         missingLeft);
+        // get the score/weight/id/gradSum for left and right child nodes
+        bst_gpair lGradSum = missingLeft ? gradScan + missing : gradScan;
+        bst_gpair rGradSum = n.sum_gradients - lGradSum;
+
+        // Create children
+        d_nodes[left_child_nidx(absNodeId)] =
+            DeviceDenseNode(lGradSum, left_child_nidx(absNodeId), gpu_param);
+        d_nodes[right_child_nidx(absNodeId)] =
+            DeviceDenseNode(rGradSum, right_child_nidx(absNodeId), gpu_param);
+        // Set split for parent
+        d_nodes[absNodeId].SetSplit(thresh, colId,
+                                  missingLeft ? LeftDir : RightDir);
+      } else {
+        // cannot be split further, so this node is a leaf!
+        d_nodes[absNodeId].root_gain = -FLT_MAX;
+      }
+
+    });
+  }
 
   void findSplit(int level, node_id_t nodeStart, int nNodes) {
     reduceScanByKey(gradSums.data(), gradScans.data(), gradsInst.data(),
@@ -179,10 +417,11 @@ class GPUMaker : public TreeUpdater {
                 vals.current(), colIds.data(), nodeAssigns.current(),
                 nodes.data(), nNodes, nodeStart, nVals, param,
                 level <= MAX_ABK_LEVELS ? ABK_SMEM : ABK_GMEM);
-    split2node(nodes.data(), nodeSplits.data(), gradScans.data(),
-               gradSums.data(), vals.current(), colIds.data(),
-               colOffsets.data(), nodeAssigns.current(), nNodes, nodeStart,
-               nCols, param);
+    // split2node(nodes.data(), nodeSplits.data(), gradScans.data(),
+    //           gradSums.data(), vals.current(), colIds.data(),
+    //           colOffsets.data(), nodeAssigns.current(), nNodes, nodeStart,
+    //           nCols, param);
+    split2node(nNodes, nodeStart);
   }
 
   void allocateAllData(int offsetSize) {
@@ -276,8 +515,7 @@ class GPUMaker : public TreeUpdater {
       auto d_nodes = nodes.data();
       auto d_sums = gradSums.data();
       auto gpu_params = GPUTrainingParam(param);
-      dh::launch_n(param.gpu_id, 1, [=]__device__(int idx)
-      {
+      dh::launch_n(param.gpu_id, 1, [=] __device__(int idx) {
         d_nodes[0] = DeviceDenseNode(d_sums[0], 0, gpu_params);
       });
     } else {

@@ -2,11 +2,10 @@
  * Copyright 2017 XGBoost contributors
  */
 #pragma once
-#include <thrust/device_vector.h>
 #include <xgboost/base.h>
-#include <xgboost/tree_model.h>
 #include <cfloat>
 #include <tuple>  // The linter is not very smart and thinks we need this
+#include "device_helpers.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -33,6 +32,29 @@ struct GPUTrainingParam {
 };
 
 
+typedef int node_id_t;
+
+/** used to assign default id to a Node */
+static const int UNUSED_NODE = -1;
+
+/**
+ * @brief Absolute BFS order IDs to col-wise unique IDs based on user input
+ * @param tid the index of the element that this thread should access
+ * @param abs the array of absolute IDs
+ * @param colIds the array of column IDs for each element
+ * @param nodeStart the start of the node ID at this level
+ * @param nKeys number of nodes at this level.
+ * @return the uniq key
+ */
+
+static HOST_DEV_INLINE node_id_t abs2uniqKey(int tid, const node_id_t* abs,
+                                const int* colIds, node_id_t nodeStart,
+                                int nKeys) {
+  int a = abs[tid];
+  if (a == UNUSED_NODE) return a;
+  return ((a - nodeStart) + (colIds[tid] * nKeys));
+}
+
 /**
  * @enum DefaultDirection node.cuh
  * @brief Default direction to be followed in case of missing values
@@ -43,11 +65,6 @@ enum DefaultDirection {
   /** move to right child */
   RightDir
 };
-typedef int node_id_t;
-
-/** used to assign default id to a Node */
-static const int UNUSED_NODE = -1;
-
 
 struct DeviceDenseNode {
   bst_gpair sum_gradients;
@@ -63,7 +80,6 @@ struct DeviceDenseNode {
   /** node id (used as key for reduce/scan) */
   node_id_t idx;
 
-  //__host__ __device__ Node() : weight(0), root_gain(0) {}
   HOST_DEV_INLINE DeviceDenseNode()
       : sum_gradients(),
         root_gain(-FLT_MAX),
@@ -98,6 +114,7 @@ struct DeviceDenseNode {
   HOST_DEV_INLINE bool IsLeaf() const {
     return (!IsUnused() && (fidx == UNUSED_NODE));
   }
+
 };
 
 }  // namespace tree
