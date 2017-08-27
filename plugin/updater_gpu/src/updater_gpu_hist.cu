@@ -21,7 +21,7 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
 #else
 __device__ double atomicAdd(double* address, double val) {
-  unsigned long long int* address_as_ull =
+  unsigned long long int* address_as_ull =                // NOLINT
       (unsigned long long int*)address;                   // NOLINT
   unsigned long long int old = *address_as_ull, assumed;  // NOLINT
   do {
@@ -118,10 +118,9 @@ struct SplitCandidate {
   __device__ void Update(float loss_chg_in, bool missing_left_in,
                          float fvalue_in, int findex_in, bst_gpair left_sum_in,
                          bst_gpair right_sum_in,
-                         const GPUTrainingParam &param) {
-    if (loss_chg_in > loss_chg &&
-        left_sum_in.hess>= param.min_child_weight &&
-        right_sum_in.hess>= param.min_child_weight) {
+                         const GPUTrainingParam& param) {
+    if (loss_chg_in > loss_chg && left_sum_in.hess >= param.min_child_weight &&
+        right_sum_in.hess >= param.min_child_weight) {
       loss_chg = loss_chg_in;
       missing_left = missing_left_in;
       fvalue = fvalue_in;
@@ -130,10 +129,7 @@ struct SplitCandidate {
       findex = findex_in;
     }
   }
-  __device__ bool IsValid()const 
-  {
-    return loss_chg > 0.0f;
-  }
+  __device__ bool IsValid() const { return loss_chg > 0.0f; }
 };
 
 template <int BLOCK_THREADS>
@@ -260,8 +256,7 @@ __global__ void find_split_kernel(
 
     DeviceDenseNode& left_child = d_nodes[left_child_nidx(node_idx)];
     DeviceDenseNode& right_child = d_nodes[right_child_nidx(node_idx)];
-    bool& left_child_smallest =
-        d_left_child_smallest_temp[node_idx];  
+    bool& left_child_smallest = d_left_child_smallest_temp[node_idx];
     left_child =
         DeviceDenseNode(split.left_sum, left_child_nidx(node_idx), gpu_param);
 

@@ -13,7 +13,7 @@ namespace tree {
 DMLC_REGISTRY_FILE_TAG(updater_gpu);
 
 /**
- * @struct ExactSplitCandidate 
+ * @struct ExactSplitCandidate
  * @brief Abstraction of a possible split in the decision tree
  */
 struct ExactSplitCandidate {
@@ -66,13 +66,14 @@ HOST_DEV_INLINE ExactSplitCandidate maxSplit(ExactSplitCandidate a,
 
 DEV_INLINE void atomicArgMax(ExactSplitCandidate* address,
                              ExactSplitCandidate val) {
-  unsigned long long* intAddress = (unsigned long long*)address;
-  unsigned long long old = *intAddress;
-  unsigned long long assumed;
+  unsigned long long* intAddress = (unsigned long long*)address;  // NOLINT
+  unsigned long long old = *intAddress;                           // NOLINT
+  unsigned long long assumed;                                     // NOLINT
   do {
     assumed = old;
-    ExactSplitCandidate res = maxSplit(val, *(ExactSplitCandidate*)&assumed);
-    old = atomicCAS(intAddress, assumed, *(uint64_t*)&res);
+    ExactSplitCandidate res =
+        maxSplit(val, *reinterpret_cast<ExactSplitCandidate*>(&assumed));
+    old = atomicCAS(intAddress, assumed, *reinterpret_cast<uint64_t*>(&res));
   } while (assumed != old);
 }
 
@@ -82,8 +83,8 @@ DEV_INLINE void argMaxWithAtomics(
     const node_id_t* nodeAssigns, const DeviceDenseNode* nodes, int nUniqKeys,
     node_id_t nodeStart, int len, const GPUTrainingParam& param) {
   int nodeId = nodeAssigns[id];
-  ///@todo: this is really a bad check! but will be fixed when we move
-  ///   to key-based reduction
+  // @todo: this is really a bad check! but will be fixed when we move
+  //  to key-based reduction
   if ((id == 0) ||
       !((nodeId == nodeAssigns[id - 1]) && (colIds[id] == colIds[id - 1]) &&
         (vals[id] == vals[id - 1]))) {
@@ -243,7 +244,7 @@ __global__ void assignNodeIds(node_id_t* nodeIdsPerInst, int* nodeLocations,
       // printf("nid=%d colId=%d id=%d\n", nId, colId, id);
       int start = colOffsets[colId];
       int end = colOffsets[colId + 1];
-      ///@todo: too much wasteful threads!!
+      // @todo: too much wasteful threads!!
       if ((id >= start) && (id < end) && !(n.IsLeaf() || n.IsUnused())) {
         node_id_t result = (2 * n.idx) + 1 + (vals[id] >= n.fvalue);
         nodeIdsPerInst[instId[id]] = result;
@@ -326,10 +327,10 @@ class GPUMaker : public TreeUpdater {
     param.learning_rate = lr;
   }
   /// @note: Update should be only after Init!!
-  void UpdateTree(const std::vector<bst_gpair>& gpair, DMatrix* hMat,
+  void UpdateTree(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
                   RegTree* hTree) {
     if (!allocated) {
-      setupOneTimeData(*hMat);
+      setupOneTimeData(dmat);
     }
     for (int i = 0; i < param.max_depth; ++i) {
       if (i == 0) {
@@ -375,8 +376,8 @@ class GPUMaker : public TreeUpdater {
         int colId = d_colIds[idx];
         // get the default direction for the current node
         bst_gpair missing = n.sum_gradients - gradSum;
-        loss_chg_missing(gradScan, missing, n.sum_gradients, n.root_gain, gpu_param,
-                         missingLeft);
+        loss_chg_missing(gradScan, missing, n.sum_gradients, n.root_gain,
+                         gpu_param, missingLeft);
         // get the score/weight/id/gradSum for left and right child nodes
         bst_gpair lGradSum = missingLeft ? gradScan + missing : gradScan;
         bst_gpair rGradSum = n.sum_gradients - lGradSum;
@@ -388,12 +389,11 @@ class GPUMaker : public TreeUpdater {
             DeviceDenseNode(rGradSum, right_child_nidx(absNodeId), gpu_param);
         // Set split for parent
         d_nodes[absNodeId].SetSplit(thresh, colId,
-                                  missingLeft ? LeftDir : RightDir);
+                                    missingLeft ? LeftDir : RightDir);
       } else {
         // cannot be split further, so this node is a leaf!
         d_nodes[absNodeId].root_gain = -FLT_MAX;
       }
-
     });
   }
 
@@ -420,35 +420,35 @@ class GPUMaker : public TreeUpdater {
                 &tmpScanKeyBuff, tmpBuffSize, &colIds, nVals);
   }
 
-  void setupOneTimeData(DMatrix& hMat) {
+  void setupOneTimeData(DMatrix* dmat) {
     size_t free_memory = dh::available_memory(dh::get_device_idx(param.gpu_id));
-    if (!hMat.SingleColBlock()) {
+    if (!dmat->SingleColBlock()) {
       throw std::runtime_error("exact::GPUBuilder - must have 1 column block");
     }
     std::vector<float> fval;
     std::vector<int> fId, offset;
-    convertToCsc(hMat, fval, fId, offset);
-    allocateAllData((int)offset.size());
+    convertToCsc(dmat, &fval, &fId, &offset);
+    allocateAllData(static_cast<int>(offset.size()));
     transferAndSortData(fval, fId, offset);
     allocated = true;
   }
 
-  void convertToCsc(DMatrix& hMat, std::vector<float>& fval,
-                    std::vector<int>& fId, std::vector<int>& offset) {
-    MetaInfo info = hMat.info();
+  void convertToCsc(DMatrix* dmat, std::vector<float>* fval,
+                    std::vector<int>* fId, std::vector<int>* offset) {
+    MetaInfo info = dmat->info();
     nRows = info.num_row;
     nCols = info.num_col;
-    offset.reserve(nCols + 1);
-    offset.push_back(0);
-    fval.reserve(nCols * nRows);
-    fId.reserve(nCols * nRows);
+    offset->reserve(nCols + 1);
+    offset->push_back(0);
+    fval->reserve(nCols * nRows);
+    fId->reserve(nCols * nRows);
     // in case you end up with a DMatrix having no column access
     // then make sure to enable that before copying the data!
-    if (!hMat.HaveColAccess()) {
+    if (!dmat->HaveColAccess()) {
       const std::vector<bool> enable(nCols, true);
-      hMat.InitColAccess(enable, 1, nRows);
+      dmat->InitColAccess(enable, 1, nRows);
     }
-    dmlc::DataIter<ColBatch>* iter = hMat.ColIterator();
+    dmlc::DataIter<ColBatch>* iter = dmat->ColIterator();
     iter->BeforeFirst();
     while (iter->Next()) {
       const ColBatch& batch = iter->Value();
@@ -457,13 +457,13 @@ class GPUMaker : public TreeUpdater {
         for (const ColBatch::Entry* it = col.data; it != col.data + col.length;
              it++) {
           int inst_id = static_cast<int>(it->index);
-          fval.push_back(it->fvalue);
-          fId.push_back(inst_id);
+          fval->push_back(it->fvalue);
+          fId->push_back(inst_id);
         }
-        offset.push_back(fval.size());
+        offset->push_back(fval->size());
       }
     }
-    nVals = fval.size();
+    nVals = fval->size();
   }
 
   void transferAndSortData(const std::vector<float>& fval,
