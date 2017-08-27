@@ -6,7 +6,7 @@
 #include <vector>
 #include "../../../src/common/sync.h"
 #include "../../../src/tree/param.h"
-#include "exact/fused_scan_reduce_by_key.cuh"
+#include "fused_scan_reduce_by_key.cuh"
 
 namespace xgboost {
 namespace tree {
@@ -348,16 +348,6 @@ class GPUMaker : public TreeUpdater {
     markLeaves();
     dense2sparse_tree(hTree, nodes, param);
   }
-    // split2node(nodes.data(), nodeSplits.data(), gradScans.data(),
-    //           gradSums.data(), vals.current(), colIds.data(),
-    //           colOffsets.data(), nodeAssigns.current(), nNodes, nodeStart,
-    //           nCols, param);
-
-//__global__ void split2nodeKernel(
-//    DeviceDenseNode* nodes, const ExactSplitCandidate* nodeSplits,
-//    const bst_gpair* gradScans, const bst_gpair* gradSums, const float* vals,
-//    const int* colIds, const int* colOffsets, const node_id_t* nodeAssigns,
-//    int nUniqKeys, node_id_t nodeStart, int nCols, const TrainParam param) {
 
   void split2node(int nNodes, node_id_t nodeStart) {
     auto d_nodes = nodes.data();
@@ -417,10 +407,6 @@ class GPUMaker : public TreeUpdater {
                 vals.current(), colIds.data(), nodeAssigns.current(),
                 nodes.data(), nNodes, nodeStart, nVals, param,
                 level <= MAX_ABK_LEVELS ? ABK_SMEM : ABK_GMEM);
-    // split2node(nodes.data(), nodeSplits.data(), gradScans.data(),
-    //           gradSums.data(), vals.current(), colIds.data(),
-    //           colOffsets.data(), nodeAssigns.current(), nNodes, nodeStart,
-    //           nCols, param);
     split2node(nNodes, nodeStart);
   }
 

@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include "../common.cuh"
+#include "common.cuh"
 
 namespace xgboost {
 namespace tree {
