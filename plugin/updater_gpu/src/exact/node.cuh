@@ -20,21 +20,6 @@
 
 namespace xgboost {
 namespace tree {
-namespace exact {
-
-///**
-// * @enum DefaultDirection node.cuh
-// * @brief Default direction to be followed in case of missing values
-// */
-//enum DefaultDirection {
-//  /** move to left child */
-//  LeftDir = 0,
-//  /** move to right child */
-//  RightDir
-//};
-//
-///** used to assign default id to a Node */
-//static const int UNUSED_NODE = -1;
 
 /**
  * @struct Split node.cuh
@@ -57,49 +42,6 @@ struct Split {
     return ((score >= minSplitLoss) && (index != INT_MAX));
   }
 };
-
-//typedef int node_id_t;
-///**
-// * @struct Node node.cuh
-// * @brief Abstraction of a node in the decision tree
-// */
-//class Node {
-// public:
-//  /** sum of gradients across all training samples part of this node */
-//  bst_gpair gradSum;
-//  /** the optimal score for this node */
-//  float score;
-//  /** weightage for this node */
-//  float weight;
-//  /** default direction for missing values */
-//  DefaultDirection dir;
-//  /** threshold value for comparison */
-//  float threshold;
-//  /** column (feature) index whose value needs to be compared in this node */
-//  int colIdx;
-//  /** node id (used as key for reduce/scan) */
-//  node_id_t id;
-//
-//  HOST_DEV_INLINE Node()
-//      : gradSum(),
-//        score(-FLT_MAX),
-//        weight(-FLT_MAX),
-//        dir(LeftDir),
-//        threshold(0.f),
-//        colIdx(UNUSED_NODE),
-//        id(UNUSED_NODE) {}
-//
-//  /** Tells whether this node is part of the decision tree */
-//  HOST_DEV_INLINE bool isUnused() const { return (id == UNUSED_NODE); }
-//
-//  /** Tells whether this node is a leaf of the decision tree */
-//  HOST_DEV_INLINE bool isLeaf() const {
-//    return (!isUnused() && (score == -FLT_MAX));
-//  }
-//
-//  /** Tells whether default direction is left child or not */
-//  HOST_DEV_INLINE bool isDefaultLeft() const { return (dir == LeftDir); }
-//};
 
 /**
  * @struct Segment node.cuh
@@ -151,6 +93,5 @@ HOST_DEV_INLINE int abs2uniqKey(int tid, const node_id_t* abs,
   return ((a - nodeStart) + (colIds[tid] * nKeys));
 }
 
-}  // namespace exact
 }  // namespace tree
 }  // namespace xgboost

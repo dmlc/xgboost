@@ -20,7 +20,6 @@
 
 namespace xgboost {
 namespace tree {
-namespace exact {
 
 /**
  * @brief Helper function to update the child node based on the current status
@@ -140,6 +139,5 @@ void split2node(DeviceDenseNode* nodes, const Split* nodeSplits,
                                       nUniqKeys, nodeStart, nCols, param);
 }
 
-}  // namespace exact
 }  // namespace tree
 }  // namespace xgboost

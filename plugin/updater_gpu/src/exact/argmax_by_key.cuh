@@ -22,7 +22,6 @@
 
 namespace xgboost {
 namespace tree {
-namespace exact {
 
 /**
  * @enum ArgMaxByKeyAlgo best_split_evaluation.cuh
@@ -178,6 +177,5 @@ void argMaxByKey(Split* nodeSplits, const bst_gpair* gradScans,
   }
 }
 
-}  // namespace exact
 }  // namespace tree
 }  // namespace xgboost

@@ -19,7 +19,6 @@
 
 namespace xgboost {
 namespace tree {
-namespace exact {
 
 /**
  * @struct Pair fused_scan_reduce_by_key.cuh
@@ -204,6 +203,5 @@ void reduceScanByKey(bst_gpair* sums, bst_gpair* scans, const bst_gpair* vals,
       nodeStart, size);
 }
 
-}  // namespace exact
 }  // namespace tree
 }  // namespace xgboost

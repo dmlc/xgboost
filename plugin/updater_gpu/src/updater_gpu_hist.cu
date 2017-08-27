@@ -104,6 +104,38 @@ struct DeviceHist {
   int LevelSize(int depth) { return n_bins * n_nodes_level(depth); }
 };
 
+struct SplitCandidate {
+  float loss_chg;
+  bool missing_left;
+  float fvalue;
+  int findex;
+  bst_gpair left_sum;
+  bst_gpair right_sum;
+
+  __host__ __device__ SplitCandidate()
+      : loss_chg(-FLT_MAX), missing_left(true), fvalue(0), findex(-1) {}
+
+  __device__ void Update(float loss_chg_in, bool missing_left_in,
+                         float fvalue_in, int findex_in, bst_gpair left_sum_in,
+                         bst_gpair right_sum_in,
+                         const GPUTrainingParam &param) {
+    if (loss_chg_in > loss_chg &&
+        left_sum_in.hess>= param.min_child_weight &&
+        right_sum_in.hess>= param.min_child_weight) {
+      loss_chg = loss_chg_in;
+      missing_left = missing_left_in;
+      fvalue = fvalue_in;
+      left_sum = left_sum_in;
+      right_sum = right_sum_in;
+      findex = findex_in;
+    }
+  }
+  __device__ bool IsValid()const 
+  {
+    return loss_chg > 0.0f;
+  }
+};
+
 template <int BLOCK_THREADS>
 __global__ void find_split_kernel(
     const bst_gpair_precise* d_level_hist, int* d_feature_segments, int depth,
@@ -124,18 +156,15 @@ __global__ void find_split_kernel(
     typename SumReduceT::TempStorage sum_reduce;
   };
 
-  struct UninitializedSplit : cub::Uninitialized<Split> {};
-  struct UninitializedGpair : cub::Uninitialized<bst_gpair_precise> {};
-
-  __shared__ UninitializedSplit uninitialized_split;
-  Split& split = uninitialized_split.Alias();
-  __shared__ UninitializedGpair uninitialized_sum;
+  __shared__ cub::Uninitialized<SplitCandidate> uninitialized_split;
+  SplitCandidate& split = uninitialized_split.Alias();
+  __shared__ cub::Uninitialized<bst_gpair_precise> uninitialized_sum;
   bst_gpair_precise& shared_sum = uninitialized_sum.Alias();
   __shared__ ArgMaxT block_max;
   __shared__ TempStorage temp_storage;
 
   if (threadIdx.x == 0) {
-    split = Split();
+    split = SplitCandidate();
   }
 
   __syncthreads();
@@ -225,31 +254,25 @@ __global__ void find_split_kernel(
   }    // end over features
 
   // Create node
-  if (threadIdx.x == 0&&split.IsValid()) {
-    //d_nodes[node_idx].split = split;
+  if (threadIdx.x == 0 && split.IsValid()) {
     d_nodes[node_idx].SetSplit(split.fvalue, split.findex,
                                split.missing_left ? LeftDir : RightDir);
 
-    DeviceDenseNode *Nodeleft, *Noderight;
-    bool* left_child_smallest;
-      Nodeleft = &d_nodes[left_child_nidx(node_idx)];
-      Noderight = &d_nodes[right_child_nidx(node_idx)];
-      left_child_smallest =
-          &d_left_child_smallest_temp[node_idx];  // NOTE: not per level, even
-                                                  // though _temp variable name
-    *Nodeleft = DeviceDenseNode(
-        split.left_sum,
-        left_child_nidx(node_idx),gpu_param);
+    DeviceDenseNode& left_child = d_nodes[left_child_nidx(node_idx)];
+    DeviceDenseNode& right_child = d_nodes[right_child_nidx(node_idx)];
+    bool& left_child_smallest =
+        d_left_child_smallest_temp[node_idx];  
+    left_child =
+        DeviceDenseNode(split.left_sum, left_child_nidx(node_idx), gpu_param);
 
-    *Noderight = DeviceDenseNode(
-        split.right_sum,
-        right_child_nidx(node_idx),gpu_param);
+    right_child =
+        DeviceDenseNode(split.right_sum, right_child_nidx(node_idx), gpu_param);
 
     // Record smallest node
     if (split.left_sum.hess <= split.right_sum.hess) {
-      *left_child_smallest = true;
+      left_child_smallest = true;
     } else {
-      *left_child_smallest = false;
+      left_child_smallest = false;
     }
   }
 }
@@ -718,10 +741,9 @@ class GPUHistMaker : public TreeUpdater {
       find_split_kernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS>>>(
           (const bst_gpair_precise*)(hist_vec[d_idx].GetLevelPtr(depth)),
           feature_segments[d_idx].data(), depth, (info->num_col),
-          (hmat_.row_ptr.back()), nodes[d_idx].data(),
-          nodes_offset_device, fidx_min_map[d_idx].data(),
-          gidx_fvalue_map[d_idx].data(), GPUTrainingParam(param),
-          left_child_smallest[d_idx].data(), colsample,
+          (hmat_.row_ptr.back()), nodes[d_idx].data(), nodes_offset_device,
+          fidx_min_map[d_idx].data(), gidx_fvalue_map[d_idx].data(),
+          GPUTrainingParam(param), left_child_smallest[d_idx].data(), colsample,
           feature_flags[d_idx].data());
     }
 
@@ -758,8 +780,7 @@ class GPUHistMaker : public TreeUpdater {
 
       dh::launch_n(device_idx, 1, [=] __device__(int idx) {
         bst_gpair sum_gradients = sum;
-        d_nodes[idx] = DeviceDenseNode(
-          sum_gradients, 0,gpu_param );
+        d_nodes[idx] = DeviceDenseNode(sum_gradients, 0, gpu_param);
       });
     }
     // synch all devices to host before moving on (No, can avoid because
@@ -843,7 +864,7 @@ class GPUHistMaker : public TreeUpdater {
                      if (node.IsLeaf()) {
                        d_position_tmp[local_idx] = pos;
                        return;
-                     } else if (node.dir ==LeftDir ) {
+                     } else if (node.dir == LeftDir) {
                        d_position_tmp[local_idx] = pos * 2 + 1;
                      } else {
                        d_position_tmp[local_idx] = pos * 2 + 2;
