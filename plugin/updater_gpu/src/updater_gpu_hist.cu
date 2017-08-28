@@ -33,8 +33,8 @@ __device__ double atomicAdd(double* address, double val) {
 }
 #endif
 
-//Helper for explicit template specialisation
-  template <int N>
+// Helper for explicit template specialisation
+template <int N>
 struct Int {};
 
 struct DeviceGMat {
@@ -707,21 +707,26 @@ class GPUHistMaker : public TreeUpdater {
 // to CUDA capability 35 and above requirement
 // for Maximum number of threads per block
 #define MAX_BLOCK_THREADS 1024
+
   void FindSplit(int depth) {
     // Specialised based on max_bins
     this->FindSplitSpecialize(depth, Int<MIN_BLOCK_THREADS>());
   }
+
   template <int BLOCK_THREADS>
   void FindSplitSpecialize(int depth, Int<BLOCK_THREADS>) {
     if (param.max_bin <= BLOCK_THREADS) {
       LaunchFindSplit<BLOCK_THREADS>(depth);
     } else {
-      this->FindSplitSpecialize(depth,Int<BLOCK_THREADS + CHUNK_BLOCK_THREADS>());
+      this->FindSplitSpecialize(depth,
+                                Int<BLOCK_THREADS + CHUNK_BLOCK_THREADS>());
     }
   }
+
   void FindSplitSpecialize(int depth, Int<MAX_BLOCK_THREADS>) {
-    this->LaunchFindSplit<MAX_BLOCK_THREADS> (depth);
+    this->LaunchFindSplit<MAX_BLOCK_THREADS>(depth);
   }
+
   template <int BLOCK_THREADS>
   void LaunchFindSplit(int depth) {
     bool colsample =
