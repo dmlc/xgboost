@@ -203,7 +203,7 @@ class XGBoostDFSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic", "baseMarginCol" -> "margin")
 
     def trainPredict(df: Dataset[_]): Array[Float] = {
-      XGBoost.trainWithDataFrame(df, paramMap, round = 1, numWorkers)
+      XGBoost.trainWithDataFrame(df, paramMap, round = 1, nWorkers = numWorkers)
           .predict(testRDD)
           .map { case Array(p) => p }
           .collect()
