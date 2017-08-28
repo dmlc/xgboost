@@ -25,7 +25,7 @@ def plot_importance(booster, ax=None, height=0.2,
         Booster or XGBModel instance, or dict taken by Booster.get_fscore()
     ax : matplotlib Axes, default None
         Target axes instance. If None, new figure and axes will be created.
-    grid : Turn the axes grids on or off.  Default is On.
+    grid : bool, Turn the axes grids on or off.  Default is True (On).
     importance_type : str, default "weight"
         How the importance is calculated: either "weight", "gain", or "cover"
         "weight" is the number of times a feature appears in a tree
