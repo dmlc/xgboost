@@ -407,7 +407,7 @@ def test_callbacks_regressor():
     regressor.fit(X=X, y=y, callbacks=[callback])
 
     # Ensure the callback has been executed the correct number of times.
-    self.assertEqual(callback_log, list(range(n_estimators)))
+    assert callback_log == list(range(n_estimators))
 
 def test_callbacks_classifier():
     tm._skip_if_no_sklearn()
@@ -424,5 +424,5 @@ def test_callbacks_classifier():
     classifier.fit(X=X, y=y, callbacks=[callback])
 
     # Ensure the callback has been executed the correct number of times.
-    self.assertEqual(callback_log, list(range(n_estimators)))
+    assert callback_log == list(range(n_estimators))
 
