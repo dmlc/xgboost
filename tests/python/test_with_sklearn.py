@@ -394,6 +394,7 @@ def test_sklearn_clone():
     clone(clf)
 
 def test_callbacks_regressor():
+    tm._skip_if_no_sklearn()
     n_estimators = 10
     regressor = xgb.XGBRegressor(n_estimators=n_estimators, max_depth=2)
 
@@ -409,6 +410,7 @@ def test_callbacks_regressor():
     self.assertEqual(callback_log, list(range(n_estimators)))
 
 def test_callbacks_classifier():
+    tm._skip_if_no_sklearn()
     n_estimators = 10
     classifier = xgb.XGBClassifier(n_estimators=n_estimators, max_depth=2)
 
