@@ -7,12 +7,17 @@ set_default_configuration_release()
 msvc_use_static_runtime()
 
 # Options
-option(PLUGIN_UPDATER_GPU "Build GPU accelerated tree construction plugin")
+option(USE_CUDA  "Build with GPU acceleration") 
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 set(GPU_COMPUTE_VER 35;50;52;60;61 CACHE STRING
   "Space separated list of compute versions to be built against")
 
+# Deprecation warning
+if(PLUGIN_UPDATER_GPU)
+  set(USE_CUDA ON)
+  message(WARNING "The option 'PLUGIN_UPDATER_GPU' is deprecated. Set 'USE_CUDA' instead.")
+endif()
 
 # Compiler flags
 set(CMAKE_CXX_STANDARD 11)
@@ -74,7 +79,7 @@ file(GLOB_RECURSE CUDA_SOURCES
     plugin/updater_gpu/src/*.cu
     plugin/updater_gpu/src/*.cuh
 )
-if(PLUGIN_UPDATER_GPU)
+if(USE_CUDA)
   find_package(CUDA 7.5 REQUIRED)
   cmake_minimum_required(VERSION 3.5)
 
@@ -144,7 +149,7 @@ if(GOOGLE_TEST)
   auto_source_group("${TEST_SOURCES}")
   include_directories(${GTEST_INCLUDE_DIRS})
 
-  if(PLUGIN_UPDATER_GPU)
+  if(USE_CUDA)
     file(GLOB_RECURSE CUDA_TEST_SOURCES "plugin/updater_gpu/test/cpp/*.cu")
     cuda_compile(CUDA_TEST_OBJS ${CUDA_TEST_SOURCES})
   else()
