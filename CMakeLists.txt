@@ -96,7 +96,6 @@ if(PLUGIN_UPDATER_GPU)
   cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
   target_link_libraries(gpuxgboost nccl)
   list(APPEND LINK_LIBRARIES gpuxgboost) 
-  list(APPEND SOURCES plugin/updater_gpu/src/register_updater_gpu.cc) 
 endif()
 
 add_library(objxgboost OBJECT ${SOURCES})
