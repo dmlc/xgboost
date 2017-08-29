@@ -393,14 +393,16 @@ def test_sklearn_clone():
     clf.n_jobs = -1
     clone(clf)
 
+
 def test_callbacks_regressor():
     tm._skip_if_no_sklearn()
     n_estimators = 10
     regressor = xgb.XGBRegressor(n_estimators=n_estimators, max_depth=2)
 
     callback_log = []
+
     def callback(callback_env):
-      callback_log.append(callback_env.iteration)
+        callback_log.append(callback_env.iteration)
 
     X = np.random.randn(100, 40)
     y = np.random.randn(100)
@@ -409,14 +411,16 @@ def test_callbacks_regressor():
     # Ensure the callback has been executed the correct number of times.
     assert callback_log == list(range(n_estimators))
 
+
 def test_callbacks_classifier():
     tm._skip_if_no_sklearn()
     n_estimators = 10
     classifier = xgb.XGBClassifier(n_estimators=n_estimators, max_depth=2)
 
     callback_log = []
+
     def callback(callback_env):
-      callback_log.append(callback_env.iteration)
+        callback_log.append(callback_env.iteration)
 
     X = np.random.randn(100, 40)
     # this is inclusive of low and exclusive of high, so binary labels.
@@ -425,4 +429,3 @@ def test_callbacks_classifier():
 
     # Ensure the callback has been executed the correct number of times.
     assert callback_log == list(range(n_estimators))
-
