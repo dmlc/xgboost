@@ -9,7 +9,7 @@
 #include "../../../src/tree/param.h"
 #include "../../src/common/compressed_iterator.h"
 #include "../../src/common/hist_util.h"
-#include "common.cuh"
+#include "updater_gpu_common.cuh"
 #include "device_helpers.cuh"
 
 namespace xgboost {
@@ -118,6 +118,18 @@ struct SplitCandidate {
     }
   }
   __device__ bool IsValid() const { return loss_chg > 0.0f; }
+};
+
+struct GpairCallbackOp {
+  // Running prefix
+  bst_gpair running_total;
+  // Constructor
+  __device__ GpairCallbackOp() : running_total(bst_gpair()) {}
+  __device__ bst_gpair operator()(bst_gpair block_aggregate) {
+    bst_gpair old_prefix = running_total;
+    running_total += block_aggregate;
+    return old_prefix;
+  }
 };
 
 template <int BLOCK_THREADS>
