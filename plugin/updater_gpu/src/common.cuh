@@ -143,11 +143,11 @@ inline std::vector<int> col_sample(std::vector<int> features, float colsample) {
 }
 struct GpairCallbackOp {
   // Running prefix
-  bst_gpair_precise running_total;
+  bst_gpair running_total;
   // Constructor
-  __device__ GpairCallbackOp() : running_total(bst_gpair_precise()) {}
-  __device__ bst_gpair_precise operator()(bst_gpair_precise block_aggregate) {
-    bst_gpair_precise old_prefix = running_total;
+  __device__ GpairCallbackOp() : running_total(bst_gpair()) {}
+  __device__ bst_gpair operator()(bst_gpair block_aggregate) {
+    bst_gpair old_prefix = running_total;
     running_total += block_aggregate;
     return old_prefix;
   }
