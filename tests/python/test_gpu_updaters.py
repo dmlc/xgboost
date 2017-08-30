@@ -6,18 +6,17 @@ import xgboost as xgb
 import testing as tm
 import numpy as np
 import unittest
+from nose.plugins.attrib import attr
 
 rng = np.random.RandomState(1994)
 
-dpath = '../../demo/data/'
-ag_dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-ag_dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+dpath = 'demo/data/'
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
     print(*args, file=sys.stdout, **kwargs)
         
-
+@attr('gpu')
 class TestGPU(unittest.TestCase):
     def test_grow_gpu(self):
         tm._skip_if_no_sklearn()
@@ -26,6 +25,9 @@ class TestGPU(unittest.TestCase):
             from sklearn.model_selection import train_test_split
         except:
             from sklearn.cross_validation import train_test_split
+
+        ag_dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        ag_dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 
         ag_param = {'max_depth': 2,
                     'tree_method': 'exact',
@@ -122,6 +124,10 @@ class TestGPU(unittest.TestCase):
             from sklearn.model_selection import train_test_split
         except:
             from sklearn.cross_validation import train_test_split
+
+        ag_dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        ag_dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+
 
         for max_depth in range(3,10): # TODO: Doesn't work with 2 for some tests
             #eprint("max_depth=%d" % (max_depth))

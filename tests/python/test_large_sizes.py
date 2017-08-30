@@ -7,12 +7,11 @@ import xgboost as xgb
 import testing as tm
 import numpy as np
 import unittest
-from sklearn.datasets import make_classification
+from nose.plugins.attrib import attr
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs) ; sys.stderr.flush()
     print(*args, file=sys.stdout, **kwargs) ; sys.stdout.flush()
-
-eprint("Testing Big Data (this may take a while)")
 
 rng = np.random.RandomState(1994)
 
@@ -26,6 +25,7 @@ rows1 = 42360032 # large
 rowslist = [rows1, rows2, rows3]
 
 
+@attr('gpu,slow')
 class TestGPU(unittest.TestCase):
     def test_large(self):
         eprint("Starting test for large data")
