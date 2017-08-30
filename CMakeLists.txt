@@ -149,7 +149,7 @@ if(GOOGLE_TEST)
   include_directories(${GTEST_INCLUDE_DIRS})
 
   if(USE_CUDA)
-    file(GLOB_RECURSE CUDA_TEST_SOURCES "plugin/updater_gpu/test/cpp/*.cu")
+    file(GLOB_RECURSE CUDA_TEST_SOURCES "tests/cpp/*.cu")
     cuda_compile(CUDA_TEST_OBJS ${CUDA_TEST_SOURCES})
   else()
     set(CUDA_TEST_OBJS "")
