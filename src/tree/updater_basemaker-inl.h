@@ -140,14 +140,14 @@ class BaseMaker: public TreeUpdater {
       }
       // mark delete for the deleted datas
       for (size_t i = 0; i < position.size(); ++i) {
-        if (gpair[i].hess < 0.0f) position[i] = ~position[i];
+        if (gpair[i].GetHess() < 0.0f) position[i] = ~position[i];
       }
       // mark subsample
       if (param.subsample < 1.0f) {
         std::bernoulli_distribution coin_flip(param.subsample);
         auto& rnd = common::GlobalRandom();
         for (size_t i = 0; i < position.size(); ++i) {
-          if (gpair[i].hess < 0.0f) continue;
+          if (gpair[i].GetHess() < 0.0f) continue;
           if (!coin_flip(rnd)) position[i] = ~position[i];
         }
       }

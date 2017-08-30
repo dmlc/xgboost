@@ -313,7 +313,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
    * \brief accumulate statistics
    * \param p the gradient pair
    */
-  inline void Add(bst_gpair p) { this->Add(p.grad, p.hess); }
+  inline void Add(bst_gpair p) { this->Add(p.GetGrad(), p.GetHess()); }
   /*!
    * \brief accumulate statistics, more complicated version
    * \param gpair the vector storing the gradient statistics
@@ -323,7 +323,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   inline void Add(const std::vector<bst_gpair>& gpair, const MetaInfo& info,
                   bst_uint ridx) {
     const bst_gpair& b = gpair[ridx];
-    this->Add(b.grad, b.hess);
+    this->Add(b.GetGrad(), b.GetHess());
   }
   /*! \brief calculate leaf weight */
   inline double CalcWeight(const TrainParam& param) const {

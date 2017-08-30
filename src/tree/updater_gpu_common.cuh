@@ -82,8 +82,8 @@ struct DeviceDenseNode {
         fvalue(0.f),
         fidx(UNUSED_NODE),
         idx(nidx) {
-    this->root_gain = CalcGain(param, sum_gradients.grad, sum_gradients.hess);
-    this->weight = CalcWeight(param, sum_gradients.grad, sum_gradients.hess);
+    this->root_gain = CalcGain(param, sum_gradients.GetGrad(), sum_gradients.GetHess());
+    this->weight = CalcWeight(param, sum_gradients.GetGrad(), sum_gradients.GetHess());
   }
 
   HOST_DEV_INLINE void SetSplit(float fvalue, int fidx, DefaultDirection dir) {
@@ -113,8 +113,8 @@ __device__ inline float device_calc_loss_chg(
 
   gpair_t right = parent_sum - left;
 
-  float left_gain = CalcGain(param, left.grad, left.hess);
-  float right_gain = CalcGain(param, right.grad, right.hess);
+  float left_gain = CalcGain(param, left.GetGrad(), left.GetHess());
+  float right_gain = CalcGain(param, right.GetGrad(), right.GetHess());
   return left_gain + right_gain - parent_gain;
 }
 
@@ -181,13 +181,13 @@ inline void dense2sparse_tree(RegTree* p_tree,
       tree[nid].set_split(n.fidx, n.fvalue, n.dir == LeftDir);
       tree.stat(nid).loss_chg = n.root_gain;
       tree.stat(nid).base_weight = n.weight;
-      tree.stat(nid).sum_hess = n.sum_gradients.hess;
+      tree.stat(nid).sum_hess = n.sum_gradients.GetHess();
       tree[tree[nid].cleft()].set_leaf(0);
       tree[tree[nid].cright()].set_leaf(0);
       nid++;
     } else if (n.IsLeaf()) {
       tree[nid].set_leaf(n.weight * param.learning_rate);
-      tree.stat(nid).sum_hess = n.sum_gradients.hess;
+      tree.stat(nid).sum_hess = n.sum_gradients.GetHess();
       nid++;
     }
   }
