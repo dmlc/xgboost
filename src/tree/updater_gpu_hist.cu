@@ -5,12 +5,11 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include "../../../src/common/sync.h"
-#include "../../../src/tree/param.h"
-#include "../../src/common/compressed_iterator.h"
-#include "../../src/common/hist_util.h"
+#include "param.h"
+#include "../common/compressed_iterator.h"
+#include "../common/hist_util.h"
 #include "updater_gpu_common.cuh"
-#include "device_helpers.cuh"
+#include "../common/device_helpers.cuh"
 
 namespace xgboost {
 namespace tree {

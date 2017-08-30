@@ -45,9 +45,14 @@ file(GLOB_RECURSE SOURCES
     src/*.h
     include/*.h
 )
+
 # Only add main function for executable target
 list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/src/cli_main.cc)
 
+file(GLOB_RECURSE CUDA_SOURCES
+    src/*.cu
+    src/*.cuh
+)
 
 # rabit
 # TODO: Create rabit cmakelists.txt
@@ -73,12 +78,6 @@ endif()
 add_subdirectory(dmlc-core)
 set(LINK_LIBRARIES dmlccore rabit)
 
-
-# GPU Plugin
-file(GLOB_RECURSE CUDA_SOURCES
-    plugin/updater_gpu/src/*.cu
-    plugin/updater_gpu/src/*.cuh
-)
 if(USE_CUDA)
   find_package(CUDA 7.5 REQUIRED)
   cmake_minimum_required(VERSION 3.5)

@@ -4,7 +4,7 @@
 #include <xgboost/tree_updater.h>
 #include <utility>
 #include <vector>
-#include "../../../src/tree/param.h"
+#include "param.h"
 #include "updater_gpu_common.cuh"
 
 namespace xgboost {
