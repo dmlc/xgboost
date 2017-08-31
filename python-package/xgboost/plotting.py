@@ -15,7 +15,7 @@ def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features',
                     importance_type='weight', max_num_features=None,
-                    grid=True, **kwargs):
+                    grid=True, show_values=True, **kwargs):
 
     """Plot importance based on fitted trees.
 
@@ -45,6 +45,8 @@ def plot_importance(booster, ax=None, height=0.2,
         X axis title label. To disable, pass None.
     ylabel : str, default "Features"
         Y axis title label. To disable, pass None.
+    show_values : bool, default True
+        Show values on plot. To disable, pass False.
     kwargs :
         Other keywords passed to ax.barh()
 
@@ -83,8 +85,9 @@ def plot_importance(booster, ax=None, height=0.2,
     ylocs = np.arange(len(values))
     ax.barh(ylocs, values, align='center', height=height, **kwargs)
 
-    for x, y in zip(values, ylocs):
-        ax.text(x + 1, y, x, va='center')
+    if show_values is True:
+        for x, y in zip(values, ylocs):
+            ax.text(x + 1, y, x, va='center')
 
     ax.set_yticks(ylocs)
     ax.set_yticklabels(labels)
