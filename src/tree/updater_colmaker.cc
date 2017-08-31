@@ -334,7 +334,7 @@ class ColMaker: public TreeUpdater {
             }
           }
         }
-        if (need_backward) {
+        if (need_forward) {
           tmp = sum;
           ThreadEntry &e = stemp[this->nthread-1][nid];
           c.SetSubstract(snode[nid].stats, tmp);
