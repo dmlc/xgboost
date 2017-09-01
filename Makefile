@@ -116,22 +116,6 @@ else
 endif
 CFLAGS += $(OPENMP_FLAGS)
 
-# for using GPUs
-GPU_COMPUTE_VER ?= 35 50 52 60 61
-NVCC = nvcc
-INCLUDES = -Iinclude -I$(DMLC_CORE)/include -I$(RABIT)/include
-INCLUDES += -I$(CUB_PATH)
-INCLUDES += -I$(GTEST_PATH)/include
-CODE = $(foreach ver,$(GPU_COMPUTE_VER),-gencode arch=compute_$(ver),code=sm_$(ver))
-NVCC_FLAGS = --std=c++11 $(CODE) $(INCLUDES) -lineinfo --expt-extended-lambda
-NVCC_FLAGS += -Xcompiler=$(OPENMP_FLAGS) -Xcompiler=-fPIC
-ifeq ($(PLUGIN_UPDATER_GPU),ON)
-  CUDA_ROOT = $(shell dirname $(shell dirname $(shell which $(NVCC))))
-  INCLUDES += -I$(CUDA_ROOT)/include -Inccl/src/
-  LDFLAGS += -L$(CUDA_ROOT)/lib64 -lcudart  -lcudadevrt -Lnccl/build/lib/ -lnccl_static -lm -ldl -lrt
-  CFLAGS += -DXGBOOST_USE_CUDA
-endif
-
 # specify tensor path
 .PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck java pylint
 
@@ -153,30 +137,15 @@ ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
 CLI_OBJ = build/cli_main.o
 include tests/cpp/xgboost_test.mk
 
-# order of this rule matters wrt %.cc rule below!
-build/%.o: src/%.cu
-	@mkdir -p $(@D)
-	$(NVCC) -c $(NVCC_FLAGS) $< -o $@
-
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build/$*.o $< >build/$*.d
 	$(CXX) -c $(CFLAGS) $< -o $@
 
-# order of this rule matters wrt %.cc rule below!
-build_plugin/%.o: plugin/%.cu build_nccl
-	@mkdir -p $(@D)
-	$(NVCC) -c $(NVCC_FLAGS) $< -o $@
-
 build_plugin/%.o: plugin/%.cc
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -MM -MT build_plugin/$*.o $< >build_plugin/$*.d
 	$(CXX) -c $(CFLAGS) $< -o $@
-
-build_nccl:
-	@mkdir -p build/include
-	cd build/include ; ln -sf ../../nccl/src/nccl.h .
-	cd nccl ; make -j ; cd ..
 
 # The should be equivalent to $(ALL_OBJ)  except for build/cli_main.o
 amalgamation/xgboost-all0.o: amalgamation/xgboost-all0.cc
