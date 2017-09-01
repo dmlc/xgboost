@@ -25,7 +25,7 @@ rows1 = 42360032 # large
 rowslist = [rows1, rows2, rows3]
 
 
-@attr('gpu,slow')
+@attr('slow')
 class TestGPU(unittest.TestCase):
     def test_large(self):
         eprint("Starting test for large data")
