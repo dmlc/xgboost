@@ -168,6 +168,8 @@ def setup(app):
                        '_static/jquery.js')
     app.add_config_value('recommonmark_config', {
             'url_resolver': lambda url: github_doc_root + url,
-            }, True)
+            'enable_eval_rst': True,
+            }, True,
+            )
     app.add_transform(AutoStructify)
     app.add_javascript('jquery.js')
