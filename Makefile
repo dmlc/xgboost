@@ -21,6 +21,16 @@ endif
 export WARNFLAGS= -Wall -Wextra -Wno-unused-parameter -Wno-unknown-pragmas -std=c++0x
 export CFLAGS = -O3 $(WARNFLAGS)
 
+#----------------------------
+# Settings for power and arm arch
+#----------------------------
+ARCH := $(shell uname -a)
+ifneq (,$(filter $(ARCH), powerpc64le ppc64le ))
+	USE_SSE=0
+else
+	USE_SSE=1
+endif
+
 ifndef USE_SSE
 	USE_SSE = 1
 endif
