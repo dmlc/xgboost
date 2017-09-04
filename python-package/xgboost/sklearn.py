@@ -13,8 +13,6 @@ from .training import train
 from .compat import (SKLEARN_INSTALLED, XGBModelBase,
                      XGBClassifierBase, XGBRegressorBase, XGBLabelEncoder)
 
-warnings.simplefilter('always', DeprecationWarning)
-
 
 def _objective_decorator(func):
     """Decorate an objective function
