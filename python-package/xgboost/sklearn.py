@@ -197,14 +197,14 @@ class XGBModel(XGBModelBase):
         """Get xgboost type parameters."""
         xgb_params = self.get_params()
         random_state = xgb_params.pop('random_state')
-        if xgb_params['seed'] is not None:
+        if 'seed' in xgb_params and xgb_params['seed'] is not None:
             warnings.warn('The seed parameter is deprecated as of version .6.'
                           'Please use random_state instead.'
                           'seed is deprecated.', DeprecationWarning)
         else:
             xgb_params['seed'] = random_state
         n_jobs = xgb_params.pop('n_jobs')
-        if xgb_params['nthread'] is not None:
+        if 'nthread' in xgb_params and xgb_params['nthread'] is not None:
             warnings.warn('The nthread parameter is deprecated as of version .6.'
                           'Please use n_jobs instead.'
                           'nthread is deprecated.', DeprecationWarning)
