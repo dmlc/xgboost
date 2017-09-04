@@ -67,3 +67,4 @@ List of Contributors
   - Rory is the author of the GPU plugin and also contributed the cmake build system and windows continuous integration
 * [Gideon Whitehead](https://github.com/gaw89)
 * [Yi-Lin Juang](https://github.com/frankyjuang)
+* [Andrew Hannigan](https://github.com/andrewhannigan)
