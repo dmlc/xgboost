@@ -199,6 +199,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.19.1</version>
                 <configuration>
+                    <argLine>-Xmx2048m</argLine>
                     <skipTests>false</skipTests>
                 </configuration>
             </plugin>
