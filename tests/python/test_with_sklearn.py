@@ -2,7 +2,6 @@ import numpy as np
 import random
 import xgboost as xgb
 import testing as tm
-import warnings
 from nose.tools import raises
 
 rng = np.random.RandomState(1994)
