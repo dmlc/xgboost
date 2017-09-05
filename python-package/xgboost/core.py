@@ -184,7 +184,8 @@ Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
-        feature_names = data.columns.format()
+        from functools import reduce
+        feature_names = [reduce(lambda x, y: f'{x} {y}', i) for i in data.columns]
 
     if feature_types is None:
         feature_types = [PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes]
