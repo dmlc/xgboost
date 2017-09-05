@@ -184,10 +184,9 @@ Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
-        from functools import reduce
         if hasattr(data.columns, 'to_frame'):  # MultiIndex
             feature_names = [
-                reduce(lambda x, y: '{x} {y}'.format(x=x, y=y), i) 
+                ' '.join(map(lambda x: str(x), i))
                 for i in data.columns
             ]
         else:
