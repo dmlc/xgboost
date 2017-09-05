@@ -186,7 +186,7 @@ Did not expect the data types in fields """
     if feature_names is None:
         if hasattr(data.columns, 'to_frame'):  # MultiIndex
             feature_names = [
-                ' '.join(map(lambda x: str(x), i))
+                ' '.join(map(str, i))
                 for i in data.columns
             ]
         else:
