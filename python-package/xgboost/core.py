@@ -185,7 +185,10 @@ Did not expect the data types in fields """
 
     if feature_names is None:
         from functools import reduce
-        feature_names = [reduce(lambda x, y: '{x} {y}'.format(x=x, y=y), i) for i in data.columns]
+        try:
+            feature_names = [reduce(lambda x, y: '{x} {y}'.format(x=x, y=y), i) for i in data.columns]
+        except TypeError:  # single Index, rather than MultiIndex
+            feature_names = data.columns.format()
 
     if feature_types is None:
         feature_types = [PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes]
