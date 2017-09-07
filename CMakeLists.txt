@@ -38,10 +38,13 @@ include_directories (
 file(GLOB_RECURSE SOURCES 
     src/*.cc
     src/*.h
+    include/*.h
 )
 # Only add main function for executable target
 list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/src/cli_main.cc)
 
+
+# rabit
 # TODO: Create rabit cmakelists.txt
 set(RABIT_SOURCES
     rabit/src/allreduce_base.cc
@@ -49,19 +52,33 @@ set(RABIT_SOURCES
     rabit/src/engine.cc
     rabit/src/c_api.cc
 )
+set(RABIT_EMPTY_SOURCES
+    rabit/src/engine_empty.cc
+    rabit/src/c_api.cc
+)
+if(MINGW)
+  # build a dummy rabit library
+  add_library(rabit STATIC ${RABIT_EMPTY_SOURCES})
+else()
+  add_library(rabit STATIC ${RABIT_SOURCES})
+endif()
 
+
+# dmlc-core
+add_subdirectory(dmlc-core)
+set(LINK_LIBRARIES dmlccore rabit)
+
+
+# GPU Plugin
 file(GLOB_RECURSE CUDA_SOURCES
     plugin/updater_gpu/src/*.cu
     plugin/updater_gpu/src/*.cuh
 )
-
-add_subdirectory(dmlc-core)
-set(LINK_LIBRARIES dmlccore rabit)
-
-# GPU Plugin
 if(PLUGIN_UPDATER_GPU)
   find_package(CUDA 7.5 REQUIRED)
   cmake_minimum_required(VERSION 3.5)
+
+  add_definitions(-DXGBOOST_USE_CUDA)
   
   include_directories(
     nccl/src
@@ -79,10 +96,7 @@ if(PLUGIN_UPDATER_GPU)
   cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
   target_link_libraries(gpuxgboost nccl)
   list(APPEND LINK_LIBRARIES gpuxgboost) 
-  list(APPEND SOURCES plugin/updater_gpu/src/register_updater_gpu.cc) 
 endif()
-
-add_library(rabit STATIC ${RABIT_SOURCES})
 
 add_library(objxgboost OBJECT ${SOURCES})
 
@@ -98,6 +112,10 @@ target_link_libraries(runxgboost ${LINK_LIBRARIES})
 add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
 target_link_libraries(xgboost ${LINK_LIBRARIES})
 set_output_directory(xgboost ${PROJECT_SOURCE_DIR}/lib)
+if(MINGW)
+  # remove the 'lib' prefix to conform to windows convention for shared library names
+  set_target_properties(xgboost PROPERTIES PREFIX "")
+endif()
 
 #Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
 add_dependencies(xgboost runxgboost)

@@ -16,6 +16,20 @@ endif
 
 ROOTDIR = $(CURDIR)
 
+# workarounds for some buggy old make & msys2 versions seen in windows
+ifeq (NA, $(shell test ! -d "$(ROOTDIR)" && echo NA ))
+        $(warning Attempting to fix non-existing ROOTDIR [$(ROOTDIR)])
+        ROOTDIR := $(shell pwd)
+        $(warning New ROOTDIR [$(ROOTDIR)] $(shell test -d "$(ROOTDIR)" && echo " is OK" ))
+endif
+MAKE_OK := $(shell "$(MAKE)" -v 2> /dev/null)
+ifndef MAKE_OK
+        $(warning Attempting to recover non-functional MAKE [$(MAKE)])
+        MAKE := $(shell which make 2> /dev/null)
+        MAKE_OK := $(shell "$(MAKE)" -v 2> /dev/null)
+endif
+$(warning MAKE [$(MAKE)] - $(if $(MAKE_OK),checked OK,PROBLEM))
+
 ifeq ($(OS), Windows_NT)
 	UNAME="Windows"
 else
@@ -62,7 +76,10 @@ export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
 ifeq ($(TEST_COVER), 1)
 	CFLAGS += -g -O0 -fprofile-arcs -ftest-coverage
 else
-	CFLAGS += -O3 -funroll-loops -msse2
+	CFLAGS += -O3 -funroll-loops
+ifeq ($(USE_SSE), 1)
+	CFLAGS += -msse2
+endif
 endif
 
 ifndef LINT_LANG
@@ -70,7 +87,7 @@ ifndef LINT_LANG
 endif
 
 ifeq ($(UNAME), Windows)
-	XGBOOST_DYLIB = lib/libxgboost.dll
+	XGBOOST_DYLIB = lib/xgboost.dll
 	JAVAINCFLAGS += -I${JAVA_HOME}/include/win32
 else
 ifeq ($(UNAME), Darwin)
@@ -112,6 +129,7 @@ ifeq ($(PLUGIN_UPDATER_GPU),ON)
   CUDA_ROOT = $(shell dirname $(shell dirname $(shell which $(NVCC))))
   INCLUDES += -I$(CUDA_ROOT)/include -Inccl/src/
   LDFLAGS += -L$(CUDA_ROOT)/lib64 -lcudart  -lcudadevrt -Lnccl/build/lib/ -lnccl_static -lm -ldl -lrt
+  CFLAGS += -DXGBOOST_USE_CUDA
 endif
 
 # specify tensor path
@@ -120,10 +138,10 @@ endif
 all: lib/libxgboost.a $(XGBOOST_DYLIB) xgboost
 
 $(DMLC_CORE)/libdmlc.a: $(wildcard $(DMLC_CORE)/src/*.cc $(DMLC_CORE)/src/*/*.cc)
-	+ cd $(DMLC_CORE); $(MAKE) libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
+	+ cd $(DMLC_CORE); "$(MAKE)" libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
 $(RABIT)/lib/$(LIB_RABIT): $(wildcard $(RABIT)/src/*.cc)
-	+ cd $(RABIT); $(MAKE) lib/$(LIB_RABIT); cd $(ROOTDIR)
+	+ cd $(RABIT); "$(MAKE)" lib/$(LIB_RABIT) USE_SSE=$(USE_SSE); cd $(ROOTDIR)
 
 jvm: jvm-packages/lib/libxgboost4j.so
 
@@ -173,7 +191,7 @@ lib/libxgboost.a: $(ALL_DEP)
 	@mkdir -p $(@D)
 	ar crv $@ $(filter %.o, $?)
 
-lib/libxgboost.dll lib/libxgboost.so lib/libxgboost.dylib: $(ALL_DEP)
+lib/xgboost.dll lib/libxgboost.so lib/libxgboost.dylib: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %a,  $^) $(LDFLAGS)
 
@@ -196,7 +214,6 @@ pylint:
 	flake8 --ignore E501 tests/python
 
 test: $(ALL_TEST)
-	./plugin/updater_gpu/test/cpp/generate_data.sh
 	$(ALL_TEST)
 
 check: test
@@ -210,12 +227,13 @@ cover: check
 endif
 
 clean:
-	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o xgboost
+	$(RM) -rf build build_plugin lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o #xgboost
 	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
+	cd R-package/src; $(RM) -rf rabit src include dmlc-core amalgamation *.so *.dll; cd $(ROOTDIR)
 
 clean_all: clean
-	cd $(DMLC_CORE); $(MAKE) clean; cd $(ROOTDIR)
-	cd $(RABIT); $(MAKE) clean; cd $(ROOTDIR)
+	cd $(DMLC_CORE); "$(MAKE)" clean; cd $(ROOTDIR)
+	cd $(RABIT); "$(MAKE)" clean; cd $(ROOTDIR)
 
 doxygen:
 	doxygen doc/Doxyfile
@@ -226,8 +244,7 @@ pypack: ${XGBOOST_DYLIB}
 	cd python-package; tar cf xgboost.tar xgboost; cd ..
 
 # create pip installation pack for PyPI
-pippack:
-	$(MAKE) clean_all
+pippack: clean_all
 	rm -rf xgboost-python
 	cp -r python-package xgboost-python
 	cp -r Makefile xgboost-python/xgboost/
@@ -238,8 +255,7 @@ pippack:
 	cp -r rabit xgboost-python/xgboost/
 
 # Script to make a clean installable R package.
-Rpack:
-	$(MAKE) clean_all
+Rpack: clean_all
 	rm -rf xgboost xgboost*.tar.gz
 	cp -r R-package xgboost
 	rm -rf xgboost/src/*.o xgboost/src/*.so xgboost/src/*.dll
@@ -261,13 +277,11 @@ Rpack:
 	cp xgboost/src/Makevars.in xgboost/src/Makevars.win
 	sed -i -e 's/@OPENMP_CXXFLAGS@/$$\(SHLIB_OPENMP_CFLAGS\)/g' xgboost/src/Makevars.win
 
-Rbuild:
-	$(MAKE) Rpack
+Rbuild: Rpack
 	R CMD build --no-build-vignettes xgboost
 	rm -rf xgboost
 
-Rcheck:
-	$(MAKE) Rbuild
+Rcheck: Rbuild
 	R CMD check  xgboost*.tar.gz
 
 -include build/*.d

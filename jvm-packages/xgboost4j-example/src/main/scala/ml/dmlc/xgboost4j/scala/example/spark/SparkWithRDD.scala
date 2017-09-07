@@ -16,12 +16,13 @@
 
 package ml.dmlc.xgboost4j.scala.example.spark
 
-import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-import ml.dmlc.xgboost4j.scala.spark.{DataUtils, XGBoost}
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.mllib.util.MLUtils
-import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector}
+import ml.dmlc.xgboost4j.scala.Booster
+import ml.dmlc.xgboost4j.scala.spark.XGBoost
+
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
+import org.apache.spark.ml.linalg.{DenseVector => MLDenseVector}
+import org.apache.spark.mllib.util.MLUtils
+import org.apache.spark.{SparkConf, SparkContext}
 
 object SparkWithRDD {
   def main(args: Array[String]): Unit = {
@@ -39,11 +40,10 @@ object SparkWithRDD {
     val outputModelPath = args(4)
     // number of iterations
     val numRound = args(0).toInt
-    import DataUtils._
     val trainRDD = MLUtils.loadLibSVMFile(sc, inputTrainPath).map(lp =>
       MLLabeledPoint(lp.label, new MLDenseVector(lp.features.toArray)))
-    val testSet = MLUtils.loadLibSVMFile(sc, inputTestPath).collect().map(
-      lp => new MLDenseVector(lp.features.toArray)).iterator
+    val testSet = MLUtils.loadLibSVMFile(sc, inputTestPath)
+        .map(lp => new MLDenseVector(lp.features.toArray))
     // training parameters
     val paramMap = List(
       "eta" -> 0.1f,
@@ -51,7 +51,7 @@ object SparkWithRDD {
       "objective" -> "binary:logistic").toMap
     val xgboostModel = XGBoost.trainWithRDD(trainRDD, paramMap, numRound, nWorkers = args(1).toInt,
       useExternalMemory = true)
-    xgboostModel.booster.predict(new DMatrix(testSet))
+    xgboostModel.predict(testSet, missingValue = Float.NaN)
     // save model to HDFS path
     xgboostModel.saveModelAsHadoopFile(outputModelPath)
   }

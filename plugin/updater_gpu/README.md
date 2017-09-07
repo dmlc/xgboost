@@ -1,5 +1,5 @@
 # CUDA Accelerated Tree Construction Algorithms
-This plugin adds GPU accelerated tree construction algorithms to XGBoost.
+This plugin adds GPU accelerated tree construction and prediction algorithms to XGBoost.
 ## Usage
 Specify the 'tree_method' parameter as one of the following algorithms. 
 
@@ -18,6 +18,9 @@ colsample_bylevel | &#10004; | &#10004; |
 max_bin | &#10006; | &#10004; |
 gpu_id | &#10004; | &#10004; | 
 n_gpus | &#10006; | &#10004; | 
+predictor | &#10004; | &#10004; |
+
+GPU accelerated prediction is enabled by default for the above mentioned 'tree_method' parameters but can be switched to CPU prediction by setting 'predictor':'cpu_predictor'. This could be useful if you want to conserve GPU memory. Likewise when using CPU algorithms, GPU accelerated prediction can be enabled by setting 'predictor':'gpu_predictor'.
 
 The device ordinal can be selected using the 'gpu_id' parameter, which defaults to 0.
 
@@ -27,7 +30,7 @@ This plugin currently works with the CLI version and python version.
 
 Python example:
 ```python
-param['gpu_id'] = 1
+param['gpu_id'] = 0
 param['max_bin'] = 16
 param['tree_method'] = 'gpu_hist'
 ```
@@ -37,47 +40,30 @@ To run benchmarks on synthetic data for binary classification:
 $ python benchmark/benchmark.py
 ```
 
-Training time time on 1000000 rows x 50 columns with 500 boosting iterations on i7-6700K CPU @ 4.00GHz and Pascal Titan X.
+Training time time on 1,000,000 rows x 50 columns with 500 boosting iterations and 0.25/0.75 test/train split on i7-6700K CPU @ 4.00GHz and Pascal Titan X.
 
 | tree_method | Time (s) |
 | --- | --- |
-| gpu_hist | 11.09 |
-| hist (histogram XGBoost - CPU) | 41.75 |
-| gpu_exact | 193.90 |
-| exact (standard XGBoost - CPU) | 720.12 |
+| gpu_hist | 13.87 |
+| hist | 63.55 |
+| gpu_exact | 161.08 |
+| exact | 1082.20 |
 
 
 [See here](http://dmlc.ml/2016/12/14/GPU-accelerated-xgboost.html) for additional performance benchmarks of the 'gpu_exact' tree_method.
 
 ## Test
-To run tests:Will
+To run python tests:
 ```bash
 $ python -m nose test/python/
 ```
+
+Google tests can be enabled by specifying -DGOOGLE_TEST=ON when building with cmake.
+
 ## Dependencies
-A CUDA capable GPU with at least compute capability >= 3.5 (the algorithm depends on shuffle and vote instructions introduced in Kepler).
+A CUDA capable GPU with at least compute capability >= 3.5 
 
 Building the plug-in requires CUDA Toolkit 7.5 or later (https://developer.nvidia.com/cuda-downloads)
-
-submodule: The plugin also depends on CUB 1.6.4 - https://nvlabs.github.io/cub/ . CUB is a header only cuda library which provides sort/reduce/scan primitives.
-
-submodule: NVIDIA NCCL from https://github.com/NVIDIA/nccl with windows port allowed by git@github.com:h2oai/nccl.git
-
-## Download full repo + full submodules for your choice (or empty) path <mypath>
-
-git clone --recursive https://github.com/dmlc/xgboost.git <mypath>
-
-## Download with shallow submodules for much quicker download:
-
-git 2.9.0+ (assumes only HEAD used for all submodules, but not true currently for dmlc-core and rabbit)
-
-git clone --recursive --shallow-submodules https://github.com/dmlc/xgboost.git <mypath>
-
-git 2.9.0-: (only cub is shallow, as largest repo)
-
-git clone https://github.com/dmlc/xgboost.git <mypath>
-cd <mypath>
-bash plugin/updater/gpu/gitshallow_submodules.sh
 
 ## Build
 
@@ -110,14 +96,11 @@ On some systems, nccl libraries are specific to a particular system (IBM Power o
 
 ### For Developers!
 
-
-
 In case you want to build only for a specific GPU(s), for eg. GP100 and GP102,
 whose compute capability are 60 and 61 respectively:
 ```bash
 $ cmake .. -DPLUGIN_UPDATER_GPU=ON -DGPU_COMPUTE_VER="60;61"
 ```
-By default, the versions will include support for all GPUs in Maxwell and Pascal architectures.
 
 ### Using make
 Now, it also supports the usual 'make' flow to build gpu-enabled tree construction plugins. It's currently only tested on Linux. From the xgboost directory
@@ -131,21 +114,14 @@ Similar to cmake, if you want to build only for a specific GPU(s):
 $ make -j PLUGIN_UPDATER_GPU=ON GPU_COMPUTE_VER="60 61"
 ```
 
-### For Developers!
-
-Now, some of the code-base inside gpu plugins have googletest unit-tests inside 'tests/'.
-They can be enabled run along with other unit-tests inside '<xgboostRoot>/tests/cpp' using:
-```bash
-# make sure CUDA SDK bin directory is in the 'PATH' env variable
-# below 2 commands need only be executed once
-$ source ./dmlc-core/scripts/travis/travis_setup_env.sh
-$ make -f dmlc-core/scripts/packages.mk gtest
-$ make PLUGIN_UPDATER_GPU=ON GTEST_PATH=${CACHE_PREFIX} test
-```
-
 ## Changelog
-##### 2017/6/26
+##### 2017/8/14
+* Added GPU accelerated prediction. Considerably improved performance when using test/eval sets.
 
+##### 2017/7/10
+* Memory performance improved 4x for gpu_hist
+
+##### 2017/6/26
 * Change API to use tree_method parameter
 * Increase required cmake version to 3.5
 * Add compute arch 3.5 to default archs

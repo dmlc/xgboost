@@ -165,9 +165,19 @@ class LearnerImpl : public Learner {
                    << "grow_fast_histmaker.";
       cfg_["updater"] = "grow_fast_histmaker";
     } else if (tparam.tree_method == 4) {
-      cfg_["updater"] = "grow_gpu,prune";
+      if (cfg_.count("updater") == 0) {
+        cfg_["updater"] = "grow_gpu,prune";
+      }
+      if (cfg_.count("predictor") == 0) {
+        cfg_["predictor"] = "gpu_predictor";
+      }
     } else if (tparam.tree_method == 5) {
-      cfg_["updater"] = "grow_gpu_hist";
+      if (cfg_.count("updater") == 0) {
+        cfg_["updater"] = "grow_gpu_hist";
+      }
+      if (cfg_.count("predictor") == 0) {
+        cfg_["predictor"] = "gpu_predictor";
+      }
     }
   }
 
@@ -517,7 +527,7 @@ class LearnerImpl : public Learner {
                          unsigned ntree_limit = 0) const {
     CHECK(gbm_.get() != nullptr)
         << "Predict must happen after Load or InitModel";
-    gbm_->Predict(data, out_preds, ntree_limit);
+    gbm_->PredictBatch(data, out_preds, ntree_limit);
   }
   // model parameter
   LearnerModelParam mparam;

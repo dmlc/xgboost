@@ -24,11 +24,12 @@ import org.apache.spark.SparkConf
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.sql.SparkSession
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
-class XGBoostSparkPipelinePersistence extends SharedSparkContext with Utils {
+class XGBoostSparkPipelinePersistence extends FunSuite with PerTest
+    with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
-    super.afterAll()
     delete(new File("./testxgbPipe"))
     delete(new File("./testxgbEst"))
     delete(new File("./testxgbModel"))

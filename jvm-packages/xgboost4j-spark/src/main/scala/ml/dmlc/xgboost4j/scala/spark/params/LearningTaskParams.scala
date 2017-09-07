@@ -60,7 +60,18 @@ trait LearningTaskParams extends Params {
   val groupData = new GroupDataParam(this, "groupData", "group data specify each group size" +
     " for ranking task. To correspond to partition of training data, it is nested.")
 
-  setDefault(objective -> "reg:linear", baseScore -> 0.5, numClasses -> 2, groupData -> null)
+  /**
+   * Initial prediction (aka base margin) column name.
+   */
+  val baseMarginCol = new Param[String](this, "baseMarginCol", "base margin column name")
+
+  /**
+   * Instance weights column name.
+   */
+  val weightCol = new Param[String](this, "weightCol", "weight column name")
+
+  setDefault(objective -> "reg:linear", baseScore -> 0.5, numClasses -> 2, groupData -> null,
+    baseMarginCol -> "baseMargin", weightCol -> "weight")
 }
 
 private[spark] object LearningTaskParams {

@@ -19,23 +19,23 @@ package ml.dmlc.xgboost4j.scala.spark
 import scala.collection.mutable
 
 import ml.dmlc.xgboost4j.scala.spark.params._
-import org.json4s.DefaultFormats
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 import org.apache.spark.ml.Predictor
-import org.apache.spark.ml.feature.LabeledPoint
-import org.apache.spark.ml.linalg.{Vector => MLVector}
+import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.util._
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.DoubleType
+import org.apache.spark.sql.types.FloatType
 import org.apache.spark.sql.{Dataset, Row}
+import org.json4s.DefaultFormats
 
 /**
  * XGBoost Estimator to produce a XGBoost model
  */
 class XGBoostEstimator private[spark](
   override val uid: String, xgboostParams: Map[String, Any])
-  extends Predictor[MLVector, XGBoostEstimator, XGBoostModel]
+  extends Predictor[Vector, XGBoostEstimator, XGBoostModel]
   with LearningTaskParams with GeneralParams with BoosterParams with MLWritable {
 
   def this(xgboostParams: Map[String, Any]) =
@@ -107,18 +107,36 @@ class XGBoostEstimator private[spark](
     }
   }
 
+  private def ensureColumns(trainingSet: Dataset[_]): Dataset[_] = {
+    var newTrainingSet = trainingSet
+    if (!trainingSet.columns.contains($(baseMarginCol))) {
+      newTrainingSet = newTrainingSet.withColumn($(baseMarginCol), lit(Float.NaN))
+    }
+    if (!trainingSet.columns.contains($(weightCol))) {
+      newTrainingSet = newTrainingSet.withColumn($(weightCol), lit(1.0))
+    }
+    newTrainingSet
+  }
+
   /**
    * produce a XGBoostModel by fitting the given dataset
    */
   override def train(trainingSet: Dataset[_]): XGBoostModel = {
-    val instances = trainingSet.select(
-      col($(featuresCol)), col($(labelCol)).cast(DoubleType)).rdd.map {
-      case Row(feature: MLVector, label: Double) =>
-        LabeledPoint(label, feature)
+    val instances = ensureColumns(trainingSet).select(
+      col($(featuresCol)),
+      col($(labelCol)).cast(FloatType),
+      col($(baseMarginCol)).cast(FloatType),
+      col($(weightCol)).cast(FloatType)
+    ).rdd.map { case Row(features: Vector, label: Float, baseMargin: Float, weight: Float) =>
+      val (indices, values) = features match {
+        case v: SparseVector => (v.indices, v.values.map(_.toFloat))
+        case v: DenseVector => (null, v.values.map(_.toFloat))
+      }
+      XGBLabeledPoint(label.toFloat, indices, values, baseMargin = baseMargin, weight = weight)
     }
     transformSchema(trainingSet.schema, logging = true)
     val derivedXGBoosterParamMap = fromParamsToXGBParamMap
-    val trainedModel = XGBoost.trainWithRDD(instances, derivedXGBoosterParamMap,
+    val trainedModel = XGBoost.trainDistributed(instances, derivedXGBoosterParamMap,
       $(round), $(nWorkers), $(customObj), $(customEval), $(useExternalMemory),
       $(missing)).setParent(this)
     val returnedModel = copyValues(trainedModel, extractParamMap())
