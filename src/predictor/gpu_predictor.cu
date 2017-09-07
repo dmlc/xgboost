@@ -8,7 +8,7 @@
 #include <xgboost/tree_model.h>
 #include <xgboost/tree_updater.h>
 #include <memory>
-#include "device_helpers.cuh"
+#include "../common/device_helpers.cuh"
 
 namespace xgboost {
 namespace predictor {

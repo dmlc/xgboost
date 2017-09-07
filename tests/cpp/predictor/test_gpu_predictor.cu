@@ -5,7 +5,7 @@
 #include <xgboost/c_api.h>
 #include <xgboost/predictor.h>
 #include "gtest/gtest.h"
-#include "../../../../tests/cpp/helpers.h"
+#include "../helpers.h"
 
 namespace xgboost {
 namespace predictor {

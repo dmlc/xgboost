@@ -7,10 +7,10 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include "../../../src/common/random.h"
-#include "../../../src/tree/param.h"
-#include "cub/cub.cuh"
-#include "device_helpers.cuh"
+#include "../common/random.h"
+#include "param.h"
+#include <cub/cub.cuh>
+#include "../common/device_helpers.cuh"
 
 namespace xgboost {
 namespace tree {

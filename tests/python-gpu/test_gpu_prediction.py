@@ -1,15 +1,14 @@
 from __future__ import print_function
 #pylint: skip-file
-import sys
-sys.path.append("../../tests/python")
 import xgboost as xgb
 import testing as tm
 import numpy as np
 import unittest
+from nose.plugins.attrib import attr
 
 rng = np.random.RandomState(1994)
 
-
+@attr('gpu')
 class TestGPUPredict (unittest.TestCase):
     def test_predict(self):
         iterations = 1
@@ -35,3 +34,4 @@ class TestGPUPredict (unittest.TestCase):
 
     def non_decreasing(self, L):
         return all((x - y) < 0.001 for x, y in zip(L, L[1:]))
+
