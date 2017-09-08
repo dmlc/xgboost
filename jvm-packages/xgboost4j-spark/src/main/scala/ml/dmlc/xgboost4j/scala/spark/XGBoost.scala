@@ -176,18 +176,19 @@ object XGBoost extends Serializable {
       missing: Float = Float.NaN,
       featureCol: String = "features",
       labelCol: String = "label"): XGBoostModel = {
-    val nWorkers_ = if (nWorkers == 0) {
+    val nWorkersInferred = if (nWorkers == 0) {
       val nExecutors = currentActiveExecutorsNum(trainingData.sparkSession.sparkContext)
       val nPartitions = trainingData.rdd.getNumPartitions
       nExecutors min nPartitions
     } else nWorkers
-    require(nWorkers_ > 0, s"you must specify more than 0 workers, while get $nWorkers_ workers.")
+    require(nWorkersInferred > 0,
+            s"you must specify more than 0 workers, while get $nWorkersInferred workers.")
     val estimator = new XGBoostEstimator(params)
     // assigning general parameters
     estimator.
       set(estimator.useExternalMemory, useExternalMemory).
       set(estimator.round, round).
-      set(estimator.nWorkers, nWorkers_).
+      set(estimator.nWorkers, nWorkersInferred).
       set(estimator.customObj, obj).
       set(estimator.customEval, eval).
       set(estimator.missing, missing).
