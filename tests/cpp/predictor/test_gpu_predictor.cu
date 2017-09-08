@@ -16,7 +16,7 @@ TEST(gpu_predictor, Test) {
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
 
   std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::make_unique<RegTree>());
+  trees.push_back(std::unique_ptr<RegTree>());
   trees.back()->InitModel();
   (*trees.back())[0].set_leaf(1.5f);
   gbm::GBTreeModel model(0.5);

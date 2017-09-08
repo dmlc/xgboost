@@ -43,10 +43,10 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
 
   ASSERT_EQ(gpair.size(), preds.size());
   for (int i = 0; i < static_cast<int>(gpair.size()); ++i) {
-    EXPECT_NEAR(gpair[i].grad, out_grad[i], 0.01)
+    EXPECT_NEAR(gpair[i].GetGrad(), out_grad[i], 0.01)
       << "Unexpected grad for pred=" << preds[i] << " label=" << labels[i]
       << " weight=" << weights[i];
-    EXPECT_NEAR(gpair[i].hess, out_hess[i], 0.01)
+    EXPECT_NEAR(gpair[i].GetHess(), out_hess[i], 0.01)
       << "Unexpected hess for pred=" << preds[i] << " label=" << labels[i]
       << " weight=" << weights[i];
   }

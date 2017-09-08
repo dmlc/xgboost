@@ -33,8 +33,8 @@ struct GHistEntry {
 
   /*! \brief add a bst_gpair to the sum */
   inline void Add(const bst_gpair& e) {
-    sum_grad += e.grad;
-    sum_hess += e.hess;
+    sum_grad += e.GetGrad();
+    sum_hess += e.GetHess();
   }
 
   /*! \brief add a GHistEntry to the sum */

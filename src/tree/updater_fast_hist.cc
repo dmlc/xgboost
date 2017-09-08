@@ -372,13 +372,13 @@ class FastHistMaker: public TreeUpdater {
           std::bernoulli_distribution coin_flip(param.subsample);
           auto& rnd = common::GlobalRandom();
           for (size_t i = 0; i < info.num_row; ++i) {
-            if (gpair[i].hess >= 0.0f && coin_flip(rnd)) {
+            if (gpair[i].GetHess() >= 0.0f && coin_flip(rnd)) {
               row_indices.push_back(i);
             }
           }
         } else {
           for (size_t i = 0; i < info.num_row; ++i) {
-            if (gpair[i].hess >= 0.0f) {
+            if (gpair[i].GetHess() >= 0.0f) {
               row_indices.push_back(i);
             }
           }
