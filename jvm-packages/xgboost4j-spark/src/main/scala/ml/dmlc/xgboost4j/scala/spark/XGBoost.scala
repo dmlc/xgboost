@@ -198,8 +198,9 @@ object XGBoost extends Serializable {
 
   private[this] def currentActiveExecutorsNum(sc: SparkContext): Int = {
     val driverHost: String = sc.getConf.get("spark.driver.host")
-    sc.getExecutorMemoryStatus.keys
-    .count(e => !e.contains(driverHost))
+    sc.getExecutorMemoryStatus
+      .keys
+      .count(e => !e.contains(driverHost))
   }
 
   private[spark] def isClassificationTask(params: Map[String, Any]): Boolean = {
