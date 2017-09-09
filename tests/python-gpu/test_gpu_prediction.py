@@ -1,7 +1,6 @@
 from __future__ import print_function
 #pylint: skip-file
 import xgboost as xgb
-import testing as tm
 import numpy as np
 import unittest
 from nose.plugins.attrib import attr
