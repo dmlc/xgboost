@@ -169,26 +169,39 @@ object XGBoost extends Serializable {
       trainingData: Dataset[_],
       params: Map[String, Any],
       round: Int,
-      nWorkers: Int,
+      nWorkers: Int = 0,
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
       missing: Float = Float.NaN,
       featureCol: String = "features",
       labelCol: String = "label"): XGBoostModel = {
-    require(nWorkers > 0, "you must specify more than 0 workers")
+    val nWorkersInferred = if (nWorkers == 0) {
+      val nExecutors = currentActiveExecutorsNum(trainingData.sparkSession.sparkContext)
+      val nPartitions = trainingData.rdd.getNumPartitions
+      nExecutors min nPartitions
+    } else nWorkers
+    require(nWorkersInferred > 0,
+            s"you must specify more than 0 workers, while get $nWorkersInferred workers.")
     val estimator = new XGBoostEstimator(params)
     // assigning general parameters
     estimator.
       set(estimator.useExternalMemory, useExternalMemory).
       set(estimator.round, round).
-      set(estimator.nWorkers, nWorkers).
+      set(estimator.nWorkers, nWorkersInferred).
       set(estimator.customObj, obj).
       set(estimator.customEval, eval).
       set(estimator.missing, missing).
       setFeaturesCol(featureCol).
       setLabelCol(labelCol).
       fit(trainingData)
+  }
+
+  private[this] def currentActiveExecutorsNum(sc: SparkContext): Int = {
+    val driverHost: String = sc.getConf.get("spark.driver.host")
+    sc.getExecutorMemoryStatus
+      .keys
+      .count(e => !e.contains(driverHost))
   }
 
   private[spark] def isClassificationTask(params: Map[String, Any]): Boolean = {
