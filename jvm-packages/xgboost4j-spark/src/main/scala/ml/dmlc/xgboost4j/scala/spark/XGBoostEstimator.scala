@@ -138,7 +138,7 @@ class XGBoostEstimator private[spark](
     val derivedXGBoosterParamMap = fromParamsToXGBParamMap
     val trainedModel = XGBoost.trainDistributed(instances, derivedXGBoosterParamMap,
       $(round), $(nWorkers), $(customObj), $(customEval), $(useExternalMemory),
-      $(missing)).setParent(this)
+      $(missing), $(checkInterval)).setParent(this)
     val returnedModel = copyValues(trainedModel, extractParamMap())
     if (XGBoost.isClassificationTask(derivedXGBoosterParamMap)) {
       returnedModel.asInstanceOf[XGBoostClassificationModel].numOfClasses = $(numClasses)

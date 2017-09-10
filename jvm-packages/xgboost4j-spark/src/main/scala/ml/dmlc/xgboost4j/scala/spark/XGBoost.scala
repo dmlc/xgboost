@@ -268,6 +268,7 @@ object XGBoost extends Serializable {
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                          true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
+   * @param checkIntervals the interval to check whether numCores are sufficient.
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
@@ -280,13 +281,14 @@ object XGBoost extends Serializable {
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN): XGBoostModel = {
+      missing: Float = Float.NaN,
+      checkIntervals: Long = 30 * 60 * 1000): XGBoostModel = {
     import DataUtils._
     val xgbTrainingData = trainingData.map { case MLLabeledPoint(label, features) =>
       features.asXGB.copy(label = label.toFloat)
     }
     trainDistributed(xgbTrainingData, params, round, nWorkers, obj, eval,
-      useExternalMemory, missing)
+      useExternalMemory, missing, checkIntervals)
   }
 
   @throws(classOf[XGBoostError])
@@ -298,7 +300,8 @@ object XGBoost extends Serializable {
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN): XGBoostModel = {
+      missing: Float = Float.NaN,
+      checkIntervals: Long = 30 * 60 * 1000): XGBoostModel = {
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
           " for now")
@@ -317,6 +320,8 @@ object XGBoost extends Serializable {
     }
     val tracker = startTracker(nWorkers, trackerConf)
     try {
+      val sc = trainingData.sparkContext
+      val executorTracker = new SparkParallelismTracker(sc, checkIntervals, nWorkers)
       val overriddenParams = overrideParamsAccordingToTaskCPUs(params, trainingData.sparkContext)
       val boosters = buildDistributedBoosters(trainingData, overriddenParams,
         tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
@@ -329,7 +334,7 @@ object XGBoost extends Serializable {
       sparkJobThread.setUncaughtExceptionHandler(tracker)
       sparkJobThread.start()
       val isClsTask = isClassificationTask(params)
-      val trackerReturnVal = tracker.waitFor(0L)
+      val trackerReturnVal = executorTracker.execute(tracker.waitFor(0L))
       logger.info(s"Rabit returns with exit code $trackerReturnVal")
       postTrackerReturnProcessing(trackerReturnVal, boosters, overriddenParams, sparkJobThread,
         isClsTask)
