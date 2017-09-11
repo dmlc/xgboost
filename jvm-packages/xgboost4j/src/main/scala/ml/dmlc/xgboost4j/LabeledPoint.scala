@@ -17,7 +17,7 @@
 package ml.dmlc.xgboost4j
 
 /** Labeled training data point. */
-private[xgboost4j] case class LabeledPoint(
+case class LabeledPoint(
     /** Label of this point. */
     label: Float,
     /** Feature indices of this point or `null` if the data is dense. */
