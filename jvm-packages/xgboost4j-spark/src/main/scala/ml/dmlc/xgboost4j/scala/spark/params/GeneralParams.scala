@@ -71,7 +71,7 @@ trait GeneralParams extends Params {
   val missing = new FloatParam(this, "missing", "the value treated as missing")
 
   /**
-    * the interval to check whether numCores are sufficient. default: 30 minutes
+    * the interval to check whether total numCores is no smaller than nWorkers. default: 30 minutes
     */
   val checkInterval = new LongParam(this, "check_interval", "the interval to check whether " +
     "numCores are sufficient. Check will be skipped if set smaller than or equal to 0.")

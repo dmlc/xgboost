@@ -321,7 +321,7 @@ object XGBoost extends Serializable {
     val tracker = startTracker(nWorkers, trackerConf)
     try {
       val sc = trainingData.sparkContext
-      val executorTracker = new SparkParallelismTracker(sc, checkIntervals, nWorkers)
+      val parallelismTracker = new SparkParallelismTracker(sc, checkIntervals, nWorkers)
       val overriddenParams = overrideParamsAccordingToTaskCPUs(params, trainingData.sparkContext)
       val boosters = buildDistributedBoosters(trainingData, overriddenParams,
         tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
@@ -334,7 +334,7 @@ object XGBoost extends Serializable {
       sparkJobThread.setUncaughtExceptionHandler(tracker)
       sparkJobThread.start()
       val isClsTask = isClassificationTask(params)
-      val trackerReturnVal = executorTracker.execute(tracker.waitFor(0L))
+      val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
       logger.info(s"Rabit returns with exit code $trackerReturnVal")
       postTrackerReturnProcessing(trackerReturnVal, boosters, overriddenParams, sparkJobThread,
         isClsTask)
