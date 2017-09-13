@@ -56,20 +56,22 @@ private[spark] class SparkParallelismTracker(
     * @return The return of body
     */
   def execute[T](body: => T): T = {
-    val trackerThread = Thread.currentThread()
     if (checkInterval <= 0) {
       body
     } else {
+      val trackerThread = Thread.currentThread()
       // Start the body as a separate thread
       val bodyFuture = Future(body)
       bodyFuture.onComplete {
-        _ => trackerThread.notify()
+        _ => trackerThread.interrupt()
       }
       // Monitor the body thread
-      trackerThread.synchronized {
+      try {
         do {
-          trackerThread.wait(checkInterval)
+          Thread.sleep(checkInterval)
         } while (isRunning)
+      } catch {
+        case _: InterruptedException =>
       }
       // Get the result from the body thread
       bodyFuture.value.get match {

@@ -108,6 +108,6 @@ trait GeneralParams extends Params {
   setDefault(round -> 1, nWorkers -> 1, numThreadPerTask -> 1,
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
-    trackerConf -> TrackerConf(), checkInterval -> 30 * 60 * 1000
+    trackerConf -> TrackerConf(), checkInterval -> 30 * 60 * 1000L
   )
 }

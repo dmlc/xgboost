@@ -17,15 +17,23 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.XGBoostError
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
-import org.scalatest.FunSuite
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
-class SparkParallelismTrackerSuite extends FunSuite with PerTest {
-  val numParallelism: Int = sc.defaultParallelism
+class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
+  var sc: SparkContext = _
+  var numParallelism: Int = _
 
-  // Can only be run separately. sc in PerTest has a race condition
-  // when maven runs tests in parallel
-  ignore("tracker should not affect execution result") {
+  override def beforeAll(): Unit = {
+    val conf: SparkConf = new SparkConf()
+      .setMaster("local[*]")
+      .setAppName("XGBoostSuite")
+    sc = new SparkContext(conf)
+    numParallelism = sc.defaultParallelism
+  }
+
+  test("tracker should not affect execution result") {
     val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
     val tracker = new SparkParallelismTracker(sc, 1000, nWorkers)
@@ -34,9 +42,7 @@ class SparkParallelismTrackerSuite extends FunSuite with PerTest {
     assert(disabledTracker.execute(rdd.sum()) == rdd.sum())
   }
 
-  // Can only be run separately. sc in PerTest has a race condition
-  // when maven runs tests in parallel
-  ignore("tracker should throw exception if parallelism is not sufficient") {
+  test("tracker should throw exception if parallelism is not sufficient") {
     val nWorkers = numParallelism * 3
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
     val tracker = new SparkParallelismTracker(sc, 1000, nWorkers)
