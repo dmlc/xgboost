@@ -86,6 +86,14 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
   inline double CalcDeltaBias(double sum_grad, double sum_hess, double w) const {
     return - (sum_grad + reg_lambda_bias * w) / (sum_hess + reg_lambda_bias);
   }
+
+  inline bst_float ApplyMonotonicityConstraints(bst_uint index, bst_float weight) {
+    if (index >= monotone_constraints.size()) return weight; // default without constrints.
+    if (monotone_constraints[index] == 0) return weight;
+    if (monotone_constraints[index] == 1 && weight < 0) return 0.0f;
+    if (monotone_constraints[index] == -1 && weight > 0) return 0.0f;
+    return weight;
+  }
 };
 
 /*!
@@ -166,6 +174,7 @@ class GBLinear : public GradientBooster {
           bst_float dw = static_cast<bst_float>(param.learning_rate *
                                                 param.CalcDelta(sum_grad, sum_hess, w));
           w += dw;
+          w = param.ApplyMonotonicityConstraints(fid, w);
           // update grad value
           for (bst_uint j = 0; j < col.length; ++j) {
             bst_gpair &p = gpair[col[j].index * ngroup + gid];
