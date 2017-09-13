@@ -14,6 +14,7 @@
 #include <sstream>
 #include <cstring>
 #include <algorithm>
+#include "../common/vector_serializer.h"
 
 namespace xgboost {
 namespace gbm {
@@ -50,6 +51,8 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
   float reg_alpha;
   /*! \brief regularization weight for L2 norm in bias */
   float reg_lambda_bias;
+  /*! \brief array that specify the direction of each feature's beta */
+  std::vector<int> monotone_constraints;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
     DMLC_DECLARE_FIELD(learning_rate).set_lower_bound(0.0f).set_default(1.0f)
@@ -65,6 +68,9 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
     DMLC_DECLARE_ALIAS(reg_lambda_bias, lambda_bias);
+    DMLC_DECLARE_FIELD(monotone_constraints)
+        .set_default(std::vector<int>())
+        .describe("Constraint of variable monotonicity");
   }
   // given original weight calculate delta
   inline double CalcDelta(double sum_grad, double sum_hess, double w) const {
