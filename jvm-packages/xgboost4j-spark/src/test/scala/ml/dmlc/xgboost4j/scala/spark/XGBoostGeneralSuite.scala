@@ -363,9 +363,9 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic").toMap
+      "objective" -> "binary:logistic", "check_interval" -> 0).toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
-      nWorkers = numWorkers, checkIntervals = 0)
+      nWorkers = numWorkers)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
   }

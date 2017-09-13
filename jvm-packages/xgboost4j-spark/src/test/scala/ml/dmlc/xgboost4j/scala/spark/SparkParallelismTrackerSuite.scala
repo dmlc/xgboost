@@ -43,7 +43,8 @@ class SparkParallelismTrackerSuite extends FunSuite with PerTest {
     intercept[XGBoostError] {
       tracker.execute {
         rdd.map { i =>
-          Thread.sleep(5000)
+          // Test interruption
+          Thread.sleep(Long.MaxValue)
           i
         }.sum()
       }

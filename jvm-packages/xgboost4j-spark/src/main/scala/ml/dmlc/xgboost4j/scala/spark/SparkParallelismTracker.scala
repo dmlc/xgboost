@@ -19,9 +19,9 @@ package ml.dmlc.xgboost4j.scala.spark
 import ml.dmlc.xgboost4j.java.XGBoostError
 import org.apache.spark.SparkContext
 
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Failure, Success}
 
 /**
   * A tracker that periodically checks the number of alive Spark executor cores.
@@ -35,16 +35,16 @@ private[spark] class SparkParallelismTracker(
     sc: SparkContext,
     checkInterval: Long,
     nWorkers: Int) {
-  private[this] var isRunning = true
-  private[this] val trackerThread = Thread.currentThread()
 
-  private[this] def check(): Unit = {
-    val currentNumExecutors = sc.getExecutorMemoryStatus.size - 1
-    val numCoresPerExecutor = sc.getConf.getInt("spark.executor.cores", 1)
-    val currentParallelism = currentNumExecutors * numCoresPerExecutor
-    if (currentParallelism < nWorkers) {
+  private[this] def isRunning: Boolean = {
+    val currentNumTasks = sc.statusTracker.getExecutorInfos.map(_.numRunningTasks()).sum
+    if (currentNumTasks >= nWorkers) {
+      true
+    } else if (currentNumTasks == 0) {
+      false
+    } else {
       throw new XGBoostError(s"Requires numParallelism = $nWorkers but only " +
-        s"$currentParallelism cores are alive. Please check logs in Spark History Server.")
+        s"$currentNumTasks tasks are alive. Please check logs in Spark History Server.")
     }
   }
 
@@ -56,29 +56,26 @@ private[spark] class SparkParallelismTracker(
     * @return The return of body
     */
   def execute[T](body: => T): T = {
+    val trackerThread = Thread.currentThread()
     if (checkInterval <= 0) {
       body
     } else {
       // Start the body as a separate thread
-      val bodyFuture = Future {
-        try {
-          body
-        } finally {
-          isRunning = false
-          trackerThread.interrupt()
-        }
+      val bodyFuture = Future(body)
+      bodyFuture.onComplete {
+        _ => trackerThread.notify()
       }
-      // Run periodic checks on the current thread
-      try {
-        while (isRunning) {
-          Thread.sleep(checkInterval)
-          check()
-        }
-      } catch {
-        case _: InterruptedException =>
+      // Monitor the body thread
+      trackerThread.synchronized {
+        do {
+          trackerThread.wait(checkInterval)
+        } while (isRunning)
       }
       // Get the result from the body thread
-      Await.result(bodyFuture, Duration.Inf)
+      bodyFuture.value.get match {
+        case Success(t : T) => t
+        case Failure(ex) => throw ex
+      }
     }
   }
 }

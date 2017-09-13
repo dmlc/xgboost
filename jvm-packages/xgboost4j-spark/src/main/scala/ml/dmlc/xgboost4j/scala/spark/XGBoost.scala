@@ -268,7 +268,6 @@ object XGBoost extends Serializable {
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                          true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
-   * @param checkIntervals the interval to check whether numCores are sufficient.
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
    * @return XGBoostModel when successful training
    */
@@ -281,14 +280,13 @@ object XGBoost extends Serializable {
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN,
-      checkIntervals: Long = 30 * 60 * 1000): XGBoostModel = {
+      missing: Float = Float.NaN): XGBoostModel = {
     import DataUtils._
     val xgbTrainingData = trainingData.map { case MLLabeledPoint(label, features) =>
       features.asXGB.copy(label = label.toFloat)
     }
     trainDistributed(xgbTrainingData, params, round, nWorkers, obj, eval,
-      useExternalMemory, missing, checkIntervals)
+      useExternalMemory, missing)
   }
 
   @throws(classOf[XGBoostError])
@@ -300,8 +298,7 @@ object XGBoost extends Serializable {
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
-      missing: Float = Float.NaN,
-      checkIntervals: Long = 30 * 60 * 1000): XGBoostModel = {
+      missing: Float = Float.NaN): XGBoostModel = {
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
           " for now")
@@ -318,6 +315,13 @@ object XGBoost extends Serializable {
       case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
           "instance of TrackerConf.")
     }
+    val checkIntervals: Long = params.get("check_interval") match {
+      case None => 30 * 60 * 1000L
+      case Some(interval: Long) => interval
+      case _ => throw new IllegalArgumentException("parameter \"check_interval\" must be an " +
+        "instance of Long.")
+    }
+
     val tracker = startTracker(nWorkers, trackerConf)
     try {
       val sc = trainingData.sparkContext
