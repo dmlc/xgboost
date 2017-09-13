@@ -16,12 +16,17 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.net.URL
+
 import ml.dmlc.xgboost4j.java.XGBoostError
+import org.apache.commons.logging.LogFactory
 import org.apache.spark.SparkContext
+import org.codehaus.jackson.map.ObjectMapper
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
+import scala.collection.JavaConverters._
 
 /**
   * A tracker that periodically checks the number of alive Spark executor cores.
@@ -36,15 +41,26 @@ private[spark] class SparkParallelismTracker(
     checkInterval: Long,
     nWorkers: Int) {
 
-  private[this] def isRunning: Boolean = {
-    val currentNumTasks = sc.statusTracker.getExecutorInfos.map(_.numRunningTasks()).sum
-    if (currentNumTasks >= nWorkers) {
+  private[this] val mapper = new ObjectMapper()
+  private[this] val logger = LogFactory.getLog("XGBoostSpark")
+
+
+  private[this] def isHealthy: Boolean = {
+    val url = new URL(s"http://localhost:4040/api/v1/applications/${sc.applicationId}/executors")
+    val numAliveCores = try {
+      mapper.readTree(url).findValues("totalCores").asScala.map(_.asInt).sum
+    } catch {
+      case ex: Throwable =>
+        logger.warn(s"Unable to read total number of alive cores from ${url.getPath}." +
+          s"Health Check will be ignored.")
+        ex.printStackTrace()
+        Int.MaxValue
+    }
+    if (numAliveCores >= nWorkers) {
       true
-    } else if (currentNumTasks == 0) {
-      false
     } else {
       throw new XGBoostError(s"Requires numParallelism = $nWorkers but only " +
-        s"$currentNumTasks tasks are alive. Please check logs in Spark History Server.")
+        s"$numAliveCores tasks are alive. Please check logs in Spark History Server.")
     }
   }
 
@@ -69,7 +85,7 @@ private[spark] class SparkParallelismTracker(
       try {
         do {
           Thread.sleep(checkInterval)
-        } while (isRunning)
+        } while (isHealthy)
       } catch {
         case _: InterruptedException =>
       }
