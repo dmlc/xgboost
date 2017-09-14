@@ -236,6 +236,16 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     predictions.foreach(pred => assert(math.abs(pred - predictions.head) <= 0.01f))
   }
 
+  test("test train/test split") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "trainTestRatio" -> "0.5")
+
+    val trainingDf = buildDataFrame(Classification.train)
+    XGBoost.trainWithDataFrame(trainingDf, paramMap, round = 1, nWorkers = numWorkers)
+
+    // No asserts because evaluation metrics are not yet exposed in the API.
+  }
+
   test("test early stopping") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear", "numEarlyStoppingRounds" -> 2)
