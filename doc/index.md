@@ -10,6 +10,7 @@ These are used to generate the index used in search.
 * [Java/Scala Package Document](jvm/index.md)
 * [Julia Package Document](julia/index.md)
 * [CLI Package Document](cli/index.md)
+* [GPU Support Document](gpu/index.md)
 - [Howto Documents](how_to/index.md)
 - [Get Started Documents](get_started/index.md)
 - [Tutorials](tutorials/index.md)

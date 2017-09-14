@@ -4,7 +4,7 @@
  */
 #include <thrust/device_vector.h>
 #include <xgboost/base.h>
-#include "../../src/device_helpers.cuh"
+#include "../../../src/common/device_helpers.cuh"
 #include "gtest/gtest.h"
 
 void CreateTestData(xgboost::bst_uint num_rows, int max_row_size,

@@ -28,6 +28,7 @@ even better to send pull request if you can fix the problem.
   - [Building on Ubuntu/Debian](#building-on-ubuntu-debian)
   - [Building on OSX](#building-on-osx)
   - [Building on Windows](#building-on-windows)
+  - [Building with GPU support](#building-with-gpu-support)
   - [Windows Binaries](#windows-binaries)
   - [Customized Building](#customized-building)
 - [Python Package Installation](#python-package-installation)
@@ -130,6 +131,32 @@ cmake .. -G"Visual Studio 12 2013 Win64"
 This specifies an out of source build using the MSVC 12 64 bit generator. Open the .sln file in the build directory and build with Visual Studio. To use the Python module you can copy libxgboost.dll into python-package\xgboost.
 
 Other versions of Visual Studio may work but are untested.
+
+### Building with GPU support
+
+XGBoost can be built with GPU support for both Linux and Windows using cmake. GPU support works with the Python package as well as the CLI version. The R package is not yet supported.
+
+An up-to-date version of the cuda toolkit is required.
+
+From the command line on Linux starting from the xgboost directory:
+
+```bash
+$ mkdir build
+$ cd build
+$ cmake .. -DUSE_CUDA=ON
+$ make -j
+```
+On Windows using cmake, see what options for Generators you have for cmake, and choose one with [arch] replaced by Win64:
+```bash
+cmake -help
+```
+Then run cmake as:
+```bash
+$ mkdir build
+$ cd build
+$ cmake .. -G"Visual Studio 14 2015 Win64" -DUSE_CUDA=ON
+```
+Cmake will create an xgboost.sln solution file in the build directory. Build this solution in release mode as a x64 build.
 
 ### Windows Binaries
 Unofficial windows binaries and instructions on how to use them are hosted on [Guido Tapia's blog](http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/)
