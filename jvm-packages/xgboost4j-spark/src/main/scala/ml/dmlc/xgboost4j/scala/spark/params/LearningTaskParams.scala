@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import scala.collection.immutable.HashSet
 
-import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
+import org.apache.spark.ml.param._
 
 trait LearningTaskParams extends Params {
 
@@ -70,8 +70,15 @@ trait LearningTaskParams extends Params {
    */
   val weightCol = new Param[String](this, "weightCol", "weight column name")
 
+  /**
+   * Fraction of training points to use for testing.
+   */
+  val trainTestRatio = new Param[Double](this, "trainTestRatio",
+    "fraction of training points to use for testing",
+    ParamValidators.inRange(0, 1))
+
   setDefault(objective -> "reg:linear", baseScore -> 0.5, numClasses -> 2, groupData -> null,
-    baseMarginCol -> "baseMargin", weightCol -> "weight")
+    baseMarginCol -> "baseMargin", weightCol -> "weight", trainTestRatio -> 1.0)
 }
 
 private[spark] object LearningTaskParams {

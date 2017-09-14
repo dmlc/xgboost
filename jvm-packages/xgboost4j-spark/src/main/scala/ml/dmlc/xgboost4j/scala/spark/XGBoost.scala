@@ -17,6 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable
+import scala.util.Random
 
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
@@ -94,7 +95,7 @@ object XGBoost extends Serializable {
   }
 
   private[spark] def buildDistributedBoosters(
-      trainingSet: RDD[XGBLabeledPoint],
+      data: RDD[XGBLabeledPoint],
       params: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
       numWorkers: Int,
@@ -103,19 +104,19 @@ object XGBoost extends Serializable {
       eval: EvalTrait,
       useExternalMemory: Boolean,
       missing: Float): RDD[Booster] = {
-    val partitionedTrainingSet = if (trainingSet.getNumPartitions != numWorkers) {
+    val partitionedData = if (data.getNumPartitions != numWorkers) {
       logger.info(s"repartitioning training set to $numWorkers partitions")
-      trainingSet.repartition(numWorkers)
+      data.repartition(numWorkers)
     } else {
-      trainingSet
+      data
     }
-    val partitionedBaseMargin = partitionedTrainingSet.map(_.baseMargin)
-    val appName = partitionedTrainingSet.context.appName
+    val partitionedBaseMargin = partitionedData.map(_.baseMargin)
+    val appName = partitionedData.context.appName
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    partitionedTrainingSet.zipPartitions(partitionedBaseMargin) { (trainingPoints, baseMargins) =>
-      if (trainingPoints.isEmpty) {
+    partitionedData.zipPartitions(partitionedBaseMargin) { (labeledPoints, baseMargins) =>
+      if (labeledPoints.isEmpty) {
         throw new XGBoostError(
           s"detected an empty partition in the training data, partition ID:" +
               s" ${TaskContext.getPartitionId()}")
@@ -128,21 +129,32 @@ object XGBoost extends Serializable {
       }
       rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv)
-      val trainingMatrix = new DMatrix(
-        fromDenseToSparseLabeledPoints(trainingPoints, missing), cacheFileName)
+      val trainTestRatio = params.get("trainTestRatio").map(_.toString.toDouble).getOrElse(1.0)
+      val r = new Random()  // TODO: can support XGBoost seed parameter.
+      // In the worst-case this would store [[trainTestRatio]] of points
+      // buffered in memory.
+      val (trainPoints, testPoints) = fromDenseToSparseLabeledPoints(labeledPoints, missing)
+          .partition(_ => r.nextDouble() <= trainTestRatio)
+      val trainMatrix = new DMatrix(trainPoints, cacheFileName)
+      val testMatrix = new DMatrix(testPoints, cacheFileName)
+      val watches = mutable.Map("train" -> trainMatrix)
+      if (testMatrix.rowNum > 0) {
+        watches += "test" -> testMatrix
+      }
+
       try {
         // TODO: use group attribute from the points.
         if (params.contains("groupData") && params("groupData") != null) {
-          trainingMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
+          trainMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
             TaskContext.getPartitionId()).toArray)
         }
-        fromBaseMarginsToArray(baseMargins).foreach(trainingMatrix.setBaseMargin)
-        val booster = SXGBoost.train(trainingMatrix, params, round,
-          watches = Map("train" -> trainingMatrix), obj, eval)
+        fromBaseMarginsToArray(baseMargins).foreach(trainMatrix.setBaseMargin)
+        val booster = SXGBoost.train(trainMatrix, params, round,
+          watches = watches.toMap, obj, eval)
         Iterator(booster)
       } finally {
         Rabit.shutdown()
-        trainingMatrix.delete()
+        trainMatrix.delete()
       }
     }.cache()
   }
