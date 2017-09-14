@@ -65,9 +65,9 @@ private[spark] class SparkParallelismTracker(
   }
 
   /**
-    * Execute an async function call with periodic checks
+    * Execute a blocking function call with periodic checks on number of alive cores
     *
-    * @param body An async function call
+    * @param body A blocking function call
     * @tparam T Return type
     * @return The return of body
     */

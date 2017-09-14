@@ -42,13 +42,13 @@ class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
     assert(disabledTracker.execute(rdd.sum()) == rdd.sum())
   }
 
-  test("tracker should be robust if the check is very frequent") {
+  test("tracker should be robust if the checks are very frequent") {
     val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
     val tracker = new SparkParallelismTracker(sc, 1, nWorkers)
     val result = tracker.execute {
       rdd.map { i =>
-        // Ensure check happens
+        // Ensure multiple checks happens
         Thread.sleep(1000)
         i
       }.sum()
