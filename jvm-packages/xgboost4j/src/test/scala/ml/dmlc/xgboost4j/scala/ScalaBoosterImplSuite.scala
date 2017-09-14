@@ -74,7 +74,7 @@ class ScalaBoosterImplSuite extends FunSuite {
     val watches = List("train" -> trainMat, "test" -> testMat).toMap
 
     val round = 2
-    XGBoost.train(trainMat, paramMap, round, watches, null, null)
+    XGBoost.train(trainMat, paramMap, round, watches)
   }
 
   private def trainBoosterWithFastHisto(
@@ -84,7 +84,7 @@ class ScalaBoosterImplSuite extends FunSuite {
       paramMap: Map[String, String],
       threshold: Float): Booster = {
     val metrics = Array.fill(watches.size, round)(0.0f)
-    val booster = XGBoost.train(trainMat, paramMap, round, watches, metrics, null, null)
+    val booster = XGBoost.train(trainMat, paramMap, round, watches, metrics)
     for (i <- 0 until watches.size; j <- 1 until metrics(i).length) {
       assert(metrics(i)(j) >= metrics(i)(j - 1))
     }
@@ -143,7 +143,7 @@ class ScalaBoosterImplSuite extends FunSuite {
       "objective" -> "binary:logistic", "gamma" -> "1.0", "eval_metric" -> "error").toMap
     val round = 2
     val nfold = 5
-    XGBoost.crossValidation(trainMat, params, round, nfold, null, null, null)
+    XGBoost.crossValidation(trainMat, params, round, nfold)
   }
 
   test("test with fast histo depthwise") {

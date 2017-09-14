@@ -55,7 +55,7 @@ object XGBoost {
       val trainMat = new DMatrix(dataIter, null)
       val watches = List("train" -> trainMat).toMap
       val round = 2
-      val booster = XGBoostScala.train(trainMat, paramMap, round, watches, null, null)
+      val booster = XGBoostScala.train(trainMat, paramMap, round, watches)
       Rabit.shutdown()
       collector.collect(new XGBoostModel(booster))
     }
