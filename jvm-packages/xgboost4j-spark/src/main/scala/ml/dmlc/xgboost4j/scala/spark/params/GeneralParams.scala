@@ -17,7 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark.params
 
 import ml.dmlc.xgboost4j.scala.spark.TrackerConf
-import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
+
 import org.apache.spark.ml.param._
 
 trait GeneralParams extends Params {
@@ -99,9 +99,12 @@ trait GeneralParams extends Params {
     */
   val trackerConf = new TrackerConfParam(this, "tracker_conf", "Rabit tracker configurations")
 
+  /** Random seed for the C++ part of XGBoost and train/test splitting. */
+  val seed = new LongParam(this, "seed", "random seed")
+
   setDefault(round -> 1, nWorkers -> 1, numThreadPerTask -> 1,
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
-    trackerConf -> TrackerConf()
+    trackerConf -> TrackerConf(), seed -> 0
   )
 }
