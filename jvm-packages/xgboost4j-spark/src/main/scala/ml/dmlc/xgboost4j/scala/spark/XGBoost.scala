@@ -157,6 +157,7 @@ object XGBoost extends Serializable {
       } finally {
         Rabit.shutdown()
         trainMatrix.delete()
+        testMatrix.delete()
       }
     }.cache()
   }
