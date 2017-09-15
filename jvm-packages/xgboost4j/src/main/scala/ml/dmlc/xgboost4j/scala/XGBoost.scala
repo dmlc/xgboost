@@ -36,6 +36,9 @@ object XGBoost {
     *                performance on the validation set.
     * @param metrics array containing the evaluation metrics for each matrix in watches for each
     *                iteration
+    * @param earlyStoppingRound if non-zero, training would be stopped
+    *                           after a specified number of consecutive
+    *                           increases in any evaluation metric.
     * @param obj     customized objective
     * @param eval    customized evaluation
     * @return The trained booster.

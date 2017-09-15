@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
@@ -233,5 +234,16 @@ class XGBoostDFSuite extends FunSuite with PerTest {
 
     // The predictions heavily relies on the first training instance, and thus are very close.
     predictions.foreach(pred => assert(math.abs(pred - predictions.head) <= 0.01f))
+  }
+
+  test("test early stopping") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "numEarlyStoppingRounds" -> 2)
+
+    val trainingDF = buildDataFrame(Regression.train)
+    XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5,
+      nWorkers = numWorkers)
+
+    // No asserts because evaluation metrics are not yet exposed in the API.
   }
 }

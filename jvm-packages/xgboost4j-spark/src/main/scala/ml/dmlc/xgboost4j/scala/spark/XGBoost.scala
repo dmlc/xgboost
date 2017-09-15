@@ -137,8 +137,11 @@ object XGBoost extends Serializable {
             TaskContext.getPartitionId()).toArray)
         }
         fromBaseMarginsToArray(baseMargins).foreach(trainingMatrix.setBaseMargin)
+        val numEarlyStoppingRounds = params.get("numEarlyStoppingRounds")
+            .map(_.toString.toInt).getOrElse(0)
         val booster = SXGBoost.train(trainingMatrix, params, round,
-          watches = Map("train" -> trainingMatrix), obj = obj, eval = eval)
+          watches = Map("train" -> trainingMatrix), obj = obj, eval = eval,
+          earlyStoppingRound = numEarlyStoppingRounds)
         Iterator(booster)
       } finally {
         Rabit.shutdown()
