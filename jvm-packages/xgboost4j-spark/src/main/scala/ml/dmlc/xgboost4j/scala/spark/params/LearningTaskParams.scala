@@ -73,7 +73,7 @@ trait LearningTaskParams extends Params {
   /**
    * Fraction of training points to use for testing.
    */
-  val trainTestRatio = new Param[Double](this, "trainTestRatio",
+  val trainTestRatio = new DoubleParam(this, "trainTestRatio",
     "fraction of training points to use for testing",
     ParamValidators.inRange(0, 1))
 
