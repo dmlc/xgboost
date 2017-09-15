@@ -130,9 +130,11 @@ object XGBoost extends Serializable {
       rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv)
       val trainTestRatio = params.get("trainTestRatio").map(_.toString.toDouble).getOrElse(1.0)
-      val r = new Random()  // TODO: can support XGBoost seed parameter.
       // In the worst-case this would store [[trainTestRatio]] of points
       // buffered in memory.
+      val r = params.get("seed")
+          .map(v => new Random(v.toString.toLong))
+          .getOrElse(new Random())
       val (trainPoints, testPoints) = fromDenseToSparseLabeledPoints(labeledPoints, missing)
           .partition(_ => r.nextDouble() <= trainTestRatio)
       val trainMatrix = new DMatrix(trainPoints, cacheFileName)
