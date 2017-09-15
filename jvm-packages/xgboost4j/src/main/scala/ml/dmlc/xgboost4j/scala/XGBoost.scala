@@ -48,13 +48,14 @@ object XGBoost {
       watches: Map[String, DMatrix] = Map(),
       metrics: Array[Array[Float]] = null,
       obj: ObjectiveTrait = null,
-      eval: EvalTrait = null): Booster = {
+      eval: EvalTrait = null,
+      earlyStoppingRound: Int = 0): Booster = {
     val jWatches = watches.mapValues(_.jDMatrix).asJava
     val xgboostInJava = JXGBoost.train(
       dtrain.jDMatrix,
       // we have to filter null value for customized obj and eval
       params.filter(_._2 != null).mapValues(_.toString.asInstanceOf[AnyRef]).asJava,
-      round, jWatches, metrics, obj, eval)
+      round, jWatches, metrics, obj, eval, earlyStoppingRound)
     new Booster(xgboostInJava)
   }
 
