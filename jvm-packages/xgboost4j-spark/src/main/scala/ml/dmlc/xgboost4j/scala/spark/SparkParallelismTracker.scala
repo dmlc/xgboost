@@ -59,7 +59,6 @@ private[spark] class SparkParallelismTracker(
     if (numAliveCores >= nWorkers) {
       true
     } else {
-      sc.cancelAllJobs()
       throw new XGBoostError(s"Requires numParallelism = $nWorkers but only " +
         s"$numAliveCores cores are alive. Please check logs in Spark History Server.")
     }
