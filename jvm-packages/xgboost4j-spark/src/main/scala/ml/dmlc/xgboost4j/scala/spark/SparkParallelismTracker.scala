@@ -46,12 +46,12 @@ private[spark] class SparkParallelismTracker(
 
 
   private[this] def isHealthy: Boolean = {
-    val url = new URL(s"http://localhost:4040/api/v1/applications/${sc.applicationId}/executors")
     val numAliveCores = try {
+      val url = new URL(s"${sc.uiWebUrl.get}/api/v1/applications/${sc.applicationId}/executors")
       mapper.readTree(url).findValues("totalCores").asScala.map(_.asInt).sum
     } catch {
       case ex: Throwable =>
-        logger.warn(s"Unable to read total number of alive cores from ${url.getPath}." +
+        logger.warn(s"Unable to read total number of alive cores from REST API." +
           s"Health Check will be ignored.")
         ex.printStackTrace()
         Int.MaxValue
@@ -59,8 +59,9 @@ private[spark] class SparkParallelismTracker(
     if (numAliveCores >= nWorkers) {
       true
     } else {
+      sc.cancelAllJobs()
       throw new XGBoostError(s"Requires numParallelism = $nWorkers but only " +
-        s"$numAliveCores tasks are alive. Please check logs in Spark History Server.")
+        s"$numAliveCores cores are alive. Please check logs in Spark History Server.")
     }
   }
 
