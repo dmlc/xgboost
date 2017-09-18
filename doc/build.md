@@ -134,9 +134,9 @@ Other versions of Visual Studio may work but are untested.
 
 ### Building with GPU support
 
-XGBoost can be built with GPU support for both Linux and Windows using cmake. GPU support works with the Python package as well as the CLI version. The R package is not yet supported.
+XGBoost can be built with GPU support for both Linux and Windows using cmake. GPU support works with the Python package as well as the CLI version. See [Installing R package with GPU support](#installing-r-package-with-gpu-support) for special instructions for R.
 
-An up-to-date version of the cuda toolkit is required.
+An up-to-date version of the CUDA toolkit is required.
 
 From the command line on Linux starting from the xgboost directory:
 
@@ -156,7 +156,10 @@ $ mkdir build
 $ cd build
 $ cmake .. -G"Visual Studio 14 2015 Win64" -DUSE_CUDA=ON
 ```
-Cmake will create an xgboost.sln solution file in the build directory. Build this solution in release mode as a x64 build.
+Cmake will create an xgboost.sln solution file in the build directory. Build this solution in release mode as a x64 build, either from Visual studio or from command line:
+```
+cmake --build . --target xgboost --config Release
+```
 
 ### Windows Binaries
 Unofficial windows binaries and instructions on how to use them are hosted on [Guido Tapia's blog](http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/)
@@ -274,6 +277,33 @@ install.packages('.', repos = NULL, type="source")
 ```
 
 If all fails, try [building the shared library](#build-the-shared-library) to see whether a problem is specific to R package or not.
+
+### Installing R package with GPU support
+
+The procedure and requirements are similar as in [Building with GPU support](#building-with-gpu-support), with a few distinctions.
+
+On Linux, starting from the xgboost directory:
+
+```bash
+mkdir build
+cd build
+cmake .. -DUSE_CUDA=ON -DR_LIB=ON
+make install -j
+```
+When default target is used, an R package shared library would be built in the `build` area.
+The `install` target, in addition, assembles the package files with this shared library under `build/R-package`, and runs `R CMD INSTALL`.
+
+On Windows, cmake with Visual C++ Build Tools (or Visual Studio) has to be used to build an R package with GPU support. Rtools must also be installed (perhaps, some other MinGW distributions with `gendef.exe` and `dlltool.exe` would work, but that was not tested).
+```bash
+mkdir build
+cd build
+cmake .. -G"Visual Studio 14 2015 Win64" -DUSE_CUDA=ON -DR_LIB=ON
+cmake --build . --target install --config Release
+```
+When `--target xgboost` is used, an R package dll would be built under `build/Release`.
+The `--target install`, in addition, assembles the package files with this dll under `build/R-package`, and runs `R CMD INSTALL`.
+
+If cmake can't find your R during the configuration step, you might provide the location of its executable to cmake like this: `-DLIBR_EXECUTABLE="C:/Program Files/R/R-3.4.1/bin/x64/R.exe"`.
 
 
 ## Trouble Shooting

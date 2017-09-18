@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 3.2)
 project(xgboost)
 include(cmake/Utils.cmake)
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 find_package(OpenMP)
 
 set_default_configuration_release()
@@ -10,6 +11,7 @@ msvc_use_static_runtime()
 option(USE_CUDA  "Build with GPU acceleration") 
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
+option(R_LIB "Build shared library for R package" OFF)
 set(GPU_COMPUTE_VER 35;50;52;60;61 CACHE STRING
   "Space separated list of compute versions to be built against")
 
@@ -102,27 +104,99 @@ if(USE_CUDA)
   list(APPEND LINK_LIBRARIES gpuxgboost) 
 endif()
 
-add_library(objxgboost OBJECT ${SOURCES})
 
-# Executable
-add_executable(runxgboost $<TARGET_OBJECTS:objxgboost> src/cli_main.cc)
-set_target_properties(runxgboost PROPERTIES 
-  OUTPUT_NAME xgboost 
-)
-set_output_directory(runxgboost ${PROJECT_SOURCE_DIR})
-target_link_libraries(runxgboost ${LINK_LIBRARIES})
+# building shared library for R package
+if(R_LIB)
 
-# Shared library
-add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
-target_link_libraries(xgboost ${LINK_LIBRARIES})
-set_output_directory(xgboost ${PROJECT_SOURCE_DIR}/lib)
-if(MINGW)
-  # remove the 'lib' prefix to conform to windows convention for shared library names
-  set_target_properties(xgboost PROPERTIES PREFIX "")
+  if(WIN32 AND MSVC)
+    # allow .dll as well
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll")
+  endif()
+  #include(cmake/modules/FindLibR.cmake)
+  find_package(LibR REQUIRED)
+
+  # compiled code customizations for R package
+  add_definitions(
+    -DXGBOOST_STRICT_R_MODE=1
+    -DXGBOOST_CUSTOMIZE_GLOBAL_PRNG=1
+    -DDMLC_LOG_BEFORE_THROW=0
+    -DDMLC_DISABLE_STDIN=1
+    -DDMLC_LOG_CUSTOMIZE=1
+    -DRABIT_CUSTOMIZE_MSG_
+    -DRABIT_STRICT_CXX98_
+  )
+  file(GLOB_RECURSE R_SOURCES
+    R-package/src/*.h
+    R-package/src/*.c
+    R-package/src/*.cc
+  )
+  list(APPEND SOURCES ${R_SOURCES})
+  include_directories(
+    "${LIBR_INCLUDE_DIRS}"
+    "${PROJECT_SOURCE_DIR}"
+  )
+
+  if(WIN32 AND MSVC)
+    # create a local R.lib import library for R.dll if it doesn't exist
+    if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
+      create_rlib_for_msvc()
+    endif()
+    set(LIBR_CORE_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
+  endif()
+  list(APPEND LINK_LIBRARIES "${LIBR_CORE_LIBRARY}")
+  #MESSAGE(STATUS "LIBR_EXECUTABLE " ${LIBR_EXECUTABLE})
+  MESSAGE(STATUS "LIBR_CORE_LIBRARY " ${LIBR_CORE_LIBRARY})
+
+  add_library(objxgboost OBJECT ${SOURCES})
+
+  # Shared library for the use with R
+  add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
+  target_link_libraries(xgboost ${LINK_LIBRARIES})
+  if(MINGW)
+    # remove the 'lib' prefix to conform to windows convention for shared library names
+    set_target_properties(xgboost PROPERTIES PREFIX "")
+  endif()
+
+  # Install target for the R package
+  # assemble the R package files in the build area, and run R CMD INSTALL
+  install(CODE "file(REMOVE_RECURSE \"${CMAKE_CURRENT_BINARY_DIR}/R-package\")")
+  install(
+    DIRECTORY "${PROJECT_SOURCE_DIR}/R-package"
+    DESTINATION "${CMAKE_CURRENT_BINARY_DIR}"
+    REGEX "src/*" EXCLUDE
+    REGEX "R-package/configure" EXCLUDE
+  )
+  install(TARGETS xgboost LIBRARY RUNTIME DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/R-package/src/")
+  install(CODE "file(WRITE \"${CMAKE_CURRENT_BINARY_DIR}/R-package/src/Makevars\" \"all:\")")
+  install(CODE "file(WRITE \"${CMAKE_CURRENT_BINARY_DIR}/R-package/src/Makevars.win\" \"all:\")")
+  #install(SCRIPT "${PROJECT_SOURCE_DIR}/cmake/RpackPreInstall.cmake")
+  install(CODE "execute_process(COMMAND \"${LIBR_EXECUTABLE}\" CMD INSTALL\
+    \"--no-multiarch\" \"${CMAKE_CURRENT_BINARY_DIR}/R-package\")")
+
+# main targets: shared library & exe
+else()
+  add_library(objxgboost OBJECT ${SOURCES})
+
+  # Executable
+  add_executable(runxgboost $<TARGET_OBJECTS:objxgboost> src/cli_main.cc)
+  set_target_properties(runxgboost PROPERTIES
+    OUTPUT_NAME xgboost
+  )
+  set_output_directory(runxgboost ${PROJECT_SOURCE_DIR})
+  target_link_libraries(runxgboost ${LINK_LIBRARIES})
+
+  # Shared library
+  add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
+  target_link_libraries(xgboost ${LINK_LIBRARIES})
+  set_output_directory(xgboost ${PROJECT_SOURCE_DIR}/lib)
+  if(MINGW)
+    # remove the 'lib' prefix to conform to windows convention for shared library names
+    set_target_properties(xgboost PROPERTIES PREFIX "")
+  endif()
+
+  #Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
+  add_dependencies(xgboost runxgboost)
 endif()
-
-#Ensure these two targets do not build simultaneously, as they produce outputs with conflicting names
-add_dependencies(xgboost runxgboost)
 
 # JVM
 if(JVM_BINDINGS)
