@@ -78,7 +78,7 @@ class TestPandas(unittest.TestCase):
         assert dm.feature_types == ['int', 'int']
         assert dm.num_row() == 3
         assert dm.num_col() == 2
-        
+
         # test MultiIndex as columns
         df = pd.DataFrame(
             [
