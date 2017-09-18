@@ -199,9 +199,13 @@ inline void dense2sparse_tree(RegTree* p_tree,
 
 struct BernoulliRng {
   float p;
-  int seed;
+  uint32_t seed;
+  constexpr static double conv = static_cast<double>(thrust::default_random_engine::max) /
+                                 common::GlobalRandomEngine::max();
 
-  __host__ __device__ BernoulliRng(float p, int seed) : p(p), seed(seed) {}
+  __host__ __device__ BernoulliRng(float p, size_t seed_) : p(p) {
+    seed = static_cast<uint32_t>(seed_ * conv);
+  }
 
   __host__ __device__ bool operator()(const int i) const {
     thrust::default_random_engine rng(seed);
