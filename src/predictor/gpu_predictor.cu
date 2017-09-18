@@ -3,6 +3,7 @@
  */
 #include <dmlc/parameter.h>
 #include <thrust/copy.h>
+#include <thrust/device_vector.h>
 #include <xgboost/data.h>
 #include <xgboost/predictor.h>
 #include <xgboost/tree_model.h>

@@ -271,6 +271,7 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
     return -2.0 * (ret + p.reg_alpha * std::abs(w));
   }
 }
+
 // calculate weight given the statistics
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
@@ -290,6 +291,11 @@ XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
       dw = -p.max_delta_step;
   }
   return dw;
+}
+
+template <typename TrainingParams, typename gpair_t>
+XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, gpair_t sum_grad) {
+  return CalcWeight(p, sum_grad.GetGrad(), sum_grad.GetHess());
 }
 
 /*! \brief core statistics used for tree construction */
