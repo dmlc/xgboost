@@ -88,14 +88,12 @@ else()
 
   # Windows
   else()
-    message(STATUS "\n\n\n\n\nA\n" "[" ${LIBR_EXECUTABLE} "]" "\n\n\n\n\n")
     # ask R for R_HOME 
     if(LIBR_EXECUTABLE)
       execute_process(
         COMMAND ${LIBR_EXECUTABLE} "--slave" "--no-save" "-e" "cat(normalizePath(R.home(), winslash='/')"
         OUTPUT_VARIABLE LIBR_HOME)
     endif()
-    message(STATUS "\n\n\n\n\nB\n" "[" ${LIBR_EXECUTABLE} "]" \n "[" ${LIBR_HOME} "]" "\n\n\n\n\n")
     # if R executable not available, query R_HOME path from registry
     if(NOT LIBR_HOME)
       get_filename_component(LIBR_HOME

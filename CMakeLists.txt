@@ -36,6 +36,19 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops")
 endif()
 
+# compiled code customizations for R package
+if(R_LIB)
+  add_definitions(
+    -DXGBOOST_STRICT_R_MODE=1
+    -DXGBOOST_CUSTOMIZE_GLOBAL_PRNG=1
+    -DDMLC_LOG_BEFORE_THROW=0
+    -DDMLC_DISABLE_STDIN=1
+    -DDMLC_LOG_CUSTOMIZE=1
+    -DRABIT_CUSTOMIZE_MSG_
+    -DRABIT_STRICT_CXX98_
+  )
+endif()
+
 include_directories (
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/dmlc-core/include
@@ -68,7 +81,7 @@ set(RABIT_EMPTY_SOURCES
     rabit/src/engine_empty.cc
     rabit/src/c_api.cc
 )
-if(MINGW)
+if(MINGW OR R_LIB)
   # build a dummy rabit library
   add_library(rabit STATIC ${RABIT_EMPTY_SOURCES})
 else()
@@ -79,6 +92,7 @@ endif()
 # dmlc-core
 add_subdirectory(dmlc-core)
 set(LINK_LIBRARIES dmlccore rabit)
+
 
 if(USE_CUDA)
   find_package(CUDA 7.5 REQUIRED)
@@ -105,6 +119,19 @@ if(USE_CUDA)
 endif()
 
 
+# flags and sources for R-package
+if(R_LIB)
+  file(GLOB_RECURSE R_SOURCES
+    R-package/src/*.h
+    R-package/src/*.c
+    R-package/src/*.cc
+  )
+  list(APPEND SOURCES ${R_SOURCES})
+endif()
+
+add_library(objxgboost OBJECT ${SOURCES})
+
+
 # building shared library for R package
 if(R_LIB)
 
@@ -115,22 +142,6 @@ if(R_LIB)
   #include(cmake/modules/FindLibR.cmake)
   find_package(LibR REQUIRED)
 
-  # compiled code customizations for R package
-  add_definitions(
-    -DXGBOOST_STRICT_R_MODE=1
-    -DXGBOOST_CUSTOMIZE_GLOBAL_PRNG=1
-    -DDMLC_LOG_BEFORE_THROW=0
-    -DDMLC_DISABLE_STDIN=1
-    -DDMLC_LOG_CUSTOMIZE=1
-    -DRABIT_CUSTOMIZE_MSG_
-    -DRABIT_STRICT_CXX98_
-  )
-  file(GLOB_RECURSE R_SOURCES
-    R-package/src/*.h
-    R-package/src/*.c
-    R-package/src/*.cc
-  )
-  list(APPEND SOURCES ${R_SOURCES})
   include_directories(
     "${LIBR_INCLUDE_DIRS}"
     "${PROJECT_SOURCE_DIR}"
@@ -147,18 +158,16 @@ if(R_LIB)
   #MESSAGE(STATUS "LIBR_EXECUTABLE " ${LIBR_EXECUTABLE})
   MESSAGE(STATUS "LIBR_CORE_LIBRARY " ${LIBR_CORE_LIBRARY})
 
-  add_library(objxgboost OBJECT ${SOURCES})
-
   # Shared library for the use with R
   add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
   target_link_libraries(xgboost ${LINK_LIBRARIES})
-  if(MINGW)
-    # remove the 'lib' prefix to conform to windows convention for shared library names
-    set_target_properties(xgboost PROPERTIES PREFIX "")
-  endif()
+  # R uses no lib prefix in shared library names of its packages
+  set_target_properties(xgboost PROPERTIES PREFIX "")
 
-  # Install target for the R package
-  # assemble the R package files in the build area, and run R CMD INSTALL
+  ## Install target for the R package
+  # dummy location for any installs from subdirectories:
+  set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/dummy_inst")
+  # assemble the R-package files in the build area, and run R CMD INSTALL
   install(CODE "file(REMOVE_RECURSE \"${CMAKE_CURRENT_BINARY_DIR}/R-package\")")
   install(
     DIRECTORY "${PROJECT_SOURCE_DIR}/R-package"
@@ -166,17 +175,16 @@ if(R_LIB)
     REGEX "src/*" EXCLUDE
     REGEX "R-package/configure" EXCLUDE
   )
-  install(TARGETS xgboost LIBRARY RUNTIME DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/R-package/src/")
+  install(TARGETS xgboost
+    LIBRARY DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/R-package/src/"
+    RUNTIME DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/R-package/src/")
   install(CODE "file(WRITE \"${CMAKE_CURRENT_BINARY_DIR}/R-package/src/Makevars\" \"all:\")")
   install(CODE "file(WRITE \"${CMAKE_CURRENT_BINARY_DIR}/R-package/src/Makevars.win\" \"all:\")")
-  #install(SCRIPT "${PROJECT_SOURCE_DIR}/cmake/RpackPreInstall.cmake")
   install(CODE "execute_process(COMMAND \"${LIBR_EXECUTABLE}\" CMD INSTALL\
     \"--no-multiarch\" \"${CMAKE_CURRENT_BINARY_DIR}/R-package\")")
 
 # main targets: shared library & exe
 else()
-  add_library(objxgboost OBJECT ${SOURCES})
-
   # Executable
   add_executable(runxgboost $<TARGET_OBJECTS:objxgboost> src/cli_main.cc)
   set_target_properties(runxgboost PROPERTIES
@@ -198,6 +206,7 @@ else()
   add_dependencies(xgboost runxgboost)
 endif()
 
+
 # JVM
 if(JVM_BINDINGS)
     find_package(JNI QUIET REQUIRED)
@@ -212,6 +221,7 @@ if(JVM_BINDINGS)
         ${LINK_LIBRARIES}
         ${JAVA_JVM_LIBRARY})
 endif()
+
 
 # Test
 if(GOOGLE_TEST)
@@ -235,6 +245,7 @@ if(GOOGLE_TEST)
 
   add_test(TestXGBoost testxgboost)
 endif()
+
 
 # Group sources
 auto_source_group("${SOURCES}")
