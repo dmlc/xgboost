@@ -16,7 +16,7 @@ I have a big dataset
 XGBoost is designed to be memory efficient. Usually it can handle problems as long as the data fit into your memory
 (This usually means millions of instances).
 If you are running out of memory, checkout [external memory version](how_to/external_memory.md) or
-[distributed version](https://github.com/dmlc/wormhole/tree/master/learn/xgboost) of xgboost.
+[distributed version](../demo/distributed-training) of xgboost.
 
 
 Running xgboost on Platform X (Hadoop/Yarn, Mesos)
