@@ -231,7 +231,7 @@ class DMatrix(object):
 
         Parameters
         ----------
-        data : string/numpy array/scipy.sparse/pd.DataFrame
+        data : string/numpy array/scipy.sparse/pd.DataFrame/DataTable
             Data source of DMatrix.
             When data is string type, it represents the path libsvm format txt file,
             or binary file that xgboost can read from.
@@ -268,6 +268,8 @@ class DMatrix(object):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
             self._init_from_csc(data)
+        elif isinstance(data, np.ndarray):
+            self._init_from_npy2d(data, missing, nthread)
         elif isinstance(data, np.ndarray):
             self._init_from_npy2d(data, missing, nthread)
         else:
