@@ -4,7 +4,7 @@ This document contains frequently asked questions about xgboost.
 
 How to tune parameters
 ----------------------
-See [Parameter Tunning Guide](param_tuning.md)
+See [Parameter Tunning Guide](how_to/param_tuning.md)
 
 Description on the model
 ------------------------
@@ -15,7 +15,7 @@ I have a big dataset
 --------------------
 XGBoost is designed to be memory efficient. Usually it can handle problems as long as the data fit into your memory
 (This usually means millions of instances).
-If you are running out of memory, checkout [external memory version](external_memory.md) or
+If you are running out of memory, checkout [external memory version](how_to/external_memory.md) or
 [distributed version](https://github.com/dmlc/wormhole/tree/master/learn/xgboost) of xgboost.
 
 
