@@ -68,7 +68,7 @@ static const R_CallMethodDef CallEntries[] = {
   {NULL, NULL, 0}
 };
 
-#if defined(_MSC_VER)
+#if defined(_WIN32)
 __declspec(dllexport)
 #endif
 void R_init_xgboost(DllInfo *dll) {
