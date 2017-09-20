@@ -146,7 +146,9 @@ $ cd build
 $ cmake .. -DUSE_CUDA=ON
 $ make -j
 ```
-On Windows using cmake, see what options for Generators you have for cmake, and choose one with [arch] replaced by Win64:
+**Windows requirements** for GPU build: only Visual C++ 2015 or 2013 with CUDA v8.0 were fully tested. Either install Visual C++ 2015 Build Tools separately, or as a part of Visual Studio 2015. If you already have Visual Studio 2017, the Visual C++ 2015 Toolchain componenet has to be installed using the VS 2017 Installer. Likely, you would need to use the VS2015 x64 Native Tools command prompt to run the cmake commands given below. In some situations, however, things run just fine from MSYS2 bash command line. 
+
+On Windows, using cmake, see what options for Generators you have for cmake, and choose one with [arch] replaced by Win64:
 ```bash
 cmake -help
 ```
@@ -156,12 +158,15 @@ $ mkdir build
 $ cd build
 $ cmake .. -G"Visual Studio 14 2015 Win64" -DUSE_CUDA=ON
 ```
-Cmake will create an xgboost.sln solution file in the build directory. Build this solution in release mode as a x64 build, either from Visual studio or from command line:
+To speed up compilation, compute version specific to your GPU could be passed to cmake as, e.g., `-DGPU_COMPUTE_VER=50`.
+The above cmake configuration run will create an xgboost.sln solution file in the build directory. Build this solution in release mode as a x64 build, either from Visual studio or from command line:
 ```
 cmake --build . --target xgboost --config Release
 ```
+If build seems to use only a single process, you might try to append an option like ` -- /m:6` to the above command.
 
 ### Windows Binaries
+
 Unofficial windows binaries and instructions on how to use them are hosted on [Guido Tapia's blog](http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/)
 
 ### Customized Building
@@ -276,11 +281,13 @@ setwd('wherever/you/cloned/it/xgboost/R-package/')
 install.packages('.', repos = NULL, type="source")
 ```
 
+The package could also be built and installed with cmake (and Visual C++ 2015 on Windows) using instructions from the next section, but without GPU support (omit the `-DUSE_CUDA=ON` cmake parameter).
+
 If all fails, try [building the shared library](#build-the-shared-library) to see whether a problem is specific to R package or not.
 
 ### Installing R package with GPU support
 
-The procedure and requirements are similar as in [Building with GPU support](#building-with-gpu-support), with a few distinctions.
+The procedure and requirements are similar as in [Building with GPU support](#building-with-gpu-support), so make sure to read it first.
 
 On Linux, starting from the xgboost directory:
 
@@ -305,6 +312,11 @@ The `--target install`, in addition, assembles the package files with this dll u
 
 If cmake can't find your R during the configuration step, you might provide the location of its executable to cmake like this: `-DLIBR_EXECUTABLE="C:/Program Files/R/R-3.4.1/bin/x64/R.exe"`.
 
+If on Windows you get a "permission denied" error when trying to write to ...Program Files/R/... during the package installation, create a `.Rprofile` file in your personal home directory (if you don't already have one in there), and add a line to it which specifies the location of your R packages user library, like the following:
+```r
+.libPaths( unique(c("C:/Users/USERNAME/Documents/R/win-library/3.4", .libPaths())))
+```
+You might find the exact location by running `.libPaths()` in R GUI or RStudio.
 
 ## Trouble Shooting
 
