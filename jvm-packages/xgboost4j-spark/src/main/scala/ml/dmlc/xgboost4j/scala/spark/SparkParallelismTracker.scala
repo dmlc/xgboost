@@ -43,11 +43,14 @@ private[spark] class SparkParallelismTracker(
 
   private[this] val mapper = new ObjectMapper()
   private[this] val logger = LogFactory.getLog("XGBoostSpark")
+  private[this] val url = sc.uiWebUrl match {
+    case Some(baseUrl) => new URL(s"$baseUrl/api/v1/applications/${sc.applicationId}/executors")
+    case _ => null
+  }
 
 
-  private[this] def isHealthy: Boolean = {
+  private[this] def check(): Unit = {
     val numAliveCores = try {
-      val url = new URL(s"${sc.uiWebUrl.get}/api/v1/applications/${sc.applicationId}/executors")
       mapper.readTree(url).findValues("totalCores").asScala.map(_.asInt).sum
     } catch {
       case ex: Throwable =>
@@ -56,9 +59,7 @@ private[spark] class SparkParallelismTracker(
         ex.printStackTrace()
         Int.MaxValue
     }
-    if (numAliveCores >= nWorkers) {
-      true
-    } else {
+    if (numAliveCores < nWorkers) {
       throw new XGBoostError(s"Requires numParallelism = $nWorkers but only " +
         s"$numAliveCores cores are alive. Please check logs in Spark History Server.")
     }
@@ -83,9 +84,10 @@ private[spark] class SparkParallelismTracker(
       }
       // Monitor the body thread
       try {
-        do {
+        while (true) {
           Thread.sleep(checkInterval)
-        } while (isHealthy)
+          check()
+        }
       } catch {
         case _: InterruptedException =>
       }
