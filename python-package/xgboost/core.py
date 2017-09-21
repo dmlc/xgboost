@@ -184,7 +184,13 @@ Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
-        feature_names = data.columns.format()
+        if hasattr(data.columns, 'to_frame'):  # MultiIndex
+            feature_names = [
+                ' '.join(map(str, i))
+                for i in data.columns
+            ]
+        else:
+            feature_names = data.columns.format()
 
     if feature_types is None:
         feature_types = [PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes]
