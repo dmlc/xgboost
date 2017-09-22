@@ -8,6 +8,7 @@ XGBoost R Feature Walkthrough
 * [Generalized Linear Model](generalized_linear_model.R)
 * [Cross validation](cross_validation.R)
 * [Create a sparse matrix from a dense one](create_sparse_matrix.R)
+* [Use GPU-accelerated tree building algorithms](gpu_accelerated.R)
 
 Benchmarks
 ====
