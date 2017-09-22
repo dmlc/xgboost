@@ -60,3 +60,21 @@ function(format_gencode_flags flags out)
   endforeach()
   set(${out} "${${out}}" PARENT_SCOPE)
 endfunction(format_gencode_flags flags)
+
+# assembles the R-package files in build_dir, and run R CMD INSTALL
+function(setup_rpackage_install_target rlib_target build_dir)
+  install(CODE "file(REMOVE_RECURSE \"${build_dir}/R-package\")")
+  install(
+    DIRECTORY "${PROJECT_SOURCE_DIR}/R-package"
+    DESTINATION "${build_dir}"
+    REGEX "src/*" EXCLUDE
+    REGEX "R-package/configure" EXCLUDE
+  )
+  install(TARGETS ${rlib_target}
+    LIBRARY DESTINATION "${build_dir}/R-package/src/"
+    RUNTIME DESTINATION "${build_dir}/R-package/src/")
+  install(CODE "file(WRITE \"${build_dir}/R-package/src/Makevars\" \"all:\")")
+  install(CODE "file(WRITE \"${build_dir}/R-package/src/Makevars.win\" \"all:\")")
+  install(CODE "execute_process(COMMAND \"${LIBR_EXECUTABLE}\" CMD INSTALL\
+    \"--no-multiarch\" \"${build_dir}/R-package\")")
+endfunction(setup_rpackage_install_target)

@@ -134,54 +134,25 @@ add_library(objxgboost OBJECT ${SOURCES})
 
 # building shared library for R package
 if(R_LIB)
-
-  if(WIN32 AND MSVC)
-    # allow .dll as well
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll")
-  endif()
-  #include(cmake/modules/FindLibR.cmake)
   find_package(LibR REQUIRED)
+
+  list(APPEND LINK_LIBRARIES "${LIBR_CORE_LIBRARY}")
+  MESSAGE(STATUS "LIBR_CORE_LIBRARY " ${LIBR_CORE_LIBRARY})
 
   include_directories(
     "${LIBR_INCLUDE_DIRS}"
     "${PROJECT_SOURCE_DIR}"
   )
 
-  if(WIN32 AND MSVC)
-    # create a local R.lib import library for R.dll if it doesn't exist
-    if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
-      create_rlib_for_msvc()
-    endif()
-    set(LIBR_CORE_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
-  endif()
-  list(APPEND LINK_LIBRARIES "${LIBR_CORE_LIBRARY}")
-  #MESSAGE(STATUS "LIBR_EXECUTABLE " ${LIBR_EXECUTABLE})
-  MESSAGE(STATUS "LIBR_CORE_LIBRARY " ${LIBR_CORE_LIBRARY})
-
-  # Shared library for the use with R
+  # Shared library target for the R package
   add_library(xgboost SHARED $<TARGET_OBJECTS:objxgboost>)
   target_link_libraries(xgboost ${LINK_LIBRARIES})
   # R uses no lib prefix in shared library names of its packages
   set_target_properties(xgboost PROPERTIES PREFIX "")
 
-  ## Install target for the R package
-  # dummy location for any installs from subdirectories:
+  setup_rpackage_install_target(xgboost ${CMAKE_CURRENT_BINARY_DIR})
+  # use a dummy location for any other remaining installs
   set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/dummy_inst")
-  # assemble the R-package files in the build area, and run R CMD INSTALL
-  install(CODE "file(REMOVE_RECURSE \"${CMAKE_CURRENT_BINARY_DIR}/R-package\")")
-  install(
-    DIRECTORY "${PROJECT_SOURCE_DIR}/R-package"
-    DESTINATION "${CMAKE_CURRENT_BINARY_DIR}"
-    REGEX "src/*" EXCLUDE
-    REGEX "R-package/configure" EXCLUDE
-  )
-  install(TARGETS xgboost
-    LIBRARY DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/R-package/src/"
-    RUNTIME DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/R-package/src/")
-  install(CODE "file(WRITE \"${CMAKE_CURRENT_BINARY_DIR}/R-package/src/Makevars\" \"all:\")")
-  install(CODE "file(WRITE \"${CMAKE_CURRENT_BINARY_DIR}/R-package/src/Makevars.win\" \"all:\")")
-  install(CODE "execute_process(COMMAND \"${LIBR_EXECUTABLE}\" CMD INSTALL\
-    \"--no-multiarch\" \"${CMAKE_CURRENT_BINARY_DIR}/R-package\")")
 
 # main targets: shared library & exe
 else()

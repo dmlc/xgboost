@@ -33,6 +33,32 @@ if(NOT R_ARCH)
   endif()
 endif()
 
+
+# Creates R.lib and R.def in the build directory for linking with MSVC
+function(create_rlib_for_msvc)
+  # various checks and warnings
+  if(NOT WIN32 OR NOT MSVC)
+    message(FATAL_ERROR "create_rlib_for_msvc() can only be used with MSVC")
+  endif()
+  if(NOT EXISTS "${LIBR_LIB_DIR}")
+    message(FATAL_ERROR "LIBR_LIB_DIR was not set!")
+  endif()
+  find_program(GENDEF_EXE gendef)
+  find_program(DLLTOOL_EXE dlltool)
+  if(NOT GENDEF_EXE OR NOT DLLTOOL_EXE)
+    message(FATAL_ERROR "\nEither gendef.exe or dlltool.exe not found!\
+      \nDo you have Rtools installed with its MinGW's bin/ in PATH?")
+  endif()  
+  # extract symbols from R.dll into R.def and R.lib import library
+  execute_process(COMMAND gendef
+    "-" "${LIBR_LIB_DIR}/R.dll"
+    OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/R.def")
+  execute_process(COMMAND dlltool
+    "--input-def" "${CMAKE_CURRENT_BINARY_DIR}/R.def"
+    "--output-lib" "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
+endfunction(create_rlib_for_msvc)
+
+
 # detection for OSX
 if(APPLE)
 
@@ -98,7 +124,7 @@ else()
     if(NOT LIBR_HOME)
       get_filename_component(LIBR_HOME
         "[HKEY_LOCAL_MACHINE\\SOFTWARE\\R-core\\R\\${R_VERSION};InstallPath]"
-        ABSOLUTE CACHE)
+        ABSOLUTE)
       if(NOT LIBR_HOME)
         message(FATAL_ERROR "\nUnable to locate R executable.\
           \nEither add its location to PATH or provide it through the LIBR_EXECUTABLE cmake variable")
@@ -116,9 +142,16 @@ else()
 
 endif()
 
+if(WIN32 AND MSVC)
+  # create a local R.lib import library for R.dll if it doesn't exist
+  if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
+    create_rlib_for_msvc()
+  endif()
+endif()
+
 # look for the core R library
 find_library(LIBR_CORE_LIBRARY NAMES R
-  HINTS "${LIBR_LIB_DIR}" "${LIBR_HOME}/bin" "${LIBR_LIBRARIES}")
+  HINTS "${CMAKE_CURRENT_BINARY_DIR}" "${LIBR_LIB_DIR}" "${LIBR_HOME}/bin" "${LIBR_LIBRARIES}")
 if(LIBR_CORE_LIBRARY-NOTFOUND)
   message(STATUS "Could not find R core shared library.")
 endif()
@@ -126,7 +159,7 @@ endif()
 set(LIBR_HOME ${LIBR_HOME} CACHE PATH "R home directory")
 set(LIBR_EXECUTABLE ${LIBR_EXECUTABLE} CACHE PATH "R executable")
 set(LIBR_INCLUDE_DIRS ${LIBR_INCLUDE_DIRS} CACHE PATH "R include directory")
-set(LIBR_LIB_DIRS ${LIBR_LIB_DIR} CACHE PATH "R shared libraries directory")
+set(LIBR_LIB_DIR ${LIBR_LIB_DIR} CACHE PATH "R shared libraries directory")
 set(LIBR_CORE_LIBRARY ${LIBR_CORE_LIBRARY} CACHE PATH "R core shared library")
 
 # define find requirements
@@ -142,28 +175,3 @@ find_package_handle_standard_args(LibR DEFAULT_MSG
 if(LIBR_FOUND)
   message(STATUS "Found R: ${LIBR_EXECUTABLE}")
 endif()
-
-
-# Creates R.lib and R.def in the build directory for linking with MSVC
-function(create_rlib_for_msvc)
-  # various checks and warnings
-  if(NOT WIN32 OR NOT MSVC)
-    message(FATAL_ERROR "create_rlib_for_msvc() can only be used with MSVC")
-  endif()
-  if(NOT EXISTS "${LIBR_LIB_DIR}")
-    message(FATAL_ERROR "LIBR_LIB_DIR was not set!")
-  endif()
-  find_program(GENDEF_EXE gendef)
-  find_program(DLLTOOL_EXE dlltool)
-  if(NOT GENDEF_EXE OR NOT DLLTOOL_EXE)
-    message(FATAL_ERROR "\nEither gendef.exe or dlltool.exe not found!\
-      \nDo you have Rtools installed with its MinGW's bin/ in PATH?")
-  endif()  
-  # extract symbols from R.dll into R.def and R.lib import library
-  execute_process(COMMAND gendef
-    "-" "${LIBR_LIB_DIR}/R.dll"
-    OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/R.def")
-  execute_process(COMMAND dlltool
-    "--input-def" "${CMAKE_CURRENT_BINARY_DIR}/R.def"
-    "--output-lib" "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
-endfunction(create_rlib_for_msvc)
