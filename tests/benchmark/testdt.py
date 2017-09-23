@@ -23,11 +23,10 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     dtdata_y_train = dt.DataTable(y_train)
     dtdata_y_test = dt.DataTable(y_test)
 
-    return
     print ("DMatrix Start")
     # omp way
-    dtrain = xgb.DMatrix(X_train, y_train, nthread=-1)
-    dtest = xgb.DMatrix(X_test, y_test, nthread=-1)
+    dtrain = xgb.DMatrix(dtdata_X_train, dtdata_y_train, nthread=-1)
+    dtest = xgb.DMatrix(dtdata_X_test, dtdata_y_test, nthread=-1)
     print ("DMatrix Time: %s seconds" % (str(time.time() - tmp)))
 
     param = {'objective': 'binary:logistic',

@@ -180,7 +180,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
                       enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
 
         msg = """DataFrame.dtypes for data must be int, float or bool.
-Did not expect the data types in fields """
+                Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
@@ -211,6 +211,45 @@ def _maybe_pandas_label(label):
     return label
 
 
+import datatable as dt
+
+
+#DT_STYPE_MAPPER = {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i': 'int', 'f4r': 'float', 'f8r': 'float'}
+
+
+DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
+
+
+def _maybe_dt_data(data, feature_names, feature_types):
+    if not isinstance(data, dt.DataTable):
+        return data, feature_names, feature_types
+
+    data_types = data.types
+    data_stypes = data.stypes
+    cols = []
+    ptrs = []
+    for icol in range(data.ncols):
+        col = data.internal.column(icol)
+        cols.append(col)
+        ptr = col.data_pointer # int64_t (void*)
+        ptrs.append(ptr)
+
+    if not all(type in DT_TYPE_MAPPER for type in data_types):
+        bad_fields = [data.names[i] for i, type in
+                      enumerate(data_types) if type not in DT_TYPE_MAPPER]
+
+        msg = """DataFrame.types for data must be int, float or bool.
+                Did not expect the data types in fields """
+        raise ValueError(msg + ', '.join(bad_fields))
+
+    if feature_names is None:
+        feature_names = data.names
+
+    if feature_types is None:
+        #feature_types = [DT_TYPE_MAPPER[type] for type in data_types]
+        feature_stypes = [stype for stype in data_stypes]
+
+    return ptrs, feature_names, feature_stypes
 class DMatrix(object):
     """Data Matrix used in XGBoost.
 
@@ -258,6 +297,11 @@ class DMatrix(object):
                                                                 feature_names,
                                                                 feature_types)
         label = _maybe_pandas_label(label)
+
+        data, feature_names, feature_types = _maybe_dt_data(data,
+                                                            feature_names,
+                                                            feature_types)
+        label = _maybe_dt_label(label)
 
         if isinstance(data, STRING_TYPES):
             self.handle = ctypes.c_void_p()
