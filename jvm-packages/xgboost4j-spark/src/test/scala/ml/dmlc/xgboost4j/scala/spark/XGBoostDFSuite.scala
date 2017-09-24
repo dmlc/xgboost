@@ -192,6 +192,7 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val model = XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5, nWorkers = numWorkers)
     assert(model.get[Double](model.eta).get == 0.1)
     assert(model.get[Int](model.maxDepth).get == 6)
+    assert(model.asInstanceOf[XGBoostClassificationModel].numOfClasses == 6)
   }
 
   test("test use base margin") {
