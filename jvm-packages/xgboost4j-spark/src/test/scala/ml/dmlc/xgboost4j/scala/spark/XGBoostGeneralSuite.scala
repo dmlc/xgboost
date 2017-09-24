@@ -318,6 +318,26 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(loadedXGBoostModel.getFeaturesCol == "features")
     assert(loadedXGBoostModel.getLabelCol == "label")
     assert(loadedXGBoostModel.getPredictionCol == "prediction")
+    // (multiclass) classification model
+    trainingRDD = sc.parallelize(MultiClassification.train)
+    paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "multi:softmax", "num_class" -> "6")
+    xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = numWorkers, useExternalMemory = false)
+    xgBoostModel.asInstanceOf[XGBoostClassificationModel].setRawPredictionCol("raw_col")
+    xgBoostModel.asInstanceOf[XGBoostClassificationModel].setThresholds(
+      Array(0.5, 0.5, 0.5, 0.5, 0.5, 0.5))
+    xgBoostModel.saveModelAsHadoopFile(tempFile.toFile.getAbsolutePath)
+    loadedXGBoostModel = XGBoost.loadModelFromHadoopFile(tempFile.toFile.getAbsolutePath)
+    assert(loadedXGBoostModel.isInstanceOf[XGBoostClassificationModel])
+    assert(loadedXGBoostModel.asInstanceOf[XGBoostClassificationModel].getRawPredictionCol ==
+      "raw_col")
+    assert(loadedXGBoostModel.asInstanceOf[XGBoostClassificationModel].getThresholds.deep ==
+      Array(0.5, 0.5, 0.5, 0.5, 0.5, 0.5).deep)
+    assert(loadedXGBoostModel.asInstanceOf[XGBoostClassificationModel].numOfClasses == 6)
+    assert(loadedXGBoostModel.getFeaturesCol == "features")
+    assert(loadedXGBoostModel.getLabelCol == "label")
+    assert(loadedXGBoostModel.getPredictionCol == "prediction")
   }
 
   test("test use groupData") {
