@@ -56,7 +56,7 @@ Parameters for Tree Booster
 * tree_method, string [default='auto']
   - The tree construction algorithm used in XGBoost(see description in the [reference paper](http://arxiv.org/abs/1603.02754))
   - Distributed and external memory version only support approximate algorithm.
-  - Choices: {'auto', 'exact', 'approx', 'hist'}
+  - Choices: {'auto', 'exact', 'approx', 'hist', 'gpu_exact', 'gpu_hist'}
     - 'auto': Use heuristic to choose faster one.
       - For small to medium dataset, exact greedy will be used.
       - For very large-dataset, approximate algorithm will be chosen.
@@ -65,6 +65,8 @@ Parameters for Tree Booster
     - 'exact': Exact greedy algorithm.
     - 'approx': Approximate greedy algorithm using sketching and histogram.
     - 'hist': Fast histogram optimized approximate greedy algorithm. It uses some performance improvements such as bins caching.
+	- 'gpu_exact': GPU implementation of exact algorithm. 
+	- 'gpu_hist': GPU implementation of hist algorithm. 
 * sketch_eps, [default=0.03]
   - This is only used for approximate greedy algorithm.
   - This roughly translated into ```O(1 / sketch_eps)``` number of bins.
@@ -103,10 +105,14 @@ Parameters for Tree Booster
     - 'lossguide': split at nodes with highest loss change.
 * max_leaves, [default=0]
   - Maximum number of nodes to be added. Only relevant for the 'lossguide' grow policy.
-* max_bins, [default=256]
+* max_bin, [default=256]
   - This is only used if 'hist' is specified as `tree_method`.
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
+* predictor, [default='cpu_predictor']
+  - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
+    - 'cpu_predictor': Multicore CPU prediction algorithm.
+    - 'gpu_predictor': Prediction using GPU. Default for 'gpu_exact' and 'gpu_hist' tree method.
 
 Additional parameters for Dart Booster
 --------------------------------------
@@ -154,7 +160,7 @@ Parameters for Tweedie Regression
 Learning Task Parameters
 ------------------------
 Specify the learning task and the corresponding learning objective. The objective options are below:
-* objective [ default=reg:linear ]
+* objective [default=reg:linear]
   - "reg:linear" --linear regression
   - "reg:logistic" --logistic regression
   - "binary:logistic" --logistic regression for binary classification, output probability
@@ -166,10 +172,10 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
   - "reg:gamma" --gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be [gamma-distributed](https://en.wikipedia.org/wiki/Gamma_distribution#Applications)
   - "reg:tweedie" --Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be [Tweedie-distributed](https://en.wikipedia.org/wiki/Tweedie_distribution#Applications).
-* base_score [ default=0.5 ]
+* base_score [default=0.5]
   - the initial prediction score of all instances, global bias
   - for sufficient number of iterations, changing this value will not have too much effect.
-* eval_metric [ default according to objective ]
+* eval_metric [default according to objective]
   - evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and error for classification, mean average precision for ranking )
   - User can add multiple evaluation metrics, for python user, remember to pass the metrics in as list of parameters pairs instead of map, so that latter 'eval_metric' won't override previous one
   - The choices are listed below:
@@ -190,13 +196,13 @@ training repeatedly
   - "gamma-nloglik": negative log-likelihood for gamma regression
   - "gamma-deviance": residual deviance for gamma regression
   - "tweedie-nloglik": negative log-likelihood for Tweedie regression (at a specified value of the tweedie_variance_power parameter)
-* seed [ default=0 ]
- - random number seed.
+* seed [default=0]
+  - random number seed.
 
 Command Line Parameters
 -----------------------
 The following parameters are only used in the console version of xgboost
-* use_buffer [ default=1 ]
+* use_buffer [default=1]
   - Whether to create a binary buffer from text input. Doing so normally will speed up loading times
 * num_round
   - The number of rounds for boosting

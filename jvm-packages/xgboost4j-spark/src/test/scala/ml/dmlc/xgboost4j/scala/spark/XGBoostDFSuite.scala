@@ -17,20 +17,22 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
-
-import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.DataTypes
 import org.scalatest.FunSuite
 
 class XGBoostDFSuite extends FunSuite with PerTest {
   private def buildDataFrame(
-      instances: Seq[MLLabeledPoint],
+      labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
-    val it = instances.iterator.zipWithIndex
-        .map { case (instance: MLLabeledPoint, id: Int) =>
-          (id, instance.label, instance.features)
+    import DataUtils._
+    val it = labeledPoints.iterator.zipWithIndex
+        .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
+          (id, labeledPoint.label, labeledPoint.features)
         }
 
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
@@ -42,7 +44,6 @@ class XGBoostDFSuite extends FunSuite with PerTest {
       "objective" -> "binary:logistic")
     val trainingItr = Classification.train.iterator
     val testItr = Classification.test.iterator
-    import DataUtils._
     val round = 5
     val trainDMatrix = new DMatrix(trainingItr)
     val testDMatrix = new DMatrix(testItr)
@@ -157,7 +158,6 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 10, nWorkers = math.min(2, numWorkers))
     val error = new EvalError
-    import DataUtils._
     val testSetDMatrix = new DMatrix(testItr)
     assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
@@ -193,5 +193,45 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     assert(model.get[Double](model.eta).get == 0.1)
     assert(model.get[Int](model.maxDepth).get == 6)
     assert(model.asInstanceOf[XGBoostClassificationModel].numOfClasses == 6)
+  }
+
+  test("test use base margin") {
+    import DataUtils._
+    val trainingDf = buildDataFrame(Classification.train)
+    val trainingDfWithMargin = trainingDf.withColumn("margin", functions.rand())
+    val testRDD = sc.parallelize(Classification.test.map(_.features))
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "baseMarginCol" -> "margin")
+
+    def trainPredict(df: Dataset[_]): Array[Float] = {
+      XGBoost.trainWithDataFrame(df, paramMap, round = 1, nWorkers = numWorkers)
+          .predict(testRDD)
+          .map { case Array(p) => p }
+          .collect()
+    }
+
+    val pred = trainPredict(trainingDf)
+    val predWithMargin = trainPredict(trainingDfWithMargin)
+    assert((pred, predWithMargin).zipped.exists { case (p, pwm) => p !== pwm })
+  }
+
+  test("test use weight") {
+    import DataUtils._
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "weightCol" -> "weight")
+
+    val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f}, DataTypes.FloatType)
+    val trainingDF = buildDataFrame(Regression.train)
+      .withColumn("weight", getWeightFromId(col("id")))
+
+    val model = XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5,
+      nWorkers = numWorkers, useExternalMemory = true)
+      .setPredictionCol("final_prediction")
+      .setExternalMemory(true)
+    val testRDD = sc.parallelize(Regression.test.map(_.features))
+    val predictions = model.predict(testRDD).collect().flatten
+
+    // The predictions heavily relies on the first training instance, and thus are very close.
+    predictions.foreach(pred => assert(math.abs(pred - predictions.head) <= 0.01f))
   }
 }

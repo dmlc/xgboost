@@ -19,7 +19,6 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.nio.file.Files
 import java.util.concurrent.LinkedBlockingDeque
 
-import scala.collection.mutable.ListBuffer
 import scala.util.Random
 
 import ml.dmlc.xgboost4j.java.Rabit
@@ -27,8 +26,8 @@ import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 
 import org.apache.spark.SparkContext
-import org.apache.spark.ml.feature.LabeledPoint
-import org.apache.spark.ml.linalg.{Vectors, Vector => SparkVector}
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
+import org.apache.spark.ml.linalg.{DenseVector, Vectors, Vector => SparkVector}
 import org.apache.spark.rdd.RDD
 import org.scalatest.FunSuite
 
@@ -82,15 +81,15 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
         "objective" -> "binary:logistic").toMap,
       new java.util.HashMap[String, String](),
       numWorkers = 2, round = 5, eval = null, obj = null, useExternalMemory = true,
-      missing = Float.NaN, baseMargin = null)
+      missing = Float.NaN)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === 2)
   }
 
   test("training with external memory cache") {
-    val eval = new EvalError()
-    val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
@@ -101,9 +100,9 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   test("training with Scala-implemented Rabit tracker") {
-    val eval = new EvalError()
-    val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic",
@@ -115,9 +114,9 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   ignore("test with fast histo depthwise") {
-    val eval = new EvalError()
-    val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
@@ -130,9 +129,9 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   ignore("test with fast histo lossguide") {
-    val eval = new EvalError()
-    val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "1",
             "objective" -> "binary:logistic", "tree_method" -> "hist",
@@ -145,9 +144,9 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   ignore("test with fast histo lossguide with max bin") {
-    val eval = new EvalError()
-    val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
             "objective" -> "binary:logistic", "tree_method" -> "hist",
@@ -161,9 +160,9 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   ignore("test with fast histo depthwidth with max depth") {
-    val eval = new EvalError()
-    val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
@@ -177,9 +176,9 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   ignore("test with fast histo depthwidth with max depth and max bin") {
-    val eval = new EvalError()
-    val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
             "objective" -> "binary:logistic", "tree_method" -> "hist",
@@ -193,7 +192,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   test("test with dense vectors containing missing value") {
-    def buildDenseRDD(): RDD[LabeledPoint] = {
+    def buildDenseRDD(): RDD[MLLabeledPoint] = {
       val numRows = 100
       val numCols = 5
 
@@ -203,23 +202,24 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
           if (c == numCols - 1) -0.1 else Random.nextDouble()
         }
 
-        LabeledPoint(label, Vectors.dense(values))
+        MLLabeledPoint(label, Vectors.dense(values))
       }
 
       sc.parallelize(labeledPoints)
     }
 
     val trainingRDD = buildDenseRDD().repartition(4)
-    val testRDD = buildDenseRDD().repartition(4)
+    val testRDD = buildDenseRDD().repartition(4).map(_.features.asInstanceOf[DenseVector])
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers,
       useExternalMemory = true)
-    xgBoostModel.predict(testRDD.map(_.features.toDense), missingValue = -0.1f).collect()
+    xgBoostModel.predict(testRDD, missingValue = -0.1f).collect()
   }
 
   test("test consistency of prediction functions with RDD") {
-    val trainingRDD = sc.parallelize(Classification.train)
+    import DataUtils._
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSet = Classification.test
     val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
     val testCollection = testRDD.collect()
@@ -232,7 +232,6 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1 = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
-    import DataUtils._
     val predResult2 = xgBoostModel.booster.predict(new DMatrix(testSet.iterator))
     for (i <- predResult1.indices; j <- predResult1(i).indices) {
       assert(predResult1(i)(j) === predResult2(i)(j))
@@ -240,7 +239,8 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   test("test eval functions with RDD") {
-    val trainingRDD = sc.parallelize(Classification.train).cache()
+    import DataUtils._
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML).cache()
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5, nWorkers = numWorkers)
@@ -250,11 +250,11 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   test("test prediction functionality with empty partition") {
+    import DataUtils._
     def buildEmptyRDD(sparkContext: Option[SparkContext] = None): RDD[SparkVector] = {
       sparkContext.getOrElse(sc).parallelize(List[SparkVector](), numWorkers)
     }
-
-    val trainingRDD = sc.parallelize(Classification.train)
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testRDD = buildEmptyRDD()
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
@@ -263,9 +263,9 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   test("test model consistency after save and load") {
-    val eval = new EvalError()
-    val trainingRDD = sc.parallelize(Classification.train)
     import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val tempDir = Files.createTempDirectory("xgboosttest-")
     val tempFile = Files.createTempFile(tempDir, "", "")
@@ -283,9 +283,10 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   test("test save and load of different types of models") {
+    import DataUtils._
     val tempDir = Files.createTempDirectory("xgboosttest-")
     val tempFile = Files.createTempFile(tempDir, "", "")
-    var trainingRDD = sc.parallelize(Classification.train)
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     var paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear")
     // validate regression model
@@ -340,7 +341,8 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   test("test use groupData") {
-    val trainingRDD = sc.parallelize(Ranking.train0, numSlices = 1)
+    import DataUtils._
+    val trainingRDD = sc.parallelize(Ranking.train0, numSlices = 1).map(_.asML)
     val trainGroupData: Seq[Seq[Int]] = Seq(Ranking.trainGroup0)
     val testRDD = sc.parallelize(Ranking.test, numSlices = 1).map(_.features)
 
@@ -357,9 +359,10 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
   }
 
   test("test use nested groupData") {
+    import DataUtils._
     val trainingRDD0 = sc.parallelize(Ranking.train0, numSlices = 1)
     val trainingRDD1 = sc.parallelize(Ranking.train1, numSlices = 1)
-    val trainingRDD = trainingRDD0.union(trainingRDD1)
+    val trainingRDD = trainingRDD0.union(trainingRDD1).map(_.asML)
 
     val trainGroupData: Seq[Seq[Int]] = Seq(Ranking.trainGroup0, Ranking.trainGroup1)
 
@@ -373,27 +376,4 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val predResult1: Array[Array[Float]] = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
   }
-
-    test("test use base margin") {
-      val trainRDD = sc.parallelize(Ranking.train0, numSlices = 1)
-      val testRDD = sc.parallelize(Ranking.test, numSlices = 1).map(_.features)
-
-      val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-        "objective" -> "rank:pairwise")
-
-      val trainMargin = {
-        XGBoost.trainWithRDD(trainRDD, paramMap, round = 1, nWorkers = 2)
-            .predict(trainRDD.map(_.features), outputMargin = true)
-            .map { case Array(m) => m }
-      }
-
-      val xgBoostModel = XGBoost.trainWithRDD(
-        trainRDD,
-        paramMap,
-        round = 1,
-        nWorkers = 2,
-        baseMargin = trainMargin)
-
-      assert(testRDD.count() === xgBoostModel.predict(testRDD).count())
-    }
 }

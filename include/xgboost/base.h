@@ -43,18 +43,22 @@
 /*!
  * \brief Check if alignas(*) keyword is supported. (g++ 4.8 or higher)
  */
-#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 8
+#if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4)
 #define XGBOOST_ALIGNAS(X) alignas(X)
 #else
 #define XGBOOST_ALIGNAS(X)
 #endif
 
-#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 8 && \
+#if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4) && \
     !defined(__CUDACC__)
 #include <parallel/algorithm>
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) __gnu_parallel::sort((X), (Y), (Z))
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) \
   __gnu_parallel::stable_sort((X), (Y), (Z))
+#elif defined(_MSC_VER) && (!__INTEL_COMPILER)
+#include <ppl.h>
+#define XGBOOST_PARALLEL_SORT(X, Y, Z) concurrency::parallel_sort((X), (Y), (Z))
+#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
 #else
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) std::sort((X), (Y), (Z))
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
@@ -82,48 +86,117 @@ typedef uint64_t bst_ulong;  // NOLINT(*)
 /*! \brief float type, used for storing statistics */
 typedef float bst_float;
 
-/*! \brief gradient statistics pair usually needed in gradient boosting */
-struct bst_gpair {
+
+namespace detail {
+/*! \brief Implementation of gradient statistics pair. Template specialisation
+ * may be used to overload different gradients types e.g. low precision, high
+ * precision, integer, floating point. */
+template <typename T>
+class bst_gpair_internal {
   /*! \brief gradient statistics */
-  bst_float grad;
+  T grad_;
   /*! \brief second order gradient statistics */
-  bst_float hess;
+  T hess_;
 
-  XGBOOST_DEVICE bst_gpair() : grad(0), hess(0) {}
+  XGBOOST_DEVICE void SetGrad(float g) { grad_ = g; }
+  XGBOOST_DEVICE void SetHess(float h) { hess_ = h; }
 
-  XGBOOST_DEVICE bst_gpair(bst_float grad, bst_float hess)
-      : grad(grad), hess(hess) {}
+ public:
+  typedef T value_t;
 
-  XGBOOST_DEVICE bst_gpair &operator+=(const bst_gpair &rhs) {
-    grad += rhs.grad;
-    hess += rhs.hess;
+  XGBOOST_DEVICE bst_gpair_internal() : grad_(0), hess_(0) {}
+
+  XGBOOST_DEVICE bst_gpair_internal(float grad, float hess) {
+    SetGrad(grad);
+    SetHess(hess);
+  }
+
+  // Copy constructor if of same value type
+  XGBOOST_DEVICE bst_gpair_internal(const bst_gpair_internal<T> &g)
+      : grad_(g.grad_), hess_(g.hess_) {}
+
+  // Copy constructor if different value type - use getters and setters to
+  // perform conversion
+  template <typename T2>
+  XGBOOST_DEVICE bst_gpair_internal(const bst_gpair_internal<T2> &g) {
+    SetGrad(g.GetGrad());
+    SetHess(g.GetHess());
+  }
+
+  XGBOOST_DEVICE float GetGrad() const { return grad_; }
+  XGBOOST_DEVICE float GetHess() const { return hess_; }
+
+  XGBOOST_DEVICE bst_gpair_internal<T> &operator+=(
+      const bst_gpair_internal<T> &rhs) {
+    grad_ += rhs.grad_;
+    hess_ += rhs.hess_;
     return *this;
   }
 
-  XGBOOST_DEVICE bst_gpair operator+(const bst_gpair &rhs) const {
-    bst_gpair g;
-    g.grad = grad + rhs.grad;
-    g.hess = hess + rhs.hess;
+  XGBOOST_DEVICE bst_gpair_internal<T> operator+(
+      const bst_gpair_internal<T> &rhs) const {
+    bst_gpair_internal<T> g;
+    g.grad_ = grad_ + rhs.grad_;
+    g.hess_ = hess_ + rhs.hess_;
     return g;
   }
 
-  XGBOOST_DEVICE bst_gpair &operator-=(const bst_gpair &rhs) {
-    grad -= rhs.grad;
-    hess -= rhs.hess;
+  XGBOOST_DEVICE bst_gpair_internal<T> &operator-=(
+      const bst_gpair_internal<T> &rhs) {
+    grad_ -= rhs.grad_;
+    hess_ -= rhs.hess_;
     return *this;
   }
 
-  XGBOOST_DEVICE bst_gpair operator-(const bst_gpair &rhs) const {
-    bst_gpair g;
-    g.grad = grad - rhs.grad;
-    g.hess = hess - rhs.hess;
+  XGBOOST_DEVICE bst_gpair_internal<T> operator-(
+      const bst_gpair_internal<T> &rhs) const {
+    bst_gpair_internal<T> g;
+    g.grad_ = grad_ - rhs.grad_;
+    g.hess_ = hess_ - rhs.hess_;
     return g;
   }
 
-  XGBOOST_DEVICE bst_gpair(int value) {
-    *this = bst_gpair(static_cast<float>(value), static_cast<float>(value));
+  XGBOOST_DEVICE bst_gpair_internal(int value) {
+    *this = bst_gpair_internal<T>(static_cast<float>(value),
+                                  static_cast<float>(value));
+  }
+
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const bst_gpair_internal<T> &g) {
+    os << g.grad_ << "/" << g.hess_;
+    return os;
   }
 };
+
+template<>
+inline XGBOOST_DEVICE float bst_gpair_internal<int64_t>::GetGrad() const {
+  return grad_ * 1e-5;
+}
+template<>
+inline XGBOOST_DEVICE float bst_gpair_internal<int64_t>::GetHess() const {
+  return hess_ * 1e-5;
+}
+template<>
+inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetGrad(float g) {
+  grad_ = g * 1e5;
+}
+template<>
+inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetHess(float h) {
+  hess_ = h * 1e5;
+}
+
+}  // namespace detail
+
+/*! \brief gradient statistics pair usually needed in gradient boosting */
+typedef detail::bst_gpair_internal<float> bst_gpair;
+
+/*! \brief High precision gradient statistics pair */
+typedef detail::bst_gpair_internal<double> bst_gpair_precise;
+
+  /*! \brief High precision gradient statistics pair with integer backed
+   * storage. Operators are associative where floating point versions are not
+   * associative. */
+  typedef detail::bst_gpair_internal<int64_t> bst_gpair_integer;
 
 /*! \brief small eps gap for minimum split decision. */
 const bst_float rt_eps = 1e-6f;

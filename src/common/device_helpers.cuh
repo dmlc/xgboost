@@ -2,13 +2,11 @@
  * Copyright 2017 XGBoost contributors
  */
 #pragma once
-#include <dmlc/logging.h>
-#include <thrust/binary_search.h>
 #include <thrust/device_vector.h>
-#include <thrust/random.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system/cuda/execution_policy.h>
 #include <thrust/system_error.h>
+#include <xgboost/logging.h>
 #include <algorithm>
 #include <chrono>
 #include <ctime>
@@ -20,7 +18,6 @@
 #include "nccl.h"
 
 // Uncomment to enable
-// #define DEVICE_TIMER
 #define TIMERS
 
 namespace dh {
@@ -59,17 +56,6 @@ inline ncclResult_t throw_on_nccl_error(ncclResult_t code, const char *file,
   }
 
   return code;
-}
-
-#define gpuErrchk(ans) \
-  { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line,
-                      bool abort = true) {
-  if (code != cudaSuccess) {
-    fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file,
-            line);
-    if (abort) exit(code);
-  }
 }
 
 inline int n_visible_devices() {
@@ -111,6 +97,28 @@ inline std::string device_name(int device_idx) {
   cudaDeviceProp prop;
   dh::safe_cuda(cudaGetDeviceProperties(&prop, device_idx));
   return std::string(prop.name);
+}
+
+inline size_t available_memory(int device_idx) {
+  size_t device_free = 0;
+  size_t device_total = 0;
+  safe_cuda(cudaSetDevice(device_idx));
+  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
+  return device_free;
+}
+
+/**
+ * \fn  inline int max_shared_memory(int device_idx)
+ *
+ * \brief Maximum shared memory per block on this device.
+ *
+ * \param device_idx  Zero-based index of the device.
+ */
+
+inline int max_shared_memory(int device_idx) {
+  cudaDeviceProp prop;
+  dh::safe_cuda(cudaGetDeviceProperties(&prop, device_idx));
+  return prop.sharedMemPerBlock;
 }
 
 // ensure gpu_id is correct, so not dependent upon user knowing details
@@ -207,7 +215,8 @@ __device__ range block_stride_range(T begin, T end) {
   return r;
 }
 
-// Threadblock iterates over range, filling with value
+// Threadblock iterates over range, filling with value. Requires all threads in
+// block to be active.
 template <typename IterT, typename ValueT>
 __device__ void block_fill(IterT begin, size_t n, ValueT value) {
   for (auto i : block_stride_range(static_cast<size_t>(0), n)) {
@@ -455,7 +464,7 @@ class bulk_allocator {
   }
 
   template <typename... Args>
-  void allocate(int device_idx, Args... args) {
+  void allocate(int device_idx, bool silent, Args... args) {
     size_t size = get_size_bytes(args...);
 
     char *ptr = allocate_device(device_idx, size, MemoryT);
@@ -465,6 +474,13 @@ class bulk_allocator {
     d_ptr.push_back(ptr);
     _size.push_back(size);
     _device_idx.push_back(device_idx);
+
+    if (!silent) {
+      const int mb_size = 1048576;
+      LOG(CONSOLE) << "Allocated " << size / mb_size << "MB on [" << device_idx
+                   << "] " << device_name(device_idx) << ", "
+                   << available_memory(device_idx) / mb_size << "MB remaining.";
+    }
   }
 };
 
@@ -506,14 +522,6 @@ struct CubMemory {
 
   bool IsAllocated() { return d_temp_storage != NULL; }
 };
-
-inline size_t available_memory(int device_idx) {
-  size_t device_free = 0;
-  size_t device_total = 0;
-  safe_cuda(cudaSetDevice(device_idx));
-  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
-  return device_free;
-}
 
 /*
  *  Utility functions
@@ -622,24 +630,6 @@ inline void multi_launch_n(size_t n, int n_devices, L lambda) {
 #endif
 }
 
-/*
- * Random
- */
-
-struct BernoulliRng {
-  float p;
-  int seed;
-
-  __host__ __device__ BernoulliRng(float p, int seed) : p(p), seed(seed) {}
-
-  __host__ __device__ bool operator()(const int i) const {
-    thrust::default_random_engine rng(seed);
-    thrust::uniform_real_distribution<float> dist;
-    rng.discard(i);
-    return dist(rng) <= p;
-  }
-};
-
 /**
  * @brief Helper macro to measure timing on GPU
  * @param call the GPU call
@@ -656,9 +646,9 @@ struct BernoulliRng {
 // Load balancing search
 
 template <typename coordinate_t, typename segments_t, typename offset_t>
-void FindMergePartitions(int device_idx, coordinate_t *d_tile_coordinates, int num_tiles,
-                         int tile_size, segments_t segments, offset_t num_rows,
-                         offset_t num_elements) {
+void FindMergePartitions(int device_idx, coordinate_t *d_tile_coordinates,
+                         int num_tiles, int tile_size, segments_t segments,
+                         offset_t num_rows, offset_t num_elements) {
   dh::launch_n(device_idx, num_tiles + 1, [=] __device__(int idx) {
     offset_t diagonal = idx * tile_size;
     coordinate_t tile_coordinate;
@@ -729,33 +719,10 @@ __global__ void LbsKernel(coordinate_t *d_coordinates,
   }
 }
 
-/**
- * \fn  template <typename func_t, typename segments_iter, typename offset_t>
- * void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
- * segments_iter segments, offset_t num_segments, func_t f)
- *
- * \brief Load balancing search function. Reads a CSR type matrix description
- * and allows a function to be executed on each element. Search 'modern GPU load
- * balancing search' for more information.
- *
- * \author  Rory
- * \date  7/9/2017
- *
- * \tparam  func_t        Type of the function t.
- * \tparam  segments_iter Type of the segments iterator.
- * \tparam  offset_t      Type of the offset.
- * \tparam  segments_t    Type of the segments t.
- * \param           device_idx    Zero-based index of the device.
- * \param [in,out]  temp_memory   Temporary memory allocator.
- * \param           count         Number of elements.
- * \param           segments      Device pointer to segments.
- * \param           num_segments  Number of segments.
- * \param           f             Lambda to be executed on matrix elements.
- */
-
 template <typename func_t, typename segments_iter, typename offset_t>
-void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
-                  segments_iter segments, offset_t num_segments, func_t f) {
+void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
+                        offset_t count, segments_iter segments,
+                        offset_t num_segments, func_t f) {
   typedef typename cub::CubVector<offset_t, 2>::Type coordinate_t;
   dh::safe_cuda(cudaSetDevice(device_idx));
   const int BLOCK_THREADS = 256;
@@ -767,12 +734,151 @@ void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
   coordinate_t *tmp_tile_coordinates =
       reinterpret_cast<coordinate_t *>(temp_memory->d_temp_storage);
 
-  FindMergePartitions(device_idx, tmp_tile_coordinates, num_tiles, BLOCK_THREADS, segments,
-                      num_segments, count);
+  FindMergePartitions(device_idx, tmp_tile_coordinates, num_tiles,
+                      BLOCK_THREADS, segments, num_segments, count);
 
   LbsKernel<TILE_SIZE, ITEMS_PER_THREAD, BLOCK_THREADS, offset_t>
       <<<num_tiles, BLOCK_THREADS>>>(tmp_tile_coordinates, segments + 1, f,
                                      num_segments);
+}
+
+template <typename func_t, typename offset_t>
+void DenseTransformLbs(int device_idx, offset_t count, offset_t num_segments,
+                       func_t f) {
+  CHECK(count % num_segments == 0) << "Data is not dense.";
+
+  launch_n(device_idx, count, [=] __device__(offset_t idx) {
+    offset_t segment = idx / (count / num_segments);
+    f(idx, segment);
+  });
+}
+
+/**
+ * \fn  template <typename func_t, typename segments_iter, typename offset_t>
+ * void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
+ * segments_iter segments, offset_t num_segments, bool is_dense, func_t f)
+ *
+ * \brief Load balancing search function. Reads a CSR type matrix description
+ * and allows a function to be executed on each element. Search 'modern GPU load
+ * balancing search' for more information.
+ *
+ * \author  Rory
+ * \date  7/9/2017
+ *
+ * \tparam  func_t        Type of the function t.
+ * \tparam  segments_iter Type of the segments iterator.
+ * \tparam  offset_t      Type of the offset.
+ * \param           device_idx    Zero-based index of the device.
+ * \param [in,out]  temp_memory   Temporary memory allocator.
+ * \param           count         Number of elements.
+ * \param           segments      Device pointer to segments.
+ * \param           num_segments  Number of segments.
+ * \param           is_dense      True if this object is dense.
+ * \param           f             Lambda to be executed on matrix elements.
+ */
+
+template <typename func_t, typename segments_iter, typename offset_t>
+void TransformLbs(int device_idx, dh::CubMemory *temp_memory, offset_t count,
+                  segments_iter segments, offset_t num_segments, bool is_dense,
+                  func_t f) {
+  if (is_dense) {
+    DenseTransformLbs(device_idx, count, num_segments, f);
+  } else {
+    SparseTransformLbs(device_idx, temp_memory, count, segments, num_segments,
+                       f);
+  }
+}
+
+/**
+ * @brief Helper function to sort the pairs using cub's segmented RadixSortPairs
+ * @param tmp_mem cub temporary memory info
+ * @param keys keys double-buffer array
+ * @param vals the values double-buffer array
+ * @param nVals number of elements in the array
+ * @param nSegs number of segments
+ * @param offsets the segments
+ */
+template <typename T1, typename T2>
+void segmentedSort(dh::CubMemory *tmp_mem, dh::dvec2<T1> *keys,
+                   dh::dvec2<T2> *vals, int nVals, int nSegs,
+                   const dh::dvec<int> &offsets, int start = 0,
+                   int end = sizeof(T1) * 8) {
+  size_t tmpSize;
+  dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
+      NULL, tmpSize, keys->buff(), vals->buff(), nVals, nSegs, offsets.data(),
+      offsets.data() + 1, start, end));
+  tmp_mem->LazyAllocate(tmpSize);
+  dh::safe_cuda(cub::DeviceSegmentedRadixSort::SortPairs(
+      tmp_mem->d_temp_storage, tmpSize, keys->buff(), vals->buff(), nVals,
+      nSegs, offsets.data(), offsets.data() + 1, start, end));
+}
+
+/**
+ * @brief Helper function to perform device-wide sum-reduction
+ * @param tmp_mem cub temporary memory info
+ * @param in the input array to be reduced
+ * @param out the output reduced value
+ * @param nVals number of elements in the input array
+ */
+template <typename T>
+void sumReduction(dh::CubMemory &tmp_mem, dh::dvec<T> &in, dh::dvec<T> &out,
+                  int nVals) {
+  size_t tmpSize;
+  dh::safe_cuda(
+      cub::DeviceReduce::Sum(NULL, tmpSize, in.data(), out.data(), nVals));
+  tmp_mem.LazyAllocate(tmpSize);
+  dh::safe_cuda(cub::DeviceReduce::Sum(tmp_mem.d_temp_storage, tmpSize,
+                                       in.data(), out.data(), nVals));
+}
+
+/**
+ * @brief Fill a given constant value across all elements in the buffer
+ * @param out the buffer to be filled
+ * @param len number of elements i the buffer
+ * @param def default value to be filled
+ */
+template <typename T, int BlkDim = 256, int ItemsPerThread = 4>
+void fillConst(int device_idx, T *out, int len, T def) {
+  dh::launch_n<ItemsPerThread, BlkDim>(device_idx, len,
+                                       [=] __device__(int i) { out[i] = def; });
+}
+
+/**
+ * @brief gather elements
+ * @param out1 output gathered array for the first buffer
+ * @param in1 first input buffer
+ * @param out2 output gathered array for the second buffer
+ * @param in2 second input buffer
+ * @param instId gather indices
+ * @param nVals length of the buffers
+ */
+template <typename T1, typename T2, int BlkDim = 256, int ItemsPerThread = 4>
+void gather(int device_idx, T1 *out1, const T1 *in1, T2 *out2, const T2 *in2,
+            const int *instId, int nVals) {
+  dh::launch_n<ItemsPerThread, BlkDim>(device_idx, nVals,
+                                       [=] __device__(int i) {
+                                         int iid = instId[i];
+                                         T1 v1 = in1[iid];
+                                         T2 v2 = in2[iid];
+                                         out1[i] = v1;
+                                         out2[i] = v2;
+                                       });
+}
+
+/**
+ * @brief gather elements
+ * @param out output gathered array
+ * @param in input buffer
+ * @param instId gather indices
+ * @param nVals length of the buffers
+ */
+template <typename T, int BlkDim = 256, int ItemsPerThread = 4>
+void gather(int device_idx, T *out, const T *in, const int *instId, int nVals) {
+  dh::launch_n<ItemsPerThread, BlkDim>(device_idx, nVals,
+                                       [=] __device__(int i) {
+                                         int iid = instId[i];
+                                         out[i] = in[iid];
+                                       });
 }
 
 }  // namespace dh

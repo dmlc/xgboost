@@ -136,7 +136,7 @@ class ColMaker: public TreeUpdater {
         // mark delete for the deleted datas
         for (size_t i = 0; i < rowset.size(); ++i) {
           const bst_uint ridx = rowset[i];
-          if (gpair[ridx].hess < 0.0f) position[ridx] = ~position[ridx];
+          if (gpair[ridx].GetHess() < 0.0f) position[ridx] = ~position[ridx];
         }
         // mark subsample
         if (param.subsample < 1.0f) {
@@ -144,7 +144,7 @@ class ColMaker: public TreeUpdater {
           auto& rnd = common::GlobalRandom();
           for (size_t i = 0; i < rowset.size(); ++i) {
             const bst_uint ridx = rowset[i];
-            if (gpair[ridx].hess < 0.0f) continue;
+            if (gpair[ridx].GetHess() < 0.0f) continue;
             if (!coin_flip(rnd)) position[ridx] = ~position[ridx];
           }
         }

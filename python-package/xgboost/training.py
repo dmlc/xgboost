@@ -235,8 +235,7 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
             idx = np.random.permutation(dall.num_row())
         else:
             idx = np.arange(dall.num_row())
-        kstep = int(len(idx) / nfold)
-        idset = [idx[(i * kstep): min(len(idx), (i + 1) * kstep)] for i in range(nfold)]
+        idset = np.array_split(idx, nfold)
     elif folds is not None and isinstance(folds, list):
         idset = [x[1] for x in folds]
         nfold = len(idset)

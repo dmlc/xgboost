@@ -414,7 +414,7 @@ void prefixsum_inplace(size_t *x, size_t N) {
     suma[ithread+1] = sum;
 #pragma omp barrier
     size_t offset = 0;
-    for (omp_ulong i = 0; i < (ithread+1); i++) {
+    for (omp_ulong i = 0; i < static_cast<omp_ulong>(ithread+1); i++) {
       offset += suma[i];
     }
 #pragma omp for schedule(static)
@@ -442,7 +442,6 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
   //  const int nthreadmax = omp_get_max_threads();
   if (nthread <= 0) nthread=nthreadmax;
   omp_set_num_threads(nthread);
-  xgboost::bst_ulong nrow_reserve_per_thread = std::ceil(nrow/static_cast<double>(nthread));
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
   data::SimpleCSRSource& mat = *source;

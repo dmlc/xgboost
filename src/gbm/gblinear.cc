@@ -120,8 +120,9 @@ class GBLinear : public GradientBooster {
       #pragma omp parallel for schedule(static) reduction(+: sum_grad, sum_hess)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         bst_gpair &p = gpair[rowset[i] * ngroup + gid];
-        if (p.hess >= 0.0f) {
-          sum_grad += p.grad; sum_hess += p.hess;
+        if (p.GetHess() >= 0.0f) {
+          sum_grad += p.GetGrad();
+          sum_hess += p.GetHess();
         }
       }
       // remove bias effect
@@ -132,8 +133,8 @@ class GBLinear : public GradientBooster {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         bst_gpair &p = gpair[rowset[i] * ngroup + gid];
-        if (p.hess >= 0.0f) {
-          p.grad += p.hess * dw;
+        if (p.GetHess() >= 0.0f) {
+          p += bst_gpair(p.GetHess() * dw, 0);
         }
       }
     }
@@ -151,9 +152,9 @@ class GBLinear : public GradientBooster {
           for (bst_uint j = 0; j < col.length; ++j) {
             const bst_float v = col[j].fvalue;
             bst_gpair &p = gpair[col[j].index * ngroup + gid];
-            if (p.hess < 0.0f) continue;
-            sum_grad += p.grad * v;
-            sum_hess += p.hess * v * v;
+            if (p.GetHess() < 0.0f) continue;
+            sum_grad += p.GetGrad() * v;
+            sum_hess += p.GetHess() * v * v;
           }
           bst_float &w = model[fid][gid];
           bst_float dw = static_cast<bst_float>(param.learning_rate *
@@ -162,15 +163,15 @@ class GBLinear : public GradientBooster {
           // update grad value
           for (bst_uint j = 0; j < col.length; ++j) {
             bst_gpair &p = gpair[col[j].index * ngroup + gid];
-            if (p.hess < 0.0f) continue;
-            p.grad += p.hess * col[j].fvalue * dw;
+            if (p.GetHess() < 0.0f) continue;
+            p += bst_gpair(p.GetHess() * col[j].fvalue * dw, 0);
           }
         }
       }
     }
   }
 
-  void Predict(DMatrix *p_fmat,
+  void PredictBatch(DMatrix *p_fmat,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit) override {
     if (model.weight.size() == 0) {
@@ -205,7 +206,7 @@ class GBLinear : public GradientBooster {
     }
   }
   // add base margin
-  void Predict(const SparseBatch::Inst &inst,
+  void PredictInstance(const SparseBatch::Inst &inst,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
