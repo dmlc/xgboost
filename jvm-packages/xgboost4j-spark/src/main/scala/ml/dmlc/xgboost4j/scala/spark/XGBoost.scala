@@ -26,9 +26,9 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
-import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.{SparkContext, TaskContext}
 
 object TrackerConf {
@@ -129,38 +129,20 @@ object XGBoost extends Serializable {
       }
       rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv)
-      val trainTestRatio = params.get("trainTestRatio").map(_.toString.toDouble).getOrElse(1.0)
-      // In the worst-case this would store [[trainTestRatio]] of points
-      // buffered in memory.
-      val r = params.get("seed")
-          .map(v => new Random(v.toString.toLong))
-          .getOrElse(new Random())
-      val (trainPoints, testPoints) = fromDenseToSparseLabeledPoints(labeledPoints, missing)
-          .partition(_ => r.nextDouble() <= trainTestRatio)
-      val trainMatrix = new DMatrix(trainPoints, cacheFileName)
-      val testMatrix = new DMatrix(testPoints, cacheFileName)
-      val watches = mutable.Map("train" -> trainMatrix)
-      if (testMatrix.rowNum > 0) {
-        watches += "test" -> testMatrix
-      }
+      val watches = Watches.build(params,
+        fromDenseToSparseLabeledPoints(labeledPoints, missing),
+        fromBaseMarginsToArray(baseMargins), cacheFileName)
 
       try {
-        // TODO: use group attribute from the points.
-        if (params.contains("groupData") && params("groupData") != null) {
-          trainMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
-            TaskContext.getPartitionId()).toArray)
-        }
-        fromBaseMarginsToArray(baseMargins).foreach(trainMatrix.setBaseMargin)
         val numEarlyStoppingRounds = params.get("numEarlyStoppingRounds")
             .map(_.toString.toInt).getOrElse(0)
-        val booster = SXGBoost.train(trainMatrix, params, round,
+        val booster = SXGBoost.train(watches.train, params, round,
           watches = watches.toMap, obj = obj, eval = eval,
           earlyStoppingRound = numEarlyStoppingRounds)
         Iterator(booster)
       } finally {
         Rabit.shutdown()
-        trainMatrix.delete()
-        testMatrix.delete()
+        watches.delete()
       }
     }.cache()
   }
@@ -433,5 +415,48 @@ object XGBoost extends Serializable {
         val xgBoostModel = new XGBoostRegressionModel(SXGBoost.loadModel(dataInStream))
         setGeneralModelParams(featureCol, labelCol, predictionCol, xgBoostModel)
     }
+  }
+}
+
+private class Watches private(val train: DMatrix, val test: DMatrix) {
+  def toMap: Map[String, DMatrix] = Map("train" -> train, "test" -> test)
+      .filter { case (_, matrix) => matrix.rowNum > 0 }
+
+  def size: Int = toMap.size
+
+  def delete(): Unit = {
+    toMap.values.foreach(_.delete())
+  }
+
+  override def toString: String = toMap.toString
+}
+
+private object Watches {
+  def build(
+      params: Map[String, Any],
+      labeledPoints: Iterator[XGBLabeledPoint],
+      baseMarginsOpt: Option[Array[Float]],
+      cacheFileName: String): Watches = {
+    val trainTestRatio = params.get("trainTestRatio").map(_.toString.toDouble).getOrElse(1.0)
+    val seed = params.get("seed").map(_.toString.toLong).getOrElse(System.nanoTime())
+    val r = new Random(seed)
+    // In the worst-case this would store [[trainTestRatio]] of points
+    // buffered in memory.
+    val (trainPoints, testPoints) = labeledPoints.partition(_ => r.nextDouble() <= trainTestRatio)
+    val trainMatrix = new DMatrix(trainPoints, cacheFileName)
+    val testMatrix = new DMatrix(testPoints, cacheFileName)
+    r.setSeed(seed)
+    for (baseMargins <- baseMarginsOpt) {
+      val (trainMargin, testMargin) = baseMargins.partition(_ => r.nextDouble() <= trainTestRatio)
+      trainMatrix.setBaseMargin(trainMargin)
+      testMatrix.setBaseMargin(testMargin)
+    }
+
+    // TODO: use group attribute from the points.
+    if (params.contains("groupData") && params("groupData") != null) {
+      trainMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
+        TaskContext.getPartitionId()).toArray)
+    }
+    new Watches(train = trainMatrix, test = testMatrix)
   }
 }

@@ -202,7 +202,8 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val trainingDfWithMargin = trainingDf.withColumn("margin", functions.rand())
     val testRDD = sc.parallelize(Classification.test.map(_.features))
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "baseMarginCol" -> "margin")
+      "objective" -> "binary:logistic", "baseMarginCol" -> "margin",
+      "testTrainSplit" -> 0.5)
 
     def trainPredict(df: Dataset[_]): Array[Float] = {
       XGBoost.trainWithDataFrame(df, paramMap, round = 1, nWorkers = numWorkers)
