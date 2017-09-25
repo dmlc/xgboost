@@ -29,18 +29,19 @@ import scala.util.{Failure, Success}
 import scala.collection.JavaConverters._
 
 /**
-  * A tracker that periodically checks the number of alive Spark executor cores.
+  * A tracker that ensures enough number of executor cores are alive.
   * Throws an exception when the number of alive cores is less than nWorkers.
   *
   * @param sc The SparkContext object
-  * @param checkInterval The interval to check executor status in milliseconds.
+  * @param timeout The maximum time to wait for enough number of workers.
   * @param nWorkers nWorkers used in an XGBoost Job
   */
 private[spark] class SparkParallelismTracker(
     sc: SparkContext,
-    checkInterval: Long,
+    timeout: Long,
     nWorkers: Int) {
 
+  private[this] val checkInterval = 100L // Check every 0.1 second.
   private[this] val mapper = new ObjectMapper()
   private[this] val logger = LogFactory.getLog("XGBoostSpark")
   private[this] val url = sc.uiWebUrl match {
@@ -49,7 +50,7 @@ private[spark] class SparkParallelismTracker(
   }
 
 
-  private[this] def check(): Unit = {
+  private[this] def isHealthy: Boolean = {
     val numAliveCores = try {
       mapper.readTree(url).findValues("totalCores").asScala.map(_.asInt).sum
     } catch {
@@ -59,34 +60,48 @@ private[spark] class SparkParallelismTracker(
         ex.printStackTrace()
         Int.MaxValue
     }
-    if (numAliveCores < nWorkers) {
-      throw new XGBoostError(s"Requires numParallelism = $nWorkers but only " +
-        s"$numAliveCores cores are alive. Please check logs in Spark History Server.")
-    }
+    numAliveCores >= nWorkers
   }
 
   /**
-    * Execute a blocking function call with periodic checks on number of alive cores
+    * Execute a blocking function call with two checks on enough nWorkers:
+    *  - Before the function starts, ensure there are enough executor cores.
+    *  - During the execution, throws an exception if there is any executor lost.
     *
     * @param body A blocking function call
     * @tparam T Return type
     * @return The return of body
     */
   def execute[T](body: => T): T = {
-    if (checkInterval <= 0) {
+    if (checkInterval <= 0 || url == null) {
       body
     } else {
       val trackerThread = Thread.currentThread()
-      // Start the body as a separate thread
-      val bodyFuture = Future(body)
+      // Wait and start the body as a separate thread
+      val bodyFuture = Future {
+        synchronized {
+          wait(timeout)
+        }
+        if (isHealthy) {
+          body
+        } else {
+          throw new XGBoostError(s"Unable to get $nWorkers workers")
+        }
+      }
       bodyFuture.onComplete {
         _ => trackerThread.interrupt()
       }
-      // Monitor the body thread
+      // Check until enough cores, notify the body thread, and check no core has lost
       try {
-        while (true) {
+        while (!isHealthy) {
+          sc.requestExecutors(1)
           Thread.sleep(checkInterval)
-          check()
+        }
+        synchronized {
+          notify()
+        }
+        while (isHealthy) {
+          Thread.sleep(checkInterval)
         }
       } catch {
         case _: InterruptedException =>

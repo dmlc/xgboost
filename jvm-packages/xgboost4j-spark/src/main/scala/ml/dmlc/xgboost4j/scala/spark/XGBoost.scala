@@ -315,17 +315,17 @@ object XGBoost extends Serializable {
       case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
           "instance of TrackerConf.")
     }
-    val checkIntervals: Long = params.get("check_interval") match {
+    val timeoutRequestWorkers: Long = params.get("timeout_request_workers") match {
       case None => 30 * 60 * 1000L
       case Some(interval: Long) => interval
-      case _ => throw new IllegalArgumentException("parameter \"check_interval\" must be an " +
-        "instance of Long.")
+      case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
+        " an instance of Long.")
     }
 
     val tracker = startTracker(nWorkers, trackerConf)
     try {
       val sc = trainingData.sparkContext
-      val parallelismTracker = new SparkParallelismTracker(sc, checkIntervals, nWorkers)
+      val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
       val overriddenParams = overrideParamsAccordingToTaskCPUs(params, trainingData.sparkContext)
       val boosters = buildDistributedBoosters(trainingData, overriddenParams,
         tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
