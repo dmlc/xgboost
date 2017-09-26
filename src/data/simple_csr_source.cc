@@ -26,6 +26,9 @@ void SimpleCSRSource::CopyFrom(DMatrix* src) {
 }
 
 void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
+  // use sessionID get gourp info
+  bst_float lastSessionId = -1.0;
+  bst_uint groupSizeAll = 0;
   this->Clear();
   while (parser->Next()) {
     const dmlc::RowBlock<uint32_t>& batch = parser->Value();
@@ -35,6 +38,22 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
     if (batch.weight != nullptr) {
       info.weights_.insert(info.weights_.end(), batch.weight, batch.weight + batch.size);
     }
+    if (batch.qid != nullptr) {
+      info.qids.insert(info.qids.end(), batch.qid, batch.qid + batch.size);
+      // get group
+      for (size_t i = 0; i < batch.size; ++i) {
+        bst_float curGroupId = batch.qid[i];
+        if (lastSessionId == -1) {
+          info.group_ptr.push_back(0);
+        }
+        else if (lastSessionId != curGroupId) {
+          info.group_ptr.push_back(groupSizeAll);
+        }
+        lastSessionId = curGroupId;
+        groupSizeAll++;
+      }
+    }
+
     // Remove the assertion on batch.index, which can be null in the case that the data in this
     // batch is entirely sparse. Although it's true that this indicates a likely issue with the
     // user's data workflows, passing XGBoost entirely sparse data should not cause it to fail.
@@ -54,6 +73,11 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
     size_t top = page_.offset.size();
     for (size_t i = 0; i < batch.size; ++i) {
       page_.offset.push_back(page_.offset[top - 1] + batch.offset[i + 1] - batch.offset[0]);
+    }
+  }
+  if (lastSessionId != -1) {
+    if (groupSizeAll > info.group_ptr.back()) {
+      info.group_ptr.push_back(groupSizeAll);
     }
   }
   this->info.num_nonzero_ = static_cast<uint64_t>(page_.data.size());
