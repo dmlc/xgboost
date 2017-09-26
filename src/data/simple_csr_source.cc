@@ -45,8 +45,7 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
         bst_float cur_qid = batch.qid[i];
         if (last_qid == -1) {
           info.group_ptr.push_back(0);
-        }
-        else if (last_qid != cur_qid) {
+        } else if (last_qid != cur_qid) {
           info.group_ptr.push_back(group_size);
         }
         last_qid = cur_qid;
