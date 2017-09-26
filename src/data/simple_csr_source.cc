@@ -27,8 +27,8 @@ void SimpleCSRSource::CopyFrom(DMatrix* src) {
 
 void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
   // use sessionID get gourp info
-  bst_float lastSessionId = -1.0;
-  bst_uint groupSizeAll = 0;
+  bst_float last_qid = -1.0;
+  bst_uint group_size = 0;
   this->Clear();
   while (parser->Next()) {
     const dmlc::RowBlock<uint32_t>& batch = parser->Value();
@@ -42,15 +42,15 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       info.qids.insert(info.qids.end(), batch.qid, batch.qid + batch.size);
       // get group
       for (size_t i = 0; i < batch.size; ++i) {
-        bst_float curGroupId = batch.qid[i];
-        if (lastSessionId == -1) {
+        bst_float cur_qid = batch.qid[i];
+        if (last_qid == -1) {
           info.group_ptr.push_back(0);
         }
-        else if (lastSessionId != curGroupId) {
-          info.group_ptr.push_back(groupSizeAll);
+        else if (last_qid != cur_qid) {
+          info.group_ptr.push_back(group_size);
         }
-        lastSessionId = curGroupId;
-        groupSizeAll++;
+        last_qid = cur_qid;
+        group_size++;
       }
     }
 
@@ -75,9 +75,9 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       page_.offset.push_back(page_.offset[top - 1] + batch.offset[i + 1] - batch.offset[0]);
     }
   }
-  if (lastSessionId != -1) {
-    if (groupSizeAll > info.group_ptr.back()) {
-      info.group_ptr.push_back(groupSizeAll);
+  if (last_qid != -1) {
+    if (group_size > info.group_ptr.back()) {
+      info.group_ptr.push_back(group_size);
     }
   }
   this->info.num_nonzero_ = static_cast<uint64_t>(page_.data.size());
