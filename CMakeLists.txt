@@ -10,7 +10,7 @@ msvc_use_static_runtime()
 option(USE_CUDA  "Build with GPU acceleration") 
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
-set(GPU_COMPUTE_VER 35;50;52;60;61 CACHE STRING
+set(GPU_COMPUTE_VER 35;50;52;60;61;70 CACHE STRING
   "Space separated list of compute versions to be built against")
 
 # Deprecation warning
