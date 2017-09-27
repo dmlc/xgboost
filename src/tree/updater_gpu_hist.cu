@@ -314,7 +314,7 @@ class GPUHistMaker : public TreeUpdater {
     CHECK(param.n_gpus != 0) << "Must have at least one device";
 
 #if !USE_NCCL
-    CHECK(param.n_gpus == 1) << "Must have only one device";
+    param.n_gpus = 1;
 #endif
 
 
