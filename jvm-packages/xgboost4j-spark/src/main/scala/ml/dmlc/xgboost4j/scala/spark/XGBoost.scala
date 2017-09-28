@@ -129,7 +129,7 @@ object XGBoost extends Serializable {
       }
       rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv)
-      val watches = Watches.build(params,
+      val watches = Watches(params,
         fromDenseToSparseLabeledPoints(labeledPoints, missing),
         fromBaseMarginsToArray(baseMargins), cacheFileName)
 
@@ -432,7 +432,7 @@ private class Watches private(val train: DMatrix, val test: DMatrix) {
 }
 
 private object Watches {
-  def build(
+  def apply(
       params: Map[String, Any],
       labeledPoints: Iterator[XGBLabeledPoint],
       baseMarginsOpt: Option[Array[Float]],
