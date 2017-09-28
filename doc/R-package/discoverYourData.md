@@ -368,7 +368,7 @@ print(c2)
 ## X-squared = 35.475, df = 35, p-value = 0.4458
 ```
 
-Pearson correlation between Age and illness disapearing is **35.48**.
+Pearson correlation between Age and illness disappearing is **35.48**.
 
 
 ```r
