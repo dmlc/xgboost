@@ -105,7 +105,7 @@ bst.dump_model('dump.raw.txt', 'featmap.txt')
 ```
 A saved model can be loaded as follows:
 ```python
-bst = xgb.Booster({'nthread': 4})  #init model
+bst = xgb.Booster({'nthread': 4})  # init model
 bst.load_model('model.bin')  # load data
 ```
 
