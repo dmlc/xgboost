@@ -54,7 +54,7 @@ class MetaInfo {
   /*! \brief weights of each instance, optional */
   std::vector<bst_float> weights_;
   /*! \brief session-id of each instance, optional */
-  std::vector<bst_uint> qids;
+  std::vector<size_t> qids;
   /*!
    * \brief initialized margins,
    * if specified, xgboost will start from this init margin
