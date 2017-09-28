@@ -9,7 +9,7 @@ The purpose of this Vignette is to show you how to use **Xgboost** to discover a
 
 This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
 
-Pacakge loading:
+Package loading:
 
 
 ```r
