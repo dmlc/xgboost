@@ -162,13 +162,11 @@ Learning Task Parameters
 Specify the learning task and the corresponding learning objective. The objective options are below:
 * objective [default=reg:linear]
   - "reg:linear" --linear regression
-  - "gpu:reg:linear" --linear regression, evaluated on GPU
   - "reg:logistic" --logistic regression
-  - "gpu:reg:logistic" --logistic regression, evaluated on GPU
   - "binary:logistic" --logistic regression for binary classification, output probability
-  - "gpu:binary:logistic" --same as "binary:logistic", but evaluated on GPU
   - "binary:logitraw" --logistic regression for binary classification, output score before logistic transformation
-  - "gpu:binary:logitraw" --same as "binary:logitraw", but evaluated on GPU
+  - "gpu:reg:linear", "gpu:reg:logistic", "gpu:binary:logistic", gpu:binary:logitraw" --versions
+    of the corresponding objective functions evaluated on the GPU
   - "count:poisson" --poisson regression for count data, output mean of poisson distribution
     - max_delta_step is set to 0.7 by default in poisson regression (used to safeguard optimization)
   - "multi:softmax" --set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
