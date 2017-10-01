@@ -146,7 +146,7 @@ def reset_learning_rate(learning_rates):
     return callback
 
 
-def early_stop(stopping_rounds, maximize=False, verbose=True):
+def early_stop(stopping_rounds, threshold=None, maximize=False, verbose=True):
     """Create a callback that activates early stoppping.
 
     Validation error needs to decrease at least
@@ -164,6 +164,8 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
     stopp_rounds : int
        The stopping rounds before the trend occur.
 
+	threshold : float
+	   An optional threshold to smooth the early stopping.
     maximize : bool
         Whether to maximize evaluation metric.
 
@@ -230,8 +232,8 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
         best_score = state['best_score']
         best_iteration = state['best_iteration']
         maximize_score = state['maximize_score']
-        if (maximize_score and score > best_score) or \
-                (not maximize_score and score < best_score):
+        if (maximize_score and score > (best_score+env.threshold)) or \
+                (not maximize_score and score < (best_score+env.threshold)):
             msg = '[%d]\t%s' % (
                 env.iteration,
                 '\t'.join([_fmt_metric(x) for x in env.evaluation_result_list]))

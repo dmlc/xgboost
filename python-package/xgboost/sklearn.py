@@ -216,7 +216,7 @@ class XGBModel(XGBModelBase):
         return xgb_params
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, early_stopping_threshold=None, verbose=True):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
@@ -250,6 +250,10 @@ class XGBModel(XGBModelBase):
             and bst.best_ntree_limit.
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
+		early_stopping_threshold : float
+			Sets an potional threshold to smoothen the early stopping policy.
+			If after early_stopping_rounds iterations, the model hasn't improved 
+			more than the threshold, the learning stops.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -287,6 +291,7 @@ class XGBModel(XGBModelBase):
         self._Booster = train(params, trainDmatrix,
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
+							  early_stopping_threshold=early_stopping_threshold,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose)
 
@@ -406,7 +411,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             random_state, seed, missing, **kwargs)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, early_stopping_threshold=None, verbose=True):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -440,6 +445,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             and bst.best_ntree_limit.
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
+		early_stopping_threshold : float, optional
+			Sets an potional threshold to smoothen the early stopping policy.
+			If after <early_stopping_rounds> round(s), the validation error hasn't 
+			decreased more than the threshold, the learning stops. To be used only with
+			early_stopping_rounds activated.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -497,6 +507,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
+							  early_stopping_threshold=early_stopping_threshold,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose)
 
