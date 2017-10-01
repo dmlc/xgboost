@@ -216,7 +216,7 @@ class XGBModel(XGBModelBase):
         return xgb_params
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, verbose=True, callbacks=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
@@ -253,6 +253,10 @@ class XGBModel(XGBModelBase):
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
+        callbacks : list of callables, optional.
+            List of callbacks to run after each boosting round. Each function is
+            called with a `core.CallbackEnv` object representing the current
+            training state.
         """
         if sample_weight is not None:
             trainDmatrix = DMatrix(X, label=y, weight=sample_weight,
@@ -288,7 +292,8 @@ class XGBModel(XGBModelBase):
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose)
+                              verbose_eval=verbose,
+                              callbacks=callbacks)
 
         if evals_result:
             for val in evals_result.items():
@@ -406,7 +411,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             random_state, seed, missing, **kwargs)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, verbose=True, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -443,6 +448,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
+        callbacks : list of callables, optional.
+            List of callbacks to run after each boosting round. Each function is
+            called with a `core.CallbackEnv` object representing the current
+            training state.
         """
         evals_result = {}
         self.classes_ = np.unique(y)
@@ -498,7 +507,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose)
+                              verbose_eval=verbose, callbacks=callbacks)
 
         self.objective = xgb_options["objective"]
         if evals_result:
