@@ -33,6 +33,46 @@ def test_binary_classification():
         assert err < 0.1
 
 
+def test_partial_fit_produces_same_result_without_fit():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_digits
+    from sklearn.model_selection import train_test_split
+
+    digits = load_digits(2)
+    y = digits['target']
+    X = digits['data']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=rng)
+
+    xgb_model = xgb.XGBClassifier(random_state=1994).fit(X_train, y_train)
+    fit_score = xgb_model.score(X_test, y_test)
+
+    xgb_model = xgb.XGBClassifier(random_state=1994).partial_fit(X_train, y_train)
+    partial_fit_score = xgb_model.score(X_test, y_test)
+
+    np.testing.assert_almost_equal(fit_score, partial_fit_score)
+
+
+def test_partial_fit_classification():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_digits
+    from sklearn.model_selection import train_test_split
+
+    digits = load_digits(2)
+    y = digits['target']
+    X = digits['data']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=rng)
+    batch_size = X_train.shape[0] // 2
+    X_batch_1, y_batch_1 = X_train[:batch_size], y_train[:batch_size]
+    X_batch_2, y_batch_2 = X_train[batch_size:], y_train[batch_size:]
+
+    xgb_model = xgb.XGBClassifier(random_state=1994).partial_fit(X_batch_1, y_batch_1)
+    score_batch_1 = xgb_model.score(X_test, y_test)
+    xgb_model = xgb_model.partial_fit(X_batch_2, y_batch_2)
+    score_batch_2 = xgb_model.score(X_test, y_test)
+
+    assert score_batch_2 >= score_batch_1
+
+
 def test_multiclass_classification():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_iris
@@ -173,6 +213,28 @@ def test_regression_with_custom_objective():
 
     xgb_model = xgb.XGBRegressor(objective=dummy_objective)
     np.testing.assert_raises(XGBCustomObjectiveException, xgb_model.fit, X, y)
+
+
+def test_partial_fit_regression():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_boston
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import mean_squared_error
+
+    boston = load_boston()
+    y = boston['target']
+    X = boston['data']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=rng)
+    batch_size = X_train.shape[0] // 2
+    X_batch_1, y_batch_1 = X_train[:batch_size], y_train[:batch_size]
+    X_batch_2, y_batch_2 = X_train[batch_size:], y_train[batch_size:]
+
+    xgb_model = xgb.XGBRegressor(random_state=1994).partial_fit(X_batch_1, y_batch_1)
+    error_batch_1 = mean_squared_error(xgb_model.predict(X_test), y_test)
+    xgb_model = xgb_model.partial_fit(X_batch_2, y_batch_2)
+    error_batch_2 = mean_squared_error(xgb_model.predict(X_test), y_test)
+
+    assert error_batch_2 <= error_batch_1
 
 
 def test_classification_with_custom_objective():
