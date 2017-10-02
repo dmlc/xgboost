@@ -30,4 +30,5 @@ lazy val example = (project in file("xgboost4j-examples")).
     settings(libraryDependencies ++= Dependencies.exampleDependencies)
 
 lazy val root = (project in file(".")).
-    aggregate(core, spark, flink, example)
+    aggregate(core, spark, flink, example).
+    settings(Common.settings: _*)

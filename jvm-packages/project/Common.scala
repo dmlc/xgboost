@@ -6,9 +6,13 @@ object Common {
 
   val settings: Seq[Def.Setting[_]] = Seq(
     version := appVersion,
-    scalaVersion := "2.11.11",
+    organization := "ml.dmlc",
+
+    crossScalaVersions := Seq("2.10.6", "2.11.11"),
+
     javacOptions ++= Seq("-source", "1.7", "-target", "1.7"),
     scalacOptions ++= Seq("-deprecation", "-unchecked"),
+
     resolvers += Opts.resolver.mavenLocalFile,
     resolvers ++= Seq(DefaultMavenRepository,
       Resolver.defaultLocal,
