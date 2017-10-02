@@ -231,7 +231,7 @@ DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
 
 
 def _maybe_dt_data(data, feature_names, feature_types):
-    if not HAVE_DT or not isinstance(data, dt.DataTable):
+    if not HAVE_DT or not isinstance(data, dt.DataTable) or data is None:
         return data, feature_names, feature_types
 
     data_types = data.types
@@ -269,8 +269,8 @@ def _maybe_dt_label(label):
     """ Extract internal data from dt.DataTable for DMatrix label """
 
     ptrs, feature_names, feature_stypes = _maybe_dt_data(label, None, None)
-    if len(ptrs) > 1:
-        raise ValueError('DataTable for label cannot have multiple columns')
+    if ptrs is not None and len(ptrs) > 1:
+        raise ValueError('DataTable for label or weight cannot have multiple columns')
     return ptrs, feature_names, feature_stypes
 
 
