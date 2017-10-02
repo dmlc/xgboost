@@ -4,7 +4,7 @@ This document contains frequently asked questions about xgboost.
 
 How to tune parameters
 ----------------------
-See [Parameter Tunning Guide](param_tuning.md)
+See [Parameter Tunning Guide](how_to/param_tuning.md)
 
 Description on the model
 ------------------------
@@ -15,8 +15,8 @@ I have a big dataset
 --------------------
 XGBoost is designed to be memory efficient. Usually it can handle problems as long as the data fit into your memory
 (This usually means millions of instances).
-If you are running out of memory, checkout [external memory version](external_memory.md) or
-[distributed version](https://github.com/dmlc/wormhole/tree/master/learn/xgboost) of xgboost.
+If you are running out of memory, checkout [external memory version](how_to/external_memory.md) or
+[distributed version](../demo/distributed-training) of xgboost.
 
 
 Running xgboost on Platform X (Hadoop/Yarn, Mesos)
@@ -57,9 +57,17 @@ Yes, xgboost implements LambdaMART. Checkout the objective section in [parameter
 How to deal with Missing Value
 ------------------------------
 xgboost supports missing value by default.
+In tree algorithms, branch directions for missing values are learned during training.
+Note that the gblinear booster treats missing values as zeros.
 
 
 Slightly different result between runs
 --------------------------------------
 This could happen, due to non-determinism in floating point summation order and multi-threading.
 Though the general accuracy will usually remain the same.
+
+
+Why do I see different results with sparse and dense data?
+--------------------------------------------------------
+"Sparse" elements are treated as if they were "missing" by the tree booster, and as zeros by the linear booster.
+For tree models, it is important to use consistent data formats during training and scoring.

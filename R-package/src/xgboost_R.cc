@@ -112,7 +112,7 @@ SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
     col_ptr_[i] = static_cast<size_t>(p_indptr[i]);
   }
   #pragma omp parallel for schedule(static)
-  for (size_t i = 0; i < ndata; ++i) {
+  for (int64_t i = 0; i < static_cast<int64_t>(ndata); ++i) {
     indices_[i] = static_cast<unsigned>(p_indices[i]);
     data_[i] = static_cast<float>(p_data[i]);
   }

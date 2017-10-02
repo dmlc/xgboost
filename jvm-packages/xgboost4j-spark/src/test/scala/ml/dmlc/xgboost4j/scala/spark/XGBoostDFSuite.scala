@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
@@ -192,6 +193,7 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val model = XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5, nWorkers = numWorkers)
     assert(model.get[Double](model.eta).get == 0.1)
     assert(model.get[Int](model.maxDepth).get == 6)
+    assert(model.asInstanceOf[XGBoostClassificationModel].numOfClasses == 6)
   }
 
   test("test use base margin") {
@@ -200,7 +202,8 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     val trainingDfWithMargin = trainingDf.withColumn("margin", functions.rand())
     val testRDD = sc.parallelize(Classification.test.map(_.features))
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "baseMarginCol" -> "margin")
+      "objective" -> "binary:logistic", "baseMarginCol" -> "margin",
+      "testTrainSplit" -> 0.5)
 
     def trainPredict(df: Dataset[_]): Array[Float] = {
       XGBoost.trainWithDataFrame(df, paramMap, round = 1, nWorkers = numWorkers)

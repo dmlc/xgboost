@@ -54,6 +54,6 @@ object ExternalMemory {
     testMat.setBaseMargin(testPred)
 
     System.out.println("result of running from initial prediction")
-    val booster2 = XGBoost.train(trainMat, params.toMap, 1, watches.toMap, null, null)
+    val booster2 = XGBoost.train(trainMat, params.toMap, 1, watches.toMap)
   }
 }
