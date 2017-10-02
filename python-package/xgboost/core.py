@@ -216,18 +216,22 @@ def _maybe_pandas_label(label):
 
     return label
 
+try:
+    import datatable as dt
+    HAVE_DT = True
+except:
+    HAVE_DT = False
+    pass
 
-import datatable as dt
 
 
-#DT_STYPE_MAPPER = {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i': 'int', 'f4r': 'float', 'f8r': 'float'}
-
+DT_STYPE_MAPPER = {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i': 'int', 'f4r': 'float', 'f8r': 'float'}
 
 DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
 
 
 def _maybe_dt_data(data, feature_names, feature_types):
-    if not isinstance(data, dt.DataTable):
+    if not HAVE_DT or not isinstance(data, dt.DataTable):
         return data, feature_names, feature_types
 
     data_types = data.types
@@ -248,14 +252,28 @@ def _maybe_dt_data(data, feature_names, feature_types):
                 Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
 
-    if feature_names is None:
+    if feature_names is not None:
+        raise ValueError('DataTable has own feature names, cannot pass them in')
+    else:
         feature_names = data.names
 
-    if feature_types is None:
-        #feature_types = [DT_TYPE_MAPPER[type] for type in data_types]
+    # always return stypes for dt ingestion
+    if feature_types is not None:
+        raise ValueError('DataTable has own feature types, cannot pass them in')
+    else:
         feature_stypes = [stype for stype in data_stypes]
 
     return ptrs, feature_names, feature_stypes
+
+def _maybe_dt_label(label):
+    """ Extract internal data from dt.DataTable for DMatrix label """
+
+    ptrs, feature_names, feature_stypes = _maybe_dt_data(label, None, None)
+    if len(ptrs) > 1:
+        raise ValueError('DataTable for label cannot have multiple columns')
+    return ptrs, feature_names, feature_stypes
+
+
 class DMatrix(object):
     """Data Matrix used in XGBoost.
 
@@ -299,46 +317,54 @@ class DMatrix(object):
             self.handle = None
             return
 
-        data, feature_names, feature_types = _maybe_pandas_data(data,
+        if isinstance(data, dt.DataTable):
+            data, feature_names, feature_types = _maybe_dt_data(data,
                                                                 feature_names,
                                                                 feature_types)
-        label = _maybe_pandas_label(label)
+            label, label_feature_names, label_feature_types  = _maybe_dt_label(label)
+            weight, weight_feature_names, weight_feature_types = _maybe_dt_label(weight)
+            if data is not None:
+                self._init_from_dt(data, feature_names, feature_types, nthread) # missing is well-defined for dt
+            if label is not None:
+                self.set_label_dt(label, label_feature_names, label_feature_types)
+            if weight is not None:
+                self.set_weight_dt(weight, weight_feature_names, weight_feature_types)
 
-        data, feature_names, feature_types = _maybe_dt_data(data,
-                                                            feature_names,
-                                                            feature_types)
-        label = _maybe_dt_label(label)
-
-        if isinstance(data, STRING_TYPES):
-            self.handle = ctypes.c_void_p()
-            _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
-                                                     ctypes.c_int(silent),
-                                                     ctypes.byref(self.handle)))
-        elif isinstance(data, scipy.sparse.csr_matrix):
-            self._init_from_csr(data)
-        elif isinstance(data, scipy.sparse.csc_matrix):
-            self._init_from_csc(data)
-        elif isinstance(data, np.ndarray):
-            self._init_from_npy2d(data, missing, nthread)
-        elif isinstance(data, np.ndarray):
-            self._init_from_npy2d(data, missing, nthread)
         else:
-            try:
-                csr = scipy.sparse.csr_matrix(data)
-                self._init_from_csr(csr)
-            except:
-                raise TypeError('can not initialize DMatrix from {}'.format(type(data).__name__))
-        if label is not None:
-            if isinstance(data, np.ndarray):
-                self.set_label_npy2d(label)
-            else:
-                self.set_label(label)
-        if weight is not None:
-            if isinstance(data, np.ndarray):
-                self.set_weight_npy2d(weight)
-            else:
-                self.set_weight(weight)
+            data, feature_names, feature_types = _maybe_pandas_data(data,
+                                                                    feature_names,
+                                                                    feature_types)
+            label = _maybe_pandas_label(label)
 
+            if isinstance(data, STRING_TYPES):
+                self.handle = ctypes.c_void_p()
+                _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
+                                                         ctypes.c_int(silent),
+                                                         ctypes.byref(self.handle)))
+            elif isinstance(data, scipy.sparse.csr_matrix):
+                self._init_from_csr(data)
+            elif isinstance(data, scipy.sparse.csc_matrix):
+                self._init_from_csc(data)
+            elif isinstance(data, np.ndarray):
+                self._init_from_npy2d(data, missing, nthread)
+            else:
+                try:
+                    csr = scipy.sparse.csr_matrix(data)
+                    self._init_from_csr(csr)
+                except:
+                    raise TypeError('can not initialize DMatrix from {}'.format(type(data).__name__))
+            if label is not None:
+                if isinstance(data, np.ndarray):
+                    self.set_label_npy2d(label)
+                else:
+                    self.set_label(label)
+            if weight is not None:
+                if isinstance(data, np.ndarray):
+                    self.set_weight_npy2d(weight)
+                else:
+                    self.set_weight(weight)
+
+        self.data = data
         self.feature_names = feature_names
         self.feature_types = feature_types
 
@@ -407,6 +433,22 @@ class DMatrix(object):
                 ctypes.c_float(missing),
                 ctypes.byref(self.handle),
                 nthread))
+
+    def _init_from_dt(self, data, data_names, data_types, nthread):
+        """
+        Initialize data from a 2D dt data matrix set of pointers
+        Pass raw pointer list of int64_t (i.e. don't use ctypes for pointers, only use it to pass array)
+        """
+
+        self.handle = ctypes.c_void_p()
+        _check_call(_LIB.XGDdatarixCreateFromdt(
+            data.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
+            data_names.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
+            data_types.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
+            c_bst_ulong(data.shape[0]),
+            c_bst_ulong(data.shape[1]),
+            ctypes.byref(self.handle),
+            nthread))
 
     def __del__(self):
         if self.handle is not None:
@@ -490,7 +532,25 @@ class DMatrix(object):
                                                c_str(field),
                                                c_data,
                                                c_bst_ulong(len(data))))
+    def set_float_info_dt(self, field, data, data_names, data_types):
+        """Set float type property into the DMatrix
+           for dt 2d array input
 
+        Parameters
+        ----------
+        field: str
+            The field name of the information
+
+        data: numpy array
+            The array of data to be set
+        """
+        c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
+        c_data_names = data_names.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
+        c_data_types = data_types.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
+        _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
+                                               c_str(field),
+                                               c_data, c_data_names, c_data_types,
+                                               c_bst_ulong(len(data))))
     def set_uint_info(self, field, data):
         """Set uint type property into the DMatrix.
 
@@ -542,6 +602,17 @@ class DMatrix(object):
         """
         self.set_float_info_npy2d('label', label)
 
+    def set_label_dt(self, label, label_names, label_types):
+        """Set label of dmatrix
+
+        Parameters
+        ----------
+        label: array like
+            The label information to be set into DMatrix
+            from dt 2D array
+        """
+        self.set_float_info_dt('label', label, label_names, label_types)
+
     def set_weight(self, weight):
         """ Set weight of each instance.
 
@@ -562,6 +633,17 @@ class DMatrix(object):
             Weight for each data point in numpy 2D array
         """
         self.set_float_info_npy2d('weight', weight)
+
+    def set_weight_dt(self, weight, weight_names, weight_types):
+        """ Set weight of each instance
+            for dt 2D array
+
+        Parameters
+        ----------
+        weight : array like
+            Weight for each data point in numpy 2D array
+        """
+        self.set_float_info_dt('weight', weight, weight_names, weight_types)
 
     def set_base_margin(self, margin):
         """ Set base margin of booster to start from.
@@ -655,13 +737,16 @@ class DMatrix(object):
         res : DMatrix
             A new DMatrix containing only selected indices.
         """
-        res = DMatrix(None, feature_names=self.feature_names)
-        res.handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
-                                               c_array(ctypes.c_int, rindex),
-                                               c_bst_ulong(len(rindex)),
-                                               ctypes.byref(res.handle)))
-        return res
+        if isinstance(self.data, dt.DataTable):
+            ValueError("slice not implemented for DataTable")
+        else:
+            res = DMatrix(None, feature_names=self.feature_names)
+            res.handle = ctypes.c_void_p()
+            _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
+                                                   c_array(ctypes.c_int, rindex),
+                                                   c_bst_ulong(len(rindex)),
+                                                   ctypes.byref(res.handle)))
+            return res
 
     @property
     def feature_names(self):
@@ -1175,39 +1260,43 @@ class Booster(object):
         Returns the dump the model as a list of strings.
         """
 
-        length = c_bst_ulong()
-        sarr = ctypes.POINTER(ctypes.c_char_p)()
-        if self.feature_names is not None and fmap == '':
-            flen = len(self.feature_names)
-
-            fname = from_pystr_to_cstr(self.feature_names)
-
-            if self.feature_types is None:
-                # use quantitative as default
-                # {'q': quantitative, 'i': indicator}
-                ftype = from_pystr_to_cstr(['q'] * flen)
-            else:
-                ftype = from_pystr_to_cstr(self.feature_types)
-            _check_call(_LIB.XGBoosterDumpModelExWithFeatures(
-                self.handle,
-                ctypes.c_int(flen),
-                fname,
-                ftype,
-                ctypes.c_int(with_stats),
-                c_str(dump_format),
-                ctypes.byref(length),
-                ctypes.byref(sarr)))
+        if isinstance(self.data, dt.DataTable):
+            ValueError("slice not implemented for DataTable")
         else:
-            if fmap != '' and not os.path.exists(fmap):
-                raise ValueError("No such file: {0}".format(fmap))
-            _check_call(_LIB.XGBoosterDumpModelEx(self.handle,
-                                                  c_str(fmap),
-                                                  ctypes.c_int(with_stats),
-                                                  c_str(dump_format),
-                                                  ctypes.byref(length),
-                                                  ctypes.byref(sarr)))
-        res = from_cstr_to_pystr(sarr, length)
-        return res
+
+            length = c_bst_ulong()
+            sarr = ctypes.POINTER(ctypes.c_char_p)()
+            if self.feature_names is not None and fmap == '':
+                flen = len(self.feature_names)
+
+                fname = from_pystr_to_cstr(self.feature_names)
+
+                if self.feature_types is None:
+                    # use quantitative as default
+                    # {'q': quantitative, 'i': indicator}
+                    ftype = from_pystr_to_cstr(['q'] * flen)
+                else:
+                    ftype = from_pystr_to_cstr(self.feature_types)
+                _check_call(_LIB.XGBoosterDumpModelExWithFeatures(
+                    self.handle,
+                    ctypes.c_int(flen),
+                    fname,
+                    ftype,
+                    ctypes.c_int(with_stats),
+                    c_str(dump_format),
+                    ctypes.byref(length),
+                    ctypes.byref(sarr)))
+            else:
+                if fmap != '' and not os.path.exists(fmap):
+                    raise ValueError("No such file: {0}".format(fmap))
+                _check_call(_LIB.XGBoosterDumpModelEx(self.handle,
+                                                      c_str(fmap),
+                                                      ctypes.c_int(with_stats),
+                                                      c_str(dump_format),
+                                                      ctypes.byref(length),
+                                                      ctypes.byref(sarr)))
+            res = from_cstr_to_pystr(sarr, length)
+            return res
 
     def get_fscore(self, fmap=''):
         """Get feature importance of each feature.
@@ -1307,6 +1396,9 @@ class Booster(object):
         if self.feature_names is None:
             self.feature_names = data.feature_names
             self.feature_types = data.feature_types
+        elif isinstance(data, dt.DataTable):
+            # FIXME: no check for now
+            pass
         else:
             # Booster can't accept data with different feature names
             if self.feature_names != data.feature_names:
