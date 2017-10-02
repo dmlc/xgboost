@@ -17,7 +17,12 @@ lazy val core = (project in file("xgboost4j")).
 lazy val spark = (project in file("xgboost4j-spark")).
     dependsOn(core).
     settings(Common.settings: _*).
-    settings(libraryDependencies ++= Dependencies.sparkDependencies)
+    settings(
+      libraryDependencies ++= Dependencies.sparkDependencies,
+
+      // Not supported by [[PerTest]] trait.
+      parallelExecution in Test := false
+    )
 
 lazy val flink = (project in file("xgboost4j-flink")).
     dependsOn(core).
