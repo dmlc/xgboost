@@ -18,10 +18,24 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     tmp = time.time()
 
     # convert to dt as test
-    dtdata_X_train = dt.DataTable(X_train)
-    dtdata_X_test = dt.DataTable(X_test)
-    dtdata_y_train = dt.DataTable(y_train)
-    dtdata_y_test = dt.DataTable(y_test)
+    X_train_cc = np.asfortranarray(X_train)
+    X_test_cc = np.asfortranarray(X_test)
+    y_train_cc = np.asfortranarray(y_train)
+    y_test_cc = np.asfortranarray(y_test)
+
+    if not (X_train_cc.flags['F_CONTIGUOUS'] and X_test_cc.flags['F_CONTIGUOUS']\
+        and y_train_cc.flags['F_CONTIGUOUS'] and y_test_cc.flags['F_CONTIGUOUS']):
+        ValueError("Need data to be Fortran (i.e. column-major) contiguous")
+
+
+    # convert to column-major contiguous in memory
+    dtdata_X_train = dt.DataTable(X_train_cc)
+    dtdata_X_test = dt.DataTable(X_test_cc)
+    dtdata_y_train = dt.DataTable(y_train_cc)
+    dtdata_y_test = dt.DataTable(y_test_cc)
+    
+    #test = dtdata_X_train[0:1].tonumpy()
+    #print(test)
 
     print ("DMatrix Start")
     # omp way

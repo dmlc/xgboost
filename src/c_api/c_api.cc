@@ -508,6 +508,94 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
   API_END();
 }
 
+
+XGB_DLL int XGDMatrixCreateFromdt(const void** data,
+                                  const wchar_t ** feature_names,
+                                  const wchar_t ** feature_stypes,
+                                  xgboost::bst_ulong nrow,
+                                  xgboost::bst_ulong ncol,
+                                  DMatrixHandle* out,
+                                  int nthread) {
+  // avoid openmp unless enough data to be worth it to avoid overhead costs
+  if (nrow*ncol <= 10000*50) {
+     nthread = 1;
+  }
+
+  API_BEGIN();
+  const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
+  //  const int nthreadmax = omp_get_max_threads();
+  if (nthread <= 0) nthread=nthreadmax;
+  omp_set_num_threads(nthread);
+
+  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+  data::SimpleCSRSource& mat = *source;
+  mat.row_ptr_.resize(1+nrow);
+  mat.info.num_row = nrow;
+  mat.info.num_col = ncol;
+
+  // Check for errors in missing elements
+  // Count elements per row (to avoid otherwise need to copy)
+  bool nan_missing = false;
+  int *badnan;
+  badnan = new int[nthread];
+  for (int i = 0; i < nthread; i++) {
+    badnan[i] = 0;
+  }
+
+#pragma omp parallel num_threads(nthread)
+  {
+    int ithread  = omp_get_thread_num();
+
+    // Count elements per row
+#pragma omp for schedule(static)
+    for (omp_ulong i = 0; i < nrow; ++i) {
+      xgboost::bst_ulong nelem = 0;
+      for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+        double missing = -1.0;
+        if (reinterpret_cast<const double**>(data)[j][i]==missing) {
+        // pass
+        } else {
+          ++nelem;
+        }
+      }
+      mat.row_ptr_[i+1] = nelem;
+    }
+  }
+  // Inform about any NaNs and resize data matrix
+  for (int i = 0; i < nthread; i++) {
+    CHECK(!badnan[i]) << "There are NAN in the matrix, however, you did not set missing=NAN";
+  }
+
+  // do cumulative sum (to avoid otherwise need to copy)
+  prefixsum_inplace(&mat.row_ptr_[0], mat.row_ptr_.size());
+  mat.row_data_.resize(mat.row_data_.size() + mat.row_ptr_.back());
+
+  // Fill data matrix (now that know size, no need for slow push_back())
+#pragma omp parallel num_threads(nthread)
+  {
+#pragma omp for schedule(static)
+    for (omp_ulong i = 0; i < nrow; ++i) {
+      xgboost::bst_ulong matj = 0;
+      for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+        double missing = -1.0;
+        if (reinterpret_cast<const double**>(data)[j][i]==missing) {
+        } else{
+          mat.row_data_[mat.row_ptr_[i] + matj] =
+              RowBatch::Entry(j, reinterpret_cast<const double**>(data)[j][i]);
+          ++matj;
+        }
+      }
+    }
+  }
+
+  mat.info.num_nonzero = mat.row_data_.size();
+  *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  API_END();
+}
+
+
+
+
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,
                                   xgboost::bst_ulong len,

@@ -229,6 +229,7 @@ DT_STYPE_MAPPER = {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i
 
 DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
 
+DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
 
 def _maybe_dt_data(data, feature_names, feature_types):
     if not HAVE_DT or not isinstance(data, dt.DataTable) or data is None:
@@ -236,12 +237,12 @@ def _maybe_dt_data(data, feature_names, feature_types):
 
     data_types = data.types
     cols = []
-    ptrs = (ctypes.c_int64 * data.ncols)()
+    ptrs = (ctypes.c_void_p * data.ncols)()
     for icol in range(data.ncols):
         col = data.internal.column(icol)
         cols.append(col)
         ptr = col.data_pointer # int64_t (void*)
-        ptrs[icol] = ptr
+        ptrs[icol] = ctypes.c_void_p(ptr)
 
     if not all(type in DT_TYPE_MAPPER for type in data_types):
         bad_fields = [data.names[i] for i, type in
@@ -265,16 +266,25 @@ def _maybe_dt_data(data, feature_names, feature_types):
         feature_stypes = (ctypes.c_wchar_p * data.ncols)()
         for icol in range(data.ncols):
             feature_stypes[icol] = ctypes.c_wchar_p(data.stypes[icol])
+        feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types)
 
-    return ptrs, feature_names, feature_stypes, data.nrows, data.ncols
+    return ptrs, feature_names, feature_types, feature_stypes, data.nrows, data.ncols
 
 def _maybe_dt_label(label):
     """ Extract internal data from dt.DataTable for DMatrix label """
 
-    ptrs, feature_names, feature_stypes, nrows, ncols = _maybe_dt_data(label, None, None)
+    if not HAVE_DT or not isinstance(label, dt.DataTable) or label is None:
+        return label
+
+    # lazy way of detecting correc data types and column count
+    ptrs, feature_names, feature_types, feature_stypes, nrows, ncols = _maybe_dt_data(label, None, None)
     if ptrs is not None and ncols > 1:
         raise ValueError('DataTable for label or weight cannot have multiple columns')
-    return ptrs, feature_names, feature_stypes
+
+    # FIXME: below [0,:] due to bug in dt
+    label = label.tonumpy()[0,:].astype('float')  # extract first column
+
+    return label
 
 
 class DMatrix(object):
@@ -321,16 +331,12 @@ class DMatrix(object):
             return
 
         if isinstance(data, dt.DataTable):
-            data, feature_names, feature_types, self.nrows, self.ncols =\
+            data, feature_names, feature_types, feature_stypes, self.nrows, self.ncols =\
                 _maybe_dt_data(data, feature_names, feature_types)
-            label, label_feature_names, label_feature_types  = _maybe_dt_label(label)
-            weight, weight_feature_names, weight_feature_types = _maybe_dt_label(weight)
+            label  = _maybe_dt_label(label)
+            weight = _maybe_dt_label(weight)
             if data is not None:
-                self._init_from_dt(data, feature_names, feature_types, nthread) # missing is well-defined for dt
-            if label is not None:
-                self.set_label_dt(label, label_feature_names, label_feature_types)
-            if weight is not None:
-                self.set_weight_dt(weight, weight_feature_names, weight_feature_types)
+                self._init_from_dt(data, feature_names, feature_stypes, nthread) # missing is well-defined for dt
 
         else:
             data, feature_names, feature_types = _maybe_pandas_data(data,
@@ -355,16 +361,16 @@ class DMatrix(object):
                     self._init_from_csr(csr)
                 except:
                     raise TypeError('can not initialize DMatrix from {}'.format(type(data).__name__))
-            if label is not None:
-                if isinstance(data, np.ndarray):
-                    self.set_label_npy2d(label)
-                else:
-                    self.set_label(label)
-            if weight is not None:
-                if isinstance(data, np.ndarray):
-                    self.set_weight_npy2d(weight)
-                else:
-                    self.set_weight(weight)
+        if label is not None:
+            if isinstance(label, np.ndarray):
+                self.set_label_npy2d(label)
+            else:
+                self.set_label(label)
+        if weight is not None:
+            if isinstance(weight, np.ndarray):
+                self.set_weight_npy2d(weight)
+            else:
+                self.set_weight(weight)
 
         self.data = data
         self.feature_names = feature_names
@@ -444,7 +450,7 @@ class DMatrix(object):
 
         self.handle = ctypes.c_void_p()
 
-        _check_call(_LIB.XGDdatarixCreateFromdt(
+        _check_call(_LIB.XGDMatrixCreateFromdt(
             data, data_names, data_types,
             c_bst_ulong(self.nrows),
             c_bst_ulong(self.ncols),
@@ -533,22 +539,6 @@ class DMatrix(object):
                                                c_str(field),
                                                c_data,
                                                c_bst_ulong(len(data))))
-    def set_float_info_dt(self, field, data, data_names, data_types):
-        """Set float type property into the DMatrix
-           for dt 2d array input
-
-        Parameters
-        ----------
-        field: str
-            The field name of the information
-
-        data: numpy array
-            The array of data to be set
-        """
-        _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
-                                               c_str(field),
-                                               data, data_names, data_types,
-                                               c_bst_ulong(len(data))))
     def set_uint_info(self, field, data):
         """Set uint type property into the DMatrix.
 
@@ -600,17 +590,6 @@ class DMatrix(object):
         """
         self.set_float_info_npy2d('label', label)
 
-    def set_label_dt(self, label, label_names, label_types):
-        """Set label of dmatrix
-
-        Parameters
-        ----------
-        label: array like
-            The label information to be set into DMatrix
-            from dt 2D array
-        """
-        self.set_float_info_dt('label', label, label_names, label_types)
-
     def set_weight(self, weight):
         """ Set weight of each instance.
 
@@ -631,17 +610,6 @@ class DMatrix(object):
             Weight for each data point in numpy 2D array
         """
         self.set_float_info_npy2d('weight', weight)
-
-    def set_weight_dt(self, weight, weight_names, weight_types):
-        """ Set weight of each instance
-            for dt 2D array
-
-        Parameters
-        ----------
-        weight : array like
-            Weight for each data point in numpy 2D array
-        """
-        self.set_float_info_dt('weight', weight, weight_names, weight_types)
 
     def set_base_margin(self, margin):
         """ Set base margin of booster to start from.
