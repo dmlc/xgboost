@@ -13,8 +13,6 @@ from .training import train
 from .compat import (SKLEARN_INSTALLED, XGBModelBase,
                      XGBClassifierBase, XGBRegressorBase, XGBLabelEncoder)
 
-warnings.simplefilter('always', DeprecationWarning)
-
 
 def _objective_decorator(func):
     """Decorate an objective function
@@ -197,14 +195,14 @@ class XGBModel(XGBModelBase):
         """Get xgboost type parameters."""
         xgb_params = self.get_params()
         random_state = xgb_params.pop('random_state')
-        if xgb_params['seed'] is not None:
+        if 'seed' in xgb_params and xgb_params['seed'] is not None:
             warnings.warn('The seed parameter is deprecated as of version .6.'
                           'Please use random_state instead.'
                           'seed is deprecated.', DeprecationWarning)
         else:
             xgb_params['seed'] = random_state
         n_jobs = xgb_params.pop('n_jobs')
-        if xgb_params['nthread'] is not None:
+        if 'nthread' in xgb_params and xgb_params['nthread'] is not None:
             warnings.warn('The nthread parameter is deprecated as of version .6.'
                           'Please use n_jobs instead.'
                           'nthread is deprecated.', DeprecationWarning)
@@ -218,7 +216,7 @@ class XGBModel(XGBModelBase):
         return xgb_params
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, verbose=True, xgb_model=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
@@ -255,6 +253,9 @@ class XGBModel(XGBModelBase):
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
+        xgb_model : str
+            file name of stored xgb model or 'Booster' instance Xgb model to be
+            loaded before training (allows training continuation).
         """
         if sample_weight is not None:
             trainDmatrix = DMatrix(X, label=y, weight=sample_weight,
@@ -290,7 +291,7 @@ class XGBModel(XGBModelBase):
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose)
+                              verbose_eval=verbose, xgb_model=xgb_model)
 
         if evals_result:
             for val in evals_result.items():
@@ -408,7 +409,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             random_state, seed, missing, **kwargs)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True):
+            early_stopping_rounds=None, verbose=True, xgb_model=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -445,6 +446,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
+        xgb_model : str
+            file name of stored xgb model or 'Booster' instance Xgb model to be
+            loaded before training (allows training continuation).
         """
         evals_result = {}
         self.classes_ = np.unique(y)
@@ -500,7 +504,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose)
+                              verbose_eval=verbose, xgb_model=None)
 
         self.objective = xgb_options["objective"]
         if evals_result:

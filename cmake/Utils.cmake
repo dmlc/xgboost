@@ -60,3 +60,27 @@ function(format_gencode_flags flags out)
   endforeach()
   set(${out} "${${out}}" PARENT_SCOPE)
 endfunction(format_gencode_flags flags)
+
+# Assembles the R-package files in build_dir;
+# if necessary, installs the main R package dependencies;
+# runs R CMD INSTALL.
+function(setup_rpackage_install_target rlib_target build_dir)
+  install(CODE "file(REMOVE_RECURSE \"${build_dir}/R-package\")")
+  install(
+    DIRECTORY "${PROJECT_SOURCE_DIR}/R-package"
+    DESTINATION "${build_dir}"
+    REGEX "src/*" EXCLUDE
+    REGEX "R-package/configure" EXCLUDE
+  )
+  install(TARGETS ${rlib_target}
+    LIBRARY DESTINATION "${build_dir}/R-package/src/"
+    RUNTIME DESTINATION "${build_dir}/R-package/src/")
+  install(CODE "file(WRITE \"${build_dir}/R-package/src/Makevars\" \"all:\")")
+  install(CODE "file(WRITE \"${build_dir}/R-package/src/Makevars.win\" \"all:\")")
+  set(XGB_DEPS_SCRIPT
+    "deps = setdiff(c('statar','data.table', 'magrittr', 'stringi'), rownames(installed.packages()));\
+    if(length(deps)>0) install.packages(deps, repo = 'https://cloud.r-project.org/')")
+  install(CODE "execute_process(COMMAND \"${LIBR_EXECUTABLE}\" \"-q\" \"-e\" \"${XGB_DEPS_SCRIPT}\")")
+  install(CODE "execute_process(COMMAND \"${LIBR_EXECUTABLE}\" CMD INSTALL\
+    \"--no-multiarch\" \"${build_dir}/R-package\")")
+endfunction(setup_rpackage_install_target)

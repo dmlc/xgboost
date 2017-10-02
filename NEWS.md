@@ -15,15 +15,19 @@ This file records the changes in xgboost library in reverse chronological order.
   - Thread local variable is upgraded so it is automatically freed at thread exit.
 * Migrate to C++11
   - The current master version now requires C++11 enabled compiled(g++4.8 or higher)
+* Predictor interface was factored out (in a manner similar to the updater interface).
 * New functionality
   - Ability to adjust tree model's statistics to a new dataset without changing tree structures.
   - Extracting feature contributions to individual predictions.
+  - Faster, histogram-based tree algorithm (`tree_method='hist'`) .
+  - GPU/CUDA accelerated tree algorithms (`tree_method='gpu_hist'` or `'gpu_exact'`), including the GPU-based predictor.
 * R package:
   - New parameters:
     - `silent` in `xgb.DMatrix()`
     - `use_int_id` in `xgb.model.dt.tree()`
     - `predcontrib` in `predict()`
   - Default value of the `save_period` parameter in `xgboost()` changed to NULL (consistent with `xgb.train()`).
+  - It's possible to custom-build the R package with GPU acceleration support.
 
 ## v0.6 (2016.07.29)
 * Version 0.5 is skipped due to major improvements in the core

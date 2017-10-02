@@ -2,9 +2,9 @@
  * Copyright 2017 XGBoost contributors
  */
 #pragma once
+#include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
 #include <thrust/system/cuda/error.h>
-#include <thrust/system/cuda/execution_policy.h>
 #include <thrust/system_error.h>
 #include <xgboost/logging.h>
 #include <algorithm>
@@ -58,10 +58,20 @@ inline ncclResult_t throw_on_nccl_error(ncclResult_t code, const char *file,
   return code;
 }
 
+template <typename T>
+T *raw(thrust::device_vector<T> &v) {  //  NOLINT
+  return raw_pointer_cast(v.data());
+}
+
+template <typename T>
+const T *raw(const thrust::device_vector<T> &v) {  //  NOLINT
+  return raw_pointer_cast(v.data());
+}
+
 inline int n_visible_devices() {
   int n_visgpus = 0;
 
-  cudaGetDeviceCount(&n_visgpus);
+  dh::safe_cuda(cudaGetDeviceCount(&n_visgpus));
 
   return n_visgpus;
 }
@@ -126,29 +136,6 @@ inline int get_device_idx(int gpu_id) {
   // protect against overrun for gpu_id
   return (std::abs(gpu_id) + 0) % dh::n_visible_devices();
 }
-
-/*
- *  Timers
- */
-
-struct Timer {
-  typedef std::chrono::high_resolution_clock ClockT;
-
-  typedef std::chrono::high_resolution_clock::time_point TimePointT;
-  TimePointT start;
-  Timer() { reset(); }
-
-  void reset() { start = ClockT::now(); }
-  int64_t elapsed() const { return (ClockT::now() - start).count(); }
-  double elapsedSeconds() const {
-    return elapsed() * ((double)ClockT::period::num / ClockT::period::den);
-  }
-  void printElapsed(std::string label) {
-    //    synchronize_n_devices(n_devices, dList);
-    printf("%s:\t %fs\n", label.c_str(), elapsedSeconds());
-    reset();
-  }
-};
 
 /*
  * Range iterator
@@ -225,6 +212,68 @@ __device__ void block_fill(IterT begin, size_t n, ValueT value) {
 }
 
 /*
+ * Kernel launcher
+ */
+
+template <typename T1, typename T2>
+T1 div_round_up(const T1 a, const T2 b) {
+  return static_cast<T1>(ceil(static_cast<double>(a) / b));
+}
+
+template <typename L>
+__global__ void launch_n_kernel(size_t begin, size_t end, L lambda) {
+  for (auto i : grid_stride_range(begin, end)) {
+    lambda(i);
+  }
+}
+template <typename L>
+__global__ void launch_n_kernel(int device_idx, size_t begin, size_t end,
+                                L lambda) {
+  for (auto i : grid_stride_range(begin, end)) {
+    lambda(i, device_idx);
+  }
+}
+
+template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
+inline void launch_n(int device_idx, size_t n, L lambda) {
+  if (n == 0) {
+    return;
+  }
+
+  safe_cuda(cudaSetDevice(device_idx));
+  // TODO: Template on n so GRID_SIZE always fits into int.
+  const int GRID_SIZE = div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS);
+  launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
+                                                lambda);
+}
+
+/*
+ *  Timers
+ */
+
+struct Timer {
+  typedef std::chrono::high_resolution_clock ClockT;
+  typedef std::chrono::high_resolution_clock::time_point TimePointT;
+  typedef std::chrono::high_resolution_clock::duration DurationT;
+  typedef std::chrono::duration<double> SecondsT;
+
+  TimePointT start;
+  DurationT elapsed;
+  Timer() { Reset(); }
+  void Reset() {
+    elapsed = DurationT::zero();
+    Start();
+  }
+  void Start() { start = ClockT::now(); }
+  void Stop() { elapsed += ClockT::now() - start; }
+  double ElapsedSeconds() const { return SecondsT(elapsed).count(); }
+  void PrintElapsed(std::string label) {
+    printf("%s:\t %fs\n", label.c_str(), SecondsT(elapsed).count());
+    Reset();
+  }
+};
+
+/*
  * Memory
  */
 
@@ -273,8 +322,9 @@ class dvec {
   }
 
   void fill(T value) {
-    safe_cuda(cudaSetDevice(_device_idx));
-    thrust::fill_n(thrust::device_pointer_cast(_ptr), size(), value);
+    auto d_ptr = _ptr;
+    launch_n(_device_idx, size(),
+             [=] __device__(size_t idx) { d_ptr[idx] = value; });
   }
 
   void print() {
@@ -304,7 +354,9 @@ class dvec {
     }
     safe_cuda(cudaSetDevice(this->device_idx()));
     if (other.device_idx() == this->device_idx()) {
-      thrust::copy(other.tbegin(), other.tend(), this->tbegin());
+      dh::safe_cuda(cudaMemcpy(this->data(), other.data(),
+                               other.size() * sizeof(T),
+                               cudaMemcpyDeviceToDevice));
     } else {
       std::cout << "deviceother: " << other.device_idx()
                 << " devicethis: " << this->device_idx() << std::endl;
@@ -496,6 +548,12 @@ struct CubMemory {
 
   ~CubMemory() { Free(); }
 
+  template <typename T>
+  T* Pointer()
+  {
+    return static_cast<T*>(d_temp_storage);
+  }
+
   void Free() {
     if (this->IsAllocated()) {
       safe_cuda(cudaFree(d_temp_storage));
@@ -528,106 +586,12 @@ struct CubMemory {
  */
 
 template <typename T>
-void print(const thrust::device_vector<T> &v, size_t max_items = 10) {
-  thrust::host_vector<T> h = v;
-  for (size_t i = 0; i < std::min(max_items, h.size()); i++) {
-    std::cout << " " << h[i];
-  }
-  std::cout << "\n";
-}
-
-template <typename T>
 void print(const dvec<T> &v, size_t max_items = 10) {
   std::vector<T> h = v.as_vector();
   for (size_t i = 0; i < std::min(max_items, h.size()); i++) {
     std::cout << " " << h[i];
   }
   std::cout << "\n";
-}
-
-template <typename T>
-void print(char *label, const thrust::device_vector<T> &v,
-           const char *format = "%d ", size_t max = 10) {
-  thrust::host_vector<T> h_v = v;
-  std::cout << label << ":\n";
-  for (size_t i = 0; i < std::min(static_cast<size_t>(h_v.size()), max); i++) {
-    printf(format, h_v[i]);
-  }
-  std::cout << "\n";
-}
-
-template <typename T1, typename T2>
-T1 div_round_up(const T1 a, const T2 b) {
-  return static_cast<T1>(ceil(static_cast<double>(a) / b));
-}
-
-template <typename T>
-thrust::device_ptr<T> dptr(T *d_ptr) {
-  return thrust::device_pointer_cast(d_ptr);
-}
-
-template <typename T>
-T *raw(thrust::device_vector<T> &v) {  //  NOLINT
-  return raw_pointer_cast(v.data());
-}
-
-template <typename T>
-const T *raw(const thrust::device_vector<T> &v) {  //  NOLINT
-  return raw_pointer_cast(v.data());
-}
-
-template <typename T>
-size_t size_bytes(const thrust::device_vector<T> &v) {
-  return sizeof(T) * v.size();
-}
-/*
- * Kernel launcher
- */
-
-template <typename L>
-__global__ void launch_n_kernel(size_t begin, size_t end, L lambda) {
-  for (auto i : grid_stride_range(begin, end)) {
-    lambda(i);
-  }
-}
-template <typename L>
-__global__ void launch_n_kernel(int device_idx, size_t begin, size_t end,
-                                L lambda) {
-  for (auto i : grid_stride_range(begin, end)) {
-    lambda(i, device_idx);
-  }
-}
-
-template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void launch_n(int device_idx, size_t n, L lambda) {
-  safe_cuda(cudaSetDevice(device_idx));
-  // TODO: Template on n so GRID_SIZE always fits into int.
-  const int GRID_SIZE = div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS);
-#if defined(__CUDACC__)
-  launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
-                                                lambda);
-#endif
-}
-
-// if n_devices=-1, then use all visible devices
-template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
-inline void multi_launch_n(size_t n, int n_devices, L lambda) {
-  n_devices = n_devices < 0 ? n_visible_devices() : n_devices;
-  CHECK_LE(n_devices, n_visible_devices()) << "Number of devices requested "
-                                              "needs to be less than equal to "
-                                              "number of visible devices.";
-  // TODO: Template on n so GRID_SIZE always fits into int.
-  const int GRID_SIZE = div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS);
-#if defined(__CUDACC__)
-  n_devices = n_devices > n ? n : n_devices;
-  for (int device_idx = 0; device_idx < n_devices; device_idx++) {
-    safe_cuda(cudaSetDevice(device_idx));
-    size_t begin = (n / n_devices) * device_idx;
-    size_t end = std::min((n / n_devices) * (device_idx + 1), n);
-    launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(device_idx, begin, end,
-                                                  lambda);
-  }
-#endif
 }
 
 /**
