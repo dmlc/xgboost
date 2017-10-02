@@ -441,7 +441,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
   const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
   //  const int nthreadmax = omp_get_max_threads();
   if (nthread <= 0) nthread=nthreadmax;
-  nthread_orig = omp_get_max_threads();
+  int nthread_orig = omp_get_max_threads();
   omp_set_num_threads(nthread);
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
@@ -528,7 +528,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
   const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
   //  const int nthreadmax = omp_get_max_threads();
   if (nthread <= 0) nthread=nthreadmax;
-  nthread_orig = omp_get_max_threads();
+  int nthread_orig = omp_get_max_threads();
   omp_set_num_threads(nthread);
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
