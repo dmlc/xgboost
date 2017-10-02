@@ -15,33 +15,6 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     X, y = make_classification(args.rows, n_features=args.columns, random_state=7)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size, random_state=7)
     print ("Generate Time: %s seconds" % (str(time.time() - tmp)))
-    tmp = time.time()
-
-    # convert to dt as test
-    X_train_cc = np.asfortranarray(X_train)
-    X_test_cc = np.asfortranarray(X_test)
-    y_train_cc = np.asfortranarray(y_train)
-    y_test_cc = np.asfortranarray(y_test)
-
-    if not (X_train_cc.flags['F_CONTIGUOUS'] and X_test_cc.flags['F_CONTIGUOUS']\
-        and y_train_cc.flags['F_CONTIGUOUS'] and y_test_cc.flags['F_CONTIGUOUS']):
-        ValueError("Need data to be Fortran (i.e. column-major) contiguous")
-
-
-    # convert to column-major contiguous in memory
-    dtdata_X_train = dt.DataTable(X_train_cc)
-    dtdata_X_test = dt.DataTable(X_test_cc)
-    dtdata_y_train = dt.DataTable(y_train_cc)
-    dtdata_y_test = dt.DataTable(y_test_cc)
-    
-    #test = dtdata_X_train[0:1].tonumpy()
-    #print(test)
-
-    print ("DMatrix Start")
-    # omp way
-    dtrain = xgb.DMatrix(dtdata_X_train, dtdata_y_train, nthread=-1)
-    dtest = xgb.DMatrix(dtdata_X_test, dtdata_y_test, nthread=-1)
-    print ("DMatrix Time: %s seconds" % (str(time.time() - tmp)))
 
     param = {'objective': 'binary:logistic',
              'max_depth': 6,
@@ -53,17 +26,62 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
              }
 
     param['tree_method'] = gpu_algorithm
-    print("Training with '%s'" % param['tree_method'])
-    tmp = time.time()
-    xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")])
-    print ("Train Time: %s seconds" % (str(time.time() - tmp)))
 
-    param['silent'] = 1
-    param['tree_method'] = cpu_algorithm
-    print("Training with '%s'" % param['tree_method'])
-    tmp = time.time()
-    xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")])
-    print ("Time: %s seconds" % (str(time.time() - tmp)))
+    do_dt = True
+    do_nondt = True
+
+    if do_dt:
+        tmp = time.time()
+        # convert to dt as test
+        X_train_cc = np.asfortranarray(X_train)
+        X_test_cc = np.asfortranarray(X_test)
+        y_train_cc = np.asfortranarray(y_train)
+        y_test_cc = np.asfortranarray(y_test)
+
+        if not (X_train_cc.flags['F_CONTIGUOUS'] and X_test_cc.flags['F_CONTIGUOUS']\
+            and y_train_cc.flags['F_CONTIGUOUS'] and y_test_cc.flags['F_CONTIGUOUS']):
+            ValueError("Need data to be Fortran (i.e. column-major) contiguous")
+
+
+        # convert to column-major contiguous in memory to mimic persistent column-major state
+        dtdata_X_train = dt.DataTable(X_train_cc)
+        dtdata_X_test = dt.DataTable(X_test_cc)
+        dtdata_y_train = dt.DataTable(y_train_cc)
+        dtdata_y_test = dt.DataTable(y_test_cc)
+
+        print ("dt prepare Time: %s seconds" % (str(time.time() - tmp)))
+
+        #test = dtdata_X_train[0:1].tonumpy()
+        #print(test)
+
+        print ("dt->DMatrix Start")
+        # omp way
+        tmp = time.time()
+        dtrain = xgb.DMatrix(dtdata_X_train, dtdata_y_train, nthread=-1)
+        print ("dt->DMatrix1 Time: %s seconds" % (str(time.time() - tmp)))
+        tmp = time.time()
+        dtest = xgb.DMatrix(dtdata_X_test, dtdata_y_test, nthread=-1)
+        print ("dt->DMatrix2 Time: %s seconds" % (str(time.time() - tmp)))
+
+        print("Training with '%s'" % param['tree_method'])
+        tmp = time.time()
+        xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")])
+        print ("Train Time: %s seconds" % (str(time.time() - tmp)))
+    if do_nondt:
+
+        print("np->DMatrix Start")
+        # omp way
+        tmp = time.time()
+        dtrain = xgb.DMatrix(X_train, y_train, nthread=-1)
+        print ("np->DMatrix1 Time: %s seconds" % (str(time.time() - tmp)))
+        tmp = time.time()
+        dtest = xgb.DMatrix(X_test, y_test, nthread=-1)
+        print ("np->DMatrix2 Time: %s seconds" % (str(time.time() - tmp)))
+
+        print("Training with '%s'" % param['tree_method'])
+        tmp = time.time()
+        xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")])
+        print("Train Time: %s seconds" % (str(time.time() - tmp)))
 
 
 parser = argparse.ArgumentParser()

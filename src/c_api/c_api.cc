@@ -441,6 +441,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
   const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
   //  const int nthreadmax = omp_get_max_threads();
   if (nthread <= 0) nthread=nthreadmax;
+  nthread_orig = omp_get_max_threads();
   omp_set_num_threads(nthread);
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
@@ -502,6 +503,8 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
       }
     }
   }
+  // restore omp state
+  omp_set_num_threads(nthread_orig);
 
   mat.info.num_nonzero = mat.row_data_.size();
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
@@ -525,6 +528,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
   const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
   //  const int nthreadmax = omp_get_max_threads();
   if (nthread <= 0) nthread=nthreadmax;
+  nthread_orig = omp_get_max_threads();
   omp_set_num_threads(nthread);
 
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
@@ -532,15 +536,6 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
   mat.row_ptr_.resize(1+nrow);
   mat.info.num_row = nrow;
   mat.info.num_col = ncol;
-
-  // Check for errors in missing elements
-  // Count elements per row (to avoid otherwise need to copy)
-  bool nan_missing = false;
-  int *badnan;
-  badnan = new int[nthread];
-  for (int i = 0; i < nthread; i++) {
-    badnan[i] = 0;
-  }
 
 #pragma omp parallel num_threads(nthread)
   {
@@ -560,10 +555,6 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
       }
       mat.row_ptr_[i+1] = nelem;
     }
-  }
-  // Inform about any NaNs and resize data matrix
-  for (int i = 0; i < nthread; i++) {
-    CHECK(!badnan[i]) << "There are NAN in the matrix, however, you did not set missing=NAN";
   }
 
   // do cumulative sum (to avoid otherwise need to copy)
@@ -587,6 +578,9 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
       }
     }
   }
+
+  // restore omp state
+  omp_set_num_threads(nthread_orig);
 
   mat.info.num_nonzero = mat.row_data_.size();
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
