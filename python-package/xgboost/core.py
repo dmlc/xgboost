@@ -232,17 +232,16 @@ DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
 
 def _maybe_dt_data(data, feature_names, feature_types):
     if not HAVE_DT or not isinstance(data, dt.DataTable) or data is None:
-        return data, feature_names, feature_types
+        return data, feature_names, feature_types, 0, 0
 
     data_types = data.types
-    data_stypes = data.stypes
     cols = []
-    ptrs = []
+    ptrs = (ctypes.c_int64 * data.ncols)()
     for icol in range(data.ncols):
         col = data.internal.column(icol)
         cols.append(col)
         ptr = col.data_pointer # int64_t (void*)
-        ptrs.append(ptr)
+        ptrs[icol] = ptr
 
     if not all(type in DT_TYPE_MAPPER for type in data_types):
         bad_fields = [data.names[i] for i, type in
@@ -255,21 +254,25 @@ def _maybe_dt_data(data, feature_names, feature_types):
     if feature_names is not None:
         raise ValueError('DataTable has own feature names, cannot pass them in')
     else:
-        feature_names = data.names
+        feature_names = (ctypes.c_wchar_p * data.ncols)()
+        for icol in range(data.ncols):
+            feature_names[icol] = ctypes.c_wchar_p(data.names[icol])
 
     # always return stypes for dt ingestion
     if feature_types is not None:
         raise ValueError('DataTable has own feature types, cannot pass them in')
     else:
-        feature_stypes = [stype for stype in data_stypes]
+        feature_stypes = (ctypes.c_wchar_p * data.ncols)()
+        for icol in range(data.ncols):
+            feature_stypes[icol] = ctypes.c_wchar_p(data.stypes[icol])
 
-    return ptrs, feature_names, feature_stypes
+    return ptrs, feature_names, feature_stypes, data.nrows, data.ncols
 
 def _maybe_dt_label(label):
     """ Extract internal data from dt.DataTable for DMatrix label """
 
-    ptrs, feature_names, feature_stypes = _maybe_dt_data(label, None, None)
-    if ptrs is not None and len(ptrs) > 1:
+    ptrs, feature_names, feature_stypes, nrows, ncols = _maybe_dt_data(label, None, None)
+    if ptrs is not None and ncols > 1:
         raise ValueError('DataTable for label or weight cannot have multiple columns')
     return ptrs, feature_names, feature_stypes
 
@@ -318,9 +321,8 @@ class DMatrix(object):
             return
 
         if isinstance(data, dt.DataTable):
-            data, feature_names, feature_types = _maybe_dt_data(data,
-                                                                feature_names,
-                                                                feature_types)
+            data, feature_names, feature_types, self.nrows, self.ncols =\
+                _maybe_dt_data(data, feature_names, feature_types)
             label, label_feature_names, label_feature_types  = _maybe_dt_label(label)
             weight, weight_feature_names, weight_feature_types = _maybe_dt_label(weight)
             if data is not None:
@@ -441,12 +443,11 @@ class DMatrix(object):
         """
 
         self.handle = ctypes.c_void_p()
+
         _check_call(_LIB.XGDdatarixCreateFromdt(
-            data.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
-            data_names.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
-            data_types.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
-            c_bst_ulong(data.shape[0]),
-            c_bst_ulong(data.shape[1]),
+            data, data_names, data_types,
+            c_bst_ulong(self.nrows),
+            c_bst_ulong(self.ncols),
             ctypes.byref(self.handle),
             nthread))
 
@@ -544,12 +545,9 @@ class DMatrix(object):
         data: numpy array
             The array of data to be set
         """
-        c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
-        c_data_names = data_names.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
-        c_data_types = data_types.ctypes.data_as(ctypes.POINTER(ctypes.c_int64))
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
-                                               c_data, c_data_names, c_data_types,
+                                               data, data_names, data_types,
                                                c_bst_ulong(len(data))))
     def set_uint_info(self, field, data):
         """Set uint type property into the DMatrix.
