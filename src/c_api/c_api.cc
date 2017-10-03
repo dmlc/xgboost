@@ -18,6 +18,8 @@
 #include "../common/io.h"
 #include "../common/group_data.h"
 
+#include "dt.h"
+
 namespace xgboost {
 // booster wrapper for backward compatible reason.
 class Booster {
@@ -542,18 +544,17 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
     int ithread  = omp_get_thread_num();
 
     // Count elements per row
+    for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+      double * datacol = reinterpret_cast<const double**>(data)[j];
 #pragma omp for schedule(static)
-    for (omp_ulong i = 0; i < nrow; ++i) {
-      xgboost::bst_ulong nelem = 0;
-      for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+      for (omp_ulong i = 0; i < nrow; ++i) {
         double missing = -1.0;
         if (reinterpret_cast<const double**>(data)[j][i]==missing) {
         // pass
         } else {
-          ++nelem;
+            mat.row_ptr_[i+1] ++;
         }
       }
-      mat.row_ptr_[i+1] = nelem;
     }
   }
 
