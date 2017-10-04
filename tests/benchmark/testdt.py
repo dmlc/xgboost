@@ -7,6 +7,14 @@ from sklearn.model_selection import train_test_split
 import time
 import datatable as dt
 
+# instructions
+# pip uninstall xgboost # rm -rf any residual site-packages/xgboost* in your environment
+# git clone https://github.com/h2oai/xgboost
+# git checkout h2oai_dt
+# cd xgboost ; mkdir -p build ; cd build ; cmake .. -DUSE_CUDA=ON ; make -j ; cd ..
+# cd python-package ; python setup.py install ; cd .. # installs as egg instead of like when doing wheel
+# python tests/benchmark/testdt.py --algorithm=gpu_hist # use hist if you don't have a gpu
+
 
 def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     print("Generating dataset: {} rows * {} columns".format(args.rows, args.columns))
@@ -54,6 +62,8 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
         print("np->DMatrix Start")
         # omp way
         tmp = time.time()
+        # below takes about 2.826s if do_ccont=False
+        # below takes about 0.248s if do_ccont=True
         dtrain = xgb.DMatrix(X_train_cc, y_train_cc, nthread=-1)
         print ("np->DMatrix1 Time: %s seconds" % (str(time.time() - tmp)))
         tmp = time.time()
@@ -67,6 +77,8 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     if do_dt:
 
         # convert to column-major contiguous in memory to mimic persistent column-major state
+        # do_cccont = True leads to prepare2 time of about 1.4s for 1000000 rows * 50 columns
+        # do_cccont = False leads to prepare2 time of about 0.000548 for 1000000 rows * 50 columns
         tmp = time.time()
         dtdata_X_train = dt.DataTable(X_train_cc)
         dtdata_X_test = dt.DataTable(X_test_cc)
@@ -80,6 +92,7 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
         print ("dt->DMatrix Start")
         # omp way
         tmp = time.time()
+        # below takes about 0.47s - 0.53s independent of do_ccont
         dtrain = xgb.DMatrix(dtdata_X_train, dtdata_y_train, nthread=-1)
         print ("dt->DMatrix1 Time: %s seconds" % (str(time.time() - tmp)))
         tmp = time.time()
