@@ -576,10 +576,10 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
   // Fill data matrix (now that know size, no need for slow push_back())
 #pragma omp parallel num_threads(nthread)
   {
+    xgboost::bst_ulong matj[nrow] = {0};
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
       const double * datacol = reinterpret_cast<const double**>(data)[j];
       double missing = GETNA<double>();
-      xgboost::bst_ulong matj[nrow] = {0};
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
         if (datacol[i]==missing) {
