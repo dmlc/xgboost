@@ -31,15 +31,33 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     do_ccont = False
     do_nondt = True
 
-    if do_nondt:
+    tmp = time.time()
+    if do_ccont:
+        X_train_cc = X_train
+        X_test_cc = X_test
+        y_train_cc = y_train
+        y_test_cc = y_test
+    else:
+        # convert to dt as test
+        X_train_cc = np.asfortranarray(X_train)
+        X_test_cc = np.asfortranarray(X_test)
+        y_train_cc = np.asfortranarray(y_train)
+        y_test_cc = np.asfortranarray(y_test)
 
+        if not (X_train_cc.flags['F_CONTIGUOUS'] and X_test_cc.flags['F_CONTIGUOUS'] \
+                        and y_train_cc.flags['F_CONTIGUOUS'] and y_test_cc.flags['F_CONTIGUOUS']):
+            ValueError("Need data to be Fortran (i.e. column-major) contiguous")
+    print("dt prepare1 Time: %s seconds" % (str(time.time() - tmp)))
+
+
+    if do_nondt:
         print("np->DMatrix Start")
         # omp way
         tmp = time.time()
-        dtrain = xgb.DMatrix(X_train, y_train, nthread=-1)
+        dtrain = xgb.DMatrix(X_train_cc, y_train_cc, nthread=-1)
         print ("np->DMatrix1 Time: %s seconds" % (str(time.time() - tmp)))
         tmp = time.time()
-        dtest = xgb.DMatrix(X_test, y_test, nthread=-1)
+        dtest = xgb.DMatrix(X_test_cc, y_test_cc, nthread=-1)
         print ("np->DMatrix2 Time: %s seconds" % (str(time.time() - tmp)))
 
         print("Training with '%s'" % param['tree_method'])
@@ -47,24 +65,6 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
         xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")])
         print("Train Time: %s seconds" % (str(time.time() - tmp)))
     if do_dt:
-        tmp = time.time()
-        if do_ccont:
-            X_train_cc = X_train
-            X_test_cc = X_test
-            y_train_cc = y_train
-            y_test_cc = y_test
-        else:
-            # convert to dt as test
-            X_train_cc = np.asfortranarray(X_train)
-            X_test_cc = np.asfortranarray(X_test)
-            y_train_cc = np.asfortranarray(y_train)
-            y_test_cc = np.asfortranarray(y_test)
-    
-            if not (X_train_cc.flags['F_CONTIGUOUS'] and X_test_cc.flags['F_CONTIGUOUS']\
-                and y_train_cc.flags['F_CONTIGUOUS'] and y_test_cc.flags['F_CONTIGUOUS']):
-                ValueError("Need data to be Fortran (i.e. column-major) contiguous")
-
-        print ("dt prepare1 Time: %s seconds" % (str(time.time() - tmp)))
 
         # convert to column-major contiguous in memory to mimic persistent column-major state
         tmp = time.time()
