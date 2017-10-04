@@ -18,6 +18,7 @@
 #include "../common/io.h"
 #include "../common/group_data.h"
 
+#include <sys/time.h>
 #include "dt.h" // For meaning of NAN for dt data
 
 namespace xgboost {
@@ -522,7 +523,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
 
 
 //}
-
+#define DEBUGTIME 0
 
 
 XGB_DLL int XGDMatrixCreateFromdt(const void** data,
@@ -532,6 +533,10 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
                                   xgboost::bst_ulong ncol,
                                   DMatrixHandle* out,
                                   int nthread) {
+  #if(DEBUGTIME)
+  struct timeval tv;
+  gettimeofday(&tv,NULL); unsigned long time1 = 1000000 * tv.tv_sec + tv.tv_usec;
+  #endif
   // avoid openmp unless enough data to be worth it to avoid overhead costs
   if (nrow*ncol <= 10000*50) {
      nthread = 1;
@@ -568,15 +573,32 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
       }
     }
   }
-
+  #if(DEBUGTIME)
+  gettimeofday(&tv,NULL); unsigned long time2 = 1000000 * tv.tv_sec + tv.tv_usec;
+  fprintf(stderr,"C_TDIFF1=%g\n",(time2-time1)/1E6);
+  #endif
   // do cumulative sum (to avoid otherwise need to copy)
   prefixsum_inplace(&mat.row_ptr_[0], mat.row_ptr_.size());
+  #if(DEBUGTIME)
+  gettimeofday(&tv,NULL); unsigned long time3 = 1000000 * tv.tv_sec + tv.tv_usec;
+  fprintf(stderr,"C_TDIFF2=%g\n",(time3-time2)/1E6);
+  #endif
+//  for (omp_ulong i = 0; i < 1+nrow; ++i) {
+//    fprintf(stderr,"rowptr[%zu]=%zu\n",i,mat.row_ptr_[i]);
+//    fflush(stderr);
+//  }
+
   mat.row_data_.resize(mat.row_data_.size() + mat.row_ptr_.back());
 
+  #if(DEBUGTIME)
+  gettimeofday(&tv,NULL); unsigned long time4 = 1000000 * tv.tv_sec + tv.tv_usec;
+  fprintf(stderr,"C_TDIFF3=%g\n",(time4-time3)/1E6);
+  #endif
+
   // Fill data matrix (now that know size, no need for slow push_back())
+  xgboost::bst_ulong matj[nrow] = {0};
 #pragma omp parallel num_threads(nthread)
   {
-    xgboost::bst_ulong matj[nrow] = {0};
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
       const double * datacol = reinterpret_cast<const double**>(data)[j];
       double missing = GETNA<double>();
@@ -593,6 +615,10 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
     }
   }
 
+  #if(DEBUGTIME)
+  gettimeofday(&tv,NULL); unsigned long time5 = 1000000 * tv.tv_sec + tv.tv_usec;
+  fprintf(stderr,"C_TDIFF4=%g\n",(time5-time4)/1E6);
+  #endif
   // restore omp state
   omp_set_num_threads(nthread_orig);
 

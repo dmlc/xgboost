@@ -336,7 +336,10 @@ class DMatrix(object):
             label  = _maybe_dt_label(label)
             weight = _maybe_dt_label(weight)
             if data is not None:
+                import time
+                tmp = time.time()
                 self._init_from_dt(data, feature_names, feature_stypes, nthread) # missing is well-defined for dt
+                #print("init_from_dt Time: %s seconds" % (str(time.time() - tmp)))
 
         else:
             data, feature_names, feature_types = _maybe_pandas_data(data,
@@ -363,12 +366,18 @@ class DMatrix(object):
                     raise TypeError('can not initialize DMatrix from {}'.format(type(data).__name__))
         if label is not None:
             if isinstance(label, np.ndarray):
+                import time
+                tmp = time.time()
                 self.set_label_npy2d(label)
+                #print("set_label_npy2d Time: %s seconds" % (str(time.time() - tmp)))
             else:
                 self.set_label(label)
         if weight is not None:
             if isinstance(weight, np.ndarray):
+                import time
+                tmp = time.time()
                 self.set_weight_npy2d(weight)
+                #print("set_weight_npy2d Time: %s seconds" % (str(time.time() - tmp)))
             else:
                 self.set_weight(weight)
 
