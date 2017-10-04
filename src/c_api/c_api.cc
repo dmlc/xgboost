@@ -18,7 +18,7 @@
 #include "../common/io.h"
 #include "../common/group_data.h"
 
-#include "dt.h"
+#include "dt.h" // For meaning of NAN for dt data
 
 namespace xgboost {
 // booster wrapper for backward compatible reason.
@@ -514,6 +514,17 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
 }
 
 
+// map dt stype string to C ctype for casting purposes
+//int dtstring_to_ctype(wchar_t * string)
+//{
+// {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i': 'int', 'f4r': 'float', 'f8r': 'float'}
+
+
+
+//}
+
+
+
 XGB_DLL int XGDMatrixCreateFromdt(const void** data,
                                   const wchar_t ** feature_names,
                                   const wchar_t ** feature_stypes,
@@ -543,14 +554,14 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
   {
     int ithread  = omp_get_thread_num();
 
-    // Count elements per row
+    // Count elements per row, column by column
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
-      double * datacol = reinterpret_cast<const double**>(data)[j];
+      const double * datacol = reinterpret_cast<const double**>(data)[j];
+      double missing = GETNA<double>();
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        double missing = -1.0;
-        if (reinterpret_cast<const double**>(data)[j][i]==missing) {
-        // pass
+        if (datacol[i]==missing) {
+            // pass
         } else {
             mat.row_ptr_[i+1] ++;
         }
@@ -565,16 +576,18 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
   // Fill data matrix (now that know size, no need for slow push_back())
 #pragma omp parallel num_threads(nthread)
   {
+    for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+      const double * datacol = reinterpret_cast<const double**>(data)[j];
+      double missing = GETNA<double>();
+      xgboost::bst_ulong matj[nrow] = {0};
 #pragma omp for schedule(static)
-    for (omp_ulong i = 0; i < nrow; ++i) {
-      xgboost::bst_ulong matj = 0;
-      for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
-        double missing = -1.0;
-        if (reinterpret_cast<const double**>(data)[j][i]==missing) {
+      for (omp_ulong i = 0; i < nrow; ++i) {
+        if (datacol[i]==missing) {
+          // pass
         } else{
-          mat.row_data_[mat.row_ptr_[i] + matj] =
-              RowBatch::Entry(j, reinterpret_cast<const double**>(data)[j][i]);
-          ++matj;
+          mat.row_data_[mat.row_ptr_[i] + matj[i]] =
+              RowBatch::Entry(j, datacol[i]);
+          matj[i]++;
         }
       }
     }

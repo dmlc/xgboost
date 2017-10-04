@@ -282,7 +282,7 @@ def _maybe_dt_label(label):
         raise ValueError('DataTable for label or weight cannot have multiple columns')
 
     # FIXME: below [0,:] due to bug in dt
-    label = label.tonumpy()[0,:].astype('float')  # extract first column
+    label = label.tonumpy()[:,0].astype('float')  # extract first column
 
     return label
 
