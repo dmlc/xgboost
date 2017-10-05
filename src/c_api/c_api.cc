@@ -563,7 +563,7 @@ float get_dt_value(data_struct *d, wchar_t * stype, int i)
      return static_cast<float>(*d->data_int8[i]);
     }
     else{
-        fwprintf(stderr,"Unknown type %s", stype);
+        fwprintf(stderr,L"Unknown type %s", stype);
         exit(1);
     }
 }
