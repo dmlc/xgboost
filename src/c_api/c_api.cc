@@ -21,6 +21,7 @@
 #include <sys/time.h>
 #include "dt.h" // For meaning of NAN for dt data
 
+
 namespace xgboost {
 // booster wrapper for backward compatible reason.
 class Booster {
@@ -533,11 +534,11 @@ class data_struct{
             data_double(reinterpret_cast<double**>(data)),
             data_float(reinterpret_cast<float**>(data)){};
 //  ~data_struct() {}
-}
+};
 
 // map dt stype string to C ctype for casting purposes
 // {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i': 'int', 'f4r': 'float', 'f8r': 'float'}
-float get_dt_value(data_struct *d, int i)
+float get_dt_value(data_struct *d, wchar_t * stype, int i)
 {
     // order of likelihood
     if(strcmp(stype,"f4r")==0){
@@ -568,32 +569,32 @@ float get_dt_value(data_struct *d, int i)
 }
 
 
-bool is_dt_missing(data_struct *d, int i)
+bool is_dt_missing(data_struct *d, wchar_t * stype, int i)
 {
     // order of likelihood
-    if(strcmp(stype,"f4r")==0 && !isfinite(d->*data_float[i])){ // GETNA<float>
+    if(strcmp(stype,"f4r")==0 && !std::isfinite(*d->data_float[i])){ // GETNA<float>
         return true;
     }
-    else if(strcmp(stype,"f8r")==0 && !isfinite(d->*data_double[i])){ // GETNA<double>
+    else if(strcmp(stype,"f8r")==0 && !std::isfinite(*d->data_double[i])){ // GETNA<double>
         return true;
     }
-    else if(strcmp(stype,"i1b")==0 && d->*data_bool[i]==GETNA<bool>()){
+    else if(strcmp(stype,"i1b")==0 && *d->data_bool[i]==GETNA<bool>()){
         return true;
     }
-    else if(strcmp(stype,"i4i")==0 && d->*data_int4[i]==GETNA<int32_t>()){
+    else if(strcmp(stype,"i4i")==0 && *d->data_int4[i]==GETNA<int32_t>()){
         return true;
     }
-    else if(strcmp(stype,"i1i")==0 && d->*data_int1[i]==GETNA<int8_t>()){
+    else if(strcmp(stype,"i1i")==0 && *d->data_int1[i]==GETNA<int8_t>()){
         return true;
     }
-    else if(strcmp(stype,"i2i")==0 && d->*data_int2[i]==GETNA<int16_t>()){
+    else if(strcmp(stype,"i2i")==0 && *d->data_int2[i]==GETNA<int16_t>()){
         return true;
     }
-    else if(strcmp(stype,"i8i")==0 && d->*data_int8[i]==GETNA<int64_t>()){
+    else if(strcmp(stype,"i8i")==0 && *d->data_int8[i]==GETNA<int64_t>()){
         return true;
     }
     else return false;
-};
+}
 
 #define DEBUGTIME 0
 
@@ -615,7 +616,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
   }
 
   // copy pointer
-  void ** data = data0;
+  void ** data = const_cast<void **>(data0);
 
 
   API_BEGIN();
@@ -639,7 +640,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
       data_struct d(data);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        if (is_dt_missing(&d, i)) {
+        if (is_dt_missing(&d, feature_stypes[j][i], i)) {
             // pass
         } else {
             mat.row_ptr_[i+1] ++;
@@ -673,7 +674,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
   // Fill data matrix (now that know size, no need for slow push_back())
 
   // reset pointer
-  data = data0;
+  data = const_cast<void **>(data0);
 
   xgboost::bst_ulong matj[nrow] = {0};
 #pragma omp parallel num_threads(nthread)
@@ -682,11 +683,11 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
       data_struct d(data);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        if (is_dt_missing(&d, i)) {
+        if (is_dt_missing(&d, feature_stypes[j][i], i)) {
           // pass
         } else{
           mat.row_data_[mat.row_ptr_[i] + matj[i]] =
-              RowBatch::Entry(j, get_dt_value(&d,i));
+              RowBatch::Entry(j, get_dt_value(&d, feature_stypes[j][i], i));
           matj[i]++;
         }
       }
