@@ -523,10 +523,89 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
 
 
 //}
+
+float get_dt_value(data_struct *d, int i)
+{
+    // order of likelihood
+    if(strcmp(stype,'f4r')==0){
+     return static_cast<float>(d->*data_float[i]);
+    }
+    else if(strcmp(stype,'f8r')==0){
+     return static_cast<float>(d->*data_double[i]);
+    }
+    else if(strcmp(stype,'i1b')==0){
+     return static_cast<float>(d->*data_bool[i]);
+    }
+    else if(strcmp(stype,'i4i')==0){
+     return static_cast<float>(d->*data_int4[i]);
+    }
+    else if(strcmp(stype,'i1i')==0){
+     return static_cast<float>(d->*data_int1[i]);
+    }
+    else if(strcmp(stype,'i2i')==0){
+     return static_cast<float>(d->*data_int2[i]);
+    }
+    else if(strcmp(stype,'i8i')==0){
+     return static_cast<float>(d->*data_int8[i]);
+    }
+    else{
+        fprintf(stderr,"Unknown type %s", stype);
+        exit(1);
+    }
+}
+
+
+bool is_dt_missing(data_struct *d, int i)
+{
+    // order of likelihood
+    if(strcmp(stype,'f4r')==0 && !isfinite(d->*data_float[i])){ // GETNA<float>
+        return true;
+    }
+    else if(strcmp(stype,'f8r')==0 && !isfinite(d->*data_double[i])){ // GETNA<double>
+        return true;
+    }
+    else if(strcmp(stype,'i1b')==0 && d->*data_bool[i]==GETNA<bool>()){
+        return true;
+    }
+    else if(strcmp(stype,'i4i')==0 && d->*data_int4[i]==GETNA<int32_t>()){
+        return true;
+    }
+    else if(strcmp(stype,'i1i')==0 && d->*data_int1[i]==GETNA<int8_t>()){
+        return true;
+    }
+    else if(strcmp(stype,'i2i')==0 && d->*data_int2[i]==GETNA<int16_t>()){
+        return true;
+    }
+    else if(strcmp(stype,'i8i')==0 && d->*data_int8[i]==GETNA<int64_t>()){
+        return true;
+    }
+    else return false;
+}
+
 #define DEBUGTIME 0
 
+class data_struct{
+  double ** data_double;
+  float ** data_float;
+  bool ** data_bool;
+  int8 ** data_int1;
+  int16 ** data_int2;
+  int32 ** data_int4;
+  int64 ** data_int8;
 
-XGB_DLL int XGDMatrixCreateFromdt(const void** data,
+  public:
+  data_struct(void **data):
+            data_bool(reinterpret_cast<const bool**>(data)),
+            data_int1(reinterpret_cast<const int8**>(data)),
+            data_int2(reinterpret_cast<const int16**>(data)),
+            data_int4(reinterpret_cast<const int32**>(data)),
+            data_int8(reinterpret_cast<const int64**>(data)),
+            data_double(reinterpret_cast<const double**>(data)),
+            data_float(reinterpret_cast<const float**>(data)){}
+//  ~data_struct() {}
+}
+
+XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
                                   const wchar_t ** feature_names,
                                   const wchar_t ** feature_stypes,
                                   xgboost::bst_ulong nrow,
@@ -541,6 +620,10 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
   if (nrow*ncol <= 10000*50) {
      nthread = 1;
   }
+
+  // copy pointer
+  void ** data = data0;
+
 
   API_BEGIN();
   const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
@@ -558,19 +641,18 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
 #pragma omp parallel num_threads(nthread)
   {
     int ithread  = omp_get_thread_num();
-
     // Count elements per row, column by column
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
-      const double * datacol = reinterpret_cast<const double**>(data)[j];
-      double missing = GETNA<double>();
+      data_struct d(data);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        if (datacol[i]==missing) {
+        if (is_dt_missing(&d, i)) {
             // pass
         } else {
             mat.row_ptr_[i+1] ++;
         }
       }
+      data+=1; // update pointer position to array of pointers
     }
   }
   #if(DEBUGTIME)
@@ -590,28 +672,32 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data,
 
   mat.row_data_.resize(mat.row_data_.size() + mat.row_ptr_.back());
 
-  #if(DEBUGTIME)
+  #if(r DEBUGTIME)
   gettimeofday(&tv,NULL); unsigned long time4 = 1000000 * tv.tv_sec + tv.tv_usec;
   fprintf(stderr,"C_TDIFF3=%g\n",(time4-time3)/1E6);
   #endif
 
   // Fill data matrix (now that know size, no need for slow push_back())
+
+  // reset pointer
+  data = data0;
+
   xgboost::bst_ulong matj[nrow] = {0};
 #pragma omp parallel num_threads(nthread)
   {
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
-      const double * datacol = reinterpret_cast<const double**>(data)[j];
-      double missing = GETNA<double>();
+      data_struct d(data);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        if (datacol[i]==missing) {
+        if (is_dt_missing(&d, i)) {
           // pass
         } else{
           mat.row_data_[mat.row_ptr_[i] + matj[i]] =
-              RowBatch::Entry(j, datacol[i]);
+              RowBatch::Entry(j, get_dt_value(&d,i));
           matj[i]++;
         }
       }
+      data+=1; // update pointer position to array of pointers
     }
   }
 
