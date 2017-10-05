@@ -16,8 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.XGBoostError
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{SparkConf, SparkContext, SparkException, SparkParallelismTracker}
 import org.apache.spark.rdd.RDD
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
@@ -42,25 +41,11 @@ class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
     assert(disabledTracker.execute(rdd.sum()) == rdd.sum())
   }
 
-  test("tracker should be robust if the checks are very frequent") {
-    val nWorkers = numParallelism
-    val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
-    val tracker = new SparkParallelismTracker(sc, 1, nWorkers)
-    val result = tracker.execute {
-      rdd.map { i =>
-        // Ensure multiple checks happens
-        Thread.sleep(1000)
-        i
-      }.sum()
-    }
-    assert(result == rdd.sum())
-  }
-
   test("tracker should throw exception if parallelism is not sufficient") {
     val nWorkers = numParallelism * 3
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
     val tracker = new SparkParallelismTracker(sc, 1000, nWorkers)
-    intercept[XGBoostError] {
+    intercept[SparkException] {
       tracker.execute {
         rdd.map { i =>
           // Test interruption
