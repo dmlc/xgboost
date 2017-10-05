@@ -685,7 +685,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
       wchar_t * stype = const_cast<wchar_t *>(feature_stypes[j]);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        if (is_dt_missing(&d, feature_stypes[j][i], i)) {
+        if (is_dt_missing(&d, stype, i)) {
           // pass
         } else{
           mat.row_data_[mat.row_ptr_[i] + matj[i]] =
