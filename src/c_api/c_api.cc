@@ -514,76 +514,6 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
   API_END();
 }
 
-
-// map dt stype string to C ctype for casting purposes
-//int dtstring_to_ctype(wchar_t * string)
-//{
-// {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i': 'int', 'f4r': 'float', 'f8r': 'float'}
-
-
-
-//}
-
-float get_dt_value(data_struct *d, int i)
-{
-    // order of likelihood
-    if(strcmp(stype,'f4r')==0){
-     return static_cast<float>(d->*data_float[i]);
-    }
-    else if(strcmp(stype,'f8r')==0){
-     return static_cast<float>(d->*data_double[i]);
-    }
-    else if(strcmp(stype,'i1b')==0){
-     return static_cast<float>(d->*data_bool[i]);
-    }
-    else if(strcmp(stype,'i4i')==0){
-     return static_cast<float>(d->*data_int4[i]);
-    }
-    else if(strcmp(stype,'i1i')==0){
-     return static_cast<float>(d->*data_int1[i]);
-    }
-    else if(strcmp(stype,'i2i')==0){
-     return static_cast<float>(d->*data_int2[i]);
-    }
-    else if(strcmp(stype,'i8i')==0){
-     return static_cast<float>(d->*data_int8[i]);
-    }
-    else{
-        fprintf(stderr,"Unknown type %s", stype);
-        exit(1);
-    }
-}
-
-
-bool is_dt_missing(data_struct *d, int i)
-{
-    // order of likelihood
-    if(strcmp(stype,'f4r')==0 && !isfinite(d->*data_float[i])){ // GETNA<float>
-        return true;
-    }
-    else if(strcmp(stype,'f8r')==0 && !isfinite(d->*data_double[i])){ // GETNA<double>
-        return true;
-    }
-    else if(strcmp(stype,'i1b')==0 && d->*data_bool[i]==GETNA<bool>()){
-        return true;
-    }
-    else if(strcmp(stype,'i4i')==0 && d->*data_int4[i]==GETNA<int32_t>()){
-        return true;
-    }
-    else if(strcmp(stype,'i1i')==0 && d->*data_int1[i]==GETNA<int8_t>()){
-        return true;
-    }
-    else if(strcmp(stype,'i2i')==0 && d->*data_int2[i]==GETNA<int16_t>()){
-        return true;
-    }
-    else if(strcmp(stype,'i8i')==0 && d->*data_int8[i]==GETNA<int64_t>()){
-        return true;
-    }
-    else return false;
-}
-
-#define DEBUGTIME 0
-
 class data_struct{
   double ** data_double;
   float ** data_float;
@@ -601,9 +531,72 @@ class data_struct{
             data_int4(reinterpret_cast<const int32**>(data)),
             data_int8(reinterpret_cast<const int64**>(data)),
             data_double(reinterpret_cast<const double**>(data)),
-            data_float(reinterpret_cast<const float**>(data)){}
+            data_float(reinterpret_cast<const float**>(data)){};
 //  ~data_struct() {}
 }
+
+// map dt stype string to C ctype for casting purposes
+// {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i': 'int', 'f4r': 'float', 'f8r': 'float'}
+float get_dt_value(data_struct *d, int i)
+{
+    // order of likelihood
+    if(strcmp(stype,"f4r")==0){
+     return static_cast<float>(d->*data_float[i]);
+    }
+    else if(strcmp(stype,"f8r")==0){
+     return static_cast<float>(d->*data_double[i]);
+    }
+    else if(strcmp(stype,"i1b")==0){
+     return static_cast<float>(d->*data_bool[i]);
+    }
+    else if(strcmp(stype,"i4i")==0){
+     return static_cast<float>(d->*data_int4[i]);
+    }
+    else if(strcmp(stype,"i1i")==0){
+     return static_cast<float>(d->*data_int1[i]);
+    }
+    else if(strcmp(stype,"i2i")==0){
+     return static_cast<float>(d->*data_int2[i]);
+    }
+    else if(strcmp(stype,"i8i")==0){
+     return static_cast<float>(d->*data_int8[i]);
+    }
+    else{
+        fprintf(stderr,"Unknown type %s", stype);
+        exit(1);
+    }
+}
+
+
+bool is_dt_missing(data_struct *d, int i)
+{
+    // order of likelihood
+    if(strcmp(stype,"f4r")==0 && !isfinite(d->*data_float[i])){ // GETNA<float>
+        return true;
+    }
+    else if(strcmp(stype,"f8r")==0 && !isfinite(d->*data_double[i])){ // GETNA<double>
+        return true;
+    }
+    else if(strcmp(stype,"i1b")==0 && d->*data_bool[i]==GETNA<bool>()){
+        return true;
+    }
+    else if(strcmp(stype,"i4i")==0 && d->*data_int4[i]==GETNA<int32_t>()){
+        return true;
+    }
+    else if(strcmp(stype,"i1i")==0 && d->*data_int1[i]==GETNA<int8_t>()){
+        return true;
+    }
+    else if(strcmp(stype,"i2i")==0 && d->*data_int2[i]==GETNA<int16_t>()){
+        return true;
+    }
+    else if(strcmp(stype,"i8i")==0 && d->*data_int8[i]==GETNA<int64_t>()){
+        return true;
+    }
+    else return false;
+}
+
+#define DEBUGTIME 0
+
 
 XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
                                   const wchar_t ** feature_names,
@@ -672,7 +665,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
 
   mat.row_data_.resize(mat.row_data_.size() + mat.row_ptr_.back());
 
-  #if(r DEBUGTIME)
+  #if(DEBUGTIME)
   gettimeofday(&tv,NULL); unsigned long time4 = 1000000 * tv.tv_sec + tv.tv_usec;
   fprintf(stderr,"C_TDIFF3=%g\n",(time4-time3)/1E6);
   #endif
