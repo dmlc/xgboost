@@ -563,7 +563,7 @@ float get_dt_value(data_struct *d, wchar_t * stype, int i)
      return static_cast<float>(*d->data_int8[i]);
     }
     else{
-        fprintf(stderr,"Unknown type %s", stype);
+        fwprintf(stderr,"Unknown type %s", stype);
         exit(1);
     }
 }
@@ -638,7 +638,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
     // Count elements per row, column by column
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
       data_struct d(data);
-      wchar_t * stype = feature_stypes[j];
+      wchar_t * stype = const_cast<wchar_t *>(feature_stypes[j]);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
         if (is_dt_missing(&d, stype, i)) {
@@ -682,7 +682,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
   {
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
       data_struct d(data);
-      wchar_t * stype = feature_stypes[j];
+      wchar_t * stype = const_cast<wchar_t *>(feature_stypes[j]);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
         if (is_dt_missing(&d, feature_stypes[j][i], i)) {
