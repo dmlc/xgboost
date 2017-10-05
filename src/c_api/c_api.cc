@@ -20,7 +20,7 @@
 
 #include <sys/time.h>
 #include "dt.h" // For meaning of NAN for dt data
-
+#include <wchar.h>
 
 namespace xgboost {
 // booster wrapper for backward compatible reason.
@@ -541,26 +541,26 @@ class data_struct{
 float get_dt_value(data_struct *d, wchar_t * stype, int i)
 {
     // order of likelihood
-    if(strcmp(stype,"f4r")==0){
-     return static_cast<float>(d->*data_float[i]);
+    if(wcscmp(stype,"f4r")==0){
+     return static_cast<float>(*d->data_float[i]);
     }
-    else if(strcmp(stype,"f8r")==0){
-     return static_cast<float>(d->*data_double[i]);
+    else if(wcscmp(stype,"f8r")==0){
+     return static_cast<float>(*d->data_double[i]);
     }
-    else if(strcmp(stype,"i1b")==0){
-     return static_cast<float>(d->*data_bool[i]);
+    else if(wcscmp(stype,"i1b")==0){
+     return static_cast<float>(*d->data_bool[i]);
     }
-    else if(strcmp(stype,"i4i")==0){
-     return static_cast<float>(d->*data_int4[i]);
+    else if(wcscmp(stype,"i4i")==0){
+     return static_cast<float>(*d->data_int4[i]);
     }
-    else if(strcmp(stype,"i1i")==0){
-     return static_cast<float>(d->*data_int1[i]);
+    else if(wcscmp(stype,"i1i")==0){
+     return static_cast<float>(*d->data_int1[i]);
     }
-    else if(strcmp(stype,"i2i")==0){
-     return static_cast<float>(d->*data_int2[i]);
+    else if(wcscmp(stype,"i2i")==0){
+     return static_cast<float>(*d->data_int2[i]);
     }
-    else if(strcmp(stype,"i8i")==0){
-     return static_cast<float>(d->*data_int8[i]);
+    else if(wcscmp(stype,"i8i")==0){
+     return static_cast<float>(*d->data_int8[i]);
     }
     else{
         fprintf(stderr,"Unknown type %s", stype);
@@ -572,25 +572,25 @@ float get_dt_value(data_struct *d, wchar_t * stype, int i)
 bool is_dt_missing(data_struct *d, wchar_t * stype, int i)
 {
     // order of likelihood
-    if(strcmp(stype,"f4r")==0 && !std::isfinite(*d->data_float[i])){ // GETNA<float>
+    if(wcscmp(stype,"f4r")==0 && !std::isfinite(*d->data_float[i])){ // GETNA<float>
         return true;
     }
-    else if(strcmp(stype,"f8r")==0 && !std::isfinite(*d->data_double[i])){ // GETNA<double>
+    else if(wcscmp(stype,"f8r")==0 && !std::isfinite(*d->data_double[i])){ // GETNA<double>
         return true;
     }
-    else if(strcmp(stype,"i1b")==0 && *d->data_bool[i]==GETNA<bool>()){
+    else if(wcscmp(stype,"i1b")==0 && *d->data_bool[i]==GETNA<bool>()){
         return true;
     }
-    else if(strcmp(stype,"i4i")==0 && *d->data_int4[i]==GETNA<int32_t>()){
+    else if(wcscmp(stype,"i4i")==0 && *d->data_int4[i]==GETNA<int32_t>()){
         return true;
     }
-    else if(strcmp(stype,"i1i")==0 && *d->data_int1[i]==GETNA<int8_t>()){
+    else if(wcscmp(stype,"i1i")==0 && *d->data_int1[i]==GETNA<int8_t>()){
         return true;
     }
-    else if(strcmp(stype,"i2i")==0 && *d->data_int2[i]==GETNA<int16_t>()){
+    else if(wcscmp(stype,"i2i")==0 && *d->data_int2[i]==GETNA<int16_t>()){
         return true;
     }
-    else if(strcmp(stype,"i8i")==0 && *d->data_int8[i]==GETNA<int64_t>()){
+    else if(wcscmp(stype,"i8i")==0 && *d->data_int8[i]==GETNA<int64_t>()){
         return true;
     }
     else return false;
