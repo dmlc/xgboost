@@ -518,20 +518,20 @@ class data_struct{
   double ** data_double;
   float ** data_float;
   bool ** data_bool;
-  int8 ** data_int1;
-  int16 ** data_int2;
-  int32 ** data_int4;
-  int64 ** data_int8;
+  int8_t ** data_int1;
+  int16_t ** data_int2;
+  int32_t ** data_int4;
+  int64_t ** data_int8;
 
   public:
   data_struct(void **data):
-            data_bool(reinterpret_cast<const bool**>(data)),
-            data_int1(reinterpret_cast<const int8**>(data)),
-            data_int2(reinterpret_cast<const int16**>(data)),
-            data_int4(reinterpret_cast<const int32**>(data)),
-            data_int8(reinterpret_cast<const int64**>(data)),
-            data_double(reinterpret_cast<const double**>(data)),
-            data_float(reinterpret_cast<const float**>(data)){};
+            data_bool(reinterpret_cast<bool**>(data)),
+            data_int1(reinterpret_cast<int8_t**>(data)),
+            data_int2(reinterpret_cast<int16_t**>(data)),
+            data_int4(reinterpret_cast<int32_t**>(data)),
+            data_int8(reinterpret_cast<int64_t**>(data)),
+            data_double(reinterpret_cast<double**>(data)),
+            data_float(reinterpret_cast<float**>(data)){};
 //  ~data_struct() {}
 }
 
@@ -593,7 +593,7 @@ bool is_dt_missing(data_struct *d, int i)
         return true;
     }
     else return false;
-}
+};
 
 #define DEBUGTIME 0
 
