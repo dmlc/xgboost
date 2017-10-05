@@ -516,6 +516,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
 }
 
 class data_struct{
+  public:
   double ** data_double;
   float ** data_float;
   bool ** data_bool;
@@ -524,7 +525,6 @@ class data_struct{
   int32_t ** data_int4;
   int64_t ** data_int8;
 
-  public:
   data_struct(void **data):
             data_bool(reinterpret_cast<bool**>(data)),
             data_int1(reinterpret_cast<int8_t**>(data)),
@@ -541,25 +541,25 @@ class data_struct{
 float get_dt_value(data_struct *d, wchar_t * stype, int i)
 {
     // order of likelihood
-    if(wcscmp(stype,"f4r")==0){
+    if(wcscmp(stype,L"f4r")==0){
      return static_cast<float>(*d->data_float[i]);
     }
-    else if(wcscmp(stype,"f8r")==0){
+    else if(wcscmp(stype,L"f8r")==0){
      return static_cast<float>(*d->data_double[i]);
     }
-    else if(wcscmp(stype,"i1b")==0){
+    else if(wcscmp(stype,L"i1b")==0){
      return static_cast<float>(*d->data_bool[i]);
     }
-    else if(wcscmp(stype,"i4i")==0){
+    else if(wcscmp(stype,L"i4i")==0){
      return static_cast<float>(*d->data_int4[i]);
     }
-    else if(wcscmp(stype,"i1i")==0){
+    else if(wcscmp(stype,L"i1i")==0){
      return static_cast<float>(*d->data_int1[i]);
     }
-    else if(wcscmp(stype,"i2i")==0){
+    else if(wcscmp(stype,L"i2i")==0){
      return static_cast<float>(*d->data_int2[i]);
     }
-    else if(wcscmp(stype,"i8i")==0){
+    else if(wcscmp(stype,L"i8i")==0){
      return static_cast<float>(*d->data_int8[i]);
     }
     else{
@@ -572,25 +572,25 @@ float get_dt_value(data_struct *d, wchar_t * stype, int i)
 bool is_dt_missing(data_struct *d, wchar_t * stype, int i)
 {
     // order of likelihood
-    if(wcscmp(stype,"f4r")==0 && !std::isfinite(*d->data_float[i])){ // GETNA<float>
+    if(wcscmp(stype,L"f4r")==0 && !std::isfinite(*d->data_float[i])){ // GETNA<float>
         return true;
     }
-    else if(wcscmp(stype,"f8r")==0 && !std::isfinite(*d->data_double[i])){ // GETNA<double>
+    else if(wcscmp(stype,L"f8r")==0 && !std::isfinite(*d->data_double[i])){ // GETNA<double>
         return true;
     }
-    else if(wcscmp(stype,"i1b")==0 && *d->data_bool[i]==GETNA<bool>()){
+    else if(wcscmp(stype,L"i1b")==0 && *d->data_bool[i]==GETNA<bool>()){
         return true;
     }
-    else if(wcscmp(stype,"i4i")==0 && *d->data_int4[i]==GETNA<int32_t>()){
+    else if(wcscmp(stype,L"i4i")==0 && *d->data_int4[i]==GETNA<int32_t>()){
         return true;
     }
-    else if(wcscmp(stype,"i1i")==0 && *d->data_int1[i]==GETNA<int8_t>()){
+    else if(wcscmp(stype,L"i1i")==0 && *d->data_int1[i]==GETNA<int8_t>()){
         return true;
     }
-    else if(wcscmp(stype,"i2i")==0 && *d->data_int2[i]==GETNA<int16_t>()){
+    else if(wcscmp(stype,L"i2i")==0 && *d->data_int2[i]==GETNA<int16_t>()){
         return true;
     }
-    else if(wcscmp(stype,"i8i")==0 && *d->data_int8[i]==GETNA<int64_t>()){
+    else if(wcscmp(stype,L"i8i")==0 && *d->data_int8[i]==GETNA<int64_t>()){
         return true;
     }
     else return false;
@@ -638,9 +638,10 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
     // Count elements per row, column by column
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
       data_struct d(data);
+      wchar_t * stype = feature_stypes[j];
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        if (is_dt_missing(&d, feature_stypes[j][i], i)) {
+        if (is_dt_missing(&d, stype, i)) {
             // pass
         } else {
             mat.row_ptr_[i+1] ++;
@@ -681,13 +682,14 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
   {
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
       data_struct d(data);
+      wchar_t * stype = feature_stypes[j];
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
         if (is_dt_missing(&d, feature_stypes[j][i], i)) {
           // pass
         } else{
           mat.row_data_[mat.row_ptr_[i] + matj[i]] =
-              RowBatch::Entry(j, get_dt_value(&d, feature_stypes[j][i], i));
+              RowBatch::Entry(j, get_dt_value(&d, stype, i));
           matj[i]++;
         }
       }
