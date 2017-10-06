@@ -409,14 +409,6 @@ struct RTreeNodeStat {
 };
 
 // Used by TreeShap
-struct MaskElement {
-  unsigned index;
-  unsigned value;
-  MaskElement() {}
-  MaskElement(unsigned i, unsigned v) : index(i), value(v) {}
-};
-
-// Used by TreeShap
 // data we keep about our decision path
 // note that pweight is included for convenience and is not tied with the other attributes
 // the pweight of the i'th path element is the permuation weight of paths with i-1 ones in them
