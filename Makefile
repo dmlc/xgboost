@@ -218,6 +218,8 @@ pippack: clean_all
 	cp -r python-package xgboost-python
 	cp -r Makefile xgboost-python/xgboost/
 	cp -r make xgboost-python/xgboost/
+	cp -r cmake xgboost-python/xgboost/
+	cp -r CMakeLists.txt xgboost-python/xgboost/
 	cp -r src xgboost-python/xgboost/
 	cp -r include xgboost-python/xgboost/
 	cp -r dmlc-core xgboost-python/xgboost/

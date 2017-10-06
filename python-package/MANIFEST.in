@@ -1,7 +1,8 @@
-include *.md *.rst
+include *.md *.rst CMakeLists.txt
 recursive-include xgboost *
 recursive-include xgboost/include *
 recursive-include xgboost/src *
+recursive-include xgboost/cmake *
 recursive-include xgboost/make *
 recursive-include xgboost/rabit *
 recursive-include xgboost/lib *

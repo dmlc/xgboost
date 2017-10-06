@@ -7,24 +7,31 @@
 # See additional instruction in doc/build.md
 
 # note: this script is build for python package only, and it might have some filename
-#       conflict with build.sh which is for everything. 
+#       conflict with build.sh which is for everything.
 
 
 #pushd xgboost
 oldpath=`pwd`
 cd ./xgboost/
-#remove the pre-compiled .so and trigger the system's on-the-fly compiling
-make clean
-if make lib/libxgboost.so -j4; then
-    echo "Successfully build multi-thread xgboost"
+#If cmake is installed, prefer that build
+if which cmake >> /dev/null; then
+    cmake .
+    make || make USE_OPENMP=0
 else
-    echo "-----------------------------"
-    echo "Building multi-thread xgboost failed"
-    echo "Start to build single-thread xgboost"
+    #Use distributed makefile
+    #remove the pre-compiled .so and trigger the system's on-the-fly compiling
     make clean
-    make lib/libxgboost.so -j4 USE_OPENMP=0
-    echo "Successfully build single-thread xgboost"
-    echo "If you want multi-threaded version"
-    echo "See additional instructions in doc/build.md"
+    if make lib/libxgboost.so -j4; then
+        echo "Successfully build multi-thread xgboost"
+    else
+        echo "-----------------------------"
+        echo "Building multi-thread xgboost failed"
+        echo "Start to build single-thread xgboost"
+        make clean
+        make lib/libxgboost.so -j4 USE_OPENMP=0
+        echo "Successfully build single-thread xgboost"
+        echo "If you want multi-threaded version"
+        echo "See additional instructions in doc/build.md"
+    fi
 fi
 cd $oldpath

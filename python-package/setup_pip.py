@@ -42,7 +42,7 @@ LIB_PATH = libpath['find_lib_path']()
 # and be sure to test it firstly using "python setup.py register sdist upload -r pypitest"
 setup(name='xgboost',
       # version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
-      version='0.6a2',
+      version='0.6a3',
       description='XGBoost Python Package',
       install_requires=[
           'numpy',
