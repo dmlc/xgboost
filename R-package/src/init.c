@@ -68,6 +68,9 @@ static const R_CallMethodDef CallEntries[] = {
   {NULL, NULL, 0}
 };
 
+#if defined(_WIN32)
+__declspec(dllexport)
+#endif
 void R_init_xgboost(DllInfo *dll) {
   R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
   R_useDynamicSymbols(dll, FALSE);

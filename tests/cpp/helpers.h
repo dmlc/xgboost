@@ -36,4 +36,19 @@ xgboost::bst_float GetMetricEval(
   std::vector<xgboost::bst_float> labels,
   std::vector<xgboost::bst_float> weights = std::vector<xgboost::bst_float> ());
 
+/**
+ * \fn  std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns, float sparsity, int seed);
+ *
+ * \brief Creates dmatrix with uniform random data between 0-1.
+ *
+ * \param rows      The rows.
+ * \param columns   The columns.
+ * \param sparsity  The sparsity.
+ * \param seed      The seed.
+ *
+ * \return  The new d matrix.
+ */
+
+std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns,
+                                                float sparsity, int seed = 0);
 #endif

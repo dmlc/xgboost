@@ -32,5 +32,10 @@ DMLC_REGISTRY_LINK_TAG(updater_prune);
 DMLC_REGISTRY_LINK_TAG(updater_fast_hist);
 DMLC_REGISTRY_LINK_TAG(updater_histmaker);
 DMLC_REGISTRY_LINK_TAG(updater_sync);
+#ifdef XGBOOST_USE_CUDA
+DMLC_REGISTRY_LINK_TAG(updater_gpu);
+DMLC_REGISTRY_LINK_TAG(updater_gpu_hist);
+DMLC_REGISTRY_LINK_TAG(updater_gpu_hist_experimental);
+#endif
 }  // namespace tree
 }  // namespace xgboost

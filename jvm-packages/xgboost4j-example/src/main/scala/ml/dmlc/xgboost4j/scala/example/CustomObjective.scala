@@ -151,7 +151,8 @@ object CustomObjective {
     val round = 2
     // train a model
     val booster = XGBoost.train(trainMat, params.toMap, round, watches.toMap)
-    XGBoost.train(trainMat, params.toMap, round, watches.toMap, new LogRegObj, new EvalError)
+    XGBoost.train(trainMat, params.toMap, round, watches.toMap,
+      obj = new LogRegObj, eval = new EvalError)
   }
 
 }

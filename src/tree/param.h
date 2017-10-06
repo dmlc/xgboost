@@ -271,6 +271,7 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
     return -2.0 * (ret + p.reg_alpha * std::abs(w));
   }
 }
+
 // calculate weight given the statistics
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
@@ -290,6 +291,11 @@ XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
       dw = -p.max_delta_step;
   }
   return dw;
+}
+
+template <typename TrainingParams, typename gpair_t>
+XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, gpair_t sum_grad) {
+  return CalcWeight(p, sum_grad.GetGrad(), sum_grad.GetHess());
 }
 
 /*! \brief core statistics used for tree construction */
@@ -313,7 +319,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
    * \brief accumulate statistics
    * \param p the gradient pair
    */
-  inline void Add(bst_gpair p) { this->Add(p.grad, p.hess); }
+  inline void Add(bst_gpair p) { this->Add(p.GetGrad(), p.GetHess()); }
   /*!
    * \brief accumulate statistics, more complicated version
    * \param gpair the vector storing the gradient statistics
@@ -323,7 +329,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   inline void Add(const std::vector<bst_gpair>& gpair, const MetaInfo& info,
                   bst_uint ridx) {
     const bst_gpair& b = gpair[ridx];
-    this->Add(b.grad, b.hess);
+    this->Add(b.GetGrad(), b.GetHess());
   }
   /*! \brief calculate leaf weight */
   inline double CalcWeight(const TrainParam& param) const {

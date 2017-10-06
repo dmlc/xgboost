@@ -201,6 +201,12 @@ public class Booster implements Serializable, KryoSerializable {
    */
   public String evalSet(DMatrix[] evalMatrixs, String[] evalNames, IEvaluation eval)
           throws XGBoostError {
+    // Hopefully, a tiny redundant allocation wouldn't hurt.
+    return evalSet(evalMatrixs, evalNames, eval, new float[evalNames.length]);
+  }
+
+  public String evalSet(DMatrix[] evalMatrixs, String[] evalNames, IEvaluation eval,
+                        float[] metricsOut) throws XGBoostError {
     String evalInfo = "";
     for (int i = 0; i < evalNames.length; i++) {
       String evalName = evalNames[i];
@@ -208,6 +214,7 @@ public class Booster implements Serializable, KryoSerializable {
       float evalResult = eval.eval(predict(evalMat), evalMat);
       String evalMetric = eval.getMetric();
       evalInfo += String.format("\t%s-%s:%f", evalName, evalMetric, evalResult);
+      metricsOut[i] = evalResult;
     }
     return evalInfo;
   }

@@ -9,6 +9,8 @@
 namespace xgboost {
 namespace predictor {
 
+DMLC_REGISTRY_FILE_TAG(cpu_predictor);
+
 class CPUPredictor : public Predictor {
  protected:
   static bst_float PredValue(const RowBatch::Inst& inst,
@@ -28,19 +30,6 @@ class CPUPredictor : public Predictor {
     return psum;
   }
 
-  void InitOutPredictions(const MetaInfo& info,
-                          std::vector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const {
-    size_t n = model.param.num_output_group * info.num_row;
-    const std::vector<bst_float>& base_margin = info.base_margin;
-    out_preds->resize(n);
-    if (base_margin.size() != 0) {
-      CHECK_EQ(out_preds->size(), n);
-      std::copy(base_margin.begin(), base_margin.end(), out_preds->begin());
-    } else {
-      std::fill(out_preds->begin(), out_preds->end(), model.base_margin);
-    }
-  }
   // init thread buffers
   inline void InitThreadTemp(int nthread, int num_feature) {
     int prev_thread_temp_size = thread_temp.size();
@@ -104,33 +93,6 @@ class CPUPredictor : public Predictor {
         }
       }
     }
-  }
-
-  /**
-   * \fn  bool PredictFromCache(DMatrix* dmat, std::vector<bst_float>*
-   * out_preds, const gbm::GBTreeModel& model, unsigned ntree_limit = 0)
-   *
-   * \brief Attempt to predict from cache.
-   *
-   * \return  True if it succeeds, false if it fails.
-   */
-  bool PredictFromCache(DMatrix* dmat, std::vector<bst_float>* out_preds,
-                        const gbm::GBTreeModel& model,
-                        unsigned ntree_limit = 0) {
-    if (ntree_limit == 0 ||
-        ntree_limit * model.param.num_output_group >= model.trees.size()) {
-      auto it = cache_.find(dmat);
-      if (it != cache_.end()) {
-        std::vector<bst_float>& y = it->second.predictions;
-        if (y.size() != 0) {
-          out_preds->resize(y.size());
-          std::copy(y.begin(), y.end(), out_preds->begin());
-          return true;
-        }
-      }
-    }
-
-    return false;
   }
 
   void PredLoopInternal(DMatrix* dmat, std::vector<bst_float>* out_preds,

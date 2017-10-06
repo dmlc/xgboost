@@ -56,7 +56,7 @@ Parameters for Tree Booster
 * tree_method, string [default='auto']
   - The tree construction algorithm used in XGBoost(see description in the [reference paper](http://arxiv.org/abs/1603.02754))
   - Distributed and external memory version only support approximate algorithm.
-  - Choices: {'auto', 'exact', 'approx', 'hist'}
+  - Choices: {'auto', 'exact', 'approx', 'hist', 'gpu_exact', 'gpu_hist'}
     - 'auto': Use heuristic to choose faster one.
       - For small to medium dataset, exact greedy will be used.
       - For very large-dataset, approximate algorithm will be chosen.
@@ -65,6 +65,8 @@ Parameters for Tree Booster
     - 'exact': Exact greedy algorithm.
     - 'approx': Approximate greedy algorithm using sketching and histogram.
     - 'hist': Fast histogram optimized approximate greedy algorithm. It uses some performance improvements such as bins caching.
+	- 'gpu_exact': GPU implementation of exact algorithm. 
+	- 'gpu_hist': GPU implementation of hist algorithm. 
 * sketch_eps, [default=0.03]
   - This is only used for approximate greedy algorithm.
   - This roughly translated into ```O(1 / sketch_eps)``` number of bins.
@@ -75,7 +77,7 @@ Parameters for Tree Booster
 * scale_pos_weight, [default=1]
   - Control the balance of positive and negative weights, useful for unbalanced classes. A typical value to consider: sum(negative  cases) / sum(positive cases) See [Parameters Tuning](how_to/param_tuning.md) for more discussion. Also see Higgs Kaggle competition demo for examples: [R](../demo/kaggle-higgs/higgs-train.R ), [py1](../demo/kaggle-higgs/higgs-numpy.py ), [py2](../demo/kaggle-higgs/higgs-cv.py ), [py3](../demo/guide-python/cross_validation.py)
 * updater, [default='grow_colmaker,prune']
-  - A comma separated string defining the sequence of tree updaters to run, providing a modular way to construct and to modify the trees. This is an advanced parameter that is usually set automatically, depending on some other parameters. However, it could be also set explicitely by a user. The following updater plugins exist:
+  - A comma separated string defining the sequence of tree updaters to run, providing a modular way to construct and to modify the trees. This is an advanced parameter that is usually set automatically, depending on some other parameters. However, it could be also set explicitly by a user. The following updater plugins exist:
     - 'grow_colmaker': non-distributed column-based construction of trees.
     - 'distcol': distributed tree construction with column-based data splitting mode.
     - 'grow_histmaker': distributed tree construction with row-based data splitting based on global proposal of histogram counting.
@@ -107,6 +109,10 @@ Parameters for Tree Booster
   - This is only used if 'hist' is specified as `tree_method`.
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
+* predictor, [default='cpu_predictor']
+  - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
+    - 'cpu_predictor': Multicore CPU prediction algorithm.
+    - 'gpu_predictor': Prediction using GPU. Default for 'gpu_exact' and 'gpu_hist' tree method.
 
 Additional parameters for Dart Booster
 --------------------------------------

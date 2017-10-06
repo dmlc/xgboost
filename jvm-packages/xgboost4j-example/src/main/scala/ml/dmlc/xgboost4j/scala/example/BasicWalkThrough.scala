@@ -85,7 +85,7 @@ object BasicWalkThrough {
     val watches2 = new mutable.HashMap[String, DMatrix]
     watches2 += "train" -> trainMax2
     watches2 += "test" -> testMax2
-    val booster3 = XGBoost.train(trainMax2, params.toMap, round, watches2.toMap, null, null)
+    val booster3 = XGBoost.train(trainMax2, params.toMap, round, watches2.toMap)
     val predicts3 = booster3.predict(testMax2)
     println(checkPredicts(predicts, predicts3))
   }

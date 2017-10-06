@@ -37,9 +37,9 @@ dtest = xgb.DMatrix('test.svm.buffer')
 ```
 * To load a numpy array into ```DMatrix```:
 ```python
-data = np.random.rand(5,10) # 5 entities, each contains 10 features
-label = np.random.randint(2, size=5) # binary target
-dtrain = xgb.DMatrix( data, label=label)
+data = np.random.rand(5, 10)  # 5 entities, each contains 10 features
+label = np.random.randint(2, size=5)  # binary target
+dtrain = xgb.DMatrix(data, label=label)
 ```
 * To load a scpiy.sparse array into ```DMatrix```:
 ```python
@@ -49,16 +49,16 @@ dtrain = xgb.DMatrix(csr)
 * Saving ```DMatrix``` into a XGBoost binary file will make loading faster:
 ```python
 dtrain = xgb.DMatrix('train.svm.txt')
-dtrain.save_binary("train.buffer")
+dtrain.save_binary('train.buffer')
 ```
 * Missing values can be replaced by a default value in the ```DMatrix``` constructor:
 ```python
-dtrain = xgb.DMatrix(data, label=label, missing = -999.0)
+dtrain = xgb.DMatrix(data, label=label, missing=-999.0)
 ```
 * Weights can be set when needed:
 ```python
 w = np.random.rand(5, 1)
-dtrain = xgb.DMatrix(data, label=label, missing = -999.0, weight=w)
+dtrain = xgb.DMatrix(data, label=label, missing=-999.0, weight=w)
 ```
 
 Setting Parameters
@@ -66,7 +66,7 @@ Setting Parameters
 XGBoost can use either a list of pairs or a dictionary to set [parameters](../parameter.md). For instance:
 * Booster parameters
 ```python
-param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic' }
+param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
 param['nthread'] = 4
 param['eval_metric'] = 'auc'
 ```
@@ -81,7 +81,7 @@ param['eval_metric'] = ['auc', 'ams@0']
 
 * Specify validations set to watch performance
 ```python
-evallist  = [(dtest,'eval'), (dtrain,'train')]
+evallist = [(dtest, 'eval'), (dtrain, 'train')]
 ```
 
 Training
@@ -90,7 +90,7 @@ Training
 Training a model requires a parameter list and data set.
 ```python
 num_round = 10
-bst = xgb.train( plst, dtrain, num_round, evallist )
+bst = xgb.train(plst, dtrain, num_round, evallist)
 ```
 After training, the model can be saved.
 ```python
@@ -101,12 +101,12 @@ The model and its feature map can also be dumped to a text file.
 # dump model
 bst.dump_model('dump.raw.txt')
 # dump model with feature map
-bst.dump_model('dump.raw.txt','featmap.txt')
+bst.dump_model('dump.raw.txt', 'featmap.txt')
 ```
 A saved model can be loaded as follows:
 ```python
-bst = xgb.Booster({'nthread':4}) #init model
-bst.load_model("model.bin") # load data
+bst = xgb.Booster({'nthread': 4})  # init model
+bst.load_model('model.bin')  # load data
 ```
 
 Early Stopping
@@ -134,7 +134,7 @@ ypred = bst.predict(dtest)
 
 If early stopping is enabled during training, you can get predictions from the best iteration with `bst.best_ntree_limit`:
 ```python
-ypred = bst.predict(dtest,ntree_limit=bst.best_ntree_limit)
+ypred = bst.predict(dtest, ntree_limit=bst.best_ntree_limit)
 ```
 
 Plotting

@@ -55,7 +55,7 @@ class DataBatch {
       while (base.hasNext() && batch.size() < batchSize) {
         LabeledPoint labeledPoint = base.next();
         batch.add(labeledPoint);
-        numElem += labeledPoint.values.length;
+        numElem += labeledPoint.values().length;
         numRows++;
       }
 
@@ -63,27 +63,30 @@ class DataBatch {
       float[] label = new float[numRows];
       int[] featureIndex = new int[numElem];
       float[] featureValue = new float[numElem];
+      float[] weight = new float[numRows];
 
       int offset = 0;
       for (int i = 0; i < batch.size(); i++) {
         LabeledPoint labeledPoint = batch.get(i);
         rowOffset[i] = offset;
-        label[i] = labeledPoint.label;
-        if (labeledPoint.indices != null) {
-          System.arraycopy(labeledPoint.indices, 0, featureIndex, offset,
-                  labeledPoint.indices.length);
+        label[i] = labeledPoint.label();
+        weight[i] = labeledPoint.weight();
+        if (labeledPoint.indices() != null) {
+          System.arraycopy(labeledPoint.indices(), 0, featureIndex, offset,
+                  labeledPoint.indices().length);
         } else {
-          for (int j = 0; j < labeledPoint.values.length; j++) {
+          for (int j = 0; j < labeledPoint.values().length; j++) {
             featureIndex[offset + j] = j;
           }
         }
 
-        System.arraycopy(labeledPoint.values, 0, featureValue, offset, labeledPoint.values.length);
-        offset += labeledPoint.values.length;
+        System.arraycopy(labeledPoint.values(), 0, featureValue, offset,
+                labeledPoint.values().length);
+        offset += labeledPoint.values().length;
       }
 
       rowOffset[batch.size()] = offset;
-      return new DataBatch(rowOffset, null, label, featureIndex, featureValue);
+      return new DataBatch(rowOffset, weight, label, featureIndex, featureValue);
     }
 
     @Override

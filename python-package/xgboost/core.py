@@ -184,7 +184,13 @@ Did not expect the data types in fields """
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
-        feature_names = data.columns.format()
+        if hasattr(data.columns, 'to_frame'):  # MultiIndex
+            feature_names = [
+                ' '.join(map(str, i))
+                for i in data.columns
+            ]
+        else:
+            feature_names = data.columns.format()
 
     if feature_types is None:
         feature_types = [PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes]
@@ -357,7 +363,9 @@ class DMatrix(object):
                 nthread))
 
     def __del__(self):
-        _check_call(_LIB.XGDMatrixFree(self.handle))
+        if self.handle is not None:
+            _check_call(_LIB.XGDMatrixFree(self.handle))
+            self.handle = None
 
     def get_float_info(self, field):
         """Get float property from the DMatrix.
@@ -732,7 +740,9 @@ class Booster(object):
             self.load_model(model_file)
 
     def __del__(self):
-        _LIB.XGBoosterFree(self.handle)
+        if self.handle is not None:
+            _check_call(_LIB.XGBoosterFree(self.handle))
+            self.handle = None
 
     def __getstate__(self):
         # can't pickle ctypes pointers

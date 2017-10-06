@@ -272,6 +272,10 @@ class TreeModel {
   inline const Node& operator[](int nid) const {
     return nodes[nid];
   }
+
+  /*! \brief get const reference to nodes */
+  inline const std::vector<Node>& GetNodes() const { return nodes; }
+
   /*! \brief get node statistics given nid */
   inline NodeStat& stat(int nid) {
     return stats[nid];
