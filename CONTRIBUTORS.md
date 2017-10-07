@@ -17,6 +17,10 @@ Committers are people who have made substantial contribution to the project and 
   - Micheal is a lawyer, data scientist in France, he is the creator of xgboost interactive analysis module in R.
 * [Yuan Tang](https://github.com/terrytangyuan)
   - Yuan is a data scientist in Chicago, US. He contributed mostly in R and Python packages.
+* [Nan Zhu](https://github.com/CodingCat)
+  - Nan is a software engineer in Microsoft. He contributed mostly in JVM packages.
+* [Sergei Lebedev](https://github.com/superbobry)
+  - Serget is a software engineer in Criteo. He contributed mostly in JVM packages.
 
 Become a Committer
 ------------------
@@ -67,3 +71,4 @@ List of Contributors
   - Rory is the author of the GPU plugin and also contributed the cmake build system and windows continuous integration
 * [Gideon Whitehead](https://github.com/gaw89)
 * [Yi-Lin Juang](https://github.com/frankyjuang)
+* [Andrew Hannigan](https://github.com/andrewhannigan)

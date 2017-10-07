@@ -110,6 +110,7 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
         .add_enum("hist", 3)
         .add_enum("gpu_exact", 4)
         .add_enum("gpu_hist", 5)
+        .add_enum("gpu_hist_experimental", 6)
         .describe("Choice of tree construction method.");
     DMLC_DECLARE_FIELD(test_flag).set_default("").describe(
         "Internal test flag");
@@ -174,6 +175,13 @@ class LearnerImpl : public Learner {
     } else if (tparam.tree_method == 5) {
       if (cfg_.count("updater") == 0) {
         cfg_["updater"] = "grow_gpu_hist";
+      }
+      if (cfg_.count("predictor") == 0) {
+        cfg_["predictor"] = "gpu_predictor";
+      }
+    } else if (tparam.tree_method == 6) {
+      if (cfg_.count("updater") == 0) {
+        cfg_["updater"] = "grow_gpu_hist_experimental,prune";
       }
       if (cfg_.count("predictor") == 0) {
         cfg_["predictor"] = "gpu_predictor";

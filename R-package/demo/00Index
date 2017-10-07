@@ -10,3 +10,4 @@ predict_leaf_indices            Predicting the corresponding leaves
 early_stopping                  Early Stop in training
 poisson_regression              Poisson Regression on count data
 tweedie_regression              Tweddie Regression
+gpu_accelerated                 GPU-accelerated tree building algorithms

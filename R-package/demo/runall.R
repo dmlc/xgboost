@@ -11,3 +11,4 @@ demo(early_stopping)
 demo(poisson_regression)
 demo(caret_wrapper)
 demo(tweedie_regression)
+#demo(gpu_accelerated) # can only run when built with GPU support

@@ -64,7 +64,7 @@ public class XGBoost {
           Map<String, DMatrix> watches,
           IObjective obj,
           IEvaluation eval) throws XGBoostError {
-    return train(dtrain, params, round, watches, null, obj, eval);
+    return train(dtrain, params, round, watches, null, obj, eval, 0);
   }
 
   public static Booster train(
@@ -74,7 +74,8 @@ public class XGBoost {
           Map<String, DMatrix> watches,
           float[][] metrics,
           IObjective obj,
-          IEvaluation eval) throws XGBoostError {
+          IEvaluation eval,
+          int earlyStoppingRound) throws XGBoostError {
 
     //collect eval matrixs
     String[] evalNames;
@@ -89,6 +90,7 @@ public class XGBoost {
 
     evalNames = names.toArray(new String[names.size()]);
     evalMats = mats.toArray(new DMatrix[mats.size()]);
+    metrics = metrics == null ? new float[evalNames.length][round] : metrics;
 
     //collect all data matrixs
     DMatrix[] allMats;
@@ -120,19 +122,27 @@ public class XGBoost {
 
       //evaluation
       if (evalMats.length > 0) {
+        float[] metricsOut = new float[evalMats.length];
         String evalInfo;
         if (eval != null) {
-          evalInfo = booster.evalSet(evalMats, evalNames, eval);
+          evalInfo = booster.evalSet(evalMats, evalNames, eval, metricsOut);
         } else {
-          if (metrics == null) {
-            evalInfo = booster.evalSet(evalMats, evalNames, iter);
-          } else {
-            float[] m = new float[evalMats.length];
-            evalInfo = booster.evalSet(evalMats, evalNames, iter, m);
-            for (int i = 0; i < m.length; i++) {
-              metrics[i][iter] = m[i];
-            }
-          }
+          evalInfo = booster.evalSet(evalMats, evalNames, iter, metricsOut);
+        }
+        for (int i = 0; i < metricsOut.length; i++) {
+          metrics[i][iter] = metricsOut[i];
+        }
+
+        boolean decreasing = true;
+        float[] criterion = metrics[metrics.length - 1];
+        for (int shift = 0; shift < Math.min(iter, earlyStoppingRound) - 1; shift++) {
+          decreasing &= criterion[iter - shift] <= criterion[iter - shift - 1];
+        }
+
+        if (!decreasing) {
+          Rabit.trackerPrint(String.format(
+                  "early stopping after %d decreasing rounds", earlyStoppingRound));
+          break;
         }
         if (Rabit.getRank() == 0) {
           Rabit.trackerPrint(evalInfo + '\n');
