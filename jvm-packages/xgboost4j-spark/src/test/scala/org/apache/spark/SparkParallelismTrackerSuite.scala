@@ -14,9 +14,8 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.scala.spark
+package org.apache.spark
 
-import org.apache.spark.{SparkConf, SparkContext, SparkException, SparkParallelismTracker}
 import org.apache.spark.rdd.RDD
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
@@ -35,7 +34,7 @@ class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
   test("tracker should not affect execution result") {
     val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
-    val tracker = new SparkParallelismTracker(sc, 1000, nWorkers)
+    val tracker = new SparkParallelismTracker(sc, 10000, nWorkers)
     val disabledTracker = new SparkParallelismTracker(sc, 0, nWorkers)
     assert(tracker.execute(rdd.sum()) == rdd.sum())
     assert(disabledTracker.execute(rdd.sum()) == rdd.sum())
