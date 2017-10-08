@@ -357,20 +357,47 @@ struct DeviceShard {
     hist.Reset();
   }
 
-  __device__ void IncrementHist(bst_gpair gpair, int gidx,
-                                bst_gpair_integer* node_hist) const {
-    auto dst_ptr =
-        reinterpret_cast<unsigned long long int*>(&node_hist[gidx]);  // NOLINT
-    bst_gpair_integer tmp(gpair.GetGrad(), gpair.GetHess());
-    auto src_ptr = reinterpret_cast<bst_gpair_integer::value_t*>(&tmp);
+  __device__ void IncrementHist(bst_gpair gpair, int gidx, int null_gidx_value,
+                                bst_gpair_integer* node_hist) {
 
-    atomicAdd(dst_ptr,
-              static_cast<unsigned long long int>(*src_ptr));  // NOLINT
-    atomicAdd(dst_ptr + 1,
-              static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
+    if(gidx !=null_gidx_value){
+      auto dst_ptr =
+        reinterpret_cast<unsigned long long int*>(&node_hist[gidx]);  // NOLINT
+      bst_gpair_integer tmp(gpair.GetGrad(), gpair.GetHess());
+      auto src_ptr = reinterpret_cast<bst_gpair_integer::value_t*>(&tmp);
+
+      atomicAdd(dst_ptr,
+                static_cast<unsigned long long int>(*src_ptr));  // NOLINT
+      atomicAdd(dst_ptr + 1,
+                static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
+    }
   }
 
-  void BuildHist(int nidx) {
+
+  void BuildHistLeftRight(int nidx_parent, int nidx_left, int nidx_right) {
+
+    auto segment_left = ridx_segments[nidx_left];
+    auto segment_right = ridx_segments[nidx_right];
+
+    int nidx_histogram;
+    int nidx_subtraction;
+
+    if(segment_left.second - segment_left.first >= segment_right.second - segment_right.first){
+      nidx_subtraction = nidx_left;
+      nidx_histogram = nidx_right;
+    }
+    else{
+      nidx_subtraction = nidx_right;
+      nidx_histogram = nidx_left;
+    }
+
+    BuildHist(nidx_histogram);
+
+    SubtractionTrick(nidx_parent, nidx_histogram, nidx_subtraction);
+    
+  }
+  void BuildHist(int nidx){
+    auto segment = ridx_segments[nidx];
     hist.AddNode(nidx);
     auto d_node_hist = hist.node_map[nidx];
     auto d_gidx = gidx;
@@ -378,17 +405,32 @@ struct DeviceShard {
     auto d_gpair = gpair.data();
     auto row_stride = this->row_stride;
     auto null_gidx_value = this->null_gidx_value;
-    auto segment = ridx_segments[nidx];
     auto n_elements = (segment.second - segment.first) * row_stride;
 
     dh::launch_n(device_idx, n_elements, [=] __device__(size_t idx) {
-      int relative_ridx = d_ridx[(idx / row_stride) + segment.first];
-      int gidx = d_gidx[relative_ridx * row_stride + idx % row_stride];
-      if (gidx != null_gidx_value) {
-        bst_gpair gpair = d_gpair[relative_ridx];
-        IncrementHist(gpair, gidx, d_node_hist);
-      }
+        auto hist_ptr = use_shared ? shared_ptr : d_node_hist;
+        // 0-initialize shared memory for histograms
+        int relative_ridx = d_ridx[(idx / row_stride) + segment.first];
+        int gidx = d_gidx[relative_ridx * row_stride + idx % row_stride];
+        if (gidx != null_gidx_value) {
+          bst_gpair gpair = d_gpair[relative_ridx];
+          IncrementHist(gpair, gidx, null_gidx_value, hist_ptr);
+        }
+        // if shared, copy shared back to global
     });
+
+  }
+  void SubtractionTrick(int nidx_parent, int nidx_histogram, int nidx_subtraction) {
+    hist.AddNode(nidx_subtraction);
+    
+    auto d_node_hist_parent = hist.node_map[nidx_parent];
+    auto d_node_hist_histogram = hist.node_map[nidx_histogram];
+    auto d_node_hist_subtraction = hist.node_map[nidx_subtraction];
+
+    dh::launch_n(device_idx, hist.n_bins, [=] __device__(size_t idx) {
+        d_node_hist_subtraction[idx] = d_node_hist_parent[idx] - d_node_hist_histogram[idx];
+    });
+
   }
   void SortPosition(const std::pair<bst_uint, bst_uint>& segment, int left_nidx,
                     int right_nidx) {
@@ -489,9 +531,9 @@ class GPUHistMakerExperimental : public TreeUpdater {
     }
   }
 
-  void BuildHist(int nidx) {
+  void BuildHistLeftRight(int nidx_parent, int nidx_left, int nidx_right) {
     for (auto& shard : shards) {
-      shard.BuildHist(nidx);
+      shard.BuildHistLeftRight(nidx_parent, nidx_left, nidx_right);
     }
   }
 
@@ -542,12 +584,13 @@ class GPUHistMakerExperimental : public TreeUpdater {
 
   void InitRoot(const std::vector<bst_gpair>& gpair, RegTree* p_tree) {
     int root_nidx = 0;
-    BuildHist(root_nidx);
 
-    // TODO(rory): support sub sampling
-    // TODO(rory): not asynchronous
     bst_gpair sum_gradient;
     for (auto& shard : shards) {
+      shard.BuildHist(root_nidx);
+
+      // TODO(rory): support sub sampling
+      // TODO(rory): not asynchronous
       sum_gradient += thrust::reduce(shard.gpair.tbegin(), shard.gpair.tend());
     }
 
@@ -742,8 +785,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
       if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
                                     num_leaves)) {
         monitor.Start("BuildHist");
-        this->BuildHist(left_child_nidx);
-        this->BuildHist(right_child_nidx);
+        this->BuildHistLeftRight(candidate.nid, left_child_nidx, right_child_nidx);
         monitor.Stop("BuildHist");
 
         monitor.Start("EvaluateSplits");
