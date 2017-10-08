@@ -571,6 +571,8 @@ float get_dt_value(data_struct *d, wchar_t * stype, int i)
 
 bool is_dt_missing(data_struct *d, wchar_t * stype, int i)
 {
+    return false;
+    fwprintf(stderr,L"stype = %s", stype);fflush(stderr);
     // order of likelihood
     if(wcscmp(stype,L"f4r")==0 && !std::isfinite(*d->data_float[i])){ // GETNA<float>
         return true;
@@ -637,10 +639,12 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
     int ithread  = omp_get_thread_num();
     // Count elements per row, column by column
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+      fprintf(stderr,"j=%zu\n",j); fflush(stderr);
       data_struct d(data);
       wchar_t * stype = const_cast<wchar_t *>(feature_stypes[j]);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
+        fprintf(stderr,"i=%zu\n",i); fflush(stderr);
         if (is_dt_missing(&d, stype, i)) {
             // pass
         } else {

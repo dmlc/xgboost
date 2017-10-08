@@ -37,7 +37,7 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
 
     do_dt = True
     do_ccont = True
-    do_nondt = True
+    do_nondt = False # True
 
     tmp = time.time()
     if do_ccont:
