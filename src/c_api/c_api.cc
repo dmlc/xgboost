@@ -515,84 +515,129 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
   API_END();
 }
 
-class data_struct{
-  public:
-  double ** data_double;
-  float ** data_float;
-  bool ** data_bool;
-  int8_t ** data_int1;
-  int16_t ** data_int2;
-  int32_t ** data_int4;
-  int64_t ** data_int8;
 
-  data_struct(void **data):
-            data_bool(reinterpret_cast<bool**>(data)),
-            data_int1(reinterpret_cast<int8_t**>(data)),
-            data_int2(reinterpret_cast<int16_t**>(data)),
-            data_int4(reinterpret_cast<int32_t**>(data)),
-            data_int8(reinterpret_cast<int64_t**>(data)),
-            data_double(reinterpret_cast<double**>(data)),
-            data_float(reinterpret_cast<float**>(data)){};
-//  ~data_struct() {}
+
+class datacol_struct{
+  public:
+  double * datacol_double;
+  float * datacol_float;
+  bool * datacol_bool;
+  int8_t * datacol_int1;
+  int16_t * datacol_int2;
+  int32_t * datacol_int4;
+  int64_t * datacol_int8;
+  wchar_t * stype;
+  int datacoltype;
+  int whichj;
+// const double * datacol = reinterpret_cast<const double**>(data)[j];
+  datacol_struct(void **data, const wchar_t ** feature_stypes, int j):
+            datacol_bool(reinterpret_cast<bool**>(data)[j]),
+            datacol_int1(reinterpret_cast<int8_t**>(data)[j]),
+            datacol_int2(reinterpret_cast<int16_t**>(data)[j]),
+            datacol_int4(reinterpret_cast<int32_t**>(data)[j]),
+            datacol_int8(reinterpret_cast<int64_t**>(data)[j]),
+            datacol_double(reinterpret_cast<double**>(data)[j]),
+            datacol_float(reinterpret_cast<float**>(data)[j]){
+
+                whichj = j;
+
+                stype = const_cast<wchar_t *>(feature_stypes[j]);
+
+                if(wcscmp(stype,L"f4r")==0){
+                   datacoltype = 0;
+                }
+                else if(wcscmp(stype,L"f8r")==0){
+                   datacoltype = 1;
+                }
+                else if(wcscmp(stype,L"i1b")==0){
+                   datacoltype = 2;
+                }
+                else if(wcscmp(stype,L"i4i")==0){
+                   datacoltype = 3;
+                }
+                else if(wcscmp(stype,L"i1i")==0){
+                   datacoltype = 4;
+                }
+                else if(wcscmp(stype,L"i2i")==0){
+                   datacoltype = 5;
+                }
+                else if(wcscmp(stype,L"i8i")==0){
+                   datacoltype = 6;
+                }
+                else{
+                    fwprintf(stderr,L"Unknown type %s", stype);
+                    exit(1);
+                }
+//                fprintf(stderr,"chose datacoltype=%d for j=%d\n",datacoltype,j); fflush(stderr);
+            };
+//  ~datacol_struct() {}
 };
 
 // map dt stype string to C ctype for casting purposes
 // {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i': 'int', 'f4r': 'float', 'f8r': 'float'}
-float get_dt_value(data_struct *d, wchar_t * stype, int i)
+float get_dt_value(datacol_struct *d, int i)
 {
+//    fprintf(stderr,"using2 datacoltype=%d for i=%d\n",d->datacoltype,i); fflush(stderr);
+
     // order of likelihood
-    if(wcscmp(stype,L"f4r")==0){
-     return static_cast<float>(*d->data_float[i]);
-    }
-    else if(wcscmp(stype,L"f8r")==0){
-     return static_cast<float>(*d->data_double[i]);
-    }
-    else if(wcscmp(stype,L"i1b")==0){
-     return static_cast<float>(*d->data_bool[i]);
-    }
-    else if(wcscmp(stype,L"i4i")==0){
-     return static_cast<float>(*d->data_int4[i]);
-    }
-    else if(wcscmp(stype,L"i1i")==0){
-     return static_cast<float>(*d->data_int1[i]);
-    }
-    else if(wcscmp(stype,L"i2i")==0){
-     return static_cast<float>(*d->data_int2[i]);
-    }
-    else if(wcscmp(stype,L"i8i")==0){
-     return static_cast<float>(*d->data_int8[i]);
-    }
-    else{
-        fwprintf(stderr,L"Unknown type %s", stype);
-        exit(1);
+    switch(d->datacoltype){
+        case 0:
+          return static_cast<float>(d->datacol_float[i]);
+          break;
+        case 1:
+          return static_cast<float>(d->datacol_double[i]);
+          break;
+        case 2:
+          return static_cast<float>(d->datacol_bool[i]);
+          break;
+        case 3:
+          return static_cast<float>(d->datacol_int4[i]);
+          break;
+        case 4:
+          return static_cast<float>(d->datacol_int1[i]);
+          break;
+        case 5:
+          return static_cast<float>(d->datacol_int2[i]);
+          break;
+        case 6:
+          return static_cast<float>(d->datacol_int8[i]);
+          break;
+        default:
+          wprintf(L"Unknown type %s", d->stype);
+          fprintf(stderr,"Unknown datacoltype=%d\n",d->datacoltype);
+          fflush(stderr);
+          fflush(stdout);
+          exit(1);
     }
 }
 
 
-bool is_dt_missing(data_struct *d, wchar_t * stype, int i)
+bool is_dt_missing(datacol_struct *d, int i)
 {
-    return false;
-    fwprintf(stderr,L"stype = %s", stype);fflush(stderr);
+//    fprintf(stderr,"using1 datacoltype=%d for i=%d result=%g\n",d->datacoltype,i, d->datacol_double[i]); fflush(stderr);
+
+    // return false;
+    // fwprintf(stderr,L"stype = %s", stype);fflush(stderr);
     // order of likelihood
-    if(wcscmp(stype,L"f4r")==0 && !std::isfinite(*d->data_float[i])){ // GETNA<float>
+    if(d->datacoltype==0 && !std::isfinite(d->datacol_float[i])){ // GETNA<float>
         return true;
     }
-    else if(wcscmp(stype,L"f8r")==0 && !std::isfinite(*d->data_double[i])){ // GETNA<double>
+    else if(d->datacoltype==1 && !std::isfinite(d->datacol_double[i])){ // GETNA<double>
         return true;
     }
-    else if(wcscmp(stype,L"i1b")==0 && *d->data_bool[i]==GETNA<bool>()){
+    else if(d->datacoltype==2 && d->datacol_bool[i]==GETNA<bool>()){
         return true;
     }
-    else if(wcscmp(stype,L"i4i")==0 && *d->data_int4[i]==GETNA<int32_t>()){
+    else if(d->datacoltype==3 && d->datacol_int4[i]==GETNA<int32_t>()){
         return true;
     }
-    else if(wcscmp(stype,L"i1i")==0 && *d->data_int1[i]==GETNA<int8_t>()){
+    else if(d->datacoltype==4 && d->datacol_int1[i]==GETNA<int8_t>()){
         return true;
     }
-    else if(wcscmp(stype,L"i2i")==0 && *d->data_int2[i]==GETNA<int16_t>()){
+    else if(d->datacoltype==5 && d->datacol_int2[i]==GETNA<int16_t>()){
         return true;
     }
-    else if(wcscmp(stype,L"i8i")==0 && *d->data_int8[i]==GETNA<int64_t>()){
+    else if(d->datacoltype==6 && d->datacol_int8[i]==GETNA<int64_t>()){
         return true;
     }
     else return false;
@@ -620,6 +665,28 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
   // copy pointer
   void ** data = const_cast<void **>(data0);
 
+  if(0){ // DEBUG
+    int j=0;
+    int i=0;
+    double * datacol = reinterpret_cast<double**>(data)[j];
+    fprintf(stderr,"datacol00=%g\n",datacol[i]);
+    fprintf(stderr,"HERE1\n");
+    wprintf(L"stype0=%s\n",feature_stypes[j]);
+    if(wcscmp(feature_stypes[j],L"f8r")==0){
+       fprintf(stderr,"HEREINSIDE1\n");
+    }
+    else fprintf(stderr,"HEREINSIDE2\n");
+    if(wcscmp(feature_stypes[j],L"f4r")==0){
+       fprintf(stderr,"HEREINSIDE1f4r\n");
+    }
+    else fprintf(stderr,"HEREINSIDE2f4r\n");
+    wprintf(L"stype0b=%s\n",feature_stypes[j+1]);
+    fprintf(stderr,"HERE2\n");
+    fwprintf(stderr,L"HERE3\n");
+    wprintf(L"HERE4\n");
+    fflush(stderr);
+    exit(0);
+  }
 
   API_BEGIN();
   const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
@@ -639,19 +706,17 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
     int ithread  = omp_get_thread_num();
     // Count elements per row, column by column
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
-      fprintf(stderr,"j=%zu\n",j); fflush(stderr);
-      data_struct d(data);
-      wchar_t * stype = const_cast<wchar_t *>(feature_stypes[j]);
+      //fprintf(stderr,"j=%zu\n",j); fflush(stderr);
+      datacol_struct d(data, feature_stypes, j);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        fprintf(stderr,"i=%zu\n",i); fflush(stderr);
-        if (is_dt_missing(&d, stype, i)) {
+        //fprintf(stderr,"i=%zu\n",i); fflush(stderr);
+        if (is_dt_missing(&d, i)) {
             // pass
         } else {
             mat.row_ptr_[i+1] ++;
         }
       }
-      data+=1; // update pointer position to array of pointers
     }
   }
   #if(DEBUGTIME)
@@ -685,19 +750,17 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
 #pragma omp parallel num_threads(nthread)
   {
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
-      data_struct d(data);
-      wchar_t * stype = const_cast<wchar_t *>(feature_stypes[j]);
+      datacol_struct d(data, feature_stypes, j);
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        if (is_dt_missing(&d, stype, i)) {
+        if (is_dt_missing(&d, i)) {
           // pass
         } else{
           mat.row_data_[mat.row_ptr_[i] + matj[i]] =
-              RowBatch::Entry(j, get_dt_value(&d, stype, i));
+              RowBatch::Entry(j, get_dt_value(&d, i));
           matj[i]++;
         }
       }
-      data+=1; // update pointer position to array of pointers
     }
   }
 
