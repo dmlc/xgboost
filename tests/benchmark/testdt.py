@@ -21,6 +21,11 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     print("{}/{} test/train split".format(args.test_size, 1.0 - args.test_size))
     tmp = time.time()
     X, y = make_classification(args.rows, n_features=args.columns, random_state=7)
+    aa = np.random.rand(X.shape[0],X.shape[1])
+    fraction_missing = 0.1
+    X[aa<fraction_missing]=np.NaN
+    print("Number of Nans: %d" % (np.isnan(X).sum()))
+
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size, random_state=7)
     print ("Generate Time: %s seconds" % (str(time.time() - tmp)))
 
