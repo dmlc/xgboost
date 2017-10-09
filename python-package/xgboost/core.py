@@ -330,7 +330,7 @@ class DMatrix(object):
             self.handle = None
             return
 
-        if isinstance(data, dt.DataTable):
+        if HAVE_DT and isinstance(data, dt.DataTable):
             data, feature_names, feature_types, feature_stypes, self.nrows, self.ncols =\
                 _maybe_dt_data(data, feature_names, feature_types)
             label  = _maybe_dt_label(label)
@@ -1363,7 +1363,7 @@ class Booster(object):
         if self.feature_names is None:
             self.feature_names = data.feature_names
             self.feature_types = data.feature_types
-        elif isinstance(data, dt.DataTable):
+        elif HAVE_DT and isinstance(data, dt.DataTable):
             # FIXME: no check for now
             pass
         else:
