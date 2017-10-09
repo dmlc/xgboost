@@ -137,6 +137,21 @@ inline int get_device_idx(int gpu_id) {
   return (std::abs(gpu_id) + 0) % dh::n_visible_devices();
 }
 
+inline void check_compute_capability(){
+  int n_devices = n_visible_devices();
+  for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
+
+    cudaDeviceProp prop;
+    safe_cuda(cudaGetDeviceProperties(&prop, d_idx));
+    std::ostringstream oss;
+    oss << "CUDA Capability Major/Minor version number: " << prop.major
+        << "." << prop.minor << " is insufficient.  Need >=3.5";
+    int failed = prop.major < 3 || prop.major == 3 && prop.minor < 5;
+    if(failed) LOG(WARNING) << oss.str() << " for device: " << d_idx;
+  }
+}  
+  
+
 /*
  * Range iterator
  */
