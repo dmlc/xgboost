@@ -11,13 +11,17 @@
 #include "param.h"
 #include "updater_gpu_common.cuh"
 
+#define USE_NCCL 1
+
 namespace xgboost {
 namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 
 typedef bst_gpair_integer gpair_sum_t;
+#if USE_NCCL
 static const ncclDataType_t nccl_sum_t = ncclInt64;
+#endif
 
 // Helper for explicit template specialisation
 template <int N>
@@ -245,6 +249,7 @@ class GPUHistMaker : public TreeUpdater {
         p_last_fmat_(nullptr),
         prediction_cache_initialised(false) {}
   ~GPUHistMaker() {
+#if USE_NCCL
     if (initialised) {
       for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
         ncclCommDestroy(comms[d_idx]);
@@ -259,6 +264,7 @@ class GPUHistMaker : public TreeUpdater {
         }
       }
     }
+#endif
   }
   void Init(
       const std::vector<std::pair<std::string, std::string>>& args) override {
@@ -270,6 +276,12 @@ class GPUHistMaker : public TreeUpdater {
     this->param = param;
 
     CHECK(param.n_gpus != 0) << "Must have at least one device";
+
+#if !USE_NCCL
+    param.n_gpus = 1;
+#endif
+
+
   }
   void Update(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
@@ -310,6 +322,7 @@ class GPUHistMaker : public TreeUpdater {
         dList[d_idx] = device_idx;
       }
 
+#if USE_NCCL
       // initialize nccl
 
       comms.resize(n_devices);
@@ -359,7 +372,7 @@ class GPUHistMaker : public TreeUpdater {
                                              // (One communicator per
                                              // process)
       }
-
+#endif
       is_dense = info->num_nonzero == info->num_col * info->num_row;
       dh::Timer time0;
       hmat_.Init(&fmat, param.max_bin);
@@ -606,6 +619,7 @@ class GPUHistMaker : public TreeUpdater {
 
     //  time.printElapsed("Add Time");
 
+#if USE_NCCL
     // (in-place) reduce each element of histogram (for only current level)
     // across multiple gpus
     // TODO(JCM): use out of place with pre-allocated buffer, but then have to
@@ -629,7 +643,7 @@ class GPUHistMaker : public TreeUpdater {
       dh::safe_cuda(cudaStreamSynchronize(*(streams[d_idx])));
     }
     // if no NCCL, then presume only 1 GPU, then already correct
-
+#endif
     //  time.printElapsed("Reduce-Add Time");
 
     // Subtraction trick (applied to all devices in same way -- to avoid doing
@@ -1030,9 +1044,11 @@ class GPUHistMaker : public TreeUpdater {
   std::vector<dh::dvec<int>> gidx_feature_map;
   std::vector<dh::dvec<float>> gidx_fvalue_map;
 
+#if USE_NCCL
   std::vector<cudaStream_t*> streams;
   std::vector<ncclComm_t> comms;
   std::vector<std::vector<ncclComm_t>> find_split_comms;
+#endif
 
   double cpu_init_time;
   double gpu_init_time;

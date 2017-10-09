@@ -33,6 +33,7 @@ except ImportError:
 # pandas
 try:
     from pandas import DataFrame
+    from pandas import Series
     PANDAS_INSTALLED = True
 except ImportError:
 
