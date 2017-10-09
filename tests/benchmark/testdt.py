@@ -36,6 +36,7 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
     param['tree_method'] = gpu_algorithm
 
     do_dt = True
+    do_dt_likeDAI = True
     do_ccont = False
     do_nondt = True
 
@@ -97,6 +98,34 @@ def run_benchmark(args, gpu_algorithm, cpu_algorithm):
         print ("dt->DMatrix1 Time: %s seconds" % (str(time.time() - tmp)))
         tmp = time.time()
         dtest = xgb.DMatrix(dtdata_X_test, dtdata_y_test, nthread=-1)
+        print ("dt->DMatrix2 Time: %s seconds" % (str(time.time() - tmp)))
+
+        print("Training with '%s'" % param['tree_method'])
+        tmp = time.time()
+        xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")])
+        print ("Train Time: %s seconds" % (str(time.time() - tmp)))
+    if do_dt_likeDAI:
+
+        # convert to column-major contiguous in memory to mimic persistent column-major state
+        # do_cccont = True leads to prepare2 time of about 1.4s for 1000000 rows * 50 columns
+        # do_cccont = False leads to prepare2 time of about 0.000548 for 1000000 rows * 50 columns
+        tmp = time.time()
+        dtdata_X_train = dt.DataTable(X_train_cc)
+        dtdata_X_test = dt.DataTable(X_test_cc)
+        dtdata_y_train = dt.DataTable(y_train_cc)
+        dtdata_y_test = dt.DataTable(y_test_cc)
+        print ("dt prepare2 Time: %s seconds" % (str(time.time() - tmp)))
+
+        #test = dtdata_X_train.tonumpy()
+        #print(test)
+
+        print ("dt->DMatrix Start")
+        # omp way
+        tmp = time.time()
+        dtrain = xgb.DMatrix(dtdata_X_train.tonumpy(), dtdata_y_train.tonumpy(), nthread=-1)
+        print ("dt->DMatrix1 Time: %s seconds" % (str(time.time() - tmp)))
+        tmp = time.time()
+        dtest = xgb.DMatrix(dtdata_X_test.tonumpy(), dtdata_y_test.tonumpy(), nthread=-1)
         print ("dt->DMatrix2 Time: %s seconds" % (str(time.time() - tmp)))
 
         print("Training with '%s'" % param['tree_method'])
