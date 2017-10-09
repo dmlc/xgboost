@@ -585,12 +585,12 @@ bool dt_is_missing_and_get_value(datacol_struct *d, int i, float *value)
     // order of likelihood
     switch(d->datacoltype){
         case 0:
-            if(!std::isfinite(*value) return true;
+            if(!std::isfinite(*value)) return true;
             *value = static_cast<float>(d->datacol_float[i]);
             return false;
             break;
         case 1:
-            if(!std::isfinite(*value) return true;
+            if(!std::isfinite(*value)) return true;
             *value = static_cast<float>(d->datacol_double[i]);
             return false;
             break;
@@ -606,12 +606,12 @@ bool dt_is_missing_and_get_value(datacol_struct *d, int i, float *value)
             break;
         case 4:
             if(d->datacol_int1[i]==GETNA<int8_t>()) return true;
-            *value = static_cast<float>(d->datacol_int8[i]);
+            *value = static_cast<float>(d->datacol_int1[i]);
             return false;
             break;
         case 5:
             if(d->datacol_int2[i]==GETNA<int16_t>()) return true;
-            *value = static_cast<float>(d->datacol_int16[i]);
+            *value = static_cast<float>(d->datacol_int2[i]);
             return false;
             break;
         case 6:
