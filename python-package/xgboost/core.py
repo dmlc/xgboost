@@ -990,7 +990,7 @@ class Booster(object):
         return self.eval_set([(data, name)], iteration)
 
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False,
-                pred_contribs=False):
+                pred_contribs=False, valid_feat=False):
         """
         Predict with data.
 
@@ -1022,6 +1022,9 @@ class Booster(object):
             all feature contributions is equal to the prediction. Note that the bias is added
             as the final column, on top of the regular features.
 
+        valid_feat : bool
+            If columns should be validated prior to prediction.
+
         Returns
         -------
         prediction : numpy array
@@ -1034,7 +1037,8 @@ class Booster(object):
         if pred_contribs:
             option_mask |= 0x04
 
-        self._validate_features(data)
+        if valid_feat:
+            self._validate_features(data)
 
         length = c_bst_ulong()
         preds = ctypes.POINTER(ctypes.c_float)()

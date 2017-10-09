@@ -141,7 +141,8 @@ class TestBasic(unittest.TestCase):
 
             # different feature name must raises error
             dm = xgb.DMatrix(dummy, feature_names=list('abcde'))
-            self.assertRaises(ValueError, bst.predict, dm)
+            with self.assertRaises(ValueError):
+                bst.predict(dm, valid_feat=True)
 
     def test_feature_importances(self):
         data = np.random.randn(100, 5)
