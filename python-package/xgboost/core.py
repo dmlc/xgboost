@@ -381,7 +381,6 @@ class DMatrix(object):
             else:
                 self.set_weight(weight)
 
-        self.data = data
         self.feature_names = feature_names
         self.feature_types = feature_types
 
@@ -712,16 +711,13 @@ class DMatrix(object):
         res : DMatrix
             A new DMatrix containing only selected indices.
         """
-        if isinstance(self.data, dt.DataTable):
-            ValueError("slice not implemented for DataTable")
-        else:
-            res = DMatrix(None, feature_names=self.feature_names)
-            res.handle = ctypes.c_void_p()
-            _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
-                                                   c_array(ctypes.c_int, rindex),
-                                                   c_bst_ulong(len(rindex)),
-                                                   ctypes.byref(res.handle)))
-            return res
+        res = DMatrix(None, feature_names=self.feature_names)
+        res.handle = ctypes.c_void_p()
+        _check_call(_LIB.XGDMatrixSliceDMatrix(self.handle,
+                                               c_array(ctypes.c_int, rindex),
+                                               c_bst_ulong(len(rindex)),
+                                               ctypes.byref(res.handle)))
+        return res
 
     @property
     def feature_names(self):
@@ -1235,43 +1231,39 @@ class Booster(object):
         Returns the dump the model as a list of strings.
         """
 
-        if isinstance(self.data, dt.DataTable):
-            ValueError("slice not implemented for DataTable")
-        else:
+        length = c_bst_ulong()
+        sarr = ctypes.POINTER(ctypes.c_char_p)()
+        if self.feature_names is not None and fmap == '':
+            flen = len(self.feature_names)
 
-            length = c_bst_ulong()
-            sarr = ctypes.POINTER(ctypes.c_char_p)()
-            if self.feature_names is not None and fmap == '':
-                flen = len(self.feature_names)
+            fname = from_pystr_to_cstr(self.feature_names)
 
-                fname = from_pystr_to_cstr(self.feature_names)
-
-                if self.feature_types is None:
-                    # use quantitative as default
-                    # {'q': quantitative, 'i': indicator}
-                    ftype = from_pystr_to_cstr(['q'] * flen)
-                else:
-                    ftype = from_pystr_to_cstr(self.feature_types)
-                _check_call(_LIB.XGBoosterDumpModelExWithFeatures(
-                    self.handle,
-                    ctypes.c_int(flen),
-                    fname,
-                    ftype,
-                    ctypes.c_int(with_stats),
-                    c_str(dump_format),
-                    ctypes.byref(length),
-                    ctypes.byref(sarr)))
+            if self.feature_types is None:
+                # use quantitative as default
+                # {'q': quantitative, 'i': indicator}
+                ftype = from_pystr_to_cstr(['q'] * flen)
             else:
-                if fmap != '' and not os.path.exists(fmap):
-                    raise ValueError("No such file: {0}".format(fmap))
-                _check_call(_LIB.XGBoosterDumpModelEx(self.handle,
-                                                      c_str(fmap),
-                                                      ctypes.c_int(with_stats),
-                                                      c_str(dump_format),
-                                                      ctypes.byref(length),
-                                                      ctypes.byref(sarr)))
-            res = from_cstr_to_pystr(sarr, length)
-            return res
+                ftype = from_pystr_to_cstr(self.feature_types)
+            _check_call(_LIB.XGBoosterDumpModelExWithFeatures(
+                self.handle,
+                ctypes.c_int(flen),
+                fname,
+                ftype,
+                ctypes.c_int(with_stats),
+                c_str(dump_format),
+                ctypes.byref(length),
+                ctypes.byref(sarr)))
+        else:
+            if fmap != '' and not os.path.exists(fmap):
+                raise ValueError("No such file: {0}".format(fmap))
+            _check_call(_LIB.XGBoosterDumpModelEx(self.handle,
+                                                  c_str(fmap),
+                                                  ctypes.c_int(with_stats),
+                                                  c_str(dump_format),
+                                                  ctypes.byref(length),
+                                                  ctypes.byref(sarr)))
+        res = from_cstr_to_pystr(sarr, length)
+        return res
 
     def get_fscore(self, fmap=''):
         """Get feature importance of each feature.

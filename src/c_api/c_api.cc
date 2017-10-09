@@ -575,72 +575,57 @@ class datacol_struct{
 
 // map dt stype string to C ctype for casting purposes
 // {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i': 'int', 'f4r': 'float', 'f8r': 'float'}
-float get_dt_value(datacol_struct *d, int i)
-{
-//    fprintf(stderr,"using2 datacoltype=%d for i=%d\n",d->datacoltype,i); fflush(stderr);
 
-    // order of likelihood
-    switch(d->datacoltype){
-        case 0:
-          return static_cast<float>(d->datacol_float[i]);
-          break;
-        case 1:
-          return static_cast<float>(d->datacol_double[i]);
-          break;
-        case 2:
-          return static_cast<float>(d->datacol_bool[i]);
-          break;
-        case 3:
-          return static_cast<float>(d->datacol_int4[i]);
-          break;
-        case 4:
-          return static_cast<float>(d->datacol_int1[i]);
-          break;
-        case 5:
-          return static_cast<float>(d->datacol_int2[i]);
-          break;
-        case 6:
-          return static_cast<float>(d->datacol_int8[i]);
-          break;
-        default:
-          wprintf(L"Unknown type %s", d->stype);
-          fprintf(stderr,"Unknown datacoltype=%d\n",d->datacoltype);
-          fflush(stderr);
-          fflush(stdout);
-          exit(1);
-    }
-}
-
-
-bool is_dt_missing(datacol_struct *d, int i)
+bool dt_is_missing_and_get_value(datacol_struct *d, int i, float *value)
 {
 //    fprintf(stderr,"using1 datacoltype=%d for i=%d result=%g\n",d->datacoltype,i, d->datacol_double[i]); fflush(stderr);
 
     // return false;
     // fwprintf(stderr,L"stype = %s", stype);fflush(stderr);
     // order of likelihood
-    if(d->datacoltype==0 && !std::isfinite(d->datacol_float[i])){ // GETNA<float>
-        return true;
+    switch(d->datacoltype){
+        case 0:
+            if(!std::isfinite(*value) return true;
+            *value = static_cast<float>(d->datacol_float[i]);
+            return false;
+            break;
+        case 1:
+            if(!std::isfinite(*value) return true;
+            *value = static_cast<float>(d->datacol_double[i]);
+            return false;
+            break;
+        case 2:
+            if(d->datacol_bool[i]==GETNA<bool>()) return true;
+            *value = static_cast<float>(d->datacol_bool[i]);
+            return false;
+            break;
+        case 3:
+            if(d->datacol_int4[i]==GETNA<int32_t>()) return true;
+            *value = static_cast<float>(d->datacol_int4[i]);
+            return false;
+            break;
+        case 4:
+            if(d->datacol_int1[i]==GETNA<int8_t>()) return true;
+            *value = static_cast<float>(d->datacol_int8[i]);
+            return false;
+            break;
+        case 5:
+            if(d->datacol_int2[i]==GETNA<int16_t>()) return true;
+            *value = static_cast<float>(d->datacol_int16[i]);
+            return false;
+            break;
+        case 6:
+            if(d->datacol_int8[i]==GETNA<int64_t>()) return true;
+            *value = static_cast<float>(d->datacol_int8[i]);
+            return false;
+            break;
+        default:
+            wprintf(L"Unknown type %s", d->stype);
+            fprintf(stderr,"Unknown datacoltype=%d\n",d->datacoltype);
+            fflush(stderr);
+            fflush(stdout);
+            exit(1);
     }
-    else if(d->datacoltype==1 && !std::isfinite(d->datacol_double[i])){ // GETNA<double>
-        return true;
-    }
-    else if(d->datacoltype==2 && d->datacol_bool[i]==GETNA<bool>()){
-        return true;
-    }
-    else if(d->datacoltype==3 && d->datacol_int4[i]==GETNA<int32_t>()){
-        return true;
-    }
-    else if(d->datacoltype==4 && d->datacol_int1[i]==GETNA<int8_t>()){
-        return true;
-    }
-    else if(d->datacoltype==5 && d->datacol_int2[i]==GETNA<int16_t>()){
-        return true;
-    }
-    else if(d->datacoltype==6 && d->datacol_int8[i]==GETNA<int64_t>()){
-        return true;
-    }
-    else return false;
 }
 
 #define DEBUGTIME 0
@@ -708,12 +693,11 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
       //fprintf(stderr,"j=%zu\n",j); fflush(stderr);
       datacol_struct d(data, feature_stypes, j);
+      float value;
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
         //fprintf(stderr,"i=%zu\n",i); fflush(stderr);
-        if (is_dt_missing(&d, i)) {
-            // pass
-        } else {
+        if (!dt_is_missing_and_get_value(&d, i, &value)) {
             mat.row_ptr_[i+1] ++;
         }
       }
@@ -751,13 +735,14 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
   {
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
       datacol_struct d(data, feature_stypes, j);
+      float value;
+      bool missing;
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
-        if (is_dt_missing(&d, i)) {
-          // pass
-        } else{
+        missing = dt_is_missing_and_get_value(&d, i, &value);
+        if(!missing){
           mat.row_data_[mat.row_ptr_[i] + matj[i]] =
-              RowBatch::Entry(j, get_dt_value(&d, i));
+              RowBatch::Entry(j, value);
           matj[i]++;
         }
       }
