@@ -51,5 +51,12 @@ TEST(cpu_predictor, Test) {
   for (int i = 0; i < out_contribution.size(); i++) {
     ASSERT_EQ(out_contribution[i], 1.5);
   }
+
+  // Test predict contribution (approximate method)
+  std::vector<float> out_contribution;
+  cpu_predictor->PredictContribution(dmat.get(), &out_contribution, model, True);
+  for (int i = 0; i < out_contribution.size(); i++) {
+    ASSERT_EQ(out_contribution[i], 1.5);
+  }
 }
 }  // namespace xgboost
