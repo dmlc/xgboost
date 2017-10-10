@@ -506,6 +506,7 @@ class bulk_allocator {
       if (!(d_ptr[i] == nullptr)) {
         safe_cuda(cudaSetDevice(_device_idx[i]));
         safe_cuda(cudaFree(d_ptr[i]));
+        d_ptr[i] = nullptr;
       }
     }
   }

@@ -176,6 +176,11 @@ def _maybe_pandas_data(data, feature_names, feature_types):
 
     data_dtypes = data.dtypes
     if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
+        bad_types = [data_dtypes[i].name for i, dtype in
+                      enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
+        msg = """Bad types: """
+        print(msg + ', '.join(bad_types))
+
         bad_fields = [data.columns[i] for i, dtype in
                       enumerate(data_dtypes) if dtype.name not in PANDAS_DTYPE_MAPPER]
 

@@ -303,14 +303,19 @@ class XGBModel(XGBModelBase):
             self.best_score = self._Booster.best_score
             self.best_iteration = self._Booster.best_iteration
             self.best_ntree_limit = self._Booster.best_ntree_limit
+
+        trainDmatrix.__del__()
         return self
 
     def predict(self, data, output_margin=False, ntree_limit=0):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
-        return self.get_booster().predict(test_dmatrix,
+
+        result = self.get_booster().predict(test_dmatrix,
                                           output_margin=output_margin,
                                           ntree_limit=ntree_limit)
+        test_dmatrix.__del__()
+        return result
 
     def apply(self, X, ntree_limit=0):
         """Return the predicted leaf every tree for each sample.
@@ -331,9 +336,11 @@ class XGBModel(XGBModelBase):
             ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
         """
         test_dmatrix = DMatrix(X, missing=self.missing, nthread=self.n_jobs)
-        return self.get_booster().predict(test_dmatrix,
+        result= self.get_booster().predict(test_dmatrix,
                                           pred_leaf=True,
                                           ntree_limit=ntree_limit)
+        test_dmatrix.__del__()
+        return result
 
     def evals_result(self):
         """Return the evaluation results.
@@ -518,6 +525,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             self.best_iteration = self._Booster.best_iteration
             self.best_ntree_limit = self._Booster.best_ntree_limit
 
+        train_dmatrix.__del__()
         return self
 
     def predict(self, data, output_margin=False, ntree_limit=0):
@@ -530,7 +538,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         else:
             column_indexes = np.repeat(0, class_probs.shape[0])
             column_indexes[class_probs > 0.5] = 1
-        return self._le.inverse_transform(column_indexes)
+        result = self._le.inverse_transform(column_indexes)
+
+        test_dmatrix.__del__()
+        return result
 
     def predict_proba(self, data, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
@@ -538,11 +549,15 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                                  output_margin=output_margin,
                                                  ntree_limit=ntree_limit)
         if self.objective == "multi:softprob":
-            return class_probs
+            result = class_probs
         else:
             classone_probs = class_probs
             classzero_probs = 1.0 - classone_probs
-            return np.vstack((classzero_probs, classone_probs)).transpose()
+            result = np.vstack((classzero_probs, classone_probs)).transpose()
+
+        test_dmatrix.__del__()
+        return result
+
 
     def evals_result(self):
         """Return the evaluation results.

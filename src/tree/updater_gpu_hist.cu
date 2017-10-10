@@ -263,6 +263,7 @@ class GPUHistMaker : public TreeUpdater {
           ncclCommDestroy(find_split_comms[num_d - 1][d_idx]);
         }
       }
+      initialised = false;
     }
 #endif
   }
