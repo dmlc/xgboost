@@ -492,8 +492,6 @@ class GPUHistMakerExperimental : public TreeUpdater {
       const std::vector<std::pair<std::string, std::string>>& args) override {
     param.InitAllowUnknown(args);
     CHECK(param.n_gpus != 0) << "Must have at least one device";
-    CHECK(param.n_gpus <= 1 && param.n_gpus != -1)
-        << "Only one GPU currently supported";
     n_devices = param.n_gpus;
     
     dh::check_compute_capability();
@@ -548,7 +546,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
     
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
       bst_uint row_end = std::min(static_cast<size_t>(row_begin + shard_size), info->num_row);
-      shards.emplace_back(&comms[d_idx],dList[d_idx],d_idx, gmat_, row_begin, row_end, n_bins,
+      shards.emplace_back(&(comms[d_idx]),dList[d_idx],d_idx, gmat_, row_begin, row_end, n_bins,
                         param);
       row_begin = std::min(static_cast<size_t>(row_begin + shard_size), info->num_row);
     }
