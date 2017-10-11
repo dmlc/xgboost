@@ -59,7 +59,7 @@ cd xgboost; make -j4
 
 ### Building on OSX
 
-First, obtain gcc-7.x.x with brew if you want multi-threaded version
+First, obtain gcc-7.x.x with brew (https://brew.sh/) if you want multi-threaded version. Note: installation of `gcc` can take a while (~ 30 minutes)
 
 ```bash
 brew install gcc
