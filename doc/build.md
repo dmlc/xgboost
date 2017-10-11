@@ -59,19 +59,11 @@ cd xgboost; make -j4
 
 ### Building on OSX
 
-On OSX, one builds xgboost by
+First, obtain gcc-7.x.x with brew if you want multi-threaded version
 
 ```bash
-git clone --recursive https://github.com/dmlc/xgboost
-cd xgboost; cp make/minimum.mk ./config.mk; make -j4
+brew install gcc
 ```
-
-This builds xgboost without multi-threading, because by default clang in OSX does not come with open-mp.
-See the following paragraph for OpenMP enabled xgboost.
-
-
-Here is the complete solution to use OpenMP-enabled compilers to install XGBoost.
-Obtain gcc-6.x.x with openmp support by `brew install gcc --without-multilib`. (`brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.). Installation of `gcc` can take a while (~ 30 minutes)
 
 Now, clone the repository
 
@@ -80,13 +72,6 @@ git clone --recursive https://github.com/dmlc/xgboost
 ```
 
 and build using the following commands
-
-```bash
-cd xgboost; cp make/config.mk ./config.mk; make -j4
-```
-
-NOTE:
-If you use OSX El Capitan, brew installs gcc the latest version gcc-6. So you may need to modify Makefile#L46 and change gcc-5 to gcc-6. After that change gcc-5/g++-5 to gcc-6/g++-6 in make/config.mk then build using the following commands
 
 ```bash
 cd xgboost; cp make/config.mk ./config.mk; make -j4
