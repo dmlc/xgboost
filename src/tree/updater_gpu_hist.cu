@@ -489,26 +489,34 @@ class GPUHistMaker : public TreeUpdater {
             device_row_segments[d_idx + 1] - device_row_segments[d_idx];
         bst_ulong num_elements_segment =
             device_element_segments[d_idx + 1] - device_element_segments[d_idx];
+
+        // ensure allocation doesn't overflow
+        size_t hist_size = static_cast<size_t>(n_nodes(param.max_depth - 1))
+         * static_cast<size_t>(n_bins);
+        size_t nodes_size = static_cast<size_t>(n_nodes(param.max_depth));
+        size_t hmat_size = static_cast<size_t>(hmat_.min_val.size());
+        size_t buffer_size = static_cast<size_t>(common::CompressedBufferWriter::CalculateBufferSize(
+                static_cast<size_t>(num_elements_segment),
+                static_cast<size_t>(n_bins)));
+
         ba.allocate(
             device_idx, param.silent, &(hist_vec[d_idx].data),
-            n_nodes(param.max_depth - 1) * n_bins, &nodes[d_idx],
+            hist_size, &nodes[d_idx],
             n_nodes(param.max_depth), &nodes_temp[d_idx], max_num_nodes_device,
             &nodes_child_temp[d_idx], max_num_nodes_device,
-            &left_child_smallest[d_idx], n_nodes(param.max_depth),
+            &left_child_smallest[d_idx], nodes_size,
             &left_child_smallest_temp[d_idx], max_num_nodes_device,
             &feature_flags[d_idx],
             n_features,  // may change but same on all devices
             &fidx_min_map[d_idx],
-            hmat_.min_val.size(),  // constant and same on all devices
+            hmat_size,  // constant and same on all devices
             &feature_segments[d_idx],
             h_feature_segments.size(),  // constant and same on all devices
             &prediction_cache[d_idx], num_rows_segment, &position[d_idx],
             num_rows_segment, &position_tmp[d_idx], num_rows_segment,
             &device_gpair[d_idx], num_rows_segment,
             &device_matrix[d_idx].gidx_buffer,
-            common::CompressedBufferWriter::CalculateBufferSize(
-                num_elements_segment,
-                n_bins),  // constant and same on all devices
+            buffer_size,  // constant and same on all devices
             &device_matrix[d_idx].row_ptr, num_rows_segment + 1,
             &gidx_feature_map[d_idx],
             n_bins,  // constant and same on all devices
