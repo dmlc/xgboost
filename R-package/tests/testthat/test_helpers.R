@@ -52,9 +52,9 @@ test_that("xgb.dump works", {
 
 test_that("xgb.dump works for gblinear", {
   expect_length(xgb.dump(bst.GLM), 14)
-  # also make sure that it works properly for a sparse model where some coefficients 
+  # also make sure that it works properly for a sparse model where some coefficients
   # are 0 from setting large L1 regularization:
-  bst.GLM.sp <- xgboost(data = sparse_matrix, label = label, eta = 1, nthread = 2, nrounds = 1, 
+  bst.GLM.sp <- xgboost(data = sparse_matrix, label = label, eta = 1, nthread = 2, nrounds = 1,
                         alpha=2, objective = "binary:logistic", booster = "gblinear")
   d.sp <- xgb.dump(bst.GLM.sp)
   expect_length(d.sp, 14)
@@ -80,28 +80,35 @@ test_that("predict feature contributions works", {
   expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
   expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
   pred <- predict(bst.Tree, sparse_matrix, outputmargin = TRUE)
-  expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-6)
-  
+  expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
+
+  # gbtree binary classifier (approximate method)
+  expect_error(pred_contr <- predict(bst.Tree, sparse_matrix, predcontrib = TRUE, approxcontrib = TRUE), regexp = NA)
+  expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
+  expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
+  pred <- predict(bst.Tree, sparse_matrix, outputmargin = TRUE)
+  expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
+
   # gblinear binary classifier
   expect_error(pred_contr <- predict(bst.GLM, sparse_matrix, predcontrib = TRUE), regexp = NA)
   expect_equal(dim(pred_contr), c(nrow(sparse_matrix), ncol(sparse_matrix) + 1))
   expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
   pred <- predict(bst.GLM, sparse_matrix, outputmargin = TRUE)
-  expect_lt(max(abs(rowSums(pred_contr) - pred)), 2e-6)
+  expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
   # manual calculation of linear terms
   coefs <- xgb.dump(bst.GLM)[-c(1,2,4)] %>% as.numeric
   coefs <- c(coefs[-1], coefs[1]) # intercept must be the last
   pred_contr_manual <- sweep(cbind(sparse_matrix, 1), 2, coefs, FUN="*")
-  expect_equal(as.numeric(pred_contr), as.numeric(pred_contr_manual), 2e-6)
+  expect_equal(as.numeric(pred_contr), as.numeric(pred_contr_manual), 1e-5)
 
-  # gbtree multiclass  
+  # gbtree multiclass
   pred <- predict(mbst.Tree, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
   pred_contr <- predict(mbst.Tree, as.matrix(iris[, -5]), predcontrib = TRUE)
   expect_is(pred_contr, "list")
   expect_length(pred_contr, 3)
   for (g in seq_along(pred_contr)) {
     expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "BIAS"))
-    expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), 2e-6)
+    expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), 1e-5)
   }
 
   # gblinear multiclass (set base_score = 0, which is base margin in multiclass)
@@ -192,10 +199,10 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   expect_equal(names.dt.trees, names(dt.tree))
   expect_equal(dim(dt.tree), c(188, 10))
   expect_output(str(dt.tree), 'Feature.*\\"Age\\"')
-  
+
   dt.tree.0 <- xgb.model.dt.tree(model = bst.Tree)
   expect_equal(dt.tree, dt.tree.0)
-  
+
   # when model contains no feature names:
   bst.Tree.x <- bst.Tree
   bst.Tree.x$feature_names <- NULL
@@ -219,20 +226,20 @@ test_that("xgb.importance works with and without feature names", {
   expect_equal(dim(importance.Tree), c(7, 4))
   expect_equal(colnames(importance.Tree), c("Feature", "Gain", "Cover", "Frequency"))
   expect_output(str(importance.Tree), 'Feature.*\\"Age\\"')
-  
+
   importance.Tree.0 <- xgb.importance(model = bst.Tree)
   expect_equal(importance.Tree, importance.Tree.0)
-  
+
   # when model contains no feature names:
   bst.Tree.x <- bst.Tree
   bst.Tree.x$feature_names <- NULL
   importance.Tree.x <- xgb.importance(model = bst.Tree)
   expect_equal(importance.Tree[, -1, with=FALSE], importance.Tree.x[, -1, with=FALSE])
-  
+
   imp2plot <- xgb.plot.importance(importance_matrix = importance.Tree)
   expect_equal(colnames(imp2plot), c("Feature", "Gain", "Cover", "Frequency", "Importance"))
   xgb.ggplot.importance(importance_matrix = importance.Tree)
-  
+
   # for multiclass
   imp.Tree <- xgb.importance(model = mbst.Tree)
   expect_equal(dim(imp.Tree), c(4, 4))
@@ -247,7 +254,7 @@ test_that("xgb.importance works with GLM model", {
   imp2plot <- xgb.plot.importance(importance.GLM)
   expect_equal(colnames(imp2plot), c("Feature", "Weight", "Importance"))
   xgb.ggplot.importance(importance.GLM)
-  
+
   # for multiclass
   imp.GLM <- xgb.importance(model = mbst.GLM)
   expect_equal(dim(imp.GLM), c(12, 3))

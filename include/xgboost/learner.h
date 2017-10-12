@@ -104,13 +104,15 @@ class Learner : public rabit::Serializable {
    *   predictor, when it equals 0, this means we are using all the trees
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
    * \param pred_contribs whether to only predict the feature contributions
+   * \param approx_contribs whether to approximate the feature contributions for speed
    */
   virtual void Predict(DMatrix* data,
                        bool output_margin,
                        std::vector<bst_float> *out_preds,
                        unsigned ntree_limit = 0,
                        bool pred_leaf = false,
-                       bool pred_contribs = false) const = 0;
+                       bool pred_contribs = false,
+                       bool approx_contribs = false) const = 0;
   /*!
    * \brief Set additional attribute to the Booster.
    *  The property will be saved along the booster.
