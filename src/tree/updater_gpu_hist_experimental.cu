@@ -211,7 +211,6 @@ __global__ void RadixSortSmall(bst_uint* d_ridx, int* d_position, bst_uint n) {
 struct DeviceHistogram {
   dh::bulk_allocator<dh::memory_type::DEVICE> ba;
   dh::dvec<bst_gpair_integer> data;
-  std::map<int, bst_gpair_integer*> node_map;
   int n_bins;
   void Init(int device_idx, int max_nodes, int n_bins, bool silent) {
     this->n_bins = n_bins;
@@ -220,13 +219,9 @@ struct DeviceHistogram {
 
   void Reset() {
     data.fill(bst_gpair_integer());
-    node_map.clear();
   }
-
-  void AddNode(int nidx) {
-    CHECK_EQ(node_map.count(nidx), 0)
-        << nidx << " already exists in the histogram.";
-    node_map[nidx] = data.data() + n_bins * node_map.size();
+  bst_gpair_integer *GetHistPtr(int nidx){
+    return data.data() + nidx * n_bins;
   }
 };
 
@@ -257,16 +252,20 @@ struct DeviceShard {
 
   dh::CubMemory temp_memory;
 
-  DeviceShard(int device_idx, int normalised_device_idx,
+  ncclComm_t *comm;
+
+  
+  DeviceShard(ncclComm_t *comm, int device_idx, int normalised_device_idx,
               const common::GHistIndexMatrix& gmat, bst_uint row_begin,
               bst_uint row_end, int n_bins, TrainParam param)
-      : device_idx(device_idx),
+      : comm(comm), device_idx(device_idx),
         normalised_device_idx(normalised_device_idx),
         row_start_idx(row_begin),
         row_end_idx(row_end),
         n_rows(row_end - row_begin),
         n_bins(n_bins),
         null_gidx_value(n_bins) {
+
     // Convert to ELLPACK matrix representation
     int max_elements_row = 0;
     for (int i = row_begin; i < row_end; i++) {
@@ -357,39 +356,90 @@ struct DeviceShard {
     hist.Reset();
   }
 
-  __device__ void IncrementHist(bst_gpair gpair, int gidx,
-                                bst_gpair_integer* node_hist) const {
-    auto dst_ptr =
-        reinterpret_cast<unsigned long long int*>(&node_hist[gidx]);  // NOLINT
-    bst_gpair_integer tmp(gpair.GetGrad(), gpair.GetHess());
-    auto src_ptr = reinterpret_cast<bst_gpair_integer::value_t*>(&tmp);
+  __device__ void IncrementHist(bst_gpair gpair, int gidx, int null_gidx_value,
+                                bst_gpair_integer* node_hist) {
 
-    atomicAdd(dst_ptr,
-              static_cast<unsigned long long int>(*src_ptr));  // NOLINT
-    atomicAdd(dst_ptr + 1,
-              static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
+    if(gidx !=null_gidx_value){
+      auto dst_ptr =
+        reinterpret_cast<unsigned long long int*>(&node_hist[gidx]);  // NOLINT
+      bst_gpair_integer tmp(gpair.GetGrad(), gpair.GetHess());
+      auto src_ptr = reinterpret_cast<bst_gpair_integer::value_t*>(&tmp);
+
+      atomicAdd(dst_ptr,
+                static_cast<unsigned long long int>(*src_ptr));  // NOLINT
+      atomicAdd(dst_ptr + 1,
+                static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
+    }
   }
 
-  void BuildHist(int nidx) {
-    hist.AddNode(nidx);
-    auto d_node_hist = hist.node_map[nidx];
+
+  void BuildHistLeftRight(int nidx_parent, int nidx_left, int nidx_right) {
+
+    auto segment_left = ridx_segments[nidx_left];
+    auto segment_right = ridx_segments[nidx_right];
+
+    int nidx_histogram;
+    int nidx_subtraction;
+
+    if(segment_left.second - segment_left.first >= segment_right.second - segment_right.first){
+      nidx_subtraction = nidx_left;
+      nidx_histogram = nidx_right;
+    }
+    else{
+      nidx_subtraction = nidx_right;
+      nidx_histogram = nidx_left;
+    }
+
+    BuildHist(nidx_histogram);
+
+    SubtractionTrick(nidx_parent, nidx_histogram, nidx_subtraction);
+
+    AllReduceHist(nidx_left);
+  }
+  void BuildHist(int nidx){
+    auto segment = ridx_segments[nidx];
+    auto d_node_hist = hist.GetHistPtr(nidx);
     auto d_gidx = gidx;
     auto d_ridx = ridx.current();
     auto d_gpair = gpair.data();
     auto row_stride = this->row_stride;
     auto null_gidx_value = this->null_gidx_value;
-    auto segment = ridx_segments[nidx];
     auto n_elements = (segment.second - segment.first) * row_stride;
 
     dh::launch_n(device_idx, n_elements, [=] __device__(size_t idx) {
-      int relative_ridx = d_ridx[(idx / row_stride) + segment.first];
-      int gidx = d_gidx[relative_ridx * row_stride + idx % row_stride];
-      if (gidx != null_gidx_value) {
-        bst_gpair gpair = d_gpair[relative_ridx];
-        IncrementHist(gpair, gidx, d_node_hist);
-      }
+        int relative_ridx = d_ridx[(idx / row_stride) + segment.first];
+        int gidx = d_gidx[relative_ridx * row_stride + idx % row_stride];
+        if (gidx != null_gidx_value) {
+          bst_gpair gpair = d_gpair[relative_ridx];
+          IncrementHist(gpair, gidx, null_gidx_value, d_node_hist);
+        }
     });
+
   }
+  void SubtractionTrick(int nidx_parent, int nidx_histogram, int nidx_subtraction) {
+    
+    auto d_node_hist_parent = hist.GetHistPtr(nidx_parent);
+    auto d_node_hist_histogram = hist.GetHistPtr(nidx_histogram);
+    auto d_node_hist_subtraction = hist.GetHistPtr(nidx_subtraction);
+
+    dh::launch_n(device_idx, hist.n_bins, [=] __device__(size_t idx) {
+        d_node_hist_subtraction[idx] = d_node_hist_parent[idx] - d_node_hist_histogram[idx];
+    });
+
+  }
+  // Reduce both left and right children
+  void AllReduceHist(int nidx){
+
+    auto &stream = GetStreams(1);
+    dh::safe_cuda(cudaSetDevice(device_idx));
+
+    auto d_node_hist = hist.GetHistPtr(nidx);
+    dh::safe_nccl(ncclAllReduce(d_node_hist, d_node_hist, 2 * n_bins * sizeof(bst_gpair_integer) /
+                                sizeof(bst_gpair_integer::value_t),
+                                ncclInt64, ncclSum, *comm, stream.back()));
+    dh::safe_cuda(cudaStreamSynchronize(stream.back()));
+  }
+  
   void SortPosition(const std::pair<bst_uint, bst_uint>& segment, int left_nidx,
                     int right_nidx) {
     auto n = segment.second - segment.first;
@@ -430,14 +480,21 @@ class GPUHistMakerExperimental : public TreeUpdater {
   struct ExpandEntry;
 
   GPUHistMakerExperimental() : initialised(false) {}
-  ~GPUHistMakerExperimental() {}
+  ~GPUHistMakerExperimental() {
+    if (initialised) {
+      for (auto &comm: comms) {
+        ncclCommDestroy(comm);
+      }
+    }
+        
+  }
   void Init(
       const std::vector<std::pair<std::string, std::string>>& args) override {
     param.InitAllowUnknown(args);
     CHECK(param.n_gpus != 0) << "Must have at least one device";
-    CHECK(param.n_gpus <= 1 && param.n_gpus != -1)
-        << "Only one GPU currently supported";
     n_devices = param.n_gpus;
+    
+    dh::check_compute_capability();
 
     if (param.grow_policy == TrainParam::kLossGuide) {
       qexpand_.reset(new ExpandQueue(loss_guide));
@@ -470,8 +527,31 @@ class GPUHistMakerExperimental : public TreeUpdater {
     gmat_.cut = &hmat_;
     gmat_.Init(dmat);
     n_bins = hmat_.row_ptr.back();
-    shards.emplace_back(param.gpu_id, 0, gmat_, 0, info->num_row, n_bins,
+
+    int n_devices = dh::n_devices(param.n_gpus, info->num_row);
+
+    bst_uint row_begin = 0;
+    bst_uint shard_size =
+      std::ceil(static_cast<double>(info->num_row) / n_devices);
+
+    std::vector<int> dList(n_devices);
+    for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
+      int device_idx = (param.gpu_id + d_idx) % dh::n_visible_devices();
+      dList[d_idx] = device_idx;
+    }
+
+    comms.resize(n_devices);
+    dh::safe_nccl(ncclCommInitAll(comms.data(), n_devices,
+                                  dList.data()));
+    
+    for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
+      bst_uint row_end = std::min(static_cast<size_t>(row_begin + shard_size), info->num_row);
+      shards.emplace_back(&(comms[d_idx]),dList[d_idx],d_idx, gmat_, row_begin, row_end, n_bins,
                         param);
+      row_begin = std::min(static_cast<size_t>(row_begin + shard_size), info->num_row);
+    }
+
+      
     initialised = true;
   }
 
@@ -489,9 +569,9 @@ class GPUHistMakerExperimental : public TreeUpdater {
     }
   }
 
-  void BuildHist(int nidx) {
+  void BuildHistLeftRight(int nidx_parent, int nidx_left, int nidx_right) {
     for (auto& shard : shards) {
-      shard.BuildHist(nidx);
+      shard.BuildHistLeftRight(nidx_parent, nidx_left, nidx_right);
     }
   }
 
@@ -519,7 +599,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
       const int BLOCK_THREADS = 256;
       evaluate_split_kernel<BLOCK_THREADS>
           <<<columns, BLOCK_THREADS, 0, streams[i]>>>(
-              shard.hist.node_map[nidx], nidx, info->num_col, node,
+              shard.hist.GetHistPtr(nidx), nidx, info->num_col, node,
               shard.feature_segments.data(), shard.min_fvalue.data(),
               shard.gidx_fvalue_map.data(), GPUTrainingParam(param),
               d_split + i * columns);
@@ -542,12 +622,13 @@ class GPUHistMakerExperimental : public TreeUpdater {
 
   void InitRoot(const std::vector<bst_gpair>& gpair, RegTree* p_tree) {
     int root_nidx = 0;
-    BuildHist(root_nidx);
 
-    // TODO(rory): support sub sampling
-    // TODO(rory): not asynchronous
     bst_gpair sum_gradient;
     for (auto& shard : shards) {
+      shard.BuildHist(root_nidx);
+
+      // TODO(rory): support sub sampling
+      // TODO(rory): not asynchronous
       sum_gradient += thrust::reduce(shard.gpair.tbegin(), shard.gpair.tend());
     }
 
@@ -742,8 +823,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
       if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
                                     num_leaves)) {
         monitor.Start("BuildHist");
-        this->BuildHist(left_child_nidx);
-        this->BuildHist(right_child_nidx);
+        this->BuildHistLeftRight(candidate.nid, left_child_nidx, right_child_nidx);
         monitor.Stop("BuildHist");
 
         monitor.Start("EvaluateSplits");
@@ -823,6 +903,9 @@ class GPUHistMakerExperimental : public TreeUpdater {
       ExpandQueue;
   std::unique_ptr<ExpandQueue> qexpand_;
   Monitor monitor;
+
+  std::vector<ncclComm_t> comms;
+
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMakerExperimental,
