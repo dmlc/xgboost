@@ -545,10 +545,10 @@ class GPUHistMakerExperimental : public TreeUpdater {
                                   dList.data()));
     
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
-      bst_uint row_end = std::min(static_cast<size_t>(row_begin + shard_size), info->num_row);
+      bst_uint row_end = std::min(static_cast<size_t>(row_begin + shard_size), static_cast<size_t>(info->num_row));
       shards.emplace_back(&(comms[d_idx]),dList[d_idx],d_idx, gmat_, row_begin, row_end, n_bins,
                         param);
-      row_begin = std::min(static_cast<size_t>(row_begin + shard_size), info->num_row);
+      row_begin = std::min(static_cast<size_t>(row_begin + shard_size), static_cast<size_t>(info->num_row));
     }
 
       

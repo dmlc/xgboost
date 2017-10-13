@@ -18,7 +18,6 @@
 #include "../common/io.h"
 #include "../common/group_data.h"
 
-#include <sys/time.h>
 #include "dt.h" // Functions for handling datatable
 
 namespace xgboost {
@@ -568,7 +567,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
   data = const_cast<void **>(data0);
 
   // Fill data matrix (now that know size, no need for slow push_back())
-  xgboost::bst_ulong matj[nrow] = {0};
+  xgboost::bst_ulong *matj = new xgboost::bst_ulong[nrow]();
 #pragma omp parallel num_threads(nthread)
   {
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {

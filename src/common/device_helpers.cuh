@@ -668,7 +668,7 @@ __global__ void LbsKernel(coordinate_t *d_coordinates,
 
   for (auto item : dh::block_stride_range(int(0), int(tile_num_rows + 1))) {
     temp_storage.tile_segment_end_offsets[item] =
-        segment_end_offsets[min(tile_start_coord.x + item, num_segments - 1)];
+        segment_end_offsets[min(static_cast<size_t>(tile_start_coord.x + item), static_cast<size_t>(num_segments - 1))];
   }
   __syncthreads();
 
