@@ -278,6 +278,8 @@ class GPUHistMaker : public TreeUpdater {
 
     CHECK(param.n_gpus != 0) << "Must have at least one device";
 
+    dh::check_compute_capability();
+
 #if !USE_NCCL
     param.n_gpus = 1;
 #endif
