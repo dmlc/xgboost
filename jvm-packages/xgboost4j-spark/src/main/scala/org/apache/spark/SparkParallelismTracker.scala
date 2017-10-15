@@ -19,7 +19,7 @@ package org.apache.spark
 import java.net.URL
 
 import org.apache.commons.logging.LogFactory
-import org.apache.spark.scheduler.{SparkListener, SparkListenerExecutorRemoved}
+import org.apache.spark.scheduler.{SparkListener, SparkListenerTaskEnd}
 import org.codehaus.jackson.map.ObjectMapper
 
 import scala.collection.JavaConverters._
@@ -46,7 +46,6 @@ class SparkParallelismTracker(
     case Some(baseUrl) => new URL(s"$baseUrl/api/v1/applications/${sc.applicationId}/executors")
     case _ => null
   }
-  private[spark] var failedReason: String = null
 
   private[this] def numAliveCores: Int = {
     try {
@@ -73,16 +72,11 @@ class SparkParallelismTracker(
   }
 
   private[this] def safeExecute[T](body: => T): T = {
-    sc.listenerBus.listeners.add(0, new ExecutorLostListener(this))
+    sc.listenerBus.listeners.add(0, new TaskFailedListener(this))
     try {
-      val result = body
-      if (failedReason != null) {
-        throw new SparkException(s"ExecutorLost during XGBoost Training: $failedReason")
-      }
-      result
+      body
     } finally {
       sc.listenerBus.listeners.remove(0)
-      failedReason = null
     }
   }
 
@@ -103,20 +97,20 @@ class SparkParallelismTracker(
         waitForCondition(numAliveCores >= nWorkers, timeout)
       } catch {
         case _: TimeoutException =>
-          throw new SparkException(s"Unable to get $nWorkers workers for XGBoost training")
+          throw new IllegalStateException(s"Unable to get $nWorkers workers for XGBoost training")
       }
       safeExecute(body)
     }
   }
 }
 
-private[spark] class ExecutorLostListener(tracker: SparkParallelismTracker) extends SparkListener {
-  override def onExecutorRemoved(executorRemoved: SparkListenerExecutorRemoved): Unit = {
-    val reason = if (executorRemoved.reason != null) {
-      executorRemoved.reason
-    } else {
-      "Unknown"
+private[spark] class TaskFailedListener(tracker: SparkParallelismTracker) extends SparkListener {
+  override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
+    taskEnd.reason match {
+      case reason: TaskFailedReason =>
+        throw new InterruptedException(s"ExecutorLost during XGBoost Training: " +
+          s"${reason.toErrorString}")
+      case _ =>
     }
-    tracker.failedReason = reason
   }
 }

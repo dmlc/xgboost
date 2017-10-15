@@ -74,8 +74,8 @@ trait GeneralParams extends Params {
     * the interval to check whether total numCores is no smaller than nWorkers. default: 30 minutes
     */
   val timeoutRequestWorkers = new LongParam(this, "timeout_request_workers", "the maximum time to" +
-    " request new Workers if numCores are insufficient. The request will be skipped if this value" +
-    " is set smaller than or equal to 0.")
+    " request new Workers if numCores are insufficient. The timeout will be disabled if this" +
+    " value is set smaller than or equal to 0.")
 
   /**
     * Rabit tracker configurations. The parameter must be provided as an instance of the

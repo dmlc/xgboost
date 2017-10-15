@@ -44,7 +44,7 @@ class SparkParallelismTrackerSuite extends FunSuite with BeforeAndAfterAll {
     val nWorkers = numParallelism * 3
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
     val tracker = new SparkParallelismTracker(sc, 1000, nWorkers)
-    intercept[SparkException] {
+    intercept[IllegalStateException] {
       tracker.execute {
         rdd.map { i =>
           // Test interruption

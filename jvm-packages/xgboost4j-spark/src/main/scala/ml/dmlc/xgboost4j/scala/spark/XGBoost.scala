@@ -315,7 +315,7 @@ object XGBoost extends Serializable {
           "instance of TrackerConf.")
     }
     val timeoutRequestWorkers: Long = params.get("timeout_request_workers") match {
-      case None => 30 * 60 * 1000L
+      case None => 0L
       case Some(interval: Long) => interval
       case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
         " an instance of Long.")
