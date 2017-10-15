@@ -72,7 +72,7 @@ class SparkParallelismTracker(
   }
 
   private[this] def safeExecute[T](body: => T): T = {
-    sc.listenerBus.listeners.add(0, new TaskFailedListener(this))
+    sc.listenerBus.listeners.add(0, new TaskFailedListener)
     try {
       body
     } finally {
@@ -104,7 +104,7 @@ class SparkParallelismTracker(
   }
 }
 
-private[spark] class TaskFailedListener(tracker: SparkParallelismTracker) extends SparkListener {
+private[spark] class TaskFailedListener extends SparkListener {
   override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
     taskEnd.reason match {
       case reason: TaskFailedReason =>
