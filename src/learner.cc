@@ -146,6 +146,13 @@ class LearnerImpl : public Learner {
     name_gbm_ = "gbtree";
   }
 
+  static void AssertGPUSupport()
+  {
+#ifndef XGBOOST_USE_CUDA
+    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
+#endif
+  }
+
   void ConfigureUpdaters() {
     if (tparam.tree_method == 0 || tparam.tree_method == 1 ||
         tparam.tree_method == 2) {
@@ -166,6 +173,7 @@ class LearnerImpl : public Learner {
                    << "grow_fast_histmaker.";
       cfg_["updater"] = "grow_fast_histmaker";
     } else if (tparam.tree_method == 4) {
+      this->AssertGPUSupport();
       if (cfg_.count("updater") == 0) {
         cfg_["updater"] = "grow_gpu,prune";
       }
@@ -173,6 +181,7 @@ class LearnerImpl : public Learner {
         cfg_["predictor"] = "gpu_predictor";
       }
     } else if (tparam.tree_method == 5) {
+      this->AssertGPUSupport();
       if (cfg_.count("updater") == 0) {
         cfg_["updater"] = "grow_gpu_hist";
       }
@@ -180,6 +189,7 @@ class LearnerImpl : public Learner {
         cfg_["predictor"] = "gpu_predictor";
       }
     } else if (tparam.tree_method == 6) {
+      this->AssertGPUSupport();
       if (cfg_.count("updater") == 0) {
         cfg_["updater"] = "grow_gpu_hist_experimental,prune";
       }
