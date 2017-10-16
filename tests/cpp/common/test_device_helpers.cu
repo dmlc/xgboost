@@ -41,7 +41,7 @@ void SpeedTest() {
       [=] __device__(size_t idx, size_t ridx) { d_output_row[idx] = ridx; });
 
   dh::safe_cuda(cudaDeviceSynchronize());
-  double time = t.elapsedSeconds();
+  double time = t.ElapsedSeconds();
   const int mb_size = 1048576;
   size_t size = (sizeof(int) * h_rows.size()) / mb_size;
   printf("size: %llumb, time: %fs, bandwidth: %fmb/s\n", size, time,

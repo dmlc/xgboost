@@ -19,6 +19,7 @@ TEST(gpu_predictor, Test) {
   trees.push_back(std::unique_ptr<RegTree>());
   trees.back()->InitModel();
   (*trees.back())[0].set_leaf(1.5f);
+  (*trees.back()).stat(0).sum_hess = 1.0f;
   gbm::GBTreeModel model(0.5);
   model.CommitModel(std::move(trees), 0);
   model.param.num_output_group = 1;

@@ -363,7 +363,9 @@ class DMatrix(object):
                 nthread))
 
     def __del__(self):
-        _check_call(_LIB.XGDMatrixFree(self.handle))
+        if self.handle is not None:
+            _check_call(_LIB.XGDMatrixFree(self.handle))
+            self.handle = None
 
     def get_float_info(self, field):
         """Get float property from the DMatrix.
@@ -738,7 +740,9 @@ class Booster(object):
             self.load_model(model_file)
 
     def __del__(self):
-        _LIB.XGBoosterFree(self.handle)
+        if self.handle is not None:
+            _check_call(_LIB.XGBoosterFree(self.handle))
+            self.handle = None
 
     def __getstate__(self):
         # can't pickle ctypes pointers
@@ -986,7 +990,7 @@ class Booster(object):
         return self.eval_set([(data, name)], iteration)
 
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False,
-                pred_contribs=False):
+                pred_contribs=False, approx_contribs=False):
         """
         Predict with data.
 
@@ -1014,9 +1018,12 @@ class Booster(object):
 
         pred_contribs : bool
             When this option is on, the output will be a matrix of (nsample, nfeats+1)
-            with each record indicating the feature contributions of all trees. The sum of
-            all feature contributions is equal to the prediction. Note that the bias is added
-            as the final column, on top of the regular features.
+            with each record indicating the feature contributions (SHAP values) for that
+            prediction. The sum of all feature contributions is equal to the prediction.
+            Note that the bias is added as the final column, on top of the regular features.
+
+        approx_contribs : bool
+            Approximate the contributions of each feature
 
         Returns
         -------
@@ -1029,6 +1036,8 @@ class Booster(object):
             option_mask |= 0x02
         if pred_contribs:
             option_mask |= 0x04
+        if approx_contribs:
+            option_mask |= 0x08
 
         self._validate_features(data)
 

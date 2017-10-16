@@ -291,3 +291,18 @@ def test_contributions():
 
     for max_depth, num_rounds in itertools.product(range(0, 3), range(1, 5)):
         yield test_fn, max_depth, num_rounds
+
+    # check that we get the right SHAP values for a basic AND example
+    # (https://arxiv.org/abs/1706.06060)
+    X = np.zeros((4, 2))
+    X[0, :] = 1
+    X[1, 0] = 1
+    X[2, 1] = 1
+    y = np.zeros(4)
+    y[0] = 1
+    param = {"max_depth": 2, "base_score": 0.0, "eta": 1.0, "lambda": 0}
+    bst = xgb.train(param, xgb.DMatrix(X, label=y), 1)
+    out = bst.predict(xgb.DMatrix(X[0:1, :]), pred_contribs=True)
+    assert out[0, 0] == 0.375
+    assert out[0, 1] == 0.375
+    assert out[0, 2] == 0.25

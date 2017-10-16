@@ -8,6 +8,7 @@
 
 #include <dmlc/base.h>
 #include <dmlc/omp.h>
+#include <cmath>
 
 /*!
  * \brief string flag for R library, to leave hooks when needed.
@@ -163,7 +164,7 @@ class bst_gpair_internal {
 
   friend std::ostream &operator<<(std::ostream &os,
                                   const bst_gpair_internal<T> &g) {
-    os << g.grad_ << "/" << g.hess_;
+    os << g.GetGrad() << "/" << g.GetHess();
     return os;
   }
 };
@@ -178,11 +179,11 @@ inline XGBOOST_DEVICE float bst_gpair_internal<int64_t>::GetHess() const {
 }
 template<>
 inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetGrad(float g) {
-  grad_ = g * 1e5;
+  grad_ = std::round(g * 1e5);
 }
 template<>
 inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetHess(float h) {
-  hess_ = h * 1e5;
+  hess_ = std::round(h * 1e5);
 }
 
 }  // namespace detail

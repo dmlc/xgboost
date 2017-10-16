@@ -9,7 +9,7 @@ The purpose of this Vignette is to show you how to use **Xgboost** to discover a
 
 This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
 
-Pacakge loading:
+Package loading:
 
 
 ```r
@@ -368,7 +368,7 @@ print(c2)
 ## X-squared = 35.475, df = 35, p-value = 0.4458
 ```
 
-Pearson correlation between Age and illness disapearing is **35.48**.
+Pearson correlation between Age and illness disappearing is **35.48**.
 
 
 ```r

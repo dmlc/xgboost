@@ -12,6 +12,7 @@ TEST(cpu_predictor, Test) {
   trees.push_back(std::unique_ptr<RegTree>(new RegTree));
   trees.back()->InitModel();
   (*trees.back())[0].set_leaf(1.5f);
+  (*trees.back()).stat(0).sum_hess = 1.0f;
   gbm::GBTreeModel model(0.5);
   model.CommitModel(std::move(trees), 0);
   model.param.num_output_group = 1;
@@ -47,6 +48,12 @@ TEST(cpu_predictor, Test) {
   // Test predict contribution
   std::vector<float> out_contribution;
   cpu_predictor->PredictContribution(dmat.get(), &out_contribution, model);
+  for (int i = 0; i < out_contribution.size(); i++) {
+    ASSERT_EQ(out_contribution[i], 1.5);
+  }
+
+  // Test predict contribution (approximate method)
+  cpu_predictor->PredictContribution(dmat.get(), &out_contribution, model, true);
   for (int i = 0; i < out_contribution.size(); i++) {
     ASSERT_EQ(out_contribution[i], 1.5);
   }
