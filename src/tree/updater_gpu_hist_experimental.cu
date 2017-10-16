@@ -214,14 +214,15 @@ struct DeviceHistogram {
   int n_bins;
   void Init(int device_idx, int max_nodes, int n_bins, bool silent) {
     this->n_bins = n_bins;
-    ba.allocate(device_idx, silent, &data, max_nodes * n_bins);
+	size_t data_size = static_cast<size_t>(max_nodes) * static_cast<size_t>(n_bins);
+    ba.allocate(device_idx, silent, &data, data_size);
   }
 
   void Reset() {
     data.fill(bst_gpair_integer());
   }
   bst_gpair_integer *GetHistPtr(int nidx){
-    return data.data() + nidx * n_bins;
+    return data.data() + static_cast<size_t>(nidx) * static_cast<size_t>(n_bins);
   }
 };
 
@@ -291,9 +292,10 @@ struct DeviceShard {
             ellpack_matrix.size(), num_symbols);
     int max_nodes =
         param.max_leaves > 0 ? param.max_leaves * 2 : n_nodes(param.max_depth);
+	size_t gmat_size = static_cast<size_t>(gmat.cut->row_ptr.size());
     ba.allocate(device_idx, param.silent, &gidx_buffer, compressed_size_bytes,
                 &gpair, n_rows, &ridx, n_rows, &position, n_rows,
-                &feature_segments, gmat.cut->row_ptr.size(), &gidx_fvalue_map,
+                &feature_segments, gmat_size, &gidx_fvalue_map,
                 gmat.cut->cut.size(), &min_fvalue, gmat.cut->min_val.size());
     gidx_fvalue_map = gmat.cut->cut;
     min_fvalue = gmat.cut->min_val;
@@ -430,8 +432,8 @@ struct DeviceShard {
   // Reduce both left and right children
   void AllReduceHist(int nidx){
 
-    auto &stream = GetStreams(1);
-    dh::safe_cuda(cudaSetDevice(device_idx));
+	dh::safe_cuda(cudaSetDevice(device_idx));
+	auto &stream = GetStreams(1);
 
     auto d_node_hist = hist.GetHistPtr(nidx);
     dh::safe_nccl(ncclAllReduce(d_node_hist, d_node_hist, 2 * n_bins * sizeof(bst_gpair_integer) /
@@ -684,8 +686,8 @@ class GPUHistMakerExperimental : public TreeUpdater {
       monitor.Start("update position kernel");
       shard.temp_memory.LazyAllocate(sizeof(bst_uint));
       auto d_left_count = shard.temp_memory.Pointer<bst_uint>();
-      dh::safe_cuda(cudaMemset(d_left_count, 0, sizeof(bst_uint)));
-      dh::safe_cuda(cudaSetDevice(shard.device_idx));
+	  dh::safe_cuda(cudaSetDevice(shard.device_idx));
+	  dh::safe_cuda(cudaMemset(d_left_count, 0, sizeof(bst_uint)));
       auto segment = shard.ridx_segments[nidx];
       CHECK_GT(segment.second - segment.first, 0);
       auto d_ridx = shard.ridx.current();
