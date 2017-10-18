@@ -71,7 +71,7 @@ require(xgboost)
 ### Dataset presentation
 
 
-In this example, we are aiming to predict whether a mushroom can be eaten or not (like in many tutorials, example data are the the same as you will use on in your every day life :-).
+In this example, we are aiming to predict whether a mushroom can be eaten or not (like in many tutorials, example data are the same as you will use on in your every day life :-).
 
 Mushroom data is cited from UCI Machine Learning Repository. @Bache+Lichman:2013.
 
@@ -415,7 +415,7 @@ bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nthread = 2, nr
 ## [1]	train-error:0.004146	train-logloss:0.069885	test-error:0.003724	test-logloss:0.068081
 ```
 
-In this specific case, *linear boosting* gets sligtly better performance metrics than decision trees based algorithm.
+In this specific case, *linear boosting* gets slightly better performance metrics than decision trees based algorithm.
 
 In simple cases, it will happen because there is nothing better than a linear algorithm to catch a linear link. However, decision trees are much better to catch a non linear link between predictors and outcome. Because there is no silver bullet, we advise you to check both algorithms with your own datasets to have an idea of what to use.
 
