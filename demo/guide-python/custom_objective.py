@@ -22,7 +22,7 @@ def logregobj(preds, dtrain):
     labels = dtrain.get_label()
     preds = 1.0 / (1.0 + np.exp(-preds))
     grad = preds - labels
-    hess = preds * (1.0-preds)
+    hess = preds * (1.0 - preds)
     return grad, hess
 
 # user defined evaluation function, return a pair metric_name, result
