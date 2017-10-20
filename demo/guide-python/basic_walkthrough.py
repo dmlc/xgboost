@@ -13,19 +13,19 @@ dtest = xgb.DMatrix('../data/agaricus.txt.test')
 param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic' }
 
 # specify validations set to watch performance
-watchlist  = [(dtest,'eval'), (dtrain,'train')]
+watchlist  = [(dtest, 'eval'), (dtrain, 'train')]
 num_round = 2
 bst = xgb.train(param, dtrain, num_round, watchlist)
 
 # this is prediction
 preds = bst.predict(dtest)
 labels = dtest.get_label()
-print ('error=%f' % ( sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) /float(len(preds))))
+print ('error=%f' % (sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))))
 bst.save_model('0001.model')
 # dump model
 bst.dump_model('dump.raw.txt')
 # dump model with feature map
-bst.dump_model('dump.nice.txt','../data/featmap.txt')
+bst.dump_model('dump.nice.txt', '../data/featmap.txt')
 
 # save dmatrix into binary buffer
 dtest.save_binary('dtest.buffer')
@@ -60,23 +60,23 @@ for l in open('../data/agaricus.txt.train'):
         row.append(i); col.append(int(k)); dat.append(float(v))
     i += 1
 csr = scipy.sparse.csr_matrix((dat, (row,col)))
-dtrain = xgb.DMatrix(csr, label = labels)
-watchlist  = [(dtest,'eval'), (dtrain,'train')]
+dtrain = xgb.DMatrix(csr, label=labels)
+watchlist  = [(dtest, 'eval'), (dtrain, 'train')]
 bst = xgb.train(param, dtrain, num_round, watchlist)
 
 print ('start running example of build DMatrix from scipy.sparse CSC Matrix')
 # we can also construct from csc matrix
 csc = scipy.sparse.csc_matrix((dat, (row,col)))
 dtrain = xgb.DMatrix(csc, label=labels)
-watchlist  = [(dtest,'eval'), (dtrain,'train')]
+watchlist  = [(dtest, 'eval'), (dtrain, 'train')]
 bst = xgb.train(param, dtrain, num_round, watchlist)
 
 print ('start running example of build DMatrix from numpy array')
 # NOTE: npymat is numpy array, we will convert it into scipy.sparse.csr_matrix in internal implementation
 # then convert to DMatrix
 npymat = csr.todense()
-dtrain = xgb.DMatrix(npymat, label = labels)
-watchlist  = [(dtest,'eval'), (dtrain,'train')]
+dtrain = xgb.DMatrix(npymat, label=labels)
+watchlist  = [(dtest, 'eval'), (dtrain, 'train')]
 bst = xgb.train(param, dtrain, num_round, watchlist)
 
 
