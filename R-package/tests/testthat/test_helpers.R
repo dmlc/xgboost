@@ -81,6 +81,11 @@ test_that("predict feature contributions works", {
   expect_equal(colnames(pred_contr), c(colnames(sparse_matrix), "BIAS"))
   pred <- predict(bst.Tree, sparse_matrix, outputmargin = TRUE)
   expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
+  # must work with data that has no column names
+  X <- sparse_matrix
+  colnames(X) <- NULL
+  expect_error(pred_contr_ <- predict(bst.Tree, X, predcontrib = TRUE), regexp = NA)
+  expect_equal(pred_contr, pred_contr_, check.attributes = FALSE)
 
   # gbtree binary classifier (approximate method)
   expect_error(pred_contr <- predict(bst.Tree, sparse_matrix, predcontrib = TRUE, approxcontrib = TRUE), regexp = NA)

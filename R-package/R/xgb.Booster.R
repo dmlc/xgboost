@@ -292,7 +292,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   } else if (predcontrib) {
     n_col1 <- ncol(newdata) + 1
     n_group <- npred_per_case / n_col1
-    dnames <- list(NULL, c(colnames(newdata), "BIAS"))
+    dnames <- if (!is.null(colnames(newdata))) list(NULL, c(colnames(newdata), "BIAS")) else NULL
     ret <- if (n_ret == n_row) {
       matrix(ret, ncol = 1, dimnames = dnames)
     } else if (n_group == 1) {
