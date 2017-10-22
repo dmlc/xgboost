@@ -235,7 +235,7 @@ class HistCollection {
   std::vector<GHistEntry> data_;
 
   /*! \brief row_ptr_[nid] locates bin for historgram of node nid */
-  std::vector<uint32_t> row_ptr_;
+  std::vector<size_t> row_ptr_;
 };
 
 /*!

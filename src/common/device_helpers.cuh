@@ -601,7 +601,7 @@ void print(const dvec<T> &v, size_t max_items = 10) {
 
 template <typename coordinate_t, typename segments_t, typename offset_t>
 void FindMergePartitions(int device_idx, coordinate_t *d_tile_coordinates,
-                         int num_tiles, int tile_size, segments_t segments,
+                         size_t num_tiles, int tile_size, segments_t segments,
                          offset_t num_rows, offset_t num_elements) {
   dh::launch_n(device_idx, num_tiles + 1, [=] __device__(int idx) {
     offset_t diagonal = idx * tile_size;
@@ -682,7 +682,8 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
   const int BLOCK_THREADS = 256;
   const int ITEMS_PER_THREAD = 1;
   const int TILE_SIZE = BLOCK_THREADS * ITEMS_PER_THREAD;
-  int num_tiles = dh::div_round_up(count + num_segments, BLOCK_THREADS);
+  auto num_tiles = dh::div_round_up(count + num_segments, BLOCK_THREADS);
+  CHECK(num_tiles < std::numeric_limits<unsigned int>::max());
 
   temp_memory->LazyAllocate(sizeof(coordinate_t) * (num_tiles + 1));
   coordinate_t *tmp_tile_coordinates =
@@ -692,7 +693,7 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
                       BLOCK_THREADS, segments, num_segments, count);
 
   LbsKernel<TILE_SIZE, ITEMS_PER_THREAD, BLOCK_THREADS, offset_t>
-      <<<num_tiles, BLOCK_THREADS>>>(tmp_tile_coordinates, segments + 1, f,
+      <<<uint32_t(num_tiles), BLOCK_THREADS>>>(tmp_tile_coordinates, segments + 1, f,
                                      num_segments);
 }
 

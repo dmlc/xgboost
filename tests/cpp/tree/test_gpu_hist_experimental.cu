@@ -16,7 +16,7 @@ TEST(gpu_hist_experimental, TestSparseShard) {
   int rows = 100;
   int columns = 80;
   int max_bins = 4;
-  auto dmat = CreateDMatrix(rows, columns, 0.9);
+  auto dmat = CreateDMatrix(rows, columns, 0.9f);
   common::HistCutMatrix hmat;
   common::GHistIndexMatrix gmat;
   hmat.Init(dmat.get(), max_bins);
@@ -33,7 +33,7 @@ TEST(gpu_hist_experimental, TestSparseShard) {
 
   for (int i = 0; i < rows; i++) {
     int row_offset = 0;
-    for (int j = gmat.row_ptr[i]; j < gmat.row_ptr[i + 1]; j++) {
+    for (auto j = gmat.row_ptr[i]; j < gmat.row_ptr[i + 1]; j++) {
       ASSERT_EQ(gidx[i * shard.row_stride + row_offset], gmat.index[j]);
       row_offset++;
     }

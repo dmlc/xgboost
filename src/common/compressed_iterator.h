@@ -72,9 +72,9 @@ class CompressedBufferWriter {
 
   static size_t CalculateBufferSize(size_t num_elements, size_t num_symbols) {
     const int bits_per_byte = 8;
-    size_t compressed_size = std::ceil(
+    size_t compressed_size = static_cast<size_t>(std::ceil(
         static_cast<double>(detail::SymbolBits(num_symbols) * num_elements) /
-        bits_per_byte);
+        bits_per_byte));
     return compressed_size + detail::padding;
   }
 
@@ -108,7 +108,7 @@ class CompressedBufferWriter {
         // Eject only full bytes
         size_t tmp_bytes = stored_bits / 8;
         for (size_t j = 0; j < tmp_bytes; j++) {
-          buffer[buffer_position] = tmp >> (stored_bits - (j + 1) * 8);
+          buffer[buffer_position] = static_cast<compressed_byte_t>(tmp >> (stored_bits - (j + 1) * 8));
           buffer_position++;
         }
         stored_bits -= tmp_bytes * 8;
@@ -121,13 +121,13 @@ class CompressedBufferWriter {
     }
 
     // Eject all bytes
-    size_t tmp_bytes = std::ceil(static_cast<float>(stored_bits) / 8);
-    for (size_t j = 0; j < tmp_bytes; j++) {
+    int tmp_bytes = static_cast<int>(std::ceil(static_cast<float>(stored_bits) / 8));
+    for (int j = 0; j < tmp_bytes; j++) {
       int shift_bits = static_cast<int>(stored_bits) - (j + 1) * 8;
       if (shift_bits >= 0) {
-        buffer[buffer_position] = tmp >> shift_bits;
+        buffer[buffer_position] = static_cast<compressed_byte_t>(tmp >> shift_bits);
       } else {
-        buffer[buffer_position] = tmp << std::abs(shift_bits);
+        buffer[buffer_position] = static_cast<compressed_byte_t>(tmp << std::abs(shift_bits));
       }
       buffer_position++;
     }
