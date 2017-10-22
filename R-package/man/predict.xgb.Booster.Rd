@@ -7,7 +7,7 @@
 \usage{
 \method{predict}{xgb.Booster}(object, newdata, missing = NA,
   outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE,
-  predcontrib = FALSE, reshape = FALSE, ...)
+  predcontrib = FALSE, approxcontrib = FALSE, reshape = FALSE, ...)
 
 \method{predict}{xgb.Booster.handle}(object, ...)
 }
@@ -19,8 +19,8 @@
 \item{missing}{Missing is only used when input is dense matrix. Pick a float value that represents
 missing values in data (e.g., sometimes 0 or some other extreme value is used).}
 
-\item{outputmargin}{whether the prediction should be returned in the for of original untransformed 
-sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for 
+\item{outputmargin}{whether the prediction should be returned in the for of original untransformed
+sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for
 logistic regression would result in predictions for log-odds instead of probabilities.}
 
 \item{ntreelimit}{limit the number of model's trees or boosting iterations used in prediction (see Details).
@@ -30,24 +30,26 @@ It will use all the trees by default (\code{NULL} value).}
 
 \item{predcontrib}{whether to return feature contributions to individual predictions instead (see Details).}
 
-\item{reshape}{whether to reshape the vector of predictions to a matrix form when there are several 
+\item{approxcontrib}{whether to use a fast approximation for feature contributions (see Details).}
+
+\item{reshape}{whether to reshape the vector of predictions to a matrix form when there are several
 prediction outputs per case. This option has no effect when \code{predleaf = TRUE}.}
 
 \item{...}{Parameters passed to \code{predict.xgb.Booster}}
 }
 \value{
 For regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
-For multiclass classification, either a \code{num_class * nrows(newdata)} vector or 
-a \code{(nrows(newdata), num_class)} dimension matrix is returned, depending on 
+For multiclass classification, either a \code{num_class * nrows(newdata)} vector or
+a \code{(nrows(newdata), num_class)} dimension matrix is returned, depending on
 the \code{reshape} value.
 
-When \code{predleaf = TRUE}, the output is a matrix object with the 
+When \code{predleaf = TRUE}, the output is a matrix object with the
 number of columns corresponding to the number of trees.
 
 When \code{predcontrib = TRUE} and it is not a multiclass setting, the output is a matrix object with
 \code{num_features + 1} columns. The last "+ 1" column in a matrix corresponds to bias.
 For a multiclass case, a list of \code{num_class} elements is returned, where each element is
-such a matrix. The contribution values are on the scale of untransformed margin 
+such a matrix. The contribution values are on the scale of untransformed margin
 (e.g., for binary classification would mean that the contributions are log-odds deviations from bias).
 }
 \description{
@@ -57,22 +59,23 @@ Predicted values based on either xgboost model or model handle object.
 Note that \code{ntreelimit} is not necessarily equal to the number of boosting iterations
 and it is not necessarily equal to the number of trees in a model.
 E.g., in a random forest-like model, \code{ntreelimit} would limit the number of trees.
-But for multiclass classification, while there are multiple trees per iteration, 
+But for multiclass classification, while there are multiple trees per iteration,
 \code{ntreelimit} limits the number of boosting iterations.
 
-Also note that \code{ntreelimit} would currently do nothing for predictions from gblinear, 
+Also note that \code{ntreelimit} would currently do nothing for predictions from gblinear,
 since gblinear doesn't keep its boosting history.
 
-One possible practical applications of the \code{predleaf} option is to use the model 
-as a generator of new features which capture non-linearity and interactions, 
+One possible practical applications of the \code{predleaf} option is to use the model
+as a generator of new features which capture non-linearity and interactions,
 e.g., as implemented in \code{\link{xgb.create.features}}.
 
 Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
 individual predictions. For "gblinear" booster, feature contributions are simply linear terms
-(feature_beta * feature_value). For "gbtree" booster, feature contribution is calculated 
-as a sum of average contribution of that feature's split nodes across all trees to an 
-individual prediction, following the idea explained in 
-\url{http://blog.datadive.net/interpreting-random-forests/}.
+(feature_beta * feature_value). For "gbtree" booster, feature contributions are SHAP
+values (https://arxiv.org/abs/1706.06060) that sum to the difference between the expected output
+of the model and the current prediction (where the hessian weights are used to compute the expectations).
+Setting \code{approxcontrib = TRUE} approximates these values following the idea explained
+in \url{http://blog.datadive.net/interpreting-random-forests/}.
 }
 \examples{
 ## binary classification:
@@ -82,7 +85,7 @@ data(agaricus.test, package='xgboost')
 train <- agaricus.train
 test <- agaricus.test
 
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2, 
+bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
                eta = 0.5, nthread = 2, nrounds = 5, objective = "binary:logistic")
 # use all trees by default
 pred <- predict(bst, test$data)
@@ -98,7 +101,7 @@ str(pred_leaf)
 # the result is an nsamples X (nfeatures + 1) matrix
 pred_contr <- predict(bst, test$data, predcontrib = TRUE)
 str(pred_contr)
-# verify that contributions' sums are equal to log-odds of predictions (up to foat precision):
+# verify that contributions' sums are equal to log-odds of predictions (up to float precision):
 summary(rowSums(pred_contr) - qlogis(pred))
 # for the 1st record, let's inspect its features that had non-zero contribution to prediction:
 contr1 <- pred_contr[1,]
@@ -137,7 +140,7 @@ bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
 pred <- predict(bst, as.matrix(iris[, -5]))
 str(pred)
 all.equal(pred, pred_labels)
-# prediction from using only 5 iterations should result 
+# prediction from using only 5 iterations should result
 # in the same error as seen in iteration 5:
 pred5 <- predict(bst, as.matrix(iris[, -5]), ntreelimit=5)
 sum(pred5 != lb)/length(lb)
