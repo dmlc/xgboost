@@ -630,7 +630,8 @@ class GPUMaker : public TreeUpdater {
       throw std::runtime_error("exact::GPUBuilder - must have 1 column block");
     }
     std::vector<float> fval;
-    std::vector<int> fId, offset;
+    std::vector<int> fId;
+    std::vector<size_t> offset;
     convertToCsc(dmat, &fval, &fId, &offset);
     allocateAllData(static_cast<int>(offset.size()));
     transferAndSortData(fval, fId, offset);
@@ -638,10 +639,12 @@ class GPUMaker : public TreeUpdater {
   }
 
   void convertToCsc(DMatrix* dmat, std::vector<float>* fval,
-                    std::vector<int>* fId, std::vector<int>* offset) {
+                    std::vector<int>* fId, std::vector<size_t>* offset) {
     MetaInfo info = dmat->info();
-    nRows = info.num_row;
-    nCols = info.num_col;
+    CHECK(info.num_col < std::numeric_limits<int>::max());
+    CHECK(info.num_row < std::numeric_limits<int>::max());
+    nRows = static_cast<int>(info.num_row);
+    nCols = static_cast<int>(info.num_col);
     offset->reserve(nCols + 1);
     offset->push_back(0);
     fval->reserve(nCols * nRows);
@@ -667,12 +670,13 @@ class GPUMaker : public TreeUpdater {
         offset->push_back(fval->size());
       }
     }
-    nVals = fval->size();
+    CHECK(fval->size() < std::numeric_limits<int>::max());
+    nVals = static_cast<int>(fval->size());
   }
 
   void transferAndSortData(const std::vector<float>& fval,
                            const std::vector<int>& fId,
-                           const std::vector<int>& offset) {
+                           const std::vector<size_t>& offset) {
     vals.current_dvec() = fval;
     instIds.current_dvec() = fId;
     colOffsets = offset;

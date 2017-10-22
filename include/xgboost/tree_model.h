@@ -651,7 +651,7 @@ inline void ExtendPath(PathElement *unique_path, unsigned unique_depth,
   unique_path[unique_depth].feature_index = feature_index;
   unique_path[unique_depth].zero_fraction = zero_fraction;
   unique_path[unique_depth].one_fraction = one_fraction;
-  unique_path[unique_depth].pweight = (unique_depth == 0 ? 1 : 0);
+  unique_path[unique_depth].pweight = static_cast<bst_float>(unique_depth == 0 ? 1 : 0);
   for (int i = unique_depth-1; i >= 0; i--) {
     unique_path[i+1].pweight += one_fraction*unique_path[i].pweight*(i+1)
                                 / static_cast<bst_float>(unique_depth+1);
@@ -679,7 +679,7 @@ inline void UnwindPath(PathElement *unique_path, unsigned unique_depth, unsigned
     }
   }
 
-  for (int i = path_index; i < unique_depth; ++i) {
+  for (auto i = path_index; i < unique_depth; ++i) {
     unique_path[i].feature_index = unique_path[i+1].feature_index;
     unique_path[i].zero_fraction = unique_path[i+1].zero_fraction;
     unique_path[i].one_fraction = unique_path[i+1].one_fraction;
@@ -725,7 +725,7 @@ inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
 
   // leaf node
   if (node.is_leaf()) {
-    for (int i = 1; i <= unique_depth; ++i) {
+    for (unsigned i = 1; i <= unique_depth; ++i) {
       const bst_float w = UnwoundPathSum(unique_path, unique_depth, i);
       const PathElement &el = unique_path[i];
       phi[el.feature_index] += w*(el.one_fraction-el.zero_fraction)*node.leaf_value();
@@ -775,7 +775,7 @@ inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned 
   // find the expected value of the tree's predictions
   bst_float base_value = 0.0;
   bst_float total_cover = 0;
-  for (unsigned i = 0; i < (*this).param.num_nodes; ++i) {
+  for (int i = 0; i < (*this).param.num_nodes; ++i) {
     const auto node = (*this)[i];
     if (node.is_leaf()) {
       const auto cover = this->stat(i).sum_hess;

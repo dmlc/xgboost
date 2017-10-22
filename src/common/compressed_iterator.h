@@ -28,8 +28,8 @@ static const int padding = 4;  // Assign padding so we can read slightly off
                                // the beginning of the array
 
 // The number of bits required to represent a given unsigned range
-static int SymbolBits(int num_symbols) {
-  return std::ceil(std::log2(num_symbols));
+static size_t SymbolBits(size_t num_symbols) {
+  return static_cast<size_t>(std::ceil(std::log2(num_symbols)));
 }
 }  // namespace detail
 
@@ -98,8 +98,8 @@ class CompressedBufferWriter {
   template <typename iter_t>
   void Write(compressed_byte_t *buffer, iter_t input_begin, iter_t input_end) {
     uint64_t tmp = 0;
-    int stored_bits = 0;
-    const int max_stored_bits = 64 - symbol_bits_;
+    size_t stored_bits = 0;
+    const size_t max_stored_bits = 64 - symbol_bits_;
     size_t buffer_position = detail::padding;
     const size_t num_symbols = input_end - input_begin;
     for (size_t i = 0; i < num_symbols; i++) {
@@ -123,7 +123,7 @@ class CompressedBufferWriter {
     // Eject all bytes
     size_t tmp_bytes = std::ceil(static_cast<float>(stored_bits) / 8);
     for (size_t j = 0; j < tmp_bytes; j++) {
-      int shift_bits = stored_bits - (j + 1) * 8;
+      int shift_bits = static_cast<int>(stored_bits) - (j + 1) * 8;
       if (shift_bits >= 0) {
         buffer[buffer_position] = tmp >> shift_bits;
       } else {

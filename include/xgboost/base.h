@@ -171,19 +171,19 @@ class bst_gpair_internal {
 
 template<>
 inline XGBOOST_DEVICE float bst_gpair_internal<int64_t>::GetGrad() const {
-  return grad_ * 1e-5;
+  return grad_ * 1e-5f;
 }
 template<>
 inline XGBOOST_DEVICE float bst_gpair_internal<int64_t>::GetHess() const {
-  return hess_ * 1e-5;
+  return hess_ * 1e-5f;
 }
 template<>
 inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetGrad(float g) {
-  grad_ = std::round(g * 1e5);
+  grad_ = static_cast<int64_t>(std::round(g * 1e5));
 }
 template<>
 inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetHess(float h) {
-  hess_ = std::round(h * 1e5);
+  hess_ = static_cast<int64_t>(std::round(h * 1e5));
 }
 
 }  // namespace detail

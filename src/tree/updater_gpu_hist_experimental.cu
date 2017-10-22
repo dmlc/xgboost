@@ -190,24 +190,6 @@ __device__ int BinarySearchRow(bst_uint begin, bst_uint end, gidx_iter_t data,
   return -1;
 }
 
-template <int BLOCK_THREADS>
-__global__ void RadixSortSmall(bst_uint* d_ridx, int* d_position, bst_uint n) {
-  typedef cub::BlockRadixSort<int, BLOCK_THREADS, 1, bst_uint> BlockRadixSort;
-  __shared__ typename BlockRadixSort::TempStorage temp_storage;
-
-  bool thread_active = threadIdx.x < n;
-  int thread_key[1];
-  bst_uint thread_value[1];
-  thread_key[0] = thread_active ? d_position[threadIdx.x] : INT_MAX;
-  thread_value[0] = thread_active ? d_ridx[threadIdx.x] : UINT_MAX;
-  BlockRadixSort(temp_storage).Sort(thread_key, thread_value);
-
-  if (thread_active) {
-    d_position[threadIdx.x] = thread_key[0];
-    d_ridx[threadIdx.x] = thread_value[0];
-  }
-}
-
 struct DeviceHistogram {
   dh::bulk_allocator<dh::memory_type::DEVICE> ba;
   dh::dvec<bst_gpair_integer> data;
@@ -269,7 +251,7 @@ struct DeviceShard {
         null_gidx_value(n_bins) {
     // Convert to ELLPACK matrix representation
     int max_elements_row = 0;
-    for (int i = row_begin; i < row_end; i++) {
+    for (auto i = row_begin; i < row_end; i++) {
       max_elements_row =
           (std::max)(max_elements_row,
                      static_cast<int>(gmat.row_ptr[i + 1] - gmat.row_ptr[i]));
@@ -277,9 +259,9 @@ struct DeviceShard {
     row_stride = max_elements_row;
     std::vector<int> ellpack_matrix(row_stride * n_rows, null_gidx_value);
 
-    for (int i = row_begin; i < row_end; i++) {
+    for (auto i = row_begin; i < row_end; i++) {
       int row_count = 0;
-      for (int j = gmat.row_ptr[i]; j < gmat.row_ptr[i + 1]; j++) {
+      for (auto j = gmat.row_ptr[i]; j < gmat.row_ptr[i + 1]; j++) {
         ellpack_matrix[i * row_stride + row_count] = gmat.index[j];
         row_count++;
       }
