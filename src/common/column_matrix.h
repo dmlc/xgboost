@@ -153,31 +153,36 @@ class ColumnMatrix {
     std::vector<size_t> num_nonzeros;
     num_nonzeros.resize(nfeature);
     std::fill(num_nonzeros.begin(), num_nonzeros.end(), 0);
-    for (size_t rid = 0; rid < nrow; ++rid) {
-      const size_t ibegin = gmat.row_ptr[rid];
-      const size_t iend = gmat.row_ptr[rid + 1];
-      size_t fid = 0;
-      for (size_t i = ibegin; i < iend; ++i) {
-        const uint32_t bin_id = gmat.index[i];
-        while (bin_id >= gmat.cut->row_ptr[fid + 1]) {
-          ++fid;
-        }
-        if (type_[fid] == kDenseColumn) {
-          XGBOOST_TYPE_SWITCH(this->dtype, {
-            const size_t block_offset = boundary_[fid].index_begin / packing_factor_;
-            const size_t elem_offset = boundary_[fid].index_begin % packing_factor_;
-            DType* begin = reinterpret_cast<DType*>(&index_[block_offset]) + elem_offset;
-            begin[rid] = static_cast<DType>(bin_id - index_base_[fid]);
-          });
-        } else {
-          XGBOOST_TYPE_SWITCH(this->dtype, {
-            const size_t block_offset = boundary_[fid].index_begin / packing_factor_;
-            const size_t elem_offset = boundary_[fid].index_begin % packing_factor_;
-            DType* begin = reinterpret_cast<DType*>(&index_[block_offset]) + elem_offset;
-            begin[num_nonzeros[fid]] = static_cast<DType>(bin_id - index_base_[fid]);
-          });
-          row_ind_[boundary_[fid].row_ind_begin + num_nonzeros[fid]] = rid;
-          ++num_nonzeros[fid];
+
+    const int nthread = omp_get_max_threads();
+    #pragma omp parallel num_threads(nthread)
+    {
+      for (size_t rid = 0; rid < nrow; ++rid) {
+        const bst_omp_uint ibegin = static_cast<bst_omp_uint>(gmat.row_ptr[rid]);
+        const bst_omp_uint iend = static_cast<bst_omp_uint>(gmat.row_ptr[rid + 1]);
+        #pragma omp for schedule(static)
+        for (bst_omp_uint i = ibegin; i < iend; ++i) {
+          const uint32_t bin_id = gmat.index[i];
+          const auto& vec = gmat.cut->row_ptr;
+          auto it = std::upper_bound(vec.begin(), vec.end(), bin_id);
+          const size_t fid = it - vec.begin() - 1;
+          if (type_[fid] == kDenseColumn) {
+            XGBOOST_TYPE_SWITCH(this->dtype, {
+              const size_t block_offset = boundary_[fid].index_begin / packing_factor_;
+              const size_t elem_offset = boundary_[fid].index_begin % packing_factor_;
+              DType* begin = reinterpret_cast<DType*>(&index_[block_offset]) + elem_offset;
+              begin[rid] = static_cast<DType>(bin_id - index_base_[fid]);
+            });
+          } else {
+            XGBOOST_TYPE_SWITCH(this->dtype, {
+              const size_t block_offset = boundary_[fid].index_begin / packing_factor_;
+              const size_t elem_offset = boundary_[fid].index_begin % packing_factor_;
+              DType* begin = reinterpret_cast<DType*>(&index_[block_offset]) + elem_offset;
+              begin[num_nonzeros[fid]] = static_cast<DType>(bin_id - index_base_[fid]);
+            });
+            row_ind_[boundary_[fid].row_ind_begin + num_nonzeros[fid]] = rid;
+            ++num_nonzeros[fid];
+          }
         }
       }
     }
