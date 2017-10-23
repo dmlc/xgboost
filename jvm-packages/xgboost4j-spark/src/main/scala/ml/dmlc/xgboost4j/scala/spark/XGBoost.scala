@@ -63,8 +63,8 @@ object XGBoost extends Serializable {
    * @return Iterator with missing values removed.
    */
   private def fromDenseToSparseLabeledPoints(
-                                              denseLabeledPoints: Iterator[XGBLabeledPoint],
-                                              missing: Float): Iterator[XGBLabeledPoint] = {
+      denseLabeledPoints: Iterator[XGBLabeledPoint],
+      missing: Float): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
       denseLabeledPoints.map { labeledPoint =>
         val indicesBuilder = new mutable.ArrayBuilder.ofInt()
@@ -133,15 +133,15 @@ object XGBoost extends Serializable {
    * @return Distributed collection of boosting models represented as an RDD
    */
   private[spark] def buildDistributedBoosters(
-                                               data: RDD[XGBLabeledPoint],
-                                               params: Map[String, Any],
-                                               rabitEnv: java.util.Map[String, String],
-                                               numWorkers: Int,
-                                               round: Int,
-                                               obj: ObjectiveTrait,
-                                               eval: EvalTrait,
-                                               useExternalMemory: Boolean,
-                                               missing: Float): RDD[Booster] = {
+      data: RDD[XGBLabeledPoint],
+      params: Map[String, Any],
+      rabitEnv: java.util.Map[String, String],
+      numWorkers: Int,
+      round: Int,
+      obj: ObjectiveTrait,
+      eval: EvalTrait,
+      useExternalMemory: Boolean,
+      missing: Float): RDD[Booster] = {
     val partitionedData = if (data.getNumPartitions != numWorkers) {
       logger.info(s"repartitioning training set to $numWorkers partitions")
       data.repartition(numWorkers)
@@ -205,16 +205,16 @@ object XGBoost extends Serializable {
    */
   @throws(classOf[XGBoostError])
   def trainWithDataFrame(
-                          trainingData: Dataset[_],
-                          params: Map[String, Any],
-                          round: Int,
-                          nWorkers: Int,
-                          obj: ObjectiveTrait = null,
-                          eval: EvalTrait = null,
-                          useExternalMemory: Boolean = false,
-                          missing: Float = Float.NaN,
-                          featureCol: String = "features",
-                          labelCol: String = "label"): XGBoostModel = {
+      trainingData: Dataset[_],
+      params: Map[String, Any],
+      round: Int,
+      nWorkers: Int,
+      obj: ObjectiveTrait = null,
+      eval: EvalTrait = null,
+      useExternalMemory: Boolean = false,
+      missing: Float = Float.NaN,
+      featureCol: String = "features",
+      labelCol: String = "label"): XGBoostModel = {
     require(nWorkers > 0, "you must specify more than 0 workers")
     val estimator = new XGBoostEstimator(params)
     // assigning general parameters
@@ -257,21 +257,21 @@ object XGBoost extends Serializable {
    */
   @deprecated("Use XGBoost.trainWithRDD instead.")
   def train(
-             trainingData: RDD[MLLabeledPoint],
-             params: Map[String, Any],
-             round: Int,
-             nWorkers: Int,
-             obj: ObjectiveTrait = null,
-             eval: EvalTrait = null,
-             useExternalMemory: Boolean = false,
-             missing: Float = Float.NaN): XGBoostModel = {
+      trainingData: RDD[MLLabeledPoint],
+      params: Map[String, Any],
+      round: Int,
+      nWorkers: Int,
+      obj: ObjectiveTrait = null,
+      eval: EvalTrait = null,
+      useExternalMemory: Boolean = false,
+      missing: Float = Float.NaN): XGBoostModel = {
     trainWithRDD(trainingData, params, round, nWorkers, obj, eval, useExternalMemory,
       missing)
   }
 
   private def overrideParamsAccordingToTaskCPUs(
-                                                 params: Map[String, Any],
-                                                 sc: SparkContext): Map[String, Any] = {
+      params: Map[String, Any],
+      sc: SparkContext): Map[String, Any] = {
     val coresPerTask = sc.getConf.getInt("spark.task.cpus", 1)
     var overridedParams = params
     if (overridedParams.contains("nthread")) {
@@ -314,14 +314,14 @@ object XGBoost extends Serializable {
    */
   @throws(classOf[XGBoostError])
   def trainWithRDD(
-                    trainingData: RDD[MLLabeledPoint],
-                    params: Map[String, Any],
-                    round: Int,
-                    nWorkers: Int,
-                    obj: ObjectiveTrait = null,
-                    eval: EvalTrait = null,
-                    useExternalMemory: Boolean = false,
-                    missing: Float = Float.NaN): XGBoostModel = {
+      trainingData: RDD[MLLabeledPoint],
+      params: Map[String, Any],
+      round: Int,
+      nWorkers: Int,
+      obj: ObjectiveTrait = null,
+      eval: EvalTrait = null,
+      useExternalMemory: Boolean = false,
+      missing: Float = Float.NaN): XGBoostModel = {
     import DataUtils._
     val xgbTrainingData = trainingData.map { case MLLabeledPoint(label, features) =>
       features.asXGB.copy(label = label.toFloat)
@@ -353,14 +353,14 @@ object XGBoost extends Serializable {
    */
   @throws(classOf[XGBoostError])
   private[spark] def trainDistributed(
-                                       trainingData: RDD[XGBLabeledPoint],
-                                       params: Map[String, Any],
-                                       round: Int,
-                                       nWorkers: Int,
-                                       obj: ObjectiveTrait = null,
-                                       eval: EvalTrait = null,
-                                       useExternalMemory: Boolean = false,
-                                       missing: Float = Float.NaN): XGBoostModel = {
+      trainingData: RDD[XGBLabeledPoint],
+      params: Map[String, Any],
+      round: Int,
+      nWorkers: Int,
+      obj: ObjectiveTrait = null,
+      eval: EvalTrait = null,
+      useExternalMemory: Boolean = false,
+      missing: Float = Float.NaN): XGBoostModel = {
     if (params.contains("tree_method")) {
       require(params("tree_method") != "hist", "xgboost4j-spark does not support fast histogram" +
         " for now")
@@ -427,10 +427,10 @@ object XGBoost extends Serializable {
    * @return Trained [[XGBoostModel]].
    */
   private def postTrackerReturnProcessing(
-                                           trackerReturnVal: Int,
-                                           distributedBoosters: RDD[Booster],
-                                           sparkJobThread: Thread,
-                                           isClassificationTask: Boolean): XGBoostModel = {
+      trackerReturnVal: Int,
+      distributedBoosters: RDD[Booster],
+      sparkJobThread: Thread,
+      isClassificationTask: Boolean): XGBoostModel = {
     if (trackerReturnVal == 0) {
       val xgboostModel = XGBoostModel(distributedBoosters.first(), isClassificationTask)
       distributedBoosters.unpersist(false)
@@ -456,10 +456,10 @@ object XGBoost extends Serializable {
   }
 
   private def setGeneralModelParams(
-                                     featureCol: String,
-                                     labelCol: String,
-                                     predCol: String,
-                                     xgBoostModel: XGBoostModel): XGBoostModel = {
+      featureCol: String,
+      labelCol: String,
+      predCol: String,
+      xgBoostModel: XGBoostModel): XGBoostModel = {
     xgBoostModel.setFeaturesCol(featureCol)
     xgBoostModel.setLabelCol(labelCol)
     xgBoostModel.setPredictionCol(predCol)
@@ -533,10 +533,10 @@ private object Watches {
    * @return Watches instance, holding train and test matrices.
    */
   def apply(
-             params: Map[String, Any],
-             labeledPoints: Iterator[XGBLabeledPoint],
-             baseMarginsOpt: Option[Array[Float]],
-             cacheFileName: String): Watches = {
+      params: Map[String, Any],
+      labeledPoints: Iterator[XGBLabeledPoint],
+      baseMarginsOpt: Option[Array[Float]],
+      cacheFileName: String): Watches = {
     val trainTestRatio = params.get("trainTestRatio").map(_.toString.toDouble).getOrElse(1.0)
     val seed = params.get("seed").map(_.toString.toLong).getOrElse(System.nanoTime())
     val r = new Random(seed)

@@ -24,13 +24,12 @@ package ml.dmlc.xgboost4j
  * @param baseMargin Initial prediction on this point or `Float.NaN`
  */
 case class LabeledPoint(
-                         label: Float,
-                         indices: Array[Int],
-                         values: Array[Float],
-                         weight: Float = 1f,
-                         group: Int = -1,
-                         baseMargin: Float = Float.NaN
-                       ) extends Serializable {
+    label: Float,
+    indices: Array[Int],
+    values: Array[Float],
+    weight: Float = 1f,
+    group: Int = -1,
+    baseMargin: Float = Float.NaN) extends Serializable {
   require(indices == null || indices.length == values.length,
     "indices and values must have the same number of elements")
 
