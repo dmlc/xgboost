@@ -210,6 +210,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
             state['best_score'] = float('-inf')
         else:
             state['best_score'] = float('inf')
+        state['best_msg'] = "Never found better model"
 
         if bst is not None:
             if bst.attr('best_score') is not None:
