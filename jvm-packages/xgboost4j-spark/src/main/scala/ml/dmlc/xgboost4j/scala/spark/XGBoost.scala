@@ -471,8 +471,8 @@ object XGBoost extends Serializable {
    * @param modelPath The path of the file representing the model
    * @return The loaded model
    */
-  def loadModelFromHadoopFile(modelPath: String)(implicit sparkContext: SparkContext):
-  XGBoostModel = {
+  def loadModelFromHadoopFile(modelPath: String)
+                             (implicit sparkContext: SparkContext): XGBoostModel = {
     val path = new Path(modelPath)
     val dataInStream = path.getFileSystem(sparkContext.hadoopConfiguration).open(path)
     val modelType = dataInStream.readUTF()
@@ -492,7 +492,6 @@ object XGBoost extends Serializable {
         val xgBoostModel = new XGBoostClassificationModel(SXGBoost.loadModel(dataInStream))
         setGeneralModelParams(featureCol, labelCol, predictionCol, xgBoostModel).
           asInstanceOf[XGBoostClassificationModel].setRawPredictionCol(rawPredictionCol)
-        xgBoostModel.set()
         if (thresholdLength != -1) {
           xgBoostModel.setThresholds(thresholds)
         }
@@ -502,7 +501,8 @@ object XGBoost extends Serializable {
         val xgBoostModel = new XGBoostRegressionModel(SXGBoost.loadModel(dataInStream))
         setGeneralModelParams(featureCol, labelCol, predictionCol, xgBoostModel)
       case other =>
-        throw new XGBoostError(s"Unknown model type $other. Supported types are: [_reg_, _cls_].")
+        throw new XGBoostError(s"Unknown model type $other. Supported types " +
+          s"are: ['_reg_', '_cls_'].")
     }
   }
 }
