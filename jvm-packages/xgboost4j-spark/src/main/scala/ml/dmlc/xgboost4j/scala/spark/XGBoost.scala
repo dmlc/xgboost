@@ -23,13 +23,12 @@ import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker 
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
-import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
-import org.apache.spark.{SparkContext, TaskContext}
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
+import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
 
 object TrackerConf {
   def apply(): TrackerConf = TrackerConf(0L, "python")
@@ -315,8 +314,17 @@ object XGBoost extends Serializable {
       case _ => throw new IllegalArgumentException("parameter \"tracker_conf\" must be an " +
           "instance of TrackerConf.")
     }
+    val timeoutRequestWorkers: Long = params.get("timeout_request_workers") match {
+      case None => 0L
+      case Some(interval: Long) => interval
+      case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
+        " an instance of Long.")
+    }
+
     val tracker = startTracker(nWorkers, trackerConf)
     try {
+      val sc = trainingData.sparkContext
+      val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
       val overriddenParams = overrideParamsAccordingToTaskCPUs(params, trainingData.sparkContext)
       val boosters = buildDistributedBoosters(trainingData, overriddenParams,
         tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
@@ -329,7 +337,7 @@ object XGBoost extends Serializable {
       sparkJobThread.setUncaughtExceptionHandler(tracker)
       sparkJobThread.start()
       val isClsTask = isClassificationTask(params)
-      val trackerReturnVal = tracker.waitFor(0L)
+      val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
       logger.info(s"Rabit returns with exit code $trackerReturnVal")
       val model = postTrackerReturnProcessing(trackerReturnVal, boosters, overriddenParams,
         sparkJobThread, isClsTask)
