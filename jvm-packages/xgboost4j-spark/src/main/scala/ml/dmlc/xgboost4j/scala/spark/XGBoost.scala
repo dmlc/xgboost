@@ -119,6 +119,12 @@ object XGBoost extends Serializable {
    * partition is converted to an XGBoost `DMatrix`, and a gradient boosted decision tree model
    * is trained by calling into the native XGBoost code through the Java Native Interface.
    *
+   * Each RDD partition is essentially a long-running task that repeatedly performs boosting
+   * iterations by calling into the native XGBoost library and communicates split statistics
+   * through the [[Rabit]] all-reduce framework instead of performing aggregations directly
+   * within Spark. Training is executed in a single Spark job, and can be triggered by invoking
+   * some action on the returned RDD - e.g. a call to `foreachPartition`.
+   *
    * @param data the training set represented as an RDD
    * @param params Hashmap containing the configuration entries
    * @param rabitEnv Hashmap containing configuration parameters for the all-reduce environment
