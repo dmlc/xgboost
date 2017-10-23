@@ -20,7 +20,7 @@ bst = xgb.train(param, dtrain, num_round, watchlist)
 # this is prediction
 preds = bst.predict(dtest)
 labels = dtest.get_label()
-print ('error=%f' % ( sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))))
+print('error=%f' % (sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))))
 bst.save_model('0001.model')
 # dump model
 bst.dump_model('dump.raw.txt')
@@ -48,7 +48,7 @@ assert np.sum(np.abs(preds3 - preds)) == 0
 
 ###
 # build dmatrix from scipy.sparse
-print ('start running example of build DMatrix from scipy.sparse CSR Matrix')
+print('start running example of build DMatrix from scipy.sparse CSR Matrix')
 labels = []
 row = []; col = []; dat = []
 i = 0
@@ -64,14 +64,14 @@ dtrain = xgb.DMatrix(csr, label=labels)
 watchlist = [(dtest, 'eval'), (dtrain, 'train')]
 bst = xgb.train(param, dtrain, num_round, watchlist)
 
-print ('start running example of build DMatrix from scipy.sparse CSC Matrix')
+print('start running example of build DMatrix from scipy.sparse CSC Matrix')
 # we can also construct from csc matrix
 csc = scipy.sparse.csc_matrix((dat, (row, col)))
 dtrain = xgb.DMatrix(csc, label=labels)
 watchlist = [(dtest, 'eval'), (dtrain, 'train')]
 bst = xgb.train(param, dtrain, num_round, watchlist)
 
-print ('start running example of build DMatrix from numpy array')
+print('start running example of build DMatrix from numpy array')
 # NOTE: npymat is numpy array, we will convert it into scipy.sparse.csr_matrix in internal implementation
 # then convert to DMatrix
 npymat = csr.todense()
