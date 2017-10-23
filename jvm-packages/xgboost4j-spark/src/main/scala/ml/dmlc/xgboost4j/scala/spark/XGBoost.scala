@@ -110,7 +110,7 @@ object XGBoost extends Serializable {
     } else {
       throw new IllegalArgumentException(
         s"Encountered a partition with $nUndefined NaN base margin values. " +
-          "If you want to specify base margin, ensure all values are non-NaN.")
+          s"If you want to specify base margin, ensure all values are non-NaN.")
     }
   }
 
@@ -135,7 +135,7 @@ object XGBoost extends Serializable {
    * @param eval An instance of [[EvalTrait]] specifying a custom evaluation function
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                          true, the user may save the RAM cost for running XGBoost within Spark
-   * @param missing A Float value that designates a missing value in the training data.
+   * @param missing The value that designates a missing value in the training data.
    * @return Distributed collection of boosting models represented as an RDD
    */
   private[spark] def buildDistributedBoosters(
@@ -203,7 +203,7 @@ object XGBoost extends Serializable {
    * @param eval the user-defined evaluation function, null by default
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                           true, the user may save the RAM cost for running XGBoost within Spark
-   * @param missing A Float value which represents a missing value in the dataset
+   * @param missing The value which represents a missing value in the dataset
    * @param featureCol the name of input column, "features" as default value
    * @param labelCol the name of output column, "label" as default value
    * @throws ml.dmlc.xgboost4j.java.XGBoostError when the model training is failed
@@ -354,7 +354,7 @@ object XGBoost extends Serializable {
    * @param eval An instance of [[EvalTrait]] specifying a custom evaluation metric
    * @param useExternalMemory Whether to enable XGBoost to store some data on disk when not enough
    *                          memory is available to load the entire dataset.
-   * @param missing A Float value which designates a missing value in the training data.
+   * @param missing The value which designates a missing value in the training data.
    * @return
    */
   @throws(classOf[XGBoostError])
