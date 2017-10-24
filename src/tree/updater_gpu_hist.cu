@@ -404,7 +404,7 @@ class GPUHistMaker : public TreeUpdater {
       device_row_segments.push_back(0);
       device_element_segments.push_back(0);
       bst_uint offset = 0;
-      bst_uint shard_size =static_cast<bst_uint>(
+      bst_uint shard_size = static_cast<bst_uint>(
           std::ceil(static_cast<double>(num_rows) / n_devices));
       for (int d_idx = 0; d_idx < n_devices; d_idx++) {
         int device_idx = dList[d_idx];

@@ -146,8 +146,7 @@ class LearnerImpl : public Learner {
     name_gbm_ = "gbtree";
   }
 
-  static void AssertGPUSupport()
-  {
+  static void AssertGPUSupport() {
 #ifndef XGBOOST_USE_CUDA
     LOG(FATAL) << "XGBoost version not compiled with GPU support.";
 #endif

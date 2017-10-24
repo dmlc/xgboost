@@ -6,7 +6,7 @@
 #include <xgboost/base.h>
 #include <cmath>
 #include <cstddef>
-#include "dmlc/logging.h"
+#include <algorithm>
 
 namespace xgboost {
 namespace common {
@@ -109,7 +109,8 @@ class CompressedBufferWriter {
         // Eject only full bytes
         size_t tmp_bytes = stored_bits / 8;
         for (size_t j = 0; j < tmp_bytes; j++) {
-          buffer[buffer_position] = static_cast<compressed_byte_t>(tmp >> (stored_bits - (j + 1) * 8));
+          buffer[buffer_position] = static_cast<compressed_byte_t>(
+              tmp >> (stored_bits - (j + 1) * 8));
           buffer_position++;
         }
         stored_bits -= tmp_bytes * 8;
@@ -122,13 +123,16 @@ class CompressedBufferWriter {
     }
 
     // Eject all bytes
-    int tmp_bytes = static_cast<int>(std::ceil(static_cast<float>(stored_bits) / 8));
+    int tmp_bytes =
+        static_cast<int>(std::ceil(static_cast<float>(stored_bits) / 8));
     for (int j = 0; j < tmp_bytes; j++) {
       int shift_bits = static_cast<int>(stored_bits) - (j + 1) * 8;
       if (shift_bits >= 0) {
-        buffer[buffer_position] = static_cast<compressed_byte_t>(tmp >> shift_bits);
+        buffer[buffer_position] =
+            static_cast<compressed_byte_t>(tmp >> shift_bits);
       } else {
-        buffer[buffer_position] = static_cast<compressed_byte_t>(tmp << std::abs(shift_bits));
+        buffer[buffer_position] =
+            static_cast<compressed_byte_t>(tmp << std::abs(shift_bits));
       }
       buffer_position++;
     }

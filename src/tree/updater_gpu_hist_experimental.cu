@@ -551,8 +551,8 @@ class GPUHistMakerExperimental : public TreeUpdater {
   __device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
     unsigned ballot = __ballot(val == left_nidx);
     if (threadIdx.x % 32 == 0) {
-      atomicAdd(reinterpret_cast<unsigned long long*>(d_count),
-                static_cast<unsigned long long>(__popc(ballot)));
+      atomicAdd(reinterpret_cast<unsigned long long*>(d_count), // NOLINT
+                static_cast<unsigned long long>(__popc(ballot))); // NOLINT
     }
   }
 
