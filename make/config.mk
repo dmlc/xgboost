@@ -21,11 +21,14 @@
 # export CXX = g++
 # export MPICXX = mpicxx
 
+export CC=/usr/local/opt/llvm/bin/clang
+export CXX=/usr/local/opt/llvm/bin/clang++
+
 # the additional link flags you want to add
-ADD_LDFLAGS =
+ADD_LDFLAGS =-L/usr/local/opt/llvm/lib
 
 # the additional compile flags you want to add
-ADD_CFLAGS =
+ADD_CFLAGS =-I/usr/local/opt/llvm/include
 
 # Whether enable openmp support, needed for multi-threading.
 USE_OPENMP = 1

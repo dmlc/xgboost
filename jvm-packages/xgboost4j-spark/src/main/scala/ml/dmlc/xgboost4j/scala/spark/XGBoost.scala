@@ -53,12 +53,7 @@ object TrackerConf {
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
-  /**
-   * Remove explicit missing values from each point in an iterator of
-   * [[ml.dmlc.xgboost4j.LabeledPoint]]. If `missing` is specified as `Float.NaN`, then the
-   * returned iterator is unchanged.
-   */
-  private def fromDenseToSparseLabeledPoints(
+  private def removeMissingValues(
       denseLabeledPoints: Iterator[XGBLabeledPoint],
       missing: Float): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
@@ -150,7 +145,7 @@ object XGBoost extends Serializable {
       rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
       Rabit.init(rabitEnv)
       val watches = Watches(params,
-        fromDenseToSparseLabeledPoints(labeledPoints, missing),
+        removeMissingValues(labeledPoints, missing),
         fromBaseMarginsToArray(baseMargins), cacheFileName)
 
       try {
@@ -251,8 +246,7 @@ object XGBoost extends Serializable {
       eval: EvalTrait = null,
       useExternalMemory: Boolean = false,
       missing: Float = Float.NaN): XGBoostModel = {
-    trainWithRDD(trainingData, params, round, nWorkers, obj, eval, useExternalMemory,
-      missing)
+    trainWithRDD(trainingData, params, round, nWorkers, obj, eval, useExternalMemory, missing)
   }
 
   private def overrideParamsAccordingToTaskCPUs(
@@ -283,7 +277,7 @@ object XGBoost extends Serializable {
   }
 
   /**
-   * Trains XGBoost model on a Spark RDD of [[org.apache.spark.ml.feature.LabeledPoint]].
+   * The training set represented as an RDD.
    *
    * @param trainingData the training set represented as RDD
    * @param params Map containing the configuration entries
@@ -322,10 +316,10 @@ object XGBoost extends Serializable {
    * This method trains an XGBoost model on a distributed collection of labeled training points.
    * In each partition of the training RDD a booster is trained on the subset of data in that
    * partition. The model is then updated globally using an all-reduce communication model across
-   * Spark workers.
+   * Spark tasks.
    *
-   * A [[RabitTracker]] is created to monitor the status of the all-reduce worker nodes and to
-   * verify that training completes successfully.
+   * A [[RabitTracker]] is created to coordinate communication between the all-reduce worker nodes
+   * and to verify that training completes successfully.
    *
    * Refer to `trainWithRDD` for parameter descriptions.
    */
