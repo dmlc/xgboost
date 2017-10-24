@@ -93,7 +93,7 @@ endif()
 
 # dmlc-core
 add_subdirectory(dmlc-core)
-set(LINK_LIBRARIES dmlccore rabit)
+set(LINK_LIBRARIES dmlc rabit)
 
 
 if(USE_CUDA)
