@@ -57,9 +57,9 @@ git clone --recursive https://github.com/dmlc/xgboost
 cd xgboost; make -j4
 ```
 
-### Building on OSX
+### Building on Mac OS X
 
-First, obtain gcc-7.x.x with brew (https://brew.sh/) if you want multi-threaded version. Note: installation of `gcc` can take a while (~ 30 minutes)
+First, obtain gcc-7.x.x with brew (https://brew.sh/) if you want multi-threaded version, otherwise, Clang is ok if OpenMP / multi-threaded is not required. Note: installation of `gcc` can take a while (~ 30 minutes)
 
 ```bash
 brew install gcc
