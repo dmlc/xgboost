@@ -29,7 +29,8 @@ static const int padding = 4;  // Assign padding so we can read slightly off
 
 // The number of bits required to represent a given unsigned range
 static size_t SymbolBits(size_t num_symbols) {
-  return static_cast<size_t>(std::ceil(std::log2(num_symbols)));
+  auto bits = std::ceil(std::log2(num_symbols));
+  return std::max(static_cast<size_t>(bits), size_t(1));
 }
 }  // namespace detail
 
