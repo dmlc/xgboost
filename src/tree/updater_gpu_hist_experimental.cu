@@ -113,13 +113,11 @@ __device__ void EvaluateFeature(int fidx, const bst_gpair_integer* hist,
 }
 
 template <int BLOCK_THREADS>
-__global__ void evaluate_split_kernel(const bst_gpair_integer* d_hist, int nidx,
-                                      int n_features, DeviceNodeStats nodes,
-                                      const int* d_feature_segments,
-                                      const float* d_fidx_min_map,
-                                      const float* d_gidx_fvalue_map,
-                                      GPUTrainingParam gpu_param,
-                                      DeviceSplitCandidate* d_split) {
+__global__ void evaluate_split_kernel(
+    const bst_gpair_integer* d_hist, int nidx, uint64_t n_features,
+    DeviceNodeStats nodes, const int* d_feature_segments,
+    const float* d_fidx_min_map, const float* d_gidx_fvalue_map,
+    GPUTrainingParam gpu_param, DeviceSplitCandidate* d_split) {
   typedef cub::KeyValuePair<int, float> ArgMaxT;
   typedef cub::BlockScan<bst_gpair_integer, BLOCK_THREADS,
                          cub::BLOCK_SCAN_WARP_SCANS>
@@ -190,24 +188,6 @@ __device__ int BinarySearchRow(bst_uint begin, bst_uint end, gidx_iter_t data,
   return -1;
 }
 
-template <int BLOCK_THREADS>
-__global__ void RadixSortSmall(bst_uint* d_ridx, int* d_position, bst_uint n) {
-  typedef cub::BlockRadixSort<int, BLOCK_THREADS, 1, bst_uint> BlockRadixSort;
-  __shared__ typename BlockRadixSort::TempStorage temp_storage;
-
-  bool thread_active = threadIdx.x < n;
-  int thread_key[1];
-  bst_uint thread_value[1];
-  thread_key[0] = thread_active ? d_position[threadIdx.x] : INT_MAX;
-  thread_value[0] = thread_active ? d_ridx[threadIdx.x] : UINT_MAX;
-  BlockRadixSort(temp_storage).Sort(thread_key, thread_value);
-
-  if (thread_active) {
-    d_position[threadIdx.x] = thread_key[0];
-    d_ridx[threadIdx.x] = thread_value[0];
-  }
-}
-
 struct DeviceHistogram {
   dh::bulk_allocator<dh::memory_type::DEVICE> ba;
   dh::dvec<bst_gpair_integer> data;
@@ -269,7 +249,7 @@ struct DeviceShard {
         null_gidx_value(n_bins) {
     // Convert to ELLPACK matrix representation
     int max_elements_row = 0;
-    for (int i = row_begin; i < row_end; i++) {
+    for (auto i = row_begin; i < row_end; i++) {
       max_elements_row =
           (std::max)(max_elements_row,
                      static_cast<int>(gmat.row_ptr[i + 1] - gmat.row_ptr[i]));
@@ -277,9 +257,9 @@ struct DeviceShard {
     row_stride = max_elements_row;
     std::vector<int> ellpack_matrix(row_stride * n_rows, null_gidx_value);
 
-    for (int i = row_begin; i < row_end; i++) {
+    for (auto i = row_begin; i < row_end; i++) {
       int row_count = 0;
-      for (int j = gmat.row_ptr[i]; j < gmat.row_ptr[i + 1]; j++) {
+      for (auto j = gmat.row_ptr[i]; j < gmat.row_ptr[i + 1]; j++) {
         ellpack_matrix[i * row_stride + row_count] = gmat.index[j];
         row_count++;
       }
@@ -394,13 +374,8 @@ struct DeviceShard {
                     int right_nidx) {
     auto n = segment.second - segment.first;
     int min_bits = 0;
-    int max_bits = std::ceil(std::log2((std::max)(left_nidx, right_nidx) + 1));
-    // const int SINGLE_TILE_SIZE = 1024;
-    // if (n < SINGLE_TILE_SIZE) {
-    //  RadixSortSmall<SINGLE_TILE_SIZE>
-    //      <<<1, SINGLE_TILE_SIZE>>>(ridx.current() + segment.first,
-    //                                position.current() + segment.first, n);
-    //} else {
+    int max_bits = static_cast<int>(
+        std::ceil(std::log2((std::max)(left_nidx, right_nidx) + 1)));
 
     size_t temp_storage_bytes = 0;
     cub::DeviceRadixSort::SortPairs(
@@ -509,7 +484,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
                                    nidx_set.size());
     auto d_split = shard.temp_memory.Pointer<DeviceSplitCandidate>();
 
-    auto& streams = shard.GetStreams(nidx_set.size());
+    auto& streams = shard.GetStreams(static_cast<int>(nidx_set.size()));
 
     // Use streams to process nodes concurrently
     for (auto i = 0; i < nidx_set.size(); i++) {
@@ -518,7 +493,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
 
       const int BLOCK_THREADS = 256;
       evaluate_split_kernel<BLOCK_THREADS>
-          <<<columns, BLOCK_THREADS, 0, streams[i]>>>(
+          <<<uint32_t(columns), BLOCK_THREADS, 0, streams[i]>>>(
               shard.hist.node_map[nidx], nidx, info->num_col, node,
               shard.feature_segments.data(), shard.min_fvalue.data(),
               shard.gidx_fvalue_map.data(), GPUTrainingParam(param),
@@ -573,10 +548,11 @@ class GPUHistMakerExperimental : public TreeUpdater {
     __host__ __device__ int operator()(int x) const { return x == val; }
   };
 
-  __device__ void CountLeft(bst_uint* d_count, int val, int left_nidx) {
+  __device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
     unsigned ballot = __ballot(val == left_nidx);
     if (threadIdx.x % 32 == 0) {
-      atomicAdd(d_count, __popc(ballot));
+      atomicAdd(reinterpret_cast<unsigned long long*>(d_count), // NOLINT
+                static_cast<unsigned long long>(__popc(ballot))); // NOLINT
     }
   }
 
@@ -601,9 +577,9 @@ class GPUHistMakerExperimental : public TreeUpdater {
 
     for (auto& shard : shards) {
       monitor.Start("update position kernel");
-      shard.temp_memory.LazyAllocate(sizeof(bst_uint));
-      auto d_left_count = shard.temp_memory.Pointer<bst_uint>();
-      dh::safe_cuda(cudaMemset(d_left_count, 0, sizeof(bst_uint)));
+      shard.temp_memory.LazyAllocate(sizeof(int64_t));
+      auto d_left_count = shard.temp_memory.Pointer<int64_t>();
+      dh::safe_cuda(cudaMemset(d_left_count, 0, sizeof(int64_t)));
       dh::safe_cuda(cudaSetDevice(shard.device_idx));
       auto segment = shard.ridx_segments[nidx];
       CHECK_GT(segment.second - segment.first, 0);
@@ -639,8 +615,8 @@ class GPUHistMakerExperimental : public TreeUpdater {
             d_position[idx] = position;
           });
 
-      bst_uint left_count;
-      dh::safe_cuda(cudaMemcpy(&left_count, d_left_count, sizeof(bst_uint),
+      int64_t left_count;
+      dh::safe_cuda(cudaMemcpy(&left_count, d_left_count, sizeof(int64_t),
                                cudaMemcpyDeviceToHost));
       monitor.Stop("update position kernel");
 
@@ -722,7 +698,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
     this->InitRoot(gpair, p_tree);
     monitor.Stop("InitRoot");
 
-    unsigned timestamp = qexpand_->size();
+    auto timestamp = qexpand_->size();
     auto num_leaves = 1;
 
     while (!qexpand_->empty()) {
@@ -764,9 +740,9 @@ class GPUHistMakerExperimental : public TreeUpdater {
     int nid;
     int depth;
     DeviceSplitCandidate split;
-    unsigned timestamp;
+    uint64_t timestamp;
     ExpandEntry(int nid, int depth, const DeviceSplitCandidate& split,
-                unsigned timestamp)
+                uint64_t timestamp)
         : nid(nid), depth(depth), split(split), timestamp(timestamp) {}
     bool IsValid(const TrainParam& param, int num_leaves) const {
       if (split.loss_chg <= rt_eps) return false;

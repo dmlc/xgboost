@@ -12,7 +12,7 @@ void CreateTestData(xgboost::bst_uint num_rows, int max_row_size,
                     thrust::host_vector<xgboost::bst_uint> *rows) {
   row_ptr->resize(num_rows + 1);
   int sum = 0;
-  for (int i = 0; i <= num_rows; i++) {
+  for (xgboost::bst_uint i = 0; i <= num_rows; i++) {
     (*row_ptr)[i] = sum;
     sum += rand() % max_row_size;  // NOLINT
 

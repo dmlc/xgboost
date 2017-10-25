@@ -125,7 +125,7 @@ inline size_t available_memory(int device_idx) {
  * \param device_idx  Zero-based index of the device.
  */
 
-inline int max_shared_memory(int device_idx) {
+inline size_t max_shared_memory(int device_idx) {
   cudaDeviceProp prop;
   dh::safe_cuda(cudaGetDeviceProperties(&prop, device_idx));
   return prop.sharedMemPerBlock;
@@ -241,8 +241,7 @@ inline void launch_n(int device_idx, size_t n, L lambda) {
   }
 
   safe_cuda(cudaSetDevice(device_idx));
-  // TODO: Template on n so GRID_SIZE always fits into int.
-  const int GRID_SIZE = div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS);
+  const int GRID_SIZE = static_cast<int>(div_round_up(n, ITEMS_PER_THREAD * BLOCK_THREADS));
   launch_n_kernel<<<GRID_SIZE, BLOCK_THREADS>>>(static_cast<size_t>(0), n,
                                                 lambda);
 }
@@ -428,74 +427,66 @@ class bulk_allocator {
 
   const int align = 256;
 
-  template <typename SizeT>
-  size_t align_round_up(SizeT n) {
+  size_t align_round_up(size_t n) const {
     n = (n + align - 1) / align;
     return n * align;
   }
 
-  template <typename T, typename SizeT>
-  size_t get_size_bytes(dvec<T> *first_vec, SizeT first_size) {
-    return align_round_up<SizeT>(first_size * sizeof(T));
+  template <typename T>
+  size_t get_size_bytes(dvec<T> *first_vec, size_t first_size) {
+    return align_round_up(first_size * sizeof(T));
   }
 
-  template <typename T, typename SizeT, typename... Args>
-  size_t get_size_bytes(dvec<T> *first_vec, SizeT first_size, Args... args) {
-    return get_size_bytes<T, SizeT>(first_vec, first_size) +
-           get_size_bytes(args...);
+  template <typename T, typename... Args>
+  size_t get_size_bytes(dvec<T> *first_vec, size_t first_size, Args... args) {
+    return get_size_bytes<T>(first_vec, first_size) + get_size_bytes(args...);
   }
 
-  template <typename T, typename SizeT>
+  template <typename T>
   void allocate_dvec(int device_idx, char *ptr, dvec<T> *first_vec,
-                     SizeT first_size) {
+                            size_t first_size) {
     first_vec->external_allocate(device_idx, static_cast<void *>(ptr),
                                  first_size);
   }
 
-  template <typename T, typename SizeT, typename... Args>
+  template <typename T, typename... Args>
   void allocate_dvec(int device_idx, char *ptr, dvec<T> *first_vec,
-                     SizeT first_size, Args... args) {
-    first_vec->external_allocate(device_idx, static_cast<void *>(ptr),
-                                 first_size);
+                     size_t first_size, Args... args) {
+    allocate_dvec<T>(device_idx, ptr, first_vec, first_size);
     ptr += align_round_up(first_size * sizeof(T));
     allocate_dvec(device_idx, ptr, args...);
   }
 
-  //    template <memory_type MemoryT>
   char *allocate_device(int device_idx, size_t bytes, memory_type t) {
     char *ptr;
-    if (t == memory_type::DEVICE) {
-      safe_cuda(cudaSetDevice(device_idx));
-      safe_cuda(cudaMalloc(&ptr, bytes));
-    } else {
-      safe_cuda(cudaMallocManaged(&ptr, bytes));
-    }
+    safe_cuda(cudaSetDevice(device_idx));
+    safe_cuda(cudaMalloc(&ptr, bytes));
     return ptr;
   }
-  template <typename T, typename SizeT>
-  size_t get_size_bytes(dvec2<T> *first_vec, SizeT first_size) {
+  template <typename T>
+  size_t get_size_bytes(dvec2<T> *first_vec, size_t first_size) {
     return 2 * align_round_up(first_size * sizeof(T));
   }
 
-  template <typename T, typename SizeT, typename... Args>
-  size_t get_size_bytes(dvec2<T> *first_vec, SizeT first_size, Args... args) {
-    return get_size_bytes<T, SizeT>(first_vec, first_size) +
+  template <typename T, typename... Args>
+  size_t get_size_bytes(dvec2<T> *first_vec, size_t first_size, Args... args) {
+    return get_size_bytes<T>(first_vec, first_size) +
            get_size_bytes(args...);
   }
 
-  template <typename T, typename SizeT>
+  template <typename T>
   void allocate_dvec(int device_idx, char *ptr, dvec2<T> *first_vec,
-                     SizeT first_size) {
+                     size_t first_size) {
     first_vec->external_allocate(
         device_idx, static_cast<void *>(ptr),
         static_cast<void *>(ptr + align_round_up(first_size * sizeof(T))),
         first_size);
   }
 
-  template <typename T, typename SizeT, typename... Args>
+  template <typename T, typename... Args>
   void allocate_dvec(int device_idx, char *ptr, dvec2<T> *first_vec,
-                     SizeT first_size, Args... args) {
-    allocate_dvec<T, SizeT>(device_idx, ptr, first_vec, first_size);
+                     size_t first_size, Args... args) {
+    allocate_dvec<T>(device_idx, ptr, first_vec, first_size);
     ptr += (align_round_up(first_size * sizeof(T)) * 2);
     allocate_dvec(device_idx, ptr, args...);
   }
@@ -544,14 +535,13 @@ struct CubMemory {
   // Thrust
   typedef char value_type;
 
-  CubMemory() : d_temp_storage(NULL), temp_storage_bytes(0) {}
+  CubMemory() : d_temp_storage(nullptr), temp_storage_bytes(0) {}
 
   ~CubMemory() { Free(); }
 
   template <typename T>
-  T* Pointer()
-  {
-    return static_cast<T*>(d_temp_storage);
+  T *Pointer() {
+    return static_cast<T *>(d_temp_storage);
   }
 
   void Free() {
@@ -611,7 +601,7 @@ void print(const dvec<T> &v, size_t max_items = 10) {
 
 template <typename coordinate_t, typename segments_t, typename offset_t>
 void FindMergePartitions(int device_idx, coordinate_t *d_tile_coordinates,
-                         int num_tiles, int tile_size, segments_t segments,
+                         size_t num_tiles, int tile_size, segments_t segments,
                          offset_t num_rows, offset_t num_elements) {
   dh::launch_n(device_idx, num_tiles + 1, [=] __device__(int idx) {
     offset_t diagonal = idx * tile_size;
@@ -692,7 +682,8 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
   const int BLOCK_THREADS = 256;
   const int ITEMS_PER_THREAD = 1;
   const int TILE_SIZE = BLOCK_THREADS * ITEMS_PER_THREAD;
-  int num_tiles = dh::div_round_up(count + num_segments, BLOCK_THREADS);
+  auto num_tiles = dh::div_round_up(count + num_segments, BLOCK_THREADS);
+  CHECK(num_tiles < std::numeric_limits<unsigned int>::max());
 
   temp_memory->LazyAllocate(sizeof(coordinate_t) * (num_tiles + 1));
   coordinate_t *tmp_tile_coordinates =
@@ -702,7 +693,7 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
                       BLOCK_THREADS, segments, num_segments, count);
 
   LbsKernel<TILE_SIZE, ITEMS_PER_THREAD, BLOCK_THREADS, offset_t>
-      <<<num_tiles, BLOCK_THREADS>>>(tmp_tile_coordinates, segments + 1, f,
+      <<<uint32_t(num_tiles), BLOCK_THREADS>>>(tmp_tile_coordinates, segments + 1, f,
                                      num_segments);
 }
 
