@@ -59,6 +59,22 @@ cd xgboost; make -j4
 
 ### Building on Mac OS X
 
+**Building with pip - simple method**
+
+First, make sure you obtained *gcc-5* (newer version does not work with this method yet). Note: installation of `gcc` can take a while (~ 30 minutes)
+
+```bash
+brew install gcc5
+```
+
+You might need to run the following command with `sudo` if you run into some permission errors:
+
+```bash
+pip install xgboost
+```
+
+**Building from the source code - advanced method**
+
 First, obtain gcc-7.x.x with brew (https://brew.sh/) if you want multi-threaded version, otherwise, Clang is ok if OpenMP / multi-threaded is not required. Note: installation of `gcc` can take a while (~ 30 minutes)
 
 ```bash
@@ -76,6 +92,7 @@ and build using the following commands
 ```bash
 cd xgboost; cp make/config.mk ./config.mk; make -j4
 ```
+head over to `Python Package Installation` for the next steps
 
 ### Building on Windows
 You need to first clone the xgboost repo with recursive option clone the submodules.
