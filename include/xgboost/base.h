@@ -179,11 +179,11 @@ inline XGBOOST_DEVICE float bst_gpair_internal<int64_t>::GetHess() const {
 }
 template<>
 inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetGrad(float g) {
-  grad_ = std::round(g * 1e5f);
+  grad_ = static_cast<int64_t>(std::round(g * 1e5));
 }
 template<>
 inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetHess(float h) {
-  hess_ = std::round(h * 1e5f);
+  hess_ = static_cast<int64_t>(std::round(h * 1e5));
 }
 
 }  // namespace detail

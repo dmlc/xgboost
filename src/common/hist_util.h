@@ -118,11 +118,11 @@ struct GHistIndexMatrix {
     return GHistIndexRow(&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]);
   }
   inline void GetFeatureCounts(size_t* counts) const {
-    const unsigned nfeature = cut->row_ptr.size() - 1;
+    auto nfeature = cut->row_ptr.size() - 1;
     for (unsigned fid = 0; fid < nfeature; ++fid) {
-      const unsigned ibegin = cut->row_ptr[fid];
-      const unsigned iend = cut->row_ptr[fid + 1];
-      for (unsigned i = ibegin; i < iend; ++i) {
+      auto ibegin = cut->row_ptr[fid];
+      auto iend = cut->row_ptr[fid + 1];
+      for (auto i = ibegin; i < iend; ++i) {
         counts[fid] += hit_count[i];
       }
     }
@@ -235,7 +235,7 @@ class HistCollection {
   std::vector<GHistEntry> data_;
 
   /*! \brief row_ptr_[nid] locates bin for historgram of node nid */
-  std::vector<uint32_t> row_ptr_;
+  std::vector<size_t> row_ptr_;
 };
 
 /*!

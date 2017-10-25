@@ -328,7 +328,7 @@ class DMatrix {
 
 // implementation of inline functions
 inline bst_uint RowSet::operator[](size_t i) const {
-  return rows_.size() == 0 ? i : rows_[i];
+  return rows_.size() == 0 ? static_cast<bst_uint>(i) : rows_[i];
 }
 
 inline size_t RowSet::size() const {

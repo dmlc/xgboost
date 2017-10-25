@@ -88,7 +88,7 @@ class RowSetCollection {
                        unsigned left_node_id,
                        unsigned right_node_id) {
     const Elem e = elem_of_each_node_[node_id];
-    const unsigned nthread = row_split_tloc.size();
+    const bst_omp_uint nthread = static_cast<bst_omp_uint>(row_split_tloc.size());
     CHECK(e.begin != nullptr);
     size_t* all_begin = dmlc::BeginPtr(row_indices_);
     size_t* begin = all_begin + (e.begin - all_begin);
