@@ -27,6 +27,7 @@ public class RabitTracker implements IRabitTracker {
   private static final Log logger = LogFactory.getLog(RabitTracker.class);
   // tracker python file.
   private static String tracker_py = null;
+  private static TrackerProperties trackerProperties = TrackerProperties.getInstance();
   // environment variable to be pased.
   private Map<String, String> envs = new HashMap<String, String>();
   // number of workers to be submitted.
@@ -129,14 +130,28 @@ public class RabitTracker implements IRabitTracker {
 
   private boolean startTrackerProcess() {
     try {
-      trackerProcess.set(Runtime.getRuntime().exec("python " + tracker_py +
-              " --log-level=DEBUG --num-workers=" + String.valueOf(numWorkers)));
+      String trackerExecString = this.addTrackerProperties("python " + tracker_py +
+          " --log-level=DEBUG --num-workers=" + String.valueOf(numWorkers));
+
+      trackerProcess.set(Runtime.getRuntime().exec(trackerExecString));
       loadEnvs(trackerProcess.get().getInputStream());
       return true;
     } catch (IOException ioe) {
       ioe.printStackTrace();
       return false;
     }
+  }
+
+  private String addTrackerProperties(String trackerExecString) {
+    StringBuilder sb = new StringBuilder(trackerExecString);
+    String hostIp = trackerProperties.getHostIp();
+
+    if(hostIp != null && !hostIp.isEmpty()){
+      logger.debug("Using provided host-ip: " + hostIp);
+      sb.append(" --host-ip=").append(hostIp);
+    }
+
+    return sb.toString();
   }
 
   public void stop() {
