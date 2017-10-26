@@ -230,8 +230,6 @@ except:
 
 
 
-DT_STYPE_MAPPER = {'i1b': 'bool', 'i1i': 'int', 'i2i': 'int', 'i4i': 'int', 'i8i': 'int', 'f4r': 'float', 'f8r': 'float'}
-
 DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
 
 DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
@@ -240,7 +238,8 @@ def _maybe_dt_data(data, feature_names, feature_types):
     if not HAVE_DT or not isinstance(data, dt.DataTable) or data is None:
         return data, feature_names, feature_types, 0, 0
 
-    data_types = data.types
+    data_types = data.ltypes
+    data_types_names = tuple(lt.name for lt in data_types)
     cols = []
     ptrs = (ctypes.c_void_p * data.ncols)()
     for icol in range(data.ncols):
@@ -249,9 +248,9 @@ def _maybe_dt_data(data, feature_names, feature_types):
         ptr = col.data_pointer # int64_t (void*)
         ptrs[icol] = ctypes.c_void_p(ptr)
 
-    if not all(type in DT_TYPE_MAPPER for type in data_types):
+    if not all(type in DT_TYPE_MAPPER for type in data_types_names):
         bad_fields = [data.names[i] for i, type in
-                      enumerate(data_types) if type not in DT_TYPE_MAPPER]
+                      enumerate(data_types_names) if type not in DT_TYPE_MAPPER]
 
         msg = """DataFrame.types for data must be int, float or bool.
                 Did not expect the data types in fields """
@@ -270,8 +269,8 @@ def _maybe_dt_data(data, feature_names, feature_types):
     else:
         feature_stypes = (ctypes.c_wchar_p * data.ncols)()
         for icol in range(data.ncols):
-            feature_stypes[icol] = ctypes.c_wchar_p(data.stypes[icol])
-        feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types)
+            feature_stypes[icol] = ctypes.c_wchar_p(data.stypes[icol].name)
+        feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types_names)
 
     return ptrs, feature_names, feature_types, feature_stypes, data.nrows, data.ncols
 

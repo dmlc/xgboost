@@ -53,25 +53,25 @@ class datacol_struct{
 
                 stype = const_cast<wchar_t *>(feature_stypes[j]);
 
-                if(wcscmp(stype,L"f4r")==0){
+                if(wcscmp(stype,L"float32")==0){
                    datacoltype = 0;
                 }
-                else if(wcscmp(stype,L"f8r")==0){
+                else if(wcscmp(stype,L"float64")==0){
                    datacoltype = 1;
                 }
-                else if(wcscmp(stype,L"i1b")==0){
+                else if(wcscmp(stype,L"bool8")==0){
                    datacoltype = 2;
                 }
-                else if(wcscmp(stype,L"i4i")==0){
+                else if(wcscmp(stype,L"int32")==0){
                    datacoltype = 3;
                 }
-                else if(wcscmp(stype,L"i1i")==0){
+                else if(wcscmp(stype,L"int8")==0){
                    datacoltype = 4;
                 }
-                else if(wcscmp(stype,L"i2i")==0){
+                else if(wcscmp(stype,L"int16")==0){
                    datacoltype = 5;
                 }
-                else if(wcscmp(stype,L"i8i")==0){
+                else if(wcscmp(stype,L"int64")==0){
                    datacoltype = 6;
                 }
                 else{
