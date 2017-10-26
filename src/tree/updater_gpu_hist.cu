@@ -537,6 +537,9 @@ class GPUHistMaker : public TreeUpdater {
       device_gpair[d_idx].copy(gpair.begin() + device_row_segments[d_idx],
                                gpair.begin() + device_row_segments[d_idx + 1]);
 
+      // Check gradients are within acceptable size range
+      CheckGradientMax(device_gpair[d_idx]);
+
       subsample_gpair(&device_gpair[d_idx], param.subsample,
                       device_row_segments[d_idx]);
 
