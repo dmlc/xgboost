@@ -389,4 +389,28 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
   }
+
+  test("isClassificationTask correctly classifies supported objectives") {
+    import org.scalatest.prop.TableDrivenPropertyChecks._
+
+    val objectives = Table(
+      ("isClassificationTask", "params"),
+      (true, Map("obj_type" -> "classification")),
+      (false, Map("obj_type" -> "regression")),
+      (false, Map("objective" -> "rank:ndcg")),
+      (false, Map("objective" -> "rank:pairwise")),
+      (false, Map("objective" -> "rank:map")),
+      (false, Map("objective" -> "count:poisson")),
+      (true, Map("objective" -> "binary:logistic")),
+      (true, Map("objective" -> "binary:logitraw")),
+      (true, Map("objective" -> "multi:softmax")),
+      (true, Map("objective" -> "multi:softprob")),
+      (false, Map("objective" -> "reg:linear")),
+      (false, Map("objective" -> "reg:logistic")),
+      (false, Map("objective" -> "reg:gamma")),
+      (false, Map("objective" -> "reg:tweedie")))
+    forAll (objectives) { (isClassificationTask: Boolean, params: Map[String, String]) =>
+      assert(XGBoost.isClassificationTask(params) == isClassificationTask)
+    }
+  }
 }
