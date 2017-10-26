@@ -375,3 +375,91 @@ def test_sklearn_clone():
     clf = xgb.XGBClassifier(n_jobs=2, nthread=3)
     clf.n_jobs = -1
     clone(clf)
+
+
+def test_validation_weights_xgbmodel():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import make_hastie_10_2
+
+    # prepare training and test data
+    X, y = make_hastie_10_2(n_samples=2000, random_state=42)
+    labels, y = np.unique(y, return_inverse=True)
+    X_train, X_test = X[:1600], X[1600:]
+    y_train, y_test = y[:1600], y[1600:]
+
+    # instantiate model
+    param_dist = {'objective': 'binary:logistic', 'n_estimators': 2,
+                  'random_state': 123}
+    clf = xgb.sklearn.XGBModel(**param_dist)
+
+    # train it using instance weights only in the training set
+    weights_train = np.random.choice([1, 2], len(X_train))
+    clf.fit(X_train, y_train,
+            sample_weight=weights_train,
+            eval_set=[(X_test, y_test)],
+            eval_metric='logloss',
+            verbose=False)
+
+    # evaluate logloss metric on test set *without* using weights
+    evals_result_without_weights = clf.evals_result()
+    logloss_without_weights = evals_result_without_weights["validation_0"]["logloss"]
+
+    # now use weights for the test set
+    np.random.seed(0)
+    weights_test = np.random.choice([1, 2], len(X_test))
+    clf.fit(X_train, y_train,
+            sample_weight=weights_train,
+            eval_set=[(X_test, y_test)],
+            sample_weight_eval_set=[weights_test],
+            eval_metric='logloss',
+            verbose=False)
+    evals_result_with_weights = clf.evals_result()
+    logloss_with_weights = evals_result_with_weights["validation_0"]["logloss"]
+
+    # check that the logloss in the test set is actually different when using weights
+    # than when not using them
+    assert all((logloss_with_weights[i] != logloss_without_weights[i] for i in [0, 1]))
+
+
+def test_validation_weights_xgbclassifier():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import make_hastie_10_2
+
+    # prepare training and test data
+    X, y = make_hastie_10_2(n_samples=2000, random_state=42)
+    labels, y = np.unique(y, return_inverse=True)
+    X_train, X_test = X[:1600], X[1600:]
+    y_train, y_test = y[:1600], y[1600:]
+
+    # instantiate model
+    param_dist = {'objective': 'binary:logistic', 'n_estimators': 2,
+                  'random_state': 123}
+    clf = xgb.sklearn.XGBClassifier(**param_dist)
+
+    # train it using instance weights only in the training set
+    weights_train = np.random.choice([1, 2], len(X_train))
+    clf.fit(X_train, y_train,
+            sample_weight=weights_train,
+            eval_set=[(X_test, y_test)],
+            eval_metric='logloss',
+            verbose=False)
+
+    # evaluate logloss metric on test set *without* using weights
+    evals_result_without_weights = clf.evals_result()
+    logloss_without_weights = evals_result_without_weights["validation_0"]["logloss"]
+
+    # now use weights for the test set
+    np.random.seed(0)
+    weights_test = np.random.choice([1, 2], len(X_test))
+    clf.fit(X_train, y_train,
+            sample_weight=weights_train,
+            eval_set=[(X_test, y_test)],
+            sample_weight_eval_set=[weights_test],
+            eval_metric='logloss',
+            verbose=False)
+    evals_result_with_weights = clf.evals_result()
+    logloss_with_weights = evals_result_with_weights["validation_0"]["logloss"]
+
+    # check that the logloss in the test set is actually different when using weights
+    # than when not using them
+    assert all((logloss_with_weights[i] != logloss_without_weights[i] for i in [0, 1]))
