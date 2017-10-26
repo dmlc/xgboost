@@ -104,7 +104,7 @@ struct DeviceHist {
 template <int BLOCK_THREADS>
 __global__ void find_split_kernel(
     const gpair_sum_t* d_level_hist, int* d_feature_segments, int depth,
-    int n_features, int n_bins, DeviceNodeStats* d_nodes,
+    uint64_t n_features, int n_bins, DeviceNodeStats* d_nodes,
     int nodes_offset_device, float* d_fidx_min_map, float* d_gidx_fvalue_map,
     GPUTrainingParam gpu_param, bool* d_left_child_smallest_temp,
     bool colsample, int* d_feature_flags) {
@@ -293,7 +293,8 @@ class GPUHistMaker : public TreeUpdater {
     dh::Timer time1;
     // set member num_rows and n_devices for rest of GPUHistBuilder members
     info = &fmat.info();
-    num_rows = info->num_row;
+    CHECK(info->num_row < std::numeric_limits<bst_uint>::max());
+    num_rows = static_cast<bst_uint>(info->num_row);
     n_devices = dh::n_devices(param.n_gpus, num_rows);
 
     if (!initialised) {
@@ -396,15 +397,15 @@ class GPUHistMaker : public TreeUpdater {
         fflush(stdout);
       }
 
-      int n_bins = hmat_.row_ptr.back();
-      int n_features = hmat_.row_ptr.size() - 1;
+      int n_bins = static_cast<int >(hmat_.row_ptr.back());
+      int n_features = static_cast<int >(hmat_.row_ptr.size() - 1);
 
       // deliniate data onto multiple gpus
       device_row_segments.push_back(0);
       device_element_segments.push_back(0);
       bst_uint offset = 0;
-      bst_uint shard_size =
-          std::ceil(static_cast<double>(num_rows) / n_devices);
+      bst_uint shard_size = static_cast<bst_uint>(
+          std::ceil(static_cast<double>(num_rows) / n_devices));
       for (int d_idx = 0; d_idx < n_devices; d_idx++) {
         int device_idx = dList[d_idx];
         offset += shard_size;
@@ -425,7 +426,7 @@ class GPUHistMaker : public TreeUpdater {
       // Construct feature map
       std::vector<int> h_gidx_feature_map(n_bins);
       for (int fidx = 0; fidx < n_features; fidx++) {
-        for (int i = hmat_.row_ptr[fidx]; i < hmat_.row_ptr[fidx + 1]; i++) {
+        for (auto i = hmat_.row_ptr[fidx]; i < hmat_.row_ptr[fidx + 1]; i++) {
           h_gidx_feature_map[i] = fidx;
         }
       }
@@ -456,7 +457,7 @@ class GPUHistMaker : public TreeUpdater {
       gidx_feature_map.resize(n_devices);
       gidx_fvalue_map.resize(n_devices);
 
-      int find_split_n_devices = std::pow(2, std::floor(std::log2(n_devices)));
+      int find_split_n_devices = static_cast<int >(std::pow(2, std::floor(std::log2(n_devices))));
       find_split_n_devices =
           std::min(n_nodes_level(param.max_depth), find_split_n_devices);
       int max_num_nodes_device =
@@ -535,6 +536,9 @@ class GPUHistMaker : public TreeUpdater {
 
       device_gpair[d_idx].copy(gpair.begin() + device_row_segments[d_idx],
                                gpair.begin() + device_row_segments[d_idx + 1]);
+
+      // Check gradients are within acceptable size range
+      CheckGradientMax(device_gpair[d_idx]);
 
       subsample_gpair(&device_gpair[d_idx], param.subsample,
                       device_row_segments[d_idx]);
@@ -707,7 +711,7 @@ class GPUHistMaker : public TreeUpdater {
       int nodes_offset_device = 0;
       find_split_kernel<BLOCK_THREADS><<<GRID_SIZE, BLOCK_THREADS>>>(
           hist_vec[d_idx].GetLevelPtr(depth), feature_segments[d_idx].data(),
-          depth, (info->num_col), (hmat_.row_ptr.back()), nodes[d_idx].data(),
+          depth, info->num_col, hmat_.row_ptr.back(), nodes[d_idx].data(),
           nodes_offset_device, fidx_min_map[d_idx].data(),
           gidx_fvalue_map[d_idx].data(), GPUTrainingParam(param),
           left_child_smallest[d_idx].data(), colsample,
@@ -769,7 +773,7 @@ class GPUHistMaker : public TreeUpdater {
       DeviceNodeStats* d_nodes = nodes[d_idx].data();
       auto d_gidx_fvalue_map = gidx_fvalue_map[d_idx].data();
       auto d_gidx = device_matrix[d_idx].gidx;
-      int n_columns = info->num_col;
+      auto n_columns = info->num_col;
       size_t begin = device_row_segments[d_idx];
       size_t end = device_row_segments[d_idx + 1];
 
