@@ -18,6 +18,7 @@
 #include "./common/common.h"
 #include "./common/io.h"
 #include "./common/random.h"
+#include "common/timer.h"
 
 namespace xgboost {
 // implementation of base learner.
@@ -202,6 +203,7 @@ class LearnerImpl : public Learner {
       const std::vector<std::pair<std::string, std::string> >& args) override {
     // add to configurations
     tparam.InitAllowUnknown(args);
+    monitor.Init("Learner", tparam.debug_verbose);
     cfg_.clear();
     for (const auto& kv : args) {
       if (kv.first == "eval_metric") {
@@ -359,29 +361,37 @@ class LearnerImpl : public Learner {
   }
 
   void UpdateOneIter(int iter, DMatrix* train) override {
+    monitor.Start("UpdateOneIter");
     CHECK(ModelInitialized())
         << "Always call InitModel or LoadModel before update";
     if (tparam.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam.seed * kRandSeedMagic + iter);
     }
     this->LazyInitDMatrix(train);
+    monitor.Start("PredictRaw");
     this->PredictRaw(train, &preds_);
+    monitor.Stop("PredictRaw");
+    monitor.Start("GetGradient");
     obj_->GetGradient(preds_, train->info(), iter, &gpair_);
+    monitor.Stop("GetGradient");
     gbm_->DoBoost(train, &gpair_, obj_.get());
+    monitor.Stop("UpdateOneIter");
   }
 
   void BoostOneIter(int iter, DMatrix* train,
                     std::vector<bst_gpair>* in_gpair) override {
+    monitor.Start("BoostOneIter");
     if (tparam.seed_per_iteration || rabit::IsDistributed()) {
       common::GlobalRandom().seed(tparam.seed * kRandSeedMagic + iter);
     }
     this->LazyInitDMatrix(train);
     gbm_->DoBoost(train, in_gpair);
+    monitor.Stop("BoostOneIter");
   }
 
   std::string EvalOneIter(int iter, const std::vector<DMatrix*>& data_sets,
                           const std::vector<std::string>& data_names) override {
-    double tstart = dmlc::GetTime();
+    monitor.Start("EvalOneIter");
     std::ostringstream os;
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0) {
@@ -396,9 +406,7 @@ class LearnerImpl : public Learner {
       }
     }
 
-    if (tparam.debug_verbose > 0) {
-      LOG(INFO) << "EvalOneIter(): " << dmlc::GetTime() - tstart << " sec";
-    }
+    monitor.Stop("EvalOneIter");
     return os.str();
   }
 
@@ -460,10 +468,11 @@ class LearnerImpl : public Learner {
   // if not, initialize the column access.
   inline void LazyInitDMatrix(DMatrix* p_train) {
     if (tparam.tree_method == 3 || tparam.tree_method == 4 ||
-        tparam.tree_method == 5) {
+        tparam.tree_method == 5 || tparam.tree_method == 6) {
       return;
     }
 
+    monitor.Start("LazyInitDMatrix");
     if (!p_train->HaveColAccess()) {
       int ncol = static_cast<int>(p_train->info().num_col);
       std::vector<bool> enabled(ncol, true);
@@ -504,6 +513,7 @@ class LearnerImpl : public Learner {
         gbm_->Configure(cfg_.begin(), cfg_.end());
       }
     }
+    monitor.Stop("LazyInitDMatrix");
   }
 
   // return whether model is already initialized.
@@ -568,6 +578,8 @@ class LearnerImpl : public Learner {
   static const int kRandSeedMagic = 127;
   // internal cached dmatrix
   std::vector<std::shared_ptr<DMatrix> > cache_;
+
+  common::Monitor monitor;
 };
 
 Learner* Learner::Create(

@@ -7,8 +7,8 @@
 #include "../helpers.h"
 #include "gtest/gtest.h"
 
-#include "../../../src/tree/updater_gpu_hist_experimental.cu"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../../../src/tree/updater_gpu_hist_experimental.cu"
 
 namespace xgboost {
 namespace tree {
@@ -22,7 +22,9 @@ TEST(gpu_hist_experimental, TestSparseShard) {
   hmat.Init(dmat.get(), max_bins);
   gmat.cut = &hmat;
   gmat.Init(dmat.get());
-  DeviceShard shard(0, 0, gmat, 0, rows, hmat.row_ptr.back(), TrainParam());
+  ncclComm_t comm;
+  DeviceShard shard(0, 0, gmat, 0, rows, hmat.row_ptr.back(),
+                    TrainParam());
 
   ASSERT_LT(shard.row_stride, columns);
 
@@ -54,7 +56,9 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   hmat.Init(dmat.get(), max_bins);
   gmat.cut = &hmat;
   gmat.Init(dmat.get());
-  DeviceShard shard(0, 0, gmat, 0, rows, hmat.row_ptr.back(), TrainParam());
+  ncclComm_t comm;
+  DeviceShard shard(0, 0, gmat, 0, rows, hmat.row_ptr.back(),
+                    TrainParam());
 
   ASSERT_EQ(shard.row_stride, columns);
 

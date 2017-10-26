@@ -1,8 +1,9 @@
 /*!
  * Copyright 2017 XGBoost contributors
  */
-#include <thrust/count.h>
-#include <thrust/sort.h>
+#include <thrust/reduce.h>
+#include <thrust/execution_policy.h>
+#include <thrust/sequence.h>
 #include <xgboost/tree_updater.h>
 #include <algorithm>
 #include <memory>
@@ -12,6 +13,7 @@
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
+#include "../common/timer.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
 
@@ -20,19 +22,20 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist_experimental);
 
-template <int BLOCK_THREADS, typename reduce_t, typename temp_storage_t>
-__device__ bst_gpair_integer ReduceFeature(const bst_gpair_integer* begin,
-                                           const bst_gpair_integer* end,
-                                           temp_storage_t* temp_storage) {
-  __shared__ cub::Uninitialized<bst_gpair_integer> uninitialized_sum;
-  bst_gpair_integer& shared_sum = uninitialized_sum.Alias();
+typedef bst_gpair_precise gpair_sum_t;
 
-  bst_gpair_integer local_sum = bst_gpair_integer();
+template <int BLOCK_THREADS, typename reduce_t, typename temp_storage_t>
+__device__ gpair_sum_t ReduceFeature(const gpair_sum_t* begin,
+                                     const gpair_sum_t* end,
+                                     temp_storage_t* temp_storage) {
+  __shared__ cub::Uninitialized<gpair_sum_t> uninitialized_sum;
+  gpair_sum_t& shared_sum = uninitialized_sum.Alias();
+
+  gpair_sum_t local_sum = gpair_sum_t();
   for (auto itr = begin; itr < end; itr += BLOCK_THREADS) {
     bool thread_active = itr + threadIdx.x < end;
     // Scan histogram
-    bst_gpair_integer bin =
-        thread_active ? *(itr + threadIdx.x) : bst_gpair_integer();
+    gpair_sum_t bin = thread_active ? *(itr + threadIdx.x) : gpair_sum_t();
 
     local_sum += reduce_t(temp_storage->sum_reduce).Reduce(bin, cub::Sum());
   }
@@ -47,7 +50,7 @@ __device__ bst_gpair_integer ReduceFeature(const bst_gpair_integer* begin,
 
 template <int BLOCK_THREADS, typename reduce_t, typename scan_t,
           typename max_reduce_t, typename temp_storage_t>
-__device__ void EvaluateFeature(int fidx, const bst_gpair_integer* hist,
+__device__ void EvaluateFeature(int fidx, const gpair_sum_t* hist,
                                 const int* feature_segments, float min_fvalue,
                                 const float* gidx_fvalue_map,
                                 DeviceSplitCandidate* best_split,
@@ -57,22 +60,22 @@ __device__ void EvaluateFeature(int fidx, const bst_gpair_integer* hist,
   int gidx_begin = feature_segments[fidx];
   int gidx_end = feature_segments[fidx + 1];
 
-  bst_gpair_integer feature_sum = ReduceFeature<BLOCK_THREADS, reduce_t>(
+  gpair_sum_t feature_sum = ReduceFeature<BLOCK_THREADS, reduce_t>(
       hist + gidx_begin, hist + gidx_end, temp_storage);
 
-  auto prefix_op = SumCallbackOp<bst_gpair_integer>();
+  auto prefix_op = SumCallbackOp<gpair_sum_t>();
   for (int scan_begin = gidx_begin; scan_begin < gidx_end;
        scan_begin += BLOCK_THREADS) {
     bool thread_active = scan_begin + threadIdx.x < gidx_end;
 
-    bst_gpair_integer bin =
-        thread_active ? hist[scan_begin + threadIdx.x] : bst_gpair_integer();
+    gpair_sum_t bin =
+        thread_active ? hist[scan_begin + threadIdx.x] : gpair_sum_t();
     scan_t(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum(), prefix_op);
 
     // Calculate gain
-    bst_gpair_integer parent_sum = bst_gpair_integer(node.sum_gradients);
+    gpair_sum_t parent_sum = gpair_sum_t(node.sum_gradients);
 
-    bst_gpair_integer missing = parent_sum - feature_sum;
+    gpair_sum_t missing = parent_sum - feature_sum;
 
     bool missing_left = true;
     const float null_gain = -FLT_MAX;
@@ -102,8 +105,8 @@ __device__ void EvaluateFeature(int fidx, const bst_gpair_integer* hist,
       float fvalue =
           gidx == gidx_begin ? min_fvalue : gidx_fvalue_map[gidx - 1];
 
-      bst_gpair_integer left = missing_left ? bin + missing : bin;
-      bst_gpair_integer right = parent_sum - left;
+      gpair_sum_t left = missing_left ? bin + missing : bin;
+      gpair_sum_t right = parent_sum - left;
 
       best_split->Update(gain, missing_left ? LeftDir : RightDir, fvalue, fidx,
                          left, right, param);
@@ -114,17 +117,16 @@ __device__ void EvaluateFeature(int fidx, const bst_gpair_integer* hist,
 
 template <int BLOCK_THREADS>
 __global__ void evaluate_split_kernel(
-    const bst_gpair_integer* d_hist, int nidx, uint64_t n_features,
+    const gpair_sum_t* d_hist, int nidx, uint64_t n_features,
     DeviceNodeStats nodes, const int* d_feature_segments,
     const float* d_fidx_min_map, const float* d_gidx_fvalue_map,
     GPUTrainingParam gpu_param, DeviceSplitCandidate* d_split) {
   typedef cub::KeyValuePair<int, float> ArgMaxT;
-  typedef cub::BlockScan<bst_gpair_integer, BLOCK_THREADS,
-                         cub::BLOCK_SCAN_WARP_SCANS>
+  typedef cub::BlockScan<gpair_sum_t, BLOCK_THREADS, cub::BLOCK_SCAN_WARP_SCANS>
       BlockScanT;
   typedef cub::BlockReduce<ArgMaxT, BLOCK_THREADS> MaxReduceT;
 
-  typedef cub::BlockReduce<bst_gpair_integer, BLOCK_THREADS> SumReduceT;
+  typedef cub::BlockReduce<gpair_sum_t, BLOCK_THREADS> SumReduceT;
 
   union TempStorage {
     typename BlockScanT::TempStorage scan;
@@ -159,13 +161,6 @@ __global__ void evaluate_split_kernel(
 template <typename gidx_iter_t>
 __device__ int BinarySearchRow(bst_uint begin, bst_uint end, gidx_iter_t data,
                                int fidx_begin, int fidx_end) {
-  // for(auto i = begin; i < end; i++)
-  //{
-  //  auto gidx = data[i];
-  //  if (gidx >= fidx_begin&&gidx < fidx_end) return gidx;
-  //}
-  // return  -1;
-
   bst_uint previous_middle = UINT32_MAX;
   while (end != begin) {
     auto middle = begin + (end - begin) / 2;
@@ -190,48 +185,63 @@ __device__ int BinarySearchRow(bst_uint begin, bst_uint end, gidx_iter_t data,
 
 struct DeviceHistogram {
   dh::bulk_allocator<dh::memory_type::DEVICE> ba;
-  dh::dvec<bst_gpair_integer> data;
-  std::map<int, bst_gpair_integer*> node_map;
+  dh::dvec<gpair_sum_t> data;
   int n_bins;
   void Init(int device_idx, int max_nodes, int n_bins, bool silent) {
     this->n_bins = n_bins;
-    ba.allocate(device_idx, silent, &data, max_nodes * n_bins);
+    ba.allocate(device_idx, silent, &data, size_t(max_nodes) * size_t(n_bins));
   }
 
-  void Reset() {
-    data.fill(bst_gpair_integer());
-    node_map.clear();
-  }
+  void Reset() { data.fill(gpair_sum_t()); }
+  gpair_sum_t* GetHistPtr(int nidx) { return data.data() + nidx * n_bins; }
 
-  void AddNode(int nidx) {
-    CHECK_EQ(node_map.count(nidx), 0)
-        << nidx << " already exists in the histogram.";
-    node_map[nidx] = data.data() + n_bins * node_map.size();
+  void PrintNidx(int nidx) const {
+    auto h_data = data.as_vector();
+    std::cout << "nidx " << nidx << ":\n";
+    for (int i = n_bins * nidx; i < n_bins * (nidx + 1); i++) {
+      std::cout << h_data[i] << " ";
+    }
+    std::cout << "\n";
   }
 };
 
 // Manage memory for a single GPU
 struct DeviceShard {
+  struct Segment {
+    size_t begin;
+    size_t end;
+
+    Segment() : begin(0), end(0) {}
+
+    Segment(size_t begin, size_t end) : begin(begin), end(end) {
+      CHECK_GE(end, begin);
+    }
+    size_t Size() const { return end - begin; }
+  };
+
   int device_idx;
   int normalised_device_idx;  // Device index counting from param.gpu_id
   dh::bulk_allocator<dh::memory_type::DEVICE> ba;
   dh::dvec<common::compressed_byte_t> gidx_buffer;
   dh::dvec<bst_gpair> gpair;
-  dh::dvec2<bst_uint> ridx;
+  dh::dvec2<bst_uint> ridx;  // Row index relative to this shard
   dh::dvec2<int> position;
-  std::vector<std::pair<int64_t, int64_t>> ridx_segments;
+  std::vector<Segment> ridx_segments;
   dh::dvec<int> feature_segments;
   dh::dvec<float> gidx_fvalue_map;
   dh::dvec<float> min_fvalue;
   std::vector<bst_gpair> node_sum_gradients;
   common::CompressedIterator<uint32_t> gidx;
   int row_stride;
-  bst_uint row_start_idx;
+  bst_uint row_begin_idx;  // The row offset for this shard
   bst_uint row_end_idx;
   bst_uint n_rows;
   int n_bins;
   int null_gidx_value;
   DeviceHistogram hist;
+  TrainParam param;
+
+  int64_t* tmp_pinned;  // Small amount of staging memory
 
   std::vector<cudaStream_t> streams;
 
@@ -242,11 +252,12 @@ struct DeviceShard {
               bst_uint row_end, int n_bins, TrainParam param)
       : device_idx(device_idx),
         normalised_device_idx(normalised_device_idx),
-        row_start_idx(row_begin),
+        row_begin_idx(row_begin),
         row_end_idx(row_end),
         n_rows(row_end - row_begin),
         n_bins(n_bins),
-        null_gidx_value(n_bins) {
+        null_gidx_value(n_bins),
+        param(param) {
     // Convert to ELLPACK matrix representation
     int max_elements_row = 0;
     for (auto i = row_begin; i < row_end; i++) {
@@ -260,7 +271,8 @@ struct DeviceShard {
     for (auto i = row_begin; i < row_end; i++) {
       int row_count = 0;
       for (auto j = gmat.row_ptr[i]; j < gmat.row_ptr[i + 1]; j++) {
-        ellpack_matrix[i * row_stride + row_count] = gmat.index[j];
+        ellpack_matrix[(i - row_begin) * row_stride + row_count] =
+            gmat.index[j];
         row_count++;
       }
     }
@@ -296,12 +308,15 @@ struct DeviceShard {
 
     // Init histogram
     hist.Init(device_idx, max_nodes, gmat.cut->row_ptr.back(), param.silent);
+
+    dh::safe_cuda(cudaMallocHost(&tmp_pinned, sizeof(int64_t)));
   }
 
   ~DeviceShard() {
     for (auto& stream : streams) {
       dh::safe_cuda(cudaStreamDestroy(stream));
     }
+    dh::safe_cuda(cudaFreeHost(tmp_pinned));
   }
 
   // Get vector of at least n initialised streams
@@ -324,81 +339,135 @@ struct DeviceShard {
 
   // Reset values for each update iteration
   void Reset(const std::vector<bst_gpair>& host_gpair) {
+    dh::safe_cuda(cudaSetDevice(device_idx));
     position.current_dvec().fill(0);
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               bst_gpair());
-    // TODO(rory): support subsampling
-    thrust::sequence(ridx.current_dvec().tbegin(), ridx.current_dvec().tend(),
-                     row_start_idx);
-    std::fill(ridx_segments.begin(), ridx_segments.end(), std::make_pair(0, 0));
-    ridx_segments.front() = std::make_pair(0, ridx.size());
-    this->gpair.copy(host_gpair.begin() + row_start_idx,
+
+    thrust::sequence(ridx.current_dvec().tbegin(), ridx.current_dvec().tend());
+
+    std::fill(ridx_segments.begin(), ridx_segments.end(), Segment(0, 0));
+    ridx_segments.front() = Segment(0, ridx.size());
+    this->gpair.copy(host_gpair.begin() + row_begin_idx,
                      host_gpair.begin() + row_end_idx);
-    // Check gradients are within acceptable size range
-    CheckGradientMax(gpair);
+    subsample_gpair(&gpair, param.subsample, row_begin_idx);
     hist.Reset();
   }
 
-  __device__ void IncrementHist(bst_gpair gpair, int gidx,
-                                bst_gpair_integer* node_hist) const {
-    auto dst_ptr =
-        reinterpret_cast<unsigned long long int*>(&node_hist[gidx]);  // NOLINT
-    bst_gpair_integer tmp(gpair.GetGrad(), gpair.GetHess());
-    auto src_ptr = reinterpret_cast<bst_gpair_integer::value_t*>(&tmp);
-
-    atomicAdd(dst_ptr,
-              static_cast<unsigned long long int>(*src_ptr));  // NOLINT
-    atomicAdd(dst_ptr + 1,
-              static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
-  }
-
   void BuildHist(int nidx) {
-    hist.AddNode(nidx);
-    auto d_node_hist = hist.node_map[nidx];
+    auto segment = ridx_segments[nidx];
+    auto d_node_hist = hist.GetHistPtr(nidx);
     auto d_gidx = gidx;
     auto d_ridx = ridx.current();
     auto d_gpair = gpair.data();
     auto row_stride = this->row_stride;
     auto null_gidx_value = this->null_gidx_value;
-    auto segment = ridx_segments[nidx];
-    auto n_elements = (segment.second - segment.first) * row_stride;
+    auto n_elements = segment.Size() * row_stride;
 
     dh::launch_n(device_idx, n_elements, [=] __device__(size_t idx) {
-      int relative_ridx = d_ridx[(idx / row_stride) + segment.first];
-      int gidx = d_gidx[relative_ridx * row_stride + idx % row_stride];
+      int ridx = d_ridx[(idx / row_stride) + segment.begin];
+      int gidx = d_gidx[ridx * row_stride + idx % row_stride];
+
       if (gidx != null_gidx_value) {
-        bst_gpair gpair = d_gpair[relative_ridx];
-        IncrementHist(gpair, gidx, d_node_hist);
+        AtomicAddGpair(d_node_hist + gidx, d_gpair[ridx]);
       }
     });
   }
-  void SortPosition(const std::pair<bst_uint, bst_uint>& segment, int left_nidx,
-                    int right_nidx) {
-    auto n = segment.second - segment.first;
+  void SubtractionTrick(int nidx_parent, int nidx_histogram,
+                        int nidx_subtraction) {
+    auto d_node_hist_parent = hist.GetHistPtr(nidx_parent);
+    auto d_node_hist_histogram = hist.GetHistPtr(nidx_histogram);
+    auto d_node_hist_subtraction = hist.GetHistPtr(nidx_subtraction);
+
+    dh::launch_n(device_idx, hist.n_bins, [=] __device__(size_t idx) {
+      d_node_hist_subtraction[idx] =
+          d_node_hist_parent[idx] - d_node_hist_histogram[idx];
+    });
+  }
+
+  __device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
+    unsigned ballot = __ballot(val == left_nidx);
+    if (threadIdx.x % 32 == 0) {
+      atomicAdd(reinterpret_cast<unsigned long long*>(d_count),    // NOLINT
+                static_cast<unsigned long long>(__popc(ballot)));  // NOLINT
+    }
+  }
+
+  void UpdatePosition(int nidx, int left_nidx, int right_nidx, int fidx,
+                      int split_gidx, bool default_dir_left, bool is_dense,
+                      int fidx_begin, int fidx_end) {
+    dh::safe_cuda(cudaSetDevice(device_idx));
+    temp_memory.LazyAllocate(sizeof(int64_t));
+    auto d_left_count = temp_memory.Pointer<int64_t>();
+    dh::safe_cuda(cudaMemset(d_left_count, 0, sizeof(int64_t)));
+    auto segment = ridx_segments[nidx];
+    auto d_ridx = ridx.current();
+    auto d_position = position.current();
+    auto d_gidx = gidx;
+    auto row_stride = this->row_stride;
+    dh::launch_n<1, 512>(
+        device_idx, segment.Size(), [=] __device__(bst_uint idx) {
+          idx += segment.begin;
+          auto ridx = d_ridx[idx];
+          auto row_begin = row_stride * ridx;
+          auto row_end = row_begin + row_stride;
+          auto gidx = -1;
+          if (is_dense) {
+            gidx = d_gidx[row_begin + fidx];
+          } else {
+            gidx = BinarySearchRow(row_begin, row_end, d_gidx, fidx_begin,
+                                   fidx_end);
+          }
+
+          int position;
+          if (gidx >= 0) {
+            // Feature is found
+            position = gidx <= split_gidx ? left_nidx : right_nidx;
+          } else {
+            // Feature is missing
+            position = default_dir_left ? left_nidx : right_nidx;
+          }
+
+          CountLeft(d_left_count, position, left_nidx);
+          d_position[idx] = position;
+        });
+
+    dh::safe_cuda(cudaMemcpy(tmp_pinned, d_left_count, sizeof(int64_t),
+                             cudaMemcpyDeviceToHost));
+    auto left_count = *tmp_pinned;
+
+    SortPosition(segment, left_nidx, right_nidx);
+    // dh::safe_cuda(cudaStreamSynchronize(stream));
+    ridx_segments[left_nidx] =
+        Segment(segment.begin, segment.begin + left_count);
+    ridx_segments[right_nidx] =
+        Segment(segment.begin + left_count, segment.end);
+  }
+
+  void SortPosition(const Segment& segment, int left_nidx, int right_nidx) {
     int min_bits = 0;
     int max_bits = static_cast<int>(
         std::ceil(std::log2((std::max)(left_nidx, right_nidx) + 1)));
 
     size_t temp_storage_bytes = 0;
     cub::DeviceRadixSort::SortPairs(
-        nullptr, temp_storage_bytes, position.current() + segment.first,
-        position.other() + segment.first, ridx.current() + segment.first,
-        ridx.other() + segment.first, n, min_bits, max_bits);
+        nullptr, temp_storage_bytes, position.current() + segment.begin,
+        position.other() + segment.begin, ridx.current() + segment.begin,
+        ridx.other() + segment.begin, segment.Size(), min_bits, max_bits);
 
     temp_memory.LazyAllocate(temp_storage_bytes);
 
     cub::DeviceRadixSort::SortPairs(
         temp_memory.d_temp_storage, temp_memory.temp_storage_bytes,
-        position.current() + segment.first, position.other() + segment.first,
-        ridx.current() + segment.first, ridx.other() + segment.first, n,
-        min_bits, max_bits);
-    dh::safe_cuda(cudaMemcpy(position.current() + segment.first,
-                             position.other() + segment.first, n * sizeof(int),
-                             cudaMemcpyDeviceToDevice));
-    dh::safe_cuda(cudaMemcpy(ridx.current() + segment.first,
-                             ridx.other() + segment.first, n * sizeof(bst_uint),
-                             cudaMemcpyDeviceToDevice));
-    //}
+        position.current() + segment.begin, position.other() + segment.begin,
+        ridx.current() + segment.begin, ridx.other() + segment.begin,
+        segment.Size(), min_bits, max_bits);
+    dh::safe_cuda(cudaMemcpy(
+        position.current() + segment.begin, position.other() + segment.begin,
+        segment.Size() * sizeof(int), cudaMemcpyDeviceToDevice));
+    dh::safe_cuda(cudaMemcpy(
+        ridx.current() + segment.begin, ridx.other() + segment.begin,
+        segment.Size() * sizeof(bst_uint), cudaMemcpyDeviceToDevice));
   }
 };
 
@@ -412,9 +481,9 @@ class GPUHistMakerExperimental : public TreeUpdater {
       const std::vector<std::pair<std::string, std::string>>& args) override {
     param.InitAllowUnknown(args);
     CHECK(param.n_gpus != 0) << "Must have at least one device";
-    CHECK(param.n_gpus <= 1 && param.n_gpus != -1)
-        << "Only one GPU currently supported";
     n_devices = param.n_gpus;
+
+    dh::check_compute_capability();
 
     if (param.grow_policy == TrainParam::kLossGuide) {
       qexpand_.reset(new ExpandQueue(loss_guide));
@@ -426,6 +495,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
   }
   void Update(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
+    monitor.Start("Update");
     GradStats::CheckInfo(dmat->info());
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
@@ -439,36 +509,119 @@ class GPUHistMakerExperimental : public TreeUpdater {
       LOG(FATAL) << "GPU plugin exception: " << e.what() << std::endl;
     }
     param.learning_rate = lr;
+    monitor.Stop("Update");
   }
 
   void InitDataOnce(DMatrix* dmat) {
     info = &dmat->info();
+    monitor.Start("Quantiles");
     hmat_.Init(dmat, param.max_bin);
     gmat_.cut = &hmat_;
     gmat_.Init(dmat);
+    monitor.Stop("Quantiles");
     n_bins = hmat_.row_ptr.back();
-    shards.emplace_back(param.gpu_id, 0, gmat_, 0, info->num_row, n_bins,
-                        param);
+
+    int n_devices = dh::n_devices(param.n_gpus, info->num_row);
+
+    bst_uint row_begin = 0;
+    bst_uint shard_size =
+        std::ceil(static_cast<double>(info->num_row) / n_devices);
+
+    std::vector<int> dList(n_devices);
+    for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
+      int device_idx = (param.gpu_id + d_idx) % dh::n_visible_devices();
+      dList[d_idx] = device_idx;
+    }
+
+    reducer.Init(dList);
+
+    // Partition input matrix into row segments
+    std::vector<size_t> row_segments;
+    shards.resize(n_devices);
+    row_segments.push_back(0);
+    for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
+      bst_uint row_end =
+          std::min(static_cast<size_t>(row_begin + shard_size), info->num_row);
+      row_segments.push_back(row_end);
+      row_begin = row_end;
+    }
+
+    // Create device shards
+    omp_set_num_threads(shards.size());
+#pragma omp parallel
+    {
+      auto cpu_thread_id = omp_get_thread_num();
+      shards[cpu_thread_id] = std::unique_ptr<DeviceShard>(
+          new DeviceShard(dList[cpu_thread_id], cpu_thread_id, gmat_,
+                          row_segments[cpu_thread_id],
+                          row_segments[cpu_thread_id + 1], n_bins, param));
+    }
+
     initialised = true;
   }
 
   void InitData(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
                 const RegTree& tree) {
+    monitor.Start("InitDataOnce");
     if (!initialised) {
+      CheckGradientMax(gpair);
       this->InitDataOnce(dmat);
     }
+    monitor.Stop("InitDataOnce");
 
-    this->ColSampleTree();
+    column_sampler.Init(info->num_col, param);
 
     // Copy gpair & reset memory
-    for (auto& shard : shards) {
-      shard.Reset(gpair);
+    monitor.Start("InitDataReset");
+    omp_set_num_threads(shards.size());
+#pragma omp parallel
+    {
+      auto cpu_thread_id = omp_get_thread_num();
+      shards[cpu_thread_id]->Reset(gpair);
     }
+    monitor.Stop("InitDataReset");
   }
 
-  void BuildHist(int nidx) {
+  void AllReduceHist(int nidx) {
     for (auto& shard : shards) {
-      shard.BuildHist(nidx);
+      auto d_node_hist = shard->hist.GetHistPtr(nidx);
+      reducer.AllReduceSum(
+          shard->normalised_device_idx,
+          reinterpret_cast<gpair_sum_t::value_t*>(d_node_hist),
+          reinterpret_cast<gpair_sum_t::value_t*>(d_node_hist),
+          n_bins * (sizeof(gpair_sum_t) / sizeof(gpair_sum_t::value_t)));
+    }
+
+    reducer.Synchronize();
+  }
+
+  void BuildHistLeftRight(int nidx_parent, int nidx_left, int nidx_right) {
+    size_t left_node_max_elements = 0;
+    size_t right_node_max_elements = 0;
+    for (auto& shard : shards) {
+      left_node_max_elements = (std::max)(
+          left_node_max_elements, shard->ridx_segments[nidx_left].Size());
+      right_node_max_elements = (std::max)(
+          right_node_max_elements, shard->ridx_segments[nidx_right].Size());
+    }
+
+    auto build_hist_nidx = nidx_left;
+    auto subtraction_trick_nidx = nidx_right;
+
+    if (right_node_max_elements < left_node_max_elements) {
+      build_hist_nidx = nidx_right;
+      subtraction_trick_nidx = nidx_left;
+    }
+
+    for (auto& shard : shards) {
+      shard->BuildHist(build_hist_nidx);
+    }
+
+    this->AllReduceHist(build_hist_nidx);
+
+    for (auto& shard : shards) {
+      shard->SubtractionTrick(nidx_parent, build_hist_nidx,
+                              subtraction_trick_nidx);
     }
   }
 
@@ -481,36 +634,41 @@ class GPUHistMakerExperimental : public TreeUpdater {
                                                        columns);
     // Use first device
     auto& shard = shards.front();
-    dh::safe_cuda(cudaSetDevice(shard.device_idx));
-    shard.temp_memory.LazyAllocate(sizeof(DeviceSplitCandidate) * columns *
-                                   nidx_set.size());
-    auto d_split = shard.temp_memory.Pointer<DeviceSplitCandidate>();
+    dh::safe_cuda(cudaSetDevice(shard->device_idx));
+    shard->temp_memory.LazyAllocate(sizeof(DeviceSplitCandidate) * columns *
+                                    nidx_set.size());
+    auto d_split = shard->temp_memory.Pointer<DeviceSplitCandidate>();
 
-    auto& streams = shard.GetStreams(static_cast<int>(nidx_set.size()));
+    auto& streams = shard->GetStreams(static_cast<int>(nidx_set.size()));
 
     // Use streams to process nodes concurrently
     for (auto i = 0; i < nidx_set.size(); i++) {
       auto nidx = nidx_set[i];
-      DeviceNodeStats node(shard.node_sum_gradients[nidx], nidx, param);
+      DeviceNodeStats node(shard->node_sum_gradients[nidx], nidx, param);
 
       const int BLOCK_THREADS = 256;
       evaluate_split_kernel<BLOCK_THREADS>
           <<<uint32_t(columns), BLOCK_THREADS, 0, streams[i]>>>(
-              shard.hist.node_map[nidx], nidx, info->num_col, node,
-              shard.feature_segments.data(), shard.min_fvalue.data(),
-              shard.gidx_fvalue_map.data(), GPUTrainingParam(param),
+              shard->hist.GetHistPtr(nidx), nidx, info->num_col, node,
+              shard->feature_segments.data(), shard->min_fvalue.data(),
+              shard->gidx_fvalue_map.data(), GPUTrainingParam(param),
               d_split + i * columns);
     }
 
     dh::safe_cuda(
-        cudaMemcpy(candidate_splits.data(), shard.temp_memory.d_temp_storage,
+        cudaMemcpy(candidate_splits.data(), shard->temp_memory.d_temp_storage,
                    sizeof(DeviceSplitCandidate) * columns * nidx_set.size(),
                    cudaMemcpyDeviceToHost));
 
     for (auto i = 0; i < nidx_set.size(); i++) {
+      auto nidx = nidx_set[i];
       DeviceSplitCandidate nidx_best;
       for (auto fidx = 0; fidx < columns; fidx++) {
-        nidx_best.Update(candidate_splits[i * columns + fidx], param);
+        auto& candidate = candidate_splits[i * columns + fidx];
+        if (column_sampler.ColumnUsed(candidate.findex,
+                                      p_tree->GetDepth(nidx))) {
+          nidx_best.Update(candidate_splits[i * columns + fidx], param);
+        }
       }
       best_splits[i] = nidx_best;
     }
@@ -518,15 +676,28 @@ class GPUHistMakerExperimental : public TreeUpdater {
   }
 
   void InitRoot(const std::vector<bst_gpair>& gpair, RegTree* p_tree) {
-    int root_nidx = 0;
-    BuildHist(root_nidx);
-
-    // TODO(rory): support sub sampling
-    // TODO(rory): not asynchronous
-    bst_gpair sum_gradient;
-    for (auto& shard : shards) {
-      sum_gradient += thrust::reduce(shard.gpair.tbegin(), shard.gpair.tend());
+    auto root_nidx = 0;
+    // Sum gradients
+    std::vector<bst_gpair> tmp_sums(shards.size());
+    omp_set_num_threads(shards.size());
+#pragma omp parallel
+    {
+      auto cpu_thread_id = omp_get_thread_num();
+      dh::safe_cuda(cudaSetDevice(shards[cpu_thread_id]->device_idx));
+      tmp_sums[cpu_thread_id] =
+          thrust::reduce(thrust::cuda::par(shards[cpu_thread_id]->temp_memory),
+                         shards[cpu_thread_id]->gpair.tbegin(),
+                         shards[cpu_thread_id]->gpair.tend());
     }
+    auto sum_gradient =
+        std::accumulate(tmp_sums.begin(), tmp_sums.end(), bst_gpair());
+
+    // Generate root histogram
+    for (auto& shard : shards) {
+      shard->BuildHist(root_nidx);
+    }
+
+    this->AllReduceHist(root_nidx);
 
     // Remember root stats
     p_tree->stat(root_nidx).sum_hess = sum_gradient.GetHess();
@@ -534,33 +705,17 @@ class GPUHistMakerExperimental : public TreeUpdater {
 
     // Store sum gradients
     for (auto& shard : shards) {
-      shard.node_sum_gradients[root_nidx] = sum_gradient;
+      shard->node_sum_gradients[root_nidx] = sum_gradient;
     }
 
+    // Generate first split
     auto splits = this->EvaluateSplits({root_nidx}, p_tree);
-
-    // Generate candidate
     qexpand_->push(
         ExpandEntry(root_nidx, p_tree->GetDepth(root_nidx), splits.front(), 0));
   }
 
-  struct MatchingFunctor : public thrust::unary_function<int, int> {
-    int val;
-    __host__ __device__ MatchingFunctor(int val) : val(val) {}
-    __host__ __device__ int operator()(int x) const { return x == val; }
-  };
-
-  __device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
-    unsigned ballot = __ballot(val == left_nidx);
-    if (threadIdx.x % 32 == 0) {
-      atomicAdd(reinterpret_cast<unsigned long long*>(d_count),    // NOLINT
-                static_cast<unsigned long long>(__popc(ballot)));  // NOLINT
-    }
-  }
-
   void UpdatePosition(const ExpandEntry& candidate, RegTree* p_tree) {
     auto nidx = candidate.nid;
-    auto is_dense = info->num_nonzero == info->num_row * info->num_col;
     auto left_nidx = (*p_tree)[nidx].cleft();
     auto right_nidx = (*p_tree)[nidx].cright();
 
@@ -577,58 +732,15 @@ class GPUHistMakerExperimental : public TreeUpdater {
       }
     }
 
-    for (auto& shard : shards) {
-      monitor.Start("update position kernel");
-      shard.temp_memory.LazyAllocate(sizeof(int64_t));
-      auto d_left_count = shard.temp_memory.Pointer<int64_t>();
-      dh::safe_cuda(cudaMemset(d_left_count, 0, sizeof(int64_t)));
-      dh::safe_cuda(cudaSetDevice(shard.device_idx));
-      auto segment = shard.ridx_segments[nidx];
-      CHECK_GT(segment.second - segment.first, 0);
-      auto d_ridx = shard.ridx.current();
-      auto d_position = shard.position.current();
-      auto d_gidx = shard.gidx;
-      auto row_stride = shard.row_stride;
-      dh::launch_n<1, 512>(
-          shard.device_idx, segment.second - segment.first,
-          [=] __device__(bst_uint idx) {
-            idx += segment.first;
-            auto ridx = d_ridx[idx];
-            auto row_begin = row_stride * ridx;
-            auto row_end = row_begin + row_stride;
-            auto gidx = -1;
-            if (is_dense) {
-              gidx = d_gidx[row_begin + fidx];
-            } else {
-              gidx = BinarySearchRow(row_begin, row_end, d_gidx, fidx_begin,
-                                     fidx_end);
-            }
+    auto is_dense = info->num_nonzero == info->num_row * info->num_col;
 
-            int position;
-            if (gidx >= 0) {
-              // Feature is found
-              position = gidx <= split_gidx ? left_nidx : right_nidx;
-            } else {
-              // Feature is missing
-              position = default_dir_left ? left_nidx : right_nidx;
-            }
-
-            CountLeft(d_left_count, position, left_nidx);
-            d_position[idx] = position;
-          });
-
-      int64_t left_count;
-      dh::safe_cuda(cudaMemcpy(&left_count, d_left_count, sizeof(int64_t),
-                               cudaMemcpyDeviceToHost));
-      monitor.Stop("update position kernel");
-
-      monitor.Start("sort");
-      shard.SortPosition(segment, left_nidx, right_nidx);
-      monitor.Stop("sort");
-      shard.ridx_segments[left_nidx] =
-          std::make_pair(segment.first, segment.first + left_count);
-      shard.ridx_segments[right_nidx] =
-          std::make_pair(segment.first + left_count, segment.second);
+    omp_set_num_threads(shards.size());
+#pragma omp parallel
+    {
+      auto cpu_thread_id = omp_get_thread_num();
+      shards[cpu_thread_id]->UpdatePosition(nidx, left_nidx, right_nidx, fidx,
+                                            split_gidx, default_dir_left,
+                                            is_dense, fidx_begin, fidx_end);
     }
   }
 
@@ -654,40 +766,11 @@ class GPUHistMakerExperimental : public TreeUpdater {
     tree.stat(parent.cright()).sum_hess = candidate.split.right_sum.GetHess();
     // Store sum gradients
     for (auto& shard : shards) {
-      shard.node_sum_gradients[parent.cleft()] = candidate.split.left_sum;
-      shard.node_sum_gradients[parent.cright()] = candidate.split.right_sum;
+      shard->node_sum_gradients[parent.cleft()] = candidate.split.left_sum;
+      shard->node_sum_gradients[parent.cright()] = candidate.split.right_sum;
     }
     this->UpdatePosition(candidate, p_tree);
   }
-
-  void ColSampleTree() {
-    if (param.colsample_bylevel == 1.0 && param.colsample_bytree == 1.0) return;
-
-    feature_set_tree.resize(info->num_col);
-    std::iota(feature_set_tree.begin(), feature_set_tree.end(), 0);
-    feature_set_tree = col_sample(feature_set_tree, param.colsample_bytree);
-  }
-
-  struct Monitor {
-    bool debug_verbose = false;
-    std::string label = "";
-    std::map<std::string, dh::Timer> timer_map;
-
-    ~Monitor() {
-      if (!debug_verbose) return;
-
-      std::cout << "Monitor: " << label << "\n";
-      for (auto& kv : timer_map) {
-        kv.second.PrintElapsed(kv.first);
-      }
-    }
-    void Init(std::string label, bool debug_verbose) {
-      this->debug_verbose = debug_verbose;
-      this->label = label;
-    }
-    void Start(const std::string& name) { timer_map[name].Start(); }
-    void Stop(const std::string& name) { timer_map[name].Stop(); }
-  };
 
   void UpdateTree(const std::vector<bst_gpair>& gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
@@ -720,8 +803,8 @@ class GPUHistMakerExperimental : public TreeUpdater {
       if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
                                     num_leaves)) {
         monitor.Start("BuildHist");
-        this->BuildHist(left_child_nidx);
-        this->BuildHist(right_child_nidx);
+        this->BuildHistLeftRight(candidate.nid, left_child_nidx,
+                                 right_child_nidx);
         monitor.Stop("BuildHist");
 
         monitor.Start("EvaluateSplits");
@@ -793,14 +876,14 @@ class GPUHistMakerExperimental : public TreeUpdater {
   int n_devices;
   int n_bins;
 
-  std::vector<DeviceShard> shards;
-  std::vector<int> feature_set_tree;
-  std::vector<int> feature_set_level;
+  std::vector<std::unique_ptr<DeviceShard>> shards;
+  ColumnSampler column_sampler;
   typedef std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
                               std::function<bool(ExpandEntry, ExpandEntry)>>
       ExpandQueue;
   std::unique_ptr<ExpandQueue> qexpand_;
-  Monitor monitor;
+  common::Monitor monitor;
+  dh::AllReducer reducer;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMakerExperimental,
