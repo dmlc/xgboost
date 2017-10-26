@@ -20,6 +20,7 @@
 #include "../common/common.h"
 #include "../common/random.h"
 #include "gbtree_model.h"
+#include "../common/timer.h"
 
 namespace xgboost {
 namespace gbm {
@@ -158,6 +159,7 @@ class GBTree : public GradientBooster {
     // configure predictor
     predictor = std::unique_ptr<Predictor>(Predictor::Create(tparam.predictor));
     predictor->Init(cfg, cache_);
+    monitor.Init("GBTree", tparam.debug_verbose);
   }
 
   void Load(dmlc::Stream* fi) override {
@@ -183,6 +185,7 @@ class GBTree : public GradientBooster {
     const std::vector<bst_gpair>& gpair = *in_gpair;
     std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
     const int ngroup = model_.param.num_output_group;
+    monitor.Start("BoostNewTrees");
     if (ngroup == 1) {
       std::vector<std::unique_ptr<RegTree> > ret;
       BoostNewTrees(gpair, p_fmat, 0, &ret);
@@ -202,13 +205,12 @@ class GBTree : public GradientBooster {
         new_trees.push_back(std::move(ret));
       }
     }
-    double tstart = dmlc::GetTime();
+    monitor.Stop("BoostNewTrees");
+    monitor.Start("CommitModel");
     for (int gid = 0; gid < ngroup; ++gid) {
       this->CommitModel(std::move(new_trees[gid]), gid);
     }
-    if (tparam.debug_verbose > 0) {
-      LOG(INFO) << "CommitModel(): " << dmlc::GetTime() - tstart << " sec";
-    }
+    monitor.Stop("CommitModel");
   }
 
   void PredictBatch(DMatrix* p_fmat,
@@ -308,6 +310,7 @@ class GBTree : public GradientBooster {
   // Cached matrices
   std::vector<std::shared_ptr<DMatrix>> cache_;
   std::unique_ptr<Predictor> predictor;
+  common::Monitor monitor;
 };
 
 // dart

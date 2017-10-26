@@ -65,9 +65,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
           bst_float p = rec[k];
           const bst_float h = 2.0f * p * (1.0f - p) * wt;
           if (label == k) {
-            out_gpair->at(i * nclass + k) = bst_gpair((p - 1.0f) * wt, h);
+            (*out_gpair)[i * nclass + k] = bst_gpair((p - 1.0f) * wt, h);
           } else {
-            out_gpair->at(i * nclass + k) = bst_gpair(p* wt, h);
+            (*out_gpair)[i * nclass + k] = bst_gpair(p* wt, h);
           }
         }
       }
