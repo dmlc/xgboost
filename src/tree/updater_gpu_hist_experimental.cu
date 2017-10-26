@@ -334,6 +334,8 @@ struct DeviceShard {
     ridx_segments.front() = std::make_pair(0, ridx.size());
     this->gpair.copy(host_gpair.begin() + row_start_idx,
                      host_gpair.begin() + row_end_idx);
+    // Check gradients are within acceptable size range
+    CheckGradientMax(gpair);
     hist.Reset();
   }
 
@@ -551,8 +553,8 @@ class GPUHistMakerExperimental : public TreeUpdater {
   __device__ void CountLeft(int64_t* d_count, int val, int left_nidx) {
     unsigned ballot = __ballot(val == left_nidx);
     if (threadIdx.x % 32 == 0) {
-      atomicAdd(reinterpret_cast<unsigned long long*>(d_count), // NOLINT
-                static_cast<unsigned long long>(__popc(ballot))); // NOLINT
+      atomicAdd(reinterpret_cast<unsigned long long*>(d_count),    // NOLINT
+                static_cast<unsigned long long>(__popc(ballot)));  // NOLINT
     }
   }
 
