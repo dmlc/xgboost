@@ -59,7 +59,7 @@ cd xgboost; make -j4
 
 ### Building on Mac OS X
 
-**Building with pip - simple method**
+**Install with pip - simple method**
 
 First, make sure you obtained *gcc-5* (newer version does not work with this method yet). Note: installation of `gcc` can take a while (~ 30 minutes)
 
@@ -73,7 +73,7 @@ You might need to run the following command with `sudo` if you run into some per
 pip install xgboost
 ```
 
-**Building from the source code - advanced method**
+**Build from the source code - advanced method**
 
 First, obtain gcc-7.x.x with brew (https://brew.sh/) if you want multi-threaded version, otherwise, Clang is ok if OpenMP / multi-threaded is not required. Note: installation of `gcc` can take a while (~ 30 minutes)
 
