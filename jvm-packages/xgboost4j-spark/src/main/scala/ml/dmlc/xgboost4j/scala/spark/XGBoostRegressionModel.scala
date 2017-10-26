@@ -55,8 +55,7 @@ class XGBoostRegressionModel private[spark](override val uid: String, booster: B
   }
 
   override def copy(extra: ParamMap): XGBoostRegressionModel = {
-    val regModel = defaultCopy(extra).asInstanceOf[XGBoostRegressionModel]
-    regModel._booster = booster
-    regModel
+    val newModel = copyValues(new XGBoostRegressionModel(booster), extra)
+    newModel.setSummary(summary)
   }
 }
