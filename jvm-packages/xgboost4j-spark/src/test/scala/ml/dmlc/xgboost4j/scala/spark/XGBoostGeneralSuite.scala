@@ -21,7 +21,7 @@ import java.util.concurrent.LinkedBlockingDeque
 
 import scala.util.Random
 import ml.dmlc.xgboost4j.java.Rabit
-import ml.dmlc.xgboost4j.scala.DMatrix
+import ml.dmlc.xgboost4j.scala.{Classification, DMatrix, MultiClassification, Ranking}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkContext

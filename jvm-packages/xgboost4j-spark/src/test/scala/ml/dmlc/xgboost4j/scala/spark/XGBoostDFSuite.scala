@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
+import ml.dmlc.xgboost4j.scala.{Classification, DMatrix, MultiClassification, Ranking, Regression, XGBoost => ScalaXGBoost}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap

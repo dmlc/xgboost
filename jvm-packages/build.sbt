@@ -15,7 +15,7 @@ lazy val core = (project in file("xgboost4j")).
     )
 
 lazy val spark = (project in file("xgboost4j-spark")).
-    dependsOn(core).
+    dependsOn(core % "test->test;compile->compile").
     settings(Common.settings: _*).
     settings(
       libraryDependencies ++= Dependencies.sparkDependencies,

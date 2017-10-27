@@ -68,6 +68,9 @@ class ScalaBoosterImplSuite extends FunSuite {
     }
   }
 
+  private val trainMat = new DMatrix(Classification.trainFile.toString)
+  private val testMat = new DMatrix(Classification.testFile.toString)
+
   private def trainBooster(trainMat: DMatrix, testMat: DMatrix): Booster = {
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
@@ -95,9 +98,6 @@ class ScalaBoosterImplSuite extends FunSuite {
   }
 
   test("basic operation of booster") {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
-
     val booster = trainBooster(trainMat, testMat)
     val predicts = booster.predict(testMat, true)
     val eval = new EvalError
@@ -105,9 +105,6 @@ class ScalaBoosterImplSuite extends FunSuite {
   }
 
   test("save/load model with path") {
-
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val eval = new EvalError
     val booster = trainBooster(trainMat, testMat)
     // save and load
@@ -122,8 +119,6 @@ class ScalaBoosterImplSuite extends FunSuite {
   }
 
   test("save/load model with stream") {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val eval = new EvalError
     val booster = trainBooster(trainMat, testMat)
     // save and load
@@ -138,7 +133,6 @@ class ScalaBoosterImplSuite extends FunSuite {
   }
 
   test("cross validation") {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val params = List("eta" -> "1.0", "max_depth" -> "3", "slient" -> "1", "nthread" -> "6",
       "objective" -> "binary:logistic", "gamma" -> "1.0", "eval_metric" -> "error").toMap
     val round = 2
@@ -147,8 +141,6 @@ class ScalaBoosterImplSuite extends FunSuite {
   }
 
   test("test with fast histo depthwise") {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "eval_metric" -> "auc").toMap
@@ -157,8 +149,6 @@ class ScalaBoosterImplSuite extends FunSuite {
   }
 
   test("test with fast histo lossguide") {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "auc").toMap
@@ -167,8 +157,6 @@ class ScalaBoosterImplSuite extends FunSuite {
   }
 
   test("test with fast histo lossguide with max bin") {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
@@ -178,8 +166,6 @@ class ScalaBoosterImplSuite extends FunSuite {
   }
 
   test("test with fast histo depthwidth with max depth") {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
@@ -189,8 +175,6 @@ class ScalaBoosterImplSuite extends FunSuite {
   }
 
   test("test with fast histo depthwidth with max depth and max bin") {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
     val paramMap = List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",

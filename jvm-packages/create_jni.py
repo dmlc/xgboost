@@ -106,12 +106,12 @@ if __name__ == "__main__":
        "xgboost4j/src/main/resources")
 
     print("copying train/test files")
-    maybe_makedirs("xgboost4j-spark/src/test/resources")
+    maybe_makedirs("xgboost4j/src/test/resources")
     with cd("../demo/regression"):
         run("{} mapfeat.py".format(sys.executable))
         run("{} mknfold.py machine.txt 1".format(sys.executable))
 
     for file in glob.glob("../demo/regression/machine.txt.t*"):
-        cp(file, "xgboost4j-spark/src/test/resources")
+        cp(file, "xgboost4j/src/test/resources")
     for file in glob.glob("../demo/data/agaricus.*"):
-        cp(file, "xgboost4j-spark/src/test/resources")
+        cp(file, "xgboost4j/src/test/resources")
