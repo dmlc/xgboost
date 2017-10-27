@@ -29,6 +29,7 @@
         <dependency>
             <groupId>ml.dmlc</groupId>
             <artifactId>xgboost4j</artifactId>
+            <version>0.7</version>
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
