@@ -78,5 +78,3 @@ npymat = csr.todense()
 dtrain = xgb.DMatrix(npymat, label=labels)
 watchlist = [(dtest, 'eval'), (dtrain, 'train')]
 bst = xgb.train(param, dtrain, num_round, watchlist)
-
-
