@@ -20,5 +20,6 @@ ptest = bst.predict(dtest, output_margin=True)
 dtrain.set_base_margin(ptrain)
 dtest.set_base_margin(ptest)
 
-print ('this is result of running from initial prediction')
+
+print('this is result of running from initial prediction')
 bst = xgb.train(param, dtrain, 1, watchlist)

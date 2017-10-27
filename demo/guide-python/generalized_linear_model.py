@@ -11,7 +11,7 @@ dtest = xgb.DMatrix('../data/agaricus.txt.test')
 # lambda is the L2 regularizer
 # you can also set lambda_bias which is L2 regularizer on the bias term
 param = {'silent':1, 'objective':'binary:logistic', 'booster':'gblinear',
-         'alpha': 0.0001, 'lambda': 1 }
+         'alpha': 0.0001, 'lambda': 1}
 
 # normally, you do not need to set eta (step_size)
 # XGBoost uses a parallel coordinate descent algorithm (shotgun),
@@ -22,9 +22,9 @@ param = {'silent':1, 'objective':'binary:logistic', 'booster':'gblinear',
 ##
 # the rest of settings are the same
 ##
-watchlist  = [(dtest,'eval'), (dtrain,'train')]
+watchlist = [(dtest, 'eval'), (dtrain, 'train')]
 num_round = 4
 bst = xgb.train(param, dtrain, num_round, watchlist)
 preds = bst.predict(dtest)
 labels = dtest.get_label()
-print ('error=%f' % ( sum(1 for i in range(len(preds)) if int(preds[i]>0.5)!=labels[i]) /float(len(preds))))
+print('error=%f' % (sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))))
