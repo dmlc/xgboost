@@ -7,7 +7,7 @@ import xgboost as xgb
 
 # label need to be 0 to num_class -1
 data = np.loadtxt('./dermatology.data', delimiter=',',
-        converters={33: lambda x:int(x == '?'), 34: lambda x:int(x)-1})
+        converters={33: lambda x:int(x == '?'), 34: lambda x:int(x) - 1})
 sz = data.shape
 
 train = data[:int(sz[0] * 0.7), :]
