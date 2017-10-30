@@ -17,6 +17,7 @@
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
+#include "../analysis/xgbfi.h"
 
 namespace xgboost {
 // booster wrapper for backward compatible reason.
@@ -943,6 +944,32 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
   } else {
     rabit::CheckPoint(bst->learner());
   }
+  API_END();
+}
+
+XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
+                                            int max_fi_depth,
+                                            int max_tree_depth,
+                                            int max_deepening,
+                                            int ntrees,
+                                            const char *fmap,
+                                            xgboost::bst_ulong *out_len,
+                                            const char ***out_fi_array) {
+  API_BEGIN();
+  Booster* bst = static_cast<Booster*>(handle);
+  std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
+  std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
+  str_vecs = xgbfi::GetFeatureInteractions(*(bst->learner()),
+                                           max_fi_depth,
+                                           max_tree_depth,
+                                           max_deepening,
+                                           ntrees, fmap);
+  charp_vecs.resize(str_vecs.size());
+  for (size_t i = 0; i < str_vecs.size(); ++i) {
+    charp_vecs[i] = str_vecs[i].c_str();
+  }
+  *out_fi_array = dmlc::BeginPtr(charp_vecs);
+  *out_len = static_cast<xgboost::bst_ulong>(charp_vecs.size());
   API_END();
 }
 
