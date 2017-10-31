@@ -71,7 +71,6 @@ object XGBoost extends Serializable {
     }
   }
 
-  /** Enforce that either all base margins are specified, or none are. */
   private def fromBaseMarginsToArray(baseMargins: Iterator[Float]): Option[Array[Float]] = {
     val builder = new mutable.ArrayBuilder.ofFloat()
     var nTotal = 0
@@ -96,19 +95,6 @@ object XGBoost extends Serializable {
     }
   }
 
-  /**
-   * Create an RDD which is responsible for actually executing the training stage. Each RDD
-   * partition is converted to an XGBoost `DMatrix`, and a gradient boosted decision tree model
-   * is trained by calling into the native XGBoost code through the Java Native Interface.
-   *
-   * Each RDD partition is essentially a long-running task that repeatedly performs boosting
-   * iterations by calling into the native XGBoost library and communicates split statistics
-   * through the [[Rabit]] all-reduce framework instead of performing aggregations directly
-   * within Spark. Training is executed in a single Spark job, and can be triggered by invoking
-   * some action on the returned RDD - e.g. a call to `foreachPartition`.
-   *
-   * Refer to `trainWithRDD` for parameter descriptions.
-   */
   private[spark] def buildDistributedBoosters(
       data: RDD[XGBLabeledPoint],
       params: Map[String, Any],
@@ -312,17 +298,6 @@ object XGBoost extends Serializable {
       useExternalMemory, missing)
   }
 
-  /**
-   * This method trains an XGBoost model on a distributed collection of labeled training points.
-   * In each partition of the training RDD a booster is trained on the subset of data in that
-   * partition. The model is then updated globally using an all-reduce communication model across
-   * Spark tasks.
-   *
-   * A [[RabitTracker]] is created to coordinate communication between the all-reduce worker nodes
-   * and to verify that training completes successfully.
-   *
-   * Refer to `trainWithRDD` for parameter descriptions.
-   */
   @throws(classOf[XGBoostError])
   private[spark] def trainDistributed(
       trainingData: RDD[XGBLabeledPoint],
@@ -391,10 +366,8 @@ object XGBoost extends Serializable {
       sparkJobThread: Thread,
       isClassificationTask: Boolean): XGBoostModel = {
     if (trackerReturnVal == 0) {
-      /*
-      Copies of the finished model reside in each partition of the `distributedBoosters`.
-      Any of them can be used to create the model. Here, just choose the first partition.
-      */
+      // Copies of the finished model reside in each partition of the `distributedBoosters`.
+      // Any of them can be used to create the model. Here, just choose the first partition.
       val xgboostModel = XGBoostModel(distributedBoosters.first(), isClassificationTask)
       distributedBoosters.unpersist(false)
       xgboostModel
@@ -434,8 +407,8 @@ object XGBoost extends Serializable {
    * @param modelPath The path of the file representing the model
    * @return The loaded model
    */
-  def loadModelFromHadoopFile(modelPath: String)
-                             (implicit sparkContext: SparkContext): XGBoostModel = {
+  def loadModelFromHadoopFile(modelPath: String)(implicit sparkContext: SparkContext):
+      XGBoostModel = {
     val path = new Path(modelPath)
     val dataInStream = path.getFileSystem(sparkContext.hadoopConfiguration).open(path)
     val modelType = dataInStream.readUTF()
@@ -470,27 +443,22 @@ object XGBoost extends Serializable {
   }
 }
 
-/** Class to hold the training and test matrices in a given partition. */
 private class Watches private(val train: DMatrix, val test: DMatrix) {
 
-  def toMap: Map[String, DMatrix] = {
-    Map("train" -> train, "test" -> test).filter { case (_, matrix) => matrix.rowNum > 0 }
-  }
+  def toMap: Map[String, DMatrix] = Map("train" -> train, "test" -> test)
+    .filter { case (_, matrix) => matrix.rowNum > 0 }
 
   def size: Int = toMap.size
 
-  def delete(): Unit = toMap.values.foreach(_.delete())
+  def delete(): Unit = {
+    toMap.values.foreach(_.delete())
+  }
 
   override def toString: String = toMap.toString
 }
 
 private object Watches {
 
-  /**
-   * Split the data iterator for a Spark partition into train and test `DMatrix`.
-   *
-   * @return Watches instance, holding train and test matrices.
-   */
   def apply(
       params: Map[String, Any],
       labeledPoints: Iterator[XGBLabeledPoint],
