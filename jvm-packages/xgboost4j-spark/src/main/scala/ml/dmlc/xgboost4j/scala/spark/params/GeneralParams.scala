@@ -23,12 +23,6 @@ import org.apache.spark.ml.param._
 trait GeneralParams extends Params {
 
   /**
-   * The number of rounds for boosting
-   */
-  val round = new IntParam(this, "num_round", "The number of rounds for boosting",
-    ParamValidators.gtEq(1))
-
-  /**
    * number of workers used to train xgboost model. default: 1
    */
   val nWorkers = new IntParam(this, "nworkers", "number of workers used to run xgboost",
@@ -109,7 +103,7 @@ trait GeneralParams extends Params {
   /** Random seed for the C++ part of XGBoost and train/test splitting. */
   val seed = new LongParam(this, "seed", "random seed")
 
-  setDefault(round -> 1, nWorkers -> 1, numThreadPerTask -> 1,
+  setDefault(nWorkers -> 1, numThreadPerTask -> 1,
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L

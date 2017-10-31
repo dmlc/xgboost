@@ -28,15 +28,6 @@ trait LearningTaskParams extends Params {
   val numClasses = new IntParam(this, "num_class", "number of classes")
 
   /**
-   * Specify the learning task and the corresponding learning objective.
-   * options: reg:linear, reg:logistic, binary:logistic, binary:logitraw, count:poisson,
-   * multi:softmax, multi:softprob, rank:pairwise, reg:gamma. default: reg:linear
-   */
-  val objective = new Param[String](this, "objective", "objective function used for training," +
-    s" options: {${LearningTaskParams.supportedObjective.mkString(",")}",
-    (value: String) => LearningTaskParams.supportedObjective.contains(value))
-
-  /**
    * the initial prediction score of all instances, global bias. default=0.5
    */
   val baseScore = new DoubleParam(this, "base_score", "the initial prediction score of all" +
@@ -86,16 +77,12 @@ trait LearningTaskParams extends Params {
     "stopping the training",
     (value: Int) => value == 0 || value > 1)
 
-  setDefault(objective -> "reg:linear", baseScore -> 0.5, numClasses -> 2, groupData -> null,
+  setDefault(baseScore -> 0.5, numClasses -> 2, groupData -> null,
     baseMarginCol -> "baseMargin", weightCol -> "weight", trainTestRatio -> 1.0,
     numEarlyStoppingRounds -> 0)
 }
 
 private[spark] object LearningTaskParams {
-  val supportedObjective = HashSet("reg:linear", "reg:logistic", "binary:logistic",
-    "binary:logitraw", "count:poisson", "multi:softmax", "multi:softprob", "rank:pairwise",
-    "reg:gamma")
-
   val supportedEvalMetrics = HashSet("rmse", "mae", "logloss", "error", "merror", "mlogloss",
     "auc", "ndcg", "map", "gamma-deviance")
 }
