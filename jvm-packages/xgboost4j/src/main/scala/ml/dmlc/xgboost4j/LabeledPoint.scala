@@ -16,21 +16,23 @@
 
 package ml.dmlc.xgboost4j
 
-/** Labeled training data point. */
+/**
+ * Labeled training data point.
+ *
+ * @param label Label of this point.
+ * @param indices Feature indices of this point or `null` if the data is dense.
+ * @param values Feature values of this point.
+ * @param weight Weight of this point.
+ * @param group Group of this point (used for ranking) or -1.
+ * @param baseMargin Initial prediction on this point or `Float.NaN`
+ */
 case class LabeledPoint(
-    /** Label of this point. */
     label: Float,
-    /** Feature indices of this point or `null` if the data is dense. */
     indices: Array[Int],
-    /** Feature values of this point. */
     values: Array[Float],
-    /** Weight of this point. */
-    weight: Float = 1.0f,
-    /** Group of this point (used for ranking) or -1. */
+    weight: Float = 1f,
     group: Int = -1,
-    /** Initial prediction on this point or `Float.NaN`. */
-    baseMargin: Float = Float.NaN
-) extends Serializable {
+    baseMargin: Float = Float.NaN) extends Serializable {
   require(indices == null || indices.length == values.length,
     "indices and values must have the same number of elements")
 
