@@ -156,10 +156,8 @@ object XGBoost extends Serializable {
    * @param round the number of iterations
    * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
    *                 workers equals to the partition number of trainingData RDD
-   * @param obj An instance of [[ObjectiveTrait]] specifying a custom objective implemented in
-   *            Scala or Java, null by default
-   * @param eval An instance of [[EvalTrait]] specifying a custom evaluation metric implemented in
-   *             Scala or Java, null by default
+   * @param obj An instance of [[ObjectiveTrait]] specifying a custom objective, null by default
+   * @param eval An instance of [[EvalTrait]] specifying a custom evaluation metric, null by default
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                           true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing The value which represents a missing value in the dataset
@@ -212,10 +210,8 @@ object XGBoost extends Serializable {
    * @param round the number of iterations
    * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
    *                 workers equals to the partition number of trainingData RDD
-   * @param obj An instance of [[ObjectiveTrait]] specifying a custom objective implemented in
-   *            Scala or Java, null by default
-   * @param eval An instance of [[EvalTrait]] specifying a custom evaluation metric implemented in
-   *             Scala or Java, null by default
+   * @param obj An instance of [[ObjectiveTrait]] specifying a custom objective, null by default
+   * @param eval An instance of [[EvalTrait]] specifying a custom evaluation metric, null by default
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                           true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing the value represented the missing value in the dataset
@@ -263,17 +259,15 @@ object XGBoost extends Serializable {
   }
 
   /**
-   * The training set represented as an RDD.
+   * Train XGBoost model with the RDD-represented data
    *
    * @param trainingData the training set represented as RDD
    * @param params Map containing the configuration entries
    * @param round the number of iterations
    * @param nWorkers the number of xgboost workers, 0 by default which means that the number of
    *                 workers equals to the partition number of trainingData RDD
-   * @param obj An instance of [[ObjectiveTrait]] specifying a custom objective implemented in
-   *            Scala or Java, null by default
-   * @param eval An instance of [[EvalTrait]] specifying a custom evaluation metric implemented in
-   *             Scala or Java, null by default
+   * @param obj An instance of [[ObjectiveTrait]] specifying a custom objective, null by default
+   * @param eval An instance of [[EvalTrait]] specifying a custom evaluation metric, null by default
    * @param useExternalMemory indicate whether to use external memory cache, by setting this flag as
    *                          true, the user may save the RAM cost for running XGBoost within Spark
    * @param missing The value which represents a missing value in the dataset
