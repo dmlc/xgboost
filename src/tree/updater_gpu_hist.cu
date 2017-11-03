@@ -11,13 +11,17 @@
 #include "param.h"
 #include "updater_gpu_common.cuh"
 
+#define USE_NCCL 1
+
 namespace xgboost {
 namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 
 typedef bst_gpair_integer gpair_sum_t;
+#if USE_NCCL
 static const ncclDataType_t nccl_sum_t = ncclInt64;
+#endif
 
 // Helper for explicit template specialisation
 template <int N>
@@ -245,6 +249,7 @@ class GPUHistMaker : public TreeUpdater {
         p_last_fmat_(nullptr),
         prediction_cache_initialised(false) {}
   ~GPUHistMaker() {
+#if USE_NCCL
     if (initialised) {
       for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
         ncclCommDestroy(comms[d_idx]);
@@ -258,7 +263,9 @@ class GPUHistMaker : public TreeUpdater {
           ncclCommDestroy(find_split_comms[num_d - 1][d_idx]);
         }
       }
+      initialised = false;
     }
+#endif
   }
   void Init(
       const std::vector<std::pair<std::string, std::string>>& args) override {
@@ -270,6 +277,14 @@ class GPUHistMaker : public TreeUpdater {
     this->param = param;
 
     CHECK(param.n_gpus != 0) << "Must have at least one device";
+
+    dh::check_compute_capability();
+
+#if !USE_NCCL
+    param.n_gpus = 1;
+#endif
+
+
   }
   void Update(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
@@ -311,6 +326,7 @@ class GPUHistMaker : public TreeUpdater {
         dList[d_idx] = device_idx;
       }
 
+#if USE_NCCL
       // initialize nccl
 
       comms.resize(n_devices);
@@ -360,7 +376,7 @@ class GPUHistMaker : public TreeUpdater {
                                              // (One communicator per
                                              // process)
       }
-
+#endif
       is_dense = info->num_nonzero == info->num_col * info->num_row;
       dh::Timer time0;
       hmat_.Init(&fmat, param.max_bin);
@@ -476,26 +492,34 @@ class GPUHistMaker : public TreeUpdater {
             device_row_segments[d_idx + 1] - device_row_segments[d_idx];
         bst_ulong num_elements_segment =
             device_element_segments[d_idx + 1] - device_element_segments[d_idx];
+
+        // ensure allocation doesn't overflow
+        size_t hist_size = static_cast<size_t>(n_nodes(param.max_depth - 1))
+         * static_cast<size_t>(n_bins);
+        size_t nodes_size = static_cast<size_t>(n_nodes(param.max_depth));
+        size_t hmat_size = static_cast<size_t>(hmat_.min_val.size());
+        size_t buffer_size = static_cast<size_t>(common::CompressedBufferWriter::CalculateBufferSize(
+                static_cast<size_t>(num_elements_segment),
+                static_cast<size_t>(n_bins)));
+
         ba.allocate(
             device_idx, param.silent, &(hist_vec[d_idx].data),
-            n_nodes(param.max_depth - 1) * n_bins, &nodes[d_idx],
+            hist_size, &nodes[d_idx],
             n_nodes(param.max_depth), &nodes_temp[d_idx], max_num_nodes_device,
             &nodes_child_temp[d_idx], max_num_nodes_device,
-            &left_child_smallest[d_idx], n_nodes(param.max_depth),
+            &left_child_smallest[d_idx], nodes_size,
             &left_child_smallest_temp[d_idx], max_num_nodes_device,
             &feature_flags[d_idx],
             n_features,  // may change but same on all devices
             &fidx_min_map[d_idx],
-            hmat_.min_val.size(),  // constant and same on all devices
+            hmat_size,  // constant and same on all devices
             &feature_segments[d_idx],
             h_feature_segments.size(),  // constant and same on all devices
             &prediction_cache[d_idx], num_rows_segment, &position[d_idx],
             num_rows_segment, &position_tmp[d_idx], num_rows_segment,
             &device_gpair[d_idx], num_rows_segment,
             &device_matrix[d_idx].gidx_buffer,
-            common::CompressedBufferWriter::CalculateBufferSize(
-                num_elements_segment,
-                n_bins),  // constant and same on all devices
+            buffer_size,  // constant and same on all devices
             &device_matrix[d_idx].row_ptr, num_rows_segment + 1,
             &gidx_feature_map[d_idx],
             n_bins,  // constant and same on all devices
@@ -610,6 +634,7 @@ class GPUHistMaker : public TreeUpdater {
 
     //  time.printElapsed("Add Time");
 
+#if USE_NCCL
     // (in-place) reduce each element of histogram (for only current level)
     // across multiple gpus
     // TODO(JCM): use out of place with pre-allocated buffer, but then have to
@@ -633,7 +658,7 @@ class GPUHistMaker : public TreeUpdater {
       dh::safe_cuda(cudaStreamSynchronize(*(streams[d_idx])));
     }
     // if no NCCL, then presume only 1 GPU, then already correct
-
+#endif
     //  time.printElapsed("Reduce-Add Time");
 
     // Subtraction trick (applied to all devices in same way -- to avoid doing
@@ -1034,9 +1059,11 @@ class GPUHistMaker : public TreeUpdater {
   std::vector<dh::dvec<int>> gidx_feature_map;
   std::vector<dh::dvec<float>> gidx_fvalue_map;
 
+#if USE_NCCL
   std::vector<cudaStream_t*> streams;
   std::vector<ncclComm_t> comms;
   std::vector<std::vector<ncclComm_t>> find_split_comms;
+#endif
 
   double cpu_init_time;
   double gpu_init_time;

@@ -3,6 +3,8 @@
 """Scikit-Learn Wrapper interface for XGBoost."""
 from __future__ import absolute_import
 
+from builtins import enumerate
+
 import numpy as np
 import warnings
 from .core import Booster, DMatrix, XGBoostError
@@ -216,7 +218,7 @@ class XGBModel(XGBModelBase):
         return xgb_params
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True, xgb_model=None):
+            early_stopping_rounds=None, verbose=True, xgb_model=None, sample_weight_eval_set=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
@@ -232,6 +234,9 @@ class XGBModel(XGBModelBase):
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as a validation set for
             early-stopping
+        sample_weight_eval_set : list, optional
+            A list of the form [L_1, L_2, ..., L_n], where each L_i is an array of
+            instance weights for the i-th validation set.
         eval_metric : str, callable, optional
             If a str, should be a built-in evaluation metric to use. See
             doc/parameter.md. If callable, a custom evaluation metric. The call
@@ -265,8 +270,10 @@ class XGBModel(XGBModelBase):
 
         evals_result = {}
         if eval_set is not None:
+            if sample_weight_eval_set is None:
+                sample_weight_eval_set = [None] * len(eval_set)
             evals = list(DMatrix(x[0], label=x[1], missing=self.missing,
-                                 nthread=self.n_jobs) for x in eval_set)
+                                 nthread=self.n_jobs, weight=sample_weight_eval_set[i]) for i, x in enumerate(eval_set))
             evals = list(zip(evals, ["validation_{}".format(i) for i in
                                      range(len(evals))]))
         else:
@@ -303,14 +310,19 @@ class XGBModel(XGBModelBase):
             self.best_score = self._Booster.best_score
             self.best_iteration = self._Booster.best_iteration
             self.best_ntree_limit = self._Booster.best_ntree_limit
+
+        trainDmatrix.__del__()
         return self
 
     def predict(self, data, output_margin=False, ntree_limit=0):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
-        return self.get_booster().predict(test_dmatrix,
+
+        result = self.get_booster().predict(test_dmatrix,
                                           output_margin=output_margin,
                                           ntree_limit=ntree_limit)
+        test_dmatrix.__del__()
+        return result
 
     def apply(self, X, ntree_limit=0):
         """Return the predicted leaf every tree for each sample.
@@ -331,9 +343,11 @@ class XGBModel(XGBModelBase):
             ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
         """
         test_dmatrix = DMatrix(X, missing=self.missing, nthread=self.n_jobs)
-        return self.get_booster().predict(test_dmatrix,
+        result= self.get_booster().predict(test_dmatrix,
                                           pred_leaf=True,
                                           ntree_limit=ntree_limit)
+        test_dmatrix.__del__()
+        return result
 
     def evals_result(self):
         """Return the evaluation results.
@@ -409,7 +423,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             random_state, seed, missing, **kwargs)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True, xgb_model=None):
+            early_stopping_rounds=None, verbose=True, xgb_model=None, sample_weight_eval_set=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -425,6 +439,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         eval_set : list, optional
             A list of (X, y) pairs to use as a validation set for
             early-stopping
+        sample_weight_eval_set : list, optional
+            A list of the form [L_1, L_2, ..., L_n], where each L_i is an array of
+            instance weights for the i-th validation set.
         eval_metric : str, callable, optional
             If a str, should be a built-in evaluation metric to use. See
             doc/parameter.md. If callable, a custom evaluation metric. The call
@@ -479,11 +496,12 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         training_labels = self._le.transform(y)
 
         if eval_set is not None:
-            # TODO: use sample_weight if given?
+            if sample_weight_eval_set is None:
+                sample_weight_eval_set = [None] * len(eval_set)
             evals = list(
                 DMatrix(x[0], label=self._le.transform(x[1]),
-                        missing=self.missing, nthread=self.n_jobs)
-                for x in eval_set
+                        missing=self.missing, nthread=self.n_jobs,
+                        weight=sample_weight_eval_set[i]) for i, x in enumerate(eval_set)
             )
             nevals = len(evals)
             eval_names = ["validation_{}".format(i) for i in range(nevals)]
@@ -518,6 +536,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             self.best_iteration = self._Booster.best_iteration
             self.best_ntree_limit = self._Booster.best_ntree_limit
 
+        train_dmatrix.__del__()
         return self
 
     def predict(self, data, output_margin=False, ntree_limit=0):
@@ -530,7 +549,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         else:
             column_indexes = np.repeat(0, class_probs.shape[0])
             column_indexes[class_probs > 0.5] = 1
-        return self._le.inverse_transform(column_indexes)
+        result = self._le.inverse_transform(column_indexes)
+
+        test_dmatrix.__del__()
+        return result
 
     def predict_proba(self, data, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
@@ -538,11 +560,15 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                                  output_margin=output_margin,
                                                  ntree_limit=ntree_limit)
         if self.objective == "multi:softprob":
-            return class_probs
+            result = class_probs
         else:
             classone_probs = class_probs
             classzero_probs = 1.0 - classone_probs
-            return np.vstack((classzero_probs, classone_probs)).transpose()
+            result = np.vstack((classzero_probs, classone_probs)).transpose()
+
+        test_dmatrix.__del__()
+        return result
+
 
     def evals_result(self):
         """Return the evaluation results.

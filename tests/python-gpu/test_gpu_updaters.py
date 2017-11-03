@@ -116,5 +116,7 @@ class TestGPU(unittest.TestCase):
         assert_updater_accuracy('gpu_exact', 'exact', variable_param, 0.02)
 
     def test_gpu_hist_experimental(self):
-        variable_param = {'max_depth': [2, 6], 'max_leaves': [255, 4], 'max_bin': [2, 16, 1024]}
+        variable_param = {'gpu_id': [1], 'n_gpus': [1], 'max_depth': [2, 6], 'max_leaves': [255, 4], 'max_bin': [2, 16, 1024]}
+        # below will fail with GPU loss guide currently.
+        #variable_param = {'n_gpus': [2], 'max_depth': [2, 6], 'max_leaves': [255, 4], 'max_bin': [2, 16, 1024]}
         assert_updater_accuracy('gpu_hist_experimental', 'hist', variable_param, 0.01)
