@@ -330,9 +330,10 @@ class DMatrix(object):
             Set types for features.
         """
         # force into void_p, mac need to pass things in as void_p
+        self.handle = None
         if data is None:
-            self.handle = None
             return
+
 
         if HAVE_DT and isinstance(data, dt.DataTable):
             data, feature_names, feature_types, feature_stypes, self.nrows, self.ncols =\
