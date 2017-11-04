@@ -116,7 +116,7 @@ abstract class XGBoostModel(protected var _booster: Booster)
               null
             }
           }
-          val dMatrix = new DMatrix(labeledPointsPartition.map(_.features.asXGB), cacheFileName)
+          val dMatrix = new DMatrix(labeledPointsPartition.map(_.asXGB), cacheFileName)
           try {
             if (groupData != null) {
               dMatrix.setGroup(groupData(TaskContext.getPartitionId()).toArray)

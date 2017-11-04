@@ -346,16 +346,18 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val trainGroupData: Seq[Seq[Int]] = Seq(Ranking.trainGroup0)
     val testRDD = sc.parallelize(Ranking.test, numSlices = 1).map(_.features)
 
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "rank:pairwise", "eval_metric" -> "ndcg", "groupData" -> trainGroupData)
 
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 1)
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 2, nWorkers = 1)
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1: Array[Array[Float]] = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
 
     val avgMetric = xgBoostModel.eval(trainingRDD, "test", iter = 0, groupData = trainGroupData)
     assert(avgMetric contains "ndcg")
+    // If the labels were lost ndcg comes back as 1.0
+    assert(avgMetric.split('=')(1).toFloat < 1F)
   }
 
   test("test use nested groupData") {
