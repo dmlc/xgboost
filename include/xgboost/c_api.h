@@ -598,4 +598,25 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(
  */
 XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
 
+/*!
+* \brief Xgbfi: XGBoost Feature Interactions & Importance
+* \param handle BoosterHandle
+* \param max_fi_depth upper bound for depth of interactions
+* \param max_tree_depth upper bound for tree depth to be traversed
+* \param max_deepening upper bound for tree deepening
+* \param ntrees amount of trees to be traversed
+* \param fmap path to fmap file, feature names "F1|F2|.." or empty string
+* \param out_len pointer to hold feature interactions
+* \param out_fi_array pointer to hold feature interactions
+* \return 0 when success, -1 when failure happens
+*/
+XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
+                                            int max_fi_depth,
+                                            int max_tree_depth,
+                                            int max_deepening,
+                                            int ntrees,
+                                            const char *fmap,
+                                            bst_ulong *out_len,
+                                            const char ***out_fi_array);
+
 #endif  // XGBOOST_C_API_H_
