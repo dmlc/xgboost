@@ -141,10 +141,7 @@ object XGBoost extends Serializable {
         val booster = SXGBoost.train(watches.train, params, round,
           watches.toMap, metrics, obj, eval,
           earlyStoppingRound = numEarlyStoppingRounds)
-        val metricsMap = watches.toMap.keys.zipWithIndex
-            .map { case (name, i) => name -> metrics(i) }
-            .toMap
-        Iterator(booster -> metricsMap)
+        Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
       } finally {
         Rabit.shutdown()
         watches.delete()
@@ -351,7 +348,7 @@ object XGBoost extends Serializable {
         sparkJobThread, isClsTask)
       if (isClsTask){
         model.asInstanceOf[XGBoostClassificationModel].numOfClasses =
-            params.getOrElse("num_class", "2").toString.toInt
+          params.getOrElse("num_class", "2").toString.toInt
       }
       model
     } finally {
@@ -361,15 +358,17 @@ object XGBoost extends Serializable {
 
   private def postTrackerReturnProcessing(
       trackerReturnVal: Int,
-      distributedBoosters: RDD[(Booster, Map[String, Array[Float]])],
+      distributedBoostersAndMetrics: RDD[(Booster, Map[String, Array[Float]])],
       sparkJobThread: Thread,
-      isClassificationTask: Boolean): XGBoostModel = {
+      isClassificationTask: Boolean
+  ): XGBoostModel = {
     if (trackerReturnVal == 0) {
-      // Copies of the finished model reside in each partition of the `distributedBoosters`.
-      // Any of them can be used to create the model. Here, just choose the first partition.
-      val (booster, metrics) = distributedBoosters.first()
+      // Copies of the final booster and the corresponding metrics
+      // reside in each partition of the `distributedBoostersAndMetrics`.
+      // Any of them can be used to create the model.
+      val (booster, metrics) = distributedBoostersAndMetrics.first()
       val xgboostModel = XGBoostModel(booster, isClassificationTask)
-      distributedBoosters.unpersist(false)
+      distributedBoostersAndMetrics.unpersist(false)
       xgboostModel.setSummary(XGBoostTrainingSummary(metrics))
     } else {
       try {

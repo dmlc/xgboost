@@ -237,13 +237,26 @@ class XGBoostDFSuite extends FunSuite with PerTest {
     predictions.foreach(pred => assert(math.abs(pred - predictions.head) <= 0.01f))
   }
 
-  test("test train/test split") {
+  test("training summary") {
+    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic").toMap
+
+    val trainingDf = buildDataFrame(Classification.train)
+    val model = XGBoost.trainWithDataFrame(trainingDf, paramMap, round = 5,
+      nWorkers = numWorkers)
+
+    assert(model.summary.trainObjectiveHistory.length === 5)
+    assert(model.summary.testObjectiveHistory.isEmpty)
+  }
+
+  test("train/test split") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "trainTestRatio" -> "0.5")
 
     val trainingDf = buildDataFrame(Classification.train)
-    val model = XGBoost.trainWithDataFrame(trainingDf, paramMap, round = 1, nWorkers = numWorkers)
+    val model = XGBoost.trainWithDataFrame(trainingDf, paramMap, round = 5,
+      nWorkers = numWorkers)
     val Some(testObjectiveHistory) = model.summary.testObjectiveHistory
-    assert(testObjectiveHistory.length === 1)
+    assert(testObjectiveHistory.length === 5)
   }
 }
