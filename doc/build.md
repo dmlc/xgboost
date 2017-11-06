@@ -57,21 +57,29 @@ git clone --recursive https://github.com/dmlc/xgboost
 cd xgboost; make -j4
 ```
 
-### Building on OSX
+### Building on Mac OS X
 
-On OSX, one builds xgboost by
+**Install with pip - simple method**
+
+First, make sure you obtained *gcc-5* (newer version does not work with this method yet). Note: installation of `gcc` can take a while (~ 30 minutes)
 
 ```bash
-git clone --recursive https://github.com/dmlc/xgboost
-cd xgboost; cp make/minimum.mk ./config.mk; make -j4
+brew install gcc5
 ```
 
-This builds xgboost without multi-threading, because by default clang in OSX does not come with open-mp.
-See the following paragraph for OpenMP enabled xgboost.
+You might need to run the following command with `sudo` if you run into some permission errors:
 
+```bash
+pip install xgboost
+```
 
-Here is the complete solution to use OpenMP-enabled compilers to install XGBoost.
-Obtain gcc-6.x.x with openmp support by `brew install gcc --without-multilib`. (`brew` is the de facto standard of `apt-get` on OS X. So installing [HPC](http://hpc.sourceforge.net/) separately is not recommended, but it should work.). Installation of `gcc` can take a while (~ 30 minutes)
+**Build from the source code - advanced method**
+
+First, obtain gcc-7.x.x with brew (https://brew.sh/) if you want multi-threaded version, otherwise, Clang is ok if OpenMP / multi-threaded is not required. Note: installation of `gcc` can take a while (~ 30 minutes)
+
+```bash
+brew install gcc
+```
 
 Now, clone the repository
 
@@ -84,13 +92,7 @@ and build using the following commands
 ```bash
 cd xgboost; cp make/config.mk ./config.mk; make -j4
 ```
-
-NOTE:
-If you use OSX El Capitan, brew installs gcc the latest version gcc-6. So you may need to modify Makefile#L46 and change gcc-5 to gcc-6. After that change gcc-5/g++-5 to gcc-6/g++-6 in make/config.mk then build using the following commands
-
-```bash
-cd xgboost; cp make/config.mk ./config.mk; make -j4
-```
+head over to `Python Package Installation` for the next steps
 
 ### Building on Windows
 You need to first clone the xgboost repo with recursive option clone the submodules.
