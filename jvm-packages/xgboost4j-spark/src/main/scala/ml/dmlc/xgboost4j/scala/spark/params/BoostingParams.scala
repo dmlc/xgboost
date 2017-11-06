@@ -20,7 +20,7 @@ import scala.collection.immutable.HashSet
 
 import org.apache.spark.ml.param._
 
-trait BoostingAlgorithmParams extends Params {
+trait BoostingParams extends Params {
 
   /**
    * The number of rounds for boosting
@@ -34,15 +34,15 @@ trait BoostingAlgorithmParams extends Params {
    * multi:softmax, multi:softprob, rank:pairwise, reg:gamma. default: reg:linear
    */
   val objective = new Param[String](this, "objective", "objective function used for training," +
-    s" options: {${BoostingAlgorithmParams.supportedObjective.mkString(",")}",
-    (value: String) => BoostingAlgorithmParams.supportedObjective.contains(value))
+    s" options: {${BoostingParams.supportedObjectives.mkString(",")}",
+    (value: String) => BoostingParams.supportedObjectives.contains(value))
 
   setDefault(objective -> "reg:linear", round -> 1)
 
 }
 
-private[spark] object BoostingAlgorithmParams {
-  val supportedObjective = HashSet("reg:linear", "reg:logistic", "binary:logistic",
+private[spark] object BoostingParams {
+  val supportedObjectives = Set("reg:linear", "reg:logistic", "binary:logistic",
     "binary:logitraw", "count:poisson", "multi:softmax", "multi:softprob", "rank:pairwise",
     "reg:gamma")
 }
