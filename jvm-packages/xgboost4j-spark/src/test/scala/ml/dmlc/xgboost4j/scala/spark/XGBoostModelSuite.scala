@@ -19,6 +19,9 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.nio.file.Files
 
 import ml.dmlc.xgboost4j.scala.DMatrix
+import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.rdd.RDD
 import org.scalatest.FunSuite
 
 class XGBoostModelSuite extends FunSuite with PerTest {
@@ -98,5 +101,33 @@ class XGBoostModelSuite extends FunSuite with PerTest {
     assert(loadedXGBoostModel.getFeaturesCol == "features")
     assert(loadedXGBoostModel.getLabelCol == "label")
     assert(loadedXGBoostModel.getPredictionCol == "prediction")
+  }
+
+  test("copy and predict ClassificationModel") {
+    import DataUtils._
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testRDD = sc.parallelize(Classification.test).map(_.features)
+    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
+      "objective" -> "binary:logistic")
+    val model = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+    testCopy(model, testRDD)
+  }
+
+  test("copy and predict RegressionModel") {
+    import DataUtils._
+    val trainingRDD = sc.parallelize(Regression.train).map(_.asML)
+    val testRDD = sc.parallelize(Regression.test).map(_.features)
+    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
+      "objective" -> "reg:linear")
+    val model = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
+    testCopy(model, testRDD)
+  }
+
+  private def testCopy(model: XGBoostModel, testRDD: RDD[Vector]): Unit = {
+    val modelCopy = model.copy(ParamMap.empty)
+    modelCopy.summary  // Ensure no exception.
+
+    val expected = model.predict(testRDD).collect
+    assert(modelCopy.predict(testRDD).collect === expected)
   }
 }
