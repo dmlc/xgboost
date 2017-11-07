@@ -21,18 +21,18 @@ namespace tree {
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist_experimental);
 
 template <int BLOCK_THREADS, typename reduce_t, typename temp_storage_t>
-__device__ bst_gpair_integer ReduceFeature(const bst_gpair_integer* begin,
-                                           const bst_gpair_integer* end,
+__device__ gpair_sum_t ReduceFeature(const gpair_sum_t* begin,
+                                           const gpair_sum_t* end,
                                            temp_storage_t* temp_storage) {
-  __shared__ cub::Uninitialized<bst_gpair_integer> uninitialized_sum;
-  bst_gpair_integer& shared_sum = uninitialized_sum.Alias();
+  __shared__ cub::Uninitialized<gpair_sum_t> uninitialized_sum;
+  gpair_sum_t& shared_sum = uninitialized_sum.Alias();
 
-  bst_gpair_integer local_sum = bst_gpair_integer();
+  gpair_sum_t local_sum = gpair_sum_t();
   for (auto itr = begin; itr < end; itr += BLOCK_THREADS) {
     bool thread_active = itr + threadIdx.x < end;
     // Scan histogram
-    bst_gpair_integer bin =
-        thread_active ? *(itr + threadIdx.x) : bst_gpair_integer();
+    gpair_sum_t bin =
+        thread_active ? *(itr + threadIdx.x) : gpair_sum_t();
 
     local_sum += reduce_t(temp_storage->sum_reduce).Reduce(bin, cub::Sum());
   }
@@ -47,7 +47,7 @@ __device__ bst_gpair_integer ReduceFeature(const bst_gpair_integer* begin,
 
 template <int BLOCK_THREADS, typename reduce_t, typename scan_t,
           typename max_reduce_t, typename temp_storage_t>
-__device__ void EvaluateFeature(int fidx, const bst_gpair_integer* hist,
+__device__ void EvaluateFeature(int fidx, const gpair_sum_t* hist,
                                 const int* feature_segments, float min_fvalue,
                                 const float* gidx_fvalue_map,
                                 DeviceSplitCandidate* best_split,
@@ -57,22 +57,22 @@ __device__ void EvaluateFeature(int fidx, const bst_gpair_integer* hist,
   int gidx_begin = feature_segments[fidx];
   int gidx_end = feature_segments[fidx + 1];
 
-  bst_gpair_integer feature_sum = ReduceFeature<BLOCK_THREADS, reduce_t>(
+  gpair_sum_t feature_sum = ReduceFeature<BLOCK_THREADS, reduce_t>(
       hist + gidx_begin, hist + gidx_end, temp_storage);
 
-  auto prefix_op = SumCallbackOp<bst_gpair_integer>();
+  auto prefix_op = SumCallbackOp<gpair_sum_t>();
   for (int scan_begin = gidx_begin; scan_begin < gidx_end;
        scan_begin += BLOCK_THREADS) {
     bool thread_active = scan_begin + threadIdx.x < gidx_end;
 
-    bst_gpair_integer bin =
-        thread_active ? hist[scan_begin + threadIdx.x] : bst_gpair_integer();
+    gpair_sum_t bin =
+        thread_active ? hist[scan_begin + threadIdx.x] : gpair_sum_t();
     scan_t(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum(), prefix_op);
 
     // Calculate gain
-    bst_gpair_integer parent_sum = bst_gpair_integer(node.sum_gradients);
+    gpair_sum_t parent_sum = gpair_sum_t(node.sum_gradients);
 
-    bst_gpair_integer missing = parent_sum - feature_sum;
+    gpair_sum_t missing = parent_sum - feature_sum;
 
     bool missing_left = true;
     const float null_gain = -FLT_MAX;
@@ -102,8 +102,8 @@ __device__ void EvaluateFeature(int fidx, const bst_gpair_integer* hist,
       float fvalue =
           gidx == gidx_begin ? min_fvalue : gidx_fvalue_map[gidx - 1];
 
-      bst_gpair_integer left = missing_left ? bin + missing : bin;
-      bst_gpair_integer right = parent_sum - left;
+      gpair_sum_t left = missing_left ? bin + missing : bin;
+      gpair_sum_t right = parent_sum - left;
 
       best_split->Update(gain, missing_left ? LeftDir : RightDir, fvalue, fidx,
                          left, right, param);
@@ -114,17 +114,17 @@ __device__ void EvaluateFeature(int fidx, const bst_gpair_integer* hist,
 
 template <int BLOCK_THREADS>
 __global__ void evaluate_split_kernel(
-    const bst_gpair_integer* d_hist, int nidx, uint64_t n_features,
+    const gpair_sum_t* d_hist, int nidx, uint64_t n_features,
     DeviceNodeStats nodes, const int* d_feature_segments,
     const float* d_fidx_min_map, const float* d_gidx_fvalue_map,
     GPUTrainingParam gpu_param, DeviceSplitCandidate* d_split) {
   typedef cub::KeyValuePair<int, float> ArgMaxT;
-  typedef cub::BlockScan<bst_gpair_integer, BLOCK_THREADS,
+  typedef cub::BlockScan<gpair_sum_t, BLOCK_THREADS,
                          cub::BLOCK_SCAN_WARP_SCANS>
       BlockScanT;
   typedef cub::BlockReduce<ArgMaxT, BLOCK_THREADS> MaxReduceT;
 
-  typedef cub::BlockReduce<bst_gpair_integer, BLOCK_THREADS> SumReduceT;
+  typedef cub::BlockReduce<gpair_sum_t, BLOCK_THREADS> SumReduceT;
 
   union TempStorage {
     typename BlockScanT::TempStorage scan;
@@ -190,8 +190,8 @@ __device__ int BinarySearchRow(bst_uint begin, bst_uint end, gidx_iter_t data,
 
 struct DeviceHistogram {
   dh::bulk_allocator<dh::memory_type::DEVICE> ba;
-  dh::dvec<bst_gpair_integer> data;
-  std::map<int, bst_gpair_integer*> node_map;
+  dh::dvec<gpair_sum_t> data;
+  std::map<int, gpair_sum_t*> node_map;
   int n_bins;
   void Init(int device_idx, int max_nodes, int n_bins, bool silent) {
     this->n_bins = n_bins;
@@ -199,7 +199,7 @@ struct DeviceHistogram {
   }
 
   void Reset() {
-    data.fill(bst_gpair_integer());
+    data.fill(gpair_sum_t());
     node_map.clear();
   }
 
@@ -340,16 +340,16 @@ struct DeviceShard {
   }
 
   __device__ void IncrementHist(bst_gpair gpair, int gidx,
-                                bst_gpair_integer* node_hist) const {
+                                gpair_sum_t* node_hist) const {
     auto dst_ptr =
-        reinterpret_cast<unsigned long long int*>(&node_hist[gidx]);  // NOLINT
-    bst_gpair_integer tmp(gpair.GetGrad(), gpair.GetHess());
-    auto src_ptr = reinterpret_cast<bst_gpair_integer::value_t*>(&tmp);
+        reinterpret_cast<bst_gpair::value_t*>(&node_hist[gidx]);  // NOLINT
+    gpair_sum_t tmp(gpair.GetGrad(), gpair.GetHess());
+    auto src_ptr = reinterpret_cast<gpair_sum_t::value_t*>(&tmp);
 
     atomicAdd(dst_ptr,
-              static_cast<unsigned long long int>(*src_ptr));  // NOLINT
+              static_cast<bst_gpair::value_t>(*src_ptr));  // NOLINT
     atomicAdd(dst_ptr + 1,
-              static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
+              static_cast<bst_gpair::value_t>(*(src_ptr + 1)));  // NOLINT
   }
 
   void BuildHist(int nidx) {

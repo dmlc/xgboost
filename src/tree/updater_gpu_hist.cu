@@ -18,9 +18,8 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 
-typedef bst_gpair_integer gpair_sum_t;
 #if USE_NCCL
-static const ncclDataType_t nccl_sum_t = ncclInt64;
+static const ncclDataType_t nccl_sum_t = ncclDouble;
 #endif
 
 // Helper for explicit template specialisation
@@ -68,14 +67,14 @@ struct HistHelper {
     int hist_idx = nidx * n_bins + gidx;
 
     auto dst_ptr =
-        reinterpret_cast<unsigned long long int*>(&d_hist[hist_idx]);  // NOLINT
+        reinterpret_cast<gpair_sum_t::value_t*>(&d_hist[hist_idx]);  // NOLINT
     gpair_sum_t tmp(gpair.GetGrad(), gpair.GetHess());
     auto src_ptr = reinterpret_cast<gpair_sum_t::value_t*>(&tmp);
 
     atomicAdd(dst_ptr,
-              static_cast<unsigned long long int>(*src_ptr));  // NOLINT
+              static_cast<gpair_sum_t::value_t>(*src_ptr));  // NOLINT
     atomicAdd(dst_ptr + 1,
-              static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
+              static_cast<gpair_sum_t::value_t>(*(src_ptr + 1)));  // NOLINT
   }
   __device__ gpair_sum_t Get(int gidx, int nidx) const {
     return d_hist[nidx * n_bins + gidx];

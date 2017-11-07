@@ -15,6 +15,8 @@
 namespace xgboost {
 namespace tree {
 
+   typedef bst_gpair_precise gpair_sum_t;
+
 /**
  * \fn  void CheckGradientMax(const dh::dvec<bst_gpair>& gpair)
  *
@@ -32,8 +34,8 @@ inline void CheckGradientMax(const dh::dvec<bst_gpair>& gpair) {
                                    return max(a, b);
                                  });
 
-  CHECK_LT(abs_max, std::pow(2.0f, 16.0f))
-      << "Labels are too large for this algorithm. Rescale to less than 2^16.";
+  //CHECK_LT(abs_max, std::pow(2.0f, 16.0f))
+  //    << "Labels are too large for this algorithm. Rescale to less than 2^16.";
 }
 
 struct GPUTrainingParam {
@@ -78,8 +80,8 @@ struct DeviceSplitCandidate {
   DefaultDirection dir;
   float fvalue;
   int findex;
-  bst_gpair_integer left_sum;
-  bst_gpair_integer right_sum;
+  gpair_sum_t left_sum;
+  gpair_sum_t right_sum;
 
   __host__ __device__ DeviceSplitCandidate()
       : loss_chg(-FLT_MAX), dir(LeftDir), fvalue(0), findex(-1) {}
@@ -96,8 +98,8 @@ struct DeviceSplitCandidate {
 
   __device__ void Update(float loss_chg_in, DefaultDirection dir_in,
                          float fvalue_in, int findex_in,
-                         bst_gpair_integer left_sum_in,
-                         bst_gpair_integer right_sum_in,
+                         gpair_sum_t left_sum_in,
+                         gpair_sum_t right_sum_in,
                          const GPUTrainingParam& param) {
     if (loss_chg_in > loss_chg &&
         left_sum_in.GetHess() >= param.min_child_weight &&
