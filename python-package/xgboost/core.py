@@ -1466,7 +1466,7 @@ class Booster(object):
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         if self.feature_names is not None and fmap == '':
-            fmap = "|".join(self.feature_names)
+            fmap = "|".join(self.feature_names) + "|"
         elif '|' not in fmap:
             if fmap != '' and not os.path.exists(fmap):
                 raise ValueError("No such file: {0}".format(fmap))
