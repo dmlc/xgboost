@@ -28,6 +28,7 @@ namespace xgboost {
 namespace obj {
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(regression_obj);
+DMLC_REGISTRY_LINK_TAG(objective_gpu);
 DMLC_REGISTRY_LINK_TAG(multiclass_obj);
 DMLC_REGISTRY_LINK_TAG(rank_obj);
 }  // namespace obj
