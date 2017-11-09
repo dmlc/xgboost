@@ -43,10 +43,9 @@ enum XgbNodeType { None, BinaryFeature, NumericFeature, Leaf };
 */
 class XgbModelParser {
  public:
-  // static XgbModel GetXgbModelFromDump(const std::string& file_path, int max_tress = -1);
-  static XgbModel GetXgbModelFromDump(const XgbModelDump& dump, int max_tress = -1);
+  static XgbModel GetXgbModelFromDump(const XgbModelDump& dump, int max_trees = -1,
+  int nthread = 1);
 
-  // static XgbModelDump ReadModelDump(const std::string& file_path, int max_trees = -1);
   static XgbTreeNode ParseXgbTreeNode(std::string* line);
 
  private:
@@ -141,7 +140,8 @@ class XgbModel {
  public:
   FeatureInteractions GetFeatureInteractions(int max_interaction_depth = -1,
     int max_tree_depth = -1,
-    int max_deepening = -1);
+    int max_deepening = -1,
+    int nthread = 1);
 
   explicit XgbModel(int ntrees) : ntrees(ntrees) {
     trees.resize(ntrees);
@@ -240,16 +240,18 @@ XgbModelDump XgbModelParser::ReadModelDump(const std::string& file_path, int max
 */
 
 /*
-XgbModel XgbModelParser::GetXgbModelFromDump(const std::string& file_path, int max_tress) {
+XgbModel XgbModelParser::GetXgbModelFromDump(const std::string& file_path, int max_trees) {
   return XgbModelParser::GetXgbModelFromDump(XgbModelParser::ReadModelDump(file_path,
-                                                                            max_tress),
-                                                                            max_tress);
+                                                                            max_trees),
+                                                                            max_trees);
 }
 */
 
-XgbModel XgbModelParser::GetXgbModelFromDump(const XgbModelDump& dump, int max_tress) {
+XgbModel XgbModelParser::GetXgbModelFromDump(const XgbModelDump& dump, int max_trees,
+  int nthread) {
+  int n_backup = omp_get_num_threads();
   int ntrees = static_cast<int>(dump.size());
-  if ((max_tress < ntrees) && (max_tress >= 0)) ntrees = max_tress;
+  if ((max_trees < ntrees) && (max_trees >= 0)) ntrees = max_trees;
 
   XgbModel xgb_model(ntrees);
   XgbNodeLists xgb_node_lists = {};
@@ -258,7 +260,8 @@ XgbModel XgbModelParser::GetXgbModelFromDump(const XgbModelDump& dump, int max_t
     xgb_node_lists.push_back(XgbNodeList{});
   }
 
-#pragma omp parallel for
+  omp_set_num_threads(nthread);
+#pragma omp parallel for schedule(auto) num_threads(nthread)
   for (int i = 0; i < ntrees; ++i) {
     std::istringstream iss(dump[i]);
     std::string line;
@@ -269,13 +272,14 @@ XgbModel XgbModelParser::GetXgbModelFromDump(const XgbModelDump& dump, int max_t
     }
   }
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(auto) num_threads(nthread)
   for (int i = 0; i < ntrees; ++i) {
     auto&& tree = std::make_shared<XgbTree>(XgbTree(xgb_node_lists[i][0], i));
     ConstructXgbTree(tree, xgb_node_lists[i]);
     xgb_model.trees[i] = std::move(tree);
   }
 
+  omp_set_num_threads(n_backup);
   return xgb_model;
 }
 
@@ -413,14 +417,18 @@ FeatureInteraction::FeatureInteraction(const InteractionPath& interaction_path,
 
 FeatureInteractions XgbModel::GetFeatureInteractions(int max_interaction_depth,
                                                      int max_tree_depth,
-                                                     int max_deepening) {
+                                                     int max_deepening,
+                                                     int nthread) {
+  int n_backup = omp_get_num_threads();
   max_interaction_depth_ = max_interaction_depth;
   max_tree_depth_ = max_tree_depth;
   max_deepening_ = max_deepening;
 
   std::vector<FeatureInteractions> trees_feature_interactions(ntrees);
 
-#pragma omp parallel for
+  //LOG(CONSOLE) << "Start get feature interactions from model parallel";
+  omp_set_num_threads(nthread);
+#pragma omp parallel for schedule(auto) num_threads(nthread)
   for (int i = 0; i < ntrees; ++i) {
     FeatureInteractions tfis{};
     InteractionPath cfi{};
@@ -428,6 +436,7 @@ FeatureInteractions XgbModel::GetFeatureInteractions(int max_interaction_depth,
     CollectFeatureInteractions(trees[i], &cfi, 0, 0, 1, 0, 0, &tfis, &memo);
     trees_feature_interactions[i] = tfis;
   }
+  //LOG(CONSOLE) << "End get feature interactions from model parallel";
 
   FeatureInteractions fis;
 
@@ -439,10 +448,13 @@ initializer(omp_priv={})
 #pragma omp parallel for reduction(merge:fis)
 #endif //OPENMP 4.0+
 */  
+  //LOG(CONSOLE) << "Start get feature interactions from model merge";
   for (int i = 0; i < ntrees; ++i) {
     FeatureInteraction::Merge(&fis, trees_feature_interactions[i]);
   }
+  //LOG(CONSOLE) << "End get feature interactions from model merge";
 
+  omp_set_num_threads(n_backup);
   return fis;
 }
 
@@ -504,7 +516,8 @@ void XgbModel::CollectFeatureInteractions(XgbTreePtr tree, InteractionPath* cfi,
 
 
 std::vector<std::string> GetFeatureInteractions(const xgboost::Learner& learner,
-  int max_fi_depth, int max_tree_depth, int max_deepening, int ntrees, const char* fmap) {
+  int max_fi_depth, int max_tree_depth, int max_deepening, int ntrees, const char* fmap,
+  int nthread) {
   std::vector<std::string> feature_interactions;
   xgboost::FeatureMap feature_map;
   if (strchr(fmap, '|') != NULL) {
@@ -524,17 +537,24 @@ std::vector<std::string> GetFeatureInteractions(const xgboost::Learner& learner,
         "feature names wont be mapped";
     }
   }
+  //LOG(CONSOLE) << "Start dump model";
   auto dump = learner.DumpModel(feature_map, true, "text");
+  //LOG(CONSOLE) << "End dump model";
   if (dump.size() == 0) {
     return feature_interactions;
   }
   if (dump[0].find_first_of("bias") == 0) {
     return feature_interactions;
   }
-  auto model = xgbfi::XgbModelParser::GetXgbModelFromDump(dump, ntrees);
+  //LOG(CONSOLE) << "Start model from dump";
+  auto model = xgbfi::XgbModelParser::GetXgbModelFromDump(dump, ntrees, nthread);
+  //LOG(CONSOLE) << "End model from dump";
+  //LOG(CONSOLE) << "Start get feature interactions from model";
   auto fi = model.GetFeatureInteractions(max_fi_depth,
                                          max_tree_depth,
-                                         max_deepening);
+                                         max_deepening,
+                                         nthread);
+  //LOG(CONSOLE) << "End get feature interactions from model";
   for (auto kv : fi) {
     feature_interactions.push_back(static_cast<std::string>(kv.second));
   }

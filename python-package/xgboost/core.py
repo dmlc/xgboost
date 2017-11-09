@@ -1441,7 +1441,7 @@ class Booster(object):
             return nph
 
     def get_feature_interactions(self, max_fi_depth=2, max_tree_depth=-1, max_deepening=-1,
-                                 ntrees=-1, fmap=''):
+                                 ntrees=-1, fmap='', nthread=1):
         """XGBoost Feature Interactions & Importance (Xgbfi)
         Parameters
         ----------
@@ -1455,6 +1455,8 @@ class Booster(object):
             Amount of trees to be traversed.
         fmap : str, default ''
             Path to fmap file, feature names "F1|F2|.." or empty string.
+        nthread : int, default 1
+            Number of threads to use.
 
         Returns
         -------
@@ -1480,7 +1482,8 @@ class Booster(object):
                                                  ctypes.c_int(ntrees),
                                                  c_str(fmap),
                                                  ctypes.byref(length),
-                                                 ctypes.byref(sarr)))
+                                                 ctypes.byref(sarr),
+                                                 ctypes.c_int(nthread)))
         res = from_cstr_to_pystr(sarr, length)
         cols = ['fi', 'fi_depth', 'gain', 'fscore', 'w_fscore',
                 'avg_w_fscore', 'avg_gain', 'expected_gain']

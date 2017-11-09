@@ -19,7 +19,7 @@
 #include "../common/group_data.h"
 #include "../analysis/xgbfi.h"
 
-#include "dt.h" // Functions for handling datatable
+#include "dt.h"  // Functions for handling datatable
 
 namespace xgboost {
 // booster wrapper for backward compatible reason.
@@ -553,7 +553,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
         if (!dt_is_missing_and_get_value(&d, i, &value)) {
-            mat.row_ptr_[i+1] ++;
+            mat.row_ptr_[i+1]++;
         }
       }
     }
@@ -578,7 +578,7 @@ XGB_DLL int XGDMatrixCreateFromdt(const void** data0,
 #pragma omp for schedule(static)
       for (omp_ulong i = 0; i < nrow; ++i) {
         missing = dt_is_missing_and_get_value(&d, i, &value);
-        if(!missing){
+        if (!missing) {
           mat.row_data_[mat.row_ptr_[i] + matj[i]] =
               RowBatch::Entry(j, value);
           matj[i]++;
@@ -1043,7 +1043,8 @@ XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
                                             int ntrees,
                                             const char *fmap,
                                             xgboost::bst_ulong *out_len,
-                                            const char ***out_fi_array) {
+                                            const char ***out_fi_array,
+                                            int nthread) {
   API_BEGIN();
   Booster* bst = static_cast<Booster*>(handle);
   std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
@@ -1052,7 +1053,7 @@ XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
                                            max_fi_depth,
                                            max_tree_depth,
                                            max_deepening,
-                                           ntrees, fmap);
+                                           ntrees, fmap, nthread);
   charp_vecs.resize(str_vecs.size());
   for (size_t i = 0; i < str_vecs.size(); ++i) {
     charp_vecs[i] = str_vecs[i].c_str();

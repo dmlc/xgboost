@@ -21,6 +21,7 @@ namespace xgbfi {
 * \param max_deepening upper bound for tree deepening
 * \param ntrees amount of trees to be traversed
 * \param fmap path to fmap file, feature names "F1|F2|.." or empty string
+* \param nthread number of threads to use
 * \return vector of strings formated like "F1|F2|..;stat1;stat2;.."
 */
 std::vector<std::string> GetFeatureInteractions(const xgboost::Learner& learner,
@@ -28,6 +29,7 @@ std::vector<std::string> GetFeatureInteractions(const xgboost::Learner& learner,
                                                 int max_tree_depth,
                                                 int max_deepening,
                                                 int ntrees,
-                                                const char* fmap);
+                                                const char* fmap,
+                                                int nthread = 1);
 }  // namespace xgbfi
 #endif  // XGBOOST_ANALYSIS_XGBFI_H_
