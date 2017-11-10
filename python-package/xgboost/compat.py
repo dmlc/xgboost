@@ -33,9 +33,14 @@ except ImportError:
 # pandas
 try:
     from pandas import DataFrame
+    from pandas import MultiIndex
     from pandas import Series
     PANDAS_INSTALLED = True
 except ImportError:
+
+    class MultiIndex(object):
+        """ dummy for pandas.MultiIndex """
+        pass
 
     class DataFrame(object):
         """ dummy for pandas.DataFrame """

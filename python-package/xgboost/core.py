@@ -16,7 +16,7 @@ import scipy.sparse
 
 from .libpath import find_lib_path
 
-from .compat import STRING_TYPES, PY3, DataFrame, py_str, PANDAS_INSTALLED
+from .compat import STRING_TYPES, PY3, DataFrame, MultiIndex, py_str, PANDAS_INSTALLED
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64
@@ -190,7 +190,7 @@ def _maybe_pandas_data(data, feature_names, feature_types):
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None:
-        if hasattr(data.columns, 'to_frame'):  # MultiIndex
+        if isinstance(data.columns, MultiIndex):
             feature_names = [
                 ' '.join(map(str, i))
                 for i in data.columns
