@@ -9,6 +9,7 @@ msvc_use_static_runtime()
 
 # Options
 option(USE_CUDA  "Build with GPU acceleration") 
+option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA") 
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -97,16 +98,23 @@ set(LINK_LIBRARIES dmlccore rabit)
 
 
 if(USE_CUDA)
-  find_package(CUDA 7.5 REQUIRED)
+  find_package(CUDA 8.0 REQUIRED)
   cmake_minimum_required(VERSION 3.5)
 
   add_definitions(-DXGBOOST_USE_CUDA)
   
-  include_directories(
-    nccl/src
-    cub
-  )
+  include_directories(cub)
 
+  if(USE_NCCL)
+    include_directories(nccl/src)
+    add_definitions(-DXGBOOST_USE_NCCL)
+  endif()
+
+  if((CUDA_VERSION_MAJOR EQUAL 9) OR (CUDA_VERSION_MAJOR GREATER 9))
+    message("CUDA 9.0 detected, adding Volta compute capability (7.0).")
+    set(GPU_COMPUTE_VER "${GPU_COMPUTE_VER};70")
+  endif()
+  
   set(GENCODE_FLAGS "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GENCODE_FLAGS)
   set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};--expt-extended-lambda;--expt-relaxed-constexpr;${GENCODE_FLAGS};-lineinfo;")
@@ -114,9 +122,15 @@ if(USE_CUDA)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS};-Xcompiler -fPIC; -std=c++11")
   endif()
 
-  add_subdirectory(nccl)
+  if(USE_NCCL)
+    add_subdirectory(nccl)
+  endif()
+
   cuda_add_library(gpuxgboost ${CUDA_SOURCES} STATIC)
-  target_link_libraries(gpuxgboost nccl)
+  
+  if(USE_NCCL)
+    target_link_libraries(gpuxgboost nccl)
+  endif()
   list(APPEND LINK_LIBRARIES gpuxgboost) 
 endif()
 

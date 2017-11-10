@@ -8,6 +8,7 @@
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
+#include "../common/timer.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
 
@@ -18,9 +19,13 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 
+<<<<<<< HEAD
 #if USE_NCCL
 static const ncclDataType_t nccl_sum_t = ncclDouble;
 #endif
+=======
+typedef bst_gpair_integer gpair_sum_t;
+>>>>>>> pr
 
 // Helper for explicit template specialisation
 template <int N>
@@ -86,6 +91,7 @@ struct HistHelper {
   __device__ void Add(bst_gpair gpair, int gidx, int nidx) const {
     int hist_idx = nidx * n_bins + gidx;
 
+<<<<<<< HEAD
     auto dst_ptr =
         reinterpret_cast<gpair_sum_t::value_t*>(&d_hist[hist_idx]);  // NOLINT
     gpair_sum_t tmp(gpair.GetGrad(), gpair.GetHess());
@@ -95,6 +101,9 @@ struct HistHelper {
               static_cast<gpair_sum_t::value_t>(*src_ptr));  // NOLINT
     atomicAdd(dst_ptr + 1,
               static_cast<gpair_sum_t::value_t>(*(src_ptr + 1)));  // NOLINT
+=======
+    AtomicAddGpair(d_hist + hist_idx, gpair);
+>>>>>>> pr
   }
   __device__ gpair_sum_t Get(int gidx, int nidx) const {
     return d_hist[nidx * n_bins + gidx];
@@ -267,6 +276,7 @@ class GPUHistMaker : public TreeUpdater {
         is_dense(false),
         p_last_fmat_(nullptr),
         prediction_cache_initialised(false) {}
+<<<<<<< HEAD
   ~GPUHistMaker() {
 #if USE_NCCL
     if (initialised) {
@@ -286,6 +296,9 @@ class GPUHistMaker : public TreeUpdater {
     }
 #endif
   }
+=======
+  ~GPUHistMaker() {}
+>>>>>>> pr
   void Init(
       const std::vector<std::pair<std::string, std::string>>& args) override {
     param.InitAllowUnknown(args);
@@ -324,7 +337,7 @@ class GPUHistMaker : public TreeUpdater {
 
   void InitData(const std::vector<bst_gpair>& gpair, DMatrix& fmat,  // NOLINT
                 const RegTree& tree) {
-    dh::Timer time1;
+    common::Timer time1;
     // set member num_rows and n_devices for rest of GPUHistBuilder members
     info = &fmat.info();
     CHECK(info->num_row < std::numeric_limits<bst_uint>::max());
@@ -332,6 +345,12 @@ class GPUHistMaker : public TreeUpdater {
     n_devices = dh::n_devices(param.n_gpus, num_rows);
 
     if (!initialised) {
+      // Check gradients are within acceptable size range
+      CheckGradientMax(gpair);
+
+      // Check compute capability is high enough
+      dh::check_compute_capability();
+
       // reset static timers used across iterations
       cpu_init_time = 0;
       gpu_init_time = 0;
@@ -347,6 +366,7 @@ class GPUHistMaker : public TreeUpdater {
 
 #if USE_NCCL
       // initialize nccl
+<<<<<<< HEAD
 
       comms.resize(n_devices);
       streams.resize(n_devices);
@@ -396,8 +416,12 @@ class GPUHistMaker : public TreeUpdater {
                                              // process)
       }
 #endif
+=======
+      reducer.Init(dList);
+
+>>>>>>> pr
       is_dense = info->num_nonzero == info->num_col * info->num_row;
-      dh::Timer time0;
+      common::Timer time0;
       hmat_.Init(&fmat, param.max_bin);
       cpu_init_time += time0.ElapsedSeconds();
       if (param.debug_verbose) {  // Only done once for each training session
@@ -432,8 +456,8 @@ class GPUHistMaker : public TreeUpdater {
         fflush(stdout);
       }
 
-      int n_bins = static_cast<int >(hmat_.row_ptr.back());
-      int n_features = static_cast<int >(hmat_.row_ptr.size() - 1);
+      int n_bins = static_cast<int>(hmat_.row_ptr.back());
+      int n_features = static_cast<int>(hmat_.row_ptr.size() - 1);
 
       // deliniate data onto multiple gpus
       device_row_segments.push_back(0);
@@ -477,10 +501,7 @@ class GPUHistMaker : public TreeUpdater {
       temp_memory.resize(n_devices);
       hist_vec.resize(n_devices);
       nodes.resize(n_devices);
-      nodes_temp.resize(n_devices);
-      nodes_child_temp.resize(n_devices);
       left_child_smallest.resize(n_devices);
-      left_child_smallest_temp.resize(n_devices);
       feature_flags.resize(n_devices);
       fidx_min_map.resize(n_devices);
       feature_segments.resize(n_devices);
@@ -491,12 +512,6 @@ class GPUHistMaker : public TreeUpdater {
       device_gpair.resize(n_devices);
       gidx_feature_map.resize(n_devices);
       gidx_fvalue_map.resize(n_devices);
-
-      int find_split_n_devices = static_cast<int >(std::pow(2, std::floor(std::log2(n_devices))));
-      find_split_n_devices =
-          std::min(n_nodes_level(param.max_depth), find_split_n_devices);
-      int max_num_nodes_device =
-          n_nodes_level(param.max_depth) / find_split_n_devices;
 
       // num_rows_segment: for sharding rows onto gpus for splitting data
       // num_elements_segment: for sharding rows (of elements) onto gpus for
@@ -513,15 +528,25 @@ class GPUHistMaker : public TreeUpdater {
             device_element_segments[d_idx + 1] - device_element_segments[d_idx];
 
         // ensure allocation doesn't overflow
+<<<<<<< HEAD
         size_t hist_size = static_cast<size_t>(n_nodes(param.max_depth - 1))
          * static_cast<size_t>(n_bins);
         size_t nodes_size = static_cast<size_t>(n_nodes(param.max_depth));
         size_t hmat_size = static_cast<size_t>(hmat_.min_val.size());
         size_t buffer_size = static_cast<size_t>(common::CompressedBufferWriter::CalculateBufferSize(
+=======
+        size_t hist_size = static_cast<size_t>(n_nodes(param.max_depth - 1)) *
+                           static_cast<size_t>(n_bins);
+        size_t nodes_size = static_cast<size_t>(n_nodes(param.max_depth));
+        size_t hmat_size = static_cast<size_t>(hmat_.min_val.size());
+        size_t buffer_size = static_cast<size_t>(
+            common::CompressedBufferWriter::CalculateBufferSize(
+>>>>>>> pr
                 static_cast<size_t>(num_elements_segment),
                 static_cast<size_t>(n_bins)));
 
         ba.allocate(
+<<<<<<< HEAD
             device_idx, param.silent, &(hist_vec[d_idx].data),
             hist_size, &nodes[d_idx],
             n_nodes(param.max_depth), &nodes_temp[d_idx], max_num_nodes_device,
@@ -529,6 +554,11 @@ class GPUHistMaker : public TreeUpdater {
             &left_child_smallest[d_idx], nodes_size,
             &left_child_smallest_temp[d_idx], max_num_nodes_device,
             &feature_flags[d_idx],
+=======
+            device_idx, param.silent, &(hist_vec[d_idx].data), hist_size,
+            &nodes[d_idx], n_nodes(param.max_depth),
+            &left_child_smallest[d_idx], nodes_size, &feature_flags[d_idx],
+>>>>>>> pr
             n_features,  // may change but same on all devices
             &fidx_min_map[d_idx],
             hmat_size,  // constant and same on all devices
@@ -572,16 +602,11 @@ class GPUHistMaker : public TreeUpdater {
       dh::safe_cuda(cudaSetDevice(device_idx));
 
       nodes[d_idx].fill(DeviceNodeStats());
-      nodes_temp[d_idx].fill(DeviceNodeStats());
-      nodes_child_temp[d_idx].fill(DeviceNodeStats());
 
       position[d_idx].fill(0);
 
       device_gpair[d_idx].copy(gpair.begin() + device_row_segments[d_idx],
                                gpair.begin() + device_row_segments[d_idx + 1]);
-
-      // Check gradients are within acceptable size range
-      CheckGradientMax(device_gpair[d_idx]);
 
       subsample_gpair(&device_gpair[d_idx], param.subsample,
                       device_row_segments[d_idx]);
@@ -662,22 +687,22 @@ class GPUHistMaker : public TreeUpdater {
     //  fprintf(stderr,"sizeof(bst_gpair)/sizeof(float)=%d\n",sizeof(bst_gpair)/sizeof(float));
     for (int d_idx = 0; d_idx < n_devices; d_idx++) {
       int device_idx = dList[d_idx];
-      dh::safe_cuda(cudaSetDevice(device_idx));
-      dh::safe_nccl(ncclAllReduce(
-          reinterpret_cast<const void*>(hist_vec[d_idx].GetLevelPtr(depth)),
-          reinterpret_cast<void*>(hist_vec[d_idx].GetLevelPtr(depth)),
-          hist_vec[d_idx].LevelSize(depth) * sizeof(gpair_sum_t) /
-              sizeof(gpair_sum_t::value_t),
-          nccl_sum_t, ncclSum, comms[d_idx], *(streams[d_idx])));
+      reducer.AllReduceSum(device_idx,
+                           reinterpret_cast<gpair_sum_t::value_t*>(
+                               hist_vec[d_idx].GetLevelPtr(depth)),
+                           reinterpret_cast<gpair_sum_t::value_t*>(
+                               hist_vec[d_idx].GetLevelPtr(depth)),
+                           hist_vec[d_idx].LevelSize(depth) *
+                               sizeof(gpair_sum_t) /
+                               sizeof(gpair_sum_t::value_t));
     }
-
-    for (int d_idx = 0; d_idx < n_devices; d_idx++) {
-      int device_idx = dList[d_idx];
-      dh::safe_cuda(cudaSetDevice(device_idx));
-      dh::safe_cuda(cudaStreamSynchronize(*(streams[d_idx])));
-    }
+<<<<<<< HEAD
     // if no NCCL, then presume only 1 GPU, then already correct
 #endif
+=======
+    reducer.Synchronize();
+
+>>>>>>> pr
     //  time.printElapsed("Reduce-Add Time");
 
     // Subtraction trick (applied to all devices in same way -- to avoid doing
@@ -999,7 +1024,7 @@ class GPUHistMaker : public TreeUpdater {
   }
   void UpdateTree(const std::vector<bst_gpair>& gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
-    dh::Timer time0;
+    common::Timer time0;
 
     this->InitData(gpair, *p_fmat, *p_tree);
     this->InitFirstNode(gpair);
@@ -1063,10 +1088,7 @@ class GPUHistMaker : public TreeUpdater {
   std::vector<dh::CubMemory> temp_memory;
   std::vector<DeviceHist> hist_vec;
   std::vector<dh::dvec<DeviceNodeStats>> nodes;
-  std::vector<dh::dvec<DeviceNodeStats>> nodes_temp;
-  std::vector<dh::dvec<DeviceNodeStats>> nodes_child_temp;
   std::vector<dh::dvec<bool>> left_child_smallest;
-  std::vector<dh::dvec<bool>> left_child_smallest_temp;
   std::vector<dh::dvec<int>> feature_flags;
   std::vector<dh::dvec<float>> fidx_min_map;
   std::vector<dh::dvec<int>> feature_segments;
@@ -1078,15 +1100,19 @@ class GPUHistMaker : public TreeUpdater {
   std::vector<dh::dvec<int>> gidx_feature_map;
   std::vector<dh::dvec<float>> gidx_fvalue_map;
 
+<<<<<<< HEAD
 #if USE_NCCL
   std::vector<cudaStream_t*> streams;
   std::vector<ncclComm_t> comms;
   std::vector<std::vector<ncclComm_t>> find_split_comms;
 #endif
+=======
+  dh::AllReducer reducer;
+>>>>>>> pr
 
   double cpu_init_time;
   double gpu_init_time;
-  dh::Timer cpu_time;
+  common::Timer cpu_time;
   double gpu_time;
 };
 
