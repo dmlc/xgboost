@@ -564,7 +564,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
                 const RegTree& tree) {
     monitor.Start("InitDataOnce");
     if (!initialised) {
-      CheckGradientMax(gpair);
+//      CheckGradientMax(gpair);
       this->InitDataOnce(dmat);
     }
     monitor.Stop("InitDataOnce");
