@@ -11,20 +11,36 @@ rng = np.random.RandomState(1994)
 
 
 def run_benchmark(args):
-    print("Generating dataset: {} rows * {} columns".format(args.rows, args.columns))
-    print("{}/{} test/train split".format(args.test_size, 1.0 - args.test_size))
-    tmp = time.time()
-    X, y = make_classification(args.rows, n_features=args.columns, random_state=7)
-    if args.sparsity < 1.0:
-       X = np.array([[np.nan if rng.uniform(0, 1) < args.sparsity else x for x in x_row] for x_row in X])
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size, random_state=7)
-    print ("Generate Time: %s seconds" % (str(time.time() - tmp)))
-    tmp = time.time()
-    print ("DMatrix Start")
-    dtrain = xgb.DMatrix(X_train, y_train, nthread=-1)
-    dtest = xgb.DMatrix(X_test, y_test, nthread=-1)
-    print ("DMatrix Time: %s seconds" % (str(time.time() - tmp)))
+    try:
+        dtest = xgb.DMatrix('dtest.dm')
+        dtrain = xgb.DMatrix('dtrain.dm')
+
+        if not (dtest.num_col() == args.columns \
+                and dtrain.num_col() == args.columns):
+            raise ValueError("Wrong cols")
+        if not (dtest.num_row() == args.rows * args.test_size \
+                and dtrain.num_row() == args.rows * (1-args.test_size)):
+            raise ValueError("Wrong rows")
+    except:
+
+        print("Generating dataset: {} rows * {} columns".format(args.rows, args.columns))
+        print("{}/{} test/train split".format(args.test_size, 1.0 - args.test_size))
+        tmp = time.time()
+        X, y = make_classification(args.rows, n_features=args.columns, n_redundant=0, n_informative=args.columns, n_repeated=0, random_state=7)
+        if args.sparsity < 1.0:
+           X = np.array([[np.nan if rng.uniform(0, 1) < args.sparsity else x for x in x_row] for x_row in X])
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size, random_state=7)
+        print ("Generate Time: %s seconds" % (str(time.time() - tmp)))
+        tmp = time.time()
+        print ("DMatrix Start")
+        dtrain = xgb.DMatrix(X_train, y_train)
+        dtest = xgb.DMatrix(X_test, y_test, nthread=-1)
+        print ("DMatrix Time: %s seconds" % (str(time.time() - tmp)))
+
+        dtest.save_binary('dtest.dm')
+        dtrain.save_binary('dtrain.dm')
 
     param = {'objective': 'binary:logistic'}
     if args.params is not '':
