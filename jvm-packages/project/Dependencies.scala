@@ -35,25 +35,27 @@ object Dependencies {
   val sparkVersion = "2.1.0"
 
   val sparkDependencies: Seq[ModuleID] = commonDependencies ++ Seq(
-    ("org.apache.spark" %% "spark-core" % sparkVersion % "provided").
-        exclude("commons-beanutils", "commons-beanutils-core").
-        exclude("com.esotericsoftware.minlog", "minlog").
-        exclude("commons-collections", "commons-collections").
-        exclude("commons-logging", "commons-logging").
-        exclude("org.glassfish.hk2.external", "*").
-        exclude("org.apache.hadoop", "hadoop-yarn-api").
-        exclude("org.slf4j", "jcl-over-slf4j"),
+    ("org.apache.spark" %% "spark-core" % sparkVersion % "provided")
+        .exclude("commons-beanutils", "commons-beanutils-core")
+        .exclude("com.esotericsoftware.minlog", "minlog")
+        .exclude("commons-collections", "commons-collections")
+        .exclude("commons-logging", "commons-logging")
+        .exclude("org.glassfish.hk2.external", "*")
+        .exclude("org.apache.hadoop", "hadoop-yarn-api")
+        .exclude("org.slf4j", "jcl-over-slf4j"),
     "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-    "org.apache.spark" %% "spark-mllib" % sparkVersion % "provided")
+    "org.apache.spark" %% "spark-mllib" % sparkVersion % "provided"
+  )
 
   val flinkVersion = "1.3.2"
 
   val flinkDependencies: Seq[ModuleID] = commonDependencies ++ Seq(
     "org.apache.flink" %% "flink-scala" % flinkVersion % "provided",
     "org.apache.flink" %% "flink-ml" % flinkVersion % "provided"
-  ).map(_.
-      exclude("com.esotericsoftware.kryo", "kryo").
-      exclude("net.java.dev.jets3t", "jets3t"))
+  ).map(
+    _.exclude("com.esotericsoftware.kryo", "kryo")
+        .exclude("net.java.dev.jets3t", "jets3t")
+  )
 
   val exampleDependencies: Seq[ModuleID] =
     coreDependencies ++ sparkDependencies ++ flinkDependencies

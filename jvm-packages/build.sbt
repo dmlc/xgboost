@@ -16,10 +16,10 @@
 
 val compileJni = taskKey[Unit]("Compiles XGBoost JNI bindings")
 
-lazy val core = (project in file("xgboost4j")).
-    settings(name := "xgboost4j-core").
-    settings(Common.settings: _*).
-    settings(
+lazy val core = (project in file("xgboost4j"))
+    .settings(name := "xgboost4j-core")
+    .settings(Common.settings: _*)
+    .settings(
       libraryDependencies ++= Dependencies.coreDependencies,
       compileJni := {
         import sys.process._
@@ -31,32 +31,33 @@ lazy val core = (project in file("xgboost4j")).
       compile in Compile := (compile in Compile).dependsOn(compileJni).value
     )
 
-lazy val spark = (project in file("xgboost4j-spark")).
-    dependsOn(core % "test->test;compile->compile").
-    settings(Common.settings: _*).
-    settings(name := "xgboost4j-spark").
-    settings(Common.settings: _*).
-    settings(
+lazy val spark = (project in file("xgboost4j-spark"))
+    .dependsOn(core % "test->test;compile->compile")
+    .settings(Common.settings: _*)
+    .settings(name := "xgboost4j-spark")
+    .settings(Common.settings: _*)
+    .settings(
       libraryDependencies ++= Dependencies.sparkDependencies,
 
       // Not supported by [[PerTest]] trait.
-      parallelExecution in Test := false)
+      parallelExecution in Test := false
+    )
 
-lazy val flink = (project in file("xgboost4j-flink")).
-    dependsOn(core).
-    settings(name := "xgboost4j-flink").
-    settings(Common.settings: _*).
-    settings(libraryDependencies ++= Dependencies.flinkDependencies)
+lazy val flink = (project in file("xgboost4j-flink"))
+    .dependsOn(core)
+    .settings(name := "xgboost4j-flink")
+    .settings(Common.settings: _*)
+    .settings(libraryDependencies ++= Dependencies.flinkDependencies)
 
-lazy val examples = (project in file("xgboost4j-examples")).
-    disablePlugins(sbtassembly.AssemblyPlugin).
-    dependsOn(core, spark, flink).
-    settings(name := "xgboost4j-examples").
-    settings(Common.settings: _*).
-    settings(libraryDependencies ++= Dependencies.exampleDependencies)
+lazy val examples = (project in file("xgboost4j-examples"))
+    .disablePlugins(sbtassembly.AssemblyPlugin)
+    .dependsOn(core, spark, flink)
+    .settings(name := "xgboost4j-examples")
+    .settings(Common.settings: _*)
+    .settings(libraryDependencies ++= Dependencies.exampleDependencies)
 
-lazy val root = (project in file(".")).
-    disablePlugins(sbtassembly.AssemblyPlugin).
-    aggregate(core, spark, flink, examples).
-    settings(name := "xgboost4j").
-    settings(Common.settings: _*)
+lazy val root = (project in file("."))
+    .disablePlugins(sbtassembly.AssemblyPlugin)
+    .aggregate(core, spark, flink, examples)
+    .settings(name := "xgboost4j")
+    .settings(Common.settings: _*)
