@@ -16,10 +16,16 @@ libpath_py = os.path.join(CURRENT_DIR, 'xgboost/libpath.py')
 libpath = {'__file__': libpath_py}
 exec(compile(open(libpath_py, "rb").read(), libpath_py, 'exec'), libpath, libpath)
 
-LIB_PATH = [os.path.relpath(libfile, CURRENT_DIR) for libfile in libpath['find_lib_path']()]
-print("Install libxgboost from: %s" % LIB_PATH)
+#LIB_PATH = [os.path.relpath(libfile, CURRENT_DIR) for libfile in libpath['find_lib_path']()]
+#print("Install libxgboost from: %s" % LIB_PATH)
 # Please use setup_pip.py for generating and deploying pip installation
 # detailed instruction in setup_pip.py
+
+package_data={'xgboost':'*'}
+#package_data={'':LIB_PATH}
+
+os.system("cp ../lib/libxgboost.so xgboost/")
+
 setup(name='xgboost',
       version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
       # version='0.4a23',
@@ -32,11 +38,11 @@ setup(name='xgboost',
       maintainer='Hongliang Liu',
       maintainer_email='phunter.lau@gmail.com',
       zip_safe=False,
-      packages=find_packages(),
+      packages=['xgboost'],
       # this will use MANIFEST.in during install where we specify additional files,
       # this is the golden line
-      include_package_data=True,
-      data_files=[('xgboost', LIB_PATH)],
+      #include_package_data=True,
+      package_data=package_data,
       license='Apache-2.0',
       classifiers=['License :: OSI Approved :: Apache Software License'],
       url='https://github.com/dmlc/xgboost')

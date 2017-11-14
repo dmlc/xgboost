@@ -1,0 +1,69 @@
+# Copy this file and Run from one level higher than the git pull directory
+# To build: docker build -t opsh2oai/h2oai-nv -f Dockerfile-nvdocker .
+# To run with docker run -it -p 12345:12345 opsh2oai/h2oai-nv
+
+ARG cuda
+FROM $cuda
+
+MAINTAINER H2o.ai <ops@h2o.ai>
+
+ENV DEBIAN_FRONTEND noninteractive
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=/usr/local/cuda/bin:$PATH
+ENV LD_LIBRARY_PATH_MORE=/home/$USER/lib/:$CUDA_HOME/lib64/:$CUDA_HOME/lib/:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/nvidia/lib:/usr/local/nvidia/lib64
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LD_LIBRARY_PATH_MORE
+ENV CUDADIR=/usr/local/cuda/include/
+ENV OMP_NUM_THREADS=32
+ENV MKL_NUM_THREADS=32
+ENV HOME=/root
+ENV VECLIB_MAXIMUM_THREADS=32
+ENV PYENV_ROOT=$HOME/.pyenv
+ENV PATH=$PYENV_ROOT/bin:$PATH
+
+# Setup Repos
+RUN \
+  apt-get update -y && \
+  apt-get -y install curl apt-utils python-software-properties \
+  software-properties-common iputils-ping wget cpio net-tools build-essential \
+  git zip dirmngr && \
+  apt-get -y --no-install-recommends  install \
+      python3-dateutil \
+      python3-magic && \
+  wget http://launchpadlibrarian.net/326935544/s3cmd_2.0.0-1_all.deb && \
+  dpkg -i s3cmd_2.0.0-1_all.deb && \
+  add-apt-repository ppa:fkrull/deadsnakes  && \
+  apt-get update -yqq && \
+  curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
+  apt-get -y --no-install-recommends  install \
+    python3.6 \
+    python3.6-dev \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel && \
+  update-alternatives --install /usr/bin/python python /usr/bin/python3.6 100 && \
+  python -m pip install --upgrade pip && \
+  apt-get clean && \
+  rm -rf /var/cache/apt/* && \
+  apt-get install -y libopenblas-dev && \
+  apt-get install -y make build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev xz-utils tk-dev
+
+RUN \
+    mkdir -p .pylint.d && \
+    rm -rf ~/.pyenv && \
+    git clone https://github.com/pyenv/pyenv.git ~/.pyenv && \
+    eval "$(/root/.pyenv/bin/pyenv init -)" && \
+    /root/.pyenv/bin/pyenv install 3.6.1 && \
+    /root/.pyenv/bin/pyenv global 3.6.1 && \
+    pip install setuptools --no-cache-dir
+
+COPY requirements_buildonly.txt requirements_buildonly.txt
+COPY requirements_runtime.txt requirements_runtime.txt
+RUN \
+    eval "$(/root/.pyenv/bin/pyenv init -)" && \
+    /root/.pyenv/bin/pyenv global 3.6.1 && \
+    pip install setuptools && \
+    pip install -r requirements_buildonly.txt && \
+    pip install -r requirements_runtime.txt && \
+    chmod 777 / && \
+    chmod -R 777 /root  && \
+    chmod ugo+s /root/

@@ -1,0 +1,19 @@
+# https://xgboost.readthedocs.io/en/latest/build.html
+libxgboost: libxgboostp1 libxgboostp2 libxgboostp3
+libxgboost2: libxgboostp1 libxgboostp2nonccl libxgboostp3
+
+libxgboostp1:
+	git submodule init && git submodule update dmlc-core && git submodule update nccl && git submodule update cub && git submodule update rabit
+libxgboostp2:
+	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DCMAKE_BUILD_TYPE=Release && make -j
+libxgboostp2nonccl:
+	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON -DCMAKE_BUILD_TYPE=Release && make -j
+libxgboostp3:
+	cd python-package && rm -rf dist && python setup.py sdist bdist_wheel
+
+
+.PHONY: build/VERSION.txt
+
+build/VERSION.txt:
+	@mkdir -p build
+	cd python-package; python setup.py --version > ../build/VERSION.txt 2>/dev/null
