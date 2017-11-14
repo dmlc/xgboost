@@ -9,6 +9,7 @@ msvc_use_static_runtime()
 
 # Options
 option(USE_CUDA  "Build with GPU acceleration") 
+option(USE_AVX  "Build with AVX instructions. May not produce identical results due to approximate math." OFF) 
 option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA") 
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
@@ -38,6 +39,17 @@ else()
   # Performance
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops")
 endif()
+
+# AVX
+if(USE_AVX)
+  if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX")
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx -mfma")
+  endif()
+  add_definitions(-DXGBOOST_USE_AVX)
+endif()
+
 
 # compiled code customizations for R package
 if(R_LIB)

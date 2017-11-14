@@ -91,6 +91,7 @@ if [ ${TASK} == "java_test" ]; then
 fi
 
 if [ ${TASK} == "cmake_test" ]; then
+    set -e
     mkdir build
     cd build
     cmake ..
