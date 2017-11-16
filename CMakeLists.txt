@@ -224,12 +224,12 @@ endif()
 
 # Test
 if(GOOGLE_TEST)
-  enable_testing()
   find_package(GTest REQUIRED)
+  enable_testing()
 
   file(GLOB_RECURSE TEST_SOURCES "tests/cpp/*.cc")
   auto_source_group("${TEST_SOURCES}")
-  include_directories(${GTEST_INCLUDE_DIRS})
+  include_directories(${GTEST_INCLUDE_DIR})
 
   if(USE_CUDA)
     file(GLOB_RECURSE CUDA_TEST_SOURCES "tests/cpp/*.cu")
@@ -240,7 +240,7 @@ if(GOOGLE_TEST)
 
   add_executable(testxgboost ${TEST_SOURCES} ${CUDA_TEST_OBJS} $<TARGET_OBJECTS:objxgboost>)
   set_output_directory(testxgboost ${PROJECT_SOURCE_DIR})
-  target_link_libraries(testxgboost ${GTEST_BOTH_LIBRARIES} ${LINK_LIBRARIES})
+  target_link_libraries(testxgboost ${GTEST_LIBRARIES} ${LINK_LIBRARIES})
 
   add_test(TestXGBoost testxgboost)
 endif()
