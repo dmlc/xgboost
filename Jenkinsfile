@@ -126,7 +126,8 @@ pipeline {
                     if (isRelease()) {
                         def artifact = "xgboost-${versionTag}-py3-none-any.whl"
                         def localArtifact = "python-package/dist/${artifact}"
-                        def bucket = "s3://artifacts.h2o.ai/releases/stable/ai/h2o/xgboost/${versionTag}/"
+                        def extratag = "-nccl-cuda8"
+                        def bucket = "s3://artifacts.h2o.ai/releases/stable/ai/h2o/xgboost/${versionTag}${extratag}/"
                         sh "s3cmd put ${localArtifact} ${bucket}"
                         sh "s3cmd setacl --acl-public  ${bucket}${artifact}"
                     }
@@ -134,7 +135,8 @@ pipeline {
                     if (isBleedingEdge()) {
                         def artifact = "xgboost-${versionTag}-py3-none-any.whl"
                         def localArtifact = "python-package/dist/${artifact}"
-                        def bucket = "s3://artifacts.h2o.ai/releases/bleeding-edge/ai/h2o/xgboost/${versionTag}/"
+                        def extratag = "-nccl-cuda8"
+                        def bucket = "s3://artifacts.h2o.ai/releases/bleeding-edge/ai/h2o/xgboost/${versionTag}${extratag}/"
                         sh "s3cmd put ${localArtifact} ${bucket}"
                         sh "s3cmd setacl --acl-public  ${bucket}${artifact}"
                     }
@@ -216,7 +218,8 @@ pipeline {
                     if (isRelease()) {
                         def artifact = "xgboost-${versionTag}-py3-none-any.whl"
                         def localArtifact = "python-package/dist2/${artifact}"
-                        def bucket = "s3://artifacts.h2o.ai/releases/stable/ai/h2o/xgboost/${versionTag}_nonccl_cuda8/"
+                        def extratag = "-nonccl-cuda8"
+                        def bucket = "s3://artifacts.h2o.ai/releases/stable/ai/h2o/xgboost/${versionTag}${extratag}/"
                         sh "s3cmd put ${localArtifact} ${bucket}"
                         sh "s3cmd setacl --acl-public  ${bucket}${artifact}"
                     }
@@ -224,7 +227,8 @@ pipeline {
                     if (isBleedingEdge()) {
                         def artifact = "xgboost-${versionTag}-py3-none-any.whl"
                         def localArtifact = "python-package/dist2/${artifact}"
-                        def bucket = "s3://artifacts.h2o.ai/releases/bleeding-edge/ai/h2o/xgboost/${versionTag}_nonccl_cuda8/"
+                        def extratag = "-nonccl-cuda8"
+                        def bucket = "s3://artifacts.h2o.ai/releases/bleeding-edge/ai/h2o/xgboost/${versionTag}${extratag}/"
                         sh "s3cmd put ${localArtifact} ${bucket}"
                         sh "s3cmd setacl --acl-public  ${bucket}${artifact}"
                     }
@@ -306,7 +310,8 @@ pipeline {
                     if (isRelease()) {
                         def artifact = "xgboost-${versionTag}-py3-none-any.whl"
                         def localArtifact = "python-package/dist4/${artifact}"
-                        def bucket = "s3://artifacts.h2o.ai/releases/stable/ai/h2o/xgboost/${versionTag}_nccl_cuda9/"
+                        def extratag = "-nccl-cuda9"
+                        def bucket = "s3://artifacts.h2o.ai/releases/stable/ai/h2o/xgboost/${versionTag}${extratag}/"
                         sh "s3cmd put ${localArtifact} ${bucket}"
                         sh "s3cmd setacl --acl-public  ${bucket}${artifact}"
                     }
@@ -314,7 +319,8 @@ pipeline {
                     if (isBleedingEdge()) {
                         def artifact = "xgboost-${versionTag}-py3-none-any.whl"
                         def localArtifact = "python-package/dist4/${artifact}"
-                        def bucket = "s3://artifacts.h2o.ai/releases/bleeding-edge/ai/h2o/xgboost/${versionTag}_nccl_cuda9/"
+                        def extratag = "-nccl-cuda9"
+                        def bucket = "s3://artifacts.h2o.ai/releases/bleeding-edge/ai/h2o/xgboost/${versionTag}${extratag}/"
                         sh "s3cmd put ${localArtifact} ${bucket}"
                         sh "s3cmd setacl --acl-public  ${bucket}${artifact}"
                     }
@@ -397,7 +403,8 @@ pipeline {
                     if (isRelease()) {
                         def artifact = "xgboost-${versionTag}-py3-none-any.whl"
                         def localArtifact = "python-package/dist3/${artifact}"
-                        def bucket = "s3://artifacts.h2o.ai/releases/stable/ai/h2o/xgboost/${versionTag}_nonccl_cuda9/"
+                        def extratag = "-nonccl-cuda9"
+                        def bucket = "s3://artifacts.h2o.ai/releases/stable/ai/h2o/xgboost/${versionTag}${extratag}/"
                         sh "s3cmd put ${localArtifact} ${bucket}"
                         sh "s3cmd setacl --acl-public  ${bucket}${artifact}"
                     }
@@ -405,7 +412,8 @@ pipeline {
                     if (isBleedingEdge()) {
                         def artifact = "xgboost-${versionTag}-py3-none-any.whl"
                         def localArtifact = "python-package/dist3/${artifact}"
-                        def bucket = "s3://artifacts.h2o.ai/releases/bleeding-edge/ai/h2o/xgboost/${versionTag}_nonccl_cuda9/"
+                        def extratag = "-nonccl-cuda9"
+                        def bucket = "s3://artifacts.h2o.ai/releases/bleeding-edge/ai/h2o/xgboost/${versionTag}${extratag}/"
                         sh "s3cmd put ${localArtifact} ${bucket}"
                         sh "s3cmd setacl --acl-public  ${bucket}${artifact}"
                     }
