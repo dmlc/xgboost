@@ -63,6 +63,12 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
     if (jenv->CallBooleanMethod(jiter, hasNext)) {
       ret_value = 1;
       jobject batch = jenv->CallObjectMethod(jiter, next);
+      if (batch == nullptr) {
+        CHECK(jenv->ExceptionOccurred());
+        jenv->ExceptionDescribe();
+        return -1;
+      }
+
       jclass batchClass = jenv->GetObjectClass(batch);
       jlongArray joffset = (jlongArray)jenv->GetObjectField(
           batch, jenv->GetFieldID(batchClass, "rowOffset", "[J"));

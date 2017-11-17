@@ -461,11 +461,17 @@ private object Watches {
     val trainTestRatio = params.get("trainTestRatio").map(_.toString.toDouble).getOrElse(1.0)
     val seed = params.get("seed").map(_.toString.toLong).getOrElse(System.nanoTime())
     val r = new Random(seed)
-    // In the worst-case this would store [[trainTestRatio]] of points
-    // buffered in memory.
-    val (trainPoints, testPoints) = labeledPoints.partition(_ => r.nextDouble() <= trainTestRatio)
+    val testPoints = mutable.ArrayBuffer.empty[XGBLabeledPoint]
+    val trainPoints = labeledPoints.filter { labeledPoint =>
+      val accepted = r.nextDouble() <= trainTestRatio
+      if (!accepted) {
+        testPoints += labeledPoint
+      }
+
+      accepted
+    }
     val trainMatrix = new DMatrix(trainPoints, cacheFileName)
-    val testMatrix = new DMatrix(testPoints, cacheFileName)
+    val testMatrix = new DMatrix(testPoints.iterator, cacheFileName)
     r.setSeed(seed)
     for (baseMargins <- baseMarginsOpt) {
       val (trainMargin, testMargin) = baseMargins.partition(_ => r.nextDouble() <= trainTestRatio)
