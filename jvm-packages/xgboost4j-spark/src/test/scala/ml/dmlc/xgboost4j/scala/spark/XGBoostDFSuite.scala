@@ -258,5 +258,6 @@ class XGBoostDFSuite extends FunSuite with PerTest {
       nWorkers = numWorkers)
     val Some(testObjectiveHistory) = model.summary.testObjectiveHistory
     assert(testObjectiveHistory.length === 5)
+    assert(model.summary.trainObjectiveHistory !== testObjectiveHistory)
   }
 }
