@@ -37,7 +37,7 @@ pipeline {
 
         stage('Build on Linux CUDA8 NCCL') {
             agent {
-                label "nvidia-docker && (mr-dl11||mr-dl16||mr-dl10)"
+                label "nvidia-docker"
             }
 
             steps {
@@ -81,7 +81,7 @@ pipeline {
         }
         stage('Test on Linux CUDA8 NCCL') {
             agent {
-                label "gpu && nvidia-docker && (mr-dl11||mr-dl16||mr-dl10)"
+                label "gpu && nvidia-docker"
             }
             steps {
                 dumpInfo 'Linux Test Info'
@@ -156,7 +156,7 @@ pipeline {
 
         stage('Build on Linux CUDA8 noNCCL') {
             agent {
-                label "nvidia-docker && (mr-dl11||mr-dl16||mr-dl10)"
+                label "nvidia-docker"
             }
 
             steps {
@@ -248,7 +248,7 @@ pipeline {
 
         stage('Build on Linux CUDA9 NCCL') {
             agent {
-                label "nvidia-docker && (mr-dl11||mr-dl16||mr-dl10)"
+                label "nvidia-docker"
             }
 
             steps {
@@ -341,7 +341,7 @@ pipeline {
 
         stage('Build on Linux CUDA9 noNCCL') {
             agent {
-                label "nvidia-docker && (mr-dl11||mr-dl16||mr-dl10)"
+                label "nvidia-docker"
             }
 
             steps {
