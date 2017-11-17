@@ -31,7 +31,7 @@ typedef std::map<int, XgbTreeNode> XgbNodeList;
 typedef std::vector<XgbNodeList> XgbNodeLists;
 typedef std::map<std::string, FeatureInteraction> FeatureInteractions;
 typedef std::vector<XgbTreeNode> InteractionPath;
-typedef std::unordered_set<std::string> PathMemo;
+typedef std::unordered_set<std::size_t> PathMemo;
 
 /*!
 * \brief xgbfi tree node type
@@ -113,6 +113,8 @@ class FeatureInteraction {
       << w_fscore << ',' << avg_w_fscore << ',' << avg_gain << ',' << expected_gain;
     return oos.str();
   }
+  
+  static std::size_t InteractionPathToHash(const InteractionPath& interaction_path);
 
   static std::string InteractionPathToStr(const InteractionPath& interaction_path,
     const bool encode_path = false, const bool sort_by_feature = true);
@@ -361,6 +363,15 @@ XgbTreeNode XgbModelParser::ParseXgbTreeNode(std::string* line) {
   return xgb_tree_node;
 }
 
+std::size_t FeatureInteraction::InteractionPathToHash(
+  const InteractionPath& interaction_path) {
+  std::size_t hash = interaction_path.size();
+  for (auto& x : interaction_path) {
+    hash ^= x.number + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+  }
+  return hash;
+}
+
 std::string FeatureInteraction::InteractionPathToStr(
   const InteractionPath& interaction_path,
   const bool encode_path, const bool sort_by_feature) {
@@ -370,15 +381,15 @@ std::string FeatureInteraction::InteractionPathToStr(
       return a.feature < b.feature;
     });
   }
-  std::ostringstream oss;
+  std::string path_str;
   std::string delim = encode_path ? "-" : "|";
   for (const auto& x : vec) {
     if (&x != &vec[0]) {
-      oss << delim;
+      path_str += delim;
     }
-    oss << (encode_path ? std::to_string(x.number) : x.feature);
+    path_str += (encode_path ? std::to_string(x.number) : x.feature);
   }
-  return oss.str();
+  return path_str;
 }
 
 
@@ -482,7 +493,7 @@ void XgbModel::CollectFeatureInteractions(XgbTreePtr tree, InteractionPath* cfi,
     CollectFeatureInteractions(tree->right, &ipr, 0, 0, ppr, depth + 1, deepening + 1, tfis, memo);
   }
 
-  auto path = FeatureInteraction::InteractionPathToStr(*cfi, true);
+  auto path = FeatureInteraction::InteractionPathToHash(*cfi);
 
   if (tfis->find(fi.name) == tfis->end()) {
     (*tfis)[fi.name] = fi;
