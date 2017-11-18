@@ -11,9 +11,7 @@
 #include <algorithm>
 #include <utility>
 #include "../common/math.h"
-#ifdef XGBOOST_USE_AVX
 #include "../common/avx_helpers.h"
-#endif
 
 namespace xgboost {
 namespace obj {
@@ -23,33 +21,28 @@ DMLC_REGISTRY_FILE_TAG(regression_obj);
 // common regressions
 // linear regression
 struct LinearSquareLoss {
-  static bst_float PredTransform(bst_float x) { return x; }
+  template <typename T>
+  static T PredTransform(T x) { return x; }
   static bool CheckLabel(bst_float x) { return true; }
-  static bst_float FirstOrderGradient(bst_float predt, bst_float label) { return predt - label; }
-  static bst_float SecondOrderGradient(bst_float predt, bst_float label) { return 1.0f; }
+  template <typename T>
+  static T FirstOrderGradient(T predt, T label) { return predt - label; }
+  template <typename T>
+  static T SecondOrderGradient(T predt, T label) { return T(1.0f); }
   static bst_float ProbToMargin(bst_float base_score) { return base_score; }
   static const char* LabelErrorMsg() { return ""; }
   static const char* DefaultEvalMetric() { return "rmse"; }
-#ifdef XGBOOST_USE_AVX
-  static avx::Float8 PredTransform(avx::Float8 x) { return x; }
-  static avx::Float8 FirstOrderGradient(const avx::Float8 &predt,
-                                        const avx::Float8 &label) {
-    return predt - label;
-  }
-  static avx::Float8 SecondOrderGradient(const avx::Float8 &predt,
-                                         const avx::Float8 &label) {
-    return avx::Float8(1.0f);
-  }
-#endif
 };
 // logistic loss for probability regression task
 struct LogisticRegression {
-  static bst_float PredTransform(bst_float x) { return common::Sigmoid(x); }
+  template <typename T>
+  static T PredTransform(T x) { return common::Sigmoid(x); }
   static bool CheckLabel(bst_float x) { return x >= 0.0f && x <= 1.0f; }
-  static bst_float FirstOrderGradient(bst_float predt, bst_float label) { return predt - label; }
-  static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
-    const float eps = 1e-16f;
-    return std::max(predt * (1.0f - predt), eps);
+  template <typename T>
+  static T FirstOrderGradient(T predt, T label) { return predt - label; }
+  template <typename T>
+  static T SecondOrderGradient(T predt, T label) {
+    const T eps = T(1e-16f);
+    return std::max(predt * (T(1.0f) - predt), eps);
   }
   static bst_float ProbToMargin(bst_float base_score) {
     CHECK(base_score > 0.0f && base_score < 1.0f)
@@ -60,21 +53,6 @@ struct LogisticRegression {
     return "label must be in [0,1] for logistic regression";
   }
   static const char* DefaultEvalMetric() { return "rmse"; }
-#ifdef XGBOOST_USE_AVX
-  static avx::Float8 PredTransform(avx::Float8 x) {
-    return avx::ApproximateSigmoid(x);
-  }
-  static avx::Float8 FirstOrderGradient(const avx::Float8 &predt,
-                                        const avx::Float8 &label) {
-    return predt - label;
-  }
-  static avx::Float8 SecondOrderGradient(const avx::Float8 &predt,
-                                         const avx::Float8 &label) {
-    avx::Float8 hess = (avx::Float8(1.0f) - predt) * predt;
-    avx::Float8 eps(1e-16f);
-    return avx::max(hess, eps);
-  }
-#endif
 };
 // logistic loss for binary classification task.
 struct LogisticClassification : public LogisticRegression {
@@ -82,31 +60,20 @@ struct LogisticClassification : public LogisticRegression {
 };
 // logistic loss, but predict un-transformed margin
 struct LogisticRaw : public LogisticRegression {
-  static bst_float PredTransform(bst_float x) { return x; }
-  static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
+  template <typename T>
+  static T PredTransform(T x) { return x; }
+  template <typename T>
+  static T FirstOrderGradient(T predt, T label) {
     predt = common::Sigmoid(predt);
     return predt - label;
   }
-  static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
-    const float eps = 1e-16f;
+  template <typename T>
+  static T SecondOrderGradient(T predt, T label) {
+    const T eps = T(1e-16f);
     predt = common::Sigmoid(predt);
-    return std::max(predt * (1.0f - predt), eps);
+    return std::max(predt * (T(1.0f) - predt), eps);
   }
   static const char* DefaultEvalMetric() { return "auc"; }
-#ifdef XGBOOST_USE_AVX
-  static avx::Float8 PredTransform(avx::Float8 x) { return x; }
-  static avx::Float8 FirstOrderGradient(const avx::Float8 &predt,
-                                        const avx::Float8 &label) {
-    return avx::ApproximateSigmoid(predt) - label;
-  }
-  static avx::Float8 SecondOrderGradient(const avx::Float8 &predt,
-                                         const avx::Float8 &label) {
-    avx::Float8 transformed = avx::ApproximateSigmoid(predt);
-    avx::Float8 hess = (avx::Float8(1.0f) - transformed) * transformed;
-    avx::Float8 eps(1e-16f);
-    return avx::max(hess, eps);
-  }
-#endif
 };
 
 struct RegLossParam : public dmlc::Parameter<RegLossParam> {
@@ -138,49 +105,6 @@ class RegLossObj : public ObjFunction {
 
     this->LazyCheckLabels(info.labels);
     out_gpair->resize(preds.size());
-#ifdef XGBOOST_USE_AVX
-    this->GetGradientAVX(preds, info, out_gpair);
-#else
-    this->GetGradientDefault(preds, info, out_gpair);
-#endif
-  }
-  const char *DefaultEvalMetric() const override {
-    return Loss::DefaultEvalMetric();
-  }
-  void PredTransform(std::vector<bst_float> *io_preds) override {
-    std::vector<bst_float> &preds = *io_preds;
-    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
-#pragma omp parallel for schedule(static)
-    for (bst_omp_uint j = 0; j < ndata; ++j) {
-      preds[j] = Loss::PredTransform(preds[j]);
-    }
-  }
-  bst_float ProbToMargin(bst_float base_score) const override {
-    return Loss::ProbToMargin(base_score);
-  }
-
- protected:
-  void GetGradientDefault(const std::vector<bst_float> &preds,
-                          const MetaInfo &info,
-                          std::vector<bst_gpair> *out_gpair) {
-    const omp_ulong ndata = static_cast<omp_ulong>(preds.size());
-#pragma omp parallel for schedule(static)
-    for (omp_ulong i = 0; i < ndata; ++i) {
-      auto y = info.labels[i];
-      bst_float p = Loss::PredTransform(preds[i]);
-      bst_float w = info.GetWeight(i);
-      // Branchless version of the below function
-      // The branch is particularly slow as the cpu cannot predict the label
-      // with any accuracy resulting in frequent pipeline stalls
-      // if (info.labels[i] == 1.0f) w *= param_.scale_pos_weight;
-      w += y * ((param_.scale_pos_weight * w) - w);
-      (*out_gpair)[i] = bst_gpair(Loss::FirstOrderGradient(p, y) * w,
-                                  Loss::SecondOrderGradient(p, y) * w);
-    }
-  }
-#ifdef XGBOOST_USE_AVX
-  void GetGradientAVX(const std::vector<bst_float> &preds, const MetaInfo &info,
-                      std::vector<bst_gpair> *out_gpair) {
     const omp_ulong n = static_cast<omp_ulong>(preds.size());
     auto gpair_ptr = out_gpair->data();
     avx::Float8 scale(param_.scale_pos_weight);
@@ -212,7 +136,22 @@ class RegLossObj : public ObjFunction {
     // Reset omp max threads
     omp_set_num_threads(nthread);
   }
-#endif
+  const char *DefaultEvalMetric() const override {
+    return Loss::DefaultEvalMetric();
+  }
+  void PredTransform(std::vector<bst_float> *io_preds) override {
+    std::vector<bst_float> &preds = *io_preds;
+    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
+#pragma omp parallel for schedule(static)
+    for (bst_omp_uint j = 0; j < ndata; ++j) {
+      preds[j] = Loss::PredTransform(preds[j]);
+    }
+  }
+  bst_float ProbToMargin(bst_float base_score) const override {
+    return Loss::ProbToMargin(base_score);
+  }
+
+ protected:
   void LazyCheckLabels(const std::vector<float> &labels) {
     if (labels_checked) return;
     for (auto &y : labels) {
