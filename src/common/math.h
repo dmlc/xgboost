@@ -25,7 +25,7 @@ inline float Sigmoid(float x) {
 }
 
 inline avx::Float8 Sigmoid(avx::Float8 x) {
-  return avx::ApproximateSigmoid(x);
+  return avx::Sigmoid(x);
 }
 
 /*!
