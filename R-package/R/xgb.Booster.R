@@ -150,7 +150,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
 #' individual predictions. For "gblinear" booster, feature contributions are simply linear terms
 #' (feature_beta * feature_value). For "gbtree" booster, feature contributions are SHAP
-#' values (https://arxiv.org/abs/1706.06060) that sum to the difference between the expected output
+#' values (\url{https://arxiv.org/abs/1706.06060}) that sum to the difference between the expected output
 #' of the model and the current prediction (where the hessian weights are used to compute the expectations).
 #' Setting \code{approxcontrib = TRUE} approximates these values following the idea explained
 #' in \url{http://blog.datadive.net/interpreting-random-forests/}.
@@ -265,6 +265,10 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
     newdata <- xgb.DMatrix(newdata, missing = missing)
+  if (!is.null(object[["feature_names"]]) &&
+      !is.null(colnames(newdata)) &&
+      !identical(object[["feature_names"]], colnames(newdata)))
+    stop("Feature names stored in `object` and `newdata` are different!")
   if (is.null(ntreelimit))
     ntreelimit <- NVL(object$best_ntreelimit, 0)
   if (NVL(object$params[['booster']], '') == 'gblinear')

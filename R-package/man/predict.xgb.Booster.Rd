@@ -72,7 +72,7 @@ e.g., as implemented in \code{\link{xgb.create.features}}.
 Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
 individual predictions. For "gblinear" booster, feature contributions are simply linear terms
 (feature_beta * feature_value). For "gbtree" booster, feature contributions are SHAP
-values (https://arxiv.org/abs/1706.06060) that sum to the difference between the expected output
+values (\url{https://arxiv.org/abs/1706.06060}) that sum to the difference between the expected output
 of the model and the current prediction (where the hessian weights are used to compute the expectations).
 Setting \code{approxcontrib = TRUE} approximates these values following the idea explained
 in \url{http://blog.datadive.net/interpreting-random-forests/}.
