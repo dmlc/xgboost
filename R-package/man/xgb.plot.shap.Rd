@@ -63,7 +63,7 @@ more than 5 distinct values.}
 
 \item{col_loess}{a color to use for the loess curves.}
 
-\item{span_loess}{the \code{span} paramerer in \code{\link{stats::loess()}}s calls.}
+\item{span_loess}{the \code{span} paramerer in \code{\link[stats]{loess}}'s call.}
 
 \item{which}{whether to do univariate or bivariate plotting. NOTE: only 1D is implemented so far.}
 
@@ -102,6 +102,7 @@ a meaningful thing to do.
 \examples{
 
 data(agaricus.train, package='xgboost')
+data(agaricus.test, package='xgboost')
 
 bst <- xgboost(agaricus.train$data, agaricus.train$label, nrounds = 50, 
                eta = 0.1, max_depth = 3, subsample = .5,
@@ -113,11 +114,12 @@ xgb.plot.shap(agaricus.test$data, contr, model = bst, top_n = 12, n_col = 3)
 
 # multiclass example - plots for each class separately:
 nclass <- 3
-nrounds <- 10
+nrounds <- 20
 x <- as.matrix(iris[, -5])
+set.seed(123)
 is.na(x[sample(nrow(x) * 4, 30)]) <- TRUE # introduce some missing values
-mbst <- xgboost(data = x, label = as.numeric(iris$Species) - 1,
-                nrounds = 20, max_depth = 2, eta = 0.3, subsample = .5, nthread = 2,
+mbst <- xgboost(data = x, label = as.numeric(iris$Species) - 1, nrounds = nrounds,
+                max_depth = 2, eta = 0.3, subsample = .5, nthread = 2,
                 objective = "multi:softprob", num_class = nclass, verbose = 0)
 trees0 <- seq(from=0, by=nclass, length.out=nrounds)
 col <- rgb(0, 0, 1, 0.5)
