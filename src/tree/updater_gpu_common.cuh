@@ -12,8 +12,67 @@
 #include "../common/random.h"
 #include "param.h"
 
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
+
+#else
+__device__ __forceinline__ double atomicAdd(double* address, double val) {
+  unsigned long long int* address_as_ull = (unsigned long long int*)address;  // NOLINT
+  unsigned long long int old = *address_as_ull, assumed;  // NOLINT
+
+  do {
+    assumed = old;
+    old = atomicCAS(address_as_ull, assumed,
+                    __double_as_longlong(val + __longlong_as_double(assumed)));
+
+    // Note: uses integer comparison to avoid hang in case of NaN (since NaN !=
+    // NaN)
+  } while (assumed != old);
+
+  return __longlong_as_double(old);
+}
+#endif
+
 namespace xgboost {
 namespace tree {
+
+// Atomic add function for double precision gradients
+__device__ __forceinline__ void AtomicAddGpair(bst_gpair_precise* dest,
+                                               const bst_gpair& gpair) {
+  auto dst_ptr = reinterpret_cast<double*>(dest);
+
+  atomicAdd(dst_ptr, static_cast<double>(gpair.GetGrad()));
+  atomicAdd(dst_ptr + 1, static_cast<double>(gpair.GetHess()));
+}
+
+// For integer gradients
+__device__ __forceinline__ void AtomicAddGpair(bst_gpair_integer* dest,
+                                               const bst_gpair& gpair) {
+  auto dst_ptr = reinterpret_cast<unsigned long long int*>(dest);  // NOLINT
+  bst_gpair_integer tmp(gpair.GetGrad(), gpair.GetHess());
+  auto src_ptr = reinterpret_cast<bst_gpair_integer::value_t*>(&tmp);
+
+  atomicAdd(dst_ptr,
+            static_cast<unsigned long long int>(*src_ptr));  // NOLINT
+  atomicAdd(dst_ptr + 1,
+            static_cast<unsigned long long int>(*(src_ptr + 1)));  // NOLINT
+}
+
+/**
+ * \fn  void CheckGradientMax(const dh::dvec<bst_gpair>& gpair)
+ *
+ * \brief Check maximum gradient value is below 2^16. This is to prevent
+ * overflow when using integer gradient summation.
+ */
+
+inline void CheckGradientMax(const std::vector<bst_gpair>& gpair) {
+  auto* ptr = reinterpret_cast<const float*>(gpair.data());
+  float abs_max =
+      std::accumulate(ptr, ptr + (gpair.size() * 2), 0.f,
+                      [=](float a, float b) { return max(abs(a), abs(b)); });
+
+  CHECK_LT(abs_max, std::pow(2.0f, 16.0f))
+      << "Labels are too large for this algorithm. Rescale to less than 2^16.";
+}
 
 struct GPUTrainingParam {
   // minimum amount of hessian(weight) allowed in a child
@@ -64,8 +123,8 @@ struct DeviceSplitCandidate {
       : loss_chg(-FLT_MAX), dir(LeftDir), fvalue(0), findex(-1) {}
 
   template <typename param_t>
-  __host__ __device__ void Update(const DeviceSplitCandidate &other,
-                         const param_t& param) {
+  __host__ __device__ void Update(const DeviceSplitCandidate& other,
+                                  const param_t& param) {
     if (other.loss_chg > loss_chg &&
         other.left_sum.GetHess() >= param.min_child_weight &&
         other.right_sum.GetHess() >= param.min_child_weight) {
@@ -170,8 +229,10 @@ struct SumCallbackOp {
 };
 
 template <typename gpair_t>
-__device__ inline float device_calc_loss_chg(
-    const GPUTrainingParam& param, const gpair_t&  left, const gpair_t& parent_sum, const float& parent_gain) {
+__device__ inline float device_calc_loss_chg(const GPUTrainingParam& param,
+                                             const gpair_t& left,
+                                             const gpair_t& parent_sum,
+                                             const float& parent_gain) {
   gpair_t right = parent_sum - left;
   float left_gain = CalcGain(param, left.GetGrad(), left.GetHess());
   float right_gain = CalcGain(param, right.GetGrad(), right.GetHess());
@@ -187,8 +248,8 @@ __device__ float inline loss_chg_missing(const gpair_t& scan,
                                          bool& missing_left_out) {  // NOLINT
   float missing_left_loss =
       device_calc_loss_chg(param, scan + missing, parent_sum, parent_gain);
-  float missing_right_loss = device_calc_loss_chg(
-      param, scan, parent_sum, parent_gain);
+  float missing_right_loss =
+      device_calc_loss_chg(param, scan, parent_sum, parent_gain);
 
   if (missing_left_loss >= missing_right_loss) {
     missing_left_out = true;
@@ -298,8 +359,74 @@ inline std::vector<int> col_sample(std::vector<int> features, float colsample) {
 
   std::shuffle(features.begin(), features.end(), common::GlobalRandom());
   features.resize(n);
+  std::sort(features.begin(), features.end());
 
   return features;
 }
+
+/**
+ * \class ColumnSampler
+ *
+ * \brief Handles selection of columns due to colsample_bytree and
+ * colsample_bylevel parameters. Should be initialised the before tree
+ * construction and to reset When tree construction is completed.
+ */
+
+class ColumnSampler {
+  std::vector<int> feature_set_tree;
+  std::map<int, std::vector<int>> feature_set_level;
+  TrainParam param;
+
+ public:
+  /**
+   * \fn  void Init(int64_t num_col, const TrainParam& param)
+   *
+   * \brief Initialise this object before use.
+   *
+   * \param num_col Number of cols.
+   * \param param   The parameter.
+   */
+
+  void Init(int64_t num_col, const TrainParam& param) {
+    this->Reset();
+    this->param = param;
+    feature_set_tree.resize(num_col);
+    std::iota(feature_set_tree.begin(), feature_set_tree.end(), 0);
+    feature_set_tree = col_sample(feature_set_tree, param.colsample_bytree);
+  }
+
+  /**
+   * \fn  void Reset()
+   *
+   * \brief Resets this object.
+   */
+
+  void Reset() {
+    feature_set_tree.clear();
+    feature_set_level.clear();
+  }
+
+  /**
+   * \fn  bool ColumnUsed(int column, int depth)
+   *
+   * \brief Whether the current column should be considered as a split.
+   *
+   * \param column  The column index.
+   * \param depth   The current tree depth.
+   *
+   * \return  True if it should be used, false if it should not be used.
+   */
+
+  bool ColumnUsed(int column, int depth) {
+    if (feature_set_level.count(depth) == 0) {
+      feature_set_level[depth] =
+          col_sample(feature_set_tree, param.colsample_bylevel);
+    }
+
+    return std::binary_search(feature_set_level[depth].begin(),
+                              feature_set_level[depth].end(), column);
+  }
+};
+
 }  // namespace tree
 }  // namespace xgboost

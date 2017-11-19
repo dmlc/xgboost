@@ -20,7 +20,7 @@ y = digits['target']
 X = digits['data']
 kf = KFold(n_splits=2, shuffle=True, random_state=rng)
 for train_index, test_index in kf.split(X):
-    xgb_model = xgb.XGBClassifier().fit(X[train_index],y[train_index])
+    xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
     predictions = xgb_model.predict(X[test_index])
     actuals = y[test_index]
     print(confusion_matrix(actuals, predictions))
@@ -31,7 +31,7 @@ y = iris['target']
 X = iris['data']
 kf = KFold(n_splits=2, shuffle=True, random_state=rng)
 for train_index, test_index in kf.split(X):
-    xgb_model = xgb.XGBClassifier().fit(X[train_index],y[train_index])
+    xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
     predictions = xgb_model.predict(X[test_index])
     actuals = y[test_index]
     print(confusion_matrix(actuals, predictions))
@@ -42,7 +42,7 @@ y = boston['target']
 X = boston['data']
 kf = KFold(n_splits=2, shuffle=True, random_state=rng)
 for train_index, test_index in kf.split(X):
-    xgb_model = xgb.XGBRegressor().fit(X[train_index],y[train_index])
+    xgb_model = xgb.XGBRegressor().fit(X[train_index], y[train_index])
     predictions = xgb_model.predict(X[test_index])
     actuals = y[test_index]
     print(mean_squared_error(actuals, predictions))

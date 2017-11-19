@@ -65,6 +65,19 @@ class RowSetCollection {
   // initialize node id 0->everything
   inline void Init() {
     CHECK_EQ(elem_of_each_node_.size(), 0U);
+
+    if (row_indices_.empty()) {  // edge case: empty instance set
+      // assign arbitrary address here, to bypass nullptr check
+      // (nullptr usually indicates a nonexistent rowset, but we want to
+      //  indicate a valid rowset that happens to have zero length and occupies
+      //  the whole instance set)
+      // this is okay, as BuildHist will compute (end-begin) as the set size
+      const size_t* begin = reinterpret_cast<size_t*>(20);
+      const size_t* end = begin;
+      elem_of_each_node_.emplace_back(Elem(begin, end, 0));
+      return;
+    }
+
     const size_t* begin = dmlc::BeginPtr(row_indices_);
     const size_t* end = dmlc::BeginPtr(row_indices_) + row_indices_.size();
     elem_of_each_node_.emplace_back(Elem(begin, end, 0));
@@ -75,7 +88,7 @@ class RowSetCollection {
                        unsigned left_node_id,
                        unsigned right_node_id) {
     const Elem e = elem_of_each_node_[node_id];
-    const unsigned nthread = row_split_tloc.size();
+    const bst_omp_uint nthread = static_cast<bst_omp_uint>(row_split_tloc.size());
     CHECK(e.begin != nullptr);
     size_t* all_begin = dmlc::BeginPtr(row_indices_);
     size_t* begin = all_begin + (e.begin - all_begin);

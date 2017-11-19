@@ -6,13 +6,14 @@
 #include <xgboost/base.h>
 #include "../../../src/common/device_helpers.cuh"
 #include "gtest/gtest.h"
+#include "../../../src/common/timer.h"
 
 void CreateTestData(xgboost::bst_uint num_rows, int max_row_size,
                     thrust::host_vector<int> *row_ptr,
                     thrust::host_vector<xgboost::bst_uint> *rows) {
   row_ptr->resize(num_rows + 1);
   int sum = 0;
-  for (int i = 0; i <= num_rows; i++) {
+  for (xgboost::bst_uint i = 0; i <= num_rows; i++) {
     (*row_ptr)[i] = sum;
     sum += rand() % max_row_size;  // NOLINT
 
@@ -35,7 +36,7 @@ void SpeedTest() {
   thrust::device_vector<int> output_row(h_rows.size());
   auto d_output_row = output_row.data();
 
-  dh::Timer t;
+  xgboost::common::Timer t;
   dh::TransformLbs(
       0, &temp_memory, h_rows.size(), dh::raw(row_ptr), row_ptr.size() - 1, false,
       [=] __device__(size_t idx, size_t ridx) { d_output_row[idx] = ridx; });

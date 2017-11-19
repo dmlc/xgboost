@@ -346,16 +346,18 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val trainGroupData: Seq[Seq[Int]] = Seq(Ranking.trainGroup0)
     val testRDD = sc.parallelize(Ranking.test, numSlices = 1).map(_.features)
 
-    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "rank:pairwise", "eval_metric" -> "ndcg", "groupData" -> trainGroupData)
 
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 1)
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 2, nWorkers = 1)
     val predRDD = xgBoostModel.predict(testRDD)
     val predResult1: Array[Array[Float]] = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
 
     val avgMetric = xgBoostModel.eval(trainingRDD, "test", iter = 0, groupData = trainGroupData)
     assert(avgMetric contains "ndcg")
+    // If the labels were lost ndcg comes back as 1.0
+    assert(avgMetric.split('=')(1).toFloat < 1F)
   }
 
   test("test use nested groupData") {
@@ -388,5 +390,29 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
       nWorkers = numWorkers)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
+  }
+
+  test("isClassificationTask correctly classifies supported objectives") {
+    import org.scalatest.prop.TableDrivenPropertyChecks._
+
+    val objectives = Table(
+      ("isClassificationTask", "params"),
+      (true, Map("obj_type" -> "classification")),
+      (false, Map("obj_type" -> "regression")),
+      (false, Map("objective" -> "rank:ndcg")),
+      (false, Map("objective" -> "rank:pairwise")),
+      (false, Map("objective" -> "rank:map")),
+      (false, Map("objective" -> "count:poisson")),
+      (true, Map("objective" -> "binary:logistic")),
+      (true, Map("objective" -> "binary:logitraw")),
+      (true, Map("objective" -> "multi:softmax")),
+      (true, Map("objective" -> "multi:softprob")),
+      (false, Map("objective" -> "reg:linear")),
+      (false, Map("objective" -> "reg:logistic")),
+      (false, Map("objective" -> "reg:gamma")),
+      (false, Map("objective" -> "reg:tweedie")))
+    forAll (objectives) { (isClassificationTask: Boolean, params: Map[String, String]) =>
+      assert(XGBoost.isClassificationTask(params) == isClassificationTask)
+    }
   }
 }

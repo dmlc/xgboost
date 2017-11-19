@@ -111,8 +111,8 @@ def reset_learning_rate(learning_rates):
         or a customized function that calculates eta in terms of
         current number of round and the total number of boosting round (e.g. yields
         learning rate decay)
-        - list l: eta = l[boosting round]
-        - function f: eta = f(boosting round, num_boost_round)
+        - list l: eta = l[boosting_round]
+        - function f: eta = f(boosting_round, num_boost_round)
 
     Returns
     -------

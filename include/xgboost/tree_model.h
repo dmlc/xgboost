@@ -679,7 +679,7 @@ inline void UnwindPath(PathElement *unique_path, unsigned unique_depth, unsigned
     }
   }
 
-  for (unsigned i = path_index; i < unique_depth; ++i) {
+  for (auto i = path_index; i < unique_depth; ++i) {
     unique_path[i].feature_index = unique_path[i+1].feature_index;
     unique_path[i].zero_fraction = unique_path[i+1].zero_fraction;
     unique_path[i].one_fraction = unique_path[i+1].one_fraction;
