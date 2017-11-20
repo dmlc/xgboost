@@ -171,9 +171,8 @@ class XGBoostClassificationModel private[spark](
   def numClasses: Int = numOfClasses
 
   override def copy(extra: ParamMap): XGBoostClassificationModel = {
-    val clsModel = defaultCopy(extra).asInstanceOf[XGBoostClassificationModel]
-    clsModel._booster = booster
-    clsModel
+    val newModel = copyValues(new XGBoostClassificationModel(booster), extra)
+    newModel.setSummary(summary)
   }
 
   override protected def predict(features: MLVector): Double = {

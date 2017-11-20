@@ -42,6 +42,21 @@ abstract class XGBoostModel(protected var _booster: Booster)
   extends PredictionModel[MLVector, XGBoostModel] with BoosterParams with Serializable
     with Params with MLWritable {
 
+  private var trainingSummary: Option[XGBoostTrainingSummary] = None
+
+  /**
+   * Returns summary (e.g. train/test objective history) of model on the
+   * training set. An exception is thrown if no summary is available.
+   */
+  def summary: XGBoostTrainingSummary = trainingSummary.getOrElse {
+    throw new IllegalStateException("No training summary available for this XGBoostModel")
+  }
+
+  private[spark] def setSummary(summary: XGBoostTrainingSummary): this.type = {
+    trainingSummary = Some(summary)
+    this
+  }
+
   def setLabelCol(name: String): XGBoostModel = set(labelCol, name)
 
   // scalastyle:off
