@@ -26,7 +26,7 @@ even better to send pull request if you can fix the problem.
 ## Contents
 - [Build the Shared Library](#build-the-shared-library)
   - [Building on Ubuntu/Debian](#building-on-ubuntu-debian)
-  - [Building on macOS](#building-on-macOS)
+  - [Building on macOS](#building-on-macos)
   - [Building on Windows](#building-on-windows)
   - [Building with GPU support](#building-with-gpu-support)
   - [Windows Binaries](#windows-binaries)
