@@ -719,7 +719,7 @@ inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
   // extend the unique path
   PathElement *unique_path = parent_unique_path + unique_depth;
   if (unique_depth > 0) std::copy(parent_unique_path,
-		                  parent_unique_path + unique_depth, unique_path);
+                                  parent_unique_path + unique_depth, unique_path);
   ExtendPath(unique_path, unique_depth, parent_zero_fraction,
              parent_one_fraction, parent_feature_index);
   const unsigned split_index = node.split_index();
@@ -744,7 +744,7 @@ inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
       hot_index = node.cright();
     }
     const unsigned cold_index = (static_cast<int>(hot_index) == node.cleft() ?
-		                 node.cright() : node.cleft());
+                                 node.cright() : node.cleft());
     const bst_float w = this->stat(node_index).sum_hess;
     const bst_float hot_zero_fraction = this->stat(hot_index).sum_hess / w;
     const bst_float cold_zero_fraction = this->stat(cold_index).sum_hess / w;
