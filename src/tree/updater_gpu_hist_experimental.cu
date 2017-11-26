@@ -72,7 +72,7 @@ __device__ void EvaluateFeature(int fidx, const gpair_sum_t* hist,
         thread_active ? hist[scan_begin + threadIdx.x] : gpair_sum_t();
     scan_t(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum(), prefix_op);
 
-    // Calculate gain
+    // Calculate  gain
     gpair_sum_t parent_sum = gpair_sum_t(node.sum_gradients);
 
     gpair_sum_t missing = parent_sum - feature_sum;
@@ -564,7 +564,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
                 const RegTree& tree) {
     monitor.Start("InitDataOnce");
     if (!initialised) {
-//      CheckGradientMax(gpair);
+      CheckGradientMax(gpair);
       this->InitDataOnce(dmat);
     }
     monitor.Stop("InitDataOnce");

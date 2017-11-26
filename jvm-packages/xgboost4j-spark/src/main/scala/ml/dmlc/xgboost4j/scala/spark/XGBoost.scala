@@ -104,7 +104,7 @@ object XGBoost extends Serializable {
       obj: ObjectiveTrait,
       eval: EvalTrait,
       useExternalMemory: Boolean,
-      missing: Float): RDD[Booster] = {
+      missing: Float): RDD[(Booster, Map[String, Array[Float]])] = {
     val partitionedData = if (data.getNumPartitions != numWorkers) {
       logger.info(s"repartitioning training set to $numWorkers partitions")
       data.repartition(numWorkers)
@@ -136,11 +136,12 @@ object XGBoost extends Serializable {
 
       try {
         val numEarlyStoppingRounds = params.get("numEarlyStoppingRounds")
-          .map(_.toString.toInt).getOrElse(0)
+            .map(_.toString.toInt).getOrElse(0)
+        val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](round))
         val booster = SXGBoost.train(watches.train, params, round,
-          watches = watches.toMap, obj = obj, eval = eval,
+          watches.toMap, metrics, obj, eval,
           earlyStoppingRound = numEarlyStoppingRounds)
-        Iterator(booster)
+        Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
       } finally {
         Rabit.shutdown()
         watches.delete()
@@ -330,12 +331,12 @@ object XGBoost extends Serializable {
       val sc = trainingData.sparkContext
       val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
       val overriddenParams = overrideParamsAccordingToTaskCPUs(params, trainingData.sparkContext)
-      val boosters = buildDistributedBoosters(trainingData, overriddenParams,
+      val boostersAndMetrics = buildDistributedBoosters(trainingData, overriddenParams,
         tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
       val sparkJobThread = new Thread() {
         override def run() {
           // force the job
-          boosters.foreachPartition(() => _)
+          boostersAndMetrics.foreachPartition(() => _)
         }
       }
       sparkJobThread.setUncaughtExceptionHandler(tracker)
@@ -343,7 +344,8 @@ object XGBoost extends Serializable {
       val isClsTask = isClassificationTask(params)
       val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
       logger.info(s"Rabit returns with exit code $trackerReturnVal")
-      val model = postTrackerReturnProcessing(trackerReturnVal, boosters, sparkJobThread, isClsTask)
+      val model = postTrackerReturnProcessing(trackerReturnVal, boostersAndMetrics,
+        sparkJobThread, isClsTask)
       if (isClsTask){
         model.asInstanceOf[XGBoostClassificationModel].numOfClasses =
           params.getOrElse("num_class", "2").toString.toInt
@@ -356,15 +358,18 @@ object XGBoost extends Serializable {
 
   private def postTrackerReturnProcessing(
       trackerReturnVal: Int,
-      distributedBoosters: RDD[Booster],
+      distributedBoostersAndMetrics: RDD[(Booster, Map[String, Array[Float]])],
       sparkJobThread: Thread,
-      isClassificationTask: Boolean): XGBoostModel = {
+      isClassificationTask: Boolean
+  ): XGBoostModel = {
     if (trackerReturnVal == 0) {
-      // Copies of the finished model reside in each partition of the `distributedBoosters`.
-      // Any of them can be used to create the model. Here, just choose the first partition.
-      val xgboostModel = XGBoostModel(distributedBoosters.first(), isClassificationTask)
-      distributedBoosters.unpersist(false)
-      xgboostModel
+      // Copies of the final booster and the corresponding metrics
+      // reside in each partition of the `distributedBoostersAndMetrics`.
+      // Any of them can be used to create the model.
+      val (booster, metrics) = distributedBoostersAndMetrics.first()
+      val xgboostModel = XGBoostModel(booster, isClassificationTask)
+      distributedBoostersAndMetrics.unpersist(false)
+      xgboostModel.setSummary(XGBoostTrainingSummary(metrics))
     } else {
       try {
         if (sparkJobThread.isAlive) {
@@ -461,11 +466,17 @@ private object Watches {
     val trainTestRatio = params.get("trainTestRatio").map(_.toString.toDouble).getOrElse(1.0)
     val seed = params.get("seed").map(_.toString.toLong).getOrElse(System.nanoTime())
     val r = new Random(seed)
-    // In the worst-case this would store [[trainTestRatio]] of points
-    // buffered in memory.
-    val (trainPoints, testPoints) = labeledPoints.partition(_ => r.nextDouble() <= trainTestRatio)
+    val testPoints = mutable.ArrayBuffer.empty[XGBLabeledPoint]
+    val trainPoints = labeledPoints.filter { labeledPoint =>
+      val accepted = r.nextDouble() <= trainTestRatio
+      if (!accepted) {
+        testPoints += labeledPoint
+      }
+
+      accepted
+    }
     val trainMatrix = new DMatrix(trainPoints, cacheFileName)
-    val testMatrix = new DMatrix(testPoints, cacheFileName)
+    val testMatrix = new DMatrix(testPoints.iterator, cacheFileName)
     r.setSeed(seed)
     for (baseMargins <- baseMarginsOpt) {
       val (trainMargin, testMargin) = baseMargins.partition(_ => r.nextDouble() <= trainTestRatio)

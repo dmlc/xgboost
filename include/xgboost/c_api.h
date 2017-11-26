@@ -256,7 +256,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
  * \brief free space in data matrix
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixFree(void *handle);
+XGB_DLL int XGDMatrixFree(DMatrixHandle handle);
 /*!
  * \brief load a data matrix into binary file
  * \param handle a instance of data matrix
