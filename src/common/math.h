@@ -11,6 +11,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include "avx_helpers.h"
 
 namespace xgboost {
 namespace common {
@@ -21,6 +22,10 @@ namespace common {
  */
 inline float Sigmoid(float x) {
   return 1.0f / (1.0f + std::exp(-x));
+}
+
+inline avx::Float8 Sigmoid(avx::Float8 x) {
+  return avx::Sigmoid(x);
 }
 
 /*!

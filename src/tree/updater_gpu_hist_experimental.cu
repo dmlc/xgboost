@@ -1,8 +1,8 @@
 /*!
  * Copyright 2017 XGBoost contributors
  */
-#include <thrust/reduce.h>
 #include <thrust/execution_policy.h>
+#include <thrust/reduce.h>
 #include <thrust/sequence.h>
 #include <xgboost/tree_updater.h>
 #include <algorithm>
@@ -564,7 +564,6 @@ class GPUHistMakerExperimental : public TreeUpdater {
                 const RegTree& tree) {
     monitor.Start("InitDataOnce");
     if (!initialised) {
-      CheckGradientMax(gpair);
       this->InitDataOnce(dmat);
     }
     monitor.Stop("InitDataOnce");
@@ -774,6 +773,9 @@ class GPUHistMakerExperimental : public TreeUpdater {
 
   void UpdateTree(const std::vector<bst_gpair>& gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
+    // Temporarily store number of threads so we can change it back later
+    int nthread = omp_get_max_threads();
+
     auto& tree = *p_tree;
 
     monitor.Start("InitData");
@@ -819,6 +821,9 @@ class GPUHistMakerExperimental : public TreeUpdater {
         monitor.Stop("EvaluateSplits");
       }
     }
+
+    // Reset omp num threads
+    omp_set_num_threads(nthread);
   }
 
   struct ExpandEntry {
