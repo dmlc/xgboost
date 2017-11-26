@@ -61,6 +61,7 @@ pipeline {
                         try {
                             sh """
                                     nvidia-docker build  -t opsh2oai/xgboost-build -f Dockerfile-build --build-arg cuda=nvidia/cuda:8.0-cudnn5-devel-ubuntu16.04 .
+                                    nvidia-docker stop ${CONTAINER_NAME} || true
                                     nvidia-docker run --init --rm --name ${CONTAINER_NAME} -d -t -u `id -u`:`id -g` -w `pwd` -v `pwd`:`pwd`:rw --entrypoint=bash opsh2oai/xgboost-build
                                     nvidia-docker exec ${
                                 CONTAINER_NAME
@@ -73,7 +74,7 @@ pipeline {
                             // Archive artifacts
                             arch 'python-package/dist/*.whl'
                         } finally {
-                            sh "nvidia-docker stop ${CONTAINER_NAME}"
+                            sh "nvidia-docker stop ${CONTAINER_NAME} || true"
                         }
                     }
                 }
@@ -93,12 +94,13 @@ pipeline {
                 script {
                     try {
                         sh """
+                            nvidia-docker stop ${CONTAINER_NAME} || true
                             nvidia-docker run  --init --rm --name ${CONTAINER_NAME} -d -t -u `id -u`:`id -g` -w `pwd` -v `pwd`:`pwd`:rw --entrypoint=bash opsh2oai/xgboost-build
                             nvidia-docker exec ${CONTAINER_NAME} bash -c 'export HOME=`pwd`; eval \"\$(/root/.pyenv/bin/pyenv init -)\"  ; /root/.pyenv/bin/pyenv global 3.6.1; pip install `find python-package/dist -name "*xgboost*.whl"`; mkdir -p build/test-reports/ ; python -m nose --with-xunit --xunit-file=build/test-reports/xgboost.xml tests/python-gpu tests/python'
                         """
                     } finally {
                         sh """
-                            nvidia-docker stop ${CONTAINER_NAME}
+                            nvidia-docker stop ${CONTAINER_NAME} || true
                         """
                         junit testResults: 'build/test-reports/*.xml', keepLongStdio: true, allowEmptyResults: false
                         deleteDir()
@@ -179,6 +181,7 @@ pipeline {
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: "awsArtifactsUploader"]]) {
                         try {
                             sh """
+                                    nvidia-docker stop ${CONTAINER_NAME} || true
                                     nvidia-docker build  -t opsh2oai/xgboost-build -f Dockerfile-build --build-arg cuda=nvidia/cuda:8.0-cudnn5-devel-ubuntu16.04 .
                                     nvidia-docker run --init --rm --name ${CONTAINER_NAME} -d -t -u `id -u`:`id -g` -w `pwd` -v `pwd`:`pwd`:rw --entrypoint=bash opsh2oai/xgboost-build
                                     nvidia-docker exec ${
@@ -192,7 +195,7 @@ pipeline {
                             // Archive artifacts
                             arch 'python-package/dist2/*.whl'
                         } finally {
-                            sh "nvidia-docker stop ${CONTAINER_NAME}"
+                            sh "nvidia-docker stop ${CONTAINER_NAME} || true"
                         }
                     }
                 }
@@ -364,6 +367,7 @@ pipeline {
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: "awsArtifactsUploader"]]) {
                         try {
                             sh """
+                                    nvidia-docker stop ${CONTAINER_NAME} || true
                                     nvidia-docker build  -t opsh2oai/xgboost-build -f Dockerfile-build --build-arg cuda=nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04 .
                                     nvidia-docker run --init --rm --name ${CONTAINER_NAME} -d -t -u `id -u`:`id -g` -w `pwd` -v `pwd`:`pwd`:rw --entrypoint=bash opsh2oai/xgboost-build
                                     nvidia-docker exec ${
@@ -377,7 +381,7 @@ pipeline {
                             // Archive artifacts
                             arch 'python-package/dist3/*.whl'
                         } finally {
-                            sh "nvidia-docker stop ${CONTAINER_NAME}"
+                            sh "nvidia-docker stop ${CONTAINER_NAME} || true"
                         }
                     }
                 }

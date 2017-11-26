@@ -62,6 +62,7 @@ pipeline {
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: "awsArtifactsUploader"]]) {
                         try {
                             sh """
+                                    nvidia-docker stop ${CONTAINER_NAME} || true
                                     nvidia-docker build  -t opsh2oai/xgboost-build -f Dockerfile-build --build-arg cuda=nvidia/cuda:8.0-cudnn5-devel-ubuntu16.04 .
                                     nvidia-docker run --init --rm --name ${CONTAINER_NAME} -d -t -u `id -u`:`id -g` -w `pwd` -v `pwd`:`pwd`:rw --entrypoint=bash opsh2oai/xgboost-build
                                     nvidia-docker exec ${
@@ -75,7 +76,7 @@ pipeline {
                             // Archive artifacts
                             arch 'python-package/dist2/*.whl'
                         } finally {
-                            sh "nvidia-docker stop ${CONTAINER_NAME}"
+                            sh "nvidia-docker stop ${CONTAINER_NAME} || true"
                         }
                     }
                 }

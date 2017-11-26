@@ -20,9 +20,9 @@
 namespace xgboost {
 namespace tree {
 
-DMLC_REGISTRY_FILE_TAG(updater_gpu_hist_experimental);
+DMLC_REGISTRY_FILE_TAG(updater_gpu_hist_experimental2);
 
-typedef bst_gpair_precise gpair_sum_t;
+typedef bst_gpair_integer gpair_sum_t;
 
 template <int BLOCK_THREADS, typename reduce_t, typename temp_storage_t>
 __device__ gpair_sum_t ReduceFeature(const gpair_sum_t* begin,
@@ -471,12 +471,12 @@ struct DeviceShard {
   }
 };
 
-class GPUHistMakerExperimental : public TreeUpdater {
+class GPUHistMakerExperimental2 : public TreeUpdater {
  public:
   struct ExpandEntry;
 
-  GPUHistMakerExperimental() : initialised(false) {}
-  ~GPUHistMakerExperimental() {}
+  GPUHistMakerExperimental2() : initialised(false) {}
+  ~GPUHistMakerExperimental2() {}
   void Init(
       const std::vector<std::pair<std::string, std::string>>& args) override {
     param.InitAllowUnknown(args);
@@ -491,7 +491,7 @@ class GPUHistMakerExperimental : public TreeUpdater {
       qexpand_.reset(new ExpandQueue(depth_wise));
     }
 
-    monitor.Init("updater_gpu_hist_experimental", param.debug_verbose);
+    monitor.Init("updater_gpu_hist_experimental2", param.debug_verbose);
   }
   void Update(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
@@ -886,9 +886,9 @@ class GPUHistMakerExperimental : public TreeUpdater {
   dh::AllReducer reducer;
 };
 
-XGBOOST_REGISTER_TREE_UPDATER(GPUHistMakerExperimental,
-                              "grow_gpu_hist_experimental")
-    .describe("Grow tree with GPU using doubles for sum.")
-    .set_body([]() { return new GPUHistMakerExperimental(); });
+XGBOOST_REGISTER_TREE_UPDATER(GPUHistMakerExperimental2,
+                              "grow_gpu_hist_experimental2")
+    .describe("Grow tree with GPU using integer64s for sum.")
+    .set_body([]() { return new GPUHistMakerExperimental2(); });
 }  // namespace tree
 }  // namespace xgboost

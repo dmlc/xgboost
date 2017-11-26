@@ -36,6 +36,7 @@ DMLC_REGISTRY_LINK_TAG(updater_sync);
 DMLC_REGISTRY_LINK_TAG(updater_gpu);
 DMLC_REGISTRY_LINK_TAG(updater_gpu_hist);
 DMLC_REGISTRY_LINK_TAG(updater_gpu_hist_experimental);
+DMLC_REGISTRY_LINK_TAG(updater_gpu_hist_experimental2);
 #endif
 }  // namespace tree
 }  // namespace xgboost
