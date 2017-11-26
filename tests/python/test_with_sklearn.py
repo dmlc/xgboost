@@ -248,6 +248,8 @@ def test_sklearn_api_gblinear():
     assert err < 0.2
 
 
+from nose.tools import nottest
+@nottest
 def test_sklearn_plotting():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_iris
