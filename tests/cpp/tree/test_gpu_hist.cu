@@ -8,7 +8,7 @@
 #include "gtest/gtest.h"
 
 #include "../../../src/gbm/gbtree_model.h"
-#include "../../../src/tree/updater_gpu_hist_experimental.cu"
+#include "../../../src/tree/updater_gpu_hist.cu"
 
 namespace xgboost {
 namespace tree {
