@@ -755,4 +755,15 @@ XGBOOST_REGISTER_TREE_UPDATER(GPUMaker, "grow_gpu")
     .set_body([]() { return new GPUMaker(); });
 
 }  // namespace tree
+
+
+int gpu_double_fast_compute_capable() {
+  int n_devices = dh::n_visible_devices();
+  for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
+    cudaDeviceProp prop;
+    dh::safe_cuda(cudaGetDeviceProperties(&prop, d_idx));
+    if(prop.major < 6) return 0;
+  }
+  return 1;
+}
 }  // namespace xgboost

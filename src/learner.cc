@@ -193,6 +193,12 @@ class LearnerImpl : public Learner {
       this->AssertGPUSupport();
       if (cfg_.count("updater") == 0) {
         cfg_["updater"] = "grow_gpu_hist_experimental,prune";
+#if(XGBOOST_USE_CUDA)
+        extern int gpu_double_fast_compute_capable(void);
+        if(!gpu_double_fast_compute_capable()){
+          cfg_["updater"] = "grow_gpu_hist_experimental2,prune";
+        }
+#endif
       }
       if (cfg_.count("predictor") == 0) {
         cfg_["predictor"] = "gpu_predictor";
