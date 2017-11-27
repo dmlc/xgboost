@@ -22,7 +22,13 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist_experimental2);
 
+#define PRECISE_EXP 0
+
+#if(PRECISE_EXP==1)
+typedef bst_gpair_precise gpair_sum_t;
+#else
 typedef bst_gpair_integer gpair_sum_t;
+#endif
 
 template <int BLOCK_THREADS, typename reduce_t, typename temp_storage_t>
 __device__ gpair_sum_t ReduceFeature(const gpair_sum_t* begin,
@@ -564,7 +570,9 @@ class GPUHistMakerExperimental2 : public TreeUpdater {
                 const RegTree& tree) {
     monitor.Start("InitDataOnce");
     if (!initialised) {
-      CheckGradientMax(gpair);
+      if(PRECISE_EXP==0){
+          CheckGradientMax(gpair);
+      }
       this->InitDataOnce(dmat);
     }
     monitor.Stop("InitDataOnce");

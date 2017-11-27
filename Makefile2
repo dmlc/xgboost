@@ -4,6 +4,13 @@ libxgboost2: libxgboostp1 libxgboostp2nonccl libxgboostp3
 
 libxgboostp1:
 	git submodule init && git submodule update dmlc-core && git submodule update nccl && git submodule update cub && git submodule update rabit
+	rm -rf src/tree/updater_gpu_hist_experimental2.cu ;\
+	cp -a src/tree/updater_gpu_hist_experimental.cu src/tree/updater_gpu_hist_experimental2.cu ;\
+	sed -i 's/updater_gpu_hist_experimental/updater_gpu_hist_experimental2/g' src/tree/updater_gpu_hist_experimental2.cu ;\
+	sed -i 's/grow_gpu_hist_experimental/grow_gpu_hist_experimental2/g' src/tree/updater_gpu_hist_experimental2.cu ;\
+	sed -i 's/define PRECISE_EXP 1/define PRECISE_EXP 0/g' src/tree/updater_gpu_hist_experimental2.cu ;\
+	sed -i 's/GPUHistMakerExperimental/GPUHistMakerExperimental2/g' src/tree/updater_gpu_hist_experimental2.cu ;\
+	sed -i 's/Grow tree with GPU using doubles for sum/Grow tree with GPU using integer64s for sum/g' src/tree/updater_gpu_hist_experimental2.cu
 libxgboostp2:
 	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DCMAKE_BUILD_TYPE=Release && make -j
 libxgboostp2nonccl:
