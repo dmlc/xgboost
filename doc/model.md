@@ -31,7 +31,7 @@ to measure the performance of the model given a certain set of parameters.
 A very important fact about objective functions is they ***must always*** contain two parts: training loss and regularization.
 
 ```math
-Obj(\Theta) = L(\theta) + \Omega(\Theta)
+Obj(\theta) = L(\theta) + \Omega(\theta)
 ```
 
 where ``$ L $`` is the training loss function, and ``$ \Omega $`` is the regularization term. The training loss measures how *predictive* our model is on training data.
