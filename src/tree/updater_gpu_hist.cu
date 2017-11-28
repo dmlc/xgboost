@@ -56,7 +56,8 @@ __device__ void EvaluateFeature(int fidx, const gpair_sum_t* hist,
                                 DeviceSplitCandidate* best_split,
                                 const DeviceNodeStats& node,
                                 const GPUTrainingParam& param,
-                                temp_storage_t* temp_storage) {
+                                temp_storage_t* temp_storage, int constraint,
+                                const ValueConstraint& value_constraint) {
   int gidx_begin = feature_segments[fidx];
   int gidx_end = feature_segments[fidx + 1];
 
@@ -82,7 +83,7 @@ __device__ void EvaluateFeature(int fidx, const gpair_sum_t* hist,
     float gain = null_gain;
     if (thread_active) {
       gain = loss_chg_missing(bin, missing, parent_sum, node.root_gain, param,
-                              missing_left);
+                              constraint, value_constraint, missing_left);
     }
 
     __syncthreads();
@@ -120,7 +121,8 @@ __global__ void evaluate_split_kernel(
     const gpair_sum_t* d_hist, int nidx, uint64_t n_features,
     DeviceNodeStats nodes, const int* d_feature_segments,
     const float* d_fidx_min_map, const float* d_gidx_fvalue_map,
-    GPUTrainingParam gpu_param, DeviceSplitCandidate* d_split) {
+    GPUTrainingParam gpu_param, DeviceSplitCandidate* d_split,
+    ValueConstraint value_constraint, int* d_monotonic_constraints) {
   typedef cub::KeyValuePair<int, float> ArgMaxT;
   typedef cub::BlockScan<gpair_sum_t, BLOCK_THREADS, cub::BLOCK_SCAN_WARP_SCANS>
       BlockScanT;
@@ -145,9 +147,11 @@ __global__ void evaluate_split_kernel(
   __syncthreads();
 
   auto fidx = blockIdx.x;
+  auto constraint = d_monotonic_constraints[fidx];
   EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT>(
       fidx, d_hist, d_feature_segments, d_fidx_min_map[fidx], d_gidx_fvalue_map,
-      &best_split, nodes, gpu_param, &temp_storage);
+      &best_split, nodes, gpu_param, &temp_storage, constraint,
+      value_constraint);
 
   __syncthreads();
 
@@ -230,6 +234,7 @@ struct DeviceShard {
   dh::dvec<int> feature_segments;
   dh::dvec<float> gidx_fvalue_map;
   dh::dvec<float> min_fvalue;
+  dh::dvec<int> monotone_constraints;
   std::vector<bst_gpair> node_sum_gradients;
   common::CompressedIterator<uint32_t> gidx;
   int row_stride;
@@ -287,10 +292,12 @@ struct DeviceShard {
     ba.allocate(device_idx, param.silent, &gidx_buffer, compressed_size_bytes,
                 &gpair, n_rows, &ridx, n_rows, &position, n_rows,
                 &feature_segments, gmat.cut->row_ptr.size(), &gidx_fvalue_map,
-                gmat.cut->cut.size(), &min_fvalue, gmat.cut->min_val.size());
+                gmat.cut->cut.size(), &min_fvalue, gmat.cut->min_val.size(),
+                &monotone_constraints, param.monotone_constraints.size());
     gidx_fvalue_map = gmat.cut->cut;
     min_fvalue = gmat.cut->min_val;
     feature_segments = gmat.cut->row_ptr;
+    monotone_constraints = param.monotone_constraints;
 
     node_sum_gradients.resize(max_nodes);
     ridx_segments.resize(max_nodes);
@@ -500,6 +507,7 @@ class GPUHistMaker : public TreeUpdater {
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
+    ValueConstraint::Init(&param, dmat->info().num_col);
     // build tree
     try {
       for (size_t i = 0; i < trees.size(); ++i) {
@@ -651,7 +659,8 @@ class GPUHistMaker : public TreeUpdater {
               shard->hist.GetHistPtr(nidx), nidx, info->num_col, node,
               shard->feature_segments.data(), shard->min_fvalue.data(),
               shard->gidx_fvalue_map.data(), GPUTrainingParam(param),
-              d_split + i * columns);
+              d_split + i * columns, node_value_constraints_[nidx],
+              shard->monotone_constraints.data());
     }
 
     dh::safe_cuda(
@@ -707,6 +716,9 @@ class GPUHistMaker : public TreeUpdater {
       shard->node_sum_gradients[root_nidx] = sum_gradient;
     }
 
+    // Initialise root constraint
+    node_value_constraints_.resize(p_tree->GetNodes().size());
+
     // Generate first split
     auto splits = this->EvaluateSplits({root_nidx}, p_tree);
     qexpand_->push(
@@ -752,14 +764,27 @@ class GPUHistMaker : public TreeUpdater {
                      candidate.split.dir == LeftDir);
     tree.stat(candidate.nid).loss_chg = candidate.split.loss_chg;
 
+    // Set up child constraints
+    node_value_constraints_.resize(tree.GetNodes().size());
+    GradStats left_stats(param);
+    left_stats.Add(candidate.split.left_sum);
+    GradStats right_stats(param);
+    right_stats.Add(candidate.split.right_sum);
+    node_value_constraints_[candidate.nid].SetChild(
+        param, parent.split_index(), left_stats, right_stats,
+        &node_value_constraints_[parent.cleft()],
+        &node_value_constraints_[parent.cright()]);
+
     // Configure left child
-    auto left_weight = CalcWeight(param, candidate.split.left_sum);
+    auto left_weight =
+        node_value_constraints_[parent.cleft()].CalcWeight(param, left_stats);
     tree[parent.cleft()].set_leaf(left_weight * param.learning_rate, 0);
     tree.stat(parent.cleft()).base_weight = left_weight;
     tree.stat(parent.cleft()).sum_hess = candidate.split.left_sum.GetHess();
 
     // Configure right child
-    auto right_weight = CalcWeight(param, candidate.split.right_sum);
+    auto right_weight =
+        node_value_constraints_[parent.cright()].CalcWeight(param, right_stats);
     tree[parent.cright()].set_leaf(right_weight * param.learning_rate, 0);
     tree.stat(parent.cright()).base_weight = right_weight;
     tree.stat(parent.cright()).sum_hess = candidate.split.right_sum.GetHess();
@@ -889,10 +914,10 @@ class GPUHistMaker : public TreeUpdater {
   std::unique_ptr<ExpandQueue> qexpand_;
   common::Monitor monitor;
   dh::AllReducer reducer;
+  std::vector<ValueConstraint> node_value_constraints_;
 };
 
-XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker,
-                              "grow_gpu_hist")
+XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
     .describe("Grow tree with GPU.")
     .set_body([]() { return new GPUHistMaker(); });
 }  // namespace tree
