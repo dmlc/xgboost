@@ -16,7 +16,8 @@
 
 #else
 __device__ __forceinline__ double atomicAdd(double* address, double val) {
-  unsigned long long int* address_as_ull = (unsigned long long int*)address;  // NOLINT
+  unsigned long long int* address_as_ull =
+      (unsigned long long int*)address;                   // NOLINT
   unsigned long long int old = *address_as_ull, assumed;  // NOLINT
 
   do {
@@ -240,23 +241,23 @@ __device__ inline float device_calc_loss_chg(const GPUTrainingParam& param,
 }
 
 template <typename gpair_t>
-__device__ float inline loss_chg_missing(const gpair_t& scan,
-                                         const gpair_t& missing,
-                                         const gpair_t& parent_sum,
-                                         const float& parent_gain,
-                                         const GPUTrainingParam& param,
-                                         bool& missing_left_out) {  // NOLINT
-  float missing_left_loss =
-      device_calc_loss_chg(param, scan + missing, parent_sum, parent_gain);
-  float missing_right_loss =
-      device_calc_loss_chg(param, scan, parent_sum, parent_gain);
+__device__ float inline loss_chg_missing(
+    const gpair_t& scan, const gpair_t& missing, const gpair_t& parent_sum,
+    const float& parent_gain, const GPUTrainingParam& param, int constraint,
+    const ValueConstraint& value_constraint,
+    bool& missing_left_out) {  // NOLINT
+  float missing_left_gain = value_constraint.CalcSplitGain(
+      param, constraint, GradStats(scan + missing),
+      GradStats(parent_sum - (scan + missing)));
+  float missing_right_gain = value_constraint.CalcSplitGain(
+      param, constraint, GradStats(scan), GradStats(parent_sum - scan));
 
-  if (missing_left_loss >= missing_right_loss) {
+  if (missing_left_gain >= missing_right_gain) {
     missing_left_out = true;
-    return missing_left_loss;
+    return missing_left_gain - parent_gain;
   } else {
     missing_left_out = false;
-    return missing_right_loss;
+    return missing_right_gain - parent_gain;
   }
 }
 

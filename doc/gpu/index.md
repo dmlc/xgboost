@@ -46,6 +46,8 @@ Specify the 'tree_method' parameter as one of the following algorithms.
 +--------------------+------------+-----------+
 | grow_policy        | |cross|    | |tick|    |
 +--------------------+------------+-----------+
+| monotone_constraints  | |cross|    | |tick|    |
++--------------------+------------+-----------+
 
 ```
 
