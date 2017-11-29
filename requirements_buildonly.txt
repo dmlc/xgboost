@@ -5,7 +5,6 @@ pytest-xdist>=1.18.0
 sphinx>=1.5.6
 sphinx_rtd_theme>=0.2.4
 wheel>=0.29.0
-h2o>=3.10.4.8
 coverage>=4.4.1
 cmake>=0.8.0
 Cython>=0.25.2
