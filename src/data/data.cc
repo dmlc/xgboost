@@ -210,6 +210,10 @@ DMatrix* DMatrix::Load(const std::string& uri,
     LOG(CONSOLE) << dmat->info().num_row << 'x' << dmat->info().num_col << " matrix with "
                  << dmat->info().num_nonzero << " entries loaded from " << uri;
   }
+  /* sync up number of features after matrix loaded.
+   * partitioned data will fail the train/val validation check 
+   * since partitioned data not knowing the real number of features. */
+  rabit::Allreduce<rabit::op::Max>(&dmat->info().num_col, 1);
   // backward compatiblity code.
   if (!load_row_split) {
     MetaInfo& info = dmat->info();

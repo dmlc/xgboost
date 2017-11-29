@@ -160,6 +160,8 @@ def c_str(string):
 
 def c_array(ctype, values):
     """Convert a python string to c array."""
+    if isinstance(values, np.ndarray) and values.dtype.itemsize == ctypes.sizeof(ctype):
+        return (ctype * len(values)).from_buffer_copy(values)
     return (ctype * len(values))(*values)
 
 

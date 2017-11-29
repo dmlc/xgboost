@@ -302,7 +302,7 @@ DEV_INLINE void argMaxWithAtomics(
       ExactSplitCandidate s;
       bst_gpair missing = parentSum - colSum;
       s.score = loss_chg_missing(gradScans[id], missing, parentSum, parentGain,
-                                 param, tmp);
+                                 param, 0, ValueConstraint(), tmp);
       s.index = id;
       atomicArgMax(nodeSplits + uid, s);
     }  // end if nodeId != UNUSED_NODE
@@ -580,7 +580,7 @@ class GPUMaker : public TreeUpdater {
         // get the default direction for the current node
         bst_gpair missing = n.sum_gradients - gradSum;
         loss_chg_missing(gradScan, missing, n.sum_gradients, n.root_gain,
-                         gpu_param, missingLeft);
+                         gpu_param, 0, ValueConstraint(), missingLeft);
         // get the score/weight/id/gradSum for left and right child nodes
         bst_gpair lGradSum = missingLeft ? gradScan + missing : gradScan;
         bst_gpair rGradSum = n.sum_gradients - lGradSum;

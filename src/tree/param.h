@@ -311,6 +311,10 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   static const int kSimpleStats = 1;
   /*! \brief constructor, the object must be cleared during construction */
   explicit GradStats(const TrainParam& param) { this->Clear(); }
+
+  template <typename gpair_t>
+  XGBOOST_DEVICE explicit GradStats(const gpair_t &sum)
+      : sum_grad(sum.GetGrad()), sum_hess(sum.GetHess()) {}
   /*! \brief clear the statistics */
   inline void Clear() { sum_grad = sum_hess = 0.0f; }
   /*! \brief check if necessary information is ready */
@@ -332,11 +336,13 @@ struct XGBOOST_ALIGNAS(16) GradStats {
     this->Add(b.GetGrad(), b.GetHess());
   }
   /*! \brief calculate leaf weight */
-  inline double CalcWeight(const TrainParam& param) const {
+template <typename param_t>
+  inline double CalcWeight(const param_t& param) const {
     return xgboost::tree::CalcWeight(param, sum_grad, sum_hess);
   }
   /*! \brief calculate gain of the solution */
-  inline double CalcGain(const TrainParam& param) const {
+template <typename param_t>
+  inline double CalcGain(const param_t& param) const {
     return xgboost::tree::CalcGain(param, sum_grad, sum_hess);
   }
   /*! \brief add statistics to the data */
@@ -367,7 +373,9 @@ struct XGBOOST_ALIGNAS(16) GradStats {
 };
 
 struct NoConstraint {
-  inline static void Init(TrainParam *param, unsigned num_feature) {}
+  inline static void Init(TrainParam *param, unsigned num_feature) {
+    param->monotone_constraints.resize(num_feature, 0);
+  }
   inline double CalcSplitGain(const TrainParam &param, bst_uint split_index,
                               GradStats left, GradStats right) const {
     return left.CalcGain(param) + right.CalcGain(param);
@@ -386,13 +394,14 @@ struct NoConstraint {
 struct ValueConstraint {
   double lower_bound;
   double upper_bound;
-  ValueConstraint()
+  XGBOOST_DEVICE ValueConstraint()
       : lower_bound(-std::numeric_limits<double>::max()),
         upper_bound(std::numeric_limits<double>::max()) {}
   inline static void Init(TrainParam *param, unsigned num_feature) {
-    param->monotone_constraints.resize(num_feature, 1);
+    param->monotone_constraints.resize(num_feature, 0);
   }
-  inline double CalcWeight(const TrainParam &param, GradStats stats) const {
+template <typename param_t>
+  XGBOOST_DEVICE inline double CalcWeight(const param_t &param, GradStats stats) const {
     double w = stats.CalcWeight(param);
     if (w < lower_bound) {
       return lower_bound;
@@ -403,22 +412,23 @@ struct ValueConstraint {
     return w;
   }
 
-  inline double CalcGain(const TrainParam &param, GradStats stats) const {
+template <typename param_t>
+  XGBOOST_DEVICE inline double CalcGain(const param_t &param, GradStats stats) const {
     return CalcGainGivenWeight(param, stats.sum_grad, stats.sum_hess,
                                CalcWeight(param, stats));
   }
 
-  inline double CalcSplitGain(const TrainParam &param, bst_uint split_index,
+template <typename param_t>
+  XGBOOST_DEVICE inline double CalcSplitGain(const param_t &param, int constraint,
                               GradStats left, GradStats right) const {
     double wleft = CalcWeight(param, left);
     double wright = CalcWeight(param, right);
-    int c = param.monotone_constraints[split_index];
     double gain =
         CalcGainGivenWeight(param, left.sum_grad, left.sum_hess, wleft) +
         CalcGainGivenWeight(param, right.sum_grad, right.sum_hess, wright);
-    if (c == 0) {
+    if (constraint == 0) {
       return gain;
-    } else if (c > 0) {
+    } else if (constraint > 0) {
       return wleft < wright ? gain : 0.0;
     } else {
       return wleft > wright ? gain : 0.0;

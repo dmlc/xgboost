@@ -97,7 +97,7 @@ def train_sparse(param_in, comparison_tree_method):
 
 # Enumerates all permutations of variable parameters
 def assert_updater_accuracy(tree_method, comparison_tree_method, variable_param, tolerance):
-    param = {'tree_method': tree_method }
+    param = {'tree_method': tree_method}
     names = sorted(variable_param)
     combinations = it.product(*(variable_param[Name] for Name in names))
 
@@ -109,10 +109,14 @@ def assert_updater_accuracy(tree_method, comparison_tree_method, variable_param,
             param_tmp[name] = set[i]
 
         print(param_tmp, file=sys.stderr)
-        assert_accuracy(train_boston(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance, param_tmp)
-        assert_accuracy(train_digits(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance, param_tmp)
-        assert_accuracy(train_cancer(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance, param_tmp)
-        assert_accuracy(train_sparse(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance, param_tmp)
+        assert_accuracy(train_boston(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance,
+                        param_tmp)
+        assert_accuracy(train_digits(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance,
+                        param_tmp)
+        assert_accuracy(train_cancer(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance,
+                        param_tmp)
+        assert_accuracy(train_sparse(param_tmp, comparison_tree_method), tree_method, comparison_tree_method, tolerance,
+                        param_tmp)
 
 
 @attr('gpu')
@@ -122,5 +126,6 @@ class TestGPU(unittest.TestCase):
         assert_updater_accuracy('gpu_exact', 'exact', variable_param, 0.02)
 
     def test_gpu_hist(self):
-        variable_param = {'n_gpus': [1, -1], 'max_depth': [2, 6], 'max_leaves': [255, 4], 'max_bin': [2, 16, 1024]}
+        variable_param = {'n_gpus': [1, -1], 'max_depth': [2, 6], 'max_leaves': [255, 4], 'max_bin': [2, 16, 1024],
+                          'grow_policy': ['depthwise', 'lossguide']}
         assert_updater_accuracy('gpu_hist', 'hist', variable_param, 0.01)
