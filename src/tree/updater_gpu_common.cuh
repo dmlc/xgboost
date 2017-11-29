@@ -60,7 +60,7 @@ __device__ __forceinline__ void AtomicAddGpair(bst_gpair_integer* dest,
 /**
  * \fn  void CheckGradientMax(const dh::dvec<bst_gpair>& gpair)
  *
- * \brief Check maximum gradient value is below 2^16. This is to prevent
+ * \brief Check maximum gradient value is below max allowed. This is to prevent
  * overflow when using integer gradient summation.
  */
 
@@ -70,8 +70,12 @@ inline void CheckGradientMax(const std::vector<bst_gpair>& gpair) {
       std::accumulate(ptr, ptr + (gpair.size() * 2), 0.f,
                       [=](float a, float b) { return max(abs(a), abs(b)); });
 
-  CHECK_LT(abs_max, std::pow(2.0f, 16.0f))
-      << "Labels are too large for this algorithm. Rescale to less than 2^16.";
+  float max_allowed = 1E-4f*std::pow(2.0f, 63.0f)/(1+gpair.size());
+  CHECK_LT(abs_max, max_allowed)
+      << "Labels are too large for this algorithm. Rescale to much less than " << max_allowed << ".";
+
+  CHECK_GT(abs_max, 1e-4f)
+      << "Labels are too small for this algorithm. Rescale to much more than 1E-4.";
 }
 
 struct GPUTrainingParam {

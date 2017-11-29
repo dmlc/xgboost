@@ -472,9 +472,12 @@ class DMatrix(object):
             nthread))
 
     def __del__(self):
-        if self.handle is not None:
-            _check_call(_LIB.XGDMatrixFree(self.handle))
-            self.handle = None
+        try:
+            if self.handle is not None:
+                _check_call(_LIB.XGDMatrixFree(self.handle))
+                self.handle = None
+        except AttributeError:
+            pass
 
     def get_float_info(self, field):
         """Get float property from the DMatrix.
@@ -833,6 +836,7 @@ class Booster(object):
         model_file : string
             Path to the model file.
         """
+        self.handle = None
         for d in cache:
             if not isinstance(d, DMatrix):
                 raise TypeError('invalid cache item: {}'.format(type(d).__name__))
@@ -848,9 +852,12 @@ class Booster(object):
             self.load_model(model_file)
 
     def __del__(self):
-        if self.handle is not None:
-            _check_call(_LIB.XGBoosterFree(self.handle))
-            self.handle = None
+        try:
+            if self.handle is not None:
+                _check_call(_LIB.XGBoosterFree(self.handle))
+                self.handle = None
+        except AttributeError:
+            pass
 
     def __getstate__(self):
         # can't pickle ctypes pointers
