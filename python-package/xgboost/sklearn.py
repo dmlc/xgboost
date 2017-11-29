@@ -543,6 +543,38 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             classone_probs = class_probs
             classzero_probs = 1.0 - classone_probs
             return np.vstack((classzero_probs, classone_probs)).transpose()
+          
+    def predict_leaf(self, data, output_margin=False, ntree_limit=0):
+        """Return leaf predictions.
+        
+        The output will be a matrix of (nsample, ntrees)
+        with each record indicating the predicted leaf index of each sample in each tree.
+        Note that the leaf index of a tree is unique per tree, so you may find leaf 1
+        in both tree 1 and tree 0.
+        
+        Parameters
+        ----------
+        data : :obj:`numpy.array` 
+            Input of shape (nsamples, nfeatures)
+
+        output_margin : bool
+            Whether to output the raw untransformed margin value.
+
+        ntree_limit : int
+            Limit number of trees in the prediction; defaults to 0 (use all trees).
+        
+        Returns
+        -------
+        leaf_preds : :obj:`numpy.array`
+            A matrix of (nsample, ntrees)
+            
+        """
+        test_dmatrix = DMatrix(data, missing=self.missing)
+        leaf_preds = self.booster().predict(test_dmatrix,
+                                            output_margin=output_margin,
+                                            ntree_limit=ntree_limit,
+                                            pred_leaf=True)
+        return leaf_preds
 
     def evals_result(self):
         """Return the evaluation results.
