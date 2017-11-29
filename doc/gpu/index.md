@@ -17,7 +17,7 @@ Specify the 'tree_method' parameter as one of the following algorithms.
 +==============+=================================================================================================================================================================================================================+
 | gpu_exact    | The standard XGBoost tree construction algorithm. Performs exact search for splits. Slower and uses considerably more memory than 'gpu_hist'                                                                    |
 +--------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| gpu_hist     | Equivalent to the XGBoost fast histogram algorithm. Much faster and uses considerably less memory. NOTE: Cannot be used with labels larger in magnitude than 2^16 due to it's histogram aggregation algorithm.  |
+| gpu_hist     | Equivalent to the XGBoost fast histogram algorithm. Much faster and uses considerably less memory. NOTE: Will run very slowly on GPUs older than Pascal architecture.  |
 +--------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -44,17 +44,18 @@ Specify the 'tree_method' parameter as one of the following algorithms.
 +--------------------+------------+-----------+
 | predictor          | |tick|     | |tick|    |
 +--------------------+------------+-----------+
+| grow_policy        | |cross|    | |tick|    |
++--------------------+------------+-----------+
 
-|  
 ```
 
 GPU accelerated prediction is enabled by default for the above mentioned 'tree_method' parameters but can be switched to CPU prediction by setting 'predictor':'cpu_predictor'. This could be useful if you want to conserve GPU memory. Likewise when using CPU algorithms, GPU accelerated prediction can be enabled by setting 'predictor':'gpu_predictor'.
 
 The device ordinal can be selected using the 'gpu_id' parameter, which defaults to 0.
 
-Multiple GPUs can be used with the grow_gpu_hist parameter using the n_gpus parameter. which defaults to 1. If this is set to -1 all available GPUs will be used.  If gpu_id is specified as non-zero, the gpu device order is mod(gpu_id + i) % n_visible_devices for i=0 to n_gpus-1.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.  For example, when n_features * n_bins * 2^depth divided by time of each round/iteration becomes comparable to the real PCI 16x bus bandwidth of order 4GB/s to 10GB/s, then AllReduce will dominant code speed and multiple GPUs become ineffective at increasing performance.  Also, CPU overhead between GPU calls can limit usefulness of multiple GPUs.
+Multiple GPUs can be used with the grow_gpu_hist parameter using the n_gpus parameter. which defaults to 1. If this is set to -1 all available GPUs will be used.  If gpu_id is specified as non-zero, the gpu device order is mod(gpu_id + i) % n_visible_devices for i=0 to n_gpus-1.  As with GPU vs. CPU, multi-GPU will not always be faster than a single GPU due to PCI bus bandwidth that can limit performance.
 
-This plugin currently works with the CLI version and python version.
+This plugin currently works with the CLI, python and R - see installation guide for details.
 
 Python example:
 ```python
@@ -83,13 +84,14 @@ Training time time on 1,000,000 rows x 50 columns with 500 boosting iterations a
 | exact        | 1082.20  |
 +--------------+----------+
 
-|  
 ```
 
 [See here](http://dmlc.ml/2016/12/14/GPU-accelerated-xgboost.html) for additional performance benchmarks of the 'gpu_exact' tree_method.
 
 ## References
 [Mitchell R, Frank E. (2017) Accelerating the XGBoost algorithm using GPU computing. PeerJ Computer Science 3:e127 https://doi.org/10.7717/peerj-cs.127](https://peerj.com/articles/cs-127/)
+
+[Nvidia Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA](https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/)
 
 ## Author
 Rory Mitchell

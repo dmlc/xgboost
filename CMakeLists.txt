@@ -9,6 +9,7 @@ msvc_use_static_runtime()
 
 # Options
 option(USE_CUDA  "Build with GPU acceleration") 
+option(USE_AVX  "Build with AVX instructions. May not produce identical results due to approximate math." OFF) 
 option(USE_NCCL "Build using NCCL for multi-GPU. Also requires USE_CUDA") 
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
@@ -38,6 +39,17 @@ else()
   # Performance
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops")
 endif()
+
+# AVX
+if(USE_AVX)
+  if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX")
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
+  endif()
+  add_definitions(-DXGBOOST_USE_AVX)
+endif()
+
 
 # compiled code customizations for R package
 if(R_LIB)
@@ -212,12 +224,12 @@ endif()
 
 # Test
 if(GOOGLE_TEST)
-  enable_testing()
   find_package(GTest REQUIRED)
+  enable_testing()
 
   file(GLOB_RECURSE TEST_SOURCES "tests/cpp/*.cc")
   auto_source_group("${TEST_SOURCES}")
-  include_directories(${GTEST_INCLUDE_DIRS})
+  include_directories(${GTEST_INCLUDE_DIR})
 
   if(USE_CUDA)
     file(GLOB_RECURSE CUDA_TEST_SOURCES "tests/cpp/*.cu")
@@ -228,7 +240,7 @@ if(GOOGLE_TEST)
 
   add_executable(testxgboost ${TEST_SOURCES} ${CUDA_TEST_OBJS} $<TARGET_OBJECTS:objxgboost>)
   set_output_directory(testxgboost ${PROJECT_SOURCE_DIR})
-  target_link_libraries(testxgboost ${GTEST_BOTH_LIBRARIES} ${LINK_LIBRARIES})
+  target_link_libraries(testxgboost ${GTEST_LIBRARIES} ${LINK_LIBRARIES})
 
   add_test(TestXGBoost testxgboost)
 endif()

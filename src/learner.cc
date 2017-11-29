@@ -111,8 +111,7 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
         .add_enum("hist", 3)
         .add_enum("gpu_exact", 4)
         .add_enum("gpu_hist", 5)
-        .add_enum("gpu_hist_experimental", 6)
-        .add_enum("gpu_hist_experimental2", 7)
+        .add_enum("gpu_hist2", 6)
         .describe("Choice of tree construction method.");
     DMLC_DECLARE_FIELD(test_flag).set_default("").describe(
         "Internal test flag");
@@ -185,28 +184,12 @@ class LearnerImpl : public Learner {
       this->AssertGPUSupport();
       if (cfg_.count("updater") == 0) {
         cfg_["updater"] = "grow_gpu_hist";
-      }
-      if (cfg_.count("predictor") == 0) {
-        cfg_["predictor"] = "gpu_predictor";
-      }
-    } else if (tparam.tree_method == 6) {
-      this->AssertGPUSupport();
-      if (cfg_.count("updater") == 0) {
-        cfg_["updater"] = "grow_gpu_hist_experimental,prune";
 #if(XGBOOST_USE_CUDA)
         extern int gpu_double_fast_compute_capable(void);
         if(!gpu_double_fast_compute_capable()){
-          cfg_["updater"] = "grow_gpu_hist_experimental2,prune";
+          cfg_["updater"] = "grow_gpu_hist2,prune";
         }
 #endif
-      }
-      if (cfg_.count("predictor") == 0) {
-        cfg_["predictor"] = "gpu_predictor";
-      }
-    } else if (tparam.tree_method == 7) {
-      this->AssertGPUSupport();
-      if (cfg_.count("updater") == 0) {
-        cfg_["updater"] = "grow_gpu_hist_experimental2,prune";
       }
       if (cfg_.count("predictor") == 0) {
         cfg_["predictor"] = "gpu_predictor";
@@ -483,7 +466,7 @@ class LearnerImpl : public Learner {
   // if not, initialize the column access.
   inline void LazyInitDMatrix(DMatrix* p_train) {
     if (tparam.tree_method == 3 || tparam.tree_method == 4 ||
-        tparam.tree_method == 5 || tparam.tree_method == 6) {
+        tparam.tree_method == 5) {
       return;
     }
 

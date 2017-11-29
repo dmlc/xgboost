@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <utility>
 #include "../common/math.h"
+#include "../common/avx_helpers.h"
 
 namespace xgboost {
 namespace obj {
@@ -20,22 +21,28 @@ DMLC_REGISTRY_FILE_TAG(regression_obj);
 // common regressions
 // linear regression
 struct LinearSquareLoss {
-  static bst_float PredTransform(bst_float x) { return x; }
+  template <typename T>
+  static T PredTransform(T x) { return x; }
   static bool CheckLabel(bst_float x) { return true; }
-  static bst_float FirstOrderGradient(bst_float predt, bst_float label) { return predt - label; }
-  static bst_float SecondOrderGradient(bst_float predt, bst_float label) { return 1.0f; }
+  template <typename T>
+  static T FirstOrderGradient(T predt, T label) { return predt - label; }
+  template <typename T>
+  static T SecondOrderGradient(T predt, T label) { return T(1.0f); }
   static bst_float ProbToMargin(bst_float base_score) { return base_score; }
   static const char* LabelErrorMsg() { return ""; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 };
 // logistic loss for probability regression task
 struct LogisticRegression {
-  static bst_float PredTransform(bst_float x) { return common::Sigmoid(x); }
+  template <typename T>
+  static T PredTransform(T x) { return common::Sigmoid(x); }
   static bool CheckLabel(bst_float x) { return x >= 0.0f && x <= 1.0f; }
-  static bst_float FirstOrderGradient(bst_float predt, bst_float label) { return predt - label; }
-  static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
-    const float eps = 1e-16f;
-    return std::max(predt * (1.0f - predt), eps);
+  template <typename T>
+  static T FirstOrderGradient(T predt, T label) { return predt - label; }
+  template <typename T>
+  static T SecondOrderGradient(T predt, T label) {
+    const T eps = T(1e-16f);
+    return std::max(predt * (T(1.0f) - predt), eps);
   }
   static bst_float ProbToMargin(bst_float base_score) {
     CHECK(base_score > 0.0f && base_score < 1.0f)
@@ -53,28 +60,28 @@ struct LogisticClassification : public LogisticRegression {
 };
 // logistic loss, but predict un-transformed margin
 struct LogisticRaw : public LogisticRegression {
-  static bst_float PredTransform(bst_float x) { return x; }
-  static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
+  template <typename T>
+  static T PredTransform(T x) { return x; }
+  template <typename T>
+  static T FirstOrderGradient(T predt, T label) {
     predt = common::Sigmoid(predt);
     return predt - label;
   }
-  static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
-    const float eps = 1e-16f;
+  template <typename T>
+  static T SecondOrderGradient(T predt, T label) {
+    const T eps = T(1e-16f);
     predt = common::Sigmoid(predt);
-    return std::max(predt * (1.0f - predt), eps);
+    return std::max(predt * (T(1.0f) - predt), eps);
   }
   static const char* DefaultEvalMetric() { return "auc"; }
 };
 
 struct RegLossParam : public dmlc::Parameter<RegLossParam> {
   float scale_pos_weight;
-  int nthread;
   // declare parameters
   DMLC_DECLARE_PARAMETER(RegLossParam) {
     DMLC_DECLARE_FIELD(scale_pos_weight).set_default(1.0f).set_lower_bound(0.0f)
         .describe("Scale the weight of positive examples by this factor");
-    DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
-        "Number of threads to use.");
   }
 };
 
@@ -98,23 +105,36 @@ class RegLossObj : public ObjFunction {
 
     this->LazyCheckLabels(info.labels);
     out_gpair->resize(preds.size());
+    const omp_ulong n = static_cast<omp_ulong>(preds.size());
+    auto gpair_ptr = out_gpair->data();
+    avx::Float8 scale(param_.scale_pos_weight);
 
-    // start calculating gradient
-    const omp_ulong ndata = static_cast<omp_ulong>(preds.size());
-    int nthread = param_.nthread == 0 ? omp_get_num_procs() : param_.nthread;
-#pragma omp parallel for schedule(static) num_threads(nthread)
-    for (omp_ulong i = 0; i < ndata; ++i) {
+    const omp_ulong remainder = n % 8;
+    int nthread = omp_get_max_threads();
+    // Use a maximum of 8 threads
+#pragma omp parallel for schedule(static) num_threads(std::min(8, nthread))
+    for (int i = 0; i < n - remainder; i += 8) {
+      avx::Float8 y(&info.labels[i]);
+      avx::Float8 p = Loss::PredTransform(avx::Float8(&preds[i]));
+      avx::Float8 w = info.weights.empty() ? avx::Float8(1.0f)
+                                           : avx::Float8(&info.weights[i]);
+      // Adjust weight
+      w += y * (scale * w - w);
+      avx::Float8 grad = Loss::FirstOrderGradient(p, y);
+      avx::Float8 hess = Loss::SecondOrderGradient(p, y);
+      avx::StoreGpair(gpair_ptr + i, grad * w, hess * w);
+    }
+    for (omp_ulong i = n - remainder; i < n; ++i) {
       auto y = info.labels[i];
       bst_float p = Loss::PredTransform(preds[i]);
       bst_float w = info.GetWeight(i);
-      // Branchless version of the below function
-      // The branch is particularly slow as the cpu cannot predict the label
-      // with any accuracy resulting in frequent pipeline stalls
-      // if (info.labels[i] == 1.0f) w *= param_.scale_pos_weight;
       w += y * ((param_.scale_pos_weight * w) - w);
       (*out_gpair)[i] = bst_gpair(Loss::FirstOrderGradient(p, y) * w,
                                   Loss::SecondOrderGradient(p, y) * w);
     }
+
+    // Reset omp max threads
+    omp_set_num_threads(nthread);
   }
   const char *DefaultEvalMetric() const override {
     return Loss::DefaultEvalMetric();
@@ -165,13 +185,10 @@ XGBOOST_REGISTER_OBJECTIVE(LogisticRaw, "binary:logitraw")
 // declare parameter
 struct PoissonRegressionParam : public dmlc::Parameter<PoissonRegressionParam> {
   float max_delta_step;
-  int nthread;
   DMLC_DECLARE_PARAMETER(PoissonRegressionParam) {
     DMLC_DECLARE_FIELD(max_delta_step).set_lower_bound(0.0f).set_default(0.7f)
         .describe("Maximum delta step we allow each weight estimation to be." \
                   " This parameter is required for possion regression.");
-    DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
-        "Number of threads to use.");
   }
 };
 
@@ -194,8 +211,7 @@ class PoissonRegression : public ObjFunction {
     bool label_correct = true;
     // start calculating gradient
     const omp_ulong ndata = static_cast<omp_ulong>(preds.size()); // NOLINT(*)
-    int nthread = param_.nthread == 0 ? omp_get_num_procs() : param_.nthread;
-    #pragma omp parallel for schedule(static) num_threads(nthread)
+#pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
       bst_float p = preds[i];
       bst_float w = info.GetWeight(i);
@@ -212,8 +228,7 @@ class PoissonRegression : public ObjFunction {
   void PredTransform(std::vector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = *io_preds;
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-    int nthread = param_.nthread == 0 ? omp_get_num_procs() : param_.nthread;
-    #pragma omp parallel for schedule(static) num_threads(nthread)
+#pragma omp parallel for schedule(static)
     for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     }
@@ -297,12 +312,9 @@ XGBOOST_REGISTER_OBJECTIVE(GammaRegression, "reg:gamma")
 // declare parameter
 struct TweedieRegressionParam : public dmlc::Parameter<TweedieRegressionParam> {
   float tweedie_variance_power;
-  int nthread;
   DMLC_DECLARE_PARAMETER(TweedieRegressionParam) {
     DMLC_DECLARE_FIELD(tweedie_variance_power).set_range(1.0f, 2.0f).set_default(1.5f)
       .describe("Tweedie variance power.  Must be between in range [1, 2).");
-    DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
-        "Number of threads to use.");
   }
 };
 
@@ -325,8 +337,7 @@ class TweedieRegression : public ObjFunction {
     bool label_correct = true;
     // start calculating gradient
     const omp_ulong ndata = static_cast<omp_ulong>(preds.size()); // NOLINT(*)
-    int nthread = param_.nthread == 0 ? omp_get_num_procs() : param_.nthread;
-    #pragma omp parallel for schedule(static) num_threads(nthread)
+    #pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
       bst_float p = preds[i];
       bst_float w = info.GetWeight(i);
@@ -346,8 +357,7 @@ class TweedieRegression : public ObjFunction {
   void PredTransform(std::vector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = *io_preds;
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-    int nthread = param_.nthread == 0 ? omp_get_num_procs() : param_.nthread;
-    #pragma omp parallel for schedule(static) num_threads(nthread)
+#pragma omp parallel for schedule(static)
     for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     }

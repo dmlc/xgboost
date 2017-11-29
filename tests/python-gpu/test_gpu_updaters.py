@@ -117,14 +117,10 @@ def assert_updater_accuracy(tree_method, comparison_tree_method, variable_param,
 
 @attr('gpu')
 class TestGPU(unittest.TestCase):
-    def test_gpu_hist(self):
-        variable_param = {'max_depth': [2, 6, 11], 'max_bin': [2, 16, 1024], 'n_gpus': [1, -1]}
-        assert_updater_accuracy('gpu_hist', 'hist', variable_param, 0.02)
-
     def test_gpu_exact(self):
         variable_param = {'max_depth': [2, 6, 15]}
         assert_updater_accuracy('gpu_exact', 'exact', variable_param, 0.02)
 
-    def test_gpu_hist_experimental(self):
+    def test_gpu_hist(self):
         variable_param = {'n_gpus': [1, -1], 'max_depth': [2, 6], 'max_leaves': [255, 4], 'max_bin': [2, 16, 1024]}
-        assert_updater_accuracy('gpu_hist_experimental', 'hist', variable_param, 0.01)
+        assert_updater_accuracy('gpu_hist', 'hist', variable_param, 0.01)
