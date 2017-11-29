@@ -22,9 +22,9 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 
-#define PRECISE_EXP 1
+#define PRECISE 1
 
-#if(PRECISE_EXP==1)
+#if(PRECISE==1)
 typedef bst_gpair_precise gpair_sum_t;
 #else
 typedef bst_gpair_integer gpair_sum_t;
@@ -570,7 +570,7 @@ class GPUHistMaker : public TreeUpdater {
                 const RegTree& tree) {
     monitor.Start("InitDataOnce");
     if (!initialised) {
-     if(PRECISE_EXP==0){
+     if(PRECISE==0){
         CheckGradientMax(gpair);
       }
       this->InitDataOnce(dmat);
