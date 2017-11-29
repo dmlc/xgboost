@@ -55,7 +55,7 @@ Mac OS X (specific)
 Most of the troubles and solutions are the same with that in the Linux platform. Mac has the following specific problems.
 
 **Trouble 0**: I successfully installed `xgboost` using github installation/using `pip install xgboost`. But it runs very slow with only single thread, what is going on?
-**Solution 0**: `clang LLVM` compiler on Mac OS X from Xcode doesn't support OpenMP multi-thread. An alternative choice is installing `homebrew` <http://brew.sh/> and `brew install g++-5` which provides multi-thread OpenMP support.
+**Solution 0**: `clang LLVM` compiler on Mac OS X from Xcode doesn't support OpenMP multi-thread. An alternative choice is installing `homebrew` <http://brew.sh/> and `brew install gcc5` which provides multi-thread OpenMP support.
 
 **Trouble 1**: Can I install `clang-omp` for supporting OpenMP without using `gcc`?
 **Solution 1**: it is not support and may have linking errors.
