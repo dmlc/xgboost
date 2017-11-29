@@ -23,7 +23,7 @@ pipeline {
     options {
         ansiColor('xterm')
         timestamps()
-        timeout(time: 120, unit: 'MINUTES')
+        timeout(time: 20, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '10'))
         disableConcurrentBuilds()
         skipDefaultCheckout()
@@ -45,7 +45,7 @@ pipeline {
             steps {
                 dumpInfo 'Linux Build Info'
                 // Do checkout
-                retryWithTimeout(100 /* seconds */, 3 /* retries */) {
+                retryWithTimeout(200 /* seconds */, 3 /* retries */) {
                     deleteDir()
                     checkout([
                             $class                           : 'GitSCM',
@@ -91,7 +91,7 @@ pipeline {
             steps {
                 unstash 'linux_whl'
                 unstash 'version_info'
-                retryWithTimeout(200 /* seconds */, 5 /* retries */) {
+                retryWithTimeout(500 /* seconds */, 5 /* retries */) {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: "awsArtifactsUploader"]]) {
                     sh 'echo "Stashed files:" && ls -l python-package/dist2/'
                script {
