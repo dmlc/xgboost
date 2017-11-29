@@ -1,8 +1,8 @@
 Binary Classification
 =====================
 This is the quick start tutorial for xgboost CLI version.
-Here we demonstrate how to use XGBoost for a binary classification task. Before getting started, make sure you compile xgboost in the root directory of the project by typing ```make```
-The script runexp.sh can be used to run the demo. Here we use [mushroom dataset](https://archive.ics.uci.edu/ml/datasets/Mushroom) from UCI machine learning repository.
+Here we demonstrate how to use XGBoost for a binary classification task. Before getting started, make sure you compile xgboost in the root directory of the project by typing ```make```.
+The script 'runexp.sh' can be used to run the demo. Here we use [mushroom dataset](https://archive.ics.uci.edu/ml/datasets/Mushroom) from UCI machine learning repository.
 
 ### Tutorial
 #### Generate Input Data
@@ -80,7 +80,7 @@ booster = gblinear
 # L2 regularization term on weights, default 0
 lambda = 0.01
 # L1 regularization term on weights, default 0
-f ```agaricus.txt.test.buffer``` exists, and automatically loads from binary buffer if possible, this can speedup training process when you do training many times. You can disable it by setting ```use_buffer=0```.
+If ```agaricus.txt.test.buffer``` exists, and automatically loads from binary buffer if possible, this can speedup training process when you do training many times. You can disable it by setting ```use_buffer=0```.
   - Buffer file can also be used as standalone input, i.e if buffer file exists, but original agaricus.txt.test was removed, xgboost will still run
 * Deviation from LibSVM input format: xgboost is compatible with LibSVM format, with the following minor differences:
   - xgboost allows feature index starts from 0
