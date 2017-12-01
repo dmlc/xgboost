@@ -292,11 +292,9 @@ class GPUPredictor : public xgboost::Predictor {
     thrust::copy(model.tree_info.begin(), model.tree_info.end(),
                  tree_group.begin());
 
-    if (device_matrix->predictions.size() != out_preds->size()) {
-      device_matrix->predictions.resize(out_preds->size());
-      thrust::copy(out_preds->begin(), out_preds->end(),
-                   device_matrix->predictions.begin());
-    }
+    device_matrix->predictions.resize(out_preds->size());
+    thrust::copy(out_preds->begin(), out_preds->end(),
+                 device_matrix->predictions.begin());
 
     const int BLOCK_THREADS = 128;
     const int GRID_SIZE = static_cast<int>(
