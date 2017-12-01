@@ -336,8 +336,8 @@ struct XGBOOST_ALIGNAS(16) GradStats {
     this->Add(b.GetGrad(), b.GetHess());
   }
   /*! \brief calculate leaf weight */
-template <typename param_t>
-  inline double CalcWeight(const param_t& param) const {
+  template <typename param_t>
+  XGBOOST_DEVICE inline double CalcWeight(const param_t &param) const {
     return xgboost::tree::CalcWeight(param, sum_grad, sum_hess);
   }
   /*! \brief calculate gain of the solution */

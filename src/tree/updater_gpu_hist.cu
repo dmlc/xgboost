@@ -288,7 +288,9 @@ struct DeviceShard {
         common::CompressedBufferWriter::CalculateBufferSize(
             ellpack_matrix.size(), num_symbols);
 
-    CHECK(!(param.max_leaves == 0 && param.max_depth == 0)) << "Max leaves and max depth cannot both be unconstrained for gpu_hist.";
+    CHECK(!(param.max_leaves == 0 && param.max_depth == 0))
+        << "Max leaves and max depth cannot both be unconstrained for "
+           "gpu_hist.";
     int max_nodes =
         param.max_leaves > 0 ? param.max_leaves * 2 : n_nodes(param.max_depth);
     ba.allocate(device_idx, param.silent, &gidx_buffer, compressed_size_bytes,
