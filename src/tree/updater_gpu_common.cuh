@@ -244,6 +244,29 @@ __device__ inline float device_calc_loss_chg(const GPUTrainingParam& param,
   return left_gain + right_gain - parent_gain;
 }
 
+// Without constraints
+template <typename gpair_t>
+__device__ float inline loss_chg_missing(const gpair_t& scan,
+                                         const gpair_t& missing,
+                                         const gpair_t& parent_sum,
+                                         const float& parent_gain,
+                                         const GPUTrainingParam& param,
+                                         bool& missing_left_out) {  // NOLINT
+  float missing_left_loss =
+      device_calc_loss_chg(param, scan + missing, parent_sum, parent_gain);
+  float missing_right_loss =
+      device_calc_loss_chg(param, scan, parent_sum, parent_gain);
+
+  if (missing_left_loss >= missing_right_loss) {
+    missing_left_out = true;
+    return missing_left_loss;
+  } else {
+    missing_left_out = false;
+    return missing_right_loss;
+  }
+}
+
+// With constraints
 template <typename gpair_t>
 __device__ float inline loss_chg_missing(
     const gpair_t& scan, const gpair_t& missing, const gpair_t& parent_sum,
