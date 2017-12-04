@@ -187,9 +187,17 @@ class LearnerImpl : public Learner {
 #if(XGBOOST_USE_CUDA)
         extern int gpu_double_fast_compute_capable(void);
         if(!gpu_double_fast_compute_capable()){
-          cfg_["updater"] = "grow_gpu_hist2,prune";
+          cfg_["updater"] = "grow_gpu_hist2";
         }
 #endif
+      }
+      if (cfg_.count("predictor") == 0) {
+        cfg_["predictor"] = "gpu_predictor";
+      }
+    } else if (tparam.tree_method == 6) {
+      this->AssertGPUSupport();
+      if (cfg_.count("updater") == 0) {
+        cfg_["updater"] = "grow_gpu_hist2";
       }
       if (cfg_.count("predictor") == 0) {
         cfg_["predictor"] = "gpu_predictor";
