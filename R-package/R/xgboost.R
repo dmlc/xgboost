@@ -100,9 +100,12 @@ NULL
 #' @importFrom stats median
 #' @importFrom utils head
 #' @importFrom graphics barplot
+#' @importFrom graphics lines
+#' @importFrom graphics points
 #' @importFrom graphics grid
 #' @importFrom graphics par
 #' @importFrom graphics title
+#' @importFrom grDevices rgb
 #' 
 #' @import methods
 #' @useDynLib xgboost, .registration = TRUE

@@ -78,7 +78,7 @@ function(setup_rpackage_install_target rlib_target build_dir)
   install(CODE "file(WRITE \"${build_dir}/R-package/src/Makevars\" \"all:\")")
   install(CODE "file(WRITE \"${build_dir}/R-package/src/Makevars.win\" \"all:\")")
   set(XGB_DEPS_SCRIPT
-    "deps = setdiff(c('statar','data.table', 'magrittr', 'stringi'), rownames(installed.packages()));\
+    "deps = setdiff(c('data.table', 'magrittr', 'stringi'), rownames(installed.packages()));\
     if(length(deps)>0) install.packages(deps, repo = 'https://cloud.r-project.org/')")
   install(CODE "execute_process(COMMAND \"${LIBR_EXECUTABLE}\" \"-q\" \"-e\" \"${XGB_DEPS_SCRIPT}\")")
   install(CODE "execute_process(COMMAND \"${LIBR_EXECUTABLE}\" CMD INSTALL\

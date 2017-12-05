@@ -95,7 +95,8 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot
     label     = dt$label,
     fillcolor = dt$filledcolor,
     shape     = dt$shape,
-    data      = dt$Feature)
+    data      = dt$Feature,
+    fontcolor = "black")
   
   edges <- DiagrammeR::create_edge_df(
     from  = match(dt[Feature != "Leaf", c(ID)] %>% rep(2), dt$ID),
