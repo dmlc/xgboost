@@ -169,6 +169,11 @@
 #' \code{\link{predict.xgb.Booster}},
 #' \code{\link{xgb.cv}}
 #' 
+#' @references
+#'
+#' Tianqi Chen and Carlos Guestrin, "XGBoost: A Scalable Tree Boosting System",
+#' 22nd SIGKDD Conference on Knowledge Discovery and Data Mining, 2016, \url{https://arxiv.org/abs/1603.02754}
+#'
 #' @examples
 #' data(agaricus.train, package='xgboost')
 #' data(agaricus.test, package='xgboost')

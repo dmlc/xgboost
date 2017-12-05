@@ -651,7 +651,7 @@ inline void ExtendPath(PathElement *unique_path, unsigned unique_depth,
   unique_path[unique_depth].feature_index = feature_index;
   unique_path[unique_depth].zero_fraction = zero_fraction;
   unique_path[unique_depth].one_fraction = one_fraction;
-  unique_path[unique_depth].pweight = (unique_depth == 0 ? 1 : 0);
+  unique_path[unique_depth].pweight = (unique_depth == 0 ? 1.0f : 0.0f);
   for (int i = unique_depth - 1; i >= 0; i--) {
     unique_path[i+1].pweight += one_fraction * unique_path[i].pweight * (i + 1)
                                 / static_cast<bst_float>(unique_depth + 1);

@@ -63,6 +63,12 @@
 #'  \item \code{shap_contrib} the contributions of selected features.
 #' }
 #'
+#' @references
+#'
+#' Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions", NIPS Proceedings 2017, \url{https://arxiv.org/abs/1705.07874}
+#'
+#' Scott M. Lundberg, Su-In Lee, "Consistent feature attribution for tree ensembles", \url{https://arxiv.org/abs/1706.06060}
+#'
 #' @examples
 #' 
 #' data(agaricus.train, package='xgboost')

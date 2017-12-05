@@ -294,6 +294,13 @@ test_that("xgb.plot.deepness works", {
   xgb.ggplot.deepness(model = bst.Tree)
 })
 
+test_that("xgb.plot.shap works", {
+  sh <- xgb.plot.shap(data = sparse_matrix, model = bst.Tree, top_n = 2, col = 4)
+  expect_equal(names(sh), c("data", "shap_contrib"))
+  expect_equal(NCOL(sh$data), 2)
+  expect_equal(NCOL(sh$shap_contrib), 2)
+})
+
 test_that("check.deprecation works", {
   ttt <- function(a = NNULL, DUMMY=NULL, ...) {
     check.deprecation(...)
