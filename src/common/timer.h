@@ -85,7 +85,7 @@ struct Monitor {
   }
   void Start(const std::string &name) { timer_map[name].Start(); }
   void Stop(const std::string &name) {
-    if (debug_verbose) {
+    if (debug_verbose&&0) {
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
       dh::synchronize_all();
