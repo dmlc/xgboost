@@ -27,7 +27,12 @@ struct Timer {
   double ElapsedSeconds() const { return SecondsT(elapsed).count(); }
   void PrintElapsed(std::string label) {
     printf("%s:\t %fs\n", label.c_str(), SecondsT(elapsed).count());
+    fflush(stdout);
     Reset();
+  }
+  void PrintElapsed2(std::string label) {
+    printf("%s:\t %fs\n", label.c_str(), SecondsT(elapsed).count());
+    fflush(stdout);
   }
 };
 
@@ -46,6 +51,20 @@ struct Monitor {
 
   Monitor() { self_timer.Start(); }
 
+  void Output(void) {
+    if (!debug_verbose) return;
+
+    std::cout << "========\n";
+    std::cout << "Monitor: " << label << "\n";
+    std::cout << "========\n";
+    for (auto &kv : timer_map) {
+      kv.second.PrintElapsed2(kv.first);
+    }
+    self_timer.Stop();
+    self_timer.PrintElapsed2(label + " Lifetime");
+    self_timer.Start();
+  }
+
   ~Monitor() {
     if (!debug_verbose) return;
 
@@ -57,6 +76,8 @@ struct Monitor {
     }
     self_timer.Stop();
     self_timer.PrintElapsed(label + " Lifetime");
+    self_timer.Start();
+    fflush(stdout);
   }
   void Init(std::string label, bool debug_verbose) {
     this->debug_verbose = debug_verbose;

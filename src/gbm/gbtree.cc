@@ -211,6 +211,7 @@ class GBTree : public GradientBooster {
       this->CommitModel(std::move(new_trees[gid]), gid);
     }
     monitor.Stop("CommitModel");
+    monitor.Output();
   }
 
   void PredictBatch(DMatrix* p_fmat,

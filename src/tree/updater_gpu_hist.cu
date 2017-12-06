@@ -528,6 +528,7 @@ class GPUHistMaker : public TreeUpdater {
     }
     param.learning_rate = lr;
     monitor.Stop("Update");
+    monitor.Output();
   }
 
   void InitDataOnce(DMatrix* dmat) {

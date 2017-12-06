@@ -382,6 +382,7 @@ class LearnerImpl : public Learner {
     monitor.Stop("GetGradient");
     gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor.Stop("UpdateOneIter");
+    monitor.Output();
   }
 
   void BoostOneIter(int iter, DMatrix* train,
@@ -393,6 +394,7 @@ class LearnerImpl : public Learner {
     this->LazyInitDMatrix(train);
     gbm_->DoBoost(train, in_gpair);
     monitor.Stop("BoostOneIter");
+    monitor.Output();
   }
 
   std::string EvalOneIter(int iter, const std::vector<DMatrix*>& data_sets,
@@ -413,6 +415,7 @@ class LearnerImpl : public Learner {
     }
 
     monitor.Stop("EvalOneIter");
+    monitor.Output();
     return os.str();
   }
 
