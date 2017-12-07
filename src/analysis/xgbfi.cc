@@ -2,7 +2,7 @@
 * Copyright 2017 by Contributors
 * \file xgbfi.cc
 * \brief xgb feature interactions (xgbfi)
-* \author Mathias Müller (Far0n)
+* \author Mathias Mï¿½ller (Far0n)
 */
 #include "xgbfi.h"
 #include <xgboost/logging.h>
@@ -251,6 +251,11 @@ XgbModel XgbModelParser::GetXgbModelFromDump(const std::string& file_path, int m
 
 XgbModel XgbModelParser::GetXgbModelFromDump(const XgbModelDump& dump, int max_trees,
   int nthread) {
+  const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
+  //  const int nthreadmax = omp_get_max_threads();
+  if (nthread <= 0) nthread=nthreadmax;
+
+
   int n_backup = omp_get_num_threads();
   int ntrees = static_cast<int>(dump.size());
   if ((max_trees < ntrees) && (max_trees >= 0)) ntrees = max_trees;
@@ -430,6 +435,10 @@ FeatureInteractions XgbModel::GetFeatureInteractions(int max_interaction_depth,
                                                      int max_tree_depth,
                                                      int max_deepening,
                                                      int nthread) {
+  const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
+  //  const int nthreadmax = omp_get_max_threads();
+  if (nthread <= 0) nthread=nthreadmax;
+
   int n_backup = omp_get_num_threads();
   max_interaction_depth_ = max_interaction_depth;
   max_tree_depth_ = max_tree_depth;
@@ -529,6 +538,13 @@ void XgbModel::CollectFeatureInteractions(XgbTreePtr tree, InteractionPath* cfi,
 std::vector<std::string> GetFeatureInteractions(const xgboost::Learner& learner,
   int max_fi_depth, int max_tree_depth, int max_deepening, int ntrees, const char* fmap,
   int nthread) {
+
+  const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
+  //  const int nthreadmax = omp_get_max_threads();
+  if (nthread <= 0) nthread=nthreadmax;
+  int n_backup = omp_get_max_threads();
+  omp_set_num_threads(nthread);
+
   std::vector<std::string> feature_interactions;
   xgboost::FeatureMap feature_map;
   if (strchr(fmap, '|') != NULL) {
@@ -569,6 +585,10 @@ std::vector<std::string> GetFeatureInteractions(const xgboost::Learner& learner,
   for (auto kv : fi) {
     feature_interactions.push_back(static_cast<std::string>(kv.second));
   }
+
+  // restore omp state
+  omp_set_num_threads(n_backup);
+
   return feature_interactions;
 }
 }  // namespace xgbfi
