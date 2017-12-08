@@ -12,6 +12,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "../../src/common/dhvec.h"
 #include "../../src/gbm/gbtree_model.h"
 
 // Forward declarations
@@ -67,6 +68,10 @@ class Predictor {
    */
 
   virtual void PredictBatch(DMatrix* dmat, std::vector<bst_float>* out_preds,
+                            const gbm::GBTreeModel& model, int tree_begin,
+                            unsigned ntree_limit = 0) = 0;
+  
+  virtual void PredictBatch(DMatrix* dmat, dhvec<bst_float>* out_preds,
                             const gbm::GBTreeModel& model, int tree_begin,
                             unsigned ntree_limit = 0) = 0;
 

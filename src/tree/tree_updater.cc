@@ -6,6 +6,8 @@
 #include <xgboost/tree_updater.h>
 #include <dmlc/registry.h>
 
+#include "../common/dhvec.h"
+
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::TreeUpdaterReg);
 }  // namespace dmlc
@@ -18,6 +20,17 @@ TreeUpdater* TreeUpdater::Create(const std::string& name) {
     LOG(FATAL) << "Unknown tree updater " << name;
   }
   return (e->body)();
+}
+
+void TreeUpdater::Update(dhvec<bst_gpair>& gpair,
+                         DMatrix* data,
+                         const std::vector<RegTree*>& trees) {
+  Update(gpair.data_h(), data, trees);
+}
+
+bool TreeUpdater::UpdatePredictionCache(const DMatrix* data,
+                                        dhvec<bst_float>* out_preds) {
+  return UpdatePredictionCache(data, &out_preds->data_h());
 }
 
 }  // namespace xgboost

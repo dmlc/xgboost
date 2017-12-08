@@ -16,9 +16,11 @@
 #include <utility>
 #include <vector>
 #include "./common/common.h"
+#include "./common/dhvec.h"
 #include "./common/io.h"
 #include "./common/random.h"
 #include "common/timer.h"
+
 
 namespace xgboost {
 // implementation of base learner.
@@ -360,10 +362,10 @@ class LearnerImpl : public Learner {
     }
     this->LazyInitDMatrix(train);
     monitor.Start("PredictRaw");
-    this->PredictRaw(train, &preds_);
+    this->PredictRaw(train, &preds2_);
     monitor.Stop("PredictRaw");
     monitor.Start("GetGradient");
-    obj_->GetGradient(preds_, train->info(), iter, &gpair_);
+    obj_->GetGradient(preds2_, train->info(), iter, &gpair_);
     monitor.Stop("GetGradient");
     gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor.Stop("UpdateOneIter");
@@ -547,6 +549,13 @@ class LearnerImpl : public Learner {
         << "Predict must happen after Load or InitModel";
     gbm_->PredictBatch(data, out_preds, ntree_limit);
   }
+  inline void PredictRaw(DMatrix* data, dhvec<bst_float>* out_preds,
+                         unsigned ntree_limit = 0) const {
+    CHECK(gbm_.get() != nullptr)
+        << "Predict must happen after Load or InitModel";
+    gbm_->PredictBatch(data, out_preds, ntree_limit);
+  }
+
   // model parameter
   LearnerModelParam mparam;
   // training parameter
@@ -561,8 +570,9 @@ class LearnerImpl : public Learner {
   std::string name_obj_;
   // temporal storages for prediction
   std::vector<bst_float> preds_;
+  dhvec<bst_float> preds2_;
   // gradient pairs
-  std::vector<bst_gpair> gpair_;
+  dhvec<bst_gpair> gpair_;
 
  private:
   /*! \brief random number transformation seed. */

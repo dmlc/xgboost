@@ -165,6 +165,9 @@ Specify the learning task and the corresponding learning objective. The objectiv
   - "reg:logistic" --logistic regression
   - "binary:logistic" --logistic regression for binary classification, output probability
   - "binary:logitraw" --logistic regression for binary classification, output score before logistic transformation
+  - "gpu:reg:linear", "gpu:reg:logistic", "gpu:binary:logistic", gpu:binary:logitraw" --versions
+    of the corresponding objective functions evaluated on the GPU; note that like the GPU histogram algorithm,
+    they can only be used when the entire training session uses the same dataset
   - "count:poisson" --poisson regression for count data, output mean of poisson distribution
     - max_delta_step is set to 0.7 by default in poisson regression (used to safeguard optimization)
   - "multi:softmax" --set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)

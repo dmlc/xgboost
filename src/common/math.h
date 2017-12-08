@@ -20,8 +20,8 @@ namespace common {
  * \param x input parameter
  * \return the transformed value.
  */
-inline float Sigmoid(float x) {
-  return 1.0f / (1.0f + std::exp(-x));
+XGBOOST_DEVICE inline float Sigmoid(float x) {
+  return 1.0f / (1.0f + expf(-x));
 }
 
 inline avx::Float8 Sigmoid(avx::Float8 x) {

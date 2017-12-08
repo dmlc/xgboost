@@ -12,6 +12,7 @@
 #include <vector>
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
+#include "../common/dhvec.h"
 #include "../common/hist_util.h"
 #include "../common/timer.h"
 #include "param.h"
@@ -349,7 +350,8 @@ struct DeviceShard {
   }
 
   // Reset values for each update iteration
-  void Reset(const std::vector<bst_gpair>& host_gpair) {
+  void Reset(dhvec<bst_gpair>& dh_gpair, int device) {
+    auto begin = dh_gpair.tbegin(device);
     dh::safe_cuda(cudaSetDevice(device_idx));
     position.current_dvec().fill(0);
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
@@ -359,8 +361,8 @@ struct DeviceShard {
 
     std::fill(ridx_segments.begin(), ridx_segments.end(), Segment(0, 0));
     ridx_segments.front() = Segment(0, ridx.size());
-    this->gpair.copy(host_gpair.begin() + row_begin_idx,
-                     host_gpair.begin() + row_end_idx);
+    this->gpair.copy(begin + row_begin_idx,
+                     begin + row_end_idx);
     subsample_gpair(&gpair, param.subsample, row_begin_idx);
     hist.Reset();
   }
@@ -504,7 +506,17 @@ class GPUHistMaker : public TreeUpdater {
 
     monitor.Init("updater_gpu_hist", param.debug_verbose);
   }
+
   void Update(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
+              const std::vector<RegTree*>& trees) override {
+    // TODO: move it into the class if this ever becomes a bottleneck
+    dhvec<bst_gpair> gpair_d(gpair.size(), param.gpu_id);
+    dh::safe_cuda(cudaSetDevice(param.gpu_id));
+    thrust::copy(gpair.begin(), gpair.end(), gpair_d.tbegin(param.gpu_id));
+    Update(gpair_d, dmat, trees);
+  }
+  
+  void Update(dhvec<bst_gpair>& gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
     monitor.Start("Update");
     GradStats::CheckInfo(dmat->info());
@@ -572,7 +584,7 @@ class GPUHistMaker : public TreeUpdater {
     initialised = true;
   }
 
-  void InitData(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
+  void InitData(dhvec<bst_gpair>& gpair, DMatrix* dmat,
                 const RegTree& tree) {
     monitor.Start("InitDataOnce");
     if (!initialised) {
@@ -585,11 +597,9 @@ class GPUHistMaker : public TreeUpdater {
     // Copy gpair & reset memory
     monitor.Start("InitDataReset");
     omp_set_num_threads(shards.size());
-#pragma omp parallel
-    {
-      auto cpu_thread_id = omp_get_thread_num();
-      shards[cpu_thread_id]->Reset(gpair);
-    }
+    // TODO: make it parallel again once dhvec is thread-safe
+    for (int shard = 0; shard < shards.size(); ++shard)
+      shards[shard]->Reset(gpair, param.gpu_id);
     monitor.Stop("InitDataReset");
   }
 
@@ -687,7 +697,7 @@ class GPUHistMaker : public TreeUpdater {
     return std::move(best_splits);
   }
 
-  void InitRoot(const std::vector<bst_gpair>& gpair, RegTree* p_tree) {
+  void InitRoot(RegTree* p_tree) {
     auto root_nidx = 0;
     // Sum gradients
     std::vector<bst_gpair> tmp_sums(shards.size());
@@ -800,7 +810,7 @@ class GPUHistMaker : public TreeUpdater {
     this->UpdatePosition(candidate, p_tree);
   }
 
-  void UpdateTree(const std::vector<bst_gpair>& gpair, DMatrix* p_fmat,
+  void UpdateTree(dhvec<bst_gpair>& gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
     // Temporarily store number of threads so we can change it back later
     int nthread = omp_get_max_threads();
@@ -811,7 +821,7 @@ class GPUHistMaker : public TreeUpdater {
     this->InitData(gpair, p_fmat, *p_tree);
     monitor.Stop("InitData");
     monitor.Start("InitRoot");
-    this->InitRoot(gpair, p_tree);
+    this->InitRoot(p_tree);
     monitor.Stop("InitRoot");
 
     auto timestamp = qexpand_->size();
@@ -853,6 +863,16 @@ class GPUHistMaker : public TreeUpdater {
 
     // Reset omp num threads
     omp_set_num_threads(nthread);
+  }
+
+  bool UpdatePredictionCache(const DMatrix* data,
+                             std::vector<bst_float>* p_out_preds) override {
+    return false;
+  }
+
+  bool UpdatePredictionCache(const DMatrix* data,
+                             dhvec<bst_float>* p_out_preds) override {
+    return false;
   }
 
   struct ExpandEntry {

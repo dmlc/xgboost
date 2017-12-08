@@ -5,6 +5,7 @@
 #include <xgboost/tree_model.h>
 #include <xgboost/tree_updater.h>
 #include "dmlc/logging.h"
+#include "../common/dhvec.h"
 
 namespace xgboost {
 namespace predictor {
@@ -108,6 +109,13 @@ class CPUPredictor : public Predictor {
   }
 
  public:
+
+  void PredictBatch(DMatrix* dmat, dhvec<bst_float>* out_preds,
+                    const gbm::GBTreeModel& model, int tree_begin,
+                    unsigned ntree_limit = 0) override {
+    PredictBatch(dmat, &out_preds->data_h(), model, tree_begin, ntree_limit);
+  }
+
   void PredictBatch(DMatrix* dmat, std::vector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
                     unsigned ntree_limit = 0) override {

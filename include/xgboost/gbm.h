@@ -70,6 +70,10 @@ class GradientBooster {
   virtual void DoBoost(DMatrix* p_fmat,
                        std::vector<bst_gpair>* in_gpair,
                        ObjFunction* obj = nullptr) = 0;
+  virtual void DoBoost(DMatrix* p_fmat,
+                       dhvec<bst_gpair>* in_gpair,
+                       ObjFunction* obj = nullptr);
+
   /*!
    * \brief generate predictions for given feature matrix
    * \param dmat feature matrix
@@ -80,6 +84,9 @@ class GradientBooster {
   virtual void PredictBatch(DMatrix* dmat,
                        std::vector<bst_float>* out_preds,
                        unsigned ntree_limit = 0) = 0;
+  virtual void PredictBatch(DMatrix* dmat,
+                            dhvec<bst_float>* out_preds,
+                            unsigned ntree_limit = 0);
   /*!
    * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually
