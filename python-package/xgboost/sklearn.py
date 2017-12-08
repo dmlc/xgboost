@@ -214,8 +214,8 @@ class XGBModel(XGBModelBase):
             xgb_params.pop('nthread', None)
         return xgb_params
 
-    def fit(self, X, y, sample_weight=None, groups=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True, xgb_model=None):
+    def fit(self, X, y, sample_weight=None, groups=None, group_sizes=None, eval_set=None,
+            eval_metric=None, early_stopping_rounds=None, verbose=True, xgb_model=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
@@ -229,7 +229,9 @@ class XGBModel(XGBModelBase):
         sample_weight : array_like
             instance weights
         groups: array_like
-            Groups for pairwise ranking
+            Group identifiers for pairwise ranking
+        group_sizes: array_like
+            Group sizes of X data for pairwise ranking
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as a validation set for
             early-stopping
@@ -258,14 +260,19 @@ class XGBModel(XGBModelBase):
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
         """
+        _assert_group_args_valid(groups, group_sizes)
+
+        if groups is not None:
+            raise NotImplementedError
+
         if sample_weight is not None:
             trainDmatrix = DMatrix(X, label=y, weight=sample_weight,
                                    missing=self.missing, nthread=self.n_jobs)
         else:
             trainDmatrix = DMatrix(X, label=y, missing=self.missing, nthread=self.n_jobs)
 
-        if groups is not None:
-            trainDmatrix.set_group(groups)
+        if group_sizes is not None:
+            trainDmatrix.set_group(group_sizes)
 
         evals_result = {}
         if eval_set is not None:
@@ -309,11 +316,14 @@ class XGBModel(XGBModelBase):
             self.best_ntree_limit = self._Booster.best_ntree_limit
         return self
 
-    def predict(self, data, groups=None, output_margin=False, ntree_limit=0):
+    def predict(self, data, groups=None, group_sizes=None, output_margin=False, ntree_limit=0):
+        _assert_group_args_valid(groups, group_sizes)
+        if groups is not None:
+            raise NotImplementedError
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
-        if groups is not None:
-            test_dmatrix.set_group(groups)
+        if group_sizes is not None:
+            test_dmatrix.set_group(group_sizes)
         return self.get_booster().predict(test_dmatrix,
                                           output_margin=output_margin,
                                           ntree_limit=ntree_limit)
@@ -414,8 +424,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             scale_pos_weight, base_score,
                                             random_state, seed, missing, **kwargs)
 
-    def fit(self, X, y, sample_weight=None, groups=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True, xgb_model=None):
+    def fit(self, X, y, sample_weight=None, groups=None, group_sizes=None, eval_set=None,
+            eval_metric=None, early_stopping_rounds=None, verbose=True, xgb_model=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -429,7 +439,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         sample_weight : array_like
             Weight for each instance
         groups: array_like
-            Groups for pairwise ranking
+            Group identifiers for pairwise ranking
+        group_sizes: array_like
+            Group sizes of X data for pairwise ranking
         eval_set : list, optional
             A list of (X, y) pairs to use as a validation set for
             early-stopping
@@ -458,6 +470,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             file name of stored xgb model or 'Booster' instance Xgb model to be
             loaded before training (allows training continuation).
         """
+        _assert_group_args_valid(groups, group_sizes)
+
         evals_result = {}
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
@@ -501,6 +515,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         self._features_count = X.shape[1]
 
+        if groups is not None:
+            raise NotImplementedError
+
         if sample_weight is not None:
             train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
                                     missing=self.missing, nthread=self.n_jobs)
@@ -508,8 +525,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             train_dmatrix = DMatrix(X, label=training_labels,
                                     missing=self.missing, nthread=self.n_jobs)
 
-        if groups is not None:
-            train_dmatrix.set_group(groups)
+        if group_sizes is not None:
+            train_dmatrix.set_group(group_sizes)
 
         self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
                               evals=evals,
@@ -531,10 +548,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         return self
 
-    def predict(self, data, groups=None, output_margin=False, ntree_limit=0):
-        test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+    def predict(self, data, groups=None, group_sizes=None, output_margin=False, ntree_limit=0):
+        _assert_group_args_valid(groups, group_sizes)
         if groups is not None:
-            test_dmatrix.set_group(groups)
+            raise NotImplementedError
+        test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        if group_sizes is not None:
+            test_dmatrix.set_group(group_sizes)
         class_probs = self.get_booster().predict(test_dmatrix,
                                                  output_margin=output_margin,
                                                  ntree_limit=ntree_limit)
@@ -545,10 +565,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             column_indexes[class_probs > 0.5] = 1
         return self._le.inverse_transform(column_indexes)
 
-    def predict_proba(self, data, groups=None, output_margin=False, ntree_limit=0):
-        test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+    def predict_proba(self, data, groups=None, group_sizes=None, output_margin=False, ntree_limit=0):
+        _assert_group_args_valid(groups, group_sizes)
         if groups is not None:
-            test_dmatrix.set_group(groups)
+            raise NotImplementedError
+        test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        if group_sizes is not None:
+            test_dmatrix.set_group(group_sizes)
         class_probs = self.get_booster().predict(test_dmatrix,
                                                  output_margin=output_margin,
                                                  ntree_limit=ntree_limit)
@@ -594,6 +617,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             raise XGBoostError('No results.')
 
         return evals_result
+
+
+def _assert_group_args_valid(groups, group_sizes):
+    if groups is not None and group_sizes is not None:
+        raise TypeError('Please supply either groups, or group_sizes, not both.')
 
 
 class XGBRegressor(XGBModel, XGBRegressorBase):
