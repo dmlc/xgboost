@@ -214,7 +214,7 @@ class XGBModel(XGBModelBase):
             xgb_params.pop('nthread', None)
         return xgb_params
 
-    def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
+    def fit(self, X, y, sample_weight=None, groups=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
@@ -228,6 +228,8 @@ class XGBModel(XGBModelBase):
             Labels
         sample_weight : array_like
             instance weights
+        groups: array_like
+            Groups for pairwise ranking
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as a validation set for
             early-stopping
@@ -261,6 +263,9 @@ class XGBModel(XGBModelBase):
                                    missing=self.missing, nthread=self.n_jobs)
         else:
             trainDmatrix = DMatrix(X, label=y, missing=self.missing, nthread=self.n_jobs)
+
+        if groups is not None:
+            trainDmatrix.set_group(groups)
 
         evals_result = {}
         if eval_set is not None:
@@ -304,9 +309,11 @@ class XGBModel(XGBModelBase):
             self.best_ntree_limit = self._Booster.best_ntree_limit
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=0):
+    def predict(self, data, groups=None, output_margin=False, ntree_limit=0):
         # pylint: disable=missing-docstring,invalid-name
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        if groups is not None:
+            test_dmatrix.set_group(groups)
         return self.get_booster().predict(test_dmatrix,
                                           output_margin=output_margin,
                                           ntree_limit=ntree_limit)
@@ -407,7 +414,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             scale_pos_weight, base_score,
                                             random_state, seed, missing, **kwargs)
 
-    def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
+    def fit(self, X, y, sample_weight=None, groups=None, eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
@@ -421,6 +428,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             Labels
         sample_weight : array_like
             Weight for each instance
+        groups: array_like
+            Groups for pairwise ranking
         eval_set : list, optional
             A list of (X, y) pairs to use as a validation set for
             early-stopping
@@ -499,6 +508,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             train_dmatrix = DMatrix(X, label=training_labels,
                                     missing=self.missing, nthread=self.n_jobs)
 
+        if groups is not None:
+            train_dmatrix.set_group(groups)
+
         self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
@@ -519,8 +531,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=0):
+    def predict(self, data, groups=None, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        if groups is not None:
+            test_dmatrix.set_group(groups)
         class_probs = self.get_booster().predict(test_dmatrix,
                                                  output_margin=output_margin,
                                                  ntree_limit=ntree_limit)
@@ -531,8 +545,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             column_indexes[class_probs > 0.5] = 1
         return self._le.inverse_transform(column_indexes)
 
-    def predict_proba(self, data, output_margin=False, ntree_limit=0):
+    def predict_proba(self, data, groups=None, output_margin=False, ntree_limit=0):
         test_dmatrix = DMatrix(data, missing=self.missing, nthread=self.n_jobs)
+        if groups is not None:
+            test_dmatrix.set_group(groups)
         class_probs = self.get_booster().predict(test_dmatrix,
                                                  output_margin=output_margin,
                                                  ntree_limit=ntree_limit)
