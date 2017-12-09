@@ -259,6 +259,10 @@ bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label,
 pred <- predict(bst, agaricus.test$data)
 
 }
+\references{
+Tianqi Chen and Carlos Guestrin, "XGBoost: A Scalable Tree Boosting System",
+22nd SIGKDD Conference on Knowledge Discovery and Data Mining, 2016, \url{https://arxiv.org/abs/1603.02754}
+}
 \seealso{
 \code{\link{callbacks}},
 \code{\link{predict.xgb.Booster}},

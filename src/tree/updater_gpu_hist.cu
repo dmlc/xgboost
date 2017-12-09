@@ -512,7 +512,7 @@ class GPUHistMaker : public TreeUpdater {
   }
   void Update(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
-    monitor.Start("Update");
+    monitor.Start("Update", dList);
     GradStats::CheckInfo(dmat->info());
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
@@ -527,17 +527,17 @@ class GPUHistMaker : public TreeUpdater {
       LOG(FATAL) << "GPU plugin exception: " << e.what() << std::endl;
     }
     param.learning_rate = lr;
-    monitor.Stop("Update");
+    monitor.Stop("Update", dList);
     monitor.Output();
   }
 
   void InitDataOnce(DMatrix* dmat) {
     info = &dmat->info();
-    monitor.Start("Quantiles");
+    monitor.Start("Quantiles", dList);
     hmat_.Init(dmat, param.max_bin);
     gmat_.cut = &hmat_;
     gmat_.Init(dmat);
-    monitor.Stop("Quantiles");
+    monitor.Stop("Quantiles", dList);
     n_bins = hmat_.row_ptr.back();
 
     int n_devices = dh::n_devices(param.n_gpus, info->num_row);
@@ -546,7 +546,7 @@ class GPUHistMaker : public TreeUpdater {
     bst_uint shard_size =
         std::ceil(static_cast<double>(info->num_row) / n_devices);
 
-    std::vector<int> dList(n_devices);
+    dList.resize(n_devices);
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
       int device_idx = (param.gpu_id + d_idx) % dh::n_visible_devices();
       dList[d_idx] = device_idx;
@@ -581,26 +581,26 @@ class GPUHistMaker : public TreeUpdater {
 
   void InitData(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
                 const RegTree& tree) {
-    monitor.Start("InitDataOnce");
+    monitor.Start("InitDataOnce", dList);
     if (!initialised) {
      if(PRECISE==0){
         CheckGradientMax(gpair);
       }
       this->InitDataOnce(dmat);
     }
-    monitor.Stop("InitDataOnce");
+    monitor.Stop("InitDataOnce", dList);
 
     column_sampler.Init(info->num_col, param);
 
     // Copy gpair & reset memory
-    monitor.Start("InitDataReset");
+    monitor.Start("InitDataReset", dList);
     omp_set_num_threads(shards.size());
 #pragma omp parallel
     {
       auto cpu_thread_id = omp_get_thread_num();
       shards[cpu_thread_id]->Reset(gpair);
     }
-    monitor.Stop("InitDataReset");
+    monitor.Stop("InitDataReset", dList);
   }
 
   void AllReduceHist(int nidx) {
@@ -817,12 +817,12 @@ class GPUHistMaker : public TreeUpdater {
 
     auto& tree = *p_tree;
 
-    monitor.Start("InitData");
+    monitor.Start("InitData", dList);
     this->InitData(gpair, p_fmat, *p_tree);
-    monitor.Stop("InitData");
-    monitor.Start("InitRoot");
+    monitor.Stop("InitData", dList);
+    monitor.Start("InitRoot", dList);
     this->InitRoot(gpair, p_tree);
-    monitor.Stop("InitRoot");
+    monitor.Stop("InitRoot", dList);
 
     auto timestamp = qexpand_->size();
     auto num_leaves = 1;
@@ -832,9 +832,9 @@ class GPUHistMaker : public TreeUpdater {
       qexpand_->pop();
       if (!candidate.IsValid(param, num_leaves)) continue;
       // std::cout << candidate;
-      monitor.Start("ApplySplit");
+      monitor.Start("ApplySplit", dList);
       this->ApplySplit(candidate, p_tree);
-      monitor.Stop("ApplySplit");
+      monitor.Stop("ApplySplit", dList);
       num_leaves++;
 
       auto left_child_nidx = tree[candidate.nid].cleft();
@@ -843,12 +843,12 @@ class GPUHistMaker : public TreeUpdater {
       // Only create child entries if needed
       if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
                                     num_leaves)) {
-        monitor.Start("BuildHist");
+        monitor.Start("BuildHist", dList);
         this->BuildHistLeftRight(candidate.nid, left_child_nidx,
                                  right_child_nidx);
-        monitor.Stop("BuildHist");
+        monitor.Stop("BuildHist", dList);
 
-        monitor.Start("EvaluateSplits");
+        monitor.Start("EvaluateSplits", dList);
         auto splits =
             this->EvaluateSplits({left_child_nidx, right_child_nidx}, p_tree);
         qexpand_->push(ExpandEntry(left_child_nidx,
@@ -857,10 +857,9 @@ class GPUHistMaker : public TreeUpdater {
         qexpand_->push(ExpandEntry(right_child_nidx,
                                    tree.GetDepth(right_child_nidx), splits[1],
                                    timestamp++));
-        monitor.Stop("EvaluateSplits");
+        monitor.Stop("EvaluateSplits", dList);
       }
     }
-
     // Reset omp num threads
     omp_set_num_threads(nthread);
   }
@@ -929,6 +928,7 @@ class GPUHistMaker : public TreeUpdater {
   common::Monitor monitor;
   dh::AllReducer reducer;
   std::vector<ValueConstraint> node_value_constraints_;
+  std::vector<int> dList;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
