@@ -9,6 +9,7 @@
 #include <dmlc/base.h>
 #include <dmlc/omp.h>
 #include <cmath>
+#include <iostream>
 
 /*!
  * \brief string flag for R library, to leave hooks when needed.
