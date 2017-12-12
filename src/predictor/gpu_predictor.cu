@@ -315,7 +315,7 @@ protected:
     int shared_memory_bytes = static_cast<int>(
         sizeof(float) * device_matrix->p_mat->info().num_col * BLOCK_THREADS);
     bool use_shared = true;
-    if (shared_memory_bytes > dh::max_shared_memory(param.gpu_id)) {
+    if (shared_memory_bytes > max_shared_memory_bytes) {
       shared_memory_bytes = 0;
       use_shared = false;
     }
@@ -467,6 +467,7 @@ protected:
     param.InitAllowUnknown(cfg);
     for (const std::shared_ptr<DMatrix>& d : cache)
       device_cache_[d.get()].data = d;
+    max_shared_memory_bytes = dh::max_shared_memory(param.gpu_id);
   }
 
  private:
@@ -477,6 +478,7 @@ protected:
   thrust::device_vector<DevicePredictionNode> nodes;
   thrust::device_vector<size_t> tree_segments;
   thrust::device_vector<int> tree_group;
+  size_t max_shared_memory_bytes;
 };
 XGBOOST_REGISTER_PREDICTOR(GPUPredictor, "gpu_predictor")
     .describe("Make predictions using GPU.")
