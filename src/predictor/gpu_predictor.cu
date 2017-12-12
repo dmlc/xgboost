@@ -250,8 +250,7 @@ __global__ void PredictKernel(const DevicePredictionNode* d_nodes,
 }
 
 class GPUPredictor : public xgboost::Predictor {
-protected:
-
+ protected:
   struct DevicePredictionCacheEntry {
     std::shared_ptr<DMatrix> data;
     dhvec<bst_float> predictions;
@@ -404,7 +403,8 @@ protected:
         dhvec<bst_float>& y = it->second.predictions;
         if (y.size() != 0) {
           out_preds->resize(y.size(), param.gpu_id);
-          thrust::copy(y.tbegin(param.gpu_id), y.tend(param.gpu_id), out_preds->tbegin(param.gpu_id));
+          thrust::copy(y.tbegin(param.gpu_id), y.tend(param.gpu_id),
+                       out_preds->tbegin(param.gpu_id));
           return true;
         }
       }
@@ -422,7 +422,7 @@ protected:
       DevicePredictionCacheEntry& e = kv.second;
       DMatrix* dmat = kv.first;
       dhvec<bst_float>& predictions = e.predictions;
-      
+
       if (predictions.size() == 0) {
         // ensure that the device in predictions is correct
         predictions.resize(0, param.gpu_id);

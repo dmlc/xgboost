@@ -18,7 +18,7 @@
 
 
 namespace xgboost {
-  
+
 /*! \brief interface of objective function */
 class ObjFunction {
  public:
@@ -48,7 +48,7 @@ class ObjFunction {
                            const MetaInfo& info,
                            int iteration,
                            std::vector<bst_gpair>* out_gpair) = 0;
-  virtual void GetGradient(dhvec<bst_float>& preds,
+  virtual void GetGradient(dhvec<bst_float>* preds,
                            const MetaInfo& info,
                            int iteration,
                            dhvec<bst_gpair>* out_gpair);

@@ -12,7 +12,7 @@ namespace xgboost {
 
 template <typename T>
 struct dhvec_impl {
-  dhvec_impl(size_t size) : data_h_(size) {}
+  explicit dhvec_impl(size_t size) : data_h_(size) {}
   std::vector<T> data_h_;
 };
 

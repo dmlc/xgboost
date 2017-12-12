@@ -197,13 +197,13 @@ class GBTree : public GradientBooster {
                unsigned ntree_limit) override {
     predictor->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
-  
+
   void PredictBatch(DMatrix* p_fmat,
                dhvec<bst_float>* out_preds,
                unsigned ntree_limit) override {
     predictor->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
-  
+
   void PredictInstance(const SparseBatch::Inst& inst,
                std::vector<bst_float>* out_preds,
                unsigned ntree_limit,
@@ -248,19 +248,18 @@ class GBTree : public GradientBooster {
   void DoBoostHelper(DMatrix* p_fmat,
                TVec* in_gpair,
                ObjFunction* obj) {
-    TVec& gpair = *in_gpair;
     std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
     const int ngroup = model_.param.num_output_group;
     monitor.Start("BoostNewTrees");
     if (ngroup == 1) {
       std::vector<std::unique_ptr<RegTree> > ret;
-      BoostNewTrees(gpair, p_fmat, 0, &ret);
+      BoostNewTrees(in_gpair, p_fmat, 0, &ret);
       new_trees.push_back(std::move(ret));
     } else {
-      CHECK_EQ(gpair.size() % ngroup, 0U)
+      CHECK_EQ(in_gpair->size() % ngroup, 0U)
           << "must have exactly ngroup*nrow gpairs";
-      std::vector<bst_gpair> tmp(gpair.size() / ngroup);
-      auto& gpair_h = dhvec<bst_gpair>::data_h(gpair);
+      std::vector<bst_gpair> tmp(in_gpair->size() / ngroup);
+      auto& gpair_h = dhvec<bst_gpair>::data_h(in_gpair);
       for (int gid = 0; gid < ngroup; ++gid) {
         bst_omp_uint nsize = static_cast<bst_omp_uint>(tmp.size());
         #pragma omp parallel for schedule(static)
@@ -268,7 +267,7 @@ class GBTree : public GradientBooster {
           tmp[i] = gpair_h[i * ngroup + gid];
         }
         std::vector<std::unique_ptr<RegTree> > ret;
-        BoostNewTrees(tmp, p_fmat, gid, &ret);
+        BoostNewTrees(&tmp, p_fmat, gid, &ret);
         new_trees.push_back(std::move(ret));
       }
     }
@@ -279,12 +278,12 @@ class GBTree : public GradientBooster {
     }
     monitor.Stop("CommitModel");
   }
-  
+
   // do group specific group
-  // T is either const std::vector<bst_gpair> or dhvec<bst_gpair>
-  template <typename T>
+  // TVec is either const std::vector<bst_gpair> or dhvec<bst_gpair>
+  template <typename TVec>
   inline void
-  BoostNewTrees(T& gpair,
+  BoostNewTrees(TVec* gpair,
                 DMatrix *p_fmat,
                 int bst_group,
                 std::vector<std::unique_ptr<RegTree> >* ret) {
@@ -311,8 +310,22 @@ class GBTree : public GradientBooster {
     }
     // update the trees
     for (auto& up : updaters) {
-      up->Update(gpair, p_fmat, new_trees);
+      UpdateHelper(up.get(), gpair, p_fmat, new_trees);
     }
+  }
+
+  void UpdateHelper(TreeUpdater* updater,
+               std::vector<bst_gpair>* gpair,
+               DMatrix *p_fmat,
+               const std::vector<RegTree*>& new_trees) {
+    updater->Update(*gpair, p_fmat, new_trees);
+  }
+
+  void UpdateHelper(TreeUpdater* updater,
+               dhvec<bst_gpair>* gpair,
+               DMatrix *p_fmat,
+               const std::vector<RegTree*>& new_trees) {
+    updater->Update(gpair, p_fmat, new_trees);
   }
 
   // commit new trees all at once

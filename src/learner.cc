@@ -365,7 +365,7 @@ class LearnerImpl : public Learner {
     this->PredictRaw(train, &preds2_);
     monitor.Stop("PredictRaw");
     monitor.Start("GetGradient");
-    obj_->GetGradient(preds2_, train->info(), iter, &gpair_);
+    obj_->GetGradient(&preds2_, train->info(), iter, &gpair_);
     monitor.Stop("GetGradient");
     gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor.Stop("UpdateOneIter");

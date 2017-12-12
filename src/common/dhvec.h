@@ -17,9 +17,9 @@ namespace xgboost {
 template <typename T> struct dhvec_impl;
 
 template <typename T>
-  class dhvec {
-public:
-  dhvec(size_t size = 0, int device = -1);
+class dhvec {
+ public:
+  explicit dhvec(size_t size = 0, int device = -1);
   ~dhvec();
   dhvec(const dhvec<T>&) = delete;
   dhvec(dhvec<T>&&) = delete;
@@ -41,18 +41,18 @@ public:
 
   // helper functions in case a function needs to be templated
   // to work for both dhvec and std::vector
-  static std::vector<T>& data_h(dhvec<T>& v) {
-    return v.data_h();
+  static std::vector<T>& data_h(dhvec<T>* v) {
+    return v->data_h();
   }
 
-  static std::vector<T>& data_h(std::vector<T>& v) {
-    return v;
-  }  
-  
-private:
+  static std::vector<T>& data_h(std::vector<T>* v) {
+    return *v;
+  }
+
+ private:
   dhvec_impl<T>* impl_;
 };
 
 }  // namespace xgboost
 
-#endif
+#endif  // XGBOOST_COMMON_DHVEC_H_

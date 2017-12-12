@@ -109,7 +109,6 @@ class CPUPredictor : public Predictor {
   }
 
  public:
-
   void PredictBatch(DMatrix* dmat, dhvec<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
                     unsigned ntree_limit = 0) override {

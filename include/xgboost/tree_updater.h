@@ -43,7 +43,7 @@ class TreeUpdater {
   virtual void Update(const std::vector<bst_gpair>& gpair,
                       DMatrix* data,
                       const std::vector<RegTree*>& trees) = 0;
-  virtual void Update(dhvec<bst_gpair>& gpair,
+  virtual void Update(dhvec<bst_gpair>* gpair,
                       DMatrix* data,
                       const std::vector<RegTree*>& trees);
 

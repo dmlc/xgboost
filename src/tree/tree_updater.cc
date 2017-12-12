@@ -22,10 +22,10 @@ TreeUpdater* TreeUpdater::Create(const std::string& name) {
   return (e->body)();
 }
 
-void TreeUpdater::Update(dhvec<bst_gpair>& gpair,
+void TreeUpdater::Update(dhvec<bst_gpair>* gpair,
                          DMatrix* data,
                          const std::vector<RegTree*>& trees) {
-  Update(gpair.data_h(), data, trees);
+  Update(gpair->data_h(), data, trees);
 }
 
 bool TreeUpdater::UpdatePredictionCache(const DMatrix* data,

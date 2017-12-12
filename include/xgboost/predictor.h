@@ -70,7 +70,23 @@ class Predictor {
   virtual void PredictBatch(DMatrix* dmat, std::vector<bst_float>* out_preds,
                             const gbm::GBTreeModel& model, int tree_begin,
                             unsigned ntree_limit = 0) = 0;
-  
+
+  /**
+   * \fn  virtual void Predictor::PredictBatch( DMatrix* dmat,
+   * dhvec<bst_float>* out_preds, const gbm::GBTreeModel &model, int
+   * tree_begin, unsigned ntree_limit = 0) = 0;
+   *
+   * \brief Generate batch predictions for a given feature matrix. May use
+   * cached predictions if available instead of calculating from scratch.
+   *
+   * \param [in,out]  dmat        Feature matrix.
+   * \param [in,out]  out_preds   The output preds.
+   * \param           model       The model to predict from.
+   * \param           tree_begin  The tree begin index.
+   * \param           ntree_limit (Optional) The ntree limit. 0 means do not
+   * limit trees.
+   */
+
   virtual void PredictBatch(DMatrix* dmat, dhvec<bst_float>* out_preds,
                             const gbm::GBTreeModel& model, int tree_begin,
                             unsigned ntree_limit = 0) = 0;

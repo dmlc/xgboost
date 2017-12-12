@@ -13,8 +13,9 @@ struct dhvec_impl {
     if (on_d_) {
       dh::safe_cuda(cudaSetDevice(device_));
       data_d_.resize(size);
-    } else
+    } else {
       data_h_.resize(size);
+    }
   }
   dhvec_impl(const dhvec_impl<T>&) = delete;
   dhvec_impl(dhvec_impl<T>&&) = delete;
@@ -46,9 +47,9 @@ struct dhvec_impl {
     device_ = new_device;
     // if !on_d_, but the data size is 0 and the device is set,
     // resize the data on device instead
-    if (!on_d_ && (data_h_.size() > 0 || device_ == -1))
+    if (!on_d_ && (data_h_.size() > 0 || device_ == -1)) {
       data_h_.resize(new_size);
-    else {
+    } else {
       dh::safe_cuda(cudaSetDevice(device_));
       data_d_.resize(new_size);
       on_d_ = true;
