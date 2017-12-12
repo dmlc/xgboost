@@ -32,13 +32,17 @@ namespace dh {
  * Error handling  functions
  */
 
-#define safe_cuda(ans) throw_on_cuda_error((ans), __FILE__, __LINE__)
+#define safe_cuda_extra(ans, extra) throw_on_cuda_error((ans), (extra), __FILE__, __LINE__)
+#define safe_cuda(ans) throw_on_cuda_error((ans), std::string(""), __FILE__, __LINE__)
 
-inline cudaError_t throw_on_cuda_error(cudaError_t code, const char *file,
+inline cudaError_t throw_on_cuda_error(cudaError_t code, std::string extra_info, const char *file,
                                        int line) {
   if (code != cudaSuccess) {
     std::stringstream ss;
-    ss << file << "(" << line << ")";
+    size_t free=0, total=0;
+    ss << file << "(" << line << ")" << "extra_info: " << extra_info;
+    cudaMemGetInfo(&free, &total); // don't safe_cuda or check return
+    ss << " GPU memory free: " << free << " GPU memory total: " << total;
     std::string file_and_line;
     ss >> file_and_line;
     throw thrust::system_error(code, thrust::cuda_category(), file_and_line);
@@ -453,7 +457,9 @@ class bulk_allocator {
   char *allocate_device(int device_idx, size_t bytes, memory_type t) {
     char *ptr;
     safe_cuda(cudaSetDevice(device_idx));
-    safe_cuda(cudaMalloc(&ptr, bytes));
+    std::stringstream ss;
+    ss << "bytes: " << bytes;
+    safe_cuda_extra(cudaMalloc(&ptr, bytes), ss.str());
     return ptr;
   }
   template <typename T>
@@ -546,7 +552,11 @@ struct CubMemory {
   void LazyAllocate(size_t num_bytes) {
     if (num_bytes > temp_storage_bytes) {
       Free();
-      safe_cuda(cudaMalloc(&d_temp_storage, num_bytes));
+
+      std::stringstream ss;
+      ss << "num_bytes: " << num_bytes;
+
+      safe_cuda_extra(cudaMalloc(&d_temp_storage, num_bytes), ss.str());
       temp_storage_bytes = num_bytes;
     }
   }
