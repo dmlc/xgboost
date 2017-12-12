@@ -218,7 +218,8 @@ class XGBModel(XGBModelBase):
         return xgb_params
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True, xgb_model=None, sample_weight_eval_set=None):
+            early_stopping_rounds=None, early_stopping_threshold=None, early_stopping_limit=None,
+            verbose=True, xgb_model=None, sample_weight_eval_set=None):
         # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
         """
         Fit the gradient boosting model
@@ -255,6 +256,14 @@ class XGBModel(XGBModelBase):
             and bst.best_ntree_limit.
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
+        early_stopping_threshold : float
+        	Sets an potional threshold to smoothen the early stopping policy.
+￼           If after early_stopping_rounds iterations, the model hasn't improved
+        	more than threshold times the score from early_stopping_rounds before,
+            then the learning stops.
+        early_stopping_limit: float
+            Sets limit of "threshold times the score from early_stopping_rounds_before"
+            to value of limit.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -297,6 +306,8 @@ class XGBModel(XGBModelBase):
         self._Booster = train(params, trainDmatrix,
                               self.n_estimators, evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
+                              early_stopping_threshold=early_stopping_threshold,
+                              early_stopping_limit=early_stopping_limit,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model)
 
@@ -423,7 +434,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                             random_state, seed, missing, **kwargs)
 
     def fit(self, X, y, sample_weight=None, eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True, xgb_model=None, sample_weight_eval_set=None):
+            early_stopping_rounds=None, early_stopping_threshold=None, early_stopping_limit=None,
+            verbose=True, xgb_model=None, sample_weight_eval_set=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """
         Fit gradient boosting classifier
@@ -460,6 +472,14 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             and bst.best_ntree_limit.
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
+        early_stopping_threshold : float
+        	Sets an potional threshold to smoothen the early stopping policy.
+￼           If after early_stopping_rounds iterations, the model hasn't improved
+        	more than threshold times the score from early_stopping_rounds before,
+            then the learning stops.
+        early_stopping_limit: float
+            Sets limit of "threshold times the score from early_stopping_rounds_before"
+            to value of limit.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
@@ -521,6 +541,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self._Booster = train(xgb_options, train_dmatrix, self.n_estimators,
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
+                              early_stopping_threshold=early_stopping_threshold,
+                              early_stopping_limit=early_stopping_limit,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=None)
 

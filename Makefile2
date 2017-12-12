@@ -1,4 +1,5 @@
 # https://xgboost.readthedocs.io/en/latest/build.html
+default: libxgboost
 libxgboost: libxgboostp1 libxgboostp2 libxgboostp3
 libxgboost2: libxgboostp1 libxgboostp2nonccl libxgboostp3
 

@@ -50,6 +50,10 @@ def run_benchmark(args):
     print("Training with '%s'" % param['tree_method'])
     tmp = time.time()
     xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")])
+    #param['eval_metric'] = 'auc'
+    # xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")], early_stopping_rounds=20)
+    #param['eval_metric'] = 'auc'
+    # xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")], early_stopping_rounds=20, early_stopping_threshold=1E-3, early_stopping_limit=0.999)
     print ("Train Time: %s seconds" % (str(time.time() - tmp)))
 
 parser = argparse.ArgumentParser()
