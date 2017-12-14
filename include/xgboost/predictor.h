@@ -52,10 +52,6 @@ class Predictor {
                     const std::vector<std::shared_ptr<DMatrix>>& cache);
 
   /**
-   * \fn  virtual void Predictor::PredictBatch( DMatrix* dmat,
-   * std::vector<bst_float>* out_preds, const gbm::GBTreeModel &model, int
-   * tree_begin, unsigned ntree_limit = 0) = 0;
-   *
    * \brief Generate batch predictions for a given feature matrix. May use
    * cached predictions if available instead of calculating from scratch.
    *
@@ -72,10 +68,6 @@ class Predictor {
                             unsigned ntree_limit = 0) = 0;
 
   /**
-   * \fn  virtual void Predictor::PredictBatch( DMatrix* dmat,
-   * dhvec<bst_float>* out_preds, const gbm::GBTreeModel &model, int
-   * tree_begin, unsigned ntree_limit = 0) = 0;
-   *
    * \brief Generate batch predictions for a given feature matrix. May use
    * cached predictions if available instead of calculating from scratch.
    *

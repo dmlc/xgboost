@@ -57,6 +57,7 @@
 #include "../src/learner.cc"
 #include "../src/logging.cc"
 #include "../src/common/common.cc"
+#include "../src/common/dhvec.cc"
 #include "../src/common/hist_util.cc"
 
 // c_api
