@@ -16,6 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.io.File
+
 import scala.collection.mutable
 import scala.util.Random
 
@@ -122,17 +124,21 @@ object XGBoost extends Serializable {
           s"detected an empty partition in the training data, partition ID:" +
             s" ${TaskContext.getPartitionId()}")
       }
-      val cacheFileName = if (useExternalMemory) {
-        s"$appName-${TaskContext.get().stageId()}-" +
-          s"dtrain_cache-${TaskContext.getPartitionId()}"
+      val taskId = TaskContext.getPartitionId().toString
+      val cacheDirName = if (useExternalMemory) {
+        val dir = new File(s"$appName-${TaskContext.get().stageId()}-dtrain_cache-$taskId")
+        if (!(dir.exists() || dir.mkdirs())) {
+          throw new XGBoostError(s"failed to create cache directory: $dir")
+        }
+        Some(dir.toString)
       } else {
-        null
+        None
       }
-      rabitEnv.put("DMLC_TASK_ID", TaskContext.getPartitionId().toString)
+      rabitEnv.put("DMLC_TASK_ID", taskId)
       Rabit.init(rabitEnv)
       val watches = Watches(params,
         removeMissingValues(labeledPoints, missing),
-        fromBaseMarginsToArray(baseMargins), cacheFileName)
+        fromBaseMarginsToArray(baseMargins), cacheDirName)
 
       try {
         val numEarlyStoppingRounds = params.get("numEarlyStoppingRounds")
@@ -462,7 +468,7 @@ private object Watches {
       params: Map[String, Any],
       labeledPoints: Iterator[XGBLabeledPoint],
       baseMarginsOpt: Option[Array[Float]],
-      cacheFileName: String): Watches = {
+      cacheDirName: Option[String]): Watches = {
     val trainTestRatio = params.get("trainTestRatio").map(_.toString.toDouble).getOrElse(1.0)
     val seed = params.get("seed").map(_.toString.toLong).getOrElse(System.nanoTime())
     val r = new Random(seed)
@@ -475,8 +481,8 @@ private object Watches {
 
       accepted
     }
-    val trainMatrix = new DMatrix(trainPoints, cacheFileName)
-    val testMatrix = new DMatrix(testPoints.iterator, cacheFileName)
+    val trainMatrix = new DMatrix(trainPoints, cacheDirName.map(_ + "/train").orNull)
+    val testMatrix = new DMatrix(testPoints.iterator, cacheDirName.map(_ + "/test").orNull)
     r.setSeed(seed)
     for (baseMargins <- baseMarginsOpt) {
       val (trainMargin, testMargin) = baseMargins.partition(_ => r.nextDouble() <= trainTestRatio)
