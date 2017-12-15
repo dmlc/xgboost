@@ -20,6 +20,7 @@
 #include "./common/io.h"
 #include "./common/random.h"
 #include "common/timer.h"
+#include "xgboost/optimizer.h"
 
 
 namespace xgboost {
@@ -89,6 +90,7 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
   int nthread;
   // flag to print out detailed breakdown of runtime
   int debug_verbose;
+  std::string optimizer;
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerTrainParam) {
     DMLC_DECLARE_FIELD(seed).set_default(0).describe(
@@ -129,6 +131,9 @@ struct LearnerTrainParam : public dmlc::Parameter<LearnerTrainParam> {
         .set_lower_bound(0)
         .set_default(0)
         .describe("flag to print out detailed breakdown of runtime");
+    DMLC_DECLARE_FIELD(optimizer)
+        .set_default("default_optimizer")
+        .describe("Gradient descent optimizer type.");
   }
 };
 
@@ -261,6 +266,8 @@ class LearnerImpl : public Learner {
     if (obj_ != nullptr) {
       obj_->Configure(cfg_.begin(), cfg_.end());
     }
+
+    optimizer.reset(Optimizer::Create(tparam.optimizer));
   }
 
   void InitModel() override { this->LazyInitModel(); }
@@ -576,6 +583,8 @@ class LearnerImpl : public Learner {
   static const int kRandSeedMagic = 127;
   // internal cached dmatrix
   std::vector<std::shared_ptr<DMatrix> > cache_;
+  
+  std::unique_ptr<Optimizer> optimizer;
 
   common::Monitor monitor_;
 };
