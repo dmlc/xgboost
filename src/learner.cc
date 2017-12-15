@@ -268,6 +268,7 @@ class LearnerImpl : public Learner {
     }
 
     optimizer.reset(Optimizer::Create(tparam.optimizer));
+    optimizer->Init(args);
   }
 
   void InitModel() override { this->LazyInitModel(); }
@@ -373,6 +374,7 @@ class LearnerImpl : public Learner {
     monitor_.Stop("PredictRaw");
     monitor_.Start("GetGradient");
     obj_->GetGradient(&preds_, train->Info(), iter, &gpair_);
+    optimizer->OptimizeGradients(&gpair_);
     monitor_.Stop("GetGradient");
     gbm_->DoBoost(train, &gpair_, obj_.get());
     monitor_.Stop("UpdateOneIter");

@@ -25,6 +25,6 @@ namespace optimizer {
 XGBOOST_REGISTER_OPTIMIZER(DefaultOptimizer, "default_optimizer")
     .describe("Null optimizer.")
     .set_body([]() { return new DefaultOptimizer(); });
-// DMLC_REGISTRY_LINK_TAG(momentum_optimizer);
+DMLC_REGISTRY_LINK_TAG(momentum_optimizer);
 }  // namespace optimizer
 }  // namespace xgboost

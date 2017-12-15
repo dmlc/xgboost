@@ -1,6 +1,7 @@
 /*!
  * Copyright by Contributors 2017
  */
+#include <dmlc/parameter.h>
 #include <xgboost/optimizer.h>
 
 namespace xgboost {
@@ -14,12 +15,13 @@ struct MomentumOptimizerParam : public dmlc::Parameter<MomentumOptimizerParam> {
   // declare parameters
   DMLC_DECLARE_PARAMETER(MomentumOptimizerParam) {
     DMLC_DECLARE_FIELD(momentum)
-        .set_default(0.0f)
         .set_range(0.0f, 1.0f)
+        .set_default(0.0f)
         .describe(
-            "Momentum coefficient applying gradients from previous iteration.");
+            "Momentum coefficient controlling amount of gradient applied from previous iteration.");
   }
 };
+DMLC_REGISTER_PARAMETER(MomentumOptimizerParam);
 
 class MomentumOptimizer : public Optimizer {
  public:
@@ -32,7 +34,7 @@ class MomentumOptimizer : public Optimizer {
       return;
     }
     if (!previous_gpair_.empty()) {
-      // apply momentum
+       //apply momentum
       for (size_t i = 0; i < gpair->size(); i++) {
         (*gpair)[i] =
             (*gpair)[i] +
