@@ -8,6 +8,8 @@ os:
 
 osx_image: xcode8
 
+group: deprecated-2017Q4
+
 # Use Build Matrix to do lint and build seperately
 env:
   matrix:
