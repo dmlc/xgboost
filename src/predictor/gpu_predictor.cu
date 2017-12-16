@@ -347,15 +347,16 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
-                    unsigned ntree_limit = 0) override {
-    if (this->PredictFromCache(dmat, out_preds, model, ntree_limit)) {
+                    unsigned ntree_limit = 0,
+                    bool init_margin = true) override {
+    if (this->PredictFromCache(dmat, out_preds, model, tree_begin,
+                               ntree_limit)) {
       return;
     }
-    this->InitOutPredictions(dmat->Info(), out_preds, model);
+    this->InitOutPredictions(dmat->Info(), out_preds, model, init_margin);
 
     int tree_end = ntree_limit * model.param.num_output_group;
-
-    if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
+    if (ntree_limit == 0 || tree_end > model.trees.size()) {
       tree_end = static_cast<unsigned>(model.trees.size());
     }
 

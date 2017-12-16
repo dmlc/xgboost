@@ -59,13 +59,13 @@ class Predictor {
    * \param [in,out]  out_preds   The output preds.
    * \param           model       The model to predict from.
    * \param           tree_begin  The tree begin index.
-   * \param           ntree_limit (Optional) The ntree limit. 0 means do not
-   * limit trees.
+   * \param           ntree_limit (Optional) The ntree limit. 0 means do not limit trees.
+   * \param           init_margin (Optional) Whether to initialise predictions using base margin.
    */
 
   virtual void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                             const gbm::GBTreeModel& model, int tree_begin,
-                            unsigned ntree_limit = 0) = 0;
+                            unsigned ntree_limit = 0, bool init_margin = true) = 0;
 
   /**
    * \fn  virtual void Predictor::UpdatePredictionCache( const gbm::GBTreeModel
@@ -170,6 +170,7 @@ class Predictor {
   static Predictor* Create(std::string name);
 
  protected:
+
   /**
    * \struct  PredictionCacheEntry
    *

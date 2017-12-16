@@ -371,8 +371,9 @@ class LearnerImpl : public Learner {
     this->LazyInitDMatrix(train);
     monitor_.Start("PredictRaw");
     this->PredictRaw(train, &preds_);
-    monitor_.Stop("PredictRaw");
-    monitor_.Start("GetGradient");
+    optimizer->OptimizePredictions(&preds_, gbm_.get(), train);
+    monitor.Stop("PredictRaw");
+    monitor.Start("GetGradient");
     obj_->GetGradient(&preds_, train->Info(), iter, &gpair_);
     optimizer->OptimizeGradients(&gpair_);
     monitor_.Stop("GetGradient");

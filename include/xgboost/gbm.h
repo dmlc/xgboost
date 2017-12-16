@@ -82,6 +82,18 @@ class GradientBooster {
   virtual void PredictBatch(DMatrix* dmat,
                             HostDeviceVector<bst_float>* out_preds,
                             unsigned ntree_limit = 0) = 0;
+
+  /**
+   * \fn  virtual void GradientBooster::NesterovPredict(DMatrix* dmat, std::vector<bst_float>* out_preds)
+   *
+   * \brief Nesterov predict. Return predictions only for the model update in the previous iteration.
+   *        Used to implement lookahead in nesterov momentum.
+   *
+   * \param [in,out]  out_preds Output predictions for only the previous iteration update step. For GBTree this is the most recent tree.
+   */
+
+  virtual void NesterovPredict(DMatrix* dmat,
+                       std::vector<bst_float>* out_preds){};
   /*!
    * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually

@@ -7,21 +7,21 @@
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
 #include <dmlc/timer.h>
-#include <xgboost/logging.h>
 #include <xgboost/gbm.h>
+#include <xgboost/logging.h>
 #include <xgboost/predictor.h>
 #include <xgboost/tree_updater.h>
-#include <vector>
-#include <memory>
-#include <utility>
-#include <string>
-#include <limits>
 #include <algorithm>
+#include <limits>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 #include "../common/common.h"
 #include "../common/host_device_vector.h"
 #include "../common/random.h"
-#include "gbtree_model.h"
 #include "../common/timer.h"
+#include "gbtree_model.h"
 
 namespace xgboost {
 namespace gbm {
@@ -29,10 +29,7 @@ namespace gbm {
 DMLC_REGISTRY_FILE_TAG(gbtree);
 
 // boosting process types
-enum TreeProcessType {
-  kDefault,
-  kUpdate
-};
+enum TreeProcessType { kDefault, kUpdate };
 
 /*! \brief training parameters */
 struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
@@ -53,8 +50,9 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
     DMLC_DECLARE_FIELD(num_parallel_tree)
         .set_default(1)
         .set_lower_bound(1)
-        .describe("Number of parallel trees constructed during each iteration."\
-                  " This option is used to support boosted random forest");
+        .describe(
+            "Number of parallel trees constructed during each iteration."
+            " This option is used to support boosted random forest");
     DMLC_DECLARE_FIELD(updater_seq)
         .set_default("grow_colmaker,prune")
         .describe("Tree updater sequence.");
@@ -62,8 +60,9 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
         .set_default(kDefault)
         .add_enum("default", kDefault)
         .add_enum("update", kUpdate)
-        .describe("Whether to run the normal boosting process that creates new trees,"\
-                  " or to update the trees in an existing model.");
+        .describe(
+            "Whether to run the normal boosting process that creates new trees,"
+            " or to update the trees in an existing model.");
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
@@ -71,8 +70,8 @@ struct GBTreeTrainParam : public dmlc::Parameter<GBTreeTrainParam> {
     // add alias
     DMLC_DECLARE_ALIAS(updater_seq, updater);
     DMLC_DECLARE_FIELD(predictor)
-      .set_default("cpu_predictor")
-      .describe("Predictor algorithm type");
+        .set_default("cpu_predictor")
+        .describe("Predictor algorithm type");
   }
 };
 
@@ -86,7 +85,8 @@ struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
   int normalize_type;
   /*! \brief fraction of trees to drop during the dropout */
   float rate_drop;
-  /*! \brief whether at least one tree should always be dropped during the dropout */
+  /*! \brief whether at least one tree should always be dropped during the
+   * dropout */
   bool one_drop;
   /*! \brief probability of skipping the dropout during an iteration */
   float skip_drop;
@@ -94,9 +94,8 @@ struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
   float learning_rate;
   // declare parameters
   DMLC_DECLARE_PARAMETER(DartTrainParam) {
-    DMLC_DECLARE_FIELD(silent)
-        .set_default(false)
-        .describe("Not print information during training.");
+    DMLC_DECLARE_FIELD(silent).set_default(false).describe(
+        "Not print information during training.");
     DMLC_DECLARE_FIELD(sample_type)
         .set_default(0)
         .add_enum("uniform", 0)
@@ -111,13 +110,14 @@ struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
         .set_range(0.0f, 1.0f)
         .set_default(0.0f)
         .describe("Fraction of trees to drop during the dropout.");
-    DMLC_DECLARE_FIELD(one_drop)
-        .set_default(false)
-        .describe("Whether at least one tree should always be dropped during the dropout.");
+    DMLC_DECLARE_FIELD(one_drop).set_default(false).describe(
+        "Whether at least one tree should always be dropped during the "
+        "dropout.");
     DMLC_DECLARE_FIELD(skip_drop)
         .set_range(0.0f, 1.0f)
         .set_default(0.0f)
-        .describe("Probability of skipping the dropout during a boosting iteration.");
+        .describe(
+            "Probability of skipping the dropout during a boosting iteration.");
     DMLC_DECLARE_FIELD(learning_rate)
         .set_lower_bound(0.0f)
         .set_default(0.3f)
@@ -125,7 +125,6 @@ struct DartTrainParam : public dmlc::Parameter<DartTrainParam> {
     DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
 };
-
 
 // cache entry
 struct CacheEntry {
@@ -138,7 +137,7 @@ class GBTree : public GradientBooster {
  public:
   explicit GBTree(bst_float base_margin) : model_(base_margin) {}
 
-  void InitCache(const std::vector<std::shared_ptr<DMatrix> > &cache) {
+  void InitCache(const std::vector<std::shared_ptr<DMatrix>>& cache) {
     cache_ = cache;
   }
 
@@ -171,9 +170,7 @@ class GBTree : public GradientBooster {
                                        common::ToString(model_.param.num_feature));
   }
 
-  void Save(dmlc::Stream* fo) const override {
-    model_.Save(fo);
-  }
+  void Save(dmlc::Stream* fo) const override { model_.Save(fo); }
 
   bool AllowLazyCheckPoint() const override {
     return model_.param.num_output_group == 1 ||
@@ -184,6 +181,7 @@ class GBTree : public GradientBooster {
                HostDeviceVector<GradientPair>* in_gpair,
                ObjFunction* obj) override {
     std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
+
     const int ngroup = model_.param.num_output_group;
     monitor_.Start("BoostNewTrees");
     if (ngroup == 1) {
@@ -219,6 +217,20 @@ class GBTree : public GradientBooster {
                HostDeviceVector<bst_float>* out_preds,
                unsigned ntree_limit) override {
     predictor_->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
+
+  }
+
+  void NesterovPredict(DMatrix* dmat,
+                       std::vector<bst_float>* out_preds) override {
+    if (model_.trees.empty()) {
+      out_preds->resize(dmat->info().num_row*model_.param.num_output_group, 0.0f);
+    }
+    else {
+      // Predict using last tree only, without base margin
+      predictor->PredictBatch(dmat, out_preds, model_,
+                              std::max(model_.param.num_trees -  model_.param.num_output_group, 0),
+                              model_.param.num_trees, false);
+    }
   }
 
   void PredictInstance(const SparseBatch::Inst& inst,
@@ -229,8 +241,7 @@ class GBTree : public GradientBooster {
                                ntree_limit, root_index);
   }
 
-  void PredictLeaf(DMatrix* p_fmat,
-                   std::vector<bst_float>* out_preds,
+  void PredictLeaf(DMatrix* p_fmat, std::vector<bst_float>* out_preds,
                    unsigned ntree_limit) override {
     predictor_->PredictLeaf(p_fmat, out_preds, model_, ntree_limit);
   }
@@ -249,8 +260,7 @@ class GBTree : public GradientBooster {
                                                ntree_limit, approximate);
   }
 
-  std::vector<std::string> DumpModel(const FeatureMap& fmap,
-                                     bool with_stats,
+  std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
                                      std::string format) const override {
     return model_.DumpModel(fmap, with_stats, format);
   }
@@ -331,7 +341,8 @@ class Dart : public GBTree {
  public:
   explicit Dart(bst_float base_margin) : GBTree(base_margin) {}
 
-  void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
+  void Configure(
+      const std::vector<std::pair<std::string, std::string>>& cfg) override {
     GBTree::Configure(cfg);
     if (model_.trees.size() == 0) {
       dparam_.InitAllowUnknown(cfg);
@@ -362,9 +373,8 @@ class Dart : public GBTree {
   }
 
   void PredictInstance(const SparseBatch::Inst& inst,
-               std::vector<bst_float>* out_preds,
-               unsigned ntree_limit,
-               unsigned root_index) override {
+                       std::vector<bst_float>* out_preds, unsigned ntree_limit,
+                       unsigned root_index) override {
     DropTrees(1);
     if (thread_temp_.size() == 0) {
       thread_temp_.resize(1, RegTree::FVec());
@@ -387,13 +397,11 @@ class Dart : public GBTree {
   friend class GBTree;
   // internal prediction loop
   // add predictions to out_preds
-  template<typename Derived>
-  inline void PredLoopInternal(
-      DMatrix* p_fmat,
-      std::vector<bst_float>* out_preds,
-      unsigned tree_begin,
-      unsigned ntree_limit,
-      bool init_out_preds) {
+  template <typename Derived>
+  inline void PredLoopInternal(DMatrix* p_fmat,
+                               std::vector<bst_float>* out_preds,
+                               unsigned tree_begin, unsigned ntree_limit,
+                               bool init_out_preds) {
     int num_group = model_.param.num_output_group;
     ntree_limit *= num_group;
     if (ntree_limit == 0 || ntree_limit > model_.trees.size()) {
@@ -413,11 +421,10 @@ class Dart : public GBTree {
     }
 
     if (num_group == 1) {
-      PredLoopSpecalize<Derived>(p_fmat, out_preds, 1,
-                                 tree_begin, ntree_limit);
+      PredLoopSpecalize<Derived>(p_fmat, out_preds, 1, tree_begin, ntree_limit);
     } else {
-      PredLoopSpecalize<Derived>(p_fmat, out_preds, num_group,
-                                 tree_begin, ntree_limit);
+      PredLoopSpecalize<Derived>(p_fmat, out_preds, num_group, tree_begin,
+                                 ntree_limit);
     }
   }
 
@@ -441,7 +448,7 @@ class Dart : public GBTree {
     auto* self = static_cast<Derived*>(this);
     iter->BeforeFirst();
     while (iter->Next()) {
-      const RowBatch &batch = iter->Value();
+      const RowBatch& batch = iter->Value();
       // parallel over local batch
       constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.size);
@@ -462,8 +469,8 @@ class Dart : public GBTree {
           for (int gid = 0; gid < num_group; ++gid) {
             const size_t offset = ridx[k] * num_group + gid;
             preds[offset] +=
-                self->PredValue(inst[k], gid, info.GetRoot(ridx[k]),
-                                &feats, tree_begin, tree_end);
+                self->PredValue(inst[k], gid, info.GetRoot(ridx[k]), &feats,
+                                tree_begin, tree_end);
           }
         }
       }
@@ -473,9 +480,8 @@ class Dart : public GBTree {
         const RowBatch::Inst inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {
           const size_t offset = ridx * num_group + gid;
-          preds[offset] +=
-              self->PredValue(inst, gid, info.GetRoot(ridx),
-                              &feats, tree_begin, tree_end);
+          preds[offset] += self->PredValue(inst, gid, info.GetRoot(ridx),
+                                           &feats, tree_begin, tree_end);
         }
       }
     }
@@ -497,12 +503,9 @@ class Dart : public GBTree {
   }
 
   // predict the leaf scores without dropped trees
-  inline bst_float PredValue(const RowBatch::Inst &inst,
-                             int bst_group,
-                             unsigned root_index,
-                             RegTree::FVec *p_feats,
-                             unsigned tree_begin,
-                             unsigned tree_end) {
+  inline bst_float PredValue(const RowBatch::Inst& inst, int bst_group,
+                             unsigned root_index, RegTree::FVec* p_feats,
+                             unsigned tree_begin, unsigned tree_end) {
     bst_float psum = 0.0f;
     p_feats->Fill(inst);
     for (size_t i = tree_begin; i < tree_end; ++i) {
@@ -633,10 +636,11 @@ XGBOOST_REGISTER_GBM(GBTree, "gbtree")
     return p;
   });
 XGBOOST_REGISTER_GBM(Dart, "dart")
-.describe("Tree booster, dart.")
-.set_body([](const std::vector<std::shared_ptr<DMatrix> >& cached_mats, bst_float base_margin) {
-    GBTree* p = new Dart(base_margin);
-    return p;
-  });
+    .describe("Tree booster, dart.")
+    .set_body([](const std::vector<std::shared_ptr<DMatrix>>& cached_mats,
+                 bst_float base_margin) {
+      GBTree* p = new Dart(base_margin);
+      return p;
+    });
 }  // namespace gbm
 }  // namespace xgboost
