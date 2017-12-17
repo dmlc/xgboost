@@ -86,7 +86,7 @@ else()
 
   # attempt to find R executable
   if(NOT LIBR_EXECUTABLE)
-    find_program(LIBR_EXECUTABLE R)
+    find_program(LIBR_EXECUTABLE NAMES R R.exe)
   endif()
   
   if(UNIX)
@@ -117,7 +117,7 @@ else()
     # ask R for R_HOME 
     if(LIBR_EXECUTABLE)
       execute_process(
-        COMMAND ${LIBR_EXECUTABLE} "--slave" "--no-save" "-e" "cat(normalizePath(R.home(), winslash='/')"
+        COMMAND ${LIBR_EXECUTABLE} "--slave" "--no-save" "-e" "cat(normalizePath(R.home(), winslash='/'))"
         OUTPUT_VARIABLE LIBR_HOME)
     endif()
     # if R executable not available, query R_HOME path from registry
@@ -138,6 +138,12 @@ else()
     set(LIBR_INCLUDE_DIRS "${LIBR_HOME}/include")
     set(LIBR_LIB_DIR "${LIBR_HOME}/bin/${R_ARCH}")
  
+message(STATUS "LIBR_HOME [${LIBR_HOME}]")
+message(STATUS "LIBR_EXECUTABLE [${LIBR_EXECUTABLE}]")
+message(STATUS "LIBR_INCLUDE_DIRS [${LIBR_INCLUDE_DIRS}]")
+message(STATUS "LIBR_LIB_DIR [${LIBR_LIB_DIR}]")
+message(STATUS "LIBR_CORE_LIBRARY [${LIBR_CORE_LIBRARY}]")
+
   endif()
 
 endif()
