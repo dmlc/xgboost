@@ -120,5 +120,5 @@ artifacts:
     - path: '\xgboost_*.tar.gz'
       name: Bits
     # binary R-package
-    - path: '\xgboost_*.zip'
+    - path: '**\xgboost_*.zip'
       name: Bits
