@@ -151,6 +151,12 @@ object XGBoost extends Serializable {
       } finally {
         Rabit.shutdown()
         watches.delete()
+        cacheDirName.foreach { name =>
+          val cacheDir = new File(name)
+          if (!cacheDir.listFiles().forall(_.delete()) || !cacheDir.delete()) {
+            throw new IllegalStateException(s"failed to delete $cacheDir")
+          }
+        }
       }
     }.cache()
   }
