@@ -123,9 +123,12 @@ mbst <- xgboost(data = x, label = as.numeric(iris$Species) - 1, nrounds = nround
                 objective = "multi:softprob", num_class = nclass, verbose = 0)
 trees0 <- seq(from=0, by=nclass, length.out=nrounds)
 col <- rgb(0, 0, 1, 0.5)
-xgb.plot.shap(x, model = mbst, trees = trees0, target_class = 0, top_n = 4, n_col = 2, col = col, pch = 16, pch_NA = 17)
-xgb.plot.shap(x, model = mbst, trees = trees0 + 1, target_class = 1, top_n = 4, n_col = 2, col = col, pch = 16, pch_NA = 17)
-xgb.plot.shap(x, model = mbst, trees = trees0 + 2, target_class = 2, top_n = 4, n_col = 2, col = col, pch = 16, pch_NA = 17)
+xgb.plot.shap(x, model = mbst, trees = trees0, target_class = 0, top_n = 4,
+              n_col = 2, col = col, pch = 16, pch_NA = 17)
+xgb.plot.shap(x, model = mbst, trees = trees0 + 1, target_class = 1, top_n = 4,
+              n_col = 2, col = col, pch = 16, pch_NA = 17)
+xgb.plot.shap(x, model = mbst, trees = trees0 + 2, target_class = 2, top_n = 4,
+              n_col = 2, col = col, pch = 16, pch_NA = 17)
 
 }
 \references{
