@@ -6,25 +6,16 @@ environment:
           ver: 2013
           generator: "Visual Studio 12 2013 Win64"
           configuration: Release
-          platform: x64
         - target: msvc
           ver: 2015
           generator: "Visual Studio 14 2015 Win64"
           configuration: Debug
-          platform: x64
         - target: msvc
           ver: 2015
           generator: "Visual Studio 14 2015 Win64"
           configuration: Release
-          platform: x64
-        - target: msvc
-          ver: 2015
-          generator: "Visual Studio 14 2015"
-          configuration: Release
-          platform: Win32
         - target: mingw
           generator: "Unix Makefiles"
-          platform: x64
         - target: jvm
         - target: rmsvc
           ver: 2015
@@ -35,6 +26,9 @@ environment:
 
 #matrix:
 #    fast_finish: true
+
+platform:
+    - x64
 
 install:
     - git submodule update --init --recursive
