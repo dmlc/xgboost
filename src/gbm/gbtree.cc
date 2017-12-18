@@ -18,7 +18,7 @@
 #include <limits>
 #include <algorithm>
 #include "../common/common.h"
-#include "../common/dhvec.h"
+#include "../common/host_device_vector.h"
 #include "../common/random.h"
 #include "gbtree_model.h"
 #include "../common/timer.h"
@@ -187,7 +187,7 @@ class GBTree : public GradientBooster {
   }
 
   void DoBoost(DMatrix* p_fmat,
-               dhvec<bst_gpair>* in_gpair,
+               HostDeviceVector<bst_gpair>* in_gpair,
                ObjFunction* obj) override {
     DoBoostHelper(p_fmat, in_gpair, obj);
   }
@@ -199,7 +199,7 @@ class GBTree : public GradientBooster {
   }
 
   void PredictBatch(DMatrix* p_fmat,
-               dhvec<bst_float>* out_preds,
+               HostDeviceVector<bst_float>* out_preds,
                unsigned ntree_limit) override {
     predictor->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
   }
@@ -243,7 +243,7 @@ class GBTree : public GradientBooster {
     }
   }
 
-  // TVec is either std::vector<bst_gpair> or dhvec<bst_gpair>
+  // TVec is either std::vector<bst_gpair> or HostDeviceVector<bst_gpair>
   template <typename TVec>
   void DoBoostHelper(DMatrix* p_fmat,
                TVec* in_gpair,
@@ -259,7 +259,7 @@ class GBTree : public GradientBooster {
       CHECK_EQ(in_gpair->size() % ngroup, 0U)
           << "must have exactly ngroup*nrow gpairs";
       std::vector<bst_gpair> tmp(in_gpair->size() / ngroup);
-      auto& gpair_h = dhvec<bst_gpair>::data_h(in_gpair);
+      auto& gpair_h = HostDeviceVector<bst_gpair>::data_h(in_gpair);
       for (int gid = 0; gid < ngroup; ++gid) {
         bst_omp_uint nsize = static_cast<bst_omp_uint>(tmp.size());
         #pragma omp parallel for schedule(static)
@@ -280,7 +280,7 @@ class GBTree : public GradientBooster {
   }
 
   // do group specific group
-  // TVec is either const std::vector<bst_gpair> or dhvec<bst_gpair>
+  // TVec is either const std::vector<bst_gpair> or HostDeviceVector<bst_gpair>
   template <typename TVec>
   inline void
   BoostNewTrees(TVec* gpair,
@@ -322,7 +322,7 @@ class GBTree : public GradientBooster {
   }
 
   void UpdateHelper(TreeUpdater* updater,
-               dhvec<bst_gpair>* gpair,
+               HostDeviceVector<bst_gpair>* gpair,
                DMatrix *p_fmat,
                const std::vector<RegTree*>& new_trees) {
     updater->Update(gpair, p_fmat, new_trees);

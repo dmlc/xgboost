@@ -12,7 +12,7 @@
 #include <xgboost/tree_updater.h>
 #include <memory>
 #include "../common/device_helpers.cuh"
-#include "../common/dhvec.h"
+#include "../common/host_device_vector.h"
 
 namespace xgboost {
 namespace predictor {
@@ -253,13 +253,13 @@ class GPUPredictor : public xgboost::Predictor {
  protected:
   struct DevicePredictionCacheEntry {
     std::shared_ptr<DMatrix> data;
-    dhvec<bst_float> predictions;
+    HostDeviceVector<bst_float> predictions;
   };
 
   std::unordered_map<DMatrix*, DevicePredictionCacheEntry> device_cache_;
 
  private:
-  void DevicePredictInternal(DMatrix* dmat, dhvec<bst_float>* out_preds,
+  void DevicePredictInternal(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                              const gbm::GBTreeModel& model, size_t tree_begin,
                              size_t tree_end) {
     if (tree_end - tree_begin == 0) {
@@ -340,14 +340,14 @@ class GPUPredictor : public xgboost::Predictor {
   void PredictBatch(DMatrix* dmat, std::vector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
                     unsigned ntree_limit = 0) override {
-    dhvec<bst_float> out_preds_d;
+    HostDeviceVector<bst_float> out_preds_d;
     PredictBatch(dmat, &out_preds_d, model, tree_begin, ntree_limit);
     out_preds->resize(out_preds_d.size());
     thrust::copy(out_preds_d.tbegin(param.gpu_id),
                  out_preds_d.tend(param.gpu_id), out_preds->begin());
   }
 
-  void PredictBatch(DMatrix* dmat, dhvec<bst_float>* out_preds,
+  void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                     const gbm::GBTreeModel& model, int tree_begin,
                     unsigned ntree_limit = 0) override {
     if (this->PredictFromCacheDevice(dmat, out_preds, model, ntree_limit)) {
@@ -365,7 +365,7 @@ class GPUPredictor : public xgboost::Predictor {
 
 
   void InitOutPredictionsDevice(const MetaInfo& info,
-                          dhvec<bst_float>* out_preds,
+                          HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const {
     size_t n = model.param.num_output_group * info.num_row;
     const std::vector<bst_float>& base_margin = info.base_margin;
@@ -383,7 +383,7 @@ class GPUPredictor : public xgboost::Predictor {
                         std::vector<bst_float>* out_preds,
                         const gbm::GBTreeModel& model,
                         unsigned ntree_limit) {
-    dhvec<bst_float> out_preds_d(0, -1);
+    HostDeviceVector<bst_float> out_preds_d(0, -1);
     bool result = PredictFromCacheDevice(dmat, &out_preds_d, model, ntree_limit);
     if (!result) return false;
     out_preds->resize(out_preds_d.size(), param.gpu_id);
@@ -393,14 +393,14 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
   bool PredictFromCacheDevice(DMatrix* dmat,
-                              dhvec<bst_float>* out_preds,
+                              HostDeviceVector<bst_float>* out_preds,
                               const gbm::GBTreeModel& model,
                               unsigned ntree_limit) {
     if (ntree_limit == 0 ||
         ntree_limit * model.param.num_output_group >= model.trees.size()) {
       auto it = device_cache_.find(dmat);
       if (it != device_cache_.end()) {
-        dhvec<bst_float>& y = it->second.predictions;
+        HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.size() != 0) {
           out_preds->resize(y.size(), param.gpu_id);
           thrust::copy(y.tbegin(param.gpu_id), y.tend(param.gpu_id),
@@ -421,7 +421,7 @@ class GPUPredictor : public xgboost::Predictor {
     for (auto& kv : device_cache_) {
       DevicePredictionCacheEntry& e = kv.second;
       DMatrix* dmat = kv.first;
-      dhvec<bst_float>& predictions = e.predictions;
+      HostDeviceVector<bst_float>& predictions = e.predictions;
 
       if (predictions.size() == 0) {
         // ensure that the device in predictions is correct

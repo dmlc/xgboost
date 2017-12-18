@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "../common/device_helpers.cuh"
-#include "../common/dhvec.h"
+#include "../common/host_device_vector.h"
 #include "./regression_loss.h"
 
 using namespace dh;
@@ -92,8 +92,8 @@ class GPURegLossObj : public ObjFunction {
   bool copied_;
   std::unique_ptr<bulk_allocator<memory_type::DEVICE>> ba_;
   std::unique_ptr<DeviceData> data_;
-  dhvec<bst_float> preds_d_;
-  dhvec<bst_gpair> out_gpair_d_;
+  HostDeviceVector<bst_float> preds_d_;
+  HostDeviceVector<bst_gpair> out_gpair_d_;
 
   // allocate device data for n elements, do nothing if enough memory is allocated already
   void LazyResize(int n) {
@@ -132,10 +132,10 @@ class GPURegLossObj : public ObjFunction {
     thrust::copy_n(out_gpair_d_.tbegin(param_.gpu_id), ndata, out_gpair->begin());
   }
 
-  void GetGradient(dhvec<float>* preds,
+  void GetGradient(HostDeviceVector<float>* preds,
                    const MetaInfo &info,
                    int iter,
-                   dhvec<bst_gpair>* out_gpair) override {
+                   HostDeviceVector<bst_gpair>* out_gpair) override {
     CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds->size(), info.labels.size())
       << "labels are not correctly provided"
@@ -196,7 +196,7 @@ class GPURegLossObj : public ObjFunction {
     thrust::copy_n(preds_d_.tbegin(param_.gpu_id), io_preds->size(), io_preds->begin());
   }
 
-  void PredTransform(dhvec<float> *io_preds) override {
+  void PredTransform(HostDeviceVector<float> *io_preds) override {
     PredTransformDevice(io_preds->ptr_d(param_.gpu_id), io_preds->size());
   }
 

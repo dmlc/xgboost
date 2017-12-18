@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 #include "./common/common.h"
-#include "./common/dhvec.h"
+#include "./common/host_device_vector.h"
 #include "./common/io.h"
 #include "./common/random.h"
 #include "common/timer.h"
@@ -549,7 +549,7 @@ class LearnerImpl : public Learner {
         << "Predict must happen after Load or InitModel";
     gbm_->PredictBatch(data, out_preds, ntree_limit);
   }
-  inline void PredictRaw(DMatrix* data, dhvec<bst_float>* out_preds,
+  inline void PredictRaw(DMatrix* data, HostDeviceVector<bst_float>* out_preds,
                          unsigned ntree_limit = 0) const {
     CHECK(gbm_.get() != nullptr)
         << "Predict must happen after Load or InitModel";
@@ -570,9 +570,9 @@ class LearnerImpl : public Learner {
   std::string name_obj_;
   // temporal storages for prediction
   std::vector<bst_float> preds_;
-  dhvec<bst_float> preds2_;
+  HostDeviceVector<bst_float> preds2_;
   // gradient pairs
-  dhvec<bst_gpair> gpair_;
+  HostDeviceVector<bst_gpair> gpair_;
 
  private:
   /*! \brief random number transformation seed. */

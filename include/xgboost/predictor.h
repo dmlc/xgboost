@@ -12,8 +12,8 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "../../src/common/dhvec.h"
 #include "../../src/gbm/gbtree_model.h"
+#include "../../src/common/host_device_vector.h"
 
 // Forward declarations
 namespace xgboost {
@@ -79,7 +79,7 @@ class Predictor {
    * limit trees.
    */
 
-  virtual void PredictBatch(DMatrix* dmat, dhvec<bst_float>* out_preds,
+  virtual void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                             const gbm::GBTreeModel& model, int tree_begin,
                             unsigned ntree_limit = 0) = 0;
 

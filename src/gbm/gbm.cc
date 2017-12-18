@@ -23,13 +23,13 @@ GradientBooster* GradientBooster::Create(
 }
 
 void GradientBooster::DoBoost(DMatrix* p_fmat,
-                     dhvec<bst_gpair>* in_gpair,
+                     HostDeviceVector<bst_gpair>* in_gpair,
                      ObjFunction* obj) {
   DoBoost(p_fmat, &in_gpair->data_h(), obj);
 }
 
 void GradientBooster::PredictBatch(DMatrix* dmat,
-                                   dhvec<bst_float>* out_preds,
+                                   HostDeviceVector<bst_float>* out_preds,
                                    unsigned ntree_limit) {
   PredictBatch(dmat, &out_preds->data_h(), ntree_limit);
 }

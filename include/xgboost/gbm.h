@@ -18,6 +18,7 @@
 #include "./data.h"
 #include "./objective.h"
 #include "./feature_map.h"
+#include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
 /*!
@@ -71,7 +72,7 @@ class GradientBooster {
                        std::vector<bst_gpair>* in_gpair,
                        ObjFunction* obj = nullptr) = 0;
   virtual void DoBoost(DMatrix* p_fmat,
-                       dhvec<bst_gpair>* in_gpair,
+                       HostDeviceVector<bst_gpair>* in_gpair,
                        ObjFunction* obj = nullptr);
 
   /*!
@@ -85,7 +86,7 @@ class GradientBooster {
                        std::vector<bst_float>* out_preds,
                        unsigned ntree_limit = 0) = 0;
   virtual void PredictBatch(DMatrix* dmat,
-                            dhvec<bst_float>* out_preds,
+                            HostDeviceVector<bst_float>* out_preds,
                             unsigned ntree_limit = 0);
   /*!
    * \brief online prediction function, predict score for one instance at a time

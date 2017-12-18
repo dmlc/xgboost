@@ -1,14 +1,14 @@
 /*!
  * Copyright 2017 XGBoost contributors
  */
-#include "./dhvec.h"
+#include "./host_device_vector.h"
 #include "./device_helpers.cuh"
 
 namespace xgboost {
 
 template <typename T>
-struct dhvec_impl {
-  dhvec_impl(size_t size, int device)
+struct HostDeviceVectorImpl {
+  HostDeviceVectorImpl(size_t size, int device)
     : device_(device), on_d_(device >= 0) {
     if (on_d_) {
       dh::safe_cuda(cudaSetDevice(device_));
@@ -17,10 +17,10 @@ struct dhvec_impl {
       data_h_.resize(size);
     }
   }
-  dhvec_impl(const dhvec_impl<T>&) = delete;
-  dhvec_impl(dhvec_impl<T>&&) = delete;
-  void operator=(const dhvec_impl<T>&) = delete;
-  void operator=(dhvec_impl<T>&&) = delete;
+  HostDeviceVectorImpl(const HostDeviceVectorImpl<T>&) = delete;
+  HostDeviceVectorImpl(HostDeviceVectorImpl<T>&&) = delete;
+  void operator=(const HostDeviceVectorImpl<T>&) = delete;
+  void operator=(HostDeviceVectorImpl<T>&&) = delete;
 
   size_t size() const { return on_d_ ? data_d_.size() : data_h_.size(); }
 
@@ -90,46 +90,46 @@ struct dhvec_impl {
 };
 
 template <typename T>
-dhvec<T>::dhvec(size_t size, int device) : impl_(nullptr) {
-  impl_ = new dhvec_impl<T>(size, device);
+HostDeviceVector<T>::HostDeviceVector(size_t size, int device) : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(size, device);
 }
 
 template <typename T>
-dhvec<T>::~dhvec() {
-  dhvec_impl<T>* tmp = impl_;
+HostDeviceVector<T>::~HostDeviceVector() {
+  HostDeviceVectorImpl<T>* tmp = impl_;
   impl_ = nullptr;
   delete tmp;
 }
 
 template <typename T>
-size_t dhvec<T>::size() const { return impl_->size(); }
+size_t HostDeviceVector<T>::size() const { return impl_->size(); }
 
 template <typename T>
-int dhvec<T>::device() const { return impl_->device(); }
+int HostDeviceVector<T>::device() const { return impl_->device(); }
 
 template <typename T>
-T* dhvec<T>::ptr_d(int device) { return impl_->ptr_d(device); }
+T* HostDeviceVector<T>::ptr_d(int device) { return impl_->ptr_d(device); }
 
 template <typename T>
-thrust::device_ptr<T> dhvec<T>::tbegin(int device) {
+thrust::device_ptr<T> HostDeviceVector<T>::tbegin(int device) {
   return impl_->tbegin(device);
 }
 
 template <typename T>
-thrust::device_ptr<T> dhvec<T>::tend(int device) {
+thrust::device_ptr<T> HostDeviceVector<T>::tend(int device) {
   return impl_->tend(device);
 }
 
 template <typename T>
-std::vector<T>& dhvec<T>::data_h() { return impl_->data_h(); }
+std::vector<T>& HostDeviceVector<T>::data_h() { return impl_->data_h(); }
 
 template <typename T>
-void dhvec<T>::resize(size_t new_size, int new_device) {
+void HostDeviceVector<T>::resize(size_t new_size, int new_device) {
   impl_->resize(new_size, new_device);
 }
 
-// explicit instantiations are required, as dhvec isn't header-only
-template class dhvec<bst_float>;
-template class dhvec<bst_gpair>;
+// explicit instantiations are required, as HostDeviceVector isn't header-only
+template class HostDeviceVector<bst_float>;
+template class HostDeviceVector<bst_gpair>;
 
 }  // namespace xgboost

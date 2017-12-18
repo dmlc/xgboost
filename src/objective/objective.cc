@@ -6,7 +6,7 @@
 #include <xgboost/objective.h>
 #include <dmlc/registry.h>
 
-#include "../common/dhvec.h"
+#include "../common/host_device_vector.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
@@ -25,14 +25,14 @@ ObjFunction* ObjFunction::Create(const std::string& name) {
   return (e->body)();
 }
 
-void ObjFunction::GetGradient(dhvec<bst_float>* preds,
+void ObjFunction::GetGradient(HostDeviceVector<bst_float>* preds,
                               const MetaInfo& info,
                               int iteration,
-                              dhvec<bst_gpair>* out_gpair) {
+                              HostDeviceVector<bst_gpair>* out_gpair) {
   GetGradient(preds->data_h(), info, iteration, &out_gpair->data_h());
 }
 
-void ObjFunction::PredTransform(dhvec<bst_float> *io_preds) {
+void ObjFunction::PredTransform(HostDeviceVector<bst_float> *io_preds) {
   PredTransform(&io_preds->data_h());
 }
 

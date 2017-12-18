@@ -12,7 +12,7 @@
 #include <vector>
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
-#include "../common/dhvec.h"
+#include "../common/host_device_vector.h"
 #include "../common/hist_util.h"
 #include "../common/timer.h"
 #include "param.h"
@@ -350,7 +350,7 @@ struct DeviceShard {
   }
 
   // Reset values for each update iteration
-  void Reset(dhvec<bst_gpair>* dh_gpair, int device) {
+  void Reset(HostDeviceVector<bst_gpair>* dh_gpair, int device) {
     auto begin = dh_gpair->tbegin(device);
     dh::safe_cuda(cudaSetDevice(device_idx));
     position.current_dvec().fill(0);
@@ -511,14 +511,14 @@ class GPUHistMaker : public TreeUpdater {
               const std::vector<RegTree*>& trees) override {
     monitor.Start("Update", dList);
     // TODO(canonizer): move it into the class if this ever becomes a bottleneck
-    dhvec<bst_gpair> gpair_d(gpair.size(), param.gpu_id);
+    HostDeviceVector<bst_gpair> gpair_d(gpair.size(), param.gpu_id);
     dh::safe_cuda(cudaSetDevice(param.gpu_id));
     thrust::copy(gpair.begin(), gpair.end(), gpair_d.tbegin(param.gpu_id));
     Update(&gpair_d, dmat, trees);
     monitor.Stop("Update", dList);
   }
 
-  void Update(dhvec<bst_gpair>* gpair, DMatrix* dmat,
+  void Update(HostDeviceVector<bst_gpair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
     monitor.Start("Update", dList);
     UpdateHelper(gpair, dmat, trees);
@@ -526,7 +526,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
  private:
-  void UpdateHelper(dhvec<bst_gpair>* gpair, DMatrix* dmat,
+  void UpdateHelper(HostDeviceVector<bst_gpair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
     GradStats::CheckInfo(dmat->info());
     // rescale learning rate according to size of trees
@@ -593,7 +593,7 @@ class GPUHistMaker : public TreeUpdater {
     initialised = true;
   }
 
-  void InitData(dhvec<bst_gpair>* gpair, DMatrix* dmat,
+  void InitData(HostDeviceVector<bst_gpair>* gpair, DMatrix* dmat,
                 const RegTree& tree) {
     monitor.Start("InitDataOnce", dList);
     if (!initialised) {
@@ -607,7 +607,7 @@ class GPUHistMaker : public TreeUpdater {
     monitor.Start("InitDataReset", dList);
     omp_set_num_threads(shards.size());
 
-    // TODO(canonizer): make it parallel again once dhvec is thread-safe
+    // TODO(canonizer): make it parallel again once HostDeviceVector is thread-safe
     for (int shard = 0; shard < shards.size(); ++shard)
       shards[shard]->Reset(gpair, param.gpu_id);
     monitor.Stop("InitDataReset", dList);
@@ -820,7 +820,7 @@ class GPUHistMaker : public TreeUpdater {
     this->UpdatePosition(candidate, p_tree);
   }
 
-  void UpdateTree(dhvec<bst_gpair>* gpair, DMatrix* p_fmat,
+  void UpdateTree(HostDeviceVector<bst_gpair>* gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
     // Temporarily store number of threads so we can change it back later
     int nthread = omp_get_max_threads();
@@ -880,7 +880,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   bool UpdatePredictionCache(const DMatrix* data,
-                             dhvec<bst_float>* p_out_preds) override {
+                             HostDeviceVector<bst_float>* p_out_preds) override {
     return false;
   }
 

@@ -14,7 +14,7 @@
 #include <functional>
 #include "./data.h"
 #include "./base.h"
-#include "../../src/common/dhvec.h"
+#include "../../src/common/host_device_vector.h"
 
 
 namespace xgboost {
@@ -48,10 +48,10 @@ class ObjFunction {
                            const MetaInfo& info,
                            int iteration,
                            std::vector<bst_gpair>* out_gpair) = 0;
-  virtual void GetGradient(dhvec<bst_float>* preds,
+  virtual void GetGradient(HostDeviceVector<bst_float>* preds,
                            const MetaInfo& info,
                            int iteration,
-                           dhvec<bst_gpair>* out_gpair);
+                           HostDeviceVector<bst_gpair>* out_gpair);
 
   /*! \return the default evaluation metric for the objective */
   virtual const char* DefaultEvalMetric() const = 0;
@@ -61,7 +61,7 @@ class ObjFunction {
    * \param io_preds prediction values, saves to this vector as well
    */
   virtual void PredTransform(std::vector<bst_float> *io_preds) {}
-  virtual void PredTransform(dhvec<bst_float> *io_preds);
+  virtual void PredTransform(HostDeviceVector<bst_float> *io_preds);
 
   /*!
    * \brief transform prediction values, this is only called when Eval is called,
@@ -71,7 +71,7 @@ class ObjFunction {
   virtual void EvalTransform(std::vector<bst_float> *io_preds) {
     this->PredTransform(io_preds);
   }
-  virtual void EvalTransform(dhvec<bst_float> *io_preds) {
+  virtual void EvalTransform(HostDeviceVector<bst_float> *io_preds) {
     this->PredTransform(io_preds);
   }
   /*!
