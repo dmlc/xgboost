@@ -18,15 +18,15 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.DataTypes
 import org.scalatest.FunSuite
+import org.scalatest.prop.TableDrivenPropertyChecks
 
-class XGBoostDFSuite extends FunSuite with PerTest {
+class XGBoostDFSuite extends FunSuite with PerTest with TableDrivenPropertyChecks {
   private def buildDataFrame(
       labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
@@ -252,12 +252,14 @@ class XGBoostDFSuite extends FunSuite with PerTest {
   test("train/test split") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "trainTestRatio" -> "0.5")
-
     val trainingDf = buildDataFrame(Classification.train)
-    val model = XGBoost.trainWithDataFrame(trainingDf, paramMap, round = 5,
-      nWorkers = numWorkers)
-    val Some(testObjectiveHistory) = model.summary.testObjectiveHistory
-    assert(testObjectiveHistory.length === 5)
-    assert(model.summary.trainObjectiveHistory !== testObjectiveHistory)
+
+    forAll(Table("useExternalMemory", false, true)) { useExternalMemory =>
+      val model = XGBoost.trainWithDataFrame(trainingDf, paramMap, round = 5,
+        nWorkers = numWorkers, useExternalMemory = useExternalMemory)
+      val Some(testObjectiveHistory) = model.summary.testObjectiveHistory
+      assert(testObjectiveHistory.length === 5)
+      assert(model.summary.trainObjectiveHistory !== testObjectiveHistory)
+    }
   }
 }
