@@ -22,9 +22,10 @@ TEST(gpu_hist_experimental, TestSparseShard) {
   hmat.Init(dmat.get(), max_bins);
   gmat.cut = &hmat;
   gmat.Init(dmat.get());
-  ncclComm_t comm;
+  TrainParam p;
+  p.max_depth = 6;
   DeviceShard shard(0, 0, gmat, 0, rows, hmat.row_ptr.back(),
-                    TrainParam());
+                    p);
 
   ASSERT_LT(shard.row_stride, columns);
 
@@ -56,9 +57,10 @@ TEST(gpu_hist_experimental, TestDenseShard) {
   hmat.Init(dmat.get(), max_bins);
   gmat.cut = &hmat;
   gmat.Init(dmat.get());
-  ncclComm_t comm;
+  TrainParam p;
+  p.max_depth = 6;
   DeviceShard shard(0, 0, gmat, 0, rows, hmat.row_ptr.back(),
-                    TrainParam());
+                    p);
 
   ASSERT_EQ(shard.row_stride, columns);
 
