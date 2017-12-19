@@ -151,7 +151,6 @@ class CPUPredictor : public Predictor {
 
     this->InitOutPredictions(dmat->Info(), out_preds, model, init_margin);
 
-    ntree_limit *= model.param.num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }

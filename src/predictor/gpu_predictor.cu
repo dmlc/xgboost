@@ -355,12 +355,11 @@ class GPUPredictor : public xgboost::Predictor {
     }
     this->InitOutPredictions(dmat->Info(), out_preds, model, init_margin);
 
-    int tree_end = ntree_limit * model.param.num_output_group;
-    if (ntree_limit == 0 || tree_end > model.trees.size()) {
-      tree_end = static_cast<unsigned>(model.trees.size());
+    if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
+      ntree_limit = static_cast<unsigned>(model.trees.size());
     }
 
-    DevicePredictInternal(dmat, out_preds, model, tree_begin, tree_end);
+    DevicePredictInternal(dmat, out_preds, model, tree_begin, ntree_limit);
   }
 
  protected:

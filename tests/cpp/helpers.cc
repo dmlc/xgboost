@@ -85,3 +85,20 @@ std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns,
                          &handle);
   return *static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
 }
+
+xgboost::gbm::GBTreeModel CreateModel(int num_trees, int num_group,
+                             std::vector<float> leaf_weights,
+                             float base_margin) {
+  xgboost::gbm::GBTreeModel model(base_margin);
+  model.param.num_output_group = num_group;
+  for (int i = 0; i < num_trees; i++) {
+    std::vector<std::unique_ptr<xgboost::RegTree>> trees;
+    trees.push_back(std::unique_ptr<xgboost::RegTree>(new xgboost::RegTree()));
+    trees.back()->InitModel();
+    (*trees.back())[0].set_leaf(leaf_weights[i % num_group]);
+    (*trees.back()).stat(0).sum_hess = 1.0f;
+    model.CommitModel(std::move(trees), i % num_group);
+  }
+
+  return model;
+}

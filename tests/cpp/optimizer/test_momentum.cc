@@ -48,6 +48,7 @@ TEST(nesterov_optimizer, Test) {
 
   auto dmat = CreateDMatrix(100, 5, 0);
   auto gbm = std::unique_ptr<GradientBooster>(GradientBooster::Create("gbtree",{dmat},0.5));
+  gbm->Configure({ std::pair<std::string, std::string>("num_feature","5") });
 
   std::vector<float > predictions(100, 0.0f);
   optimizer->OptimizePredictions(&predictions, gbm.get(), dmat.get());

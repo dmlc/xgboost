@@ -4,29 +4,94 @@
  */
 #include <xgboost/c_api.h>
 #include <xgboost/predictor.h>
-#include "gtest/gtest.h"
 #include "../helpers.h"
+#include "gtest/gtest.h"
 
 namespace xgboost {
 namespace predictor {
+
+gbm::GBTreeModel CreateModel(int num_trees, int num_group,
+                             std::vector<float> leaf_weights,
+                             float base_margin) {
+  gbm::GBTreeModel model(base_margin);
+  model.param.num_output_group = num_group;
+  for (int i = 0; i < num_trees; i++) {
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
+    trees.back()->InitModel();
+    (*trees.back())[0].set_leaf(leaf_weights[i % num_group]);
+    (*trees.back()).stat(0).sum_hess = 1.0f;
+    model.CommitModel(std::move(trees), i % num_group);
+  }
+
+  return model;
+}
+
+TEST(gpu_predictor, test_partial_prediction) {
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
+  std::unique_ptr<Predictor> cpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
+  gpu_predictor->Init({}, {});
+  cpu_predictor->Init({}, {});
+
+  auto model = CreateModel(5, 1, { 1.5 }, 0.5);
+  auto dmat = CreateDMatrix(100, 20, 0);
+
+  std::vector<float> gpu_out_predictions;
+  std::vector<float> cpu_out_predictions;
+  gpu_predictor->PredictBatch(dmat.get(), &gpu_out_predictions, model, 4, 5,
+                              false);
+  cpu_predictor->PredictBatch(dmat.get(), &cpu_out_predictions, model, 4, 5,
+                              false);
+  for (int i = 0; i < gpu_out_predictions.size(); i++) {
+    ASSERT_EQ(gpu_out_predictions[i], 1.5f);
+    ASSERT_EQ(cpu_out_predictions[i], 1.5f);
+  }
+}
+
+TEST(gpu_predictor, test_partial_prediction_multi) {
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
+  std::unique_ptr<Predictor> cpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
+  gpu_predictor->Init({}, {});
+  cpu_predictor->Init({}, {});
+
+  auto model = CreateModel(9, 3, { 0.5f,1.0f,1.5f }, 0.5);
+  auto dmat = CreateDMatrix(100, 20, 0);
+
+  std::vector<float> gpu_out_predictions;
+  std::vector<float> cpu_out_predictions;
+  gpu_predictor->PredictBatch(dmat.get(), &gpu_out_predictions, model, 3, 6,
+                              false);
+  cpu_predictor->PredictBatch(dmat.get(), &cpu_out_predictions, model, 3, 6,
+                              false);
+  for (int i = 0; i < gpu_out_predictions.size(); i++) {
+    if (i % 3 == 0) {
+      ASSERT_EQ(gpu_out_predictions[i], 0.5f);
+      ASSERT_EQ(cpu_out_predictions[i], 0.5f);
+    }
+    else if (i % 3 == 1) {
+      ASSERT_EQ(gpu_out_predictions[i], 1.0f);
+      ASSERT_EQ(cpu_out_predictions[i], 1.0f);
+    }
+    else if (i % 3 == 2) {
+      ASSERT_EQ(gpu_out_predictions[i], 1.5f);
+      ASSERT_EQ(cpu_out_predictions[i], 1.5f);
+    }
+  }
+}
+
 TEST(gpu_predictor, Test) {
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor"));
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor"));
-
   gpu_predictor->Init({}, {});
   cpu_predictor->Init({}, {});
 
-  std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree()));
-  trees.back()->InitModel();
-  (*trees.back())[0].SetLeaf(1.5f);
-  (*trees.back()).Stat(0).sum_hess = 1.0f;
-  gbm::GBTreeModel model(0.5);
-  model.CommitModel(std::move(trees), 0);
-  model.param.num_output_group = 1;
-
+  auto model = CreateModel(1, 1, { 1.5f }, 0.5);
   int n_row = 5;
   int n_col = 5;
 
