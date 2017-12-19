@@ -114,7 +114,6 @@ object XGBoost extends Serializable {
       data
     }
     val partitionedBaseMargin = partitionedData.map(_.baseMargin)
-    val appName = partitionedData.context.appName
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
@@ -126,7 +125,7 @@ object XGBoost extends Serializable {
       }
       val taskId = TaskContext.getPartitionId().toString
       val cacheDirName = if (useExternalMemory) {
-        val dir = new File(s"$appName-${TaskContext.get().stageId()}-dtrain_cache-$taskId")
+        val dir = new File(s"${TaskContext.get().stageId()}-cache-$taskId")
         if (!(dir.exists() || dir.mkdirs())) {
           throw new XGBoostError(s"failed to create cache directory: $dir")
         }
@@ -151,12 +150,6 @@ object XGBoost extends Serializable {
       } finally {
         Rabit.shutdown()
         watches.delete()
-        cacheDirName.foreach { name =>
-          val cacheDir = new File(name)
-          if (!cacheDir.listFiles().forall(_.delete()) || !cacheDir.delete()) {
-            throw new IllegalStateException(s"failed to delete $cacheDir")
-          }
-        }
       }
     }.cache()
   }
@@ -454,7 +447,10 @@ object XGBoost extends Serializable {
   }
 }
 
-private class Watches private(val train: DMatrix, val test: DMatrix) {
+private class Watches private(
+  val train: DMatrix,
+  val test: DMatrix,
+  private val cacheDirName: Option[String]) {
 
   def toMap: Map[String, DMatrix] = Map("train" -> train, "test" -> test)
     .filter { case (_, matrix) => matrix.rowNum > 0 }
@@ -463,6 +459,13 @@ private class Watches private(val train: DMatrix, val test: DMatrix) {
 
   def delete(): Unit = {
     toMap.values.foreach(_.delete())
+    cacheDirName.foreach { name =>
+      for (cacheFile <- new File(name).listFiles()) {
+        if (!cacheFile.delete()) {
+          throw new IllegalStateException(s"failed to delete $cacheFile")
+        }
+      }
+    }
   }
 
   override def toString: String = toMap.toString
@@ -501,6 +504,6 @@ private object Watches {
       trainMatrix.setGroup(params("groupData").asInstanceOf[Seq[Seq[Int]]](
         TaskContext.getPartitionId()).toArray)
     }
-    new Watches(train = trainMatrix, test = testMatrix)
+    new Watches(trainMatrix, testMatrix, cacheDirName)
   }
 }
