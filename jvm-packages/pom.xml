@@ -31,20 +31,6 @@
         <module>xgboost4j-spark</module>
         <module>xgboost4j-flink</module>
     </modules>
-    <profiles>
-        <profile>
-            <id>spark-2.x</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <!--<properties>-->
-            <!--<flink.version>0.10.2</flink.version> -->
-            <!--<spark.version>2.0.1</spark.version>-->
-            <!--<scala.version>2.11.8</scala.version>-->
-            <!--<scala.binary.version>2.11</scala.binary.version>-->
-            <!--</properties>-->
-        </profile>
-    </profiles>
     <build>
         <plugins>
             <plugin>
