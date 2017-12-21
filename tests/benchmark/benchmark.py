@@ -47,13 +47,30 @@ def run_benchmark(args):
         param.update(ast.literal_eval(args.params))
 
     param['tree_method'] = args.tree_method
+    depth = 6
+    if 1==1:
+        param['grow_policy'] = 'depthwise'
+        param['max_leaves'] = 0
+        param['max_depth'] = depth
+    else:
+        param['grow_policy'] = 'lossguide'
+        param['max_depth'] = 0
+        param['max_leaves'] = np.power(2,depth)
+    
+    param['learning_rate'] = 0.05
+    param['min_child_weight'] = 1
+    param['subsample'] = 0.7
+    param['colsample_bytree'] = 0.8
     print("Training with '%s'" % param['tree_method'])
     tmp = time.time()
-    xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")])
-    #param['eval_metric'] = 'auc'
-    # xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")], early_stopping_rounds=20)
-    #param['eval_metric'] = 'auc'
-    # xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")], early_stopping_rounds=20, early_stopping_threshold=1E-3, early_stopping_limit=0.999)
+    if 1==1:
+        xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")])
+    if 1==0:
+        param['eval_metric'] = 'auc'
+        xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")], early_stopping_rounds=20)
+    if 1==0:
+        param['eval_metric'] = 'auc'
+        xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")], early_stopping_rounds=20, early_stopping_threshold=1E-3, early_stopping_limit=0.999)
     print ("Train Time: %s seconds" % (str(time.time() - tmp)))
 
 parser = argparse.ArgumentParser()
