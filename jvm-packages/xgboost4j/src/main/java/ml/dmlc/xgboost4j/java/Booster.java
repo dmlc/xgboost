@@ -34,6 +34,7 @@ public class Booster implements Serializable, KryoSerializable {
   private static final Log logger = LogFactory.getLog(Booster.class);
   // handle to the booster.
   private long handle = 0;
+  private int version = 0;
 
   /**
    * Create a new Booster with empty stage.
@@ -416,6 +417,10 @@ public class Booster implements Serializable, KryoSerializable {
     return modelInfos[0];
   }
 
+  public int getVersion() {
+    return version;
+  }
+
   /**
    *
    * @return the saved byte array.
@@ -433,10 +438,10 @@ public class Booster implements Serializable, KryoSerializable {
    * @return the stored version number of the checkpoint.
    * @throws XGBoostError
    */
-  int loadRabitCheckpoint() throws XGBoostError {
+  void loadRabitCheckpoint() throws XGBoostError {
     int[] out = new int[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadRabitCheckpoint(this.handle, out));
-    return out[0];
+    version = out[0];
   }
 
   /**
@@ -446,6 +451,7 @@ public class Booster implements Serializable, KryoSerializable {
    */
   void saveRabitCheckpoint() throws XGBoostError {
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSaveRabitCheckpoint(this.handle));
+    version += 1;
   }
 
   /**
@@ -453,7 +459,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @param cacheMats The cached DMatrix.
    * @throws XGBoostError
    */
-  private void init(DMatrix[] cacheMats) throws XGBoostError {
+  public void init(DMatrix[] cacheMats) throws XGBoostError {
     long[] handles = null;
     if (cacheMats != null) {
       handles = dmatrixsToHandles(cacheMats);

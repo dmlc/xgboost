@@ -76,6 +76,19 @@ public class XGBoost {
           IObjective obj,
           IEvaluation eval,
           int earlyStoppingRound) throws XGBoostError {
+    return train(dtrain, params, round, watches, metrics, obj, eval, earlyStoppingRound, null);
+  }
+
+  public static Booster train(
+          DMatrix dtrain,
+          Map<String, Object> params,
+          int round,
+          Map<String, DMatrix> watches,
+          float[][] metrics,
+          IObjective obj,
+          IEvaluation eval,
+          int earlyStoppingRound,
+          Booster booster) throws XGBoostError {
 
     //collect eval matrixs
     String[] evalNames;
@@ -104,20 +117,25 @@ public class XGBoost {
     }
 
     //initialize booster
-    Booster booster = new Booster(params, allMats);
+    if (booster == null) {
+      booster = new Booster(params, allMats);
+    } else {
+      booster.init(allMats);
+      booster.setParam("seed", "0");
+      booster.setParams(params);
+    }
 
-    int version = booster.loadRabitCheckpoint();
+    booster.loadRabitCheckpoint();
 
     //begin to train
-    for (int iter = version / 2; iter < round; iter++) {
-      if (version % 2 == 0) {
+    for (int iter = booster.getVersion() / 2; iter < round; iter++) {
+      if (booster.getVersion() % 2 == 0) {
         if (obj != null) {
           booster.update(dtrain, obj);
         } else {
           booster.update(dtrain, iter);
         }
         booster.saveRabitCheckpoint();
-        version += 1;
       }
 
       //evaluation
@@ -149,7 +167,6 @@ public class XGBoost {
         }
       }
       booster.saveRabitCheckpoint();
-      version += 1;
     }
     return booster;
   }
