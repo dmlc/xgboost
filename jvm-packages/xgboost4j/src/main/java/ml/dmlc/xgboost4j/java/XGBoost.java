@@ -119,13 +119,12 @@ public class XGBoost {
     //initialize booster
     if (booster == null) {
       booster = new Booster(params, allMats);
+      booster.loadRabitCheckpoint();
     } else {
       booster.init(allMats);
       booster.setParam("seed", "0");
       booster.setParams(params);
     }
-
-    booster.loadRabitCheckpoint();
 
     //begin to train
     for (int iter = booster.getVersion() / 2; iter < round; iter++) {
