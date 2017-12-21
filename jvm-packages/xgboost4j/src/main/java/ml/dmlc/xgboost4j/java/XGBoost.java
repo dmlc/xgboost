@@ -57,6 +57,18 @@ public class XGBoost {
     return Booster.loadModel(in);
   }
 
+  /**
+   * Train a booster given parameters.
+   *
+   * @param dtrain  Data to be trained.
+   * @param params  Parameters.
+   * @param round   Number of boosting iterations.
+   * @param watches a group of items to be evaluated during training, this allows user to watch
+   *                performance on the validation set.
+   * @param obj     customized objective
+   * @param eval    customized evaluation
+   * @return The trained booster.
+   */
   public static Booster train(
           DMatrix dtrain,
           Map<String, Object> params,
@@ -67,6 +79,23 @@ public class XGBoost {
     return train(dtrain, params, round, watches, null, obj, eval, 0);
   }
 
+  /**
+   * Train a booster given parameters.
+   *
+   * @param dtrain  Data to be trained.
+   * @param params  Parameters.
+   * @param round   Number of boosting iterations.
+   * @param watches a group of items to be evaluated during training, this allows user to watch
+   *                performance on the validation set.
+   * @param metrics array containing the evaluation metrics for each matrix in watches for each
+   *                iteration
+   * @param earlyStoppingRound if non-zero, training would be stopped
+   *                           after a specified number of consecutive
+   *                           increases in any evaluation metric.
+   * @param obj     customized objective
+   * @param eval    customized evaluation
+   * @return The trained booster.
+   */
   public static Booster train(
           DMatrix dtrain,
           Map<String, Object> params,
@@ -79,6 +108,24 @@ public class XGBoost {
     return train(dtrain, params, round, watches, metrics, obj, eval, earlyStoppingRound, null);
   }
 
+  /**
+   * Train a booster given parameters.
+   *
+   * @param dtrain  Data to be trained.
+   * @param params  Parameters.
+   * @param round   Number of boosting iterations.
+   * @param watches a group of items to be evaluated during training, this allows user to watch
+   *                performance on the validation set.
+   * @param metrics array containing the evaluation metrics for each matrix in watches for each
+   *                iteration
+   * @param earlyStoppingRound if non-zero, training would be stopped
+   *                           after a specified number of consecutive
+   *                           increases in any evaluation metric.
+   * @param obj     customized objective
+   * @param eval    customized evaluation
+   * @param booster train from scratch if set to null; train from an existing booster if not null.
+   * @return The trained booster.
+   */
   public static Booster train(
           DMatrix dtrain,
           Map<String, Object> params,
@@ -118,11 +165,11 @@ public class XGBoost {
 
     //initialize booster
     if (booster == null) {
+      // Start training on a new booster
       booster = new Booster(params, allMats);
       booster.loadRabitCheckpoint();
     } else {
-      booster.init(allMats);
-      booster.setParam("seed", "0");
+      // Start training on an existing booster
       booster.setParams(params);
     }
 

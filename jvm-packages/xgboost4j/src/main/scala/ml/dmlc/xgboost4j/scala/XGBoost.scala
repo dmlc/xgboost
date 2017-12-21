@@ -41,6 +41,7 @@ object XGBoost {
     *                           increases in any evaluation metric.
     * @param obj     customized objective
     * @param eval    customized evaluation
+    * @param booster train from scratch if set to null; train from an existing booster if not null.
     * @return The trained booster.
     */
   @throws(classOf[XGBoostError])
@@ -53,13 +54,18 @@ object XGBoost {
       obj: ObjectiveTrait = null,
       eval: EvalTrait = null,
       earlyStoppingRound: Int = 0,
-      booster: JBooster = null): Booster = {
+      booster: Booster = null): Booster = {
     val jWatches = watches.mapValues(_.jDMatrix).asJava
+    val jBooster = if (booster == null) {
+      null
+    } else {
+      booster.booster
+    }
     val xgboostInJava = JXGBoost.train(
       dtrain.jDMatrix,
       // we have to filter null value for customized obj and eval
       params.filter(_._2 != null).mapValues(_.toString.asInstanceOf[AnyRef]).asJava,
-      round, jWatches, metrics, obj, eval, earlyStoppingRound, booster)
+      round, jWatches, metrics, obj, eval, earlyStoppingRound, jBooster)
     new Booster(xgboostInJava)
   }
 

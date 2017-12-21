@@ -382,9 +382,11 @@ public class BoosterImplTest {
     float tempBoosterError = eval.eval(tempBooster.predict(testMat, true, 0), testMat);
 
     // Save tempBooster to bytestream and load back
+    int prevVersion = tempBooster.getVersion();
     ByteArrayInputStream in = new ByteArrayInputStream(tempBooster.toByteArray());
     tempBooster = XGBoost.loadModel(in);
     in.close();
+    tempBooster.setVersion(prevVersion);
 
     // Continue training using tempBooster
     round = 4;

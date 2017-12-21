@@ -418,7 +418,11 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   public int getVersion() {
-    return version;
+    return this.version;
+  }
+
+  public void setVersion(int version) {
+    this.version = version;
   }
 
   /**
@@ -438,14 +442,15 @@ public class Booster implements Serializable, KryoSerializable {
    * @return the stored version number of the checkpoint.
    * @throws XGBoostError
    */
-  void loadRabitCheckpoint() throws XGBoostError {
+  int loadRabitCheckpoint() throws XGBoostError {
     int[] out = new int[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadRabitCheckpoint(this.handle, out));
     version = out[0];
+    return version;
   }
 
   /**
-   * Save the booster model into thread-local rabit checkpoint.
+   * Save the booster model into thread-local rabit checkpoint and increment the version.
    * This is only used in distributed training.
    * @throws XGBoostError
    */
@@ -459,7 +464,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @param cacheMats The cached DMatrix.
    * @throws XGBoostError
    */
-  public void init(DMatrix[] cacheMats) throws XGBoostError {
+  private void init(DMatrix[] cacheMats) throws XGBoostError {
     long[] handles = null;
     if (cacheMats != null) {
       handles = dmatrixsToHandles(cacheMats);
