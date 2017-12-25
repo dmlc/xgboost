@@ -344,6 +344,8 @@ abstract class XGBoostModel(protected var _booster: Booster)
 
   def booster: Booster = _booster
 
+  def version: Int = this.booster.booster.getVersion
+
   override def copy(extra: ParamMap): XGBoostModel = defaultCopy(extra)
 
   override def write: MLWriter = new XGBoostModel.XGBoostModelModelWriter(this)

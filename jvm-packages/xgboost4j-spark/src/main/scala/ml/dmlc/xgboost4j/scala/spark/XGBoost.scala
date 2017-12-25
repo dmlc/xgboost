@@ -20,13 +20,12 @@ import java.io.File
 
 import scala.collection.mutable
 import scala.util.Random
-
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.logging.LogFactory
-import org.apache.hadoop.fs.{FSDataInputStream, Path}
+import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, Path}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
@@ -54,6 +53,7 @@ object TrackerConf {
 
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
+  private val modelSuffix = ".model"
 
   private def removeMissingValues(
       denseLabeledPoints: Iterator[XGBLabeledPoint],
@@ -106,13 +106,15 @@ object XGBoost extends Serializable {
       obj: ObjectiveTrait,
       eval: EvalTrait,
       useExternalMemory: Boolean,
-      missing: Float): RDD[(Booster, Map[String, Array[Float]])] = {
+      missing: Float,
+      hdfsTmpPath: String): RDD[(Booster, Map[String, Array[Float]])] = {
     val partitionedData = if (data.getNumPartitions != numWorkers) {
       logger.info(s"repartitioning training set to $numWorkers partitions")
       data.repartition(numWorkers)
     } else {
       data
     }
+    val prevBooster = loadPrevBooster(data.sparkContext, hdfsTmpPath)
     val partitionedBaseMargin = partitionedData.map(_.baseMargin)
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
@@ -145,7 +147,7 @@ object XGBoost extends Serializable {
         val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](round))
         val booster = SXGBoost.train(watches.train, params, round,
           watches.toMap, metrics, obj, eval,
-          earlyStoppingRound = numEarlyStoppingRounds)
+          earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
         Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
       } finally {
         Rabit.shutdown()
@@ -331,34 +333,62 @@ object XGBoost extends Serializable {
         " an instance of Long.")
     }
 
-    val tracker = startTracker(nWorkers, trackerConf)
-    try {
-      val sc = trainingData.sparkContext
-      val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
-      val overriddenParams = overrideParamsAccordingToTaskCPUs(params, trainingData.sparkContext)
-      val boostersAndMetrics = buildDistributedBoosters(trainingData, overriddenParams,
-        tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
-      val sparkJobThread = new Thread() {
-        override def run() {
-          // force the job
-          boostersAndMetrics.foreachPartition(() => _)
-        }
-      }
-      sparkJobThread.setUncaughtExceptionHandler(tracker)
-      sparkJobThread.start()
-      val isClsTask = isClassificationTask(params)
-      val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
-      logger.info(s"Rabit returns with exit code $trackerReturnVal")
-      val model = postTrackerReturnProcessing(trackerReturnVal, boostersAndMetrics,
-        sparkJobThread, isClsTask)
-      if (isClsTask){
-        model.asInstanceOf[XGBoostClassificationModel].numOfClasses =
-          params.getOrElse("num_class", "2").toString.toInt
-      }
-      model
-    } finally {
-      tracker.stop()
+    val hdfsTmpPath: String = params.get("hdfs_tmp_path") match {
+      case None => null
+      case Some(path: String) => path
+      case _ => throw new IllegalArgumentException("parameter \"hdfs_tmp_path\" must be" +
+        " an instance of String.")
     }
+
+    val savingFreq: Int = params.get("saving_frequency") match {
+      case None => 0
+      case Some(freq: Int) => freq
+      case _ => throw new IllegalArgumentException("parameter \"saving_frequency\" must be" +
+        " an instance of Int.")
+    }
+
+    val savingRounds: Seq[Int] = if (savingFreq <= 0){
+      Seq(round)
+    } else {
+      (savingFreq until round by savingFreq) :+ round
+    }
+    savingRounds.map {
+      savingRound: Int =>
+        val tracker = startTracker(nWorkers, trackerConf)
+        try {
+          val sc = trainingData.sparkContext
+          val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
+          val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
+          val boostersAndMetrics = buildDistributedBoosters(trainingData, overriddenParams,
+            tracker.getWorkerEnvs, nWorkers, savingRound, obj, eval, useExternalMemory, missing,
+            hdfsTmpPath)
+          val sparkJobThread = new Thread() {
+            override def run() {
+              // force the job
+              boostersAndMetrics.foreachPartition(() => _)
+            }
+          }
+          sparkJobThread.setUncaughtExceptionHandler(tracker)
+          sparkJobThread.start()
+          val isClsTask = isClassificationTask(params)
+          val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
+          logger.info(s"Rabit returns with exit code $trackerReturnVal")
+          val model = postTrackerReturnProcessing(trackerReturnVal, boostersAndMetrics,
+            sparkJobThread, isClsTask)
+          if (isClsTask){
+            model.asInstanceOf[XGBoostClassificationModel].numOfClasses =
+              params.getOrElse("num_class", "2").toString.toInt
+          }
+          if (hdfsTmpPath != null && savingRound < round) {
+            val fullPath = s"$hdfsTmpPath/${model.version}$modelSuffix"
+            logger.info(s"Saving temporary model to $fullPath")
+            model.saveModelAsHadoopFile(fullPath)(sc)
+          }
+          model
+      } finally {
+        tracker.stop()
+      }
+    }.last
   }
 
   private def postTrackerReturnProcessing(
@@ -403,6 +433,29 @@ object XGBoost extends Serializable {
     xgBoostModel.setFeaturesCol(featureCol)
     xgBoostModel.setLabelCol(labelCol)
     xgBoostModel.setPredictionCol(predCol)
+  }
+
+  private def loadPrevBooster(sparkContext: SparkContext, hdfsTmpPath: String):
+      Booster = {
+    if (hdfsTmpPath == null) {
+      null
+    } else {
+      val fs = FileSystem.get(sparkContext.hadoopConfiguration)
+      val tempPath = new Path(hdfsTmpPath)
+      val versions = fs.listStatus(tempPath).map(_.getPath.getName).collect {
+        case fileName if fileName.endsWith(modelSuffix) => fileName.stripSuffix(modelSuffix).toInt
+      }
+      if (versions.nonEmpty) {
+        val version = versions.max
+        val fullPath = s"$hdfsTmpPath/$version$modelSuffix"
+        logger.info(s"Start training from previous booster at $fullPath")
+        val model = XGBoost.loadModelFromHadoopFile(fullPath)(sparkContext)
+        model.booster.booster.setVersion(version)
+        model.booster
+      } else {
+        null
+      }
+    }
   }
 
   /**

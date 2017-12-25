@@ -492,6 +492,7 @@ public class Booster implements Serializable, KryoSerializable {
   // making Booster serializable
   private void writeObject(java.io.ObjectOutputStream out) throws IOException {
     try {
+      out.writeInt(version);
       out.writeObject(this.toByteArray());
     } catch (XGBoostError ex) {
       ex.printStackTrace();
@@ -503,6 +504,7 @@ public class Booster implements Serializable, KryoSerializable {
           throws IOException, ClassNotFoundException {
     try {
       this.init(null);
+      this.version = in.readInt();
       byte[] bytes = (byte[])in.readObject();
       XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
     } catch (XGBoostError ex) {
@@ -531,6 +533,7 @@ public class Booster implements Serializable, KryoSerializable {
       int serObjSize = serObj.length;
       System.out.println("==== serialized obj size " + serObjSize);
       output.writeInt(serObjSize);
+      output.writeInt(version);
       output.write(serObj);
     } catch (XGBoostError ex) {
       ex.printStackTrace();
@@ -543,6 +546,7 @@ public class Booster implements Serializable, KryoSerializable {
     try {
       this.init(null);
       int serObjSize = input.readInt();
+      this.version = input.readInt();
       System.out.println("==== the size of the object: " + serObjSize);
       byte[] bytes = new byte[serObjSize];
       input.readBytes(bytes);
