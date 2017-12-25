@@ -335,7 +335,11 @@ object XGBoost extends Serializable {
 
     val hdfsTmpPath: String = params.get("hdfs_tmp_path") match {
       case None => null
-      case Some(path: String) => path
+      case Some(path: String) => if (path.nonEmpty) {
+        path
+      } else {
+        null
+      }
       case _ => throw new IllegalArgumentException("parameter \"hdfs_tmp_path\" must be" +
         " an instance of String.")
     }
@@ -347,7 +351,7 @@ object XGBoost extends Serializable {
         " an instance of Int.")
     }
 
-    val savingRounds: Seq[Int] = if (savingFreq <= 0){
+    val savingRounds: Seq[Int] = if (hdfsTmpPath == null || savingFreq <= 0){
       Seq(round)
     } else {
       (savingFreq until round by savingFreq) :+ round

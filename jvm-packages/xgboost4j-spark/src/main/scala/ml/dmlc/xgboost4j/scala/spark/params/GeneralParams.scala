@@ -78,6 +78,21 @@ trait GeneralParams extends Params {
     " value is set smaller than or equal to 0.")
 
   /**
+    * The hdfs folder to load and save temporary models. default: `empty_string`
+    */
+  val hdfsTmpPath = new Param[String](this, "hdfs_tmp_path", "the hdfs folder to load and save " +
+    "temporary models. The job will try to load existing model as the starting point for model " +
+    "training. If saving_frequency is set, the job will save a temporary model every a few rounds.")
+
+  /**
+    * The frequency to save temporary models. default: 0
+    */
+  val savingFrequency = new IntParam(this, "saving_frequency", "if hdfs_tmp_path is also set, the" +
+    " job will save temporary models at this frequency. If the job fails and gets restarted with " +
+    "same setting, it will load temporary model instead of training from scratch. Saving will be " +
+    "disabled if set to 0.")
+
+  /**
     * Rabit tracker configurations. The parameter must be provided as an instance of the
     * TrackerConf class, which has the following definition:
     *
@@ -112,6 +127,7 @@ trait GeneralParams extends Params {
   setDefault(round -> 1, nWorkers -> 1, numThreadPerTask -> 1,
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
-    trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L
+    trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
+    hdfsTmpPath -> "", savingFrequency -> 0
   )
 }
