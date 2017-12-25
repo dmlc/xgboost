@@ -357,4 +357,14 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(error(model8) > error(finalModel))
     assert(error(finalModel) < 0.1)
   }
+
+  test("loadPrevBooster should be robust") {
+    val booster1 = XGBoost.loadPrevBooster(sc, null)
+    val booster2 = XGBoost.loadPrevBooster(sc, "/tmp/non_existing_path")
+    val emptyFolder = Files.createTempDirectory("empty").toAbsolutePath.toString
+    val booster3 = XGBoost.loadPrevBooster(sc, emptyFolder)
+    assert(booster1 == null)
+    assert(booster2 == null)
+    assert(booster3 == null)
+  }
 }

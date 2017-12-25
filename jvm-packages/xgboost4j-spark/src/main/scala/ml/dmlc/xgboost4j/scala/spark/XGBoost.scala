@@ -435,14 +435,13 @@ object XGBoost extends Serializable {
     xgBoostModel.setPredictionCol(predCol)
   }
 
-  private def loadPrevBooster(sparkContext: SparkContext, hdfsTmpPath: String):
+  private[spark] def loadPrevBooster(sparkContext: SparkContext, hdfsTmpPath: String):
       Booster = {
-    if (hdfsTmpPath == null) {
+    val fs = FileSystem.get(sparkContext.hadoopConfiguration)
+    if (hdfsTmpPath == null || !fs.exists(new Path(hdfsTmpPath))) {
       null
     } else {
-      val fs = FileSystem.get(sparkContext.hadoopConfiguration)
-      val tempPath = new Path(hdfsTmpPath)
-      val versions = fs.listStatus(tempPath).map(_.getPath.getName).collect {
+      val versions = fs.listStatus(new Path(hdfsTmpPath)).map(_.getPath.getName).collect {
         case fileName if fileName.endsWith(modelSuffix) => fileName.stripSuffix(modelSuffix).toInt
       }
       if (versions.nonEmpty) {
