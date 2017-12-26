@@ -112,6 +112,20 @@ All the following steps are in the `Git Bash`.
 
 In MinGW, `make` command comes with the name `mingw32-make`. You can add the following line into the `.bashrc` file.
 
+> if you don't have a MinGW installed on your machine and you are using *Windows x86_64*. try to download one From
+
+> [https://sourceforge.net/projects/mingw-w64/](https://sourceforge.net/projects/mingw-w64/)
+
+> after the installation, add the path of your installation to the system *env* properties.
+
+> the installation path added to your *env* properties should be pointed to the `bin` folder, like:
+
+> `C:\Program Files\mingw-w64\x86_64-7.2.0-posix-seh-rt_v5-rev1\mingw64\bin`
+
+> for users using *Windows 32*, try to find a *mingw32* version instead.
+
+> you are ok to follow the below instructions.
+
 ```bash
 alias make='mingw32-make'
 ```
@@ -148,7 +162,7 @@ $ cd build
 $ cmake .. -DUSE_CUDA=ON
 $ make -j
 ```
-**Windows requirements** for GPU build: only Visual C++ 2015 or 2013 with CUDA v8.0 were fully tested. Either install Visual C++ 2015 Build Tools separately, or as a part of Visual Studio 2015. If you already have Visual Studio 2017, the Visual C++ 2015 Toolchain componenet has to be installed using the VS 2017 Installer. Likely, you would need to use the VS2015 x64 Native Tools command prompt to run the cmake commands given below. In some situations, however, things run just fine from MSYS2 bash command line. 
+**Windows requirements** for GPU build: only Visual C++ 2015 or 2013 with CUDA v8.0 were fully tested. Either install Visual C++ 2015 Build Tools separately, or as a part of Visual Studio 2015. If you already have Visual Studio 2017, the Visual C++ 2015 Toolchain componenet has to be installed using the VS 2017 Installer. Likely, you would need to use the VS2015 x64 Native Tools command prompt to run the cmake commands given below. In some situations, however, things run just fine from MSYS2 bash command line.
 
 On Windows, using cmake, see what options for Generators you have for cmake, and choose one with [arch] replaced by Win64:
 ```bash
@@ -168,6 +182,8 @@ cmake --build . --target xgboost --config Release
 If build seems to use only a single process, you might try to append an option like ` -- /m:6` to the above command.
 
 ### Windows Binaries
+
+After the build process successfully ends, you will find a `xgboost.dll` library file inside `./lib/` folder, copy this file to the the API package folder like `python-package/xgboost` if you are using *python* API. And you are good to follow the below instructions.
 
 Unofficial windows binaries and instructions on how to use them are hosted on [Guido Tapia's blog](http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/)
 
