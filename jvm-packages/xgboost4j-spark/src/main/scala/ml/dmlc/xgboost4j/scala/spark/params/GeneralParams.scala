@@ -78,18 +78,18 @@ trait GeneralParams extends Params {
     " value is set smaller than or equal to 0.")
 
   /**
-    * The hdfs folder to load and save temporary models. default: `empty_string`
+    * The hdfs folder to load and save temporary boosters. default: `empty_string`
     */
-  val hdfsTmpPath = new Param[String](this, "hdfs_tmp_path", "the hdfs folder to load and save " +
-    "temporary models. The job will try to load existing model as the starting point for model " +
-    "training. If saving_frequency is set, the job will save a temporary model every a few rounds.")
+  val boosterTmpPath = new Param[String](this, "booster_tmp_path", "the hdfs folder to load and " +
+    "save temp boosters. The job will try to load existing booster as the starting point for " +
+    "training. If saving_frequency is set, the job will save a temp booster every a few rounds.")
 
   /**
-    * The frequency to save temporary models. default: 0
+    * The frequency to save temporary boosters. default: 0
     */
-  val savingFrequency = new IntParam(this, "saving_frequency", "if hdfs_tmp_path is also set, the" +
-    " job will save temporary models at this frequency. If the job fails and gets restarted with " +
-    "same setting, it will load temporary model instead of training from scratch. Saving will be " +
+  val savingFrequency = new IntParam(this, "saving_frequency", "if booster_tmp_path is also set," +
+    " the job will save temp boosters at this frequency. If the job fails and gets restarted with" +
+    " same setting, it will load temp boosters instead of training from scratch. Saving will be " +
     "disabled if set to 0.")
 
   /**
@@ -128,6 +128,6 @@ trait GeneralParams extends Params {
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
-    hdfsTmpPath -> "", savingFrequency -> 0
+    boosterTmpPath -> "", savingFrequency -> 0
   )
 }

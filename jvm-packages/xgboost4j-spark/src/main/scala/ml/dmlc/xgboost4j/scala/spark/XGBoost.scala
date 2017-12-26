@@ -101,25 +101,19 @@ object XGBoost extends Serializable {
       data: RDD[XGBLabeledPoint],
       params: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
-      numWorkers: Int,
       round: Int,
       obj: ObjectiveTrait,
       eval: EvalTrait,
       useExternalMemory: Boolean,
       missing: Float,
-      hdfsTmpPath: String): RDD[(Booster, Map[String, Array[Float]])] = {
-    val partitionedData = if (data.getNumPartitions != numWorkers) {
-      logger.info(s"repartitioning training set to $numWorkers partitions")
-      data.repartition(numWorkers)
-    } else {
-      data
-    }
-    val prevBooster = loadPrevBooster(data.sparkContext, hdfsTmpPath)
-    val partitionedBaseMargin = partitionedData.map(_.baseMargin)
+      prevBooster: Booster
+    ): RDD[(Booster, Map[String, Array[Float]])] = {
+
+    val partitionedBaseMargin = data.map(_.baseMargin)
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    partitionedData.zipPartitions(partitionedBaseMargin) { (labeledPoints, baseMargins) =>
+    data.zipPartitions(partitionedBaseMargin) { (labeledPoints, baseMargins) =>
       if (labeledPoints.isEmpty) {
         throw new XGBoostError(
           s"detected an empty partition in the training data, partition ID:" +
@@ -333,29 +327,15 @@ object XGBoost extends Serializable {
         " an instance of Long.")
     }
 
-    val hdfsTmpPath: String = params.get("hdfs_tmp_path") match {
-      case None => null
-      case Some(path: String) => if (path.nonEmpty) {
-        path
-      } else {
-        null
-      }
-      case _ => throw new IllegalArgumentException("parameter \"hdfs_tmp_path\" must be" +
-        " an instance of String.")
-    }
-
-    val savingFreq: Int = params.get("saving_frequency") match {
-      case None => 0
-      case Some(freq: Int) => freq
-      case _ => throw new IllegalArgumentException("parameter \"saving_frequency\" must be" +
-        " an instance of Int.")
-    }
-
-    val savingRounds: Seq[Int] = if (hdfsTmpPath == null || savingFreq <= 0){
+    val (boosterTmpPath, savingFreq) = extractParamsForCheckpoint(params)
+    val savingRounds: Seq[Int] = if (savingFreq <= 0){
       Seq(round)
     } else {
       (savingFreq until round by savingFreq) :+ round
     }
+
+    val partitionedData = repartitionForTraining(trainingData, nWorkers)
+    // Train for every ${savingRound} rounds and save the partially completed booster
     savingRounds.map {
       savingRound: Int =>
         val tracker = startTracker(nWorkers, trackerConf)
@@ -363,9 +343,9 @@ object XGBoost extends Serializable {
           val sc = trainingData.sparkContext
           val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
           val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
-          val boostersAndMetrics = buildDistributedBoosters(trainingData, overriddenParams,
-            tracker.getWorkerEnvs, nWorkers, savingRound, obj, eval, useExternalMemory, missing,
-            hdfsTmpPath)
+          val prevBooster = loadPrevBooster(partitionedData.sparkContext, boosterTmpPath)
+          val boostersAndMetrics = buildDistributedBoosters(partitionedData, overriddenParams,
+            tracker.getWorkerEnvs, savingRound, obj, eval, useExternalMemory, missing, prevBooster)
           val sparkJobThread = new Thread() {
             override def run() {
               // force the job
@@ -383,16 +363,51 @@ object XGBoost extends Serializable {
             model.asInstanceOf[XGBoostClassificationModel].numOfClasses =
               params.getOrElse("num_class", "2").toString.toInt
           }
-          if (hdfsTmpPath != null && savingRound < round) {
-            val fullPath = s"$hdfsTmpPath/${model.version}$modelSuffix"
-            logger.info(s"Saving temporary model to $fullPath")
-            model.saveModelAsHadoopFile(fullPath)(sc)
+          if (boosterTmpPath.nonEmpty && savingRound < round) {
+            saveTmpBooster(sc, boosterTmpPath, model)
           }
           model
       } finally {
         tracker.stop()
       }
     }.last
+  }
+
+  private def extractParamsForCheckpoint(params: Map[String, Any]): (String, Int) = {
+    val boosterTmpPath: String = params.get("booster_tmp_path") match {
+      case None => ""
+      case Some(path: String) => path
+      case _ => throw new IllegalArgumentException("parameter \"booster_tmp_path\" must be" +
+        " an instance of String.")
+    }
+
+    val savingFreq: Int = params.get("saving_frequency") match {
+      case None => 0
+      case Some(freq: Int) => freq
+      case _ => throw new IllegalArgumentException("parameter \"saving_frequency\" must be" +
+        " an instance of Int.")
+    }
+    if (boosterTmpPath.nonEmpty && savingFreq > 0) {
+      (boosterTmpPath, savingFreq)
+    } else if (boosterTmpPath.isEmpty && savingFreq <= 0) {
+      ("", 0)
+    } else {
+      throw new IllegalArgumentException("parameters \"booster_tmp_path\" and " +
+        "\"saving_frequency\" must be set simultaneously")
+    }
+  }
+
+  private def getTmpSavingPath(boosterTmpPath: String, version: Int) = {
+    s"$boosterTmpPath/$version$modelSuffix"
+  }
+
+  private[spark] def repartitionForTraining(trainingData: RDD[XGBLabeledPoint], nWorkers: Int) = {
+    if (trainingData.getNumPartitions != nWorkers) {
+      logger.info(s"repartitioning training set to $nWorkers partitions")
+      trainingData.repartition(nWorkers)
+    } else {
+      trainingData
+    }
   }
 
   private def postTrackerReturnProcessing(
@@ -439,18 +454,18 @@ object XGBoost extends Serializable {
     xgBoostModel.setPredictionCol(predCol)
   }
 
-  private[spark] def loadPrevBooster(sparkContext: SparkContext, hdfsTmpPath: String):
+  private[spark] def loadPrevBooster(sparkContext: SparkContext, boosterTmpPath: String):
       Booster = {
     val fs = FileSystem.get(sparkContext.hadoopConfiguration)
-    if (hdfsTmpPath == null || !fs.exists(new Path(hdfsTmpPath))) {
+    if (boosterTmpPath.isEmpty || !fs.exists(new Path(boosterTmpPath))) {
       null
     } else {
-      val versions = fs.listStatus(new Path(hdfsTmpPath)).map(_.getPath.getName).collect {
+      val versions = fs.listStatus(new Path(boosterTmpPath)).map(_.getPath.getName).collect {
         case fileName if fileName.endsWith(modelSuffix) => fileName.stripSuffix(modelSuffix).toInt
       }
       if (versions.nonEmpty) {
         val version = versions.max
-        val fullPath = s"$hdfsTmpPath/$version$modelSuffix"
+        val fullPath = getTmpSavingPath(boosterTmpPath, version)
         logger.info(s"Start training from previous booster at $fullPath")
         val model = XGBoost.loadModelFromHadoopFile(fullPath)(sparkContext)
         model.booster.booster.setVersion(version)
@@ -459,6 +474,14 @@ object XGBoost extends Serializable {
         null
       }
     }
+  }
+
+  private def saveTmpBooster(sc: SparkContext, boosterTmpPath: String, model: XGBoostModel) = {
+    val fs = FileSystem.get(sc.hadoopConfiguration)
+    fs.delete(new Path(boosterTmpPath), true)
+    val fullPath = getTmpSavingPath(boosterTmpPath, model.version)
+    logger.info(s"Saving temporary model with version ${model.version} to $fullPath")
+    model.saveModelAsHadoopFile(fullPath)(sc)
   }
 
   /**

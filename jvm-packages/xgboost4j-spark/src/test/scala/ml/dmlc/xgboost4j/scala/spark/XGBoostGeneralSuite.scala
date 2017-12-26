@@ -74,13 +74,14 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
 
   test("build RDD containing boosters with the specified worker number") {
     val trainingRDD = sc.parallelize(Classification.train)
+    val partitionedRDD = XGBoost.repartitionForTraining(trainingRDD, 2)
     val boosterRDD = XGBoost.buildDistributedBoosters(
-      trainingRDD,
+      partitionedRDD,
       List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
         "objective" -> "binary:logistic").toMap,
       new java.util.HashMap[String, String](),
-      numWorkers = 2, round = 5, eval = null, obj = null, useExternalMemory = true,
-      missing = Float.NaN, hdfsTmpPath = null)
+      round = 5, eval = null, obj = null, useExternalMemory = true,
+      missing = Float.NaN, prevBooster = null)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === 2)
   }
@@ -345,21 +346,19 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
 
     val tmpPath = Files.createTempDirectory("model1").toAbsolutePath.toString
     val paramMap = List("eta" -> "1", "max_depth" -> 2, "silent" -> "1",
-      "objective" -> "binary:logistic", "hdfs_tmp_path" -> tmpPath,
+      "objective" -> "binary:logistic", "booster_tmp_path" -> tmpPath,
       "saving_frequency" -> 2).toMap
     val finalModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
       nWorkers = numWorkers)
     def error(model: XGBoostModel): Float = eval.eval(
       model.booster.predict(testSetDMatrix, outPutMargin = true), testSetDMatrix)
-    val model4 = XGBoost.loadModelFromHadoopFile(s"$tmpPath/4.model")
-    val model8 = XGBoost.loadModelFromHadoopFile(s"$tmpPath/8.model")
-    assert(error(model4) > error(model8))
-    assert(error(model8) > error(finalModel))
+    val tmpModel = XGBoost.loadModelFromHadoopFile(s"$tmpPath/8.model")
+    assert(error(tmpModel) > error(finalModel))
     assert(error(finalModel) < 0.1)
   }
 
   test("loadPrevBooster should be robust") {
-    val booster1 = XGBoost.loadPrevBooster(sc, null)
+    val booster1 = XGBoost.loadPrevBooster(sc, "")
     val booster2 = XGBoost.loadPrevBooster(sc, "/tmp/non_existing_path")
     val emptyFolder = Files.createTempDirectory("empty").toAbsolutePath.toString
     val booster3 = XGBoost.loadPrevBooster(sc, emptyFolder)
