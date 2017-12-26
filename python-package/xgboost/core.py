@@ -865,7 +865,7 @@ class Booster(object):
         Parameters
         ----------
         params: dict/list/str
-           list of key,value paris, dict of key to value or simply str key
+           list of key,value pairs, dict of key to value or simply str key
         value: optional
            value of the specified parameter, when params is str key
         """
