@@ -331,6 +331,7 @@ object XGBoost extends Serializable {
     val (boosterTmpPath, savingRounds) = extractParamsForCheckpoint(sc, params, round)
 
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
+    var prevBooster = loadPrevBooster(partitionedData.sparkContext, boosterTmpPath)
     // Train for every ${savingRound} rounds and save the partially completed booster
     savingRounds.map {
       savingRound: Int =>
@@ -338,7 +339,6 @@ object XGBoost extends Serializable {
         try {
           val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
           val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
-          val prevBooster = loadPrevBooster(partitionedData.sparkContext, boosterTmpPath)
           val boostersAndMetrics = buildDistributedBoosters(partitionedData, overriddenParams,
             tracker.getWorkerEnvs, savingRound, obj, eval, useExternalMemory, missing, prevBooster)
           val sparkJobThread = new Thread() {
@@ -359,6 +359,7 @@ object XGBoost extends Serializable {
               params.getOrElse("num_class", "2").toString.toInt
           }
           if (boosterTmpPath.nonEmpty && savingRound < round) {
+            prevBooster = model.booster
             saveTmpBooster(sc, boosterTmpPath, model)
           }
           model
@@ -387,17 +388,16 @@ object XGBoost extends Serializable {
     }
     if (boosterTmpPath.nonEmpty && savingFreq > 0) {
       val prevRound = getHighestVersion(sparkContext, boosterTmpPath) / 2
-      if (prevRound > round) {
+      if (prevRound >= round) {
         val fs = FileSystem.get(sparkContext.hadoopConfiguration)
         fs.delete(new Path(boosterTmpPath), true)
       }
       val savingRounds: Seq[Int] = (prevRound + savingFreq until round by savingFreq) :+ round
       (boosterTmpPath, savingRounds)
-    } else if (boosterTmpPath.isEmpty && savingFreq <= 0) {
-      ("", Seq(round))
+    } else if (savingFreq <= 0) {
+      (boosterTmpPath, Seq(round))
     } else {
-      throw new IllegalArgumentException("parameters \"booster_tmp_path\" and " +
-        "\"saving_frequency\" must be set simultaneously")
+      throw new IllegalArgumentException("parameters \"booster_tmp_path\" should also be set.")
     }
   }
 

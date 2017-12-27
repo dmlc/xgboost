@@ -20,10 +20,10 @@ import java.nio.file.Files
 import java.util.concurrent.LinkedBlockingDeque
 
 import scala.util.Random
-
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector, Vectors, Vector => SparkVector}
@@ -352,7 +352,13 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
       nWorkers = numWorkers)
     def error(model: XGBoostModel): Float = eval.eval(
       model.booster.predict(testSetDMatrix, outPutMargin = true), testSetDMatrix)
+
+    // Check only one model is kept after training
+    val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
+    assert(files.size == 1)
+    assert(files.head.getPath.getName == "8.model")
     val tmpModel = XGBoost.loadModelFromHadoopFile(s"$tmpPath/8.model")
+
     // Train next model based on prev model
     val nextModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 8,
       nWorkers = numWorkers)
