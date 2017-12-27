@@ -348,13 +348,17 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = List("eta" -> "1", "max_depth" -> 2, "silent" -> "1",
       "objective" -> "binary:logistic", "booster_tmp_path" -> tmpPath,
       "saving_frequency" -> 2).toMap
-    val finalModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+    val prevModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
       nWorkers = numWorkers)
     def error(model: XGBoostModel): Float = eval.eval(
       model.booster.predict(testSetDMatrix, outPutMargin = true), testSetDMatrix)
     val tmpModel = XGBoost.loadModelFromHadoopFile(s"$tmpPath/8.model")
-    assert(error(tmpModel) > error(finalModel))
-    assert(error(finalModel) < 0.1)
+    // Train next model based on prev model
+    val nextModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 8,
+      nWorkers = numWorkers)
+    assert(error(tmpModel) > error(prevModel))
+    assert(error(prevModel) > error(nextModel))
+    assert(error(nextModel) < 0.1)
   }
 
   test("loadPrevBooster should be robust") {

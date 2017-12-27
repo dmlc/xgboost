@@ -327,12 +327,8 @@ object XGBoost extends Serializable {
         " an instance of Long.")
     }
 
-    val (boosterTmpPath, savingFreq) = extractParamsForCheckpoint(params)
-    val savingRounds: Seq[Int] = if (savingFreq <= 0){
-      Seq(round)
-    } else {
-      (savingFreq until round by savingFreq) :+ round
-    }
+    val sc = trainingData.sparkContext
+    val (boosterTmpPath, savingRounds) = extractParamsForCheckpoint(sc, params, round)
 
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
     // Train for every ${savingRound} rounds and save the partially completed booster
@@ -340,7 +336,6 @@ object XGBoost extends Serializable {
       savingRound: Int =>
         val tracker = startTracker(nWorkers, trackerConf)
         try {
-          val sc = trainingData.sparkContext
           val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
           val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
           val prevBooster = loadPrevBooster(partitionedData.sparkContext, boosterTmpPath)
@@ -373,7 +368,10 @@ object XGBoost extends Serializable {
     }.last
   }
 
-  private def extractParamsForCheckpoint(params: Map[String, Any]): (String, Int) = {
+  private def extractParamsForCheckpoint(
+      sparkContext: SparkContext,
+      params: Map[String, Any],
+      round: Int): (String, Seq[Int]) = {
     val boosterTmpPath: String = params.get("booster_tmp_path") match {
       case None => ""
       case Some(path: String) => path
@@ -388,9 +386,15 @@ object XGBoost extends Serializable {
         " an instance of Int.")
     }
     if (boosterTmpPath.nonEmpty && savingFreq > 0) {
-      (boosterTmpPath, savingFreq)
+      val prevRound = getHighestVersion(sparkContext, boosterTmpPath) / 2
+      if (prevRound > round) {
+        val fs = FileSystem.get(sparkContext.hadoopConfiguration)
+        fs.delete(new Path(boosterTmpPath), true)
+      }
+      val savingRounds: Seq[Int] = (prevRound + savingFreq until round by savingFreq) :+ round
+      (boosterTmpPath, savingRounds)
     } else if (boosterTmpPath.isEmpty && savingFreq <= 0) {
-      ("", 0)
+      ("", Seq(round))
     } else {
       throw new IllegalArgumentException("parameters \"booster_tmp_path\" and " +
         "\"saving_frequency\" must be set simultaneously")
@@ -456,22 +460,30 @@ object XGBoost extends Serializable {
 
   private[spark] def loadPrevBooster(sparkContext: SparkContext, boosterTmpPath: String):
       Booster = {
+    val version = getHighestVersion(sparkContext, boosterTmpPath)
+    if (version > 0) {
+      val fullPath = getTmpSavingPath(boosterTmpPath, version)
+      logger.info(s"Start training from previous booster at $fullPath")
+      val model = XGBoost.loadModelFromHadoopFile(fullPath)(sparkContext)
+      model.booster.booster.setVersion(version)
+      model.booster
+    } else {
+      null
+    }
+  }
+
+  private def getHighestVersion(sparkContext: SparkContext, boosterTmpPath: String): Int = {
     val fs = FileSystem.get(sparkContext.hadoopConfiguration)
     if (boosterTmpPath.isEmpty || !fs.exists(new Path(boosterTmpPath))) {
-      null
+      0
     } else {
       val versions = fs.listStatus(new Path(boosterTmpPath)).map(_.getPath.getName).collect {
         case fileName if fileName.endsWith(modelSuffix) => fileName.stripSuffix(modelSuffix).toInt
       }
       if (versions.nonEmpty) {
-        val version = versions.max
-        val fullPath = getTmpSavingPath(boosterTmpPath, version)
-        logger.info(s"Start training from previous booster at $fullPath")
-        val model = XGBoost.loadModelFromHadoopFile(fullPath)(sparkContext)
-        model.booster.booster.setVersion(version)
-        model.booster
+        versions.max
       } else {
-        null
+        0
       }
     }
   }
