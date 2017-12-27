@@ -14,8 +14,9 @@ For more usage details please refer to the [binary classification demo](../binar
 
 Instructions
 ====
-The dataset for ranking demo is from LETOR04 MQ2008 fold1,
+The dataset for ranking demo is from [LETOR04 MQ2008 fold1](https://www.microsoft.com/en-us/research/project/letor-learning-rank-information-retrieval/),
 You can use the following command to run the example
 
-Get the data: ./wgetdata.sh
-Run the example: ./runexp.sh
+```
+./runexp.sh
+```
