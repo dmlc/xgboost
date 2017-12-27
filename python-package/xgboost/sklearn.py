@@ -141,7 +141,6 @@ class XGBModel(XGBModelBase):
         self.silent = silent
         self.objective = objective
         self.booster = booster
-        self.nthread = nthread
         self.gamma = gamma
         self.min_child_weight = min_child_weight
         self.max_delta_step = max_delta_step
