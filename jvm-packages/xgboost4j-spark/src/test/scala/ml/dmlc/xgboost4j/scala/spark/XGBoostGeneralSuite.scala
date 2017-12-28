@@ -355,7 +355,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
 
     // Check only one model is kept after training
     val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
-    assert(files.size == 1)
+    assert(files.length == 1)
     assert(files.head.getPath.getName == "8.model")
     val tmpModel = XGBoost.loadModelFromHadoopFile(s"$tmpPath/8.model")
 
@@ -365,15 +365,5 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     assert(error(tmpModel) > error(prevModel))
     assert(error(prevModel) > error(nextModel))
     assert(error(nextModel) < 0.1)
-  }
-
-  test("loadPrevBooster should be robust") {
-    val booster1 = XGBoost.loadPrevBooster(sc, "")
-    val booster2 = XGBoost.loadPrevBooster(sc, "/tmp/non_existing_path")
-    val emptyFolder = Files.createTempDirectory("empty").toAbsolutePath.toString
-    val booster3 = XGBoost.loadPrevBooster(sc, emptyFolder)
-    assert(booster1 == null)
-    assert(booster2 == null)
-    assert(booster3 == null)
   }
 }
