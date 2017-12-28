@@ -22,36 +22,36 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkContext
 
 /**
-  * A class which allows user to save temporary boosters every a few rounds. If a previous job
+  * A class which allows user to save checkpoint boosters every a few rounds. If a previous job
   * fails, the job can restart training from a saved booster instead of from scratch. This class
-  * provides interface and helper methods for the tmp booster functionality.
+  * provides interface and helper methods for the checkpoint functionality.
   *
   * @param sc the sparkContext object
-  * @param boosterTmpPath the hdfs path to store temporary boosters
+  * @param checkpointPath the hdfs path to store checkpoint boosters
   */
-class TmpBoosterManager(sc: SparkContext, boosterTmpPath: String) {
+private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String) {
   private val logger = LogFactory.getLog("XGBoostSpark")
   private val modelSuffix = ".model"
 
   private def getPath(version: Int) = {
-    s"$boosterTmpPath/$version$modelSuffix"
+    s"$checkpointPath/$version$modelSuffix"
   }
 
   private def getExistingVersions: Seq[Int] = {
     val fs = FileSystem.get(sc.hadoopConfiguration)
-    if (boosterTmpPath.isEmpty || !fs.exists(new Path(boosterTmpPath))) {
+    if (checkpointPath.isEmpty || !fs.exists(new Path(checkpointPath))) {
       Seq()
     } else {
-      fs.listStatus(new Path(boosterTmpPath)).map(_.getPath.getName).collect {
+      fs.listStatus(new Path(checkpointPath)).map(_.getPath.getName).collect {
         case fileName if fileName.endsWith(modelSuffix) => fileName.stripSuffix(modelSuffix).toInt
       }
     }
   }
 
   /**
-    * Load existing booster with the highest version.
+    * Load existing checkpoint with the highest version.
     *
-    * @return the booster with the highest version.
+    * @return the booster with the highest version, null if no checkpoints available.
     */
   private[spark] def loadBooster: Booster = {
     val versions = getExistingVersions
@@ -76,13 +76,13 @@ class TmpBoosterManager(sc: SparkContext, boosterTmpPath: String) {
     val fs = FileSystem.get(sc.hadoopConfiguration)
     val prevModelPaths = getExistingVersions.map(version => new Path(getPath(version)))
     val fullPath = getPath(model.version)
-    logger.info(s"Saving temporary model with version ${model.version} to $fullPath")
+    logger.info(s"Saving checkpoint model with version ${model.version} to $fullPath")
     model.saveModelAsHadoopFile(fullPath)(sc)
     prevModelPaths.foreach(path => fs.delete(path, true))
   }
 
   /**
-    * Clean up tmp boosters with version higher than or equal to the round.
+    * Clean up checkpoint boosters with version higher than or equal to the round.
     *
     * @param round the number of rounds in the current training job
     */
@@ -95,35 +95,36 @@ class TmpBoosterManager(sc: SparkContext, boosterTmpPath: String) {
   }
 
   /**
-    * Calculate a list of checkpoint rounds to save tmp boosters based on the savingFreq and
+    * Calculate a list of checkpoint rounds to save checkpoints based on the savingFreq and
     * total number of rounds for the training. Concretely, the saving rounds start with
     * prevRounds + savingFreq, and increase by savingFreq in each step until it reaches total
-    * number of rounds
+    * number of rounds. If savingFreq is 0, the checkpoint will be disabled and the method
+    * returns Seq(round)
     *
     * @param savingFreq the increase on rounds during each step of training
     * @param round the total number of rounds for the training
-    * @return a seq of integers, each represent the index of round to save the tmp booster
+    * @return a seq of integers, each represent the index of round to save the checkpoints
     */
   private[spark] def getSavingRounds(savingFreq: Int, round: Int): Seq[Int] = {
-    if (boosterTmpPath.nonEmpty && savingFreq > 0) {
+    if (checkpointPath.nonEmpty && savingFreq > 0) {
       val prevRounds = getExistingVersions.map(_ / 2)
       val firstSavingRound = (0 +: prevRounds).max + savingFreq
       (firstSavingRound until round by savingFreq) :+ round
     } else if (savingFreq <= 0) {
       Seq(round)
     } else {
-      throw new IllegalArgumentException("parameters \"booster_tmp_path\" should also be set.")
+      throw new IllegalArgumentException("parameters \"checkpoint_path\" should also be set.")
     }
   }
 }
 
-object TmpBoosterManager {
+object CheckpointManager {
 
   private[spark] def extractParams(params: Map[String, Any]): (String, Int) = {
-    val boosterTmpPath: String = params.get("booster_tmp_path") match {
+    val checkpointPath: String = params.get("checkpoint_path") match {
       case None => ""
       case Some(path: String) => path
-      case _ => throw new IllegalArgumentException("parameter \"booster_tmp_path\" must be" +
+      case _ => throw new IllegalArgumentException("parameter \"checkpoint_path\" must be" +
         " an instance of String.")
     }
 
@@ -133,6 +134,6 @@ object TmpBoosterManager {
       case _ => throw new IllegalArgumentException("parameter \"saving_frequency\" must be" +
         " an instance of Int.")
     }
-    (boosterTmpPath, savingFreq)
+    (checkpointPath, savingFreq)
   }
 }

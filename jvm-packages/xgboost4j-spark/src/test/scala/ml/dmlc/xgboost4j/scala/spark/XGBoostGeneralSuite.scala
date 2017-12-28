@@ -338,7 +338,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     }
   }
 
-  test("training with saving temporary boosters") {
+  test("training with saving checkpoint boosters") {
     import DataUtils._
     val eval = new EvalError()
     val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
@@ -346,7 +346,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
 
     val tmpPath = Files.createTempDirectory("model1").toAbsolutePath.toString
     val paramMap = List("eta" -> "1", "max_depth" -> 2, "silent" -> "1",
-      "objective" -> "binary:logistic", "booster_tmp_path" -> tmpPath,
+      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
       "saving_frequency" -> 2).toMap
     val prevModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
       nWorkers = numWorkers)

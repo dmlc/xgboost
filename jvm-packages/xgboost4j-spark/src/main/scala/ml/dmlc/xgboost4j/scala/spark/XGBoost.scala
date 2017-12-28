@@ -325,16 +325,16 @@ object XGBoost extends Serializable {
       case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
         " an instance of Long.")
     }
-    val (boosterTmpPath, savingFeq) = TmpBoosterManager.extractParams(params)
+    val (checkpointPath, savingFeq) = CheckpointManager.extractParams(params)
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
 
     val sc = trainingData.sparkContext
-    val tmpBoosterManager = new TmpBoosterManager(sc, boosterTmpPath)
-    tmpBoosterManager.cleanUpHigherVersions(round)
+    val checkpointManager = new CheckpointManager(sc, checkpointPath)
+    checkpointManager.cleanUpHigherVersions(round)
 
-    var prevBooster = tmpBoosterManager.loadBooster
+    var prevBooster = checkpointManager.loadBooster
     // Train for every ${savingRound} rounds and save the partially completed booster
-    tmpBoosterManager.getSavingRounds(savingFeq, round).map {
+    checkpointManager.getSavingRounds(savingFeq, round).map {
       savingRound: Int =>
         val tracker = startTracker(nWorkers, trackerConf)
         try {
@@ -361,7 +361,7 @@ object XGBoost extends Serializable {
           }
           if (savingRound < round) {
             prevBooster = model.booster
-            tmpBoosterManager.updateModel(model)
+            checkpointManager.updateModel(model)
           }
           model
       } finally {

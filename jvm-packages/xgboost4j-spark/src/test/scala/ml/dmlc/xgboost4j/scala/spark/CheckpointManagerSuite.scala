@@ -23,7 +23,7 @@ import org.scalatest.{BeforeAndAfterAll, FunSuite}
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.{SparkConf, SparkContext}
 
-class TmpBoosterManagerSuite extends FunSuite  with BeforeAndAfterAll {
+class CheckpointManagerSuite extends FunSuite  with BeforeAndAfterAll {
   var sc: SparkContext = _
 
   override def beforeAll(): Unit = {
@@ -44,7 +44,7 @@ class TmpBoosterManagerSuite extends FunSuite  with BeforeAndAfterAll {
 
   test("test update/load models") {
     val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
-    val manager = new TmpBoosterManager(sc, tmpPath)
+    val manager = new CheckpointManager(sc, tmpPath)
     manager.updateModel(model4)
     var files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
@@ -60,7 +60,7 @@ class TmpBoosterManagerSuite extends FunSuite  with BeforeAndAfterAll {
 
   test("test cleanUpHigherVersions") {
     val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
-    val manager = new TmpBoosterManager(sc, tmpPath)
+    val manager = new CheckpointManager(sc, tmpPath)
     manager.updateModel(model8)
     manager.cleanUpHigherVersions(round = 8)
     assert(new File(s"$tmpPath/8.model").exists())
@@ -71,8 +71,9 @@ class TmpBoosterManagerSuite extends FunSuite  with BeforeAndAfterAll {
 
   test("test saving rounds") {
     val tmpPath = Files.createTempDirectory("test").toAbsolutePath.toString
-    val manager = new TmpBoosterManager(sc, tmpPath)
-    assertResult(Seq(2, 4, 6, 7))(manager.getSavingRounds(2, 7))
+    val manager = new CheckpointManager(sc, tmpPath)
+    assertResult(Seq(7))(manager.getSavingRounds(savingFreq = 0, round = 7))
+    assertResult(Seq(2, 4, 6, 7))(manager.getSavingRounds(savingFreq = 2, round = 7))
     manager.updateModel(model4)
     assertResult(Seq(4, 6, 7))(manager.getSavingRounds(2, 7))
   }

@@ -78,19 +78,19 @@ trait GeneralParams extends Params {
     " value is set smaller than or equal to 0.")
 
   /**
-    * The hdfs folder to load and save temporary boosters. default: `empty_string`
+    * The hdfs folder to load and save checkpoint boosters. default: `empty_string`
     */
-  val boosterTmpPath = new Param[String](this, "booster_tmp_path", "the hdfs folder to load and " +
-    "save temp boosters. The job will try to load existing booster as the starting point for " +
-    "training. If saving_frequency is set, the job will save a temp booster every a few rounds.")
+  val checkpointPath = new Param[String](this, "checkpoint_path", "the hdfs folder to load and " +
+    "save checkpoints. The job will try to load the existing booster as the starting point for " +
+    "training. If saving_frequency is also set, the job will save a checkpoint every a few rounds.")
 
   /**
-    * The frequency to save temporary boosters. default: 0
+    * The frequency to save checkpoint boosters. default: 0
     */
-  val savingFrequency = new IntParam(this, "saving_frequency", "if booster_tmp_path is also set," +
-    " the job will save temp boosters at this frequency. If the job fails and gets restarted with" +
-    " same setting, it will load temp boosters instead of training from scratch. Saving will be " +
-    "disabled if set to 0.")
+  val savingFrequency = new IntParam(this, "saving_frequency", "if checkpoint_path is also set," +
+    " the job will save checkpoints at this frequency. If the job fails and gets restarted with" +
+    " same setting, it will load the existing booster instead of training from scratch." +
+    " Checkpoint will be disabled if set to 0.")
 
   /**
     * Rabit tracker configurations. The parameter must be provided as an instance of the
@@ -128,6 +128,6 @@ trait GeneralParams extends Params {
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
-    boosterTmpPath -> "", savingFrequency -> 0
+    checkpointPath -> "", savingFrequency -> 0
   )
 }
