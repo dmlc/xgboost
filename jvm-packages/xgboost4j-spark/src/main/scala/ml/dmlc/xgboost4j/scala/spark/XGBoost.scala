@@ -20,7 +20,6 @@ import java.io.File
 
 import scala.collection.mutable
 import scala.util.Random
-
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
@@ -101,23 +100,19 @@ object XGBoost extends Serializable {
       data: RDD[XGBLabeledPoint],
       params: Map[String, Any],
       rabitEnv: java.util.Map[String, String],
-      numWorkers: Int,
       round: Int,
       obj: ObjectiveTrait,
       eval: EvalTrait,
       useExternalMemory: Boolean,
-      missing: Float): RDD[(Booster, Map[String, Array[Float]])] = {
-    val partitionedData = if (data.getNumPartitions != numWorkers) {
-      logger.info(s"repartitioning training set to $numWorkers partitions")
-      data.repartition(numWorkers)
-    } else {
-      data
-    }
-    val partitionedBaseMargin = partitionedData.map(_.baseMargin)
+      missing: Float,
+      prevBooster: Booster
+    ): RDD[(Booster, Map[String, Array[Float]])] = {
+
+    val partitionedBaseMargin = data.map(_.baseMargin)
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    partitionedData.zipPartitions(partitionedBaseMargin) { (labeledPoints, baseMargins) =>
+    data.zipPartitions(partitionedBaseMargin) { (labeledPoints, baseMargins) =>
       if (labeledPoints.isEmpty) {
         throw new XGBoostError(
           s"detected an empty partition in the training data, partition ID:" +
@@ -145,7 +140,7 @@ object XGBoost extends Serializable {
         val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](round))
         val booster = SXGBoost.train(watches.train, params, round,
           watches.toMap, metrics, obj, eval,
-          earlyStoppingRound = numEarlyStoppingRounds)
+          earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
         Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
       } finally {
         Rabit.shutdown()
@@ -330,34 +325,58 @@ object XGBoost extends Serializable {
       case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
         " an instance of Long.")
     }
+    val (checkpointPath, savingFeq) = CheckpointManager.extractParams(params)
+    val partitionedData = repartitionForTraining(trainingData, nWorkers)
 
-    val tracker = startTracker(nWorkers, trackerConf)
-    try {
-      val sc = trainingData.sparkContext
-      val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
-      val overriddenParams = overrideParamsAccordingToTaskCPUs(params, trainingData.sparkContext)
-      val boostersAndMetrics = buildDistributedBoosters(trainingData, overriddenParams,
-        tracker.getWorkerEnvs, nWorkers, round, obj, eval, useExternalMemory, missing)
-      val sparkJobThread = new Thread() {
-        override def run() {
-          // force the job
-          boostersAndMetrics.foreachPartition(() => _)
-        }
+    val sc = trainingData.sparkContext
+    val checkpointManager = new CheckpointManager(sc, checkpointPath)
+    checkpointManager.cleanUpHigherVersions(round)
+
+    var prevBooster = checkpointManager.loadBooster
+    // Train for every ${savingRound} rounds and save the partially completed booster
+    checkpointManager.getSavingRounds(savingFeq, round).map {
+      savingRound: Int =>
+        val tracker = startTracker(nWorkers, trackerConf)
+        try {
+          val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
+          val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
+          val boostersAndMetrics = buildDistributedBoosters(partitionedData, overriddenParams,
+            tracker.getWorkerEnvs, savingRound, obj, eval, useExternalMemory, missing, prevBooster)
+          val sparkJobThread = new Thread() {
+            override def run() {
+              // force the job
+              boostersAndMetrics.foreachPartition(() => _)
+            }
+          }
+          sparkJobThread.setUncaughtExceptionHandler(tracker)
+          sparkJobThread.start()
+          val isClsTask = isClassificationTask(params)
+          val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
+          logger.info(s"Rabit returns with exit code $trackerReturnVal")
+          val model = postTrackerReturnProcessing(trackerReturnVal, boostersAndMetrics,
+            sparkJobThread, isClsTask)
+          if (isClsTask){
+            model.asInstanceOf[XGBoostClassificationModel].numOfClasses =
+              params.getOrElse("num_class", "2").toString.toInt
+          }
+          if (savingRound < round) {
+            prevBooster = model.booster
+            checkpointManager.updateModel(model)
+          }
+          model
+      } finally {
+        tracker.stop()
       }
-      sparkJobThread.setUncaughtExceptionHandler(tracker)
-      sparkJobThread.start()
-      val isClsTask = isClassificationTask(params)
-      val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
-      logger.info(s"Rabit returns with exit code $trackerReturnVal")
-      val model = postTrackerReturnProcessing(trackerReturnVal, boostersAndMetrics,
-        sparkJobThread, isClsTask)
-      if (isClsTask){
-        model.asInstanceOf[XGBoostClassificationModel].numOfClasses =
-          params.getOrElse("num_class", "2").toString.toInt
-      }
-      model
-    } finally {
-      tracker.stop()
+    }.last
+  }
+
+
+  private[spark] def repartitionForTraining(trainingData: RDD[XGBLabeledPoint], nWorkers: Int) = {
+    if (trainingData.getNumPartitions != nWorkers) {
+      logger.info(s"repartitioning training set to $nWorkers partitions")
+      trainingData.repartition(nWorkers)
+    } else {
+      trainingData
     }
   }
 
@@ -404,6 +423,7 @@ object XGBoost extends Serializable {
     xgBoostModel.setLabelCol(labelCol)
     xgBoostModel.setPredictionCol(predCol)
   }
+
 
   /**
    * Load XGBoost model from path in HDFS-compatible file system
