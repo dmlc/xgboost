@@ -50,8 +50,7 @@ class SparkParallelismTracker(
   private[this] def numAliveCores: Int = {
     try {
       if (url != null) {
-        val jsonNode = mapper.readTree(url)
-        jsonNode.findValues("totalCores").asScala.map(_.asInt).sum
+        mapper.readTree(url).findValues("totalCores").asScala.map(_.asInt).sum
       } else {
         Int.MaxValue
       }
