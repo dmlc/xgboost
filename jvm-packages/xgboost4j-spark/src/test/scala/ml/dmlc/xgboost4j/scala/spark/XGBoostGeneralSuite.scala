@@ -16,13 +16,14 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.nio.file.Files
 import java.util.concurrent.LinkedBlockingDeque
 
 import scala.util.Random
-
 import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
 import org.apache.spark.ml.linalg.{DenseVector, Vectors, Vector => SparkVector}
@@ -73,13 +74,14 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
 
   test("build RDD containing boosters with the specified worker number") {
     val trainingRDD = sc.parallelize(Classification.train)
+    val partitionedRDD = XGBoost.repartitionForTraining(trainingRDD, 2)
     val boosterRDD = XGBoost.buildDistributedBoosters(
-      trainingRDD,
+      partitionedRDD,
       List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
         "objective" -> "binary:logistic").toMap,
       new java.util.HashMap[String, String](),
-      numWorkers = 2, round = 5, eval = null, obj = null, useExternalMemory = true,
-      missing = Float.NaN)
+      round = 5, eval = null, obj = null, useExternalMemory = true,
+      missing = Float.NaN, prevBooster = null)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === 2)
   }
@@ -334,5 +336,34 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     forAll (objectives) { (isClassificationTask: Boolean, params: Map[String, String]) =>
       assert(XGBoost.isClassificationTask(params) == isClassificationTask)
     }
+  }
+
+  test("training with saving checkpoint boosters") {
+    import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
+
+    val tmpPath = Files.createTempDirectory("model1").toAbsolutePath.toString
+    val paramMap = List("eta" -> "1", "max_depth" -> 2, "silent" -> "1",
+      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
+      "saving_frequency" -> 2).toMap
+    val prevModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = numWorkers)
+    def error(model: XGBoostModel): Float = eval.eval(
+      model.booster.predict(testSetDMatrix, outPutMargin = true), testSetDMatrix)
+
+    // Check only one model is kept after training
+    val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
+    assert(files.length == 1)
+    assert(files.head.getPath.getName == "8.model")
+    val tmpModel = XGBoost.loadModelFromHadoopFile(s"$tmpPath/8.model")
+
+    // Train next model based on prev model
+    val nextModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 8,
+      nWorkers = numWorkers)
+    assert(error(tmpModel) > error(prevModel))
+    assert(error(prevModel) > error(nextModel))
+    assert(error(nextModel) < 0.1)
   }
 }

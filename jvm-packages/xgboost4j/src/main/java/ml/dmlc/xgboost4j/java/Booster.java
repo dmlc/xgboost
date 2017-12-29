@@ -34,6 +34,7 @@ public class Booster implements Serializable, KryoSerializable {
   private static final Log logger = LogFactory.getLog(Booster.class);
   // handle to the booster.
   private long handle = 0;
+  private int version = 0;
 
   /**
    * Create a new Booster with empty stage.
@@ -416,6 +417,14 @@ public class Booster implements Serializable, KryoSerializable {
     return modelInfos[0];
   }
 
+  public int getVersion() {
+    return this.version;
+  }
+
+  public void setVersion(int version) {
+    this.version = version;
+  }
+
   /**
    *
    * @return the saved byte array.
@@ -436,16 +445,18 @@ public class Booster implements Serializable, KryoSerializable {
   int loadRabitCheckpoint() throws XGBoostError {
     int[] out = new int[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadRabitCheckpoint(this.handle, out));
-    return out[0];
+    version = out[0];
+    return version;
   }
 
   /**
-   * Save the booster model into thread-local rabit checkpoint.
+   * Save the booster model into thread-local rabit checkpoint and increment the version.
    * This is only used in distributed training.
    * @throws XGBoostError
    */
   void saveRabitCheckpoint() throws XGBoostError {
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSaveRabitCheckpoint(this.handle));
+    version += 1;
   }
 
   /**
@@ -481,6 +492,7 @@ public class Booster implements Serializable, KryoSerializable {
   // making Booster serializable
   private void writeObject(java.io.ObjectOutputStream out) throws IOException {
     try {
+      out.writeInt(version);
       out.writeObject(this.toByteArray());
     } catch (XGBoostError ex) {
       ex.printStackTrace();
@@ -492,6 +504,7 @@ public class Booster implements Serializable, KryoSerializable {
           throws IOException, ClassNotFoundException {
     try {
       this.init(null);
+      this.version = in.readInt();
       byte[] bytes = (byte[])in.readObject();
       XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
     } catch (XGBoostError ex) {
@@ -520,6 +533,7 @@ public class Booster implements Serializable, KryoSerializable {
       int serObjSize = serObj.length;
       System.out.println("==== serialized obj size " + serObjSize);
       output.writeInt(serObjSize);
+      output.writeInt(version);
       output.write(serObj);
     } catch (XGBoostError ex) {
       ex.printStackTrace();
@@ -532,6 +546,7 @@ public class Booster implements Serializable, KryoSerializable {
     try {
       this.init(null);
       int serObjSize = input.readInt();
+      this.version = input.readInt();
       System.out.println("==== the size of the object: " + serObjSize);
       byte[] bytes = new byte[serObjSize];
       input.readBytes(bytes);

@@ -25,7 +25,7 @@ import ml.dmlc.xgboost4j.java.XGBoostError
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
-class Booster private[xgboost4j](private var booster: JBooster)
+class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   extends Serializable  with KryoSerializable {
 
   /**
