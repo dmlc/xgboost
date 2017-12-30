@@ -3,31 +3,82 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
-## in progress version
+## v0.7 (2017.12.26)
 * Updated Sklearn API
-  - Updated to allow use of all XGBoost parameters via **kwargs.
-  - Updated nthread to n_jobs and seed to random_state (as per Sklearn convention).
+  - Add compatibility layer for scikit-learn v0.18
+  - Updated to allow use of all XGBoost parameters via `**kwargs`.
+  - Updated nthread to `n_jobs` and seed to `random_state` (as per Sklearn convention).
 * Refactored gbm to allow more friendly cache strategy
   - Specialized some prediction routine
+* Robust `DMatrix` construction from a sparse matrix
+* Elide copies when building `DMatrix` from 2D NumPy matrices
 * Automatically remove nan from input data when it is sparse.
   - This can solve some of user reported problem of istart != hist.size
 * Minor fixes
   - Thread local variable is upgraded so it is automatically freed at thread exit.
+  - Fix saving and loading `count::poisson` models
+  - Fix CalcDCG to use base-2 logarithm
+  - Messages are now written to stderr instead of stdout
+  - Keep built-in evaluations while using customized evaluation functions
+  - Use `bst_float` consistently to minimize type conversion
 * Migrate to C++11
   - The current master version now requires C++11 enabled compiled(g++4.8 or higher)
 * Predictor interface was factored out (in a manner similar to the updater interface).
+* Makefile support for Solaris
+* Test code coverage using Codecov
+* Add CPP tests
 * New functionality
   - Ability to adjust tree model's statistics to a new dataset without changing tree structures.
   - Extracting feature contributions to individual predictions.
   - Faster, histogram-based tree algorithm (`tree_method='hist'`) .
   - GPU/CUDA accelerated tree algorithms (`tree_method='gpu_hist'` or `'gpu_exact'`), including the GPU-based predictor.
+  - Monotonic constraints: when other features are fixed, force the prediction to be monotonic increasing with respect to a certain specified feature.
+  - Faster gradient caculation using AVX SIMD
+  - Ability to export models in JSON format
+  - Support for Tweedie regression
+  - Ability to update an existing model in-place: this is useful for many applications, such as determining feature importance
+* Python package:
+  - New parameters:
+    - `learning_rates` in `cv()`
+    - `shuffle` in `mknfold()`
+  - Support binary wheel builds
+  - Fix `MultiIndex` detection to support Pandas 0.21.0 and higher
+  - Fix early stopping for evaluation sets whose names contain `-`
+  - Support feature maps when plotting trees
 * R package:
   - New parameters:
     - `silent` in `xgb.DMatrix()`
     - `use_int_id` in `xgb.model.dt.tree()`
     - `predcontrib` in `predict()`
+    - `monotone_constraints` in `xgb.train()`
   - Default value of the `save_period` parameter in `xgboost()` changed to NULL (consistent with `xgb.train()`).
   - It's possible to custom-build the R package with GPU acceleration support.
+  - Integration with AppVeyor CI
+  - Improved safety for garbage collection
+  - Updated CRAN submission
+  - Store numeric attributes with higher precision
+  - Easier installation for devel version
+* JVM packages
+  - Fix data persistence: loss evaluation on test data had wrongly used caches for training data.
+  - Make `IEvaluation` serializable
+  - Enable training of multiple models by distinguishing stage IDs
+  - Better Spark integration: support RDD / dataframe / dataset, integrate with Spark ML package
+  - Support training with missing data
+  - Refactor JVM package to separate regression and classification models to be consistent with other machine learning libraries
+  - Support XGBoost4j compilation on Windows
+  - Parameter tuning tool
+  - Publish source code for XGBoost4j to maven local repo
+  - Scala implementation of the Rabit tracker (drop-in replacement for the Java implementation)
+* Documentation
+  - Better math notation for gradient boosting
+  - Updated installation instructions for Mac OS X
+  - Template for GitHub issues
+  - Add `CITATION` file for citing XGBoost in scientific writing
+  - Fix dropdown menu in xgboost.readthedocs.io
+  - Document `updater_seq` parameter
+  - Style fixes for Python documentation
+* Backward compatiblity
+  - XGBoost-spark no longer contains APIs for DMatrix (#1519); use the public booster interface instead.
 
 ## v0.6 (2016.07.29)
 * Version 0.5 is skipped due to major improvements in the core
