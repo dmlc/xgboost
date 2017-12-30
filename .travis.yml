@@ -60,7 +60,7 @@ addons:
 before_install:
   - source dmlc-core/scripts/travis/travis_setup_env.sh
   - export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package
-  - echo "MAVEN_OPTS='-Xmx2g -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc
+  - echo "MAVEN_OPTS='-Xmx4g -XX:MaxPermSize=2g -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc
 
 install:
   - source tests/travis/setup.sh
