@@ -87,6 +87,26 @@ Now, clone the repository
 git clone --recursive https://github.com/dmlc/xgboost
 ```
 
+Open config.mk and uncomment these two lines
+
+```config.mk
+export CC = gcc
+export CXX = g++
+```
+
+and replace these two lines into(5 or 6 or 7; depending on your gcc-version)
+
+```config.mk
+export CC = gcc-7
+export CXX = g++-7
+```
+
+To find your gcc version
+
+```bash
+gcc-version
+```
+
 and build using the following commands
 
 ```bash
