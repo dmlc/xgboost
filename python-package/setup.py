@@ -22,15 +22,14 @@ print("Install libxgboost from: %s" % LIB_PATH)
 # detailed instruction in setup_pip.py
 setup(name='xgboost',
       version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
-      # version='0.4a23',
       description="XGBoost Python Package",
       long_description=open(os.path.join(CURRENT_DIR, 'README.rst')).read(),
       install_requires=[
           'numpy',
           'scipy',
       ],
-      maintainer='Hongliang Liu',
-      maintainer_email='phunter.lau@gmail.com',
+      maintainer='Hyunsu Cho',
+      maintainer_email='chohyu01@cs.washington.edu',
       zip_safe=False,
       packages=find_packages(),
       # this will use MANIFEST.in during install where we specify additional files,
