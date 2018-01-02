@@ -6,7 +6,7 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm</artifactId>
-        <version>0.7</version>
+        <version>0.8-SNAPSHOT</version>
     </parent>
     <artifactId>xgboost4j-spark</artifactId>
     <build>
