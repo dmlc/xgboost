@@ -348,7 +348,7 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     val paramMap = List("eta" -> "1", "max_depth" -> 2, "silent" -> "1",
       "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
       "saving_frequency" -> 2).toMap
-    val prevModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+    val prevModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 3,
       nWorkers = numWorkers)
     def error(model: XGBoostModel): Float = eval.eval(
       model.booster.predict(testSetDMatrix, outPutMargin = true), testSetDMatrix)
@@ -356,14 +356,14 @@ class XGBoostGeneralSuite extends FunSuite with PerTest {
     // Check only one model is kept after training
     val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
     assert(files.length == 1)
-    assert(files.head.getPath.getName == "8.model")
-    val tmpModel = XGBoost.loadModelFromHadoopFile(s"$tmpPath/8.model")
+    assert(files.head.getPath.getName == "4.model")
+    val tmpModel = XGBoost.loadModelFromHadoopFile(s"$tmpPath/4.model")
 
     // Train next model based on prev model
-    val nextModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 8,
+    val nextModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 3,
       nWorkers = numWorkers)
     assert(error(tmpModel) > error(prevModel))
-    assert(error(prevModel) > error(nextModel))
+    assert(math.abs(error(prevModel) - error(nextModel)) < 1e-6)
     assert(error(nextModel) < 0.1)
   }
 }
