@@ -26,6 +26,11 @@ Please install ``gcc@5`` from `Homebrew <https://brew.sh/>`_::
 
     brew install gcc@5
 
+After installing ``gcc@5``, set it as your compiler::
+
+    export CC = gcc-5
+    export CXX = g++-5
+
 Linux
 -----
 
