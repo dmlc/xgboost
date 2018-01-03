@@ -26,6 +26,10 @@ import java.util.Map;
 import junit.framework.TestCase;
 import org.junit.Test;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+
 /**
  * test cases for Booster
  *
@@ -394,5 +398,44 @@ public class BoosterImplTest {
     float booster2error = eval.eval(booster2.predict(testMat, true, 0), testMat);
     TestCase.assertTrue(booster1error == booster2error);
     TestCase.assertTrue(tempBoosterError > booster2error);
+  }
+
+  @Test
+  public void testSerDe() throws XGBoostError, IOException, ClassNotFoundException {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+    Booster booster = trainBooster(trainMat, testMat);
+
+    // Test Serializable interface
+    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    ObjectOutputStream out = new ObjectOutputStream(bos);
+    out.writeObject(booster);
+    out.close();
+
+    ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
+    ObjectInputStream in = new ObjectInputStream(bis);
+    Booster booster1 = (Booster) in.readObject();
+    in.close();
+
+    TestCase.assertTrue(booster.getVersion() == booster1.getVersion());
+    TestCase.assertTrue(booster.toByteArray().length == booster1.toByteArray().length);
+
+    // Test KryoSerializable interface
+    Kryo kryo = new Kryo();
+    kryo.register(Booster.class);
+
+    bos = new ByteArrayOutputStream();
+    Output ko = new Output(bos);
+    booster.write(kryo, ko);
+    ko.close();
+
+    bis = new ByteArrayInputStream(bos.toByteArray());
+    Input ki = new Input(bis);
+    Booster booster2 = new Booster(null, null);
+    booster2.read(kryo, ki);
+    ki.close();
+
+    TestCase.assertTrue(booster.getVersion() == booster2.getVersion());
+    TestCase.assertTrue(booster.toByteArray().length == booster2.toByteArray().length);
   }
 }
