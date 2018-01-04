@@ -49,7 +49,11 @@ class SparkParallelismTracker(
 
   private[this] def numAliveCores: Int = {
     try {
-      mapper.readTree(url).findValues("totalCores").asScala.map(_.asInt).sum
+      if (url != null) {
+        mapper.readTree(url).findValues("totalCores").asScala.map(_.asInt).sum
+      } else {
+        Int.MaxValue
+      }
     } catch {
       case ex: Throwable =>
         logger.warn(s"Unable to read total number of alive cores from REST API." +

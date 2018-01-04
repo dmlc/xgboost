@@ -73,13 +73,15 @@ build_script:
     # Python package
     - if /i "%DO_PYTHON%" == "on" (
         cd %APPVEYOR_BUILD_FOLDER%\python-package &&
-        python setup.py install
+        python setup.py install &&
+        mkdir wheel &&
+        python setup.py bdist_wheel --universal --plat-name win-amd64 -d wheel
       )
     # R package: make + mingw standard CRAN packaging (only x64 for now)
     - if /i "%target%" == "rmingw" (
         make Rbuild &&
         ls -l &&
-        R.exe CMD INSTALL --no-multiarch xgboost*.tar.gz
+        R.exe CMD INSTALL xgboost*.tar.gz
       )
     # R package: cmake + VC2015
     - if /i "%target%" == "rmsvc" (
@@ -96,10 +98,9 @@ test_script:
     # mingw R package: run the R check (which includes unit tests), and also keep the built binary package
     - if /i "%target%" == "rmingw" (
         set _R_CHECK_CRAN_INCOMING_=FALSE&&
-        R.exe CMD check xgboost*.tar.gz --no-manual --no-build-vignettes --as-cran --install-args=--build --no-multiarch
+        R.exe CMD check xgboost*.tar.gz --no-manual --no-build-vignettes --as-cran --install-args=--build
       )
     # MSVC R package: run only the unit tests
-    #   TODO: create a binary msvc-built package to keep as an artifact
     - if /i "%target%" == "rmsvc" (
         cd build_rmsvc%ver%\R-package &&
         R.exe -q -e "library(testthat); setwd('tests'); source('testthat.R')"
@@ -121,4 +122,7 @@ artifacts:
       name: Bits
     # binary R-package
     - path: '**\xgboost_*.zip'
+      name: Bits
+    # binary Python wheel package
+    - path: '**\*.whl'
       name: Bits
