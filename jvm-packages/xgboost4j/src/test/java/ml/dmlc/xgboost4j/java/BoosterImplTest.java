@@ -395,4 +395,15 @@ public class BoosterImplTest {
     TestCase.assertTrue(booster1error == booster2error);
     TestCase.assertTrue(tempBoosterError > booster2error);
   }
+
+  @Test(expected = XGBoostError.class)
+  public void testThrowErrorOnDisposedBooster() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+    Booster booster = trainBooster(trainMat, testMat);
+    booster.dispose();
+
+    // Should throw XGBoostError instead of making JVM crash
+    booster.toByteArray();
+  }
 }
