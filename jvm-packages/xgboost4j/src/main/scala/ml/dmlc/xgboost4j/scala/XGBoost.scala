@@ -66,7 +66,12 @@ object XGBoost {
       // we have to filter null value for customized obj and eval
       params.filter(_._2 != null).mapValues(_.toString.asInstanceOf[AnyRef]).asJava,
       round, jWatches, metrics, obj, eval, earlyStoppingRound, jBooster)
-    new Booster(xgboostInJava)
+    if (booster == null) {
+      new Booster(xgboostInJava)
+    } else {
+      // Avoid creating a new SBooster with the same JBooster
+      booster
+    }
   }
 
   /**
