@@ -432,7 +432,6 @@ public class Booster implements Serializable, KryoSerializable {
    */
   public byte[] toByteArray() throws XGBoostError {
     byte[][] bytes = new byte[1][];
-    checkHandle();
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterGetModelRaw(this.handle, bytes));
     return bytes[0];
   }
@@ -445,7 +444,6 @@ public class Booster implements Serializable, KryoSerializable {
    */
   int loadRabitCheckpoint() throws XGBoostError {
     int[] out = new int[1];
-    checkHandle();
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadRabitCheckpoint(this.handle, out));
     version = out[0];
     return version;
@@ -457,7 +455,6 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError
    */
   void saveRabitCheckpoint() throws XGBoostError {
-    checkHandle();
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSaveRabitCheckpoint(this.handle));
     version += 1;
   }
@@ -492,12 +489,6 @@ public class Booster implements Serializable, KryoSerializable {
     return handles;
   }
 
-  private void checkHandle() throws XGBoostError {
-    if (this.handle <= 0) {
-      throw new XGBoostError("Booster has not been initialized or has been disposed.");
-    }
-  }
-
   // making Booster serializable
   private void writeObject(java.io.ObjectOutputStream out) throws IOException {
     try {
@@ -515,7 +506,6 @@ public class Booster implements Serializable, KryoSerializable {
       this.init(null);
       this.version = in.readInt();
       byte[] bytes = (byte[])in.readObject();
-      checkHandle();
       XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
     } catch (XGBoostError ex) {
       ex.printStackTrace();
@@ -560,7 +550,6 @@ public class Booster implements Serializable, KryoSerializable {
       System.out.println("==== the size of the object: " + serObjSize);
       byte[] bytes = new byte[serObjSize];
       input.readBytes(bytes);
-      checkHandle();
       XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
     } catch (XGBoostError ex) {
       ex.printStackTrace();
