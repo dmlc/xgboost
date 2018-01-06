@@ -16,6 +16,8 @@
 
 package ml.dmlc.xgboost4j.scala
 
+import java.io.IOException
+
 import com.esotericsoftware.kryo.io.{Output, Input}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import ml.dmlc.xgboost4j.java.{Booster => JBooster}
@@ -200,6 +202,11 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     */
   def dispose: Unit = {
     booster.dispose()
+  }
+
+  override def finalize(): Unit = {
+    super.finalize()
+    dispose
   }
 
   override def write(kryo: Kryo, output: Output): Unit = {
