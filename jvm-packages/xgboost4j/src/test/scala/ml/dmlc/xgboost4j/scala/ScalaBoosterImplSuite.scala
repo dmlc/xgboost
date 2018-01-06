@@ -198,4 +198,16 @@ class ScalaBoosterImplSuite extends FunSuite {
     trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat),
       round = 10, paramMap, 0.85f)
   }
+
+  test("test training from existing model in scala") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
+      "eval_metric" -> "auc").toMap
+
+    val prevBooster = XGBoost.train(trainMat, paramMap, round = 2)
+    val nextBooster = XGBoost.train(trainMat, paramMap, round = 4, booster = prevBooster)
+    assert(prevBooster == nextBooster)
+  }
 }
