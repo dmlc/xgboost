@@ -41,4 +41,4 @@ export -f sed_i
 BASEDIR=$(dirname $0)/..
 find "$BASEDIR" -name 'pom.xml' -not -path '*target*' -print \
   -exec bash -c \
-  "sed_i 's/(<artifactId>(xgboost-jvm|xgboost4j-.*)<\/artifactId>\s+<version)>'$FROM_VERSION'(<\/version>)/\1>'$TO_VERSION'\3/g' {}" \;
+  "sed_i 's/(<artifactId>(xgboost-jvm|xgboost4j.*)<\/artifactId>\s+<version)>'$FROM_VERSION'(<\/version>)/\1>'$TO_VERSION'\3/g' {}" \;
