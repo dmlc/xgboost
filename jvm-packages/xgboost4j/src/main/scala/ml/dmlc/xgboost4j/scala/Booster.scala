@@ -23,6 +23,12 @@ import ml.dmlc.xgboost4j.java.XGBoostError
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
+/**
+  * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model
+  *
+  * DEVELOPER WARNING: A Java Booster must not be shared by more than one Scala Booster
+  * @param booster the java booster object.
+  */
 class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   extends Serializable  with KryoSerializable {
 
@@ -200,6 +206,11 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     */
   def dispose: Unit = {
     booster.dispose()
+  }
+
+  override def finalize(): Unit = {
+    super.finalize()
+    dispose
   }
 
   override def write(kryo: Kryo, output: Output): Unit = {
