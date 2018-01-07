@@ -169,8 +169,8 @@ abstract class XGBoostModel(protected var _booster: Booster)
   def predict(testSet: RDD[MLDenseVector], missingValue: Float): RDD[Array[Float]] = {
     val broadcastBooster = testSet.sparkContext.broadcast(_booster)
     testSet.mapPartitions { testSamples =>
-      val sampleArray = testSamples.toList
-      val numRows = sampleArray.size
+      val sampleArray = testSamples.toArray
+      val numRows = sampleArray.length
       if (numRows == 0) {
         Iterator()
       } else {
