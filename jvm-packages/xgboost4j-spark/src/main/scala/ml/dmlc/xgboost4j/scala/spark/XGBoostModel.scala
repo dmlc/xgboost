@@ -171,10 +171,10 @@ abstract class XGBoostModel(protected var _booster: Booster)
     testSet.mapPartitions { testSamples =>
       val sampleArray = testSamples.toList
       val numRows = sampleArray.size
-      val numColumns = sampleArray.head.size
       if (numRows == 0) {
         Iterator()
       } else {
+        val numColumns = sampleArray.head.size
         val rabitEnv = Map("DMLC_TASK_ID" -> TaskContext.getPartitionId().toString)
         Rabit.init(rabitEnv.asJava)
         // translate to required format
