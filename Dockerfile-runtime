@@ -28,7 +28,7 @@ RUN \
       python3-magic && \
   wget http://launchpadlibrarian.net/326935544/s3cmd_2.0.0-1_all.deb && \
   dpkg -i s3cmd_2.0.0-1_all.deb && \
-  add-apt-repository ppa:fkrull/deadsnakes  && \
+  add-apt-repository ppa:jonathonf/python-3.6 && \
   apt-get update -yqq && \
   curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
   # Install H2o dependencies
