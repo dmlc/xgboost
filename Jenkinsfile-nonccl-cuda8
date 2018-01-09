@@ -13,7 +13,7 @@ String changeId() {
     if (env.CHANGE_ID) {
         return "-${env.CHANGE_ID}".toString()
     }
-    return "-master"
+    return "-nonccl-cuda8-master"
 }
 
 pipeline {
@@ -34,8 +34,6 @@ pipeline {
     }
 
     stages {
-
-
 
         stage('Build on Linux CUDA8 noNCCL') {
             agent {
@@ -82,6 +80,36 @@ pipeline {
                 }
             }
         }
+
+        stage('Fast Test on Linux CUDA8 noNCCL') {
+            agent {
+                label "gpu && nvidia-docker"
+            }
+            steps {
+                dumpInfo 'Linux Test Info'
+                // Get source code (should put tests into wheel, then wouldn't have to checkout)
+                retryWithTimeout(100 /* seconds */, 3 /* retries */) {
+                    checkout scm
+                }
+                unstash 'linux_whl'
+                script {
+                    try {
+                        sh """
+                            nvidia-docker stop ${CONTAINER_NAME} ||  true
+                            nvidia-docker run  --init --rm --name ${CONTAINER_NAME} -d -t -u `id -u`:`id -g` -w `pwd` -v `pwd`:`pwd`:rw --entrypoint=bash opsh2oai/xgboost-build
+                            nvidia-docker exec ${CONTAINER_NAME} bash -c 'export HOME=`pwd`; eval \"\$(/root/.pyenv/bin/pyenv init -)\"  ; /root/.pyenv/bin/pyenv global 3.6.1; pip install `find python-package/dist2 -name "*xgboost*.whl"`; mkdir -p build/test-reports/ ; python -m nose --with-xunit --xunit-file=build/test-reports/xgboost.xml tests/python-gpu/test_gpu_updaters1gpu.py'
+                        """
+                    } finally {
+                        sh """
+                            nvidia-docker stop ${CONTAINER_NAME} || true
+                        """
+                        junit testResults: 'build/test-reports/*.xml', keepLongStdio: true, allowEmptyResults: false
+                        deleteDir()
+                    }
+                }
+            }
+        }
+
 
         stage('Publish to S3 CUDA8 noNCCL') {
             agent {
