@@ -650,6 +650,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
   API_BEGIN();
+  CHECK_HANDLE();
   data::SimpleCSRSource src;
   src.CopyFrom(static_cast<std::shared_ptr<DMatrix>*>(handle)->get());
   data::SimpleCSRSource& ret = *source;
@@ -694,6 +695,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
 
 XGB_DLL int XGDMatrixFree(DMatrixHandle handle) {
   API_BEGIN();
+  CHECK_HANDLE();
   delete static_cast<std::shared_ptr<DMatrix>*>(handle);
   API_END();
 }
@@ -702,6 +704,7 @@ XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle,
                                 const char* fname,
                                 int silent) {
   API_BEGIN();
+  CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->SaveToLocalFile(fname);
   API_END();
 }
@@ -711,6 +714,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
                           const bst_float* info,
                           xgboost::bst_ulong len) {
   API_BEGIN();
+  CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
       ->get()->Info().SetInfo(field, info, kFloat32, len);
   API_END();
@@ -721,6 +725,7 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                          const unsigned* info,
                          xgboost::bst_ulong len) {
   API_BEGIN();
+  CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
       ->get()->Info().SetInfo(field, info, kUInt32, len);
   API_END();
@@ -730,6 +735,7 @@ XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
                               const unsigned* group,
                               xgboost::bst_ulong len) {
   API_BEGIN();
+  CHECK_HANDLE();
   auto *pmat = static_cast<std::shared_ptr<DMatrix>*>(handle);
   MetaInfo& info = pmat->get()->Info();
   info.group_ptr_.resize(len + 1);
@@ -745,6 +751,7 @@ XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
                                   xgboost::bst_ulong* out_len,
                                   const bst_float** out_dptr) {
   API_BEGIN();
+  CHECK_HANDLE();
   const MetaInfo& info = static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info();
   const std::vector<bst_float>* vec = nullptr;
   if (!std::strcmp(field, "label")) {
@@ -766,6 +773,7 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
                                  xgboost::bst_ulong *out_len,
                                  const unsigned **out_dptr) {
   API_BEGIN();
+  CHECK_HANDLE();
   const MetaInfo& info = static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info();
   const std::vector<unsigned>* vec = nullptr;
   if (!std::strcmp(field, "root_index")) {
@@ -781,6 +789,7 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
 XGB_DLL int XGDMatrixNumRow(const DMatrixHandle handle,
                             xgboost::bst_ulong *out) {
   API_BEGIN();
+  CHECK_HANDLE();
   *out = static_cast<xgboost::bst_ulong>(
       static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info().num_row_);
   API_END();
@@ -789,6 +798,7 @@ XGB_DLL int XGDMatrixNumRow(const DMatrixHandle handle,
 XGB_DLL int XGDMatrixNumCol(const DMatrixHandle handle,
                             xgboost::bst_ulong *out) {
   API_BEGIN();
+  CHECK_HANDLE();
   *out = static_cast<size_t>(
       static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->Info().num_col_);
   API_END();
