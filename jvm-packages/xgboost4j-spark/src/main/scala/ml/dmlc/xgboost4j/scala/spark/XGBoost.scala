@@ -17,6 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
+import java.nio.file.Files
 
 import scala.collection.mutable
 import scala.util.Random
@@ -120,11 +121,9 @@ object XGBoost extends Serializable {
       }
       val taskId = TaskContext.getPartitionId().toString
       val cacheDirName = if (useExternalMemory) {
-        val dir = new File(s"${TaskContext.get().stageId()}-cache-$taskId")
-        if (!(dir.exists() || dir.mkdirs())) {
-          throw new XGBoostError(s"failed to create cache directory: $dir")
-        }
-        Some(dir.toString)
+        val dir = Files.createTempDirectory(s"${TaskContext.get().stageId()}-cache-$taskId")
+        new File(dir.toUri).deleteOnExit()
+        Some(dir.toAbsolutePath.toString)
       } else {
         None
       }
