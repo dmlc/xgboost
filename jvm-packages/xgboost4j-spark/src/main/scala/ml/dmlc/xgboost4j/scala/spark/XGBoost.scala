@@ -325,23 +325,24 @@ object XGBoost extends Serializable {
       case _ => throw new IllegalArgumentException("parameter \"timeout_request_workers\" must be" +
         " an instance of Long.")
     }
-    val (checkpointPath, savingFeq) = CheckpointManager.extractParams(params)
+    val (checkpointPath, checkpointInterval) = CheckpointManager.extractParams(params)
     val partitionedData = repartitionForTraining(trainingData, nWorkers)
 
     val sc = trainingData.sparkContext
     val checkpointManager = new CheckpointManager(sc, checkpointPath)
     checkpointManager.cleanUpHigherVersions(round)
 
-    var prevBooster = checkpointManager.loadBooster
+    var prevBooster = checkpointManager.loadCheckpointAsBooster
     // Train for every ${savingRound} rounds and save the partially completed booster
-    checkpointManager.getSavingRounds(savingFeq, round).map {
-      savingRound: Int =>
+    checkpointManager.getCheckpointRounds(checkpointInterval, round).map {
+      checkpointRound: Int =>
         val tracker = startTracker(nWorkers, trackerConf)
         try {
           val parallelismTracker = new SparkParallelismTracker(sc, timeoutRequestWorkers, nWorkers)
           val overriddenParams = overrideParamsAccordingToTaskCPUs(params, sc)
           val boostersAndMetrics = buildDistributedBoosters(partitionedData, overriddenParams,
-            tracker.getWorkerEnvs, savingRound, obj, eval, useExternalMemory, missing, prevBooster)
+            tracker.getWorkerEnvs, checkpointRound, obj, eval, useExternalMemory, missing,
+            prevBooster)
           val sparkJobThread = new Thread() {
             override def run() {
               // force the job
@@ -359,9 +360,9 @@ object XGBoost extends Serializable {
             model.asInstanceOf[XGBoostClassificationModel].numOfClasses =
               params.getOrElse("num_class", "2").toString.toInt
           }
-          if (savingRound < round) {
+          if (checkpointRound < round) {
             prevBooster = model.booster
-            checkpointManager.updateModel(model)
+            checkpointManager.updateCheckpoint(model)
           }
           model
       } finally {

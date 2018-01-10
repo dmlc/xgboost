@@ -22,12 +22,14 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkContext
 
 /**
-  * A class which allows user to save checkpoint boosters every a few rounds. If a previous job
-  * fails, the job can restart training from a saved booster instead of from scratch. This class
+  * A class which allows user to save checkpoints every a few rounds. If a previous job fails,
+  * the job can restart training from a saved checkpoints instead of from scratch. This class
   * provides interface and helper methods for the checkpoint functionality.
   *
+  * NOTE: This checkpoint is different from Rabit checkpoint.
+  *
   * @param sc the sparkContext object
-  * @param checkpointPath the hdfs path to store checkpoint boosters
+  * @param checkpointPath the hdfs path to store checkpoints
   */
 private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String) {
   private val logger = LogFactory.getLog("XGBoostSpark")
@@ -49,11 +51,11 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
   }
 
   /**
-    * Load existing checkpoint with the highest version.
+    * Load existing checkpoint with the highest version as a Booster object
     *
     * @return the booster with the highest version, null if no checkpoints available.
     */
-  private[spark] def loadBooster: Booster = {
+  private[spark] def loadCheckpointAsBooster: Booster = {
     val versions = getExistingVersions
     if (versions.nonEmpty) {
       val version = versions.max
@@ -68,16 +70,16 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
   }
 
   /**
-    * Clean up all previous models and save a new model
+    * Clean up all previous checkpoints and save a new checkpoint
     *
-    * @param model the xgboost model to save
+    * @param checkpoint the checkpoint to save as an XGBoostModel
     */
-  private[spark] def updateModel(model: XGBoostModel): Unit = {
+  private[spark] def updateCheckpoint(checkpoint: XGBoostModel): Unit = {
     val fs = FileSystem.get(sc.hadoopConfiguration)
     val prevModelPaths = getExistingVersions.map(version => new Path(getPath(version)))
-    val fullPath = getPath(model.version)
-    logger.info(s"Saving checkpoint model with version ${model.version} to $fullPath")
-    model.saveModelAsHadoopFile(fullPath)(sc)
+    val fullPath = getPath(checkpoint.version)
+    logger.info(s"Saving checkpoint model with version ${checkpoint.version} to $fullPath")
+    checkpoint.saveModelAsHadoopFile(fullPath)(sc)
     prevModelPaths.foreach(path => fs.delete(path, true))
   }
 
@@ -95,22 +97,22 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
   }
 
   /**
-    * Calculate a list of checkpoint rounds to save checkpoints based on the savingFreq and
-    * total number of rounds for the training. Concretely, the saving rounds start with
-    * prevRounds + savingFreq, and increase by savingFreq in each step until it reaches total
-    * number of rounds. If savingFreq is 0, the checkpoint will be disabled and the method
-    * returns Seq(round)
+    * Calculate a list of checkpoint rounds to save checkpoints based on the checkpointInterval
+    * and total number of rounds for the training. Concretely, the checkpoint rounds start with
+    * prevRounds + checkpointInterval, and increase by checkpointInterval in each step until it
+    * reaches total number of rounds. If checkpointInterval is 0, the checkpoint will be disabled
+    * and the method returns Seq(round)
     *
-    * @param savingFreq the increase on rounds during each step of training
+    * @param checkpointInterval the interval to save checkpoint to checkpointPath
     * @param round the total number of rounds for the training
     * @return a seq of integers, each represent the index of round to save the checkpoints
     */
-  private[spark] def getSavingRounds(savingFreq: Int, round: Int): Seq[Int] = {
-    if (checkpointPath.nonEmpty && savingFreq > 0) {
+  private[spark] def getCheckpointRounds(checkpointInterval: Int, round: Int): Seq[Int] = {
+    if (checkpointPath.nonEmpty && checkpointInterval > 0) {
       val prevRounds = getExistingVersions.map(_ / 2)
-      val firstSavingRound = (0 +: prevRounds).max + savingFreq
-      (firstSavingRound until round by savingFreq) :+ round
-    } else if (savingFreq <= 0) {
+      val firstCheckpointRound = (0 +: prevRounds).max + checkpointInterval
+      (firstCheckpointRound until round by checkpointInterval) :+ round
+    } else if (checkpointInterval <= 0) {
       Seq(round)
     } else {
       throw new IllegalArgumentException("parameters \"checkpoint_path\" should also be set.")
@@ -128,12 +130,12 @@ object CheckpointManager {
         " an instance of String.")
     }
 
-    val savingFreq: Int = params.get("saving_frequency") match {
+    val checkpointInterval: Int = params.get("checkpoint_interval") match {
       case None => 0
       case Some(freq: Int) => freq
-      case _ => throw new IllegalArgumentException("parameter \"saving_frequency\" must be" +
+      case _ => throw new IllegalArgumentException("parameter \"checkpoint_interval\" must be" +
         " an instance of Int.")
     }
-    (checkpointPath, savingFreq)
+    (checkpointPath, checkpointInterval)
   }
 }
