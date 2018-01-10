@@ -27,7 +27,8 @@ void SimpleCSRSource::CopyFrom(DMatrix* src) {
 
 void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
   // use qid get gourp info
-  size_t last_qid = SIZE_MAX;
+  uint64_t default_max = 0xFFFFFFFFFFFFFFFF;
+  uint64_t last_qid = default_max;
   bst_uint group_size = 0;
   this->Clear();
   while (parser->Next()) {
@@ -42,8 +43,8 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       info.qids.insert(info.qids.end(), batch.qid, batch.qid + batch.size);
       // get group
       for (size_t i = 0; i < batch.size; ++i) {
-        size_t cur_qid = batch.qid[i];
-        if (last_qid == SIZE_MAX) {
+        uint64_t cur_qid = batch.qid[i];
+        if (last_qid == default_max) {
           info.group_ptr.push_back(0);
         } else if (last_qid != cur_qid) {
           info.group_ptr.push_back(group_size);
@@ -74,7 +75,7 @@ void SimpleCSRSource::CopyFrom(dmlc::Parser<uint32_t>* parser) {
       page_.offset.push_back(page_.offset[top - 1] + batch.offset[i + 1] - batch.offset[0]);
     }
   }
-  if (last_qid != SIZE_MAX) {
+  if (last_qid != default_max) {
     if (group_size > info.group_ptr.back()) {
       info.group_ptr.push_back(group_size);
     }
