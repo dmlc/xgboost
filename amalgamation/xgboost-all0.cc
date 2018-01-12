@@ -57,6 +57,7 @@
 #include "../src/learner.cc"
 #include "../src/logging.cc"
 #include "../src/common/common.cc"
+#include "../src/common/host_device_vector.cc"
 #include "../src/common/hist_util.cc"
 
 // c_api
