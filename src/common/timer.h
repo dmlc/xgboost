@@ -2,6 +2,7 @@
  * Copyright by Contributors 2017
  */
 #pragma once
+#include <xgboost/logging.h>
 #include <chrono>
 #include <iostream>
 #include <map>
@@ -28,7 +29,8 @@ struct Timer {
   double ElapsedSeconds() const { return SecondsT(elapsed).count(); }
   void PrintElapsed(std::string label) {
     char buffer[255];
-    snprintf(buffer, sizeof(buffer), "%s:\t %fs", label.c_str(), SecondsT(elapsed).count());
+    snprintf(buffer, sizeof(buffer), "%s:\t %fs", label.c_str(),
+             SecondsT(elapsed).count());
     LOG(CONSOLE) << buffer;
     Reset();
   }

@@ -9,92 +9,59 @@
 #include <dmlc/parameter.h>
 #include <xgboost/gbm.h>
 #include <xgboost/logging.h>
+#include <xgboost/linear_updater.h>
 #include <vector>
 #include <string>
 #include <sstream>
-#include <cstring>
 #include <algorithm>
+#include "../common/timer.h"
 
 namespace xgboost {
 namespace gbm {
 
 DMLC_REGISTRY_FILE_TAG(gblinear);
 
-// model parameter
-struct GBLinearModelParam :public dmlc::Parameter<GBLinearModelParam> {
-  // number of feature dimension
-  unsigned num_feature;
-  // number of output group
-  int num_output_group;
-  // reserved field
-  int reserved[32];
-  // constructor
-  GBLinearModelParam() {
-    std::memset(this, 0, sizeof(GBLinearModelParam));
-  }
-  DMLC_DECLARE_PARAMETER(GBLinearModelParam) {
-    DMLC_DECLARE_FIELD(num_feature).set_lower_bound(0)
-        .describe("Number of features used in classification.");
-    DMLC_DECLARE_FIELD(num_output_group).set_lower_bound(1).set_default(1)
-        .describe("Number of output groups in the setting.");
-  }
-};
-
 // training parameter
 struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
   /*! \brief learning_rate */
-  float learning_rate;
-  /*! \brief regularization weight for L2 norm */
-  float reg_lambda;
-  /*! \brief regularization weight for L1 norm */
-  float reg_alpha;
-  /*! \brief regularization weight for L2 norm in bias */
-  float reg_lambda_bias;
+  std::string linear_updater;
+  // flag to print out detailed breakdown of runtime
+  int debug_verbose;
+  float tolerance;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
-    DMLC_DECLARE_FIELD(learning_rate).set_lower_bound(0.0f).set_default(1.0f)
-        .describe("Learning rate of each update.");
-    DMLC_DECLARE_FIELD(reg_lambda).set_lower_bound(0.0f).set_default(0.0f)
-        .describe("L2 regularization on weights.");
-    DMLC_DECLARE_FIELD(reg_alpha).set_lower_bound(0.0f).set_default(0.0f)
-        .describe("L1 regularization on weights.");
-    DMLC_DECLARE_FIELD(reg_lambda_bias).set_lower_bound(0.0f).set_default(0.0f)
-        .describe("L2 regularization on bias.");
-    // alias of parameters
-    DMLC_DECLARE_ALIAS(learning_rate, eta);
-    DMLC_DECLARE_ALIAS(reg_lambda, lambda);
-    DMLC_DECLARE_ALIAS(reg_alpha, alpha);
-    DMLC_DECLARE_ALIAS(reg_lambda_bias, lambda_bias);
-  }
-  // given original weight calculate delta
-  inline double CalcDelta(double sum_grad, double sum_hess, double w) const {
-    if (sum_hess < 1e-5f) return 0.0f;
-    double tmp = w - (sum_grad + reg_lambda * w) / (sum_hess + reg_lambda);
-    if (tmp >=0) {
-      return std::max(-(sum_grad + reg_lambda * w + reg_alpha) / (sum_hess + reg_lambda), -w);
-    } else {
-      return std::min(-(sum_grad + reg_lambda * w - reg_alpha) / (sum_hess + reg_lambda), -w);
-    }
-  }
-  // given original weight calculate delta bias
-  inline double CalcDeltaBias(double sum_grad, double sum_hess, double w) const {
-    return - (sum_grad + reg_lambda_bias * w) / (sum_hess + reg_lambda_bias);
+    DMLC_DECLARE_FIELD(linear_updater)
+        .set_default("updater_shotgun")
+        .describe("Update algorithm for linear model.");
+    DMLC_DECLARE_FIELD(tolerance)
+        .set_lower_bound(0.0f)
+        .set_default(1e-4f)
+        .describe("Stop if largest weight update is smaller than this number.");
+    DMLC_DECLARE_FIELD(debug_verbose)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("flag to print out detailed breakdown of runtime");
   }
 };
-
 /*!
  * \brief gradient boosted linear model
  */
 class GBLinear : public GradientBooster {
  public:
   explicit GBLinear(bst_float base_margin)
-      : base_margin_(base_margin) {
-  }
+      : base_margin_(base_margin),
+        sum_instance_weights(0),
+        sum_weights_complete(false),
+        iteration(0),
+        is_converged(false) {}
   void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
     if (model.weight.size() == 0) {
       model.param.InitAllowUnknown(cfg);
     }
     param.InitAllowUnknown(cfg);
+    updater.reset(LinearUpdater::Create(param.linear_updater));
+    updater->Init(cfg);
+    monitor.Init("GBLinear ", param.debug_verbose);
   }
   void Load(dmlc::Stream* fi) override {
     model.Load(fi);
@@ -102,95 +69,38 @@ class GBLinear : public GradientBooster {
   void Save(dmlc::Stream* fo) const override {
     model.Save(fo);
   }
-  void DoBoost(DMatrix *p_fmat,
-               std::vector<bst_gpair> *in_gpair,
-               ObjFunction* obj) override {
-    // lazily initialize the model when not ready.
-    if (model.weight.size() == 0) {
-      model.InitModel();
+  void DoBoost(DMatrix *p_fmat, std::vector<bst_gpair> *in_gpair,
+               ObjFunction *obj) override {
+    monitor.Start("DoBoost");
+    model.LazyInitModel();
+
+    this->LazySumWeights(p_fmat);
+
+    if (!this->CheckConvergence()) {
+      updater->Update(in_gpair, p_fmat, &model, sum_instance_weights);
     }
 
-    std::vector<bst_gpair> &gpair = *in_gpair;
-    const int ngroup = model.param.num_output_group;
-    const RowSet &rowset = p_fmat->buffered_rowset();
-    // for all the output group
-    for (int gid = 0; gid < ngroup; ++gid) {
-      double sum_grad = 0.0, sum_hess = 0.0;
-      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
-      #pragma omp parallel for schedule(static) reduction(+: sum_grad, sum_hess)
-      for (bst_omp_uint i = 0; i < ndata; ++i) {
-        bst_gpair &p = gpair[rowset[i] * ngroup + gid];
-        if (p.GetHess() >= 0.0f) {
-          sum_grad += p.GetGrad();
-          sum_hess += p.GetHess();
-        }
-      }
-      // remove bias effect
-      bst_float dw = static_cast<bst_float>(
-        param.learning_rate * param.CalcDeltaBias(sum_grad, sum_hess, model.bias()[gid]));
-      model.bias()[gid] += dw;
-      // update grad value
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < ndata; ++i) {
-        bst_gpair &p = gpair[rowset[i] * ngroup + gid];
-        if (p.GetHess() >= 0.0f) {
-          p += bst_gpair(p.GetHess() * dw, 0);
-        }
-      }
-    }
-    dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
-    while (iter->Next()) {
-      // number of features
-      const ColBatch &batch = iter->Value();
-      const bst_omp_uint nfeat = static_cast<bst_omp_uint>(batch.size);
-      #pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nfeat; ++i) {
-        const bst_uint fid = batch.col_index[i];
-        ColBatch::Inst col = batch[i];
-        for (int gid = 0; gid < ngroup; ++gid) {
-          double sum_grad = 0.0, sum_hess = 0.0;
-          for (bst_uint j = 0; j < col.length; ++j) {
-            const bst_float v = col[j].fvalue;
-            bst_gpair &p = gpair[col[j].index * ngroup + gid];
-            if (p.GetHess() < 0.0f) continue;
-            sum_grad += p.GetGrad() * v;
-            sum_hess += p.GetHess() * v * v;
-          }
-          bst_float &w = model[fid][gid];
-          bst_float dw = static_cast<bst_float>(param.learning_rate *
-                                                param.CalcDelta(sum_grad, sum_hess, w));
-          w += dw;
-          // update grad value
-          for (bst_uint j = 0; j < col.length; ++j) {
-            bst_gpair &p = gpair[col[j].index * ngroup + gid];
-            if (p.GetHess() < 0.0f) continue;
-            p += bst_gpair(p.GetHess() * col[j].fvalue * dw, 0);
-          }
-        }
-      }
-    }
+    iteration++;
+    monitor.Stop("DoBoost");
   }
 
   void PredictBatch(DMatrix *p_fmat,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit) override {
-    if (model.weight.size() == 0) {
-      model.InitModel();
-    }
+    monitor.Start("PredictBatch");
+      model.LazyInitModel();
     CHECK_EQ(ntree_limit, 0U)
         << "GBLinear::Predict ntrees is only valid for gbtree predictor";
     std::vector<bst_float> &preds = *out_preds;
     const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
-    preds.resize(0);
     // start collecting the prediction
     dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
     const int ngroup = model.param.num_output_group;
+    preds.resize(p_fmat->info().num_row * ngroup);
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();
-      CHECK_EQ(batch.base_rowid * ngroup, preds.size());
       // output convention: nrow * k, where nrow is number of rows
       // k is number of group
-      preds.resize(preds.size() + batch.size * ngroup);
       // parallel over local batch
       const omp_ulong nsize = static_cast<omp_ulong>(batch.size);
       #pragma omp parallel for schedule(static)
@@ -204,6 +114,7 @@ class GBLinear : public GradientBooster {
         }
       }
     }
+    monitor.Stop("PredictBatch");
   }
   // add base margin
   void PredictInstance(const SparseBatch::Inst &inst,
@@ -226,9 +137,7 @@ class GBLinear : public GradientBooster {
                            std::vector<bst_float>* out_contribs,
                            unsigned ntree_limit, bool approximate, int condition = 0,
                            unsigned condition_feature = 0) override {
-    if (model.weight.size() == 0) {
-      model.InitModel();
-    }
+    model.LazyInitModel();
     CHECK_EQ(ntree_limit, 0U)
         << "GBLinear::PredictContribution: ntrees is only valid for gbtree predictor";
     const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
@@ -317,7 +226,32 @@ class GBLinear : public GradientBooster {
   }
 
  protected:
-  inline void Pred(const RowBatch::Inst &inst, bst_float *preds, int gid, bst_float base) {
+  bool CheckConvergence() {
+    if (is_converged) return true;
+    if (previous_model.weight.size() != model.weight.size()) return false;
+    float largest_dw = 0.0;
+    for (auto i = 0; i < model.weight.size(); i++) {
+      largest_dw = std::max(
+          largest_dw, std::abs(model.weight[i] - previous_model.weight[i]));
+    }
+    previous_model = model;
+
+    is_converged = largest_dw <= param.tolerance;
+    return is_converged;
+  }
+
+  void LazySumWeights(DMatrix *p_fmat) {
+    if (!sum_weights_complete) {
+      auto &info = p_fmat->info();
+      for (int i = 0; i < info.num_row; i++) {
+        sum_instance_weights += info.GetWeight(i);
+      }
+      sum_weights_complete = true;
+    }
+  }
+
+  inline void Pred(const RowBatch::Inst &inst, bst_float *preds, int gid,
+                   bst_float base) {
     bst_float psum = model.bias()[gid] + base;
     for (bst_uint i = 0; i < inst.length; ++i) {
       if (inst[i].index >= model.param.num_feature) continue;
@@ -325,52 +259,18 @@ class GBLinear : public GradientBooster {
     }
     preds[gid] = psum;
   }
-  // model for linear booster
-  class Model {
-   public:
-    // parameter
-    GBLinearModelParam param;
-    // weight for each of feature, bias is the last one
-    std::vector<bst_float> weight;
-    // initialize the model parameter
-    inline void InitModel(void) {
-      // bias is the last weight
-      weight.resize((param.num_feature + 1) * param.num_output_group);
-      std::fill(weight.begin(), weight.end(), 0.0f);
-    }
-    // save the model to file
-    inline void Save(dmlc::Stream* fo) const {
-      fo->Write(&param, sizeof(param));
-      fo->Write(weight);
-    }
-    // load model from file
-    inline void Load(dmlc::Stream* fi) {
-      CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param));
-      fi->Read(&weight);
-    }
-    // model bias
-    inline bst_float* bias() {
-      return &weight[param.num_feature * param.num_output_group];
-    }
-    inline const bst_float* bias() const {
-      return &weight[param.num_feature * param.num_output_group];
-    }
-    // get i-th weight
-    inline bst_float* operator[](size_t i) {
-      return &weight[i * param.num_output_group];
-    }
-    inline const bst_float* operator[](size_t i) const {
-      return &weight[i * param.num_output_group];
-    }
-  };
   // biase margin score
   bst_float base_margin_;
   // model field
-  Model model;
-  // training parameter
+  GBLinearModel model;
+  GBLinearModel previous_model;
   GBLinearTrainParam param;
-  // Per feature: shuffle index of each feature index
-  std::vector<bst_uint> feat_index;
+  std::unique_ptr<LinearUpdater> updater;
+  double sum_instance_weights;
+  bool sum_weights_complete;
+  common::Monitor monitor;
+  int iteration;
+  bool is_converged;
 };
 
 // register the objective functions
