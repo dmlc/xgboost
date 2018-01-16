@@ -26,7 +26,9 @@ import org.apache.spark.SparkContext
   * the job can restart training from a saved checkpoints instead of from scratch. This class
   * provides interface and helper methods for the checkpoint functionality.
   *
-  * NOTE: This checkpoint is different from Rabit checkpoint.
+  * NOTE: This checkpoint is different from Rabit checkpoint. Rabit checkpoint is a native-level
+  * checkpoint stored in executor memory. This is a checkpoint which Spark driver store on HDFS
+  * for every a few iterations.
   *
   * @param sc the sparkContext object
   * @param checkpointPath the hdfs path to store checkpoints
@@ -103,7 +105,7 @@ private[spark] class CheckpointManager(sc: SparkContext, checkpointPath: String)
     * reaches total number of rounds. If checkpointInterval is 0, the checkpoint will be disabled
     * and the method returns Seq(round)
     *
-    * @param checkpointInterval the interval to save checkpoint to checkpointPath
+    * @param checkpointInterval Period (in iterations) between checkpoints.
     * @param round the total number of rounds for the training
     * @return a seq of integers, each represent the index of round to save the checkpoints
     */
