@@ -484,6 +484,13 @@ class bulk_allocator {
   }
 
  public:
+  bulk_allocator() {}
+  // prevent accidental copying, moving or assignment of this object
+  bulk_allocator(const bulk_allocator<MemoryT>&) = delete;
+  bulk_allocator(bulk_allocator<MemoryT>&&) = delete;
+  void operator=(const bulk_allocator<MemoryT>&) = delete;
+  void operator=(bulk_allocator<MemoryT>&&) = delete;
+  
   ~bulk_allocator() {
     for (size_t i = 0; i < d_ptr.size(); i++) {
       if (!(d_ptr[i] == nullptr)) {

@@ -16,6 +16,7 @@
 #include "./base.h"
 #include "./data.h"
 #include "./tree_model.h"
+#include "../../src/common/host_device_vector.h"
 
 namespace xgboost {
 /*!
@@ -42,6 +43,9 @@ class TreeUpdater {
   virtual void Update(const std::vector<bst_gpair>& gpair,
                       DMatrix* data,
                       const std::vector<RegTree*>& trees) = 0;
+  virtual void Update(HostDeviceVector<bst_gpair>* gpair,
+                      DMatrix* data,
+                      const std::vector<RegTree*>& trees);
 
   /*!
    * \brief determines whether updater has enough knowledge about a given dataset
@@ -57,6 +61,9 @@ class TreeUpdater {
                                      std::vector<bst_float>* out_preds) {
     return false;
   }
+  virtual bool UpdatePredictionCache(const DMatrix* data,
+                                     HostDeviceVector<bst_float>* out_preds);
+
   /*!
    * \brief Create a tree updater given name
    * \param name Name of the tree updater.

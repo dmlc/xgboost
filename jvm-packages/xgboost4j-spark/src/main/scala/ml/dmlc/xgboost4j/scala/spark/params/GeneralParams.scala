@@ -71,7 +71,7 @@ trait GeneralParams extends Params {
   val missing = new FloatParam(this, "missing", "the value treated as missing")
 
   /**
-    * the interval to check whether total numCores is no smaller than nWorkers. default: 30 minutes
+    * the maximum time to wait for the job requesting new workers. default: 30 minutes
     */
   val timeoutRequestWorkers = new LongParam(this, "timeout_request_workers", "the maximum time to" +
     " request new Workers if numCores are insufficient. The timeout will be disabled if this" +
@@ -81,16 +81,19 @@ trait GeneralParams extends Params {
     * The hdfs folder to load and save checkpoint boosters. default: `empty_string`
     */
   val checkpointPath = new Param[String](this, "checkpoint_path", "the hdfs folder to load and " +
-    "save checkpoints. The job will try to load the existing booster as the starting point for " +
-    "training. If saving_frequency is also set, the job will save a checkpoint every a few rounds.")
+    "save checkpoints. If there are existing checkpoints in checkpoint_path. The job will load " +
+    "the checkpoint with highest version as the starting point for training. If " +
+    "checkpoint_interval is also set, the job will save a checkpoint every a few rounds.")
 
   /**
-    * The frequency to save checkpoint boosters. default: 0
+    * Param for set checkpoint interval (&gt;= 1) or disable checkpoint (-1). E.g. 10 means that
+    * the trained model will get checkpointed every 10 iterations. Note: `checkpoint_path` must
+    * also be set if the checkpoint interval is greater than 0.
     */
-  val savingFrequency = new IntParam(this, "saving_frequency", "if checkpoint_path is also set," +
-    " the job will save checkpoints at this frequency. If the job fails and gets restarted with" +
-    " same setting, it will load the existing booster instead of training from scratch." +
-    " Checkpoint will be disabled if set to 0.")
+  val checkpointInterval: IntParam = new IntParam(this, "checkpointInterval", "set checkpoint " +
+    "interval (>= 1) or disable checkpoint (-1). E.g. 10 means that the trained model will get " +
+    "checkpointed every 10 iterations. Note: `checkpoint_path` must also be set if the checkpoint" +
+    " interval is greater than 0.", (interval: Int) => interval == -1 || interval >= 1)
 
   /**
     * Rabit tracker configurations. The parameter must be provided as an instance of the
@@ -128,6 +131,6 @@ trait GeneralParams extends Params {
     useExternalMemory -> false, silent -> 0,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
-    checkpointPath -> "", savingFrequency -> 0
+    checkpointPath -> "", checkpointInterval -> -1
   )
 }

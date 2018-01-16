@@ -12,69 +12,12 @@
 #include <utility>
 #include "../common/math.h"
 #include "../common/avx_helpers.h"
+#include "./regression_loss.h"
 
 namespace xgboost {
 namespace obj {
 
 DMLC_REGISTRY_FILE_TAG(regression_obj);
-
-// common regressions
-// linear regression
-struct LinearSquareLoss {
-  template <typename T>
-  static T PredTransform(T x) { return x; }
-  static bool CheckLabel(bst_float x) { return true; }
-  template <typename T>
-  static T FirstOrderGradient(T predt, T label) { return predt - label; }
-  template <typename T>
-  static T SecondOrderGradient(T predt, T label) { return T(1.0f); }
-  static bst_float ProbToMargin(bst_float base_score) { return base_score; }
-  static const char* LabelErrorMsg() { return ""; }
-  static const char* DefaultEvalMetric() { return "rmse"; }
-};
-// logistic loss for probability regression task
-struct LogisticRegression {
-  template <typename T>
-  static T PredTransform(T x) { return common::Sigmoid(x); }
-  static bool CheckLabel(bst_float x) { return x >= 0.0f && x <= 1.0f; }
-  template <typename T>
-  static T FirstOrderGradient(T predt, T label) { return predt - label; }
-  template <typename T>
-  static T SecondOrderGradient(T predt, T label) {
-    const T eps = T(1e-16f);
-    return std::max(predt * (T(1.0f) - predt), eps);
-  }
-  static bst_float ProbToMargin(bst_float base_score) {
-    CHECK(base_score > 0.0f && base_score < 1.0f)
-        << "base_score must be in (0,1) for logistic loss";
-    return -std::log(1.0f / base_score - 1.0f);
-  }
-  static const char* LabelErrorMsg() {
-    return "label must be in [0,1] for logistic regression";
-  }
-  static const char* DefaultEvalMetric() { return "rmse"; }
-};
-// logistic loss for binary classification task.
-struct LogisticClassification : public LogisticRegression {
-  static const char* DefaultEvalMetric() { return "error"; }
-};
-// logistic loss, but predict un-transformed margin
-struct LogisticRaw : public LogisticRegression {
-  template <typename T>
-  static T PredTransform(T x) { return x; }
-  template <typename T>
-  static T FirstOrderGradient(T predt, T label) {
-    predt = common::Sigmoid(predt);
-    return predt - label;
-  }
-  template <typename T>
-  static T SecondOrderGradient(T predt, T label) {
-    const T eps = T(1e-16f);
-    predt = common::Sigmoid(predt);
-    return std::max(predt * (T(1.0f) - predt), eps);
-  }
-  static const char* DefaultEvalMetric() { return "auc"; }
-};
 
 struct RegLossParam : public dmlc::Parameter<RegLossParam> {
   float scale_pos_weight;
