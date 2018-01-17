@@ -406,6 +406,7 @@ void prefixsum_inplace(size_t *x, size_t N) {
       suma[0] = 0;
     }
     size_t sum = 0;
+    size_t offset = 0;
 #pragma omp for schedule(static)
     for (omp_ulong i = 0; i < N; i++) {
       sum += x[i];
@@ -413,7 +414,6 @@ void prefixsum_inplace(size_t *x, size_t N) {
     }
     suma[ithread+1] = sum;
 #pragma omp barrier
-    size_t offset = 0;
     for (omp_ulong i = 0; i < static_cast<omp_ulong>(ithread+1); i++) {
       offset += suma[i];
     }
