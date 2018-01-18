@@ -153,14 +153,24 @@ class Predictor {
    * a vector of length (nfeats + 1) * num_output_group * nsample, arranged in
    * that order.
    *
-   * \param [in,out]  dmat          The input feature matrix.
-   * \param [in,out]  out_contribs  The output feature contribs.
-   * \param           model         Model to make predictions from.
-   * \param           ntree_limit   (Optional) The ntree limit.
-   * \param           approximate   Use fast approximate algorithm.
+   * \param [in,out]  dmat               The input feature matrix.
+   * \param [in,out]  out_contribs       The output feature contribs.
+   * \param           model              Model to make predictions from.
+   * \param           ntree_limit        (Optional) The ntree limit.
+   * \param           approximate        Use fast approximate algorithm.
+   * \param           condition          Condition on the condition_feature (0=no, -1=cond off, 1=cond on).
+   * \param           condition_feature  Feature to condition on (i.e. fix) during calculations.
    */
 
   virtual void PredictContribution(DMatrix* dmat,
+                                   std::vector<bst_float>* out_contribs,
+                                   const gbm::GBTreeModel& model,
+                                   unsigned ntree_limit = 0,
+                                   bool approximate = false,
+                                   int condition = 0,
+                                   unsigned condition_feature = 0) = 0;
+
+  virtual void PredictInteractionContributions(DMatrix* dmat,
                                    std::vector<bst_float>* out_contribs,
                                    const gbm::GBTreeModel& model,
                                    unsigned ntree_limit = 0,

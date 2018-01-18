@@ -224,7 +224,8 @@ class GBLinear : public GradientBooster {
 
   void PredictContribution(DMatrix* p_fmat,
                            std::vector<bst_float>* out_contribs,
-                           unsigned ntree_limit, bool approximate) override {
+                           unsigned ntree_limit, bool approximate, int condition = 0,
+                           unsigned condition_feature = 0) override {
     if (model.weight.size() == 0) {
       model.InitModel();
     }
@@ -263,6 +264,17 @@ class GBLinear : public GradientBooster {
         }
       }
     }
+  }
+
+  void PredictInteractionContributions(DMatrix* p_fmat,
+                           std::vector<bst_float>* out_contribs,
+                           unsigned ntree_limit, bool approximate) override {
+                             std::vector<bst_float>& contribs = *out_contribs;
+
+     // linear models have no interaction effects
+     const size_t nelements = model.param.num_feature*model.param.num_feature;
+     contribs.resize(p_fmat->info().num_row * nelements * model.param.num_output_group);
+     std::fill(contribs.begin(), contribs.end(), 0);
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,

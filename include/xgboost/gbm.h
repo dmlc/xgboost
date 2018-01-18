@@ -124,10 +124,17 @@ class GradientBooster {
    * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
    *    we do not limit number of trees
    * \param approximate use a faster (inconsistent) approximation of SHAP values
+   * \param condition condition on the condition_feature (0=no, -1=cond off, 1=cond on).
+   * \param condition_feature feature to condition on (i.e. fix) during calculations
    */
   virtual void PredictContribution(DMatrix* dmat,
                            std::vector<bst_float>* out_contribs,
-                           unsigned ntree_limit = 0, bool approximate = false) = 0;
+                           unsigned ntree_limit = 0, bool approximate = false,
+                           int condition = 0, unsigned condition_feature = 0) = 0;
+
+  virtual void PredictInteractionContributions(DMatrix* dmat,
+                           std::vector<bst_float>* out_contribs,
+                           unsigned ntree_limit, bool approximate) = 0;
 
   /*!
    * \brief dump the model in the requested format
