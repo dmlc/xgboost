@@ -108,7 +108,7 @@ if [ ${TASK} == "cmake_test" ]; then
     cd ..
     ./testxgboost
     rm -rf build
-
+    
     # Build/test with AVX
     mkdir build && cd build
     cmake .. -DGOOGLE_TEST=ON -DUSE_AVX=ON

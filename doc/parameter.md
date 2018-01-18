@@ -66,7 +66,7 @@ Parameters for Tree Booster
     - 'approx': Approximate greedy algorithm using sketching and histogram.
     - 'hist': Fast histogram optimized approximate greedy algorithm. It uses some performance improvements such as bins caching.
 	- 'gpu_exact': GPU implementation of exact algorithm.
-	- 'gpu_hist': GPU implementation of hist algorithm.
+	- 'gpu_hist': GPU implementation of hist algorithm. 
 * sketch_eps, [default=0.03]
   - This is only used for approximate greedy algorithm.
   - This roughly translated into ```O(1 / sketch_eps)``` number of bins.

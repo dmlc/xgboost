@@ -658,10 +658,10 @@ inline void ExtendPath(PathElement *unique_path, unsigned unique_depth,
   unique_path[unique_depth].zero_fraction = zero_fraction;
   unique_path[unique_depth].one_fraction = one_fraction;
   unique_path[unique_depth].pweight = (unique_depth == 0 ? 1.0f : 0.0f);
-  for (int i = unique_depth-1; i >= 0; i--) {
-    unique_path[i+1].pweight += one_fraction*unique_path[i].pweight * (i + 1)
+  for (int i = unique_depth - 1; i >= 0; i--) {
+    unique_path[i+1].pweight += one_fraction * unique_path[i].pweight * (i + 1)
                                 / static_cast<bst_float>(unique_depth + 1);
-    unique_path[i].pweight = zero_fraction*unique_path[i].pweight * (unique_depth - i)
+    unique_path[i].pweight = zero_fraction * unique_path[i].pweight * (unique_depth - i)
                              / static_cast<bst_float>(unique_depth + 1);
   }
 }
@@ -672,7 +672,7 @@ inline void UnwindPath(PathElement *unique_path, unsigned unique_depth, unsigned
   const bst_float zero_fraction = unique_path[path_index].zero_fraction;
   bst_float next_one_portion = unique_path[unique_depth].pweight;
 
-  for (int i = unique_depth-1; i >= 0; --i) {
+  for (int i = unique_depth - 1; i >= 0; --i) {
     if (one_fraction != 0) {
       const bst_float tmp = unique_path[i].pweight;
       unique_path[i].pweight = next_one_portion * (unique_depth + 1)
@@ -811,8 +811,8 @@ inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned 
   }
 
   // Preallocate space for the unique path data
-  const int maxd = this->MaxDepth(root_id)+2;
-  PathElement *unique_path_data = new PathElement[(maxd*(maxd+1))/2];
+  const int maxd = this->MaxDepth(root_id) + 2;
+  PathElement *unique_path_data = new PathElement[(maxd * (maxd + 1)) / 2];
 
   TreeShap(feat, out_contribs, root_id, 0, unique_path_data,
            1, 1, -1, condition, condition_feature, 1);

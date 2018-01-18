@@ -172,7 +172,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'
 #' @seealso
 #' \code{\link{xgb.train}}.
-#'
+#' 
 #' @references
 #'
 #' Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions", NIPS Proceedings 2017, \url{https://arxiv.org/abs/1705.07874}
