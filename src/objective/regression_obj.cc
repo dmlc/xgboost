@@ -209,6 +209,7 @@ class CoxRegression : public ObjFunction {
     CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.size(), info.labels.size()) << "labels are not correctly provided";
     out_gpair->resize(preds.size());
+    const std::vector<size_t> &label_order = info.LabelAbsSort();
 
     bool label_correct = true;  // we check if labels are sorted by absolute value
     const omp_ulong ndata = static_cast<omp_ulong>(preds.size()); // NOLINT(*)
@@ -216,7 +217,7 @@ class CoxRegression : public ObjFunction {
     // pre-compute a sum
     double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
     for (omp_ulong i = 0; i < ndata; ++i) {
-      exp_p_sum += std::exp(preds[i]);
+      exp_p_sum += std::exp(preds[label_order[i]]);
     }
 
     // start calculating grad and hess
@@ -226,10 +227,11 @@ class CoxRegression : public ObjFunction {
     double last_abs_y = 0.0;
     double accumulated_sum = 0;
     for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
-      const double p = preds[i];
+      const size_t ind = label_order[i];
+      const double p = preds[ind];
       const double exp_p = std::exp(p);
-      const double w = info.GetWeight(i);
-      const double y = info.labels[i];
+      const double w = info.GetWeight(ind);
+      const double y = info.labels[ind];
       const double abs_y = std::abs(y);
 
       // only update the denominator after we move forward in time (labels are sorted)
@@ -240,6 +242,7 @@ class CoxRegression : public ObjFunction {
         accumulated_sum = 0;
       } else if (last_abs_y > abs_y) {
         label_correct = false;
+        std::cout << "last_abs_y = " << last_abs_y << ", abs_y = " << abs_y << "\n";
         break;
       }
 
@@ -255,7 +258,7 @@ class CoxRegression : public ObjFunction {
       last_abs_y = abs_y;
       last_exp_p = exp_p;
     }
-    CHECK(label_correct) << "CoxRegression: labels must be in sorted order";
+    CHECK(label_correct) << "CoxRegression: labels must be in sorted order, MetaInfo::LabelArgsort failed!";
   }
   void PredTransform(std::vector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = *io_preds;

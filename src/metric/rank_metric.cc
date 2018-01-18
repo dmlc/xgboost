@@ -304,7 +304,7 @@ struct EvalMAP : public EvalRankList {
   }
 };
 
-/*! \brief Cox: Partial likelihood of the Cox proportioanl hazards model */
+/*! \brief Cox: Partial likelihood of the Cox proportional hazards model */
 struct EvalCox : public Metric {
  public:
   EvalCox() {}
@@ -315,25 +315,27 @@ struct EvalCox : public Metric {
     using namespace std;  // NOLINT(*)
 
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
+    const std::vector<size_t> &label_order = info.LabelAbsSort();
 
     // pre-compute a sum for the denominator
     double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
     for (omp_ulong i = 0; i < ndata; ++i) {
-      exp_p_sum += preds[i];
+      exp_p_sum += preds[label_order[i]];
     }
 
     double out = 0;
     double accumulated_sum = 0;
     bst_omp_uint num_events = 0;
     for (bst_omp_uint i = 0; i < ndata; ++i) {
-      if (info.labels[i] > 0) {
+      const auto label = info.labels[label_order[i]];
+      if (label > 0) {
         out -= log(preds[i]) - log(exp_p_sum);
         ++num_events;
       }
 
       // only update the denominator after we move forward in time (labels are sorted)
       accumulated_sum += preds[i];
-      if (i == ndata-1 || std::abs(info.labels[i]) < std::abs(info.labels[i+1])) {
+      if (i == ndata - 1 || std::abs(label) < std::abs(info.labels[label_order[i + 1]])) {
         exp_p_sum -= accumulated_sum;
         accumulated_sum = 0;
       }
