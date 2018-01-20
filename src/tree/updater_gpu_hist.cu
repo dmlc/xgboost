@@ -707,22 +707,33 @@ class GPUHistMaker : public TreeUpdater {
     return std::move(best_splits);
   }
 
+  // Transform operator used to perform a reduction in high precision
+  struct gpair_transform
+      : public thrust::unary_function<bst_gpair, bst_gpair_precise> {
+    __host__ __device__ bst_gpair_precise operator()(bst_gpair g) {
+      return bst_gpair_precise(g);
+    }
+  };
+
   void InitRoot(RegTree* p_tree) {
     auto root_nidx = 0;
     // Sum gradients
-    std::vector<bst_gpair> tmp_sums(shards.size());
+    std::vector<bst_gpair_precise> tmp_sums(shards.size());
     omp_set_num_threads(shards.size());
 #pragma omp parallel
     {
       auto cpu_thread_id = omp_get_thread_num();
       dh::safe_cuda(cudaSetDevice(shards[cpu_thread_id]->device_idx));
+      auto begin_itr = thrust::make_transform_iterator(
+          shards[cpu_thread_id]->gpair.tbegin(), gpair_transform());
+      auto end_itr = thrust::make_transform_iterator(
+          shards[cpu_thread_id]->gpair.tend(), gpair_transform());
       tmp_sums[cpu_thread_id] =
           thrust::reduce(thrust::cuda::par(shards[cpu_thread_id]->temp_memory),
-                         shards[cpu_thread_id]->gpair.tbegin(),
-                         shards[cpu_thread_id]->gpair.tend());
+                         begin_itr, end_itr);
     }
     auto sum_gradient =
-        std::accumulate(tmp_sums.begin(), tmp_sums.end(), bst_gpair());
+        std::accumulate(tmp_sums.begin(), tmp_sums.end(), bst_gpair_precise());
 
     // Generate root histogram
     for (auto& shard : shards) {
@@ -733,9 +744,9 @@ class GPUHistMaker : public TreeUpdater {
 
     // Remember root stats
     p_tree->stat(root_nidx).sum_hess = sum_gradient.GetHess();
-    auto weight=  CalcWeight(param, sum_gradient);
+    auto weight = CalcWeight(param, sum_gradient);
     p_tree->stat(root_nidx).base_weight = weight;
-    (*p_tree)[root_nidx].set_leaf(param.learning_rate*weight);
+    (*p_tree)[root_nidx].set_leaf(param.learning_rate * weight);
 
     // Store sum gradients
     for (auto& shard : shards) {
@@ -896,6 +907,8 @@ class GPUHistMaker : public TreeUpdater {
         : nid(nid), depth(depth), split(split), timestamp(timestamp) {}
     bool IsValid(const TrainParam& param, int num_leaves) const {
       if (split.loss_chg <= rt_eps) return false;
+      if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0)
+        return false;
       if (param.max_depth > 0 && depth == param.max_depth) return false;
       if (param.max_leaves > 0 && num_leaves == param.max_leaves) return false;
       return true;
