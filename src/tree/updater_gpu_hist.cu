@@ -733,7 +733,9 @@ class GPUHistMaker : public TreeUpdater {
 
     // Remember root stats
     p_tree->stat(root_nidx).sum_hess = sum_gradient.GetHess();
-    p_tree->stat(root_nidx).base_weight = CalcWeight(param, sum_gradient);
+    auto weight=  CalcWeight(param, sum_gradient);
+    p_tree->stat(root_nidx).base_weight = weight;
+    (*p_tree)[root_nidx].set_leaf(param.learning_rate*weight);
 
     // Store sum gradients
     for (auto& shard : shards) {
