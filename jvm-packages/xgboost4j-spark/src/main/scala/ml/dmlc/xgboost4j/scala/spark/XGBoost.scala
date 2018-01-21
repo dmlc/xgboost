@@ -25,6 +25,7 @@ import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker 
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FSDataInputStream, Path}
 import org.apache.spark.rdd.RDD
@@ -122,7 +123,6 @@ object XGBoost extends Serializable {
       val taskId = TaskContext.getPartitionId().toString
       val cacheDirName = if (useExternalMemory) {
         val dir = Files.createTempDirectory(s"${TaskContext.get().stageId()}-cache-$taskId")
-        new File(dir.toUri).deleteOnExit()
         Some(dir.toAbsolutePath.toString)
       } else {
         None
@@ -480,11 +480,7 @@ private class Watches private(
   def delete(): Unit = {
     toMap.values.foreach(_.delete())
     cacheDirName.foreach { name =>
-      for (cacheFile <- new File(name).listFiles()) {
-        if (!cacheFile.delete()) {
-          throw new IllegalStateException(s"failed to delete $cacheFile")
-        }
-      }
+      FileUtils.deleteDirectory(new File(name))
     }
   }
 
