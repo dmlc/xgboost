@@ -12,8 +12,8 @@
 #include <vector>
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
-#include "../common/host_device_vector.h"
 #include "../common/hist_util.h"
+#include "../common/host_device_vector.h"
 #include "../common/timer.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
@@ -361,8 +361,7 @@ struct DeviceShard {
 
     std::fill(ridx_segments.begin(), ridx_segments.end(), Segment(0, 0));
     ridx_segments.front() = Segment(0, ridx.size());
-    this->gpair.copy(begin + row_begin_idx,
-                     begin + row_end_idx);
+    this->gpair.copy(begin + row_begin_idx, begin + row_end_idx);
     subsample_gpair(&gpair, param.subsample, row_begin_idx);
     hist.Reset();
   }
@@ -527,7 +526,7 @@ class GPUHistMaker : public TreeUpdater {
 
  private:
   void UpdateHelper(HostDeviceVector<bst_gpair>* gpair, DMatrix* dmat,
-              const std::vector<RegTree*>& trees) {
+                    const std::vector<RegTree*>& trees) {
     GradStats::CheckInfo(dmat->info());
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
@@ -607,7 +606,8 @@ class GPUHistMaker : public TreeUpdater {
     monitor.Start("InitDataReset", dList);
     omp_set_num_threads(shards.size());
 
-    // TODO(canonizer): make it parallel again once HostDeviceVector is thread-safe
+    // TODO(canonizer): make it parallel again once HostDeviceVector is
+    // thread-safe
     for (int shard = 0; shard < shards.size(); ++shard)
       shards[shard]->Reset(gpair, param.gpu_id);
     monitor.Stop("InitDataReset", dList);
@@ -707,30 +707,19 @@ class GPUHistMaker : public TreeUpdater {
     return std::move(best_splits);
   }
 
-  // Transform operator used to perform a reduction in high precision
-  struct gpair_transform
-      : public thrust::unary_function<bst_gpair, bst_gpair_precise> {
-    __host__ __device__ bst_gpair_precise operator()(bst_gpair g) {
-      return bst_gpair_precise(g);
-    }
-  };
-
   void InitRoot(RegTree* p_tree) {
     auto root_nidx = 0;
     // Sum gradients
-    std::vector<bst_gpair_precise> tmp_sums(shards.size());
+    std::vector<bst_gpair> tmp_sums(shards.size());
     omp_set_num_threads(shards.size());
 #pragma omp parallel
     {
       auto cpu_thread_id = omp_get_thread_num();
       dh::safe_cuda(cudaSetDevice(shards[cpu_thread_id]->device_idx));
-      auto begin_itr = thrust::make_transform_iterator(
-          shards[cpu_thread_id]->gpair.tbegin(), gpair_transform());
-      auto end_itr = thrust::make_transform_iterator(
-          shards[cpu_thread_id]->gpair.tend(), gpair_transform());
       tmp_sums[cpu_thread_id] =
           thrust::reduce(thrust::cuda::par(shards[cpu_thread_id]->temp_memory),
-                         begin_itr, end_itr);
+                         shards[cpu_thread_id]->gpair.tbegin(),
+                         shards[cpu_thread_id]->gpair.tend());
     }
     auto sum_gradient =
         std::accumulate(tmp_sums.begin(), tmp_sums.end(), bst_gpair_precise());
@@ -892,8 +881,8 @@ class GPUHistMaker : public TreeUpdater {
     return false;
   }
 
-  bool UpdatePredictionCache(const DMatrix* data,
-                             HostDeviceVector<bst_float>* p_out_preds) override {
+  bool UpdatePredictionCache(
+      const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) override {
     return false;
   }
 
