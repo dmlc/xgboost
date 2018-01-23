@@ -11,6 +11,8 @@ set.seed(1994)
 # disable some tests for Win32
 windows_flag = .Platform$OS.type == "windows" &&
                .Machine$sizeof.pointer != 8
+sys_name = Sys.info()['sysname']
+solaris_flag = (sys_name != 'Linux' && sys_name != 'Darwin' && sys_name != 'Windows')
 
 test_that("train and predict binary classification", {
   nrounds = 2
@@ -152,20 +154,20 @@ test_that("training continuation works", {
   bst1 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
   # continue for two more:
   bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0, xgb_model = bst1)
-  if (!windows_flag)
+  if (!windows_flag && !solaris_flag)
     expect_equal(bst$raw, bst2$raw)
   expect_false(is.null(bst2$evaluation_log))
   expect_equal(dim(bst2$evaluation_log), c(4, 2))
   expect_equal(bst2$evaluation_log, bst$evaluation_log)
   # test continuing from raw model data
   bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0, xgb_model = bst1$raw)
-  if (!windows_flag)
+  if (!windows_flag && !solaris_flag)
     expect_equal(bst$raw, bst2$raw)
   expect_equal(dim(bst2$evaluation_log), c(2, 2))
   # test continuing from a model in file
   xgb.save(bst1, "xgboost.model")
   bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0, xgb_model = "xgboost.model")
-  if (!windows_flag)
+  if (!windows_flag && !solaris_flag)
     expect_equal(bst$raw, bst2$raw)
   expect_equal(dim(bst2$evaluation_log), c(2, 2))
 })
