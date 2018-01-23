@@ -12,8 +12,8 @@
 #include <vector>
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
-#include "../common/host_device_vector.h"
 #include "../common/hist_util.h"
+#include "../common/host_device_vector.h"
 #include "../common/timer.h"
 #include "param.h"
 #include "updater_gpu_common.cuh"
@@ -361,8 +361,7 @@ struct DeviceShard {
 
     std::fill(ridx_segments.begin(), ridx_segments.end(), Segment(0, 0));
     ridx_segments.front() = Segment(0, ridx.size());
-    this->gpair.copy(begin + row_begin_idx,
-                     begin + row_end_idx);
+    this->gpair.copy(begin + row_begin_idx, begin + row_end_idx);
     subsample_gpair(&gpair, param.subsample, row_begin_idx);
     hist.Reset();
   }
@@ -527,7 +526,7 @@ class GPUHistMaker : public TreeUpdater {
 
  private:
   void UpdateHelper(HostDeviceVector<bst_gpair>* gpair, DMatrix* dmat,
-              const std::vector<RegTree*>& trees) {
+                    const std::vector<RegTree*>& trees) {
     GradStats::CheckInfo(dmat->info());
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
@@ -607,7 +606,8 @@ class GPUHistMaker : public TreeUpdater {
     monitor.Start("InitDataReset", dList);
     omp_set_num_threads(shards.size());
 
-    // TODO(canonizer): make it parallel again once HostDeviceVector is thread-safe
+    // TODO(canonizer): make it parallel again once HostDeviceVector is
+    // thread-safe
     for (int shard = 0; shard < shards.size(); ++shard)
       shards[shard]->Reset(gpair, param.gpu_id);
     monitor.Stop("InitDataReset", dList);
@@ -722,7 +722,7 @@ class GPUHistMaker : public TreeUpdater {
                          shards[cpu_thread_id]->gpair.tend());
     }
     auto sum_gradient =
-        std::accumulate(tmp_sums.begin(), tmp_sums.end(), bst_gpair());
+        std::accumulate(tmp_sums.begin(), tmp_sums.end(), bst_gpair_precise());
 
     // Generate root histogram
     for (auto& shard : shards) {
@@ -733,7 +733,9 @@ class GPUHistMaker : public TreeUpdater {
 
     // Remember root stats
     p_tree->stat(root_nidx).sum_hess = sum_gradient.GetHess();
-    p_tree->stat(root_nidx).base_weight = CalcWeight(param, sum_gradient);
+    auto weight = CalcWeight(param, sum_gradient);
+    p_tree->stat(root_nidx).base_weight = weight;
+    (*p_tree)[root_nidx].set_leaf(param.learning_rate * weight);
 
     // Store sum gradients
     for (auto& shard : shards) {
@@ -879,8 +881,8 @@ class GPUHistMaker : public TreeUpdater {
     return false;
   }
 
-  bool UpdatePredictionCache(const DMatrix* data,
-                             HostDeviceVector<bst_float>* p_out_preds) override {
+  bool UpdatePredictionCache(
+      const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) override {
     return false;
   }
 
@@ -894,6 +896,8 @@ class GPUHistMaker : public TreeUpdater {
         : nid(nid), depth(depth), split(split), timestamp(timestamp) {}
     bool IsValid(const TrainParam& param, int num_leaves) const {
       if (split.loss_chg <= rt_eps) return false;
+      if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0)
+        return false;
       if (param.max_depth > 0 && depth == param.max_depth) return false;
       if (param.max_leaves > 0 && num_leaves == param.max_leaves) return false;
       return true;

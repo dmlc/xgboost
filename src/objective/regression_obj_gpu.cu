@@ -43,7 +43,7 @@ struct GPURegLossParam : public dmlc::Parameter<GPURegLossParam> {
 // GPU kernel for gradient computation
 template<typename Loss>
 __global__ void get_gradient_k
-(bst_gpair *__restrict__ out_gpair,  uint *__restrict__ label_correct,
+(bst_gpair *__restrict__ out_gpair,  unsigned int *__restrict__ label_correct,
  const float * __restrict__ preds, const float * __restrict__ labels,
  const float * __restrict__ weights, int n, float scale_pos_weight) {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -76,7 +76,7 @@ class GPURegLossObj : public ObjFunction {
   // manages device data
   struct DeviceData {
     dvec<float> labels, weights;
-    dvec<uint> label_correct;
+    dvec<unsigned int> label_correct;
 
     // allocate everything on device
     DeviceData(bulk_allocator<memory_type::DEVICE>* ba, int device_idx, size_t n) {
@@ -175,7 +175,7 @@ class GPURegLossObj : public ObjFunction {
     safe_cuda(cudaGetLastError());
 
     // copy output data from the GPU
-    uint label_correct_h;
+    unsigned int label_correct_h;
     thrust::copy_n(d.label_correct.tbegin(), 1, &label_correct_h);
 
     bool label_correct = label_correct_h != 0;
