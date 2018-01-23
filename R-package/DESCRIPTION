@@ -1,7 +1,7 @@
 Package: xgboost
 Type: Package
 Title: Extreme Gradient Boosting
-Version: 0.7-0
+Version: 0.7.0
 Date: 2018-01-22
 Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>,
     Michael Benesty <michael@benesty.fr>, Vadim Khotilovich <khotilovich@gmail.com>,

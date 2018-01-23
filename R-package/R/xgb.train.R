@@ -351,8 +351,8 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     if (inherits(xgb_model, 'xgb.Booster') &&
         !is_update &&
         !is.null(xgb_model$evaluation_log) &&
-        all.equal(colnames(evaluation_log),
-                  colnames(xgb_model$evaluation_log))) {
+        isTRUE(all.equal(colnames(evaluation_log),
+                         colnames(xgb_model$evaluation_log)))) {
       evaluation_log <- rbindlist(list(xgb_model$evaluation_log, evaluation_log))
     }
     bst$evaluation_log <- evaluation_log

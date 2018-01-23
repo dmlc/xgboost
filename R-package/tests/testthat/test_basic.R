@@ -11,8 +11,7 @@ set.seed(1994)
 # disable some tests for Win32
 windows_flag = .Platform$OS.type == "windows" &&
                .Machine$sizeof.pointer != 8
-sys_name = Sys.info()['sysname']
-solaris_flag = (sys_name != 'Linux' && sys_name != 'Darwin' && sys_name != 'Windows')
+solaris_flag = (Sys.info()['sysname'] == "SunOS")
 
 test_that("train and predict binary classification", {
   nrounds = 2
