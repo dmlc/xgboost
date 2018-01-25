@@ -369,6 +369,16 @@ class dvec {
     }
     thrust::copy(begin, end, this->tbegin());
   }
+
+  void copy(thrust::device_ptr<T> begin, thrust::device_ptr<T> end) {
+    safe_cuda(cudaSetDevice(this->device_idx()));
+    if (end - begin != size()) {
+      throw std::runtime_error(
+                               "Cannot copy assign vector to dvec, sizes are different");
+    }
+    safe_cuda(cudaMemcpy(this->data(), begin.get(),
+                         size() * sizeof(T), cudaMemcpyDefault));
+  }
 };
 
 /**
