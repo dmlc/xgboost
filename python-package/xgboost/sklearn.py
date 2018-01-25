@@ -602,6 +602,39 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
 def _prepare_dmatrix(X, y=None, sample_weight=None, groups=None,
                      group_sizes=None, missing=None, n_jobs=None):
+    """Decorate an objective function
+
+    Converts an objective function using the typical sklearn metrics
+    signature so that it is usable with ``xgboost.training.train``
+
+    Parameters
+    ----------
+    X : array_like
+        Feature matrix
+    y : array_like
+        Labels
+    sample_weight : array_like
+        instance weights
+    groups: array_like
+        Group identifiers for pairwise ranking
+    group_sizes: array_like
+        Group sizes of X data for pairwise ranking
+    missing : float, optional
+        Value in the data which needs to be present as a missing value. If
+        None, defaults to np.nan.
+    n_jobs : int
+        Number of parallel threads used to run xgboost.  (replaces nthread)
+
+    Returns
+    -------
+    (prepared_data, original_sorting) : (DMatrix, Optional[np.array])
+        Returns a DMatrix created from python data structures.
+
+        If grouping was passed, the returned DMatrix contains the (X, y) data
+        sorted so groups are next to each other, the returned original_sorting
+        list contains a list of the new indicies that will resort the data
+        back into the original sort.
+    """
     if groups is not None and group_sizes is not None:
         raise AssertionError('Please supply either groups, or group_sizes, not both.')
 
