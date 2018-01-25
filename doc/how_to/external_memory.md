@@ -11,7 +11,7 @@ filename#cacheprefix
 The ```filename``` is the normal path to libsvm file you want to load in, ```cacheprefix``` is a
 path to a cache file that xgboost will use for external memory cache.
 
-The following code was extracted from [../demo/guide-python/external_memory.py](../demo/guide-python/external_memory.py)
+The following code was extracted from [../../demo/guide-python/external_memory.py](../../demo/guide-python/external_memory.py)
 ```python
 dtrain = xgb.DMatrix('../data/agaricus.txt.train#dtrain.cache')
 ```
