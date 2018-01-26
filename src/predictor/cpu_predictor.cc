@@ -287,29 +287,43 @@ class CPUPredictor : public Predictor {
     const MetaInfo& info = p_fmat->info();
     const int ngroup = model.param.num_output_group;
     size_t ncolumns = model.param.num_feature;
-    const unsigned row_chunk = ncolumns * ncolumns * ngroup;
-    const unsigned mrow_chunk = ncolumns * ngroup;
-    const unsigned crow_chunk = (ncolumns + 1) * ngroup;
+    const unsigned row_chunk = ngroup * ncolumns * ncolumns;
+    const unsigned mrow_chunk = ncolumns * ncolumns;
+    const unsigned crow_chunk = ngroup * (ncolumns + 1);
+
+    if (info.num_row * row_chunk > 2<<28) {
+      std::cerr << "Error: Predict interaction matrix would exceed 1G limit!" << std::endl;
+      return;
+    }
 
     // allocate space for (number of features^2) times the number of rows and tmp off/on contribs
     std::vector<bst_float>& contribs = *out_contribs;
     contribs.resize(info.num_row * ncolumns * ncolumns * ngroup);
-    std::vector<bst_float> contribs_off(info.num_row * (ncolumns + 1) * ngroup);
-    std::vector<bst_float> contribs_on(info.num_row * (ncolumns + 1) * ngroup);
+    std::vector<bst_float> contribs_off(info.num_row * ngroup * (ncolumns + 1));
+    std::vector<bst_float> contribs_on(info.num_row * ngroup * (ncolumns + 1));
+    std::vector<bst_float> contribs_diag(info.num_row * ngroup * (ncolumns + 1));
 
     // Compute the difference in effects when conditioning on each of the features on and off
     // see: Axiomatic characterizations of probabilistic and
     //      cardinal-probabilistic interaction indices
+    PredictContribution(p_fmat, &contribs_diag, model, ntree_limit, approximate, 0, 0);
     for (size_t i = 0; i < ncolumns; ++i) {
       PredictContribution(p_fmat, &contribs_off, model, ntree_limit, approximate, -1, i);
       PredictContribution(p_fmat, &contribs_on, model, ntree_limit, approximate, 1, i);
 
       for (size_t j = 0; j < info.num_row; ++j) {
-        for (size_t k = 0; k < ncolumns + 1; ++k) {
-          for (int l = 0; l < model.param.num_output_group; ++l) {
-            const unsigned cind = j * crow_chunk + k * ngroup + l;
-            const unsigned oind = j * row_chunk + i * mrow_chunk + k * ngroup + l;
-            contribs[oind] = contribs_on[cind] - contribs_off[cind];
+        for (int l = 0; l < ngroup; ++l) {
+          const unsigned o_offset = j * row_chunk + l * mrow_chunk + i * ncolumns;
+          const unsigned c_offset = j * crow_chunk + l * (ncolumns + 1);
+          contribs[o_offset + i] = 0;
+          for (size_t k = 0; k < ncolumns; ++k) {
+            // fill in the diagonal with additive effects, and off-diagonal with the interactions
+            if (k == i) {
+              contribs[o_offset + i] += contribs_diag[c_offset + k];
+            } else {
+              contribs[o_offset + k] = contribs_on[c_offset + k] - contribs_off[c_offset + k];
+              contribs[o_offset + i] -= contribs[o_offset + k];
+            }
           }
         }
       }

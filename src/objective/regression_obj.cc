@@ -211,7 +211,6 @@ class CoxRegression : public ObjFunction {
     out_gpair->resize(preds.size());
     const std::vector<size_t> &label_order = info.LabelAbsSort();
 
-    bool label_correct = true;  // we check if labels are sorted by absolute value
     const omp_ulong ndata = static_cast<omp_ulong>(preds.size()); // NOLINT(*)
 
     // pre-compute a sum
@@ -240,10 +239,8 @@ class CoxRegression : public ObjFunction {
       if (last_abs_y < abs_y) {
         exp_p_sum -= accumulated_sum;
         accumulated_sum = 0;
-      } else if (last_abs_y > abs_y) {
-        label_correct = false;
-        std::cout << "last_abs_y = " << last_abs_y << ", abs_y = " << abs_y << "\n";
-        break;
+      } else {
+        CHECK(last_abs_y <= abs_y) << "CoxRegression: labels must be in sorted order, MetaInfo::LabelArgsort failed!";
       }
 
       if (y > 0) {
@@ -258,7 +255,6 @@ class CoxRegression : public ObjFunction {
       last_abs_y = abs_y;
       last_exp_p = exp_p;
     }
-    CHECK(label_correct) << "CoxRegression: labels must be in sorted order, MetaInfo::LabelArgsort failed!";
   }
   void PredTransform(std::vector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = *io_preds;

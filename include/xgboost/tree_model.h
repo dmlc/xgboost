@@ -508,6 +508,20 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
                                      bst_float *out_contribs,
                                      int condition = 0,
                                      unsigned condition_feature = 0) const;
+  /*!
+   * \brief Recursive function that computes the feature attributions for a single tree.
+   * \param feat dense feature vector, if the feature is missing the field is set to NaN
+   * \param phi dense output vector of feature attributions
+   * \param node_index the index of the current node in the tree
+   * \param unique_depth how many unique features are above the current node in the tree
+   * \param parent_unique_path a vector of statistics about our current path through the tree
+   * \param parent_zero_fraction what fraction of the parent path weight is coming as 0 (integrated)
+   * \param parent_one_fraction what fraction of the parent path weight is coming as 1 (fixed)
+   * \param parent_feature_index what feature the parent node used to split
+   * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
+   * \param condition_feature the index of the feature to fix
+   * \param condition_fraction what fraction of the current weight matches our conditioning feature
+   */
   inline void TreeShap(const RegTree::FVec& feat, bst_float *phi,
                        unsigned node_index, unsigned unique_depth,
                        PathElement *parent_unique_path, bst_float parent_zero_fraction,

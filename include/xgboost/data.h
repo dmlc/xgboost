@@ -85,7 +85,7 @@ struct MetaInfo {
     label_order_cache.resize(labels.size());
     std::iota(label_order_cache.begin(), label_order_cache.end(), 0);
     const auto l = labels;
-    std::sort(label_order_cache.begin(), label_order_cache.end(),
+    XGBOOST_PARALLEL_SORT(label_order_cache.begin(), label_order_cache.end(),
               [&l](size_t i1, size_t i2) {return std::abs(l[i1]) < std::abs(l[i2]);});
 
     return label_order_cache;

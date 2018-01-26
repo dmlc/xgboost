@@ -66,7 +66,7 @@ Parameters for Tree Booster
     - 'approx': Approximate greedy algorithm using sketching and histogram.
     - 'hist': Fast histogram optimized approximate greedy algorithm. It uses some performance improvements such as bins caching.
 	- 'gpu_exact': GPU implementation of exact algorithm.
-	- 'gpu_hist': GPU implementation of hist algorithm. 
+	- 'gpu_hist': GPU implementation of hist algorithm.
 * sketch_eps, [default=0.03]
   - This is only used for approximate greedy algorithm.
   - This roughly translated into ```O(1 / sketch_eps)``` number of bins.
@@ -170,7 +170,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
     they can only be used when the entire training session uses the same dataset
   - "count:poisson" --poisson regression for count data, output mean of poisson distribution
     - max_delta_step is set to 0.7 by default in poisson regression (used to safeguard optimization)
-  - "survival:cox" --Cox regression for censored survival time data (negative values are considered censored)
+  - "survival:cox" --Cox regression for right censored survival time data (negative values are considered right censored).
+    Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function h(t) = h0(t) * HR).
   - "multi:softmax" --set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
   - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
   - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss

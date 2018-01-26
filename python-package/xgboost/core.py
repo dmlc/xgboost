@@ -1046,7 +1046,7 @@ class Booster(object):
         if approx_contribs:
             option_mask |= 0x08
         if interaction_contribs:
-            option_mask |= 0x16
+            option_mask |= 0x10
 
         self._validate_features(data)
 
@@ -1062,13 +1062,22 @@ class Booster(object):
             preds = preds.astype(np.int32)
         nrow = data.num_row()
         if preds.size != nrow and preds.size % nrow == 0:
-            ncol = int(preds.size / nrow)
+            chunk_size = int(preds.size / nrow)
+
             if interaction_contribs:
-                s = int(np.sqrt(ncol))
-                assert s*s == ncol, "XGBoost returned a non-square interaction matrix!"
-                preds = preds.reshape(nrow, int(np.sqrt(ncol)), int(np.sqrt(ncol)))
+                ngroup = int(chunk_size / (data.num_col() * data.num_col()))
+                if ngroup == 1:
+                    preds = preds.reshape(nrow, data.num_col(), data.num_col())
+                else:
+                    preds = preds.reshape(nrow, ngroup, data.num_col(), data.num_col())
+            elif pred_contribs:
+                ngroup = int(chunk_size / (data.num_col() + 1))
+                if ngroup == 1:
+                    preds = preds.reshape(nrow, data.num_col() + 1)
+                else:
+                    preds = preds.reshape(nrow, ngroup, data.num_col() + 1)
             else:
-                preds = preds.reshape(nrow, ncol)
+                preds = preds.reshape(nrow, chunk_size)
         return preds
 
     def save_model(self, fname):
