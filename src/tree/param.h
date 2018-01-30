@@ -421,6 +421,7 @@ template <typename param_t>
 template <typename param_t>
   XGBOOST_DEVICE inline double CalcSplitGain(const param_t &param, int constraint,
                               GradStats left, GradStats right) const {
+    const double negative_infinity = -std::numeric_limits<double>::infinity();
     double wleft = CalcWeight(param, left);
     double wright = CalcWeight(param, right);
     double gain =
@@ -429,9 +430,9 @@ template <typename param_t>
     if (constraint == 0) {
       return gain;
     } else if (constraint > 0) {
-      return wleft < wright ? gain : 0.0;
+      return wleft <= wright ? gain : negative_infinity;
     } else {
-      return wleft > wright ? gain : 0.0;
+      return wleft >= wright ? gain : negative_infinity;
     }
   }
 
