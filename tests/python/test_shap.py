@@ -43,7 +43,6 @@ class TestSHAP(unittest.TestCase):
         fscores = bst.get_fscore()
         assert scores1 == fscores
 
-    def test_contributions(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 
@@ -197,7 +196,7 @@ class TestSHAP(unittest.TestCase):
         assert np.linalg.norm(brute_force-fast_method[0,:]) < 1e-4
 
         brute_force = interaction_values(parse_model(bst), X[0, :])
-        fast_method = bst.predict(xgb.DMatrix(X[0:1, :]), pred_contribs=True, interaction_contribs=True)
+        fast_method = bst.predict(xgb.DMatrix(X[0:1, :]), pred_interactions=True)
         assert np.linalg.norm(brute_force - fast_method[0,:,:]) < 1e-4
 
         # test a random function
@@ -213,7 +212,7 @@ class TestSHAP(unittest.TestCase):
         assert np.linalg.norm(brute_force-fast_method[0,:]) < 1e-4
 
         brute_force = interaction_values(parse_model(bst), X[0, :])
-        fast_method = bst.predict(xgb.DMatrix(X[0:1, :]), pred_contribs=True, interaction_contribs=True)
+        fast_method = bst.predict(xgb.DMatrix(X[0:1, :]), pred_interactions=True)
         assert np.linalg.norm(brute_force - fast_method[0,:,:]) < 1e-4
 
         # test another larger more complex random function
@@ -231,5 +230,5 @@ class TestSHAP(unittest.TestCase):
         assert np.linalg.norm(brute_force-fast_method[0,:]) < 1e-4
 
         brute_force = interaction_values(parse_model(bst), X[0, :])
-        fast_method = bst.predict(xgb.DMatrix(X[0:1, :]), pred_contribs=True, interaction_contribs=True)
+        fast_method = bst.predict(xgb.DMatrix(X[0:1, :]), pred_interactions=True)
         assert np.linalg.norm(brute_force - fast_method[0,:,:]) < 1e-4
