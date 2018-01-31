@@ -3,7 +3,6 @@ import numpy as np
 import xgboost as xgb
 import unittest
 import json
-import scipy
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)

@@ -154,7 +154,7 @@ class TestSHAP(unittest.TestCase):
                 v1 = exp_value(trees, z, x)
                 z[i] = 1
                 v2 = exp_value(trees, z, x)
-                total += (v2 - v1)/(scipy.special.binom(M - 1, len(subset)) * M)
+                total += (v2 - v1) / (scipy.special.binom(M - 1, len(subset)) * M)
                 z[i] = 0
                 z[list(subset)] = 0
             return total
