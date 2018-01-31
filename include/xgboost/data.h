@@ -111,7 +111,7 @@ struct MetaInfo {
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
 
-private:
+ private:
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache;
 };

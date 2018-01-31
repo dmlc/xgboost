@@ -240,7 +240,8 @@ class CoxRegression : public ObjFunction {
         exp_p_sum -= accumulated_sum;
         accumulated_sum = 0;
       } else {
-        CHECK(last_abs_y <= abs_y) << "CoxRegression: labels must be in sorted order, MetaInfo::LabelArgsort failed!";
+        CHECK(last_abs_y <= abs_y) << "CoxRegression: labels must be in sorted order, " <<
+                                      "MetaInfo::LabelArgsort failed!";
       }
 
       if (y > 0) {
