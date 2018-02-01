@@ -320,21 +320,22 @@ struct EvalCox : public Metric {
     // pre-compute a sum for the denominator
     double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
     for (omp_ulong i = 0; i < ndata; ++i) {
-      exp_p_sum += preds[label_order[i]];
+      exp_p_sum += preds[i];
     }
 
     double out = 0;
     double accumulated_sum = 0;
     bst_omp_uint num_events = 0;
     for (bst_omp_uint i = 0; i < ndata; ++i) {
-      const auto label = info.labels[label_order[i]];
+      const size_t ind = label_order[i];
+      const auto label = info.labels[ind];
       if (label > 0) {
-        out -= log(preds[i]) - log(exp_p_sum);
+        out -= log(preds[ind]) - log(exp_p_sum);
         ++num_events;
       }
 
       // only update the denominator after we move forward in time (labels are sorted)
-      accumulated_sum += preds[i];
+      accumulated_sum += preds[ind];
       if (i == ndata - 1 || std::abs(label) < std::abs(info.labels[label_order[i + 1]])) {
         exp_p_sum -= accumulated_sum;
         accumulated_sum = 0;

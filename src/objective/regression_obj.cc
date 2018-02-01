@@ -251,7 +251,7 @@ class CoxRegression : public ObjFunction {
 
       const double grad = exp_p*r_k - static_cast<bst_float>(y > 0);
       const double hess = exp_p*r_k - exp_p*exp_p * s_k;
-      out_gpair->at(i) = bst_gpair(grad * w, hess * w);
+      out_gpair->at(ind) = bst_gpair(grad * w, hess * w);
 
       last_abs_y = abs_y;
       last_exp_p = exp_p;
