@@ -72,7 +72,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   bool refresh_leaf;
   // auxiliary data structure
   std::vector<int> monotone_constraints;
-<<<<<<< HEAD
   // option to specify interaction constraints
   bool int_constraints_flag;
   // structure to record interaction constraints

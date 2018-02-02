@@ -74,8 +74,7 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
                << ", \"missing\": " << tree[nid].cdefault();
           } else {
             fo << nid << ":[" << fmap.name(split_index) << "<"
-               //<< int(float(cond)+1.0f)
-               << float(cond)+0.5f
+               << int(cond + 1.0)
                << "] yes=" << tree[nid].cleft()
                << ",no=" << tree[nid].cright()
                << ",missing=" << tree[nid].cdefault();
@@ -145,7 +144,6 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
   std::stringstream fo("");
-  fo.precision(16);
   for (int i = 0; i < param.num_roots; ++i) {
     DumpRegTree(fo, *this, fmap, i, 0, false, with_stats, format);
   }
