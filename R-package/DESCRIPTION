@@ -1,8 +1,8 @@
 Package: xgboost
 Type: Package
 Title: Extreme Gradient Boosting
-Version: 0.6-4
-Date: 2017-01-04
+Version: 0.7.0
+Date: 2018-01-22
 Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>,
     Michael Benesty <michael@benesty.fr>, Vadim Khotilovich <khotilovich@gmail.com>,
     Yuan Tang <terrytangyuan@gmail.com>
@@ -38,3 +38,4 @@ Imports:
     magrittr (>= 1.5),
     stringi (>= 0.5.2)
 RoxygenNote: 6.0.1
+SystemRequirements: GNU make, C++11

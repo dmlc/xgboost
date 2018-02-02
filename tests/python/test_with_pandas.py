@@ -79,6 +79,23 @@ class TestPandas(unittest.TestCase):
         assert dm.num_row() == 3
         assert dm.num_col() == 2
 
+        # test MultiIndex as columns
+        df = pd.DataFrame(
+            [
+                (1, 2, 3, 4, 5, 6),
+                (6, 5, 4, 3, 2, 1)
+            ],
+            columns=pd.MultiIndex.from_tuples((
+                ('a', 1), ('a', 2), ('a', 3),
+                ('b', 1), ('b', 2), ('b', 3),
+            ))
+        )
+        dm = xgb.DMatrix(df)
+        assert dm.feature_names == ['a 1', 'a 2', 'a 3', 'b 1', 'b 2', 'b 3']
+        assert dm.feature_types == ['int', 'int', 'int', 'int', 'int', 'int']
+        assert dm.num_row() == 2
+        assert dm.num_col() == 6
+
     def test_pandas_label(self):
         # label must be a single column
         df = pd.DataFrame({'A': ['X', 'Y', 'Z'], 'B': [1, 2, 3]})

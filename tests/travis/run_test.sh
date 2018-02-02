@@ -32,8 +32,10 @@ if [ ${TASK} == "python_test" ]; then
     source activate python3
     python --version
     conda install numpy scipy pandas matplotlib nose scikit-learn
-    python -m pip install graphviz
+    python -m pip install graphviz pytest pytest-cov codecov
     python -m nose tests/python || exit -1
+    py.test tests/python --cov=python-package/xgboost
+    codecov
     source activate python2
     echo "-------------------------------"
     python --version
@@ -49,15 +51,17 @@ if [ ${TASK} == "python_lightweight_test" ]; then
     source activate python3
     python --version
     conda install numpy scipy nose
-    python -m pip install graphviz
+    python -m pip install graphviz pytest pytest-cov codecov
     python -m nose tests/python || exit -1
+    py.test tests/python --cov=python-package/xgboost
+    codecov
     source activate python2
     echo "-------------------------------"
     python --version
     conda install numpy scipy nose
     python -m pip install graphviz
     python -m nose tests/python || exit -1
-    python -m pip install flake8
+    python -m pip install flake8==3.4.1
     flake8 --ignore E501 python-package || exit -1
     flake8 --ignore E501 tests/python || exit -1
     exit 0
@@ -81,17 +85,36 @@ fi
 
 if [ ${TASK} == "java_test" ]; then
     set -e
-    make jvm-packages
     cd jvm-packages
-    mvn clean install -DskipTests=true
-    mvn test
+    mvn -q clean install -DskipTests -Dmaven.test.skip
+    mvn -q test
 fi
 
 if [ ${TASK} == "cmake_test" ]; then
-    mkdir build
-    cd build
-    cmake ..
+    set -e
+    # Build gtest via cmake
+    wget https://github.com/google/googletest/archive/release-1.7.0.zip
+    unzip release-1.7.0.zip
+    mv googletest-release-1.7.0 gtest && cd gtest
+    cmake . && make
+    mkdir lib && mv libgtest.a lib
+    cd ..
+    rm -rf release-1.7.0.zip
+
+    # Build/test without AVX
+    mkdir build && cd build
+    cmake .. -DGOOGLE_TEST=ON 
     make
+    cd ..
+    ./testxgboost
+    rm -rf build
+    
+    # Build/test with AVX
+    mkdir build && cd build
+    cmake .. -DGOOGLE_TEST=ON -DUSE_AVX=ON
+    make
+    cd ..
+    ./testxgboost
 fi
 
 if [ ${TASK} == "cpp_test" ]; then

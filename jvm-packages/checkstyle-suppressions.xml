@@ -28,6 +28,5 @@
 -->
 
 <suppressions>
-<suppress checks=".*"
-files="xgboost4j/src/main/java/ml/dmlc/xgboost4j/java/XGBoostJNI.java"/>
+  <suppress checks=".*" files="XGBoostJNI.java"/>
 </suppressions>

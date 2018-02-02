@@ -52,7 +52,7 @@ object GeneralizedLinearModel {
     watches += "test" -> testMat
 
     val round = 4
-    val booster = XGBoost.train(trainMat, params.toMap, 1, watches.toMap, null, null)
+    val booster = XGBoost.train(trainMat, params.toMap, 1, watches.toMap)
     val predicts = booster.predict(testMat)
     val eval = new CustomEval
     println(s"error=${eval.eval(predicts, testMat)}")

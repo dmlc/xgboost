@@ -16,6 +16,11 @@ If installing from source, please provide
 1. The commit hash (`git rev-parse HEAD`)
 2. Logs will be helpful (If logs are large, please upload as attachment).
 
+If you are using jvm package, please 
+
+1. add [jvm-packages] in the title to make it quickly be identified
+2. the gcc version and distribution
+
 If you are using python package, please provide
 
 1. The python version and distribution

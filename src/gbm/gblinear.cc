@@ -120,8 +120,9 @@ class GBLinear : public GradientBooster {
       #pragma omp parallel for schedule(static) reduction(+: sum_grad, sum_hess)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         bst_gpair &p = gpair[rowset[i] * ngroup + gid];
-        if (p.hess >= 0.0f) {
-          sum_grad += p.grad; sum_hess += p.hess;
+        if (p.GetHess() >= 0.0f) {
+          sum_grad += p.GetGrad();
+          sum_hess += p.GetHess();
         }
       }
       // remove bias effect
@@ -132,8 +133,8 @@ class GBLinear : public GradientBooster {
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         bst_gpair &p = gpair[rowset[i] * ngroup + gid];
-        if (p.hess >= 0.0f) {
-          p.grad += p.hess * dw;
+        if (p.GetHess() >= 0.0f) {
+          p += bst_gpair(p.GetHess() * dw, 0);
         }
       }
     }
@@ -151,9 +152,9 @@ class GBLinear : public GradientBooster {
           for (bst_uint j = 0; j < col.length; ++j) {
             const bst_float v = col[j].fvalue;
             bst_gpair &p = gpair[col[j].index * ngroup + gid];
-            if (p.hess < 0.0f) continue;
-            sum_grad += p.grad * v;
-            sum_hess += p.hess * v * v;
+            if (p.GetHess() < 0.0f) continue;
+            sum_grad += p.GetGrad() * v;
+            sum_hess += p.GetHess() * v * v;
           }
           bst_float &w = model[fid][gid];
           bst_float dw = static_cast<bst_float>(param.learning_rate *
@@ -162,15 +163,15 @@ class GBLinear : public GradientBooster {
           // update grad value
           for (bst_uint j = 0; j < col.length; ++j) {
             bst_gpair &p = gpair[col[j].index * ngroup + gid];
-            if (p.hess < 0.0f) continue;
-            p.grad += p.hess * col[j].fvalue * dw;
+            if (p.GetHess() < 0.0f) continue;
+            p += bst_gpair(p.GetHess() * col[j].fvalue * dw, 0);
           }
         }
       }
     }
   }
 
-  void Predict(DMatrix *p_fmat,
+  void PredictBatch(DMatrix *p_fmat,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit) override {
     if (model.weight.size() == 0) {
@@ -180,10 +181,6 @@ class GBLinear : public GradientBooster {
         << "GBLinear::Predict ntrees is only valid for gbtree predictor";
     std::vector<bst_float> &preds = *out_preds;
     const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
-    if (base_margin.size() != 0) {
-      CHECK_EQ(preds.size(), base_margin.size())
-          << "base_margin.size does not match with prediction size";
-    }
     preds.resize(0);
     // start collecting the prediction
     dmlc::DataIter<RowBatch> *iter = p_fmat->RowIterator();
@@ -209,7 +206,7 @@ class GBLinear : public GradientBooster {
     }
   }
   // add base margin
-  void Predict(const SparseBatch::Inst &inst,
+  void PredictInstance(const SparseBatch::Inst &inst,
                std::vector<bst_float> *out_preds,
                unsigned ntree_limit,
                unsigned root_index) override {
@@ -218,40 +215,87 @@ class GBLinear : public GradientBooster {
       this->Pred(inst, dmlc::BeginPtr(*out_preds), gid, base_margin_);
     }
   }
+
   void PredictLeaf(DMatrix *p_fmat,
                    std::vector<bst_float> *out_preds,
                    unsigned ntree_limit) override {
-    LOG(FATAL) << "gblinear does not support predict leaf index";
+    LOG(FATAL) << "gblinear does not support prediction of leaf index";
+  }
+
+  void PredictContribution(DMatrix* p_fmat,
+                           std::vector<bst_float>* out_contribs,
+                           unsigned ntree_limit, bool approximate) override {
+    if (model.weight.size() == 0) {
+      model.InitModel();
+    }
+    CHECK_EQ(ntree_limit, 0U)
+        << "GBLinear::PredictContribution: ntrees is only valid for gbtree predictor";
+    const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
+    const int ngroup = model.param.num_output_group;
+    const size_t ncolumns = model.param.num_feature + 1;
+    // allocate space for (#features + bias) times #groups times #rows
+    std::vector<bst_float>& contribs = *out_contribs;
+    contribs.resize(p_fmat->info().num_row * ncolumns * ngroup);
+    // make sure contributions is zeroed, we could be reusing a previously allocated one
+    std::fill(contribs.begin(), contribs.end(), 0);
+    // start collecting the contributions
+    dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
+    iter->BeforeFirst();
+    while (iter->Next()) {
+      const RowBatch& batch = iter->Value();
+      // parallel over local batch
+      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      #pragma omp parallel for schedule(static)
+      for (bst_omp_uint i = 0; i < nsize; ++i) {
+        const RowBatch::Inst &inst = batch[i];
+        size_t row_idx = static_cast<size_t>(batch.base_rowid + i);
+        // loop over output groups
+        for (int gid = 0; gid < ngroup; ++gid) {
+          bst_float *p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
+          // calculate linear terms' contributions
+          for (bst_uint c = 0; c < inst.length; ++c) {
+            if (inst[c].index >= model.param.num_feature) continue;
+            p_contribs[inst[c].index] = inst[c].fvalue * model[inst[c].index][gid];
+          }
+          // add base margin to BIAS
+          p_contribs[ncolumns - 1] = model.bias()[gid] +
+            ((base_margin.size() != 0) ? base_margin[row_idx * ngroup + gid] : base_margin_);
+        }
+      }
+    }
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                      bool with_stats,
                                      std::string format) const override {
+    const int ngroup = model.param.num_output_group;
+    const unsigned nfeature = model.param.num_feature;
+
     std::stringstream fo("");
     if (format == "json") {
       fo << "  { \"bias\": [" << std::endl;
-      for (int i = 0; i < model.param.num_output_group; ++i) {
-        if (i != 0) fo << "," << std::endl;
-        fo << "      " << model.bias()[i];
+      for (int gid = 0; gid < ngroup; ++gid) {
+        if (gid != 0) fo << "," << std::endl;
+        fo << "      " << model.bias()[gid];
       }
       fo << std::endl << "    ]," << std::endl
          << "    \"weight\": [" << std::endl;
-      for (int i = 0; i < model.param.num_output_group; ++i) {
-        for (unsigned j = 0; j < model.param.num_feature; ++j) {
-          if (i != 0 || j != 0) fo << "," << std::endl;
-          fo << "      " << model[i][j];
+      for (unsigned i = 0; i < nfeature; ++i) {
+        for (int gid = 0; gid < ngroup; ++gid) {
+          if (i != 0 || gid != 0) fo << "," << std::endl;
+          fo << "      " << model[i][gid];
         }
       }
       fo << std::endl << "    ]" << std::endl << "  }";
     } else {
       fo << "bias:\n";
-      for (int i = 0; i < model.param.num_output_group; ++i) {
-        fo << model.bias()[i] << std::endl;
+      for (int gid = 0; gid < ngroup; ++gid) {
+        fo << model.bias()[gid] << std::endl;
       }
       fo << "weight:\n";
-      for (int i = 0; i < model.param.num_output_group; ++i) {
-        for (unsigned j = 0; j <model.param.num_feature; ++j) {
-          fo << model[i][j] << std::endl;
+      for (unsigned i = 0; i < nfeature; ++i) {
+        for (int gid = 0; gid < ngroup; ++gid) {
+          fo << model[i][gid] << std::endl;
         }
       }
     }

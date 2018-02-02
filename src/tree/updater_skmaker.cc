@@ -98,12 +98,12 @@ class SketchMaker: public BaseMaker {
                     const MetaInfo &info,
                     bst_uint ridx) {
       const bst_gpair &b = gpair[ridx];
-      if (b.grad >= 0.0f) {
-        pos_grad += b.grad;
+      if (b.GetGrad() >= 0.0f) {
+        pos_grad += b.GetGrad();
       } else {
-        neg_grad -= b.grad;
+        neg_grad -= b.GetGrad();
       }
-      sum_hess += b.hess;
+      sum_hess += b.GetHess();
     }
     /*! \brief calculate gain of the solution */
     inline double CalcGain(const TrainParam &param) const {
@@ -199,12 +199,12 @@ class SketchMaker: public BaseMaker {
         const int nid = this->position[ridx];
         if (nid >= 0) {
           const bst_gpair &e = gpair[ridx];
-          if (e.grad >= 0.0f) {
-            sbuilder[3 * nid + 0].sum_total += e.grad;
+          if (e.GetGrad() >= 0.0f) {
+            sbuilder[3 * nid + 0].sum_total += e.GetGrad();
           } else {
-            sbuilder[3 * nid + 1].sum_total -= e.grad;
+            sbuilder[3 * nid + 1].sum_total -= e.GetGrad();
           }
-          sbuilder[3 * nid + 2].sum_total += e.hess;
+          sbuilder[3 * nid + 2].sum_total += e.GetHess();
         }
       }
     } else {
@@ -241,12 +241,12 @@ class SketchMaker: public BaseMaker {
       const int nid = this->position[ridx];
       if (nid >= 0) {
         const bst_gpair &e = gpair[ridx];
-        if (e.grad >= 0.0f) {
-          sbuilder[3 * nid + 0].Push(c[j].fvalue, e.grad, max_size);
+        if (e.GetGrad() >= 0.0f) {
+          sbuilder[3 * nid + 0].Push(c[j].fvalue, e.GetGrad(), max_size);
         } else {
-          sbuilder[3 * nid + 1].Push(c[j].fvalue, -e.grad, max_size);
+          sbuilder[3 * nid + 1].Push(c[j].fvalue, -e.GetGrad(), max_size);
         }
-        sbuilder[3 * nid + 2].Push(c[j].fvalue, e.hess, max_size);
+        sbuilder[3 * nid + 2].Push(c[j].fvalue, e.GetHess(), max_size);
       }
     }
     for (size_t i = 0; i < this->qexpand.size(); ++i) {

@@ -1,4 +1,4 @@
-# Simple interface for training an xgboost model that wraps \code{xgb.train}
+# Simple interface for training an xgboost model that wraps \code{xgb.train}.
 # Its documentation is combined with xgb.train.
 #
 #' @rdname xgb.train
@@ -7,7 +7,7 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                     params = list(), nrounds,
                     verbose = 1, print_every_n = 1L, 
                     early_stopping_rounds = NULL, maximize = NULL, 
-                    save_period = 0, save_name = "xgboost.model",
+                    save_period = NULL, save_name = "xgboost.model",
                     xgb_model = NULL, callbacks = list(), ...) {
 
   dtrain <- xgb.get.DMatrix(data, label, missing, weight)
@@ -100,10 +100,13 @@ NULL
 #' @importFrom stats median
 #' @importFrom utils head
 #' @importFrom graphics barplot
+#' @importFrom graphics lines
+#' @importFrom graphics points
 #' @importFrom graphics grid
 #' @importFrom graphics par
 #' @importFrom graphics title
+#' @importFrom grDevices rgb
 #' 
 #' @import methods
-#' @useDynLib xgboost
+#' @useDynLib xgboost, .registration = TRUE
 NULL

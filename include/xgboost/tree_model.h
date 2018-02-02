@@ -14,6 +14,7 @@
 #include <string>
 #include <cstring>
 #include <algorithm>
+#include <tuple>
 #include "./base.h"
 #include "./data.h"
 #include "./logging.h"
@@ -271,6 +272,10 @@ class TreeModel {
   inline const Node& operator[](int nid) const {
     return nodes[nid];
   }
+
+  /*! \brief get const reference to nodes */
+  inline const std::vector<Node>& GetNodes() const { return nodes; }
+
   /*! \brief get node statistics given nid */
   inline NodeStat& stat(int nid) {
     return stats[nid];
@@ -407,6 +412,20 @@ struct RTreeNodeStat {
   int leaf_child_cnt;
 };
 
+// Used by TreeShap
+// data we keep about our decision path
+// note that pweight is included for convenience and is not tied with the other attributes
+// the pweight of the i'th path element is the permuation weight of paths with i-1 ones in them
+struct PathElement {
+  int feature_index;
+  bst_float zero_fraction;
+  bst_float one_fraction;
+  bst_float pweight;
+  PathElement() {}
+  PathElement(int i, bst_float z, bst_float o, bst_float w) :
+    feature_index(i), zero_fraction(z), one_fraction(o), pweight(w) {}
+};
+
 /*!
  * \brief define regression tree to be the most common tree model.
  *  This is the data structure used in xgboost's major tree models.
@@ -434,6 +453,11 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
      * \param inst The sparse instance to drop.
      */
     inline void Drop(const RowBatch::Inst& inst);
+    /*!
+     * \brief returns the size of the feature vector
+     * \return the size of the feature vector
+     */
+    inline size_t size() const;
     /*!
      * \brief get ith value
      * \param i feature index.
@@ -473,6 +497,27 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
    */
   inline bst_float Predict(const FVec& feat, unsigned root_id = 0) const;
   /*!
+   * \brief calculate the feature contributions (https://arxiv.org/abs/1706.06060) for the tree
+   * \param feat dense feature vector, if the feature is missing the field is set to NaN
+   * \param root_id starting root index of the instance
+   * \param out_contribs output vector to hold the contributions
+   */
+  inline void CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+                                     bst_float *out_contribs) const;
+  inline void TreeShap(const RegTree::FVec& feat, bst_float *phi,
+                       unsigned node_index, unsigned unique_depth,
+                       PathElement *parent_unique_path, bst_float parent_zero_fraction,
+                       bst_float parent_one_fraction, int parent_feature_index) const;
+
+  /*!
+   * \brief calculate the approximate feature contributions for the given root
+   * \param feat dense feature vector, if the feature is missing the field is set to NaN
+   * \param root_id starting root index of the instance
+   * \param out_contribs output vector to hold the contributions
+   */
+  inline void CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
+                                           bst_float *out_contribs) const;
+  /*!
    * \brief get next position of the tree given current pid
    * \param pid Current node id.
    * \param fvalue feature value if not missing.
@@ -489,6 +534,15 @@ class RegTree: public TreeModel<bst_float, RTreeNodeStat> {
   std::string DumpModel(const FeatureMap& fmap,
                         bool with_stats,
                         std::string format) const;
+  /*!
+   * \brief calculate the mean value for each node, required for feature contributions
+   */
+  inline void FillNodeMeanValues();
+
+ private:
+  inline bst_float FillNodeMeanValue(int nid);
+
+  std::vector<bst_float> node_mean_values;
 };
 
 // implementations of inline functions
@@ -513,6 +567,10 @@ inline void RegTree::FVec::Drop(const RowBatch::Inst& inst) {
   }
 }
 
+inline size_t RegTree::FVec::size() const {
+  return data.size();
+}
+
 inline bst_float RegTree::FVec::fvalue(size_t i) const {
   return data[i].fvalue;
 }
@@ -533,6 +591,208 @@ inline int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) co
 inline bst_float RegTree::Predict(const RegTree::FVec& feat, unsigned root_id) const {
   int pid = this->GetLeafIndex(feat, root_id);
   return (*this)[pid].leaf_value();
+}
+
+inline void RegTree::FillNodeMeanValues() {
+  size_t num_nodes = this->param.num_nodes;
+  if (this->node_mean_values.size() == num_nodes) {
+    return;
+  }
+  this->node_mean_values.resize(num_nodes);
+  for (int root_id = 0; root_id < param.num_roots; ++root_id) {
+    this->FillNodeMeanValue(root_id);
+  }
+}
+
+inline bst_float RegTree::FillNodeMeanValue(int nid) {
+  bst_float result;
+  auto& node = (*this)[nid];
+  if (node.is_leaf()) {
+    result = node.leaf_value();
+  } else {
+    result  = this->FillNodeMeanValue(node.cleft()) * this->stat(node.cleft()).sum_hess;
+    result += this->FillNodeMeanValue(node.cright()) * this->stat(node.cright()).sum_hess;
+    result /= this->stat(nid).sum_hess;
+  }
+  this->node_mean_values[nid] = result;
+  return result;
+}
+
+inline void RegTree::CalculateContributionsApprox(const RegTree::FVec& feat, unsigned root_id,
+                                                  bst_float *out_contribs) const {
+  CHECK_GT(this->node_mean_values.size(), 0U);
+  // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
+  bst_float node_value;
+  unsigned split_index;
+  int pid = static_cast<int>(root_id);
+  // update bias value
+  node_value = this->node_mean_values[pid];
+  out_contribs[feat.size()] += node_value;
+  if ((*this)[pid].is_leaf()) {
+    // nothing to do anymore
+    return;
+  }
+  while (!(*this)[pid].is_leaf()) {
+    split_index = (*this)[pid].split_index();
+    pid = this->GetNext(pid, feat.fvalue(split_index), feat.is_missing(split_index));
+    bst_float new_value = this->node_mean_values[pid];
+    // update feature weight
+    out_contribs[split_index] += new_value - node_value;
+    node_value = new_value;
+  }
+  bst_float leaf_value = (*this)[pid].leaf_value();
+  // update leaf feature weight
+  out_contribs[split_index] += leaf_value - node_value;
+}
+
+// extend our decision path with a fraction of one and zero extensions
+inline void ExtendPath(PathElement *unique_path, unsigned unique_depth,
+                       bst_float zero_fraction, bst_float one_fraction, int feature_index) {
+  unique_path[unique_depth].feature_index = feature_index;
+  unique_path[unique_depth].zero_fraction = zero_fraction;
+  unique_path[unique_depth].one_fraction = one_fraction;
+  unique_path[unique_depth].pweight = (unique_depth == 0 ? 1.0f : 0.0f);
+  for (int i = unique_depth - 1; i >= 0; i--) {
+    unique_path[i+1].pweight += one_fraction * unique_path[i].pweight * (i + 1)
+                                / static_cast<bst_float>(unique_depth + 1);
+    unique_path[i].pweight = zero_fraction * unique_path[i].pweight * (unique_depth - i)
+                             / static_cast<bst_float>(unique_depth + 1);
+  }
+}
+
+// undo a previous extension of the decision path
+inline void UnwindPath(PathElement *unique_path, unsigned unique_depth, unsigned path_index) {
+  const bst_float one_fraction = unique_path[path_index].one_fraction;
+  const bst_float zero_fraction = unique_path[path_index].zero_fraction;
+  bst_float next_one_portion = unique_path[unique_depth].pweight;
+
+  for (int i = unique_depth - 1; i >= 0; --i) {
+    if (one_fraction != 0) {
+      const bst_float tmp = unique_path[i].pweight;
+      unique_path[i].pweight = next_one_portion * (unique_depth + 1)
+                               / static_cast<bst_float>((i + 1) * one_fraction);
+      next_one_portion = tmp - unique_path[i].pweight * zero_fraction * (unique_depth - i)
+                               / static_cast<bst_float>(unique_depth + 1);
+    } else {
+      unique_path[i].pweight = (unique_path[i].pweight * (unique_depth + 1))
+                               / static_cast<bst_float>(zero_fraction * (unique_depth - i));
+    }
+  }
+
+  for (auto i = path_index; i < unique_depth; ++i) {
+    unique_path[i].feature_index = unique_path[i+1].feature_index;
+    unique_path[i].zero_fraction = unique_path[i+1].zero_fraction;
+    unique_path[i].one_fraction = unique_path[i+1].one_fraction;
+  }
+}
+
+// determine what the total permuation weight would be if
+// we unwound a previous extension in the decision path
+inline bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_depth,
+                                unsigned path_index) {
+  const bst_float one_fraction = unique_path[path_index].one_fraction;
+  const bst_float zero_fraction = unique_path[path_index].zero_fraction;
+  bst_float next_one_portion = unique_path[unique_depth].pweight;
+  bst_float total = 0;
+  for (int i = unique_depth - 1; i >= 0; --i) {
+    if (one_fraction != 0) {
+      const bst_float tmp = next_one_portion * (unique_depth + 1)
+                            / static_cast<bst_float>((i + 1) * one_fraction);
+      total += tmp;
+      next_one_portion = unique_path[i].pweight - tmp * zero_fraction * ((unique_depth - i)
+                         / static_cast<bst_float>(unique_depth+1));
+    } else {
+      total += (unique_path[i].pweight / zero_fraction) / ((unique_depth - i)
+               / static_cast<bst_float>(unique_depth + 1));
+    }
+  }
+  return total;
+}
+
+// recursive computation of SHAP values for a decision tree
+inline void RegTree::TreeShap(const RegTree::FVec& feat, bst_float *phi,
+                              unsigned node_index, unsigned unique_depth,
+                              PathElement *parent_unique_path, bst_float parent_zero_fraction,
+                              bst_float parent_one_fraction, int parent_feature_index) const {
+  const auto node = (*this)[node_index];
+
+  // extend the unique path
+  PathElement *unique_path = parent_unique_path + unique_depth;
+  if (unique_depth > 0) std::copy(parent_unique_path,
+                                  parent_unique_path + unique_depth, unique_path);
+  ExtendPath(unique_path, unique_depth, parent_zero_fraction,
+             parent_one_fraction, parent_feature_index);
+  const unsigned split_index = node.split_index();
+
+  // leaf node
+  if (node.is_leaf()) {
+    for (unsigned i = 1; i <= unique_depth; ++i) {
+      const bst_float w = UnwoundPathSum(unique_path, unique_depth, i);
+      const PathElement &el = unique_path[i];
+      phi[el.feature_index] += w * (el.one_fraction - el.zero_fraction) * node.leaf_value();
+    }
+
+  // internal node
+  } else {
+    // find which branch is "hot" (meaning x would follow it)
+    unsigned hot_index = 0;
+    if (feat.is_missing(split_index)) {
+      hot_index = node.cdefault();
+    } else if (feat.fvalue(split_index) < node.split_cond()) {
+      hot_index = node.cleft();
+    } else {
+      hot_index = node.cright();
+    }
+    const unsigned cold_index = (static_cast<int>(hot_index) == node.cleft() ?
+                                 node.cright() : node.cleft());
+    const bst_float w = this->stat(node_index).sum_hess;
+    const bst_float hot_zero_fraction = this->stat(hot_index).sum_hess / w;
+    const bst_float cold_zero_fraction = this->stat(cold_index).sum_hess / w;
+    bst_float incoming_zero_fraction = 1;
+    bst_float incoming_one_fraction = 1;
+
+    // see if we have already split on this feature,
+    // if so we undo that split so we can redo it for this node
+    unsigned path_index = 0;
+    for (; path_index <= unique_depth; ++path_index) {
+      if (static_cast<unsigned>(unique_path[path_index].feature_index) == split_index) break;
+    }
+    if (path_index != unique_depth + 1) {
+      incoming_zero_fraction = unique_path[path_index].zero_fraction;
+      incoming_one_fraction = unique_path[path_index].one_fraction;
+      UnwindPath(unique_path, unique_depth, path_index);
+      unique_depth -= 1;
+    }
+
+    TreeShap(feat, phi, hot_index, unique_depth + 1, unique_path,
+             hot_zero_fraction*incoming_zero_fraction, incoming_one_fraction, split_index);
+
+    TreeShap(feat, phi, cold_index, unique_depth + 1, unique_path,
+             cold_zero_fraction*incoming_zero_fraction, 0, split_index);
+  }
+}
+
+inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned root_id,
+                                            bst_float *out_contribs) const {
+  // find the expected value of the tree's predictions
+  bst_float base_value = 0.0f;
+  bst_float total_cover = 0.0f;
+  for (int i = 0; i < (*this).param.num_nodes; ++i) {
+    const auto node = (*this)[i];
+    if (node.is_leaf()) {
+      const auto cover = this->stat(i).sum_hess;
+      base_value += cover * node.leaf_value();
+      total_cover += cover;
+    }
+  }
+  out_contribs[feat.size()] += base_value / total_cover;
+
+  // Preallocate space for the unique path data
+  const int maxd = this->MaxDepth(root_id) + 1;
+  PathElement *unique_path_data = new PathElement[(maxd * (maxd + 1)) / 2];
+
+  TreeShap(feat, out_contribs, root_id, 0, unique_path_data, 1, 1, -1);
+  delete[] unique_path_data;
 }
 
 /*! \brief get next position of the tree given current pid */

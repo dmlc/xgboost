@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, exec-used
+# pylint: disable=invalid-name, exec-used, no-self-use, missing-docstring
 """Setup xgboost package."""
 from __future__ import absolute_import
 import sys
@@ -41,15 +41,14 @@ LIB_PATH = libpath['find_lib_path']()
 # python setup.py register sdist upload
 # and be sure to test it firstly using "python setup.py register sdist upload -r pypitest"
 setup(name='xgboost',
-      # version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
-      version='0.6a2',
+      version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
       description='XGBoost Python Package',
       install_requires=[
           'numpy',
           'scipy',
       ],
-      maintainer='Hongliang Liu',
-      maintainer_email='phunter.lau@gmail.com',
+      maintainer='Hyunsu Cho',
+      maintainer_email='chohyu01@cs.washington.edu',
       zip_safe=False,
       packages=find_packages(),
       # don't need this and don't use this, give everything to MANIFEST.in

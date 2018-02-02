@@ -63,7 +63,7 @@
 xgb.plot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med.depth", "med.weight"),
                               plot = TRUE, ...) {
   
-  if (!(class(model) == "xgb.Booster" || is.data.table(model)))
+  if (!(inherits(model, "xgb.Booster") || is.data.table(model)))
     stop("model: Has to be either an xgb.Booster model generaged by the xgb.train function\n",
          "or a data.table result of the xgb.importance function")
 
@@ -73,14 +73,14 @@ xgb.plot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med.d
   which <- match.arg(which)
   
   dt_tree <- model
-  if (class(model) == "xgb.Booster")
+  if (inherits(model, "xgb.Booster"))
     dt_tree <- xgb.model.dt.tree(model = model)
   
   if (!all(c("Feature", "Tree", "ID", "Yes", "No", "Cover") %in% colnames(dt_tree)))
     stop("Model tree columns are not as expected!\n",
          "  Note that this function works only for tree models.")
   
-  dt_depths <- merge(get.leaf.depth(dt_tree), dt_tree[, .(ID, Cover, Weight=Quality)], by = "ID")
+  dt_depths <- merge(get.leaf.depth(dt_tree), dt_tree[, .(ID, Cover, Weight = Quality)], by = "ID")
   setkeyv(dt_depths, c("Tree", "ID"))
   # count by depth levels, and also calculate average cover at a depth
   dt_summaries <- dt_depths[, .(.N, Cover = mean(Cover)), Depth]
@@ -89,13 +89,13 @@ xgb.plot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med.d
   if (plot) {
     if (which == "2x1") {
       op <- par(no.readonly = TRUE)
-      par(mfrow=c(2,1),
+      par(mfrow = c(2,1),
           oma = c(3,1,3,1) + 0.1,
           mar = c(1,4,1,0) + 0.1)
 
-      dt_summaries[, barplot(N, border=NA, ylab = 'Number of leafs', ...)]
+      dt_summaries[, barplot(N, border = NA, ylab = 'Number of leafs', ...)]
 
-      dt_summaries[, barplot(Cover, border=NA, ylab = "Weighted cover", names.arg=Depth, ...)]
+      dt_summaries[, barplot(Cover, border = NA, ylab = "Weighted cover", names.arg = Depth, ...)]
     
       title("Model complexity", xlab = "Leaf depth", outer = TRUE, line = 1)
       par(op)
@@ -119,8 +119,8 @@ xgb.plot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med.d
 get.leaf.depth <- function(dt_tree) {
   # extract tree graph's edges
   dt_edges <- rbindlist(list(
-      dt_tree[Feature != "Leaf", .(ID, To=Yes, Tree)],
-      dt_tree[Feature != "Leaf", .(ID, To=No, Tree)]
+      dt_tree[Feature != "Leaf", .(ID, To = Yes, Tree)],
+      dt_tree[Feature != "Leaf", .(ID, To = No, Tree)]
     ))
   # whether "To" is a leaf:
   dt_edges <- 
