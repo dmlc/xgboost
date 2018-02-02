@@ -1,30 +1,14 @@
 package ml.dmlc.xgboost4j.java;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.Map;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 
 /**
  * Rabit global class for synchronization.
  */
 public class Rabit {
-  private static final Log logger = LogFactory.getLog(DMatrix.class);
-  //load native library
-  static {
-    try {
-      NativeLibLoader.initXGBoost();
-    } catch (IOException ex) {
-      logger.error("load native library failed.");
-      logger.error(ex);
-    }
-  }
-
   public enum OpType implements Serializable {
     MAX(0), MIN(1), SUM(2), BITWISE_OR(3);
 

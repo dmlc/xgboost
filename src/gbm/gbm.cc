@@ -21,6 +21,19 @@ GradientBooster* GradientBooster::Create(
   }
   return (e->body)(cache_mats, base_margin);
 }
+
+void GradientBooster::DoBoost(DMatrix* p_fmat,
+                     HostDeviceVector<bst_gpair>* in_gpair,
+                     ObjFunction* obj) {
+  DoBoost(p_fmat, &in_gpair->data_h(), obj);
+}
+
+void GradientBooster::PredictBatch(DMatrix* dmat,
+                                   HostDeviceVector<bst_float>* out_preds,
+                                   unsigned ntree_limit) {
+  PredictBatch(dmat, &out_preds->data_h(), ntree_limit);
+}
+
 }  // namespace xgboost
 
 namespace xgboost {

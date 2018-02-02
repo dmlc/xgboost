@@ -11,6 +11,9 @@
 #include <limits>
 #include <vector>
 #include "row_set.h"
+#include "../tree/fast_hist_param.h"
+
+using xgboost::tree::FastHistParam;
 
 namespace xgboost {
 namespace common {
@@ -24,10 +27,14 @@ struct GHistEntry {
 
   GHistEntry() : sum_grad(0), sum_hess(0) {}
 
+  inline void Clear() {
+    sum_grad = sum_hess = 0;
+  }
+
   /*! \brief add a bst_gpair to the sum */
   inline void Add(const bst_gpair& e) {
-    sum_grad += e.grad;
-    sum_hess += e.hess;
+    sum_grad += e.GetGrad();
+    sum_hess += e.GetHess();
   }
 
   /*! \brief add a GHistEntry to the sum */
@@ -49,30 +56,30 @@ struct HistCutUnit {
   /*! \brief the index pointer of each histunit */
   const bst_float* cut;
   /*! \brief number of cutting point, containing the maximum point */
-  size_t size;
+  uint32_t size;
   // default constructor
   HistCutUnit() {}
   // constructor
-  HistCutUnit(const bst_float* cut, unsigned size)
+  HistCutUnit(const bst_float* cut, uint32_t size)
       : cut(cut), size(size) {}
 };
 
 /*! \brief cut configuration for all the features */
 struct HistCutMatrix {
-  /*! \brief actual unit pointer */
-  std::vector<unsigned> row_ptr;
+  /*! \brief unit pointer to rows by element position */
+  std::vector<uint32_t> row_ptr;
   /*! \brief minimum value of each feature */
   std::vector<bst_float> min_val;
   /*! \brief the cut field */
   std::vector<bst_float> cut;
   /*! \brief Get histogram bound for fid */
-  inline HistCutUnit operator[](unsigned fid) const {
+  inline HistCutUnit operator[](bst_uint fid) const {
     return HistCutUnit(dmlc::BeginPtr(cut) + row_ptr[fid],
                        row_ptr[fid + 1] - row_ptr[fid]);
   }
   // create histogram cut matrix given statistics from data
   // using approximate quantile sketch approach
-  void Init(DMatrix* p_fmat, size_t max_num_bins);
+  void Init(DMatrix* p_fmat, uint32_t max_num_bins);
 };
 
 
@@ -82,11 +89,11 @@ struct HistCutMatrix {
  */
 struct GHistIndexRow {
   /*! \brief The index of the histogram */
-  const unsigned* index;
+  const uint32_t* index;
   /*! \brief The size of the histogram */
-  unsigned size;
+  size_t size;
   GHistIndexRow() {}
-  GHistIndexRow(const unsigned* index, unsigned size)
+  GHistIndexRow(const uint32_t* index, size_t size)
       : index(index), size(size) {}
 };
 
@@ -96,33 +103,75 @@ struct GHistIndexRow {
  *  This is a global histogram index.
  */
 struct GHistIndexMatrix {
-  /*! \brief row pointer */
-  std::vector<unsigned> row_ptr;
+  /*! \brief row pointer to rows by element position */
+  std::vector<size_t> row_ptr;
   /*! \brief The index data */
-  std::vector<unsigned> index;
+  std::vector<uint32_t> index;
   /*! \brief hit count of each index */
-  std::vector<unsigned> hit_count;
+  std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   const HistCutMatrix* cut;
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat);
   // get i-th row
-  inline GHistIndexRow operator[](bst_uint i) const {
+  inline GHistIndexRow operator[](size_t i) const {
     return GHistIndexRow(&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]);
   }
-  inline void GetFeatureCounts(bst_uint* counts) const {
-    const unsigned nfeature = cut->row_ptr.size() - 1;
+  inline void GetFeatureCounts(size_t* counts) const {
+    auto nfeature = cut->row_ptr.size() - 1;
     for (unsigned fid = 0; fid < nfeature; ++fid) {
-      const unsigned ibegin = cut->row_ptr[fid];
-      const unsigned iend = cut->row_ptr[fid + 1];
-      for (unsigned i = ibegin; i < iend; ++i) {
+      auto ibegin = cut->row_ptr[fid];
+      auto iend = cut->row_ptr[fid + 1];
+      for (auto i = ibegin; i < iend; ++i) {
         counts[fid] += hit_count[i];
       }
     }
   }
 
  private:
-  std::vector<unsigned> hit_count_tloc_;
+  std::vector<size_t> hit_count_tloc_;
+};
+
+struct GHistIndexBlock {
+  const size_t* row_ptr;
+  const uint32_t* index;
+
+  inline GHistIndexBlock(const size_t* row_ptr, const uint32_t* index)
+    : row_ptr(row_ptr), index(index) {}
+
+  // get i-th row
+  inline GHistIndexRow operator[](size_t i) const {
+    return GHistIndexRow(&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]);
+  }
+};
+
+class ColumnMatrix;
+
+class GHistIndexBlockMatrix {
+ public:
+  void Init(const GHistIndexMatrix& gmat,
+            const ColumnMatrix& colmat,
+            const FastHistParam& param);
+
+  inline GHistIndexBlock operator[](size_t i) const {
+    return GHistIndexBlock(blocks[i].row_ptr_begin, blocks[i].index_begin);
+  }
+
+  inline size_t GetNumBlock() const {
+    return blocks.size();
+  }
+
+ private:
+  std::vector<size_t> row_ptr;
+  std::vector<uint32_t> index;
+  const HistCutMatrix* cut;
+  struct Block {
+    const size_t* row_ptr_begin;
+    const size_t* row_ptr_end;
+    const uint32_t* index_begin;
+    const uint32_t* index_end;
+  };
+  std::vector<Block> blocks;
 };
 
 /*!
@@ -135,10 +184,10 @@ struct GHistRow {
   /*! \brief base pointer to first entry */
   GHistEntry* begin;
   /*! \brief number of entries */
-  unsigned size;
+  uint32_t size;
 
   GHistRow() {}
-  GHistRow(GHistEntry* begin, unsigned size)
+  GHistRow(GHistEntry* begin, uint32_t size)
     : begin(begin), size(size) {}
 };
 
@@ -149,19 +198,19 @@ class HistCollection {
  public:
   // access histogram for i-th node
   inline GHistRow operator[](bst_uint nid) const {
-    const size_t kMax = std::numeric_limits<size_t>::max();
+    const uint32_t kMax = std::numeric_limits<uint32_t>::max();
     CHECK_NE(row_ptr_[nid], kMax);
     return GHistRow(const_cast<GHistEntry*>(dmlc::BeginPtr(data_) + row_ptr_[nid]), nbins_);
   }
 
   // have we computed a histogram for i-th node?
   inline bool RowExists(bst_uint nid) const {
-    const size_t kMax = std::numeric_limits<size_t>::max();
+    const uint32_t kMax = std::numeric_limits<uint32_t>::max();
     return (nid < row_ptr_.size() && row_ptr_[nid] != kMax);
   }
 
   // initialize histogram collection
-  inline void Init(size_t nbins) {
+  inline void Init(uint32_t nbins) {
     nbins_ = nbins;
     row_ptr_.clear();
     data_.clear();
@@ -169,7 +218,7 @@ class HistCollection {
 
   // create an empty histogram for i-th node
   inline void AddHistRow(bst_uint nid) {
-    const size_t kMax = std::numeric_limits<size_t>::max();
+    const uint32_t kMax = std::numeric_limits<uint32_t>::max();
     if (nid >= row_ptr_.size()) {
       row_ptr_.resize(nid + 1, kMax);
     }
@@ -181,7 +230,7 @@ class HistCollection {
 
  private:
   /*! \brief number of all bins over all features */
-  size_t nbins_;
+  uint32_t nbins_;
 
   std::vector<GHistEntry> data_;
 
@@ -195,7 +244,7 @@ class HistCollection {
 class GHistBuilder {
  public:
   // initialize builder
-  inline void Init(size_t nthread, size_t nbins) {
+  inline void Init(size_t nthread, uint32_t nbins) {
     nthread_ = nthread;
     nbins_ = nbins;
   }
@@ -206,6 +255,12 @@ class GHistBuilder {
                  const GHistIndexMatrix& gmat,
                  const std::vector<bst_uint>& feat_set,
                  GHistRow hist);
+  // same, with feature grouping
+  void BuildBlockHist(const std::vector<bst_gpair>& gpair,
+                      const RowSetCollection::Elem row_indices,
+                      const GHistIndexBlockMatrix& gmatb,
+                      const std::vector<bst_uint>& feat_set,
+                      GHistRow hist);
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
@@ -213,9 +268,8 @@ class GHistBuilder {
   /*! \brief number of threads for parallel computation */
   size_t nthread_;
   /*! \brief number of all bins over all features */
-  size_t nbins_;
+  uint32_t nbins_;
   std::vector<GHistEntry> data_;
-  std::vector<bst_gpair> stat_buf_;
 };
 
 

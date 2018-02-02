@@ -4,7 +4,7 @@ ENABLE_STD_THREAD=0
 # _*_ mode: Makefile; _*_
 
 # This file is only used for windows compilation from github
-# It will be replaced by Makevars in CRAN version
+# It will be replaced with Makevars.in for the CRAN version
 .PHONY: all xgblib
 all: $(SHLIB)
 $(SHLIB): xgblib
@@ -22,10 +22,16 @@ XGB_RFLAGS = -DXGBOOST_STRICT_R_MODE=1 -DDMLC_LOG_BEFORE_THROW=0\
            -DDMLC_LOG_CUSTOMIZE=1 -DXGBOOST_CUSTOMIZE_LOGGER=1\
            -DRABIT_CUSTOMIZE_MSG_ -DRABIT_STRICT_CXX98_
 
+# disable the use of thread_local for 32 bit windows:
+ifeq ($(R_OSTYPE)$(WIN),windows)
+    XGB_RFLAGS += -DDMLC_CXX11_THREAD_LOCAL=0
+endif
+$(foreach v, $(XGB_RFLAGS), $(warning $(v)))
+
 PKG_CPPFLAGS=  -I$(PKGROOT)/include -I$(PKGROOT)/dmlc-core/include -I$(PKGROOT)/rabit/include -I$(PKGROOT) $(XGB_RFLAGS)
 PKG_CXXFLAGS= $(SHLIB_OPENMP_CFLAGS) $(SHLIB_PTHREAD_FLAGS)
 PKG_LIBS = $(SHLIB_OPENMP_CFLAGS) $(SHLIB_PTHREAD_FLAGS)
-OBJECTS= ./xgboost_R.o ./xgboost_custom.o ./xgboost_assert.o\
+OBJECTS= ./xgboost_R.o ./xgboost_custom.o ./xgboost_assert.o ./init.o\
          $(PKGROOT)/amalgamation/xgboost-all0.o $(PKGROOT)/amalgamation/dmlc-minimum0.o\
          $(PKGROOT)/rabit/src/engine_empty.o $(PKGROOT)/rabit/src/c_api.o
 

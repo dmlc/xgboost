@@ -138,7 +138,7 @@ class ColMaker: public TreeUpdater {
         // mark delete for the deleted datas
         for (size_t i = 0; i < rowset.size(); ++i) {
           const bst_uint ridx = rowset[i];
-          if (gpair[ridx].hess < 0.0f) position[ridx] = ~position[ridx];
+          if (gpair[ridx].GetHess() < 0.0f) position[ridx] = ~position[ridx];
         }
         // mark subsample
         if (param.subsample < 1.0f) {
@@ -146,7 +146,7 @@ class ColMaker: public TreeUpdater {
           auto& rnd = common::GlobalRandom();
           for (size_t i = 0; i < rowset.size(); ++i) {
             const bst_uint ridx = rowset[i];
-            if (gpair[ridx].hess < 0.0f) continue;
+            if (gpair[ridx].GetHess() < 0.0f) continue;
             if (!coin_flip(rnd)) position[ridx] = ~position[ridx];
           }
         }
@@ -159,11 +159,11 @@ class ColMaker: public TreeUpdater {
             feat_index.push_back(i);
           }
         }
-        unsigned n = static_cast<unsigned>(param.colsample_bytree * feat_index.size());
+        unsigned n = std::max(static_cast<unsigned>(1),
+                              static_cast<unsigned>(param.colsample_bytree * feat_index.size()));
         std::shuffle(feat_index.begin(), feat_index.end(), common::GlobalRandom());
-        CHECK_GT(n, 0U)
-            << "colsample_bytree=" << param.colsample_bytree
-            << " is too small that no feature can be included";
+        CHECK_GT(param.colsample_bytree, 0U)
+            << "colsample_bytree cannot be zero.";
         feat_index.resize(n);
       }
       {
@@ -376,7 +376,9 @@ class ColMaker: public TreeUpdater {
             if (c.sum_hess >= param.min_child_weight &&
                 e.stats.sum_hess >= param.min_child_weight) {
               bst_float loss_chg = static_cast<bst_float>(
-                  constraints_[nid].CalcSplitGain(param, fid, e.stats, c) - snode[nid].root_gain);
+                  constraints_[nid].CalcSplitGain(
+                      param, param.monotone_constraints[fid], e.stats, c) -
+                  snode[nid].root_gain);
               e.best.Update(loss_chg, fid, fsplit, false);
             }
           }
@@ -386,7 +388,9 @@ class ColMaker: public TreeUpdater {
             if (c.sum_hess >= param.min_child_weight &&
                 tmp.sum_hess >= param.min_child_weight) {
               bst_float loss_chg = static_cast<bst_float>(
-                  constraints_[nid].CalcSplitGain(param, fid, tmp, c) - snode[nid].root_gain);
+                  constraints_[nid].CalcSplitGain(
+                      param, param.monotone_constraints[fid], tmp, c) -
+                  snode[nid].root_gain);
               e.best.Update(loss_chg, fid, fsplit, true);
             }
           }
@@ -398,7 +402,9 @@ class ColMaker: public TreeUpdater {
           if (c.sum_hess >= param.min_child_weight &&
               tmp.sum_hess >= param.min_child_weight) {
             bst_float loss_chg = static_cast<bst_float>(
-                constraints_[nid].CalcSplitGain(param, fid, tmp, c) - snode[nid].root_gain);
+                constraints_[nid].CalcSplitGain(
+                    param, param.monotone_constraints[fid], tmp, c) -
+                snode[nid].root_gain);
             e.best.Update(loss_chg, fid, e.last_fvalue + rt_eps, true);
           }
         }
@@ -435,9 +441,11 @@ class ColMaker: public TreeUpdater {
                 if (c.sum_hess >= param.min_child_weight &&
                     e.stats.sum_hess >= param.min_child_weight) {
                   bst_float loss_chg = static_cast<bst_float>(
-                      constraints_[nid].CalcSplitGain(param, fid, e.stats, c) -
+                      constraints_[nid].CalcSplitGain(
+                          param, param.monotone_constraints[fid], e.stats, c) -
                       snode[nid].root_gain);
-                  e.best.Update(loss_chg, fid, (fvalue + e.first_fvalue) * 0.5f, false);
+                  e.best.Update(loss_chg, fid, (fvalue + e.first_fvalue) * 0.5f,
+                                false);
                 }
               }
               if (need_backward) {
@@ -446,7 +454,8 @@ class ColMaker: public TreeUpdater {
                 if (c.sum_hess >= param.min_child_weight &&
                     cright.sum_hess >= param.min_child_weight) {
                   bst_float loss_chg = static_cast<bst_float>(
-                      constraints_[nid].CalcSplitGain(param, fid, c, cright) -
+                      constraints_[nid].CalcSplitGain(
+                          param, param.monotone_constraints[fid], c, cright) -
                       snode[nid].root_gain);
                   e.best.Update(loss_chg, fid, (fvalue + e.first_fvalue) * 0.5f, true);
                 }
@@ -477,12 +486,17 @@ class ColMaker: public TreeUpdater {
             bst_float loss_chg;
             if (d_step == -1) {
               loss_chg = static_cast<bst_float>(
-                  constraints_[nid].CalcSplitGain(param, fid, c, e.stats) - snode[nid].root_gain);
+                  constraints_[nid].CalcSplitGain(
+                      param, param.monotone_constraints[fid], c, e.stats) -
+                  snode[nid].root_gain);
             } else {
               loss_chg = static_cast<bst_float>(
-                  constraints_[nid].CalcSplitGain(param, fid, e.stats, c) - snode[nid].root_gain);
+                  constraints_[nid].CalcSplitGain(
+                      param, param.monotone_constraints[fid], e.stats, c) -
+                  snode[nid].root_gain);
             }
-            e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f, d_step == -1);
+            e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f,
+                          d_step == -1);
           }
         }
         // update the statistics
@@ -568,10 +582,14 @@ class ColMaker: public TreeUpdater {
           bst_float loss_chg;
           if (d_step == -1) {
             loss_chg = static_cast<bst_float>(
-                constraints_[nid].CalcSplitGain(param, fid, c, e.stats) - snode[nid].root_gain);
+                constraints_[nid].CalcSplitGain(
+                    param, param.monotone_constraints[fid], c, e.stats) -
+                snode[nid].root_gain);
           } else {
             loss_chg = static_cast<bst_float>(
-                constraints_[nid].CalcSplitGain(param, fid, e.stats, c) - snode[nid].root_gain);
+                constraints_[nid].CalcSplitGain(
+                    param, param.monotone_constraints[fid], e.stats, c) -
+                snode[nid].root_gain);
           }
           const bst_float gap = std::abs(e.last_fvalue) + rt_eps;
           const bst_float delta = d_step == +1 ? gap: -gap;
@@ -628,11 +646,13 @@ class ColMaker: public TreeUpdater {
               bst_float loss_chg;
               if (d_step == -1) {
                 loss_chg = static_cast<bst_float>(
-                    constraints_[nid].CalcSplitGain(param, fid, c, e.stats) -
+                    constraints_[nid].CalcSplitGain(
+                        param, param.monotone_constraints[fid], c, e.stats) -
                     snode[nid].root_gain);
               } else {
                 loss_chg = static_cast<bst_float>(
-                    constraints_[nid].CalcSplitGain(param, fid, e.stats, c) -
+                    constraints_[nid].CalcSplitGain(
+                        param, param.monotone_constraints[fid], e.stats, c) -
                     snode[nid].root_gain);
               }
               e.best.Update(loss_chg, fid, (fvalue + e.last_fvalue) * 0.5f, d_step == -1);
@@ -648,14 +668,19 @@ class ColMaker: public TreeUpdater {
         const int nid = qexpand[i];
         ThreadEntry &e = temp[nid];
         c.SetSubstract(snode[nid].stats, e.stats);
-        if (e.stats.sum_hess >= param.min_child_weight && c.sum_hess >= param.min_child_weight) {
+        if (e.stats.sum_hess >= param.min_child_weight &&
+            c.sum_hess >= param.min_child_weight) {
           bst_float loss_chg;
           if (d_step == -1) {
             loss_chg = static_cast<bst_float>(
-                constraints_[nid].CalcSplitGain(param, fid, c, e.stats) - snode[nid].root_gain);
+                constraints_[nid].CalcSplitGain(
+                    param, param.monotone_constraints[fid], c, e.stats) -
+                snode[nid].root_gain);
           } else {
             loss_chg = static_cast<bst_float>(
-                constraints_[nid].CalcSplitGain(param, fid, e.stats, c) - snode[nid].root_gain);
+                constraints_[nid].CalcSplitGain(
+                    param, param.monotone_constraints[fid], e.stats, c) -
+                snode[nid].root_gain);
           }
           const bst_float gap = std::abs(e.last_fvalue) + rt_eps;
           const bst_float delta = d_step == +1 ? gap: -gap;
@@ -710,9 +735,10 @@ class ColMaker: public TreeUpdater {
       std::vector<bst_uint> feat_set = feat_index;
       if (param.colsample_bylevel != 1.0f) {
         std::shuffle(feat_set.begin(), feat_set.end(), common::GlobalRandom());
-        unsigned n = static_cast<unsigned>(param.colsample_bylevel * feat_index.size());
-        CHECK_GT(n, 0U)
-            << "colsample_bylevel is too small that no feature can be included";
+        unsigned n = std::max(static_cast<unsigned>(1),
+                              static_cast<unsigned>(param.colsample_bylevel * feat_index.size()));
+        CHECK_GT(param.colsample_bylevel, 0U)
+            << "colsample_bylevel cannot be zero.";
         feat_set.resize(n);
       }
       dmlc::DataIter<ColBatch>* iter = p_fmat->ColIterator(feat_set);

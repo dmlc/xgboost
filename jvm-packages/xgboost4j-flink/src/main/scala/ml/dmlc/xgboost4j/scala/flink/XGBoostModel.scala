@@ -17,13 +17,12 @@
 package ml.dmlc.xgboost4j.scala.flink
 
 import ml.dmlc.xgboost4j.LabeledPoint
-import ml.dmlc.xgboost4j.scala.{DMatrix, Booster}
-import org.apache.flink.api.scala.DataSet
-import org.apache.flink.api.scala._
+import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
+
+import org.apache.flink.api.scala.{DataSet, _}
 import org.apache.flink.ml.math.Vector
-import org.apache.hadoop.fs.FileSystem
-import org.apache.hadoop.fs.Path
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileSystem, Path}
 
 class XGBoostModel (booster: Booster) extends Serializable {
   /**
@@ -57,8 +56,7 @@ class XGBoostModel (booster: Booster) extends Serializable {
       (it: Iterator[Vector]) => {
         val mapper = (x: Vector) => {
           val (index, value) = x.toSeq.unzip
-          LabeledPoint.fromSparseVector(0.0f,
-            index.toArray, value.map(z => z.toFloat).toArray)
+          LabeledPoint(0.0f, index.toArray, value.map(_.toFloat).toArray)
         }
         val dataIter = for (x <- it) yield mapper(x)
         val dmat = new DMatrix(dataIter, null)

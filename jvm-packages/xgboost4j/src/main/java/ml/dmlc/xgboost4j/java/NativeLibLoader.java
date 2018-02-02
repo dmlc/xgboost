@@ -21,7 +21,6 @@ import java.lang.reflect.Field;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-
 /**
  * class to load native library
  *
@@ -31,11 +30,11 @@ class NativeLibLoader {
   private static final Log logger = LogFactory.getLog(NativeLibLoader.class);
 
   private static boolean initialized = false;
-  private static final String nativePath = "../lib/";
+  private static final String nativePath = "../../lib/";
   private static final String nativeResourcePath = "/lib/";
   private static final String[] libNames = new String[]{"xgboost4j"};
 
-  public static synchronized void initXGBoost() throws IOException {
+  static synchronized void initXGBoost() throws IOException {
     if (!initialized) {
       for (String libName : libNames) {
         smartLoad(libName);

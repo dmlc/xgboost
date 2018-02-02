@@ -15,7 +15,7 @@
 *.Rcheck
 *.rds
 *.tar.gz
-*txt*
+#*txt*
 *conf
 *buffer
 *model
@@ -89,3 +89,8 @@ build_tests
 
 .DS_Store
 lib/
+
+# spark
+metastore_db
+
+plugin/updater_gpu/test/cpp/data

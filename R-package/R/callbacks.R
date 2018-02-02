@@ -57,7 +57,7 @@ NULL
 #' \code{\link{callbacks}}
 #' 
 #' @export
-cb.print.evaluation <- function(period=1, showsd=TRUE) {
+cb.print.evaluation <- function(period = 1, showsd = TRUE) {
   
   callback <- function(env = parent.frame()) {
     if (length(env$bst_evaluation) == 0 ||
@@ -127,12 +127,12 @@ cb.evaluation.log <- function() {
       # rearrange col order from _mean,_mean,...,_std,_std,...
       # to be _mean,_std,_mean,_std,...
       len <- length(mnames)
-      means <- mnames[1:(len/2)]
+      means <- mnames[seq_len(len/2)]
       stds <- mnames[(len/2 + 1):len]
       cnames <- numeric(len)
       cnames[c(TRUE, FALSE)] <- means
       cnames[c(FALSE, TRUE)] <- stds
-      env$evaluation_log <- env$evaluation_log[, c('iter', cnames), with=FALSE]
+      env$evaluation_log <- env$evaluation_log[, c('iter', cnames), with = FALSE]
     }
   }
   
@@ -290,8 +290,8 @@ cb.reset.parameters <- function(new_params) {
 #' \code{\link{xgb.attr}}
 #' 
 #' @export
-cb.early.stop <- function(stopping_rounds, maximize=FALSE, 
-                          metric_name=NULL, verbose=TRUE) {
+cb.early.stop <- function(stopping_rounds, maximize = FALSE, 
+                          metric_name = NULL, verbose = TRUE) {
   # state variables
   best_iteration <- -1
   best_ntreelimit <- -1
@@ -308,7 +308,7 @@ cb.early.stop <- function(stopping_rounds, maximize=FALSE,
       metric_idx <<- which(gsub('-', '_', metric_name) == eval_names)
       if (length(metric_idx) == 0)
         stop("'metric_name' for early stopping is not one of the following:\n",
-             paste(eval_names, collapse=' '), '\n')
+             paste(eval_names, collapse = ' '), '\n')
     }
     if (is.null(metric_name) &&
         length(env$bst_evaluation) > 1) {
@@ -320,9 +320,9 @@ cb.early.stop <- function(stopping_rounds, maximize=FALSE,
     
     metric_name <<- eval_names[metric_idx]
     
-    # maximixe is usually NULL when not set in xgb.train and built-in metrics
+    # maximize is usually NULL when not set in xgb.train and built-in metrics
     if (is.null(maximize))
-      maximize <<- ifelse(grepl('(_auc|_map|_ndcg)', metric_name), TRUE, FALSE)
+      maximize <<- grepl('(_auc|_map|_ndcg)', metric_name)
 
     if (verbose && NVL(env$rank, 0) == 0)
       cat("Will train until ", metric_name, " hasn't improved in ", 
@@ -334,7 +334,7 @@ cb.early.stop <- function(stopping_rounds, maximize=FALSE,
     env$stop_condition <- FALSE
     
     if (!is.null(env$bst)) {
-      if (class(env$bst) != 'xgb.Booster')
+      if (!inherits(env$bst, 'xgb.Booster'))
         stop("'bst' in the parent frame must be an 'xgb.Booster'")
       if (!is.null(best_score <- xgb.attr(env$bst$handle, 'best_score'))) {
         best_score <<- as.numeric(best_score)
@@ -529,7 +529,7 @@ cb.cv.predict <- function(save_models = FALSE) {
 # 
 
 # Format the evaluation metric string
-format.eval.string <- function(iter, eval_res, eval_err=NULL) {
+format.eval.string <- function(iter, eval_res, eval_err = NULL) {
   if (length(eval_res) == 0)
     stop('no evaluation results')
   enames <- names(eval_res)
@@ -539,9 +539,9 @@ format.eval.string <- function(iter, eval_res, eval_err=NULL) {
   if (!is.null(eval_err)) {
     if (length(eval_res) != length(eval_err))
       stop('eval_res & eval_err lengths mismatch')
-    res <- paste0(sprintf("%s:%f+%f", enames, eval_res, eval_err), collapse='\t')
+    res <- paste0(sprintf("%s:%f+%f", enames, eval_res, eval_err), collapse = '\t')
   } else {
-    res <- paste0(sprintf("%s:%f", enames, eval_res), collapse='\t')
+    res <- paste0(sprintf("%s:%f", enames, eval_res), collapse = '\t')
   }
   return(paste0(iter, res))
 }
@@ -597,7 +597,7 @@ has.callbacks <- function(cb_list, query_names) {
     return(FALSE)
   if (!is.list(cb_list) ||
       any(sapply(cb_list, class) != 'function')) {
-    stop('`cb_list`` must be a list of callback functions')
+    stop('`cb_list` must be a list of callback functions')
   }
   cb_names <- callback.names(cb_list)
   if (!is.character(cb_names) ||

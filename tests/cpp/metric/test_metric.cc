@@ -7,5 +7,5 @@ TEST(Metric, UnknownMetric) {
   EXPECT_ANY_THROW(xgboost::Metric::Create("unknown_name"));
   EXPECT_NO_THROW(xgboost::Metric::Create("rmse"));
   EXPECT_ANY_THROW(xgboost::Metric::Create("unknown_name@1"));
-  EXPECT_NO_THROW(xgboost::Metric::Create("error@0.5"));
+  EXPECT_NO_THROW(xgboost::Metric::Create("error@0.5f"));
 }

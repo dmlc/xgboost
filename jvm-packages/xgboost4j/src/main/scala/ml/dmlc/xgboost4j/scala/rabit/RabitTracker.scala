@@ -127,6 +127,12 @@ private[scala] class RabitTracker(numWorkers: Int, port: Option[Int] = None,
     }
   }
 
+  def stop(): Unit = {
+    if (!system.isTerminated) {
+      system.shutdown()
+    }
+  }
+
   /**
     * Get a Map of necessary environment variables to initiate Rabit workers.
     *

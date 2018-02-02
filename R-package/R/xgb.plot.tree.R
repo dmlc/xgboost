@@ -11,7 +11,7 @@
 #' @param plot_width  the width of the diagram in pixels.
 #' @param plot_height	the height of the diagram in pixels.
 #' @param render a logical flag for whether the graph should be rendered (see Value).
-#' @param show_node_id a logical flag for whether to include node id's in the graph.
+#' @param show_node_id a logical flag for whether to show node id's in the graph.
 #' @param ... currently not used.
 #'
 #' @details 
@@ -53,17 +53,25 @@
 #' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 3,
 #'                eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
 #' # plot all the trees
-#' xgb.plot.tree(feature_names = colnames(agaricus.train$data), model = bst)
-#' # plot only the first tree and include the node ID:
-#' xgb.plot.tree(feature_names = colnames(agaricus.train$data), model = bst,
-#'               trees = 0, show_node_id = TRUE)
+#' xgb.plot.tree(model = bst)
+#' # plot only the first tree and display the node ID:
+#' xgb.plot.tree(model = bst, trees = 0, show_node_id = TRUE)
+#' 
+#' \dontrun{
+#' # Below is an example of how to save this plot to a file. 
+#' # Note that for `export_graph` to work, the DiagrammeRsvg and rsvg packages must also be installed.
+#' library(DiagrammeR)
+#' gr <- xgb.plot.tree(model=bst, trees=0:1, render=FALSE)
+#' export_graph(gr, 'tree.pdf', width=1500, height=1900)
+#' export_graph(gr, 'tree.png', width=1500, height=1900)
+#' }
 #' 
 #' @export
 xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot_width = NULL, plot_height = NULL,
                           render = TRUE, show_node_id = FALSE, ...){
   check.deprecation(...)
-  if (class(model) != "xgb.Booster") {
-    stop("model: Has to be an object of class xgb.Booster model generaged by the xgb.train function.")
+  if (!inherits(model, "xgb.Booster")) {
+    stop("model: Has to be an object of class xgb.Booster")
   }
 
   if (!requireNamespace("DiagrammeR", quietly = TRUE)) {
@@ -87,7 +95,8 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot
     label     = dt$label,
     fillcolor = dt$filledcolor,
     shape     = dt$shape,
-    data      = dt$Feature)
+    data      = dt$Feature,
+    fontcolor = "black")
   
   edges <- DiagrammeR::create_edge_df(
     from  = match(dt[Feature != "Leaf", c(ID)] %>% rep(2), dt$ID),

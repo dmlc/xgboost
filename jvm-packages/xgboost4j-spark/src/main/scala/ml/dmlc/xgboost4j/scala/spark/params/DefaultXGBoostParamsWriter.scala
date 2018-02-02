@@ -46,6 +46,7 @@ private[spark] object DefaultXGBoostParamsWriter {
     sc: SparkContext,
     extraMetadata: Option[JObject] = None,
     paramMap: Option[JValue] = None): Unit = {
+
     val metadataPath = new Path(path, "metadata").toString
     val metadataJson = getMetadataToSave(instance, sc, extraMetadata, paramMap)
     sc.parallelize(Seq(metadataJson), 1).saveAsTextFile(metadataPath)
@@ -65,7 +66,9 @@ private[spark] object DefaultXGBoostParamsWriter {
     val uid = instance.uid
     val cls = instance.getClass.getName
     val params = instance.extractParamMap().toSeq.asInstanceOf[Seq[ParamPair[Any]]]
-    val jsonParams = paramMap.getOrElse(render(params.map {
+    val jsonParams = paramMap.getOrElse(render(params.filter{
+      case ParamPair(p, _) => p != null
+    }.map {
       case ParamPair(p, v) =>
         p.name -> parse(p.jsonEncode(v))
     }.toList))

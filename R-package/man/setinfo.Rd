@@ -28,7 +28,7 @@ The \code{name} field can be one of the following:
     \item \code{label}: label Xgboost learn from ;
     \item \code{weight}: to do a weight rescale ;
     \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
-    \item \code{group}.
+    \item \code{group}: number of rows in each group (to use with \code{rank:pairwise} objective).
 }
 }
 \examples{

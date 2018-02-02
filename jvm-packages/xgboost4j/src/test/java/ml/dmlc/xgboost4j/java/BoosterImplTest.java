@@ -15,19 +15,15 @@
  */
 package ml.dmlc.xgboost4j.java;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import junit.framework.TestCase;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.junit.Test;
 
 /**
@@ -37,16 +33,9 @@ import org.junit.Test;
  */
 public class BoosterImplTest {
   public static class EvalError implements IEvaluation {
-    private static final Log logger = LogFactory.getLog(EvalError.class);
-
-    String evalMetric = "custom_error";
-
-    public EvalError() {
-    }
-
     @Override
     public String getMetric() {
-      return evalMetric;
+      return "custom_error";
     }
 
     @Override
@@ -56,8 +45,7 @@ public class BoosterImplTest {
       try {
         labels = dmat.getLabel();
       } catch (XGBoostError ex) {
-        logger.error(ex);
-        return -1f;
+        throw new RuntimeException(ex);
       }
       int nrow = predicts.length;
       for (int i = 0; i < nrow; i++) {
@@ -150,11 +138,55 @@ public class BoosterImplTest {
     TestCase.assertTrue("loadedPredictErr:" + loadedPredictError, loadedPredictError < 0.1f);
   }
 
+  private static class IncreasingEval implements IEvaluation {
+    private int value = 0;
+
+    @Override
+    public String getMetric() {
+      return "inc";
+    }
+
+    @Override
+    public float eval(float[][] predicts, DMatrix dmat) {
+      return value++;
+    }
+  }
+
+  @Test
+  public void testBoosterEarlyStop() throws XGBoostError, IOException {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+    // testBoosterWithFastHistogram(trainMat, testMat);
+    Map<String, Object> paramMap = new HashMap<String, Object>() {
+      {
+        put("max_depth", 3);
+        put("silent", 1);
+        put("objective", "binary:logistic");
+      }
+    };
+    Map<String, DMatrix> watches = new LinkedHashMap<>();
+    watches.put("training", trainMat);
+    watches.put("test", testMat);
+
+    final int round = 10;
+    int earlyStoppingRound = 2;
+    float[][] metrics = new float[watches.size()][round];
+    XGBoost.train(trainMat, paramMap, round, watches, metrics, null, new IncreasingEval(),
+            earlyStoppingRound);
+
+    // Make sure we've stopped early.
+    for (int w = 0; w < watches.size(); w++) {
+      for (int r = earlyStoppingRound + 1; r < round; r++) {
+        TestCase.assertEquals(0.0f, metrics[w][r]);
+      }
+    }
+  }
+
   private void testWithFastHisto(DMatrix trainingSet, Map<String, DMatrix> watches, int round,
                                       Map<String, Object> paramMap, float threshold) throws XGBoostError {
     float[][] metrics = new float[watches.size()][round];
     Booster booster = XGBoost.train(trainingSet, paramMap, round, watches,
-            metrics, null, null);
+            metrics, null, null, 0);
     for (int i = 0; i < metrics.length; i++)
       for (int j = 1; j < metrics[i].length; j++) {
         TestCase.assertTrue(metrics[i][j] >= metrics[i][j - 1]);
@@ -222,13 +254,23 @@ public class BoosterImplTest {
         put("tree_method", "hist");
         put("grow_policy", "lossguide");
         put("max_leaves", 8);
-        put("max_bins", 16);
+        put("max_bin", 16);
         put("eval_metric", "auc");
       }
     };
     Map<String, DMatrix> watches = new HashMap<>();
     watches.put("training", trainMat);
     testWithFastHisto(trainMat, watches, 10, paramMap, 0.0f);
+  }
+
+  @Test
+  public void testDumpModelJson() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+    String[] dump = booster.getModelDump("", false, "json");
+    TestCase.assertEquals("  { \"nodeid\":", dump[0].substring(0, 13));
   }
 
   @Test
@@ -301,5 +343,56 @@ public class BoosterImplTest {
     int round = 2;
     int nfold = 5;
     String[] evalHist = XGBoost.crossValidation(trainMat, param, round, nfold, null, null, null);
+  }
+
+  /**
+   * test train from existing model
+   *
+   * @throws XGBoostError
+   */
+  @Test
+  public void testTrainFromExistingModel() throws XGBoostError, IOException {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+    IEvaluation eval = new EvalError();
+
+    Map<String, Object> paramMap = new HashMap<String, Object>() {
+      {
+        put("eta", 1.0);
+        put("max_depth", 2);
+        put("silent", 1);
+        put("objective", "binary:logistic");
+      }
+    };
+
+    //set watchList
+    HashMap<String, DMatrix> watches = new HashMap<String, DMatrix>();
+
+    watches.put("train", trainMat);
+    watches.put("test", testMat);
+
+    // Train without saving temp booster
+    int round = 4;
+    Booster booster1 = XGBoost.train(trainMat, paramMap, round, watches, null, null, null, 0);
+    float booster1error = eval.eval(booster1.predict(testMat, true, 0), testMat);
+
+    // Train with temp Booster
+    round = 2;
+    Booster tempBooster = XGBoost.train(trainMat, paramMap, round, watches, null, null, null, 0);
+    float tempBoosterError = eval.eval(tempBooster.predict(testMat, true, 0), testMat);
+
+    // Save tempBooster to bytestream and load back
+    int prevVersion = tempBooster.getVersion();
+    ByteArrayInputStream in = new ByteArrayInputStream(tempBooster.toByteArray());
+    tempBooster = XGBoost.loadModel(in);
+    in.close();
+    tempBooster.setVersion(prevVersion);
+
+    // Continue training using tempBooster
+    round = 4;
+    Booster booster2 = XGBoost.train(trainMat, paramMap, round, watches, null, null, null, 0, tempBooster);
+    float booster2error = eval.eval(booster2.predict(testMat, true, 0), testMat);
+    TestCase.assertTrue(booster1error == booster2error);
+    TestCase.assertTrue(tempBoosterError > booster2error);
   }
 }
