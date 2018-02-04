@@ -18,7 +18,7 @@ import sbt._
 import Keys._
 
 object Common {
-  val appVersion = "0.7"
+  val appVersion = "0.8-SNAPSHOT"
 
   val settings: Seq[Def.Setting[_]] = Seq(
     version := appVersion,
