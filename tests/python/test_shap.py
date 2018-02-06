@@ -177,7 +177,7 @@ class TestSHAP(unittest.TestCase):
                     if i != j:
                         out[i, j] = interaction_value(trees, x, i, j)
             svals = shap_values(trees, x)
-            main_effects = svals - np.array([out[i,i:].sum() for i in range(M + 1)])
+            main_effects = svals - np.array([out[i, i:].sum() for i in range(M + 1)])
             out[np.diag_indices_from(out)] = main_effects
             return out
 
@@ -231,6 +231,6 @@ class TestSHAP(unittest.TestCase):
         assert np.linalg.norm(brute_force - fast_method[0, :]) < 1e-4
 
         brute_force = interaction_values(parse_model(bst), X[0, :])
-        brute_force[-1,-1] += base_score
+        brute_force[-1, -1] += base_score
         fast_method = bst.predict(xgb.DMatrix(X[0:1, :]), pred_interactions=True)
         assert np.linalg.norm(brute_force - fast_method[0, :, :]) < 1e-4
