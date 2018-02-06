@@ -45,7 +45,7 @@ class TestSHAP(unittest.TestCase):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
 
-        def test_fn(max_depth, num_rounds):
+        def fn(max_depth, num_rounds):
             # train
             params = {'max_depth': max_depth, 'eta': 1, 'silent': 1}
             bst = xgb.train(params, dtrain, num_boost_round=num_rounds)
@@ -60,8 +60,8 @@ class TestSHAP(unittest.TestCase):
             # sum of contributions should be same as predictions
             np.testing.assert_array_almost_equal(np.sum(contribs, axis=1), preds)
 
-        for max_depth, num_rounds in itertools.product(range(0, 3), range(1, 5)):
-            yield test_fn, max_depth, num_rounds
+        # for max_depth, num_rounds in itertools.product(range(0, 3), range(1, 5)):
+        #     yield fn, max_depth, num_rounds
 
         # check that we get the right SHAP values for a basic AND example
         # (https://arxiv.org/abs/1706.06060)
@@ -171,11 +171,14 @@ class TestSHAP(unittest.TestCase):
 
         def interaction_values(trees, x):
             M = len(x)
-            out = np.zeros((M, M))
+            out = np.zeros((M + 1, M + 1))
             for i in range(len(x)):
                 for j in range(len(x)):
                     if i != j:
                         out[i, j] = interaction_value(trees, x, i, j)
+            svals = shap_values(trees, x)
+            main_effects = svals - np.array([out[i,i:].sum() for i in range(M + 1)])
+            out[np.diag_indices_from(out)] = main_effects
             return out
 
         # test a simple and function
@@ -228,5 +231,6 @@ class TestSHAP(unittest.TestCase):
         assert np.linalg.norm(brute_force - fast_method[0, :]) < 1e-4
 
         brute_force = interaction_values(parse_model(bst), X[0, :])
+        brute_force[-1,-1] += base_score
         fast_method = bst.predict(xgb.DMatrix(X[0:1, :]), pred_interactions=True)
         assert np.linalg.norm(brute_force - fast_method[0, :, :]) < 1e-4
