@@ -164,22 +164,38 @@ class TestSHAP(unittest.TestCase):
             vals.append(exp_value(trees, np.zeros(len(x)), x))
             return np.array(vals)
 
-        def interaction_value(trees, x, i, j):
-            with_i = shap_value(parse_model(bst), X[0, :], i, j, 1)
-            without_i = shap_value(parse_model(bst), X[0, :], i, j, 0)
-            return with_i - without_i
-
         def interaction_values(trees, x):
             M = len(x)
             out = np.zeros((M + 1, M + 1))
             for i in range(len(x)):
                 for j in range(len(x)):
                     if i != j:
-                        out[i, j] = interaction_value(trees, x, i, j)
+                        out[i, j] = interaction_value(trees, x, i, j)/2
             svals = shap_values(trees, x)
-            main_effects = svals - np.array([out[i, i:].sum() for i in range(M + 1)])
+            main_effects = svals - out.sum(1)
             out[np.diag_indices_from(out)] = main_effects
             return out
+
+        def interaction_value(trees, x, i, j):
+            M = len(x)
+            z = np.zeros(M)
+            other_inds = list(set(range(M)) - set([i,j]))
+
+            total = 0.0
+            for subset in all_subsets(other_inds):
+                if len(subset) > 0:
+                    z[list(subset)] = 1
+                v00 = exp_value(trees, z, x)
+                z[i] = 1
+                v10 = exp_value(trees, z, x)
+                z[j] = 1
+                v11 = exp_value(trees, z, x)
+                z[i] = 0
+                v01 = exp_value(trees, z, x)
+                z[j] = 0
+                total += (v11 - v01 - v10 + v00) / (scipy.special.binom(M - 2, len(subset)) * (M-1))
+                z[list(subset)] = 0
+            return total
 
         # test a simple and function
         M = 2

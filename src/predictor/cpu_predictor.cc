@@ -316,10 +316,8 @@ class CPUPredictor : public Predictor {
             if (k == i) {
               contribs[o_offset + i] += contribs_diag[c_offset + k];
             } else {
-              contribs[o_offset + k] = contribs_on[c_offset + k] - contribs_off[c_offset + k];
-              if (k > i) {
-                contribs[o_offset + i] -= contribs[o_offset + k];
-              }
+              contribs[o_offset + k] = (contribs_on[c_offset + k] - contribs_off[c_offset + k])/2.0;
+              contribs[o_offset + i] -= contribs[o_offset + k];
             }
           }
         }
