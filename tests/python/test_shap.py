@@ -170,7 +170,7 @@ class TestSHAP(unittest.TestCase):
             for i in range(len(x)):
                 for j in range(len(x)):
                     if i != j:
-                        out[i, j] = interaction_value(trees, x, i, j)/2
+                        out[i, j] = interaction_value(trees, x, i, j) / 2
             svals = shap_values(trees, x)
             main_effects = svals - out.sum(1)
             out[np.diag_indices_from(out)] = main_effects
@@ -179,7 +179,7 @@ class TestSHAP(unittest.TestCase):
         def interaction_value(trees, x, i, j):
             M = len(x)
             z = np.zeros(M)
-            other_inds = list(set(range(M)) - set([i,j]))
+            other_inds = list(set(range(M)) - set([i, j]))
 
             total = 0.0
             for subset in all_subsets(other_inds):
@@ -193,7 +193,7 @@ class TestSHAP(unittest.TestCase):
                 z[i] = 0
                 v01 = exp_value(trees, z, x)
                 z[j] = 0
-                total += (v11 - v01 - v10 + v00) / (scipy.special.binom(M - 2, len(subset)) * (M-1))
+                total += (v11 - v01 - v10 + v00) / (scipy.special.binom(M - 2, len(subset)) * (M - 1))
                 z[list(subset)] = 0
             return total
 
