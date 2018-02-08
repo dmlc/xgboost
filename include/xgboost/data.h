@@ -12,6 +12,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <numeric>
 #include "./base.h"
 
 namespace xgboost {
@@ -76,6 +77,19 @@ struct MetaInfo {
   inline unsigned GetRoot(size_t i) const {
     return root_index.size() != 0 ? root_index[i] : 0U;
   }
+  /*! \brief get sorted indexes (argsort) of labels by absolute value (used by cox loss) */
+  inline const std::vector<size_t>& LabelAbsSort() const {
+    if (label_order_cache.size() == labels.size()) {
+      return label_order_cache;
+    }
+    label_order_cache.resize(labels.size());
+    std::iota(label_order_cache.begin(), label_order_cache.end(), 0);
+    const auto l = labels;
+    XGBOOST_PARALLEL_SORT(label_order_cache.begin(), label_order_cache.end(),
+              [&l](size_t i1, size_t i2) {return std::abs(l[i1]) < std::abs(l[i2]);});
+
+    return label_order_cache;
+  }
   /*! \brief clear all the information */
   void Clear();
   /*!
@@ -96,6 +110,10 @@ struct MetaInfo {
    * \param num Number of elements in the source array.
    */
   void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num);
+
+ private:
+  /*! \brief argsort of labels */
+  mutable std::vector<size_t> label_order_cache;
 };
 
 /*! \brief read-only sparse instance batch in CSR format */

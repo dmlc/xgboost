@@ -454,10 +454,22 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictContribution(DMatrix* p_fmat,
                            std::vector<bst_float>* out_contribs,
-                           const gbm::GBTreeModel& model, unsigned ntree_limit,
-                           bool approximate) override {
-    cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit,
-                                       approximate);
+                           const gbm::GBTreeModel& model,
+                           unsigned ntree_limit,
+                           bool approximate,
+                           int condition,
+                           unsigned condition_feature) override {
+    cpu_predictor->PredictContribution(p_fmat, out_contribs, model,
+                                       ntree_limit, approximate, condition, condition_feature);
+  }
+
+  void PredictInteractionContributions(DMatrix* p_fmat,
+                                       std::vector<bst_float>* out_contribs,
+                                       const gbm::GBTreeModel& model,
+                                       unsigned ntree_limit,
+                                       bool approximate) override {
+    cpu_predictor->PredictInteractionContributions(p_fmat, out_contribs, model,
+                                                   ntree_limit, approximate);
   }
 
   void Init(const std::vector<std::pair<std::string, std::string>>& cfg,

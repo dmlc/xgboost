@@ -759,7 +759,8 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
       &preds, ntree_limit,
       (option_mask & 2) != 0,
       (option_mask & 4) != 0,
-      (option_mask & 8) != 0);
+      (option_mask & 8) != 0,
+      (option_mask & 16) != 0);
   *out_result = dmlc::BeginPtr(preds);
   *len = static_cast<xgboost::bst_ulong>(preds.size());
   API_END();

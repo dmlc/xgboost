@@ -172,3 +172,15 @@ TEST(Objective, TweedieRegressionBasic) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
 }
+
+TEST(Objective, CoxRegressionGPair) {
+  xgboost::ObjFunction * obj = xgboost::ObjFunction::Create("survival:cox");
+  std::vector<std::pair<std::string, std::string> > args;
+  obj->Configure(args);
+  CheckObjFunction(obj,
+                   { 0, 0.1f, 0.9f,       1,       0,    0.1f,   0.9f,       1},
+                   { 0,   -2,   -2,       2,       3,       5,    -10,     100},
+                   { 1,    1,    1,       1,       1,       1,      1,       1},
+                   { 0,    0,    0, -0.799f, -0.788f, -0.590f, 0.910f,  1.006f},
+                   { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
+}
