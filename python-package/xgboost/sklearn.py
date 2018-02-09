@@ -490,7 +490,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         else:
             evals = ()
 
-        self._features_count = X.shape[1]
+        self._features_count = len(X)
 
         if sample_weight is not None:
             train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
