@@ -4,7 +4,7 @@ Installation Guide
 This page gives instructions on how to build and install the xgboost package from
 scratch on various systems. It consists of two steps:
 
-1. First build the shared library from the C++ codes (`libxgboost.so` for linux/osx and `libxgboost.dll` for windows).
+1. First build the shared library from the C++ codes (`libxgboost.so` for Linux/OSX and `xgboost.dll` for Windows).
    - Exception: for R-package installation please directly refer to the R package section.
 2. Then install the language packages (e.g. Python Package).
 
@@ -39,7 +39,7 @@ even better to send pull request if you can fix the problem.
 
 Our goal is to build the shared library:
 - On Linux/OSX the target library is `libxgboost.so`
-- On Windows the target library is `libxgboost.dll`
+- On Windows the target library is `xgboost.dll`
 
 The minimal building requirement is
 
@@ -144,7 +144,7 @@ cd build
 cmake .. -G"Visual Studio 12 2013 Win64"
 ```
 
-This specifies an out of source build using the MSVC 12 64 bit generator. Open the .sln file in the build directory and build with Visual Studio. To use the Python module you can copy libxgboost.dll into python-package\xgboost.
+This specifies an out of source build using the MSVC 12 64 bit generator. Open the .sln file in the build directory and build with Visual Studio. To use the Python module you can copy `xgboost.dll` into python-package\xgboost.
 
 Other versions of Visual Studio may work but are untested.
 
