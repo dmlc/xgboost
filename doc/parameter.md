@@ -96,7 +96,7 @@ Parameters for Tree Booster
   - A type of boosting process to run.
   - Choices: {'default', 'update'}
     - 'default': the normal boosting process which creates new trees.
-    - 'update': starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updater plugins is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updater plugins could be meaningfully used with this process type: 'refresh', 'prune'. With 'update', one cannot use updater plugins that create new nrees.
+    - 'update': starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updater plugins is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updater plugins could be meaningfully used with this process type: 'refresh', 'prune'. With 'update', one cannot use updater plugins that create new trees.
 * grow_policy, string [default='depthwise']
   - Controls a way new nodes are added to the tree.
   - Currently supported only if `tree_method` is set to 'hist'.
