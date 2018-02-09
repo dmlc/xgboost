@@ -19,5 +19,5 @@
 #' @export
 xgb.save.raw <- function(model) {
   model <- xgb.get.handle(model)
-  .Call("XGBoosterModelToRaw_R", model, PACKAGE = "xgboost")
+  .Call(XGBoosterModelToRaw_R, model)
 }

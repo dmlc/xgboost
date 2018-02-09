@@ -12,7 +12,7 @@ xgb.train(params = list(), data, nrounds, watchlist = list(), obj = NULL,
 
 xgboost(data = NULL, label = NULL, missing = NA, weight = NULL,
   params = list(), nrounds, verbose = 1, print_every_n = 1L,
-  early_stopping_rounds = NULL, maximize = NULL, save_period = 0,
+  early_stopping_rounds = NULL, maximize = NULL, save_period = NULL,
   save_name = "xgboost.model", xgb_model = NULL, callbacks = list(), ...)
 }
 \arguments{
@@ -179,7 +179,7 @@ The folloiwing is the list of built-in metrics for which Xgboost provides optimi
   \itemize{
      \item \code{rmse} root mean square error. \url{http://en.wikipedia.org/wiki/Root_mean_square_error}
      \item \code{logloss} negative log-likelihood. \url{http://en.wikipedia.org/wiki/Log-likelihood}
-     \item \code{mlogloss} multiclass logloss. \url{https://www.kaggle.com/wiki/MultiClassLogLoss/}
+     \item \code{mlogloss} multiclass logloss. \url{http://wiki.fast.ai/index.php/Log_Loss}
      \item \code{error} Binary classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
            By default, it uses the 0.5 threshold for predicted values to define negative and positive instances.
            Different threshold (e.g., 0.) could be specified as "error@0."
@@ -259,9 +259,12 @@ bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label,
 pred <- predict(bst, agaricus.test$data)
 
 }
+\references{
+Tianqi Chen and Carlos Guestrin, "XGBoost: A Scalable Tree Boosting System",
+22nd SIGKDD Conference on Knowledge Discovery and Data Mining, 2016, \url{https://arxiv.org/abs/1603.02754}
+}
 \seealso{
 \code{\link{callbacks}},
 \code{\link{predict.xgb.Booster}},
 \code{\link{xgb.cv}}
 }
-

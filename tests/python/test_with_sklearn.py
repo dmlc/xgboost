@@ -2,6 +2,7 @@ import numpy as np
 import random
 import xgboost as xgb
 import testing as tm
+from nose.tools import raises
 
 rng = np.random.RandomState(1994)
 
@@ -9,12 +10,20 @@ rng = np.random.RandomState(1994)
 def test_binary_classification():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_digits
-    from sklearn.cross_validation import KFold
+    try:
+        from sklearn.model_selection import KFold
+    except:
+        from sklearn.cross_validation import KFold
 
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
-    kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
+    try:
+        kf = KFold(y.shape[0], n_folds=2, shuffle=True, random_state=rng)
+    except TypeError:  # sklearn.model_selection.KFold uses n_split
+        kf = KFold(
+            n_splits=2, shuffle=True, random_state=rng
+        ).split(np.arange(y.shape[0]))
     for train_index, test_index in kf:
         xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
         preds = xgb_model.predict(X[test_index])
@@ -27,7 +36,10 @@ def test_binary_classification():
 def test_multiclass_classification():
     tm._skip_if_no_sklearn()
     from sklearn.datasets import load_iris
-    from sklearn.cross_validation import KFold
+    try:
+        from sklearn.cross_validation import KFold
+    except:
+        from sklearn.model_selection import KFold
 
     def check_pred(preds, labels):
         err = sum(1 for i in range(len(preds))
@@ -210,12 +222,29 @@ def test_sklearn_api():
     iris = load_iris()
     tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target, train_size=120)
 
-    classifier = xgb.XGBClassifier()
+    classifier = xgb.XGBClassifier(booster='gbtree', n_estimators=10)
     classifier.fit(tr_d, tr_l)
 
     preds = classifier.predict(te_d)
     labels = te_l
-    err = sum([1 for p, l in zip(preds, labels) if p != l]) / len(te_l)
+    err = sum([1 for p, l in zip(preds, labels) if p != l]) * 1.0 / len(te_l)
+    assert err < 0.2
+
+
+def test_sklearn_api_gblinear():
+    tm._skip_if_no_sklearn()
+    from sklearn.datasets import load_iris
+    from sklearn.cross_validation import train_test_split
+
+    iris = load_iris()
+    tr_d, te_d, tr_l, te_l = train_test_split(iris.data, iris.target, train_size=120)
+
+    classifier = xgb.XGBClassifier(booster='gblinear', n_estimators=100)
+    classifier.fit(tr_d, tr_l)
+
+    preds = classifier.predict(te_d)
+    labels = te_l
+    err = sum([1 for p, l in zip(preds, labels) if p != l]) * 1.0 / len(te_l)
     assert err < 0.2
 
 
@@ -298,3 +327,51 @@ def test_split_value_histograms():
     assert gbdt.get_split_value_histogram("f28", bins=2).shape[0] == 2
     assert gbdt.get_split_value_histogram("f28", bins=5).shape[0] == 2
     assert gbdt.get_split_value_histogram("f28", bins=None).shape[0] == 2
+
+
+def test_sklearn_random_state():
+    tm._skip_if_no_sklearn()
+
+    clf = xgb.XGBClassifier(random_state=402)
+    assert clf.get_xgb_params()['seed'] == 402
+
+    clf = xgb.XGBClassifier(seed=401)
+    assert clf.get_xgb_params()['seed'] == 401
+
+
+def test_sklearn_n_jobs():
+    tm._skip_if_no_sklearn()
+
+    clf = xgb.XGBClassifier(n_jobs=1)
+    assert clf.get_xgb_params()['nthread'] == 1
+
+    clf = xgb.XGBClassifier(nthread=2)
+    assert clf.get_xgb_params()['nthread'] == 2
+
+
+def test_kwargs():
+    tm._skip_if_no_sklearn()
+
+    params = {'updater': 'grow_gpu', 'subsample': .5, 'n_jobs': -1}
+    clf = xgb.XGBClassifier(n_estimators=1000, **params)
+    assert clf.get_params()['updater'] == 'grow_gpu'
+    assert clf.get_params()['subsample'] == .5
+    assert clf.get_params()['n_estimators'] == 1000
+
+
+@raises(TypeError)
+def test_kwargs_error():
+    tm._skip_if_no_sklearn()
+
+    params = {'updater': 'grow_gpu', 'subsample': .5, 'n_jobs': -1}
+    clf = xgb.XGBClassifier(n_jobs=1000, **params)
+    assert isinstance(clf, xgb.XGBClassifier)
+
+
+def test_sklearn_clone():
+    tm._skip_if_no_sklearn()
+    from sklearn.base import clone
+
+    clf = xgb.XGBClassifier(n_jobs=2, nthread=3)
+    clf.n_jobs = -1
+    clone(clf)

@@ -5,18 +5,18 @@
 
 TEST(Metric, AMS) {
   EXPECT_ANY_THROW(xgboost::Metric::Create("ams"));
-  xgboost::Metric * metric = xgboost::Metric::Create("ams@0.5");
+  xgboost::Metric * metric = xgboost::Metric::Create("ams@0.5f");
   ASSERT_STREQ(metric->Name(), "ams@0.5");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.311, 0.001);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.311f, 0.001f);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.9, 0.1, 0.9},
+                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
-              0.29710, 0.001);
+              0.29710f, 0.001f);
 
   delete metric;
   metric = xgboost::Metric::Create("ams@0");
   ASSERT_STREQ(metric->Name(), "ams@0");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.311, 0.001);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.311f, 0.001f);
 }
 
 TEST(Metric, AUC) {
@@ -24,9 +24,9 @@ TEST(Metric, AUC) {
   ASSERT_STREQ(metric->Name(), "auc");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.9, 0.1, 0.9},
+                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
-              0.5, 0.001);
+              0.5f, 0.001f);
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 0}, {0, 0}));
 }
@@ -39,18 +39,18 @@ TEST(Metric, Precision) {
   ASSERT_STREQ(metric->Name(), "pre");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-7);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.9, 0.1, 0.9},
+                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
               0, 1e-7);
 
   delete metric;
   metric = xgboost::Metric::Create("pre@2");
   ASSERT_STREQ(metric->Name(), "pre@2");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.5, 1e-7);
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0.5f, 1e-7);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.9, 0.1, 0.9},
+                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
-              0.5, 0.001);
+              0.5f, 0.001f);
 
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
 }
@@ -62,18 +62,18 @@ TEST(Metric, NDCG) {
   EXPECT_NEAR(GetMetricEval(metric, {}, {}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.9, 0.1, 0.9},
+                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
-              0.6509, 0.001);
+              0.6509f, 0.001f);
 
   delete metric;
   metric = xgboost::Metric::Create("ndcg@2");
   ASSERT_STREQ(metric->Name(), "ndcg@2");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.9, 0.1, 0.9},
+                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
-              0.3868, 0.001);
+              0.3868f, 0.001f);
 
   delete metric;
   metric = xgboost::Metric::Create("ndcg@-");
@@ -81,18 +81,18 @@ TEST(Metric, NDCG) {
   EXPECT_NEAR(GetMetricEval(metric, {}, {}), 0, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.9, 0.1, 0.9},
+                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
-              0.6509, 0.001);
+              0.6509f, 0.001f);
 
   delete metric;
   metric = xgboost::Metric::Create("ndcg@2-");
   ASSERT_STREQ(metric->Name(), "ndcg@2-");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.9, 0.1, 0.9},
+                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
-              0.3868, 0.001);
+              0.3868f, 0.001f);
 }
 
 TEST(Metric, MAP) {
@@ -100,9 +100,9 @@ TEST(Metric, MAP) {
   ASSERT_STREQ(metric->Name(), "map");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.9, 0.1, 0.9},
+                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
-              0.5, 0.001);
+              0.5f, 0.001f);
   EXPECT_NEAR(GetMetricEval(metric, {}, {}), 1, 1e-10);
 
   delete metric;
@@ -115,7 +115,7 @@ TEST(Metric, MAP) {
   ASSERT_STREQ(metric->Name(), "map@2");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1, 0.9, 0.1, 0.9},
+                            {0.1f, 0.9f, 0.1f, 0.9f},
                             {  0,   0,   1,   1}),
-              0.25, 0.001);
+              0.25f, 0.001f);
 }

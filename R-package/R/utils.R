@@ -47,7 +47,7 @@ check.booster.params <- function(params, ...) {
   multi_names <- setdiff(names(name_freqs[name_freqs > 1]), 'eval_metric')
   if (length(multi_names) > 0) {
     warning("The following parameters were provided multiple times:\n\t",
-            paste(multi_names, collapse=', '), "\n  Only the last value for each of them will be used.\n")
+            paste(multi_names, collapse = ', '), "\n  Only the last value for each of them will be used.\n")
     # While xgboost internals would choose the last value for a multiple-times parameter, 
     # enforce it here in R as well (b/c multi-parameters might be used further in R code, 
     # and R takes the 1st value when multiple elements with the same name are present in a list).
@@ -120,22 +120,21 @@ check.custom.eval <- function(env = parent.frame()) {
 }
 
 
-# Update booster with dtrain for an iteration
-xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
-  if (class(booster) != "xgb.Booster.handle") {
-    stop("first argument type must be xgb.Booster.handle")
+# Update a booster handle for an iteration with dtrain data
+xgb.iter.update <- function(booster_handle, dtrain, iter, obj = NULL) {
+  if (!identical(class(booster_handle), "xgb.Booster.handle")) {
+    stop("booster_handle must be of xgb.Booster.handle class")
   }
-  if (class(dtrain) != "xgb.DMatrix") {
-    stop("second argument type must be xgb.DMatrix")
+  if (!inherits(dtrain, "xgb.DMatrix")) {
+    stop("dtrain must be of xgb.DMatrix class")
   }
 
   if (is.null(obj)) {
-    .Call("XGBoosterUpdateOneIter_R", booster, as.integer(iter), dtrain,
-          PACKAGE = "xgboost")
+    .Call(XGBoosterUpdateOneIter_R, booster_handle, as.integer(iter), dtrain)
   } else {
-    pred <- predict(booster, dtrain)
+    pred <- predict(booster_handle, dtrain)
     gpair <- obj(pred, dtrain)
-    .Call("XGBoosterBoostOneIter_R", booster, dtrain, gpair$grad, gpair$hess, PACKAGE = "xgboost")
+    .Call(XGBoosterBoostOneIter_R, booster_handle, dtrain, gpair$grad, gpair$hess)
   }
   return(TRUE)
 }
@@ -144,24 +143,23 @@ xgb.iter.update <- function(booster, dtrain, iter, obj = NULL) {
 # Evaluate one iteration.
 # Returns a named vector of evaluation metrics 
 # with the names in a 'datasetname-metricname' format.
-xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL) {
-  if (class(booster) != "xgb.Booster.handle")
-    stop("first argument type must be xgb.Booster.handle")
-  
+xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
+  if (!identical(class(booster_handle), "xgb.Booster.handle"))
+    stop("class of booster_handle must be xgb.Booster.handle")
+
   if (length(watchlist) == 0) 
     return(NULL)
   
   evnames <- names(watchlist)
   if (is.null(feval)) {
-    msg <- .Call("XGBoosterEvalOneIter_R", booster, as.integer(iter), watchlist,
-                 as.list(evnames), PACKAGE = "xgboost")
+    msg <- .Call(XGBoosterEvalOneIter_R, booster_handle, as.integer(iter), watchlist, as.list(evnames))
     msg <- stri_split_regex(msg, '(\\s+|:|\\s+)')[[1]][-1]
     res <- as.numeric(msg[c(FALSE,TRUE)]) # even indices are the values
     names(res) <- msg[c(TRUE,FALSE)]      # odds are the names
   } else {
     res <- sapply(seq_along(watchlist), function(j) {
       w <- watchlist[[j]]
-      preds <- predict(booster, w) # predict using all trees
+      preds <- predict(booster_handle, w) # predict using all trees
       eval_res <- feval(preds, w)
       out <- eval_res$value
       names(out) <- paste0(evnames[j], "-", eval_res$metric)
@@ -180,14 +178,14 @@ xgb.iter.eval <- function(booster, watchlist, iter, feval = NULL) {
 generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
   
   # cannot do it for rank
-  if (exists('objective', where=params) &&
+  if (exists('objective', where = params) &&
       is.character(params$objective) &&
       strtrim(params$objective, 5) == 'rank:') {
     stop("\n\tAutomatic generation of CV-folds is not implemented for ranking!\n",
          "\tConsider providing pre-computed CV-folds through the 'folds=' parameter.\n")
   }
   # shuffle
-  rnd_idx <- sample(1:nrows)
+  rnd_idx <- sample.int(nrows)
   if (stratified &&
       length(label) == length(rnd_idx)) {
     y <- label[rnd_idx]
@@ -195,7 +193,7 @@ generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
     #  - For classification, need to convert y labels to factor before making the folds,
     #    and then do stratification by factor levels.
     #  - For regression, leave y numeric and do stratification by quantiles.
-    if (exists('objective', where=params) &&
+    if (exists('objective', where = params) &&
         is.character(params$objective)) {
       # If 'objective' provided in params, assume that y is a classification label
       # unless objective is reg:linear
@@ -213,9 +211,9 @@ generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
     # make simple non-stratified folds
     kstep <- length(rnd_idx) %/% nfold
     folds <- list()
-    for (i in 1:(nfold - 1)) {
-      folds[[i]] <- rnd_idx[1:kstep]
-      rnd_idx <- rnd_idx[-(1:kstep)]
+    for (i in seq_len(nfold - 1)) {
+      folds[[i]] <- rnd_idx[seq_len(kstep)]
+      rnd_idx <- rnd_idx[-seq_len(kstep)]
     }
     folds[[nfold]] <- rnd_idx
   }
@@ -256,15 +254,15 @@ xgb.createFolds <- function(y, k = 10)
     ## For each class, balance the fold allocation as far
     ## as possible, then resample the remainder.
     ## The final assignment of folds is also randomized.
-    for (i in 1:length(numInClass)) {
+    for (i in seq_along(numInClass)) {
       ## create a vector of integers from 1:k as many times as possible without
       ## going over the number of samples in the class. Note that if the number
       ## of samples in a class is less than k, nothing is producd here.
-      seqVector <- rep(1:k, numInClass[i] %/% k)
+      seqVector <- rep(seq_len(k), numInClass[i] %/% k)
       ## add enough random integers to get  length(seqVector) == numInClass[i]
-      if (numInClass[i] %% k > 0) seqVector <- c(seqVector, sample(1:k, numInClass[i] %% k))
+      if (numInClass[i] %% k > 0) seqVector <- c(seqVector, sample.int(k, numInClass[i] %% k))
       ## shuffle the integers for fold assignment and assign to this classes's data
-      foldVector[which(y == dimnames(numInClass)$y[i])] <- sample(seqVector)
+      foldVector[y == dimnames(numInClass)$y[i]] <- sample(seqVector)
     }
   } else {
     foldVector <- seq(along = y)
@@ -306,7 +304,7 @@ depr_par_lut <- matrix(c(
   'plot.width','plot_width',
   'n_first_tree', 'trees',
   'dummy', 'DUMMY'
-), ncol=2, byrow = TRUE)
+), ncol = 2, byrow = TRUE)
 colnames(depr_par_lut) <- c('old', 'new')
 
 # Checks the dot-parameters for deprecated names
@@ -331,7 +329,7 @@ check.deprecation <- function(..., env = parent.frame()) {
     if (!ex_match[i]) {
       warning("'", pars_par, "' was partially matched to '", old_par,"'")
     }
-    .Deprecated(new_par, old=old_par, package = 'xgboost')
+    .Deprecated(new_par, old = old_par, package = 'xgboost')
     if (new_par != 'NULL') {
       eval(parse(text = paste(new_par, '<-', pars[[pars_par]])), envir = env)
     }

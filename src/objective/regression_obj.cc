@@ -1,6 +1,6 @@
 /*!
  * Copyright 2015 by Contributors
- * \file regression.cc
+ * \file regression_obj.cc
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
  */
@@ -11,60 +11,13 @@
 #include <algorithm>
 #include <utility>
 #include "../common/math.h"
+#include "../common/avx_helpers.h"
+#include "./regression_loss.h"
 
 namespace xgboost {
 namespace obj {
 
 DMLC_REGISTRY_FILE_TAG(regression_obj);
-
-// common regressions
-// linear regression
-struct LinearSquareLoss {
-  static bst_float PredTransform(bst_float x) { return x; }
-  static bool CheckLabel(bst_float x) { return true; }
-  static bst_float FirstOrderGradient(bst_float predt, bst_float label) { return predt - label; }
-  static bst_float SecondOrderGradient(bst_float predt, bst_float label) { return 1.0f; }
-  static bst_float ProbToMargin(bst_float base_score) { return base_score; }
-  static const char* LabelErrorMsg() { return ""; }
-  static const char* DefaultEvalMetric() { return "rmse"; }
-};
-// logistic loss for probability regression task
-struct LogisticRegression {
-  static bst_float PredTransform(bst_float x) { return common::Sigmoid(x); }
-  static bool CheckLabel(bst_float x) { return x >= 0.0f && x <= 1.0f; }
-  static bst_float FirstOrderGradient(bst_float predt, bst_float label) { return predt - label; }
-  static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
-    const float eps = 1e-16f;
-    return std::max(predt * (1.0f - predt), eps);
-  }
-  static bst_float ProbToMargin(bst_float base_score) {
-    CHECK(base_score > 0.0f && base_score < 1.0f)
-        << "base_score must be in (0,1) for logistic loss";
-    return -std::log(1.0f / base_score - 1.0f);
-  }
-  static const char* LabelErrorMsg() {
-    return "label must be in [0,1] for logistic regression";
-  }
-  static const char* DefaultEvalMetric() { return "rmse"; }
-};
-// logistic loss for binary classification task.
-struct LogisticClassification : public LogisticRegression {
-  static const char* DefaultEvalMetric() { return "error"; }
-};
-// logistic loss, but predict un-transformed margin
-struct LogisticRaw : public LogisticRegression {
-  static bst_float PredTransform(bst_float x) { return x; }
-  static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
-    predt = common::Sigmoid(predt);
-    return predt - label;
-  }
-  static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
-    const float eps = 1e-16f;
-    predt = common::Sigmoid(predt);
-    return std::max(predt * (1.0f - predt), eps);
-  }
-  static const char* DefaultEvalMetric() { return "auc"; }
-};
 
 struct RegLossParam : public dmlc::Parameter<RegLossParam> {
   float scale_pos_weight;
@@ -76,45 +29,63 @@ struct RegLossParam : public dmlc::Parameter<RegLossParam> {
 };
 
 // regression loss function
-template<typename Loss>
+template <typename Loss>
 class RegLossObj : public ObjFunction {
  public:
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+  RegLossObj() : labels_checked(false) {}
+
+  void Configure(
+      const std::vector<std::pair<std::string, std::string> > &args) override {
     param_.InitAllowUnknown(args);
   }
-  void GetGradient(const std::vector<bst_float> &preds,
-                   const MetaInfo &info,
-                   int iter,
-                   std::vector<bst_gpair> *out_gpair) override {
-    CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
+  void GetGradient(const std::vector<bst_float> &preds, const MetaInfo &info,
+                   int iter, std::vector<bst_gpair> *out_gpair) override {
+    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.size(), info.labels.size())
         << "labels are not correctly provided"
-        << "preds.size=" << preds.size() << ", label.size=" << info.labels.size();
+        << "preds.size=" << preds.size()
+        << ", label.size=" << info.labels.size();
+
+    this->LazyCheckLabels(info.labels);
     out_gpair->resize(preds.size());
-    // check if label in range
-    bool label_correct = true;
-    // start calculating gradient
-    const omp_ulong ndata = static_cast<omp_ulong>(preds.size());
-    #pragma omp parallel for schedule(static)
-    for (omp_ulong i = 0; i < ndata; ++i) {
+    const omp_ulong n = static_cast<omp_ulong>(preds.size());
+    auto gpair_ptr = out_gpair->data();
+    avx::Float8 scale(param_.scale_pos_weight);
+
+    const omp_ulong remainder = n % 8;
+    int nthread = omp_get_max_threads();
+    // Use a maximum of 8 threads
+#pragma omp parallel for schedule(static) num_threads(std::min(8, nthread))
+    for (int i = 0; i < n - remainder; i += 8) {
+      avx::Float8 y(&info.labels[i]);
+      avx::Float8 p = Loss::PredTransform(avx::Float8(&preds[i]));
+      avx::Float8 w = info.weights.empty() ? avx::Float8(1.0f)
+                                           : avx::Float8(&info.weights[i]);
+      // Adjust weight
+      w += y * (scale * w - w);
+      avx::Float8 grad = Loss::FirstOrderGradient(p, y);
+      avx::Float8 hess = Loss::SecondOrderGradient(p, y);
+      avx::StoreGpair(gpair_ptr + i, grad * w, hess * w);
+    }
+    for (omp_ulong i = n - remainder; i < n; ++i) {
+      auto y = info.labels[i];
       bst_float p = Loss::PredTransform(preds[i]);
       bst_float w = info.GetWeight(i);
-      if (info.labels[i] == 1.0f) w *= param_.scale_pos_weight;
-      if (!Loss::CheckLabel(info.labels[i])) label_correct = false;
-      out_gpair->at(i) = bst_gpair(Loss::FirstOrderGradient(p, info.labels[i]) * w,
-                                   Loss::SecondOrderGradient(p, info.labels[i]) * w);
+      w += y * ((param_.scale_pos_weight * w) - w);
+      (*out_gpair)[i] = bst_gpair(Loss::FirstOrderGradient(p, y) * w,
+                                  Loss::SecondOrderGradient(p, y) * w);
     }
-    if (!label_correct) {
-      LOG(FATAL) << Loss::LabelErrorMsg();
-    }
+
+    // Reset omp max threads
+    omp_set_num_threads(nthread);
   }
-  const char* DefaultEvalMetric() const override {
+  const char *DefaultEvalMetric() const override {
     return Loss::DefaultEvalMetric();
   }
   void PredTransform(std::vector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = *io_preds;
     const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
-    #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (bst_omp_uint j = 0; j < ndata; ++j) {
       preds[j] = Loss::PredTransform(preds[j]);
     }
@@ -124,7 +95,15 @@ class RegLossObj : public ObjFunction {
   }
 
  protected:
+  void LazyCheckLabels(const std::vector<float> &labels) {
+    if (labels_checked) return;
+    for (auto &y : labels) {
+      CHECK(Loss::CheckLabel(y)) << Loss::LabelErrorMsg();
+    }
+    labels_checked = true;
+  }
   RegLossParam param_;
+  bool labels_checked;
 };
 
 // register the objective functions
@@ -168,20 +147,20 @@ class PoissonRegression : public ObjFunction {
                    const MetaInfo &info,
                    int iter,
                    std::vector<bst_gpair> *out_gpair) override {
-    CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
+    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.size(), info.labels.size()) << "labels are not correctly provided";
     out_gpair->resize(preds.size());
     // check if label in range
     bool label_correct = true;
     // start calculating gradient
     const omp_ulong ndata = static_cast<omp_ulong>(preds.size()); // NOLINT(*)
-    #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
       bst_float p = preds[i];
       bst_float w = info.GetWeight(i);
       bst_float y = info.labels[i];
       if (y >= 0.0f) {
-        out_gpair->at(i) = bst_gpair((std::exp(p) - y) * w,
+        (*out_gpair)[i] = bst_gpair((std::exp(p) - y) * w,
                                      std::exp(p + param_.max_delta_step) * w);
       } else {
         label_correct = false;
@@ -192,7 +171,7 @@ class PoissonRegression : public ObjFunction {
   void PredTransform(std::vector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = *io_preds;
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-    #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     }
@@ -218,6 +197,90 @@ XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
 .describe("Possion regression for count data.")
 .set_body([]() { return new PoissonRegression(); });
 
+// cox regression for survival data (negative values mean they are censored)
+class CoxRegression : public ObjFunction {
+ public:
+  // declare functions
+  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {}
+  void GetGradient(const std::vector<bst_float> &preds,
+                   const MetaInfo &info,
+                   int iter,
+                   std::vector<bst_gpair> *out_gpair) override {
+    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.size(), info.labels.size()) << "labels are not correctly provided";
+    out_gpair->resize(preds.size());
+    const std::vector<size_t> &label_order = info.LabelAbsSort();
+
+    const omp_ulong ndata = static_cast<omp_ulong>(preds.size()); // NOLINT(*)
+
+    // pre-compute a sum
+    double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
+    for (omp_ulong i = 0; i < ndata; ++i) {
+      exp_p_sum += std::exp(preds[label_order[i]]);
+    }
+
+    // start calculating grad and hess
+    double r_k = 0;
+    double s_k = 0;
+    double last_exp_p = 0.0;
+    double last_abs_y = 0.0;
+    double accumulated_sum = 0;
+    for (omp_ulong i = 0; i < ndata; ++i) { // NOLINT(*)
+      const size_t ind = label_order[i];
+      const double p = preds[ind];
+      const double exp_p = std::exp(p);
+      const double w = info.GetWeight(ind);
+      const double y = info.labels[ind];
+      const double abs_y = std::abs(y);
+
+      // only update the denominator after we move forward in time (labels are sorted)
+      // this is Breslow's method for ties
+      accumulated_sum += last_exp_p;
+      if (last_abs_y < abs_y) {
+        exp_p_sum -= accumulated_sum;
+        accumulated_sum = 0;
+      } else {
+        CHECK(last_abs_y <= abs_y) << "CoxRegression: labels must be in sorted order, " <<
+                                      "MetaInfo::LabelArgsort failed!";
+      }
+
+      if (y > 0) {
+        r_k += 1.0/exp_p_sum;
+        s_k += 1.0/(exp_p_sum*exp_p_sum);
+      }
+
+      const double grad = exp_p*r_k - static_cast<bst_float>(y > 0);
+      const double hess = exp_p*r_k - exp_p*exp_p * s_k;
+      out_gpair->at(ind) = bst_gpair(grad * w, hess * w);
+
+      last_abs_y = abs_y;
+      last_exp_p = exp_p;
+    }
+  }
+  void PredTransform(std::vector<bst_float> *io_preds) override {
+    std::vector<bst_float> &preds = *io_preds;
+    const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
+    #pragma omp parallel for schedule(static)
+    for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
+      preds[j] = std::exp(preds[j]);
+    }
+  }
+  void EvalTransform(std::vector<bst_float> *io_preds) override {
+    PredTransform(io_preds);
+  }
+  bst_float ProbToMargin(bst_float base_score) const override {
+    return std::log(base_score);
+  }
+  const char* DefaultEvalMetric(void) const override {
+    return "cox-nloglik";
+  }
+};
+
+// register the objective function
+XGBOOST_REGISTER_OBJECTIVE(CoxRegression, "survival:cox")
+.describe("Cox regression for censored survival data (negative labels are considered censored).")
+.set_body([]() { return new CoxRegression(); });
+
 // gamma regression
 class GammaRegression : public ObjFunction {
  public:
@@ -229,7 +292,7 @@ class GammaRegression : public ObjFunction {
                    const MetaInfo &info,
                    int iter,
                    std::vector<bst_gpair> *out_gpair) override {
-    CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
+    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.size(), info.labels.size()) << "labels are not correctly provided";
     out_gpair->resize(preds.size());
     // check if label in range
@@ -242,7 +305,7 @@ class GammaRegression : public ObjFunction {
       bst_float w = info.GetWeight(i);
       bst_float y = info.labels[i];
       if (y >= 0.0f) {
-        out_gpair->at(i) = bst_gpair((1 - y / std::exp(p)) * w, y / std::exp(p) * w);
+        (*out_gpair)[i] = bst_gpair((1 - y / std::exp(p)) * w, y / std::exp(p) * w);
       } else {
         label_correct = false;
       }
@@ -294,7 +357,7 @@ class TweedieRegression : public ObjFunction {
                    const MetaInfo &info,
                    int iter,
                    std::vector<bst_gpair> *out_gpair) override {
-    CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
+    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.size(), info.labels.size()) << "labels are not correctly provided";
     out_gpair->resize(preds.size());
     // check if label in range
@@ -311,7 +374,7 @@ class TweedieRegression : public ObjFunction {
         bst_float grad = -y * std::exp((1 - rho) * p) + std::exp((2 - rho) * p);
         bst_float hess = -y * (1 - rho) * \
           std::exp((1 - rho) * p) + (2 - rho) * std::exp((2 - rho) * p);
-        out_gpair->at(i) = bst_gpair(grad * w, hess * w);
+        (*out_gpair)[i] = bst_gpair(grad * w, hess * w);
       } else {
         label_correct = false;
       }
@@ -321,7 +384,7 @@ class TweedieRegression : public ObjFunction {
   void PredTransform(std::vector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = *io_preds;
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-    #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     }

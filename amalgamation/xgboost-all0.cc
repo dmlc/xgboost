@@ -32,6 +32,10 @@
 #include "../src/data/simple_dmatrix.cc"
 #include "../src/data/sparse_page_raw_format.cc"
 
+// prediction
+#include "../src/predictor/predictor.cc"
+#include "../src/predictor/cpu_predictor.cc"
+
 #if DMLC_ENABLE_STD_THREAD
 #include "../src/data/sparse_page_source.cc"
 #include "../src/data/sparse_page_dmatrix.cc"
@@ -53,6 +57,7 @@
 #include "../src/learner.cc"
 #include "../src/logging.cc"
 #include "../src/common/common.cc"
+#include "../src/common/host_device_vector.cc"
 #include "../src/common/hist_util.cc"
 
 // c_api

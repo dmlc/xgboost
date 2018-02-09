@@ -109,10 +109,8 @@ class LambdaRankObj : public ObjFunction {
           bst_float g = p - 1.0f;
           bst_float h = std::max(p * (1.0f - p), eps);
           // accumulate gradient and hessian in both pid, and nid
-          gpair[pos.rindex].grad += g * w;
-          gpair[pos.rindex].hess += 2.0f * w * h;
-          gpair[neg.rindex].grad -= g * w;
-          gpair[neg.rindex].hess += 2.0f * w * h;
+          gpair[pos.rindex] += bst_gpair(g * w, 2.0f*w*h);
+          gpair[neg.rindex] += bst_gpair(-g * w, 2.0f*w*h);
         }
       }
     }
@@ -312,7 +310,7 @@ class LambdaRankObjMAP : public LambdaRankObj {
 // register the objective functions
 DMLC_REGISTER_PARAMETER(LambdaRankParam);
 
-XGBOOST_REGISTER_OBJECTIVE(PairwieRankObj, "rank:pairwise")
+XGBOOST_REGISTER_OBJECTIVE(PairwiseRankObj, "rank:pairwise")
 .describe("Pairwise rank objective.")
 .set_body([]() { return new PairwiseRankObj(); });
 

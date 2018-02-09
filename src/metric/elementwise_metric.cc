@@ -24,7 +24,7 @@ struct EvalEWiseBase : public Metric {
   bst_float Eval(const std::vector<bst_float>& preds,
                  const MetaInfo& info,
                  bool distributed) const override {
-    CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
+    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.size(), info.labels.size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
@@ -124,7 +124,7 @@ struct EvalError : public EvalEWiseBase<EvalError> {
   std::string name_;
 };
 
-struct EvalPoissionNegLogLik : public EvalEWiseBase<EvalPoissionNegLogLik> {
+struct EvalPoissonNegLogLik : public EvalEWiseBase<EvalPoissonNegLogLik> {
   const char *Name() const override {
     return "poisson-nloglik";
   }
@@ -205,7 +205,7 @@ XGBOOST_REGISTER_METRIC(Error, "error")
 
 XGBOOST_REGISTER_METRIC(PossionNegLoglik, "poisson-nloglik")
 .describe("Negative loglikelihood for poisson regression.")
-.set_body([](const char* param) { return new EvalPoissionNegLogLik(); });
+.set_body([](const char* param) { return new EvalPoissonNegLogLik(); });
 
 XGBOOST_REGISTER_METRIC(GammaDeviance, "gamma-deviance")
 .describe("Residual deviance for gamma regression.")

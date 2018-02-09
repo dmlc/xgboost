@@ -1,10 +1,14 @@
 # disable sudo for container build.
-sudo: false
+sudo: required
 
 # Enabling test on Linux and OS X
 os:
   - linux
   - osx
+
+osx_image: xcode8
+
+group: deprecated-2017Q4
 
 # Use Build Matrix to do lint and build seperately
 env:
@@ -32,8 +36,6 @@ matrix:
     - os: linux
       env: TASK=r_test
     - os: osx
-      env: TASK=java_test
-    - os: osx
       env: TASK=python_lightweight_test
     - os: osx
       env: TASK=cpp_test
@@ -41,17 +43,24 @@ matrix:
 # dependent apt packages
 addons:
   apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - george-edison55-precise-backports
     packages:
+      - cmake
+      - cmake-data
       - doxygen
       - wget
       - libcurl4-openssl-dev
       - unzip
       - graphviz
+      - gcc-4.8
+      - g++-4.8
 
 before_install:
   - source dmlc-core/scripts/travis/travis_setup_env.sh
   - export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package
-  - echo "MAVEN_OPTS='-Xmx2048m -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc 
+  - echo "MAVEN_OPTS='-Xmx2g -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc
 
 install:
   - source tests/travis/setup.sh

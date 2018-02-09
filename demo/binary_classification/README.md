@@ -1,8 +1,8 @@
 Binary Classification
 =====================
 This is the quick start tutorial for xgboost CLI version.
-Here we demonstrate how to use XGBoost for a binary classification task. Before getting started, make sure you compile xgboost in the root directory of the project by typing ```make```
-The script runexp.sh can be used to run the demo. Here we use [mushroom dataset](https://archive.ics.uci.edu/ml/datasets/Mushroom) from UCI machine learning repository.
+Here we demonstrate how to use XGBoost for a binary classification task. Before getting started, make sure you compile xgboost in the root directory of the project by typing ```make```.
+The script 'runexp.sh' can be used to run the demo. Here we use [mushroom dataset](https://archive.ics.uci.edu/ml/datasets/Mushroom) from UCI machine learning repository.
 
 ### Tutorial
 #### Generate Input Data
@@ -80,7 +80,7 @@ booster = gblinear
 # L2 regularization term on weights, default 0
 lambda = 0.01
 # L1 regularization term on weights, default 0
-f ```agaricus.txt.test.buffer``` exists, and automatically loads from binary buffer if possible, this can speedup training process when you do training many times. You can disable it by setting ```use_buffer=0```.
+If ```agaricus.txt.test.buffer``` exists, and automatically loads from binary buffer if possible, this can speedup training process when you do training many times. You can disable it by setting ```use_buffer=0```.
   - Buffer file can also be used as standalone input, i.e if buffer file exists, but original agaricus.txt.test was removed, xgboost will still run
 * Deviation from LibSVM input format: xgboost is compatible with LibSVM format, with the following minor differences:
   - xgboost allows feature index starts from 0
@@ -97,15 +97,15 @@ lambda_bias = 0.01
 #### Get Predictions
 After training, we can use the output model to get the prediction of the test data:
 ```
-../../xgboost mushroom.conf task=pred model_in=0003.model
+../../xgboost mushroom.conf task=pred model_in=0002.model
 ```
 For binary classification, the output predictions are probability confidence scores in [0,1], corresponds to the probability of the label to be positive.
 
 #### Dump Model
 This is a preliminary feature, so far only tree model support text dump. XGBoost can display the tree models in text files and we can scan the model in an easy way:
 ```
-../../xgboost mushroom.conf task=dump model_in=0003.model name_dump=dump.raw.txt
-../../xgboost mushroom.conf task=dump model_in=0003.model fmap=featmap.txt name_dump=dump.nice.txt
+../../xgboost mushroom.conf task=dump model_in=0002.model name_dump=dump.raw.txt
+../../xgboost mushroom.conf task=dump model_in=0002.model fmap=featmap.txt name_dump=dump.nice.txt
 ```
 
 In this demo, the tree boosters obtained will be printed in dump.raw.txt and dump.nice.txt, and the latter one is easier to understand because of usage of feature mapping featmap.txt

@@ -20,18 +20,18 @@ xgb.attributes(object) <- value
 
 \item{name}{a non-empty character string specifying which attribute is to be accessed.}
 
-\item{value}{a value of an attribute for \code{xgb.attr<-}; for \code{xgb.attributes<-} 
-it's a list (or an object coercible to a list) with the names of attributes to set 
-and the elements corresponding to attribute values. 
+\item{value}{a value of an attribute for \code{xgb.attr<-}; for \code{xgb.attributes<-}
+it's a list (or an object coercible to a list) with the names of attributes to set
+and the elements corresponding to attribute values.
 Non-character values are converted to character.
 When attribute value is not a scalar, only the first index is used.
 Use \code{NULL} to remove an attribute.}
 }
 \value{
-\code{xgb.attr} returns either a string value of an attribute 
+\code{xgb.attr} returns either a string value of an attribute
 or \code{NULL} if an attribute wasn't stored in a model.
 
-\code{xgb.attributes} returns a list of all attribute stored in a model 
+\code{xgb.attributes} returns a list of all attribute stored in a model
 or \code{NULL} if a model has no stored attributes.
 }
 \description{
@@ -41,23 +41,23 @@ These methods allow to manipulate the key-value attribute strings of an xgboost 
 The primary purpose of xgboost model attributes is to store some meta-data about the model.
 Note that they are a separate concept from the object attributes in R.
 Specifically, they refer to key-value strings that can be attached to an xgboost model,
-stored together with the model's binary representation, and accessed later 
+stored together with the model's binary representation, and accessed later
 (from R or any other interface).
 In contrast, any R-attribute assigned to an R-object of \code{xgb.Booster} class
 would not be saved by \code{xgb.save} because an xgboost model is an external memory object
 and its serialization is handled externally.
-Also, setting an attribute that has the same name as one of xgboost's parameters wouldn't 
-change the value of that parameter for a model. 
+Also, setting an attribute that has the same name as one of xgboost's parameters wouldn't
+change the value of that parameter for a model.
 Use \code{\link{xgb.parameters<-}} to set or change model parameters.
 
 The attribute setters would usually work more efficiently for \code{xgb.Booster.handle}
 than for \code{xgb.Booster}, since only just a handle (pointer) would need to be copied.
 That would only matter if attributes need to be set many times.
 Note, however, that when feeding a handle of an \code{xgb.Booster} object to the attribute setters,
-the raw model cache of an \code{xgb.Booster} object would not be automatically updated, 
+the raw model cache of an \code{xgb.Booster} object would not be automatically updated,
 and it would be user's responsibility to call \code{xgb.save.raw} to update it.
 
-The \code{xgb.attributes<-} setter either updates the existing or adds one or several attributes, 
+The \code{xgb.attributes<-} setter either updates the existing or adds one or several attributes,
 but it doesn't delete the other existing attributes.
 }
 \examples{
@@ -83,4 +83,3 @@ xgb.attributes(bst1) <- list(a = NULL, b = NULL)
 print(xgb.attributes(bst1))
 
 }
-

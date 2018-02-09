@@ -39,7 +39,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
                    const MetaInfo& info,
                    int iter,
                    std::vector<bst_gpair>* out_gpair) override {
-    CHECK_NE(info.labels.size(), 0) << "label set cannot be empty";
+    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK(preds.size() == (static_cast<size_t>(param_.num_class) * info.labels.size()))
         << "SoftmaxMultiClassObj: label size and pred size does not match";
     out_gpair->resize(preds.size());
@@ -65,9 +65,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
           bst_float p = rec[k];
           const bst_float h = 2.0f * p * (1.0f - p) * wt;
           if (label == k) {
-            out_gpair->at(i * nclass + k) = bst_gpair((p - 1.0f) * wt, h);
+            (*out_gpair)[i * nclass + k] = bst_gpair((p - 1.0f) * wt, h);
           } else {
-            out_gpair->at(i * nclass + k) = bst_gpair(p* wt, h);
+            (*out_gpair)[i * nclass + k] = bst_gpair(p* wt, h);
           }
         }
       }

@@ -16,19 +16,19 @@
 
 package ml.dmlc.xgboost4j.scala.flink
 
-import scala.collection.JavaConverters.asScalaIteratorConverter;
+import scala.collection.JavaConverters.asScalaIteratorConverter
+
 import ml.dmlc.xgboost4j.LabeledPoint
-import ml.dmlc.xgboost4j.java.{RabitTracker, Rabit}
+import ml.dmlc.xgboost4j.java.{Rabit, RabitTracker}
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => XGBoostScala}
+
 import org.apache.commons.logging.LogFactory
 import org.apache.flink.api.common.functions.RichMapPartitionFunction
-import org.apache.flink.api.scala.DataSet
-import org.apache.flink.api.scala._
+import org.apache.flink.api.scala.{DataSet, _}
 import org.apache.flink.ml.common.LabeledVector
 import org.apache.flink.util.Collector
-import org.apache.hadoop.fs.FileSystem
-import org.apache.hadoop.fs.Path
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileSystem, Path}
 
 object XGBoost {
   /**
@@ -49,14 +49,16 @@ object XGBoost {
       Rabit.init(workerEnvs)
       val mapper = (x: LabeledVector) => {
         val (index, value) = x.vector.toSeq.unzip
-        LabeledPoint.fromSparseVector(x.label.toFloat,
-          index.toArray, value.map(z => z.toFloat).toArray)
+        LabeledPoint(x.label.toFloat, index.toArray, value.map(_.toFloat).toArray)
       }
       val dataIter = for (x <- it.iterator().asScala) yield mapper(x)
       val trainMat = new DMatrix(dataIter, null)
       val watches = List("train" -> trainMat).toMap
       val round = 2
-      val booster = XGBoostScala.train(trainMat, paramMap, round, watches, null, null)
+      val numEarlyStoppingRounds = paramMap.get("numEarlyStoppingRounds")
+          .map(_.toString.toInt).getOrElse(0)
+      val booster = XGBoostScala.train(trainMat, paramMap, round, watches,
+        earlyStoppingRound = numEarlyStoppingRounds)
       Rabit.shutdown()
       collector.collect(new XGBoostModel(booster))
     }

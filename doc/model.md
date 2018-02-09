@@ -31,7 +31,7 @@ to measure the performance of the model given a certain set of parameters.
 A very important fact about objective functions is they ***must always*** contain two parts: training loss and regularization.
 
 ```math
-Obj(\Theta) = L(\theta) + \Omega(\Theta)
+\text{obj}(\theta) = L(\theta) + \Omega(\theta)
 ```
 
 where ``$ L $`` is the training loss function, and ``$ \Omega $`` is the regularization term. The training loss measures how *predictive* our model is on training data.
@@ -173,7 +173,7 @@ We need to define the complexity of the tree ``$\Omega(f)$``. In order to do so,
 f_t(x) = w_{q(x)}, w \in R^T, q:R^d\rightarrow \{1,2,\cdots,T\} .
 ```
 
-Here ``$ w $`` is the vector of scores on leaves, ``$ q $`` is a function assigning each data point to the corresponding leaf, and``$ T $`` is the number of leaves.
+Here ``$ w $`` is the vector of scores on leaves, ``$ q $`` is a function assigning each data point to the corresponding leaf, and ``$ T $`` is the number of leaves.
 In XGBoost, we define the complexity as
 
 ```math
@@ -188,7 +188,7 @@ By defining it formally, we can get a better idea of what we are learning, and y
 Here is the magical part of the derivation. After reformalizing the tree model, we can write the objective value with the ``$ t$``-th tree as:
 
 ```math
-Obj^{(t)} &\approx \sum_{i=1}^n [g_i w_{q(x_i)} + \frac{1}{2} h_i w_{q(x_i)}^2] + \gamma T + \frac{1}{2}\lambda \sum_{j=1}^T w_j^2\\
+\text{obj}^{(t)} &\approx \sum_{i=1}^n [g_i w_{q(x_i)} + \frac{1}{2} h_i w_{q(x_i)}^2] + \gamma T + \frac{1}{2}\lambda \sum_{j=1}^T w_j^2\\
 &= \sum^T_{j=1} [(\sum_{i\in I_j} g_i) w_j + \frac{1}{2} (\sum_{i\in I_j} h_i + \lambda) w_j^2 ] + \gamma T
 ```
 

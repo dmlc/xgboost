@@ -7,18 +7,30 @@ data(agaricus.test, package='xgboost')
 test_data <- agaricus.test$data[1:100,]
 test_label <- agaricus.test$label[1:100]
 
-test_that("xgb.DMatrix: basic construction, saving, loading", {
+test_that("xgb.DMatrix: basic construction", {
   # from sparse matrix
   dtest1 <- xgb.DMatrix(test_data, label=test_label)
+  
   # from dense matrix 
   dtest2 <- xgb.DMatrix(as.matrix(test_data), label=test_label)
   expect_equal(getinfo(dtest1, 'label'), getinfo(dtest2, 'label'))
+  expect_equal(dim(dtest1), dim(dtest2))
   
+  #from dense integer matrix
+  int_data <- as.matrix(test_data)
+  storage.mode(int_data) <- "integer"
+  dtest3 <- xgb.DMatrix(int_data, label=test_label)
+  expect_equal(dim(dtest1), dim(dtest3))
+})
+
+test_that("xgb.DMatrix: saving, loading", {
   # save to a local file
+  dtest1 <- xgb.DMatrix(test_data, label=test_label)
   tmp_file <- tempfile('xgb.DMatrix_')
   expect_true(xgb.DMatrix.save(dtest1, tmp_file))
   # read from a local file
-  dtest3 <- xgb.DMatrix(tmp_file)
+  expect_output(dtest3 <- xgb.DMatrix(tmp_file), "entries loaded from")
+  expect_output(dtest3 <- xgb.DMatrix(tmp_file, silent = TRUE), NA)
   unlink(tmp_file)
   expect_equal(getinfo(dtest1, 'label'), getinfo(dtest3, 'label'))
   
@@ -26,7 +38,7 @@ test_that("xgb.DMatrix: basic construction, saving, loading", {
   tmp <- c("0 1:1 2:1","1 3:1","0 1:1")
   tmp_file <- 'tmp.libsvm'
   writeLines(tmp, tmp_file)
-  dtest4 <- xgb.DMatrix(tmp_file)
+  dtest4 <- xgb.DMatrix(tmp_file, silent = TRUE)
   expect_equal(dim(dtest4), c(3, 4))
   expect_equal(getinfo(dtest4, 'label'), c(0,1,0))
   unlink(tmp_file)

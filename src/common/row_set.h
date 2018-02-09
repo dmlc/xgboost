@@ -17,15 +17,20 @@ namespace common {
 /*! \brief collection of rowset */
 class RowSetCollection {
  public:
-  /*! \brief subset of rows */
+  /*! \brief data structure to store an instance set, a subset of
+   *  rows (instances) associated with a particular node in a decision
+   *  tree. */
   struct Elem {
-    const bst_uint* begin;
-    const bst_uint* end;
+    const size_t* begin;
+    const size_t* end;
+    int node_id;
+      // id of node associated with this instance set; -1 means uninitialized
     Elem(void)
-        : begin(nullptr), end(nullptr) {}
-    Elem(const bst_uint* begin,
-         const bst_uint* end)
-        : begin(begin), end(end) {}
+        : begin(nullptr), end(nullptr), node_id(-1) {}
+    Elem(const size_t* begin,
+         const size_t* end,
+         int node_id)
+        : begin(begin), end(end), node_id(node_id) {}
 
     inline size_t size() const {
       return end - begin;
@@ -33,9 +38,18 @@ class RowSetCollection {
   };
   /* \brief specifies how to split a rowset into two */
   struct Split {
-    std::vector<bst_uint> left;
-    std::vector<bst_uint> right;
+    std::vector<size_t> left;
+    std::vector<size_t> right;
   };
+
+  inline std::vector<Elem>::const_iterator begin() const {
+    return elem_of_each_node_.begin();
+  }
+
+  inline std::vector<Elem>::const_iterator end() const {
+    return elem_of_each_node_.end();
+  }
+
   /*! \brief return corresponding element set given the node_id */
   inline const Elem& operator[](unsigned node_id) const {
     const Elem& e = elem_of_each_node_[node_id];
@@ -50,10 +64,23 @@ class RowSetCollection {
   }
   // initialize node id 0->everything
   inline void Init() {
-    CHECK_EQ(elem_of_each_node_.size(), 0);
-    const bst_uint* begin = dmlc::BeginPtr(row_indices_);
-    const bst_uint* end = dmlc::BeginPtr(row_indices_) + row_indices_.size();
-    elem_of_each_node_.emplace_back(Elem(begin, end));
+    CHECK_EQ(elem_of_each_node_.size(), 0U);
+
+    if (row_indices_.empty()) {  // edge case: empty instance set
+      // assign arbitrary address here, to bypass nullptr check
+      // (nullptr usually indicates a nonexistent rowset, but we want to
+      //  indicate a valid rowset that happens to have zero length and occupies
+      //  the whole instance set)
+      // this is okay, as BuildHist will compute (end-begin) as the set size
+      const size_t* begin = reinterpret_cast<size_t*>(20);
+      const size_t* end = begin;
+      elem_of_each_node_.emplace_back(Elem(begin, end, 0));
+      return;
+    }
+
+    const size_t* begin = dmlc::BeginPtr(row_indices_);
+    const size_t* end = dmlc::BeginPtr(row_indices_) + row_indices_.size();
+    elem_of_each_node_.emplace_back(Elem(begin, end, 0));
   }
   // split rowset into two
   inline void AddSplit(unsigned node_id,
@@ -61,37 +88,36 @@ class RowSetCollection {
                        unsigned left_node_id,
                        unsigned right_node_id) {
     const Elem e = elem_of_each_node_[node_id];
-    const unsigned nthread = row_split_tloc.size();
+    const bst_omp_uint nthread = static_cast<bst_omp_uint>(row_split_tloc.size());
     CHECK(e.begin != nullptr);
-    bst_uint* all_begin = dmlc::BeginPtr(row_indices_);
-    bst_uint* begin = all_begin + (e.begin - all_begin);
+    size_t* all_begin = dmlc::BeginPtr(row_indices_);
+    size_t* begin = all_begin + (e.begin - all_begin);
 
-    bst_uint* it = begin;
-    // TODO(hcho3): parallelize this section
+    size_t* it = begin;
     for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
       std::copy(row_split_tloc[tid].left.begin(), row_split_tloc[tid].left.end(), it);
       it += row_split_tloc[tid].left.size();
     }
-    bst_uint* split_pt = it;
+    size_t* split_pt = it;
     for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
       std::copy(row_split_tloc[tid].right.begin(), row_split_tloc[tid].right.end(), it);
       it += row_split_tloc[tid].right.size();
     }
 
     if (left_node_id >= elem_of_each_node_.size()) {
-      elem_of_each_node_.resize(left_node_id + 1, Elem(nullptr, nullptr));
+      elem_of_each_node_.resize(left_node_id + 1, Elem(nullptr, nullptr, -1));
     }
     if (right_node_id >= elem_of_each_node_.size()) {
-      elem_of_each_node_.resize(right_node_id + 1, Elem(nullptr, nullptr));
+      elem_of_each_node_.resize(right_node_id + 1, Elem(nullptr, nullptr, -1));
     }
 
-    elem_of_each_node_[left_node_id] = Elem(begin, split_pt);
-    elem_of_each_node_[right_node_id] = Elem(split_pt, e.end);
-    elem_of_each_node_[node_id] = Elem(nullptr, nullptr);
+    elem_of_each_node_[left_node_id] = Elem(begin, split_pt, left_node_id);
+    elem_of_each_node_[right_node_id] = Elem(split_pt, e.end, right_node_id);
+    elem_of_each_node_[node_id] = Elem(nullptr, nullptr, -1);
   }
 
   // stores the row indices in the set
-  std::vector<bst_uint> row_indices_;
+  std::vector<size_t> row_indices_;
 
  private:
   // vector: node_id -> elements

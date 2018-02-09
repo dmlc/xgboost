@@ -58,25 +58,84 @@ public class XGBoost {
   }
 
   /**
-   * Train a booster with given parameters.
+   * Train a booster given parameters.
    *
-   * @param dtrain Data to be trained.
-   * @param params Booster params.
-   * @param round  Number of boosting iterations.
+   * @param dtrain  Data to be trained.
+   * @param params  Parameters.
+   * @param round   Number of boosting iterations.
    * @param watches a group of items to be evaluated during training, this allows user to watch
-   *               performance on the validation set.
-   * @param obj    customized objective (set to null if not used)
-   * @param eval   customized evaluation (set to null if not used)
-   * @return trained booster
-   * @throws XGBoostError native error
+   *                performance on the validation set.
+   * @param obj     customized objective
+   * @param eval    customized evaluation
+   * @return The trained booster.
    */
   public static Booster train(
-      DMatrix dtrain,
-      Map<String, Object> params,
-      int round,
-      Map<String, DMatrix> watches,
-      IObjective obj,
-      IEvaluation eval) throws XGBoostError {
+          DMatrix dtrain,
+          Map<String, Object> params,
+          int round,
+          Map<String, DMatrix> watches,
+          IObjective obj,
+          IEvaluation eval) throws XGBoostError {
+    return train(dtrain, params, round, watches, null, obj, eval, 0);
+  }
+
+  /**
+   * Train a booster given parameters.
+   *
+   * @param dtrain  Data to be trained.
+   * @param params  Parameters.
+   * @param round   Number of boosting iterations.
+   * @param watches a group of items to be evaluated during training, this allows user to watch
+   *                performance on the validation set.
+   * @param metrics array containing the evaluation metrics for each matrix in watches for each
+   *                iteration
+   * @param earlyStoppingRound if non-zero, training would be stopped
+   *                           after a specified number of consecutive
+   *                           increases in any evaluation metric.
+   * @param obj     customized objective
+   * @param eval    customized evaluation
+   * @return The trained booster.
+   */
+  public static Booster train(
+          DMatrix dtrain,
+          Map<String, Object> params,
+          int round,
+          Map<String, DMatrix> watches,
+          float[][] metrics,
+          IObjective obj,
+          IEvaluation eval,
+          int earlyStoppingRound) throws XGBoostError {
+    return train(dtrain, params, round, watches, metrics, obj, eval, earlyStoppingRound, null);
+  }
+
+  /**
+   * Train a booster given parameters.
+   *
+   * @param dtrain  Data to be trained.
+   * @param params  Parameters.
+   * @param round   Number of boosting iterations.
+   * @param watches a group of items to be evaluated during training, this allows user to watch
+   *                performance on the validation set.
+   * @param metrics array containing the evaluation metrics for each matrix in watches for each
+   *                iteration
+   * @param earlyStoppingRound if non-zero, training would be stopped
+   *                           after a specified number of consecutive
+   *                           increases in any evaluation metric.
+   * @param obj     customized objective
+   * @param eval    customized evaluation
+   * @param booster train from scratch if set to null; train from an existing booster if not null.
+   * @return The trained booster.
+   */
+  public static Booster train(
+          DMatrix dtrain,
+          Map<String, Object> params,
+          int round,
+          Map<String, DMatrix> watches,
+          float[][] metrics,
+          IObjective obj,
+          IEvaluation eval,
+          int earlyStoppingRound,
+          Booster booster) throws XGBoostError {
 
     //collect eval matrixs
     String[] evalNames;
@@ -91,10 +150,11 @@ public class XGBoost {
 
     evalNames = names.toArray(new String[names.size()]);
     evalMats = mats.toArray(new DMatrix[mats.size()]);
+    metrics = metrics == null ? new float[evalNames.length][round] : metrics;
 
     //collect all data matrixs
     DMatrix[] allMats;
-    if (evalMats != null && evalMats.length > 0) {
+    if (evalMats.length > 0) {
       allMats = new DMatrix[evalMats.length + 1];
       allMats[0] = dtrain;
       System.arraycopy(evalMats, 0, allMats, 1, evalMats.length);
@@ -104,36 +164,55 @@ public class XGBoost {
     }
 
     //initialize booster
-    Booster booster = new Booster(params, allMats);
-
-    int version = booster.loadRabitCheckpoint();
+    if (booster == null) {
+      // Start training on a new booster
+      booster = new Booster(params, allMats);
+      booster.loadRabitCheckpoint();
+    } else {
+      // Start training on an existing booster
+      booster.setParams(params);
+    }
 
     //begin to train
-    for (int iter = version / 2; iter < round; iter++) {
-      if (version % 2 == 0) {
+    for (int iter = booster.getVersion() / 2; iter < round; iter++) {
+      if (booster.getVersion() % 2 == 0) {
         if (obj != null) {
           booster.update(dtrain, obj);
         } else {
           booster.update(dtrain, iter);
         }
         booster.saveRabitCheckpoint();
-        version += 1;
       }
 
       //evaluation
-      if (evalMats != null && evalMats.length > 0) {
+      if (evalMats.length > 0) {
+        float[] metricsOut = new float[evalMats.length];
         String evalInfo;
         if (eval != null) {
-          evalInfo = booster.evalSet(evalMats, evalNames, eval);
+          evalInfo = booster.evalSet(evalMats, evalNames, eval, metricsOut);
         } else {
-          evalInfo = booster.evalSet(evalMats, evalNames, iter);
+          evalInfo = booster.evalSet(evalMats, evalNames, iter, metricsOut);
+        }
+        for (int i = 0; i < metricsOut.length; i++) {
+          metrics[i][iter] = metricsOut[i];
+        }
+
+        boolean decreasing = true;
+        float[] criterion = metrics[metrics.length - 1];
+        for (int shift = 0; shift < Math.min(iter, earlyStoppingRound) - 1; shift++) {
+          decreasing &= criterion[iter - shift] <= criterion[iter - shift - 1];
+        }
+
+        if (!decreasing) {
+          Rabit.trackerPrint(String.format(
+                  "early stopping after %d decreasing rounds", earlyStoppingRound));
+          break;
         }
         if (Rabit.getRank() == 0) {
           Rabit.trackerPrint(evalInfo + '\n');
         }
       }
       booster.saveRabitCheckpoint();
-      version += 1;
     }
     return booster;
   }

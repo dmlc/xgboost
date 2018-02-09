@@ -5,7 +5,7 @@
 \title{Parse a boosted tree model text dump}
 \usage{
 xgb.model.dt.tree(feature_names = NULL, model = NULL, text = NULL,
-  trees = NULL, ...)
+  trees = NULL, use_int_id = FALSE, ...)
 }
 \arguments{
 \item{feature_names}{character vector of feature names. If the model already
@@ -24,6 +24,9 @@ It could be useful, e.g., in multiclass classification to get only
 the trees of one certain class. IMPORTANT: the tree index in xgboost models
 is zero-based (e.g., use \code{trees = 0:4} for first 5 trees).}
 
+\item{use_int_id}{a logical flag indicating whether nodes in columns "Yes", "No", "Missing" should be
+represented as integers (when FALSE) or as "Tree-Node" character strings (when FALSE).}
+
 \item{...}{currently not used.}
 }
 \value{
@@ -32,9 +35,9 @@ A \code{data.table} with detailed information about model trees' nodes.
 The columns of the \code{data.table} are:
 
 \itemize{
- \item \code{Tree}: ID of a tree in a model (integer)
- \item \code{Node}: integer ID of a node in a tree (integer)
- \item \code{ID}: identifier of a node in a model (character)
+ \item \code{Tree}: integer ID of a tree in a model (zero-based index)
+ \item \code{Node}: integer ID of a node in a tree (zero-based index)
+ \item \code{ID}: character identifier of a node in a model (only when \code{use_int_id=FALSE})
  \item \code{Feature}: for a branch node, it's a feature id or name (when available);
              for a leaf note, it simply labels it as \code{'Leaf'}
  \item \code{Split}: location of the split for a branch node (split condition is always "less than")
@@ -44,7 +47,11 @@ The columns of the \code{data.table} are:
  \item \code{Quality}: either the split gain (change in loss) or the leaf value
  \item \code{Cover}: metric related to the number of observation either seen by a split
                      or collected by a leaf during training.
-}
+} 
+
+When \code{use_int_id=FALSE}, columns "Yes", "No", and "Missing" point to model-wide node identifiers
+in the "ID" column. When \code{use_int_id=TRUE}, those columns point to node identifiers from 
+the corresponding trees in the "Node" column.
 }
 \description{
 Parse a boosted tree model text dump into a \code{data.table} structure.
@@ -58,8 +65,9 @@ bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_dep
                eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
 
 (dt <- xgb.model.dt.tree(colnames(agaricus.train$data), bst))
-# This bst has feature_names stored in it, so those would be used when 
-# the feature_names parameter is not provided:
+
+# This bst model already has feature_names stored with it, so those would be used when 
+# feature_names is not set:
 (dt <- xgb.model.dt.tree(model = bst))
 
 # How to match feature names of splits that are following a current 'Yes' branch:
@@ -67,4 +75,3 @@ bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_dep
 merge(dt, dt[, .(ID, Y.Feature=Feature)], by.x='Yes', by.y='ID', all.x=TRUE)[order(Tree,Node)]
  
 }
-

@@ -32,6 +32,9 @@ def _fmt_metric(value, show_stdv=True):
 def print_evaluation(period=1, show_stdv=True):
     """Create a callback that print evaluation result.
 
+    We print the evaluation results every ``period`` iterations
+    and on the first and the last iterations.
+
     Parameters
     ----------
     period : int
@@ -50,7 +53,7 @@ def print_evaluation(period=1, show_stdv=True):
         if env.rank != 0 or len(env.evaluation_result_list) == 0 or period is False:
             return
         i = env.iteration
-        if (i % period == 0 or i + 1 == env.begin_iteration):
+        if (i % period == 0 or i + 1 == env.begin_iteration or i + 1 == env.end_iteration):
             msg = '\t'.join([_fmt_metric(x, show_stdv) for x in env.evaluation_result_list])
             rabit.tracker_print('[%d]\t%s\n' % (i, msg))
     return callback
@@ -76,7 +79,9 @@ def record_evaluation(eval_result):
     def init(env):
         """internal function"""
         for k, _ in env.evaluation_result_list:
-            key, metric = k.split('-')
+            pos = k.index('-')
+            key = k[:pos]
+            metric = k[pos + 1:]
             if key not in eval_result:
                 eval_result[key] = {}
             if metric not in eval_result[key]:
@@ -87,7 +92,9 @@ def record_evaluation(eval_result):
         if len(eval_result) == 0:
             init(env)
         for k, v in env.evaluation_result_list:
-            key, metric = k.split('-')
+            pos = k.index('-')
+            key = k[:pos]
+            metric = k[pos + 1:]
             eval_result[key][metric].append(v)
     return callback
 
@@ -104,8 +111,8 @@ def reset_learning_rate(learning_rates):
         or a customized function that calculates eta in terms of
         current number of round and the total number of boosting round (e.g. yields
         learning rate decay)
-        - list l: eta = l[boosting round]
-        - function f: eta = f(boosting round, num_boost_round)
+        - list l: eta = l[boosting_round]
+        - function f: eta = f(boosting_round, num_boost_round)
 
     Returns
     -------

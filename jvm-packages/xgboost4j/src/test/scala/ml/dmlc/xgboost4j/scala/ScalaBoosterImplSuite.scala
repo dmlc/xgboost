@@ -74,7 +74,24 @@ class ScalaBoosterImplSuite extends FunSuite {
     val watches = List("train" -> trainMat, "test" -> testMat).toMap
 
     val round = 2
-    XGBoost.train(trainMat, paramMap, round, watches, null, null)
+    XGBoost.train(trainMat, paramMap, round, watches)
+  }
+
+  private def trainBoosterWithFastHisto(
+      trainMat: DMatrix,
+      watches: Map[String, DMatrix],
+      round: Int,
+      paramMap: Map[String, String],
+      threshold: Float): Booster = {
+    val metrics = Array.fill(watches.size, round)(0.0f)
+    val booster = XGBoost.train(trainMat, paramMap, round, watches, metrics)
+    for (i <- 0 until watches.size; j <- 1 until metrics(i).length) {
+      assert(metrics(i)(j) >= metrics(i)(j - 1))
+    }
+    for (metricsArray <- metrics; m <- metricsArray) {
+      assert(m >= threshold)
+    }
+    booster
   }
 
   test("basic operation of booster") {
@@ -126,6 +143,71 @@ class ScalaBoosterImplSuite extends FunSuite {
       "objective" -> "binary:logistic", "gamma" -> "1.0", "eval_metric" -> "error").toMap
     val round = 2
     val nfold = 5
-    XGBoost.crossValidation(trainMat, params, round, nfold, null, null, null)
+    XGBoost.crossValidation(trainMat, params, round, nfold)
+  }
+
+  test("test with fast histo depthwise") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val paramMap = List("max_depth" -> "3", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "eval_metric" -> "auc").toMap
+    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
+      round = 10, paramMap, 0.0f)
+  }
+
+  test("test with fast histo lossguide") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "auc").toMap
+    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
+      round = 10, paramMap, 0.0f)
+  }
+
+  test("test with fast histo lossguide with max bin") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
+      "eval_metric" -> "auc").toMap
+    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat),
+      round = 10, paramMap, 0.0f)
+  }
+
+  test("test with fast histo depthwidth with max depth") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
+      "eval_metric" -> "auc").toMap
+    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat),
+      round = 10, paramMap, 0.85f)
+  }
+
+  test("test with fast histo depthwidth with max depth and max bin") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
+      "eval_metric" -> "auc").toMap
+    trainBoosterWithFastHisto(trainMat, Map("training" -> trainMat),
+      round = 10, paramMap, 0.85f)
+  }
+
+  test("test training from existing model in scala") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
+      "eval_metric" -> "auc").toMap
+
+    val prevBooster = XGBoost.train(trainMat, paramMap, round = 2)
+    val nextBooster = XGBoost.train(trainMat, paramMap, round = 4, booster = prevBooster)
+    assert(prevBooster == nextBooster)
   }
 }

@@ -4,6 +4,7 @@
 #include <xgboost/learner.h>
 #include <xgboost/c_api.h>
 #include <xgboost/logging.h>
+#include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
 #include <cstdio>
 #include <vector>
@@ -13,7 +14,6 @@
 
 #include "./c_api_error.h"
 #include "../data/simple_csr_source.h"
-#include "../common/thread_local.h"
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
@@ -197,7 +197,7 @@ struct XGBAPIThreadLocalEntry {
 };
 
 // define the threadlocal store.
-typedef xgboost::common::ThreadLocalStore<XGBAPIThreadLocalEntry> XGBAPIThreadLocalStore;
+typedef dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry> XGBAPIThreadLocalStore;
 
 int XGDMatrixCreateFromFile(const char *fname,
                             int silent,
@@ -238,22 +238,30 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
 
   API_BEGIN();
   data::SimpleCSRSource& mat = *source;
-  mat.row_ptr_.resize(nindptr);
-  for (size_t i = 0; i < nindptr; ++i) {
-    mat.row_ptr_[i] = indptr[i];
+  mat.row_ptr_.reserve(nindptr);
+  mat.row_data_.reserve(nelem);
+  mat.row_ptr_.resize(1);
+  mat.row_ptr_[0] = 0;
+  size_t num_column = 0;
+  for (size_t i = 1; i < nindptr; ++i) {
+    for (size_t j = indptr[i - 1]; j < indptr[i]; ++j) {
+      if (!common::CheckNAN(data[j])) {
+        // automatically skip nan.
+        mat.row_data_.emplace_back(RowBatch::Entry(indices[j], data[j]));
+        num_column = std::max(num_column, static_cast<size_t>(indices[j] + 1));
+      }
+    }
+    mat.row_ptr_.push_back(mat.row_data_.size());
   }
-  mat.row_data_.resize(nelem);
-  for (size_t i = 0; i < nelem; ++i) {
-    mat.row_data_[i] = RowBatch::Entry(indices[i], data[i]);
-    mat.info.num_col = std::max(mat.info.num_col,
-                                static_cast<uint64_t>(indices[i] + 1));
-  }
+
+  mat.info.num_col = num_column;
   if (num_col > 0) {
-    CHECK_LE(mat.info.num_col, num_col);
+    CHECK_LE(mat.info.num_col, num_col)
+        << "num_col=" << num_col << " vs " << mat.info.num_col;
     mat.info.num_col = num_col;
   }
   mat.info.num_row = nindptr - 1;
-  mat.info.num_nonzero = nelem;
+  mat.info.num_nonzero = mat.row_data_.size();
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
 }
@@ -282,6 +290,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
 
   API_BEGIN();
+  // FIXME: User should be able to control number of threads
   const int nthread = omp_get_max_threads();
   data::SimpleCSRSource& mat = *source;
   common::ParallelGroupBuilder<RowBatch::Entry> builder(&mat.row_ptr_, &mat.row_data_);
@@ -291,7 +300,9 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   for (omp_ulong i = 0; i < static_cast<omp_ulong>(ncol); ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
-      builder.AddBudget(indices[j], tid);
+      if (!common::CheckNAN(data[j])) {
+        builder.AddBudget(indices[j], tid);
+      }
     }
   }
   builder.InitStorage();
@@ -299,9 +310,11 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
   for (omp_ulong i = 0; i < static_cast<omp_ulong>(ncol); ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     for (size_t j = col_ptr[i]; j < col_ptr[i+1]; ++j) {
-      builder.Push(indices[j],
-                   RowBatch::Entry(static_cast<bst_uint>(i), data[j]),
-                   tid);
+      if (!common::CheckNAN(data[j])) {
+        builder.Push(indices[j],
+                     RowBatch::Entry(static_cast<bst_uint>(i), data[j]),
+                     tid);
+      }
     }
   }
   mat.info.num_row = mat.row_ptr_.size() - 1;
@@ -338,24 +351,158 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
 
   API_BEGIN();
   data::SimpleCSRSource& mat = *source;
+  mat.row_ptr_.resize(1+nrow);
   bool nan_missing = common::CheckNAN(missing);
   mat.info.num_row = nrow;
   mat.info.num_col = ncol;
+  const bst_float* data0 = data;
+
+  // count elements for sizing data
+  data = data0;
   for (xgboost::bst_ulong i = 0; i < nrow; ++i, data += ncol) {
     xgboost::bst_ulong nelem = 0;
     for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
       if (common::CheckNAN(data[j])) {
         CHECK(nan_missing)
-            << "There are NAN in the matrix, however, you did not set missing=NAN";
+          << "There are NAN in the matrix, however, you did not set missing=NAN";
       } else {
         if (nan_missing || data[j] != missing) {
-          mat.row_data_.push_back(RowBatch::Entry(j, data[j]));
           ++nelem;
         }
       }
     }
-    mat.row_ptr_.push_back(mat.row_ptr_.back() + nelem);
+    mat.row_ptr_[i+1] = mat.row_ptr_[i] + nelem;
   }
+  mat.row_data_.resize(mat.row_data_.size() + mat.row_ptr_.back());
+
+  data = data0;
+  for (xgboost::bst_ulong i = 0; i < nrow; ++i, data += ncol) {
+    xgboost::bst_ulong matj = 0;
+    for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+      if (common::CheckNAN(data[j])) {
+      } else {
+        if (nan_missing || data[j] != missing) {
+          mat.row_data_[mat.row_ptr_[i] + matj] = RowBatch::Entry(j, data[j]);
+          ++matj;
+        }
+      }
+    }
+  }
+
+  mat.info.num_nonzero = mat.row_data_.size();
+  *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  API_END();
+}
+
+void prefixsum_inplace(size_t *x, size_t N) {
+  size_t *suma;
+#pragma omp parallel
+  {
+    const int ithread = omp_get_thread_num();
+    const int nthreads = omp_get_num_threads();
+#pragma omp single
+    {
+      suma = new size_t[nthreads+1];
+      suma[0] = 0;
+    }
+    size_t sum = 0;
+    size_t offset = 0;
+#pragma omp for schedule(static)
+    for (omp_ulong i = 0; i < N; i++) {
+      sum += x[i];
+      x[i] = sum;
+    }
+    suma[ithread+1] = sum;
+#pragma omp barrier
+    for (omp_ulong i = 0; i < static_cast<omp_ulong>(ithread+1); i++) {
+      offset += suma[i];
+    }
+#pragma omp for schedule(static)
+    for (omp_ulong i = 0; i < N; i++) {
+      x[i] += offset;
+    }
+  }
+  delete[] suma;
+}
+
+
+XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
+                                       xgboost::bst_ulong nrow,
+                                       xgboost::bst_ulong ncol,
+                                       bst_float missing,
+                                       DMatrixHandle* out,
+                                       int nthread) {
+  // avoid openmp unless enough data to be worth it to avoid overhead costs
+  if (nrow*ncol <= 10000*50) {
+    return(XGDMatrixCreateFromMat(data, nrow, ncol, missing, out));
+  }
+
+  API_BEGIN();
+  const int nthreadmax = std::max(omp_get_num_procs() / 2 - 1, 1);
+  //  const int nthreadmax = omp_get_max_threads();
+  if (nthread <= 0) nthread=nthreadmax;
+  omp_set_num_threads(nthread);
+
+  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+  data::SimpleCSRSource& mat = *source;
+  mat.row_ptr_.resize(1+nrow);
+  mat.info.num_row = nrow;
+  mat.info.num_col = ncol;
+
+  // Check for errors in missing elements
+  // Count elements per row (to avoid otherwise need to copy)
+  bool nan_missing = common::CheckNAN(missing);
+  int *badnan;
+  badnan = new int[nthread];
+  for (int i = 0; i < nthread; i++) {
+    badnan[i] = 0;
+  }
+
+#pragma omp parallel num_threads(nthread)
+  {
+    int ithread  = omp_get_thread_num();
+
+    // Count elements per row
+#pragma omp for schedule(static)
+    for (omp_ulong i = 0; i < nrow; ++i) {
+      xgboost::bst_ulong nelem = 0;
+      for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+        if (common::CheckNAN(data[ncol*i + j]) && !nan_missing) {
+          badnan[ithread] = 1;
+        } else if (common::CheckNAN(data[ncol * i + j])) {
+        } else if (nan_missing || data[ncol * i + j] != missing) {
+          ++nelem;
+        }
+      }
+      mat.row_ptr_[i+1] = nelem;
+    }
+  }
+  // Inform about any NaNs and resize data matrix
+  for (int i = 0; i < nthread; i++) {
+    CHECK(!badnan[i]) << "There are NAN in the matrix, however, you did not set missing=NAN";
+  }
+
+  // do cumulative sum (to avoid otherwise need to copy)
+  prefixsum_inplace(&mat.row_ptr_[0], mat.row_ptr_.size());
+  mat.row_data_.resize(mat.row_data_.size() + mat.row_ptr_.back());
+
+  // Fill data matrix (now that know size, no need for slow push_back())
+#pragma omp parallel num_threads(nthread)
+  {
+#pragma omp for schedule(static)
+    for (omp_ulong i = 0; i < nrow; ++i) {
+      xgboost::bst_ulong matj = 0;
+      for (xgboost::bst_ulong j = 0; j < ncol; ++j) {
+        if (common::CheckNAN(data[ncol * i + j])) {
+        } else if (nan_missing || data[ncol * i + j] != missing) {
+          mat.row_data_[mat.row_ptr_[i] + matj] =
+              RowBatch::Entry(j, data[ncol * i + j]);
+          ++matj;
+        }
+      }
+    }
+  }
+
   mat.info.num_nonzero = mat.row_data_.size();
   *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
   API_END();
@@ -372,7 +519,7 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
   src.CopyFrom(static_cast<std::shared_ptr<DMatrix>*>(handle)->get());
   data::SimpleCSRSource& ret = *source;
 
-  CHECK_EQ(src.info.group_ptr.size(), 0)
+  CHECK_EQ(src.info.group_ptr.size(), 0U)
       << "slice does not support group structure";
 
   ret.Clear();
@@ -399,6 +546,9 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
     }
     if (src.info.weights.size() != 0) {
       ret.info.weights.push_back(src.info.weights[ridx]);
+    }
+    if (src.info.base_margin.size() != 0) {
+      ret.info.base_margin.push_back(src.info.base_margin[ridx]);
     }
     if (src.info.root_index.size() != 0) {
       ret.info.root_index.push_back(src.info.root_index[ridx]);
@@ -607,7 +757,10 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
       static_cast<std::shared_ptr<DMatrix>*>(dmat)->get(),
       (option_mask & 1) != 0,
       &preds, ntree_limit,
-      (option_mask & 2) != 0);
+      (option_mask & 2) != 0,
+      (option_mask & 4) != 0,
+      (option_mask & 8) != 0,
+      (option_mask & 16) != 0);
   *out_result = dmlc::BeginPtr(preds);
   *len = static_cast<xgboost::bst_ulong>(preds.size());
   API_END();

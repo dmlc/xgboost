@@ -6,16 +6,15 @@
 
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost-jvm</artifactId>
-    <version>0.7</version>
+    <version>0.8-SNAPSHOT</version>
     <packaging>pom</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
-        <maven.version>3.3.9</maven.version>
-        <spark.version>2.0.1</spark.version>
-        <flink.suffix>_2.11</flink.suffix>
+        <flink.version>0.10.2</flink.version>
+        <spark.version>2.2.1</spark.version>
         <scala.version>2.11.8</scala.version>
         <scala.binary.version>2.11</scala.binary.version>
     </properties>
@@ -32,20 +31,6 @@
         <module>xgboost4j-spark</module>
         <module>xgboost4j-flink</module>
     </modules>
-    <profiles>
-        <profile>
-            <id>spark-2.x</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <!--<properties>-->
-            <!--<spark.version>2.0.1</spark.version>-->
-            <!--<flink.suffix>_2.11</flink.suffix>-->
-            <!--<scala.version>2.11.8</scala.version>-->
-            <!--<scala.binary.version>2.11</scala.binary.version>-->
-            <!--</properties>-->
-        </profile>
-    </profiles>
     <build>
         <plugins>
             <plugin>
@@ -199,7 +184,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.19.1</version>
                 <configuration>
-                    <skipTests>true</skipTests>
+                    <skipTests>false</skipTests>
                 </configuration>
             </plugin>
             <plugin>
@@ -211,6 +196,25 @@
                         <id>test</id>
                         <goals>
                             <goal>test</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.7.9</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
                         </goals>
                     </execution>
                 </executions>

@@ -55,7 +55,7 @@ class HistMaker: public BaseMaker {
                     const MetaInfo &info,
                     const bst_uint ridx) {
       unsigned i = std::upper_bound(cut, cut + size, fv) - cut;
-      CHECK_NE(size, 0) << "try insert into size=0";
+      CHECK_NE(size, 0U) << "try insert into size=0";
       CHECK_LT(i, size);
       data[i].Add(gpair, info, ridx);
     }
@@ -298,8 +298,15 @@ class CQHistMaker: public HistMaker<TStats> {
         hist.data[istart].Add(gstats);
       } else {
         while (istart < hist.size && !(fv < hist.cut[istart])) ++istart;
-        CHECK_NE(istart, hist.size);
-        hist.data[istart].Add(gstats);
+        if (istart != hist.size) {
+          hist.data[istart].Add(gstats);
+        } else {
+          LOG(INFO) << "fv=" << fv << ", hist.size=" << hist.size;
+          for (size_t i = 0; i < hist.size; ++i) {
+            LOG(INFO) << "hist[" << i << "]=" << hist.cut[i];
+          }
+          LOG(FATAL) << "fv=" << fv << ", hist.last=" << hist.cut[hist.size - 1];
+        }
       }
     }
   };
@@ -561,7 +568,7 @@ class CQHistMaker: public HistMaker<TStats> {
         const bst_uint ridx = c[j].index;
         const int nid = this->position[ridx];
         if (nid >= 0) {
-        sbuilder[nid].sum_total += gpair[ridx].hess;
+        sbuilder[nid].sum_total += gpair[ridx].GetHess();
       }
     }
     // if only one value, no need to do second pass
@@ -588,7 +595,7 @@ class CQHistMaker: public HistMaker<TStats> {
         for (bst_uint i = 0; i < kBuffer; ++i) {
           bst_uint ridx = c[j + i].index;
           buf_position[i] = this->position[ridx];
-          buf_hess[i] = gpair[ridx].hess;
+          buf_hess[i] = gpair[ridx].GetHess();
         }
         for (bst_uint i = 0; i < kBuffer; ++i) {
           const int nid = buf_position[i];
@@ -601,7 +608,7 @@ class CQHistMaker: public HistMaker<TStats> {
         const bst_uint ridx = c[j].index;
         const int nid = this->position[ridx];
         if (nid >= 0) {
-          sbuilder[nid].Push(c[j].fvalue, gpair[ridx].hess, max_size);
+          sbuilder[nid].Push(c[j].fvalue, gpair[ridx].GetHess(), max_size);
         }
       }
     } else {
@@ -609,7 +616,7 @@ class CQHistMaker: public HistMaker<TStats> {
         const bst_uint ridx = c[j].index;
         const int nid = this->position[ridx];
         if (nid >= 0) {
-          sbuilder[nid].Push(c[j].fvalue, gpair[ridx].hess, max_size);
+          sbuilder[nid].Push(c[j].fvalue, gpair[ridx].GetHess(), max_size);
         }
       }
     }
@@ -657,7 +664,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
       cached_cut_.clear();
     }
     if (cached_rptr_.size() == 0) {
-      CHECK_EQ(this->qexpand.size(), 1);
+      CHECK_EQ(this->qexpand.size(), 1U);
       CQHistMaker<TStats>::ResetPosAndPropose(gpair, p_fmat, fset, tree);
       cached_rptr_ = this->wspace.rptr;
       cached_cut_ = this->wspace.cut;
@@ -811,7 +818,7 @@ class QuantileHistMaker: public HistMaker<TStats> {
         for (size_t i = col_ptr[k]; i < col_ptr[k+1]; ++i) {
           const SparseBatch::Entry &e = col_data[i];
           const int wid = this->node2workindex[e.index];
-          sketchs[wid * tree.param.num_feature + k].Push(e.fvalue, gpair[e.index].hess);
+          sketchs[wid * tree.param.num_feature + k].Push(e.fvalue, gpair[e.index].GetHess());
         }
       }
     }

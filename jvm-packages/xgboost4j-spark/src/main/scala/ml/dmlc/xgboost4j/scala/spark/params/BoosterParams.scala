@@ -18,11 +18,9 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import scala.collection.immutable.HashSet
 
-import ml.dmlc.xgboost4j.scala.spark.XGBoostEstimator
 import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
 
 trait BoosterParams extends Params {
-  this: XGBoostEstimator =>
 
   /**
    * Booster to use, options: {'gbtree', 'gblinear', 'dart'}
@@ -126,8 +124,21 @@ trait BoosterParams extends Params {
    *  [default='auto']
    */
   val treeMethod = new Param[String](this, "tree_method",
-    "The tree construction algorithm used in XGBoost, options: {'auto', 'exact', 'approx'}",
+    "The tree construction algorithm used in XGBoost, options: {'auto', 'exact', 'approx', 'hist'}",
     (value: String) => BoosterParams.supportedTreeMethods.contains(value))
+
+  /**
+   * growth policy for fast histogram algorithm
+   */
+  val growthPolicty = new Param[String](this, "grow_policy",
+    "growth policy for fast histogram algorithm",
+    (value: String) => BoosterParams.supportedGrowthPolicies.contains(value))
+
+  /**
+   * maximum number of bins in histogram
+   */
+  val maxBins = new IntParam(this, "max_bin", "maximum number of bins in histogram",
+    (value: Int) => value > 0)
 
   /**
    * This is only used for approximate greedy algorithm.
@@ -194,9 +205,10 @@ trait BoosterParams extends Params {
 
   setDefault(boosterType -> "gbtree", eta -> 0.3, gamma -> 0, maxDepth -> 6,
     minChildWeight -> 1, maxDeltaStep -> 0,
+    growthPolicty -> "depthwise", maxBins -> 16,
     subSample -> 1, colSampleByTree -> 1, colSampleByLevel -> 1,
     lambda -> 1, alpha -> 0, treeMethod -> "auto", sketchEps -> 0.03,
-    scalePosWeight -> 0, sampleType -> "uniform", normalizeType -> "tree",
+    scalePosWeight -> 1.0, sampleType -> "uniform", normalizeType -> "tree",
     rateDrop -> 0.0, skipDrop -> 0.0, lambdaBias -> 0)
 
   /**
@@ -227,7 +239,9 @@ private[spark] object BoosterParams {
 
   val supportedBoosters = HashSet("gbtree", "gblinear", "dart")
 
-  val supportedTreeMethods = HashSet("auto", "exact", "approx")
+  val supportedTreeMethods = HashSet("auto", "exact", "approx", "hist")
+
+  val supportedGrowthPolicies = HashSet("depthwise", "lossguide")
 
   val supportedSampleType = HashSet("uniform", "weighted")
 

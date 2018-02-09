@@ -18,9 +18,14 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import scala.collection.immutable.HashSet
 
-import org.apache.spark.ml.param.{DoubleParam, Param, Params}
+import org.apache.spark.ml.param._
 
 trait LearningTaskParams extends Params {
+
+  /**
+   * number of tasks to learn
+   */
+  val numClasses = new IntParam(this, "num_class", "number of classes")
 
   /**
    * Specify the learning task and the corresponding learning objective.
@@ -48,7 +53,42 @@ trait LearningTaskParams extends Params {
     s" {${LearningTaskParams.supportedEvalMetrics.mkString(",")}}",
     (value: String) => LearningTaskParams.supportedEvalMetrics.contains(value))
 
-  setDefault(objective -> "reg:linear", baseScore -> 0.5)
+  /**
+    * group data specify each group sizes for ranking task. To correspond to partition of
+    * training data, it is nested.
+    */
+  val groupData = new GroupDataParam(this, "groupData", "group data specify each group size" +
+    " for ranking task. To correspond to partition of training data, it is nested.")
+
+  /**
+   * Initial prediction (aka base margin) column name.
+   */
+  val baseMarginCol = new Param[String](this, "baseMarginCol", "base margin column name")
+
+  /**
+   * Instance weights column name.
+   */
+  val weightCol = new Param[String](this, "weightCol", "weight column name")
+
+  /**
+   * Fraction of training points to use for testing.
+   */
+  val trainTestRatio = new DoubleParam(this, "trainTestRatio",
+    "fraction of training points to use for testing",
+    ParamValidators.inRange(0, 1))
+
+  /**
+   * If non-zero, the training will be stopped after a specified number
+   * of consecutive increases in any evaluation metric.
+   */
+  val numEarlyStoppingRounds = new IntParam(this, "numEarlyStoppingRounds",
+    "number of rounds of decreasing eval metric to tolerate before " +
+    "stopping the training",
+    (value: Int) => value == 0 || value > 1)
+
+  setDefault(objective -> "reg:linear", baseScore -> 0.5, numClasses -> 2, groupData -> null,
+    baseMarginCol -> "baseMargin", weightCol -> "weight", trainTestRatio -> 1.0,
+    numEarlyStoppingRounds -> 0)
 }
 
 private[spark] object LearningTaskParams {

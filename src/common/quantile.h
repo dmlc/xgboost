@@ -281,10 +281,10 @@ struct WQSummary {
   // helper function to print the current content of sketch
   inline void Print() const {
     for (size_t i = 0; i < this->size; ++i) {
-      LOG(INFO) << "[" << i << "] rmin=" << data[i].rmin
-                << ", rmax=" << data[i].rmax
-                << ", wmin=" << data[i].wmin
-                << ", v=" << data[i].value;
+      LOG(CONSOLE) << "[" << i << "] rmin=" << data[i].rmin
+                   << ", rmax=" << data[i].rmax
+                   << ", wmin=" << data[i].wmin
+                   << ", v=" << data[i].value;
     }
   }
   // try to fix rounding error
@@ -321,7 +321,7 @@ struct WQSummary {
     for (size_t i = 0; i < this->size; ++i) {
       if (data[i].rmin + data[i].wmin > data[i].rmax + tol ||
           data[i].rmin < -1e-6f || data[i].rmax < -1e-6f) {
-        LOG(INFO) << "----------check not pass----------";
+        LOG(INFO) << "---------- WQSummary::Check did not pass ----------";
         this->Print();
         return false;
       }
@@ -503,9 +503,8 @@ struct GKSummary {
   /*! \brief used for debug purpose, print the summary */
   inline void Print() const {
     for (size_t i = 0; i < size; ++i) {
-      std::cout << "x=" << data[i].value << "\t"
-                << "[" << data[i].rmin << "," << data[i].rmax << "]"
-                << std::endl;
+      LOG(CONSOLE) << "x=" << data[i].value << "\t"
+                   << "[" << data[i].rmin << "," << data[i].rmax << "]";
     }
   }
   /*!
@@ -680,12 +679,12 @@ class QuantileSketchTemplate {
     nlevel = 1;
     while (true) {
       limit_size = static_cast<size_t>(ceil(nlevel / eps)) + 1;
-      size_t n = (1UL << nlevel);
+      size_t n = (1ULL << nlevel);
       if (n * limit_size >= maxn) break;
       ++nlevel;
     }
     // check invariant
-    size_t n = (1UL << nlevel);
+    size_t n = (1ULL << nlevel);
     CHECK(n * limit_size >= maxn) << "invalid init parameter";
     CHECK(nlevel <= limit_size * eps) << "invalid init parameter";
     // lazy reserve the space, if there is only one value, no need to allocate space

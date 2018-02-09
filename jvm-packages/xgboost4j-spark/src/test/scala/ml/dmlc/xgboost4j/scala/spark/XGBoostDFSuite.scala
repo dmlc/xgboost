@@ -16,54 +16,46 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
-import org.apache.spark.SparkContext
-import org.apache.spark.ml.feature.LabeledPoint
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql._
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.DataTypes
+import org.scalatest.FunSuite
+import org.scalatest.prop.TableDrivenPropertyChecks
 
-class XGBoostDFSuite extends SharedSparkContext with Utils {
+class XGBoostDFSuite extends FunSuite with PerTest with TableDrivenPropertyChecks {
+  private def buildDataFrame(
+      labeledPoints: Seq[XGBLabeledPoint],
+      numPartitions: Int = numWorkers): DataFrame = {
+    import DataUtils._
+    val it = labeledPoints.iterator.zipWithIndex
+        .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
+          (id, labeledPoint.label, labeledPoint.features)
+        }
 
-  private var trainingDF: DataFrame = null
-
-  private def buildTrainingDataframe(sparkContext: Option[SparkContext] = None): DataFrame = {
-    if (trainingDF == null) {
-      val rowList = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile)
-      val labeledPointsRDD = sparkContext.getOrElse(sc).parallelize(rowList, numWorkers)
-      val sparkSession = SparkSession.builder().appName("XGBoostDFSuite").getOrCreate()
-      import sparkSession.implicits._
-      trainingDF = sparkSession.createDataset(labeledPointsRDD).toDF
-    }
-    trainingDF
+    ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
+        .toDF("id", "label", "features")
   }
 
   test("test consistency and order preservation of dataframe-based model") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val trainingItr = loadLabelPoints(getClass.getResource("/agaricus.txt.train").getFile).
-      iterator
-    val (testItr, auxTestItr) =
-      loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator.duplicate
-    import DataUtils._
-    val trainDMatrix = new DMatrix(new JDMatrix(trainingItr, null))
-    val testDMatrix = new DMatrix(new JDMatrix(testItr, null))
-    val xgboostModel = ScalaXGBoost.train(trainDMatrix, paramMap, 5)
+    val trainingItr = Classification.train.iterator
+    val testItr = Classification.test.iterator
+    val round = 5
+    val trainDMatrix = new DMatrix(trainingItr)
+    val testDMatrix = new DMatrix(testItr)
+    val xgboostModel = ScalaXGBoost.train(trainDMatrix, paramMap, round)
     val predResultFromSeq = xgboostModel.predict(testDMatrix)
-    val testSetItr = auxTestItr.zipWithIndex.map {
-      case (instance: LabeledPoint, id: Int) =>
-        (id, instance.features, instance.label)
-    }
-    val trainingDF = buildTrainingDataframe()
+    val trainingDF = buildDataFrame(Classification.train)
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
-      round = 5, nWorkers = numWorkers, useExternalMemory = false)
-    val testDF = trainingDF.sparkSession.createDataFrame(testSetItr.toList).toDF(
-      "id", "features", "label")
+      round = round, nWorkers = numWorkers)
+    val testDF = buildDataFrame(Classification.test)
     val predResultsFromDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF).
-      collect().map(row =>
-      (row.getAs[Int]("id"), row.getAs[DenseVector]("probabilities"))
-    ).toMap
+      collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probabilities"))).toMap
     assert(testDF.count() === predResultsFromDF.size)
     // the vector length in probabilties column is 2 since we have to fit to the evaluator in
     // Spark
@@ -73,92 +65,65 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
         assert(predResultFromSeq(i)(j) === predResultsFromDF(i)(j + 1))
       }
     }
-    cleanExternalCache("XGBoostDFSuite")
   }
 
   test("test transformLeaf") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val testItr = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
-    val trainingDF = buildTrainingDataframe()
+    val trainingDF = buildDataFrame(Classification.train)
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
-      round = 5, nWorkers = numWorkers, useExternalMemory = false)
-    val testSetItr = testItr.zipWithIndex.map {
-      case (instance: LabeledPoint, id: Int) =>
-        (id, instance.features, instance.label)
-    }
-    val testDF = trainingDF.sparkSession.createDataFrame(testSetItr.toList).toDF(
-      "id", "features", "label")
+      round = 5, nWorkers = numWorkers)
+    val testDF = buildDataFrame(Classification.test)
     xgBoostModelWithDF.transformLeaf(testDF).show()
   }
 
   test("test schema of XGBoostRegressionModel") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:linear")
-    val testItr = loadLabelPoints(getClass.getResource("/machine.txt.test").getFile,
-      zeroBased = true).iterator.
-      zipWithIndex.map { case (instance: LabeledPoint, id: Int) =>
-      (id, instance.features, instance.label)
-    }
-    val trainingDF = {
-      val rowList = loadLabelPoints(getClass.getResource("/machine.txt.train").getFile,
-        zeroBased = true)
-      val labeledPointsRDD = sc.parallelize(rowList, numWorkers)
-      val sparkSession = SparkSession.builder().appName("XGBoostDFSuite").getOrCreate()
-      import sparkSession.implicits._
-      sparkSession.createDataset(labeledPointsRDD).toDF
-    }
+    val trainingDF = buildDataFrame(Regression.train)
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = true)
     xgBoostModelWithDF.setPredictionCol("final_prediction")
-    val testDF = trainingDF.sparkSession.createDataFrame(testItr.toList).toDF(
-      "id", "features", "label")
+    val testDF = buildDataFrame(Regression.test)
     val predictionDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF)
-    assert(predictionDF.columns.contains("id") === true)
-    assert(predictionDF.columns.contains("features") === true)
-    assert(predictionDF.columns.contains("label") === true)
-    assert(predictionDF.columns.contains("final_prediction") === true)
+    assert(predictionDF.columns.contains("id"))
+    assert(predictionDF.columns.contains("features"))
+    assert(predictionDF.columns.contains("label"))
+    assert(predictionDF.columns.contains("final_prediction"))
     predictionDF.show()
-    cleanExternalCache("XGBoostDFSuite")
   }
 
   test("test schema of XGBoostClassificationModel") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic")
-    val testItr = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator.
-      zipWithIndex.map { case (instance: LabeledPoint, id: Int) =>
-      (id, instance.features, instance.label)
-    }
-    val trainingDF = buildTrainingDataframe()
+    val trainingDF = buildDataFrame(Classification.train)
     val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
       round = 5, nWorkers = numWorkers, useExternalMemory = true)
     xgBoostModelWithDF.asInstanceOf[XGBoostClassificationModel].setRawPredictionCol(
       "raw_prediction").setPredictionCol("final_prediction")
-    val testDF = trainingDF.sparkSession.createDataFrame(testItr.toList).toDF(
-      "id", "features", "label")
+    val testDF = buildDataFrame(Classification.test)
     var predictionDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF)
-    assert(predictionDF.columns.contains("id") === true)
-    assert(predictionDF.columns.contains("features") === true)
-    assert(predictionDF.columns.contains("label") === true)
-    assert(predictionDF.columns.contains("raw_prediction") === true)
-    assert(predictionDF.columns.contains("final_prediction") === true)
+    assert(predictionDF.columns.contains("id"))
+    assert(predictionDF.columns.contains("features"))
+    assert(predictionDF.columns.contains("label"))
+    assert(predictionDF.columns.contains("raw_prediction"))
+    assert(predictionDF.columns.contains("final_prediction"))
     xgBoostModelWithDF.asInstanceOf[XGBoostClassificationModel].setRawPredictionCol("").
       setPredictionCol("final_prediction")
     predictionDF = xgBoostModelWithDF.transform(testDF)
-    assert(predictionDF.columns.contains("id") === true)
-    assert(predictionDF.columns.contains("features") === true)
-    assert(predictionDF.columns.contains("label") === true)
+    assert(predictionDF.columns.contains("id"))
+    assert(predictionDF.columns.contains("features"))
+    assert(predictionDF.columns.contains("label"))
     assert(predictionDF.columns.contains("raw_prediction") === false)
-    assert(predictionDF.columns.contains("final_prediction") === true)
+    assert(predictionDF.columns.contains("final_prediction"))
     xgBoostModelWithDF.asInstanceOf[XGBoostClassificationModel].
       setRawPredictionCol("raw_prediction").setPredictionCol("")
     predictionDF = xgBoostModelWithDF.transform(testDF)
-    assert(predictionDF.columns.contains("id") === true)
-    assert(predictionDF.columns.contains("features") === true)
-    assert(predictionDF.columns.contains("label") === true)
-    assert(predictionDF.columns.contains("raw_prediction") === true)
+    assert(predictionDF.columns.contains("id"))
+    assert(predictionDF.columns.contains("features"))
+    assert(predictionDF.columns.contains("label"))
+    assert(predictionDF.columns.contains("raw_prediction"))
     assert(predictionDF.columns.contains("final_prediction") === false)
-    cleanExternalCache("XGBoostDFSuite")
   }
 
   test("xgboost and spark parameters synchronize correctly") {
@@ -169,8 +134,8 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(xgbEstimator.get(xgbEstimator.objective).get === "binary:logistic")
     // from spark to xgboost params
     val xgbEstimatorCopy = xgbEstimator.copy(ParamMap.empty)
-    assert(xgbEstimatorCopy.xgboostParams.get("eta").get.toString.toDouble === 1.0)
-    assert(xgbEstimatorCopy.xgboostParams.get("objective").get.toString === "binary:logistic")
+    assert(xgbEstimatorCopy.fromParamsToXGBParamMap("eta").toString.toDouble === 1.0)
+    assert(xgbEstimatorCopy.fromParamsToXGBParamMap("objective").toString === "binary:logistic")
   }
 
   test("eval_metric is configured correctly") {
@@ -179,11 +144,122 @@ class XGBoostDFSuite extends SharedSparkContext with Utils {
     assert(xgbEstimator.get(xgbEstimator.evalMetric).get === "error")
     val sparkParamMap = ParamMap.empty
     val xgbEstimatorCopy = xgbEstimator.copy(sparkParamMap)
-    assert(xgbEstimatorCopy.xgboostParams.get("eval_metric") === Some("error"))
+    assert(xgbEstimatorCopy.fromParamsToXGBParamMap("eval_metric") === "error")
     val xgbEstimatorCopy1 = xgbEstimator.copy(sparkParamMap.put(xgbEstimator.evalMetric, "logloss"))
-    assert(xgbEstimatorCopy1.xgboostParams.get("eval_metric") === Some("logloss"))
+    assert(xgbEstimatorCopy1.fromParamsToXGBParamMap("eval_metric") === "logloss")
   }
 
+  ignore("fast histogram algorithm parameters are exposed correctly") {
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
+      "eval_metric" -> "error")
+    val testItr = Classification.test.iterator
+    val trainingDF = buildDataFrame(Classification.train)
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
+      round = 10, nWorkers = math.min(2, numWorkers))
+    val error = new EvalError
+    val testSetDMatrix = new DMatrix(testItr)
+    assert(error.eval(xgBoostModelWithDF.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix) < 0.1)
+  }
 
+  test("multi_class classification test") {
+    val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "multi:softmax", "num_class" -> "6")
+    val trainingDF = buildDataFrame(MultiClassification.train)
+    XGBoost.trainWithDataFrame(trainingDF.toDF(), paramMap, round = 5, nWorkers = numWorkers)
+  }
 
+  test("test DF use nested groupData") {
+    val trainingDF = buildDataFrame(Ranking.train0, 1)
+        .union(buildDataFrame(Ranking.train1, 1))
+    val trainGroupData: Seq[Seq[Int]] = Seq(Ranking.trainGroup0, Ranking.trainGroup1)
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
+
+    val xgBoostModelWithDF = XGBoost.trainWithDataFrame(trainingDF, paramMap,
+      round = 5, nWorkers = 2)
+    val testDF = buildDataFrame(Ranking.test)
+    val predResultsFromDF = xgBoostModelWithDF.setExternalMemory(true).transform(testDF).
+      collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("features"))).toMap
+    assert(testDF.count() === predResultsFromDF.size)
+  }
+
+  test("params of estimator and produced model are coordinated correctly") {
+    val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "multi:softmax", "num_class" -> "6")
+    val trainingDF = buildDataFrame(MultiClassification.train)
+    val model = XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5, nWorkers = numWorkers)
+    assert(model.get[Double](model.eta).get == 0.1)
+    assert(model.get[Int](model.maxDepth).get == 6)
+    assert(model.asInstanceOf[XGBoostClassificationModel].numOfClasses == 6)
+  }
+
+  test("test use base margin") {
+    import DataUtils._
+    val trainingDf = buildDataFrame(Classification.train)
+    val trainingDfWithMargin = trainingDf.withColumn("margin", functions.rand())
+    val testRDD = sc.parallelize(Classification.test.map(_.features))
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "baseMarginCol" -> "margin",
+      "testTrainSplit" -> 0.5)
+
+    def trainPredict(df: Dataset[_]): Array[Float] = {
+      XGBoost.trainWithDataFrame(df, paramMap, round = 1, nWorkers = numWorkers)
+          .predict(testRDD)
+          .map { case Array(p) => p }
+          .collect()
+    }
+
+    val pred = trainPredict(trainingDf)
+    val predWithMargin = trainPredict(trainingDfWithMargin)
+    assert((pred, predWithMargin).zipped.exists { case (p, pwm) => p !== pwm })
+  }
+
+  test("test use weight") {
+    import DataUtils._
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "reg:linear", "weightCol" -> "weight")
+
+    val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f}, DataTypes.FloatType)
+    val trainingDF = buildDataFrame(Regression.train)
+      .withColumn("weight", getWeightFromId(col("id")))
+
+    val model = XGBoost.trainWithDataFrame(trainingDF, paramMap, round = 5,
+      nWorkers = numWorkers, useExternalMemory = true)
+      .setPredictionCol("final_prediction")
+      .setExternalMemory(true)
+    val testRDD = sc.parallelize(Regression.test.map(_.features))
+    val predictions = model.predict(testRDD).collect().flatten
+
+    // The predictions heavily relies on the first training instance, and thus are very close.
+    predictions.foreach(pred => assert(math.abs(pred - predictions.head) <= 0.01f))
+  }
+
+  test("training summary") {
+    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic").toMap
+
+    val trainingDf = buildDataFrame(Classification.train)
+    val model = XGBoost.trainWithDataFrame(trainingDf, paramMap, round = 5,
+      nWorkers = numWorkers)
+
+    assert(model.summary.trainObjectiveHistory.length === 5)
+    assert(model.summary.testObjectiveHistory.isEmpty)
+  }
+
+  test("train/test split") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "trainTestRatio" -> "0.5")
+    val trainingDf = buildDataFrame(Classification.train)
+
+    forAll(Table("useExternalMemory", false, true)) { useExternalMemory =>
+      val model = XGBoost.trainWithDataFrame(trainingDf, paramMap, round = 5,
+        nWorkers = numWorkers, useExternalMemory = useExternalMemory)
+      val Some(testObjectiveHistory) = model.summary.testObjectiveHistory
+      assert(testObjectiveHistory.length === 5)
+      assert(model.summary.trainObjectiveHistory !== testObjectiveHistory)
+    }
+  }
 }

@@ -17,20 +17,20 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import java.nio.file.Files
-import java.util.concurrent.{BlockingQueue, LinkedBlockingDeque}
+import java.util.concurrent.LinkedBlockingDeque
 
-import scala.collection.mutable.ListBuffer
 import scala.util.Random
-import scala.concurrent.duration._
-import ml.dmlc.xgboost4j.java.{Rabit, DMatrix => JDMatrix, RabitTracker => PyRabitTracker}
+import ml.dmlc.xgboost4j.java.Rabit
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkContext
-import org.apache.spark.ml.feature.LabeledPoint
-import org.apache.spark.ml.linalg.{Vectors, Vector => SparkVector}
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
+import org.apache.spark.ml.linalg.{DenseVector, Vectors, Vector => SparkVector}
 import org.apache.spark.rdd.RDD
+import org.scalatest.FunSuite
 
-class XGBoostGeneralSuite extends SharedSparkContext with Utils {
+class XGBoostGeneralSuite extends FunSuite with PerTest {
   test("test Rabit allreduce to validate Scala-implemented Rabit tracker") {
     val vectorLength = 100
     val rdd = sc.parallelize(
@@ -73,89 +73,154 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
   }
 
   test("build RDD containing boosters with the specified worker number") {
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Classification.train)
+    val partitionedRDD = XGBoost.repartitionForTraining(trainingRDD, 2)
     val boosterRDD = XGBoost.buildDistributedBoosters(
-      trainingRDD,
+      partitionedRDD,
       List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
         "objective" -> "binary:logistic").toMap,
       new java.util.HashMap[String, String](),
-      numWorkers = 2, round = 5, eval = null, obj = null, useExternalMemory = true)
+      round = 5, eval = null, obj = null, useExternalMemory = true,
+      missing = Float.NaN, prevBooster = null)
     val boosterCount = boosterRDD.count()
     assert(boosterCount === 2)
-    cleanExternalCache("XGBoostSuite")
   }
 
   test("training with external memory cache") {
-    val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
-    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
       nWorkers = numWorkers, useExternalMemory = true)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
-    // clean
-    cleanExternalCache("XGBoostSuite")
   }
 
   test("training with Scala-implemented Rabit tracker") {
-    val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
-    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
     val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic",
-      "tracker_conf" -> TrackerConf(1 minute, "scala")).toMap
+      "tracker_conf" -> TrackerConf(60 * 60 * 1000, "scala")).toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
-      nWorkers = numWorkers, useExternalMemory = true)
+      nWorkers = numWorkers)
     assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
       testSetDMatrix) < 0.1)
   }
 
+  ignore("test with fast histo depthwise") {
+    import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "eval_metric" -> "error")
+    // TODO: histogram algorithm seems to be very very sensitive to worker number
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = math.min(numWorkers, 2))
+    assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix) < 0.1)
+  }
+
+  ignore("test with fast histo lossguide") {
+    import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "1",
+            "objective" -> "binary:logistic", "tree_method" -> "hist",
+            "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "error")
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = math.min(numWorkers, 2))
+    val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix)
+    assert(x < 0.1)
+  }
+
+  ignore("test with fast histo lossguide with max bin") {
+    import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+            "objective" -> "binary:logistic", "tree_method" -> "hist",
+            "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
+            "eval_metric" -> "error")
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = math.min(numWorkers, 2))
+    val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix)
+    assert(x < 0.1)
+  }
+
+  ignore("test with fast histo depthwidth with max depth") {
+    import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+      "objective" -> "binary:logistic", "tree_method" -> "hist",
+      "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
+      "eval_metric" -> "error")
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 10,
+      nWorkers = math.min(numWorkers, 2))
+    val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix)
+    assert(x < 0.1)
+  }
+
+  ignore("test with fast histo depthwidth with max depth and max bin") {
+    import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
+    val paramMap = Map("eta" -> "1", "gamma" -> "0.5", "max_depth" -> "0", "silent" -> "0",
+            "objective" -> "binary:logistic", "tree_method" -> "hist",
+            "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",
+            "eval_metric" -> "error")
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 10,
+      nWorkers = math.min(numWorkers, 2))
+    val x = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix)
+    assert(x < 0.1)
+  }
+
   test("test with dense vectors containing missing value") {
-    def buildDenseRDD(): RDD[LabeledPoint] = {
-      val nrow = 100
-      val ncol = 5
-      val data0 = Array.ofDim[Double](nrow, ncol)
-      // put random nums
-      for (r <- 0 until nrow; c <- 0 until ncol) {
-        data0(r)(c) = {
-          if (c == ncol - 1) {
-            -0.1
-          } else {
-            Random.nextDouble()
-          }
+    def buildDenseRDD(): RDD[MLLabeledPoint] = {
+      val numRows = 100
+      val numCols = 5
+
+      val labeledPoints = (0 until numRows).map { _ =>
+        val label = Random.nextDouble()
+        val values = Array.tabulate[Double](numCols) { c =>
+          if (c == numCols - 1) -0.1 else Random.nextDouble()
         }
+
+        MLLabeledPoint(label, Vectors.dense(values))
       }
-      // create label
-      val label0 = new Array[Double](nrow)
-      for (i <- label0.indices) {
-        label0(i) = Random.nextDouble()
-      }
-      val points = new ListBuffer[LabeledPoint]
-      for (r <- 0 until nrow) {
-        points += LabeledPoint(label0(r), Vectors.dense(data0(r)))
-      }
-      sc.parallelize(points)
+
+      sc.parallelize(labeledPoints)
     }
+
     val trainingRDD = buildDenseRDD().repartition(4)
-    val testRDD = buildDenseRDD().repartition(4)
+    val testRDD = buildDenseRDD().repartition(4).map(_.features.asInstanceOf[DenseVector])
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers,
       useExternalMemory = true)
-    xgBoostModel.predict(testRDD.map(_.features.toDense), missingValue = -0.1f).collect()
-    // clean
-    cleanExternalCache("XGBoostSuite")
+    xgBoostModel.predict(testRDD, missingValue = -0.1f).collect()
   }
 
   test("test consistency of prediction functions with RDD") {
-    val trainingRDD = buildTrainingRDD(sc)
-    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile)
+    import DataUtils._
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSet = Classification.test
     val testRDD = sc.parallelize(testSet, numSlices = 1).map(_.features)
     val testCollection = testRDD.collect()
     for (i <- testSet.indices) {
@@ -165,9 +230,8 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
       "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     val predRDD = xgBoostModel.predict(testRDD)
-    val predResult1 = predRDD.collect()(0)
+    val predResult1 = predRDD.collect()
     assert(testRDD.count() === predResult1.length)
-    import DataUtils._
     val predResult2 = xgBoostModel.booster.predict(new DMatrix(testSet.iterator))
     for (i <- predResult1.indices; j <- predResult1(i).indices) {
       assert(predResult1(i)(j) === predResult2(i)(j))
@@ -175,7 +239,8 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
   }
 
   test("test eval functions with RDD") {
-    val trainingRDD = buildTrainingRDD(sc).cache()
+    import DataUtils._
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML).cache()
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic")
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5, nWorkers = numWorkers)
@@ -185,75 +250,120 @@ class XGBoostGeneralSuite extends SharedSparkContext with Utils {
   }
 
   test("test prediction functionality with empty partition") {
+    import DataUtils._
     def buildEmptyRDD(sparkContext: Option[SparkContext] = None): RDD[SparkVector] = {
-      val sampleList = new ListBuffer[SparkVector]
-      sparkContext.getOrElse(sc).parallelize(sampleList, numWorkers)
+      sparkContext.getOrElse(sc).parallelize(List[SparkVector](), numWorkers)
     }
-    val trainingRDD = buildTrainingRDD(sc)
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
     val testRDD = buildEmptyRDD()
-    val tempDir = Files.createTempDirectory("xgboosttest-")
-    val tempFile = Files.createTempFile(tempDir, "", "")
     val paramMap = List("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
       "objective" -> "binary:logistic").toMap
     val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
     println(xgBoostModel.predict(testRDD).collect().length === 0)
   }
 
-  test("test model consistency after save and load") {
-    val eval = new EvalError()
-    val trainingRDD = buildTrainingRDD(sc)
-    val testSet = loadLabelPoints(getClass.getResource("/agaricus.txt.test").getFile).iterator
+  test("test use groupData") {
     import DataUtils._
-    val testSetDMatrix = new DMatrix(new JDMatrix(testSet, null))
-    val tempDir = Files.createTempDirectory("xgboosttest-")
-    val tempFile = Files.createTempFile(tempDir, "", "")
+    val trainingRDD = sc.parallelize(Ranking.train0, numSlices = 1).map(_.asML)
+    val trainGroupData: Seq[Seq[Int]] = Seq(Ranking.trainGroup0)
+    val testRDD = sc.parallelize(Ranking.test, numSlices = 1).map(_.features)
+
     val paramMap = Map("eta" -> "1", "max_depth" -> "2", "silent" -> "1",
-      "objective" -> "binary:logistic")
-    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, numWorkers)
-    val evalResults = eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
-      testSetDMatrix)
-    assert(evalResults < 0.1)
-    xgBoostModel.saveModelAsHadoopFile(tempFile.toFile.getAbsolutePath)
-    val loadedXGBooostModel = XGBoost.loadModelFromHadoopFile(tempFile.toFile.getAbsolutePath)
-    val predicts = loadedXGBooostModel.booster.predict(testSetDMatrix, outPutMargin = true)
-    val loadedEvalResults = eval.eval(predicts, testSetDMatrix)
-    assert(loadedEvalResults == evalResults)
+      "objective" -> "rank:pairwise", "eval_metric" -> "ndcg", "groupData" -> trainGroupData)
+
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 2, nWorkers = 1)
+    val predRDD = xgBoostModel.predict(testRDD)
+    val predResult1: Array[Array[Float]] = predRDD.collect()
+    assert(testRDD.count() === predResult1.length)
+
+    val avgMetric = xgBoostModel.eval(trainingRDD, "test", iter = 0, groupData = trainGroupData)
+    assert(avgMetric contains "ndcg")
+    // If the labels were lost ndcg comes back as 1.0
+    assert(avgMetric.split('=')(1).toFloat < 1F)
   }
 
-  test("test save and load of different types of models") {
-    val tempDir = Files.createTempDirectory("xgboosttest-")
-    val tempFile = Files.createTempFile(tempDir, "", "")
-    val trainingRDD = buildTrainingRDD(sc)
-    var paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "reg:linear")
-    // validate regression model
-    var xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
-      nWorkers = numWorkers, useExternalMemory = false)
-    xgBoostModel.setFeaturesCol("feature_col")
-    xgBoostModel.setLabelCol("label_col")
-    xgBoostModel.setPredictionCol("prediction_col")
-    xgBoostModel.saveModelAsHadoopFile(tempFile.toFile.getAbsolutePath)
-    var loadedXGBoostModel = XGBoost.loadModelFromHadoopFile(tempFile.toFile.getAbsolutePath)
-    assert(loadedXGBoostModel.isInstanceOf[XGBoostRegressionModel])
-    assert(loadedXGBoostModel.getFeaturesCol == "feature_col")
-    assert(loadedXGBoostModel.getLabelCol == "label_col")
-    assert(loadedXGBoostModel.getPredictionCol == "prediction_col")
-    // classification model
-    paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic")
-    xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
-      nWorkers = numWorkers, useExternalMemory = false)
-    xgBoostModel.asInstanceOf[XGBoostClassificationModel].setRawPredictionCol("raw_col")
-    xgBoostModel.asInstanceOf[XGBoostClassificationModel].setThresholds(Array(0.5, 0.5))
-    xgBoostModel.saveModelAsHadoopFile(tempFile.toFile.getAbsolutePath)
-    loadedXGBoostModel = XGBoost.loadModelFromHadoopFile(tempFile.toFile.getAbsolutePath)
-    assert(loadedXGBoostModel.isInstanceOf[XGBoostClassificationModel])
-    assert(loadedXGBoostModel.asInstanceOf[XGBoostClassificationModel].getRawPredictionCol ==
-      "raw_col")
-    assert(loadedXGBoostModel.asInstanceOf[XGBoostClassificationModel].getThresholds.deep ==
-      Array(0.5, 0.5).deep)
-    assert(loadedXGBoostModel.getFeaturesCol == "features")
-    assert(loadedXGBoostModel.getLabelCol == "label")
-    assert(loadedXGBoostModel.getPredictionCol == "prediction")
+  test("test use nested groupData") {
+    import DataUtils._
+    val trainingRDD0 = sc.parallelize(Ranking.train0, numSlices = 1)
+    val trainingRDD1 = sc.parallelize(Ranking.train1, numSlices = 1)
+    val trainingRDD = trainingRDD0.union(trainingRDD1).map(_.asML)
+
+    val trainGroupData: Seq[Seq[Int]] = Seq(Ranking.trainGroup0, Ranking.trainGroup1)
+
+    val testRDD = sc.parallelize(Ranking.test, numSlices = 1).map(_.features)
+
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "rank:pairwise", "groupData" -> trainGroupData)
+
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, 5, nWorkers = 2)
+    val predRDD = xgBoostModel.predict(testRDD)
+    val predResult1: Array[Array[Float]] = predRDD.collect()
+    assert(testRDD.count() === predResult1.length)
+  }
+
+  test("training with spark parallelism checks disabled") {
+    import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
+    val paramMap = List("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic", "timeout_request_workers" -> 0L).toMap
+    val xgBoostModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = numWorkers)
+    assert(eval.eval(xgBoostModel.booster.predict(testSetDMatrix, outPutMargin = true),
+      testSetDMatrix) < 0.1)
+  }
+
+  test("isClassificationTask correctly classifies supported objectives") {
+    import org.scalatest.prop.TableDrivenPropertyChecks._
+
+    val objectives = Table(
+      ("isClassificationTask", "params"),
+      (true, Map("obj_type" -> "classification")),
+      (false, Map("obj_type" -> "regression")),
+      (false, Map("objective" -> "rank:ndcg")),
+      (false, Map("objective" -> "rank:pairwise")),
+      (false, Map("objective" -> "rank:map")),
+      (false, Map("objective" -> "count:poisson")),
+      (true, Map("objective" -> "binary:logistic")),
+      (true, Map("objective" -> "binary:logitraw")),
+      (true, Map("objective" -> "multi:softmax")),
+      (true, Map("objective" -> "multi:softprob")),
+      (false, Map("objective" -> "reg:linear")),
+      (false, Map("objective" -> "reg:logistic")),
+      (false, Map("objective" -> "reg:gamma")),
+      (false, Map("objective" -> "reg:tweedie")))
+    forAll (objectives) { (isClassificationTask: Boolean, params: Map[String, String]) =>
+      assert(XGBoost.isClassificationTask(params) == isClassificationTask)
+    }
+  }
+
+  test("training with checkpoint boosters") {
+    import DataUtils._
+    val eval = new EvalError()
+    val trainingRDD = sc.parallelize(Classification.train).map(_.asML)
+    val testSetDMatrix = new DMatrix(Classification.test.iterator)
+
+    val tmpPath = Files.createTempDirectory("model1").toAbsolutePath.toString
+    val paramMap = List("eta" -> "1", "max_depth" -> 2, "silent" -> "1",
+      "objective" -> "binary:logistic", "checkpoint_path" -> tmpPath,
+      "checkpoint_interval" -> 2).toMap
+    val prevModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 5,
+      nWorkers = numWorkers)
+    def error(model: XGBoostModel): Float = eval.eval(
+      model.booster.predict(testSetDMatrix, outPutMargin = true), testSetDMatrix)
+
+    // Check only one model is kept after training
+    val files = FileSystem.get(sc.hadoopConfiguration).listStatus(new Path(tmpPath))
+    assert(files.length == 1)
+    assert(files.head.getPath.getName == "8.model")
+    val tmpModel = XGBoost.loadModelFromHadoopFile(s"$tmpPath/8.model")
+
+    // Train next model based on prev model
+    val nextModel = XGBoost.trainWithRDD(trainingRDD, paramMap, round = 8,
+      nWorkers = numWorkers)
+    assert(error(tmpModel) > error(prevModel))
+    assert(error(prevModel) > error(nextModel))
+    assert(error(nextModel) < 0.1)
   }
 }

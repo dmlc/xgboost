@@ -21,4 +21,3 @@ dtrain <- xgb.DMatrix(train$data, label=train$label)
 xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
 dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 }
-

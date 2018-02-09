@@ -16,8 +16,6 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import java.io.IOException
-
 import com.esotericsoftware.kryo.io.{Output, Input}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import ml.dmlc.xgboost4j.java.{Booster => JBooster}
@@ -25,7 +23,13 @@ import ml.dmlc.xgboost4j.java.XGBoostError
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
-class Booster private[xgboost4j](private var booster: JBooster)
+/**
+  * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model
+  *
+  * DEVELOPER WARNING: A Java Booster must not be shared by more than one Scala Booster
+  * @param booster the java booster object.
+  */
+class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   extends Serializable  with KryoSerializable {
 
   /**
@@ -135,9 +139,21 @@ class Booster private[xgboost4j](private var booster: JBooster)
    * @throws XGBoostError native error
    */
   @throws(classOf[XGBoostError])
-  def predictLeaf(data: DMatrix, treeLimit: Int = 0)
-    : Array[Array[Float]] = {
+  def predictLeaf(data: DMatrix, treeLimit: Int = 0) : Array[Array[Float]] = {
     booster.predictLeaf(data.jDMatrix, treeLimit)
+  }
+
+  /**
+    * Output feature contributions toward predictions of given data
+    *
+    * @param data      dmatrix storing the input
+    * @param treeLimit Limit number of trees in the prediction; defaults to 0 (use all trees).
+    * @return The feature contributions and bias.
+    * @throws XGBoostError native error
+    */
+  @throws(classOf[XGBoostError])
+  def predictContrib(data: DMatrix, treeLimit: Int = 0) : Array[Array[Float]] = {
+    booster.predictContrib(data.jDMatrix, treeLimit)
   }
 
   /**
@@ -166,9 +182,9 @@ class Booster private[xgboost4j](private var booster: JBooster)
    *                   Controls whether the split statistics are output.
    */
   @throws(classOf[XGBoostError])
-  def getModelDump(featureMap: String = null, withStats: Boolean = false)
+  def getModelDump(featureMap: String = null, withStats: Boolean = false, format: String = "text")
     : Array[String] = {
-    booster.getModelDump(featureMap, withStats)
+    booster.getModelDump(featureMap, withStats, format)
   }
 
   /**

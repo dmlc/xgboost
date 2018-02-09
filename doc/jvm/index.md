@@ -3,11 +3,11 @@ XGBoost JVM Package
 [![Build Status](https://travis-ci.org/dmlc/xgboost.svg?branch=master)](https://travis-ci.org/dmlc/xgboost)
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](../LICENSE)
 
-You have find XGBoost JVM Package!
+You have found the XGBoost JVM Package!
 
 Installation
 ------------
-Currently, XGBoost4J only support installation from source. Building XGBoost4J using Maven requires Maven 3 or newer and Java 7+.
+Currently, XGBoost4J only support installation from source. Building XGBoost4J using Maven requires Maven 3 or newer, Java 7+ and CMake 3.2+ for compiling the JNI bindings.
 
 Before you install XGBoost4J, you need to define environment variable `JAVA_HOME` as your JDK directory to ensure that your compiler can find `jni.h` correctly, since XGBoost4J relies on JNI to implement the interaction between the JVM and native libraries.
 

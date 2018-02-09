@@ -142,35 +142,6 @@ class TestBasic(unittest.TestCase):
             dm = xgb.DMatrix(dummy, feature_names=list('abcde'))
             self.assertRaises(ValueError, bst.predict, dm)
 
-    def test_feature_importances(self):
-        data = np.random.randn(100, 5)
-        target = np.array([0, 1] * 50)
-
-        features = ['Feature1', 'Feature2', 'Feature3', 'Feature4', 'Feature5']
-
-        dm = xgb.DMatrix(data, label=target,
-                         feature_names=features)
-        params = {'objective': 'multi:softprob',
-                  'eval_metric': 'mlogloss',
-                  'eta': 0.3,
-                  'num_class': 3}
-
-        bst = xgb.train(params, dm, num_boost_round=10)
-
-        # number of feature importances should == number of features
-        scores1 = bst.get_score()
-        scores2 = bst.get_score(importance_type='weight')
-        scores3 = bst.get_score(importance_type='cover')
-        scores4 = bst.get_score(importance_type='gain')
-        assert len(scores1) == len(features)
-        assert len(scores2) == len(features)
-        assert len(scores3) == len(features)
-        assert len(scores4) == len(features)
-
-        # check backwards compatibility of get_fscore
-        fscores = bst.get_fscore()
-        assert scores1 == fscores
-
     def test_dump(self):
         data = np.random.randn(100, 2)
         target = np.array([0, 1] * 50)
@@ -210,6 +181,23 @@ class TestBasic(unittest.TestCase):
 
         self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
                           model_file=u'不正なパス')
+
+    def test_dmatrix_numpy_init_omp(self):
+
+        rows = [1000, 11326, 15000]
+        cols = 50
+        for row in rows:
+            X = np.random.randn(row, cols)
+            y = np.random.randn(row).astype('f')
+            dm = xgb.DMatrix(X, y, nthread=0)
+            np.testing.assert_array_equal(dm.get_label(), y)
+            assert dm.num_row() == row
+            assert dm.num_col() == cols
+
+            dm = xgb.DMatrix(X, y, nthread=10)
+            np.testing.assert_array_equal(dm.get_label(), y)
+            assert dm.num_row() == row
+            assert dm.num_col() == cols
 
     def test_dmatrix_numpy_init(self):
         data = np.random.randn(5, 5)
