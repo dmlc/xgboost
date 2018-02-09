@@ -52,6 +52,7 @@ try:
     from sklearn.base import BaseEstimator
     from sklearn.base import RegressorMixin, ClassifierMixin
     from sklearn.preprocessing import LabelEncoder
+    from sklearn.utils import safe_indexing
     try:
         from sklearn.model_selection import KFold, StratifiedKFold
     except ImportError:
@@ -66,6 +67,8 @@ try:
     XGBKFold = KFold
     XGBStratifiedKFold = StratifiedKFold
     XGBLabelEncoder = LabelEncoder
+
+    xgb_safe_indexing = safe_indexing
 except ImportError:
     SKLEARN_INSTALLED = False
 
@@ -77,3 +80,5 @@ except ImportError:
     XGBKFold = None
     XGBStratifiedKFold = None
     XGBLabelEncoder = None
+
+    xgb_safe_indexing = None
