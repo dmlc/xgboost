@@ -1,6 +1,7 @@
 # coding: utf-8
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-branches, too-many-lines, W0141
+# pylint: disable=too-many-public-methods, no-member
 """Core XGBoost Library."""
 from __future__ import absolute_import
 
@@ -1353,3 +1354,55 @@ class Booster(object):
             return nph
         else:
             return nph
+
+    def get_feature_interactions(self, max_fi_depth=2, max_tree_depth=-1, max_deepening=-1,
+                                 ntrees=-1, fmap=''):
+        """XGBoost Feature Interactions & Importance (Xgbfi)
+        Parameters
+        ----------
+        max_fi_depth: int, default 2
+            Upper bound for depth of interactions.
+        max_tree_depth: int, default -1
+            Upper bound for tree depth to be traversed.
+        max_deepening: int, default -1
+            Upper bound for tree deepening.
+        ntrees: int, default -1
+            Amount of trees to be traversed.
+        fmap : str, default ''
+            Path to fmap file, feature names "F1|F2|.." or empty string.
+
+        Returns
+        -------
+        Returns a pandas DataFrame with feature interactions.
+        """
+        if not PANDAS_INSTALLED:
+            sys.stderr.write("Xgbfi requires pandas to be installed.")
+            return None
+        length = c_bst_ulong()
+        sarr = ctypes.POINTER(ctypes.c_char_p)()
+        if self.feature_names is not None and fmap == '':
+            fmap = "|".join(self.feature_names)
+        elif '|' not in fmap:
+            if fmap != '' and not os.path.exists(fmap):
+                raise ValueError("No such file: {0}".format(fmap))
+        else:
+            pass
+        _check_call(
+            _LIB.XGBoosterGetFeatureInteractions(self.handle,
+                                                 ctypes.c_int(max_fi_depth),
+                                                 ctypes.c_int(max_tree_depth),
+                                                 ctypes.c_int(max_deepening),
+                                                 ctypes.c_int(ntrees),
+                                                 c_str(fmap),
+                                                 ctypes.byref(length),
+                                                 ctypes.byref(sarr)))
+        res = from_cstr_to_pystr(sarr, length)
+        cols = ['fi', 'fi_depth', 'gain', 'fscore', 'w_fscore',
+                'avg_w_fscore', 'avg_gain', 'expected_gain']
+        df = DataFrame([x.split(',') for x in res], columns=cols)
+        for c in df.columns[1:]:
+            df[c] = df[c].astype(np.float)
+        df.sort_values(by=['fi_depth', 'gain'],
+                       inplace=True, ascending=[True, False])
+        df.reset_index(drop=True, inplace=True)
+        return df

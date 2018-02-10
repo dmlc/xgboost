@@ -53,6 +53,9 @@
 #include "../src/tree/updater_histmaker.cc"
 #include "../src/tree/updater_skmaker.cc"
 
+//xgbfi
+#include "../src/analysis/xgbfi.cc"
+ 
 // global
 #include "../src/learner.cc"
 #include "../src/logging.cc"
