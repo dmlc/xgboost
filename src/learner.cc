@@ -391,7 +391,7 @@ class LearnerImpl : public Learner {
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric()));
     }
     for (size_t i = 0; i < data_sets.size(); ++i) {
-      this->PredictRaw(data_sets[i], &preds_);
+      this->PredictRaw(data_sets[i], &preds_, iter);
       obj_->EvalTransform(&preds_);
       for (auto& ev : metrics_) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
