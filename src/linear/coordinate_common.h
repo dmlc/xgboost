@@ -13,19 +13,15 @@ namespace xgboost {
 namespace linear {
 
 /**
- * \fn  inline double CoordinateDelta(double sum_grad, double sum_hess, double
- * w, double reg_lambda, double reg_alpha, double sum_instance_weight)
- *
- * \brief Calculate change in weight for a given feature. Applies l1/l2 penalty
- * normalised by the number of training instances.
+ * \brief Calculate change in weight for a given feature. Applies l1/l2 penalty normalised by the
+ *        number of training instances.
  *
  * \param sum_grad            The sum gradient.
  * \param sum_hess            The sum hess.
  * \param w                   The weight.
  * \param reg_lambda          Unnormalised L2 penalty.
  * \param reg_alpha           Unnormalised L1 penalty.
- * \param sum_instance_weight The sum instance weights, used to normalise l1/l2
- * penalty.
+ * \param sum_instance_weight The sum instance weights, used to normalise l1/l2 penalty.
  *
  * \return  The weight update.
  */
@@ -47,11 +43,9 @@ inline double CoordinateDelta(double sum_grad, double sum_hess, double w,
 }
 
 /**
- * \fn  inline double CoordinateDeltaBias(double sum_grad, double sum_hess)
- *
  * \brief Calculate update to bias.
  *
- * \param sum_grad  The sum gradient
+ * \param sum_grad  The sum gradient.
  * \param sum_hess  The sum hess.
  *
  * \return  The weight update.
@@ -62,16 +56,13 @@ inline double CoordinateDeltaBias(double sum_grad, double sum_hess) {
 }
 
 /**
- * \fn  inline std::pair<double, double> GetGradient( int group_idx, int
- * num_group, int fidx, const std::vector<bst_gpair> &gpair, DMatrix *p_fmat)
- *
  * \brief Get the gradient with respect to a single feature.
  *
- * \param           group_idx Zero-based index of the group.
- * \param           num_group Number of groups.
- * \param           fidx      The target feature.
- * \param           gpair     Gradients.
- * \param [in,out]  p_fmat    The feature matrix.
+ * \param group_idx Zero-based index of the group.
+ * \param num_group Number of groups.
+ * \param fidx      The target feature.
+ * \param gpair     Gradients.
+ * \param p_fmat    The feature matrix.
  *
  * \return  The gradient and diagonal Hessian entry for a given feature.
  */
@@ -97,16 +88,13 @@ inline std::pair<double, double> GetGradient(
 }
 
 /**
- * \fn  inline std::pair<double, double> GetGradientParallel( int group_idx, int
- * num_group, int fidx, const std::vector<bst_gpair> &gpair, DMatrix *p_fmat)
- *
  * \brief Get the gradient with respect to a single feature. Multithreaded.
  *
- * \param           group_idx Zero-based index of the group.
- * \param           num_group Number of groups.
- * \param           fidx      The target feature.
- * \param           gpair     Gradients.
- * \param [in,out]  p_fmat    The feature matrix.
+ * \param group_idx Zero-based index of the group.
+ * \param num_group Number of groups.
+ * \param fidx      The target feature.
+ * \param gpair     Gradients.
+ * \param p_fmat    The feature matrix.
  *
  * \return  The gradient and diagonal Hessian entry for a given feature.
  */
@@ -134,15 +122,12 @@ inline std::pair<double, double> GetGradientParallel(
 }
 
 /**
- * \fn  inline std::pair<double, double> GetBiasGradientParallel( int group_idx,
- * int num_group, const std::vector<bst_gpair> &gpair, DMatrix *p_fmat)
- *
  * \brief Get the gradient with respect to the bias. Multithreaded.
  *
- * \param           group_idx Zero-based index of the group.
- * \param           num_group Number of groups.
- * \param           gpair     Gradients.
- * \param [in,out]  p_fmat    The feature matrix.
+ * \param group_idx Zero-based index of the group.
+ * \param num_group Number of groups.
+ * \param gpair     Gradients.
+ * \param p_fmat    The feature matrix.
  *
  * \return  The gradient and diagonal Hessian entry for the bias.
  */
@@ -165,17 +150,14 @@ inline std::pair<double, double> GetBiasGradientParallel(
 }
 
 /**
- * \fn  inline void UpdateResidualParallel(int fidx, int group_idx, int
- * num_group, float dw, std::vector<bst_gpair> *in_gpair, DMatrix *p_fmat)
- *
  * \brief Updates the gradient vector with respect to a change in weight.
  *
- * \param           fidx      The feature index.
- * \param           group_idx Zero-based index of the group.
- * \param           num_group Number of groups.
- * \param           dw        The change in weight.
- * \param [in,out]  in_gpair  The gradient vector to be updated.
- * \param [in,out]  p_fmat    The input feature matrix.
+ * \param fidx      The feature index.
+ * \param group_idx Zero-based index of the group.
+ * \param num_group Number of groups.
+ * \param dw        The change in weight.
+ * \param in_gpair  The gradient vector to be updated.
+ * \param p_fmat    The input feature matrix.
  */
 
 inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
@@ -198,16 +180,13 @@ inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
 }
 
 /**
- * \fn  inline void UpdateBiasResidualParallel(int group_idx, int num_group,
- * float dbias, std::vector<bst_gpair> *in_gpair, DMatrix *p_fmat)
- *
  * \brief Updates the gradient vector based on a change in the bias.
  *
- * \param           group_idx Zero-based index of the group.
- * \param           num_group Number of groups.
- * \param           dbias     The change in bias.
- * \param [in,out]  in_gpair  The gradient vector to be updated.
- * \param [in,out]  p_fmat    The input feature matrix.
+ * \param group_idx Zero-based index of the group.
+ * \param num_group Number of groups.
+ * \param dbias     The change in bias.
+ * \param in_gpair  The gradient vector to be updated.
+ * \param p_fmat    The input feature matrix.
  */
 
 inline void UpdateBiasResidualParallel(int group_idx, int num_group,
@@ -239,21 +218,16 @@ class CoordinateSelector {
   virtual ~CoordinateSelector() {}
 
   /**
-   * \fn  virtual int CoordinateSelector::SelectNextCoordinate(int iteration,
-   * const gbm::GBLinearModel &model, int group_idx, const
-   * std::vector<bst_gpair> &gpair, DMatrix *p_fmat, float alpha, float lambda,
-   * double sum_instance_weight) = 0;
-   *
    * \brief Select next coordinate to update.
    *
-   * \param           iteration           The iteration.
-   * \param           model               The model.
-   * \param           group_idx           Zero-based index of the group.
-   * \param           gpair               The gpair.
-   * \param [in,out]  p_fmat              The feature matrix.
-   * \param           alpha               Regularisation alpha.
-   * \param           lambda              Regularisation lambda.
-   * \param           sum_instance_weight The sum instance weight.
+   * \param iteration           The iteration.
+   * \param model               The model.
+   * \param group_idx           Zero-based index of the group.
+   * \param gpair               The gpair.
+   * \param p_fmat              The feature matrix.
+   * \param alpha               Regularisation alpha.
+   * \param lambda              Regularisation lambda.
+   * \param sum_instance_weight The sum instance weight.
    *
    * \return  The index of the selected feature. -1 indicates the bias term.
    */
@@ -341,29 +315,6 @@ inline CoordinateSelector *CoordinateSelector::Create(std::string name) {
     LOG(FATAL) << name << ": unknown coordinate selector";
   }
   return nullptr;
-}
-
-/**
- * \fn  inline float ClipDeltaWeight(float w, float dw, float maximum_weight)
- *
- * \brief Ensure the change in weight does not cause the weight to value to
- * exceed a maximum.
- *
- * \param w               The original weight.
- * \param dw              The change in weight
- * \param maximum_weight  The maximum weight.
- *
- * \return  The clipped change in weight.
- */
-
-inline float ClipDeltaWeight(float w, float dw, float maximum_weight) {
-  float new_w = w + dw;
-  if (new_w > maximum_weight) {
-    dw = maximum_weight - w;
-  } else if (new_w < -maximum_weight) {
-    dw = (-maximum_weight) - w;
-  }
-  return dw;
 }
 
 }  // namespace linear

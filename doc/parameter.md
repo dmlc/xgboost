@@ -142,11 +142,14 @@ Additional parameters for Dart Booster
 Parameters for Linear Booster
 -----------------------------
 * lambda [default=0, alias: reg_lambda]
-  - L2 regularization term on weights, increase this value will make model more conservative.
+  - L2 regularization term on weights, increase this value will make model more conservative. Normalised to number of training examples.
 * alpha [default=0, alias: reg_alpha]
-  - L1 regularization term on weights, increase this value will make model more conservative.
-* lambda_bias [default=0, alias: reg_lambda_bias]
-  - L2 regularization term on bias (no L1 reg on bias because it is not important)
+  - L1 regularization term on weights, increase this value will make model more conservative. Normalised to number of training examples.
+* linear_updater [default='updater_shotgun']
+	- Linear model algorithm
+      - 'updater_shotgun': Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run. 
+      - 'updater_coordinate': Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. 
+
 
 Parameters for Tweedie Regression
 ---------------------------------

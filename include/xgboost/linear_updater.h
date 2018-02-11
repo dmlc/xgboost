@@ -28,14 +28,12 @@ class LinearUpdater {
       const std::vector<std::pair<std::string, std::string> >& args) = 0;
 
   /**
-   * \fn  virtual void LinearUpdater::Update(std::vector<bst_gpair>* in_gpair, DMatrix* data, gbm::GBLinearModel* model, double sum_instance_weight) = 0;
-   *
    * \brief Updates linear model given gradients.
    *
    * \param in_gpair            The gradient pair statistics of the data.
    * \param data                Input data matrix.
    * \param model               Model to be updated.
-   * \param sum_instance_weight The sum instance weight.
+   * \param sum_instance_weight The sum instance weights, used to normalise l1/l2 penalty.
    */
 
   virtual void Update(std::vector<bst_gpair>* in_gpair, DMatrix* data,

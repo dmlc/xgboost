@@ -1,6 +1,6 @@
 /*!
  * Copyright 2018 by Contributors
- * \author Tianqi Chen
+ * \author Tianqi Chen, Rory Mitchell
  */
 
 #include <xgboost/linear_updater.h>

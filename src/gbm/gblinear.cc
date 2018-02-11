@@ -32,10 +32,10 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
     DMLC_DECLARE_FIELD(linear_updater)
         .set_default("updater_shotgun")
-        .describe("Update algorithm for linear model.");
+        .describe("Update algorithm for linear model. One of updater_shotgun/updater_coordinate");
     DMLC_DECLARE_FIELD(tolerance)
         .set_lower_bound(0.0f)
-        .set_default(1e-4f)
+        .set_default(0.0f)
         .describe("Stop if largest weight update is smaller than this number.");
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
@@ -50,9 +50,8 @@ class GBLinear : public GradientBooster {
  public:
   explicit GBLinear(bst_float base_margin)
       : base_margin_(base_margin),
-        sum_instance_weights(0),
-        sum_weights_complete(false),
-        iteration(0),
+        sum_instance_weight(0),
+        sum_weight_complete(false),
         is_converged(false) {}
   void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) override {
     if (model.weight.size() == 0) {
@@ -77,10 +76,9 @@ class GBLinear : public GradientBooster {
     this->LazySumWeights(p_fmat);
 
     if (!this->CheckConvergence()) {
-      updater->Update(in_gpair, p_fmat, &model, sum_instance_weights);
+      updater->Update(in_gpair, p_fmat, &model, sum_instance_weight);
     }
 
-    iteration++;
     monitor.Stop("DoBoost");
   }
 
@@ -227,6 +225,7 @@ class GBLinear : public GradientBooster {
 
  protected:
   bool CheckConvergence() {
+    if (param.tolerance) return false;
     if (is_converged) return true;
     if (previous_model.weight.size() != model.weight.size()) return false;
     float largest_dw = 0.0;
@@ -241,12 +240,12 @@ class GBLinear : public GradientBooster {
   }
 
   void LazySumWeights(DMatrix *p_fmat) {
-    if (!sum_weights_complete) {
+    if (!sum_weight_complete) {
       auto &info = p_fmat->info();
       for (int i = 0; i < info.num_row; i++) {
-        sum_instance_weights += info.GetWeight(i);
+        sum_instance_weight += info.GetWeight(i);
       }
-      sum_weights_complete = true;
+      sum_weight_complete = true;
     }
   }
 
@@ -266,10 +265,9 @@ class GBLinear : public GradientBooster {
   GBLinearModel previous_model;
   GBLinearTrainParam param;
   std::unique_ptr<LinearUpdater> updater;
-  double sum_instance_weights;
-  bool sum_weights_complete;
+  double sum_instance_weight;
+  bool sum_weight_complete;
   common::Monitor monitor;
-  int iteration;
   bool is_converged;
 };
 

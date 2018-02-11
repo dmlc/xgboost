@@ -39,14 +39,7 @@ struct CoordinateTrainParam : public dmlc::Parameter<CoordinateTrainParam> {
         .describe("L1 regularization on weights.");
     DMLC_DECLARE_FIELD(coordinate_selection)
         .set_default("cyclic")
-        .describe("Coordinate selection algorithm");
-    DMLC_DECLARE_FIELD(maximum_weight)
-        .set_lower_bound(0.0f)
-        .set_default(1e15f)
-        .describe(
-            "Maximum absolute value of linear model weights. Prevents "
-            "coefficients increasing to infinity in separable logistic "
-            "regression problems.");
+        .describe("Coordinate selection algorithm, one of cyclic/random/greedy");
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
@@ -70,7 +63,7 @@ class CoordinateUpdater : public LinearUpdater {
       const std::vector<std::pair<std::string, std::string> > &args) override {
     param.InitAllowUnknown(args);
     selector.reset(CoordinateSelector::Create(param.coordinate_selection));
-    monitor.Init("GBLinear ", param.debug_verbose);
+    monitor.Init("CoordinateUpdater", param.debug_verbose);
   }
   void Update(std::vector<bst_gpair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
@@ -81,8 +74,6 @@ class CoordinateUpdater : public LinearUpdater {
           group_idx, model->param.num_output_group, *in_gpair, p_fmat);
       auto dbias =
           param.learning_rate * CoordinateDeltaBias(grad.first, grad.second);
-      dbias = ClipDeltaWeight(model->bias()[group_idx], dbias,
-                              param.maximum_weight);
       model->bias()[group_idx] += dbias;
       UpdateBiasResidualParallel(group_idx, model->param.num_output_group,
                                  dbias, in_gpair, p_fmat);
@@ -111,7 +102,6 @@ class CoordinateUpdater : public LinearUpdater {
         param.learning_rate *
         CoordinateDelta(gradient.first, gradient.second, w, param.reg_lambda,
                         param.reg_alpha, sum_instance_weight));
-    dw = ClipDeltaWeight(w, dw, param.maximum_weight);
     w += dw;
     monitor.Start("UpdateResidualParallel");
     UpdateResidualParallel(fidx, group_idx, model->param.num_output_group, dw,
