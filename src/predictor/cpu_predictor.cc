@@ -100,12 +100,8 @@ class CPUPredictor : public Predictor {
                         const gbm::GBTreeModel& model, int tree_begin,
                         unsigned ntree_limit) {
     // TODO(Rory): Check if this specialisation actually improves performance
-    if (model.param.num_output_group == 1) {
-      PredLoopSpecalize(dmat, out_preds, model, 1, tree_begin, ntree_limit);
-    } else {
-      PredLoopSpecalize(dmat, out_preds, model, model.param.num_output_group,
-                        tree_begin, ntree_limit);
-    }
+    PredLoopSpecalize(dmat, out_preds, model, model.param.num_output_group,
+                      tree_begin, ntree_limit);
   }
 
  public:
@@ -132,10 +128,9 @@ class CPUPredictor : public Predictor {
     this->PredLoopInternal(dmat, out_preds, model, tree_begin, ntree_limit);
   }
 
-  void UpdatePredictionCache(
-      const gbm::GBTreeModel& model,
-      std::vector<std::unique_ptr<TreeUpdater>>* updaters,
-      int num_new_trees) override {
+  void UpdatePredictionCache(const gbm::GBTreeModel& model,
+                             std::vector<std::unique_ptr<TreeUpdater>>* updaters,
+                             int num_new_trees) override {
     int old_ntree = model.trees.size() - num_new_trees;
     // update cache entry
     for (auto& kv : cache_) {
