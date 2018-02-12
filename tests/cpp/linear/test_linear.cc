@@ -9,7 +9,7 @@ TEST(Linear, shotgun) {
   typedef std::pair<std::string, std::string> arg;
   auto mat = CreateDMatrix(10, 10, 0);
   std::vector<bool> enabled(mat->info().num_col, true);
-  mat->InitColAccess(enabled, 1.0f, 1 << 16);
+  mat->InitColAccess(enabled, 1.0f, 1 << 16, false);
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("updater_shotgun"));
   updater->Init({});
@@ -28,7 +28,7 @@ TEST(Linear, coordinate) {
   typedef std::pair<std::string, std::string> arg;
   auto mat = CreateDMatrix(10, 10, 0);
   std::vector<bool> enabled(mat->info().num_col, true);
-  mat->InitColAccess(enabled, 1.0f, 1 << 16);
+  mat->InitColAccess(enabled, 1.0f, 1 << 16, false);
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("updater_coordinate"));
   updater->Init({});

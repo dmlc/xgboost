@@ -148,7 +148,6 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
                                       size_t max_row_perbatch, bool sorted) {
   if (HaveColAccess(sorted)) return;
   if (TryInitColData()) return;
-  col_iter_->sorted = sorted;
   const MetaInfo& info = this->info();
   if (max_row_perbatch == std::numeric_limits<size_t>::max()) {
     max_row_perbatch = kMaxRowPerBatch;
@@ -293,6 +292,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
   }
   // initialize column data
   CHECK(TryInitColData());
+  col_iter_->sorted = sorted;
 }
 
 }  // namespace data
