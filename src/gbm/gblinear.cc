@@ -71,6 +71,12 @@ class GBLinear : public GradientBooster {
   void DoBoost(DMatrix *p_fmat, std::vector<bst_gpair> *in_gpair,
                ObjFunction *obj) override {
     monitor.Start("DoBoost");
+
+    if (!p_fmat->HaveColAccess(false)) {
+      std::vector<bool> enabled(p_fmat->info().num_col, true);
+      p_fmat->InitColAccess(enabled, 1.0f, 32ul << 10ul, false);
+    }
+
     model.LazyInitModel();
 
     this->LazySumWeights(p_fmat);

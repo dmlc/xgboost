@@ -40,8 +40,8 @@ class SparsePageDMatrix : public DMatrix {
     return iter;
   }
 
-  bool HaveColAccess() const override {
-    return col_iter_.get() != nullptr;
+  bool HaveColAccess(bool sorted) const override {
+    return col_iter_.get() != nullptr && col_iter_->sorted == sorted;
   }
 
   const RowSet& buffered_rowset() const override {
@@ -67,7 +67,7 @@ class SparsePageDMatrix : public DMatrix {
 
   void InitColAccess(const std::vector<bool>& enabled,
                      float subsample,
-                     size_t max_row_perbatch) override;
+                     size_t max_row_perbatch, bool sorted) override;
 
   /*! \brief page size 256 MB */
   static const size_t kPageSize = 256UL << 20UL;
@@ -87,6 +87,8 @@ class SparsePageDMatrix : public DMatrix {
     bool Next() override;
     // initialize the column iterator with the specified index set.
     void Init(const std::vector<bst_uint>& index_set, bool load_all);
+    // If the column features are sorted
+    bool sorted;
 
    private:
     // the temp page.

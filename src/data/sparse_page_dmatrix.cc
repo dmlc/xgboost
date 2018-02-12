@@ -145,10 +145,10 @@ bool SparsePageDMatrix::TryInitColData() {
 
 void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
                                       float pkeep,
-                                      size_t max_row_perbatch) {
-  if (HaveColAccess()) return;
+                                      size_t max_row_perbatch, bool sorted) {
+  if (HaveColAccess(sorted)) return;
   if (TryInitColData()) return;
-
+  col_iter_->sorted = sorted;
   const MetaInfo& info = this->info();
   if (max_row_perbatch == std::numeric_limits<size_t>::max()) {
     max_row_perbatch = kMaxRowPerBatch;
@@ -197,13 +197,15 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     }
     CHECK_EQ(pcol->Size(), info.num_col);
     // sort columns
-    bst_omp_uint ncol = static_cast<bst_omp_uint>(pcol->Size());
-    #pragma omp parallel for schedule(dynamic, 1) num_threads(nthread)
-    for (bst_omp_uint i = 0; i < ncol; ++i) {
-      if (pcol->offset[i] < pcol->offset[i + 1]) {
-        std::sort(dmlc::BeginPtr(pcol->data) + pcol->offset[i],
-                  dmlc::BeginPtr(pcol->data) + pcol->offset[i + 1],
-                  SparseBatch::Entry::CmpValue);
+    if (sorted) {
+      bst_omp_uint ncol = static_cast<bst_omp_uint>(pcol->Size());
+#pragma omp parallel for schedule(dynamic, 1) num_threads(nthread)
+      for (bst_omp_uint i = 0; i < ncol; ++i) {
+        if (pcol->offset[i] < pcol->offset[i + 1]) {
+          std::sort(dmlc::BeginPtr(pcol->data) + pcol->offset[i],
+            dmlc::BeginPtr(pcol->data) + pcol->offset[i + 1],
+            SparseBatch::Entry::CmpValue);
+        }
       }
     }
   };

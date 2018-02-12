@@ -464,18 +464,18 @@ class LearnerImpl : public Learner {
   // if not, initialize the column access.
   inline void LazyInitDMatrix(DMatrix* p_train) {
     if (tparam.tree_method == 3 || tparam.tree_method == 4 ||
-        tparam.tree_method == 5) {
+        tparam.tree_method == 5 || name_gbm_ == "gblinear") {
       return;
     }
 
     monitor.Start("LazyInitDMatrix");
-    if (!p_train->HaveColAccess()) {
+    if (!p_train->HaveColAccess(true)) {
       int ncol = static_cast<int>(p_train->info().num_col);
       std::vector<bool> enabled(ncol, true);
       // set max row per batch to limited value
       // in distributed mode, use safe choice otherwise
       size_t max_row_perbatch = tparam.max_row_perbatch;
-      const size_t safe_max_row = static_cast<size_t>(32UL << 10UL);
+      const size_t safe_max_row = static_cast<size_t>(32ul << 10ul);
 
       if (tparam.tree_method == 0 && p_train->info().num_row >= (4UL << 20UL)) {
         LOG(CONSOLE)
@@ -495,7 +495,7 @@ class LearnerImpl : public Learner {
         max_row_perbatch = std::min(max_row_perbatch, safe_max_row);
       }
       // initialize column access
-      p_train->InitColAccess(enabled, tparam.prob_buffer_row, max_row_perbatch);
+      p_train->InitColAccess(enabled, tparam.prob_buffer_row, max_row_perbatch, true);
     }
 
     if (!p_train->SingleColBlock() && cfg_.count("updater") == 0) {
