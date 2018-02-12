@@ -3,7 +3,7 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
-* Updated linear modelling algorithms. In particular L1/L2 regularisation penalties are now normalised to number of training examples. This makes the implementation consistent with sklearn/glmnet. L2 regularisation has also been removed from the intercept.
+*  BREAKING CHANGES: Updated linear modelling algorithms. In particular L1/L2 regularisation penalties are now normalised to number of training examples. This makes the implementation consistent with sklearn/glmnet. L2 regularisation has also been removed from the intercept. To produce linear models with the old regularisation behaviour, the alpha/lambda regularisation parameters can be manually scaled by dividing them by the number of training examples.
 
 ## v0.7 (2017.12.30)
 * **This version represents a major change from the last release (v0.6), which was released one year and half ago.**

@@ -231,7 +231,7 @@ class GBLinear : public GradientBooster {
 
  protected:
   bool CheckConvergence() {
-    if (param.tolerance) return false;
+    if (param.tolerance == 0.0f) return false;
     if (is_converged) return true;
     if (previous_model.weight.size() != model.weight.size()) return false;
     float largest_dw = 0.0;
