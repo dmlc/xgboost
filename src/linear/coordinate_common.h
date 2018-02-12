@@ -288,7 +288,7 @@ class GreedyCoordinateSelector : public CoordinateSelector {
     int best_fidx = 0;
     double best_weight_update = 0.0f;
 
-    for (auto fidx = 0; fidx < model.param.num_feature; fidx++) {
+    for (auto fidx = 0U; fidx < model.param.num_feature; fidx++) {
       const float w = model[fidx][group_idx];
       auto gradient = GetGradientParallel(
           group_idx, model.param.num_output_group, fidx, gpair, p_fmat);

@@ -4,8 +4,8 @@
  */
 
 #include <xgboost/linear_updater.h>
-#include "coordinate_common.h"
 #include "../common/timer.h"
+#include "coordinate_common.h"
 
 namespace xgboost {
 namespace linear {
@@ -39,7 +39,8 @@ struct CoordinateTrainParam : public dmlc::Parameter<CoordinateTrainParam> {
         .describe("L1 regularization on weights.");
     DMLC_DECLARE_FIELD(coordinate_selection)
         .set_default("cyclic")
-        .describe("Coordinate selection algorithm, one of cyclic/random/greedy");
+        .describe(
+            "Coordinate selection algorithm, one of cyclic/random/greedy");
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
@@ -72,15 +73,15 @@ class CoordinateUpdater : public LinearUpdater {
          ++group_idx) {
       auto grad = GetBiasGradientParallel(
           group_idx, model->param.num_output_group, *in_gpair, p_fmat);
-      auto dbias =
-          param.learning_rate * CoordinateDeltaBias(grad.first, grad.second);
+      auto dbias = static_cast<float>(
+          param.learning_rate * CoordinateDeltaBias(grad.first, grad.second));
       model->bias()[group_idx] += dbias;
       UpdateBiasResidualParallel(group_idx, model->param.num_output_group,
                                  dbias, in_gpair, p_fmat);
     }
     for (int group_idx = 0; group_idx < model->param.num_output_group;
          ++group_idx) {
-      for (int i = 0; i < model->param.num_feature; i++) {
+      for (auto i = 0U; i < model->param.num_feature; i++) {
         int fidx = selector->SelectNextCoordinate(
             i, *model, group_idx, *in_gpair, p_fmat, param.reg_alpha,
             param.reg_lambda, sum_instance_weight);

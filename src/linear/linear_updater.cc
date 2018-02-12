@@ -24,5 +24,6 @@ namespace xgboost {
 namespace linear {
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(updater_shotgun);
+DMLC_REGISTRY_LINK_TAG(updater_coordinate);
 }  // namespace linear
 }  // namespace xgboost
