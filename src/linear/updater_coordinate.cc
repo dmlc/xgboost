@@ -20,7 +20,7 @@ struct CoordinateTrainParam : public dmlc::Parameter<CoordinateTrainParam> {
   float reg_lambda;
   /*! \brief regularization weight for L1 norm */
   float reg_alpha;
-  std::string coordinate_selection;
+  std::string feature_selector;
   float maximum_weight;
   int debug_verbose;
   // declare parameters
@@ -37,10 +37,10 @@ struct CoordinateTrainParam : public dmlc::Parameter<CoordinateTrainParam> {
         .set_lower_bound(0.0f)
         .set_default(0.0f)
         .describe("L1 regularization on weights.");
-    DMLC_DECLARE_FIELD(coordinate_selection)
+    DMLC_DECLARE_FIELD(feature_selector)
         .set_default("cyclic")
         .describe(
-            "Coordinate selection algorithm, one of cyclic/random/greedy");
+            "Feature selection algorithm, one of cyclic/random/greedy");
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
@@ -63,7 +63,7 @@ class CoordinateUpdater : public LinearUpdater {
   void Init(
       const std::vector<std::pair<std::string, std::string> > &args) override {
     param.InitAllowUnknown(args);
-    selector.reset(CoordinateSelector::Create(param.coordinate_selection));
+    selector.reset(FeatureSelector::Create(param.feature_selector));
     monitor.Init("CoordinateUpdater", param.debug_verbose);
   }
   void Update(std::vector<bst_gpair> *in_gpair, DMatrix *p_fmat,
@@ -82,7 +82,7 @@ class CoordinateUpdater : public LinearUpdater {
     for (int group_idx = 0; group_idx < model->param.num_output_group;
          ++group_idx) {
       for (auto i = 0U; i < model->param.num_feature; i++) {
-        int fidx = selector->SelectNextCoordinate(
+        int fidx = selector->SelectNextFeature(
             i, *model, group_idx, *in_gpair, p_fmat, param.reg_alpha,
             param.reg_lambda, sum_instance_weight);
         this->UpdateFeature(fidx, group_idx, in_gpair, p_fmat, model,
@@ -112,12 +112,12 @@ class CoordinateUpdater : public LinearUpdater {
 
   // training parameter
   CoordinateTrainParam param;
-  std::unique_ptr<CoordinateSelector> selector;
+  std::unique_ptr<FeatureSelector> selector;
   common::Monitor monitor;
 };
 
 DMLC_REGISTER_PARAMETER(CoordinateTrainParam);
-XGBOOST_REGISTER_LINEAR_UPDATER(CoordinateUpdater, "updater_coordinate")
+XGBOOST_REGISTER_LINEAR_UPDATER(CoordinateUpdater, "coord_descent")
     .describe("Update linear model according to coordinate descent algorithm.")
     .set_body([]() { return new CoordinateUpdater(); });
 }  // namespace linear

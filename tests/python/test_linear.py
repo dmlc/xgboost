@@ -9,8 +9,7 @@ import xgboost as xgb
 
 rng = np.random.RandomState(199)
 
-num_rounds = 2000
-early_stopping_rounds = 2000
+num_rounds = 1000
 
 
 def is_float(s):
@@ -104,7 +103,7 @@ def train_boston(param_in):
 
 # Enumerates all permutations of variable parameters
 def assert_updater_accuracy(linear_updater, variable_param):
-    param = {'booster': 'gblinear', 'linear_updater': linear_updater, 'tolerance': 1e-8}
+    param = {'booster': 'gblinear', 'updater': linear_updater, 'tolerance': 1e-8}
     names = sorted(variable_param)
     combinations = it.product(*(variable_param[Name] for Name in names))
 
@@ -126,4 +125,9 @@ class TestLinear(unittest.TestCase):
         tm._skip_if_no_sklearn()
         variable_param = {'alpha': [1.0, 5.0], 'lambda': [1.0, 5.0],
                           'coordinate_selection': ['cyclic', 'random', 'greedy']}
-        assert_updater_accuracy('updater_coordinate', variable_param)
+        assert_updater_accuracy('coord_descent', variable_param)
+
+    def test_shotgun(self):
+        tm._skip_if_no_sklearn()
+        variable_param = {'alpha': [1.0, 5.0], 'lambda': [1.0, 5.0]}
+        assert_updater_accuracy('shotgun', variable_param)

@@ -24,15 +24,15 @@ DMLC_REGISTRY_FILE_TAG(gblinear);
 // training parameter
 struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
   /*! \brief learning_rate */
-  std::string linear_updater;
+  std::string updater;
   // flag to print out detailed breakdown of runtime
   int debug_verbose;
   float tolerance;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
-    DMLC_DECLARE_FIELD(linear_updater)
-        .set_default("updater_shotgun")
-        .describe("Update algorithm for linear model. One of updater_shotgun/updater_coordinate");
+    DMLC_DECLARE_FIELD(updater)
+        .set_default("shotgun")
+        .describe("Update algorithm for linear model. One of shotgun/coord_descent");
     DMLC_DECLARE_FIELD(tolerance)
         .set_lower_bound(0.0f)
         .set_default(0.0f)
@@ -66,7 +66,7 @@ class GBLinear : public GradientBooster {
       model.param.InitAllowUnknown(cfg);
     }
     param.InitAllowUnknown(cfg);
-    updater.reset(LinearUpdater::Create(param.linear_updater));
+    updater.reset(LinearUpdater::Create(param.updater));
     updater->Init(cfg);
     monitor.Init("GBLinear ", param.debug_verbose);
   }

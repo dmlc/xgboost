@@ -145,10 +145,10 @@ Parameters for Linear Booster
   - L2 regularization term on weights, increase this value will make model more conservative. Normalised to number of training examples.
 * alpha [default=0, alias: reg_alpha]
   - L1 regularization term on weights, increase this value will make model more conservative. Normalised to number of training examples.
-* linear_updater [default='updater_shotgun']
+* updater [default='shotgun']
 	- Linear model algorithm
-      - 'updater_shotgun': Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run. 
-      - 'updater_coordinate': Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. 
+      - 'shotgun': Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run. 
+      - 'coord_descent': Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. 
 
 
 Parameters for Tweedie Regression

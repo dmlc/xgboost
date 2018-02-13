@@ -118,7 +118,7 @@ class ShotgunUpdater : public LinearUpdater {
 
 DMLC_REGISTER_PARAMETER(ShotgunTrainParam);
 
-XGBOOST_REGISTER_LINEAR_UPDATER(ShotgunUpdater, "updater_shotgun")
+XGBOOST_REGISTER_LINEAR_UPDATER(ShotgunUpdater, "shotgun")
     .describe(
         "Update linear model according to shotgun coordinate descent "
         "algorithm.")

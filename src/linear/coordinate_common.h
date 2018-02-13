@@ -205,17 +205,17 @@ inline void UpdateBiasResidualParallel(int group_idx, int num_group,
 }
 
 /**
- * \class CoordinateSelector
+ * \class FeatureSelector
  *
  * \brief Abstract class for stateful feature selection in coordinate descent
  * algorithms.
  */
 
-class CoordinateSelector {
+class FeatureSelector {
  public:
-  static CoordinateSelector *Create(std::string name);
+  static FeatureSelector *Create(std::string name);
   /*! \brief virtual destructor */
-  virtual ~CoordinateSelector() {}
+  virtual ~FeatureSelector() {}
 
   /**
    * \brief Select next coordinate to update.
@@ -232,7 +232,7 @@ class CoordinateSelector {
    * \return  The index of the selected feature. -1 indicates the bias term.
    */
 
-  virtual int SelectNextCoordinate(int iteration,
+  virtual int SelectNextFeature(int iteration,
                                    const gbm::GBLinearModel &model,
                                    int group_idx,
                                    const std::vector<bst_gpair> &gpair,
@@ -241,14 +241,14 @@ class CoordinateSelector {
 };
 
 /**
- * \class CyclicCoordinateSelector
+ * \class CyclicFeatureSelector
  *
  * \brief Deterministic selection by cycling through coordinates one at a time.
  */
 
-class CyclicCoordinateSelector : public CoordinateSelector {
+class CyclicFeatureSelector : public FeatureSelector {
  public:
-  int SelectNextCoordinate(int iteration, const gbm::GBLinearModel &model,
+  int SelectNextFeature(int iteration, const gbm::GBLinearModel &model,
                            int group_idx, const std::vector<bst_gpair> &gpair,
                            DMatrix *p_fmat, float alpha, float lambda,
                            double sum_instance_weight) override {
@@ -257,14 +257,14 @@ class CyclicCoordinateSelector : public CoordinateSelector {
 };
 
 /**
- * \class RandomCoordinateSelector
+ * \class RandomFeatureSelector
  *
  * \brief A random coordinate selector.
  */
 
-class RandomCoordinateSelector : public CoordinateSelector {
+class RandomFeatureSelector : public FeatureSelector {
  public:
-  int SelectNextCoordinate(int iteration, const gbm::GBLinearModel &model,
+  int SelectNextFeature(int iteration, const gbm::GBLinearModel &model,
                            int group_idx, const std::vector<bst_gpair> &gpair,
                            DMatrix *p_fmat, float alpha, float lambda,
                            double sum_instance_weight) override {
@@ -273,14 +273,14 @@ class RandomCoordinateSelector : public CoordinateSelector {
 };
 
 /**
- * \class GreedyCoordinateSelector
+ * \class GreedyFeatureSelector
  *
  * \brief Select coordinate with the greatest gradient magnitude.
  */
 
-class GreedyCoordinateSelector : public CoordinateSelector {
+class GreedyFeatureSelector : public FeatureSelector {
  public:
-  int SelectNextCoordinate(int iteration, const gbm::GBLinearModel &model,
+  int SelectNextFeature(int iteration, const gbm::GBLinearModel &model,
                            int group_idx, const std::vector<bst_gpair> &gpair,
                            DMatrix *p_fmat, float alpha, float lambda,
                            double sum_instance_weight) override {
@@ -304,13 +304,13 @@ class GreedyCoordinateSelector : public CoordinateSelector {
   }
 };
 
-inline CoordinateSelector *CoordinateSelector::Create(std::string name) {
+inline FeatureSelector *FeatureSelector::Create(std::string name) {
   if (name == "cyclic") {
-    return new CyclicCoordinateSelector();
+    return new CyclicFeatureSelector();
   } else if (name == "random") {
-    return new RandomCoordinateSelector();
+    return new RandomFeatureSelector();
   } else if (name == "greedy") {
-    return new GreedyCoordinateSelector();
+    return new GreedyFeatureSelector();
   } else {
     LOG(FATAL) << name << ": unknown coordinate selector";
   }

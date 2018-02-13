@@ -11,7 +11,7 @@ TEST(Linear, shotgun) {
   std::vector<bool> enabled(mat->info().num_col, true);
   mat->InitColAccess(enabled, 1.0f, 1 << 16, false);
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-      xgboost::LinearUpdater::Create("updater_shotgun"));
+      xgboost::LinearUpdater::Create("shotgun"));
   updater->Init({});
   std::vector<xgboost::bst_gpair> gpair(mat->info().num_row,
                                         xgboost::bst_gpair(-5, 1.0));
@@ -30,7 +30,7 @@ TEST(Linear, coordinate) {
   std::vector<bool> enabled(mat->info().num_col, true);
   mat->InitColAccess(enabled, 1.0f, 1 << 16, false);
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-      xgboost::LinearUpdater::Create("updater_coordinate"));
+      xgboost::LinearUpdater::Create("coord_descent"));
   updater->Init({});
   std::vector<xgboost::bst_gpair> gpair(mat->info().num_row,
                                         xgboost::bst_gpair(-5, 1.0));
