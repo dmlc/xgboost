@@ -82,7 +82,8 @@ class GBLinear : public GradientBooster {
 
     if (!p_fmat->HaveColAccess(false)) {
       std::vector<bool> enabled(p_fmat->info().num_col, true);
-      p_fmat->InitColAccess(enabled, 1.0f, 32ul << 10ul, false);
+      p_fmat->InitColAccess(enabled, 1.0f, std::numeric_limits<size_t>::max(),
+                            false);
     }
 
     model.LazyInitModel();
