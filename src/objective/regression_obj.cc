@@ -56,7 +56,7 @@ class RegLossObj : public ObjFunction {
     int nthread = omp_get_max_threads();
     // Use a maximum of 8 threads
 #pragma omp parallel for schedule(static) num_threads(std::min(8, nthread))
-    for (int i = 0; i < n - remainder; i += 8) {
+    for (omp_ulong i = 0; i < n - remainder; i += 8) {
       avx::Float8 y(&info.labels[i]);
       avx::Float8 p = Loss::PredTransform(avx::Float8(&preds[i]));
       avx::Float8 w = info.weights.empty() ? avx::Float8(1.0f)
