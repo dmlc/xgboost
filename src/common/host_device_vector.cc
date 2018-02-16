@@ -13,12 +13,19 @@ namespace xgboost {
 template <typename T>
 struct HostDeviceVectorImpl {
   explicit HostDeviceVectorImpl(size_t size) : data_h_(size) {}
+  HostDeviceVectorImpl(std::initializer_list<T> init) : data_h_(init) {}
   std::vector<T> data_h_;
 };
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector(size_t size, int device) : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(size);
+}
+
+template <typename T>
+HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, int device)
+  : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(init);
 }
 
 template <typename T>

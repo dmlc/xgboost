@@ -33,13 +33,15 @@ TEST(gpu_predictor, Test) {
   auto dmat = CreateDMatrix(n_row, n_col, 0);
 
   // Test predict batch
-  std::vector<float> gpu_out_predictions;
-  std::vector<float> cpu_out_predictions;
+  HostDeviceVector<float> gpu_out_predictions;
+  HostDeviceVector<float> cpu_out_predictions;
   gpu_predictor->PredictBatch(dmat.get(), &gpu_out_predictions, model, 0);
   cpu_predictor->PredictBatch(dmat.get(), &cpu_out_predictions, model, 0);
+  std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.data_h();
+  std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.data_h();
   float abs_tolerance = 0.001;
   for (int i = 0; i < gpu_out_predictions.size(); i++) {
-    ASSERT_LT(std::abs(gpu_out_predictions[i] - cpu_out_predictions[i]),
+    ASSERT_LT(std::abs(gpu_out_predictions_h[i] - cpu_out_predictions_h[i]),
               abs_tolerance);
   }
   // Test predict instance

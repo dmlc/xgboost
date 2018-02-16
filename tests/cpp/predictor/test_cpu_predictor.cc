@@ -24,10 +24,11 @@ TEST(cpu_predictor, Test) {
   auto dmat = CreateDMatrix(n_row, n_col, 0);
 
   // Test predict batch
-  std::vector<float> out_predictions;
+  HostDeviceVector<float> out_predictions;
   cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+  std::vector<float> out_predictions_h = out_predictions.data_h();
   for (int i = 0; i < out_predictions.size(); i++) {
-    ASSERT_EQ(out_predictions[i], 1.5);
+    ASSERT_EQ(out_predictions_h[i], 1.5);
   }
 
   // Test predict instance

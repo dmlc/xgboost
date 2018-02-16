@@ -114,23 +114,6 @@ class GPURegLossObj : public ObjFunction {
     param_.InitAllowUnknown(args);
     CHECK(param_.n_gpus != 0) << "Must have at least one device";
   }
-  void GetGradient(const std::vector<float> &preds,
-                   const MetaInfo &info,
-                   int iter,
-                   std::vector<bst_gpair> *out_gpair) override {
-    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.size(), info.labels.size())
-      << "labels are not correctly provided"
-      << "preds.size=" << preds.size() << ", label.size=" << info.labels.size();
-
-    size_t ndata = preds.size();
-    out_gpair->resize(ndata);
-    LazyResize(ndata);
-    thrust::copy(preds.begin(), preds.end(), preds_d_.tbegin(param_.gpu_id));
-    GetGradientDevice(preds_d_.ptr_d(param_.gpu_id), info, iter,
-                      out_gpair_d_.ptr_d(param_.gpu_id), ndata);
-    thrust::copy_n(out_gpair_d_.tbegin(param_.gpu_id), ndata, out_gpair->begin());
-  }
 
   void GetGradient(HostDeviceVector<float>* preds,
                    const MetaInfo &info,
@@ -187,13 +170,6 @@ class GPURegLossObj : public ObjFunction {
  public:
   const char* DefaultEvalMetric() const override {
     return Loss::DefaultEvalMetric();
-  }
-
-  void PredTransform(std::vector<float> *io_preds) override {
-    LazyResize(io_preds->size());
-    thrust::copy(io_preds->begin(), io_preds->end(), preds_d_.tbegin(param_.gpu_id));
-    PredTransformDevice(preds_d_.ptr_d(param_.gpu_id), io_preds->size());
-    thrust::copy_n(preds_d_.tbegin(param_.gpu_id), io_preds->size(), io_preds->begin());
   }
 
   void PredTransform(HostDeviceVector<float> *io_preds) override {

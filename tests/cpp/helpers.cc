@@ -38,10 +38,14 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
   info.labels = labels;
   info.weights = weights;
 
-  std::vector<xgboost::bst_gpair> gpair;
-  obj->GetGradient(preds, info, 1, &gpair);
+  xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds.size(), -1);
+  std::copy(preds.begin(), preds.end(), in_preds.data_h().begin());
 
-  ASSERT_EQ(gpair.size(), preds.size());
+  xgboost::HostDeviceVector<xgboost::bst_gpair> out_gpair;
+  obj->GetGradient(&in_preds, info, 1, &out_gpair);
+  std::vector<xgboost::bst_gpair>& gpair = out_gpair.data_h();
+
+  ASSERT_EQ(gpair.size(), in_preds.size());
   for (int i = 0; i < static_cast<int>(gpair.size()); ++i) {
     EXPECT_NEAR(gpair[i].GetGrad(), out_grad[i], 0.01)
       << "Unexpected grad for pred=" << preds[i] << " label=" << labels[i]

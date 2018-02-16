@@ -25,10 +25,11 @@ class TreeRefresher: public TreeUpdater {
     param.InitAllowUnknown(args);
   }
   // update the tree, do pruning
-  void Update(const std::vector<bst_gpair> &gpair,
+  void Update(HostDeviceVector<bst_gpair> *gpair,
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
     if (trees.size() == 0) return;
+    std::vector<bst_gpair> &gpair_h = gpair->data_h();
     // number of threads
     // thread temporal space
     std::vector<std::vector<TStats> > stemp;
@@ -71,7 +72,7 @@ class TreeRefresher: public TreeUpdater {
           feats.Fill(inst);
           int offset = 0;
           for (size_t j = 0; j < trees.size(); ++j) {
-            AddStats(*trees[j], feats, gpair, info, ridx,
+            AddStats(*trees[j], feats, gpair_h, info, ridx,
                      dmlc::BeginPtr(stemp[tid]) + offset);
             offset += trees[j]->param.num_nodes;
           }

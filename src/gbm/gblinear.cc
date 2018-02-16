@@ -103,14 +103,14 @@ class GBLinear : public GradientBooster {
     model.Save(fo);
   }
   void DoBoost(DMatrix *p_fmat,
-               std::vector<bst_gpair> *in_gpair,
+               HostDeviceVector<bst_gpair> *in_gpair,
                ObjFunction* obj) override {
     // lazily initialize the model when not ready.
     if (model.weight.size() == 0) {
       model.InitModel();
     }
 
-    std::vector<bst_gpair> &gpair = *in_gpair;
+    std::vector<bst_gpair> &gpair = in_gpair->data_h();
     const int ngroup = model.param.num_output_group;
     const RowSet &rowset = p_fmat->buffered_rowset();
     // for all the output group
@@ -172,14 +172,14 @@ class GBLinear : public GradientBooster {
   }
 
   void PredictBatch(DMatrix *p_fmat,
-               std::vector<bst_float> *out_preds,
+               HostDeviceVector<bst_float> *out_preds,
                unsigned ntree_limit) override {
     if (model.weight.size() == 0) {
       model.InitModel();
     }
     CHECK_EQ(ntree_limit, 0U)
         << "GBLinear::Predict ntrees is only valid for gbtree predictor";
-    std::vector<bst_float> &preds = *out_preds;
+    std::vector<bst_float> &preds = out_preds->data_h();
     const std::vector<bst_float>& base_margin = p_fmat->info().base_margin;
     preds.resize(0);
     // start collecting the prediction

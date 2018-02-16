@@ -84,7 +84,7 @@ class Learner : public rabit::Serializable {
    */
   virtual void BoostOneIter(int iter,
                             DMatrix* train,
-                            std::vector<bst_gpair>* in_gpair) = 0;
+                            HostDeviceVector<bst_gpair>* in_gpair) = 0;
   /*!
    * \brief evaluate the model for specific iteration using the configured metrics.
    * \param iter iteration number
@@ -109,7 +109,7 @@ class Learner : public rabit::Serializable {
    */
   virtual void Predict(DMatrix* data,
                        bool output_margin,
-                       std::vector<bst_float> *out_preds,
+                       HostDeviceVector<bst_float> *out_preds,
                        unsigned ntree_limit = 0,
                        bool pred_leaf = false,
                        bool pred_contribs = false,
@@ -169,7 +169,7 @@ class Learner : public rabit::Serializable {
    */
   inline void Predict(const SparseBatch::Inst &inst,
                       bool output_margin,
-                      std::vector<bst_float> *out_preds,
+                      HostDeviceVector<bst_float> *out_preds,
                       unsigned ntree_limit = 0) const;
   /*!
    * \brief Create a new instance of learner.
@@ -192,9 +192,9 @@ class Learner : public rabit::Serializable {
 // implementation of inline functions.
 inline void Learner::Predict(const SparseBatch::Inst& inst,
                              bool output_margin,
-                             std::vector<bst_float>* out_preds,
+                             HostDeviceVector<bst_float>* out_preds,
                              unsigned ntree_limit) const {
-  gbm_->PredictInstance(inst, out_preds, ntree_limit);
+  gbm_->PredictInstance(inst, &out_preds->data_h(), ntree_limit);
   if (!output_margin) {
     obj_->PredTransform(out_preds);
   }

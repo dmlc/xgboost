@@ -512,7 +512,7 @@ class GPUMaker : public TreeUpdater {
     maxLeaves = 1 << param.max_depth;
   }
 
-  void Update(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
+  void Update(HostDeviceVector<bst_gpair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
     GradStats::CheckInfo(dmat->info());
     // rescale learning rate according to size of trees
@@ -530,7 +530,7 @@ class GPUMaker : public TreeUpdater {
     param.learning_rate = lr;
   }
   /// @note: Update should be only after Init!!
-  void UpdateTree(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
+  void UpdateTree(HostDeviceVector<bst_gpair>* gpair, DMatrix* dmat,
                   RegTree* hTree) {
     if (!allocated) {
       setupOneTimeData(dmat);
@@ -687,11 +687,11 @@ class GPUMaker : public TreeUpdater {
     assignColIds<<<nCols, 512>>>(colIds.data(), colOffsets.data());
   }
 
-  void transferGrads(const std::vector<bst_gpair>& gpair) {
+  void transferGrads(HostDeviceVector<bst_gpair>* gpair) {
     // HACK
-    dh::safe_cuda(cudaMemcpy(gradsInst.data(), &(gpair[0]),
+    dh::safe_cuda(cudaMemcpy(gradsInst.data(), gpair->ptr_d(param.gpu_id),
                              sizeof(bst_gpair) * nRows,
-                             cudaMemcpyHostToDevice));
+                             cudaMemcpyDefault));
     // evaluate the full-grad reduction for the root node
     dh::sumReduction<bst_gpair>(tmp_mem, gradsInst, gradSums, nRows);
   }

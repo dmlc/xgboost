@@ -324,7 +324,7 @@ void CLIPredict(const CLIParam& param) {
   if (param.silent == 0) {
     LOG(CONSOLE) << "start prediction...";
   }
-  std::vector<bst_float> preds;
+  HostDeviceVector<bst_float> preds;
   learner->Predict(dtest.get(), param.pred_margin, &preds, param.ntree_limit);
   if (param.silent == 0) {
     LOG(CONSOLE) << "writing prediction to " << param.name_pred;
@@ -332,7 +332,7 @@ void CLIPredict(const CLIParam& param) {
   std::unique_ptr<dmlc::Stream> fo(
       dmlc::Stream::Create(param.name_pred.c_str(), "w"));
   dmlc::ostream os(fo.get());
-  for (bst_float p : preds) {
+  for (bst_float p : preds.data_h()) {
     os << p << '\n';
   }
   // force flush before fo destruct.

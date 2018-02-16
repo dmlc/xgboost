@@ -69,11 +69,8 @@ class GradientBooster {
    * the booster may change content of gpair
    */
   virtual void DoBoost(DMatrix* p_fmat,
-                       std::vector<bst_gpair>* in_gpair,
-                       ObjFunction* obj = nullptr) = 0;
-  virtual void DoBoost(DMatrix* p_fmat,
                        HostDeviceVector<bst_gpair>* in_gpair,
-                       ObjFunction* obj = nullptr);
+                       ObjFunction* obj = nullptr) = 0;
 
   /*!
    * \brief generate predictions for given feature matrix
@@ -83,11 +80,8 @@ class GradientBooster {
    *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
    */
   virtual void PredictBatch(DMatrix* dmat,
-                       std::vector<bst_float>* out_preds,
-                       unsigned ntree_limit = 0) = 0;
-  virtual void PredictBatch(DMatrix* dmat,
                             HostDeviceVector<bst_float>* out_preds,
-                            unsigned ntree_limit = 0);
+                            unsigned ntree_limit = 0) = 0;
   /*!
    * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually

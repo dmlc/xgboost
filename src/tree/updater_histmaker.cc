@@ -21,7 +21,7 @@ DMLC_REGISTRY_FILE_TAG(updater_histmaker);
 template<typename TStats>
 class HistMaker: public BaseMaker {
  public:
-  void Update(const std::vector<bst_gpair> &gpair,
+  void Update(HostDeviceVector<bst_gpair> *gpair,
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
     TStats::CheckInfo(p_fmat->info());
@@ -30,7 +30,7 @@ class HistMaker: public BaseMaker {
     param.learning_rate = lr / trees.size();
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
-      this->Update(gpair, p_fmat, trees[i]);
+      this->Update(gpair->data_h(), p_fmat, trees[i]);
     }
     param.learning_rate = lr;
   }
