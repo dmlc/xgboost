@@ -14,6 +14,7 @@
 #include <sstream>
 #include <cstring>
 #include <algorithm>
+#include "../common/vector_serializer.h"
 
 namespace xgboost {
 namespace gbm {
@@ -50,6 +51,8 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
   float reg_alpha;
   /*! \brief regularization weight for L2 norm in bias */
   float reg_lambda_bias;
+  /*! \brief array that specify the direction of each feature's beta */
+  std::vector<int> monotone_constraints;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
     DMLC_DECLARE_FIELD(learning_rate).set_lower_bound(0.0f).set_default(1.0f)
@@ -65,6 +68,9 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
     DMLC_DECLARE_ALIAS(reg_lambda_bias, lambda_bias);
+    DMLC_DECLARE_FIELD(monotone_constraints)
+        .set_default(std::vector<int>())
+        .describe("Constraint of variable monotonicity");
   }
   // given original weight calculate delta
   inline double CalcDelta(double sum_grad, double sum_hess, double w) const {
@@ -79,6 +85,14 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
   // given original weight calculate delta bias
   inline double CalcDeltaBias(double sum_grad, double sum_hess, double w) const {
     return - (sum_grad + reg_lambda_bias * w) / (sum_hess + reg_lambda_bias);
+  }
+
+  inline bst_float ApplyMonotonicityConstraints(bst_uint index, bst_float weight) {
+    if (index >= monotone_constraints.size()) return weight; // default without constrints.
+    if (monotone_constraints[index] == 0) return weight;
+    if (monotone_constraints[index] == 1 && weight < 0) return 0.0f;
+    if (monotone_constraints[index] == -1 && weight > 0) return 0.0f;
+    return weight;
   }
 };
 
@@ -160,6 +174,7 @@ class GBLinear : public GradientBooster {
           bst_float dw = static_cast<bst_float>(param.learning_rate *
                                                 param.CalcDelta(sum_grad, sum_hess, w));
           w += dw;
+          w = param.ApplyMonotonicityConstraints(fid, w);
           // update grad value
           for (bst_uint j = 0; j < col.length; ++j) {
             bst_gpair &p = gpair[col[j].index * ngroup + gid];
