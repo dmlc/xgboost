@@ -46,14 +46,14 @@ def run_benchmark(args):
     if args.params is not '':
         param.update(ast.literal_eval(args.params))
 
-    param['linear_updater'] = args.linear_updater
-    print("Training with '%s'" % param['linear_updater'])
+    param['updater'] = args.updater
+    print("Training with '%s'" % param['updater'])
     tmp = time.time()
     xgb.train(param, dtrain, args.iterations, evals=[(dtrain,"train")], early_stopping_rounds = args.columns)
     print ("Train Time: %s seconds" % (str(time.time() - tmp)))
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--linear_updater', default='updater_coordinate')
+parser.add_argument('--updater', default='coord_descent')
 parser.add_argument('--sparsity', type=float, default=0.0)
 parser.add_argument('--lambda', type=float, default=1.0)
 parser.add_argument('--tol', type=float, default=1e-5)
