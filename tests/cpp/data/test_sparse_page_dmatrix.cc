@@ -56,10 +56,10 @@ TEST(SparsePageDMatrix, ColAcess) {
   std::remove(tmp_file.c_str());
   EXPECT_FALSE(FileExists(tmp_file + ".cache.col.page"));
 
-  EXPECT_EQ(dmat->HaveColAccess(), false);
+  EXPECT_EQ(dmat->HaveColAccess(true), false);
   const std::vector<bool> enable(dmat->info().num_col, true);
-  dmat->InitColAccess(enable, 1, 1); // Max 1 row per patch
-  ASSERT_EQ(dmat->HaveColAccess(), true);
+  dmat->InitColAccess(enable, 1, 1, true); // Max 1 row per patch
+  ASSERT_EQ(dmat->HaveColAccess(true), true);
   EXPECT_TRUE(FileExists(tmp_file + ".cache.col.page"));
 
   EXPECT_EQ(dmat->GetColSize(0), 2);

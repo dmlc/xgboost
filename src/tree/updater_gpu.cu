@@ -651,9 +651,9 @@ class GPUMaker : public TreeUpdater {
     fId->reserve(nCols * nRows);
     // in case you end up with a DMatrix having no column access
     // then make sure to enable that before copying the data!
-    if (!dmat->HaveColAccess()) {
+    if (!dmat->HaveColAccess(true)) {
       const std::vector<bool> enable(nCols, true);
-      dmat->InitColAccess(enable, 1, nRows);
+      dmat->InitColAccess(enable, 1, nRows, true);
     }
     dmlc::DataIter<ColBatch>* iter = dmat->ColIterator();
     iter->BeforeFirst();
