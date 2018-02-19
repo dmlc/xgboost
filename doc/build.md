@@ -85,12 +85,33 @@ Now, clone the repository
 
 ```bash
 git clone --recursive https://github.com/dmlc/xgboost
+cd xgboost; cp make/config.mk ./config.mk
+```
+
+Open config.mk and uncomment these two lines
+
+```config.mk
+export CC = gcc
+export CXX = g++
+```
+
+and replace these two lines into(5 or 6 or 7; depending on your gcc-version)
+
+```config.mk
+export CC = gcc-7
+export CXX = g++-7
+```
+
+To find your gcc version
+
+```bash
+gcc-version
 ```
 
 and build using the following commands
 
 ```bash
-cd xgboost; cp make/config.mk ./config.mk; make -j4
+make -j4
 ```
 head over to `Python Package Installation` for the next steps
 
