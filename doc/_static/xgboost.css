@@ -185,7 +185,7 @@ pre {
 
 .dropdown-menu li  {
     padding: 0px 0px;
-    width: 120px;
+    width: 100%;
 }
 .dropdown-menu li a {
     color: #0079b2;
