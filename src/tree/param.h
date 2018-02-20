@@ -376,7 +376,7 @@ struct NoConstraint {
   inline static void Init(TrainParam *param, unsigned num_feature) {
     param->monotone_constraints.resize(num_feature, 0);
   }
-  inline double CalcSplitGain(const TrainParam &param, bst_uint split_index,
+  inline double CalcSplitGain(const TrainParam &param, int constraint,
                               GradStats left, GradStats right) const {
     return left.CalcGain(param) + right.CalcGain(param);
   }
