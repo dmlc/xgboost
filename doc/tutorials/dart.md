@@ -1,6 +1,6 @@
 DART booster
 ============
-[XGBoost](https://github.com/dmlc/xgboost)) mostly combines a huge number of regression trees with a small learning rate.
+[XGBoost](https://github.com/dmlc/xgboost) mostly combines a huge number of regression trees with a small learning rate.
 In this situation, trees added early are significant and trees added late are unimportant.
 
 Vinayak and Gilad-Bachrach proposed a new method to add dropout techniques from the deep neural net community to boosted trees, and reported better results in some situations.
