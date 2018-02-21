@@ -114,7 +114,7 @@ class CPUPredictor : public Predictor {
       if (it != cache_.end()) {
         HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.size() != 0) {
-          out_preds->resize(y.size(), -1);
+          out_preds->resize(y.size());
           std::copy(y.data_h().begin(), y.data_h().end(),
                     out_preds->data_h().begin());
           return true;
@@ -129,7 +129,7 @@ class CPUPredictor : public Predictor {
                           const gbm::GBTreeModel& model) const {
     size_t n = model.param.num_output_group * info.num_row;
     const std::vector<bst_float>& base_margin = info.base_margin;
-    out_preds->resize(n, -1);
+    out_preds->resize(n);
     std::vector<bst_float>& out_preds_h = out_preds->data_h();
     if (base_margin.size() != 0) {
       CHECK_EQ(out_preds->size(), n);

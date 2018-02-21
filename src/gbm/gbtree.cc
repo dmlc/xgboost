@@ -195,10 +195,10 @@ class GBTree : public GradientBooster {
           << "must have exactly ngroup*nrow gpairs";
       // TODO(canonizer): perform this on GPU if HostDeviceVector has device set.
       HostDeviceVector<bst_gpair> tmp(in_gpair->size() / ngroup, in_gpair->device());
-      auto& gpair_h = in_gpair->data_h();
-      auto& tmp_h = tmp.data_h();
+      std::vector<bst_gpair>& gpair_h = in_gpair->data_h();
+      bst_omp_uint nsize = static_cast<bst_omp_uint>(tmp.size());
       for (int gid = 0; gid < ngroup; ++gid) {
-        bst_omp_uint nsize = static_cast<bst_omp_uint>(tmp.size());
+        std::vector<bst_gpair>& tmp_h = tmp.data_h();
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           tmp_h[i] = gpair_h[i * ngroup + gid];

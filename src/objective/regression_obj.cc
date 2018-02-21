@@ -48,7 +48,7 @@ class RegLossObj : public ObjFunction {
     auto& preds_h = preds->data_h();
 
     this->LazyCheckLabels(info.labels);
-    out_gpair->resize(preds_h.size(), -1);
+    out_gpair->resize(preds_h.size());
     auto& gpair = out_gpair->data_h();
     const omp_ulong n = static_cast<omp_ulong>(preds_h.size());
     auto gpair_ptr = out_gpair->ptr_h();
@@ -58,7 +58,7 @@ class RegLossObj : public ObjFunction {
     int nthread = omp_get_max_threads();
     // Use a maximum of 8 threads
 #pragma omp parallel for schedule(static) num_threads(std::min(8, nthread))
-    for (int i = 0; i < n - remainder; i += 8) {
+    for (omp_ulong i = 0; i < n - remainder; i += 8) {
       avx::Float8 y(&info.labels[i]);
       avx::Float8 p = Loss::PredTransform(avx::Float8(&preds_h[i]));
       avx::Float8 w = info.weights.empty() ? avx::Float8(1.0f)
@@ -152,7 +152,7 @@ class PoissonRegression : public ObjFunction {
     CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds->size(), info.labels.size()) << "labels are not correctly provided";
     auto& preds_h = preds->data_h();
-    out_gpair->resize(preds->size(), -1);
+    out_gpair->resize(preds->size());
     auto& gpair = out_gpair->data_h();
     // check if label in range
     bool label_correct = true;
@@ -213,7 +213,7 @@ class CoxRegression : public ObjFunction {
     CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds->size(), info.labels.size()) << "labels are not correctly provided";
     auto& preds_h = preds->data_h();
-    out_gpair->resize(preds_h.size(), -1);
+    out_gpair->resize(preds_h.size());
     auto& gpair = out_gpair->data_h();
     const std::vector<size_t> &label_order = info.LabelAbsSort();
 
@@ -301,7 +301,7 @@ class GammaRegression : public ObjFunction {
     CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds->size(), info.labels.size()) << "labels are not correctly provided";
     auto& preds_h = preds->data_h();
-    out_gpair->resize(preds_h.size(), -1);
+    out_gpair->resize(preds_h.size());
     auto& gpair = out_gpair->data_h();
     // check if label in range
     bool label_correct = true;
@@ -368,7 +368,7 @@ class TweedieRegression : public ObjFunction {
     CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds->size(), info.labels.size()) << "labels are not correctly provided";
     auto& preds_h = preds->data_h();
-    out_gpair->resize(preds->size(), -1);
+    out_gpair->resize(preds->size());
     auto& gpair = out_gpair->data_h();
     // check if label in range
     bool label_correct = true;

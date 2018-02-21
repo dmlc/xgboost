@@ -62,8 +62,9 @@ template <typename T> struct HostDeviceVectorImpl;
 template <typename T>
 class HostDeviceVector {
  public:
-  explicit HostDeviceVector(size_t size = 0, int device = -1);
+  explicit HostDeviceVector(size_t size = 0, int device = -1, T v = T());
   HostDeviceVector(std::initializer_list<T> init, int device = -1);
+  explicit HostDeviceVector(const std::vector<T>& init, int device = -1);
   ~HostDeviceVector();
   HostDeviceVector(const HostDeviceVector<T>&) = delete;
   HostDeviceVector(HostDeviceVector<T>&&) = delete;
@@ -84,17 +85,7 @@ class HostDeviceVector {
   std::vector<T>& data_h();
 
   // passing in new_device == -1 keeps the device as is
-  void resize(size_t new_size, int new_device);
-
-  // helper functions in case a function needs to be templated
-  // to work for both HostDeviceVector and std::vector
-  static std::vector<T>& data_h(HostDeviceVector<T>* v) {
-    return v->data_h();
-  }
-
-  static std::vector<T>& data_h(std::vector<T>* v) {
-    return *v;
-  }
+  void resize(size_t new_size, int new_device = -1, T v = T());
 
  private:
   HostDeviceVectorImpl<T>* impl_;

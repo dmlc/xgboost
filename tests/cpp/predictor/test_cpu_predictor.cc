@@ -26,7 +26,7 @@ TEST(cpu_predictor, Test) {
   // Test predict batch
   HostDeviceVector<float> out_predictions;
   cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-  std::vector<float> out_predictions_h = out_predictions.data_h();
+  std::vector<float>& out_predictions_h = out_predictions.data_h();
   for (int i = 0; i < out_predictions.size(); i++) {
     ASSERT_EQ(out_predictions_h[i], 1.5);
   }

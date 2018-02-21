@@ -42,9 +42,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
     CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
     CHECK(preds->size() == (static_cast<size_t>(param_.num_class) * info.labels.size()))
         << "SoftmaxMultiClassObj: label size and pred size does not match";
-    auto& preds_h = preds->data_h();
-    out_gpair->resize(preds_h.size(), -1);
-    auto& gpair = out_gpair->data_h();
+    std::vector<bst_float>& preds_h = preds->data_h();
+    out_gpair->resize(preds_h.size());
+    std::vector<bst_gpair>& gpair = out_gpair->data_h();
     const int nclass = param_.num_class;
     const omp_ulong ndata = static_cast<omp_ulong>(preds_h.size() / nclass);
 

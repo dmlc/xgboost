@@ -43,7 +43,7 @@ class LambdaRankObj : public ObjFunction {
                    HostDeviceVector<bst_gpair>* out_gpair) override {
     CHECK_EQ(preds->size(), info.labels.size()) << "label size predict size not match";
     auto& preds_h = preds->data_h();
-    out_gpair->resize(preds_h.size(), -1);
+    out_gpair->resize(preds_h.size());
     std::vector<bst_gpair>& gpair = out_gpair->data_h();
     // quick consistency when group is not available
     std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels.size());

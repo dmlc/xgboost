@@ -111,7 +111,7 @@ class GBLinear : public GradientBooster {
     auto it = cache_.find(p_fmat);
     if (it != cache_.end() && it->second.predictions.size() != 0) {
       std::vector<bst_float> &y = it->second.predictions;
-      out_preds->resize(y.size(), -1);
+      out_preds->resize(y.size());
       std::copy(y.begin(), y.end(), out_preds->data_h().begin());
     } else {
       this->PredictBatchInternal(p_fmat, &out_preds->data_h());

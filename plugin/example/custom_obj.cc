@@ -37,7 +37,7 @@ class MyLogistic : public ObjFunction {
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<bst_gpair> *out_gpair) override {
-    out_gpair->resize(preds->size(), -1);
+    out_gpair->resize(preds->size());
     std::vector<bst_float>& preds_h = preds->data_h();
     std::vector<bst_gpair>& out_gpair_h = out_gpair->data_h();
     for (size_t i = 0; i < preds.size(); ++i) {

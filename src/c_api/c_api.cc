@@ -710,7 +710,7 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
   Booster* bst = static_cast<Booster*>(handle);
   std::shared_ptr<DMatrix>* dtr =
       static_cast<std::shared_ptr<DMatrix>*>(dtrain);
-  tmp_gpair.resize(len, -1);
+  tmp_gpair.resize(len);
   std::vector<bst_gpair>& tmp_gpair_h = tmp_gpair.data_h();
   for (xgboost::bst_ulong i = 0; i < len; ++i) {
     tmp_gpair_h[i] = bst_gpair(grad[i], hess[i]);

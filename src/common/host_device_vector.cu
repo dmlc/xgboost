@@ -1,6 +1,7 @@
 /*!
  * Copyright 2017 XGBoost contributors
  */
+
 #include "./host_device_vector.h"
 #include "./device_helpers.cuh"
 
@@ -8,16 +9,18 @@ namespace xgboost {
 
 template <typename T>
 struct HostDeviceVectorImpl {
-  HostDeviceVectorImpl(size_t size, int device)
+  HostDeviceVectorImpl(size_t size, int device, T v)
     : device_(device), on_d_(device >= 0) {
     if (on_d_) {
       dh::safe_cuda(cudaSetDevice(device_));
-      data_d_.resize(size);
+      data_d_.resize(size, v);
     } else {
-      data_h_.resize(size);
+      data_h_.resize(size, v);
     }
   }
-  HostDeviceVectorImpl(std::initializer_list<T> init, int device)
+  // Init can be std::vector<T> or std::initializer_list<T>
+  template <class Init>
+  HostDeviceVectorImpl(const Init& init, int device)
     : device_(device), on_d_(device >= 0) {
     if (on_d_) {
       dh::safe_cuda(cudaSetDevice(device_));
@@ -51,7 +54,7 @@ struct HostDeviceVectorImpl {
     lazy_sync_host();
     return data_h_;
   }
-  void resize(size_t new_size, int new_device) {
+  void resize(size_t new_size, int new_device, T v) {
     if (new_size == this->size() && new_device == device_)
       return;
     if (new_device != -1)
@@ -59,10 +62,10 @@ struct HostDeviceVectorImpl {
     // if !on_d_, but the data size is 0 and the device is set,
     // resize the data on device instead
     if (!on_d_ && (data_h_.size() > 0 || device_ == -1)) {
-      data_h_.resize(new_size);
+      data_h_.resize(new_size, v);
     } else {
       dh::safe_cuda(cudaSetDevice(device_));
-      data_d_.resize(new_size);
+      data_d_.resize(new_size, v);
       on_d_ = true;
     }
   }
@@ -101,12 +104,18 @@ struct HostDeviceVectorImpl {
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, int device) : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(size, device);
+HostDeviceVector<T>::HostDeviceVector(size_t size, int device, T v) : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(size, device, v);
 }
 
 template <typename T>
 HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, int device)
+  : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(init, device);
+}
+
+template <typename T>
+HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int device)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init, device);
 }
@@ -141,8 +150,8 @@ template <typename T>
 std::vector<T>& HostDeviceVector<T>::data_h() { return impl_->data_h(); }
 
 template <typename T>
-void HostDeviceVector<T>::resize(size_t new_size, int new_device) {
-  impl_->resize(new_size, new_device);
+void HostDeviceVector<T>::resize(size_t new_size, int new_device, T v) {
+  impl_->resize(new_size, new_device, v);
 }
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only

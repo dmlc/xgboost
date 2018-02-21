@@ -38,8 +38,7 @@ void CheckObjFunction(xgboost::ObjFunction * obj,
   info.labels = labels;
   info.weights = weights;
 
-  xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds.size(), -1);
-  std::copy(preds.begin(), preds.end(), in_preds.data_h().begin());
+  xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds);
 
   xgboost::HostDeviceVector<xgboost::bst_gpair> out_gpair;
   obj->GetGradient(&in_preds, info, 1, &out_gpair);
