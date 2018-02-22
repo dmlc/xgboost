@@ -40,7 +40,7 @@ class MyLogistic : public ObjFunction {
     out_gpair->resize(preds->size());
     std::vector<bst_float>& preds_h = preds->data_h();
     std::vector<bst_gpair>& out_gpair_h = out_gpair->data_h();
-    for (size_t i = 0; i < preds.size(); ++i) {
+    for (size_t i = 0; i < preds_h.size(); ++i) {
       bst_float w = info.GetWeight(i);
       // scale the negative examples!
       if (info.labels[i] == 0.0f) w *= param_.scale_neg_weight;
