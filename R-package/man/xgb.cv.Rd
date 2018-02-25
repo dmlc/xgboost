@@ -104,6 +104,7 @@ An object of class \code{xgb.cv.synchronous} with the following elements:
         CV-based evaluation means and standard deviations for the training and test CV-sets.
         It is created by the \code{\link{cb.evaluation.log}} callback.
   \item \code{niter} number of boosting iterations.
+  \item \code{nfeatures} number of features in training data.
   \item \code{folds} the list of CV folds' indices - either those passed through the \code{folds} 
         parameter or randomly generated.
   \item \code{best_iteration} iteration number with the best evaluation metric value

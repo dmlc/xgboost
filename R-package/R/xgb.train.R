@@ -162,6 +162,7 @@
 #'         (only available with early stopping).
 #'   \item \code{feature_names} names of the training dataset features
 #'         (only when comun names were defined in training data).
+#'   \item \code{nfeatures} number of features in training data.
 #' }
 #' 
 #' @seealso
@@ -363,6 +364,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   bst$callbacks <- callbacks
   if (!is.null(colnames(dtrain)))
     bst$feature_names <- colnames(dtrain)
-  
+  bst$nfeatures <- ncol(dtrain)
+
   return(bst)
 }
