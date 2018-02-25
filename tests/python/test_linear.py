@@ -103,7 +103,7 @@ def train_boston(param_in):
 
 # Enumerates all permutations of variable parameters
 def assert_updater_accuracy(linear_updater, variable_param):
-    param = {'booster': 'gblinear', 'updater': linear_updater, 'tolerance': 1e-8}
+    param = {'booster': 'gblinear', 'updater': linear_updater, 'eta': 1., 'tolerance': 1e-8}
     names = sorted(variable_param)
     combinations = it.product(*(variable_param[Name] for Name in names))
 
