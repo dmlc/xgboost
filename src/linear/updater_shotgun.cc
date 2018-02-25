@@ -19,11 +19,12 @@ struct ShotgunTrainParam : public dmlc::Parameter<ShotgunTrainParam> {
   float reg_lambda;
   /*! \brief regularization weight for L1 norm */
   float reg_alpha;
+  int feature_selector;
   // declare parameters
   DMLC_DECLARE_PARAMETER(ShotgunTrainParam) {
     DMLC_DECLARE_FIELD(learning_rate)
         .set_lower_bound(0.0f)
-        .set_default(1.0f)
+        .set_default(0.5f)
         .describe("Learning rate of each update.");
     DMLC_DECLARE_FIELD(reg_lambda)
         .set_lower_bound(0.0f)
@@ -33,75 +34,78 @@ struct ShotgunTrainParam : public dmlc::Parameter<ShotgunTrainParam> {
         .set_lower_bound(0.0f)
         .set_default(0.0f)
         .describe("L1 regularization on weights.");
+    DMLC_DECLARE_FIELD(feature_selector)
+        .set_default(kCyclic)
+        .add_enum("cyclic", kCyclic)
+        .add_enum("shuffle", kShuffle)
+        .describe("Feature selection or ordering method.");
     // alias of parameters
     DMLC_DECLARE_ALIAS(learning_rate, eta);
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
   }
+  /*! \brief Denormalizes the regularization penalties - to be called at each update */
+  void DenormalizePenalties(double sum_instance_weight) {
+    reg_lambda_denorm = reg_lambda * sum_instance_weight;
+    reg_alpha_denorm = reg_alpha * sum_instance_weight;
+  }
+  // denormalizated regularization penalties
+  float reg_lambda_denorm;
+  float reg_alpha_denorm;
 };
 
 class ShotgunUpdater : public LinearUpdater {
  public:
   // set training parameter
-  void Init(
-      const std::vector<std::pair<std::string, std::string> > &args) override {
+  void Init(const std::vector<std::pair<std::string, std::string> > &args) override {
     param.InitAllowUnknown(args);
+    selector.reset(FeatureSelector::Create(param.feature_selector));
   }
+
   void Update(std::vector<bst_gpair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
+    param.DenormalizePenalties(sum_instance_weight);
     std::vector<bst_gpair> &gpair = *in_gpair;
     const int ngroup = model->param.num_output_group;
-    const RowSet &rowset = p_fmat->buffered_rowset();
-    // for all the output group
+
+    // update bias
     for (int gid = 0; gid < ngroup; ++gid) {
-      double sum_grad = 0.0, sum_hess = 0.0;
-      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
-#pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
-      for (bst_omp_uint i = 0; i < ndata; ++i) {
-        bst_gpair &p = gpair[rowset[i] * ngroup + gid];
-        if (p.GetHess() >= 0.0f) {
-          sum_grad += p.GetGrad();
-          sum_hess += p.GetHess();
-        }
-      }
-      // remove bias effect
-      bst_float dw = static_cast<bst_float>(
-          param.learning_rate * CoordinateDeltaBias(sum_grad, sum_hess));
-      model->bias()[gid] += dw;
-// update grad value
-#pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < ndata; ++i) {
-        bst_gpair &p = gpair[rowset[i] * ngroup + gid];
-        if (p.GetHess() >= 0.0f) {
-          p += bst_gpair(p.GetHess() * dw, 0);
-        }
-      }
+      auto grad = GetBiasGradientParallel(gid, ngroup, *in_gpair, p_fmat);
+      auto dbias = static_cast<bst_float>(param.learning_rate *
+                               CoordinateDeltaBias(grad.first, grad.second));
+      model->bias()[gid] += dbias;
+      UpdateBiasResidualParallel(gid, ngroup, dbias, in_gpair, p_fmat);
     }
+
+    // lock-free parallel updates of weights
+    selector->Setup(*model, *in_gpair, p_fmat, param.reg_alpha_denorm, param.reg_lambda_denorm, 0);
     dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
     while (iter->Next()) {
-      // number of features
       const ColBatch &batch = iter->Value();
       const bst_omp_uint nfeat = static_cast<bst_omp_uint>(batch.size);
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
-        const bst_uint fid = batch.col_index[i];
-        ColBatch::Inst col = batch[i];
+        int ii = selector->NextFeature(i, *model, 0, *in_gpair, p_fmat,
+                                       param.reg_alpha_denorm, param.reg_lambda_denorm);
+        if (ii < 0) continue;
+        const bst_uint fid = batch.col_index[ii];
+        ColBatch::Inst col = batch[ii];
         for (int gid = 0; gid < ngroup; ++gid) {
           double sum_grad = 0.0, sum_hess = 0.0;
           for (bst_uint j = 0; j < col.length; ++j) {
-            const bst_float v = col[j].fvalue;
             bst_gpair &p = gpair[col[j].index * ngroup + gid];
             if (p.GetHess() < 0.0f) continue;
+            const bst_float v = col[j].fvalue;
             sum_grad += p.GetGrad() * v;
             sum_hess += p.GetHess() * v * v;
           }
           bst_float &w = (*model)[fid][gid];
           bst_float dw = static_cast<bst_float>(
               param.learning_rate *
-              CoordinateDelta(sum_grad, sum_hess, w, param.reg_lambda,
-                              param.reg_alpha, sum_instance_weight));
+              CoordinateDelta(sum_grad, sum_hess, w, param.reg_alpha_denorm,
+                              param.reg_lambda_denorm));
           w += dw;
-          // update grad value
+          // update grad values
           for (bst_uint j = 0; j < col.length; ++j) {
             bst_gpair &p = gpair[col[j].index * ngroup + gid];
             if (p.GetHess() < 0.0f) continue;
@@ -112,8 +116,11 @@ class ShotgunUpdater : public LinearUpdater {
     }
   }
 
-  // training parameter
+ protected:
+  // training parameters
   ShotgunTrainParam param;
+
+  std::unique_ptr<FeatureSelector> selector;
 };
 
 DMLC_REGISTER_PARAMETER(ShotgunTrainParam);
