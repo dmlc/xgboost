@@ -25,7 +25,9 @@ Data Interface
 --------------
 The XGBoost python module is able to load data from:
 - libsvm txt format file
-- Numpy 2D array, and
+- comma-separated values (CSV) file
+- Numpy 2D array
+- Scipy 2D sparse array, and
 - xgboost binary buffer file.
 
 The data is stored in a ```DMatrix``` object.
@@ -34,6 +36,11 @@ The data is stored in a ```DMatrix``` object.
 ```python
 dtrain = xgb.DMatrix('train.svm.txt')
 dtest = xgb.DMatrix('test.svm.buffer')
+```
+* To load a CSV file into ```DMatrix```:
+```python
+data = ('train.csv', 'csv')  # need a tuple of length 2 to specify CSV format
+dtrain = xgb.DMatrix(data)
 ```
 * To load a numpy array into ```DMatrix```:
 ```python

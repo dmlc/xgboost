@@ -235,14 +235,16 @@ class DMatrix(object):
                  feature_names=None, feature_types=None,
                  nthread=None):
         """
-        Data matrix used in XGBoost.
-
         Parameters
         ----------
-        data : string/numpy array/scipy.sparse/pd.DataFrame
+        data : string/tuple (string,string)/numpy array/scipy.sparse/pd.DataFrame
             Data source of DMatrix.
-            When data is string type, it represents the path libsvm format txt file,
-            or binary file that xgboost can read from.
+            When ``data`` is string type, it represents the path of a data file
+            in either libsvm format or XGBoost binary format.
+            When ``data`` is tuple type, ``tup[0]`` specifies the path of a
+            data file and ``tup[1]`` specifies the data format. Currently,
+            ``tup[1]`` should be one of ``{'csv', 'libsvm'}``
+            Alternatively, ``data`` may be a dense or sparse matrix.
         label : list or numpy 1-D array, optional
             Label of the training data.
         missing : float, optional
@@ -272,6 +274,21 @@ class DMatrix(object):
             _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
                                                      ctypes.c_int(silent),
                                                      ctypes.byref(self.handle)))
+        elif isinstance(data, tuple):
+            if len(data) != 2:
+                raise ValueError('can not initialize DMatrix from a tuple ' +\
+                                 'whose length is not 2')
+            data_file = data[0]
+            data_format = data[1]
+            VALID_FORMAT = ['libsvm', 'csv']
+            if data_format not in VALID_FORMAT:
+                raise ValueError('data format must be one of {{{}}}'\
+                                 .format(', '.join(VALID_FORMAT)))
+            self.handle = ctypes.c_void_p()
+            _check_call(_LIB.XGDMatrixCreateFromFileEx(c_str(data_file),
+                                                       ctypes.c_int(silent),
+                                                       c_str(data_format),
+                                                       ctypes.byref(self.handle)))
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
@@ -706,7 +723,7 @@ class DMatrix(object):
 
 
 class Booster(object):
-    """"A Booster of of XGBoost.
+    """A Booster of of XGBoost.
 
     Booster is the model of xgboost, that contains low level routines for
     training, prediction and evaluation.
@@ -716,8 +733,7 @@ class Booster(object):
 
     def __init__(self, params=None, cache=(), model_file=None):
         # pylint: disable=invalid-name
-        """Initialize the Booster.
-
+        """
         Parameters
         ----------
         params : dict
