@@ -39,8 +39,9 @@ dtest = xgb.DMatrix('test.svm.buffer')
 ```
 * To load a CSV file into ```DMatrix```:
 ```python
-data = ('train.csv', 'csv')  # need a tuple of length 2 to specify CSV format
-dtrain = xgb.DMatrix(data)
+# label_column specifies the index of the column containing the true label
+dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
+dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
 ```
 * To load a numpy array into ```DMatrix```:
 ```python

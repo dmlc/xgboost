@@ -202,20 +202,12 @@ typedef dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry> XGBAPIThreadLocalStore;
 int XGDMatrixCreateFromFile(const char *fname,
                             int silent,
                             DMatrixHandle *out) {
-  return XGDMatrixCreateFromFileEx(fname, silent, "auto", out);
-}
-
-int XGDMatrixCreateFromFileEx(const char *fname,
-                              int silent,
-                              const char *file_format,
-                              DMatrixHandle *out) {
   API_BEGIN();
   if (rabit::IsDistributed()) {
     LOG(CONSOLE) << "XGBoost distributed mode detected, "
                  << "will split data among workers";
   }
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, silent != 0, true,
-                                                    std::string(file_format)));
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Load(fname, silent != 0, true));
   API_END();
 }
 

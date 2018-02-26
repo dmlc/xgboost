@@ -109,18 +109,6 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
                                     DMatrixHandle *out);
 
 /*!
- * \brief load a data matrix
- * \param fname the name of the file
- * \param silent whether print messages during loading
- * \param file_format format of data file
- * \param out a loaded data matrix
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGDMatrixCreateFromFileEx(const char *fname,
-                                      int silent,
-                                      const char *file_format,
-                                      DMatrixHandle *out);
-/*!
  * \brief Create a DMatrix from a data iterator.
  * \param data_handle The handle to the data.
  * \param callback The callback to get the data.
