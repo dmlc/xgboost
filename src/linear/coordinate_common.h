@@ -293,16 +293,38 @@ class RandomFeatureSelector : public FeatureSelector {
 /**
  * \brief Select coordinate with the greatest gradient magnitude.
  * \note It has O(num_feature^2) complexity. It is fully deterministic.
+ *
+ * \note It allows restricting the selection to top_k features per group with
+ * the largest magnitude of univariate weight change, by passing the top_k value
+ * through the `param` argument of Setup(). That would reduce the complexity to
+ * O(num_feature*top_k).
  */
 class GreedyFeatureSelector : public FeatureSelector {
  public:
+  void Setup(const gbm::GBLinearModel &model,
+             const std::vector<bst_gpair> &gpair,
+             DMatrix *p_fmat, float alpha, float lambda, int param) override {
+    top_k = static_cast<bst_uint>(param);
+    if (param <= 0) top_k = std::numeric_limits<bst_uint>::max();
+    if (counter.size() == 0) {
+      counter.resize(model.param.num_output_group);
+    }
+    for (int gid = 0; gid < model.param.num_output_group; ++gid) {
+      counter[gid] = 0u;
+    }
+  }
+
   int NextFeature(int iteration, const gbm::GBLinearModel &model,
                   int group_idx, const std::vector<bst_gpair> &gpair,
                   DMatrix *p_fmat, float alpha, float lambda) override {
-    // Find best
+    // k-th selected feature for a group
+    auto k = counter[group_idx]++;
+    // stop after either reaching top-K or going through all the features in a group
+    if (k >= top_k || counter[group_idx] == model.param.num_feature) return -1;
+
+    // Find a feature with the largest magnitude of weight change
     int best_fidx = 0;
     double best_weight_update = 0.0f;
-
     for (unsigned fidx = 0U; fidx < model.param.num_feature; fidx++) {
       const float w = model[fidx][group_idx];
       auto gradient = GetGradientParallel(
@@ -316,6 +338,10 @@ class GreedyFeatureSelector : public FeatureSelector {
     }
     return best_fidx;
   }
+
+ protected:
+  bst_uint top_k;
+  std::vector<bst_uint> counter;
 };
 
 /**
@@ -325,7 +351,7 @@ class GreedyFeatureSelector : public FeatureSelector {
  * their univariate weight changes. This operation is multithreaded and is a
  * linear complexity approximation of the quadratic greedy selection.
  *
- * \note It also allows restricting the selection to top_k features with
+ * \note It allows restricting the selection to top_k features per group with
  * the largest magnitude of univariate weight change, by passing the top_k value
  * through the `param` argument of Setup().
  */
@@ -386,13 +412,13 @@ class ThriftyFeatureSelector : public FeatureSelector {
   int NextFeature(int iteration, const gbm::GBLinearModel &model,
                   int group_idx, const std::vector<bst_gpair> &gpair,
                   DMatrix *p_fmat, float alpha, float lambda) override {
-    // i-th selected feature for a group
-    auto i = counter[group_idx]++;
+    // k-th selected feature for a group
+    auto k = counter[group_idx]++;
     // stop after either reaching top-N or going through all the features in a group
-    if (i >= top_k || counter[group_idx] == model.param.num_feature) return -1;
+    if (k >= top_k || counter[group_idx] == model.param.num_feature) return -1;
     // note that sorted_idx stores the "long" indices
     const size_t grp_offset = group_idx * model.param.num_feature;
-    return static_cast<int>(sorted_idx[grp_offset + i] - grp_offset);
+    return static_cast<int>(sorted_idx[grp_offset + k] - grp_offset);
   }
 
  protected:
