@@ -9,7 +9,7 @@ namespace xgboost {
 
 template <typename T>
 struct HostDeviceVectorImpl {
-  HostDeviceVectorImpl(size_t size, int device, T v)
+  HostDeviceVectorImpl(size_t size, T v, int device)
     : device_(device), on_d_(device >= 0) {
     if (on_d_) {
       dh::safe_cuda(cudaSetDevice(device_));
@@ -54,7 +54,7 @@ struct HostDeviceVectorImpl {
     lazy_sync_host();
     return data_h_;
   }
-  void resize(size_t new_size, int new_device, T v) {
+  void resize(size_t new_size, T v, int new_device) {
     if (new_size == this->size() && new_device == device_)
       return;
     if (new_device != -1)
@@ -104,8 +104,8 @@ struct HostDeviceVectorImpl {
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, int device, T v) : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(size, device, v);
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, int device) : impl_(nullptr) {
+  impl_ = new HostDeviceVectorImpl<T>(size, v, device);
 }
 
 template <typename T>
@@ -150,8 +150,8 @@ template <typename T>
 std::vector<T>& HostDeviceVector<T>::data_h() { return impl_->data_h(); }
 
 template <typename T>
-void HostDeviceVector<T>::resize(size_t new_size, int new_device, T v) {
-  impl_->resize(new_size, new_device, v);
+void HostDeviceVector<T>::resize(size_t new_size, T v, int new_device) {
+  impl_->resize(new_size, v, new_device);
 }
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only

@@ -358,7 +358,7 @@ class GPUPredictor : public xgboost::Predictor {
                           const gbm::GBTreeModel& model) const {
     size_t n = model.param.num_output_group * info.num_row;
     const std::vector<bst_float>& base_margin = info.base_margin;
-    out_preds->resize(n, param.gpu_id);
+    out_preds->resize(n, 0.0f, param.gpu_id);
     if (base_margin.size() != 0) {
       CHECK_EQ(out_preds->size(), n);
       thrust::copy(base_margin.begin(), base_margin.end(), out_preds->tbegin(param.gpu_id));
@@ -378,7 +378,7 @@ class GPUPredictor : public xgboost::Predictor {
       if (it != cache_.end()) {
         HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.size() != 0) {
-          out_preds->resize(y.size(), param.gpu_id);
+          out_preds->resize(y.size(), 0.0f, param.gpu_id);
           thrust::copy(y.tbegin(param.gpu_id), y.tend(param.gpu_id),
                        out_preds->tbegin(param.gpu_id));
           return true;
@@ -401,7 +401,7 @@ class GPUPredictor : public xgboost::Predictor {
 
       if (predictions.size() == 0) {
         // ensure that the device in predictions is correct
-        predictions.resize(0, param.gpu_id);
+        predictions.resize(0, 0.0f, param.gpu_id);
         cpu_predictor->PredictBatch(dmat, &predictions, model, 0,
                                     static_cast<bst_uint>(model.trees.size()));
       } else if (model.param.num_output_group == 1 && updaters->size() > 0 &&

@@ -103,8 +103,8 @@ class GPURegLossObj : public ObjFunction {
     // free the old data and allocate the new data
     ba_.reset(new bulk_allocator<memory_type::DEVICE>());
     data_.reset(new DeviceData(ba_.get(), 0, n));
-    preds_d_.resize(n, param_.gpu_id);
-    out_gpair_d_.resize(n, param_.gpu_id);
+    preds_d_.resize(n, 0.0f, param_.gpu_id);
+    out_gpair_d_.resize(n, bst_gpair(), param_.gpu_id);
   }
 
  public:
@@ -124,7 +124,7 @@ class GPURegLossObj : public ObjFunction {
       << "labels are not correctly provided"
       << "preds.size=" << preds->size() << ", label.size=" << info.labels.size();
     size_t ndata = preds->size();
-    out_gpair->resize(ndata, param_.gpu_id);
+    out_gpair->resize(ndata, bst_gpair(), param_.gpu_id);
     LazyResize(ndata);
     GetGradientDevice(preds->ptr_d(param_.gpu_id), info, iter,
                       out_gpair->ptr_d(param_.gpu_id), ndata);

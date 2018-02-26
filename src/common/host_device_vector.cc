@@ -19,7 +19,7 @@ struct HostDeviceVectorImpl {
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, int device, T v) : impl_(nullptr) {
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, int device) : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(size, v);
 }
 
@@ -55,7 +55,7 @@ template <typename T>
 std::vector<T>& HostDeviceVector<T>::data_h() { return impl_->data_h_; }
 
 template <typename T>
-void HostDeviceVector<T>::resize(size_t new_size, int new_device, T v) {
+void HostDeviceVector<T>::resize(size_t new_size, T v, int new_device) {
   impl_->data_h_.resize(new_size, v);
 }
 
