@@ -2,6 +2,8 @@
 """
 demo python script of rabit
 """
+from __future__ import print_function
+from builtins import range
 import os
 import sys
 import numpy as np
@@ -14,12 +16,12 @@ rabit.init()
 n = 3
 rank = rabit.get_rank()
 a = np.zeros(n)
-for i in xrange(n):
+for i in range(n):
     a[i] = rank + i
 
-print '@node[%d] before-allreduce: a=%s' % (rank, str(a))
+print('@node[%d] before-allreduce: a=%s' % (rank, str(a)))
 a = rabit.allreduce(a, rabit.MAX)
-print '@node[%d] after-allreduce-max: a=%s' % (rank, str(a))
+print('@node[%d] after-allreduce-max: a=%s' % (rank, str(a)))
 a = rabit.allreduce(a, rabit.SUM)
-print '@node[%d] after-allreduce-sum: a=%s' % (rank, str(a))
+print('@node[%d] after-allreduce-sum: a=%s' % (rank, str(a)))
 rabit.finalize()

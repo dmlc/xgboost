@@ -1,4 +1,6 @@
 #!/usr/bin/python
+from __future__ import print_function
+from builtins import range
 import rabit
 import numpy as np
 
@@ -13,11 +15,11 @@ if version == 0:
     model = np.zeros(n)
     local = np.ones(n)
 else:
-    print '[%d] restart from version %d' % (rank, version)
+    print('[%d] restart from version %d' % (rank, version))
 
-for i in xrange(version, nround):    
+for i in range(version, nround):
     res = rabit.allreduce(data + model+local, rabit.SUM)
-    print '[%d] iter=%d: %s' % (rank, i, str(res))
+    print('[%d] iter=%d: %s' % (rank, i, str(res)))
     model = res
     local[:] = i
     rabit.checkpoint(model, local)
