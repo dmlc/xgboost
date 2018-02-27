@@ -61,32 +61,29 @@ class ShotgunUpdater : public LinearUpdater {
     param_.InitAllowUnknown(args);
     selector_.reset(FeatureSelector::Create(param_.feature_selector));
   }
-
-  void Update(std::vector<GradientPair> *in_gpair, DMatrix *p_fmat,
+  void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
-    param_.DenormalizePenalties(sum_instance_weight);
-    std::vector<GradientPair> &gpair = *in_gpair;
+    std::vector<GradientPair> &gpair = in_gpair->HostVector();
     const int ngroup = model->param.num_output_group;
 
     // update bias
     for (int gid = 0; gid < ngroup; ++gid) {
-      auto grad = GetBiasGradientParallel(gid, ngroup, *in_gpair, p_fmat);
+      auto grad = GetBiasGradientParallel(gid, ngroup, in_gpair->HostVector(), p_fmat);
       auto dbias = static_cast<bst_float>(param_.learning_rate *
                                CoordinateDeltaBias(grad.first, grad.second));
       model->bias()[gid] += dbias;
-      UpdateBiasResidualParallel(gid, ngroup, dbias, in_gpair, p_fmat);
+      UpdateBiasResidualParallel(gid, ngroup, dbias, &in_gpair->HostVector(), p_fmat);
     }
 
     // lock-free parallel updates of weights
-    selector_->Setup(*model, *in_gpair, p_fmat, param_.reg_alpha_denorm,
-                     param_.reg_lambda_denorm, 0);
+    selector_->Setup(*model, in_gpair->HostVector(), p_fmat, param_.reg_alpha_denorm, param_.reg_lambda_denorm, 0);
     dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
     while (iter->Next()) {
       const ColBatch &batch = iter->Value();
       const auto nfeat = static_cast<bst_omp_uint>(batch.size);
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
-        int ii = selector_->NextFeature(i, *model, 0, *in_gpair, p_fmat,
+        int ii = selector_->NextFeature(i, *model, 0, in_gpair->HostVector(), p_fmat,
                                        param_.reg_alpha_denorm, param_.reg_lambda_denorm);
         if (ii < 0) continue;
         const bst_uint fid = batch.col_index[ii];

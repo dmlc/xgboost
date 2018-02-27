@@ -374,10 +374,10 @@ class DVec {
     safe_cuda(cudaSetDevice(this->DeviceIdx()));
     if (end - begin != Size()) {
       throw std::runtime_error(
-                               "Cannot copy assign vector to DVec, sizes are different");
+          "Cannot copy assign vector to dvec, sizes are different");
     }
-    safe_cuda(cudaMemcpy(this->Data(), begin.get(),
-                         Size() * sizeof(T), cudaMemcpyDefault));
+    safe_cuda(cudaMemcpy(this->data(), begin.get(), size() * sizeof(T),
+                         cudaMemcpyDefault));
   }
 };
 
@@ -876,7 +876,8 @@ void Gather(int device_idx, T *out, const T *in, const int *instId, int nVals) {
  * \class AllReducer
  *
  * \brief All reducer class that manages its own communication group and
- * streams. Must be initialised before use. If XGBoost is compiled without NCCL this is a dummy class that will error if used with more than one GPU.
+ * streams. Must be initialised before use. If XGBoost is compiled without NCCL
+ * this is a dummy class that will error if used with more than one GPU.
  */
 
 class AllReducer {
@@ -912,7 +913,8 @@ class AllReducer {
     }
     initialised = true;
 #else
-    CHECK_EQ(device_ordinals.size(), 1) << "XGBoost must be compiled with NCCL to use more than one GPU.";
+    CHECK_EQ(device_ordinals.size(), 1)
+        << "XGBoost must be compiled with NCCL to use more than one GPU.";
 #endif
   }
   ~AllReducer() {
@@ -954,14 +956,17 @@ class AllReducer {
   }
 
   /**
-   * \fn  void AllReduceSum(int communication_group_idx, const int64_t *sendbuff, int64_t *recvbuff, int count)
+   * \fn  void AllReduceSum(int communication_group_idx, const int64_t
+   * *sendbuff, int64_t *recvbuff, int count)
    *
-   * \brief Allreduce. Use in exactly the same way as NCCL but without needing streams or comms.
+   * \brief Allreduce. Use in exactly the same way as NCCL but without needing
+   * streams or comms.
    *
-   * \param           communication_group_idx Zero-based index of the communication group. \param
-   *                                          sendbuff                The sendbuff. \param sendbuff
-   *                                          The sendbuff. \param [in,out]  recvbuff The recvbuff.
-   *                                          \param           count                   Number of.
+   * \param           communication_group_idx Zero-based index of the
+   * communication group. \param sendbuff                The sendbuff. \param
+   * sendbuff The sendbuff. \param
+   * [in,out]  recvbuff The recvbuff.
+   *                                          \param           count Number of.
    * \param           sendbuff                The sendbuff.
    * \param [in,out]  recvbuff                If non-null, the recvbuff.
    * \param           count                   Number of.
@@ -993,4 +998,53 @@ class AllReducer {
 #endif
   }
 };
+
+/**
+ * \brief Executes some operation on each element of the input vector, using a
+ * single controlling thread for each element.
+ *
+ * \tparam  T       Generic type parameter.
+ * \tparam  func_t  Type of the function t.
+ * \param shards  The shards.
+ * \param f       The func_t to process.
+ */
+
+template <typename T, typename func_t>
+void ExecuteShards(std::vector<T> *shards, func_t f) {
+  auto previous_num_threads = omp_get_max_threads();
+  omp_set_num_threads(shards->size());
+#pragma omp parallel
+  {
+    auto cpu_thread_id = omp_get_thread_num();
+    f(shards->at(cpu_thread_id));
+  }
+  omp_set_num_threads(previous_num_threads);
+}
+
+/**
+ * \brief Executes some operation on each element of the input vector, using a single controlling
+ *        thread for each element, returns the sum of the results.
+ *
+ * \param f The func_t to process.
+ *
+ * \tparam  T       Generic type parameter.
+ * \tparam  func_t  Type of the function t.
+ * \param parameter1  The shards.
+ *
+ * \return  A reduce_t.
+ */
+
+template <typename reduce_t,typename T, typename func_t>
+reduce_t ReduceShards(std::vector<T> *shards, func_t f) {
+  auto previous_num_threads = omp_get_max_threads();
+  omp_set_num_threads(shards->size());
+  std::vector<reduce_t> sums(shards->size());
+#pragma omp parallel
+  {
+    auto cpu_thread_id = omp_get_thread_num();
+    sums[cpu_thread_id] = f(shards->at(cpu_thread_id));
+  }
+  omp_set_num_threads(previous_num_threads);
+  return std::accumulate(sums.begin(), sums.end(), reduce_t());
+}
 }  // namespace dh

@@ -84,15 +84,17 @@ class GBLinear : public GradientBooster {
     monitor_.Start("DoBoost");
 
     if (!p_fmat->HaveColAccess(false)) {
+      monitor_.Start("InitColAccess");
       std::vector<bool> enabled(p_fmat->Info().num_col_, true);
       p_fmat->InitColAccess(enabled, 1.0f, param_.max_row_perbatch, false);
+      monitor_.Stop("InitColAccess");
     }
 
     model_.LazyInitModel();
     this->LazySumWeights(p_fmat);
 
     if (!this->CheckConvergence()) {
-      updater_->Update(&in_gpair->HostVector(), p_fmat, &model_, sum_instance_weight_);
+      updater_->Update(in_gpair, p_fmat, &model_, sum_instance_weight_);
     }
     this->UpdatePredictionCache();
 

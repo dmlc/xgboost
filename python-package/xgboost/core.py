@@ -626,9 +626,8 @@ class DMatrix(object):
         feature_names : list or None
         """
         if self._feature_names is None:
-            return ['f{0}'.format(i) for i in range(self.num_col())]
-        else:
-            return self._feature_names
+            self._feature_names = ['f{0}'.format(i) for i in range(self.num_col())]
+        return self._feature_names
 
     @property
     def feature_types(self):
