@@ -43,6 +43,10 @@ dtest = xgb.DMatrix('test.svm.buffer')
 dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
 dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
 ```
+(Note that XGBoost does not support categorical features; if your data contains
+categorical features, load it as a numpy array first and then perform
+[one-hot encoding](http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html).)
+
 * To load a numpy array into ```DMatrix```:
 ```python
 data = np.random.rand(5, 10)  # 5 entities, each contains 10 features
