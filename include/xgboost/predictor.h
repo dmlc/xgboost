@@ -63,22 +63,6 @@ class Predictor {
    * limit trees.
    */
 
-  virtual void PredictBatch(DMatrix* dmat, std::vector<bst_float>* out_preds,
-                            const gbm::GBTreeModel& model, int tree_begin,
-                            unsigned ntree_limit = 0) = 0;
-
-  /**
-   * \brief Generate batch predictions for a given feature matrix. May use
-   * cached predictions if available instead of calculating from scratch.
-   *
-   * \param [in,out]  dmat        Feature matrix.
-   * \param [in,out]  out_preds   The output preds.
-   * \param           model       The model to predict from.
-   * \param           tree_begin  The tree begin index.
-   * \param           ntree_limit (Optional) The ntree limit. 0 means do not
-   * limit trees.
-   */
-
   virtual void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                             const gbm::GBTreeModel& model, int tree_begin,
                             unsigned ntree_limit = 0) = 0;
@@ -187,40 +171,13 @@ class Predictor {
 
  protected:
   /**
-   * \fn  bool PredictFromCache(DMatrix* dmat, std::vector<bst_float>*
-   * out_preds, const gbm::GBTreeModel& model, unsigned ntree_limit = 0)
-   *
-   * \brief Attempt to predict from cache.
-   *
-   * \return  True if it succeeds, false if it fails.
-   */
-  bool PredictFromCache(DMatrix* dmat, std::vector<bst_float>* out_preds,
-                        const gbm::GBTreeModel& model,
-                        unsigned ntree_limit = 0);
-
-  /**
-   * \fn void Predictor::InitOutPredictions(const MetaInfo& info,
-   * std::vector<bst_float>* out_preds, const gbm::GBTreeModel& model) const;
-   *
-   * \brief  Init out predictions according to base margin.
-   *
-   * \param          info      Dmatrix info possibly containing base margin.
-   * \param [in,out] out_preds The out preds.
-   * \param          model     The model.
-   */
-  void InitOutPredictions(const MetaInfo& info,
-                          std::vector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const;
-
-  /**
    * \struct  PredictionCacheEntry
    *
    * \brief Contains pointer to input matrix and associated cached predictions.
    */
-
   struct PredictionCacheEntry {
     std::shared_ptr<DMatrix> data;
-    std::vector<bst_float> predictions;
+    HostDeviceVector<bst_float> predictions;
   };
 
   /**

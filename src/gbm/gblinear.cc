@@ -76,8 +76,10 @@ class GBLinear : public GradientBooster {
   void Save(dmlc::Stream* fo) const override {
     model.Save(fo);
   }
-  void DoBoost(DMatrix *p_fmat, std::vector<bst_gpair> *in_gpair,
-               ObjFunction *obj) override {
+
+  void DoBoost(DMatrix *p_fmat,
+               HostDeviceVector<bst_gpair> *in_gpair,
+               ObjFunction* obj) override {
     monitor.Start("DoBoost");
 
     if (!p_fmat->HaveColAccess(false)) {
@@ -91,14 +93,15 @@ class GBLinear : public GradientBooster {
     this->LazySumWeights(p_fmat);
 
     if (!this->CheckConvergence()) {
-      updater->Update(in_gpair, p_fmat, &model, sum_instance_weight);
+      updater->Update(&in_gpair->data_h(), p_fmat, &model, sum_instance_weight);
     }
     this->UpdatePredictionCache();
 
     monitor.Stop("DoBoost");
   }
 
-  void PredictBatch(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
+  void PredictBatch(DMatrix *p_fmat,
+                    HostDeviceVector<bst_float> *out_preds,
                     unsigned ntree_limit) override {
     monitor.Start("PredictBatch");
     CHECK_EQ(ntree_limit, 0U)
@@ -109,9 +112,9 @@ class GBLinear : public GradientBooster {
     if (it != cache_.end() && it->second.predictions.size() != 0) {
       std::vector<bst_float> &y = it->second.predictions;
       out_preds->resize(y.size());
-      std::copy(y.begin(), y.end(), out_preds->begin());
+      std::copy(y.begin(), y.end(), out_preds->data_h().begin());
     } else {
-      this->PredictBatchInternal(p_fmat, out_preds);
+      this->PredictBatchInternal(p_fmat, &out_preds->data_h());
     }
     monitor.Stop("PredictBatch");
   }

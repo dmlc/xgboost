@@ -37,13 +37,14 @@ class LambdaRankObj : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
   }
-  void GetGradient(const std::vector<bst_float>& preds,
+  void GetGradient(HostDeviceVector<bst_float>* preds,
                    const MetaInfo& info,
                    int iter,
-                   std::vector<bst_gpair>* out_gpair) override {
-    CHECK_EQ(preds.size(), info.labels.size()) << "label size predict size not match";
-    std::vector<bst_gpair>& gpair = *out_gpair;
-    gpair.resize(preds.size());
+                   HostDeviceVector<bst_gpair>* out_gpair) override {
+    CHECK_EQ(preds->size(), info.labels.size()) << "label size predict size not match";
+    auto& preds_h = preds->data_h();
+    out_gpair->resize(preds_h.size());
+    std::vector<bst_gpair>& gpair = out_gpair->data_h();
     // quick consistency when group is not available
     std::vector<unsigned> tgptr(2, 0); tgptr[1] = static_cast<unsigned>(info.labels.size());
     const std::vector<unsigned> &gptr = info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
@@ -63,7 +64,7 @@ class LambdaRankObj : public ObjFunction {
       for (bst_omp_uint k = 0; k < ngroup; ++k) {
         lst.clear(); pairs.clear();
         for (unsigned j = gptr[k]; j < gptr[k+1]; ++j) {
-          lst.push_back(ListEntry(preds[j], info.labels[j], j));
+          lst.push_back(ListEntry(preds_h[j], info.labels[j], j));
           gpair[j] = bst_gpair(0.0f, 0.0f);
         }
         std::sort(lst.begin(), lst.end(), ListEntry::CmpPred);

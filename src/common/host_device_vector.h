@@ -5,6 +5,7 @@
 #define XGBOOST_COMMON_HOST_DEVICE_VECTOR_H_
 
 #include <cstdlib>
+#include <initializer_list>
 #include <vector>
 
 // only include thrust-related files if host_device_vector.h
@@ -61,7 +62,9 @@ template <typename T> struct HostDeviceVectorImpl;
 template <typename T>
 class HostDeviceVector {
  public:
-  explicit HostDeviceVector(size_t size = 0, int device = -1);
+  explicit HostDeviceVector(size_t size = 0, T v = T(), int device = -1);
+  HostDeviceVector(std::initializer_list<T> init, int device = -1);
+  explicit HostDeviceVector(const std::vector<T>& init, int device = -1);
   ~HostDeviceVector();
   HostDeviceVector(const HostDeviceVector<T>&) = delete;
   HostDeviceVector(HostDeviceVector<T>&&) = delete;
@@ -70,6 +73,7 @@ class HostDeviceVector {
   size_t size() const;
   int device() const;
   T* ptr_d(int device);
+  T* ptr_h() { return data_h().data(); }
 
   // only define functions returning device_ptr
   // if HostDeviceVector.h is included from a .cu file
@@ -79,17 +83,9 @@ class HostDeviceVector {
 #endif
 
   std::vector<T>& data_h();
-  void resize(size_t new_size, int new_device);
 
-  // helper functions in case a function needs to be templated
-  // to work for both HostDeviceVector and std::vector
-  static std::vector<T>& data_h(HostDeviceVector<T>* v) {
-    return v->data_h();
-  }
-
-  static std::vector<T>& data_h(std::vector<T>* v) {
-    return *v;
-  }
+  // passing in new_device == -1 keeps the device as is
+  void resize(size_t new_size, T v = T(), int new_device = -1);
 
  private:
   HostDeviceVectorImpl<T>* impl_;
