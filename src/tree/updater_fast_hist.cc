@@ -982,7 +982,7 @@ class FastHistTreeUpdaterSwitch : public TreeUpdater {
     inner_->Init(args);
   }
 
-  void Update(const std::vector<bst_gpair>& gpair,
+  void Update(HostDeviceVector<bst_gpair>* gpair,
               DMatrix* data,
               const std::vector<RegTree*>& trees) override {
     CHECK(inner_ != nullptr);
