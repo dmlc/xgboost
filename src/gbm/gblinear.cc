@@ -21,14 +21,12 @@ namespace gbm {
 
 DMLC_REGISTRY_FILE_TAG(gblinear);
 
-// training parameter
+// training parameters
 struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
-  /*! \brief learning_rate */
   std::string updater;
-  // flag to print out detailed breakdown of runtime
-  int debug_verbose;
   float tolerance;
-  // declare parameters
+  size_t max_row_perbatch;
+  int debug_verbose;
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
     DMLC_DECLARE_FIELD(updater)
         .set_default("shotgun")
@@ -37,6 +35,9 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
         .set_lower_bound(0.0f)
         .set_default(0.0f)
         .describe("Stop if largest weight update is smaller than this number.");
+    DMLC_DECLARE_FIELD(max_row_perbatch)
+        .set_default(std::numeric_limits<size_t>::max())
+        .describe("Maximum rows per batch.");
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
@@ -84,8 +85,7 @@ class GBLinear : public GradientBooster {
 
     if (!p_fmat->HaveColAccess(false)) {
       std::vector<bool> enabled(p_fmat->info().num_col, true);
-      p_fmat->InitColAccess(enabled, 1.0f, std::numeric_limits<size_t>::max(),
-                            false);
+      p_fmat->InitColAccess(enabled, 1.0f, param.max_row_perbatch, false);
     }
 
     model.LazyInitModel();

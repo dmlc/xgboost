@@ -65,8 +65,7 @@ inline std::pair<double, double> GetGradient(int group_idx, int num_group, int f
                                              const std::vector<bst_gpair> &gpair,
                                              DMatrix *p_fmat) {
   double sum_grad = 0.0, sum_hess = 0.0;
-  const std::vector<bst_uint> fset(1u, static_cast<bst_uint>(fidx));
-  dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(fset);
+  dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator({static_cast<bst_uint>(fidx)});
   while (iter->Next()) {
     const ColBatch &batch = iter->Value();
     ColBatch::Inst col = batch[0];
@@ -83,7 +82,7 @@ inline std::pair<double, double> GetGradient(int group_idx, int num_group, int f
 }
 
 /**
- * \brief Get the gradient with respect to a single feature. Multithreaded.
+ * \brief Get the gradient with respect to a single feature. Row-wise multithreaded.
  *
  * \param group_idx Zero-based index of the group.
  * \param num_group Number of groups.
@@ -97,8 +96,7 @@ inline std::pair<double, double> GetGradientParallel(int group_idx, int num_grou
                                                      const std::vector<bst_gpair> &gpair,
                                                      DMatrix *p_fmat) {
   double sum_grad = 0.0, sum_hess = 0.0;
-  const std::vector<bst_uint> fset(1u, static_cast<bst_uint>(fidx));
-  dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(fset);
+  dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator({static_cast<bst_uint>(fidx)});
   while (iter->Next()) {
     const ColBatch &batch = iter->Value();
     ColBatch::Inst col = batch[0];
@@ -116,7 +114,7 @@ inline std::pair<double, double> GetGradientParallel(int group_idx, int num_grou
 }
 
 /**
- * \brief Get the gradient with respect to the bias. Multithreaded.
+ * \brief Get the gradient with respect to the bias. Row-wise multithreaded.
  *
  * \param group_idx Zero-based index of the group.
  * \param num_group Number of groups.
@@ -156,8 +154,7 @@ inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
                                    float dw, std::vector<bst_gpair> *in_gpair,
                                    DMatrix *p_fmat) {
   if (dw == 0.0f) return;
-  const std::vector<bst_uint> fset(1u, static_cast<bst_uint>(fidx));
-  dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator(fset);
+  dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator({static_cast<bst_uint>(fidx)});
   while (iter->Next()) {
     const ColBatch &batch = iter->Value();
     ColBatch::Inst col = batch[0];
@@ -308,6 +305,7 @@ class GreedyFeatureSelector : public FeatureSelector {
     if (param <= 0) top_k = std::numeric_limits<bst_uint>::max();
     if (counter.size() == 0) {
       counter.resize(model.param.num_output_group);
+      gpair_sums.resize(model.param.num_feature);
     }
     for (int gid = 0; gid < model.param.num_output_group; ++gid) {
       counter[gid] = 0u;
@@ -322,16 +320,35 @@ class GreedyFeatureSelector : public FeatureSelector {
     // stop after either reaching top-K or going through all the features in a group
     if (k >= top_k || counter[group_idx] == model.param.num_feature) return -1;
 
+    const int ngroup = model.param.num_output_group;
+    const bst_omp_uint nfeat = model.param.num_feature;
+    // Calculate univariate gradient sums
+    std::fill(gpair_sums.begin(), gpair_sums.end(), std::make_pair(0., 0.));
+    dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
+    while (iter->Next()) {
+      const ColBatch &batch = iter->Value();
+      #pragma omp parallel for schedule(static)
+      for (bst_omp_uint i = 0; i < nfeat; ++i) {
+        const ColBatch::Inst col = batch[i];
+        const bst_uint ndata = col.length;
+        auto &sums = gpair_sums[group_idx * nfeat + i];
+        for (bst_uint j = 0u; j < ndata; ++j) {
+          const bst_float v = col[j].fvalue;
+          auto &p = gpair[col[j].index * ngroup + group_idx];
+          if (p.GetHess() < 0.f) continue;
+          sums.first += p.GetGrad() * v;
+          sums.second += p.GetHess() * v * v;
+        }
+      }
+    }
     // Find a feature with the largest magnitude of weight change
     int best_fidx = 0;
     double best_weight_update = 0.0f;
-    for (unsigned fidx = 0U; fidx < model.param.num_feature; fidx++) {
-      const float w = model[fidx][group_idx];
-      auto gradient = GetGradientParallel(
-          group_idx, model.param.num_output_group, fidx, gpair, p_fmat);
-      float dw = static_cast<float>(
-          CoordinateDelta(gradient.first, gradient.second, w, alpha, lambda));
-      if (std::abs(dw) > std::abs(best_weight_update)) {
+    for (bst_omp_uint fidx = 0; fidx < nfeat; ++fidx) {
+      auto &s = gpair_sums[group_idx * nfeat + fidx];
+      float dw = std::abs(static_cast<bst_float>(
+                 CoordinateDelta(s.first, s.second, model[fidx][group_idx], alpha, lambda)));
+      if (dw > best_weight_update) {
         best_weight_update = dw;
         best_fidx = fidx;
       }
@@ -342,6 +359,7 @@ class GreedyFeatureSelector : public FeatureSelector {
  protected:
   bst_uint top_k;
   std::vector<bst_uint> counter;
+  std::vector<std::pair<double, double>> gpair_sums;
 };
 
 /**
@@ -362,44 +380,50 @@ class ThriftyFeatureSelector : public FeatureSelector {
              DMatrix *p_fmat, float alpha, float lambda, int param) override {
     top_k = static_cast<bst_uint>(param);
     if (param <= 0) top_k = std::numeric_limits<bst_uint>::max();
-    const int ngroup = model.param.num_output_group;
+    const bst_uint ngroup = model.param.num_output_group;
     const bst_omp_uint nfeat = model.param.num_feature;
 
     if (deltaw.size() == 0) {
       deltaw.resize(nfeat * ngroup);
       sorted_idx.resize(nfeat * ngroup);
       counter.resize(ngroup);
+      gpair_sums.resize(nfeat * ngroup);
     }
-    // Calculate univariate weight changes
-    std::fill(deltaw.begin(), deltaw.end(), 0.f);
+    // Calculate univariate gradient sums
+    std::fill(gpair_sums.begin(), gpair_sums.end(), std::make_pair(0., 0.));
     dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
     while (iter->Next()) {
       const ColBatch &batch = iter->Value();
-      // column-parallel: usually faster than row-parallel... sometimes quite faster
+      // column-parallel is usually faster than row-parallel
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         const ColBatch::Inst col = batch[i];
-        for (int gid = 0; gid < ngroup; ++gid) {
-          const bst_uint ndata = col.length;
-          double sum_grad = 0., sum_hess = 0.;
+        const bst_uint ndata = col.length;
+        for (bst_uint gid = 0; gid < ngroup; ++gid) {
+          auto &sums = gpair_sums[gid * nfeat + i];
           for (bst_uint j = 0u; j < ndata; ++j) {
             const bst_float v = col[j].fvalue;
             auto &p = gpair[col[j].index * ngroup + gid];
             if (p.GetHess() < 0.f) continue;
-            sum_grad += p.GetGrad() * v;
-            sum_hess += p.GetHess() * v * v;
+            sums.first += p.GetGrad() * v;
+            sums.second += p.GetHess() * v * v;
           }
-          bst_float dw = static_cast<bst_float>(CoordinateDelta(
-                           sum_grad, sum_hess, model[i][gid], alpha, lambda));
-          if (dw != 0) deltaw[gid * nfeat + i] = dw;
         }
       }
     }
-    // reorder by descending magnitude within the groups
+    // rank by descending weight magnitude within the groups
+    std::fill(deltaw.begin(), deltaw.end(), 0.f);
     std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
     bst_float *pdeltaw = &deltaw[0];
-    for (int gid = 0; gid < ngroup; ++gid) {
-      // for the group, sort in descending order of deltaw abs values
+    for (bst_uint gid = 0; gid < ngroup; ++gid) {
+      // Calculate univariate weight changes
+      for (bst_omp_uint i = 0; i < nfeat; ++i) {
+        auto ii = gid * nfeat + i;
+        auto &s = gpair_sums[ii];
+        deltaw[ii] = static_cast<bst_float>(CoordinateDelta(
+                       s.first, s.second, model[i][gid], alpha, lambda));
+      }
+      // sort in descending order of deltaw abs values
       auto start = sorted_idx.begin() + gid * nfeat;
       std::sort(start, start + nfeat,
                 [pdeltaw](size_t i, size_t j) {
@@ -426,6 +450,7 @@ class ThriftyFeatureSelector : public FeatureSelector {
   std::vector<bst_float> deltaw;
   std::vector<size_t> sorted_idx;
   std::vector<bst_uint> counter;
+  std::vector<std::pair<double, double>> gpair_sums;
 };
 
 /**
