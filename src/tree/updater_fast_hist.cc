@@ -870,13 +870,13 @@ class FastHistMaker: public TreeUpdater {
             if (d_step > 0) {
               // forward enumeration: split at right bound of each bin
               loss_chg = static_cast<bst_float>(
-                  constraint.CalcSplitGain(param, fid, e, c) -
+                  constraint.CalcSplitGain(param, param.monotone_constraints[fid], e, c) -
                   snode.root_gain);
               split_pt = cut_val[i];
             } else {
               // backward enumeration: split at left bound of each bin
               loss_chg = static_cast<bst_float>(
-                  constraint.CalcSplitGain(param, fid, c, e) -
+                  constraint.CalcSplitGain(param, param.monotone_constraints[fid], c, e) -
                   snode.root_gain);
               if (i == imin) {
                 // for leftmost bin, left bound is the smallest feature value
@@ -961,10 +961,45 @@ class FastHistMaker: public TreeUpdater {
   std::unique_ptr<TreeUpdater> pruner_;
 };
 
+// simple switch to defer implementation.
+class FastHistTreeUpdaterSwitch : public TreeUpdater {
+ public:
+  FastHistTreeUpdaterSwitch() : monotone_(false) {}
+  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+    for (auto &kv : args) {
+      if (kv.first == "monotone_constraints" && kv.second.length() != 0) {
+        monotone_ = true;
+      }
+    }
+    if (inner_.get() == nullptr) {
+      if (monotone_) {
+        inner_.reset(new FastHistMaker<GradStats, ValueConstraint>());
+      } else {
+        inner_.reset(new FastHistMaker<GradStats, NoConstraint>());
+      }
+    }
+
+    inner_->Init(args);
+  }
+
+  void Update(HostDeviceVector<bst_gpair>* gpair,
+              DMatrix* data,
+              const std::vector<RegTree*>& trees) override {
+    CHECK(inner_ != nullptr);
+    inner_->Update(gpair, data, trees);
+  }
+
+ private:
+  //  monotone constraints
+  bool monotone_;
+  // internal implementation
+  std::unique_ptr<TreeUpdater> inner_;
+};
+
 XGBOOST_REGISTER_TREE_UPDATER(FastHistMaker, "grow_fast_histmaker")
 .describe("Grow tree using quantized histogram.")
 .set_body([]() {
-    return new FastHistMaker<GradStats, NoConstraint>();
+    return new FastHistTreeUpdaterSwitch();
   });
 
 }  // namespace tree
