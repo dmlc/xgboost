@@ -28,7 +28,7 @@ Distributed Version
 -------------------
 The external memory mode naturally works on distributed version, you can simply set path like
 ```
-data = "hdfs:///path-to-data/#dtrain.cache"
+data = "hdfs://path-to-data/#dtrain.cache"
 ```
 xgboost will cache the data to the local position. When you run on YARN, the current folder is temporal
 so that you can directly use ```dtrain.cache``` to cache to current folder.

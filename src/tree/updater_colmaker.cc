@@ -26,7 +26,7 @@ class ColMaker: public TreeUpdater {
     param.InitAllowUnknown(args);
   }
 
-  void Update(const std::vector<bst_gpair> &gpair,
+  void Update(HostDeviceVector<bst_gpair> *gpair,
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {
     TStats::CheckInfo(dmat->info());
@@ -37,7 +37,7 @@ class ColMaker: public TreeUpdater {
     // build tree
     for (size_t i = 0; i < trees.size(); ++i) {
       Builder builder(param);
-      builder.Update(gpair, dmat, trees[i]);
+      builder.Update(gpair->data_h(), dmat, trees[i]);
     }
     param.learning_rate = lr;
   }
@@ -806,13 +806,13 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
     param.InitAllowUnknown(args);
     pruner->Init(args);
   }
-  void Update(const std::vector<bst_gpair> &gpair,
+  void Update(HostDeviceVector<bst_gpair> *gpair,
               DMatrix* dmat,
               const std::vector<RegTree*> &trees) override {
     TStats::CheckInfo(dmat->info());
     CHECK_EQ(trees.size(), 1U) << "DistColMaker: only support one tree at a time";
     // build the tree
-    builder.Update(gpair, dmat, trees[0]);
+    builder.Update(gpair->data_h(), dmat, trees[0]);
     //// prune the tree, note that pruner will sync the tree
     pruner->Update(gpair, dmat, trees);
     // update position after the tree is pruned
@@ -967,7 +967,7 @@ class TreeUpdaterSwitch : public TreeUpdater {
     inner_->Init(args);
   }
 
-  void Update(const std::vector<bst_gpair>& gpair,
+  void Update(HostDeviceVector<bst_gpair>* gpair,
               DMatrix* data,
               const std::vector<RegTree*>& trees) override {
     CHECK(inner_ != nullptr);

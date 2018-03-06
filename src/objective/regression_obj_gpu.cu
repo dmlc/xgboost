@@ -103,8 +103,8 @@ class GPURegLossObj : public ObjFunction {
     // free the old data and allocate the new data
     ba_.reset(new bulk_allocator<memory_type::DEVICE>());
     data_.reset(new DeviceData(ba_.get(), 0, n));
-    preds_d_.resize(n, param_.gpu_id);
-    out_gpair_d_.resize(n, param_.gpu_id);
+    preds_d_.resize(n, 0.0f, param_.gpu_id);
+    out_gpair_d_.resize(n, bst_gpair(), param_.gpu_id);
   }
 
  public:
@@ -113,23 +113,6 @@ class GPURegLossObj : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.InitAllowUnknown(args);
     CHECK(param_.n_gpus != 0) << "Must have at least one device";
-  }
-  void GetGradient(const std::vector<float> &preds,
-                   const MetaInfo &info,
-                   int iter,
-                   std::vector<bst_gpair> *out_gpair) override {
-    CHECK_NE(info.labels.size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.size(), info.labels.size())
-      << "labels are not correctly provided"
-      << "preds.size=" << preds.size() << ", label.size=" << info.labels.size();
-
-    size_t ndata = preds.size();
-    out_gpair->resize(ndata);
-    LazyResize(ndata);
-    thrust::copy(preds.begin(), preds.end(), preds_d_.tbegin(param_.gpu_id));
-    GetGradientDevice(preds_d_.ptr_d(param_.gpu_id), info, iter,
-                      out_gpair_d_.ptr_d(param_.gpu_id), ndata);
-    thrust::copy_n(out_gpair_d_.tbegin(param_.gpu_id), ndata, out_gpair->begin());
   }
 
   void GetGradient(HostDeviceVector<float>* preds,
@@ -141,7 +124,7 @@ class GPURegLossObj : public ObjFunction {
       << "labels are not correctly provided"
       << "preds.size=" << preds->size() << ", label.size=" << info.labels.size();
     size_t ndata = preds->size();
-    out_gpair->resize(ndata, param_.gpu_id);
+    out_gpair->resize(ndata, bst_gpair(), param_.gpu_id);
     LazyResize(ndata);
     GetGradientDevice(preds->ptr_d(param_.gpu_id), info, iter,
                       out_gpair->ptr_d(param_.gpu_id), ndata);
@@ -187,13 +170,6 @@ class GPURegLossObj : public ObjFunction {
  public:
   const char* DefaultEvalMetric() const override {
     return Loss::DefaultEvalMetric();
-  }
-
-  void PredTransform(std::vector<float> *io_preds) override {
-    LazyResize(io_preds->size());
-    thrust::copy(io_preds->begin(), io_preds->end(), preds_d_.tbegin(param_.gpu_id));
-    PredTransformDevice(preds_d_.ptr_d(param_.gpu_id), io_preds->size());
-    thrust::copy_n(preds_d_.tbegin(param_.gpu_id), io_preds->size(), io_preds->begin());
   }
 
   void PredTransform(HostDeviceVector<float> *io_preds) override {

@@ -556,27 +556,9 @@ class GPUHistMaker : public TreeUpdater {
     monitor.Init("updater_gpu_hist", param.debug_verbose);
   }
 
-  void Update(const std::vector<bst_gpair>& gpair, DMatrix* dmat,
-              const std::vector<RegTree*>& trees) override {
-    monitor.Start("Update", dList);
-    // TODO(canonizer): move it into the class if this ever becomes a bottleneck
-    HostDeviceVector<bst_gpair> gpair_d(gpair.size(), param.gpu_id);
-    dh::safe_cuda(cudaSetDevice(param.gpu_id));
-    thrust::copy(gpair.begin(), gpair.end(), gpair_d.tbegin(param.gpu_id));
-    Update(&gpair_d, dmat, trees);
-    monitor.Stop("Update", dList);
-  }
-
   void Update(HostDeviceVector<bst_gpair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
     monitor.Start("Update", dList);
-    UpdateHelper(gpair, dmat, trees);
-    monitor.Stop("Update", dList);
-  }
-
- private:
-  void UpdateHelper(HostDeviceVector<bst_gpair>* gpair, DMatrix* dmat,
-                    const std::vector<RegTree*>& trees) {
     GradStats::CheckInfo(dmat->info());
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
@@ -591,9 +573,9 @@ class GPUHistMaker : public TreeUpdater {
       LOG(FATAL) << "GPU plugin exception: " << e.what() << std::endl;
     }
     param.learning_rate = lr;
+    monitor.Stop("Update", dList);
   }
 
- public:
   void InitDataOnce(DMatrix* dmat) {
     info = &dmat->info();
     monitor.Start("Quantiles", dList);
@@ -924,11 +906,6 @@ class GPUHistMaker : public TreeUpdater {
     }
     // Reset omp num threads
     omp_set_num_threads(nthread);
-  }
-
-  bool UpdatePredictionCache
-    (const DMatrix* data, std::vector<bst_float>* p_out_preds) override {
-    return false;
   }
 
   bool UpdatePredictionCache

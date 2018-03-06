@@ -48,10 +48,11 @@ TEST(Objective, GPULogisticRegressionBasic) {
     << "Expected error when base_score not in range [0,1f] for LogisticRegression";
 
   // test PredTransform
-  std::vector<xgboost::bst_float> preds = {0, 0.1f, 0.5f, 0.9f, 1};
+  xgboost::HostDeviceVector<xgboost::bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
   std::vector<xgboost::bst_float> out_preds = {0.5f, 0.524f, 0.622f, 0.710f, 0.731f};
-  obj->PredTransform(&preds);
-  for (int i = 0; i < static_cast<int>(preds.size()); ++i) {
+  obj->PredTransform(&io_preds);
+  auto& preds = io_preds.data_h();
+  for (int i = 0; i < static_cast<int>(io_preds.size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
 }
