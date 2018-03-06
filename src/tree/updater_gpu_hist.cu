@@ -537,7 +537,7 @@ class GPUHistMaker : public TreeUpdater {
  public:
   struct ExpandEntry;
 
-  GPUHistMaker() : initialised(false) {}
+  GPUHistMaker() : initialised(false), p_last_fmat_(nullptr) {}
   ~GPUHistMaker() {}
   void Init(
       const std::vector<std::pair<std::string, std::string>>& args) override {
@@ -621,6 +621,7 @@ class GPUHistMaker : public TreeUpdater {
                           row_segments[cpu_thread_id + 1], n_bins, param));
     }
 
+    p_last_fmat_ = dmat;
     initialised = true;
   }
 
@@ -911,6 +912,9 @@ class GPUHistMaker : public TreeUpdater {
   bool UpdatePredictionCache
   (const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) override {
     monitor.Start("UpdatePredictionCache", dList);
+    if (shards.empty() || p_last_fmat_ == nullptr || p_last_fmat_ != data)
+      return false;
+
     bst_float *out_preds_d = p_out_preds->ptr_d(param.gpu_id);
 
     #pragma omp parallel for schedule(static, 1)
@@ -988,6 +992,8 @@ class GPUHistMaker : public TreeUpdater {
   dh::AllReducer reducer;
   std::vector<ValueConstraint> node_value_constraints_;
   std::vector<int> dList;
+
+  DMatrix* p_last_fmat_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
