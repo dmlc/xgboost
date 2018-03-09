@@ -378,9 +378,11 @@ class GPUPredictor : public xgboost::Predictor {
       if (it != cache_.end()) {
         HostDeviceVector<bst_float>& y = it->second.predictions;
         if (y.size() != 0) {
+          dh::safe_cuda(cudaSetDevice(param.gpu_id));
           out_preds->resize(y.size(), 0.0f, param.gpu_id);
-          thrust::copy(y.tbegin(param.gpu_id), y.tend(param.gpu_id),
-                       out_preds->tbegin(param.gpu_id));
+          dh::safe_cuda
+            (cudaMemcpy(out_preds->ptr_d(param.gpu_id), y.ptr_d(param.gpu_id),
+                        out_preds->size() * sizeof(bst_float), cudaMemcpyDefault));
           return true;
         }
       }
@@ -406,8 +408,7 @@ class GPUPredictor : public xgboost::Predictor {
                                     static_cast<bst_uint>(model.trees.size()));
       } else if (model.param.num_output_group == 1 && updaters->size() > 0 &&
                  num_new_trees == 1 &&
-                 updaters->back()->UpdatePredictionCache(e.data.get(),
-                                                         &predictions)) {
+                 updaters->back()->UpdatePredictionCache(e.data.get(), &predictions)) {
         // do nothing
       } else {
         DevicePredictInternal(dmat, &predictions, model, old_ntree,
