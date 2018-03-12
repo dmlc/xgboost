@@ -33,8 +33,8 @@ def xgb_get_weights(bst):
 
 
 def check_ElasticNet(X, y, pred, tol, reg_alpha, reg_lambda, weights):
-    enet = ElasticNet(alpha = reg_alpha + reg_lambda,
-                      l1_ratio = reg_alpha/(reg_alpha + reg_lambda))
+    enet = ElasticNet(alpha=reg_alpha + reg_lambda,
+                      l1_ratio=reg_alpha / (reg_alpha + reg_lambda))
     enet.fit(X, y)
     enet_pred = enet.predict(X)
     assert np.isclose(weights, enet.coef_, rtol=tol, atol=tol).all()
@@ -115,7 +115,7 @@ def train_external_mem(param_in):
     dtrain = xgb.DMatrix(X, label=y)
     bst = xgb.train(param, dtrain, num_rounds)
     xgb_pred = bst.predict(dtrain)
-    np.savetxt('tmptmp_1234.csv', np.hstack((y.reshape(len(y),1), X)),
+    np.savetxt('tmptmp_1234.csv', np.hstack((y.reshape(len(y), 1), X)),
                delimiter=',', fmt='%10.9f')
     dtrain = xgb.DMatrix('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_')
     bst = xgb.train(param, dtrain, num_rounds)
