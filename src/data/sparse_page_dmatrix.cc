@@ -119,7 +119,7 @@ ColIterator(const std::vector<bst_uint>& fset) {
 }
 
 
-bool SparsePageDMatrix::TryInitColData() {
+bool SparsePageDMatrix::TryInitColData(bool sorted) {
   // load meta data.
   std::vector<std::string> cache_shards = common::Split(cache_info_, ':');
   {
@@ -140,6 +140,8 @@ bool SparsePageDMatrix::TryInitColData() {
     files.push_back(std::move(fdata));
   }
   col_iter_.reset(new ColPageIter(std::move(files)));
+  // warning: no attempt to check here whether the cached data was sorted
+  col_iter_->sorted = sorted;
   return true;
 }
 
@@ -147,7 +149,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
                                       float pkeep,
                                       size_t max_row_perbatch, bool sorted) {
   if (HaveColAccess(sorted)) return;
-  if (TryInitColData()) return;
+  if (TryInitColData(sorted)) return;
   const MetaInfo& info = this->info();
   if (max_row_perbatch == std::numeric_limits<size_t>::max()) {
     max_row_perbatch = kMaxRowPerBatch;
@@ -291,8 +293,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     fo.reset(nullptr);
   }
   // initialize column data
-  CHECK(TryInitColData());
-  col_iter_->sorted = sorted;
+  CHECK(TryInitColData(sorted));
 }
 
 }  // namespace data

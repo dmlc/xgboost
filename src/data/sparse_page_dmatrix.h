@@ -116,7 +116,7 @@ class SparsePageDMatrix : public DMatrix {
    * \brief Try to initialize column data.
    * \return true if data already exists, false if they do not.
    */
-  bool TryInitColData();
+  bool TryInitColData(bool sorted);
   // source data pointer.
   std::unique_ptr<DataSource> source_;
   // the cache prefix
