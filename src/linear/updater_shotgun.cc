@@ -104,6 +104,7 @@ class ShotgunUpdater : public LinearUpdater {
               param.learning_rate *
               CoordinateDelta(sum_grad, sum_hess, w, param.reg_alpha_denorm,
                               param.reg_lambda_denorm));
+          if (dw == 0.f) continue;
           w += dw;
           // update grad values
           for (bst_uint j = 0; j < col.length; ++j) {

@@ -302,12 +302,13 @@ class GreedyFeatureSelector : public FeatureSelector {
              const std::vector<bst_gpair> &gpair,
              DMatrix *p_fmat, float alpha, float lambda, int param) override {
     top_k = static_cast<bst_uint>(param);
+    const bst_uint ngroup = model.param.num_output_group;
     if (param <= 0) top_k = std::numeric_limits<bst_uint>::max();
     if (counter.size() == 0) {
-      counter.resize(model.param.num_output_group);
-      gpair_sums.resize(model.param.num_feature);
+      counter.resize(ngroup);
+      gpair_sums.resize(model.param.num_feature * ngroup);
     }
-    for (int gid = 0; gid < model.param.num_output_group; ++gid) {
+    for (bst_uint gid = 0u; gid < ngroup; ++gid) {
       counter[gid] = 0u;
     }
   }
@@ -399,7 +400,7 @@ class ThriftyFeatureSelector : public FeatureSelector {
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         const ColBatch::Inst col = batch[i];
         const bst_uint ndata = col.length;
-        for (bst_uint gid = 0; gid < ngroup; ++gid) {
+        for (bst_uint gid = 0u; gid < ngroup; ++gid) {
           auto &sums = gpair_sums[gid * nfeat + i];
           for (bst_uint j = 0u; j < ndata; ++j) {
             const bst_float v = col[j].fvalue;
@@ -415,7 +416,7 @@ class ThriftyFeatureSelector : public FeatureSelector {
     std::fill(deltaw.begin(), deltaw.end(), 0.f);
     std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
     bst_float *pdeltaw = &deltaw[0];
-    for (bst_uint gid = 0; gid < ngroup; ++gid) {
+    for (bst_uint gid = 0u; gid < ngroup; ++gid) {
       // Calculate univariate weight changes
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         auto ii = gid * nfeat + i;
