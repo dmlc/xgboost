@@ -121,8 +121,7 @@ def train_external_mem(param_in):
     bst = xgb.train(param, dtrain, num_rounds)
     xgb_pred_ext = bst.predict(dtrain)
     assert np.abs(xgb_pred_ext - xgb_pred).max() < 1e-3
-    dtrain.__del__()
-    bst.__del__()
+    del dtrain, bst
     for f in glob.glob("tmptmp_*"):
         os.remove(f)
 
@@ -130,7 +129,7 @@ def train_external_mem(param_in):
 # Enumerates all permutations of variable parameters
 def assert_updater_accuracy(linear_updater, variable_param):
     param = {'booster': 'gblinear', 'updater': linear_updater, 'eta': 1.,
-             'top_k': 10, 'tolerance': 1e-5, 'ntread': 3}
+             'top_k': 10, 'tolerance': 1e-5, 'nthread': 2}
     names = sorted(variable_param)
     combinations = it.product(*(variable_param[Name] for Name in names))
 
