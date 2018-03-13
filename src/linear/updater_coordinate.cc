@@ -20,8 +20,8 @@ struct CoordinateTrainParam : public dmlc::Parameter<CoordinateTrainParam> {
   float reg_lambda;
   /*! \brief regularization weight for L1 norm */
   float reg_alpha;
-  std::string feature_selector;
-  float maximum_weight;
+  int feature_selector;
+  int top_k;
   int debug_verbose;
   // declare parameters
   DMLC_DECLARE_PARAMETER(CoordinateTrainParam) {
@@ -38,17 +38,35 @@ struct CoordinateTrainParam : public dmlc::Parameter<CoordinateTrainParam> {
         .set_default(0.0f)
         .describe("L1 regularization on weights.");
     DMLC_DECLARE_FIELD(feature_selector)
-        .set_default("cyclic")
-        .describe(
-            "Feature selection algorithm, one of cyclic/random/greedy");
+        .set_default(kCyclic)
+        .add_enum("cyclic", kCyclic)
+        .add_enum("shuffle", kShuffle)
+        .add_enum("thrifty", kThrifty)
+        .add_enum("greedy", kGreedy)
+        .add_enum("random", kRandom)
+        .describe("Feature selection or ordering method.");
+    DMLC_DECLARE_FIELD(top_k)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("The number of top features to select in 'thrifty' feature_selector. "
+                  "The value of zero means using all the features.");
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
         .describe("flag to print out detailed breakdown of runtime");
     // alias of parameters
+    DMLC_DECLARE_ALIAS(learning_rate, eta);
     DMLC_DECLARE_ALIAS(reg_lambda, lambda);
     DMLC_DECLARE_ALIAS(reg_alpha, alpha);
   }
+  /*! \brief Denormalizes the regularization penalties - to be called at each update */
+  void DenormalizePenalties(double sum_instance_weight) {
+    reg_lambda_denorm = reg_lambda * sum_instance_weight;
+    reg_alpha_denorm = reg_alpha * sum_instance_weight;
+  }
+  // denormalizated regularization penalties
+  float reg_lambda_denorm;
+  float reg_alpha_denorm;
 };
 
 /**
@@ -66,47 +84,47 @@ class CoordinateUpdater : public LinearUpdater {
     selector.reset(FeatureSelector::Create(param.feature_selector));
     monitor.Init("CoordinateUpdater", param.debug_verbose);
   }
+
   void Update(std::vector<bst_gpair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
-    // Calculate bias
-    for (int group_idx = 0; group_idx < model->param.num_output_group;
-         ++group_idx) {
-      auto grad = GetBiasGradientParallel(
-          group_idx, model->param.num_output_group, *in_gpair, p_fmat);
-      auto dbias = static_cast<float>(
-          param.learning_rate * CoordinateDeltaBias(grad.first, grad.second));
+    param.DenormalizePenalties(sum_instance_weight);
+    const int ngroup = model->param.num_output_group;
+    // update bias
+    for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
+      auto grad = GetBiasGradientParallel(group_idx, ngroup, *in_gpair, p_fmat);
+      auto dbias = static_cast<float>(param.learning_rate *
+                                      CoordinateDeltaBias(grad.first, grad.second));
       model->bias()[group_idx] += dbias;
-      UpdateBiasResidualParallel(group_idx, model->param.num_output_group,
-                                 dbias, in_gpair, p_fmat);
+      UpdateBiasResidualParallel(group_idx, ngroup, dbias, in_gpair, p_fmat);
     }
-    for (int group_idx = 0; group_idx < model->param.num_output_group;
-         ++group_idx) {
-      for (auto i = 0U; i < model->param.num_feature; i++) {
-        int fidx = selector->SelectNextFeature(
-            i, *model, group_idx, *in_gpair, p_fmat, param.reg_alpha,
-            param.reg_lambda, sum_instance_weight);
-        this->UpdateFeature(fidx, group_idx, in_gpair, p_fmat, model,
-                            sum_instance_weight);
+    // prepare for updating the weights
+    selector->Setup(*model, *in_gpair, p_fmat, param.reg_alpha_denorm,
+                    param.reg_lambda_denorm, param.top_k);
+    // update weights
+    for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
+      for (unsigned i = 0U; i < model->param.num_feature; i++) {
+        int fidx = selector->NextFeature(i, *model, group_idx, *in_gpair, p_fmat,
+                                         param.reg_alpha_denorm, param.reg_lambda_denorm);
+        if (fidx < 0) break;
+        this->UpdateFeature(fidx, group_idx, in_gpair, p_fmat, model);
       }
     }
   }
 
-  void UpdateFeature(int fidx, int group_idx, std::vector<bst_gpair> *in_gpair,
-                     DMatrix *p_fmat, gbm::GBLinearModel *model,
-                     double sum_instance_weight) {
+  inline void UpdateFeature(int fidx, int group_idx, std::vector<bst_gpair> *in_gpair,
+                            DMatrix *p_fmat, gbm::GBLinearModel *model) {
+    const int ngroup = model->param.num_output_group;
     bst_float &w = (*model)[fidx][group_idx];
     monitor.Start("GetGradientParallel");
-    auto gradient = GetGradientParallel(
-        group_idx, model->param.num_output_group, fidx, *in_gpair, p_fmat);
+    auto gradient = GetGradientParallel(group_idx, ngroup, fidx, *in_gpair, p_fmat);
     monitor.Stop("GetGradientParallel");
     auto dw = static_cast<float>(
         param.learning_rate *
-        CoordinateDelta(gradient.first, gradient.second, w, param.reg_lambda,
-                        param.reg_alpha, sum_instance_weight));
+        CoordinateDelta(gradient.first, gradient.second, w, param.reg_alpha_denorm,
+                        param.reg_lambda_denorm));
     w += dw;
     monitor.Start("UpdateResidualParallel");
-    UpdateResidualParallel(fidx, group_idx, model->param.num_output_group, dw,
-                           in_gpair, p_fmat);
+    UpdateResidualParallel(fidx, group_idx, ngroup, dw, in_gpair, p_fmat);
     monitor.Stop("UpdateResidualParallel");
   }
 

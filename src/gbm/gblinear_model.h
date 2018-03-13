@@ -4,7 +4,9 @@
 #pragma once
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
+#include <xgboost/feature_map.h>
 #include <vector>
+#include <string>
 #include <cstring>
 
 namespace xgboost {
@@ -67,6 +69,44 @@ class GBLinearModel {
   }
   inline const bst_float* operator[](size_t i) const {
     return &weight[i * param.num_output_group];
+  }
+
+  std::vector<std::string> DumpModel(const FeatureMap& fmap, bool with_stats,
+                                     std::string format) const {
+    const int ngroup = param.num_output_group;
+    const unsigned nfeature = param.num_feature;
+
+    std::stringstream fo("");
+    if (format == "json") {
+      fo << "  { \"bias\": [" << std::endl;
+      for (int gid = 0; gid < ngroup; ++gid) {
+        if (gid != 0) fo << "," << std::endl;
+        fo << "      " << this->bias()[gid];
+      }
+      fo << std::endl << "    ]," << std::endl
+         << "    \"weight\": [" << std::endl;
+      for (unsigned i = 0; i < nfeature; ++i) {
+        for (int gid = 0; gid < ngroup; ++gid) {
+          if (i != 0 || gid != 0) fo << "," << std::endl;
+          fo << "      " << (*this)[i][gid];
+        }
+      }
+      fo << std::endl << "    ]" << std::endl << "  }";
+    } else {
+      fo << "bias:\n";
+      for (int gid = 0; gid < ngroup; ++gid) {
+        fo << this->bias()[gid] << std::endl;
+      }
+      fo << "weight:\n";
+      for (unsigned i = 0; i < nfeature; ++i) {
+        for (int gid = 0; gid < ngroup; ++gid) {
+          fo << (*this)[i][gid] << std::endl;
+        }
+      }
+    }
+    std::vector<std::string> v;
+    v.push_back(fo.str());
+    return v;
   }
 };
 }  // namespace gbm

@@ -21,14 +21,12 @@ namespace gbm {
 
 DMLC_REGISTRY_FILE_TAG(gblinear);
 
-// training parameter
+// training parameters
 struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
-  /*! \brief learning_rate */
   std::string updater;
-  // flag to print out detailed breakdown of runtime
-  int debug_verbose;
   float tolerance;
-  // declare parameters
+  size_t max_row_perbatch;
+  int debug_verbose;
   DMLC_DECLARE_PARAMETER(GBLinearTrainParam) {
     DMLC_DECLARE_FIELD(updater)
         .set_default("shotgun")
@@ -37,6 +35,9 @@ struct GBLinearTrainParam : public dmlc::Parameter<GBLinearTrainParam> {
         .set_lower_bound(0.0f)
         .set_default(0.0f)
         .describe("Stop if largest weight update is smaller than this number.");
+    DMLC_DECLARE_FIELD(max_row_perbatch)
+        .set_default(std::numeric_limits<size_t>::max())
+        .describe("Maximum rows per batch.");
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
@@ -84,12 +85,10 @@ class GBLinear : public GradientBooster {
 
     if (!p_fmat->HaveColAccess(false)) {
       std::vector<bool> enabled(p_fmat->info().num_col, true);
-      p_fmat->InitColAccess(enabled, 1.0f, std::numeric_limits<size_t>::max(),
-                            false);
+      p_fmat->InitColAccess(enabled, 1.0f, param.max_row_perbatch, false);
     }
 
     model.LazyInitModel();
-
     this->LazySumWeights(p_fmat);
 
     if (!this->CheckConvergence()) {
@@ -191,40 +190,7 @@ class GBLinear : public GradientBooster {
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                      bool with_stats,
                                      std::string format) const override {
-    const int ngroup = model.param.num_output_group;
-    const unsigned nfeature = model.param.num_feature;
-
-    std::stringstream fo("");
-    if (format == "json") {
-      fo << "  { \"bias\": [" << std::endl;
-      for (int gid = 0; gid < ngroup; ++gid) {
-        if (gid != 0) fo << "," << std::endl;
-        fo << "      " << model.bias()[gid];
-      }
-      fo << std::endl << "    ]," << std::endl
-         << "    \"weight\": [" << std::endl;
-      for (unsigned i = 0; i < nfeature; ++i) {
-        for (int gid = 0; gid < ngroup; ++gid) {
-          if (i != 0 || gid != 0) fo << "," << std::endl;
-          fo << "      " << model[i][gid];
-        }
-      }
-      fo << std::endl << "    ]" << std::endl << "  }";
-    } else {
-      fo << "bias:\n";
-      for (int gid = 0; gid < ngroup; ++gid) {
-        fo << model.bias()[gid] << std::endl;
-      }
-      fo << "weight:\n";
-      for (unsigned i = 0; i < nfeature; ++i) {
-        for (int gid = 0; gid < ngroup; ++gid) {
-          fo << model[i][gid] << std::endl;
-        }
-      }
-    }
-    std::vector<std::string> v;
-    v.push_back(fo.str());
-    return v;
+    return model.DumpModel(fmap, with_stats, format);
   }
 
  protected:
@@ -272,9 +238,12 @@ class GBLinear : public GradientBooster {
   bool CheckConvergence() {
     if (param.tolerance == 0.0f) return false;
     if (is_converged) return true;
-    if (previous_model.weight.size() != model.weight.size()) return false;
+    if (previous_model.weight.size() != model.weight.size()) {
+      previous_model = model;
+      return false;
+    }
     float largest_dw = 0.0;
-    for (auto i = 0; i < model.weight.size(); i++) {
+    for (size_t i = 0; i < model.weight.size(); i++) {
       largest_dw = std::max(
           largest_dw, std::abs(model.weight[i] - previous_model.weight[i]));
     }
@@ -287,7 +256,7 @@ class GBLinear : public GradientBooster {
   void LazySumWeights(DMatrix *p_fmat) {
     if (!sum_weight_complete) {
       auto &info = p_fmat->info();
-      for (int i = 0; i < info.num_row; i++) {
+      for (size_t i = 0; i < info.num_row; i++) {
         sum_instance_weight += info.GetWeight(i);
       }
       sum_weight_complete = true;

@@ -12,7 +12,7 @@ TEST(Linear, shotgun) {
   mat->InitColAccess(enabled, 1.0f, 1 << 16, false);
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("shotgun"));
-  updater->Init({});
+  updater->Init({{"eta", "1."}});
   std::vector<xgboost::bst_gpair> gpair(mat->info().num_row,
                                         xgboost::bst_gpair(-5, 1.0));
   xgboost::gbm::GBLinearModel model;
