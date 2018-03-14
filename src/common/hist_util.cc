@@ -75,7 +75,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     a.Reserve(max_num_bins);
     a.SetPrune(summary_array[fid], max_num_bins);
     const bst_float mval = a.data[0].value;
-    this->min_val[fid] = mval - fabs(mval);
+    this->min_val[fid] = mval - (fabs(mval) + 1e-5);
     if (a.size > 1 && a.size <= 16) {
       /* specialized code categorial / ordinal data -- use midpoints */
       for (size_t i = 1; i < a.size; ++i) {
@@ -96,9 +96,10 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     if (a.size != 0) {
       bst_float cpt = a.data[a.size - 1].value;
       // this must be bigger than last value in a scale
-      bst_float last = cpt + fabs(cpt);
+      bst_float last = cpt + (fabs(cpt) + 1e-5);
       cut.push_back(last);
     }
+
     row_ptr.push_back(static_cast<bst_uint>(cut.size()));
   }
 }
