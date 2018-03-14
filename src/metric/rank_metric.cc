@@ -352,7 +352,6 @@ struct EvalCox : public Metric {
 
 /*! \brief Area Under PR Curve, for both classification and rank */
 struct EvalAucPR : public Metric {
-
   // implementation of AUC-PR for weighted data
   // translated from PRROC R Package
   // see https://doi.org/10.1371/journal.pone.0092209
@@ -374,22 +373,18 @@ struct EvalAucPR : public Metric {
     double auc = 0.0;
     int auc_error = 0, auc_gt_one = 0;
     // each thread takes a local rec
-    std::vector<std::pair<bst_float, unsigned>> rec; // [pred, idx]
+    std::vector<std::pair<bst_float, unsigned>> rec;
     for (bst_omp_uint k = 0; k < ngroup; ++k) {
-
       double total_pos = 0.0;
       double total_neg = 0.0;
-
       rec.clear();
       for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
         total_pos +=
-            info.GetWeight(j) * info.labels[j]; // count number of positives
-        total_neg += info.GetWeight(j) *
-                     (1.0f - info.labels[j]); // count number of negatives
+            info.GetWeight(j) * info.labels[j];
+        total_neg += info.GetWeight(j) * (1.0f - info.labels[j]);
         rec.push_back(std::make_pair(preds[j], j));
       }
-      XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(),
-                            common::CmpFirst); // order by pred, high to low
+      XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
 
       // we need pos > 0 && neg > 0
       if (0.0 == total_pos || 0.0 == total_neg) {
@@ -414,7 +409,8 @@ struct EvalAucPR : public Metric {
             b = (prevfp - h * prevtp) / total_pos;
           }
           if (0.0 != b) {
-            auc += (tp / total_pos - prevtp / total_pos - b / a * (std::log(a * tp / total_pos + b) -
+            auc += (tp / total_pos - prevtp / total_pos -
+                    b / a * (std::log(a * tp / total_pos + b) -
                              std::log(a * prevtp / total_pos + b))) / a;
           } else {
             auc += (tp / total_pos - prevtp / total_pos) / a;
