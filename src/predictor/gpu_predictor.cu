@@ -277,7 +277,7 @@ class GPUPredictor : public xgboost::Predictor {
     CHECK_EQ(model.param.size_leaf_vector, 0);
     // Copy decision trees to device
     thrust::host_vector<size_t> h_tree_segments;
-    h_tree_segments.reserve((tree_end - tree_end) + 1);
+    h_tree_segments.reserve((tree_end - tree_begin) + 1);
     size_t sum = 0;
     h_tree_segments.push_back(sum);
     for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
