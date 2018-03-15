@@ -31,6 +31,27 @@ TEST(Metric, AUC) {
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 0}, {0, 0}));
 }
 
+TEST(Metric, AUCPR) {
+  xgboost::Metric *metric = xgboost::Metric::Create("aucpr");
+  ASSERT_STREQ(metric->Name(), "aucpr");
+  EXPECT_NEAR(GetMetricEval(metric, {0, 0, 1, 1}, {0, 0, 1, 1}), 1, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}),
+              0.5f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric,
+                    {0.4f, 0.2f, 0.9f, 0.1f, 0.2f, 0.4f, 0.1f, 0.1f, 0.2f, 0.1},
+                    {0, 0, 0, 0, 0, 1, 0, 0, 1, 1}),
+      0.2908445f, 0.001f);
+  EXPECT_NEAR(GetMetricEval(
+                  metric, {0.87f, 0.31f, 0.40f, 0.42f, 0.25f, 0.66f, 0.95f,
+                           0.09f, 0.10f, 0.97f, 0.76f, 0.69f, 0.15f, 0.20f,
+                           0.30f, 0.14f, 0.07f, 0.58f, 0.61f, 0.08f},
+                  {0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1}),
+              0.2769199f, 0.001f);
+  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
+  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 0}, {0, 0}));
+}
+
 TEST(Metric, Precision) {
   // When the limit for precision is not given, it takes the limit at
   // std::numeric_limits<unsigned>::max(); hence all values are very small

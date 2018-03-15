@@ -363,7 +363,6 @@ struct EvalAucPR : public Metric {
         << "label size predict size not match";
     std::vector<unsigned> tgptr(2, 0);
     tgptr[1] = static_cast<unsigned>(info.labels.size());
-
     const std::vector<unsigned> &gptr =
         info.group_ptr.size() == 0 ? tgptr : info.group_ptr;
     CHECK_EQ(gptr.back(), info.labels.size())
@@ -379,26 +378,21 @@ struct EvalAucPR : public Metric {
       double total_neg = 0.0;
       rec.clear();
       for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-        total_pos +=
-            info.GetWeight(j) * info.labels[j];
+        total_pos += info.GetWeight(j) * info.labels[j];
         total_neg += info.GetWeight(j) * (1.0f - info.labels[j]);
         rec.push_back(std::make_pair(preds[j], j));
       }
       XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
-
       // we need pos > 0 && neg > 0
       if (0.0 == total_pos || 0.0 == total_neg) {
         auc_error = 1;
       }
-
       // calculate AUC
-      double tp = 0.0, prevtp = 0.0, fp = 0.0, prevfp = 0.0, h = 0.0, a = 0.0,
-             b = 0.0;
+      double tp = 0.0, prevtp = 0.0, fp = 0.0, prevfp = 0.0, h = 0.0, a = 0.0, b = 0.0;
       for (size_t j = 0; j < rec.size(); ++j) {
         tp += info.GetWeight(rec[j].second) * info.labels[rec[j].second];
-        fp +=
-            info.GetWeight(rec[j].second) * (1.0f - info.labels[rec[j].second]);
-        if (j > 0 && rec[j].first != rec[j - 1].first) {
+        fp += info.GetWeight(rec[j].second) * (1.0f - info.labels[rec[j].second]);
+        if ((j < rec.size() - 1 && rec[j].first != rec[j + 1].first) || j  == rec.size() - 1) {
           if (tp == prevtp) {
             h = 1.0;
             a = 1.0;
