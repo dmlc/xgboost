@@ -1,5 +1,4 @@
 import numpy as np
-import random
 import xgboost as xgb
 import testing as tm
 from nose.tools import raises
@@ -90,10 +89,6 @@ def test_feature_importances():
     X = pd.DataFrame(digits['data'])
     xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
-
-    # string columns, the feature order must be kept
-    chars = list('abcdefghijklmnopqrstuvwxyz')
-    X.columns = ["".join(random.sample(chars, 5)) for x in range(64)]
 
     xgb_model = xgb.XGBClassifier(seed=0).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
