@@ -15,7 +15,6 @@
 *.Rcheck
 *.rds
 *.tar.gz
-#*txt*
 *conf
 *buffer
 *model
@@ -52,7 +51,7 @@ Debug
 #.Rbuildignore
 R-package.Rproj
 *.cache*
-#java
+# java
 java/xgboost4j/target
 java/xgboost4j/tmp
 java/xgboost4j-demo/target
