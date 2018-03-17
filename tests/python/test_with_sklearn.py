@@ -1,5 +1,4 @@
 import numpy as np
-import random
 import xgboost as xgb
 import testing as tm
 from nose.tools import raises
