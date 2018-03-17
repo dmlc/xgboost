@@ -47,7 +47,6 @@ Debug
 *.cpage.col
 *.cpage
 *.Rproj
-./xgboost
 ./xgboost.mpi
 ./xgboost.mock
 #.Rbuildignore
@@ -68,7 +67,7 @@ nb-configuration*
 .settings/
 build
 config.mk
-xgboost
+/xgboost
 *.data
 build_plugin
 dmlc-core
