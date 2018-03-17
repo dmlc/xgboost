@@ -13,13 +13,13 @@ TEST(Linear, shotgun) {
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("shotgun"));
   updater->Init({{"eta", "1."}});
-  std::vector<xgboost::GradientPair> gpair(mat->Info().num_row_,
-                                        xgboost::GradientPair(-5, 1.0));
+  xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
+      mat->Info().num_row_, xgboost::GradientPair(-5, 1.0));
   xgboost::gbm::GBLinearModel model;
   model.param.num_feature = mat->Info().num_col_;
   model.param.num_output_group = 1;
   model.LazyInitModel();
-  updater->Update(&gpair, mat.get(), &model, gpair.size());
+  updater->Update(&gpair, mat.get(), &model, gpair.Size());
 
   ASSERT_EQ(model.bias()[0], 5.0f);
 }
@@ -32,13 +32,13 @@ TEST(Linear, coordinate) {
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
       xgboost::LinearUpdater::Create("coord_descent"));
   updater->Init({});
-  std::vector<xgboost::GradientPair> gpair(mat->Info().num_row_,
-                                        xgboost::GradientPair(-5, 1.0));
+  xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
+      mat->Info().num_row_, xgboost::GradientPair(-5, 1.0));
   xgboost::gbm::GBLinearModel model;
   model.param.num_feature = mat->Info().num_col_;
   model.param.num_output_group = 1;
   model.LazyInitModel();
-  updater->Update(&gpair, mat.get(), &model, gpair.size());
+  updater->Update(&gpair, mat.get(), &model, gpair.Size());
 
   ASSERT_EQ(model.bias()[0], 5.0f);
 }
