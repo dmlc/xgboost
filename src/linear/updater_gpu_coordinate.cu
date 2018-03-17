@@ -99,7 +99,7 @@ class DeviceShard {
   size_t ridx_end;
 
  public:
-  DeviceShard(int device_idx, int normalised_device_idx, DMatrix *p_fmat,
+  DeviceShard(int device_idx, int normalised_device_idx, const ColBatch &batch,
               bst_uint row_begin, bst_uint row_end,
               const GPUCoordinateTrainParam &param,
               const gbm::GBLinearModelParam &model_param)
@@ -108,43 +108,33 @@ class DeviceShard {
         ridx_begin(row_begin),
         ridx_end(row_end) {
     dh::safe_cuda(cudaSetDevice(device_idx));
-    dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
-    CHECK(p_fmat->SingleColBlock());
     // The begin and end indices for the section of each column associated with
     // this shard
     std::vector<std::pair<bst_uint, bst_uint>> column_segments;
     row_ptr = {0};
-    while (iter->Next()) {
-      const ColBatch &batch = iter->Value();
-      for (int fidx = 0; fidx < batch.size; fidx++) {
-        ColBatch::Inst col = batch[fidx];
-
-        auto cmp = [](SparseBatch::Entry e1, SparseBatch::Entry e2) {
-          return e1.index < e2.index;
-        };
-        auto column_begin =
-            std::lower_bound(col.data, col.data + col.length,
-                             SparseBatch::Entry(row_begin, 0.0f), cmp);
-        auto column_end =
-            std::upper_bound(col.data, col.data + col.length,
-                             SparseBatch::Entry(row_end, 0.0f), cmp);
-        column_segments.push_back(
-            std::make_pair(column_begin - col.data, column_end - col.data));
-        row_ptr.push_back(row_ptr.back() + column_end - column_begin);
-      }
+    for (auto fidx = 0; fidx < batch.size; fidx++) {
+      auto col = batch[fidx];
+      auto cmp = [](SparseBatch::Entry e1, SparseBatch::Entry e2) {
+        return e1.index < e2.index;
+      };
+      auto column_begin =
+          std::lower_bound(col.data, col.data + col.length,
+                           SparseBatch::Entry(row_begin, 0.0f), cmp);
+      auto column_end =
+          std::upper_bound(col.data, col.data + col.length,
+                           SparseBatch::Entry(row_end, 0.0f), cmp);
+      column_segments.push_back(
+          std::make_pair(column_begin - col.data, column_end - col.data));
+      row_ptr.push_back(row_ptr.back() + column_end - column_begin);
     }
     ba.allocate(device_idx, param.silent, &data, row_ptr.back(), &gpair,
                 (row_end - row_begin) * model_param.num_output_group);
 
-    iter->BeforeFirst();
-    while (iter->Next()) {
-      const ColBatch &batch = iter->Value();
-      for (int fidx = 0; fidx < p_fmat->info().num_col; fidx++) {
-        ColBatch::Inst col = batch[fidx];
-        thrust::copy(col.data + column_segments[fidx].first,
-                     col.data + column_segments[fidx].second,
-                     data.tbegin() + row_ptr[fidx]);
-      }
+    for (int fidx = 0; fidx < batch.size; fidx++) {
+      ColBatch::Inst col = batch[fidx];
+      thrust::copy(col.data + column_segments[fidx].first,
+                   col.data + column_segments[fidx].second,
+                   data.tbegin() + row_ptr[fidx]);
     }
     // Rescale indices with respect to current shard
     RescaleIndices(ridx_begin, &data);
@@ -157,7 +147,9 @@ class DeviceShard {
 
   bst_gpair GetBiasGradient(int group_idx, int num_group) {
     auto counting = thrust::make_counting_iterator(0ull);
-    auto f = [=] __device__(size_t idx) { return idx * num_group + group_idx; }; // NOLINT
+    auto f = [=] __device__(size_t idx) {
+      return idx * num_group + group_idx;
+    };  // NOLINT
     thrust::transform_iterator<decltype(f), decltype(counting), size_t> skip(
         counting, f);
     auto perm = thrust::make_permutation_iterator(gpair.tbegin(), skip);
@@ -185,7 +177,7 @@ class DeviceShard {
       auto g = d_gpair[entry.index * num_group + group_idx];
       return bst_gpair(g.GetGrad() * entry.fvalue,
                        g.GetHess() * entry.fvalue * entry.fvalue);
-    }; // NOLINT
+    };  // NOLINT
     thrust::transform_iterator<decltype(f), decltype(counting), bst_gpair>
         multiply_iterator(counting, f);
     return thrust::reduce(thrust::cuda::par(temp), multiply_iterator,
@@ -234,7 +226,6 @@ class GPUCoordinateUpdater : public LinearUpdater {
     }
     // Partition input matrix into row segments
     std::vector<size_t> row_segments;
-    shards.resize(n_devices);
     row_segments.push_back(0);
     for (int d_idx = 0; d_idx < n_devices; ++d_idx) {
       bst_uint row_end = std::min(static_cast<size_t>(row_begin + shard_size),
@@ -242,11 +233,18 @@ class GPUCoordinateUpdater : public LinearUpdater {
       row_segments.push_back(row_end);
       row_begin = row_end;
     }
+
+    dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
+    CHECK(p_fmat->SingleColBlock());
+    iter->Next();
+    auto batch = iter->Value();
+
+    shards.resize(n_devices);
     // Create device shards
     dh::ExecuteShards(&shards, [&](std::unique_ptr<DeviceShard> &shard) {
-      auto idx = &shard - shards.data();
+      auto idx = &shard - &shards[0];
       shard = std::unique_ptr<DeviceShard>(
-          new DeviceShard(dList[idx], idx, p_fmat, row_segments[idx],
+          new DeviceShard(dList[idx], idx, batch, row_segments[idx],
                           row_segments[idx + 1], param, model_param));
     });
   }
@@ -278,8 +276,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
             i, *model, group_idx, in_gpair->data_h(), p_fmat,
             param.reg_alpha_denorm, param.reg_lambda_denorm);
         if (fidx < 0) break;
-        this->UpdateFeature(fidx, group_idx, &in_gpair->data_h(), p_fmat, model,
-                            sum_instance_weight);
+        this->UpdateFeature(fidx, group_idx, &in_gpair->data_h(), model);
       }
     }
     monitor.Stop("UpdateFeature");
@@ -300,6 +297,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
           CoordinateDeltaBias(grad.GetGrad(), grad.GetHess()));
       model->bias()[group_idx] += dbias;
 
+
       // Update residual
       dh::ExecuteShards(&shards, [&](std::unique_ptr<DeviceShard> &shard) {
         shard->UpdateBiasResidual(dbias, group_idx,
@@ -309,8 +307,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
   }
 
   void UpdateFeature(int fidx, int group_idx, std::vector<bst_gpair> *in_gpair,
-                     DMatrix *p_fmat, gbm::GBLinearModel *model,
-                     double sum_instance_weight) {
+                     gbm::GBLinearModel *model) {
     bst_float &w = (*model)[fidx][group_idx];
     // Get gradient
     auto grad = dh::ReduceShards<bst_gpair>(
@@ -322,7 +319,7 @@ class GPUCoordinateUpdater : public LinearUpdater {
     auto dw =
         static_cast<float>(param.learning_rate *
                            CoordinateDelta(grad.GetGrad(), grad.GetHess(), w,
-                                           param.reg_lambda, param.reg_alpha));
+                                           param.reg_lambda_denorm, param.reg_alpha_denorm));
     w += dw;
 
     dh::ExecuteShards(&shards, [&](std::unique_ptr<DeviceShard> &shard) {
