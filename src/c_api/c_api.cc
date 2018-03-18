@@ -452,11 +452,8 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,
   // Check for errors in missing elements
   // Count elements per row (to avoid otherwise need to copy)
   bool nan_missing = common::CheckNAN(missing);
-  int *badnan;
-  badnan = new int[nthread];
-  for (int i = 0; i < nthread; i++) {
-    badnan[i] = 0;
-  }
+  std::vector<int> badnan;
+  badnan.resize(nthread, 0);
 
 #pragma omp parallel num_threads(nthread)
   {
