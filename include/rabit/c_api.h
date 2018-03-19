@@ -39,16 +39,16 @@ RABIT_DLL void RabitInit(int argc, char *argv[]);
  * \brief finalize the rabit engine,
  * call this function after you finished all jobs.
  */
-RABIT_DLL void RabitFinalize();
+RABIT_DLL void RabitFinalize(void);
 
 /*! \brief get rank of current process */
-RABIT_DLL int RabitGetRank();
+RABIT_DLL int RabitGetRank(void);
 
 /*! \brief get total number of process */
-RABIT_DLL int RabitGetWorldSize();
+RABIT_DLL int RabitGetWorldSize(void);
 
 /*! \brief get rank of current process */
-RABIT_DLL int RabitIsDistributed();
+RABIT_DLL int RabitIsDistributed(void);
 
 /*!
  * \brief print the msg to the tracker,
@@ -137,7 +137,7 @@ RABIT_DLL void RabitCheckPoint(const char *global_model,
  * \return version number of current stored model,
  * which means how many calls to CheckPoint we made so far
  */
-RABIT_DLL int RabitVersionNumber();
+RABIT_DLL int RabitVersionNumber(void);
 
 
 /*!
@@ -149,6 +149,6 @@ RABIT_DLL int RabitVersionNumber();
  * \endcode
  * \return a dummy integer.
  */
-RABIT_DLL int RabitLinkTag();
+RABIT_DLL int RabitLinkTag(void);
 
 #endif  // RABIT_C_API_H_
