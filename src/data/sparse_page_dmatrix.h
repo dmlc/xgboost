@@ -15,6 +15,7 @@
 #include <string>
 #include "./sparse_batch_page.h"
 #include "../common/common.h"
+#include "../common/random.h"
 
 namespace xgboost {
 namespace data {
@@ -23,7 +24,8 @@ class SparsePageDMatrix : public DMatrix {
  public:
   explicit SparsePageDMatrix(std::unique_ptr<DataSource>&& source,
                              const std::string& cache_info)
-      : source_(std::move(source)), cache_info_(cache_info) {
+      : source_(std::move(source)), cache_info_(cache_info),
+        shuffled_indices_(initialise_shuffled_indices_()) {
   }
 
   MetaInfo& info() override {
@@ -73,6 +75,38 @@ class SparsePageDMatrix : public DMatrix {
   static const size_t kPageSize = 256UL << 20UL;
   /*! \brief Maximum number of rows per batch. */
   static const size_t kMaxRowPerBatch = 64UL << 10UL;
+
+  std::vector<uint64_t> get_subsampled_indices(
+      const float subsample,
+      const std::vector<xgboost::bst_gpair>& gpair
+  ) override {
+      auto &random_number_generator = common::GlobalRandom();
+      const size_t indices_length = shuffled_indices_.size();
+      const size_t subsample_size = static_cast<size_t>(indices_length * subsample);
+      size_t number_of_subsamples = 0;
+      std::vector<uint64_t> subsampled_indices;
+
+      for (
+          size_t index = 0; 
+          number_of_subsamples != subsample_size && index != indices_length; 
+          ++index
+      ) {
+      
+          std::uniform_int_distribution<size_t> index_to_swap(index, indices_length - 1);
+          const size_t swap_index = index_to_swap(random_number_generator);
+
+          if (index != swap_index) {
+              std::swap(shuffled_indices_.at(index), shuffled_indices_.at(swap_index));
+          }
+
+          if (gpair[shuffled_indices_.at(index)].GetHess() >= 0.0f) {
+              subsampled_indices.push_back(shuffled_indices_.at(index));
+              ++number_of_subsamples;
+          }
+      }
+
+      return subsampled_indices;
+  }
 
  private:
   // declare the column batch iter.
@@ -127,6 +161,23 @@ class SparsePageDMatrix : public DMatrix {
   std::vector<size_t> col_size_;
   // internal column iter.
   std::unique_ptr<ColPageIter> col_iter_;
+  // indices to shuffle.
+  std::vector<uint64_t> shuffled_indices_;
+
+  std::vector<uint64_t> initialise_shuffled_indices_() {
+      
+    const MetaInfo& dataset_info = info();
+    const uint64_t number_of_datapoints = dataset_info.num_row;
+    std::vector<uint64_t> shuffled_indices_(number_of_datapoints);
+
+        for (uint64_t i = 0; i != number_of_datapoints; ++i) {
+            shuffled_indices_.push_back(i);
+        }
+
+    return shuffled_indices_;
+
+  }
+
 };
 }  // namespace data
 }  // namespace xgboost

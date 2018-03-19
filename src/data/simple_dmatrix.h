@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstring>
 #include "./sparse_batch_page.h"
+#include "../common/random.h"
 
 namespace xgboost {
 namespace data {
@@ -20,7 +21,7 @@ namespace data {
 class SimpleDMatrix : public DMatrix {
  public:
   explicit SimpleDMatrix(std::unique_ptr<DataSource>&& source)
-      : source_(std::move(source)) {}
+      : source_(std::move(source)), shuffled_indices_(initialise_shuffled_indices_()) {}
 
   MetaInfo& info() override {
     return source_->info;
@@ -63,6 +64,38 @@ class SimpleDMatrix : public DMatrix {
 
   bool SingleColBlock() const override;
 
+  std::vector<uint64_t> get_subsampled_indices(
+      const float subsample,
+      const std::vector<xgboost::bst_gpair>& gpair
+  ) override {
+      auto &random_number_generator = common::GlobalRandom();
+      const size_t indices_length = shuffled_indices_.size();
+      const size_t subsample_size = static_cast<size_t>(indices_length * subsample);
+      size_t number_of_subsamples = 0;
+      std::vector<uint64_t> subsampled_indices;
+
+      for (
+          size_t index = 0; 
+          number_of_subsamples != subsample_size && index != indices_length; 
+          ++index
+      ) {
+      
+          std::uniform_int_distribution<size_t> index_to_swap(index, indices_length - 1);
+          const size_t swap_index = index_to_swap(random_number_generator);
+
+          if (index != swap_index) {
+              std::swap(shuffled_indices_.at(index), shuffled_indices_.at(swap_index));
+          }
+
+          if (gpair[shuffled_indices_.at(index)].GetHess() >= 0.0f) {
+              subsampled_indices.push_back(shuffled_indices_.at(index));
+              ++number_of_subsamples;
+          }
+      }
+
+      return subsampled_indices;
+  }
+
  private:
   // in-memory column batch iterator.
   struct ColBatchIter: dmlc::DataIter<ColBatch> {
@@ -101,6 +134,9 @@ class SimpleDMatrix : public DMatrix {
   RowSet buffered_rowset_;
   /*! \brief sizeof column data */
   std::vector<size_t> col_size_;
+  
+  // indices to shuffle.
+  std::vector<uint64_t> shuffled_indices_;
 
   // internal function to make one batch from row iter.
   void MakeOneBatch(const std::vector<bool>& enabled,
@@ -115,6 +151,21 @@ class SimpleDMatrix : public DMatrix {
                    size_t buffer_begin,
                    const std::vector<bool>& enabled,
                    SparsePage* pcol, bool sorted);
+
+  std::vector<uint64_t> initialise_shuffled_indices_() {
+      
+    const MetaInfo& dataset_info = info();
+    const uint64_t number_of_datapoints = dataset_info.num_row;
+    std::vector<uint64_t> shuffled_indices_(number_of_datapoints);
+
+        for (uint64_t i = 0; i != number_of_datapoints; ++i) {
+            shuffled_indices_.push_back(i);
+        }
+
+    return shuffled_indices_;
+
+  }
+
 };
 }  // namespace data
 }  // namespace xgboost
