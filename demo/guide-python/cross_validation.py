@@ -42,7 +42,7 @@ xgb.cv(param, dtrain, num_round, nfold=5,
        metrics={'auc'}, seed=0, fpreproc=fpreproc)
 
 ###
-# you can also do cross validation with cutomized loss function
+# you can also do cross validation with customized loss function
 # See custom_objective.py
 ##
 print('running cross validation, with cutomsized loss function')
