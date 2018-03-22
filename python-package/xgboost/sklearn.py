@@ -215,7 +215,7 @@ class XGBModel(XGBModelBase):
         return xgb_params
 
     def save_model(self, fname):
-    	"""
+        """
         Save the model to a file.
         Parameters
         ----------
@@ -225,7 +225,7 @@ class XGBModel(XGBModelBase):
         self.get_booster().save_model(fname)
 
     def load_model(self, fname):
-    	"""
+        """
         Load the model from a file.
         Parameters
         ----------
