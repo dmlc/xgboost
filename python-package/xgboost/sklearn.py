@@ -226,10 +226,11 @@ class XGBModel(XGBModelBase):
 
     def load_model(self, fname):
     	"""
-        Save the model to a in memory buffer representation
-        Returns
-        -------
-        a in memory buffer representation of the model
+        Load the model from a file.
+        Parameters
+        ----------
+        fname : string or a memory buffer
+            Input file name or memory buffer(see also save_raw)
         """
         if self._Booster is None:
             self._Booster = Booster({'nthread': self.n_jobs})
