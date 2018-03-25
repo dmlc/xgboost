@@ -50,7 +50,7 @@ def print_evaluation(period=1, show_stdv=True):
     """
     def callback(env):
         """internal function"""
-        if env.rank != 0 or len(env.evaluation_result_list) == 0 or period is False:
+        if env.rank != 0 or len(env.evaluation_result_list) == 0 or period is False or period == 0:
             return
         i = env.iteration
         if (i % period == 0 or i + 1 == env.begin_iteration or i + 1 == env.end_iteration):

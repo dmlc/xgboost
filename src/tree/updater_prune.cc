@@ -29,7 +29,7 @@ class TreePruner: public TreeUpdater {
     syncher->Init(args);
   }
   // update the tree, do pruning
-  void Update(const std::vector<bst_gpair> &gpair,
+  void Update(HostDeviceVector<bst_gpair> *gpair,
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
     // rescale learning rate according to size of trees

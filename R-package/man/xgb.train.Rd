@@ -155,6 +155,7 @@ An object of class \code{xgb.Booster} with the following elements:
         (only available with early stopping).
   \item \code{feature_names} names of the training dataset features
         (only when comun names were defined in training data).
+  \item \code{nfeatures} number of features in training data.
 }
 }
 \description{
@@ -185,6 +186,7 @@ The folloiwing is the list of built-in metrics for which Xgboost provides optimi
            Different threshold (e.g., 0.) could be specified as "error@0."
      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
      \item \code{auc} Area under the curve. \url{http://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
+     \item \code{aucpr} Area under the PR curve. \url{https://en.wikipedia.org/wiki/Precision_and_recall} for ranking evaluation.
      \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{http://en.wikipedia.org/wiki/NDCG}
   }
 

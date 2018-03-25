@@ -127,6 +127,7 @@
 #'            Different threshold (e.g., 0.) could be specified as "error@0."
 #'      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
 #'      \item \code{auc} Area under the curve. \url{http://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
+#'      \item \code{aucpr} Area under the PR curve. \url{https://en.wikipedia.org/wiki/Precision_and_recall} for ranking evaluation.
 #'      \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{http://en.wikipedia.org/wiki/NDCG}
 #'   }
 #' 
@@ -162,6 +163,7 @@
 #'         (only available with early stopping).
 #'   \item \code{feature_names} names of the training dataset features
 #'         (only when comun names were defined in training data).
+#'   \item \code{nfeatures} number of features in training data.
 #' }
 #' 
 #' @seealso
@@ -363,6 +365,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   bst$callbacks <- callbacks
   if (!is.null(colnames(dtrain)))
     bst$feature_names <- colnames(dtrain)
-  
+  bst$nfeatures <- ncol(dtrain)
+
   return(bst)
 }

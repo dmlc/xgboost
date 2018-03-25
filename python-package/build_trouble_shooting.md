@@ -10,7 +10,7 @@ Linux platform (also Mac OS X in general)
 ------------
 **Trouble 0**: I see error messages like this when install from github using `python setup.py install`.
 
-    XGBoostLibraryNotFound: Cannot find XGBoost Libarary in the candidate path, did you install compilers and run build.sh in root path?
+    XGBoostLibraryNotFound: Cannot find XGBoost Library in the candidate path, did you install compilers and run build.sh in root path?
     List of candidates:
     /home/dmlc/anaconda/lib/python2.7/site-packages/xgboost-0.4-py2.7.egg/xgboost/libxgboostwrapper.so
     /home/dmlc/anaconda/lib/python2.7/site-packages/xgboost-0.4-py2.7.egg/xgboost/../../wrapper/libxgboostwrapper.so

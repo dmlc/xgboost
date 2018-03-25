@@ -65,8 +65,8 @@ Parameters for Tree Booster
     - 'exact': Exact greedy algorithm.
     - 'approx': Approximate greedy algorithm using sketching and histogram.
     - 'hist': Fast histogram optimized approximate greedy algorithm. It uses some performance improvements such as bins caching.
-	- 'gpu_exact': GPU implementation of exact algorithm. 
-	- 'gpu_hist': GPU implementation of hist algorithm. 
+	- 'gpu_exact': GPU implementation of exact algorithm.
+	- 'gpu_hist': GPU implementation of hist algorithm.
 * sketch_eps, [default=0.03]
   - This is only used for approximate greedy algorithm.
   - This roughly translated into ```O(1 / sketch_eps)``` number of bins.
@@ -96,7 +96,7 @@ Parameters for Tree Booster
   - A type of boosting process to run.
   - Choices: {'default', 'update'}
     - 'default': the normal boosting process which creates new trees.
-    - 'update': starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updater plugins is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updater plugins could be meaningfully used with this process type: 'refresh', 'prune'. With 'update', one cannot use updater plugins that create new nrees.
+    - 'update': starts from an existing model and only updates its trees. In each boosting iteration, a tree from the initial model is taken, a specified sequence of updater plugins is run for that tree, and a modified tree is added to the new model. The new model would have either the same or smaller number of trees, depending on the number of boosting iteratons performed. Currently, the following built-in updater plugins could be meaningfully used with this process type: 'refresh', 'prune'. With 'update', one cannot use updater plugins that create new trees.
 * grow_policy, string [default='depthwise']
   - Controls a way new nodes are added to the tree.
   - Currently supported only if `tree_method` is set to 'hist'.
@@ -142,11 +142,14 @@ Additional parameters for Dart Booster
 Parameters for Linear Booster
 -----------------------------
 * lambda [default=0, alias: reg_lambda]
-  - L2 regularization term on weights, increase this value will make model more conservative.
+  - L2 regularization term on weights, increase this value will make model more conservative. Normalised to number of training examples.
 * alpha [default=0, alias: reg_alpha]
-  - L1 regularization term on weights, increase this value will make model more conservative.
-* lambda_bias [default=0, alias: reg_lambda_bias]
-  - L2 regularization term on bias (no L1 reg on bias because it is not important)
+  - L1 regularization term on weights, increase this value will make model more conservative. Normalised to number of training examples.
+* updater [default='shotgun']
+	- Linear model algorithm
+      - 'shotgun': Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run. 
+      - 'coord_descent': Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. 
+
 
 Parameters for Tweedie Regression
 ---------------------------------
@@ -170,6 +173,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
     they can only be used when the entire training session uses the same dataset
   - "count:poisson" --poisson regression for count data, output mean of poisson distribution
     - max_delta_step is set to 0.7 by default in poisson regression (used to safeguard optimization)
+  - "survival:cox" --Cox regression for right censored survival time data (negative values are considered right censored).
+    Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function h(t) = h0(t) * HR).
   - "multi:softmax" --set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
   - "multi:softprob" --same as softmax, but output a vector of ndata * nclass, which can be further reshaped to ndata, nclass matrix. The result contains predicted probability of each data point belonging to each class.
   - "rank:pairwise" --set XGBoost to do ranking task by minimizing the pairwise loss
@@ -197,6 +202,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 training repeatedly
   - "poisson-nloglik": negative log-likelihood for Poisson regression
   - "gamma-nloglik": negative log-likelihood for gamma regression
+  - "cox-nloglik": negative partial log-likelihood for Cox proportional hazards regression
   - "gamma-deviance": residual deviance for gamma regression
   - "tweedie-nloglik": negative log-likelihood for Tweedie regression (at a specified value of the tweedie_variance_power parameter)
 * seed [default=0]

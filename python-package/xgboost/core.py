@@ -235,8 +235,6 @@ class DMatrix(object):
                  feature_names=None, feature_types=None,
                  nthread=None):
         """
-        Data matrix used in XGBoost.
-
         Parameters
         ----------
         data : string/numpy array/scipy.sparse/pd.DataFrame
@@ -706,7 +704,7 @@ class DMatrix(object):
 
 
 class Booster(object):
-    """"A Booster of of XGBoost.
+    """A Booster of of XGBoost.
 
     Booster is the model of xgboost, that contains low level routines for
     training, prediction and evaluation.
@@ -716,8 +714,7 @@ class Booster(object):
 
     def __init__(self, params=None, cache=(), model_file=None):
         # pylint: disable=invalid-name
-        """Initialize the Booster.
-
+        """
         Parameters
         ----------
         params : dict
@@ -992,7 +989,7 @@ class Booster(object):
         return self.eval_set([(data, name)], iteration)
 
     def predict(self, data, output_margin=False, ntree_limit=0, pred_leaf=False,
-                pred_contribs=False, approx_contribs=False):
+                pred_contribs=False, approx_contribs=False, pred_interactions=False):
         """
         Predict with data.
 
@@ -1019,13 +1016,20 @@ class Booster(object):
             in both tree 1 and tree 0.
 
         pred_contribs : bool
-            When this option is on, the output will be a matrix of (nsample, nfeats+1)
+            When this is True the output will be a matrix of size (nsample, nfeats + 1)
             with each record indicating the feature contributions (SHAP values) for that
-            prediction. The sum of all feature contributions is equal to the prediction.
-            Note that the bias is added as the final column, on top of the regular features.
+            prediction. The sum of all feature contributions is equal to the raw untransformed
+            margin value of the prediction. Note the final column is the bias term.
 
         approx_contribs : bool
             Approximate the contributions of each feature
+
+        pred_interactions : bool
+            When this is True the output will be a matrix of size (nsample, nfeats + 1, nfeats + 1)
+            indicating the SHAP interaction values for each pair of features. The sum of each
+            row (or column) of the interaction values equals the corresponding SHAP value (from
+            pred_contribs), and the sum of the entire matrix equals the raw untransformed margin
+            value of the prediction. Note the last row and column correspond to the bias term.
 
         Returns
         -------
@@ -1040,6 +1044,8 @@ class Booster(object):
             option_mask |= 0x04
         if approx_contribs:
             option_mask |= 0x08
+        if pred_interactions:
+            option_mask |= 0x10
 
         self._validate_features(data)
 
@@ -1055,8 +1061,22 @@ class Booster(object):
             preds = preds.astype(np.int32)
         nrow = data.num_row()
         if preds.size != nrow and preds.size % nrow == 0:
-            ncol = int(preds.size / nrow)
-            preds = preds.reshape(nrow, ncol)
+            chunk_size = int(preds.size / nrow)
+
+            if pred_interactions:
+                ngroup = int(chunk_size / ((data.num_col() + 1) * (data.num_col() + 1)))
+                if ngroup == 1:
+                    preds = preds.reshape(nrow, data.num_col() + 1, data.num_col() + 1)
+                else:
+                    preds = preds.reshape(nrow, ngroup, data.num_col() + 1, data.num_col() + 1)
+            elif pred_contribs:
+                ngroup = int(chunk_size / (data.num_col() + 1))
+                if ngroup == 1:
+                    preds = preds.reshape(nrow, data.num_col() + 1)
+                else:
+                    preds = preds.reshape(nrow, ngroup, data.num_col() + 1)
+            else:
+                preds = preds.reshape(nrow, chunk_size)
         return preds
 
     def save_model(self, fname):

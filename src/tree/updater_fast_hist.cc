@@ -55,7 +55,7 @@ class FastHistMaker: public TreeUpdater {
     is_gmat_initialized_ = false;
   }
 
-  void Update(const std::vector<bst_gpair>& gpair,
+  void Update(HostDeviceVector<bst_gpair>* gpair,
               DMatrix* dmat,
               const std::vector<RegTree*>& trees) override {
     TStats::CheckInfo(dmat->info());
@@ -82,13 +82,14 @@ class FastHistMaker: public TreeUpdater {
       builder_.reset(new Builder(param, fhparam, std::move(pruner_)));
     }
     for (size_t i = 0; i < trees.size(); ++i) {
-      builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, trees[i]);
+      builder_->Update
+        (gmat_, gmatb_, column_matrix_, gpair, dmat, trees[i]);
     }
     param.learning_rate = lr;
   }
 
   bool UpdatePredictionCache(const DMatrix* data,
-                             std::vector<bst_float>* out_preds) override {
+                             HostDeviceVector<bst_float>* out_preds) override {
     if (!builder_ || param.subsample < 1.0f) {
       return false;
     } else {
@@ -139,7 +140,7 @@ class FastHistMaker: public TreeUpdater {
     virtual void Update(const GHistIndexMatrix& gmat,
                         const GHistIndexBlockMatrix& gmatb,
                         const ColumnMatrix& column_matrix,
-                        const std::vector<bst_gpair>& gpair,
+                        HostDeviceVector<bst_gpair>* gpair,
                         DMatrix* p_fmat,
                         RegTree* p_tree) {
       double gstart = dmlc::GetTime();
@@ -154,8 +155,10 @@ class FastHistMaker: public TreeUpdater {
       double time_evaluate_split = 0;
       double time_apply_split = 0;
 
+      std::vector<bst_gpair>& gpair_h = gpair->data_h();
+
       tstart = dmlc::GetTime();
-      this->InitData(gmat, gpair, *p_fmat, *p_tree);
+      this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
       std::vector<bst_uint> feat_set = feat_index;
       time_init_data = dmlc::GetTime() - tstart;
 
@@ -165,11 +168,11 @@ class FastHistMaker: public TreeUpdater {
       for (int nid = 0; nid < p_tree->param.num_roots; ++nid) {
         tstart = dmlc::GetTime();
         hist_.AddHistRow(nid);
-        BuildHist(gpair, row_set_collection_[nid], gmat, gmatb, feat_set, hist_[nid]);
+        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, feat_set, hist_[nid]);
         time_build_hist += dmlc::GetTime() - tstart;
 
         tstart = dmlc::GetTime();
-        this->InitNewNode(nid, gmat, gpair, *p_fmat, *p_tree);
+        this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
         time_init_new_node += dmlc::GetTime() - tstart;
 
         tstart = dmlc::GetTime();
@@ -200,17 +203,17 @@ class FastHistMaker: public TreeUpdater {
           hist_.AddHistRow(cleft);
           hist_.AddHistRow(cright);
           if (row_set_collection_[cleft].size() < row_set_collection_[cright].size()) {
-            BuildHist(gpair, row_set_collection_[cleft], gmat, gmatb, feat_set, hist_[cleft]);
+            BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, feat_set, hist_[cleft]);
             SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
           } else {
-            BuildHist(gpair, row_set_collection_[cright], gmat, gmatb, feat_set, hist_[cright]);
+            BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, feat_set, hist_[cright]);
             SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
           }
           time_build_hist += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
-          this->InitNewNode(cleft, gmat, gpair, *p_fmat, *p_tree);
-          this->InitNewNode(cright, gmat, gpair, *p_fmat, *p_tree);
+          this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
+          this->InitNewNode(cright, gmat, gpair_h, *p_fmat, *p_tree);
           time_init_new_node += dmlc::GetTime() - tstart;
 
           tstart = dmlc::GetTime();
@@ -293,8 +296,8 @@ class FastHistMaker: public TreeUpdater {
     }
 
     inline bool UpdatePredictionCache(const DMatrix* data,
-                                      std::vector<bst_float>* p_out_preds) {
-      std::vector<bst_float>& out_preds = *p_out_preds;
+                                      HostDeviceVector<bst_float>* p_out_preds) {
+      std::vector<bst_float>& out_preds = p_out_preds->data_h();
 
       // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
       // conjunction with Update().
@@ -867,13 +870,13 @@ class FastHistMaker: public TreeUpdater {
             if (d_step > 0) {
               // forward enumeration: split at right bound of each bin
               loss_chg = static_cast<bst_float>(
-                  constraint.CalcSplitGain(param, fid, e, c) -
+                  constraint.CalcSplitGain(param, param.monotone_constraints[fid], e, c) -
                   snode.root_gain);
               split_pt = cut_val[i];
             } else {
               // backward enumeration: split at left bound of each bin
               loss_chg = static_cast<bst_float>(
-                  constraint.CalcSplitGain(param, fid, c, e) -
+                  constraint.CalcSplitGain(param, param.monotone_constraints[fid], c, e) -
                   snode.root_gain);
               if (i == imin) {
                 // for leftmost bin, left bound is the smallest feature value
@@ -958,10 +961,45 @@ class FastHistMaker: public TreeUpdater {
   std::unique_ptr<TreeUpdater> pruner_;
 };
 
+// simple switch to defer implementation.
+class FastHistTreeUpdaterSwitch : public TreeUpdater {
+ public:
+  FastHistTreeUpdaterSwitch() : monotone_(false) {}
+  void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
+    for (auto &kv : args) {
+      if (kv.first == "monotone_constraints" && kv.second.length() != 0) {
+        monotone_ = true;
+      }
+    }
+    if (inner_.get() == nullptr) {
+      if (monotone_) {
+        inner_.reset(new FastHistMaker<GradStats, ValueConstraint>());
+      } else {
+        inner_.reset(new FastHistMaker<GradStats, NoConstraint>());
+      }
+    }
+
+    inner_->Init(args);
+  }
+
+  void Update(HostDeviceVector<bst_gpair>* gpair,
+              DMatrix* data,
+              const std::vector<RegTree*>& trees) override {
+    CHECK(inner_ != nullptr);
+    inner_->Update(gpair, data, trees);
+  }
+
+ private:
+  //  monotone constraints
+  bool monotone_;
+  // internal implementation
+  std::unique_ptr<TreeUpdater> inner_;
+};
+
 XGBOOST_REGISTER_TREE_UPDATER(FastHistMaker, "grow_fast_histmaker")
 .describe("Grow tree using quantized histogram.")
 .set_body([]() {
-    return new FastHistMaker<GradStats, NoConstraint>();
+    return new FastHistTreeUpdaterSwitch();
   });
 
 }  // namespace tree

@@ -4,7 +4,7 @@ Installation Guide
 This page gives instructions on how to build and install the xgboost package from
 scratch on various systems. It consists of two steps:
 
-1. First build the shared library from the C++ codes (`libxgboost.so` for linux/osx and `libxgboost.dll` for windows).
+1. First build the shared library from the C++ codes (`libxgboost.so` for Linux/OSX and `xgboost.dll` for Windows).
    - Exception: for R-package installation please directly refer to the R package section.
 2. Then install the language packages (e.g. Python Package).
 
@@ -39,7 +39,7 @@ even better to send pull request if you can fix the problem.
 
 Our goal is to build the shared library:
 - On Linux/OSX the target library is `libxgboost.so`
-- On Windows the target library is `libxgboost.dll`
+- On Windows the target library is `xgboost.dll`
 
 The minimal building requirement is
 
@@ -85,12 +85,33 @@ Now, clone the repository
 
 ```bash
 git clone --recursive https://github.com/dmlc/xgboost
+cd xgboost; cp make/config.mk ./config.mk
+```
+
+Open config.mk and uncomment these two lines
+
+```config.mk
+export CC = gcc
+export CXX = g++
+```
+
+and replace these two lines into(5 or 6 or 7; depending on your gcc-version)
+
+```config.mk
+export CC = gcc-7
+export CXX = g++-7
+```
+
+To find your gcc version
+
+```bash
+gcc-version
 ```
 
 and build using the following commands
 
 ```bash
-cd xgboost; cp make/config.mk ./config.mk; make -j4
+make -j4
 ```
 head over to `Python Package Installation` for the next steps
 
@@ -111,12 +132,13 @@ After installing [Git for Windows](https://git-for-windows.github.io/), you shou
 All the following steps are in the `Git Bash`.
 
 In MinGW, `make` command comes with the name `mingw32-make`. You can add the following line into the `.bashrc` file.
-
 ```bash
 alias make='mingw32-make'
 ```
+(On 64-bit Windows, you should get [mingw64](https://sourceforge.net/projects/mingw-w64/) instead.) Make sure
+that the path to MinGW is in the system PATH.
 
-To build with MinGW
+To build with MinGW, type:
 
 ```bash
 cp make/mingw64.mk config.mk; make -j4
@@ -130,7 +152,7 @@ cd build
 cmake .. -G"Visual Studio 12 2013 Win64"
 ```
 
-This specifies an out of source build using the MSVC 12 64 bit generator. Open the .sln file in the build directory and build with Visual Studio. To use the Python module you can copy libxgboost.dll into python-package\xgboost.
+This specifies an out of source build using the MSVC 12 64 bit generator. Open the .sln file in the build directory and build with Visual Studio. To use the Python module you can copy `xgboost.dll` into python-package\xgboost.
 
 Other versions of Visual Studio may work but are untested.
 
@@ -148,7 +170,7 @@ $ cd build
 $ cmake .. -DUSE_CUDA=ON
 $ make -j
 ```
-**Windows requirements** for GPU build: only Visual C++ 2015 or 2013 with CUDA v8.0 were fully tested. Either install Visual C++ 2015 Build Tools separately, or as a part of Visual Studio 2015. If you already have Visual Studio 2017, the Visual C++ 2015 Toolchain componenet has to be installed using the VS 2017 Installer. Likely, you would need to use the VS2015 x64 Native Tools command prompt to run the cmake commands given below. In some situations, however, things run just fine from MSYS2 bash command line. 
+**Windows requirements** for GPU build: only Visual C++ 2015 or 2013 with CUDA v8.0 were fully tested. Either install Visual C++ 2015 Build Tools separately, or as a part of Visual Studio 2015. If you already have Visual Studio 2017, the Visual C++ 2015 Toolchain componenet has to be installed using the VS 2017 Installer. Likely, you would need to use the VS2015 x64 Native Tools command prompt to run the cmake commands given below. In some situations, however, things run just fine from MSYS2 bash command line.
 
 On Windows, using cmake, see what options for Generators you have for cmake, and choose one with [arch] replaced by Win64:
 ```bash
@@ -168,6 +190,8 @@ cmake --build . --target xgboost --config Release
 If build seems to use only a single process, you might try to append an option like ` -- /m:6` to the above command.
 
 ### Windows Binaries
+
+After the build process successfully ends, you will find a `xgboost.dll` library file inside `./lib/` folder, copy this file to the the API package folder like `python-package/xgboost` if you are using *python* API. And you are good to follow the below instructions.
 
 Unofficial windows binaries and instructions on how to use them are hosted on [Guido Tapia's blog](http://www.picnet.com.au/blogs/guido/post/2016/09/22/xgboost-windows-x64-binaries-for-download/)
 

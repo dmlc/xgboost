@@ -119,7 +119,7 @@ ColIterator(const std::vector<bst_uint>& fset) {
 }
 
 
-bool SparsePageDMatrix::TryInitColData() {
+bool SparsePageDMatrix::TryInitColData(bool sorted) {
   // load meta data.
   std::vector<std::string> cache_shards = common::Split(cache_info_, ':');
   {
@@ -140,15 +140,16 @@ bool SparsePageDMatrix::TryInitColData() {
     files.push_back(std::move(fdata));
   }
   col_iter_.reset(new ColPageIter(std::move(files)));
+  // warning: no attempt to check here whether the cached data was sorted
+  col_iter_->sorted = sorted;
   return true;
 }
 
 void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
                                       float pkeep,
-                                      size_t max_row_perbatch) {
-  if (HaveColAccess()) return;
-  if (TryInitColData()) return;
-
+                                      size_t max_row_perbatch, bool sorted) {
+  if (HaveColAccess(sorted)) return;
+  if (TryInitColData(sorted)) return;
   const MetaInfo& info = this->info();
   if (max_row_perbatch == std::numeric_limits<size_t>::max()) {
     max_row_perbatch = kMaxRowPerBatch;
@@ -197,13 +198,15 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     }
     CHECK_EQ(pcol->Size(), info.num_col);
     // sort columns
-    bst_omp_uint ncol = static_cast<bst_omp_uint>(pcol->Size());
-    #pragma omp parallel for schedule(dynamic, 1) num_threads(nthread)
-    for (bst_omp_uint i = 0; i < ncol; ++i) {
-      if (pcol->offset[i] < pcol->offset[i + 1]) {
-        std::sort(dmlc::BeginPtr(pcol->data) + pcol->offset[i],
-                  dmlc::BeginPtr(pcol->data) + pcol->offset[i + 1],
-                  SparseBatch::Entry::CmpValue);
+    if (sorted) {
+      bst_omp_uint ncol = static_cast<bst_omp_uint>(pcol->Size());
+#pragma omp parallel for schedule(dynamic, 1) num_threads(nthread)
+      for (bst_omp_uint i = 0; i < ncol; ++i) {
+        if (pcol->offset[i] < pcol->offset[i + 1]) {
+          std::sort(dmlc::BeginPtr(pcol->data) + pcol->offset[i],
+            dmlc::BeginPtr(pcol->data) + pcol->offset[i + 1],
+            SparseBatch::Entry::CmpValue);
+        }
       }
     }
   };
@@ -290,7 +293,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     fo.reset(nullptr);
   }
   // initialize column data
-  CHECK(TryInitColData());
+  CHECK(TryInitColData(sorted));
 }
 
 }  // namespace data

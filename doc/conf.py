@@ -14,7 +14,6 @@
 import sys
 import os, subprocess
 import shlex
-import urllib
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -78,6 +77,8 @@ master_doc = 'index'
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
 language = None
+
+autoclass_content = 'both'
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
@@ -164,8 +165,14 @@ def setup(app):
     # Add hook for building doxygen xml when needed
     # no c++ API for now
     # app.connect("builder-inited", generate_doxygen_xml)
-    urllib.urlretrieve('https://code.jquery.com/jquery-2.2.4.min.js',
-                       '_static/jquery.js')
+
+    # urlretrieve got moved in Python 3.x
+    try:
+      from urllib import urlretrieve
+    except ImportError:
+      from urllib.request import urlretrieve
+    urlretrieve('https://code.jquery.com/jquery-2.2.4.min.js',
+                '_static/jquery.js')
     app.add_config_value('recommonmark_config', {
             'url_resolver': lambda url: github_doc_root + url,
             'enable_eval_rst': True,

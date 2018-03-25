@@ -1,12 +1,21 @@
 Package: xgboost
 Type: Package
 Title: Extreme Gradient Boosting
-Version: 0.7.0
-Date: 2018-01-22
-Author: Tianqi Chen <tianqi.tchen@gmail.com>, Tong He <hetong007@gmail.com>,
-    Michael Benesty <michael@benesty.fr>, Vadim Khotilovich <khotilovich@gmail.com>,
-    Yuan Tang <terrytangyuan@gmail.com>
-Maintainer: Tong He <hetong007@gmail.com>
+Version: 0.7.0.1
+Date: 2018-02-25
+Authors@R: c(
+  person("Tianqi", "Chen", role = c("aut"),
+         email = "tianqi.tchen@gmail.com"),
+  person("Tong", "He", role = c("aut", "cre"),
+         email = "hetong007@gmail.com"),
+  person("Michael", "Benesty", role = c("aut"),
+         email = "michael@benesty.fr"),
+  person("Vadim", "Khotilovich", role = c("aut"),
+         email = "khotilovich@gmail.com"),
+  person("Yuan", "Tang", role = c("aut"),
+         email = "terrytangyuan@gmail.com",
+         comment = c(ORCID = "0000-0001-5243-233X"))
+  )
 Description: Extreme Gradient Boosting, which is an efficient implementation
     of the gradient boosting framework from Chen & Guestrin (2016) <doi:10.1145/2939672.2939785>.
     This package is its R interface. The package includes efficient linear 

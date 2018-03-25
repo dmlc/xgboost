@@ -53,7 +53,7 @@ install:
           Import-Module "$Env:TEMP\appveyor-tool.ps1"
           Bootstrap
           $DEPS = "c('data.table','magrittr','stringi','ggplot2','DiagrammeR','Ckmeans.1d.dp','vcd','testthat','igraph','knitr','rmarkdown')"
-          cmd /c "R.exe -q -e ""install.packages($DEPS, repos='$CRAN', type='win.binary')"" 2>&1"
+          cmd.exe /c "R.exe -q -e ""install.packages($DEPS, repos='$CRAN', type='win.binary')"" 2>&1"
         }
 
 build_script:

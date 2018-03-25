@@ -53,6 +53,11 @@
 #include "../src/tree/updater_histmaker.cc"
 #include "../src/tree/updater_skmaker.cc"
 
+// linear
+#include "../src/linear/linear_updater.cc"
+#include "../src/linear/updater_coordinate.cc"
+#include "../src/linear/updater_shotgun.cc"
+
 // global
 #include "../src/learner.cc"
 #include "../src/logging.cc"

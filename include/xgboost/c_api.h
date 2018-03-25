@@ -95,7 +95,7 @@ XGB_EXTERN_C typedef int XGBCallbackDataIterNext(
  *  this function is thread safe and can be called by different thread
  * \return const char* error information
  */
-XGB_DLL const char *XGBGetLastError();
+XGB_DLL const char *XGBGetLastError(void);
 
 /*!
  * \brief load a data matrix

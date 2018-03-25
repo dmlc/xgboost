@@ -34,6 +34,7 @@
 #'   \item \code{rmse} Rooted mean square error
 #'   \item \code{logloss} negative log-likelihood function
 #'   \item \code{auc} Area under curve
+#'   \item \code{aucpr} Area under PR curve
 #'   \item \code{merror} Exact matching error, used to evaluate multi-class classification
 #' }
 #' @param obj customized objective function. Returns gradient and second order 
@@ -88,6 +89,7 @@
 #'         CV-based evaluation means and standard deviations for the training and test CV-sets.
 #'         It is created by the \code{\link{cb.evaluation.log}} callback.
 #'   \item \code{niter} number of boosting iterations.
+#'   \item \code{nfeatures} number of features in training data.
 #'   \item \code{folds} the list of CV folds' indices - either those passed through the \code{folds} 
 #'         parameter or randomly generated.
 #'   \item \code{best_iteration} iteration number with the best evaluation metric value
@@ -184,6 +186,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     handle <- xgb.Booster.handle(params, list(dtrain, dtest))
     list(dtrain = dtrain, bst = handle, watchlist = list(train = dtrain, test=dtest), index = folds[[k]])
   })
+  rm(dall)
   # a "basket" to collect some results from callbacks
   basket <- list()
 
@@ -221,6 +224,7 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
     callbacks = callbacks,
     evaluation_log = evaluation_log,
     niter = end_iteration,
+    nfeatures = ncol(data),
     folds = folds
   )
   ret <- c(ret, basket)
