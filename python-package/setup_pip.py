@@ -12,7 +12,10 @@ sys.path.insert(0, '.')
 # please don't use this file for installing from github
 
 if os.name != 'nt':     # if not windows, compile and install
-    os.system('sh ./xgboost/build-python.sh')
+    # if not windows, compile and install
+    if len(sys.argv) < 2 or sys.argv[1] != 'sdist':
+        # do not build for sdist
+        os.system('sh ./xgboost/build-python.sh')
 else:
     print('Windows users please use github installation.')
     sys.exit()
@@ -30,16 +33,14 @@ class BinaryDistribution(Distribution):
 # We can not import `xgboost.libpath` in setup.py directly since xgboost/__init__.py
 # import `xgboost.core` and finally will import `numpy` and `scipy` which are setup
 # `install_requires`. That's why we're using `exec` here.
-libpath_py = os.path.join(CURRENT_DIR, 'xgboost/libpath.py')
-libpath = {'__file__': libpath_py}
-exec(compile(open(libpath_py, "rb").read(), libpath_py, 'exec'), libpath, libpath)
+# do not import libpath for sdist
+if len(sys.argv) < 2 or sys.argv[1] != 'sdist':
+    libpath_py = os.path.join(CURRENT_DIR, 'xgboost/libpath.py')
+    libpath = {'__file__': libpath_py}
+    exec(compile(open(libpath_py, "rb").read(), libpath_py, 'exec'), libpath, libpath)
 
-LIB_PATH = libpath['find_lib_path']()
+    LIB_PATH = libpath['find_lib_path']()
 
-# to deploy to pip, please use
-# make pythonpack
-# python setup.py register sdist upload
-# and be sure to test it firstly using "python setup.py register sdist upload -r pypitest"
 setup(name='xgboost',
       version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
       description='XGBoost Python Package',
