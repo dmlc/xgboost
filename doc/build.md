@@ -132,26 +132,13 @@ After installing [Git for Windows](https://git-for-windows.github.io/), you shou
 All the following steps are in the `Git Bash`.
 
 In MinGW, `make` command comes with the name `mingw32-make`. You can add the following line into the `.bashrc` file.
-
-> if you don't have a MinGW installed on your machine and you are using *Windows x86_64*. try to download one From
-
-> [https://sourceforge.net/projects/mingw-w64/](https://sourceforge.net/projects/mingw-w64/)
-
-> after the installation, add the path of your installation to the system *env* properties.
-
-> the installation path added to your *env* properties should be pointed to the `bin` folder, like:
-
-> `C:\Program Files\mingw-w64\x86_64-7.2.0-posix-seh-rt_v5-rev1\mingw64\bin`
-
-> for users using *Windows 32*, try to find a *mingw32* version instead.
-
-> you are ok to follow the below instructions.
-
 ```bash
 alias make='mingw32-make'
 ```
+(On 64-bit Windows, you should get [mingw64](https://sourceforge.net/projects/mingw-w64/) instead.) Make sure
+that the path to MinGW is in the system PATH.
 
-To build with MinGW
+To build with MinGW, type:
 
 ```bash
 cp make/mingw64.mk config.mk; make -j4
