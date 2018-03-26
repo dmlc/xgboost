@@ -77,7 +77,6 @@ NULL
 
 # Various imports
 #' @importClassesFrom Matrix dgCMatrix dgeMatrix
-#' @importFrom Matrix cbind
 #' @importFrom Matrix colSums
 #' @importFrom Matrix sparse.model.matrix
 #' @importFrom Matrix sparseVector
