@@ -603,7 +603,7 @@ cb.cv.predict <- function(save_models = FALSE) {
 #'
 #' # CV:
 #' bst <- xgb.cv(param, dtrain, nfold = 5, nrounds = 70, eta = 0.5,
-#'               callbacks = list(cb.gblinear.history(F)))
+#'               callbacks = list(cb.gblinear.history(FALSE)))
 #' # 1st forld of 1st class
 #' xgb.gblinear.history(bst, class_index = 0)[[1]] %>% matplot(type = 'l')
 #'
@@ -692,7 +692,9 @@ cb.gblinear.history <- function(sparse=FALSE) {
 #' corresponding to CV folds.
 #'
 #' @examples
+#' \dontrun{
 #' See \code{\link{cv.gblinear.history}}
+#' }
 #'
 #' @export
 xgb.gblinear.history <- function(model, class_index = NULL) {

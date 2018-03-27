@@ -28,6 +28,8 @@ from a gblinear model created while using the \code{cb.gblinear.history()}
 callback.
 }
 \examples{
+\dontrun{
 See \\code{\\link{cv.gblinear.history}}
+}
 
 }
