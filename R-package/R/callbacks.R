@@ -554,6 +554,7 @@ cb.cv.predict <- function(save_models = FALSE) {
 #' #
 #' # In the iris dataset, it is hard to linearly separate Versicolor class from the rest
 #' # without considering the 2nd order interactions:
+#' require(magrittr)
 #' x <- model.matrix(Species ~ .^2, iris)[,-1]
 #' colnames(x)
 #' dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"))
