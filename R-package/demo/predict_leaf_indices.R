@@ -32,7 +32,7 @@ create.new.tree.features <- function(model, original.features){
     leaf.id <- sort(unique(pred_with_leaf[,i]))
     cols[[i]] <- factor(x = pred_with_leaf[,i], level = leaf.id)
   }
-  cBind(original.features, sparse.model.matrix( ~ . -1, as.data.frame(cols)))
+  cbind(original.features, sparse.model.matrix( ~ . -1, as.data.frame(cols)))
 }
 
 # Convert previous features to one hot encoding
