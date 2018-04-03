@@ -267,7 +267,7 @@ class GPUPredictor : public xgboost::Predictor {
 
     std::shared_ptr<DeviceMatrix> device_matrix;
     // Matrix is not in host cache, create a temporary matrix
-    if (this->cache_.find(dmat) != this->cache_.end()) {
+    if (this->cache_.find(dmat) == this->cache_.end()) {
       device_matrix = std::shared_ptr<DeviceMatrix>(
           new DeviceMatrix(dmat, param.gpu_id, param.silent));
     } else {
