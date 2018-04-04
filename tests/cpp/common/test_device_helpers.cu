@@ -5,8 +5,8 @@
 #include <thrust/device_vector.h>
 #include <xgboost/base.h>
 #include "../../../src/common/device_helpers.cuh"
-#include "gtest/gtest.h"
 #include "../../../src/common/timer.h"
+#include "gtest/gtest.h"
 
 void CreateTestData(xgboost::bst_uint num_rows, int max_row_size,
                     thrust::host_vector<int> *row_ptr,
@@ -38,7 +38,8 @@ void SpeedTest() {
 
   xgboost::common::Timer t;
   dh::TransformLbs(
-      0, &temp_memory, h_rows.size(), dh::raw(row_ptr), row_ptr.size() - 1, false,
+      0, &temp_memory, h_rows.size(), dh::raw(row_ptr), row_ptr.size() - 1,
+      false,
       [=] __device__(size_t idx, size_t ridx) { d_output_row[idx] = ridx; });
 
   dh::safe_cuda(cudaDeviceSynchronize());
@@ -76,4 +77,12 @@ void TestLbs() {
     }
   }
 }
+
 TEST(cub_lbs, Test) { TestLbs(); }
+
+TEST(sumReduce, Test) {
+  thrust::device_vector<float> data(100, 1.0f);
+  dh::CubMemory temp;
+  auto sum = dh::sumReduction(temp, dh::raw(data), data.size());
+  ASSERT_NEAR(sum, 100.0f, 1e-5);
+}
