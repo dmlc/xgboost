@@ -39,7 +39,7 @@ TEST(Metric, AUCPR) {
               0.5f, 0.001f);
   EXPECT_NEAR(
       GetMetricEval(metric,
-                    {0.4f, 0.2f, 0.9f, 0.1f, 0.2f, 0.4f, 0.1f, 0.1f, 0.2f, 0.1},
+                    {0.4f, 0.2f, 0.9f, 0.1f, 0.2f, 0.4f, 0.1f, 0.1f, 0.2f, 0.1f},
                     {0, 0, 0, 0, 0, 1, 0, 0, 1, 1}),
       0.2908445f, 0.001f);
   EXPECT_NEAR(GetMetricEval(

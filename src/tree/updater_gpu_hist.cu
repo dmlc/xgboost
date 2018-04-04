@@ -217,9 +217,11 @@ struct CalcWeightTrainParam {
   float max_delta_step;
   float learning_rate;
   __host__ __device__ CalcWeightTrainParam(const TrainParam& p)
-    : min_child_weight(p.min_child_weight), reg_alpha(p.reg_alpha),
-      reg_lambda(p.reg_lambda), max_delta_step(p.max_delta_step),
-      learning_rate(p.learning_rate) {}
+      : min_child_weight(p.min_child_weight),
+        reg_alpha(p.reg_alpha),
+        reg_lambda(p.reg_lambda),
+        max_delta_step(p.max_delta_step),
+        learning_rate(p.learning_rate) {}
 };
 
 // Manage memory for a single GPU
@@ -502,10 +504,9 @@ struct DeviceShard {
   void UpdatePredictionCache(bst_float* out_preds_d) {
     dh::safe_cuda(cudaSetDevice(device_idx));
     if (!prediction_cache_initialised) {
-      dh::safe_cuda(cudaMemcpy
-                    (prediction_cache.data(), &out_preds_d[row_begin_idx],
-                     prediction_cache.size() * sizeof(bst_float),
-                     cudaMemcpyDefault));
+      dh::safe_cuda(cudaMemcpy(
+          prediction_cache.data(), &out_preds_d[row_begin_idx],
+          prediction_cache.size() * sizeof(bst_float), cudaMemcpyDefault));
     }
     prediction_cache_initialised = true;
 
@@ -518,18 +519,17 @@ struct DeviceShard {
     auto d_node_sum_gradients = node_sum_gradients_d.data();
     auto d_prediction_cache = prediction_cache.data();
 
-    dh::launch_n(device_idx, prediction_cache.size(),
-                 [=] __device__(int local_idx) {
-                   int pos = d_position[local_idx];
-                   bst_float weight = CalcWeight(param_d, d_node_sum_gradients[pos]);
-                   d_prediction_cache[d_ridx[local_idx]] +=
-                     weight * param_d.learning_rate;
-                 });
+    dh::launch_n(
+        device_idx, prediction_cache.size(), [=] __device__(int local_idx) {
+          int pos = d_position[local_idx];
+          bst_float weight = CalcWeight(param_d, d_node_sum_gradients[pos]);
+          d_prediction_cache[d_ridx[local_idx]] +=
+              weight * param_d.learning_rate;
+        });
 
-    dh::safe_cuda(cudaMemcpy
-                  (&out_preds_d[row_begin_idx], prediction_cache.data(),
-                   prediction_cache.size() * sizeof(bst_float),
-                   cudaMemcpyDefault));
+    dh::safe_cuda(cudaMemcpy(
+        &out_preds_d[row_begin_idx], prediction_cache.data(),
+        prediction_cache.size() * sizeof(bst_float), cudaMemcpyDefault));
   }
 };
 
@@ -748,11 +748,10 @@ class GPUHistMaker : public TreeUpdater {
 #pragma omp parallel
     {
       auto cpu_thread_id = omp_get_thread_num();
-      dh::safe_cuda(cudaSetDevice(shards[cpu_thread_id]->device_idx));
-      tmp_sums[cpu_thread_id] =
-          thrust::reduce(thrust::cuda::par(shards[cpu_thread_id]->temp_memory),
-                         shards[cpu_thread_id]->gpair.tbegin(),
-                         shards[cpu_thread_id]->gpair.tend());
+      auto& shard = shards[cpu_thread_id];
+      dh::safe_cuda(cudaSetDevice(shard->device_idx));
+      tmp_sums[cpu_thread_id] = dh::sumReduction(
+          shard->temp_memory, shard->gpair.data(), shard->gpair.size());
     }
     auto sum_gradient =
         std::accumulate(tmp_sums.begin(), tmp_sums.end(), bst_gpair_precise());
@@ -909,15 +908,15 @@ class GPUHistMaker : public TreeUpdater {
     omp_set_num_threads(nthread);
   }
 
-  bool UpdatePredictionCache
-  (const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) override {
+  bool UpdatePredictionCache(
+      const DMatrix* data, HostDeviceVector<bst_float>* p_out_preds) override {
     monitor.Start("UpdatePredictionCache", dList);
     if (shards.empty() || p_last_fmat_ == nullptr || p_last_fmat_ != data)
       return false;
 
-    bst_float *out_preds_d = p_out_preds->ptr_d(param.gpu_id);
+    bst_float* out_preds_d = p_out_preds->ptr_d(param.gpu_id);
 
-    #pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static, 1)
     for (int shard = 0; shard < shards.size(); ++shard) {
       shards[shard]->UpdatePredictionCache(out_preds_d);
     }
