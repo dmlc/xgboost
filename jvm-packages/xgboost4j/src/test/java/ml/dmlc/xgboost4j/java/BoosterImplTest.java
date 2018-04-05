@@ -176,8 +176,14 @@ public class BoosterImplTest {
 
     // Make sure we've stopped early.
     for (int w = 0; w < watches.size(); w++) {
-      for (int r = earlyStoppingRound + 1; r < round; r++) {
+      for (int r = earlyStoppingRound; r < round; r++) {
         TestCase.assertEquals(0.0f, metrics[w][r]);
+      }
+    }
+    // Make sure we've not stopped too early
+    for (int w = 0; w < watches.size(); w++) {
+      for (int r = 0; r < earlyStoppingRound; r++) {
+        TestCase.assertNotSame(0.0f, metrics[w][r]);
       }
     }
   }

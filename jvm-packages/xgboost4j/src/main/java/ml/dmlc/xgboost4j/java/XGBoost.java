@@ -197,13 +197,13 @@ public class XGBoost {
           metrics[i][iter] = metricsOut[i];
         }
 
-        boolean decreasing = true;
+        boolean decreasing = false;
         float[] criterion = metrics[metrics.length - 1];
         for (int shift = 0; shift < Math.min(iter, earlyStoppingRound) - 1; shift++) {
-          decreasing &= criterion[iter - shift] <= criterion[iter - shift - 1];
+          decreasing |= criterion[iter - shift] <= criterion[iter - shift - 1];
         }
 
-        if (!decreasing) {
+        if (!decreasing && earlyStoppingRound > 0) {
           Rabit.trackerPrint(String.format(
                   "early stopping after %d decreasing rounds", earlyStoppingRound));
           break;
