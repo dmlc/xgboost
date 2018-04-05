@@ -42,8 +42,8 @@ class TreeRefresher: public TreeUpdater {
     {
       int tid = omp_get_thread_num();
       int num_nodes = 0;
-      for (size_t i = 0; i < trees.size(); ++i) {
-        num_nodes += trees[i]->param.num_nodes;
+      for (auto tree : trees) {
+        num_nodes += tree->param.num_nodes;
       }
       stemp[tid].resize(num_nodes, TStats(param));
       std::fill(stemp[tid].begin(), stemp[tid].end(), TStats(param));
@@ -62,25 +62,25 @@ class TreeRefresher: public TreeUpdater {
       while (iter->Next()) {
         const RowBatch &batch = iter->Value();
         CHECK_LT(batch.size, std::numeric_limits<unsigned>::max());
-        const bst_omp_uint nbatch = static_cast<bst_omp_uint>(batch.size);
+        const auto nbatch = static_cast<bst_omp_uint>(batch.size);
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint i = 0; i < nbatch; ++i) {
           RowBatch::Inst inst = batch[i];
           const int tid = omp_get_thread_num();
-          const bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+          const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
           RegTree::FVec &feats = fvec_temp[tid];
           feats.Fill(inst);
           int offset = 0;
-          for (size_t j = 0; j < trees.size(); ++j) {
-            AddStats(*trees[j], feats, gpair_h, info, ridx,
+          for (auto tree : trees) {
+            AddStats(*tree, feats, gpair_h, info, ridx,
                      dmlc::BeginPtr(stemp[tid]) + offset);
-            offset += trees[j]->param.num_nodes;
+            offset += tree->param.num_nodes;
           }
           feats.Drop(inst);
         }
       }
       // aggregate the statistics
-      int num_nodes = static_cast<int>(stemp[0].size());
+      auto num_nodes = static_cast<int>(stemp[0].size());
       #pragma omp parallel for schedule(static)
       for (int nid = 0; nid < num_nodes; ++nid) {
         for (int tid = 1; tid < nthread; ++tid) {
@@ -97,11 +97,11 @@ class TreeRefresher: public TreeUpdater {
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
     int offset = 0;
-    for (size_t i = 0; i < trees.size(); ++i) {
-      for (int rid = 0; rid < trees[i]->param.num_roots; ++rid) {
-        this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, rid, trees[i]);
+    for (auto tree : trees) {
+      for (int rid = 0; rid < tree->param.num_roots; ++rid) {
+        this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, rid, tree);
       }
-      offset += trees[i]->param.num_nodes;
+      offset += tree->param.num_nodes;
     }
     // set learning rate back
     param.learning_rate = lr;
@@ -115,7 +115,7 @@ class TreeRefresher: public TreeUpdater {
                               const bst_uint ridx,
                               TStats *gstats) {
     // start from groups that belongs to current data
-    int pid = static_cast<int>(info.GetRoot(ridx));
+    auto pid = static_cast<int>(info.GetRoot(ridx));
     gstats[pid].Add(gpair, info, ridx);
     // tranverse tree
     while (!tree[pid].is_leaf()) {

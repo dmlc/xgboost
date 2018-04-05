@@ -5,6 +5,7 @@
  * \author Tianqi Chen
  */
 #include <xgboost/tree_updater.h>
+#include <memory>
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -35,9 +36,9 @@ class ColMaker: public TreeUpdater {
     param.learning_rate = lr / trees.size();
     TConstraint::Init(&param, dmat->info().num_col);
     // build tree
-    for (size_t i = 0; i < trees.size(); ++i) {
+    for (auto tree : trees) {
       Builder builder(param);
-      builder.Update(gpair->data_h(), dmat, trees[i]);
+      builder.Update(gpair->data_h(), dmat, tree);
     }
     param.learning_rate = lr;
   }
@@ -151,7 +152,7 @@ class ColMaker: public TreeUpdater {
       }
       {
         // initialize feature index
-        unsigned ncol = static_cast<unsigned>(fmat.info().num_col);
+        auto ncol = static_cast<unsigned>(fmat.info().num_col);
         for (unsigned i = 0; i < ncol; ++i) {
           if (fmat.GetColSize(i) != 0) {
             feat_index.push_back(i);
@@ -201,7 +202,7 @@ class ColMaker: public TreeUpdater {
       const RowSet &rowset = fmat.buffered_rowset();
       const MetaInfo& info = fmat.info();
       // setup position
-      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
+      const auto ndata = static_cast<bst_omp_uint>(rowset.size());
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
@@ -210,8 +211,7 @@ class ColMaker: public TreeUpdater {
         stemp[tid][position[ridx]].stats.Add(gpair, info, ridx);
       }
       // sum the per thread statistics together
-      for (size_t j = 0; j < qexpand.size(); ++j) {
-        const int nid = qexpand[j];
+      for (int nid : qexpand) {
         TStats stats(param);
         for (size_t tid = 0; tid < stemp.size(); ++tid) {
           stats.Add(stemp[tid][nid].stats);
@@ -220,8 +220,7 @@ class ColMaker: public TreeUpdater {
         snode[nid].stats = stats;
       }
       // setup constraints before calculating the weight
-      for (size_t j = 0; j < qexpand.size(); ++j) {
-        const int nid = qexpand[j];
+      for (int nid : qexpand) {
         if (tree[nid].is_root()) continue;
         const int pid = tree[nid].parent();
         constraints_[pid].SetChild(param, tree[pid].split_index(),
@@ -231,8 +230,7 @@ class ColMaker: public TreeUpdater {
                                    &constraints_[tree[pid].cright()]);
       }
       // calculating the weights
-      for (size_t j = 0; j < qexpand.size(); ++j) {
-        const int nid = qexpand[j];
+      for (int nid : qexpand) {
         snode[nid].root_gain = static_cast<float>(
             constraints_[nid].CalcGain(param, snode[nid].stats));
         snode[nid].weight = static_cast<float>(
@@ -243,8 +241,7 @@ class ColMaker: public TreeUpdater {
     inline void UpdateQueueExpand(const RegTree& tree, std::vector<int>* p_qexpand) {
       std::vector<int> &qexpand = *p_qexpand;
       std::vector<int> newnodes;
-      for (size_t i = 0; i < qexpand.size(); ++i) {
-        const int nid = qexpand[i];
+      for (int nid : qexpand) {
         if (!tree[ nid ].is_leaf()) {
           newnodes.push_back(tree[nid].cleft());
           newnodes.push_back(tree[nid].cright());
@@ -270,8 +267,8 @@ class ColMaker: public TreeUpdater {
         const int tid = omp_get_thread_num();
         std::vector<ThreadEntry> &temp = stemp[tid];
         // cleanup temp statistics
-        for (size_t j = 0; j < qexpand.size(); ++j) {
-          temp[qexpand[j]].stats.Clear();
+        for (int j : qexpand) {
+          temp[j].stats.Clear();
         }
         bst_uint step = (col.length + this->nthread - 1) / this->nthread;
         bst_uint end = std::min(col.length, step * (tid + 1));
@@ -288,7 +285,7 @@ class ColMaker: public TreeUpdater {
         }
       }
       // start collecting the partial sum statistics
-      bst_omp_uint nnode = static_cast<bst_omp_uint>(qexpand.size());
+      auto nnode = static_cast<bst_omp_uint>(qexpand.size());
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint j = 0; j < nnode; ++j) {
         const int nid = qexpand[j];
@@ -318,7 +315,7 @@ class ColMaker: public TreeUpdater {
             c.SetSubstract(snode[nid].stats, e.stats);
             if (c.sum_hess >= param.min_child_weight &&
                 e.stats.sum_hess >= param.min_child_weight) {
-              bst_float loss_chg = static_cast<bst_float>(
+              auto loss_chg = static_cast<bst_float>(
                   constraints_[nid].CalcSplitGain(
                       param, param.monotone_constraints[fid], e.stats, c) -
                   snode[nid].root_gain);
@@ -330,7 +327,7 @@ class ColMaker: public TreeUpdater {
             c.SetSubstract(snode[nid].stats, tmp);
             if (c.sum_hess >= param.min_child_weight &&
                 tmp.sum_hess >= param.min_child_weight) {
-              bst_float loss_chg = static_cast<bst_float>(
+              auto loss_chg = static_cast<bst_float>(
                   constraints_[nid].CalcSplitGain(
                       param, param.monotone_constraints[fid], tmp, c) -
                   snode[nid].root_gain);
@@ -344,7 +341,7 @@ class ColMaker: public TreeUpdater {
           c.SetSubstract(snode[nid].stats, tmp);
           if (c.sum_hess >= param.min_child_weight &&
               tmp.sum_hess >= param.min_child_weight) {
-            bst_float loss_chg = static_cast<bst_float>(
+            auto loss_chg = static_cast<bst_float>(
                 constraints_[nid].CalcSplitGain(
                     param, param.monotone_constraints[fid], tmp, c) -
                 snode[nid].root_gain);
@@ -377,7 +374,7 @@ class ColMaker: public TreeUpdater {
                 c.SetSubstract(snode[nid].stats, e.stats);
                 if (c.sum_hess >= param.min_child_weight &&
                     e.stats.sum_hess >= param.min_child_weight) {
-                  bst_float loss_chg = static_cast<bst_float>(
+                  auto loss_chg = static_cast<bst_float>(
                       constraints_[nid].CalcSplitGain(
                           param, param.monotone_constraints[fid], e.stats, c) -
                       snode[nid].root_gain);
@@ -390,7 +387,7 @@ class ColMaker: public TreeUpdater {
                 c.SetSubstract(snode[nid].stats, cright);
                 if (c.sum_hess >= param.min_child_weight &&
                     cright.sum_hess >= param.min_child_weight) {
-                  bst_float loss_chg = static_cast<bst_float>(
+                  auto loss_chg = static_cast<bst_float>(
                       constraints_[nid].CalcSplitGain(
                           param, param.monotone_constraints[fid], c, cright) -
                       snode[nid].root_gain);
@@ -450,8 +447,8 @@ class ColMaker: public TreeUpdater {
                                        std::vector<ThreadEntry> &temp) { // NOLINT(*)
       const std::vector<int> &qexpand = qexpand_;
       // clear all the temp statistics
-      for (size_t j = 0; j < qexpand.size(); ++j) {
-        temp[qexpand[j]].stats.Clear();
+      for (int j : qexpand) {
+        temp[j].stats.Clear();
       }
       // left statistics
       TStats c(param);
@@ -497,8 +494,7 @@ class ColMaker: public TreeUpdater {
                                 fid, c, temp);
       }
       // finish updating all statistics, check if it is possible to include all sum statistics
-      for (size_t i = 0; i < qexpand.size(); ++i) {
-        const int nid = qexpand[i];
+      for (int nid : qexpand) {
         ThreadEntry &e = temp[nid];
         c.SetSubstract(snode[nid].stats, e.stats);
         if (e.stats.sum_hess >= param.min_child_weight &&
@@ -537,8 +533,8 @@ class ColMaker: public TreeUpdater {
       }
       const std::vector<int> &qexpand = qexpand_;
       // clear all the temp statistics
-      for (size_t j = 0; j < qexpand.size(); ++j) {
-        temp[qexpand[j]].stats.Clear();
+      for (int j : qexpand) {
+        temp[j].stats.Clear();
       }
       // left statistics
       TStats c(param);
@@ -581,8 +577,7 @@ class ColMaker: public TreeUpdater {
         }
       }
       // finish updating all statistics, check if it is possible to include all sum statistics
-      for (size_t i = 0; i < qexpand.size(); ++i) {
-        const int nid = qexpand[i];
+      for (int nid : qexpand) {
         ThreadEntry &e = temp[nid];
         c.SetSubstract(snode[nid].stats, e.stats);
         if (e.stats.sum_hess >= param.min_child_weight &&
@@ -612,7 +607,7 @@ class ColMaker: public TreeUpdater {
                                 const DMatrix& fmat) {
       const MetaInfo& info = fmat.info();
       // start enumeration
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.size);
       #if defined(_OPENMP)
       const int batch_size = std::max(static_cast<int>(nsize / this->nthread / 32), 1);
       #endif
@@ -665,8 +660,7 @@ class ColMaker: public TreeUpdater {
       // after this each thread's stemp will get the best candidates, aggregate results
       this->SyncBestSolution(qexpand);
       // get the best result, we can synchronize the solution
-      for (size_t i = 0; i < qexpand.size(); ++i) {
-        const int nid = qexpand[i];
+      for (int nid : qexpand) {
         NodeEntry &e = snode[nid];
         // now we know the solution in snode[nid], set split
         if (e.best.loss_chg > rt_eps) {
@@ -691,7 +685,7 @@ class ColMaker: public TreeUpdater {
       // set default direct nodes to default
       // for leaf nodes that are not fresh, mark then to ~nid,
       // so that they are ignored in future statistics collection
-      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
+      const auto ndata = static_cast<bst_omp_uint>(rowset.size());
 
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
@@ -717,8 +711,7 @@ class ColMaker: public TreeUpdater {
     // customization part
     // synchronize the best solution of each node
     virtual void SyncBestSolution(const std::vector<int> &qexpand) {
-      for (size_t i = 0; i < qexpand.size(); ++i) {
-        const int nid = qexpand[i];
+      for (int nid : qexpand) {
         NodeEntry &e = snode[nid];
         for (int tid = 0; tid < this->nthread; ++tid) {
           e.best.Update(stemp[tid][nid].best);
@@ -730,8 +723,7 @@ class ColMaker: public TreeUpdater {
                                        const RegTree &tree) {
       // step 1, classify the non-default data into right places
       std::vector<unsigned> fsplits;
-      for (size_t i = 0; i < qexpand.size(); ++i) {
-        const int nid = qexpand[i];
+      for (int nid : qexpand) {
         if (!tree[nid].is_leaf()) {
           fsplits.push_back(tree[nid].split_index());
         }
@@ -744,7 +736,7 @@ class ColMaker: public TreeUpdater {
         for (size_t i = 0; i < batch.size; ++i) {
           ColBatch::Inst col = batch[i];
           const bst_uint fid = batch.col_index[i];
-          const bst_omp_uint ndata = static_cast<bst_omp_uint>(col.length);
+          const auto ndata = static_cast<bst_omp_uint>(col.length);
           #pragma omp parallel for schedule(static)
           for (bst_omp_uint j = 0; j < ndata; ++j) {
             const bst_uint ridx = col[j].index;
@@ -827,7 +819,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
     }
     inline void UpdatePosition(DMatrix* p_fmat, const RegTree &tree) {
       const RowSet &rowset = p_fmat->buffered_rowset();
-      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
+      const auto ndata = static_cast<bst_omp_uint>(rowset.size());
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
@@ -849,8 +841,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
                                const RegTree &tree) override {
      // step 2, classify the non-default data into right places
       std::vector<unsigned> fsplits;
-      for (size_t i = 0; i < qexpand.size(); ++i) {
-        const int nid = qexpand[i];
+      for (int nid : qexpand) {
         if (!tree[nid].is_leaf()) {
           fsplits.push_back(tree[nid].split_index());
         }
@@ -863,7 +854,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
       }
       // bitmap is only word concurrent, set to bool first
       {
-        bst_omp_uint ndata = static_cast<bst_omp_uint>(this->position.size());
+        auto ndata = static_cast<bst_omp_uint>(this->position.size());
         boolmap.resize(ndata);
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint j = 0; j < ndata; ++j) {
@@ -876,7 +867,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
         for (size_t i = 0; i < batch.size; ++i) {
           ColBatch::Inst col = batch[i];
           const bst_uint fid = batch.col_index[i];
-          const bst_omp_uint ndata = static_cast<bst_omp_uint>(col.length);
+          const auto ndata = static_cast<bst_omp_uint>(col.length);
           #pragma omp parallel for schedule(static)
           for (bst_omp_uint j = 0; j < ndata; ++j) {
             const bst_uint ridx = col[j].index;
@@ -898,7 +889,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
       rabit::Allreduce<rabit::op::BitOR>(dmlc::BeginPtr(bitmap.data), bitmap.data.size());
       const RowSet &rowset = p_fmat->buffered_rowset();
       // get the new position
-      const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
+      const auto ndata = static_cast<bst_omp_uint>(rowset.size());
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < ndata; ++i) {
         const bst_uint ridx = rowset[i];
@@ -916,8 +907,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
     // synchronize the best solution of each node
     void SyncBestSolution(const std::vector<int> &qexpand) override {
       std::vector<SplitEntry> vec;
-      for (size_t i = 0; i < qexpand.size(); ++i) {
-        const int nid = qexpand[i];
+      for (int nid : qexpand) {
         for (int tid = 0; tid < this->nthread; ++tid) {
           this->snode[nid].best.Update(this->stemp[tid][nid].best);
         }
@@ -949,7 +939,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
 // simple switch to defer implementation.
 class TreeUpdaterSwitch : public TreeUpdater {
  public:
-  TreeUpdaterSwitch() : monotone_(false) {}
+  TreeUpdaterSwitch()  {}
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
     for (auto &kv : args) {
       if (kv.first == "monotone_constraints" && kv.second.length() != 0) {
@@ -976,7 +966,7 @@ class TreeUpdaterSwitch : public TreeUpdater {
 
  private:
   //  monotone constraints
-  bool monotone_;
+  bool monotone_{false};
   // internal implementation
   std::unique_ptr<TreeUpdater> inner_;
 };

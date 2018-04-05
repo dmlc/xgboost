@@ -11,8 +11,7 @@ if [ ${TASK} == "lint" ]; then
     (cat logclean.txt|grep warning) && exit -1
     (cat logclean.txt|grep error) && exit -1
 
-    # Do this on one file for now, gradually expand to rest of code base
-    clang-tidy src/learner.cc -warnings-as-errors -header-filter=xgboost -checks=modernize-* -- -Iinclude -Idmlc-core/include -Irabit/include -std=c++11 > logtidy.txt 
+    clang-tidy src/**/*.cc -header-filter="xgboost" -checks=modernize-* -- -Iinclude -Idmlc-core/include -Irabit/include -std=c++11 > logtidy.txt 
     echo "---------clang-tidy log----------"
     cat logtidy.txt
     echo "----------------------------"

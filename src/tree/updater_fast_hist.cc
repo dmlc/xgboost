@@ -7,6 +7,7 @@
 #include <dmlc/timer.h>
 #include <xgboost/tree_updater.h>
 #include <cmath>
+#include <memory>
 #include <vector>
 #include <algorithm>
 #include <queue>
@@ -81,9 +82,9 @@ class FastHistMaker: public TreeUpdater {
     if (!builder_) {
       builder_.reset(new Builder(param, fhparam, std::move(pruner_)));
     }
-    for (size_t i = 0; i < trees.size(); ++i) {
+    for (auto tree : trees) {
       builder_->Update
-        (gmat_, gmatb_, column_matrix_, gpair, dmat, trees[i]);
+        (gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
     }
     param.learning_rate = lr;
   }
@@ -413,7 +414,7 @@ class FastHistMaker: public TreeUpdater {
         // store a pointer to training data
         p_last_fmat_ = &fmat;
         // initialize feature index
-        bst_uint ncol = static_cast<bst_uint>(info.num_col);
+        auto ncol = static_cast<bst_uint>(info.num_col);
         feat_index.clear();
         if (data_layout_ == kDenseDataOneBased) {
           for (bst_uint i = 1; i < ncol; ++i) {
@@ -437,7 +438,7 @@ class FastHistMaker: public TreeUpdater {
            For dense data (with no missing value),
               the sum of gradient histogram is equal to snode[nid] */
         const std::vector<uint32_t>& row_ptr = gmat.cut->row_ptr;
-        const bst_uint nfeature = static_cast<bst_uint>(row_ptr.size() - 1);
+        const auto nfeature = static_cast<bst_uint>(row_ptr.size() - 1);
         uint32_t min_nbins_per_feature = 0;
         for (bst_uint i = 0; i < nfeature; ++i) {
           const uint32_t nbins = row_ptr[i + 1] - row_ptr[i];
@@ -471,8 +472,8 @@ class FastHistMaker: public TreeUpdater {
                               const std::vector<bst_uint>& feat_set) {
       // start enumeration
       const MetaInfo& info = fmat.info();
-      const bst_uint nfeature = static_cast<bst_uint>(feat_set.size());
-      const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread);
+      const auto nfeature = static_cast<bst_uint>(feat_set.size());
+      const auto nthread = static_cast<bst_omp_uint>(this->nthread);
       best_split_tloc_.resize(nthread);
       #pragma omp parallel for schedule(static) num_threads(nthread)
       for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
@@ -524,7 +525,7 @@ class FastHistMaker: public TreeUpdater {
       (*p_tree)[cright].set_leaf(0.0f, 0);
 
       /* 2. Categorize member rows */
-      const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread);
+      const auto nthread = static_cast<bst_omp_uint>(this->nthread);
       row_split_tloc_.resize(nthread);
       for (bst_omp_uint i = 0; i < nthread; ++i) {
         row_split_tloc_[i].left.clear();
@@ -710,7 +711,7 @@ class FastHistMaker: public TreeUpdater {
 
       #pragma omp parallel num_threads(nthread)
       {
-        const size_t tid = static_cast<size_t>(omp_get_thread_num());
+        const auto tid = static_cast<size_t>(omp_get_thread_num());
         const size_t ibegin = tid * nrows / nthread;
         const size_t iend = (tid + 1) * nrows / nthread;
         if (ibegin < iend) {  // ensure that [ibegin, iend) is nonempty range
@@ -846,7 +847,7 @@ class FastHistMaker: public TreeUpdater {
         static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
       // imin: index (offset) of the minimum value for feature fid
       //       need this for backward enumeration
-      const int32_t imin = static_cast<int32_t>(cut_ptr[fid]);
+      const auto imin = static_cast<int32_t>(cut_ptr[fid]);
       // ibegin, iend: smallest/largest cut points for feature fid
       // use int to allow for value -1
       int32_t ibegin, iend;
@@ -964,7 +965,7 @@ class FastHistMaker: public TreeUpdater {
 // simple switch to defer implementation.
 class FastHistTreeUpdaterSwitch : public TreeUpdater {
  public:
-  FastHistTreeUpdaterSwitch() : monotone_(false) {}
+  FastHistTreeUpdaterSwitch()  {}
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
     for (auto &kv : args) {
       if (kv.first == "monotone_constraints" && kv.second.length() != 0) {
@@ -991,7 +992,7 @@ class FastHistTreeUpdaterSwitch : public TreeUpdater {
 
  private:
   //  monotone constraints
-  bool monotone_;
+  bool monotone_{false};
   // internal implementation
   std::unique_ptr<TreeUpdater> inner_;
 };

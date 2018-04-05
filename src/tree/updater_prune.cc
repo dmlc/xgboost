@@ -35,8 +35,8 @@ class TreePruner: public TreeUpdater {
     // rescale learning rate according to size of trees
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
-    for (size_t i = 0; i < trees.size(); ++i) {
-      this->DoPrune(*trees[i]);
+    for (auto tree : trees) {
+      this->DoPrune(*tree);
     }
     param.learning_rate = lr;
     syncher->Update(gpair, p_fmat, trees);

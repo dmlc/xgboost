@@ -29,8 +29,8 @@ class HistMaker: public BaseMaker {
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
     // build tree
-    for (size_t i = 0; i < trees.size(); ++i) {
-      this->Update(gpair->data_h(), p_fmat, trees[i]);
+    for (auto tree : trees) {
+      this->Update(gpair->data_h(), p_fmat, tree);
     }
     param.learning_rate = lr;
   }
@@ -45,7 +45,7 @@ class HistMaker: public BaseMaker {
     /*! \brief size of histogram */
     unsigned size;
     // default constructor
-    HistUnit() {}
+    HistUnit() = default;
     // constructor
     HistUnit(const bst_float *cut, TStats *data, unsigned size)
         : cut(cut), data(data), size(size) {}
@@ -220,7 +220,7 @@ class HistMaker: public BaseMaker {
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand.size());
     std::vector<TStats> left_sum(qexpand.size());
-    bst_omp_uint nexpand = static_cast<bst_omp_uint>(qexpand.size());
+    auto nexpand = static_cast<bst_omp_uint>(qexpand.size());
     #pragma omp parallel for schedule(dynamic, 1)
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
       const int nid = qexpand[wid];
@@ -269,7 +269,7 @@ class HistMaker: public BaseMaker {
 template<typename TStats>
 class CQHistMaker: public HistMaker<TStats> {
  public:
-  CQHistMaker() : cache_dmatrix_(nullptr) {
+  CQHistMaker()  {
   }
 
  protected:
@@ -350,7 +350,7 @@ class CQHistMaker: public HistMaker<TStats> {
       while (iter->Next()) {
         const ColBatch &batch = iter->Value();
         // start enumeration
-        const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+        const auto nsize = static_cast<bst_omp_uint>(batch.size);
         #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           int offset = feat2workindex[batch.col_index[i]];
@@ -394,12 +394,12 @@ class CQHistMaker: public HistMaker<TStats> {
     feat2workindex.resize(tree.param.num_feature);
     std::fill(feat2workindex.begin(), feat2workindex.end(), -1);
     work_set.clear();
-    for (size_t i = 0; i < fset.size(); ++i) {
-      if (feat_helper.Type(fset[i]) == 2) {
-        feat2workindex[fset[i]] = static_cast<int>(work_set.size());
-        work_set.push_back(fset[i]);
+    for (unsigned int i : fset) {
+      if (feat_helper.Type(i) == 2) {
+        feat2workindex[i] = static_cast<int>(work_set.size());
+        work_set.push_back(i);
       } else {
-        feat2workindex[fset[i]] = -2;
+        feat2workindex[i] = -2;
       }
     }
     const size_t work_set_size = work_set.size();
@@ -434,7 +434,7 @@ class CQHistMaker: public HistMaker<TStats> {
         this->CorrectNonDefaultPositionByBatch(batch, fsplit_set, tree);
 
         // start enumeration
-        const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+        const auto nsize = static_cast<bst_omp_uint>(batch.size);
         #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           int offset = feat2workindex[batch.col_index[i]];
@@ -461,8 +461,8 @@ class CQHistMaker: public HistMaker<TStats> {
     this->wspace.rptr.clear();
     this->wspace.rptr.push_back(0);
     for (size_t wid = 0; wid < this->qexpand.size(); ++wid) {
-      for (size_t i = 0; i < fset.size(); ++i) {
-        int offset = feat2workindex[fset[i]];
+      for (unsigned int i : fset) {
+        int offset = feat2workindex[i];
         if (offset >= 0) {
           const WXQSketch::Summary &a = summary_array[wid * work_set_size + offset];
           for (size_t i = 1; i < a.size; ++i) {
@@ -481,7 +481,7 @@ class CQHistMaker: public HistMaker<TStats> {
           this->wspace.rptr.push_back(static_cast<unsigned>(this->wspace.cut.size()));
         } else {
           CHECK_EQ(offset, -2);
-          bst_float cpt = feat_helper.MaxValue(fset[i]);
+          bst_float cpt = feat_helper.MaxValue(i);
           this->wspace.cut.push_back(cpt + fabs(cpt) + rt_eps);
           this->wspace.rptr.push_back(static_cast<unsigned>(this->wspace.cut.size()));
         }
@@ -626,7 +626,7 @@ class CQHistMaker: public HistMaker<TStats> {
     }
   }
   // cached dmatrix where we initialized the feature on.
-  const DMatrix* cache_dmatrix_;
+  const DMatrix* cache_dmatrix_{nullptr};
   // feature helper
   BaseMaker::FMetaHelper feat_helper;
   // temp space to map feature id to working index
@@ -720,7 +720,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
         this->CorrectNonDefaultPositionByBatch(batch, this->fsplit_set, tree);
 
         // start enumeration
-        const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+        const auto nsize = static_cast<bst_omp_uint>(batch.size);
         #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           int offset = this->feat2workindex[batch.col_index[i]];

@@ -29,8 +29,8 @@ class SketchMaker: public BaseMaker {
     float lr = param.learning_rate;
     param.learning_rate = lr / trees.size();
     // build tree
-    for (size_t i = 0; i < trees.size(); ++i) {
-      this->Update(gpair->data_h(), p_fmat, trees[i]);
+    for (auto tree : trees) {
+      this->Update(gpair->data_h(), p_fmat, tree);
     }
     param.learning_rate = lr;
   }
@@ -67,8 +67,7 @@ class SketchMaker: public BaseMaker {
       }
     }
     // set left leaves
-    for (size_t i = 0; i < qexpand.size(); ++i) {
-      const int nid = qexpand[i];
+    for (int nid : qexpand) {
       (*p_tree)[nid].set_leaf(p_tree->stat(nid).base_weight * param.learning_rate);
     }
   }
@@ -84,13 +83,13 @@ class SketchMaker: public BaseMaker {
     double neg_grad;
     /*! \brief sum of hessian statistics */
     double sum_hess;
-    SKStats(void) {}
+    SKStats() = default;
     // constructor
     explicit SKStats(const TrainParam &param) {
       this->Clear();
     }
     /*! \brief clear the statistics */
-    inline void Clear(void) {
+    inline void Clear() {
       neg_grad = pos_grad = sum_hess = 0.0f;
     }
     // accumulate statistics
@@ -138,8 +137,8 @@ class SketchMaker: public BaseMaker {
                           const RegTree &tree) {
     const MetaInfo& info = p_fmat->info();
     sketchs.resize(this->qexpand.size() * tree.param.num_feature * 3);
-    for (size_t i = 0; i < sketchs.size(); ++i) {
-      sketchs[i].Init(info.num_row, this->param.sketch_eps);
+    for (auto & sketch : sketchs) {
+      sketch.Init(info.num_row, this->param.sketch_eps);
     }
     thread_sketch.resize(omp_get_max_threads());
     // number of rows in
@@ -150,7 +149,7 @@ class SketchMaker: public BaseMaker {
     while (iter->Next()) {
       const ColBatch &batch = iter->Value();
       // start enumeration
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(dynamic, 1)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         this->UpdateSketchCol(gpair, batch[i], tree,
@@ -185,8 +184,7 @@ class SketchMaker: public BaseMaker {
     // initialize sbuilder for use
     std::vector<SketchEntry> &sbuilder = *p_temp;
     sbuilder.resize(tree.param.num_nodes * 3);
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const unsigned nid = this->qexpand[i];
+    for (unsigned int nid : this->qexpand) {
       const unsigned wid = this->node2workindex[nid];
       for (int k = 0; k < 3; ++k) {
         sbuilder[3 * nid + k].sum_total = 0.0f;
@@ -208,8 +206,7 @@ class SketchMaker: public BaseMaker {
         }
       }
     } else {
-      for (size_t i = 0; i < this->qexpand.size(); ++i) {
-        const unsigned nid = this->qexpand[i];
+      for (unsigned int nid : this->qexpand) {
         sbuilder[3 * nid + 0].sum_total = static_cast<bst_float>(nstats[nid].pos_grad);
         sbuilder[3 * nid + 1].sum_total = static_cast<bst_float>(nstats[nid].neg_grad);
         sbuilder[3 * nid + 2].sum_total = static_cast<bst_float>(nstats[nid].sum_hess);
@@ -217,8 +214,7 @@ class SketchMaker: public BaseMaker {
     }
     // if only one value, no need to do second pass
     if (c[0].fvalue  == c[c.length-1].fvalue) {
-      for (size_t i = 0; i < this->qexpand.size(); ++i) {
-        const int nid = this->qexpand[i];
+      for (int nid : this->qexpand) {
         for (int k = 0; k < 3; ++k) {
           sbuilder[3 * nid + k].sketch->Push(c[0].fvalue,
                                              static_cast<bst_float>(
@@ -229,8 +225,7 @@ class SketchMaker: public BaseMaker {
     }
     // two pass scan
     unsigned max_size = param.max_sketch_size();
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const int nid = this->qexpand[i];
+    for (int nid : this->qexpand) {
       for (int k = 0; k < 3; ++k) {
         sbuilder[3 * nid + k].Init(max_size);
       }
@@ -249,14 +244,13 @@ class SketchMaker: public BaseMaker {
         sbuilder[3 * nid + 2].Push(c[j].fvalue, e.GetHess(), max_size);
       }
     }
-    for (size_t i = 0; i < this->qexpand.size(); ++i) {
-      const int nid = this->qexpand[i];
+    for (int nid : this->qexpand) {
       for (int k = 0; k < 3; ++k) {
         sbuilder[3 * nid + k].Finalize(max_size);
       }
     }
   }
-  inline void SyncNodeStats(void) {
+  inline void SyncNodeStats() {
     CHECK_NE(qexpand.size(), 0U);
     std::vector<SKStats> tmp(qexpand.size());
     for (size_t i = 0; i < qexpand.size(); ++i) {
@@ -274,7 +268,7 @@ class SketchMaker: public BaseMaker {
     const bst_uint num_feature = p_tree->param.num_feature;
     // get the best split condition for each node
     std::vector<SplitEntry> sol(qexpand.size());
-    bst_omp_uint nexpand = static_cast<bst_omp_uint>(qexpand.size());
+    auto nexpand = static_cast<bst_omp_uint>(qexpand.size());
     #pragma omp parallel for schedule(dynamic, 1)
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
       const int nid = qexpand[wid];

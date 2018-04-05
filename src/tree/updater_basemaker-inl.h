@@ -81,10 +81,10 @@ class BaseMaker: public TreeUpdater {
       std::vector<bst_uint> &findex = *p_findex;
       findex.clear();
       for (size_t i = 0; i < fminmax.size(); i += 2) {
-        const bst_uint fid = static_cast<bst_uint>(i / 2);
+        const auto fid = static_cast<bst_uint>(i / 2);
         if (this->Type(fid) != 0) findex.push_back(fid);
       }
-      unsigned n = static_cast<unsigned>(p * findex.size());
+      auto n = static_cast<unsigned>(p * findex.size());
       std::shuffle(findex.begin(), findex.end(), common::GlobalRandom());
       findex.resize(n);
       // sync the findex if it is subsample
@@ -164,8 +164,7 @@ class BaseMaker: public TreeUpdater {
   /*! \brief update queue expand add in new leaves */
   inline void UpdateQueueExpand(const RegTree &tree) {
     std::vector<int> newnodes;
-    for (size_t i = 0; i < qexpand.size(); ++i) {
-      const int nid = qexpand[i];
+    for (int nid : qexpand) {
       if (!tree[nid].is_leaf()) {
         newnodes.push_back(tree[nid].cleft());
         newnodes.push_back(tree[nid].cright());
@@ -215,7 +214,7 @@ class BaseMaker: public TreeUpdater {
     // set default direct nodes to default
     // for leaf nodes that are not fresh, mark then to ~nid,
     // so that they are ignored in future statistics collection
-    const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
+    const auto ndata = static_cast<bst_omp_uint>(rowset.size());
 
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
@@ -254,7 +253,7 @@ class BaseMaker: public TreeUpdater {
       auto it = std::lower_bound(sorted_split_set.begin(), sorted_split_set.end(), fid);
 
       if (it != sorted_split_set.end() && *it == fid) {
-        const bst_omp_uint ndata = static_cast<bst_omp_uint>(col.length);
+        const auto ndata = static_cast<bst_omp_uint>(col.length);
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint j = 0; j < ndata; ++j) {
           const bst_uint ridx = col[j].index;
@@ -287,8 +286,7 @@ class BaseMaker: public TreeUpdater {
     std::vector<unsigned>& fsplits = *out_split_set;
     fsplits.clear();
     // step 1, classify the non-default data into right places
-    for (size_t i = 0; i < nodes.size(); ++i) {
-      const int nid = nodes[i];
+    for (int nid : nodes) {
       if (!tree[nid].is_leaf()) {
         fsplits.push_back(tree[nid].split_index());
       }
@@ -314,7 +312,7 @@ class BaseMaker: public TreeUpdater {
       for (size_t i = 0; i < batch.size; ++i) {
         ColBatch::Inst col = batch[i];
         const bst_uint fid = batch.col_index[i];
-        const bst_omp_uint ndata = static_cast<bst_omp_uint>(col.length);
+        const auto ndata = static_cast<bst_omp_uint>(col.length);
         #pragma omp parallel for schedule(static)
         for (bst_omp_uint j = 0; j < ndata; ++j) {
           const bst_uint ridx = col[j].index;
@@ -347,14 +345,13 @@ class BaseMaker: public TreeUpdater {
     {
       const int tid = omp_get_thread_num();
       thread_temp[tid].resize(tree.param.num_nodes, TStats(param));
-      for (size_t i = 0; i < qexpand.size(); ++i) {
-        const unsigned nid = qexpand[i];
+      for (unsigned int nid : qexpand) {
         thread_temp[tid][nid].Clear();
       }
     }
     const RowSet &rowset = fmat.buffered_rowset();
     // setup position
-    const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
+    const auto ndata = static_cast<bst_omp_uint>(rowset.size());
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       const bst_uint ridx = rowset[i];
@@ -365,8 +362,7 @@ class BaseMaker: public TreeUpdater {
       }
     }
     // sum the per thread statistics together
-    for (size_t j = 0; j < qexpand.size(); ++j) {
-      const int nid = qexpand[j];
+    for (int nid : qexpand) {
       TStats &s = (*p_node_stats)[nid];
       s.Clear();
       for (size_t tid = 0; tid < thread_temp.size(); ++tid) {

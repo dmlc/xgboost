@@ -54,7 +54,7 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
           if (format == "json") {
             fo << "{ \"nodeid\": " << nid
                << ", \"depth\": " << depth
-               << ", \"split\": \"" << fmap.name(split_index) << "\""
+               << R"(, "split": ")" << fmap.name(split_index) << "\""
                << ", \"yes\": " << nyes
                << ", \"no\": " << tree[nid].cdefault();
           } else {
@@ -67,7 +67,7 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
           if (format == "json") {
             fo << "{ \"nodeid\": " << nid
                << ", \"depth\": " << depth
-               << ", \"split\": \"" << fmap.name(split_index) << "\""
+               << R"(, "split": ")" << fmap.name(split_index) << "\""
                << ", \"split_condition\": " << int(cond + 1.0)
                << ", \"yes\": " << tree[nid].cleft()
                << ", \"no\": " << tree[nid].cright()
@@ -86,7 +86,7 @@ void DumpRegTree(std::stringstream& fo,  // NOLINT(*)
           if (format == "json") {
             fo << "{ \"nodeid\": " << nid
                << ", \"depth\": " << depth
-               << ", \"split\": \"" << fmap.name(split_index) << "\""
+               << R"(, "split": ")" << fmap.name(split_index) << "\""
                << ", \"split_condition\": " << cond
                << ", \"yes\": " << tree[nid].cleft()
                << ", \"no\": " << tree[nid].cright()
