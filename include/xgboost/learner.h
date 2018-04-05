@@ -37,7 +37,7 @@ namespace xgboost {
 class Learner : public rabit::Serializable {
  public:
   /*! \brief virtual destructor */
-  virtual ~Learner() {}
+  ~Learner() override = default;
   /*!
    * \brief set configuration from pair iterators.
    * \param begin The beginning iterator.
@@ -62,12 +62,12 @@ class Learner : public rabit::Serializable {
    * \brief load model from stream
    * \param fi input stream.
    */
-  virtual void Load(dmlc::Stream* fi) = 0;
+  void Load(dmlc::Stream* fi) override = 0;
   /*!
    * \brief save model to stream.
    * \param fo output stream
    */
-  virtual void Save(dmlc::Stream* fo) const = 0;
+  void Save(dmlc::Stream* fo) const override = 0;
   /*!
    * \brief update the model for one iteration
    *  With the specified objective function.

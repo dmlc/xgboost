@@ -81,12 +81,12 @@ namespace xgboost {
  * \brief unsigned integer type used in boost,
  *  used for feature index and row index.
  */
-typedef uint32_t bst_uint;
-typedef int32_t bst_int;
+using bst_uint = uint32_t;
+using bst_int = int32_t;
 /*! \brief long integers */
 typedef uint64_t bst_ulong;  // NOLINT(*)
 /*! \brief float type, used for storing statistics */
-typedef float bst_float;
+using bst_float = float;
 
 
 namespace detail {
@@ -104,7 +104,7 @@ class bst_gpair_internal {
   XGBOOST_DEVICE void SetHess(float h) { hess_ = h; }
 
  public:
-  typedef T value_t;
+  using value_t = T;
 
   XGBOOST_DEVICE bst_gpair_internal() : grad_(0), hess_(0) {}
 
@@ -190,23 +190,23 @@ inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetHess(float h) {
 }  // namespace detail
 
 /*! \brief gradient statistics pair usually needed in gradient boosting */
-typedef detail::bst_gpair_internal<float> bst_gpair;
+using bst_gpair = detail::bst_gpair_internal<float>;
 
 /*! \brief High precision gradient statistics pair */
-typedef detail::bst_gpair_internal<double> bst_gpair_precise;
+using bst_gpair_precise = detail::bst_gpair_internal<double>;
 
 /*! \brief High precision gradient statistics pair with integer backed
  * storage. Operators are associative where floating point versions are not
  * associative. */
-typedef detail::bst_gpair_internal<int64_t> bst_gpair_integer;
+using bst_gpair_integer = detail::bst_gpair_internal<int64_t>;
 
 /*! \brief small eps gap for minimum split decision. */
 const bst_float rt_eps = 1e-6f;
 
 /*! \brief define unsigned long for openmp loop */
-typedef dmlc::omp_ulong omp_ulong;
+using omp_ulong = dmlc::omp_ulong;
 /*! \brief define unsigned int for openmp loop */
-typedef dmlc::omp_uint bst_omp_uint;
+using bst_omp_uint = dmlc::omp_uint;
 
 /*!
  * \brief define compatible keywords in g++

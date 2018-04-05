@@ -27,7 +27,7 @@ namespace xgboost {
 class GradientBooster {
  public:
   /*! \brief virtual destructor */
-  virtual ~GradientBooster() {}
+  virtual ~GradientBooster() = default;
   /*!
    * \brief set configuration from pair iterators.
    * \param begin The beginning iterator.

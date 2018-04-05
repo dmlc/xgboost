@@ -32,11 +32,11 @@ enum DataType {
  */
 struct MetaInfo {
   /*! \brief number of rows in the data */
-  uint64_t num_row;
+  uint64_t num_row{0};
   /*! \brief number of columns in the data */
-  uint64_t num_col;
+  uint64_t num_col{0};
   /*! \brief number of nonzero entries in the data */
-  uint64_t num_nonzero;
+  uint64_t num_nonzero{0};
   /*! \brief label of each instance */
   std::vector<bst_float> labels;
   /*!
@@ -60,7 +60,7 @@ struct MetaInfo {
   /*! \brief version flag, used to check version of this info */
   static const int kVersion = 1;
   /*! \brief default constructor */
-  MetaInfo() : num_row(0), num_col(0), num_nonzero(0) {}
+  MetaInfo()  = default;
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -125,7 +125,7 @@ struct SparseBatch {
     /*! \brief feature value */
     bst_float fvalue;
     /*! \brief default constructor */
-    Entry() {}
+    Entry() = default;
     /*!
      * \brief constructor with index and value
      * \param index The feature or row index.
@@ -141,11 +141,11 @@ struct SparseBatch {
   /*! \brief an instance of sparse vector in the batch */
   struct Inst {
     /*! \brief pointer to the elements*/
-    const Entry *data;
+    const Entry *data{nullptr};
     /*! \brief length of the instance */
-    bst_uint length;
+    bst_uint length{0};
     /*! \brief constructor */
-    Inst() : data(0), length(0) {}
+    Inst()  = default;
     Inst(const Entry *data, bst_uint length) : data(data), length(length) {}
     /*! \brief get i-th pair in the sparse vector*/
     inline const Entry& operator[](size_t i) const {
@@ -167,7 +167,7 @@ struct RowBatch : public SparseBatch {
   const Entry *data_ptr;
   /*! \brief get i-th row from the batch */
   inline Inst operator[](size_t i) const {
-    return Inst(data_ptr + ind_ptr[i], static_cast<bst_uint>(ind_ptr[i + 1] - ind_ptr[i]));
+    return {data_ptr + ind_ptr[i], static_cast<bst_uint>(ind_ptr[i + 1] - ind_ptr[i])};
   }
 };
 
@@ -228,11 +228,11 @@ struct RowSet {
    */
   inline bool Load(dmlc::Stream* fi);
   /*! \brief constructor */
-  RowSet() : size_(0) {}
+  RowSet()  = default;
 
  private:
   /*! \brief The internal data structure of size */
-  uint64_t size_;
+  uint64_t size_{0};
   /*! \brief The internal data structure of row set if not all*/
   std::vector<bst_uint> rows_;
 };
@@ -250,7 +250,7 @@ struct RowSet {
 class DMatrix {
  public:
   /*! \brief default constructor */
-  DMatrix() : cache_learner_ptr_(nullptr) {}
+  DMatrix()  = default;
   /*! \brief meta information of the dataset */
   virtual MetaInfo& info() = 0;
   /*! \brief meta information of the dataset */
@@ -293,7 +293,7 @@ class DMatrix {
   /*! \return reference of buffered rowset, in column access */
   virtual const RowSet& buffered_rowset() const = 0;
   /*! \brief virtual destructor */
-  virtual ~DMatrix() {}
+  virtual ~DMatrix() = default;
   /*!
    * \brief Save DMatrix to local file.
    *  The saved file only works for non-sharded dataset(single machine training).
@@ -343,7 +343,7 @@ class DMatrix {
   // allow learner class to access this field.
   friend class LearnerImpl;
   /*! \brief public field to back ref cached matrix. */
-  LearnerImpl* cache_learner_ptr_;
+  LearnerImpl* cache_learner_ptr_{nullptr};
 };
 
 // implementation of inline functions

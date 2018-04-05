@@ -23,7 +23,7 @@ namespace xgboost {
 class ObjFunction {
  public:
   /*! \brief virtual destructor */
-  virtual ~ObjFunction() {}
+  virtual ~ObjFunction() = default;
   /*!
    * \brief set configuration from pair iterators.
    * \param begin The beginning iterator.

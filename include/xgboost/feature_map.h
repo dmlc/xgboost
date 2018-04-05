@@ -45,7 +45,7 @@ class FeatureMap {
    */
   inline void PushBack(int fid, const char *fname, const char *ftype) {
     CHECK_EQ(fid, static_cast<int>(names_.size()));
-    names_.push_back(std::string(fname));
+    names_.emplace_back(fname);
     types_.push_back(GetType(ftype));
   }
   /*! \brief clear the feature map */
