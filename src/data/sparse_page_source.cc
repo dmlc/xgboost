@@ -89,12 +89,12 @@ bool SparsePageSource::CacheExist(const std::string& cache_info) {
   {
     std::string name_info = cache_shards[0];
     std::unique_ptr<dmlc::Stream> finfo(dmlc::Stream::Create(name_info.c_str(), "r", true));
-    if (finfo.get() == nullptr) return false;
+    if (finfo == nullptr) return false;
   }
   for (const std::string& prefix : cache_shards) {
     std::string name_row = prefix + ".row.page";
     std::unique_ptr<dmlc::Stream> frow(dmlc::Stream::Create(name_row.c_str(), "r", true));
-    if (frow.get() == nullptr) return false;
+    if (frow == nullptr) return false;
   }
   return true;
 }

@@ -587,7 +587,7 @@ class FastHistMaker: public TreeUpdater {
         for (int k = 0; k < K; ++k) {
           rbin[k] = column.index[rid[k]];
         }
-        for (int k = 0; k < K; ++k) {
+        for (int k = 0; k < K; ++k) {                      // NOLINT
           if (rbin[k] == std::numeric_limits<T>::max()) {  // missing value
             if (default_left) {
               left.push_back(rid[k]);
@@ -949,9 +949,9 @@ class FastHistMaker: public TreeUpdater {
     // constraint value
     std::vector<TConstraint> constraints_;
 
-    typedef std::priority_queue<ExpandEntry,
-                            std::vector<ExpandEntry>,
-                            std::function<bool(ExpandEntry, ExpandEntry)>> ExpandQueue;
+    using ExpandQueue =
+        std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
+                            std::function<bool(ExpandEntry, ExpandEntry)>>;
     std::unique_ptr<ExpandQueue> qexpand_;
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
@@ -972,7 +972,7 @@ class FastHistTreeUpdaterSwitch : public TreeUpdater {
         monotone_ = true;
       }
     }
-    if (inner_.get() == nullptr) {
+    if (inner_ == nullptr) {
       if (monotone_) {
         inner_.reset(new FastHistMaker<GradStats, ValueConstraint>());
       } else {

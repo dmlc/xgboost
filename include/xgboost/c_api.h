@@ -30,16 +30,16 @@ typedef uint64_t bst_ulong;  // NOLINT(*)
 
 
 /*! \brief handle to DMatrix */
-using DMatrixHandle = void *;
+typedef void *DMatrixHandle;  // NOLINT(*)
 /*! \brief handle to Booster */
-using BoosterHandle = void *;
+typedef void *BoosterHandle;  // NOLINT(*)
 /*! \brief handle to a data iterator */
-using DataIterHandle = void *;
+typedef void *DataIterHandle;  // NOLINT(*)
 /*! \brief handle to a internal data holder. */
-using DataHolderHandle = void *;
+typedef void *DataHolderHandle;  // NOLINT(*)
 
 /*! \brief Mini batch used in XGBoost Data Iteration */
-typedef struct {
+typedef struct {  // NOLINT(*)
   /*! \brief number of rows in the minibatch */
   size_t size;
   /*! \brief row pointer to the rows in the data */
@@ -66,7 +66,8 @@ typedef struct {
  * \param handle The handle to the callback.
  * \param batch The data content to be set.
  */
-XGB_EXTERN_C using XGBCallbackSetData = int (DataHolderHandle, XGBoostBatchCSR);
+XGB_EXTERN_C typedef int XGBCallbackSetData(  // NOLINT(*)
+    DataHolderHandle handle, XGBoostBatchCSR batch);
 
 /*!
  * \brief The data reading callback function.
@@ -79,8 +80,9 @@ XGB_EXTERN_C using XGBCallbackSetData = int (DataHolderHandle, XGBoostBatchCSR);
  * \param set_function_handle The handle to be passed to set function.
  * \return 0 if we are reaching the end and batch is not returned.
  */
-XGB_EXTERN_C using XGBCallbackDataIterNext =
-    int(DataIterHandle, XGBCallbackSetData *, DataHolderHandle);  // NOLINT
+XGB_EXTERN_C typedef int XGBCallbackDataIterNext(  // NOLINT(*)
+    DataIterHandle data_handle, XGBCallbackSetData *set_function,
+    DataHolderHandle set_function_handle);
 
 /*!
  * \brief get string message of the last error

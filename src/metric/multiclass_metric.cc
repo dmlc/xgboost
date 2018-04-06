@@ -39,7 +39,7 @@ struct EvalMClassBase : public Metric {
       auto label =  static_cast<int>(info.labels[i]);
       if (label >= 0 && label < static_cast<int>(nclass)) {
         sum += Derived::EvalRow(label,
-                                dmlc::BeginPtr(preds) + i * nclass,
+                                preds.data() + i * nclass,
                                 nclass) * wt;
         wsum += wt;
       } else {

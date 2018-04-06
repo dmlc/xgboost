@@ -11,14 +11,16 @@ if [ ${TASK} == "lint" ]; then
     (cat logclean.txt|grep warning) && exit -1
     (cat logclean.txt|grep error) && exit -1
 
+    checks='modernize-*,-modernize-raw-string-literal,google-*,-google-default-arguments,-clang-diagnostic-#pragma-messages' 
+    header_filter='(xgboost\/src|xgboost\/include)'
     for filename in $(find src -name '*.cc'); do
-	clang-tidy $filename -header-filter="xgboost"  -checks=modernize-*,-modernize-make-* -- -Iinclude -Idmlc-core/include -Irabit/include -std=c++11 >> logtidy.txt
+	    clang-tidy $filename -header-filter=$header_filter -checks=$checks -- -Iinclude -Idmlc-core/include -Irabit/include -std=c++11 >> logtidy.txt
     done
     echo "---------clang-tidy log----------"
     cat logtidy.txt
     echo "----------------------------"
-    (cat logtidy.txt|grep warning) && exit -1
-    (cat logclean.txt|grep error) && exit -1
+    (cat logtidy.txt|grep warning|grep -v dmlc-core) && exit -1
+    (cat logtidy.txt|grep error|grep -v dmlc-core) && exit -1
     exit 0
 fi
 

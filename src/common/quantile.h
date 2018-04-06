@@ -334,7 +334,7 @@ struct WQSummary {
 template<typename DType, typename RType>
 struct WXQSummary : public WQSummary<DType, RType> {
   // redefine entry type
-  typedef typename WQSummary<DType, RType>::Entry Entry;
+  using Entry = typename WQSummary<DType, RType>::Entry;
   // constructor
   WXQSummary(Entry *data, size_t size)
       : WQSummary<DType, RType>(data, size) {}
@@ -448,7 +448,7 @@ struct GKSummary {
     /*! \brief the value of data */
     DType value;
     // constructor
-    Entry() {}
+    Entry() = default;
     // constructor
     Entry(RType rmin, RType rmax, DType value)
         : rmin(rmin), rmax(rmax), value(value) {}

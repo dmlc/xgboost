@@ -642,11 +642,10 @@ inline void RegTree::CalculateContributionsApprox(const RegTree::FVec& feat, uns
                                                   bst_float *out_contribs) const {
   CHECK_GT(this->node_mean_values.size(), 0U);
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
-  bst_float node_value;
-  unsigned split_index;
+  unsigned split_index = 0;
   auto pid = static_cast<int>(root_id);
   // update bias value
-  node_value = this->node_mean_values[pid];
+  bst_float node_value = this->node_mean_values[pid];
   out_contribs[feat.size()] += node_value;
   if ((*this)[pid].is_leaf()) {
     // nothing to do anymore

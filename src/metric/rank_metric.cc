@@ -19,7 +19,7 @@ DMLC_REGISTRY_FILE_TAG(rank_metric);
 struct EvalAMS : public Metric {
  public:
   explicit EvalAMS(const char* param) {
-    CHECK(param != nullptr)
+    CHECK(param != nullptr)  // NOLINT
         << "AMS must be in format ams@k";
     ratio_ = atof(param);
     std::ostringstream os;
@@ -394,7 +394,6 @@ struct EvalAucPR : public Metric {
         fp += info.GetWeight(rec[j].second) * (1.0f - info.labels[rec[j].second]);
         if ((j < rec.size() - 1 && rec[j].first != rec[j + 1].first) || j  == rec.size() - 1) {
           if (tp == prevtp) {
-            h = 1.0;
             a = 1.0;
             b = 0.0;
           } else {

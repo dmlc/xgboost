@@ -64,11 +64,11 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
 inline bool MetaTryLoadGroup(const std::string& fname,
                              std::vector<unsigned>* group) {
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
-  if (fi.get() == nullptr) return false;
+  if (fi == nullptr) return false;
   dmlc::istream is(fi.get());
   group->clear();
   group->push_back(0);
-  unsigned nline;
+  unsigned nline = 0;
   while (is >> nline) {
     group->push_back(group->back() + nline);
   }
@@ -79,7 +79,7 @@ inline bool MetaTryLoadGroup(const std::string& fname,
 inline bool MetaTryLoadFloatInfo(const std::string& fname,
                                  std::vector<bst_float>* data) {
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
-  if (fi.get() == nullptr) return false;
+  if (fi == nullptr) return false;
   dmlc::istream is(fi.get());
   data->clear();
   bst_float value;
@@ -93,16 +93,16 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
 #define DISPATCH_CONST_PTR(dtype, old_ptr, cast_ptr, proc)              \
   switch (dtype) {                                                      \
     case kFloat32: {                                                    \
-      const float* cast_ptr = reinterpret_cast<const float*>(old_ptr); proc; break; \
+      auto cast_ptr = reinterpret_cast<const float*>(old_ptr); proc; break; \
     }                                                                   \
     case kDouble: {                                                     \
-      const double* cast_ptr = reinterpret_cast<const double*>(old_ptr); proc; break; \
+      auto cast_ptr = reinterpret_cast<const double*>(old_ptr); proc; break; \
     }                                                                   \
     case kUInt32: {                                                     \
-      const uint32_t* cast_ptr = reinterpret_cast<const uint32_t*>(old_ptr); proc; break; \
+      auto cast_ptr = reinterpret_cast<const uint32_t*>(old_ptr); proc; break; \
     }                                                                   \
     case kUInt64: {                                                     \
-      const uint64_t* cast_ptr = reinterpret_cast<const uint64_t*>(old_ptr); proc; break; \
+      auto cast_ptr = reinterpret_cast<const uint64_t*>(old_ptr); proc; break; \
     }                                                                   \
     default: LOG(FATAL) << "Unknown data type" << dtype;                \
   }                                                                     \
@@ -163,7 +163,9 @@ DMatrix* DMatrix::Load(const std::string& uri,
              << "-" <<  rabit::GetWorldSize()
              << cache_shards[i].substr(pos, cache_shards[i].length());
         }
-        if (i + 1 != cache_shards.size()) os << ':';
+        if (i + 1 != cache_shards.size()) {
+          os << ':';
+        }
       }
       cache_file = os.str();
     }
@@ -187,7 +189,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
   if (file_format == "auto" && npart == 1) {
     int magic;
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
-    if (fi.get() != nullptr) {
+    if (fi != nullptr) {
       common::PeekableInStream is(fi.get());
       if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
           magic == data::SimpleCSRSource::kMagic) {

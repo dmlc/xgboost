@@ -220,10 +220,12 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
 // functions for L1 cost
 template <typename T1, typename T2>
 XGBOOST_DEVICE inline static T1 ThresholdL1(T1 w, T2 lambda) {
-  if (w > +lambda)
+  if (w > +lambda) {
     return w - lambda;
-  if (w < -lambda)
+}
+  if (w < -lambda) {
     return w + lambda;
+}
   return 0.0;
 }
 
@@ -240,8 +242,9 @@ XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p, T sum_grad,
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
-  if (sum_hess < p.min_child_weight)
+  if (sum_hess < p.min_child_weight) {
     return T(0.0);
+}
   if (p.max_delta_step == 0.0f) {
     if (p.reg_alpha == 0.0f) {
       return Sqr(sum_grad) / (sum_hess + p.reg_lambda);
@@ -276,8 +279,9 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
                                T sum_hess) {
-  if (sum_hess < p.min_child_weight)
+  if (sum_hess < p.min_child_weight) {
     return 0.0;
+}
   T dw;
   if (p.reg_alpha == 0.0f) {
     dw = -sum_grad / (sum_hess + p.reg_lambda);
@@ -285,10 +289,12 @@ XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
     dw = -ThresholdL1(sum_grad, p.reg_alpha) / (sum_hess + p.reg_lambda);
   }
   if (p.max_delta_step != 0.0f) {
-    if (dw > p.max_delta_step)
+    if (dw > p.max_delta_step) {
       dw = p.max_delta_step;
-    if (dw < -p.max_delta_step)
+}
+    if (dw < -p.max_delta_step) {
       dw = -p.max_delta_step;
+}
   }
   return dw;
 }
@@ -442,8 +448,9 @@ template <typename param_t>
     int c = param.monotone_constraints.at(split_index);
     *cleft = *this;
     *cright = *this;
-    if (c == 0)
+    if (c == 0) {
       return;
+}
     double wleft = CalcWeight(param, left);
     double wright = CalcWeight(param, right);
     double mid = (wleft + wright) / 2;
@@ -515,8 +522,9 @@ struct SplitEntry {
                      bst_float new_split_value, bool default_left) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
-      if (default_left)
+      if (default_left) {
         split_index |= (1U << 31);
+}
       this->sindex = split_index;
       this->split_value = new_split_value;
       return true;
@@ -543,13 +551,15 @@ namespace std {
 inline std::ostream &operator<<(std::ostream &os, const std::vector<int> &t) {
   os << '(';
   for (auto it = t.begin(); it != t.end(); ++it) {
-    if (it != t.begin())
+    if (it != t.begin()) {
       os << ',';
+}
     os << *it;
   }
   // python style tuple
-  if (t.size() == 1)
+  if (t.size() == 1) {
     os << ',';
+}
   os << ')';
   return os;
 }
@@ -566,8 +576,9 @@ inline std::istream &operator>>(std::istream &is, std::vector<int> &t) {
       return is;
     }
     is.get();
-    if (ch == '(')
+    if (ch == '(') {
       break;
+}
     if (!isspace(ch)) {
       is.setstate(std::ios::failbit);
       return is;
@@ -597,8 +608,9 @@ inline std::istream &operator>>(std::istream &is, std::vector<int> &t) {
         }
         break;
       }
-      if (ch == ')')
+      if (ch == ')') {
         break;
+}
     } else if (ch == ')') {
       break;
     } else {

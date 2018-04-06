@@ -255,10 +255,10 @@ class LearnerImpl : public Learner {
     cfg_["num_feature"] = common::ToString(mparam.num_feature);
     cfg_["num_class"] = common::ToString(mparam.num_class);
 
-    if (gbm_.get() != nullptr) {
+    if (gbm_ != nullptr) {
       gbm_->Configure(cfg_.begin(), cfg_.end());
     }
-    if (obj_.get() != nullptr) {
+    if (obj_ != nullptr) {
       obj_->Configure(cfg_.begin(), cfg_.end());
     }
   }
@@ -506,7 +506,7 @@ class LearnerImpl : public Learner {
                         "approximate algorithm";
       }
       cfg_["updater"] = "grow_histmaker,prune";
-      if (gbm_.get() != nullptr) {
+      if (gbm_ != nullptr) {
         gbm_->Configure(cfg_.begin(), cfg_.end());
       }
     }
@@ -514,7 +514,7 @@ class LearnerImpl : public Learner {
   }
 
   // return whether model is already initialized.
-  inline bool ModelInitialized() const { return gbm_.get() != nullptr; }
+  inline bool ModelInitialized() const { return gbm_ != nullptr; }
   // lazily initialize the model if it haven't yet been initialized.
   inline void LazyInitModel() {
     if (this->ModelInitialized()) return;
@@ -532,7 +532,7 @@ class LearnerImpl : public Learner {
     }
     // setup
     cfg_["num_feature"] = common::ToString(mparam.num_feature);
-    CHECK(obj_.get() == nullptr && gbm_.get() == nullptr);
+    CHECK(obj_ == nullptr && gbm_ == nullptr);
     obj_.reset(ObjFunction::Create(name_obj_));
     obj_->Configure(cfg_.begin(), cfg_.end());
     // reset the base score
@@ -549,7 +549,7 @@ class LearnerImpl : public Learner {
    */
   inline void PredictRaw(DMatrix* data, HostDeviceVector<bst_float>* out_preds,
                          unsigned ntree_limit = 0) const {
-    CHECK(gbm_.get() != nullptr)
+    CHECK(gbm_ != nullptr)
         << "Predict must happen after Load or InitModel";
     gbm_->PredictBatch(data, out_preds, ntree_limit);
   }

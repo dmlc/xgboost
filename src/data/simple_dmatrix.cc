@@ -134,7 +134,7 @@ void SimpleDMatrix::MakeOneBatch(const std::vector<bool>& enabled, float pkeep,
         for (bst_uint j = 0; j < inst.length; ++j) {
           if (enabled[inst[j].index]) {
             builder.Push(inst[j].index,
-                         SparseBatch::Entry((bst_uint)(batch.base_rowid+i),
+                         SparseBatch::Entry(static_cast<bst_uint>(batch.base_rowid+i),
                                             inst[j].fvalue), tid);
           }
         }

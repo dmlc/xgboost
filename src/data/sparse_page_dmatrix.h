@@ -42,7 +42,7 @@ class SparsePageDMatrix : public DMatrix {
   }
 
   bool HaveColAccess(bool sorted) const override {
-    return col_iter_.get() != nullptr && col_iter_->sorted == sorted;
+    return col_iter_ != nullptr && col_iter_->sorted == sorted;
   }
 
   const RowSet& buffered_rowset() const override {

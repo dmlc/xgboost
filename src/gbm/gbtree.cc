@@ -295,8 +295,9 @@ class GBTree : public GradientBooster {
       }
     }
     // update the trees
-    for (auto& up : updaters)
+    for (auto& up : updaters) {
       up->Update(gpair, p_fmat, new_trees);
+}
   }
 
   // commit new trees all at once

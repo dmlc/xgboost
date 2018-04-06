@@ -310,7 +310,7 @@ class CQHistMaker: public HistMaker<TStats> {
     }
   };
   // sketch type used for this
-  typedef common::WXQuantileSketch<bst_float, bst_float> WXQSketch;
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
   // initialize the work set of tree
   void InitWorkSet(DMatrix *p_fmat,
                    const RegTree &tree,
@@ -755,7 +755,7 @@ class GlobalProposalHistMaker: public CQHistMaker<TStats> {
 template<typename TStats>
 class QuantileHistMaker: public HistMaker<TStats> {
  protected:
-  typedef common::WXQuantileSketch<bst_float, bst_float> WXQSketch;
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
   void ResetPosAndPropose(const std::vector<bst_gpair> &gpair,
                           DMatrix *p_fmat,
                           const std::vector <bst_uint> &fset,

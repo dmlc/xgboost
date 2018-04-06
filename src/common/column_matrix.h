@@ -8,21 +8,27 @@
 #ifndef XGBOOST_COMMON_COLUMN_MATRIX_H_
 #define XGBOOST_COMMON_COLUMN_MATRIX_H_
 
-#define XGBOOST_TYPE_SWITCH(dtype, OP)        \
-switch (dtype) {                \
-  case xgboost::common::uint32 : {           \
-    typedef uint32_t DType;         \
-    OP; break;              \
-  }               \
-  case xgboost::common::uint16 : {           \
-    typedef uint16_t DType;         \
-    OP; break;              \
-  }               \
-  case xgboost::common::uint8 : {            \
-    typedef uint8_t DType;          \
-    OP; break;              \
-    default: LOG(FATAL) << "don't recognize type flag" << dtype;  \
-  }               \
+#define XGBOOST_TYPE_SWITCH(dtype, OP)                      \
+  \
+switch(dtype) {                                             \
+    case xgboost::common::uint32: {                         \
+      using DType = uint32_t;                               \
+      OP;                                                   \
+      break;                                                \
+    }                                                       \
+    case xgboost::common::uint16: {                         \
+      using DType = uint16_t;                               \
+      OP;                                                   \
+      break;                                                \
+    }                                                       \
+    case xgboost::common::uint8: {                          \
+      using DType = uint8_t;                                \
+      OP;                                                   \
+      break;                                                \
+      default:                                              \
+        LOG(FATAL) << "don't recognize type flag" << dtype; \
+    }                                                       \
+  \
 }
 
 #include <type_traits>
@@ -31,10 +37,11 @@ switch (dtype) {                \
 #include "hist_util.h"
 #include "../tree/fast_hist_param.h"
 
-using xgboost::tree::FastHistParam;
 
 namespace xgboost {
 namespace common {
+
+using tree::FastHistParam;
 
 /*! \brief indicator of data type used for storing bin id's in a column. */
 enum DataType {

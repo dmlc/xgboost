@@ -72,7 +72,7 @@ class SketchMaker: public BaseMaker {
     }
   }
   // define the sketch we want to use
-  typedef common::WXQuantileSketch<bst_float, bst_float> WXQSketch;
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
 
  private:
   // statistics needed in the gradient calculation

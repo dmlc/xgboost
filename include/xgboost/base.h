@@ -114,13 +114,12 @@ class bst_gpair_internal {
   }
 
   // Copy constructor if of same value type
-  XGBOOST_DEVICE bst_gpair_internal(const bst_gpair_internal<T> &g)
-      : grad_(g.grad_), hess_(g.hess_) {}
+  XGBOOST_DEVICE bst_gpair_internal(const bst_gpair_internal<T> &g) = default;
 
   // Copy constructor if different value type - use getters and setters to
   // perform conversion
   template <typename T2>
-  XGBOOST_DEVICE bst_gpair_internal(const bst_gpair_internal<T2> &g) {
+  XGBOOST_DEVICE explicit bst_gpair_internal(const bst_gpair_internal<T2> &g) {
     SetGrad(g.GetGrad());
     SetHess(g.GetHess());
   }
@@ -158,7 +157,7 @@ class bst_gpair_internal {
     return g;
   }
 
-  XGBOOST_DEVICE bst_gpair_internal(int value) {
+  XGBOOST_DEVICE explicit bst_gpair_internal(int value) {
     *this = bst_gpair_internal<T>(static_cast<float>(value),
                                   static_cast<float>(value));
   }

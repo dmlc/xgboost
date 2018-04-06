@@ -75,7 +75,7 @@ class FeatureMap {
    * \return The translated type.
    */
   inline static Type GetType(const char* tname) {
-    using namespace std;
+    using std::strcmp;
     if (!strcmp("i", tname)) return kIndicator;
     if (!strcmp("q", tname)) return kQuantitive;
     if (!strcmp("int", tname)) return kInteger;

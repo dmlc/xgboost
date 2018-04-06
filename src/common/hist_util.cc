@@ -17,7 +17,7 @@ namespace xgboost {
 namespace common {
 
 void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
-  typedef common::WXQuantileSketch<bst_float, bst_float> WXQSketch;
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
   const MetaInfo& info = p_fmat->info();
 
   // safe factor for better accuracy
@@ -105,7 +105,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 }
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat) {
-  CHECK(cut != nullptr);
+  CHECK(cut != nullptr);  // NOLINT
   dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
 
   const int nthread = omp_get_max_threads();
@@ -462,10 +462,13 @@ void GHistBuilder::BuildBlockHist(const std::vector<bst_gpair>& gpair,
                                   const std::vector<bst_uint>& feat_set,
                                   GHistRow hist) {
   const int K = 8;  // loop unrolling factor
-  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
   const size_t nblock = gmatb.GetNumBlock();
   const size_t nrows = row_indices.end - row_indices.begin;
   const size_t rest = nrows % K;
+
+#if defined(_OPENMP)
+  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
+#endif
 
   #pragma omp parallel for num_threads(nthread) schedule(guided)
   for (bst_omp_uint bid = 0; bid < nblock; ++bid) {
@@ -507,10 +510,14 @@ void GHistBuilder::BuildBlockHist(const std::vector<bst_gpair>& gpair,
 }
 
 void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
-  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
   const uint32_t nbins = static_cast<bst_omp_uint>(nbins_);
   const int K = 8;  // loop unrolling factor
   const uint32_t rest = nbins % K;
+
+#if defined(_OPENMP)
+  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
+#endif
+
   #pragma omp parallel for num_threads(nthread) schedule(static)
   for (bst_omp_uint bin_id = 0; bin_id < static_cast<bst_omp_uint>(nbins - rest); bin_id += K) {
     GHistEntry pb[K];

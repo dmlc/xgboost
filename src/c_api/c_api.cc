@@ -532,9 +532,8 @@ XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
     const int ridx = idxset[i];
     RowBatch::Inst inst = batch[ridx];
     CHECK_LT(static_cast<xgboost::bst_ulong>(ridx), batch.size);
-    ret.row_data_.resize(ret.row_data_.size() + inst.length);
-    std::memcpy(dmlc::BeginPtr(ret.row_data_) + ret.row_ptr_.back(), inst.data,
-                sizeof(RowBatch::Entry) * inst.length);
+    ret.row_data_.insert(ret.row_data_.end(), inst.data,
+                         inst.data + inst.length);
     ret.row_ptr_.push_back(ret.row_ptr_.back() + inst.length);
     ret.info.num_nonzero += inst.length;
 
@@ -619,7 +618,7 @@ XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
   } else {
     LOG(FATAL) << "Unknown float field name " << field;
   }
-  *out_len = static_cast<xgboost::bst_ulong>(vec->size());
+  *out_len = static_cast<xgboost::bst_ulong>(vec->size());  // NOLINT
   *out_dptr = dmlc::BeginPtr(*vec);
   API_END();
 }
@@ -633,11 +632,11 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
   const std::vector<unsigned>* vec = nullptr;
   if (!std::strcmp(field, "root_index")) {
     vec = &info.root_index;
+    *out_len = static_cast<xgboost::bst_ulong>(vec->size());
+    *out_dptr = dmlc::BeginPtr(*vec);
   } else {
     LOG(FATAL) << "Unknown uint field name " << field;
   }
-  *out_len = static_cast<xgboost::bst_ulong>(vec->size());
-  *out_dptr = dmlc::BeginPtr(*vec);
   API_END();
 }
 

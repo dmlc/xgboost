@@ -13,10 +13,10 @@
 #include "row_set.h"
 #include "../tree/fast_hist_param.h"
 
-using xgboost::tree::FastHistParam;
-
 namespace xgboost {
 namespace common {
+
+using tree::FastHistParam;
 
 /*! \brief sums of gradient statistics corresponding to a histogram bin */
 struct GHistEntry {

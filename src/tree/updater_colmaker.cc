@@ -454,8 +454,8 @@ class ColMaker: public TreeUpdater {
       TStats c(param);
       // local cache buffer for position and gradient pair
       const int kBuffer = 32;
-      int buf_position[kBuffer];
-      bst_gpair buf_gpair[kBuffer];
+      int buf_position[kBuffer] = {};
+      bst_gpair buf_gpair[kBuffer] = {};
       // aligned ending position
       const ColBatch::Entry *align_end;
       if (d_step > 0) {
@@ -946,7 +946,7 @@ class TreeUpdaterSwitch : public TreeUpdater {
         monotone_ = true;
       }
     }
-    if (inner_.get() == nullptr) {
+    if (inner_ == nullptr) {
       if (monotone_) {
         inner_.reset(new ColMaker<GradStats, ValueConstraint>());
       } else {
