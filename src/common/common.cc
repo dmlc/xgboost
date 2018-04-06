@@ -14,7 +14,7 @@ struct RandomThreadLocalEntry {
   GlobalRandomEngine engine;
 };
 
-typedef dmlc::ThreadLocalStore<RandomThreadLocalEntry> RandomThreadLocalStore;
+using RandomThreadLocalStore = dmlc::ThreadLocalStore<RandomThreadLocalEntry>;
 
 GlobalRandomEngine& GlobalRandom() {
   return RandomThreadLocalStore::Get()->engine;

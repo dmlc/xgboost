@@ -939,7 +939,7 @@ class DistColMaker : public ColMaker<TStats, TConstraint> {
 // simple switch to defer implementation.
 class TreeUpdaterSwitch : public TreeUpdater {
  public:
-  TreeUpdaterSwitch()  {}
+  TreeUpdaterSwitch()  = default;
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
     for (auto &kv : args) {
       if (kv.first == "monotone_constraints" && kv.second.length() != 0) {

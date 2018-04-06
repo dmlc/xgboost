@@ -35,9 +35,9 @@ class SimpleCSRSource : public DataSource {
   std::vector<RowBatch::Entry> row_data_;
   // functions
   /*! \brief default constructor */
-  SimpleCSRSource() : row_ptr_(1, 0), at_first_(true) {}
+  SimpleCSRSource() : row_ptr_(1, 0) {}
   /*! \brief destructor */
-  virtual ~SimpleCSRSource() {}
+  ~SimpleCSRSource() override = default;
   /*! \brief clear the data structure */
   void Clear();
   /*!
@@ -72,7 +72,7 @@ class SimpleCSRSource : public DataSource {
 
  private:
   /*! \brief internal variable, used to support iterator interface */
-  bool at_first_;
+  bool at_first_{true};
   /*! \brief */
   RowBatch batch_;
 };

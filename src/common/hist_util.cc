@@ -26,8 +26,8 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
 
   const int nthread = omp_get_max_threads();
 
-  unsigned nstep = static_cast<unsigned>((info.num_col + nthread - 1) / nthread);
-  unsigned ncol = static_cast<unsigned>(info.num_col);
+  auto nstep = static_cast<unsigned>((info.num_col + nthread - 1) / nthread);
+  auto ncol = static_cast<unsigned>(info.num_col);
   sketchs.resize(info.num_col);
   for (auto& s : sketchs) {
     s.Init(info.num_row, 1.0 / (max_num_bins * kFactor));
@@ -40,7 +40,7 @@ void HistCutMatrix::Init(DMatrix* p_fmat, uint32_t max_num_bins) {
     #pragma omp parallel num_threads(nthread)
     {
       CHECK_EQ(nthread, omp_get_num_threads());
-      unsigned tid = static_cast<unsigned>(omp_get_thread_num());
+      auto tid = static_cast<unsigned>(omp_get_thread_num());
       unsigned begin = std::min(nstep * tid, ncol);
       unsigned end = std::min(nstep * (tid + 1), ncol);
       for (size_t i = 0; i < batch.size; ++i) { // NOLINT(*)
@@ -126,7 +126,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat) {
     CHECK_GT(cut->cut.size(), 0U);
     CHECK_EQ(cut->row_ptr.back(), cut->cut.size());
 
-    omp_ulong bsize = static_cast<omp_ulong>(batch.size);
+    auto bsize = static_cast<omp_ulong>(batch.size);
     #pragma omp parallel for num_threads(nthread) schedule(static)
     for (omp_ulong i = 0; i < bsize; ++i) { // NOLINT(*)
       const int tid = omp_get_thread_num();
@@ -217,7 +217,7 @@ FindGroups_(const std::vector<unsigned>& feature_list,
   std::vector<std::vector<bool>> conflict_marks;
   std::vector<size_t> group_nnz;
   std::vector<size_t> group_conflict_cnt;
-  const size_t max_conflict_cnt
+  const auto max_conflict_cnt
     = static_cast<size_t>(param.max_conflict_rate * nrow);
 
   for (auto fid : feature_list) {
@@ -343,7 +343,7 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
 
   /* step 1: form feature groups */
   auto groups = FastFeatureGrouping(gmat, colmat, param);
-  const uint32_t nblock = static_cast<uint32_t>(groups.size());
+  const auto nblock = static_cast<uint32_t>(groups.size());
 
   /* step 2: build a new CSR matrix for each feature group */
   std::vector<uint32_t> bin2block(nbins);  // lookup table [bin id] => [block id]
@@ -406,7 +406,7 @@ void GHistBuilder::BuildHist(const std::vector<bst_gpair>& gpair,
   std::fill(data_.begin(), data_.end(), GHistEntry());
 
   const int K = 8;  // loop unrolling factor
-  const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
+  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
   const size_t nrows = row_indices.end - row_indices.begin;
   const size_t rest = nrows % K;
 
@@ -462,7 +462,7 @@ void GHistBuilder::BuildBlockHist(const std::vector<bst_gpair>& gpair,
                                   const std::vector<bst_uint>& feat_set,
                                   GHistRow hist) {
   const int K = 8;  // loop unrolling factor
-  const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
+  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
   const size_t nblock = gmatb.GetNumBlock();
   const size_t nrows = row_indices.end - row_indices.begin;
   const size_t rest = nrows % K;
@@ -507,7 +507,7 @@ void GHistBuilder::BuildBlockHist(const std::vector<bst_gpair>& gpair,
 }
 
 void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
-  const bst_omp_uint nthread = static_cast<bst_omp_uint>(this->nthread_);
+  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
   const uint32_t nbins = static_cast<bst_omp_uint>(nbins_);
   const int K = 8;  // loop unrolling factor
   const uint32_t rest = nbins % K;

@@ -35,7 +35,7 @@ struct WQSummary {
     /*! \brief the value of data */
     DType value;
     // constructor
-    Entry() {}
+    Entry() = default;
     // constructor
     Entry(RType rmin, RType rmax, RType wmin, DType value)
         : rmin(rmin), rmax(rmax), wmin(wmin), value(value) {}
@@ -65,7 +65,7 @@ struct WQSummary {
       // weight of instance
       RType weight;
       // default constructor
-      QEntry() {}
+      QEntry() = default;
       // constructor
       QEntry(DType value, RType weight)
           : value(value), weight(weight) {}
@@ -591,17 +591,17 @@ template<typename DType, typename RType, class TSummary>
 class QuantileSketchTemplate {
  public:
   /*! \brief type of summary type */
-  typedef TSummary Summary;
+  using Summary = TSummary;
   /*! \brief the entry type */
-  typedef typename Summary::Entry Entry;
+  using Entry = typename Summary::Entry;
   /*! \brief same as summary, but use STL to backup the space */
   struct SummaryContainer : public Summary {
     std::vector<Entry> space;
-    SummaryContainer(const SummaryContainer &src) : Summary(NULL, src.size) {
+    SummaryContainer(const SummaryContainer &src) : Summary(nullptr, src.size) {
       this->space = src.space;
       this->data = dmlc::BeginPtr(this->space);
     }
-    SummaryContainer() : Summary(NULL, 0) {
+    SummaryContainer() : Summary(nullptr, 0) {
     }
     /*! \brief reserve space for summary */
     inline void Reserve(size_t size) {
@@ -775,7 +775,7 @@ class QuantileSketchTemplate {
   inline void InitLevel(size_t nlevel) {
     if (level.size() >= nlevel) return;
     data.resize(limit_size * nlevel);
-    level.resize(nlevel, Summary(NULL, 0));
+    level.resize(nlevel, Summary(nullptr, 0));
     for (size_t l = 0; l < level.size(); ++l) {
       level[l].data = dmlc::BeginPtr(data) + l * limit_size;
     }

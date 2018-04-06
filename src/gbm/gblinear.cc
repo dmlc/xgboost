@@ -155,11 +155,11 @@ class GBLinear : public GradientBooster {
     while (iter->Next()) {
       const RowBatch& batch = iter->Value();
       // parallel over local batch
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.size);
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         const RowBatch::Inst &inst = batch[i];
-        size_t row_idx = static_cast<size_t>(batch.base_rowid + i);
+        auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
           bst_float *p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
@@ -209,7 +209,7 @@ class GBLinear : public GradientBooster {
       // output convention: nrow * k, where nrow is number of rows
       // k is number of group
       // parallel over local batch
-      const omp_ulong nsize = static_cast<omp_ulong>(batch.size);
+      const auto nsize = static_cast<omp_ulong>(batch.size);
       #pragma omp parallel for schedule(static)
       for (omp_ulong i = 0; i < nsize; ++i) {
         const size_t ridx = batch.base_rowid + i;

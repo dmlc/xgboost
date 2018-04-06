@@ -82,7 +82,7 @@ class ShotgunUpdater : public LinearUpdater {
     dmlc::DataIter<ColBatch> *iter = p_fmat->ColIterator();
     while (iter->Next()) {
       const ColBatch &batch = iter->Value();
-      const bst_omp_uint nfeat = static_cast<bst_omp_uint>(batch.size);
+      const auto nfeat = static_cast<bst_omp_uint>(batch.size);
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
         int ii = selector->NextFeature(i, *model, 0, *in_gpair, p_fmat,
@@ -100,7 +100,7 @@ class ShotgunUpdater : public LinearUpdater {
             sum_hess += p.GetHess() * v * v;
           }
           bst_float &w = (*model)[fid][gid];
-          bst_float dw = static_cast<bst_float>(
+          auto dw = static_cast<bst_float>(
               param.learning_rate *
               CoordinateDelta(sum_grad, sum_hess, w, param.reg_alpha_denorm,
                               param.reg_lambda_denorm));

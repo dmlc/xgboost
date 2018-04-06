@@ -141,8 +141,8 @@ DMLC_REGISTER_PARAMETER(LearnerTrainParam);
  */
 class LearnerImpl : public Learner {
  public:
-  explicit LearnerImpl(const std::vector<std::shared_ptr<DMatrix> >& cache)
-      : cache_(cache) {
+  explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> >  cache)
+      : cache_(std::move(cache)) {
     // boosted tree
     name_obj_ = "reg:linear";
     name_gbm_ = "gbtree";
@@ -340,7 +340,7 @@ class LearnerImpl : public Learner {
       fo->Write(attr);
     }
     if (name_obj_ == "count:poisson") {
-      std::map<std::string, std::string>::const_iterator it =
+      auto it =
           cfg_.find("max_delta_step");
       if (it != cfg_.end()) fo->Write(it->second);
     }
@@ -471,12 +471,12 @@ class LearnerImpl : public Learner {
 
     monitor.Start("LazyInitDMatrix");
     if (!p_train->HaveColAccess(true)) {
-      int ncol = static_cast<int>(p_train->info().num_col);
+      auto ncol = static_cast<int>(p_train->info().num_col);
       std::vector<bool> enabled(ncol, true);
       // set max row per batch to limited value
       // in distributed mode, use safe choice otherwise
       size_t max_row_perbatch = tparam.max_row_perbatch;
-      const size_t safe_max_row = static_cast<size_t>(32ul << 10ul);
+      const auto safe_max_row = static_cast<size_t>(32ul << 10ul);
 
       if (tparam.tree_method == 0 && p_train->info().num_row >= (4UL << 20UL)) {
         LOG(CONSOLE)
@@ -520,10 +520,10 @@ class LearnerImpl : public Learner {
     if (this->ModelInitialized()) return;
     // estimate feature bound
     unsigned num_feature = 0;
-    for (size_t i = 0; i < cache_.size(); ++i) {
-      CHECK(cache_[i] != nullptr);
+    for (auto & i : cache_) {
+      CHECK(i != nullptr);
       num_feature = std::max(num_feature,
-                             static_cast<unsigned>(cache_[i]->info().num_col));
+                             static_cast<unsigned>(i->info().num_col));
     }
     // run allreduce on num_feature to find the maximum value
     rabit::Allreduce<rabit::op::Max>(&num_feature, 1);

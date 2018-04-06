@@ -40,7 +40,7 @@ class GBLinearModel {
   // weight for each of feature, bias is the last one
   std::vector<bst_float> weight;
   // initialize the model parameter
-  inline void LazyInitModel(void) {
+  inline void LazyInitModel() {
     if (!weight.empty()) return;
     // bias is the last weight
     weight.resize((param.num_feature + 1) * param.num_output_group);

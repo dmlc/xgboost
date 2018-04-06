@@ -39,12 +39,12 @@ inline void Softmax(std::vector<float>* p_rec) {
     wmax = std::max(rec[i], wmax);
   }
   double wsum = 0.0f;
-  for (size_t i = 0; i < rec.size(); ++i) {
-    rec[i] = std::exp(rec[i] - wmax);
-    wsum += rec[i];
+  for (float & i : rec) {
+    i = std::exp(i - wmax);
+    wsum += i;
   }
-  for (size_t i = 0; i < rec.size(); ++i) {
-    rec[i] /= static_cast<float>(wsum);
+  for (float & i : rec) {
+    i /= static_cast<float>(wsum);
   }
 }
 

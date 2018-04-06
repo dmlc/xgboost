@@ -10,6 +10,7 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <dmlc/threadediter.h>
+#include <utility>
 #include <vector>
 #include <algorithm>
 #include <string>
@@ -22,8 +23,8 @@ namespace data {
 class SparsePageDMatrix : public DMatrix {
  public:
   explicit SparsePageDMatrix(std::unique_ptr<DataSource>&& source,
-                             const std::string& cache_info)
-      : source_(std::move(source)), cache_info_(cache_info) {
+                             std::string  cache_info)
+      : source_(std::move(source)), cache_info_(std::move(cache_info)) {
   }
 
   MetaInfo& info() override {
@@ -79,7 +80,7 @@ class SparsePageDMatrix : public DMatrix {
   class ColPageIter : public dmlc::DataIter<ColBatch> {
    public:
     explicit ColPageIter(std::vector<std::unique_ptr<dmlc::SeekStream> >&& files);
-    virtual ~ColPageIter();
+    ~ColPageIter() override;
     void BeforeFirst() override;
     const ColBatch &Value() const override {
       return out_;

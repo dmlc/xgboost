@@ -25,7 +25,7 @@ namespace xgboost {
 class TreeUpdater {
  public:
   /*! \brief virtual destructor */
-  virtual ~TreeUpdater() {}
+  virtual ~TreeUpdater() = default;
   /*!
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.

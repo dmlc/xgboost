@@ -965,7 +965,7 @@ class FastHistMaker: public TreeUpdater {
 // simple switch to defer implementation.
 class FastHistTreeUpdaterSwitch : public TreeUpdater {
  public:
-  FastHistTreeUpdaterSwitch()  {}
+  FastHistTreeUpdaterSwitch()  = default;
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
     for (auto &kv : args) {
       if (kv.first == "monotone_constraints" && kv.second.length() != 0) {

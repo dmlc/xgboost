@@ -36,7 +36,7 @@ namespace xgboost {
 
 class Predictor {
  public:
-  virtual ~Predictor() {}
+  virtual ~Predictor() = default;
 
   /**
    * \fn  virtual void Predictor::Init(const std::vector<std::pair<std::string,

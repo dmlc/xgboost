@@ -32,7 +32,7 @@ struct RegLossParam : public dmlc::Parameter<RegLossParam> {
 template <typename Loss>
 class RegLossObj : public ObjFunction {
  public:
-  RegLossObj() : labels_checked(false) {}
+  RegLossObj()  = default;
 
   void Configure(
       const std::vector<std::pair<std::string, std::string> > &args) override {
@@ -50,7 +50,7 @@ class RegLossObj : public ObjFunction {
     this->LazyCheckLabels(info.labels);
     out_gpair->resize(preds_h.size());
     auto& gpair = out_gpair->data_h();
-    const omp_ulong n = static_cast<omp_ulong>(preds_h.size());
+    const auto n = static_cast<omp_ulong>(preds_h.size());
     auto gpair_ptr = out_gpair->ptr_h();
     avx::Float8 scale(param_.scale_pos_weight);
 
@@ -86,7 +86,7 @@ class RegLossObj : public ObjFunction {
   }
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = io_preds->data_h();
-    const bst_omp_uint ndata = static_cast<bst_omp_uint>(preds.size());
+    const auto ndata = static_cast<bst_omp_uint>(preds.size());
 #pragma omp parallel for schedule(static)
     for (bst_omp_uint j = 0; j < ndata; ++j) {
       preds[j] = Loss::PredTransform(preds[j]);
@@ -105,7 +105,7 @@ class RegLossObj : public ObjFunction {
     labels_checked = true;
   }
   RegLossParam param_;
-  bool labels_checked;
+  bool labels_checked{false};
 };
 
 // register the objective functions
@@ -186,7 +186,7 @@ class PoissonRegression : public ObjFunction {
   bst_float ProbToMargin(bst_float base_score) const override {
     return std::log(base_score);
   }
-  const char* DefaultEvalMetric(void) const override {
+  const char* DefaultEvalMetric() const override {
     return "poisson-nloglik";
   }
 
@@ -277,7 +277,7 @@ class CoxRegression : public ObjFunction {
   bst_float ProbToMargin(bst_float base_score) const override {
     return std::log(base_score);
   }
-  const char* DefaultEvalMetric(void) const override {
+  const char* DefaultEvalMetric() const override {
     return "cox-nloglik";
   }
 };
@@ -334,7 +334,7 @@ class GammaRegression : public ObjFunction {
   bst_float ProbToMargin(bst_float base_score) const override {
     return std::log(base_score);
   }
-  const char* DefaultEvalMetric(void) const override {
+  const char* DefaultEvalMetric() const override {
     return "gamma-nloglik";
   }
 };
@@ -399,7 +399,7 @@ class TweedieRegression : public ObjFunction {
       preds[j] = std::exp(preds[j]);
     }
   }
-  const char* DefaultEvalMetric(void) const override {
+  const char* DefaultEvalMetric() const override {
     std::ostringstream os;
     os << "tweedie-nloglik@" << param_.tweedie_variance_power;
     std::string metric = os.str();

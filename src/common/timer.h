@@ -12,10 +12,10 @@
 namespace xgboost {
 namespace common {
 struct Timer {
-  typedef std::chrono::high_resolution_clock ClockT;
-  typedef std::chrono::high_resolution_clock::time_point TimePointT;
-  typedef std::chrono::high_resolution_clock::duration DurationT;
-  typedef std::chrono::duration<double> SecondsT;
+  using ClockT = std::chrono::high_resolution_clock;
+  using TimePointT = std::chrono::high_resolution_clock::time_point;
+  using DurationT = std::chrono::high_resolution_clock::duration;
+  using SecondsT = std::chrono::duration<double>;
 
   TimePointT start;
   DurationT elapsed;

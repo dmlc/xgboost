@@ -21,11 +21,11 @@ namespace common {
 /*! \brief sums of gradient statistics corresponding to a histogram bin */
 struct GHistEntry {
   /*! \brief sum of first-order gradient statistics */
-  double sum_grad;
+  double sum_grad{0};
   /*! \brief sum of second-order gradient statistics */
-  double sum_hess;
+  double sum_hess{0};
 
-  GHistEntry() : sum_grad(0), sum_hess(0) {}
+  GHistEntry()  = default;
 
   inline void Clear() {
     sum_grad = sum_hess = 0;
@@ -58,7 +58,7 @@ struct HistCutUnit {
   /*! \brief number of cutting point, containing the maximum point */
   uint32_t size;
   // default constructor
-  HistCutUnit() {}
+  HistCutUnit() = default;
   // constructor
   HistCutUnit(const bst_float* cut, uint32_t size)
       : cut(cut), size(size) {}
@@ -74,8 +74,8 @@ struct HistCutMatrix {
   std::vector<bst_float> cut;
   /*! \brief Get histogram bound for fid */
   inline HistCutUnit operator[](bst_uint fid) const {
-    return HistCutUnit(dmlc::BeginPtr(cut) + row_ptr[fid],
-                       row_ptr[fid + 1] - row_ptr[fid]);
+    return {dmlc::BeginPtr(cut) + row_ptr[fid],
+                       row_ptr[fid + 1] - row_ptr[fid]};
   }
   // create histogram cut matrix given statistics from data
   // using approximate quantile sketch approach
@@ -92,7 +92,7 @@ struct GHistIndexRow {
   const uint32_t* index;
   /*! \brief The size of the histogram */
   size_t size;
-  GHistIndexRow() {}
+  GHistIndexRow() = default;
   GHistIndexRow(const uint32_t* index, size_t size)
       : index(index), size(size) {}
 };
@@ -115,7 +115,7 @@ struct GHistIndexMatrix {
   void Init(DMatrix* p_fmat);
   // get i-th row
   inline GHistIndexRow operator[](size_t i) const {
-    return GHistIndexRow(&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]);
+    return {&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]};
   }
   inline void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut->row_ptr.size() - 1;
@@ -141,7 +141,7 @@ struct GHistIndexBlock {
 
   // get i-th row
   inline GHistIndexRow operator[](size_t i) const {
-    return GHistIndexRow(&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]);
+    return {&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]};
   }
 };
 
@@ -154,7 +154,7 @@ class GHistIndexBlockMatrix {
             const FastHistParam& param);
 
   inline GHistIndexBlock operator[](size_t i) const {
-    return GHistIndexBlock(blocks[i].row_ptr_begin, blocks[i].index_begin);
+    return {blocks[i].row_ptr_begin, blocks[i].index_begin};
   }
 
   inline size_t GetNumBlock() const {
@@ -186,7 +186,7 @@ struct GHistRow {
   /*! \brief number of entries */
   uint32_t size;
 
-  GHistRow() {}
+  GHistRow() = default;
   GHistRow(GHistEntry* begin, uint32_t size)
     : begin(begin), size(size) {}
 };
@@ -200,7 +200,7 @@ class HistCollection {
   inline GHistRow operator[](bst_uint nid) const {
     const uint32_t kMax = std::numeric_limits<uint32_t>::max();
     CHECK_NE(row_ptr_[nid], kMax);
-    return GHistRow(const_cast<GHistEntry*>(dmlc::BeginPtr(data_) + row_ptr_[nid]), nbins_);
+    return {const_cast<GHistEntry*>(dmlc::BeginPtr(data_) + row_ptr_[nid]), nbins_};
   }
 
   // have we computed a histogram for i-th node?

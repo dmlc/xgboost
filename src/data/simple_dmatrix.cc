@@ -20,7 +20,7 @@ bool SimpleDMatrix::ColBatchIter::Next() {
   data_ptr_ += 1;
   SparsePage* pcol = cpages_[data_ptr_ - 1].get();
   batch_.size = col_index_.size();
-  col_data_.resize(col_index_.size(), SparseBatch::Inst(NULL, 0));
+  col_data_.resize(col_index_.size(), SparseBatch::Inst(nullptr, 0));
   for (size_t i = 0; i < col_data_.size(); ++i) {
     const bst_uint ridx = col_index_[i];
     col_data_[i] = SparseBatch::Inst
@@ -45,8 +45,8 @@ dmlc::DataIter<ColBatch>* SimpleDMatrix::ColIterator() {
 dmlc::DataIter<ColBatch>* SimpleDMatrix::ColIterator(const std::vector<bst_uint>&fset) {
   size_t ncol = this->info().num_col;
   col_iter_.col_index_.resize(0);
-  for (size_t i = 0; i < fset.size(); ++i) {
-    if (fset[i] < ncol) col_iter_.col_index_.push_back(fset[i]);
+  for (unsigned int i : fset) {
+    if (i < ncol) col_iter_.col_index_.push_back(i);
   }
   col_iter_.BeforeFirst();
   return &col_iter_;
@@ -68,8 +68,8 @@ void SimpleDMatrix::InitColAccess(const std::vector<bool> &enabled,
   // setup col-size
   col_size_.resize(info().num_col);
   std::fill(col_size_.begin(), col_size_.end(), 0);
-  for (size_t i = 0; i < col_iter_.cpages_.size(); ++i) {
-    SparsePage *pcol = col_iter_.cpages_[i].get();
+  for (auto & cpage : col_iter_.cpages_) {
+    SparsePage *pcol = cpage.get();
     for (size_t j = 0; j < pcol->Size(); ++j) {
       col_size_[j] += pcol->offset[j + 1] - pcol->offset[j];
     }
@@ -99,7 +99,7 @@ void SimpleDMatrix::MakeOneBatch(const std::vector<bool>& enabled, float pkeep,
 
     long batch_size = static_cast<long>(batch.size); // NOLINT(*)
     for (long i = 0; i < batch_size; ++i) { // NOLINT(*)
-      bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+      auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
       if (pkeep == 1.0f || coin_flip(rnd)) {
         buffered_rowset_.push_back(ridx);
       } else {
@@ -109,7 +109,7 @@ void SimpleDMatrix::MakeOneBatch(const std::vector<bool>& enabled, float pkeep,
     #pragma omp parallel for schedule(static)
     for (long i = 0; i < batch_size; ++i) { // NOLINT(*)
       int tid = omp_get_thread_num();
-      bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+      auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
       if (bmap[ridx]) {
         RowBatch::Inst inst = batch[i];
         for (bst_uint j = 0; j < inst.length; ++j) {
@@ -128,7 +128,7 @@ void SimpleDMatrix::MakeOneBatch(const std::vector<bool>& enabled, float pkeep,
     #pragma omp parallel for schedule(static)
     for (long i = 0; i < static_cast<long>(batch.size); ++i) { // NOLINT(*)
       int tid = omp_get_thread_num();
-      bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+      auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
       if (bmap[ridx]) {
         RowBatch::Inst inst = batch[i];
         for (bst_uint j = 0; j < inst.length; ++j) {
@@ -146,7 +146,7 @@ void SimpleDMatrix::MakeOneBatch(const std::vector<bool>& enabled, float pkeep,
 
   if (sorted) {
     // sort columns
-    bst_omp_uint ncol = static_cast<bst_omp_uint>(pcol->Size());
+    auto ncol = static_cast<bst_omp_uint>(pcol->Size());
 #pragma omp parallel for schedule(dynamic, 1) num_threads(nthread)
     for (bst_omp_uint i = 0; i < ncol; ++i) {
       if (pcol->offset[i] < pcol->offset[i + 1]) {
@@ -174,7 +174,7 @@ void SimpleDMatrix::MakeManyBatch(const std::vector<bool>& enabled,
   while (iter->Next()) {
     const RowBatch &batch = iter->Value();
     for (size_t i = 0; i < batch.size; ++i) {
-      bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+      auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
       if (pkeep == 1.0f || coin_flip(rnd)) {
         buffered_rowset_.push_back(ridx);
         tmp.Push(batch[i]);
@@ -234,7 +234,7 @@ void SimpleDMatrix::MakeColPage(const RowBatch& batch,
   CHECK_EQ(pcol->Size(), info().num_col);
   // sort columns
   if (sorted) {
-    bst_omp_uint ncol = static_cast<bst_omp_uint>(pcol->Size());
+    auto ncol = static_cast<bst_omp_uint>(pcol->Size());
 #pragma omp parallel for schedule(dynamic, 1) num_threads(nthread)
     for (bst_omp_uint i = 0; i < ncol; ++i) {
       if (pcol->offset[i] < pcol->offset[i + 1]) {

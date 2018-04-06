@@ -40,7 +40,7 @@ class Booster {
         return x.first == name;
       });
     if (it == cfg_.end()) {
-      cfg_.push_back(std::make_pair(name, val));
+      cfg_.emplace_back(name, val);
     } else {
       (*it).second = val;
     }
@@ -197,7 +197,7 @@ struct XGBAPIThreadLocalEntry {
 };
 
 // define the threadlocal store.
-typedef dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry> XGBAPIThreadLocalStore;
+using XGBAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
 
 int XGDMatrixCreateFromFile(const char *fname,
                             int silent,
@@ -593,7 +593,7 @@ XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
                               const unsigned* group,
                               xgboost::bst_ulong len) {
   API_BEGIN();
-  std::shared_ptr<DMatrix> *pmat = static_cast<std::shared_ptr<DMatrix>*>(handle);
+  auto *pmat = static_cast<std::shared_ptr<DMatrix>*>(handle);
   MetaInfo& info = pmat->get()->info();
   info.group_ptr.resize(len + 1);
   info.group_ptr[0] = 0;
@@ -688,8 +688,8 @@ XGB_DLL int XGBoosterUpdateOneIter(BoosterHandle handle,
                                    int iter,
                                    DMatrixHandle dtrain) {
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
-  std::shared_ptr<DMatrix> *dtr =
+  auto* bst = static_cast<Booster*>(handle);
+  auto *dtr =
       static_cast<std::shared_ptr<DMatrix>*>(dtrain);
 
   bst->LazyInit();
@@ -704,8 +704,8 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
                                   xgboost::bst_ulong len) {
   HostDeviceVector<bst_gpair>& tmp_gpair = XGBAPIThreadLocalStore::Get()->tmp_gpair;
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
-  std::shared_ptr<DMatrix>* dtr =
+  auto* bst = static_cast<Booster*>(handle);
+  auto* dtr =
       static_cast<std::shared_ptr<DMatrix>*>(dtrain);
   tmp_gpair.resize(len);
   std::vector<bst_gpair>& tmp_gpair_h = tmp_gpair.data_h();
@@ -726,13 +726,13 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
                                  const char** out_str) {
   std::string& eval_str = XGBAPIThreadLocalStore::Get()->ret_str;
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
+  auto* bst = static_cast<Booster*>(handle);
   std::vector<DMatrix*> data_sets;
   std::vector<std::string> data_names;
 
   for (xgboost::bst_ulong i = 0; i < len; ++i) {
     data_sets.push_back(static_cast<std::shared_ptr<DMatrix>*>(dmats[i])->get());
-    data_names.push_back(std::string(evnames[i]));
+    data_names.emplace_back(evnames[i]);
   }
 
   bst->LazyInit();
@@ -750,7 +750,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
   HostDeviceVector<bst_float>& preds =
     XGBAPIThreadLocalStore::Get()->ret_vec_float;
   API_BEGIN();
-  Booster *bst = static_cast<Booster*>(handle);
+  auto *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
   bst->learner()->Predict(
       static_cast<std::shared_ptr<DMatrix>*>(dmat)->get(),
@@ -775,7 +775,7 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
 XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char* fname) {
   API_BEGIN();
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname, "w"));
-  Booster *bst = static_cast<Booster*>(handle);
+  auto *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
   bst->learner()->Save(fo.get());
   API_END();
@@ -798,7 +798,7 @@ XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle,
 
   API_BEGIN();
   common::MemoryBufferStream fo(&raw_str);
-  Booster *bst = static_cast<Booster*>(handle);
+  auto *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
   bst->learner()->Save(&fo);
   *out_dptr = dmlc::BeginPtr(raw_str);
@@ -815,7 +815,7 @@ inline void XGBoostDumpModelImpl(
     const char*** out_models) {
   std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
   std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
-  Booster *bst = static_cast<Booster*>(handle);
+  auto *bst = static_cast<Booster*>(handle);
   bst->LazyInit();
   str_vecs = bst->learner()->DumpModel(fmap, with_stats != 0, format);
   charp_vecs.resize(str_vecs.size());
@@ -881,7 +881,7 @@ XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
                      const char* key,
                      const char** out,
                      int* success) {
-  Booster* bst = static_cast<Booster*>(handle);
+  auto* bst = static_cast<Booster*>(handle);
   std::string& ret_str = XGBAPIThreadLocalStore::Get()->ret_str;
   API_BEGIN();
   if (bst->learner()->GetAttr(key, &ret_str)) {
@@ -897,7 +897,7 @@ XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
 XGB_DLL int XGBoosterSetAttr(BoosterHandle handle,
                      const char* key,
                      const char* value) {
-  Booster* bst = static_cast<Booster*>(handle);
+  auto* bst = static_cast<Booster*>(handle);
   API_BEGIN();
   if (value == nullptr) {
     bst->learner()->DelAttr(key);
@@ -912,7 +912,7 @@ XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
                      const char*** out) {
   std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
   std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
-  Booster *bst = static_cast<Booster*>(handle);
+  auto *bst = static_cast<Booster*>(handle);
   API_BEGIN();
   str_vecs = bst->learner()->GetAttrNames();
   charp_vecs.resize(str_vecs.size());
@@ -927,7 +927,7 @@ XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
 XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
                                  int* version) {
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
+  auto* bst = static_cast<Booster*>(handle);
   *version = rabit::LoadCheckPoint(bst->learner());
   if (*version != 0) {
     bst->initialized_ = true;
@@ -937,7 +937,7 @@ XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
 
 XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
   API_BEGIN();
-  Booster* bst = static_cast<Booster*>(handle);
+  auto* bst = static_cast<Booster*>(handle);
   if (bst->learner()->AllowLazyCheckPoint()) {
     rabit::LazyCheckPoint(bst->learner());
   } else {

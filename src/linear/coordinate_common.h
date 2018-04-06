@@ -69,7 +69,7 @@ inline std::pair<double, double> GetGradient(int group_idx, int num_group, int f
   while (iter->Next()) {
     const ColBatch &batch = iter->Value();
     ColBatch::Inst col = batch[0];
-    const bst_omp_uint ndata = static_cast<bst_omp_uint>(col.length);
+    const auto ndata = static_cast<bst_omp_uint>(col.length);
     for (bst_omp_uint j = 0; j < ndata; ++j) {
       const bst_float v = col[j].fvalue;
       auto &p = gpair[col[j].index * num_group + group_idx];
@@ -100,7 +100,7 @@ inline std::pair<double, double> GetGradientParallel(int group_idx, int num_grou
   while (iter->Next()) {
     const ColBatch &batch = iter->Value();
     ColBatch::Inst col = batch[0];
-    const bst_omp_uint ndata = static_cast<bst_omp_uint>(col.length);
+    const auto ndata = static_cast<bst_omp_uint>(col.length);
 #pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
     for (bst_omp_uint j = 0; j < ndata; ++j) {
       const bst_float v = col[j].fvalue;
@@ -128,7 +128,7 @@ inline std::pair<double, double> GetBiasGradientParallel(int group_idx, int num_
                                                          DMatrix *p_fmat) {
   const RowSet &rowset = p_fmat->buffered_rowset();
   double sum_grad = 0.0, sum_hess = 0.0;
-  const bst_omp_uint ndata = static_cast<bst_omp_uint>(rowset.size());
+  const auto ndata = static_cast<bst_omp_uint>(rowset.size());
 #pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
   for (bst_omp_uint i = 0; i < ndata; ++i) {
     auto &p = gpair[rowset[i] * num_group + group_idx];
@@ -159,7 +159,7 @@ inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
     const ColBatch &batch = iter->Value();
     ColBatch::Inst col = batch[0];
     // update grad value
-    const bst_omp_uint num_row = static_cast<bst_omp_uint>(col.length);
+    const auto num_row = static_cast<bst_omp_uint>(col.length);
 #pragma omp parallel for schedule(static)
     for (bst_omp_uint j = 0; j < num_row; ++j) {
       bst_gpair &p = (*in_gpair)[col[j].index * num_group + group_idx];
@@ -183,7 +183,7 @@ inline void UpdateBiasResidualParallel(int group_idx, int num_group, float dbias
                                        DMatrix *p_fmat) {
   if (dbias == 0.0f) return;
   const RowSet &rowset = p_fmat->buffered_rowset();
-  const bst_omp_uint ndata = static_cast<bst_omp_uint>(p_fmat->info().num_row);
+  const auto ndata = static_cast<bst_omp_uint>(p_fmat->info().num_row);
 #pragma omp parallel for schedule(static)
   for (bst_omp_uint i = 0; i < ndata; ++i) {
     bst_gpair &g = (*in_gpair)[rowset[i] * num_group + group_idx];
@@ -201,7 +201,7 @@ class FeatureSelector {
   /*! \brief factory method */
   static FeatureSelector *Create(int choice);
   /*! \brief virtual destructor */
-  virtual ~FeatureSelector() {}
+  virtual ~FeatureSelector() = default;
   /**
    * \brief Setting up the selector state prior to looping through features.
    *

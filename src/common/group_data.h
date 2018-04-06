@@ -65,7 +65,7 @@ struct ParallelGroupBuilder {
     trptr[key] += nelem;
   }
   /*! \brief step 3: initialize the necessary storage */
-  inline void InitStorage(void) {
+  inline void InitStorage() {
     // set rptr to correct size
     for (size_t tid = 0; tid < thread_rptr.size(); ++tid) {
       if (rptr.size() <= thread_rptr[tid].size()) {

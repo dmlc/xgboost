@@ -28,7 +28,7 @@ struct EvalEWiseBase : public Metric {
     CHECK_EQ(preds.size(), info.labels.size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
-    const omp_ulong ndata = static_cast<omp_ulong>(info.labels.size());
+    const auto ndata = static_cast<omp_ulong>(info.labels.size());
     double sum = 0.0, wsum = 0.0;
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) {

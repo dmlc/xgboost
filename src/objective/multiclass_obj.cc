@@ -46,7 +46,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     out_gpair->resize(preds_h.size());
     std::vector<bst_gpair>& gpair = out_gpair->data_h();
     const int nclass = param_.num_class;
-    const omp_ulong ndata = static_cast<omp_ulong>(preds_h.size() / nclass);
+    const auto ndata = static_cast<omp_ulong>(preds_h.size() / nclass);
 
     int label_error = 0;
     #pragma omp parallel
@@ -58,7 +58,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
           rec[k] = preds_h[i * nclass + k];
         }
         common::Softmax(&rec);
-        int label = static_cast<int>(info.labels[i]);
+        auto label = static_cast<int>(info.labels[i]);
         if (label < 0 || label >= nclass)  {
           label_error = label; label = 0;
         }
@@ -94,7 +94,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     std::vector<bst_float> &preds = io_preds->data_h();
     std::vector<bst_float> tmp;
     const int nclass = param_.num_class;
-    const omp_ulong ndata = static_cast<omp_ulong>(preds.size() / nclass);
+    const auto ndata = static_cast<omp_ulong>(preds.size() / nclass);
     if (!prob) tmp.resize(ndata);
 
     #pragma omp parallel

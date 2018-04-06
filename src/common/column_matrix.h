@@ -78,7 +78,7 @@ class ColumnMatrix {
        slot of internal buffer. */
     packing_factor_ = sizeof(uint32_t) / static_cast<size_t>(this->dtype);
 
-    const bst_uint nfeature = static_cast<bst_uint>(gmat.cut->row_ptr.size() - 1);
+    const auto nfeature = static_cast<bst_uint>(gmat.cut->row_ptr.size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
 
     // identify type of each column

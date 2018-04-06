@@ -6,6 +6,8 @@
 // dummy implementation of HostDeviceVector in case CUDA is not used
 
 #include <xgboost/base.h>
+
+#include <utility>
 #include "./host_device_vector.h"
 
 namespace xgboost {
@@ -14,7 +16,7 @@ template <typename T>
 struct HostDeviceVectorImpl {
   explicit HostDeviceVectorImpl(size_t size, T v) : data_h_(size, v) {}
   explicit HostDeviceVectorImpl(std::initializer_list<T> init) : data_h_(init) {}
-  explicit HostDeviceVectorImpl(const std::vector<T>& init) : data_h_(init) {}
+  explicit HostDeviceVectorImpl(std::vector<T>  init) : data_h_(std::move(init)) {}
   std::vector<T> data_h_;
 };
 

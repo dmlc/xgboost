@@ -30,13 +30,13 @@ struct EvalMClassBase : public Metric {
     CHECK_GE(nclass, 1U)
         << "mlogloss and merror are only used for multi-class classification,"
         << " use logloss for binary classification";
-    const bst_omp_uint ndata = static_cast<bst_omp_uint>(info.labels.size());
+    const auto ndata = static_cast<bst_omp_uint>(info.labels.size());
     double sum = 0.0, wsum = 0.0;
     int label_error = 0;
     #pragma omp parallel for reduction(+: sum, wsum) schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       const bst_float wt = info.GetWeight(i);
-      int label =  static_cast<int>(info.labels[i]);
+      auto label =  static_cast<int>(info.labels[i]);
       if (label >= 0 && label < static_cast<int>(nclass)) {
         sum += Derived::EvalRow(label,
                                 dmlc::BeginPtr(preds) + i * nclass,
@@ -99,7 +99,7 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
                                   const bst_float *pred,
                                   size_t nclass) {
     const bst_float eps = 1e-16f;
-    size_t k = static_cast<size_t>(label);
+    auto k = static_cast<size_t>(label);
     if (pred[k] > eps) {
       return -std::log(pred[k]);
     } else {

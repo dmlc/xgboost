@@ -269,8 +269,7 @@ class HistMaker: public BaseMaker {
 template<typename TStats>
 class CQHistMaker: public HistMaker<TStats> {
  public:
-  CQHistMaker()  {
-  }
+  CQHistMaker()  = default;
 
  protected:
   struct HistEntry {

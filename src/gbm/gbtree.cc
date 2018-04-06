@@ -167,8 +167,8 @@ class GBTree : public GradientBooster {
     model_.Load(fi);
 
     this->cfg.clear();
-    this->cfg.push_back(std::make_pair(std::string("num_feature"),
-                                       common::ToString(model_.param.num_feature)));
+    this->cfg.emplace_back(std::string("num_feature"),
+                                       common::ToString(model_.param.num_feature));
   }
 
   void Save(dmlc::Stream* fo) const override {
@@ -197,7 +197,7 @@ class GBTree : public GradientBooster {
       HostDeviceVector<bst_gpair> tmp(in_gpair->size() / ngroup,
                                       bst_gpair(), in_gpair->device());
       std::vector<bst_gpair>& gpair_h = in_gpair->data_h();
-      bst_omp_uint nsize = static_cast<bst_omp_uint>(tmp.size());
+      auto nsize = static_cast<bst_omp_uint>(tmp.size());
       for (int gid = 0; gid < ngroup; ++gid) {
         std::vector<bst_gpair>& tmp_h = tmp.data_h();
         #pragma omp parallel for schedule(static)
@@ -437,13 +437,13 @@ class Dart : public GBTree {
     CHECK_EQ(preds.size(), p_fmat->info().num_row * num_group);
     // start collecting the prediction
     dmlc::DataIter<RowBatch>* iter = p_fmat->RowIterator();
-    Derived* self = static_cast<Derived*>(this);
+    auto* self = static_cast<Derived*>(this);
     iter->BeforeFirst();
     while (iter->Next()) {
       const RowBatch &batch = iter->Value();
       // parallel over local batch
       const int K = 8;
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.size);
       const bst_omp_uint rest = nsize % K;
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize - rest; i += K) {
@@ -468,7 +468,7 @@ class Dart : public GBTree {
       }
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
         RegTree::FVec& feats = thread_temp[0];
-        const int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
+        const auto ridx = static_cast<int64_t>(batch.base_rowid + i);
         const RowBatch::Inst inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {
           const size_t offset = ridx * num_group + gid;
@@ -530,8 +530,8 @@ class Dart : public GBTree {
     if (!skip) {
       if (dparam.sample_type == 1) {
         bst_float sum_weight = 0.0;
-        for (size_t i = 0; i < weight_drop.size(); ++i) {
-          sum_weight += weight_drop[i];
+        for (float i : weight_drop) {
+          sum_weight += i;
         }
         for (size_t i = 0; i < weight_drop.size(); ++i) {
           if (runif(rnd) < dparam.rate_drop * weight_drop.size() * weight_drop[i] / sum_weight) {
@@ -575,8 +575,8 @@ class Dart : public GBTree {
       if (dparam.normalize_type == 1) {
         // normalize_type 1
         float factor = 1.0 / (1.0 + lr);
-        for (size_t i = 0; i < idx_drop.size(); ++i) {
-          weight_drop[idx_drop[i]] *= factor;
+        for (auto i : idx_drop) {
+          weight_drop[i] *= factor;
         }
         for (size_t i = 0; i < size_new_trees; ++i) {
           weight_drop.push_back(factor);
@@ -584,8 +584,8 @@ class Dart : public GBTree {
       } else {
         // normalize_type 0
         float factor = 1.0 * num_drop / (num_drop + lr);
-        for (size_t i = 0; i < idx_drop.size(); ++i) {
-          weight_drop[idx_drop[i]] *= factor;
+        for (auto i : idx_drop) {
+          weight_drop[i] *= factor;
         }
         for (size_t i = 0; i < size_new_trees; ++i) {
           weight_drop.push_back(1.0 / (num_drop + lr));
@@ -627,7 +627,7 @@ DMLC_REGISTER_PARAMETER(DartTrainParam);
 XGBOOST_REGISTER_GBM(GBTree, "gbtree")
 .describe("Tree booster, gradient boosted trees.")
 .set_body([](const std::vector<std::shared_ptr<DMatrix> >& cached_mats, bst_float base_margin) {
-    GBTree* p = new GBTree(base_margin);
+    auto* p = new GBTree(base_margin);
     p->InitCache(cached_mats);
     return p;
   });

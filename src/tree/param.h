@@ -209,7 +209,7 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   }
   /*! \brief maximum sketch size */
   inline unsigned max_sketch_size() const {
-    unsigned ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
+    auto ret = static_cast<unsigned>(sketch_ratio / sketch_eps);
     CHECK_GT(ret, 0U);
     return ret;
   }
@@ -364,7 +364,7 @@ template <typename param_t>
   /*! \brief set leaf vector value based on statistics */
   inline void SetLeafVec(const TrainParam& param, bst_float* vec) const {}
   // constructor to allow inheritance
-  GradStats() {}
+  GradStats() = default;
   /*! \brief add statistics to the data */
   inline void Add(double grad, double hess) {
     sum_grad += grad;
@@ -464,13 +464,13 @@ template <typename param_t>
  */
 struct SplitEntry {
   /*! \brief loss change after split this node */
-  bst_float loss_chg;
+  bst_float loss_chg{0.0f};
   /*! \brief split index */
-  unsigned sindex;
+  unsigned sindex{0};
   /*! \brief split value */
-  bst_float split_value;
+  bst_float split_value{0.0f};
   /*! \brief constructor */
-  SplitEntry() : loss_chg(0.0f), sindex(0), split_value(0.0f) {}
+  SplitEntry()  = default;
   /*!
    * \brief decides whether we can replace current entry with the given
    * statistics
@@ -542,7 +542,7 @@ struct SplitEntry {
 namespace std {
 inline std::ostream &operator<<(std::ostream &os, const std::vector<int> &t) {
   os << '(';
-  for (std::vector<int>::const_iterator it = t.begin(); it != t.end(); ++it) {
+  for (auto it = t.begin(); it != t.end(); ++it) {
     if (it != t.begin())
       os << ',';
     os << *it;

@@ -71,13 +71,13 @@ template<typename TSplitCond, typename TNodeStat>
 class TreeModel {
  public:
   /*! \brief data type to indicate split condition */
-  typedef TNodeStat  NodeStat;
+  using NodeStat = TNodeStat;
   /*! \brief auxiliary statistics of node to help tree building */
-  typedef TSplitCond SplitCond;
+  using SplitCond = TSplitCond;
   /*! \brief tree node */
   class Node {
    public:
-    Node() : sindex_(0) {
+    Node()  {
       // assert compact alignment
       static_assert(sizeof(Node) == 4 * sizeof(int) + sizeof(Info),
                     "Node: 64 bit align");
@@ -181,7 +181,7 @@ class TreeModel {
     // pointer to left, right
     int cleft_, cright_;
     // split feature index, left split or right split depends on the highest bit
-    unsigned sindex_;
+    unsigned sindex_{0};
     // extra info
     Info info_;
     // set parent
@@ -421,7 +421,7 @@ struct PathElement {
   bst_float zero_fraction;
   bst_float one_fraction;
   bst_float pweight;
-  PathElement() {}
+  PathElement() = default;
   PathElement(int i, bst_float z, bst_float o, bst_float w) :
     feature_index(i), zero_fraction(z), one_fraction(o), pweight(w) {}
 };
@@ -600,7 +600,7 @@ inline bool RegTree::FVec::is_missing(size_t i) const {
 }
 
 inline int RegTree::GetLeafIndex(const RegTree::FVec& feat, unsigned root_id) const {
-  int pid = static_cast<int>(root_id);
+  auto pid = static_cast<int>(root_id);
   while (!(*this)[pid].is_leaf()) {
     unsigned split_index = (*this)[pid].split_index();
     pid = this->GetNext(pid, feat.fvalue(split_index), feat.is_missing(split_index));
@@ -644,7 +644,7 @@ inline void RegTree::CalculateContributionsApprox(const RegTree::FVec& feat, uns
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
   bst_float node_value;
   unsigned split_index;
-  int pid = static_cast<int>(root_id);
+  auto pid = static_cast<int>(root_id);
   // update bias value
   node_value = this->node_mean_values[pid];
   out_contribs[feat.size()] += node_value;
@@ -826,7 +826,7 @@ inline void RegTree::CalculateContributions(const RegTree::FVec& feat, unsigned 
 
   // Preallocate space for the unique path data
   const int maxd = this->MaxDepth(root_id) + 2;
-  PathElement *unique_path_data = new PathElement[(maxd * (maxd + 1)) / 2];
+  auto *unique_path_data = new PathElement[(maxd * (maxd + 1)) / 2];
 
   TreeShap(feat, out_contribs, root_id, 0, unique_path_data,
            1, 1, -1, condition, condition_feature, 1);

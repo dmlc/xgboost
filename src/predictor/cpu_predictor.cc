@@ -59,7 +59,7 @@ class CPUPredictor : public Predictor {
       const RowBatch& batch = iter->Value();
       // parallel over local batch
       const int K = 8;
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.size);
       const bst_omp_uint rest = nsize % K;
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize - rest; i += K) {
@@ -84,7 +84,7 @@ class CPUPredictor : public Predictor {
       }
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
         RegTree::FVec& feats = thread_temp[0];
-        const int64_t ridx = static_cast<int64_t>(batch.base_rowid + i);
+        const auto ridx = static_cast<int64_t>(batch.base_rowid + i);
         const RowBatch::Inst inst = batch[i];
         for (int gid = 0; gid < num_group; ++gid) {
           const size_t offset = ridx * num_group + gid;
@@ -223,11 +223,11 @@ class CPUPredictor : public Predictor {
     while (iter->Next()) {
       const RowBatch& batch = iter->Value();
       // parallel over local batch
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.size);
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         const int tid = omp_get_thread_num();
-        size_t ridx = static_cast<size_t>(batch.base_rowid + i);
+        auto ridx = static_cast<size_t>(batch.base_rowid + i);
         RegTree::FVec& feats = thread_temp[tid];
         feats.Fill(batch[i]);
         for (unsigned j = 0; j < ntree_limit; ++j) {
@@ -272,10 +272,10 @@ class CPUPredictor : public Predictor {
     while (iter->Next()) {
       const RowBatch& batch = iter->Value();
       // parallel over local batch
-      const bst_omp_uint nsize = static_cast<bst_omp_uint>(batch.size);
+      const auto nsize = static_cast<bst_omp_uint>(batch.size);
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
-        size_t row_idx = static_cast<size_t>(batch.base_rowid + i);
+        auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         unsigned root_id = info.GetRoot(row_idx);
         RegTree::FVec& feats = thread_temp[omp_get_thread_num()];
         // loop over all classes

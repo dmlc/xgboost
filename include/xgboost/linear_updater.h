@@ -19,7 +19,7 @@ namespace xgboost {
 class LinearUpdater {
  public:
   /*! \brief virtual destructor */
-  virtual ~LinearUpdater() {}
+  virtual ~LinearUpdater() = default;
   /*!
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.

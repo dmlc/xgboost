@@ -10,7 +10,7 @@ struct XGBAPIErrorEntry {
   std::string last_error;
 };
 
-typedef dmlc::ThreadLocalStore<XGBAPIErrorEntry> XGBAPIErrorStore;
+using XGBAPIErrorStore = dmlc::ThreadLocalStore<XGBAPIErrorEntry>;
 
 const char *XGBGetLastError() {
   return XGBAPIErrorStore::Get()->last_error.c_str();

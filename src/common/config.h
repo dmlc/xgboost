@@ -24,21 +24,21 @@ class ConfigReaderBase {
    * \brief get current name, called after Next returns true
    * \return current parameter name
    */
-  inline const char *name(void) const {
+  inline const char *name() const {
     return s_name.c_str();
   }
   /*!
    * \brief get current value, called after Next returns true
    * \return current parameter value
    */
-  inline const char *val(void) const {
+  inline const char *val() const {
     return s_val.c_str();
   }
   /*!
    * \brief move iterator to next position
    * \return true if there is value in next position
    */
-  inline bool Next(void) {
+  inline bool Next() {
     while (!this->IsEnd()) {
       GetNextToken(&s_name);
       if (s_name == "=") return false;
@@ -49,7 +49,7 @@ class ConfigReaderBase {
     return false;
   }
   // called before usage
-  inline void Init(void) {
+  inline void Init() {
     ch_buf = this->GetChar();
   }
 
@@ -58,15 +58,15 @@ class ConfigReaderBase {
    * \brief to be implemented by subclass,
    * get next token, return EOF if end of file
    */
-  virtual char GetChar(void) = 0;
+  virtual char GetChar() = 0;
   /*! \brief to be implemented by child, check if end of stream */
-  virtual bool IsEnd(void) = 0;
+  virtual bool IsEnd() = 0;
 
  private:
   char ch_buf;
   std::string s_name, s_val, s_buf;
 
-  inline void SkipLine(void) {
+  inline void SkipLine() {
     do {
       ch_buf = this->GetChar();
     } while (ch_buf != EOF && ch_buf != '\n' && ch_buf != '\r');
@@ -152,11 +152,11 @@ class ConfigStreamReader: public ConfigReaderBase {
   explicit ConfigStreamReader(std::istream &fin) : fin(fin) {}
 
  protected:
-  virtual char GetChar(void) {
+  char GetChar() override {
     return fin.get();
   }
   /*! \brief to be implemented by child, check if end of stream */
-  virtual bool IsEnd(void) {
+  bool IsEnd() override {
     return fin.eof();
   }
 
@@ -181,7 +181,7 @@ class ConfigIterator: public ConfigStreamReader {
     ConfigReaderBase::Init();
   }
   /*! \brief destructor */
-  ~ConfigIterator(void) {
+  ~ConfigIterator() {
     fi.close();
   }
 

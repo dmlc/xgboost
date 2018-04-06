@@ -67,7 +67,7 @@ class SimpleDMatrix : public DMatrix {
   // in-memory column batch iterator.
   struct ColBatchIter: dmlc::DataIter<ColBatch> {
    public:
-    ColBatchIter() : data_ptr_(0), sorted(false) {}
+    ColBatchIter()  = default;
     void BeforeFirst() override {
       data_ptr_ = 0;
     }
@@ -86,11 +86,11 @@ class SimpleDMatrix : public DMatrix {
     // column sparse pages
     std::vector<std::unique_ptr<SparsePage> > cpages_;
     // data pointer
-    size_t data_ptr_;
+    size_t data_ptr_{0};
     // temporal space for batch
     ColBatch batch_;
     // Is column sorted?
-    bool sorted;
+    bool sorted{false};
   };
 
   // source data pointer.

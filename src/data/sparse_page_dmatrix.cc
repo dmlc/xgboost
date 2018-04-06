@@ -109,9 +109,9 @@ ColIterator(const std::vector<bst_uint>& fset) {
   CHECK(col_iter_.get() != nullptr);
   std::vector<bst_uint> col_index;
   size_t ncol = this->info().num_col;
-  for (size_t i = 0; i < fset.size(); ++i) {
-    if (fset[i] < ncol) {
-      col_index.push_back(fset[i]);
+  for (unsigned int i : fset) {
+    if (i < ncol) {
+      col_index.push_back(i);
     }
   }
   col_iter_->Init(col_index, false);
@@ -199,7 +199,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
     CHECK_EQ(pcol->Size(), info.num_col);
     // sort columns
     if (sorted) {
-      bst_omp_uint ncol = static_cast<bst_omp_uint>(pcol->Size());
+      auto ncol = static_cast<bst_omp_uint>(pcol->Size());
 #pragma omp parallel for schedule(dynamic, 1) num_threads(nthread)
       for (bst_omp_uint i = 0; i < ncol; ++i) {
         if (pcol->offset[i] < pcol->offset[i + 1]) {
@@ -220,7 +220,7 @@ void SparsePageDMatrix::InitColAccess(const std::vector<bool>& enabled,
         const RowBatch& batch = iter->Value();
         CHECK_EQ(batch_top, batch.size);
         for (size_t i = batch_ptr; i < batch_top; ++i) {
-          bst_uint ridx = static_cast<bst_uint>(batch.base_rowid + i);
+          auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
           if (pkeep == 1.0f || coin_flip(rnd)) {
             buffered_rowset_.push_back(ridx);
             tmp.Push(batch[i]);
