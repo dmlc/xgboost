@@ -81,8 +81,8 @@ namespace xgboost {
  * \brief unsigned integer type used in boost,
  *  used for feature index and row index.
  */
-using bst_uint = uint32_t;
-using bst_int = int32_t;
+using bst_uint = uint32_t;  // NOLINT
+using bst_int = int32_t;    // NOLINT
 /*! \brief long integers */
 typedef uint64_t bst_ulong;  // NOLINT(*)
 /*! \brief float type, used for storing statistics */
@@ -94,7 +94,7 @@ namespace detail {
  * may be used to overload different gradients types e.g. low precision, high
  * precision, integer, floating point. */
 template <typename T>
-class bst_gpair_internal {
+class BstGpairInternal {
   /*! \brief gradient statistics */
   T grad_;
   /*! \brief second order gradient statistics */
@@ -106,20 +106,20 @@ class bst_gpair_internal {
  public:
   using value_t = T;
 
-  XGBOOST_DEVICE bst_gpair_internal() : grad_(0), hess_(0) {}
+  XGBOOST_DEVICE BstGpairInternal() : grad_(0), hess_(0) {}
 
-  XGBOOST_DEVICE bst_gpair_internal(float grad, float hess) {
+  XGBOOST_DEVICE BstGpairInternal(float grad, float hess) {
     SetGrad(grad);
     SetHess(hess);
   }
 
   // Copy constructor if of same value type
-  XGBOOST_DEVICE bst_gpair_internal(const bst_gpair_internal<T> &g) = default;
+  XGBOOST_DEVICE BstGpairInternal(const BstGpairInternal<T> &g) = default;
 
   // Copy constructor if different value type - use getters and setters to
   // perform conversion
   template <typename T2>
-  XGBOOST_DEVICE explicit bst_gpair_internal(const bst_gpair_internal<T2> &g) {
+  XGBOOST_DEVICE explicit BstGpairInternal(const BstGpairInternal<T2> &g) {
     SetGrad(g.GetGrad());
     SetHess(g.GetHess());
   }
@@ -127,77 +127,77 @@ class bst_gpair_internal {
   XGBOOST_DEVICE float GetGrad() const { return grad_; }
   XGBOOST_DEVICE float GetHess() const { return hess_; }
 
-  XGBOOST_DEVICE bst_gpair_internal<T> &operator+=(
-      const bst_gpair_internal<T> &rhs) {
+  XGBOOST_DEVICE BstGpairInternal<T> &operator+=(
+      const BstGpairInternal<T> &rhs) {
     grad_ += rhs.grad_;
     hess_ += rhs.hess_;
     return *this;
   }
 
-  XGBOOST_DEVICE bst_gpair_internal<T> operator+(
-      const bst_gpair_internal<T> &rhs) const {
-    bst_gpair_internal<T> g;
+  XGBOOST_DEVICE BstGpairInternal<T> operator+(
+      const BstGpairInternal<T> &rhs) const {
+    BstGpairInternal<T> g;
     g.grad_ = grad_ + rhs.grad_;
     g.hess_ = hess_ + rhs.hess_;
     return g;
   }
 
-  XGBOOST_DEVICE bst_gpair_internal<T> &operator-=(
-      const bst_gpair_internal<T> &rhs) {
+  XGBOOST_DEVICE BstGpairInternal<T> &operator-=(
+      const BstGpairInternal<T> &rhs) {
     grad_ -= rhs.grad_;
     hess_ -= rhs.hess_;
     return *this;
   }
 
-  XGBOOST_DEVICE bst_gpair_internal<T> operator-(
-      const bst_gpair_internal<T> &rhs) const {
-    bst_gpair_internal<T> g;
+  XGBOOST_DEVICE BstGpairInternal<T> operator-(
+      const BstGpairInternal<T> &rhs) const {
+    BstGpairInternal<T> g;
     g.grad_ = grad_ - rhs.grad_;
     g.hess_ = hess_ - rhs.hess_;
     return g;
   }
 
-  XGBOOST_DEVICE explicit bst_gpair_internal(int value) {
-    *this = bst_gpair_internal<T>(static_cast<float>(value),
+  XGBOOST_DEVICE explicit BstGpairInternal(int value) {
+    *this = BstGpairInternal<T>(static_cast<float>(value),
                                   static_cast<float>(value));
   }
 
   friend std::ostream &operator<<(std::ostream &os,
-                                  const bst_gpair_internal<T> &g) {
+                                  const BstGpairInternal<T> &g) {
     os << g.GetGrad() << "/" << g.GetHess();
     return os;
   }
 };
 
 template<>
-inline XGBOOST_DEVICE float bst_gpair_internal<int64_t>::GetGrad() const {
+inline XGBOOST_DEVICE float BstGpairInternal<int64_t>::GetGrad() const {
   return grad_ * 1e-4f;
 }
 template<>
-inline XGBOOST_DEVICE float bst_gpair_internal<int64_t>::GetHess() const {
+inline XGBOOST_DEVICE float BstGpairInternal<int64_t>::GetHess() const {
   return hess_ * 1e-4f;
 }
 template<>
-inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetGrad(float g) {
+inline XGBOOST_DEVICE void BstGpairInternal<int64_t>::SetGrad(float g) {
   grad_ = static_cast<int64_t>(std::round(g * 1e4));
 }
 template<>
-inline XGBOOST_DEVICE void bst_gpair_internal<int64_t>::SetHess(float h) {
+inline XGBOOST_DEVICE void BstGpairInternal<int64_t>::SetHess(float h) {
   hess_ = static_cast<int64_t>(std::round(h * 1e4));
 }
 
 }  // namespace detail
 
 /*! \brief gradient statistics pair usually needed in gradient boosting */
-using bst_gpair = detail::bst_gpair_internal<float>;
+using bst_gpair = detail::BstGpairInternal<float>;
 
 /*! \brief High precision gradient statistics pair */
-using bst_gpair_precise = detail::bst_gpair_internal<double>;
+using bst_gpair_precise = detail::BstGpairInternal<double>;
 
 /*! \brief High precision gradient statistics pair with integer backed
  * storage. Operators are associative where floating point versions are not
  * associative. */
-using bst_gpair_integer = detail::bst_gpair_internal<int64_t>;
+using bst_gpair_integer = detail::BstGpairInternal<int64_t>;
 
 /*! \brief small eps gap for minimum split decision. */
 const bst_float rt_eps = 1e-6f;

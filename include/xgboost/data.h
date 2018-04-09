@@ -206,7 +206,7 @@ class DataSource : public dmlc::DataIter<RowBatch> {
  * \brief A vector-like structure to represent set of rows.
  * But saves the memory when all rows are in the set (common case in xgb)
  */
-struct RowSet {
+class RowSet {
  public:
   /*! \return i-th row index */
   inline bst_uint operator[](size_t i) const;
